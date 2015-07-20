@@ -17,6 +17,7 @@
  */
 package org.apache.cassandra.db.partitions;
 
+import org.apache.cassandra.config.CFMetaData;
 import org.apache.cassandra.db.rows.UnfilteredRowIterator;
 import org.apache.cassandra.db.rows.UnfilteredRowIterators;
 
@@ -42,6 +43,11 @@ public abstract class WrappingUnfilteredPartitionIterator extends AbstractUnfilt
     public boolean isForThrift()
     {
         return wrapped.isForThrift();
+    }
+
+    public CFMetaData metadata()
+    {
+        return wrapped.metadata();
     }
 
     public boolean hasNext()

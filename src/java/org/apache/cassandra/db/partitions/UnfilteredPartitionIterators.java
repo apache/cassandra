@@ -39,30 +39,39 @@ public abstract class UnfilteredPartitionIterators
 
     private static final Comparator<UnfilteredRowIterator> partitionComparator = (p1, p2) -> p1.partitionKey().compareTo(p2.partitionKey());
 
-    public static final UnfilteredPartitionIterator EMPTY = new AbstractUnfilteredPartitionIterator()
-    {
-        public boolean isForThrift()
-        {
-            return false;
-        }
-
-        public boolean hasNext()
-        {
-            return false;
-        }
-
-        public UnfilteredRowIterator next()
-        {
-            throw new NoSuchElementException();
-        }
-    };
-
     private UnfilteredPartitionIterators() {}
 
     public interface MergeListener
     {
         public UnfilteredRowIterators.MergeListener getRowMergeListener(DecoratedKey partitionKey, List<UnfilteredRowIterator> versions);
         public void close();
+    }
+
+
+    public static UnfilteredPartitionIterator empty(final CFMetaData metadata)
+    {
+        return new AbstractUnfilteredPartitionIterator()
+        {
+            public boolean isForThrift()
+            {
+                return false;
+            }
+
+            public CFMetaData metadata()
+            {
+                return metadata;
+            }
+
+            public boolean hasNext()
+            {
+                return false;
+            }
+
+            public UnfilteredRowIterator next()
+            {
+                throw new NoSuchElementException();
+            }
+        };
     }
 
     @SuppressWarnings("resource") // The created resources are returned right away
@@ -163,18 +172,17 @@ public abstract class UnfilteredPartitionIterators
         assert !iterators.isEmpty();
 
         final boolean isForThrift = iterators.get(0).isForThrift();
+        final CFMetaData metadata = iterators.get(0).metadata();
 
         final MergeIterator<UnfilteredRowIterator, UnfilteredRowIterator> merged = MergeIterator.get(iterators, partitionComparator, new MergeIterator.Reducer<UnfilteredRowIterator, UnfilteredRowIterator>()
         {
             private final List<UnfilteredRowIterator> toMerge = new ArrayList<>(iterators.size());
 
-            private CFMetaData metadata;
             private DecoratedKey partitionKey;
             private boolean isReverseOrder;
 
             public void reduce(int idx, UnfilteredRowIterator current)
             {
-                metadata = current.metadata();
                 partitionKey = current.partitionKey();
                 isReverseOrder = current.isReverseOrder();
 
@@ -210,6 +218,11 @@ public abstract class UnfilteredPartitionIterators
                 return isForThrift;
             }
 
+            public CFMetaData metadata()
+            {
+                return metadata;
+            }
+
             public boolean hasNext()
             {
                 return merged.hasNext();
@@ -236,6 +249,7 @@ public abstract class UnfilteredPartitionIterators
             return iterators.get(0);
 
         final boolean isForThrift = iterators.get(0).isForThrift();
+        final CFMetaData metadata = iterators.get(0).metadata();
 
         final MergeIterator<UnfilteredRowIterator, UnfilteredRowIterator> merged = MergeIterator.get(iterators, partitionComparator, new MergeIterator.Reducer<UnfilteredRowIterator, UnfilteredRowIterator>()
         {
@@ -274,6 +288,11 @@ public abstract class UnfilteredPartitionIterators
             public boolean isForThrift()
             {
                 return isForThrift;
+            }
+
+            public CFMetaData metadata()
+            {
+                return metadata;
             }
 
             public boolean hasNext()
@@ -353,7 +372,7 @@ public abstract class UnfilteredPartitionIterators
             out.writeBoolean(false);
         }
 
-        public UnfilteredPartitionIterator deserialize(final DataInputPlus in, final int version, final SerializationHelper.Flag flag) throws IOException
+        public UnfilteredPartitionIterator deserialize(final DataInputPlus in, final int version, final CFMetaData metadata, final SerializationHelper.Flag flag) throws IOException
         {
             if (version < MessagingService.VERSION_30)
                 throw new UnsupportedOperationException();
@@ -369,6 +388,11 @@ public abstract class UnfilteredPartitionIterators
                 public boolean isForThrift()
                 {
                     return isForThrift;
+                }
+
+                public CFMetaData metadata()
+                {
+                    return metadata;
                 }
 
                 public boolean hasNext()
@@ -401,7 +425,7 @@ public abstract class UnfilteredPartitionIterators
                     try
                     {
                         nextReturned = true;
-                        next = UnfilteredRowIteratorSerializer.serializer.deserialize(in, version, flag);
+                        next = UnfilteredRowIteratorSerializer.serializer.deserialize(in, version, metadata, flag);
                         return next;
                     }
                     catch (IOException e)

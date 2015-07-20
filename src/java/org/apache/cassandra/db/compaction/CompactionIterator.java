@@ -20,6 +20,7 @@ package org.apache.cassandra.db.compaction;
 import java.util.UUID;
 import java.util.List;
 
+import org.apache.cassandra.config.CFMetaData;
 import org.apache.cassandra.config.ColumnDefinition;
 import org.apache.cassandra.db.*;
 import org.apache.cassandra.db.index.SecondaryIndexManager;
@@ -93,13 +94,18 @@ public class CompactionIterator extends CompactionInfo.Holder implements Unfilte
             metrics.beginCompaction(this);
 
         this.compacted = scanners.isEmpty()
-                       ? UnfilteredPartitionIterators.EMPTY
+                       ? UnfilteredPartitionIterators.empty(controller.cfs.metadata)
                        : new PurgeIterator(UnfilteredPartitionIterators.merge(scanners, nowInSec, listener()), controller);
     }
 
     public boolean isForThrift()
     {
         return false;
+    }
+
+    public CFMetaData metadata()
+    {
+        return controller.cfs.metadata;
     }
 
     public CompactionInfo getCompactionInfo()

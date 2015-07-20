@@ -28,6 +28,7 @@ import com.google.common.primitives.Doubles;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import org.apache.cassandra.config.CFMetaData;
 import org.apache.cassandra.db.ColumnFamilyStore;
 import org.apache.cassandra.db.lifecycle.LifecycleTransaction;
 import org.apache.cassandra.db.rows.UnfilteredRowIterator;
@@ -339,6 +340,11 @@ public class LeveledCompactionStrategy extends AbstractCompactionStrategy
         public boolean isForThrift()
         {
             return false;
+        }
+
+        public CFMetaData metadata()
+        {
+            return sstables.get(0).metadata; // The ctor checks we have at least one sstable
         }
 
         protected UnfilteredRowIterator computeNext()

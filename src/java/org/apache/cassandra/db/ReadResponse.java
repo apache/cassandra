@@ -23,6 +23,7 @@ import java.security.MessageDigest;
 import java.util.ArrayList;
 import java.util.List;
 
+import org.apache.cassandra.config.CFMetaData;
 import org.apache.cassandra.db.rows.*;
 import org.apache.cassandra.db.partitions.*;
 import org.apache.cassandra.io.IVersionedSerializer;
@@ -39,6 +40,15 @@ public abstract class ReadResponse
     public static final IVersionedSerializer<ReadResponse> serializer = new Serializer();
     public static final IVersionedSerializer<ReadResponse> legacyRangeSliceReplySerializer = new LegacyRangeSliceReplySerializer();
 
+    // This is used only when serializing data responses and we can't it easily in other cases. So this can be null, which is slighly
+    // hacky, but as this hack doesn't escape this class, and it's easy enough to validate that it's not null when we need, it's "good enough".
+    private final CFMetaData metadata;
+
+    protected ReadResponse(CFMetaData metadata)
+    {
+        this.metadata = metadata;
+    }
+
     public static ReadResponse createDataResponse(UnfilteredPartitionIterator data)
     {
         return new DataResponse(data);
@@ -49,8 +59,8 @@ public abstract class ReadResponse
         return new DigestResponse(makeDigest(data));
     }
 
-    public abstract UnfilteredPartitionIterator makeIterator();
-    public abstract ByteBuffer digest();
+    public abstract UnfilteredPartitionIterator makeIterator(CFMetaData metadata);
+    public abstract ByteBuffer digest(CFMetaData metadata);
     public abstract boolean isDigestQuery();
 
     protected static ByteBuffer makeDigest(UnfilteredPartitionIterator iterator)
@@ -66,16 +76,17 @@ public abstract class ReadResponse
 
         private DigestResponse(ByteBuffer digest)
         {
+            super(null);
             assert digest.hasRemaining();
             this.digest = digest;
         }
 
-        public UnfilteredPartitionIterator makeIterator()
+        public UnfilteredPartitionIterator makeIterator(CFMetaData metadata)
         {
             throw new UnsupportedOperationException();
         }
 
-        public ByteBuffer digest()
+        public ByteBuffer digest(CFMetaData metadata)
         {
             return digest;
         }
@@ -94,12 +105,14 @@ public abstract class ReadResponse
 
         private DataResponse(ByteBuffer data)
         {
+            super(null); // This is never call on the serialization side, where we actually care of the metadata.
             this.data = data;
             this.flag = SerializationHelper.Flag.FROM_REMOTE;
         }
 
         private DataResponse(UnfilteredPartitionIterator iter)
         {
+            super(iter.metadata());
             try (DataOutputBuffer buffer = new DataOutputBuffer())
             {
                 UnfilteredPartitionIterators.serializerForIntraNode().serialize(iter, buffer, MessagingService.current_version);
@@ -113,12 +126,12 @@ public abstract class ReadResponse
             }
         }
 
-        public UnfilteredPartitionIterator makeIterator()
+        public UnfilteredPartitionIterator makeIterator(CFMetaData metadata)
         {
             try
             {
                 DataInputPlus in = new DataInputBuffer(data, true);
-                return UnfilteredPartitionIterators.serializerForIntraNode().deserialize(in, MessagingService.current_version, flag);
+                return UnfilteredPartitionIterators.serializerForIntraNode().deserialize(in, MessagingService.current_version, metadata, flag);
             }
             catch (IOException e)
             {
@@ -127,9 +140,9 @@ public abstract class ReadResponse
             }
         }
 
-        public ByteBuffer digest()
+        public ByteBuffer digest(CFMetaData metadata)
         {
-            try (UnfilteredPartitionIterator iterator = makeIterator())
+            try (UnfilteredPartitionIterator iterator = makeIterator(metadata))
             {
                 return makeDigest(iterator);
             }
@@ -152,7 +165,7 @@ public abstract class ReadResponse
             }
 
             boolean isDigest = response.isDigestQuery();
-            ByteBufferUtil.writeWithShortLength(isDigest ? response.digest() : ByteBufferUtil.EMPTY_BYTE_BUFFER, out);
+            ByteBufferUtil.writeWithShortLength(isDigest ? response.digest(response.metadata) : ByteBufferUtil.EMPTY_BYTE_BUFFER, out);
             if (!isDigest)
             {
                 // Note that we can only get there if version == 3.0, which is the current_version. When we'll change the
@@ -189,7 +202,7 @@ public abstract class ReadResponse
             }
 
             boolean isDigest = response.isDigestQuery();
-            long size = ByteBufferUtil.serializedSizeWithShortLength(isDigest ? response.digest() : ByteBufferUtil.EMPTY_BYTE_BUFFER);
+            long size = ByteBufferUtil.serializedSizeWithShortLength(isDigest ? response.digest(response.metadata) : ByteBufferUtil.EMPTY_BYTE_BUFFER);
 
             if (!isDigest)
             {

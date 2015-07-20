@@ -25,6 +25,7 @@ import com.google.common.collect.AbstractIterator;
 import com.google.common.collect.Iterators;
 import com.google.common.util.concurrent.RateLimiter;
 
+import org.apache.cassandra.config.CFMetaData;
 import org.apache.cassandra.db.*;
 import org.apache.cassandra.db.rows.*;
 import org.apache.cassandra.db.filter.*;
@@ -62,7 +63,7 @@ public class BigTableScanner implements ISSTableScanner
     private final RowIndexEntry.IndexSerializer rowIndexEntrySerializer;
     private final boolean isForThrift;
 
-    protected UnfilteredPartitionIterator iterator;
+    protected Iterator<UnfilteredRowIterator> iterator;
 
     // Full scan of the sstables
     public static ISSTableScanner getScanner(SSTableReader sstable, RateLimiter limiter)
@@ -80,7 +81,7 @@ public class BigTableScanner implements ISSTableScanner
         // We want to avoid allocating a SSTableScanner if the range don't overlap the sstable (#5249)
         List<Pair<Long, Long>> positions = sstable.getPositionsForRanges(tokenRanges);
         if (positions.isEmpty())
-            return new EmptySSTableScanner(sstable.getFilename());
+            return new EmptySSTableScanner(sstable);
 
         return new BigTableScanner(sstable, ColumnFilter.all(sstable.metadata), null, limiter, false, makeBounds(sstable, tokenRanges).iterator());
     }
@@ -227,6 +228,11 @@ public class BigTableScanner implements ISSTableScanner
         return isForThrift;
     }
 
+    public CFMetaData metadata()
+    {
+        return sstable.metadata;
+    }
+
     public boolean hasNext()
     {
         if (iterator == null)
@@ -246,22 +252,17 @@ public class BigTableScanner implements ISSTableScanner
         throw new UnsupportedOperationException();
     }
 
-    private UnfilteredPartitionIterator createIterator()
+    private Iterator<UnfilteredRowIterator> createIterator()
     {
         return new KeyScanningIterator();
     }
 
-    protected class KeyScanningIterator extends AbstractIterator<UnfilteredRowIterator> implements UnfilteredPartitionIterator
+    protected class KeyScanningIterator extends AbstractIterator<UnfilteredRowIterator>
     {
         private DecoratedKey nextKey;
         private RowIndexEntry nextEntry;
         private DecoratedKey currentKey;
         private RowIndexEntry currentEntry;
-
-        public boolean isForThrift()
-        {
-            return isForThrift;
-        }
 
         protected UnfilteredRowIterator computeNext()
         {
@@ -345,11 +346,6 @@ public class BigTableScanner implements ISSTableScanner
                 throw new CorruptSSTableException(e, sstable.getFilename());
             }
         }
-
-        public void close()
-        {
-            BigTableScanner.this.close();
-        }
     }
 
     @Override
@@ -364,11 +360,11 @@ public class BigTableScanner implements ISSTableScanner
 
     public static class EmptySSTableScanner extends AbstractUnfilteredPartitionIterator implements ISSTableScanner
     {
-        private final String filename;
+        private final SSTableReader sstable;
 
-        public EmptySSTableScanner(String filename)
+        public EmptySSTableScanner(SSTableReader sstable)
         {
-            this.filename = filename;
+            this.sstable = sstable;
         }
 
         public long getLengthInBytes()
@@ -383,12 +379,17 @@ public class BigTableScanner implements ISSTableScanner
 
         public String getBackingFiles()
         {
-            return filename;
+            return sstable.getFilename();
         }
 
         public boolean isForThrift()
         {
             return false;
+        }
+
+        public CFMetaData metadata()
+        {
+            return sstable.metadata;
         }
 
         public boolean hasNext()

@@ -19,6 +19,7 @@ package org.apache.cassandra.db.partitions;
 
 import java.util.Iterator;
 
+import org.apache.cassandra.config.CFMetaData;
 import org.apache.cassandra.db.rows.UnfilteredRowIterator;
 
 /**
@@ -41,6 +42,8 @@ public interface UnfilteredPartitionIterator extends Iterator<UnfilteredRowItera
      * @return whether the iterator is for a thrift query.
      */
     public boolean isForThrift();
+
+    public CFMetaData metadata();
 
     public void close();
 }

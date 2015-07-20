@@ -284,6 +284,11 @@ public class Memtable implements Comparable<Memtable>
                 return isForThrift;
             }
 
+            public CFMetaData metadata()
+            {
+                return cfs.metadata;
+            }
+
             public boolean hasNext()
             {
                 return iter.hasNext();

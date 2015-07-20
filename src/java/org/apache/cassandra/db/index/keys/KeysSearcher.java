@@ -23,6 +23,7 @@ import java.util.Set;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import org.apache.cassandra.config.CFMetaData;
 import org.apache.cassandra.config.ColumnDefinition;
 import org.apache.cassandra.db.*;
 import org.apache.cassandra.db.rows.*;
@@ -56,6 +57,11 @@ public class KeysSearcher extends SecondaryIndexSearcher
             public boolean isForThrift()
             {
                 return command.isForThrift();
+            }
+
+            public CFMetaData metadata()
+            {
+                return command.metadata();
             }
 
             public boolean hasNext()

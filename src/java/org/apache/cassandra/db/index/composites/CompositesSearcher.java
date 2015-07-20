@@ -23,6 +23,7 @@ import java.util.*;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import org.apache.cassandra.config.CFMetaData;
 import org.apache.cassandra.config.ColumnDefinition;
 import org.apache.cassandra.db.*;
 import org.apache.cassandra.db.rows.*;
@@ -67,6 +68,11 @@ public class CompositesSearcher extends SecondaryIndexSearcher
             public boolean isForThrift()
             {
                 return command.isForThrift();
+            }
+
+            public CFMetaData metadata()
+            {
+                return command.metadata();
             }
 
             public boolean hasNext()
@@ -125,7 +131,7 @@ public class CompositesSearcher extends SecondaryIndexSearcher
 
                 // Query the gathered index hits. We still need to filter stale hits from the resulting query.
                 ClusteringIndexNamesFilter filter = new ClusteringIndexNamesFilter(clusterings.build(), false);
-                SinglePartitionReadCommand dataCmd = new SinglePartitionNamesCommand(baseCfs.metadata,
+                SinglePartitionReadCommand dataCmd = new SinglePartitionNamesCommand(metadata(),
                                                                                      command.nowInSec(),
                                                                                      command.columnFilter(),
                                                                                      command.rowFilter(),

@@ -687,6 +687,7 @@ public class PartitionUpdate extends AbstractThreadUnsafePartition
                 // assert count == written: "Table had " + count + " columns, but " + written + " written";
             }
 
+            CFMetaData.serializer.serialize(update.metadata(), out, version);
             try (UnfilteredRowIterator iter = update.sliceableUnfilteredIterator())
             {
                 assert !iter.isReverseOrder();
@@ -717,17 +718,18 @@ public class PartitionUpdate extends AbstractThreadUnsafePartition
 
             assert key == null; // key is only there for the old format
 
-            UnfilteredRowIteratorSerializer.Header header = UnfilteredRowIteratorSerializer.serializer.deserializeHeader(in, version, flag);
+            CFMetaData metadata = CFMetaData.serializer.deserialize(in, version);
+            UnfilteredRowIteratorSerializer.Header header = UnfilteredRowIteratorSerializer.serializer.deserializeHeader(in, version, metadata, flag);
             if (header.isEmpty)
-                return emptyUpdate(header.metadata, header.key);
+                return emptyUpdate(metadata, header.key);
 
             assert !header.isReversed;
             assert header.rowEstimate >= 0;
 
-            MutableDeletionInfo.Builder deletionBuilder = MutableDeletionInfo.builder(header.partitionDeletion, header.metadata.comparator, false);
+            MutableDeletionInfo.Builder deletionBuilder = MutableDeletionInfo.builder(header.partitionDeletion, metadata.comparator, false);
             List<Row> rows = new ArrayList<>(header.rowEstimate);
 
-            try (UnfilteredRowIterator partition = UnfilteredRowIteratorSerializer.serializer.deserialize(in, version, flag, header))
+            try (UnfilteredRowIterator partition = UnfilteredRowIteratorSerializer.serializer.deserialize(in, version, metadata, flag, header))
             {
                 while (partition.hasNext())
                 {
@@ -739,7 +741,7 @@ public class PartitionUpdate extends AbstractThreadUnsafePartition
                 }
             }
 
-            return new PartitionUpdate(header.metadata,
+            return new PartitionUpdate(metadata,
                                        header.key,
                                        header.sHeader.columns(),
                                        header.staticRow,
@@ -770,7 +772,8 @@ public class PartitionUpdate extends AbstractThreadUnsafePartition
 
             try (UnfilteredRowIterator iter = update.sliceableUnfilteredIterator())
             {
-                return UnfilteredRowIteratorSerializer.serializer.serializedSize(iter, version, update.rows.size());
+                return CFMetaData.serializer.serializedSize(update.metadata(), version)
+                     + UnfilteredRowIteratorSerializer.serializer.serializedSize(iter, version, update.rows.size());
             }
         }
     }

@@ -19,6 +19,7 @@ package org.apache.cassandra.db.partitions;
 
 import java.util.NoSuchElementException;
 
+import org.apache.cassandra.config.CFMetaData;
 import org.apache.cassandra.db.rows.UnfilteredRowIterator;
 
 public class SingletonUnfilteredPartitionIterator implements UnfilteredPartitionIterator
@@ -36,6 +37,11 @@ public class SingletonUnfilteredPartitionIterator implements UnfilteredPartition
     public boolean isForThrift()
     {
         return isForThrift;
+    }
+
+    public CFMetaData metadata()
+    {
+        return iter.metadata();
     }
 
     public boolean hasNext()
