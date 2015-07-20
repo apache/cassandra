@@ -17,7 +17,6 @@
  */
 package org.apache.cassandra.config;
 
-import java.io.DataInput;
 import java.io.IOException;
 import java.lang.reflect.Constructor;
 import java.lang.reflect.InvocationTargetException;
@@ -49,6 +48,7 @@ import org.apache.cassandra.db.marshal.*;
 import org.apache.cassandra.exceptions.*;
 import org.apache.cassandra.io.compress.CompressionParameters;
 import org.apache.cassandra.io.compress.LZ4Compressor;
+import org.apache.cassandra.io.util.DataInputPlus;
 import org.apache.cassandra.io.util.DataOutputPlus;
 import org.apache.cassandra.schema.SchemaKeyspace;
 import org.apache.cassandra.schema.Triggers;
@@ -1507,23 +1507,16 @@ public final class CFMetaData
         }
     }
 
-    // We don't use UUIDSerializer below because we want to use this with vint-encoded streams and UUIDSerializer
-    // currently assumes a NATIVE encoding. This is also why we don't use writeLong()/readLong in the methods below:
-    // this would encode the values, but by design of UUID it is likely that both long will be very big numbers
-    // and so we have a fair change that the encoding will take more than 16 bytes which is not desirable. Note that
-    // we could make UUIDSerializer work as the serializer below, but I'll keep that to later.
     public static class Serializer
     {
         public void serialize(CFMetaData metadata, DataOutputPlus out, int version) throws IOException
         {
-            // for some reason these are stored is LITTLE_ENDIAN; so just reverse them
-            out.writeLong(Long.reverseBytes(metadata.cfId.getMostSignificantBits()));
-            out.writeLong(Long.reverseBytes(metadata.cfId.getLeastSignificantBits()));
+            UUIDSerializer.serializer.serialize(metadata.cfId, out, version);
         }
 
-        public CFMetaData deserialize(DataInput in, int version) throws IOException
+        public CFMetaData deserialize(DataInputPlus in, int version) throws IOException
         {
-            UUID cfId = new UUID(Long.reverseBytes(in.readLong()), Long.reverseBytes(in.readLong()));
+            UUID cfId = UUIDSerializer.serializer.deserialize(in, version);
             CFMetaData metadata = Schema.instance.getCFMetaData(cfId);
             if (metadata == null)
             {
@@ -1538,8 +1531,7 @@ public final class CFMetaData
 
         public long serializedSize(CFMetaData metadata, int version)
         {
-            // We've made sure it was encoded as 16 bytes whatever the TypeSizes is.
-            return 16;
+            return UUIDSerializer.serializer.serializedSize(metadata.cfId, version);
         }
     }
 

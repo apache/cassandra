@@ -116,7 +116,7 @@ public abstract class ReadResponse
         {
             try
             {
-                DataInput in = new DataInputStream(ByteBufferUtil.inputStream(data));
+                DataInputPlus in = new DataInputPlus.DataInputStreamPlus(ByteBufferUtil.inputStream(data));
                 return UnfilteredPartitionIterators.serializerForIntraNode().deserialize(in, MessagingService.current_version, flag);
             }
             catch (IOException e)

@@ -26,6 +26,7 @@ import org.slf4j.LoggerFactory;
 
 import org.apache.cassandra.config.CFMetaData;
 import org.apache.cassandra.db.*;
+import org.apache.cassandra.io.util.DataInputPlus;
 import org.apache.cassandra.io.util.DataOutputPlus;
 import org.apache.cassandra.service.StorageService;
 import org.apache.cassandra.utils.ByteBufferUtil;
@@ -174,7 +175,7 @@ public class UnfilteredRowIteratorSerializer
         return size;
     }
 
-    public Header deserializeHeader(DataInput in, int version, SerializationHelper.Flag flag) throws IOException
+    public Header deserializeHeader(DataInputPlus in, int version, SerializationHelper.Flag flag) throws IOException
     {
         CFMetaData metadata = CFMetaData.serializer.deserialize(in, version);
         DecoratedKey key = StorageService.getPartitioner().decorateKey(ByteBufferUtil.readWithLength(in));
@@ -207,7 +208,7 @@ public class UnfilteredRowIteratorSerializer
         while (UnfilteredSerializer.serializer.deserialize(in, header, helper, rowWriter, markerWriter) != null);
     }
 
-    public UnfilteredRowIterator deserialize(final DataInput in, int version, SerializationHelper.Flag flag) throws IOException
+    public UnfilteredRowIterator deserialize(final DataInputPlus in, int version, SerializationHelper.Flag flag) throws IOException
     {
         final Header h = deserializeHeader(in, version, flag);
 
