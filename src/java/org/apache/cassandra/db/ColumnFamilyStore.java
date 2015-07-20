@@ -1200,7 +1200,7 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
 
     private static String ratio(float onHeap, float offHeap)
     {
-        return String.format("%.0f/%.0f", onHeap, offHeap);
+        return String.format("%.2f/%.2f", onHeap, offHeap);
     }
 
     public void maybeUpdateRowCache(DecoratedKey key)
