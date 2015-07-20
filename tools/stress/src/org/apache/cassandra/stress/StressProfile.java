@@ -59,6 +59,7 @@ public class StressProfile implements Serializable
 {
     private String keyspaceCql;
     private String tableCql;
+    private List<String> extraSchemaDefinitions;
     private String seedStr;
 
     public String keyspaceName;
@@ -92,6 +93,8 @@ public class StressProfile implements Serializable
         seedStr = "seed for stress";
         queries = yaml.queries;
         insert = yaml.insert;
+
+        extraSchemaDefinitions = yaml.extra_definitions;
 
         assert keyspaceName != null : "keyspace name is required in yaml file";
         assert tableName != null : "table name is required in yaml file";
@@ -182,6 +185,24 @@ public class StressProfile implements Serializable
             }
 
             System.out.println(String.format("Created schema. Sleeping %ss for propagation.", settings.node.nodes.size()));
+            Uninterruptibles.sleepUninterruptibly(settings.node.nodes.size(), TimeUnit.SECONDS);
+        }
+
+        if (extraSchemaDefinitions != null)
+        {
+            for (String extraCql : extraSchemaDefinitions)
+            {
+
+                try
+                {
+                    client.execute(extraCql, org.apache.cassandra.db.ConsistencyLevel.ONE);
+                }
+                catch (AlreadyExistsException e)
+                {
+                }
+            }
+
+            System.out.println(String.format("Created extra schema. Sleeping %ss for propagation.", settings.node.nodes.size()));
             Uninterruptibles.sleepUninterruptibly(settings.node.nodes.size(), TimeUnit.SECONDS);
         }
 

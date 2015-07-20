@@ -30,6 +30,8 @@ public class StressYaml
     public String table;
     public String table_definition;
 
+    public List<String> extra_definitions;
+
     public List<Map<String, Object>> columnspec;
     public Map<String, QueryDef> queries;
     public Map<String, String> insert;
