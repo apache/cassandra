@@ -942,9 +942,10 @@ public class SelectStatement implements CQLStatement
 
     public static class Parameters
     {
-        private final Map<ColumnIdentifier.Raw, Boolean> orderings;
-        private final boolean isDistinct;
-        private final boolean allowFiltering;
+        // Public because CASSANDRA-9858
+        public final Map<ColumnIdentifier.Raw, Boolean> orderings;
+        public final boolean isDistinct;
+        public final boolean allowFiltering;
         public final boolean isJson;
 
         public Parameters(Map<ColumnIdentifier.Raw, Boolean> orderings,
