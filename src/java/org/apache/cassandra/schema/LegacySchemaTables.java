@@ -1185,10 +1185,10 @@ public class LegacySchemaTables
         ColumnDefinition.Kind kind = deserializeKind(row.getString("type"));
 
         Integer componentIndex = null;
-        if (row.has("component_index"))
-            componentIndex = row.getInt("component_index");
-        else if (kind == ColumnDefinition.Kind.CLUSTERING_COLUMN && isSuper)
+        if (kind == ColumnDefinition.Kind.REGULAR && isSuper)
             componentIndex = 1; // A ColumnDefinition for super columns applies to the column component
+        else if (row.has("component_index"))
+            componentIndex = row.getInt("component_index");
 
         // Note: we save the column name as string, but we should not assume that it is an UTF8 name, we
         // we need to use the comparator fromString method
