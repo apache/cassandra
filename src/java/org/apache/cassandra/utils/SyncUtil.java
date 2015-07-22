@@ -1,10 +1,6 @@
 package org.apache.cassandra.utils;
 
-import java.io.FileDescriptor;
-import java.io.FileOutputStream;
-import java.io.IOException;
-import java.io.RandomAccessFile;
-import java.io.SyncFailedException;
+import java.io.*;
 import java.lang.reflect.Field;
 import java.nio.MappedByteBuffer;
 import java.nio.channels.ClosedChannelException;
@@ -161,5 +157,21 @@ public class SyncUtil
             return;
         else
             CLibrary.trySync(fd);
+    }
+
+    public static void trySyncDir(File dir)
+    {
+        if (SKIP_SYNC)
+            return;
+
+        int directoryFD = CLibrary.tryOpenDirectory(dir.getPath());
+        try
+        {
+            trySync(directoryFD);
+        }
+        finally
+        {
+            CLibrary.tryCloseFD(directoryFD);
+        }
     }
 }

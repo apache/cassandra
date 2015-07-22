@@ -467,6 +467,10 @@ public class BufferedRandomAccessFileTest
             }
         }, AssertionError.class);
 
+        //Used to throw ClosedChannelException, but now that it extends BDOSP it just NPEs on the buffer
+        //Writing to a BufferedOutputStream that is closed generates no error
+        //Going to allow the NPE to throw to catch as a bug any use after close. Notably it won't throw NPE for a
+        //write of a 0 length, but that is kind of a corner case
         expectException(new Callable<Object>()
         {
             public Object call() throws IOException
@@ -474,7 +478,7 @@ public class BufferedRandomAccessFileTest
                 w.write(generateByteArray(1));
                 return null;
             }
-        }, ClosedChannelException.class);
+        }, NullPointerException.class);
 
         try (RandomAccessReader copy = RandomAccessReader.open(new File(r.getPath())))
         {

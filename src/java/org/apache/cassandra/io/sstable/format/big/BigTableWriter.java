@@ -342,7 +342,7 @@ public class BigTableWriter extends SSTableWriter
         File file = new File(desc.filenameFor(Component.STATS));
         try (SequentialWriter out = SequentialWriter.open(file))
         {
-            desc.getMetadataSerializer().serialize(components, out.stream);
+            desc.getMetadataSerializer().serialize(components, out);
             out.setDescriptor(desc).finish();
         }
         catch (IOException e)
@@ -407,8 +407,8 @@ public class BigTableWriter extends SSTableWriter
             long indexStart = indexFile.getFilePointer();
             try
             {
-                ByteBufferUtil.writeWithShortLength(key.getKey(), indexFile.stream);
-                rowIndexEntrySerializer.serialize(indexEntry, indexFile.stream);
+                ByteBufferUtil.writeWithShortLength(key.getKey(), indexFile);
+                rowIndexEntrySerializer.serialize(indexEntry, indexFile);
             }
             catch (IOException e)
             {
