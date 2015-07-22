@@ -456,7 +456,7 @@ abstract class AbstractSSTableIterator implements SliceableUnfilteredRowIterator
         // Check if we've crossed an index boundary (based on the mark on the beginning of the index block).
         public boolean isPastCurrentBlock()
         {
-            return currentIndexIdx < indexes.size() && reader.file.bytesPastMark(mark) >= currentIndex().width;
+            return reader.file.bytesPastMark(mark) >= currentIndex().width;
         }
 
         public int currentBlockIdx()
