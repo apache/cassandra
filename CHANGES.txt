@@ -1,4 +1,5 @@
 2.0.17
+ * checkForEndpointCollision fails for legitimate collisions (CASSANDRA-9765)
  * Complete CASSANDRA-8448 fix (CASSANDRA-9519)
  * Don't include auth credentials in debug log (CASSANDRA-9682)
  * Can't transition from write survey to normal mode (CASSANDRA-9740)
