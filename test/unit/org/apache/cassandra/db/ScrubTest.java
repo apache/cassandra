@@ -446,7 +446,7 @@ public class ScrubTest
         cfs.forceBlockingFlush();
     }
 
-    private void fillIndexCF(ColumnFamilyStore cfs, boolean composite, long ... values)
+    public static void fillIndexCF(ColumnFamilyStore cfs, boolean composite, long ... values)
     {
         assertTrue(values.length % 2 == 0);
         for (int i = 0; i < values.length; i +=2)

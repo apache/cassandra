@@ -46,6 +46,7 @@ import org.apache.cassandra.metrics.ClearableHistogram;
 import org.apache.cassandra.schema.KeyspaceParams;
 import org.apache.cassandra.utils.ByteBufferUtil;
 import org.apache.cassandra.utils.FBUtilities;
+import org.apache.cassandra.utils.Pair;
 import org.apache.cassandra.utils.WrappedRunnable;
 
 @RunWith(OrderedJUnit4ClassRunner.class)
@@ -57,6 +58,7 @@ public class ColumnFamilyStoreTest
     public static final String CF_STANDARD2 = "Standard2";
     public static final String CF_SUPER1 = "Super1";
     public static final String CF_SUPER6 = "Super6";
+    public static final String CF_INDEX1 = "Indexed1";
 
     @BeforeClass
     public static void defineSchema() throws ConfigurationException
@@ -65,7 +67,8 @@ public class ColumnFamilyStoreTest
         SchemaLoader.createKeyspace(KEYSPACE1,
                                     KeyspaceParams.simple(1),
                                     SchemaLoader.standardCFMD(KEYSPACE1, CF_STANDARD1),
-                                    SchemaLoader.standardCFMD(KEYSPACE1, CF_STANDARD2));
+                                    SchemaLoader.standardCFMD(KEYSPACE1, CF_STANDARD2),
+                                    SchemaLoader.keysIndexCFMD(KEYSPACE1, CF_INDEX1, true));
                                     // TODO: Fix superCFMD failing on legacy table creation. Seems to be applying composite comparator to partition key
                                     // SchemaLoader.superCFMD(KEYSPACE1, CF_SUPER1, LongType.instance));
                                     // SchemaLoader.superCFMD(KEYSPACE1, CF_SUPER6, "aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee", LexicalUUIDType.instance, UTF8Type.instance),
@@ -292,6 +295,41 @@ public class ColumnFamilyStoreTest
         // and it remains so after flush. (this wasn't failing before, but it's good to check.)
         cfs.forceBlockingFlush();
         assertRangeCount(cfs, col, val, 4);
+    }
+
+    @Test
+    public void testClearEphemeralSnapshots() throws Throwable
+    {
+        ColumnFamilyStore cfs = Keyspace.open(KEYSPACE1).getColumnFamilyStore(CF_INDEX1);
+
+        //cleanup any previous test gargbage
+        cfs.clearSnapshot("");
+
+        int numRows = 1000;
+        long[] colValues = new long [numRows * 2]; // each row has two columns
+        for (int i = 0; i < colValues.length; i+=2)
+        {
+            colValues[i] = (i % 4 == 0 ? 1L : 2L); // index column
+            colValues[i+1] = 3L; //other column
+        }
+        ScrubTest.fillIndexCF(cfs, false, colValues);
+
+        cfs.snapshot("nonEphemeralSnapshot", null, false);
+        cfs.snapshot("ephemeralSnapshot", null, true);
+
+        Map<String, Pair<Long, Long>> snapshotDetails = cfs.getSnapshotDetails();
+        assertEquals(2, snapshotDetails.size());
+        assertTrue(snapshotDetails.containsKey("ephemeralSnapshot"));
+        assertTrue(snapshotDetails.containsKey("nonEphemeralSnapshot"));
+
+        ColumnFamilyStore.clearEphemeralSnapshots(cfs.directories);
+
+        snapshotDetails = cfs.getSnapshotDetails();
+        assertEquals(1, snapshotDetails.size());
+        assertTrue(snapshotDetails.containsKey("nonEphemeralSnapshot"));
+
+        //test cleanup
+        cfs.clearSnapshot("");
     }
 
     @Test
