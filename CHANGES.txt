@@ -1,4 +1,5 @@
 2.1.9
+ * Fix MarshalException when upgrading superColumn family (CASSANDRA-9582)
  * Fix broken logging for "empty" flushes in Memtable (CASSANDRA-9837)
  * Handle corrupt files on startup (CASSANDRA-9686)
  * Fix clientutil jar and tests (CASSANDRA-9760)
