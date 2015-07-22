@@ -702,6 +702,30 @@ public class Gossiper implements IFailureDetectionEventListener, GossiperMBean
         return !isDeadState(epState) && !StorageService.instance.getTokenMetadata().isMember(endpoint);
     }
 
+    /**
+     * Check if this endpoint can safely bootstrap into the cluster.
+     *
+     * @param endpoint - the endpoint to check
+     * @return true if the endpoint can join the cluster
+     */
+    public boolean isSafeForBootstrap(InetAddress endpoint)
+    {
+        EndpointState epState = endpointStateMap.get(endpoint);
+
+        // if there's no previous state, or the node was previously removed from the cluster, we're good
+        if (epState == null || isDeadState(epState))
+            return true;
+
+        String status = getGossipStatus(epState);
+
+        // these states are not allowed to join the cluster as it would not be safe
+        final List<String> unsafeStatuses = new ArrayList<String>() {{
+            add(""); // failed bootstrap but we did start gossiping
+            add(VersionedValue.STATUS_NORMAL); // node is legit in the cluster or it was stopped with kill -9
+            add(VersionedValue.SHUTDOWN); }}; // node was shutdown
+        return !unsafeStatuses.contains(status);
+    }
+
     private void doStatusCheck()
     {
         if (logger.isTraceEnabled())
@@ -1014,31 +1038,31 @@ public class Gossiper implements IFailureDetectionEventListener, GossiperMBean
 
     public boolean isDeadState(EndpointState epState)
     {
-        String state = epState.getStatus();
-        if (state.isEmpty())
+        String status = getGossipStatus(epState);
+        if (status.isEmpty())
             return false;
-        for (String deadstate : DEAD_STATES)
-        {
-            if (state.equals(deadstate))
-                return true;
-        }
-        return false;
+
+        return DEAD_STATES.contains(status);
     }
 
     public boolean isSilentShutdownState(EndpointState epState)
     {
-        if (epState.getApplicationState(ApplicationState.STATUS) == null)
+        String status = getGossipStatus(epState);
+        if (status.isEmpty())
             return false;
+
+        return SILENT_SHUTDOWN_STATES.contains(status);
+    }
+
+    private static String getGossipStatus(EndpointState epState)
+    {
+        if (epState == null || epState.getApplicationState(ApplicationState.STATUS) == null)
+            return "";
+
         String value = epState.getApplicationState(ApplicationState.STATUS).value;
         String[] pieces = value.split(VersionedValue.DELIMITER_STR, -1);
         assert (pieces.length > 0);
-        String state = pieces[0];
-        for (String deadstate : SILENT_SHUTDOWN_STATES)
-        {
-            if (state.equals(deadstate))
-                return true;
-        }
-        return false;
+        return pieces[0];
     }
 
     void applyStateLocally(Map<InetAddress, EndpointState> epStateMap)
