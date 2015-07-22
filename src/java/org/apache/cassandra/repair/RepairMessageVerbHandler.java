@@ -87,7 +87,7 @@ public class RepairMessageVerbHandler implements IVerbHandler<RepairMessage>
                                     !(sstable.partitioner instanceof LocalPartitioner) && // exclude SSTables from 2i
                                     new Bounds<>(sstable.first.getToken(), sstable.last.getToken()).intersects(Collections.singleton(repairingRange));
                         }
-                    });
+                    }, true); //ephemeral snapshot, if repair fails, it will be cleaned next startup
 
                     logger.debug("Enqueuing response to snapshot request {} to {}", desc.sessionId, message.from);
                     MessagingService.instance().sendReply(new MessageOut(MessagingService.Verb.INTERNAL_RESPONSE), id, message.from);

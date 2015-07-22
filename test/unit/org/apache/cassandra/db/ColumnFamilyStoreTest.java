@@ -1441,6 +1441,48 @@ public class ColumnFamilyStoreTest extends SchemaLoader
         findRowGetSlicesAndAssertColsFound(cfs, multiRangeReverseWithCounting, "a", "colI", "colD", "colC");
     }
 
+    @Test
+    public void testClearEphemeralSnapshots() throws Throwable
+    {
+        Mutation rm;
+        ColumnFamilyStore cfs = Keyspace.open("Keyspace3").getColumnFamilyStore("Indexed1");
+        for (int i = 0; i < 100; i++)
+        {
+            rm = new Mutation("Keyspace3", ByteBufferUtil.bytes("key" + i));
+            rm.add("Indexed1", cellname("birthdate"), ByteBufferUtil.bytes(34L), 0);
+            rm.add("Indexed1", cellname("notbirthdate"), ByteBufferUtil.bytes((long) (i % 2)), 0);
+            rm.applyUnsafe();
+        }
+
+        //cleanup any previous test gargbage
+        cfs.clearSnapshot("");
+
+        Cell[] cols = new Cell[5];
+        for (int i = 0; i < 5; i++)
+            cols[i] = column("c" + i, "value", 1);
+
+        putColsStandard(cfs, Util.dk("a"), cols[0], cols[1], cols[2], cols[3], cols[4]);
+        putColsStandard(cfs, Util.dk("b"), cols[0], cols[1]);
+        putColsStandard(cfs, Util.dk("c"), cols[0], cols[1], cols[2], cols[3]);
+
+        cfs.snapshot("nonEphemeralSnapshot", null, false);
+        cfs.snapshot("ephemeralSnapshot", null, true);
+
+        Map<String, Pair<Long, Long>> snapshotDetails = cfs.getSnapshotDetails();
+        assertEquals(2, snapshotDetails.size());
+        assertTrue(snapshotDetails.containsKey("ephemeralSnapshot"));
+        assertTrue(snapshotDetails.containsKey("nonEphemeralSnapshot"));
+
+        ColumnFamilyStore.clearEphemeralSnapshots(cfs.directories);
+
+        snapshotDetails = cfs.getSnapshotDetails();
+        assertEquals(1, snapshotDetails.size());
+        assertTrue(snapshotDetails.containsKey("nonEphemeralSnapshot"));
+
+        //test cleanup
+        cfs.clearSnapshot("");
+    }
+
     @SuppressWarnings("unchecked")
     @Test
     public void testMultiRangeSomeEmptyIndexed() throws Throwable
