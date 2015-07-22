@@ -885,10 +885,12 @@ public final class SchemaKeyspace
         {
             // Thrift only knows about the REGULAR ColumnDefinition type, so don't consider other type
             // are being deleted just because they are not here.
-            if (fromThrift && column.kind != ColumnDefinition.Kind.REGULAR) // TODO FIXME
-                continue;
-
-            dropColumnFromSchemaMutation(oldTable, column, timestamp, mutation);
+            if (!fromThrift ||
+                column.kind == ColumnDefinition.Kind.REGULAR ||
+                (newTable.isStaticCompactTable() && column.kind == ColumnDefinition.Kind.STATIC))
+            {
+                dropColumnFromSchemaMutation(oldTable, column, timestamp, mutation);
+            }
         }
 
         // newly added columns
