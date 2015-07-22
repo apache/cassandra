@@ -25,6 +25,7 @@ import java.util.UUID;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.db.TypeSizes;
 import org.apache.cassandra.db.partitions.CachedPartition;
+import org.apache.cassandra.io.util.DataInputBuffer;
 import org.apache.cassandra.io.util.DataOutputBufferFixed;
 import org.apache.cassandra.io.util.NIODataInputStream;
 import org.caffinitas.ohc.OHCache;
@@ -171,7 +172,7 @@ public class OHCProvider implements CacheProvider<RowCacheKey, IRowCacheEntry>
         {
             try
             {
-                NIODataInputStream in = new NIODataInputStream(buf, false);
+                NIODataInputStream in = new DataInputBuffer(buf, false);
                 boolean isSentinel = in.readBoolean();
                 if (isSentinel)
                     return new RowCacheSentinel(in.readLong());

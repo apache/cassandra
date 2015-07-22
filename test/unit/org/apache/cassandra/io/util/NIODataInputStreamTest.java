@@ -745,4 +745,104 @@ public class NIODataInputStreamTest
         assertEquals(totalRead, corpus.capacity());
         assertEquals(-1, dis.read());
     }
+
+
+    @Test
+    @SuppressWarnings({ "resource"})
+    public void testVIntRemainingBytes() throws Exception
+    {
+        for(int ii = 0; ii < 10; ii++)
+        {
+            for (int zz = 0; zz < 10; zz++)
+            {
+                if (zz + ii > 10)
+                    continue;
+
+                ByteBuffer buf = ByteBuffer.allocate(10);
+                buf.position(ii);
+
+                long value = 0;
+                if (ii > 0)
+                    value = (1L << 7 * zz) - 1;
+
+                BufferedDataOutputStreamPlus out = new DataOutputBufferFixed(buf);
+                out.writeUnsignedVInt(value);
+
+                buf.position(ii);
+                NIODataInputStream in = new DataInputBuffer(buf, false);
+
+                assertEquals(value, in.readUnsignedVInt());
+            }
+        }
+    }
+
+    @Test
+    @SuppressWarnings({ "resource"})
+    public void testVIntSmallBuffer() throws Exception
+    {
+        for(int ii = 0; ii < 10; ii++)
+        {
+            ByteBuffer buf = ByteBuffer.allocate(Math.max(1,  ii));
+
+            long value = 0;
+            if (ii > 0)
+                value = (1L << 7 * ii) - 1;
+
+            BufferedDataOutputStreamPlus out = new DataOutputBufferFixed(buf);
+            out.writeUnsignedVInt(value);
+
+            buf.position(0);
+            NIODataInputStream in = new DataInputBuffer(buf, false);
+
+            assertEquals(value, in.readUnsignedVInt());
+
+            boolean threw = false;
+            try
+            {
+                in.readUnsignedVInt();
+            }
+            catch (EOFException e)
+            {
+                threw = true;
+            }
+            assertTrue(threw);
+        }
+    }
+
+    @Test
+    @SuppressWarnings({ "resource"})
+    public void testVIntTruncationEOF() throws Exception
+    {
+        for(int ii = 0; ii < 10; ii++)
+        {
+            ByteBuffer buf = ByteBuffer.allocate(Math.max(1,  ii));
+
+            long value = 0;
+            if (ii > 0)
+                value = (1L << 7 * ii) - 1;
+
+            BufferedDataOutputStreamPlus out = new DataOutputBufferFixed(buf);
+            out.writeUnsignedVInt(value);
+
+            buf.position(0);
+
+            ByteBuffer truncated = ByteBuffer.allocate(buf.capacity() - 1);
+            buf.limit(buf.limit() - 1);
+            truncated.put(buf);
+            truncated.flip();
+
+            NIODataInputStream in = new DataInputBuffer(truncated, false);
+
+            boolean threw = false;
+            try
+            {
+                in.readUnsignedVInt();
+            }
+            catch (EOFException e)
+            {
+                threw = true;
+            }
+            assertTrue(threw);
+        }
+    }
 }

@@ -48,6 +48,7 @@ import org.apache.cassandra.dht.Range;
 import org.apache.cassandra.dht.Token;
 import org.apache.cassandra.exceptions.ConfigurationException;
 import org.apache.cassandra.io.sstable.format.SSTableReader;
+import org.apache.cassandra.io.util.DataInputBuffer;
 import org.apache.cassandra.io.util.DataOutputBuffer;
 import org.apache.cassandra.io.util.NIODataInputStream;
 import org.apache.cassandra.locator.IEndpointSnitch;
@@ -651,7 +652,7 @@ public final class SystemKeyspace
     {
         try
         {
-            NIODataInputStream in = new NIODataInputStream(bytes, true);
+            NIODataInputStream in = new DataInputBuffer(bytes, true);
             return Pair.create(ReplayPosition.serializer.deserialize(in), in.available() > 0 ? in.readLong() : Long.MIN_VALUE);
         }
         catch (IOException e)

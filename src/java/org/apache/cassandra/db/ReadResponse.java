@@ -26,6 +26,7 @@ import java.util.List;
 import org.apache.cassandra.db.rows.*;
 import org.apache.cassandra.db.partitions.*;
 import org.apache.cassandra.io.IVersionedSerializer;
+import org.apache.cassandra.io.util.DataInputBuffer;
 import org.apache.cassandra.io.util.DataInputPlus;
 import org.apache.cassandra.io.util.DataOutputPlus;
 import org.apache.cassandra.io.util.DataOutputBuffer;
@@ -116,7 +117,7 @@ public abstract class ReadResponse
         {
             try
             {
-                DataInputPlus in = new DataInputPlus.DataInputStreamPlus(ByteBufferUtil.inputStream(data));
+                DataInputPlus in = new DataInputBuffer(data, true);
                 return UnfilteredPartitionIterators.serializerForIntraNode().deserialize(in, MessagingService.current_version, flag);
             }
             catch (IOException e)

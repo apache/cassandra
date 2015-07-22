@@ -31,6 +31,7 @@ import org.apache.cassandra.dht.RandomPartitioner;
 import org.apache.cassandra.dht.RandomPartitioner.BigIntegerToken;
 import org.apache.cassandra.dht.Range;
 import org.apache.cassandra.dht.Token;
+import org.apache.cassandra.io.util.DataInputBuffer;
 import org.apache.cassandra.io.util.DataInputPlus;
 import org.apache.cassandra.io.util.DataOutputBuffer;
 import org.apache.cassandra.io.util.NIODataInputStream;
@@ -400,7 +401,7 @@ public class MerkleTreeTest
         MerkleTree.serializer.serialize(mt, out, MessagingService.current_version);
         byte[] serialized = out.toByteArray();
 
-        DataInputPlus in = new NIODataInputStream(serialized);
+        DataInputPlus in = new DataInputBuffer(serialized);
         MerkleTree restored = MerkleTree.serializer.deserialize(in, MessagingService.current_version);
 
         assertHashEquals(initialhash, restored.hash(full));

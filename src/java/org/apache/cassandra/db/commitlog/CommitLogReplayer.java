@@ -38,7 +38,6 @@ import com.google.common.collect.Ordering;
 import org.apache.commons.lang3.StringUtils;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-
 import org.apache.cassandra.concurrent.Stage;
 import org.apache.cassandra.concurrent.StageManager;
 import org.apache.cassandra.config.CFMetaData;
@@ -50,6 +49,7 @@ import org.apache.cassandra.exceptions.ConfigurationException;
 import org.apache.cassandra.io.compress.CompressionParameters;
 import org.apache.cassandra.io.compress.ICompressor;
 import org.apache.cassandra.io.util.ByteBufferDataInput;
+import org.apache.cassandra.io.util.DataInputBuffer;
 import org.apache.cassandra.io.util.FileDataInput;
 import org.apache.cassandra.io.util.FileUtils;
 import org.apache.cassandra.io.util.NIODataInputStream;
@@ -474,7 +474,7 @@ public class CommitLogReplayer
     {
 
         final Mutation mutation;
-        try (NIODataInputStream bufIn = new NIODataInputStream(inputBuffer, 0, size))
+        try (NIODataInputStream bufIn = new DataInputBuffer(inputBuffer, 0, size))
         {
             mutation = Mutation.serializer.deserialize(bufIn,
                                                        desc.getMessagingVersion(),

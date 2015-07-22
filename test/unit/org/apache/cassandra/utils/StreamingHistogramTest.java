@@ -17,15 +17,13 @@
  */
 package org.apache.cassandra.utils;
 
-import java.io.ByteArrayInputStream;
-import java.io.DataInputStream;
 import java.util.Iterator;
 import java.util.LinkedHashMap;
 import java.util.Map;
 
 import org.junit.Test;
+import org.apache.cassandra.io.util.DataInputBuffer;
 import org.apache.cassandra.io.util.DataOutputBuffer;
-import org.apache.cassandra.io.util.NIODataInputStream;
 
 import static org.junit.Assert.assertEquals;
 
@@ -103,7 +101,7 @@ public class StreamingHistogramTest
         StreamingHistogram.serializer.serialize(hist, out);
         byte[] bytes = out.toByteArray();
 
-        StreamingHistogram deserialized = StreamingHistogram.serializer.deserialize(new NIODataInputStream(bytes));
+        StreamingHistogram deserialized = StreamingHistogram.serializer.deserialize(new DataInputBuffer(bytes));
 
         // deserialized histogram should have following values
         Map<Double, Long> expected1 = new LinkedHashMap<Double, Long>(5);

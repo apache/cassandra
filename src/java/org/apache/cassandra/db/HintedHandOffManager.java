@@ -17,7 +17,6 @@
  */
 package org.apache.cassandra.db;
 
-import java.io.DataInputStream;
 import java.io.IOException;
 import java.lang.management.ManagementFactory;
 import java.net.InetAddress;
@@ -54,8 +53,8 @@ import org.apache.cassandra.gms.FailureDetector;
 import org.apache.cassandra.gms.Gossiper;
 import org.apache.cassandra.io.sstable.Descriptor;
 import org.apache.cassandra.io.sstable.SSTable;
+import org.apache.cassandra.io.util.DataInputBuffer;
 import org.apache.cassandra.io.util.DataInputPlus;
-import org.apache.cassandra.io.util.NIODataInputStream;
 import org.apache.cassandra.metrics.HintedHandoffMetrics;
 import org.apache.cassandra.net.MessageOut;
 import org.apache.cassandra.net.MessagingService;
@@ -410,7 +409,7 @@ public class HintedHandOffManager implements HintedHandOffManagerMBean
                 Cell cell = hint.getCell(hintColumn);
 
                 final long timestamp = cell.timestamp();
-                DataInputPlus in = new NIODataInputStream(cell.value(), true);
+                DataInputPlus in = new DataInputBuffer(cell.value(), true);
                 Mutation mutation;
                 try
                 {

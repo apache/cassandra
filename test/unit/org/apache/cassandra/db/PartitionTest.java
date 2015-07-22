@@ -31,8 +31,8 @@ import org.apache.cassandra.db.rows.RowStats;
 import org.apache.cassandra.db.marshal.AsciiType;
 import org.apache.cassandra.db.marshal.BytesType;
 import org.apache.cassandra.db.partitions.*;
+import org.apache.cassandra.io.util.DataInputBuffer;
 import org.apache.cassandra.io.util.DataOutputBuffer;
-import org.apache.cassandra.io.util.NIODataInputStream;
 import org.apache.cassandra.net.MessagingService;
 import org.apache.cassandra.exceptions.ConfigurationException;
 import org.apache.cassandra.SchemaLoader;
@@ -78,7 +78,7 @@ public class PartitionTest
         DataOutputBuffer bufOut = new DataOutputBuffer();
         CachedPartition.cacheSerializer.serialize(partition, bufOut);
 
-        CachedPartition deserialized = CachedPartition.cacheSerializer.deserialize(new NIODataInputStream(bufOut.getData()));
+        CachedPartition deserialized = CachedPartition.cacheSerializer.deserialize(new DataInputBuffer(bufOut.getData()));
 
         assert deserialized != null;
         assert deserialized.metadata().cfName.equals(CF_STANDARD1);
@@ -103,7 +103,7 @@ public class PartitionTest
         DataOutputBuffer bufOut = new DataOutputBuffer();
         CachedPartition.cacheSerializer.serialize(partition, bufOut);
 
-        CachedPartition deserialized = CachedPartition.cacheSerializer.deserialize(new NIODataInputStream(bufOut.getData()));
+        CachedPartition deserialized = CachedPartition.cacheSerializer.deserialize(new DataInputBuffer(bufOut.getData()));
 
         assertEquals(partition.columns().regulars.columnCount(), deserialized.columns().regulars.columnCount());
         assertTrue(deserialized.columns().regulars.getSimple(1).equals(partition.columns().regulars.getSimple(1)));

@@ -57,7 +57,8 @@ import org.apache.cassandra.db.rows.Row;
 import org.apache.cassandra.db.rows.SerializationHelper;
 import org.apache.cassandra.db.partitions.PartitionUpdate;
 import org.apache.cassandra.db.marshal.UTF8Type;
-import org.apache.cassandra.io.util.NIODataInputStream;
+import org.apache.cassandra.io.util.DataInputBuffer;
+import org.apache.cassandra.io.util.DataInputPlus;
 
 public class CommitLogStressTest
 {
@@ -462,7 +463,7 @@ public class CommitLogStressTest
                 // Skip over this mutation.
                 return;
 
-            NIODataInputStream bufIn = new NIODataInputStream(inputBuffer, 0, size);
+            DataInputPlus bufIn = new DataInputBuffer(inputBuffer, 0, size);
             Mutation mutation;
             try
             {

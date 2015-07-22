@@ -22,9 +22,9 @@ import static org.junit.Assert.*;
 
 import java.io.IOException;
 
+import org.apache.cassandra.io.util.DataInputBuffer;
 import org.apache.cassandra.io.util.DataInputPlus;
 import org.apache.cassandra.io.util.DataOutputBuffer;
-import org.apache.cassandra.io.util.NIODataInputStream;
 
 import java.net.InetAddress;
 
@@ -49,7 +49,7 @@ public class GossipDigestTest
         DataOutputBuffer output = new DataOutputBuffer();
         GossipDigest.serializer.serialize(expected, output, MessagingService.current_version);
 
-        DataInputPlus input = new NIODataInputStream(output.getData());
+        DataInputPlus input = new DataInputBuffer(output.getData());
         GossipDigest actual = GossipDigest.serializer.deserialize(input, MessagingService.current_version);
         assertEquals(0, expected.compareTo(actual));
     }

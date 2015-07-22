@@ -38,9 +38,9 @@ import org.apache.cassandra.db.marshal.BytesType;
 import org.apache.cassandra.db.partitions.FilteredPartition;
 import org.apache.cassandra.exceptions.ConfigurationException;
 import org.apache.cassandra.io.IVersionedSerializer;
+import org.apache.cassandra.io.util.DataInputBuffer;
 import org.apache.cassandra.io.util.DataInputPlus;
 import org.apache.cassandra.io.util.DataOutputBuffer;
-import org.apache.cassandra.io.util.NIODataInputStream;
 import org.apache.cassandra.net.MessagingService;
 import org.apache.cassandra.schema.KeyspaceParams;
 import org.apache.cassandra.utils.ByteBufferUtil;
@@ -145,7 +145,7 @@ public class ReadMessageTest
 
         rms.serialize(rm, out, MessagingService.current_version);
 
-        DataInputPlus dis = new NIODataInputStream(out.getData());
+        DataInputPlus dis = new DataInputBuffer(out.getData());
         return rms.deserialize(dis, MessagingService.current_version);
     }
 

@@ -31,10 +31,10 @@ import org.apache.cassandra.config.ColumnDefinition;
 import org.apache.cassandra.db.*;
 import org.apache.cassandra.db.filter.ColumnFilter;
 import org.apache.cassandra.db.rows.*;
+import org.apache.cassandra.io.util.DataInputBuffer;
 import org.apache.cassandra.io.util.DataInputPlus;
 import org.apache.cassandra.io.util.DataOutputBuffer;
 import org.apache.cassandra.io.util.DataOutputPlus;
-import org.apache.cassandra.io.util.NIODataInputStream;
 import org.apache.cassandra.net.MessagingService;
 import org.apache.cassandra.serializers.MarshalException;
 import org.apache.cassandra.utils.FBUtilities;
@@ -229,7 +229,7 @@ public class PartitionUpdate extends AbstractThreadUnsafePartition
 
         try
         {
-            return serializer.deserialize(new NIODataInputStream(bytes, true),
+            return serializer.deserialize(new DataInputBuffer(bytes, true),
                                           version,
                                           SerializationHelper.Flag.LOCAL,
                                           version < MessagingService.VERSION_30 ? key : null);

@@ -48,7 +48,8 @@ public class NIODataInputStream extends InputStream implements DataInputPlus, Cl
     private final ByteBuffer buf;
 
     /*
-     *  Used when wrapping a fixed buffer of data instead of a channel
+     *  Used when wrapping a fixed buffer of data instead of a channel. Should never attempt
+     *  to read from it.
      */
     private static final ReadableByteChannel emptyReadableByteChannel = new ReadableByteChannel()
     {
@@ -67,7 +68,7 @@ public class NIODataInputStream extends InputStream implements DataInputPlus, Cl
         @Override
         public int read(ByteBuffer dst) throws IOException
         {
-            return -1;
+            throw new AssertionError();
         }
 
     };
@@ -82,19 +83,14 @@ public class NIODataInputStream extends InputStream implements DataInputPlus, Cl
         buf.limit(0);
     }
 
-    /**
-     *
-     * @param buf
-     * @param duplicate Whether or not to duplicate the buffer to ensure thread safety
-     */
-    public NIODataInputStream(ByteBuffer buf, boolean duplicate)
+    protected NIODataInputStream(ByteBuffer buf, boolean duplicate)
     {
         Preconditions.checkNotNull(buf);
-        Preconditions.checkArgument(buf.capacity() >= 9, "Buffer size must be large enough to accomadate a varint");
         if (duplicate)
             this.buf = buf.duplicate();
         else
             this.buf = buf;
+
         this.rbc = emptyReadableByteChannel;
     }
 
@@ -102,31 +98,9 @@ public class NIODataInputStream extends InputStream implements DataInputPlus, Cl
      * The decision to duplicate or not really needs to conscious since it a real impact
      * in terms of thread safety so don't expose this constructor with an implicit default.
      */
-    private NIODataInputStream(ByteBuffer buf)
+    protected NIODataInputStream(ByteBuffer buf)
     {
         this(buf, false);
-    }
-
-    private static ByteBuffer slice(byte buffer[], int offset, int length)
-    {
-        ByteBuffer buf = ByteBuffer.wrap(buffer);
-        if (offset > 0 || length < buf.capacity())
-        {
-            buf.position(offset);
-            buf.limit(offset + length);
-            buf = buf.slice();
-        }
-        return buf;
-    }
-
-    public NIODataInputStream(byte buffer[], int offset, int length)
-    {
-        this(slice(buffer, offset, length));
-    }
-
-    public NIODataInputStream(byte buffer[])
-    {
-        this(ByteBuffer.wrap(buffer));
     }
 
     @Override
@@ -185,7 +159,7 @@ public class NIODataInputStream extends InputStream implements DataInputPlus, Cl
     /*
      * Refill the buffer, preserving any unread bytes remaining in the buffer
      */
-    private int readNext() throws IOException
+    protected int readNext() throws IOException
     {
         Preconditions.checkState(buf.remaining() != buf.capacity());
         assert(buf.remaining() < 9);
@@ -204,9 +178,12 @@ public class NIODataInputStream extends InputStream implements DataInputPlus, Cl
         }
         else if (buf.hasRemaining())
         {
-            ByteBuffer dup = buf.duplicate();
+            //FastByteOperations.copy failed to do the copy so inline a simple one here
+            int position = buf.position();
+            int remaining  = buf.remaining();
             buf.clear();
-            buf.put(dup);
+            for (int ii = 0; ii < remaining; ii++)
+                buf.put(buf.get(position + ii));
         }
         else
         {
@@ -223,46 +200,23 @@ public class NIODataInputStream extends InputStream implements DataInputPlus, Cl
         return read;
     }
 
-   /*
-    * Read at least minimum bytes and throw EOF if that fails
-    */
-    private void readMinimum(int attempt, int require) throws IOException
+    /*
+     * Read the minimum number of bytes and throw EOF if the minimum could not be read
+     */
+    private void readMinimum(int minimum) throws IOException
     {
         assert(buf.remaining() < 8);
-        int remaining;
-        while ((remaining = buf.remaining()) < attempt)
+        while (buf.remaining() < minimum)
         {
             int read = readNext();
             if (read == -1)
             {
-                if (remaining < require)
-                {
-                    //DataInputStream consumes the bytes even if it doesn't get the entire value, match the behavior here
-                    buf.position(0);
-                    buf.limit(0);
-                    throw new EOFException();
-                }
+                //DataInputStream consumes the bytes even if it doesn't get the entire value, match the behavior here
+                buf.position(0);
+                buf.limit(0);
+                throw new EOFException();
             }
         }
-    }
-
-    /*
-     * Ensure the buffer contains the minimum number of readable bytes, throws EOF if enough bytes aren't available
-     * Add padding if requested and return the limit of the buffer without any padding that is added.
-     */
-    private int prepareReadPaddedPrimitive(int minimum) throws IOException
-    {
-        int limitToSet = buf.limit();
-        int position = buf.position();
-        if (limitToSet - position < minimum)
-        {
-            readMinimum(minimum, 1);
-            limitToSet = buf.limit();
-            position = buf.position();
-            if (limitToSet - position < minimum)
-                buf.limit(position + minimum);
-        }
-        return limitToSet;
     }
 
     /*
@@ -271,7 +225,7 @@ public class NIODataInputStream extends InputStream implements DataInputPlus, Cl
     private void prepareReadPrimitive(int minimum) throws IOException
     {
         if (buf.remaining() < minimum)
-            readMinimum(minimum, minimum);
+            readMinimum(minimum);
     }
 
     @Override
@@ -351,23 +305,23 @@ public class NIODataInputStream extends InputStream implements DataInputPlus, Cl
 
     public long readUnsignedVInt() throws IOException
     {
-        byte firstByte = readByte();
+        //If 9 bytes aren't available use the slow path in VIntCoding
+        if (buf.remaining() < 9)
+            return VIntCoding.readUnsignedVInt(this);
+
+        byte firstByte = buf.get();
 
         //Bail out early if this is one byte, necessary or it fails later
         if (firstByte >= 0)
             return firstByte;
 
-        //If padding was added, the limit to set after to get rid of the padding
-        int limitToSet = prepareReadPaddedPrimitive(8);
+        int extraBytes = VIntCoding.numberOfExtraBytesToRead(firstByte);
 
         int position = buf.position();
-        int extraBytes = VIntCoding.numberOfExtraBytesToRead(firstByte);
         int extraBits = extraBytes * 8;
 
         long retval = buf.getLong(position);
         buf.position(position + extraBytes);
-        buf.limit(limitToSet);
-
 
         // truncate the bytes we read in excess of those we needed
         retval >>>= 64 - extraBits;

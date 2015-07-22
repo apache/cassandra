@@ -30,10 +30,10 @@ import java.util.List;
 import org.junit.Test;
 import org.apache.cassandra.io.ISerializer;
 import org.apache.cassandra.io.IVersionedSerializer;
+import org.apache.cassandra.io.util.DataInputBuffer;
 import org.apache.cassandra.io.util.DataInputPlus;
 import org.apache.cassandra.io.util.DataOutputBuffer;
 import org.apache.cassandra.io.util.DataOutputPlus;
-import org.apache.cassandra.io.util.NIODataInputStream;
 
 import static org.junit.Assert.assertEquals;
 
@@ -186,7 +186,7 @@ public class IntervalTreeTest
 
         serializer.serialize(it, out, 0);
 
-        DataInputPlus in = new NIODataInputStream(out.toByteArray());
+        DataInputPlus in = new DataInputBuffer(out.toByteArray());
 
         IntervalTree<Integer, String, Interval<Integer, String>> it2 = serializer.deserialize(in, 0);
         List<Interval<Integer, String>> intervals2 = new ArrayList<Interval<Integer, String>>();
