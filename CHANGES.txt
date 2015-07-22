@@ -1,5 +1,6 @@
 2.2.1
  * UDF / UDA execution time in trace (CASSANDRA-9723)
+ * Remove repair snapshot leftover on startup (CASSANDRA-7357)
 
 2.2.0
  * Fix cqlsh copy methods and other windows specific issues (CASSANDRA-9795) 
