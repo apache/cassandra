@@ -26,7 +26,7 @@
 
   <appender name="FILE" class="ch.qos.logback.core.rolling.RollingFileAppender">
 
-    <file>./build/test/output/${cassandra.testtag}/TEST-${suitename}.log</file>
+    <file>./build/test/logs/${cassandra.testtag}/TEST-${suitename}.log</file>
     <rollingPolicy class="ch.qos.logback.core.rolling.FixedWindowRollingPolicy">
       <fileNamePattern>./build/test/logs/${cassandra.testtag}/TEST-${suitename}.log.%i.gz</fileNamePattern>
       <minIndex>1</minIndex>
