@@ -495,7 +495,9 @@ public class BatchlogManager implements BatchlogManagerMBean
             if (validated.keySet().size() == 1)
             {
                 // we have only 1 `other` rack
-                Collection<InetAddress> otherRack = Iterables.getOnlyElement(validated.asMap().values());
+                // pick up to two random nodes from there
+                List<InetAddress> otherRack = validated.get(validated.keySet().iterator().next());
+                Collections.shuffle(otherRack);
                 return Lists.newArrayList(Iterables.limit(otherRack, 2));
             }
 

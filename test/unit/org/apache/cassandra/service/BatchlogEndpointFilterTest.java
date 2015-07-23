@@ -20,6 +20,8 @@ package org.apache.cassandra.service;
 import java.net.InetAddress;
 import java.net.UnknownHostException;
 import java.util.Collection;
+import java.util.HashSet;
+
 import org.junit.Test;
 import org.junit.matchers.JUnitMatchers;
 
@@ -78,7 +80,7 @@ public class BatchlogEndpointFilterTest
     }
 
     @Test
-    public void shouldSelectTwoFirstHostsFromSingleOtherRack() throws UnknownHostException
+    public void shouldSelectTwoRandomHostsFromSingleOtherRack() throws UnknownHostException
     {
         Multimap<String, InetAddress> endpoints = ImmutableMultimap.<String, InetAddress> builder()
                 .put(LOCAL, InetAddress.getByName("0"))
@@ -88,9 +90,8 @@ public class BatchlogEndpointFilterTest
                 .put("1", InetAddress.getByName("111"))
                 .build();
         Collection<InetAddress> result = new TestEndpointFilter(LOCAL, endpoints).filter();
-        assertThat(result.size(), is(2));
-        assertThat(result, JUnitMatchers.hasItem(InetAddress.getByName("1")));
-        assertThat(result, JUnitMatchers.hasItem(InetAddress.getByName("11")));
+        // result should contain random two distinct values
+        assertThat(new HashSet<>(result).size(), is(2));
     }
 
     private static class TestEndpointFilter extends BatchlogManager.EndpointFilter
