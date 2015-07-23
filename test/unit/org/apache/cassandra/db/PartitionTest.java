@@ -164,7 +164,7 @@ public class PartitionTest
             builder.add("val" + i, "val" + i);
         builder.build().applyUnsafe();
 
-        RowUpdateBuilder.deleteRow(cfs.metadata, 10, "key1", "c").applyUnsafe();
+        RowUpdateBuilder.deleteRowAt(cfs.metadata, 10L, localDeletionTime, "key1", "c").applyUnsafe();
         ArrayBackedPartition partition = Util.getOnlyPartitionUnfiltered(Util.cmd(cfs, "key1").build());
         RowStats stats = partition.stats();
         assertEquals(localDeletionTime, stats.minLocalDeletionTime);

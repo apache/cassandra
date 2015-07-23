@@ -181,7 +181,7 @@ public class RowUpdateBuilder
         return update;
     }
 
-    private static void deleteRow(PartitionUpdate update, long timestamp, Object...clusteringValues)
+    private static void deleteRow(PartitionUpdate update, long timestamp, int localDeletionTime, Object... clusteringValues)
     {
         assert clusteringValues.length == update.metadata().comparator.size() || (clusteringValues.length == 0 && !update.columns().statics.isEmpty());
 
@@ -192,21 +192,26 @@ public class RowUpdateBuilder
             builder.newRow(Clustering.STATIC_CLUSTERING);
         else
             builder.newRow(clusteringValues.length == 0 ? Clustering.EMPTY : update.metadata().comparator.make(clusteringValues));
-        builder.addRowDeletion(new DeletionTime(timestamp, FBUtilities.nowInSeconds()));
+        builder.addRowDeletion(new DeletionTime(timestamp, localDeletionTime));
 
         update.add(builder.build());
     }
 
     public static Mutation deleteRow(CFMetaData metadata, long timestamp, Mutation mutation, Object... clusteringValues)
     {
-        deleteRow(getOrAdd(metadata, mutation), timestamp, clusteringValues);
+        deleteRow(getOrAdd(metadata, mutation), timestamp, FBUtilities.nowInSeconds(), clusteringValues);
         return mutation;
     }
 
     public static Mutation deleteRow(CFMetaData metadata, long timestamp, Object key, Object... clusteringValues)
     {
+        return deleteRowAt(metadata, timestamp, FBUtilities.nowInSeconds(), key, clusteringValues);
+    }
+
+    public static Mutation deleteRowAt(CFMetaData metadata, long timestamp, int localDeletionTime, Object key, Object... clusteringValues)
+    {
         PartitionUpdate update = new PartitionUpdate(metadata, makeKey(metadata, key), metadata.partitionColumns(), 0);
-        deleteRow(update, timestamp, clusteringValues);
+        deleteRow(update, timestamp, localDeletionTime, clusteringValues);
         // note that the created mutation may get further update later on, so we don't use the ctor that create a singletonMap
         // underneath (this class if for convenience, not performance)
         return new Mutation(update.metadata().ksName, update.partitionKey()).add(update);
