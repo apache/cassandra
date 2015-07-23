@@ -217,20 +217,32 @@ public class SSTableIterator extends AbstractSSTableIterator
             }
 
             // Find the first index block we'll need to read for the slice.
-            int startIdx = indexState.findBlockIndex(slice.start());
+            int startIdx = indexState.findBlockIndex(slice.start(), indexState.currentBlockIdx());
             if (startIdx >= indexState.blocksCount())
             {
                 sliceDone = true;
                 return;
             }
 
+            // Find the last index block we'll need to read for the slice.
+            lastBlockIdx = indexState.findBlockIndex(slice.end(), startIdx);
+
+            // If the slice end is before the very first block, we have nothing for that slice
+            if (lastBlockIdx < 0)
+            {
+                assert startIdx < 0;
+                sliceDone = true;
+                return;
+            }
+
+            // If we start before the very first block, just read from the first one.
+            if (startIdx < 0)
+                startIdx = 0;
+
             // If that's the last block we were reading, we're already where we want to be. Otherwise,
             // seek to that first block
             if (startIdx != indexState.currentBlockIdx())
                 indexState.setToBlock(startIdx);
-
-            // Find the last index block we'll need to read for the slice.
-            lastBlockIdx = indexState.findBlockIndex(slice.end());
 
             // The index search is based on the last name of the index blocks, so at that point we have that:
             //   1) indexes[currentIdx - 1].lastName < slice.start <= indexes[currentIdx].lastName
@@ -238,7 +250,8 @@ public class SSTableIterator extends AbstractSSTableIterator
             // so if currentIdx == lastBlockIdx and slice.end < indexes[currentIdx].firstName, we're guaranteed that the
             // whole slice is between the previous block end and this block start, and thus has no corresponding
             // data. One exception is if the previous block ends with an openMarker as it will cover our slice
-            // and we need to return it.
+            // and we need to return it (we also don't skip the slice for the old format because we didn't have the openMarker
+            // info in that case and can't rely on this optimization).
             if (indexState.currentBlockIdx() == lastBlockIdx
                 && metadata().comparator.compare(slice.end(), indexState.currentIndex().firstName) < 0
                 && openMarker == null

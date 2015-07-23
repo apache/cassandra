@@ -213,9 +213,8 @@ public class SSTableReversedIterator extends AbstractSSTableIterator
 
         protected void init() throws IOException
         {
-            // If this is called, it means we're calling hasNext() before any call to setForSlice. Which means
-            // we're reading everything from the end. So just set us up on the last block.
-            indexState.setToBlock(indexState.blocksCount() - 1);
+            // This is actually a no-op, because if we call hasNext without having called setForSlice, then ReverseReader.hasNextInternal
+            // will call setForSlice(Slice.ALL) which does the right thing.
         }
 
         @Override
@@ -232,21 +231,32 @@ public class SSTableReversedIterator extends AbstractSSTableIterator
             }
 
             // Find the first index block we'll need to read for the slice.
-            int startIdx = indexState.findBlockIndex(slice.end());
+            int startIdx = indexState.findBlockIndex(slice.end(), indexState.currentBlockIdx());
             if (startIdx < 0)
             {
                 iterator = Collections.emptyIterator();
                 return;
             }
 
-            boolean isCurrentBlock = startIdx == indexState.currentBlockIdx();
-            if (!isCurrentBlock)
+            lastBlockIdx = indexState.findBlockIndex(slice.start(), startIdx);
+
+            // If the last block to look (in reverse order) is after the very last block, we have nothing for that slice
+            if (lastBlockIdx >= indexState.blocksCount())
+            {
+                assert startIdx >= indexState.blocksCount();
+                iterator = Collections.emptyIterator();
+                return;
+            }
+
+            // If we start (in reverse order) after the very last block, just read from the last one.
+            if (startIdx >= indexState.blocksCount())
+                startIdx = indexState.blocksCount() - 1;
+
+            if (startIdx != indexState.currentBlockIdx())
+            {
                 indexState.setToBlock(startIdx);
-
-            lastBlockIdx = indexState.findBlockIndex(slice.start());
-
-            if (!isCurrentBlock)
                 readCurrentBlock(true);
+            }
 
             setIterator(slice);
         }
