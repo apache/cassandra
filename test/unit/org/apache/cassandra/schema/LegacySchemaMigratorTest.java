@@ -232,6 +232,13 @@ public class LegacySchemaMigratorTest
                                                                            + "PRIMARY KEY(bar, baz) ) "
                                                                            + "WITH COMPACT STORAGE", ks_cql),
 
+                                                        CFMetaData.compile("CREATE TABLE compact_pkonly ("
+                                                                           + "k int, "
+                                                                           + "c int, "
+                                                                           + "PRIMARY KEY (k, c)) "
+                                                                           + "WITH COMPACT STORAGE",
+                                                                           ks_cql),
+
                                                         CFMetaData.compile("CREATE TABLE foofoo ("
                                                                            + "bar text, "
                                                                            + "baz text, "
@@ -459,8 +466,12 @@ public class LegacySchemaMigratorTest
 
     private static void addColumnToSchemaMutation(CFMetaData table, ColumnDefinition column, long timestamp, Mutation mutation)
     {
-        RowUpdateBuilder adder = new RowUpdateBuilder(SystemKeyspace.LegacyColumns, timestamp, mutation)
-                                 .clustering(table.cfName, column.name.toString());
+        // We need to special case pk-only dense tables. See CASSANDRA-9874.
+        String name = table.isDense() && column.kind == ColumnDefinition.Kind.REGULAR && column.type instanceof EmptyType
+                    ? ""
+                    : column.name.toString();
+
+        RowUpdateBuilder adder = new RowUpdateBuilder(SystemKeyspace.LegacyColumns, timestamp, mutation).clustering(table.cfName, name);
 
         adder.add("validator", column.type.toString())
              .add("type", serializeKind(column.kind, table.isDense()))

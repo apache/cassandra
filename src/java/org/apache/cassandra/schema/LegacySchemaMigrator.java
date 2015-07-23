@@ -296,7 +296,16 @@ public final class LegacySchemaMigrator
                                                                         needsUpgrade);
 
         if (needsUpgrade)
-            addDefinitionForUpgrade(columnDefs, ksName, cfName, isStaticCompactTable, isSuper, rawComparator, subComparator, defaultValidator);
+        {
+            addDefinitionForUpgrade(columnDefs,
+                                    ksName,
+                                    cfName,
+                                    isStaticCompactTable,
+                                    isSuper,
+                                    rawComparator,
+                                    subComparator,
+                                    defaultValidator);
+        }
 
         CFMetaData cfm = CFMetaData.create(ksName, cfName, cfId, isDense, isCompound, isSuper, isCounter, columnDefs);
 
@@ -355,7 +364,33 @@ public final class LegacySchemaMigrator
             return !hasKind(defs, ColumnDefinition.Kind.STATIC);
 
         // For dense compact tables, we need to upgrade if we don't have a compact value definition
-        return !hasKind(defs, ColumnDefinition.Kind.REGULAR);
+        return !hasRegularColumns(defs);
+    }
+
+    private static boolean hasRegularColumns(UntypedResultSet columnRows)
+    {
+        for (UntypedResultSet.Row row : columnRows)
+        {
+            /*
+             * We need to special case and ignore the empty compact column (pre-3.0, COMPACT STORAGE, primary-key only tables),
+             * since deserializeKind() will otherwise just return a REGULAR.
+             * We want the proper EmptyType regular column to be added by addDefinitionForUpgrade(), so we need
+             * checkNeedsUpgrade() to return true in this case.
+             * See CASSANDRA-9874.
+             */
+            if (isEmptyCompactValueColumn(row))
+                return false;
+
+            if (deserializeKind(row.getString("type")) == ColumnDefinition.Kind.REGULAR)
+                return true;
+        }
+
+        return false;
+    }
+
+    private static boolean isEmptyCompactValueColumn(UntypedResultSet.Row row)
+    {
+        return "compact_value".equals(row.getString("type")) && row.getString("column_name").isEmpty();
     }
 
     private static void addDefinitionForUpgrade(List<ColumnDefinition> defs,
@@ -389,10 +424,9 @@ public final class LegacySchemaMigrator
     private static boolean hasKind(UntypedResultSet defs, ColumnDefinition.Kind kind)
     {
         for (UntypedResultSet.Row row : defs)
-        {
             if (deserializeKind(row.getString("type")) == kind)
                 return true;
-        }
+
         return false;
     }
 
@@ -437,62 +471,59 @@ public final class LegacySchemaMigrator
                                                                       boolean needsUpgrade)
     {
         List<ColumnDefinition> columns = new ArrayList<>();
+
         for (UntypedResultSet.Row row : rows)
-            columns.add(createColumnFromColumnRow(row, keyspace, table, rawComparator, rawSubComparator, isSuper, isCQLTable, isStaticCompactTable, needsUpgrade));
+        {
+            // Skip the empty compact value column. Make addDefinitionForUpgrade() re-add the proper REGULAR one.
+            if (isEmptyCompactValueColumn(row))
+                continue;
+
+            ColumnDefinition.Kind kind = deserializeKind(row.getString("type"));
+            if (needsUpgrade && isStaticCompactTable && kind == ColumnDefinition.Kind.REGULAR)
+                kind = ColumnDefinition.Kind.STATIC;
+
+            Integer componentIndex = null;
+            // Note that the component_index is not useful for non-primary key parts (it never really in fact since there is
+            // no particular ordering of non-PK columns, we only used to use it as a simplification but that's not needed
+            // anymore)
+            if (kind.isPrimaryKeyKind() && row.has("component_index"))
+                componentIndex = row.getInt("component_index");
+
+            // Note: we save the column name as string, but we should not assume that it is an UTF8 name, we
+            // we need to use the comparator fromString method
+            AbstractType<?> comparator = isCQLTable
+                                       ? UTF8Type.instance
+                                       : CompactTables.columnDefinitionComparator(kind, isSuper, rawComparator, rawSubComparator);
+            ColumnIdentifier name = ColumnIdentifier.getInterned(comparator.fromString(row.getString("column_name")), comparator);
+
+            AbstractType<?> validator = parseType(row.getString("validator"));
+
+            IndexType indexType = null;
+            if (row.has("index_type"))
+                indexType = IndexType.valueOf(row.getString("index_type"));
+
+            Map<String, String> indexOptions = null;
+            if (row.has("index_options"))
+                indexOptions = fromJsonMap(row.getString("index_options"));
+
+            String indexName = null;
+            if (row.has("index_name"))
+                indexName = row.getString("index_name");
+
+            columns.add(new ColumnDefinition(keyspace, table, name, validator, indexType, indexOptions, indexName, componentIndex, kind));
+        }
+
         return columns;
-    }
-
-    private static ColumnDefinition createColumnFromColumnRow(UntypedResultSet.Row row,
-                                                              String keyspace,
-                                                              String table,
-                                                              AbstractType<?> rawComparator,
-                                                              AbstractType<?> rawSubComparator,
-                                                              boolean isSuper,
-                                                              boolean isCQLTable,
-                                                              boolean isStaticCompactTable,
-                                                              boolean needsUpgrade)
-    {
-        ColumnDefinition.Kind kind = deserializeKind(row.getString("type"));
-        if (needsUpgrade && isStaticCompactTable && kind == ColumnDefinition.Kind.REGULAR)
-            kind = ColumnDefinition.Kind.STATIC;
-
-        Integer componentIndex = null;
-        // Note that the component_index is not useful for non-primary key parts (it never really in fact since there is
-        // no particular ordering of non-PK columns, we only used to use it as a simplification but that's not needed
-        // anymore)
-        if (kind.isPrimaryKeyKind() && row.has("component_index"))
-            componentIndex = row.getInt("component_index");
-
-        // Note: we save the column name as string, but we should not assume that it is an UTF8 name, we
-        // we need to use the comparator fromString method
-        AbstractType<?> comparator = isCQLTable
-                                   ? UTF8Type.instance
-                                   : CompactTables.columnDefinitionComparator(kind, isSuper, rawComparator, rawSubComparator);
-        ColumnIdentifier name = ColumnIdentifier.getInterned(comparator.fromString(row.getString("column_name")), comparator);
-
-        AbstractType<?> validator = parseType(row.getString("validator"));
-
-        IndexType indexType = null;
-        if (row.has("index_type"))
-            indexType = IndexType.valueOf(row.getString("index_type"));
-
-        Map<String, String> indexOptions = null;
-        if (row.has("index_options"))
-            indexOptions = fromJsonMap(row.getString("index_options"));
-
-        String indexName = null;
-        if (row.has("index_name"))
-            indexName = row.getString("index_name");
-
-        return new ColumnDefinition(keyspace, table, name, validator, indexType, indexOptions, indexName, componentIndex, kind);
     }
 
     private static ColumnDefinition.Kind deserializeKind(String kind)
     {
         if ("clustering_key".equalsIgnoreCase(kind))
             return ColumnDefinition.Kind.CLUSTERING;
+
         if ("compact_value".equalsIgnoreCase(kind))
             return ColumnDefinition.Kind.REGULAR;
+
         return Enum.valueOf(ColumnDefinition.Kind.class, kind.toUpperCase());
     }
 
