@@ -395,7 +395,6 @@ public class Keyspace
                 replayPosition = CommitLog.instance.add(mutation);
             }
 
-            DecoratedKey key = mutation.key();
             for (PartitionUpdate upd : mutation.getPartitionUpdates())
             {
                 ColumnFamilyStore cfs = columnFamilyStores.get(upd.metadata().cfId);

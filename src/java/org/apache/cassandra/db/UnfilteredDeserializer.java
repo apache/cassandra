@@ -340,7 +340,17 @@ public abstract class UnfilteredDeserializer
         public int compareNextTo(Slice.Bound bound) throws IOException
         {
             checkReady();
-            return metadata.comparator.compare(nextAtom, bound);
+            int cmp = metadata.comparator.compare(nextAtom.clustering(), bound);
+            if (cmp != 0 || nextAtom.isCell() || !nextIsRow())
+                return cmp;
+
+            // Comparing the clustering of the LegacyAtom to the bound work most of the time. There is the case
+            // of LegacyRangeTombstone that are either a collectionTombstone or a rowDeletion. In those case, their
+            // clustering will be the inclusive start of the row they are a tombstone for, which can be equal to
+            // the slice bound. But we don't want to return equality because the LegacyTombstone should stand for
+            // it's row and should sort accordingly. This matter particularly because SSTableIterator will skip
+            // equal results for the start bound (see SSTableIterator.handlePreSliceData for details).
+            return bound.isStart() ? 1 : -1;
         }
 
         public boolean nextIsRow() throws IOException

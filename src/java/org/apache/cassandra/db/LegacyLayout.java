@@ -140,7 +140,16 @@ public abstract class LegacyLayout
 
         ByteBuffer column = metadata.isCompound() ? CompositeType.extractComponent(cellname, metadata.comparator.size()) : cellname;
         if (column == null)
+        {
+            // 2ndary indexes tables used to be compound but dense, but we've transformed then into regular tables
+            // (non compact ones) but with no regular column (i.e. we only care about the clustering). So we'll get here
+            // in that case, and what we want to return is basically a row marker.
+            if (metadata.partitionColumns().isEmpty())
+                return new LegacyCellName(clustering, null, null);
+
+            // Otherwise, we shouldn't get there
             throw new IllegalArgumentException("No column name component found in cell name");
+        }
 
         // Row marker, this is ok
         if (!column.hasRemaining())
@@ -345,6 +354,7 @@ public abstract class LegacyLayout
             columnsToFetch.add(column.name.bytes);
 
         Row.Builder builder = ArrayBackedRow.unsortedBuilder(statics, FBUtilities.nowInSeconds());
+        builder.newRow(Clustering.STATIC_CLUSTERING);
 
         boolean foundOne = false;
         LegacyAtom atom;
@@ -416,7 +426,7 @@ public abstract class LegacyLayout
             }
         };
         List<Iterator<LegacyAtom>> iterators = Arrays.asList(asLegacyAtomIterator(cells), asLegacyAtomIterator(delInfo.inRowRangeTombstones()));
-        Iterator<LegacyAtom> merged = MergeIterator.get(iterators, grouper.metadata.comparator, reducer);
+        Iterator<LegacyAtom> merged = MergeIterator.get(iterators, legacyAtomComparator(grouper.metadata), reducer);
         final PeekingIterator<LegacyAtom> atoms = Iterators.peekingIterator(merged);
 
         return new AbstractIterator<Row>()
@@ -602,6 +612,74 @@ public abstract class LegacyLayout
         };
     }
 
+    private static Comparator<LegacyAtom> legacyAtomComparator(CFMetaData metadata)
+    {
+        return (o1, o2) ->
+        {
+            // First we want to compare by clustering, but we have to be careful with range tombstone, because
+            // we can have collection deletion and we want those to sort properly just before the column they
+            // delete, not before the whole row.
+            ClusteringPrefix c1 = o1.clustering();
+            ClusteringPrefix c2 = o2.clustering();
+
+            int clusteringComparison;
+            if (c1.size() != c2.size() || (o1.isCell() == o2.isCell()))
+            {
+                clusteringComparison = metadata.comparator.compare(c1, c2);
+            }
+            else
+            {
+                // one is a cell and one is a range tombstone, and both have the same prefix size (that is, the
+                // range tombstone is either a row deletion or a collection deletion).
+                LegacyRangeTombstone rt = o1.isCell() ? o2.asRangeTombstone() : o1.asRangeTombstone();
+                clusteringComparison = rt.isCollectionTombstone()
+                                       ? 0
+                                       : metadata.comparator.compare(c1, c2);
+            }
+
+            // Note that if both are range tombstones and have the same clustering, then they are equal.
+            if (clusteringComparison != 0)
+                return clusteringComparison;
+
+            if (o1.isCell())
+            {
+                LegacyCell cell1 = o1.asCell();
+                if (o2.isCell())
+                {
+                    LegacyCell cell2 = o2.asCell();
+                    // Check for row marker cells
+                    if (cell1.name.column == null)
+                        return cell2.name.column == null ? 0 : -1;
+                    return cell2.name.column == null ? 1 : cell1.name.column.compareTo(cell2.name.column);
+                }
+
+                LegacyRangeTombstone rt2 = o2.asRangeTombstone();
+                assert rt2.isCollectionTombstone(); // otherwise, we shouldn't have got a clustering equality
+                if (cell1.name.column == null)
+                    return -1;
+                int cmp = cell1.name.column.compareTo(rt2.start.collectionName);
+                // If both are for the same column, then the RT should come first
+                return cmp == 0 ? 1 : cmp;
+            }
+            else
+            {
+                assert o2.isCell();
+                LegacyCell cell2 = o2.asCell();
+
+                LegacyRangeTombstone rt1 = o1.asRangeTombstone();
+                assert rt1.isCollectionTombstone(); // otherwise, we shouldn't have got a clustering equality
+
+                if (cell2.name.column == null)
+                    return 1;
+
+                int cmp = rt1.start.collectionName.compareTo(cell2.name.column);
+                // If both are for the same column, then the RT should come first
+                return cmp == 0 ? -1 : cmp;
+            }
+        };
+    }
+
+
     public static LegacyAtom readLegacyAtom(CFMetaData metadata, DataInputPlus in, boolean readAllAsDynamic) throws IOException
     {
         while (true)
@@ -768,14 +846,10 @@ public abstract class LegacyLayout
 
         public boolean addCell(LegacyCell cell)
         {
-            if (isStatic)
-            {
-                if (cell.name.clustering != Clustering.STATIC_CLUSTERING)
-                    return false;
-            }
-            else if (clustering == null)
+            if (clustering == null)
             {
                 clustering = cell.name.clustering;
+                assert !isStatic || clustering == Clustering.STATIC_CLUSTERING;
                 builder.newRow(clustering);
             }
             else if (!clustering.equals(cell.name.clustering))
@@ -941,7 +1015,7 @@ public abstract class LegacyLayout
         }
     }
 
-    public interface LegacyAtom extends Clusterable
+    public interface LegacyAtom
     {
         public boolean isCell();
 
@@ -1259,7 +1333,7 @@ public abstract class LegacyLayout
                 while (iter.hasNext())
                 {
                     LegacyRangeTombstone tombstone = iter.next();
-                    if (metadata.comparator.compare(atom, tombstone.stop.bound) >= 0)
+                    if (metadata.comparator.compare(atom.clustering(), tombstone.stop.bound) >= 0)
                         iter.remove();
                 }
             }

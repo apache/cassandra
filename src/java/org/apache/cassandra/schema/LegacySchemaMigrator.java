@@ -457,7 +457,10 @@ public final class LegacySchemaMigrator
             kind = ColumnDefinition.Kind.STATIC;
 
         Integer componentIndex = null;
-        if (row.has("component_index"))
+        // Note that the component_index is not useful for non-primary key parts (it never really in fact since there is
+        // no particular ordering of non-PK columns, we only used to use it as a simplification but that's not needed
+        // anymore)
+        if (kind.isPrimaryKeyKind() && row.has("component_index"))
             componentIndex = row.getInt("component_index");
 
         // Note: we save the column name as string, but we should not assume that it is an UTF8 name, we

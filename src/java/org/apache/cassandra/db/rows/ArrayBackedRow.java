@@ -510,7 +510,7 @@ public class ArrayBackedRow extends AbstractRow
 
         public void newRow(Clustering clustering)
         {
-            assert cells.isEmpty(); // Ensures we've properly called build() if we've use this builder before
+            assert this.clustering == null; // Ensures we've properly called build() if we've use this builder before
             this.clustering = clustering;
         }
 
