@@ -36,7 +36,7 @@ import org.apache.cassandra.utils.memory.AbstractAllocator;
  *   2) expiring cells: on top of regular cells, those have a ttl and a local deletion time (when they are expired).
  *   3) tombstone cells: those won't have value, but they have a local deletion time (when the tombstone was created).
  */
-public interface Cell extends ColumnData
+public abstract class Cell extends ColumnData
 {
     public static final int NO_TTL = 0;
     public static final int NO_DELETION_TIME = Integer.MAX_VALUE;
@@ -51,35 +51,40 @@ public interface Cell extends ColumnData
         return pathComparator == null ? 0 : pathComparator.compare(c1.path(), c2.path());
     };
 
-    public final Serializer serializer = new BufferCell.Serializer();
+    public static final Serializer serializer = new BufferCell.Serializer();
+
+    protected Cell(ColumnDefinition column)
+    {
+        super(column);
+    }
 
     /**
      * Whether the cell is a counter cell or not.
      *
      * @return whether the cell is a counter cell or not.
      */
-    public boolean isCounterCell();
+    public abstract boolean isCounterCell();
 
     /**
      * The cell value.
      *
      * @return the cell value.
      */
-    public ByteBuffer value();
+    public abstract ByteBuffer value();
 
     /**
      * The cell timestamp.
      * <p>
      * @return the cell timestamp.
      */
-    public long timestamp();
+    public abstract long timestamp();
 
     /**
      * The cell ttl.
      *
      * @return the cell ttl, or {@code NO_TTL} if the cell isn't an expiring one.
      */
-    public int ttl();
+    public abstract int ttl();
 
     /**
      * The cell local deletion time.
@@ -87,14 +92,14 @@ public interface Cell extends ColumnData
      * @return the cell local deletion time, or {@code NO_DELETION_TIME} if the cell is neither
      * a tombstone nor an expiring one.
      */
-    public int localDeletionTime();
+    public abstract int localDeletionTime();
 
     /**
      * Whether the cell is a tombstone or not.
      *
      * @return whether the cell is a tombstone or not.
      */
-    public boolean isTombstone();
+    public abstract boolean isTombstone();
 
     /**
      * Whether the cell is an expiring one or not.
@@ -105,7 +110,7 @@ public interface Cell extends ColumnData
      *
      * @return whether the cell is an expiring one or not.
      */
-    public boolean isExpiring();
+    public abstract boolean isExpiring();
 
     /**
      * Whether the cell is live or not given the current time.
@@ -114,7 +119,7 @@ public interface Cell extends ColumnData
      * decide if an expiring cell is expired or live.
      * @return whether the cell is live or not at {@code nowInSec}.
      */
-    public boolean isLive(int nowInSec);
+    public abstract boolean isLive(int nowInSec);
 
     /**
      * For cells belonging to complex types (non-frozen collection and UDT), the
@@ -122,19 +127,19 @@ public interface Cell extends ColumnData
      *
      * @return the cell path for cells of complex column, and {@code null} for other cells.
      */
-    public CellPath path();
+    public abstract CellPath path();
 
-    public Cell withUpdatedValue(ByteBuffer newValue);
+    public abstract Cell withUpdatedValue(ByteBuffer newValue);
 
-    public Cell copy(AbstractAllocator allocator);
-
-    @Override
-    // Overrides super type to provide a more precise return type.
-    public Cell markCounterLocalToBeCleared();
+    public abstract Cell copy(AbstractAllocator allocator);
 
     @Override
     // Overrides super type to provide a more precise return type.
-    public Cell purge(DeletionPurger purger, int nowInSec);
+    public abstract Cell markCounterLocalToBeCleared();
+
+    @Override
+    // Overrides super type to provide a more precise return type.
+    public abstract Cell purge(DeletionPurger purger, int nowInSec);
 
     public interface Serializer
     {

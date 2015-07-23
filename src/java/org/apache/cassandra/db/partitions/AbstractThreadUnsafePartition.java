@@ -167,7 +167,7 @@ public abstract class AbstractThreadUnsafePartition implements Partition, Iterab
                     activeDeletion = rt.deletionTime();
 
                 if (row == null)
-                    return activeDeletion.isLive() ? null : ArrayBackedRow.emptyDeletedRow(clustering, activeDeletion);
+                    return activeDeletion.isLive() ? null : BTreeBackedRow.emptyDeletedRow(clustering, activeDeletion);
 
                 return row.filter(columns, activeDeletion, true, metadata);
             }

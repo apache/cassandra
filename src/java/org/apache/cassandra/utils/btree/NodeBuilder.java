@@ -263,7 +263,8 @@ final class NodeBuilder
     // builds a new root BTree node - must be called on root of operation
     Object[] toNode()
     {
-        assert buildKeyPosition <= FAN_FACTOR && (buildKeyPosition > 0 || getKeyEnd(copyFrom) > 0) : buildKeyPosition;
+        // we permit building empty trees as some constructions do not know in advance how many items they will contain
+        assert buildKeyPosition <= FAN_FACTOR : buildKeyPosition;
         return buildFromRange(0, buildKeyPosition, isLeaf(copyFrom), false);
     }
 

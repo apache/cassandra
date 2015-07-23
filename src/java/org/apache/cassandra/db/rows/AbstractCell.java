@@ -20,6 +20,7 @@ package org.apache.cassandra.db.rows;
 import java.security.MessageDigest;
 import java.util.Objects;
 
+import org.apache.cassandra.config.ColumnDefinition;
 import org.apache.cassandra.db.context.CounterContext;
 import org.apache.cassandra.db.marshal.AbstractType;
 import org.apache.cassandra.db.marshal.CollectionType;
@@ -32,8 +33,13 @@ import org.apache.cassandra.utils.FBUtilities;
  * Unless you have a very good reason not to, every cell implementation
  * should probably extend this class.
  */
-public abstract class AbstractCell implements Cell
+public abstract class AbstractCell extends Cell
 {
+    protected AbstractCell(ColumnDefinition column)
+    {
+        super(column);
+    }
+
     public void digest(MessageDigest digest)
     {
         digest.update(value().duplicate());

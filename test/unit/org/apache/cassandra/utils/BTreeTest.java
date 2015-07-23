@@ -20,8 +20,10 @@ package org.apache.cassandra.utils;
 import java.util.*;
 import java.util.concurrent.ThreadLocalRandom;
 
+import com.google.common.collect.Iterables;
 import org.junit.Test;
 
+import junit.framework.Assert;
 import org.apache.cassandra.utils.btree.BTree;
 import org.apache.cassandra.utils.btree.UpdateFunction;
 
@@ -191,9 +193,80 @@ public class BTreeTest
         assertEquals(1, monitor.getNumberOfCalls(3));
     }
 
+    /**
+     * Tests that the apply method of the <code>UpdateFunction</code> is only called once per value with each build call.
+     */
+    @Test
+    public void testBuilder_Resolver()
+    {
+        // for numbers x in 1..N, we repeat x x times, and resolve values to their sum,
+        // so that the resulting tree is of square numbers
+        BTree.Builder.Resolver resolver = (array, lb, ub) -> {
+            int sum = 0;
+            for (int i = lb ; i < ub ; i++)
+                sum += (Integer) array[i];
+            return sum;
+        };
+
+        for (int count = 0 ; count < 10 ; count ++)
+        {
+            BTree.Builder<Integer> builder;
+            // first check we produce the right output for sorted input
+            List<Integer> sorted = resolverInput(count, false);
+            builder = BTree.builder(Comparator.naturalOrder());
+            builder.auto(false);
+            for (Integer i : sorted)
+                builder.add(i);
+            // for sorted input, check non-resolve path works before checking resolution path
+            Assert.assertTrue(Iterables.elementsEqual(sorted, BTree.iterable(builder.build())));
+            checkResolverOutput(count, builder.resolve(resolver).build());
+            builder = BTree.builder(Comparator.naturalOrder());
+            builder.auto(false);
+            for (int i = 0 ; i < 10 ; i++)
+            {
+                // now do a few runs of randomized inputs
+                for (Integer j : resolverInput(count, true))
+                    builder.add(j);
+                checkResolverOutput(count, builder.sort().resolve(resolver).build());
+                builder.reuse();
+            }
+        }
+    }
+
+    private static List<Integer> resolverInput(int count, boolean shuffled)
+    {
+        List<Integer> result = new ArrayList<>();
+        for (int i = 1 ; i <= count ; i++)
+            for (int j = 0 ; j < i ; j++)
+                result.add(i);
+        if (shuffled)
+        {
+            ThreadLocalRandom random = ThreadLocalRandom.current();
+            for (int i = 0 ; i < result.size() ; i++)
+            {
+                int swapWith = random.nextInt(i, result.size());
+                Integer t = result.get(swapWith);
+                result.set(swapWith, result.get(i));
+                result.set(i, t);
+            }
+        }
+        return result;
+    }
+
+    private static void checkResolverOutput(int count, Object[] btree)
+    {
+        int i = 1;
+        for (Integer current : BTree.<Integer>iterable(btree))
+        {
+            Assert.assertEquals(i * i, current.intValue());
+            i++;
+        }
+        Assert.assertEquals(i, count + 1);
+    }
+
     private static void checkResult(int count, Object[] btree)
     {
-        Iterator<Integer> iter = BTree.slice(btree, CMP, true);
+        Iterator<Integer> iter = BTree.slice(btree, CMP, BTree.Dir.ASC);
         int i = 0;
         while (iter.hasNext())
             assertEquals(iter.next(), ints[i++]);

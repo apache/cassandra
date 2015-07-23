@@ -36,8 +36,6 @@ public class BufferCell extends AbstractCell
 {
     private static final long EMPTY_SIZE = ObjectSizes.measure(new BufferCell(ColumnDefinition.regularDef("", "", "", ByteType.instance), 0L, 0, 0, ByteBufferUtil.EMPTY_BYTE_BUFFER, null));
 
-    private final ColumnDefinition column;
-
     private final long timestamp;
     private final int ttl;
     private final int localDeletionTime;
@@ -47,8 +45,8 @@ public class BufferCell extends AbstractCell
 
     public BufferCell(ColumnDefinition column, long timestamp, int ttl, int localDeletionTime, ByteBuffer value, CellPath path)
     {
+        super(column);
         assert column.isComplex() == (path != null);
-        this.column = column;
         this.timestamp = timestamp;
         this.ttl = ttl;
         this.localDeletionTime = localDeletionTime;
@@ -88,11 +86,6 @@ public class BufferCell extends AbstractCell
     public static BufferCell tombstone(ColumnDefinition column, long timestamp, int nowInSec, CellPath path)
     {
         return new BufferCell(column, timestamp, NO_TTL, nowInSec, ByteBufferUtil.EMPTY_BYTE_BUFFER, path);
-    }
-
-    public ColumnDefinition column()
-    {
-        return column;
     }
 
     public boolean isCounterCell()

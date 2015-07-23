@@ -822,8 +822,8 @@ public class PartitionUpdate extends AbstractThreadUnsafePartition
         {
             // This is a bit of a giant hack as this is the only place where we mutate a Row object. This makes it more efficient
             // for counters however and this won't be needed post-#6506 so that's probably fine.
-            assert row instanceof ArrayBackedRow;
-            ((ArrayBackedRow)row).setValue(column, path, value);
+            assert row instanceof BTreeBackedRow;
+            ((BTreeBackedRow)row).setValue(column, path, value);
         }
     }
 }

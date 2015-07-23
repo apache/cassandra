@@ -42,15 +42,15 @@ public class BTreeSearchIterator<K, V> extends TreeCursor<K> implements IndexedS
     private static final int LAST = 4; // may co-exist with ON_ITEM, in which case we are also at END
     private static final int END = 5; // equal to LAST | ON_ITEM
 
-    public BTreeSearchIterator(Object[] btree, Comparator<? super K> comparator, boolean forwards)
+    public BTreeSearchIterator(Object[] btree, Comparator<? super K> comparator, BTree.Dir dir)
     {
-        this(btree, comparator, forwards, 0, size(btree)-1);
+        this(btree, comparator, dir, 0, size(btree)-1);
     }
 
-    BTreeSearchIterator(Object[] btree, Comparator<? super K> comparator, boolean forwards, int lowerBound, int upperBound)
+    BTreeSearchIterator(Object[] btree, Comparator<? super K> comparator, BTree.Dir dir, int lowerBound, int upperBound)
     {
         super(comparator, btree);
-        this.forwards = forwards;
+        this.forwards = dir == BTree.Dir.ASC;
         this.lowerBound = lowerBound;
         this.upperBound = upperBound;
         rewind();

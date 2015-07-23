@@ -24,6 +24,8 @@ import com.google.common.collect.ImmutableList;
 import com.google.common.collect.Iterables;
 import com.google.common.collect.Ordering;
 
+import org.apache.cassandra.utils.btree.BTree.Dir;
+
 import static org.apache.cassandra.utils.btree.BTree.findIndex;
 import static org.apache.cassandra.utils.btree.BTree.lower;
 import static org.apache.cassandra.utils.btree.BTree.toArray;
@@ -50,9 +52,9 @@ public class BTreeSet<V> implements NavigableSet<V>, List<V>
         return comparator;
     }
 
-    protected BTreeSearchIterator<V, V> slice(boolean forwards)
+    protected BTreeSearchIterator<V, V> slice(Dir dir)
     {
-        return BTree.slice(tree, comparator, forwards);
+        return BTree.slice(tree, comparator, dir);
     }
 
     public Object[] tree()
@@ -101,13 +103,13 @@ public class BTreeSet<V> implements NavigableSet<V>, List<V>
     @Override
     public BTreeSearchIterator<V, V> iterator()
     {
-        return slice(true);
+        return slice(Dir.ASC);
     }
 
     @Override
     public BTreeSearchIterator<V, V> descendingIterator()
     {
-        return slice(false);
+        return slice(Dir.DESC);
     }
 
     @Override
@@ -360,9 +362,9 @@ public class BTreeSet<V> implements NavigableSet<V>, List<V>
         }
 
         @Override
-        protected BTreeSearchIterator<V, V> slice(boolean forwards)
+        protected BTreeSearchIterator<V, V> slice(Dir dir)
         {
-            return new BTreeSearchIterator<>(tree, comparator, forwards, lowerBound, upperBound);
+            return new BTreeSearchIterator<>(tree, comparator, dir, lowerBound, upperBound);
         }
 
         @Override
@@ -485,9 +487,9 @@ public class BTreeSet<V> implements NavigableSet<V>, List<V>
         }
 
         @Override
-        protected BTreeSearchIterator<V, V> slice(boolean forwards)
+        protected BTreeSearchIterator<V, V> slice(Dir dir)
         {
-            return super.slice(!forwards);
+            return super.slice(dir.invert());
         }
 
         /* Flip the methods we call for inequality searches */

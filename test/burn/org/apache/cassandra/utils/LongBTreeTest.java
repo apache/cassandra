@@ -29,7 +29,7 @@ import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.function.Consumer;
 
-import com.google.common.collect.Iterators;
+import com.google.common.base.Function;
 import com.google.common.collect.Lists;
 import com.google.common.util.concurrent.Futures;
 import com.google.common.util.concurrent.ListenableFuture;
@@ -43,15 +43,21 @@ import com.codahale.metrics.Timer;
 import org.apache.cassandra.concurrent.NamedThreadFactory;
 import org.apache.cassandra.utils.btree.*;
 
+import static com.google.common.base.Predicates.notNull;
 import static com.google.common.collect.Iterables.filter;
+import static com.google.common.collect.Iterables.transform;
 import static java.util.Comparator.naturalOrder;
 import static java.util.Comparator.reverseOrder;
+import static org.apache.cassandra.utils.btree.BTree.iterable;
+import static org.junit.Assert.assertTrue;
 
 public class LongBTreeTest
 {
 
     private static int perThreadTrees = 10000;
-    private static final boolean DEBUG = false;
+    private static int minTreeSize = 5;
+    private static int maxTreeSize = 15;
+    private static final boolean DEBUG = true;
     private static final MetricRegistry metrics = new MetricRegistry();
     private static final Timer BTREE_TIMER = metrics.timer(MetricRegistry.name(BTree.class, "BTREE"));
     private static final Timer TREE_TIMER = metrics.timer(MetricRegistry.name(BTree.class, "TREE"));
@@ -108,36 +114,36 @@ public class LongBTreeTest
     {
         final int perTreeSelections = 2;
         testRandomSelectionOfSet(perThreadTrees, perTreeSelections,
-         (test, canonical) -> {
-             if (!canonical.isEmpty() || !test.isEmpty())
-             {
-                 Assert.assertEquals(canonical.isEmpty(), test.isEmpty());
-                 Assert.assertEquals(canonical.first(), test.first());
-                 Assert.assertEquals(canonical.last(), test.last());
-             }
-             return (key) ->
-             {
-                 Assert.assertEquals(test.ceiling(key), canonical.ceiling(key));
-                 Assert.assertEquals(test.higher(key), canonical.higher(key));
-                 Assert.assertEquals(test.floor(key), canonical.floor(key));
-                 Assert.assertEquals(test.lower(key), canonical.lower(key));
-             };
-         });
+                                 (test, canonical) -> {
+                                     if (!canonical.isEmpty() || !test.isEmpty())
+                                     {
+                                         Assert.assertEquals(canonical.isEmpty(), test.isEmpty());
+                                         Assert.assertEquals(canonical.first(), test.first());
+                                         Assert.assertEquals(canonical.last(), test.last());
+                                     }
+                                     return (key) ->
+                                     {
+                                         Assert.assertEquals(test.ceiling(key), canonical.ceiling(key));
+                                         Assert.assertEquals(test.higher(key), canonical.higher(key));
+                                         Assert.assertEquals(test.floor(key), canonical.floor(key));
+                                         Assert.assertEquals(test.lower(key), canonical.lower(key));
+                                     };
+                                 });
     }
 
     @Test
     public void testListIndexes() throws InterruptedException
     {
         testRandomSelectionOfList(perThreadTrees, 4,
-          (test, canonical, cmp) ->
-          (key) ->
-          {
-              int javaIndex = Collections.binarySearch(canonical, key, cmp);
-              int btreeIndex = test.indexOf(key);
-              Assert.assertEquals(javaIndex, btreeIndex);
-              if (javaIndex >= 0)
-                  Assert.assertEquals(canonical.get(javaIndex), test.get(btreeIndex));
-          }
+                                  (test, canonical, cmp) ->
+                                  (key) ->
+                                  {
+                                      int javaIndex = Collections.binarySearch(canonical, key, cmp);
+                                      int btreeIndex = test.indexOf(key);
+                                      Assert.assertEquals(javaIndex, btreeIndex);
+                                      if (javaIndex >= 0)
+                                          Assert.assertEquals(canonical.get(javaIndex), test.get(btreeIndex));
+                                  }
         );
     }
 
@@ -145,14 +151,81 @@ public class LongBTreeTest
     public void testToArray() throws InterruptedException
     {
         testRandomSelection(perThreadTrees, 4,
-          (selection) ->
-          {
-              Integer[] array = new Integer[selection.canonicalList.size() + 1];
-              selection.testAsList.toArray(array, 1);
-              Assert.assertEquals(null, array[0]);
-              for (int j = 0 ; j < selection.canonicalList.size() ; j++)
-                  Assert.assertEquals(selection.canonicalList.get(j), array[j + 1]);
-          });
+                            (selection) ->
+                            {
+                                Integer[] array = new Integer[selection.canonicalList.size() + 1];
+                                selection.testAsList.toArray(array, 1);
+                                Assert.assertEquals(null, array[0]);
+                                for (int j = 0; j < selection.canonicalList.size(); j++)
+                                    Assert.assertEquals(selection.canonicalList.get(j), array[j + 1]);
+                            });
+    }
+
+    private static final class CountingFunction implements Function<Integer, Integer>
+    {
+        final Function<Integer, Integer> wrapped;
+        int count = 0;
+        protected CountingFunction(Function<Integer, Integer> wrapped)
+        {
+            this.wrapped = wrapped;
+        }
+        public Integer apply(Integer integer)
+        {
+            count++;
+            return wrapped.apply(integer);
+        }
+    }
+
+    @Test
+    public void testTransformAndFilter() throws InterruptedException
+    {
+        testRandomSelection(perThreadTrees, 4, false, false, false,
+                            (selection) ->
+                            {
+                                Map<Integer, Integer> update = new LinkedHashMap<>();
+                                for (Integer i : selection.testKeys)
+                                    update.put(i, new Integer(i));
+
+                                CountingFunction function;
+                                Object[] original = selection.testAsSet.tree();
+                                Object[] transformed;
+
+                                // test replacing none, leaving all present
+                                function = new CountingFunction((x) -> x);
+                                transformed = BTree.transformAndFilter(original, function);
+                                Assert.assertEquals(BTree.size(original), function.count);
+                                Assert.assertSame(original, transformed);
+
+                                // test replacing some, leaving all present
+                                function = new CountingFunction((x) -> update.containsKey(x) ? update.get(x) : x);
+                                transformed = BTree.transformAndFilter(original, function);
+                                Assert.assertEquals(BTree.size(original), function.count);
+                                assertSame(transform(selection.canonicalList, function.wrapped), iterable(transformed));
+
+                                // test replacing some, removing some
+                                function = new CountingFunction(update::get);
+                                transformed = BTree.transformAndFilter(original, function);
+                                Assert.assertEquals(BTree.size(original), function.count);
+                                assertSame(filter(transform(selection.canonicalList, function.wrapped), notNull()), iterable(transformed));
+
+                                // test replacing none, removing some
+                                function = new CountingFunction((x) -> update.containsKey(x) ? null : x);
+                                transformed = BTree.transformAndFilter(selection.testAsList.tree(), function);
+                                Assert.assertEquals(BTree.size(original), function.count);
+                                assertSame(filter(transform(selection.canonicalList, function.wrapped), notNull()), iterable(transformed));
+                            });
+    }
+
+    private static void assertSame(Iterable<Integer> i1, Iterable<Integer> i2)
+    {
+        assertSame(i1.iterator(), i2.iterator());
+    }
+
+    private static void assertSame(Iterator<Integer> i1, Iterator<Integer> i2)
+    {
+        while (i1.hasNext() && i2.hasNext())
+            Assert.assertSame(i1.next(), i2.next());
+        Assert.assertEquals(i1.hasNext(), i2.hasNext());
     }
 
     private void testRandomSelectionOfList(int perThreadTrees, int perTreeSelections, BTreeListTestFactory testRun) throws InterruptedException
@@ -195,7 +268,13 @@ public class LongBTreeTest
                 testEachKey.testOne(key);
         });
     }
+
     private void testRandomSelection(int perThreadTrees, int perTreeSelections, Consumer<RandomSelection> testRun) throws InterruptedException
+    {
+        testRandomSelection(perThreadTrees, perTreeSelections, true, true, true, testRun);
+    }
+
+    private void testRandomSelection(int perThreadTrees, int perTreeSelections, boolean narrow, boolean mixInNotPresentItems, boolean permitReversal, Consumer<RandomSelection> testRun) throws InterruptedException
     {
         int threads = Runtime.getRuntime().availableProcessors();
         final CountDownLatch latch = new CountDownLatch(threads);
@@ -212,10 +291,10 @@ public class LongBTreeTest
                     {
                         for (int i = 0 ; i < perThreadTrees ; i++)
                         {
-                            RandomTree tree = randomTree(100, 10000);
+                            RandomTree tree = randomTree(minTreeSize, maxTreeSize);
                             for (int j = 0 ; j < perTreeSelections ; j++)
                             {
-                                testRun.accept(tree.select());
+                                testRun.accept(tree.select(narrow, mixInNotPresentItems, permitReversal));
                                 count.incrementAndGet();
                             }
                         }
@@ -273,7 +352,7 @@ public class LongBTreeTest
             this.test = test;
         }
 
-        RandomSelection select()
+        RandomSelection select(boolean narrow, boolean mixInNotPresentItems, boolean permitReversal)
         {
             ThreadLocalRandom random = ThreadLocalRandom.current();
             NavigableSet<Integer> canonicalSet = this.canonical;
@@ -285,11 +364,11 @@ public class LongBTreeTest
             Assert.assertEquals(canonicalList.size(), testAsList.size());
 
             // sometimes select keys first, so we cover full range
-            List<Integer> allKeys = randomKeys(canonical);
+            List<Integer> allKeys = randomKeys(canonical, mixInNotPresentItems);
             List<Integer> keys = allKeys;
 
-            int narrow = random.nextInt(3);
-            while (canonicalList.size() > 10 && keys.size() > 10 && narrow-- > 0)
+            int narrowCount = random.nextInt(3);
+            while (narrow && canonicalList.size() > 10 && keys.size() > 10 && narrowCount-- > 0)
             {
                 boolean useLb = random.nextBoolean();
                 boolean useUb = random.nextBoolean();
@@ -297,7 +376,7 @@ public class LongBTreeTest
                     continue;
 
                 // select a range smaller than the total span when we have more narrowing iterations left
-                int indexRange = keys.size() / (narrow + 1);
+                int indexRange = keys.size() / (narrowCount + 1);
 
                 boolean lbInclusive = true;
                 Integer lbKey = canonicalList.get(0);
@@ -354,7 +433,7 @@ public class LongBTreeTest
                 keys = allKeys;
 
             Comparator<Integer> comparator = naturalOrder();
-            if (random.nextBoolean())
+            if (permitReversal && random.nextBoolean())
             {
                 if (allKeys != keys)
                     keys = new ArrayList<>(keys);
@@ -478,10 +557,10 @@ public class LongBTreeTest
 
     // select a random subset of the keys, with an optional random population of keys inbetween those that are present
     // return a value with the search position
-    private static List<Integer> randomKeys(Iterable<Integer> canonical)
+    private static List<Integer> randomKeys(Iterable<Integer> canonical, boolean mixInNotPresentItems)
     {
         ThreadLocalRandom rnd = ThreadLocalRandom.current();
-        boolean useFake = rnd.nextBoolean();
+        boolean useFake = mixInNotPresentItems && rnd.nextBoolean();
         final float fakeRatio = rnd.nextFloat();
         List<Integer> results = new ArrayList<>();
         Long fakeLb = null, fakeUb = null;
@@ -525,8 +604,8 @@ public class LongBTreeTest
         btree = BTree.update(btree, naturalOrder(), canon, UpdateFunction.<Integer>noOp());
         canon.add(Integer.MIN_VALUE);
         canon.add(Integer.MAX_VALUE);
-        Assert.assertTrue(BTree.isWellFormed(btree, naturalOrder()));
-        testEqual("Oversize", BTree.<Integer>slice(btree, naturalOrder(), true), canon.iterator());
+        assertTrue(BTree.isWellFormed(btree, naturalOrder()));
+        testEqual("Oversize", BTree.iterator(btree), canon.iterator());
     }
 
     @Test
@@ -652,7 +731,7 @@ public class LongBTreeTest
                         throw new AssertionError("Not well formed!");
                     }
                     if (quickEquality)
-                        testEqual("", BTree.<Integer>slice(btree, naturalOrder(), true), canon.keySet().iterator());
+                        testEqual("", BTree.iterator(btree), canon.keySet().iterator());
                     else
                         r.addAll(testAllSlices("RND", btree, new TreeSet<>(canon.keySet())));
                 }

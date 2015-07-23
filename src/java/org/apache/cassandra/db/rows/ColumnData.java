@@ -31,42 +31,45 @@ import org.apache.cassandra.serializers.MarshalException;
  * In practice, there is only 2 implementations of this: either {@link Cell} for simple columns
  * or {@code ComplexColumnData} for complex columns.
  */
-public interface ColumnData
+public abstract class ColumnData
 {
     public static final Comparator<ColumnData> comparator = (cd1, cd2) -> cd1.column().compareTo(cd2.column());
 
-    // A comparator for the cells of the *similar* ColumnData, i.e. one that assumes the cells are all for the same column.
-    public static final Comparator<Cell> cellComparator = (c1, c2) -> c1.column().cellPathComparator().compare(c1.path(), c2.path());
+    protected final ColumnDefinition column;
+    protected ColumnData(ColumnDefinition column)
+    {
+        this.column = column;
+    }
 
     /**
      * The column this is data for.
      *
      * @return the column this is a data for.
      */
-    public ColumnDefinition column();
+    public final ColumnDefinition column() { return column; }
 
     /**
      * The size of the data hold by this {@code ColumnData}.
      *
      * @return the size used by the data of this {@code ColumnData}.
      */
-    public int dataSize();
+    public abstract int dataSize();
 
-    public long unsharedHeapSizeExcludingData();
+    public abstract long unsharedHeapSizeExcludingData();
 
     /**
      * Validate the column data.
      *
      * @throws MarshalException if the data is not valid.
      */
-    public void validate();
+    public abstract void validate();
 
     /**
      * Adds the data to the provided digest.
      *
      * @param digest the {@code MessageDigest} to add the data to.
      */
-    public void digest(MessageDigest digest);
+    public abstract void digest(MessageDigest digest);
 
     /**
      * Returns a copy of the data where all timestamps for live data have replaced by {@code newTimestamp} and
@@ -74,9 +77,9 @@ public interface ColumnData
      *
      * This exists for the Paxos path, see {@link PartitionUpdate#updateAllTimestamp} for additional details.
      */
-    public ColumnData updateAllTimestamp(long newTimestamp);
+    public abstract ColumnData updateAllTimestamp(long newTimestamp);
 
-    public ColumnData markCounterLocalToBeCleared();
+    public abstract ColumnData markCounterLocalToBeCleared();
 
-    public ColumnData purge(DeletionPurger purger, int nowInSec);
+    public abstract ColumnData purge(DeletionPurger purger, int nowInSec);
 }

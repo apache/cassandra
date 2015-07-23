@@ -124,8 +124,8 @@ class TreeCursor<K> extends NodeCursor<K>
 
             int cmp;
             if (key == test) cmp = 0; // check object identity first, since we utilise that in some places and it's very cheap
-            else cmp = comparator.compare(key, test);
-            if (forwards ? cmp <= 0 : cmp >= 0)
+            else cmp = comparator.compare(test, key); // order of provision matters for asymmetric comparators
+            if (forwards ? cmp >= 0 : cmp <= 0)
             {
                 // we've either matched, or excluded the value from being present
                 int index = cur.globalIndex();

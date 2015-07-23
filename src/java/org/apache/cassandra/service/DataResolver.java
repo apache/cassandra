@@ -214,7 +214,7 @@ public class DataResolver extends ResponseResolver
             {
                 if (currentRows[i] == null)
                 {
-                    currentRows[i] = ArrayBackedRow.sortedBuilder(clustering == Clustering.STATIC_CLUSTERING ? columns.statics : columns.regulars);
+                    currentRows[i] = BTreeBackedRow.sortedBuilder(clustering == Clustering.STATIC_CLUSTERING ? columns.statics : columns.regulars);
                     currentRows[i].newRow(clustering);
                 }
                 return currentRows[i];

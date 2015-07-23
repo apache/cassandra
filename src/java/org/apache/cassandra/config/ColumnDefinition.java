@@ -33,6 +33,8 @@ import org.apache.cassandra.exceptions.*;
 
 public class ColumnDefinition extends ColumnSpecification implements Comparable<ColumnDefinition>
 {
+    public static final Comparator<Object> asymmetricColumnDataComparator = (a, b) -> ((ColumnData) a).column().compareTo((ColumnDefinition) b);
+
     /*
      * The type of CQL3 column this definition represents.
      * There is 4 main type of CQL3 columns: those parts of the partition key,
@@ -70,6 +72,8 @@ public class ColumnDefinition extends ColumnSpecification implements Comparable<
     private final Integer componentIndex;
 
     private final Comparator<CellPath> cellPathComparator;
+    private final Comparator<Object> asymmetricCellPathComparator;
+    private final Comparator<? super Cell> cellComparator;
 
     /**
      * These objects are compared frequently, so we encode several of their comparison components
@@ -156,6 +160,8 @@ public class ColumnDefinition extends ColumnSpecification implements Comparable<
         this.componentIndex = componentIndex;
         this.setIndexType(indexType, indexOptions);
         this.cellPathComparator = makeCellPathComparator(kind, validator);
+        this.cellComparator = cellPathComparator == null ? ColumnData.comparator : (a, b) -> cellPathComparator.compare(a.path(), b.path());
+        this.asymmetricCellPathComparator = cellPathComparator == null ? null : (a, b) -> cellPathComparator.compare(((Cell)a).path(), (CellPath) b);
         this.comparisonOrder = comparisonOrder(kind, isComplex(), position());
     }
 
@@ -405,6 +411,16 @@ public class ColumnDefinition extends ColumnSpecification implements Comparable<
     public Comparator<CellPath> cellPathComparator()
     {
         return cellPathComparator;
+    }
+
+    public Comparator<Object> asymmetricCellPathComparator()
+    {
+        return asymmetricCellPathComparator;
+    }
+
+    public Comparator<? super Cell> cellComparator()
+    {
+        return cellComparator;
     }
 
     public boolean isComplex()

@@ -26,6 +26,8 @@ import org.apache.cassandra.db.filter.ColumnFilter;
 import org.apache.cassandra.service.paxos.Commit;
 import org.apache.cassandra.utils.MergeIterator;
 import org.apache.cassandra.utils.SearchIterator;
+import org.apache.cassandra.utils.btree.BTree;
+import org.apache.cassandra.utils.btree.UpdateFunction;
 
 /**
  * Storage engine representation of a row.
@@ -381,7 +383,7 @@ public interface Row extends Unfiltered, Iterable<ColumnData>
             // Because some data might have been shadowed by the 'activeDeletion', we could have an empty row
             return rowInfo.isEmpty() && rowDeletion.isLive() && dataBuffer.isEmpty()
                  ? null
-                 : ArrayBackedRow.create(clustering, columns, rowInfo, rowDeletion, dataBuffer.size(), dataBuffer.toArray(new ColumnData[dataBuffer.size()]));
+                 : BTreeBackedRow.create(clustering, columns, rowInfo, rowDeletion, BTree.build(dataBuffer, UpdateFunction.<ColumnData>noOp()));
         }
 
         public Clustering mergedClustering()
@@ -463,7 +465,7 @@ public interface Row extends Unfiltered, Iterable<ColumnData>
                         cellReducer.setActiveDeletion(activeDeletion);
                     }
 
-                    Iterator<Cell> cells = MergeIterator.get(complexCells, ColumnData.cellComparator, cellReducer);
+                    Iterator<Cell> cells = MergeIterator.get(complexCells, ColumnData.comparator, cellReducer);
                     while (cells.hasNext())
                     {
                         Cell merged = cells.next();

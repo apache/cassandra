@@ -44,6 +44,7 @@ import org.apache.cassandra.utils.memory.MemtableAllocator;
 import org.apache.cassandra.utils.memory.HeapAllocator;
 import org.apache.cassandra.service.StorageService;
 import static org.apache.cassandra.db.index.SecondaryIndexManager.Updater;
+import static org.apache.cassandra.utils.btree.BTree.Dir.desc;
 
 /**
  * A thread-safe and atomic Partition implementation.
@@ -164,7 +165,7 @@ public class AtomicBTreePartition implements Partition
         final Holder current = ref;
         return new SearchIterator<Clustering, Row>()
         {
-            private final SearchIterator<Clustering, Row> rawIter = new BTreeSearchIterator<>(current.tree, metadata.comparator, !reversed);
+            private final SearchIterator<Clustering, Row> rawIter = new BTreeSearchIterator<>(current.tree, metadata.comparator, desc(reversed));
             private final DeletionTime partitionDeletion = current.deletionInfo.getPartitionDeletion();
 
             public boolean hasNext()
@@ -188,7 +189,7 @@ public class AtomicBTreePartition implements Partition
                     activeDeletion = rt.deletionTime();
 
                 if (row == null)
-                    return activeDeletion.isLive() ? null : ArrayBackedRow.emptyDeletedRow(clustering, activeDeletion);
+                    return activeDeletion.isLive() ? null : BTreeBackedRow.emptyDeletedRow(clustering, activeDeletion);
 
                 return row.filter(columns, activeDeletion, true, metadata);
             }
@@ -235,7 +236,7 @@ public class AtomicBTreePartition implements Partition
     {
         Slice.Bound start = slice.start() == Slice.Bound.BOTTOM ? null : slice.start();
         Slice.Bound end = slice.end() == Slice.Bound.TOP ? null : slice.end();
-        Iterator<Row> rowIter = BTree.slice(current.tree, metadata.comparator, start, true, end, true, !reversed);
+        Iterator<Row> rowIter = BTree.slice(current.tree, metadata.comparator, start, true, end, true, desc(reversed));
 
         return new RowAndDeletionMergeIterator(metadata,
                                                partitionKey,
