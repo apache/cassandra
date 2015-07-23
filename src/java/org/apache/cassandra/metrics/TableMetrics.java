@@ -116,12 +116,12 @@ public class TableMetrics
     public final TableHistogram colUpdateTimeDeltaHistogram;
     /** Disk space used by snapshot files which */
     public final Gauge<Long> trueSnapshotsSize;
-    /** Partition cache hits, but result out of range */
-    public final Counter partitionCacheHitOutOfRange;
-    /** Number of partition cache hits */
-    public final Counter partitionCacheHit;
-    /** Number of partition cache misses */
-    public final Counter partitionCacheMiss;
+    /** Row cache hits, but result out of range */
+    public final Counter rowCacheHitOutOfRange;
+    /** Number of row cache hits */
+    public final Counter rowCacheHit;
+    /** Number of row cache misses */
+    public final Counter rowCacheMiss;
     /** CAS Prepare metrics */
     public final LatencyMetrics casPrepare;
     /** CAS Propose metrics */
@@ -620,9 +620,9 @@ public class TableMetrics
                 return cfs.trueSnapshotsSize();
             }
         });
-        partitionCacheHitOutOfRange = createTableCounter("PartitionCacheHitOutOfRange", "RowCacheHitOutOfRange");
-        partitionCacheHit = createTableCounter("PartitionCacheHit", "RowCacheHit");
-        partitionCacheMiss = createTableCounter("PartitionCacheMiss", "RowCacheMiss");
+        rowCacheHitOutOfRange = createTableCounter("RowCacheHitOutOfRange");
+        rowCacheHit = createTableCounter("RowCacheHit");
+        rowCacheMiss = createTableCounter("RowCacheMiss");
 
         casPrepare = new LatencyMetrics(factory, "CasPrepare", cfs.keyspace.metric.casPrepare);
         casPropose = new LatencyMetrics(factory, "CasPropose", cfs.keyspace.metric.casPropose);

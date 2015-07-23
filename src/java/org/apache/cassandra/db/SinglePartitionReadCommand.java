@@ -256,24 +256,24 @@ public abstract class SinglePartitionReadCommand<F extends ClusteringIndexFilter
             {
                 // Some other read is trying to cache the value, just do a normal non-caching read
                 Tracing.trace("Row cache miss (race)");
-                cfs.metric.partitionCacheMiss.inc();
+                cfs.metric.rowCacheMiss.inc();
                 return queryMemtableAndDisk(cfs, readOp);
             }
 
             CachedPartition cachedPartition = (CachedPartition)cached;
             if (cfs.isFilterFullyCoveredBy(clusteringIndexFilter(), limits(), cachedPartition, nowInSec()))
             {
-                cfs.metric.partitionCacheHit.inc();
+                cfs.metric.rowCacheHit.inc();
                 Tracing.trace("Row cache hit");
                 return clusteringIndexFilter().getUnfilteredRowIterator(columnFilter(), cachedPartition);
             }
 
-            cfs.metric.partitionCacheHitOutOfRange.inc();
+            cfs.metric.rowCacheHitOutOfRange.inc();
             Tracing.trace("Ignoring row cache as cached value could not satisfy query");
             return queryMemtableAndDisk(cfs, readOp);
         }
 
-        cfs.metric.partitionCacheMiss.inc();
+        cfs.metric.rowCacheMiss.inc();
         Tracing.trace("Row cache miss");
 
         boolean cacheFullPartitions = metadata().getCaching().rowCache.cacheFullPartitions();

@@ -79,8 +79,8 @@ public class RowCacheTest
         Keyspace keyspace = Keyspace.open(KEYSPACE_CACHED);
         String cf = "CachedIntCF";
         ColumnFamilyStore cachedStore  = keyspace.getColumnFamilyStore(cf);
-        long startRowCacheHits = cachedStore.metric.partitionCacheHit.getCount();
-        long startRowCacheOutOfRange = cachedStore.metric.partitionCacheHitOutOfRange.getCount();
+        long startRowCacheHits = cachedStore.metric.rowCacheHit.getCount();
+        long startRowCacheOutOfRange = cachedStore.metric.rowCacheHitOutOfRange.getCount();
         // empty the row cache
         CacheService.instance.invalidateRowCache();
 
@@ -98,12 +98,12 @@ public class RowCacheTest
 
         // populate row cache, we should not get a row cache hit;
         Util.getAll(Util.cmd(cachedStore, dk).withLimit(1).build());
-        assertEquals(startRowCacheHits, cachedStore.metric.partitionCacheHit.getCount());
+        assertEquals(startRowCacheHits, cachedStore.metric.rowCacheHit.getCount());
 
         // do another query, limit is 20, which is < 100 that we cache, we should get a hit and it should be in range
         Util.getAll(Util.cmd(cachedStore, dk).withLimit(1).build());
-        assertEquals(++startRowCacheHits, cachedStore.metric.partitionCacheHit.getCount());
-        assertEquals(startRowCacheOutOfRange, cachedStore.metric.partitionCacheHitOutOfRange.getCount());
+        assertEquals(++startRowCacheHits, cachedStore.metric.rowCacheHit.getCount());
+        assertEquals(startRowCacheOutOfRange, cachedStore.metric.rowCacheHitOutOfRange.getCount());
 
         CachedPartition cachedCf = (CachedPartition)CacheService.instance.rowCache.get(rck);
         assertEquals(1, cachedCf.rowCount());
@@ -246,8 +246,8 @@ public class RowCacheTest
         Keyspace keyspace = Keyspace.open(KEYSPACE_CACHED);
         String cf = "CachedIntCF";
         ColumnFamilyStore cachedStore  = keyspace.getColumnFamilyStore(cf);
-        long startRowCacheHits = cachedStore.metric.partitionCacheHit.getCount();
-        long startRowCacheOutOfRange = cachedStore.metric.partitionCacheHitOutOfRange.getCount();
+        long startRowCacheHits = cachedStore.metric.rowCacheHit.getCount();
+        long startRowCacheOutOfRange = cachedStore.metric.rowCacheHitOutOfRange.getCount();
         // empty the row cache
         CacheService.instance.invalidateRowCache();
 
@@ -270,29 +270,29 @@ public class RowCacheTest
 
         // populate row cache, we should not get a row cache hit;
         Util.getAll(Util.cmd(cachedStore, dk).withLimit(10).build());
-        assertEquals(startRowCacheHits, cachedStore.metric.partitionCacheHit.getCount());
+        assertEquals(startRowCacheHits, cachedStore.metric.rowCacheHit.getCount());
 
         // do another query, limit is 20, which is < 100 that we cache, we should get a hit and it should be in range
         Util.getAll(Util.cmd(cachedStore, dk).withLimit(10).build());
-        assertEquals(++startRowCacheHits, cachedStore.metric.partitionCacheHit.getCount());
-        assertEquals(startRowCacheOutOfRange, cachedStore.metric.partitionCacheHitOutOfRange.getCount());
+        assertEquals(++startRowCacheHits, cachedStore.metric.rowCacheHit.getCount());
+        assertEquals(startRowCacheOutOfRange, cachedStore.metric.rowCacheHitOutOfRange.getCount());
 
         // get a slice from 95 to 105, 95->99 are in cache, we should not get a hit and then row cache is out of range
         Util.getAll(Util.cmd(cachedStore, dk).fromIncl(String.valueOf(210)).toExcl(String.valueOf(215)).build());
-        assertEquals(startRowCacheHits, cachedStore.metric.partitionCacheHit.getCount());
-        assertEquals(++startRowCacheOutOfRange, cachedStore.metric.partitionCacheHitOutOfRange.getCount());
+        assertEquals(startRowCacheHits, cachedStore.metric.rowCacheHit.getCount());
+        assertEquals(++startRowCacheOutOfRange, cachedStore.metric.rowCacheHitOutOfRange.getCount());
 
         // get a slice with limit > 100, we should get a hit out of range.
         Util.getAll(Util.cmd(cachedStore, dk).withLimit(101).build());
-        assertEquals(startRowCacheHits, cachedStore.metric.partitionCacheHit.getCount());
-        assertEquals(++startRowCacheOutOfRange, cachedStore.metric.partitionCacheHitOutOfRange.getCount());
+        assertEquals(startRowCacheHits, cachedStore.metric.rowCacheHit.getCount());
+        assertEquals(++startRowCacheOutOfRange, cachedStore.metric.rowCacheHitOutOfRange.getCount());
 
 
         CacheService.instance.invalidateRowCache();
 
         // try to populate row cache with a limit > rows to cache, we should still populate row cache;
         Util.getAll(Util.cmd(cachedStore, dk).withLimit(105).build());
-        assertEquals(startRowCacheHits, cachedStore.metric.partitionCacheHit.getCount());
+        assertEquals(startRowCacheHits, cachedStore.metric.rowCacheHit.getCount());
 
         // validate the stuff in cache;
         CachedPartition cachedCf = (CachedPartition)CacheService.instance.rowCache.get(rck);
