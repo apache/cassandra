@@ -46,6 +46,7 @@ public class SinglePartitionNamesCommand extends SinglePartitionReadCommand<Clus
 {
     private int oldestUnrepairedDeletionTime = Integer.MAX_VALUE;
     protected SinglePartitionNamesCommand(boolean isDigest,
+                                          int digestVersion,
                                           boolean isForThrift,
                                           CFMetaData metadata,
                                           int nowInSec,
@@ -55,7 +56,7 @@ public class SinglePartitionNamesCommand extends SinglePartitionReadCommand<Clus
                                           DecoratedKey partitionKey,
                                           ClusteringIndexNamesFilter clusteringIndexFilter)
     {
-        super(isDigest, isForThrift, metadata, nowInSec, columnFilter, rowFilter, limits, partitionKey, clusteringIndexFilter);
+        super(isDigest, digestVersion, isForThrift, metadata, nowInSec, columnFilter, rowFilter, limits, partitionKey, clusteringIndexFilter);
     }
 
     public SinglePartitionNamesCommand(CFMetaData metadata,
@@ -66,7 +67,7 @@ public class SinglePartitionNamesCommand extends SinglePartitionReadCommand<Clus
                                        DecoratedKey partitionKey,
                                        ClusteringIndexNamesFilter clusteringIndexFilter)
     {
-        this(false, false, metadata, nowInSec, columnFilter, rowFilter, limits, partitionKey, clusteringIndexFilter);
+        this(false, 0, false, metadata, nowInSec, columnFilter, rowFilter, limits, partitionKey, clusteringIndexFilter);
     }
 
     public SinglePartitionNamesCommand(CFMetaData metadata,
@@ -77,12 +78,12 @@ public class SinglePartitionNamesCommand extends SinglePartitionReadCommand<Clus
                                        ByteBuffer key,
                                        ClusteringIndexNamesFilter clusteringIndexFilter)
     {
-        this(false, false, metadata, nowInSec, columnFilter, rowFilter, limits, metadata.decorateKey(key), clusteringIndexFilter);
+        this(metadata, nowInSec, columnFilter, rowFilter, limits, metadata.decorateKey(key), clusteringIndexFilter);
     }
 
     public SinglePartitionNamesCommand copy()
     {
-        return new SinglePartitionNamesCommand(isDigestQuery(), isForThrift(), metadata(), nowInSec(), columnFilter(), rowFilter(), limits(), partitionKey(), clusteringIndexFilter());
+        return new SinglePartitionNamesCommand(isDigestQuery(), digestVersion(), isForThrift(), metadata(), nowInSec(), columnFilter(), rowFilter(), limits(), partitionKey(), clusteringIndexFilter());
     }
 
     @Override

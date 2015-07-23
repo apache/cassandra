@@ -70,20 +70,20 @@ public abstract class ReadResponse
         return new RemoteDataResponse(LocalDataResponse.build(data, selection));
     }
 
-    public static ReadResponse createDigestResponse(UnfilteredPartitionIterator data)
+    public static ReadResponse createDigestResponse(UnfilteredPartitionIterator data, int version)
     {
-        return new DigestResponse(makeDigest(data));
+        return new DigestResponse(makeDigest(data, version));
     }
 
     public abstract UnfilteredPartitionIterator makeIterator(CFMetaData metadata, ReadCommand command);
     public abstract ByteBuffer digest(CFMetaData metadata, ReadCommand command);
 
-    public abstract boolean isDigestQuery();
+    public abstract boolean isDigestResponse();
 
-    protected static ByteBuffer makeDigest(UnfilteredPartitionIterator iterator)
+    protected static ByteBuffer makeDigest(UnfilteredPartitionIterator iterator, int version)
     {
         MessageDigest digest = FBUtilities.threadLocalMD5Digest();
-        UnfilteredPartitionIterators.digest(iterator, digest);
+        UnfilteredPartitionIterators.digest(iterator, digest, version);
         return ByteBuffer.wrap(digest.digest());
     }
 
@@ -105,10 +105,14 @@ public abstract class ReadResponse
 
         public ByteBuffer digest(CFMetaData metadata, ReadCommand command)
         {
+            // We assume that the digest is in the proper version, which bug excluded should be true since this is called with
+            // ReadCommand.digestVersion() as argument and that's also what we use to produce the digest in the first place.
+            // Validating it's the proper digest in this method would require sending back the digest version along with the
+            // digest which would waste bandwith for little gain.
             return digest;
         }
 
-        public boolean isDigestQuery()
+        public boolean isDigestResponse()
         {
             return true;
         }
@@ -201,11 +205,11 @@ public abstract class ReadResponse
         {
             try (UnfilteredPartitionIterator iterator = makeIterator(metadata, command))
             {
-                return makeDigest(iterator);
+                return makeDigest(iterator, command.digestVersion());
             }
         }
 
-        public boolean isDigestQuery()
+        public boolean isDigestResponse()
         {
             return false;
         }
@@ -268,11 +272,11 @@ public abstract class ReadResponse
         {
             try (UnfilteredPartitionIterator iterator = makeIterator(metadata, command))
             {
-                return makeDigest(iterator);
+                return makeDigest(iterator, command.digestVersion());
             }
         }
 
-        public boolean isDigestQuery()
+        public boolean isDigestResponse()
         {
             return false;
         }
@@ -284,7 +288,6 @@ public abstract class ReadResponse
         {
             boolean isDigest = response instanceof DigestResponse;
             ByteBuffer digest = isDigest ? ((DigestResponse)response).digest : ByteBufferUtil.EMPTY_BYTE_BUFFER;
-
             if (version < MessagingService.VERSION_30)
             {
                 out.writeInt(digest.remaining());
@@ -310,9 +313,6 @@ public abstract class ReadResponse
             ByteBufferUtil.writeWithVIntLength(digest, out);
             if (!isDigest)
             {
-                // Note that we can only get there if version == 3.0, which is the current_version. When we'll change the
-                // version, we'll have to deserialize/re-serialize the data to be in the proper version.
-                assert version == MessagingService.VERSION_30;
                 ByteBuffer data = ((DataResponse)response).data;
                 ByteBufferUtil.writeWithVIntLength(data, out);
             }

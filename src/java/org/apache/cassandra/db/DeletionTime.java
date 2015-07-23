@@ -83,8 +83,10 @@ public class DeletionTime implements Comparable<DeletionTime>, IMeasurableMemory
 
     public void digest(MessageDigest digest)
     {
+        // localDeletionTime is basically a metadata of the deletion time that tells us when it's ok to purge it.
+        // It's thus intrinsically a local information and shouldn't be part of the digest (which exists for
+        // cross-nodes comparisons).
         FBUtilities.updateWithLong(digest, markedForDeleteAt());
-        FBUtilities.updateWithInt(digest, localDeletionTime());
     }
 
     @Override

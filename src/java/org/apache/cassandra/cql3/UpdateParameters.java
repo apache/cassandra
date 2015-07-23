@@ -146,7 +146,14 @@ public class UpdateParameters
 
     public void addRowDeletion()
     {
-        builder.addRowDeletion(deletionTime);
+        // For compact tables, at the exclusion of the static row (of static compact tables), each row ever has a single column,
+        // the "compact" one. As such, deleting the row or deleting that single cell is equivalent. We favor the later however
+        // because that makes it easier when translating back to the old format layout (for thrift and pre-3.0 backward
+        // compatibility) as we don't have to special case for the row deletion. This is also in line with what we use to do pre-3.0.
+        if (metadata.isCompactTable() && builder.clustering() != Clustering.STATIC_CLUSTERING)
+            addTombstone(metadata.compactValueColumn());
+        else
+            builder.addRowDeletion(deletionTime);
     }
 
     public void addTombstone(ColumnDefinition column) throws InvalidRequestException

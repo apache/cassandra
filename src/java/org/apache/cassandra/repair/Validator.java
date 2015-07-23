@@ -209,7 +209,7 @@ public class Validator implements Runnable
         validated++;
         // MerkleTree uses XOR internally, so we want lots of output bits here
         CountingDigest digest = new CountingDigest(FBUtilities.newMessageDigest("SHA-256"));
-        UnfilteredRowIterators.digest(partition, digest);
+        UnfilteredRowIterators.digest(partition, digest, MessagingService.current_version);
         // only return new hash for merkle tree in case digest was updated - see CASSANDRA-8979
         return digest.count > 0
              ? new MerkleTree.RowHash(partition.partitionKey().getToken(), digest.digest(), digest.count)

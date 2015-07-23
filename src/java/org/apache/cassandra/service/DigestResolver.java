@@ -38,7 +38,7 @@ public class DigestResolver extends ResponseResolver
     public void preprocess(MessageIn<ReadResponse> message)
     {
         super.preprocess(message);
-        if (dataResponse == null && !message.payload.isDigestQuery())
+        if (dataResponse == null && !message.payload.isDigestResponse())
             dataResponse = message.payload;
     }
 

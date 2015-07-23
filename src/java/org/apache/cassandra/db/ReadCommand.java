@@ -71,11 +71,13 @@ public abstract class ReadCommand implements ReadQuery
     private final DataLimits limits;
 
     private boolean isDigestQuery;
+    // if a digest query, the version for which the digest is expected. Ignored if not a digest.
+    private int digestVersion;
     private final boolean isForThrift;
 
     protected static abstract class SelectionDeserializer
     {
-        public abstract ReadCommand deserialize(DataInputPlus in, int version, boolean isDigest, boolean isForThrift, CFMetaData metadata, int nowInSec, ColumnFilter columnFilter, RowFilter rowFilter, DataLimits limits) throws IOException;
+        public abstract ReadCommand deserialize(DataInputPlus in, int version, boolean isDigest, int digestVersion, boolean isForThrift, CFMetaData metadata, int nowInSec, ColumnFilter columnFilter, RowFilter rowFilter, DataLimits limits) throws IOException;
     }
 
     protected enum Kind
@@ -93,6 +95,7 @@ public abstract class ReadCommand implements ReadQuery
 
     protected ReadCommand(Kind kind,
                           boolean isDigestQuery,
+                          int digestVersion,
                           boolean isForThrift,
                           CFMetaData metadata,
                           int nowInSec,
@@ -102,6 +105,7 @@ public abstract class ReadCommand implements ReadQuery
     {
         this.kind = kind;
         this.isDigestQuery = isDigestQuery;
+        this.digestVersion = digestVersion;
         this.isForThrift = isForThrift;
         this.metadata = metadata;
         this.nowInSec = nowInSec;
@@ -192,6 +196,17 @@ public abstract class ReadCommand implements ReadQuery
     }
 
     /**
+     * If the query is a digest one, the requested digest version.
+     *
+     * @return the requested digest version if the query is a digest. Otherwise, this can return
+     * anything.
+     */
+    public int digestVersion()
+    {
+        return digestVersion;
+    }
+
+    /**
      * Sets whether this command should be a digest one or not.
      *
      * @param isDigestQuery whether the command should be set as a digest one or not.
@@ -200,6 +215,22 @@ public abstract class ReadCommand implements ReadQuery
     public ReadCommand setIsDigestQuery(boolean isDigestQuery)
     {
         this.isDigestQuery = isDigestQuery;
+        return this;
+    }
+
+    /**
+     * Sets the digest version, for when digest for that command is requested.
+     * <p>
+     * Note that we allow setting this independently of setting the command as a digest query as
+     * this allows us to use the command as a carrier of the digest version even if we only call
+     * setIsDigestQuery on some copy of it.
+     *
+     * @param digestVersion the version for the digest is this command is used for digest query..
+     * @return this read command.
+     */
+    public ReadCommand setDigestVersion(int digestVersion)
+    {
+        this.digestVersion = digestVersion;
         return this;
     }
 
@@ -252,7 +283,7 @@ public abstract class ReadCommand implements ReadQuery
     public ReadResponse createResponse(UnfilteredPartitionIterator iterator, ColumnFilter selection)
     {
         return isDigestQuery()
-             ? ReadResponse.createDigestResponse(iterator)
+             ? ReadResponse.createDigestResponse(iterator, digestVersion)
              : ReadResponse.createDataResponse(iterator, selection);
     }
 
@@ -481,6 +512,8 @@ public abstract class ReadCommand implements ReadQuery
 
             out.writeByte(command.kind.ordinal());
             out.writeByte(digestFlag(command.isDigestQuery()) | thriftFlag(command.isForThrift()));
+            if (command.isDigestQuery())
+                out.writeVInt(command.digestVersion());
             CFMetaData.serializer.serialize(command.metadata(), out, version);
             out.writeInt(command.nowInSec());
             ColumnFilter.serializer.serialize(command.columnFilter(), out, version);
@@ -499,13 +532,14 @@ public abstract class ReadCommand implements ReadQuery
             int flags = in.readByte();
             boolean isDigest = isDigest(flags);
             boolean isForThrift = isForThrift(flags);
+            int digestVersion = isDigest ? (int)in.readVInt() : 0;
             CFMetaData metadata = CFMetaData.serializer.deserialize(in, version);
             int nowInSec = in.readInt();
             ColumnFilter columnFilter = ColumnFilter.serializer.deserialize(in, version, metadata);
             RowFilter rowFilter = RowFilter.serializer.deserialize(in, version, metadata);
             DataLimits limits = DataLimits.serializer.deserialize(in, version);
 
-            return kind.selectionDeserializer.deserialize(in, version, isDigest, isForThrift, metadata, nowInSec, columnFilter, rowFilter, limits);
+            return kind.selectionDeserializer.deserialize(in, version, isDigest, digestVersion, isForThrift, metadata, nowInSec, columnFilter, rowFilter, limits);
         }
 
         public long serializedSize(ReadCommand command, int version)
@@ -514,6 +548,7 @@ public abstract class ReadCommand implements ReadQuery
             assert version >= MessagingService.VERSION_30;
 
             return 2 // kind + flags
+                 + (command.isDigestQuery() ? TypeSizes.sizeofVInt(command.digestVersion()) : 0)
                  + CFMetaData.serializer.serializedSize(command.metadata(), version)
                  + TypeSizes.sizeof(command.nowInSec())
                  + ColumnFilter.serializer.serializedSize(command.columnFilter(), version)
@@ -704,7 +739,7 @@ public abstract class ReadCommand implements ReadQuery
             else
                 limits = DataLimits.cqlLimits(maxResults);
 
-            return new PartitionRangeReadCommand(false, true, metadata, nowInSec, selection, rowFilter, limits, new DataRange(keyRange, filter));
+            return new PartitionRangeReadCommand(false, 0, true, metadata, nowInSec, selection, rowFilter, limits, new DataRange(keyRange, filter));
         }
 
         static void serializeRowFilter(DataOutputPlus out, RowFilter rowFilter) throws IOException
@@ -814,7 +849,7 @@ public abstract class ReadCommand implements ReadQuery
             ClusteringIndexSliceFilter sliceFilter = LegacyReadCommandSerializer.convertNamesFilterToSliceFilter(filter, metadata);
             DataRange newRange = new DataRange(command.dataRange().keyRange(), sliceFilter);
             return new PartitionRangeReadCommand(
-                    command.isDigestQuery(), command.isForThrift(), metadata, command.nowInSec(),
+                    command.isDigestQuery(), command.digestVersion(), command.isForThrift(), metadata, command.nowInSec(),
                     command.columnFilter(), command.rowFilter(), command.limits(), newRange);
         }
 
@@ -963,10 +998,18 @@ public abstract class ReadCommand implements ReadQuery
 
             limits = limits.forPaging(maxResults);
 
-            // pre-3.0 nodes normally expect pages to include the last cell from the previous page, but they handle it
-            // missing without any problems, so we can safely always set "inclusive" to false in the data range
-            DataRange dataRange = new DataRange(keyRange, filter).forPaging(keyRange, metadata.comparator, startClustering, false);
-            return new PartitionRangeReadCommand(false, true, metadata, nowInSec, selection, rowFilter, limits, dataRange);
+            // The pagedRangeCommand is used in pre-3.0 for both the first page and the following ones. On the first page, the startBound will be
+            // the start of the overall slice and will not be a proper Clustering. So detect that case and just return a non-paging DataRange, which
+            // is what 3.0 does.
+            DataRange dataRange = new DataRange(keyRange, filter);
+            Slices slices = filter.requestedSlices();
+            if (startBound != LegacyLayout.LegacyBound.BOTTOM && !startBound.bound.equals(slices.get(0).start()))
+            {
+                // pre-3.0 nodes normally expect pages to include the last cell from the previous page, but they handle it
+                // missing without any problems, so we can safely always set "inclusive" to false in the data range
+                dataRange = dataRange.forPaging(keyRange, metadata.comparator, startBound.getAsClustering(metadata), false);
+            }
+            return new PartitionRangeReadCommand(false, 0, true, metadata, nowInSec, selection, rowFilter, limits, dataRange);
         }
 
         public long serializedSize(ReadCommand command, int version)
@@ -1065,9 +1108,9 @@ public abstract class ReadCommand implements ReadQuery
             switch (msgType)
             {
                 case GET_BY_NAMES:
-                    return deserializeNamesCommand(in, isDigest, metadata, dk, nowInSeconds);
+                    return deserializeNamesCommand(in, isDigest, metadata, dk, nowInSeconds, version);
                 case GET_SLICES:
-                    return deserializeSliceCommand(in, isDigest, metadata, dk, nowInSeconds);
+                    return deserializeSliceCommand(in, isDigest, metadata, dk, nowInSeconds, version);
                 default:
                     throw new AssertionError();
             }
@@ -1100,7 +1143,6 @@ public abstract class ReadCommand implements ReadQuery
         {
             serializeNamesFilter(command, command.clusteringIndexFilter(), out);
         }
-
 
         private static void serializeNamesFilter(ReadCommand command, ClusteringIndexNamesFilter filter, DataOutputPlus out) throws IOException
         {
@@ -1157,13 +1199,13 @@ public abstract class ReadCommand implements ReadQuery
             return size + TypeSizes.sizeof(true);  // countCql3Rows
         }
 
-        private SinglePartitionNamesCommand deserializeNamesCommand(DataInputPlus in, boolean isDigest, CFMetaData metadata, DecoratedKey key, int nowInSeconds) throws IOException
+        private SinglePartitionNamesCommand deserializeNamesCommand(DataInputPlus in, boolean isDigest, CFMetaData metadata, DecoratedKey key, int nowInSeconds, int version) throws IOException
         {
             Pair<ColumnFilter, ClusteringIndexNamesFilter> selectionAndFilter = deserializeNamesSelectionAndFilter(in, metadata);
 
             // messages from old nodes will expect the thrift format, so always use 'true' for isForThrift
             return new SinglePartitionNamesCommand(
-                    isDigest, true, metadata, nowInSeconds, selectionAndFilter.left, RowFilter.NONE, DataLimits.NONE,
+                    isDigest, version, true, metadata, nowInSeconds, selectionAndFilter.left, RowFilter.NONE, DataLimits.NONE,
                     key, selectionAndFilter.right);
         }
 
@@ -1243,7 +1285,7 @@ public abstract class ReadCommand implements ReadQuery
             out.writeInt(compositesToGroup);
         }
 
-        private SinglePartitionSliceCommand deserializeSliceCommand(DataInputPlus in, boolean isDigest, CFMetaData metadata, DecoratedKey key, int nowInSeconds) throws IOException
+        private SinglePartitionSliceCommand deserializeSliceCommand(DataInputPlus in, boolean isDigest, CFMetaData metadata, DecoratedKey key, int nowInSeconds, int version) throws IOException
         {
             ClusteringIndexSliceFilter filter = deserializeSlicePartitionFilter(in, metadata);
             int count = in.readInt();
@@ -1266,7 +1308,7 @@ public abstract class ReadCommand implements ReadQuery
                 limits = DataLimits.cqlLimits(count);
 
             // messages from old nodes will expect the thrift format, so always use 'true' for isForThrift
-            return new SinglePartitionSliceCommand(isDigest, true, metadata, nowInSeconds, columnFilter, RowFilter.NONE, limits, key, filter);
+            return new SinglePartitionSliceCommand(isDigest, version, true, metadata, nowInSeconds, columnFilter, RowFilter.NONE, limits, key, filter);
         }
 
         private long serializedSliceCommandSize(SinglePartitionSliceCommand command)
@@ -1423,7 +1465,7 @@ public abstract class ReadCommand implements ReadQuery
             ClusteringIndexNamesFilter filter = ((SinglePartitionNamesCommand) command).clusteringIndexFilter();
             ClusteringIndexSliceFilter sliceFilter = convertNamesFilterToSliceFilter(filter, metadata);
             return new SinglePartitionSliceCommand(
-                    command.isDigestQuery(), command.isForThrift(), metadata, command.nowInSec(),
+                    command.isDigestQuery(), command.digestVersion(), command.isForThrift(), metadata, command.nowInSec(),
                     command.columnFilter(), command.rowFilter(), command.limits(), command.partitionKey(), sliceFilter);
         }
 

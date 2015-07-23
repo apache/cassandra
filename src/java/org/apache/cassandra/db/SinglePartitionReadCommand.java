@@ -50,6 +50,7 @@ public abstract class SinglePartitionReadCommand<F extends ClusteringIndexFilter
     private final F clusteringIndexFilter;
 
     protected SinglePartitionReadCommand(boolean isDigest,
+                                         int digestVersion,
                                          boolean isForThrift,
                                          CFMetaData metadata,
                                          int nowInSec,
@@ -59,7 +60,7 @@ public abstract class SinglePartitionReadCommand<F extends ClusteringIndexFilter
                                          DecoratedKey partitionKey,
                                          F clusteringIndexFilter)
     {
-        super(Kind.SINGLE_PARTITION, isDigest, isForThrift, metadata, nowInSec, columnFilter, rowFilter, limits);
+        super(Kind.SINGLE_PARTITION, isDigest, digestVersion, isForThrift, metadata, nowInSec, columnFilter, rowFilter, limits);
         assert partitionKey.getPartitioner() == metadata.partitioner;
         this.partitionKey = partitionKey;
         this.clusteringIndexFilter = clusteringIndexFilter;
@@ -113,10 +114,10 @@ public abstract class SinglePartitionReadCommand<F extends ClusteringIndexFilter
                                                        ClusteringIndexFilter clusteringIndexFilter)
     {
         if (clusteringIndexFilter instanceof ClusteringIndexSliceFilter)
-            return new SinglePartitionSliceCommand(false, isForThrift, metadata, nowInSec, columnFilter, rowFilter, limits, partitionKey, (ClusteringIndexSliceFilter) clusteringIndexFilter);
+            return new SinglePartitionSliceCommand(false, 0, isForThrift, metadata, nowInSec, columnFilter, rowFilter, limits, partitionKey, (ClusteringIndexSliceFilter) clusteringIndexFilter);
 
         assert clusteringIndexFilter instanceof ClusteringIndexNamesFilter;
-        return new SinglePartitionNamesCommand(false, isForThrift, metadata, nowInSec, columnFilter, rowFilter, limits, partitionKey, (ClusteringIndexNamesFilter) clusteringIndexFilter);
+        return new SinglePartitionNamesCommand(false, 0, isForThrift, metadata, nowInSec, columnFilter, rowFilter, limits, partitionKey, (ClusteringIndexNamesFilter) clusteringIndexFilter);
     }
 
     /**
@@ -506,15 +507,15 @@ public abstract class SinglePartitionReadCommand<F extends ClusteringIndexFilter
 
     private static class Deserializer extends SelectionDeserializer
     {
-        public ReadCommand deserialize(DataInputPlus in, int version, boolean isDigest, boolean isForThrift, CFMetaData metadata, int nowInSec, ColumnFilter columnFilter, RowFilter rowFilter, DataLimits limits)
+        public ReadCommand deserialize(DataInputPlus in, int version, boolean isDigest, int digestVersion, boolean isForThrift, CFMetaData metadata, int nowInSec, ColumnFilter columnFilter, RowFilter rowFilter, DataLimits limits)
         throws IOException
         {
             DecoratedKey key = metadata.decorateKey(metadata.getKeyValidator().readValue(in));
             ClusteringIndexFilter filter = ClusteringIndexFilter.serializer.deserialize(in, version, metadata);
             if (filter instanceof ClusteringIndexNamesFilter)
-                return new SinglePartitionNamesCommand(isDigest, isForThrift, metadata, nowInSec, columnFilter, rowFilter, limits, key, (ClusteringIndexNamesFilter)filter);
+                return new SinglePartitionNamesCommand(isDigest, digestVersion, isForThrift, metadata, nowInSec, columnFilter, rowFilter, limits, key, (ClusteringIndexNamesFilter)filter);
             else
-                return new SinglePartitionSliceCommand(isDigest, isForThrift, metadata, nowInSec, columnFilter, rowFilter, limits, key, (ClusteringIndexSliceFilter)filter);
+                return new SinglePartitionSliceCommand(isDigest, digestVersion, isForThrift, metadata, nowInSec, columnFilter, rowFilter, limits, key, (ClusteringIndexSliceFilter)filter);
         }
     }
 }

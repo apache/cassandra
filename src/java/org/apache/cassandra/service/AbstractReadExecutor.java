@@ -69,6 +69,15 @@ public abstract class AbstractReadExecutor
         this.targetReplicas = targetReplicas;
         this.handler = new ReadCallback(new DigestResolver(keyspace, command, consistencyLevel, targetReplicas.size()), consistencyLevel, command, targetReplicas);
         this.traceState = Tracing.instance.get();
+
+        // Set the digest version (if we request some digests). This is the smallest version amongst all our target replicas since new nodes
+        // knows how to produce older digest but the reverse is not true.
+        // TODO: we need this when talking with pre-3.0 nodes. So if we preserve the digest format moving forward, we can get rid of this once
+        // we stop being compatible with pre-3.0 nodes.
+        int digestVersion = MessagingService.current_version;
+        for (InetAddress replica : targetReplicas)
+            digestVersion = Math.min(digestVersion, MessagingService.instance().getVersion(replica));
+        command.setDigestVersion(digestVersion);
     }
 
     protected void makeDataRequests(Iterable<InetAddress> endpoints)
