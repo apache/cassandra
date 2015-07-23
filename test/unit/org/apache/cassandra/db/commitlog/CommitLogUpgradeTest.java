@@ -41,8 +41,11 @@ import org.apache.cassandra.config.Schema;
 import org.apache.cassandra.db.Mutation;
 import org.apache.cassandra.db.rows.Cell;
 import org.apache.cassandra.db.rows.Row;
+import org.apache.cassandra.db.marshal.AsciiType;
 import org.apache.cassandra.db.marshal.UTF8Type;
+import org.apache.cassandra.db.marshal.BytesType;
 import org.apache.cassandra.db.partitions.PartitionUpdate;
+import org.apache.cassandra.schema.KeyspaceParams;
 
 public class CommitLogUpgradeTest
 {
@@ -70,8 +73,16 @@ public class CommitLogUpgradeTest
     @BeforeClass
     static public void initialize() throws FileNotFoundException, IOException, InterruptedException
     {
+        CFMetaData metadata = CFMetaData.Builder.createDense(KEYSPACE, TABLE, false, false)
+                                                .addPartitionKey("key", AsciiType.instance)
+                                                .addClusteringColumn("col", BytesType.instance)
+                                                .addRegularColumn("val", BytesType.instance)
+                                                .build()
+                                                .compressionParameters(SchemaLoader.getCompressionParameters());
         SchemaLoader.loadSchema();
-        SchemaLoader.schemaDefinition("");
+        SchemaLoader.createKeyspace(KEYSPACE,
+                                    KeyspaceParams.simple(1),
+                                    metadata);
     }
 
     public void testRestore(String location) throws IOException, InterruptedException
