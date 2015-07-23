@@ -23,8 +23,11 @@ call cassandra.in.bat
 if NOT DEFINED CASSANDRA_HOME set CASSANDRA_HOME=%~dp0..
 if NOT DEFINED JAVA_HOME goto :err
 
+set CASSANDRA_PARAMS=%CASSANDRA_PARAMS% -Dcassandra.logdir="%CASSANDRA_HOME%\logs"
+set CASSANDRA_PARAMS=%CASSANDRA_PARAMS% -Dcassandra.storagedir="%CASSANDRA_HOME%\data"
+
 echo Starting NodeTool
-"%JAVA_HOME%\bin\java" -cp %CASSANDRA_CLASSPATH% -Dlogback.configurationFile=logback-tools.xml org.apache.cassandra.tools.NodeTool %*
+"%JAVA_HOME%\bin\java" -cp %CASSANDRA_CLASSPATH% %CASSANDRA_PARAMS% -Dlogback.configurationFile=logback-tools.xml org.apache.cassandra.tools.NodeTool %*
 goto finally
 
 :err
