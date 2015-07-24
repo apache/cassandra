@@ -2,6 +2,8 @@
  * UDF / UDA execution time in trace (CASSANDRA-9723)
  * Remove repair snapshot leftover on startup (CASSANDRA-7357)
  * Use random nodes for batch log when only 2 racks (CASSANDRA-8735)
+Merged from 2.0:
+ * Log when messages are dropped due to cross_node_timeout (CASSANDRA-9793)
 
 2.2.0
  * Fix cqlsh copy methods and other windows specific issues (CASSANDRA-9795) 
