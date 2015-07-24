@@ -17,7 +17,7 @@
  */
 package org.apache.cassandra.db;
 
-import org.apache.cassandra.db.index.*;
+import org.apache.cassandra.index.Index;
 import org.apache.cassandra.utils.concurrent.OpOrder;
 
 public class ReadOrderGroup implements AutoCloseable
@@ -98,14 +98,8 @@ public class ReadOrderGroup implements AutoCloseable
 
     private static ColumnFamilyStore maybeGetIndexCfs(ColumnFamilyStore baseCfs, ReadCommand command)
     {
-        SecondaryIndexSearcher searcher = command.getIndexSearcher(baseCfs);
-        if (searcher == null)
-            return null;
-
-        SecondaryIndex index = searcher.highestSelectivityIndex(command.rowFilter());
-        return index == null || !(index instanceof AbstractSimplePerColumnSecondaryIndex)
-             ? null
-             : ((AbstractSimplePerColumnSecondaryIndex)index).getIndexCfs();
+        Index index = baseCfs.indexManager.getBestIndexFor(command);
+        return index == null ? null : index.getBackingTable().orElse(null);
     }
 
     public void close()

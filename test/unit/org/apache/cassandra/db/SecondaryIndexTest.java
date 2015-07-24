@@ -33,18 +33,20 @@ import org.apache.cassandra.SchemaLoader;
 import org.apache.cassandra.Util;
 import org.apache.cassandra.config.ColumnDefinition;
 import org.apache.cassandra.cql3.Operator;
-import org.apache.cassandra.db.index.SecondaryIndex;
-import org.apache.cassandra.db.index.SecondaryIndexSearcher;
 import org.apache.cassandra.db.marshal.AbstractType;
 import org.apache.cassandra.db.partitions.*;
 import org.apache.cassandra.db.rows.Row;
 import org.apache.cassandra.exceptions.ConfigurationException;
+import org.apache.cassandra.index.Index;
 import org.apache.cassandra.schema.IndexMetadata;
 import org.apache.cassandra.schema.KeyspaceParams;
 import org.apache.cassandra.utils.ByteBufferUtil;
 import org.apache.cassandra.utils.FBUtilities;
 
 import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertFalse;
+import static org.junit.Assert.assertNotNull;
+import static org.junit.Assert.assertNull;
 import static org.junit.Assert.assertTrue;
 
 public class SecondaryIndexTest
@@ -111,9 +113,9 @@ public class SecondaryIndexTest
                                       .columns("birthdate")
                                       .filterOn("birthdate", Operator.EQ, 1L)
                                       .build();
-        List<SecondaryIndexSearcher> searchers = cfs.indexManager.getIndexSearchersFor(rc);
-        assertEquals(searchers.size(), 1);
-        try (ReadOrderGroup orderGroup = rc.startOrderGroup(); UnfilteredPartitionIterator pi = searchers.get(0).search(rc, orderGroup))
+
+        Index.Searcher searcher = cfs.indexManager.getBestIndexFor(rc).searcherFor(rc);
+        try (ReadOrderGroup orderGroup = rc.startOrderGroup(); UnfilteredPartitionIterator pi = searcher.search(orderGroup))
         {
             assertTrue(pi.hasNext());
             pi.next().close();
@@ -198,7 +200,7 @@ public class SecondaryIndexTest
 
         // verify that it's not being indexed under any other value either
         ReadCommand rc = Util.cmd(cfs).build();
-        assertEquals(0, cfs.indexManager.getIndexSearchersFor(rc).size());
+        assertNull(cfs.indexManager.getBestIndexFor(rc));
 
         // resurrect w/ a newer timestamp
         new RowUpdateBuilder(cfs.metadata, 2, "k1").clustering("c").add("birthdate", 1L).build().apply();;
@@ -213,14 +215,16 @@ public class SecondaryIndexTest
         assertIndexedOne(cfs, col, 1L);
 
         // delete the entire row (w/ newer timestamp this time)
+        // todo - checking the # of index searchers for the command is probably not the best thing to test here
         RowUpdateBuilder.deleteRow(cfs.metadata, 3, "k1", "c").applyUnsafe();
         rc = Util.cmd(cfs).build();
-        assertEquals(0, cfs.indexManager.getIndexSearchersFor(rc).size());
+        assertNull(cfs.indexManager.getBestIndexFor(rc));
 
         // make sure obsolete mutations don't generate an index entry
+        // todo - checking the # of index searchers for the command is probably not the best thing to test here
         new RowUpdateBuilder(cfs.metadata, 3, "k1").clustering("c").add("birthdate", 1L).build().apply();;
         rc = Util.cmd(cfs).build();
-        assertEquals(0, cfs.indexManager.getIndexSearchersFor(rc).size());
+        assertNull(cfs.indexManager.getBestIndexFor(rc));
     }
 
     @Test
@@ -292,7 +296,9 @@ public class SecondaryIndexTest
         keyspace.getColumnFamilyStore(WITH_KEYS_INDEX).forceBlockingFlush();
 
         // now apply another update, but force the index update to be skipped
-        keyspace.apply(new RowUpdateBuilder(cfs.metadata, 2, "k1").noRowMarker().add("birthdate", 2L).build(), true, false);
+        keyspace.apply(new RowUpdateBuilder(cfs.metadata, 2, "k1").noRowMarker().add("birthdate", 2L).build(),
+                       true,
+                       false);
 
         // Now searching the index for either the old or new value should return 0 rows
         // because the new value was not indexed and the old value should be ignored
@@ -303,7 +309,9 @@ public class SecondaryIndexTest
 
         // now, reset back to the original value, still skipping the index update, to
         // make sure the value was expunged from the index when it was discovered to be inconsistent
-        keyspace.apply(new RowUpdateBuilder(cfs.metadata, 3, "k1").noRowMarker().add("birthdate", 1L).build(), true, false);
+        keyspace.apply(new RowUpdateBuilder(cfs.metadata, 3, "k1").noRowMarker().add("birthdate", 1L).build(),
+                       true,
+                       false);
         assertIndexedNone(cfs, col, 1L);
     }
 
@@ -328,7 +336,9 @@ public class SecondaryIndexTest
         assertIndexedOne(cfs, col, 10l);
 
         // now apply another update, but force the index update to be skipped
-        keyspace.apply(new RowUpdateBuilder(cfs.metadata, 1, "k1").clustering("c").add("birthdate", 20l).build(), true, false);
+        keyspace.apply(new RowUpdateBuilder(cfs.metadata, 1, "k1").clustering("c").add("birthdate", 20l).build(),
+                       true,
+                       false);
 
         // Now searching the index for either the old or new value should return 0 rows
         // because the new value was not indexed and the old value should be ignored
@@ -422,32 +432,52 @@ public class SecondaryIndexTest
         ColumnFamilyStore cfs = keyspace.getColumnFamilyStore(COMPOSITE_INDEX_TO_BE_ADDED);
 
         // create a row and update the birthdate value, test that the index query fetches the new version
-        DecoratedKey dk = Util.dk("k1");
         new RowUpdateBuilder(cfs.metadata, 0, "k1").clustering("c").add("birthdate", 1L).build().applyUnsafe();
 
         ColumnDefinition old = cfs.metadata.getColumnDefinition(ByteBufferUtil.bytes("birthdate"));
-        IndexMetadata indexDef = IndexMetadata.legacyIndex(old,
-                                                           "birthdate_index",
-                                                           IndexMetadata.IndexType.COMPOSITES,
-                                                           Collections.EMPTY_MAP);
+        IndexMetadata indexDef = IndexMetadata.singleColumnIndex(old,
+                                                                 "birthdate_index",
+                                                                 IndexMetadata.IndexType.COMPOSITES,
+                                                                 Collections.EMPTY_MAP);
         cfs.metadata.indexes(cfs.metadata.getIndexes().with(indexDef));
-        Future<?> future = cfs.indexManager.addIndexedColumn(indexDef);
+        Future<?> future = cfs.indexManager.addIndex(indexDef);
         future.get();
-        // we had a bug (CASSANDRA-2244) where index would get created but not flushed -- check for that
-        ColumnDefinition cDef = cfs.metadata.getColumnDefinition(ByteBufferUtil.bytes("birthdate"));
-        assert cfs.indexManager.getIndexForColumn(cDef).getIndexCfs().getLiveSSTables().size() > 0;
 
+        // we had a bug (CASSANDRA-2244) where index would get created but not flushed -- check for that
+        // the way we find the index cfs is a bit convoluted at the moment
+        ColumnDefinition cDef = cfs.metadata.getColumnDefinition(ByteBufferUtil.bytes("birthdate"));
+        String indexName = getIndexNameForColumn(cfs, cDef);
+        assertNotNull(indexName);
+        boolean flushed = false;
+        for (ColumnFamilyStore indexCfs : cfs.indexManager.getAllIndexColumnFamilyStores())
+        {
+            if (indexCfs.name.equals(indexName))
+                flushed = indexCfs.getLiveSSTables().size() > 0;
+        }
+        assertTrue(flushed);
         assertIndexedOne(cfs, ByteBufferUtil.bytes("birthdate"), 1L);
 
         // validate that drop clears it out & rebuild works (CASSANDRA-2320)
-        SecondaryIndex indexedCfs = cfs.indexManager.getIndexForColumn(cDef);
-        cfs.indexManager.removeIndexedColumn(ByteBufferUtil.bytes("birthdate"));
-        assert !indexedCfs.isIndexBuilt(ByteBufferUtil.bytes("birthdate"));
+        assertTrue(cfs.getBuiltIndexes().contains(indexName));
+        cfs.indexManager.removeIndex(indexDef.name);
+        assertFalse(cfs.getBuiltIndexes().contains(indexName));
 
         // rebuild & re-query
-        future = cfs.indexManager.addIndexedColumn(indexDef);
+        future = cfs.indexManager.addIndex(indexDef);
         future.get();
         assertIndexedOne(cfs, ByteBufferUtil.bytes("birthdate"), 1L);
+    }
+
+    private String getIndexNameForColumn(ColumnFamilyStore cfs, ColumnDefinition column)
+    {
+        // this is mega-ugly because there is a mismatch between the name of an index
+        // stored in schema metadata & the name used to refer to that index in other
+        // places (such as system.IndexInfo). Hopefully this is temporary and
+        // Index.getIndexName() can be made equalivalent to Index.getIndexMetadata().name
+        // (ideally even removing the former completely)
+        Collection<IndexMetadata> indexes = cfs.metadata.getIndexes().get(column);
+        assertEquals(1, indexes.size());
+        return cfs.indexManager.getIndex(indexes.iterator().next()).getIndexName();
     }
 
     @Test
@@ -460,6 +490,7 @@ public class SecondaryIndexTest
         for (int i = 0; i < 10; i++)
             new RowUpdateBuilder(cfs.metadata, 0, "k" + i).noRowMarker().add("birthdate", 1l).build().applyUnsafe();
 
+        assertIndexedCount(cfs, ByteBufferUtil.bytes("birthdate"), 1l, 10);
         cfs.forceBlockingFlush();
         assertIndexedCount(cfs, ByteBufferUtil.bytes("birthdate"), 1l, 10);
     }
@@ -477,13 +508,14 @@ public class SecondaryIndexTest
         ColumnDefinition cdef = cfs.metadata.getColumnDefinition(col);
 
         ReadCommand rc = Util.cmd(cfs).filterOn(cdef.name.toString(), Operator.EQ, ((AbstractType) cdef.cellValueType()).decompose(val)).build();
-        List<SecondaryIndexSearcher> searchers = cfs.indexManager.getIndexSearchersFor(rc);
+        Index.Searcher searcher = cfs.indexManager.getBestIndexFor(rc).searcherFor(rc);
         if (count != 0)
-            assertTrue(searchers.size() > 0);
+            assertNotNull(searcher);
 
         try (ReadOrderGroup orderGroup = rc.startOrderGroup();
-             PartitionIterator iter = UnfilteredPartitionIterators.filter(searchers.get(0).search(rc, orderGroup),
-                                                                          FBUtilities.nowInSeconds())) {
+             PartitionIterator iter = UnfilteredPartitionIterators.filter(searcher.search(orderGroup),
+                                                                          FBUtilities.nowInSeconds()))
+        {
             assertEquals(count, Util.size(iter));
         }
     }

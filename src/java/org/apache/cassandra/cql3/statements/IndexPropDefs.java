@@ -19,8 +19,9 @@ package org.apache.cassandra.cql3.statements;
 
 import java.util.*;
 
-import org.apache.cassandra.db.index.SecondaryIndex;
-import org.apache.cassandra.exceptions.*;
+import org.apache.cassandra.exceptions.InvalidRequestException;
+import org.apache.cassandra.exceptions.RequestValidationException;
+import org.apache.cassandra.exceptions.SyntaxException;
 
 public class IndexPropDefs extends PropertyDefinitions
 {
@@ -50,9 +51,9 @@ public class IndexPropDefs extends PropertyDefinitions
         if (!isCustom && !properties.isEmpty())
             throw new InvalidRequestException("Cannot specify options for a non-CUSTOM index");
 
-        if (getRawOptions().containsKey(SecondaryIndex.CUSTOM_INDEX_OPTION_NAME))
+        if (getRawOptions().containsKey(IndexTarget.CUSTOM_INDEX_OPTION_NAME))
             throw new InvalidRequestException(String.format("Cannot specify %s as a CUSTOM option",
-                                                            SecondaryIndex.CUSTOM_INDEX_OPTION_NAME));
+                                                            IndexTarget.CUSTOM_INDEX_OPTION_NAME));
     }
 
     public Map<String, String> getRawOptions() throws SyntaxException
@@ -64,7 +65,7 @@ public class IndexPropDefs extends PropertyDefinitions
     public Map<String, String> getOptions() throws SyntaxException
     {
         Map<String, String> options = new HashMap<>(getRawOptions());
-        options.put(SecondaryIndex.CUSTOM_INDEX_OPTION_NAME, customClass);
+        options.put(IndexTarget.CUSTOM_INDEX_OPTION_NAME, customClass);
         return options;
     }
 }

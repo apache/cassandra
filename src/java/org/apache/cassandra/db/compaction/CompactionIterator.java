@@ -17,15 +17,19 @@
  */
 package org.apache.cassandra.db.compaction;
 
-import java.util.UUID;
 import java.util.List;
+import java.util.UUID;
+
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 import org.apache.cassandra.config.CFMetaData;
-import org.apache.cassandra.config.ColumnDefinition;
 import org.apache.cassandra.db.*;
-import org.apache.cassandra.db.index.SecondaryIndexManager;
-import org.apache.cassandra.db.partitions.*;
+import org.apache.cassandra.db.partitions.PurgingPartitionIterator;
+import org.apache.cassandra.db.partitions.UnfilteredPartitionIterator;
+import org.apache.cassandra.db.partitions.UnfilteredPartitionIterators;
 import org.apache.cassandra.db.rows.*;
+import org.apache.cassandra.index.transactions.CompactionTransaction;
 import org.apache.cassandra.io.sstable.ISSTableScanner;
 import org.apache.cassandra.metrics.CompactionMetrics;
 
@@ -47,6 +51,7 @@ import org.apache.cassandra.metrics.CompactionMetrics;
  */
 public class CompactionIterator extends CompactionInfo.Holder implements UnfilteredPartitionIterator
 {
+    private static final Logger logger = LoggerFactory.getLogger(CompactionIterator.class);
     private static final long UNFILTERED_TO_UPDATE_PROGRESS = 100;
 
     private final OperationType type;
@@ -148,29 +153,33 @@ public class CompactionIterator extends CompactionInfo.Holder implements Unfilte
                 if (type != OperationType.COMPACTION || !controller.cfs.indexManager.hasIndexes())
                     return null;
 
-                // If we have a 2ndary index, we must update it with deleted/shadowed cells.
-                // TODO: this should probably be done asynchronously and batched.
-                final SecondaryIndexManager.Updater indexer = controller.cfs.indexManager.gcUpdaterFor(partitionKey, nowInSec);
-                final RowDiffListener diffListener = new RowDiffListener()
+                Columns statics = Columns.NONE;
+                Columns regulars = Columns.NONE;
+                for (UnfilteredRowIterator iter : versions)
                 {
-                    public void onPrimaryKeyLivenessInfo(int i, Clustering clustering, LivenessInfo merged, LivenessInfo original)
+                    if (iter != null)
                     {
+                        statics = statics.mergeTo(iter.columns().statics);
+                        regulars = regulars.mergeTo(iter.columns().regulars);
                     }
+                }
+                final PartitionColumns partitionColumns = new PartitionColumns(statics, regulars);
 
-                    public void onDeletion(int i, Clustering clustering, DeletionTime merged, DeletionTime original)
-                    {
-                    }
-
-                    public void onComplexDeletion(int i, Clustering clustering, ColumnDefinition column, DeletionTime merged, DeletionTime original)
-                    {
-                    }
-
-                    public void onCell(int i, Clustering clustering, Cell merged, Cell original)
-                    {
-                        if (original != null && (merged == null || !merged.isLive(nowInSec)))
-                            indexer.remove(clustering, original);
-                    }
-                };
+                // If we have a 2ndary index, we must update it with deleted/shadowed cells.
+                // we can reuse a single CleanupTransaction for the duration of a partition.
+                // Currently, it doesn't do any batching of row updates, so every merge event
+                // for a single partition results in a fresh cycle of:
+                // * Get new Indexer instances
+                // * Indexer::start
+                // * Indexer::onRowMerge (for every row being merged by the compaction)
+                // * Indexer::commit
+                // A new OpOrder.Group is opened in an ARM block wrapping the commits
+                // TODO: this should probably be done asynchronously and batched.
+                final CompactionTransaction indexTransaction =
+                    controller.cfs.indexManager.newCompactionTransaction(partitionKey,
+                                                                         partitionColumns,
+                                                                         versions.size(),
+                                                                         nowInSec);
 
                 return new UnfilteredRowIterators.MergeListener()
                 {
@@ -180,7 +189,9 @@ public class CompactionIterator extends CompactionInfo.Holder implements Unfilte
 
                     public void onMergedRows(Row merged, Columns columns, Row[] versions)
                     {
-                        Rows.diff(merged, columns, versions, diffListener);
+                        indexTransaction.start();
+                        indexTransaction.onRowMerge(columns, merged, versions);
+                        indexTransaction.commit();
                     }
 
                     public void onMergedRangeTombstoneMarkers(RangeTombstoneMarker mergedMarker, RangeTombstoneMarker[] versions)

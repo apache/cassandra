@@ -15,17 +15,19 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package org.apache.cassandra.db.index.composites;
+package org.apache.cassandra.index.internal.composites;
 
 import java.nio.ByteBuffer;
-import java.util.Iterator;
 
-import org.apache.cassandra.config.CFMetaData;
 import org.apache.cassandra.config.ColumnDefinition;
 import org.apache.cassandra.cql3.Operator;
 import org.apache.cassandra.db.*;
+import org.apache.cassandra.db.marshal.CollectionType;
+import org.apache.cassandra.db.marshal.SetType;
 import org.apache.cassandra.db.rows.*;
-import org.apache.cassandra.db.marshal.*;
+import org.apache.cassandra.index.internal.CassandraIndex;
+import org.apache.cassandra.index.internal.IndexEntry;
+import org.apache.cassandra.schema.IndexMetadata;
 
 /**
  * Index the value of a collection cell.
@@ -38,31 +40,26 @@ import org.apache.cassandra.db.marshal.*;
  *   for each so that if we delete one of the value only we only delete the
  *   entry corresponding to that value.
  */
-public class CompositesIndexOnCollectionValue extends CompositesIndex
+public class CollectionValueIndex extends CassandraIndex
 {
-    public static void addClusteringColumns(CFMetaData.Builder indexMetadata, CFMetaData baseMetadata, ColumnDefinition columnDef)
+    public CollectionValueIndex(ColumnFamilyStore baseCfs, IndexMetadata indexDef)
     {
-        addGenericClusteringColumns(indexMetadata, baseMetadata, columnDef);
-
-        // collection key
-        indexMetadata.addClusteringColumn("cell_path", ((CollectionType)columnDef.type).nameComparator());
+        super(baseCfs, indexDef);
     }
 
-    @Override
-    protected AbstractType<?> getIndexKeyComparator()
-    {
-        return ((CollectionType)columnDef.type).valueComparator();
-    }
-
-    protected ByteBuffer getIndexedValue(ByteBuffer rowKey, Clustering clustering, ByteBuffer cellValue, CellPath path)
+    public ByteBuffer getIndexedValue(ByteBuffer partitionKey,
+                                      Clustering clustering,
+                                      CellPath path, ByteBuffer cellValue)
     {
         return cellValue;
     }
 
-    protected CBuilder buildIndexClusteringPrefix(ByteBuffer rowKey, ClusteringPrefix prefix, CellPath path)
+    public CBuilder buildIndexClusteringPrefix(ByteBuffer partitionKey,
+                                               ClusteringPrefix prefix,
+                                               CellPath path)
     {
         CBuilder builder = CBuilder.create(getIndexComparator());
-        builder.add(rowKey);
+        builder.add(partitionKey);
         for (int i = 0; i < prefix.size(); i++)
             builder.add(prefix.get(i));
 
@@ -73,27 +70,36 @@ public class CompositesIndexOnCollectionValue extends CompositesIndex
         return builder;
     }
 
-    public IndexedEntry decodeEntry(DecoratedKey indexedValue, Row indexEntry)
+    public IndexEntry decodeEntry(DecoratedKey indexedValue, Row indexEntry)
     {
         Clustering clustering = indexEntry.clustering();
         CBuilder builder = CBuilder.create(baseCfs.getComparator());
         for (int i = 0; i < baseCfs.getComparator().size(); i++)
             builder.add(clustering.get(i + 1));
-        return new IndexedEntry(indexedValue, clustering, indexEntry.primaryKeyLivenessInfo().timestamp(), clustering.get(0), builder.build());
+
+        return new IndexEntry(indexedValue,
+                                clustering,
+                                indexEntry.primaryKeyLivenessInfo().timestamp(),
+                                clustering.get(0),
+                                builder.build());
     }
 
-    @Override
-    public boolean supportsOperator(Operator operator)
+    public boolean supportsOperator(ColumnDefinition indexedColumn, Operator operator)
     {
-        return operator == Operator.CONTAINS && !(columnDef.type instanceof SetType);
+        return operator == Operator.CONTAINS && !(indexedColumn.type instanceof SetType);
     }
 
     public boolean isStale(Row data, ByteBuffer indexValue, int nowInSec)
     {
+        ColumnDefinition columnDef = indexedColumn;
         ComplexColumnData complexData = data.getComplexColumnData(columnDef);
+        if (complexData == null)
+            return true;
+
         for (Cell cell : complexData)
         {
-            if (cell.isLive(nowInSec) && ((CollectionType) columnDef.type).valueComparator().compare(indexValue, cell.value()) == 0)
+            if (cell.isLive(nowInSec) && ((CollectionType) columnDef.type).valueComparator()
+                                                                          .compare(indexValue, cell.value()) == 0)
                 return false;
         }
         return true;

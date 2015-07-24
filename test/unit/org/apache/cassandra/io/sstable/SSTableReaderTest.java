@@ -19,15 +19,8 @@ package org.apache.cassandra.io.sstable;
 
 import java.io.IOException;
 import java.nio.ByteBuffer;
-import java.util.ArrayList;
-import java.util.Arrays;
-import java.util.Collection;
-import java.util.List;
-import java.util.Set;
-import java.util.concurrent.ExecutionException;
-import java.util.concurrent.Future;
-import java.util.concurrent.ScheduledThreadPoolExecutor;
-import java.util.concurrent.ThreadPoolExecutor;
+import java.util.*;
+import java.util.concurrent.*;
 
 import com.google.common.collect.Sets;
 import org.junit.Assert;
@@ -40,19 +33,17 @@ import org.apache.cassandra.SchemaLoader;
 import org.apache.cassandra.Util;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.cql3.Operator;
-import org.apache.cassandra.db.BufferDecoratedKey;
-import org.apache.cassandra.db.ColumnFamilyStore;
-import org.apache.cassandra.db.DecoratedKey;
-import org.apache.cassandra.db.Keyspace;
-import org.apache.cassandra.db.ReadCommand;
-import org.apache.cassandra.db.RowUpdateBuilder;
+import org.apache.cassandra.db.*;
 import org.apache.cassandra.db.compaction.CompactionManager;
 import org.apache.cassandra.db.compaction.OperationType;
 import org.apache.cassandra.db.lifecycle.LifecycleTransaction;
-import org.apache.cassandra.db.index.SecondaryIndexSearcher;
+import org.apache.cassandra.db.partitions.UnfilteredPartitionIterators;
 import org.apache.cassandra.db.rows.Row;
-import org.apache.cassandra.dht.*;
+import org.apache.cassandra.dht.IPartitioner;
 import org.apache.cassandra.dht.LocalPartitioner.LocalToken;
+import org.apache.cassandra.dht.Range;
+import org.apache.cassandra.dht.Token;
+import org.apache.cassandra.index.Index;
 import org.apache.cassandra.io.sstable.format.SSTableReader;
 import org.apache.cassandra.io.util.FileDataInput;
 import org.apache.cassandra.io.util.MmappedSegmentedFile;
@@ -64,8 +55,8 @@ import org.apache.cassandra.utils.ByteBufferUtil;
 import org.apache.cassandra.utils.Pair;
 
 import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertNotNull;
 import static org.junit.Assert.assertTrue;
-import static org.apache.cassandra.utils.ByteBufferUtil.bytes;
 
 @RunWith(OrderedJUnit4ClassRunner.class)
 public class SSTableReaderTest
@@ -388,19 +379,23 @@ public class SSTableReaderTest
 
         store.forceBlockingFlush();
 
-        ColumnFamilyStore indexCfs = store.indexManager.getIndexForColumn(store.metadata.getColumnDefinition(bytes("birthdate"))).getIndexCfs();
-        assert indexCfs.isIndex();
-        SSTableReader sstable = indexCfs.getLiveSSTables().iterator().next();
-        assert sstable.first.getToken() instanceof LocalToken;
-
-        try(SegmentedFile.Builder ibuilder = SegmentedFile.getBuilder(DatabaseDescriptor.getIndexAccessMode(), false);
-            SegmentedFile.Builder dbuilder = SegmentedFile.getBuilder(DatabaseDescriptor.getDiskAccessMode(), sstable.compression))
+        for(ColumnFamilyStore indexCfs : store.indexManager.getAllIndexColumnFamilyStores())
         {
-            sstable.saveSummary(ibuilder, dbuilder);
+            assert indexCfs.isIndex();
+            SSTableReader sstable = indexCfs.getLiveSSTables().iterator().next();
+            assert sstable.first.getToken() instanceof LocalToken;
+
+            try (SegmentedFile.Builder ibuilder = SegmentedFile.getBuilder(DatabaseDescriptor.getIndexAccessMode(),
+                                                                           false);
+                 SegmentedFile.Builder dbuilder = SegmentedFile.getBuilder(DatabaseDescriptor.getDiskAccessMode(),
+                                                                           sstable.compression))
+            {
+                sstable.saveSummary(ibuilder, dbuilder);
+            }
+            SSTableReader reopened = SSTableReader.open(sstable.descriptor);
+            assert reopened.first.getToken() instanceof LocalToken;
+            reopened.selfRef().release();
         }
-        SSTableReader reopened = SSTableReader.open(sstable.descriptor);
-        assert reopened.first.getToken() instanceof LocalToken;
-        reopened.selfRef().release();
     }
 
     /** see CASSANDRA-5407 */
@@ -545,16 +540,18 @@ public class SSTableReaderTest
         for (ColumnFamilyStore cfs : indexedCFS.concatWithIndexes())
             clearAndLoad(cfs);
 
-        ByteBuffer bBB = bytes("birthdate");
 
         // query using index to see if sstable for secondary index opens
         ReadCommand rc = Util.cmd(indexedCFS).fromKeyIncl("k1").toKeyIncl("k3")
                                              .columns("birthdate")
                                              .filterOn("birthdate", Operator.EQ, 1L)
                                              .build();
-        List<SecondaryIndexSearcher> searchers = indexedCFS.indexManager.getIndexSearchersFor(rc);
-        assertEquals(searchers.size(), 1);
-        assertEquals(1, Util.getAll(rc).size());
+        Index.Searcher searcher = indexedCFS.indexManager.getBestIndexFor(rc).searcherFor(rc);
+        assertNotNull(searcher);
+        try (ReadOrderGroup orderGroup = ReadOrderGroup.forCommand(rc))
+        {
+            assertEquals(1, Util.size(UnfilteredPartitionIterators.filter(searcher.search(orderGroup), rc.nowInSec())));
+        }
     }
 
     private List<Range<Token>> makeRanges(Token left, Token right)

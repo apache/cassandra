@@ -44,7 +44,6 @@ import org.apache.cassandra.cql3.statements.CFStatement;
 import org.apache.cassandra.cql3.statements.CreateTableStatement;
 import org.apache.cassandra.db.*;
 import org.apache.cassandra.db.compaction.AbstractCompactionStrategy;
-import org.apache.cassandra.db.index.SecondaryIndex;
 import org.apache.cassandra.db.marshal.*;
 import org.apache.cassandra.dht.IPartitioner;
 import org.apache.cassandra.exceptions.ConfigurationException;
@@ -787,6 +786,7 @@ public final class CFMetaData
             throw new ConfigurationException(String.format("Column family comparators do not match or are not compatible (found %s; expected %s).", cfm.comparator.getClass().getSimpleName(), comparator.getClass().getSimpleName()));
     }
 
+
     public static Class<? extends AbstractCompactionStrategy> createCompactionStrategy(String className) throws ConfigurationException
     {
         className = className.contains(".") ? className : "org.apache.cassandra.db.compaction." + className;
@@ -875,19 +875,17 @@ public final class CFMetaData
         Set<String> indexNames = ksm == null ? new HashSet<>() : ksm.existingIndexNames(cfName);
         for (IndexMetadata index : indexes)
         {
-            index.validate();
-
             // check index names against this CF _and_ globally
             if (indexNames.contains(index.name))
                 throw new ConfigurationException("Duplicate index name " + index.name);
             indexNames.add(index.name);
 
-            // This method validates any custom options in the index metadata but does not intialize the index
-            SecondaryIndex.validate(this, index);
+            index.validate();
         }
 
         return this;
     }
+
 
 
     // The comparator to validate the definition name with thrift.

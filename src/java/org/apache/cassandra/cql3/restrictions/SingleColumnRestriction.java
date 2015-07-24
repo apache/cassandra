@@ -29,9 +29,10 @@ import org.apache.cassandra.cql3.functions.Function;
 import org.apache.cassandra.cql3.statements.Bound;
 import org.apache.cassandra.db.MultiCBuilder;
 import org.apache.cassandra.db.filter.RowFilter;
-import org.apache.cassandra.db.index.SecondaryIndex;
-import org.apache.cassandra.db.index.SecondaryIndexManager;
 import org.apache.cassandra.exceptions.InvalidRequestException;
+import org.apache.cassandra.index.Index;
+import org.apache.cassandra.index.SecondaryIndexManager;
+
 import static org.apache.cassandra.cql3.statements.RequestValidations.checkBindValueSet;
 import static org.apache.cassandra.cql3.statements.RequestValidations.checkFalse;
 import static org.apache.cassandra.cql3.statements.RequestValidations.checkNotNull;
@@ -71,8 +72,11 @@ public abstract class SingleColumnRestriction extends AbstractRestriction
     @Override
     public boolean hasSupportingIndex(SecondaryIndexManager indexManager)
     {
-        SecondaryIndex index = indexManager.getIndexForColumn(columnDef);
-        return index != null && isSupportedBy(index);
+        for (Index index : indexManager.listIndexes())
+            if (isSupportedBy(index))
+                return true;
+
+        return false;
     }
 
     @Override
@@ -110,11 +114,11 @@ public abstract class SingleColumnRestriction extends AbstractRestriction
     /**
      * Check if this type of restriction is supported by the specified index.
      *
-     * @param index the Secondary index
+     * @param index the secondary index
      * @return <code>true</code> this type of restriction is supported by the specified index,
      * <code>false</code> otherwise.
      */
-    protected abstract boolean isSupportedBy(SecondaryIndex index);
+    protected abstract boolean isSupportedBy(Index index);
 
     public static final class EQRestriction extends SingleColumnRestriction
     {
@@ -174,9 +178,9 @@ public abstract class SingleColumnRestriction extends AbstractRestriction
         }
 
         @Override
-        protected boolean isSupportedBy(SecondaryIndex index)
+        protected boolean isSupportedBy(Index index)
         {
-            return index.supportsOperator(Operator.EQ);
+            return index.supportsExpression(columnDef, Operator.EQ);
         }
     }
 
@@ -220,9 +224,9 @@ public abstract class SingleColumnRestriction extends AbstractRestriction
         }
 
         @Override
-        protected final boolean isSupportedBy(SecondaryIndex index)
+        protected final boolean isSupportedBy(Index index)
         {
-            return index.supportsOperator(Operator.IN);
+            return index.supportsExpression(columnDef, Operator.IN);
         }
 
         protected abstract List<ByteBuffer> getValues(QueryOptions options) throws InvalidRequestException;
@@ -387,9 +391,9 @@ public abstract class SingleColumnRestriction extends AbstractRestriction
         }
 
         @Override
-        protected boolean isSupportedBy(SecondaryIndex index)
+        protected boolean isSupportedBy(Index index)
         {
-            return slice.isSupportedBy(index);
+            return slice.isSupportedBy(columnDef, index);
         }
 
         @Override
@@ -484,18 +488,18 @@ public abstract class SingleColumnRestriction extends AbstractRestriction
         }
 
         @Override
-        protected boolean isSupportedBy(SecondaryIndex index)
+        protected boolean isSupportedBy(Index index)
         {
             boolean supported = false;
 
             if (numberOfValues() > 0)
-                supported |= index.supportsOperator(Operator.CONTAINS);
+                supported |= index.supportsExpression(columnDef, Operator.CONTAINS);
 
             if (numberOfKeys() > 0)
-                supported |= index.supportsOperator(Operator.CONTAINS_KEY);
+                supported |= index.supportsExpression(columnDef, Operator.CONTAINS_KEY);
 
             if (numberOfEntries() > 0)
-                supported |= index.supportsOperator(Operator.EQ);
+                supported |= index.supportsExpression(columnDef, Operator.EQ);
 
             return supported;
         }

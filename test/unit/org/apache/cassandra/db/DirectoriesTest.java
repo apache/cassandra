@@ -17,33 +17,39 @@
  */
 package org.apache.cassandra.db;
 
-import java.io.*;
+import java.io.File;
+import java.io.FileOutputStream;
+import java.io.IOException;
 import java.util.*;
 import java.util.concurrent.Callable;
 import java.util.concurrent.Executors;
 import java.util.concurrent.Future;
 
 import org.apache.commons.lang3.StringUtils;
-
 import org.junit.AfterClass;
 import org.junit.BeforeClass;
 import org.junit.Test;
 
 import org.apache.cassandra.config.CFMetaData;
+import org.apache.cassandra.config.ColumnDefinition;
 import org.apache.cassandra.config.Config.DiskFailurePolicy;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.db.Directories.DataDirectory;
-import org.apache.cassandra.db.index.SecondaryIndex;
 import org.apache.cassandra.db.marshal.UTF8Type;
+import org.apache.cassandra.index.internal.CassandraIndex;
+import org.apache.cassandra.io.FSWriteError;
 import org.apache.cassandra.io.sstable.Component;
 import org.apache.cassandra.io.sstable.Descriptor;
 import org.apache.cassandra.io.util.FileUtils;
 import org.apache.cassandra.schema.IndexMetadata;
 import org.apache.cassandra.utils.ByteBufferUtil;
-import org.apache.cassandra.io.FSWriteError;
 import org.apache.cassandra.utils.Pair;
 
-import static org.junit.Assert.*;
+import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertFalse;
+import static org.junit.Assert.assertSame;
+import static org.junit.Assert.assertTrue;
+import static org.junit.Assert.fail;
 
 public class DirectoriesTest
 {
@@ -161,12 +167,13 @@ public class DirectoriesTest
                                   .addPartitionKey("thekey", UTF8Type.instance)
                                   .addClusteringColumn("col", UTF8Type.instance)
                                   .build();
-        IndexMetadata indexDef = IndexMetadata.legacyIndex(PARENT_CFM.getColumnDefinition(ByteBufferUtil.bytes("col")),
-                                                           "idx",
-                                                           IndexMetadata.IndexType.KEYS,
-                                                           Collections.emptyMap());
+        ColumnDefinition col = PARENT_CFM.getColumnDefinition(ByteBufferUtil.bytes("col"));
+        IndexMetadata indexDef = IndexMetadata.singleColumnIndex(col,
+                                                                 "idx",
+                                                                 IndexMetadata.IndexType.KEYS,
+                                                                 Collections.emptyMap());
         PARENT_CFM.indexes(PARENT_CFM.getIndexes().with(indexDef));
-        CFMetaData INDEX_CFM = SecondaryIndex.newIndexMetadata(PARENT_CFM, indexDef);
+        CFMetaData INDEX_CFM = CassandraIndex.indexCfsMetadata(PARENT_CFM, indexDef);
         Directories parentDirectories = new Directories(PARENT_CFM);
         Directories indexDirectories = new Directories(INDEX_CFM);
         // secondary index has its own directory

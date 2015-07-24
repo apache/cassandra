@@ -94,6 +94,10 @@ Upgrading
    - JMX methods set/getCompactionStrategyClass have been removed, use
      set/getCompactionParameters or set/getCompactionParametersJson instead.
    - SizeTieredCompactionStrategy parameter cold_reads_to_omit has been removed.
+   - The secondary index API has been comprehensively reworked. This will be a breaking
+     change for any custom index implementations, which should now look to implement
+     the new org.apache.cassandra.index.Index interface.
+
 
 
 2.2

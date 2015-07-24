@@ -15,15 +15,17 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package org.apache.cassandra.db.index.composites;
+package org.apache.cassandra.index.internal.composites;
 
 import java.nio.ByteBuffer;
 
-import org.apache.cassandra.config.ColumnDefinition;
 import org.apache.cassandra.db.*;
-import org.apache.cassandra.db.rows.*;
-import org.apache.cassandra.db.marshal.*;
-import org.apache.cassandra.utils.concurrent.OpOrder;
+import org.apache.cassandra.db.marshal.CompositeType;
+import org.apache.cassandra.db.rows.CellPath;
+import org.apache.cassandra.db.rows.Row;
+import org.apache.cassandra.index.internal.CassandraIndex;
+import org.apache.cassandra.index.internal.IndexEntry;
+import org.apache.cassandra.schema.IndexMetadata;
 
 /**
  * Index on a PARTITION_KEY column definition.
@@ -43,25 +45,35 @@ import org.apache.cassandra.utils.concurrent.OpOrder;
  * want to order the index cell name by partitioner first, and skipping a part
  * of the row key would change the order.
  */
-public class CompositesIndexOnPartitionKey extends CompositesIndex
+public class PartitionKeyIndex extends CassandraIndex
 {
-    protected ByteBuffer getIndexedValue(ByteBuffer rowKey, Clustering clustering, ByteBuffer cellValue, CellPath path)
+    public PartitionKeyIndex(ColumnFamilyStore baseCfs, IndexMetadata indexDef)
     {
-        CompositeType keyComparator = (CompositeType)baseCfs.metadata.getKeyValidator();
-        ByteBuffer[] components = keyComparator.split(rowKey);
-        return components[columnDef.position()];
+        super(baseCfs, indexDef);
     }
 
-    protected CBuilder buildIndexClusteringPrefix(ByteBuffer rowKey, ClusteringPrefix prefix, CellPath path)
+    public ByteBuffer getIndexedValue(ByteBuffer partitionKey,
+                                      Clustering clustering,
+                                      CellPath path,
+                                      ByteBuffer cellValue)
+    {
+        CompositeType keyComparator = (CompositeType)baseCfs.metadata.getKeyValidator();
+        ByteBuffer[] components = keyComparator.split(partitionKey);
+        return components[indexedColumn.position()];
+    }
+
+    public CBuilder buildIndexClusteringPrefix(ByteBuffer partitionKey,
+                                               ClusteringPrefix prefix,
+                                               CellPath path)
     {
         CBuilder builder = CBuilder.create(getIndexComparator());
-        builder.add(rowKey);
+        builder.add(partitionKey);
         for (int i = 0; i < prefix.size(); i++)
             builder.add(prefix.get(i));
         return builder;
     }
 
-    public IndexedEntry decodeEntry(DecoratedKey indexedValue, Row indexEntry)
+    public IndexEntry decodeEntry(DecoratedKey indexedValue, Row indexEntry)
     {
         int ckCount = baseCfs.metadata.clusteringColumns().size();
         Clustering clustering = indexEntry.clustering();
@@ -69,38 +81,15 @@ public class CompositesIndexOnPartitionKey extends CompositesIndex
         for (int i = 0; i < ckCount; i++)
             builder.add(clustering.get(i + 1));
 
-        return new IndexedEntry(indexedValue, clustering, indexEntry.primaryKeyLivenessInfo().timestamp(), clustering.get(0), builder.build());
-    }
-
-    @Override
-    protected boolean indexPrimaryKeyColumn()
-    {
-        return true;
-    }
-
-    @Override
-    public boolean indexes(ColumnDefinition c)
-    {
-        // Actual indexing for this index type is done through maybeIndex
-        return false;
+        return new IndexEntry(indexedValue,
+                              clustering,
+                              indexEntry.primaryKeyLivenessInfo().timestamp(),
+                              clustering.get(0),
+                              builder.build());
     }
 
     public boolean isStale(Row data, ByteBuffer indexValue, int nowInSec)
     {
         return !data.hasLiveData(nowInSec);
-    }
-
-    @Override
-    public void maybeIndex(ByteBuffer partitionKey, Clustering clustering, long timestamp, int ttl, OpOrder.Group opGroup, int nowInSec)
-    {
-        insert(partitionKey, clustering, null, LivenessInfo.create(indexCfs.metadata, timestamp, ttl, nowInSec), opGroup);
-    }
-
-    @Override
-    public void delete(ByteBuffer rowKey, Clustering clustering, Cell cell, OpOrder.Group opGroup, int nowInSec)
-    {
-        // We only know that one column of the CQL row has been updated/deleted, but we don't know if the
-        // full row has been deleted so we should not do anything. If it ends up that the whole row has
-        // been deleted, it will be eventually cleaned up on read because the entry will be detected stale.
     }
 }

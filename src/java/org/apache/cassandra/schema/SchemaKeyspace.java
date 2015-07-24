@@ -38,7 +38,6 @@ import org.apache.cassandra.cql3.ColumnIdentifier;
 import org.apache.cassandra.cql3.QueryProcessor;
 import org.apache.cassandra.cql3.UntypedResultSet;
 import org.apache.cassandra.cql3.functions.*;
-import org.apache.cassandra.db.ClusteringComparator;
 import org.apache.cassandra.db.*;
 import org.apache.cassandra.db.marshal.*;
 import org.apache.cassandra.db.partitions.*;
@@ -1427,7 +1426,7 @@ public final class SchemaKeyspace
                     findColumnIdentifierWithName(targetColumnName, cfm.allColumns()).ifPresent(targetColumns::add);
             });
         }
-        return IndexMetadata.legacyIndex(targetColumns.iterator().next(), name, type, options);
+        return IndexMetadata.singleColumnIndex(targetColumns.iterator().next(), name, type, options);
     }
 
     private static Optional<ColumnIdentifier> findColumnIdentifierWithName(String name,

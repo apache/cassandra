@@ -23,21 +23,17 @@ import com.google.common.annotations.VisibleForTesting;
 import com.google.common.base.Strings;
 import com.google.common.collect.Maps;
 
-import org.apache.cassandra.db.compaction.AbstractCompactionStrategy;
-import org.apache.cassandra.io.compress.ICompressor;
-import org.apache.cassandra.config.CFMetaData;
-import org.apache.cassandra.config.ColumnDefinition;
-import org.apache.cassandra.config.DatabaseDescriptor;
-import org.apache.cassandra.config.Schema;
+import org.apache.cassandra.config.*;
 import org.apache.cassandra.cql3.ColumnIdentifier;
 import org.apache.cassandra.cql3.Operator;
 import org.apache.cassandra.db.CompactTables;
 import org.apache.cassandra.db.LegacyLayout;
 import org.apache.cassandra.db.WriteType;
+import org.apache.cassandra.db.compaction.AbstractCompactionStrategy;
 import org.apache.cassandra.db.filter.RowFilter;
 import org.apache.cassandra.db.marshal.*;
 import org.apache.cassandra.exceptions.*;
-import org.apache.cassandra.schema.CompressionParams;
+import org.apache.cassandra.io.compress.ICompressor;
 import org.apache.cassandra.locator.AbstractReplicationStrategy;
 import org.apache.cassandra.locator.LocalStrategy;
 import org.apache.cassandra.schema.*;
@@ -560,10 +556,10 @@ public class ThriftConversion
                 Map<String, String> indexOptions = def.getIndex_options();
                 IndexMetadata.IndexType indexType = IndexMetadata.IndexType.valueOf(def.index_type.name());
 
-                indexes.add(IndexMetadata.legacyIndex(column,
-                                                      indexName,
-                                                      indexType,
-                                                      indexOptions));
+                indexes.add(IndexMetadata.singleColumnIndex(column,
+                                                            indexName,
+                                                            indexType,
+                                                            indexOptions));
             }
         }
         return indexes.build();
@@ -576,13 +572,22 @@ public class ThriftConversion
 
         cd.setName(ByteBufferUtil.clone(column.name.bytes));
         cd.setValidation_class(column.type.toString());
-        Optional<IndexMetadata> index = cfMetaData.getIndexes().get(column);
-        index.ifPresent(def -> {
-            cd.setIndex_type(org.apache.cassandra.thrift.IndexType.valueOf(def.indexType.name()));
-            cd.setIndex_name(def.name);
-            cd.setIndex_options(def.options == null || def.options.isEmpty() ? null : Maps.newHashMap(def.options));
-        });
-
+        Collection<IndexMetadata> indexes = cfMetaData.getIndexes().get(column);
+        // we include the index in the ColumnDef iff
+        //   * it is the only index on the column
+        //   * it is the only target column for the index
+        if (indexes.size() == 1)
+        {
+            IndexMetadata index = indexes.iterator().next();
+            if (index.columns.size() == 1)
+            {
+                cd.setIndex_type(org.apache.cassandra.thrift.IndexType.valueOf(index.indexType.name()));
+                cd.setIndex_name(index.name);
+                cd.setIndex_options(index.options == null || index.options.isEmpty()
+                                    ? null
+                                    : Maps.newHashMap(index.options));
+            }
+        }
         return cd;
     }
 

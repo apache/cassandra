@@ -15,53 +15,55 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package org.apache.cassandra.db.index.composites;
+package org.apache.cassandra.index.internal.composites;
 
 import java.nio.ByteBuffer;
-import java.util.*;
+import java.util.ArrayList;
+import java.util.List;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import org.apache.cassandra.config.CFMetaData;
-import org.apache.cassandra.config.ColumnDefinition;
 import org.apache.cassandra.db.*;
-import org.apache.cassandra.db.rows.*;
-import org.apache.cassandra.db.filter.*;
-import org.apache.cassandra.db.index.*;
+import org.apache.cassandra.db.filter.ClusteringIndexNamesFilter;
+import org.apache.cassandra.db.filter.DataLimits;
+import org.apache.cassandra.db.filter.RowFilter;
 import org.apache.cassandra.db.partitions.UnfilteredPartitionIterator;
+import org.apache.cassandra.db.rows.*;
+import org.apache.cassandra.index.internal.CassandraIndex;
+import org.apache.cassandra.index.internal.CassandraIndexSearcher;
+import org.apache.cassandra.index.internal.IndexEntry;
 import org.apache.cassandra.utils.btree.BTreeSet;
 import org.apache.cassandra.utils.concurrent.OpOrder;
 
 
-public class CompositesSearcher extends SecondaryIndexSearcher
+public class CompositesSearcher extends CassandraIndexSearcher
 {
     private static final Logger logger = LoggerFactory.getLogger(CompositesSearcher.class);
 
-    public CompositesSearcher(SecondaryIndexManager indexManager, Set<ColumnDefinition> columns)
+    public CompositesSearcher(ReadCommand command,
+                              RowFilter.Expression expression,
+                              CassandraIndex index)
     {
-        super(indexManager, columns);
+        super(command, expression, index);
     }
 
-    private boolean isMatchingEntry(DecoratedKey partitionKey, CompositesIndex.IndexedEntry entry, ReadCommand command)
+    private boolean isMatchingEntry(DecoratedKey partitionKey, IndexEntry entry, ReadCommand command)
     {
         return command.selects(partitionKey, entry.indexedEntryClustering);
     }
 
-    protected UnfilteredPartitionIterator queryDataFromIndex(AbstractSimplePerColumnSecondaryIndex secondaryIdx,
-                                                             final DecoratedKey indexKey,
+    protected UnfilteredPartitionIterator queryDataFromIndex(final DecoratedKey indexKey,
                                                              final RowIterator indexHits,
                                                              final ReadCommand command,
                                                              final ReadOrderGroup orderGroup)
     {
         assert indexHits.staticRow() == Rows.EMPTY_STATIC_ROW;
 
-        assert secondaryIdx instanceof CompositesIndex;
-        final CompositesIndex index = (CompositesIndex)secondaryIdx;
-
         return new UnfilteredPartitionIterator()
         {
-            private CompositesIndex.IndexedEntry nextEntry;
+            private IndexEntry nextEntry;
 
             private UnfilteredRowIterator next;
 
@@ -109,9 +111,9 @@ public class CompositesSearcher extends SecondaryIndexSearcher
                 // in memory so we should consider adding some paging mechanism. However, index hits should
                 // be relatively small so it's much better than the previous code that was materializing all
                 // *data* for a given partition.
-                BTreeSet.Builder<Clustering> clusterings = BTreeSet.builder(baseCfs.getComparator());
-                List<CompositesIndex.IndexedEntry> entries = new ArrayList<>();
-                DecoratedKey partitionKey = baseCfs.decorateKey(nextEntry.indexedKey);
+                BTreeSet.Builder<Clustering> clusterings = BTreeSet.builder(index.baseCfs.getComparator());
+                List<IndexEntry> entries = new ArrayList<>();
+                DecoratedKey partitionKey = index.baseCfs.decorateKey(nextEntry.indexedKey);
 
                 while (nextEntry != null && partitionKey.getKey().equals(nextEntry.indexedKey))
                 {
@@ -131,7 +133,7 @@ public class CompositesSearcher extends SecondaryIndexSearcher
 
                 // Query the gathered index hits. We still need to filter stale hits from the resulting query.
                 ClusteringIndexNamesFilter filter = new ClusteringIndexNamesFilter(clusterings.build(), false);
-                SinglePartitionReadCommand dataCmd = new SinglePartitionNamesCommand(metadata(),
+                SinglePartitionReadCommand dataCmd = new SinglePartitionNamesCommand(index.baseCfs.metadata,
                                                                                      command.nowInSec(),
                                                                                      command.columnFilter(),
                                                                                      command.rowFilter(),
@@ -140,12 +142,14 @@ public class CompositesSearcher extends SecondaryIndexSearcher
                                                                                      filter);
                 @SuppressWarnings("resource") // We close right away if empty, and if it's assign to next it will be called either
                                               // by the next caller of next, or through closing this iterator is this come before.
-                UnfilteredRowIterator dataIter = filterStaleEntries(dataCmd.queryMemtableAndDisk(baseCfs, orderGroup.baseReadOpOrderGroup()),
-                                                                    index,
+                UnfilteredRowIterator dataIter = filterStaleEntries(dataCmd.queryMemtableAndDisk(index.baseCfs,
+                                                                                                 orderGroup.baseReadOpOrderGroup()),
                                                                     indexKey.getKey(),
                                                                     entries,
                                                                     orderGroup.writeOpOrderGroup(),
                                                                     command.nowInSec());
+
+
                 if (dataIter.isEmpty())
                 {
                     dataIter.close();
@@ -170,35 +174,62 @@ public class CompositesSearcher extends SecondaryIndexSearcher
         };
     }
 
+    private void deleteAllEntries(final List<IndexEntry> entries, final OpOrder.Group writeOp, final int nowInSec)
+    {
+        entries.forEach(entry ->
+            index.deleteStaleEntry(entry.indexValue,
+                                     entry.indexClustering,
+                                     new DeletionTime(entry.timestamp, nowInSec),
+                                     writeOp));
+    }
+
     private UnfilteredRowIterator filterStaleEntries(UnfilteredRowIterator dataIter,
-                                                     final CompositesIndex index,
                                                      final ByteBuffer indexValue,
-                                                     final List<CompositesIndex.IndexedEntry> entries,
+                                                     final List<IndexEntry> entries,
                                                      final OpOrder.Group writeOp,
                                                      final int nowInSec)
     {
+        // collect stale index entries and delete them when we close this iterator
+        final List<IndexEntry> staleEntries = new ArrayList<>();
+
+        // if there is a partition level delete in the base table, we need to filter
+        // any index entries which would be shadowed by it
+        if (!dataIter.partitionLevelDeletion().isLive())
+        {
+            DeletionTime deletion = dataIter.partitionLevelDeletion();
+            entries.forEach(e -> {
+                if (deletion.deletes(e.timestamp))
+                    staleEntries.add(e);
+            });
+        }
+
         return new AlteringUnfilteredRowIterator(dataIter)
         {
             private int entriesIdx;
 
+            public void close()
+            {
+                deleteAllEntries(staleEntries, writeOp, nowInSec);
+                super.close();
+            }
+
             @Override
             protected Row computeNext(Row row)
             {
-                CompositesIndex.IndexedEntry entry = findEntry(row.clustering(), writeOp, nowInSec);
+                IndexEntry entry = findEntry(row.clustering());
                 if (!index.isStale(row, indexValue, nowInSec))
                     return row;
 
-                // The entry is stale: delete the entry and ignore otherwise
-                index.delete(entry, writeOp, nowInSec);
+                staleEntries.add(entry);
                 return null;
             }
 
-            private CompositesIndex.IndexedEntry findEntry(Clustering clustering, OpOrder.Group writeOp, int nowInSec)
+            private IndexEntry findEntry(Clustering clustering)
             {
                 assert entriesIdx < entries.size();
                 while (entriesIdx < entries.size())
                 {
-                    CompositesIndex.IndexedEntry entry = entries.get(entriesIdx++);
+                    IndexEntry entry = entries.get(entriesIdx++);
                     // The entries are in clustering order. So that the requested entry should be the
                     // next entry, the one at 'entriesIdx'. However, we can have stale entries, entries
                     // that have no corresponding row in the base table typically because of a range
@@ -208,7 +239,7 @@ public class CompositesSearcher extends SecondaryIndexSearcher
                     if (cmp == 0)
                         return entry;
                     else
-                        index.delete(entry, writeOp, nowInSec);
+                        staleEntries.add(entry);
                 }
                 // entries correspond to the rows we've queried, so we shouldn't have a row that has no corresponding entry.
                 throw new AssertionError();

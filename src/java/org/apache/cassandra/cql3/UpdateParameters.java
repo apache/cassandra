@@ -23,12 +23,13 @@ import java.util.Map;
 import org.apache.cassandra.config.CFMetaData;
 import org.apache.cassandra.config.ColumnDefinition;
 import org.apache.cassandra.db.*;
-import org.apache.cassandra.db.filter.ColumnFilter;
-import org.apache.cassandra.db.rows.*;
 import org.apache.cassandra.db.context.CounterContext;
-import org.apache.cassandra.db.index.SecondaryIndexManager;
-import org.apache.cassandra.db.partitions.*;
+import org.apache.cassandra.db.filter.ColumnFilter;
+import org.apache.cassandra.db.partitions.Partition;
+import org.apache.cassandra.db.partitions.PartitionUpdate;
+import org.apache.cassandra.db.rows.*;
 import org.apache.cassandra.exceptions.InvalidRequestException;
+import org.apache.cassandra.index.SecondaryIndexManager;
 import org.apache.cassandra.utils.FBUtilities;
 
 /**
@@ -78,7 +79,8 @@ public class UpdateParameters
 
         this.prefetchedRows = prefetchedRows;
 
-        // Index column validation triggers a call to Keyspace.open() which we want to be able to avoid in some case (e.g. when using CQLSSTableWriter)
+        // Index column validation triggers a call to Keyspace.open() which we want
+        // to be able to avoid in some case (e.g. when using CQLSSTableWriter)
         if (validateIndexedColumns)
         {
             SecondaryIndexManager manager = Keyspace.openAndGetStore(metadata).indexManager;
@@ -95,17 +97,16 @@ public class UpdateParameters
             throw new InvalidRequestException(String.format("Out of bound timestamp, must be in [%d, %d]", Long.MIN_VALUE + 1, Long.MAX_VALUE));
     }
 
-    public void newPartition(DecoratedKey partitionKey) throws InvalidRequestException
+    public void validateIndexedColumns(PartitionUpdate update)
     {
-        if (indexManager != null)
-            indexManager.validate(partitionKey);
+        if (indexManager == null)
+            return;
+
+        indexManager.validate(update);
     }
 
     public void newRow(Clustering clustering) throws InvalidRequestException
     {
-        if (indexManager != null)
-            indexManager.validate(clustering);
-
         if (metadata.isDense() && !metadata.isCompound())
         {
             // If it's a COMPACT STORAGE table with a single clustering column, the clustering value is
@@ -165,9 +166,6 @@ public class UpdateParameters
 
     public void addCell(ColumnDefinition column, CellPath path, ByteBuffer value) throws InvalidRequestException
     {
-        if (indexManager != null)
-            indexManager.validate(column, value, path);
-
         Cell cell = ttl == LivenessInfo.NO_TTL
                   ? BufferCell.live(metadata, column, timestamp, value, path)
                   : BufferCell.expiring(column, timestamp, ttl, nowInSec, value, path);

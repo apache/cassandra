@@ -38,12 +38,12 @@ import org.apache.cassandra.config.*;
 import org.apache.cassandra.cql3.QueryOptions;
 import org.apache.cassandra.cql3.statements.ParsedStatement;
 import org.apache.cassandra.db.*;
-import org.apache.cassandra.db.rows.*;
-import org.apache.cassandra.db.partitions.*;
 import org.apache.cassandra.db.context.CounterContext;
 import org.apache.cassandra.db.filter.*;
 import org.apache.cassandra.db.marshal.AbstractType;
 import org.apache.cassandra.db.marshal.TimeUUIDType;
+import org.apache.cassandra.db.partitions.*;
+import org.apache.cassandra.db.rows.*;
 import org.apache.cassandra.dht.*;
 import org.apache.cassandra.dht.Range;
 import org.apache.cassandra.exceptions.*;
@@ -826,6 +826,9 @@ public class CassandraServer implements Cassandra.Iface
             Cell cell = cellFromColumn(metadata, name, column);
             PartitionUpdate update = PartitionUpdate.singleRowUpdate(metadata, key, BTreeRow.singleCellRow(name.clustering, cell));
 
+            // Indexed column values cannot be larger than 64K.  See CASSANDRA-3057/4240 for more details
+            Keyspace.open(metadata.ksName).getColumnFamilyStore(metadata.cfName).indexManager.validate(update);
+
             mutation = new org.apache.cassandra.db.Mutation(update);
         }
         catch (MarshalException|UnknownColumnException e)
@@ -916,6 +919,8 @@ public class CassandraServer implements Cassandra.Iface
             int nowInSec = FBUtilities.nowInSeconds();
 
             PartitionUpdate partitionUpdates = PartitionUpdate.fromIterator(LegacyLayout.toRowIterator(metadata, dk, toLegacyCells(metadata, updates, nowInSec).iterator(), nowInSec));
+            // Indexed column values cannot be larger than 64K.  See CASSANDRA-3057/4240 for more details
+            Keyspace.open(metadata.ksName).getColumnFamilyStore(metadata.cfName).indexManager.validate(partitionUpdates);
 
             FilteredPartition partitionExpected = null;
             if (!expected.isEmpty())
@@ -1120,6 +1125,9 @@ public class CassandraServer implements Cassandra.Iface
                 sortAndMerge(metadata, cells, nowInSec);
                 DecoratedKey dk = metadata.decorateKey(key);
                 PartitionUpdate update = PartitionUpdate.fromIterator(LegacyLayout.toUnfilteredRowIterator(metadata, dk, delInfo, cells.iterator()));
+
+                // Indexed column values cannot be larger than 64K.  See CASSANDRA-3057/4240 for more details
+                Keyspace.open(metadata.ksName).getColumnFamilyStore(metadata.cfName).indexManager.validate(update);
 
                 org.apache.cassandra.db.Mutation mutation;
                 if (metadata.isCounter())
