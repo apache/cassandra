@@ -606,6 +606,14 @@ public class DatabaseDescriptor
         }
         if (seedProvider.getSeeds().size() == 0)
             throw new ConfigurationException("The seed provider lists no seeds.", false);
+
+        if (conf.user_defined_function_fail_timeout < 0)
+            throw new ConfigurationException("user_defined_function_fail_timeout must not be negative", false);
+        if (conf.user_defined_function_warn_timeout < 0)
+            throw new ConfigurationException("user_defined_function_warn_timeout must not be negative", false);
+
+        if (conf.user_defined_function_fail_timeout < conf.user_defined_function_warn_timeout)
+            throw new ConfigurationException("user_defined_function_warn_timeout must less than user_defined_function_fail_timeout", false);
     }
 
     private static IEndpointSnitch createEndpointSnitch(String snitchClassName) throws ConfigurationException
@@ -1691,13 +1699,48 @@ public class DatabaseDescriptor
         return conf.otc_coalescing_window_us;
     }
 
+    public static int getWindowsTimerInterval()
+    {
+        return conf.windows_timer_interval;
+    }
+
     public static boolean enableUserDefinedFunctions()
     {
         return conf.enable_user_defined_functions;
     }
 
-    public static int getWindowsTimerInterval()
+    public static boolean enableUserDefinedFunctionsThreads()
     {
-        return conf.windows_timer_interval;
+        return conf.enable_user_defined_functions_threads;
+    }
+
+    public static long getUserDefinedFunctionWarnTimeout()
+    {
+        return conf.user_defined_function_warn_timeout;
+    }
+
+    public static void setUserDefinedFunctionWarnTimeout(long userDefinedFunctionWarnTimeout)
+    {
+        conf.user_defined_function_warn_timeout = userDefinedFunctionWarnTimeout;
+    }
+
+    public static long getUserDefinedFunctionFailTimeout()
+    {
+        return conf.user_defined_function_fail_timeout;
+    }
+
+    public static void setUserDefinedFunctionFailTimeout(long userDefinedFunctionFailTimeout)
+    {
+        conf.user_defined_function_fail_timeout = userDefinedFunctionFailTimeout;
+    }
+
+    public static Config.UserFunctionTimeoutPolicy getUserFunctionTimeoutPolicy()
+    {
+        return conf.user_function_timeout_policy;
+    }
+
+    public static void setUserFunctionTimeoutPolicy(Config.UserFunctionTimeoutPolicy userFunctionTimeoutPolicy)
+    {
+        conf.user_function_timeout_policy = userFunctionTimeoutPolicy;
     }
 }

@@ -19,11 +19,14 @@ package org.apache.cassandra.utils;
 
 import java.io.FileNotFoundException;
 import java.net.SocketException;
+import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicBoolean;
 
 import com.google.common.annotations.VisibleForTesting;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import org.apache.cassandra.concurrent.ScheduledExecutors;
 import org.apache.cassandra.config.Config;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.io.FSError;
@@ -77,6 +80,23 @@ public final class JVMStabilityInspector
         killer.killCurrentJVM(t, quiet);
     }
 
+    public static void userFunctionTimeout(Throwable t)
+    {
+        switch (DatabaseDescriptor.getUserFunctionTimeoutPolicy())
+        {
+            case die:
+                // policy to give 250ms grace time to
+                ScheduledExecutors.nonPeriodicTasks.schedule(() -> killer.killCurrentJVM(t), 250, TimeUnit.MILLISECONDS);
+                break;
+            case die_immediate:
+                killer.killCurrentJVM(t);
+                break;
+            case ignore:
+                logger.error(t.getMessage());
+                break;
+        }
+    }
+
     @VisibleForTesting
     public static Killer replaceKiller(Killer newKiller) {
         Killer oldKiller = JVMStabilityInspector.killer;
@@ -87,6 +107,8 @@ public final class JVMStabilityInspector
     @VisibleForTesting
     public static class Killer
     {
+        private final AtomicBoolean killing = new AtomicBoolean();
+
         /**
         * Certain situations represent "Die" conditions for the server, and if so, the reason is logged and the current JVM is killed.
         *
@@ -105,8 +127,11 @@ public final class JVMStabilityInspector
                 t.printStackTrace(System.err);
                 logger.error("JVM state determined to be unstable.  Exiting forcefully due to:", t);
             }
-            StorageService.instance.removeShutdownHook();
-            System.exit(100);
+            if (killing.compareAndSet(false, true))
+            {
+                StorageService.instance.removeShutdownHook();
+                System.exit(100);
+            }
         }
     }
 }

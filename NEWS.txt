@@ -18,7 +18,8 @@ using the provided 'sstableupgrade' tool.
 
 Upgrading
 ---------
-   _ New SSTable version 'la' with improved bloom-filter false-positive handling
+   - User defined functions are now by default enabled.
+   - New SSTable version 'la' with improved bloom-filter false-positive handling
      compared to previous version 'ka' used in 2.2 and 2.1. Running sstableupgrade
      is not necessary but recommended.
    - Before upgrading to 3.0, make sure that your cluster is in complete agreement

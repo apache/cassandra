@@ -44,6 +44,7 @@ import org.apache.cassandra.config.CFMetaData;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.config.Schema;
 import org.apache.cassandra.cql3.functions.FunctionName;
+import org.apache.cassandra.cql3.functions.ThreadAwareSecurityManager;
 import org.apache.cassandra.cql3.statements.ParsedStatement;
 import org.apache.cassandra.db.*;
 import org.apache.cassandra.db.commitlog.CommitLog;
@@ -158,6 +159,8 @@ public abstract class CQLTester
                 logger.error("Fatal exception in thread " + t, e);
             }
         });
+
+        ThreadAwareSecurityManager.install();
 
         Keyspace.setInitialized();
         isServerPrepared = true;

@@ -164,7 +164,7 @@ public class UDAggregate extends AbstractFunction implements AggregateFunction
                 {
                     UDFunction udf = (UDFunction)stateFunction;
                     if (udf.isCallableWrtNullable(fArgs))
-                        state = udf.executeUserDefined(protocolVersion, fArgs);
+                        state = udf.execute(protocolVersion, fArgs);
                 }
                 else
                 {

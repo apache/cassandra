@@ -256,7 +256,37 @@ public class Config
 
     public int windows_timer_interval = 0;
 
-    public boolean enable_user_defined_functions = false;
+    public boolean enable_user_defined_functions = true;
+    /**
+     * Optionally disable asynchronous UDF execution.
+     * Disabling asynchronous UDF execution also implicitly disables the security-manager!
+     * By default, async UDF execution is enabled to be able to detect UDFs that run too long / forever and be
+     * able to fail fast - i.e. stop the Cassandra daemon, which is currently the only appropriate approach to
+     * "tell" a user that there's something really wrong with the UDF.
+     * When you disable async UDF execution, users MUST pay attention to read-timeouts since these may indicate
+     * UDFs that run too long or forever - and this can destabilize the cluster.
+     */
+    public boolean enable_user_defined_functions_threads = true;
+    /**
+     * Time in milliseconds after a warning will be emitted to the log and to the client that a UDF runs too long.
+     * (Only valid, if enable_user_defined_functions_threads==true)
+     */
+    public long user_defined_function_warn_timeout = 500;
+    /**
+     * Time in milliseconds after a fatal UDF run-time situation is detected and action according to
+     * user_function_timeout_policy will take place.
+     * (Only valid, if enable_user_defined_functions_threads==true)
+     */
+    public long user_defined_function_fail_timeout = 1500;
+    /**
+     * Defines what to do when a UDF ran longer than user_defined_function_fail_timeout.
+     * Possible options are:
+     * - 'die' - i.e. it is able to emit a warning to the client before the Cassandra Daemon will shut down.
+     * - 'die_immediate' - shut down C* daemon immediately (effectively prevent the chance that the client will receive a warning).
+     * - 'ignore' - just log - the most dangerous option.
+     * (Only valid, if enable_user_defined_functions_threads==true)
+     */
+    public UserFunctionTimeoutPolicy user_function_timeout_policy = UserFunctionTimeoutPolicy.die;
 
     public static boolean getOutboundBindAny()
     {
@@ -319,6 +349,13 @@ public class Config
         stop_commit,
         ignore,
         die,
+    }
+
+    public static enum UserFunctionTimeoutPolicy
+    {
+        ignore,
+        die,
+        die_immediate
     }
 
     public static enum RequestSchedulerId

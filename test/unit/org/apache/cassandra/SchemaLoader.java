@@ -23,8 +23,6 @@ import java.util.*;
 
 import org.junit.After;
 import org.junit.BeforeClass;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
 
 import org.apache.cassandra.cache.CachingOptions;
 import org.apache.cassandra.config.*;
@@ -50,8 +48,6 @@ import org.apache.cassandra.utils.FBUtilities;
 
 public class SchemaLoader
 {
-    private static Logger logger = LoggerFactory.getLogger(SchemaLoader.class);
-
     @BeforeClass
     public static void loadSchema() throws ConfigurationException
     {

@@ -15,6 +15,7 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
+
 package org.apache.cassandra.cql3.functions;
 
 import java.io.ByteArrayOutputStream;
@@ -24,6 +25,16 @@ import java.lang.invoke.MethodHandle;
 import java.lang.invoke.MethodHandles;
 import java.lang.invoke.MethodType;
 import java.lang.reflect.InvocationTargetException;
+import java.net.MalformedURLException;
+import java.net.URL;
+import java.net.URLConnection;
+import java.net.URLStreamHandler;
+import java.nio.ByteBuffer;
+import java.security.CodeSource;
+import java.security.PermissionCollection;
+import java.security.ProtectionDomain;
+import java.security.SecureClassLoader;
+import java.security.cert.Certificate;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashMap;
@@ -32,10 +43,22 @@ import java.util.Locale;
 import java.util.Map;
 import java.util.StringTokenizer;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.ThreadLocalRandom;
 import java.util.concurrent.atomic.AtomicInteger;
 
 import com.google.common.io.ByteStreams;
 
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+
+import com.datastax.driver.core.DataType;
+import org.apache.cassandra.concurrent.JMXEnabledScheduledThreadPoolExecutor;
+import org.apache.cassandra.concurrent.NamedThreadFactory;
+import org.apache.cassandra.config.DatabaseDescriptor;
+import org.apache.cassandra.cql3.ColumnIdentifier;
+import org.apache.cassandra.db.marshal.AbstractType;
+import org.apache.cassandra.exceptions.InvalidRequestException;
 import org.apache.cassandra.utils.FBUtilities;
 import org.eclipse.jdt.core.compiler.IProblem;
 import org.eclipse.jdt.internal.compiler.*;
@@ -48,27 +71,27 @@ import org.eclipse.jdt.internal.compiler.env.NameEnvironmentAnswer;
 import org.eclipse.jdt.internal.compiler.impl.CompilerOptions;
 import org.eclipse.jdt.internal.compiler.problem.DefaultProblemFactory;
 
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
-
-import com.datastax.driver.core.DataType;
-import org.apache.cassandra.cql3.ColumnIdentifier;
-import org.apache.cassandra.db.marshal.AbstractType;
-import org.apache.cassandra.exceptions.InvalidRequestException;
-
-/**
- * Java source UDF code generation.
- */
-public final class JavaSourceUDFFactory
+final class JavaBasedUDFunction extends UDFunction
 {
-    private static final String GENERATED_PACKAGE = "org.apache.cassandra.cql3.udf.gen";
+    private static final String BASE_PACKAGE = "org.apache.cassandra.cql3.udf.gen";
 
-    static final Logger logger = LoggerFactory.getLogger(JavaSourceUDFFactory.class);
+    static final Logger logger = LoggerFactory.getLogger(JavaBasedUDFunction.class);
 
     private static final AtomicInteger classSequence = new AtomicInteger();
 
-    private static final ClassLoader baseClassLoader = Thread.currentThread().getContextClassLoader();
+    private static final JMXEnabledScheduledThreadPoolExecutor executor =
+    new JMXEnabledScheduledThreadPoolExecutor(
+                                             DatabaseDescriptor.getMaxHintsThread(),
+                                             new NamedThreadFactory("UserDefinedFunctions",
+                                                                    Thread.MIN_PRIORITY,
+                                                                    udfClassLoader,
+                                                                    new SecurityThreadGroup("UserDefinedFunctions", null)),
+                                             "userfunction");
+
     private static final EcjTargetClassLoader targetClassLoader = new EcjTargetClassLoader();
+
+    private static final ProtectionDomain protectionDomain;
+
     private static final IErrorHandlingPolicy errorHandlingPolicy = DefaultErrorHandlingPolicies.proceedWithAllProblems();
     private static final IProblemFactory problemFactory = new DefaultProblemFactory(Locale.ENGLISH);
     private static final CompilerOptions compilerOptions;
@@ -97,7 +120,7 @@ public final class JavaSourceUDFFactory
         compilerOptions = new CompilerOptions(settings);
         compilerOptions.parseLiteralExpressionsAsConstants = true;
 
-        try (InputStream input = JavaSourceUDFFactory.class.getResource("JavaSourceUDF.txt").openConnection().getInputStream())
+        try (InputStream input = JavaBasedUDFunction.class.getResource("JavaSourceUDF.txt").openConnection().getInputStream())
         {
             ByteArrayOutputStream output = new ByteArrayOutputStream();
             FBUtilities.copy(input, output, Long.MAX_VALUE);
@@ -112,26 +135,42 @@ public final class JavaSourceUDFFactory
         {
             throw new RuntimeException(e);
         }
+
+        CodeSource codeSource;
+        try
+        {
+            codeSource = new CodeSource(new URL("udf", "localhost", 0, "/java", new URLStreamHandler()
+            {
+                protected URLConnection openConnection(URL u)
+                {
+                    return null;
+                }
+            }), (Certificate[])null);
+        }
+        catch (MalformedURLException e)
+        {
+            throw new RuntimeException(e);
+        }
+
+        protectionDomain = new ProtectionDomain(codeSource, ThreadAwareSecurityManager.noPermissions, targetClassLoader, null);
     }
 
-    static UDFunction buildUDF(FunctionName name,
-                               List<ColumnIdentifier> argNames,
-                               List<AbstractType<?>> argTypes,
-                               AbstractType<?> returnType,
-                               boolean calledOnNullInput,
-                               String body)
-    throws InvalidRequestException
+    private final JavaUDF javaUDF;
+
+    JavaBasedUDFunction(FunctionName name, List<ColumnIdentifier> argNames, List<AbstractType<?>> argTypes,
+                        AbstractType<?> returnType, boolean calledOnNullInput, String body)
     {
-        // argDataTypes is just the C* internal argTypes converted to the Java Driver DataType
-        DataType[] argDataTypes = UDHelper.driverTypes(argTypes);
-        // returnDataType is just the C* internal returnType converted to the Java Driver DataType
-        DataType returnDataType = UDHelper.driverType(returnType);
+        super(name, argNames, argTypes, UDHelper.driverTypes(argTypes),
+              returnType, UDHelper.driverType(returnType), calledOnNullInput, "java", body);
+
         // javaParamTypes is just the Java representation for argTypes resp. argDataTypes
         Class<?>[] javaParamTypes = UDHelper.javaTypes(argDataTypes, calledOnNullInput);
         // javaReturnType is just the Java representation for returnType resp. returnDataType
         Class<?> javaReturnType = returnDataType.asJavaClass();
 
-        String clsName = generateClassName(name);
+        // put each UDF in a separate package to prevent cross-UDF code access
+        String pkgName = BASE_PACKAGE + '.' + generateClassName(name, 'p');
+        String clsName = generateClassName(name, 'C');
 
         StringBuilder javaSourceBuilder = new StringBuilder();
         int lineOffset = 1;
@@ -144,6 +183,9 @@ public final class JavaSourceUDFFactory
             {
                 switch (s)
                 {
+                    case "package_name":
+                        s = pkgName;
+                        break;
                     case "class_name":
                         s = clsName;
                         break;
@@ -166,7 +208,7 @@ public final class JavaSourceUDFFactory
             javaSourceBuilder.append(s);
         }
 
-        String targetClassName = GENERATED_PACKAGE + '.' + clsName;
+        String targetClassName = pkgName + '.' + clsName;
 
         String javaSource = javaSourceBuilder.toString();
 
@@ -176,11 +218,11 @@ public final class JavaSourceUDFFactory
         {
             EcjCompilationUnit compilationUnit = new EcjCompilationUnit(javaSource, targetClassName);
 
-            Compiler compiler = new Compiler(compilationUnit,
-                                             errorHandlingPolicy,
-                                             compilerOptions,
-                                             compilationUnit,
-                                             problemFactory);
+            org.eclipse.jdt.internal.compiler.Compiler compiler = new Compiler(compilationUnit,
+                                                                               errorHandlingPolicy,
+                                                                               compilerOptions,
+                                                                               compilationUnit,
+                                                                               problemFactory);
             compiler.compile(new ICompilationUnit[]{ compilationUnit });
 
             if (compilationUnit.problemList != null && !compilationUnit.problemList.isEmpty())
@@ -220,18 +262,26 @@ public final class JavaSourceUDFFactory
                     throw new InvalidRequestException("Java source compilation failed:\n" + problems);
             }
 
-            Class cls = targetClassLoader.loadClass(targetClassName);
+            Thread thread = Thread.currentThread();
+            ClassLoader orig = thread.getContextClassLoader();
+            try
+            {
+                thread.setContextClassLoader(UDFunction.udfClassLoader);
+                // Execute UDF intiialization from UDF class loader
 
-            if (cls.getDeclaredMethods().length != 2 || cls.getDeclaredConstructors().length != 1)
-                throw new InvalidRequestException("Check your source to not define additional Java methods or constructors");
-            MethodType methodType = MethodType.methodType(void.class)
-                                              .appendParameterTypes(FunctionName.class, List.class, List.class, DataType[].class,
-                                                                    AbstractType.class, DataType.class,
-                                                                    boolean.class, String.class);
-            MethodHandle ctor = MethodHandles.lookup().findConstructor(cls, methodType);
-            return (UDFunction) ctor.invokeWithArguments(name, argNames, argTypes, argDataTypes,
-                                                         returnType, returnDataType,
-                                                         calledOnNullInput, body);
+                Class cls = targetClassLoader.loadClass(targetClassName);
+
+                if (cls.getDeclaredMethods().length != 2 || cls.getDeclaredConstructors().length != 1)
+                    throw new InvalidRequestException("Check your source to not define additional Java methods or constructors");
+                MethodType methodType = MethodType.methodType(void.class)
+                                                  .appendParameterTypes(DataType.class, DataType[].class);
+                MethodHandle ctor = MethodHandles.lookup().findConstructor(cls, methodType);
+                this.javaUDF = (JavaUDF) ctor.invokeWithArguments(returnDataType, argDataTypes);
+            }
+            finally
+            {
+                thread.setContextClassLoader(orig);
+            }
         }
         catch (InvocationTargetException e)
         {
@@ -248,6 +298,17 @@ public final class JavaSourceUDFFactory
         }
     }
 
+    protected ExecutorService executor()
+    {
+        return executor;
+    }
+
+    protected ByteBuffer executeUserDefined(int protocolVersion, List<ByteBuffer> params)
+    {
+        return javaUDF.executeImpl(protocolVersion, params);
+    }
+
+
     private static int countNewlines(StringBuilder javaSource)
     {
         int ln = 0;
@@ -257,19 +318,23 @@ public final class JavaSourceUDFFactory
         return ln;
     }
 
-    private static String generateClassName(FunctionName name)
+    private static String generateClassName(FunctionName name, char prefix)
     {
         String qualifiedName = name.toString();
 
         StringBuilder sb = new StringBuilder(qualifiedName.length() + 10);
-        sb.append('C');
+        sb.append(prefix);
         for (int i = 0; i < qualifiedName.length(); i++)
         {
             char c = qualifiedName.charAt(i);
             if (Character.isJavaIdentifierPart(c))
                 sb.append(c);
+            else
+                sb.append(Integer.toHexString(((short)c)&0xffff));
         }
         sb.append('_')
+          .append(ThreadLocalRandom.current().nextInt() & 0xffffff)
+          .append('_')
           .append(classSequence.incrementAndGet());
         return sb.toString();
     }
@@ -304,11 +369,11 @@ public final class JavaSourceUDFFactory
                 code.append(",\n");
 
             if (logger.isDebugEnabled())
-                code.append("                /* parameter '").append(argNames.get(i)).append("' */\n");
+                code.append("            /* parameter '").append(argNames.get(i)).append("' */\n");
 
             code
                 // cast to Java type
-                .append("                (").append(javaSourceName(paramTypes[i])).append(") ")
+                .append("            (").append(javaSourceName(paramTypes[i])).append(") ")
                 // generate object representation of input parameter (call UDFunction.compose)
                 .append(composeMethod(paramTypes[i])).append("(protocolVersion, ").append(i).append(", params.get(").append(i).append("))");
         }
@@ -432,7 +497,7 @@ public final class JavaSourceUDFFactory
 
             String resourceName = className.replace('.', '/') + ".class";
 
-            try (InputStream is = baseClassLoader.getResourceAsStream(resourceName))
+            try (InputStream is = UDFunction.udfClassLoader.getResourceAsStream(resourceName))
             {
                 if (is != null)
                 {
@@ -454,7 +519,7 @@ public final class JavaSourceUDFFactory
             if (result.equals(this.className))
                 return false;
             String resourceName = result.replace('.', '/') + ".class";
-            try (InputStream is = baseClassLoader.getResourceAsStream(resourceName))
+            try (InputStream is = UDFunction.udfClassLoader.getResourceAsStream(resourceName))
             {
                 return is == null;
             }
@@ -493,8 +558,13 @@ public final class JavaSourceUDFFactory
         }
     }
 
-    static final class EcjTargetClassLoader extends ClassLoader
+    static final class EcjTargetClassLoader extends SecureClassLoader
     {
+        EcjTargetClassLoader()
+        {
+            super(UDFunction.udfClassLoader);
+        }
+
         // This map is usually empty.
         // It only contains data *during* UDF compilation but not during runtime.
         //
@@ -503,12 +573,7 @@ public final class JavaSourceUDFFactory
         //
         private final Map<String, byte[]> classes = new ConcurrentHashMap<>();
 
-        EcjTargetClassLoader()
-        {
-            super(baseClassLoader);
-        }
-
-        public void addClass(String className, byte[] classData)
+        void addClass(String className, byte[] classData)
         {
             classes.put(className, classData);
         }
@@ -518,8 +583,14 @@ public final class JavaSourceUDFFactory
             // remove the class binary - it's only used once - so it's wasting heap
             byte[] classData = classes.remove(name);
 
-            return classData != null ? defineClass(name, classData, 0, classData.length)
-                                     : super.findClass(name);
+            if (classData != null)
+                return defineClass(name, classData, 0, classData.length, protectionDomain);
+
+            return getParent().loadClass(name);
         }
-    }
-}
+
+        protected PermissionCollection getPermissions(CodeSource codesource)
+        {
+            return ThreadAwareSecurityManager.noPermissions;
+        }
+    }}

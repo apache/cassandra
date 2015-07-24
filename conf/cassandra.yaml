@@ -872,12 +872,9 @@ inter_dc_tcp_nodelay: false
 tracetype_query_ttl: 86400
 tracetype_repair_ttl: 604800
 
-# UDFs (user defined functions) are disabled by default.
-# As of Cassandra 2.2, there is no security manager or anything else in place that
-# prevents execution of evil code. CASSANDRA-9402 will fix this issue for Cassandra 3.0.
-# This will inherently be backwards-incompatible with any 2.2 UDF that perform insecure
-# operations such as opening a socket or writing to the filesystem.
-enable_user_defined_functions: false
+# UDFs (user defined functions) are enabled by default.
+# As of Cassandra 3.0 there is a sandbox in place that prevents execution of evil code.
+enable_user_defined_functions: true
 
 # The default Windows kernel timer and scheduling resolution is 15.6ms for power conservation.
 # Lowering this value on Windows can provide much tighter latency and better throughput, however
