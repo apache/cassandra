@@ -19,6 +19,8 @@ package org.apache.cassandra.service.pager;
 
 import java.util.List;
 
+import org.apache.cassandra.config.CFMetaData;
+import org.apache.cassandra.config.Schema;
 import org.apache.cassandra.db.*;
 import org.apache.cassandra.db.composites.CellName;
 import org.apache.cassandra.db.composites.Composite;
@@ -96,9 +98,10 @@ public class RangeSliceQueryPager extends AbstractQueryPager
 
         // Same as SliceQueryPager, we ignore a deleted column
         Cell firstCell = isReversed() ? lastCell(first.cf) : firstNonStaticCell(first.cf);
+        CFMetaData metadata = Schema.instance.getCFMetaData(command.keyspace, command.columnFamily);
         return !first.cf.deletionInfo().isDeleted(firstCell)
             && firstCell.isLive(timestamp())
-            && lastReturnedName.equals(firstCell.name());
+            && firstCell.name().isSameCQL3RowAs(metadata.comparator, lastReturnedName);
     }
 
     protected boolean recordLast(Row last)
