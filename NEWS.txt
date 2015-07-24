@@ -18,7 +18,8 @@ using the provided 'sstableupgrade' tool.
 
 Upgrading
 ---------
-   - User defined functions are now by default enabled.
+   - User defined functions are now executed in a sandbox.
+     To use UDFs and UDAs, you have to enable them in cassandra.yaml.
    - New SSTable version 'la' with improved bloom-filter false-positive handling
      compared to previous version 'ka' used in 2.2 and 2.1. Running sstableupgrade
      is not necessary but recommended.

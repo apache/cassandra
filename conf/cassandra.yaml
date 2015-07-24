@@ -872,9 +872,9 @@ inter_dc_tcp_nodelay: false
 tracetype_query_ttl: 86400
 tracetype_repair_ttl: 604800
 
-# UDFs (user defined functions) are enabled by default.
-# As of Cassandra 3.0 there is a sandbox in place that prevents execution of evil code.
-enable_user_defined_functions: true
+# UDFs (user defined functions) are disabled by default.
+# As of Cassandra 3.0 there is a sandbox in place that should prevent execution of evil code.
+enable_user_defined_functions: false
 
 # The default Windows kernel timer and scheduling resolution is 15.6ms for power conservation.
 # Lowering this value on Windows can provide much tighter latency and better throughput, however
