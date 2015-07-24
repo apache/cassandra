@@ -31,15 +31,17 @@ public class MessageDeliveryTask implements Runnable
     private static final Logger logger = LoggerFactory.getLogger(MessageDeliveryTask.class);
 
     private final MessageIn message;
-    private final long constructionTime;
     private final int id;
+    private final long constructionTime;
+    private final boolean isCrossNodeTimestamp;
 
-    public MessageDeliveryTask(MessageIn message, int id, long timestamp)
+    public MessageDeliveryTask(MessageIn message, int id, long timestamp, boolean isCrossNodeTimestamp)
     {
         assert message != null;
         this.message = message;
         this.id = id;
-        constructionTime = timestamp;
+        this.constructionTime = timestamp;
+        this.isCrossNodeTimestamp = isCrossNodeTimestamp;
     }
 
     public void run()
@@ -48,7 +50,7 @@ public class MessageDeliveryTask implements Runnable
         if (MessagingService.DROPPABLE_VERBS.contains(verb)
             && System.currentTimeMillis() > constructionTime + message.getTimeout())
         {
-            MessagingService.instance().incrementDroppedMessages(verb);
+            MessagingService.instance().incrementDroppedMessages(verb, isCrossNodeTimestamp);
             return;
         }
 
