@@ -354,7 +354,7 @@ public class CommitLogSegmentManager
             discardSegment(segment, false);
             return;
         }
-        if (isCapExceeded())
+        if (isCapExceeded() || !DatabaseDescriptor.getCommitLogSegmentRecyclingEnabled())
         {
             discardSegment(segment, true);
             return;

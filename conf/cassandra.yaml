@@ -255,6 +255,10 @@ commitlog_sync_period_in_ms: 10000
 # is reasonable.
 commitlog_segment_size_in_mb: 32
 
+# Reuse commit log files when possible. The default is false, and this
+# feature will be removed entirely in future versions of Cassandra.
+#commitlog_segment_recycling: false
+
 # any class that implements the SeedProvider interface and has a
 # constructor that takes a Map<String, String> of parameters will do.
 seed_provider:

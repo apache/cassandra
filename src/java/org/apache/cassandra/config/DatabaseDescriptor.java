@@ -1160,6 +1160,11 @@ public class DatabaseDescriptor
         conf.tombstone_failure_threshold = threshold;
     }
 
+    public static boolean getCommitLogSegmentRecyclingEnabled()
+    {
+        return conf.commitlog_segment_recycling;
+    }
+
     /**
      * size of commitlog segments to allocate
      */
