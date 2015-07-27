@@ -18,14 +18,21 @@
 */
 package org.apache.cassandra.io.util;
 
+import java.io.EOFException;
+import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.nio.ByteOrder;
+import java.util.Arrays;
 import java.util.concurrent.ThreadLocalRandom;
 
 import org.junit.Test;
 
 import junit.framework.Assert;
 import org.apache.cassandra.utils.memory.MemoryUtil;
+
+import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertTrue;
+import static org.junit.Assert.fail;
 
 public class MemoryTest
 {
@@ -43,6 +50,36 @@ public class MemoryTest
         memory.setBytes(0, canon.duplicate());
         test(canon, memory);
         memory.close();
+    }
+
+    @Test
+    public void testInputStream() throws IOException
+    {
+        byte[] bytes = new byte[4096];
+        ThreadLocalRandom.current().nextBytes(bytes);
+        final Memory memory = Memory.allocate(bytes.length);
+        memory.setBytes(0, bytes, 0, bytes.length);
+
+        try(MemoryInputStream stream = new MemoryInputStream(memory, 1024))
+        {
+            byte[] bb = new byte[bytes.length];
+            assertEquals(bytes.length, stream.available());
+
+            stream.readFully(bb);
+            assertEquals(0, stream.available());
+
+            assertTrue(Arrays.equals(bytes, bb));
+
+            try
+            {
+                stream.readInt();
+                fail("Expected EOF exception");
+            }
+            catch (EOFException e)
+            {
+                //pass
+            }
+        }
     }
 
     private static void test(ByteBuffer canon, Memory memory)

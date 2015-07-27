@@ -16,7 +16,7 @@
  * limitations under the License.
  */
 
-package org.apache.cassandra.io;
+package org.apache.cassandra.io.util;
 
 import java.io.File;
 import java.io.IOException;
@@ -49,7 +49,7 @@ public class ChecksummedRandomAccessReaderTest
 
         assert data.exists();
 
-        RandomAccessReader reader = ChecksummedRandomAccessReader.open(data, crc);
+        RandomAccessReader reader = new ChecksummedRandomAccessReader.Builder(data, crc).build();
         byte[] b = new byte[expected.length];
         reader.readFully(b);
 
@@ -75,7 +75,7 @@ public class ChecksummedRandomAccessReaderTest
 
         assert data.exists();
 
-        RandomAccessReader reader = ChecksummedRandomAccessReader.open(data, crc);
+        RandomAccessReader reader = new ChecksummedRandomAccessReader.Builder(data, crc).build();
 
         final int seekPosition = 66000;
         reader.seek(seekPosition);
@@ -114,7 +114,7 @@ public class ChecksummedRandomAccessReaderTest
             dataFile.write((byte) 5);
         }
 
-        RandomAccessReader reader = ChecksummedRandomAccessReader.open(data, crc);
+        RandomAccessReader reader = new ChecksummedRandomAccessReader.Builder(data, crc).build();
         byte[] b = new byte[expected.length];
         reader.readFully(b);
 

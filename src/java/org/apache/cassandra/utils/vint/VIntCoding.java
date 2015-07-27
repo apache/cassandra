@@ -67,7 +67,7 @@ public class VIntCoding
             return firstByte;
 
         int size = numberOfExtraBytesToRead(firstByte);
-        long retval = firstByte & firstByteValueMask(size);;
+        long retval = firstByte & firstByteValueMask(size);
         for (int ii = 0; ii < size; ii++)
         {
             byte b = input.readByte();

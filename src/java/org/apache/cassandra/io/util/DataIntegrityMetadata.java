@@ -34,6 +34,7 @@ import com.google.common.base.Charsets;
 import org.apache.cassandra.io.FSWriteError;
 import org.apache.cassandra.io.sstable.Component;
 import org.apache.cassandra.io.sstable.Descriptor;
+import org.apache.cassandra.utils.Throwables;
 
 public class DataIntegrityMetadata
 {
@@ -138,14 +139,8 @@ public class DataIntegrityMetadata
 
         public void close()
         {
-            try
-            {
-                this.digestReader.close();
-            }
-            finally
-            {
-                this.dataReader.close();
-            }
+            Throwables.perform(digestReader::close,
+                               dataReader::close);
         }
     }
 

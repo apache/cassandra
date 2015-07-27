@@ -134,6 +134,7 @@ public class BigFormat implements SSTableFormat
         private final boolean newFileName;
         public final boolean storeRows;
         public final int correspondingMessagingVersion; // Only use by storage that 'storeRows' so far
+        public final boolean hasBoundaries;
         /**
          * CASSANDRA-8413: 3.0 bloom filter representation changed (two longs just swapped)
          * have no 'static' bits caused by using the same upper bits for both bloom filter and token distribution.
@@ -176,6 +177,8 @@ public class BigFormat implements SSTableFormat
             correspondingMessagingVersion = storeRows
                                           ? MessagingService.VERSION_30
                                           : MessagingService.VERSION_21;
+
+            hasBoundaries = version.compareTo("ma") < 0;
         }
 
         @Override
@@ -248,6 +251,12 @@ public class BigFormat implements SSTableFormat
         public int correspondingMessagingVersion()
         {
             return correspondingMessagingVersion;
+        }
+
+        @Override
+        public boolean hasBoundaries()
+        {
+            return hasBoundaries;
         }
 
         @Override

@@ -542,14 +542,12 @@ public class BufferedDataOutputStreamTest
 
         ndosp.flush();
 
-        @SuppressWarnings("resource")
-        ByteBufferDataInput bbdi = new ByteBufferDataInput(ByteBuffer.wrap(generated.toByteArray()), "", 0, 0);
-
+        DataInputBuffer in = new DataInputBuffer(generated.toByteArray());
         assertEquals(expectedSize, generated.toByteArray().length);
 
         for (long v : testValues)
         {
-            assertEquals(v, bbdi.readVInt());
+            assertEquals(v, in.readVInt());
         }
     }
 
@@ -574,13 +572,11 @@ public class BufferedDataOutputStreamTest
 
         ndosp.flush();
 
-        @SuppressWarnings("resource")
-        ByteBufferDataInput bbdi = new ByteBufferDataInput(ByteBuffer.wrap(generated.toByteArray()), "", 0, 0);
-
+        DataInputBuffer in = new DataInputBuffer(generated.toByteArray());
         assertEquals(expectedSize, generated.toByteArray().length);
 
         for (long v : testValues)
-            assertEquals(v, bbdi.readUnsignedVInt());
+            assertEquals(v, in.readUnsignedVInt());
     }
 
     @Test

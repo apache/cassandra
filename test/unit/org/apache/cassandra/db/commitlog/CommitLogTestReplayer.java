@@ -29,6 +29,7 @@ import org.apache.cassandra.db.Mutation;
 import org.apache.cassandra.db.rows.SerializationHelper;
 import org.apache.cassandra.io.util.DataInputBuffer;
 import org.apache.cassandra.io.util.NIODataInputStream;
+import org.apache.cassandra.io.util.RebufferingInputStream;
 
 /**
  * Utility class for tests needing to examine the commitlog contents.
@@ -60,7 +61,7 @@ public class CommitLogTestReplayer extends CommitLogReplayer
     @Override
     void replayMutation(byte[] inputBuffer, int size, final long entryLocation, final CommitLogDescriptor desc)
     {
-        NIODataInputStream bufIn = new DataInputBuffer(inputBuffer, 0, size);
+        RebufferingInputStream bufIn = new DataInputBuffer(inputBuffer, 0, size);
         Mutation mutation;
         try
         {

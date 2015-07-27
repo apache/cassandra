@@ -68,6 +68,8 @@ public abstract class Version
 
     public abstract boolean hasCompactionAncestors();
 
+    public abstract boolean hasBoundaries();
+
     public String getVersion()
     {
         return version;

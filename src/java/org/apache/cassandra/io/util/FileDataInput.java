@@ -19,31 +19,22 @@ package org.apache.cassandra.io.util;
 
 import java.io.Closeable;
 import java.io.IOException;
-import java.nio.ByteBuffer;
 
 public interface FileDataInput extends DataInputPlus, Closeable
 {
-    public String getPath();
+    String getPath();
 
-    public boolean isEOF() throws IOException;
+    boolean isEOF() throws IOException;
 
-    public long bytesRemaining() throws IOException;
+    long bytesRemaining() throws IOException;
 
-    public void seek(long pos) throws IOException;
+    void seek(long pos) throws IOException;
 
-    public FileMark mark();
+    FileMark mark();
 
-    public void reset(FileMark mark) throws IOException;
+    void reset(FileMark mark) throws IOException;
 
-    public long bytesPastMark(FileMark mark);
+    long bytesPastMark(FileMark mark);
 
-    public long getFilePointer();
-
-    /**
-     * Read length bytes from current file position
-     * @param length length of the bytes to read
-     * @return buffer with bytes read
-     * @throws IOException if any I/O operation failed
-     */
-    public ByteBuffer readBytes(int length) throws IOException;
+    long getFilePointer();
 }

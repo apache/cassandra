@@ -25,9 +25,7 @@ import java.io.File;
 import java.io.FileOutputStream;
 import java.io.IOException;
 import java.nio.ByteBuffer;
-import java.nio.channels.ClosedChannelException;
 import java.util.Arrays;
-import java.util.concurrent.Callable;
 
 import static org.apache.cassandra.Util.expectEOF;
 import static org.apache.cassandra.Util.expectException;
@@ -96,7 +94,7 @@ public class BufferedRandomAccessFileTest
 
         // test readBytes(int) method
         r.seek(0);
-        ByteBuffer fileContent = r.readBytes((int) w.length());
+        ByteBuffer fileContent = ByteBufferUtil.read(r, (int) w.length());
         assertEquals(fileContent.limit(), w.length());
         assert ByteBufferUtil.string(fileContent).equals("Hello" + new String(bigData));
 
@@ -204,25 +202,19 @@ public class BufferedRandomAccessFileTest
         final ChannelProxy channel = new ChannelProxy(w.getPath());
         final RandomAccessReader r = RandomAccessReader.open(channel);
 
-        ByteBuffer content = r.readBytes((int) r.length());
+        ByteBuffer content = ByteBufferUtil.read(r, (int) r.length());
 
         // after reading whole file we should be at EOF
         assertEquals(0, ByteBufferUtil.compare(content, data));
         assert r.bytesRemaining() == 0 && r.isEOF();
 
         r.seek(0);
-        content = r.readBytes(10); // reading first 10 bytes
+        content = ByteBufferUtil.read(r, 10); // reading first 10 bytes
         assertEquals(ByteBufferUtil.compare(content, "cccccccccc".getBytes()), 0);
         assertEquals(r.bytesRemaining(), r.length() - content.limit());
 
         // trying to read more than file has right now
-        expectEOF(new Callable<Object>()
-        {
-            public Object call() throws IOException
-            {
-                return r.readBytes((int) r.length() + 10);
-            }
-        });
+        expectEOF(() -> ByteBufferUtil.read(r, (int) r.length() + 10));
 
         w.finish();
         r.close();
@@ -249,23 +241,9 @@ public class BufferedRandomAccessFileTest
         assertEquals(file.bytesRemaining(), file.length() - 20);
 
         // trying to seek past the end of the file should produce EOFException
-        expectException(new Callable<Object>()
-        {
-            public Object call()
-            {
-                file.seek(file.length() + 30);
-                return null;
-            }
-        }, IllegalArgumentException.class);
+        expectException(() -> { file.seek(file.length() + 30); return null; }, IllegalArgumentException.class);
 
-        expectException(new Callable<Object>()
-        {
-            public Object call() throws IOException
-            {
-                file.seek(-1);
-                return null;
-            }
-        }, IllegalArgumentException.class); // throws IllegalArgumentException
+        expectException(() -> { file.seek(-1); return null; }, IllegalArgumentException.class); // throws IllegalArgumentException
 
         file.close();
         channel.close();
@@ -352,16 +330,11 @@ public class BufferedRandomAccessFileTest
             {
                 File file1 = writeTemporaryFile(new byte[16]);
                 try (final ChannelProxy channel = new ChannelProxy(file1);
-                     final RandomAccessReader file = RandomAccessReader.open(channel, bufferSize, -1L))
+                     final RandomAccessReader file = new RandomAccessReader.Builder(channel)
+                                                     .bufferSize(bufferSize)
+                                                     .build())
                 {
-                    expectEOF(new Callable<Object>()
-                    {
-                        public Object call() throws IOException
-                        {
-                            file.readFully(target, offset, 17);
-                            return null;
-                        }
-                    });
+                    expectEOF(() -> { file.readFully(target, offset, 17); return null; });
                 }
             }
 
@@ -370,15 +343,11 @@ public class BufferedRandomAccessFileTest
             {
                 File file1 = writeTemporaryFile(new byte[16]);
                 try (final ChannelProxy channel = new ChannelProxy(file1);
-                     final RandomAccessReader file = RandomAccessReader.open(channel, bufferSize, -1L))
+                     final RandomAccessReader file = new RandomAccessReader.Builder(channel).bufferSize(bufferSize).build())
                 {
-                    expectEOF(new Callable<Object>()
-                    {
-                        public Object call() throws IOException
-                        {
-                            while (true)
-                                file.readFully(target, 0, n);
-                        }
+                    expectEOF(() -> {
+                        while (true)
+                            file.readFully(target, 0, n);
                     });
                 }
             }
@@ -459,30 +428,17 @@ public class BufferedRandomAccessFileTest
 
         r.close(); // closing to test read after close
 
-        expectException(new Callable<Object>()
-        {
-            public Object call()
-            {
-                return r.read();
-            }
-        }, AssertionError.class);
+        expectException(() -> r.read(), NullPointerException.class);
 
         //Used to throw ClosedChannelException, but now that it extends BDOSP it just NPEs on the buffer
         //Writing to a BufferedOutputStream that is closed generates no error
         //Going to allow the NPE to throw to catch as a bug any use after close. Notably it won't throw NPE for a
         //write of a 0 length, but that is kind of a corner case
-        expectException(new Callable<Object>()
-        {
-            public Object call() throws IOException
-            {
-                w.write(generateByteArray(1));
-                return null;
-            }
-        }, NullPointerException.class);
+        expectException(() -> { w.write(generateByteArray(1)); return null; }, NullPointerException.class);
 
         try (RandomAccessReader copy = RandomAccessReader.open(new File(r.getPath())))
         {
-            ByteBuffer contents = copy.readBytes((int) copy.length());
+            ByteBuffer contents = ByteBufferUtil.read(copy, (int) copy.length());
 
             assertEquals(contents.limit(), data.length);
             assertEquals(ByteBufferUtil.compare(contents, data), 0);
@@ -526,7 +482,7 @@ public class BufferedRandomAccessFileTest
         channel.close();
     }
 
-    @Test (expected = AssertionError.class)
+    @Test(expected = AssertionError.class)
     public void testAssertionErrorWhenBytesPastMarkIsNegative() throws IOException
     {
         try (SequentialWriter w = createTempFile("brafAssertionErrorWhenBytesPastMarkIsNegative"))
@@ -565,14 +521,7 @@ public class BufferedRandomAccessFileTest
         assertTrue(copy.bytesRemaining() == 0 && copy.isEOF());
 
         // can't seek past the end of the file for read-only files
-        expectException(new Callable<Object>()
-        {
-            public Object call()
-            {
-                copy.seek(copy.length() + 1);
-                return null;
-            }
-        }, IllegalArgumentException.class);
+        expectException(() -> { copy.seek(copy.length() + 1); return null; }, IllegalArgumentException.class);
 
         copy.seek(0);
         copy.skipBytes(5);
@@ -582,7 +531,7 @@ public class BufferedRandomAccessFileTest
         assertTrue(!copy.isEOF());
 
         copy.seek(0);
-        ByteBuffer contents = copy.readBytes((int) copy.length());
+        ByteBuffer contents = ByteBufferUtil.read(copy, (int) copy.length());
 
         assertEquals(contents.limit(), copy.length());
         assertTrue(ByteBufferUtil.compare(contents, data) == 0);

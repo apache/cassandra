@@ -19,50 +19,58 @@ package org.apache.cassandra.io.util;
 
 import java.io.DataInput;
 import java.io.IOException;
+import java.nio.ByteBuffer;
+import java.nio.ByteOrder;
 
-public class MemoryInputStream extends AbstractDataInput implements DataInput
+import com.google.common.annotations.VisibleForTesting;
+import com.google.common.primitives.Ints;
+
+import org.apache.cassandra.utils.memory.MemoryUtil;
+
+public class MemoryInputStream extends RebufferingInputStream implements DataInput
 {
     private final Memory mem;
-    private int position = 0;
+    private final int bufferSize;
+    private long offset;
+
 
     public MemoryInputStream(Memory mem)
     {
+        this(mem, Ints.saturatedCast(mem.size));
+    }
+
+    @VisibleForTesting
+    public MemoryInputStream(Memory mem, int bufferSize)
+    {
+        super(getByteBuffer(mem.peer, bufferSize));
         this.mem = mem;
+        this.bufferSize = bufferSize;
+        this.offset = mem.peer + bufferSize;
     }
 
-    public int read() throws IOException
+    @Override
+    protected void reBuffer() throws IOException
     {
-        return mem.getByte(position++) & 0xFF;
+        if (offset - mem.peer >= mem.size())
+            return;
+
+        buffer = getByteBuffer(offset, Math.min(bufferSize, Ints.saturatedCast(memRemaining())));
+        offset += buffer.capacity();
     }
 
-    public void readFully(byte[] buffer, int offset, int count) throws IOException
+    @Override
+    public int available()
     {
-        mem.getBytes(position, buffer, offset, count);
-        position += count;
+        return Ints.saturatedCast(buffer.remaining() + memRemaining());
     }
 
-    public void seek(long pos)
+    private long memRemaining()
     {
-        position = (int) pos;
+        return mem.size + mem.peer - offset;
     }
 
-    public long getPosition()
+    private static ByteBuffer getByteBuffer(long offset, int length)
     {
-        return position;
-    }
-
-    public long getPositionLimit()
-    {
-        return mem.size();
-    }
-
-    protected long length()
-    {
-        return mem.size();
-    }
-
-    public void close()
-    {
-        // do nothing.
+        return MemoryUtil.getByteBuffer(offset, length).order(ByteOrder.BIG_ENDIAN);
     }
 }

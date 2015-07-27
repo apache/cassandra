@@ -29,37 +29,13 @@ public class BufferedSegmentedFile extends SegmentedFile
         super(copy);
     }
 
-    private static class Cleanup extends SegmentedFile.Cleanup
-    {
-        protected Cleanup(ChannelProxy channel)
-        {
-            super(channel);
-        }
-        public void tidy()
-        {
-            super.tidy();
-        }
-    }
-
     public static class Builder extends SegmentedFile.Builder
     {
-        public void addPotentialBoundary(long boundary)
-        {
-            // only one segment in a standard-io file
-        }
-
         public SegmentedFile complete(ChannelProxy channel, int bufferSize, long overrideLength)
         {
             long length = overrideLength > 0 ? overrideLength : channel.size();
             return new BufferedSegmentedFile(channel, bufferSize, length);
         }
-    }
-
-    public FileDataInput getSegment(long position)
-    {
-        RandomAccessReader reader = RandomAccessReader.open(channel, bufferSize, -1L);
-        reader.seek(position);
-        return reader;
     }
 
     public BufferedSegmentedFile sharedCopy()

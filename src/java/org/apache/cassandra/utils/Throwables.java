@@ -82,29 +82,54 @@ public final class Throwables
     @SuppressWarnings("unchecked")
     public static <E extends Exception> void perform(Stream<DiscreteAction<? extends E>> actions) throws E
     {
-        Throwable fail = null;
-        Iterator<DiscreteAction<? extends E>> iter = actions.iterator();
-        while (iter.hasNext())
+        Throwable fail = perform(null, actions);
+        if (failIfCanCast(fail, null))
+            throw (E) fail;
+    }
+
+    public static Throwable perform(Throwable accumulate, Stream<? extends DiscreteAction<?>> actions)
+    {
+        return perform(accumulate, actions.iterator());
+    }
+
+    public static Throwable perform(Throwable accumulate, Iterator<? extends DiscreteAction<?>> actions)
+    {
+        while (actions.hasNext())
         {
-            DiscreteAction<? extends E> action = iter.next();
+            DiscreteAction<?> action = actions.next();
             try
             {
                 action.perform();
             }
             catch (Throwable t)
             {
-                fail = merge(fail, t);
+                accumulate = merge(accumulate, t);
             }
         }
-
-        if (failIfCanCast(fail, null))
-            throw (E) fail;
+        return accumulate;
     }
 
     @SafeVarargs
     public static void perform(File against, FileOpType opType, DiscreteAction<? extends IOException> ... actions)
     {
-        perform(Arrays.stream(actions).map((action) -> () ->
+        perform(against.getPath(), opType, actions);
+    }
+
+    @SafeVarargs
+    public static void perform(String filePath, FileOpType opType, DiscreteAction<? extends IOException> ... actions)
+    {
+        maybeFail(perform(null, filePath, opType, actions));
+    }
+
+    @SafeVarargs
+    public static Throwable perform(Throwable accumulate, String filePath, FileOpType opType, DiscreteAction<? extends IOException> ... actions)
+    {
+        return perform(accumulate, filePath, opType, Arrays.stream(actions));
+    }
+
+    public static Throwable perform(Throwable accumulate, String filePath, FileOpType opType, Stream<DiscreteAction<? extends IOException>> actions)
+    {
+        return perform(accumulate, actions.map((action) -> () ->
         {
             try
             {
@@ -112,7 +137,7 @@ public final class Throwables
             }
             catch (IOException e)
             {
-                throw (opType == FileOpType.WRITE) ? new FSWriteError(e, against) : new FSReadError(e, against);
+                throw (opType == FileOpType.WRITE) ? new FSWriteError(e, filePath) : new FSReadError(e, filePath);
             }
         }));
     }
