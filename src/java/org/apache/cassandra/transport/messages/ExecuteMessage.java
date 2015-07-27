@@ -127,6 +127,10 @@ public class ExecuteMessage extends Message.Request
                 ImmutableMap.Builder<String, String> builder = ImmutableMap.builder();
                 if (options.getPageSize() > 0)
                     builder.put("page_size", Integer.toString(options.getPageSize()));
+                if(options.getConsistency() != null)
+                    builder.put("consistency_level", options.getConsistency().name());
+                if(options.getSerialConsistency() != null)
+                    builder.put("serial_consistency_level", options.getSerialConsistency().name());
 
                 // TODO we don't have [typed] access to CQL bind variables here.  CASSANDRA-4560 is open to add support.
                 Tracing.instance.begin("Execute CQL3 prepared query", state.getClientAddress(), builder.build());

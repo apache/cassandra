@@ -112,6 +112,10 @@ public class QueryMessage extends Message.Request
                 builder.put("query", query);
                 if (options.getPageSize() > 0)
                     builder.put("page_size", Integer.toString(options.getPageSize()));
+                if(options.getConsistency() != null)
+                    builder.put("consistency_level", options.getConsistency().name());
+                if(options.getSerialConsistency() != null)
+                    builder.put("serial_consistency_level", options.getSerialConsistency().name());
 
                 Tracing.instance.begin("Execute CQL3 query", state.getClientAddress(), builder.build());
             }

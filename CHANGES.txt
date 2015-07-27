@@ -1,9 +1,6 @@
 3.0
-<<<<<<< HEAD
  * Implement proper sandboxing for UDFs (CASSANDRA-9402)
-=======
  * Simplify (and unify) cleanup of compaction leftovers (CASSANDRA-7066)
->>>>>>> Introduce safer durable sstable membership management
  * Allow extra schema definitions in cassandra-stress yaml (CASSANDRA-9850)
  * Metrics should use up to date nomenclature (CASSANDRA-9448)
  * Change CREATE/ALTER TABLE syntax for compression (CASSANDRA-8384)
@@ -30,6 +27,8 @@
  * UDF / UDA execution time in trace (CASSANDRA-9723)
  * Remove repair snapshot leftover on startup (CASSANDRA-7357)
  * Use random nodes for batch log when only 2 racks (CASSANDRA-8735)
+Merged from 2.1:
+ * Add consistency level to tracing ouput (CASSANDRA-9827)
 Merged from 2.0:
  * Log when messages are dropped due to cross_node_timeout (CASSANDRA-9793)
 
