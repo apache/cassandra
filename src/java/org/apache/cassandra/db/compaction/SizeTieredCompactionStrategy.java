@@ -75,9 +75,6 @@ public class SizeTieredCompactionStrategy extends AbstractCompactionStrategy
 
     private List<SSTableReader> getNextBackgroundSSTables(final int gcBefore)
     {
-        if (!isEnabled())
-            return Collections.emptyList();
-
         // make local copies so they can't be changed out from under us mid-method
         int minThreshold = cfs.getMinimumCompactionThreshold();
         int maxThreshold = cfs.getMaximumCompactionThreshold();
@@ -177,9 +174,6 @@ public class SizeTieredCompactionStrategy extends AbstractCompactionStrategy
 
     public synchronized AbstractCompactionTask getNextBackgroundTask(int gcBefore)
     {
-        if (!isEnabled())
-            return null;
-
         while (true)
         {
             List<SSTableReader> hottestBucket = getNextBackgroundSSTables(gcBefore);
