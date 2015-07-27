@@ -707,10 +707,15 @@ public class CassandraServer implements Cassandra.Iface
     {
         if (startSessionIfRequested())
         {
-            Map<String, String> traceParameters = ImmutableMap.of("key", ByteBufferUtil.bytesToHex(key),
-                                                                  "column_family", column_family,
-                                                                  "old", expected.toString(),
-                                                                  "updates", updates.toString());
+            ImmutableMap.Builder<String,String> builder = ImmutableMap.builder();
+            builder.put("key", ByteBufferUtil.bytesToHex(key));
+            builder.put("column_family", column_family);
+            builder.put("old", expected.toString());
+            builder.put("updates", updates.toString());
+            builder.put("consistency_level", commit_consistency_level.name());
+            builder.put("serial_consistency_level", serial_consistency_level.name());
+            Map<String,String> traceParameters = builder.build();
+
             Tracing.instance.begin("cas", traceParameters);
         }
         else
@@ -1880,7 +1885,8 @@ public class CassandraServer implements Cassandra.Iface
             if (startSessionIfRequested())
             {
                 Tracing.instance.begin("execute_cql3_query",
-                                       ImmutableMap.of("query", queryString));
+                                       ImmutableMap.of("query", queryString,
+                                                       "consistency_level", cLevel.name()));
             }
             else
             {
@@ -1942,7 +1948,7 @@ public class CassandraServer implements Cassandra.Iface
         if (startSessionIfRequested())
         {
             // TODO we don't have [typed] access to CQL bind variables here.  CASSANDRA-4560 is open to add support.
-            Tracing.instance.begin("execute_prepared_cql3_query", Collections.<String, String>emptyMap());
+            Tracing.instance.begin("execute_prepared_cql3_query", ImmutableMap.of("consistency_level", cLevel.name()));
         }
         else
         {
