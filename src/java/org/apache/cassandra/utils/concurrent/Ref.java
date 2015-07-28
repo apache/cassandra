@@ -498,7 +498,7 @@ public final class Ref<T> implements RefCounted<T>
                 for (ColumnFamilyStore cfs : ks.getColumnFamilyStores())
                 {
                     View view = cfs.getTracker().getView();
-                    for (SSTableReader reader : Iterables.concat(view.sstables, view.compacting))
+                    for (SSTableReader reader : view.allKnownSSTables())
                         reader.addTo(expected);
                 }
             }

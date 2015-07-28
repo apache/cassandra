@@ -19,6 +19,7 @@ package org.apache.cassandra.db.lifecycle;
 
 import java.util.*;
 
+import com.google.common.annotations.VisibleForTesting;
 import com.google.common.base.Function;
 import com.google.common.base.Functions;
 import com.google.common.base.Predicate;
@@ -41,6 +42,7 @@ import static com.google.common.collect.Iterables.filter;
 import static com.google.common.collect.Iterables.transform;
 import static java.util.Collections.singleton;
 import static org.apache.cassandra.db.lifecycle.Helpers.emptySet;
+import static org.apache.cassandra.db.lifecycle.Helpers.filterOut;
 import static org.apache.cassandra.db.lifecycle.Helpers.replace;
 
 /**
@@ -122,6 +124,14 @@ public class View
     public Iterable<SSTableReader> sstables(SSTableSet sstableSet, Predicate<SSTableReader> filter)
     {
         return select(sstableSet, filter(sstables, filter));
+    }
+
+    // any sstable known by this tracker in any form; we have a special method here since it's only used for testing/debug
+    // (strong leak detection), and it does not follow the normal pattern
+    @VisibleForTesting
+    public Iterable<SSTableReader> allKnownSSTables()
+    {
+        return Iterables.concat(sstables, filterOut(compacting, sstables));
     }
 
     private Iterable<SSTableReader> select(SSTableSet sstableSet, Iterable<SSTableReader> sstables)
