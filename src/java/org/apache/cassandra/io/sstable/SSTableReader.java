@@ -164,6 +164,11 @@ public class SSTableReader extends SSTable implements SelfRefCounted<SSTableRead
     private static final Logger logger = LoggerFactory.getLogger(SSTableReader.class);
 
     private static final ScheduledThreadPoolExecutor syncExecutor = new ScheduledThreadPoolExecutor(1);
+    static
+    {
+        // Immediately remove readMeter sync task when cancelled.
+        syncExecutor.setRemoveOnCancelPolicy(true);
+    }
     private static final RateLimiter meterSyncThrottle = RateLimiter.create(100.0);
 
     public static final Comparator<SSTableReader> maxTimestampComparator = new Comparator<SSTableReader>()
@@ -379,13 +384,13 @@ public class SSTableReader extends SSTable implements SelfRefCounted<SSTableRead
 
     public static SSTableReader open(Descriptor descriptor, Set<Component> components, CFMetaData metadata, IPartitioner partitioner) throws IOException
     {
-        return open(descriptor, components, metadata, partitioner, true);
+        return open(descriptor, components, metadata, partitioner, true, true);
     }
 
     // use only for offline or "Standalone" operations
     public static SSTableReader openNoValidation(Descriptor descriptor, Set<Component> components, CFMetaData metadata) throws IOException
     {
-        return open(descriptor, components, metadata, StorageService.getPartitioner(), false);
+        return open(descriptor, components, metadata, StorageService.getPartitioner(), false, false); // do not track hotness
     }
 
     /**
@@ -439,15 +444,16 @@ public class SSTableReader extends SSTable implements SelfRefCounted<SSTableRead
         sstable.ifile = ibuilder.complete(sstable.descriptor.filenameFor(Component.PRIMARY_INDEX));
         sstable.dfile = dbuilder.complete(sstable.descriptor.filenameFor(Component.DATA));
         sstable.bf = FilterFactory.AlwaysPresent;
-        sstable.setup(true);
+        sstable.setup(false);
         return sstable;
     }
 
-    private static SSTableReader open(Descriptor descriptor,
+    public static SSTableReader open(Descriptor descriptor,
                                       Set<Component> components,
                                       CFMetaData metadata,
                                       IPartitioner partitioner,
-                                      boolean validate) throws IOException
+                                      boolean validate,
+                                      boolean trackHotness) throws IOException
     {
         // Minimum components without which we can't do anything
         assert components.contains(Component.DATA) : "Data component is missing for sstable" + descriptor;
@@ -485,7 +491,7 @@ public class SSTableReader extends SSTable implements SelfRefCounted<SSTableRead
             sstable.load(validationMetadata);
             logger.debug("INDEX LOAD TIME for {}: {} ms.", descriptor, TimeUnit.NANOSECONDS.toMillis(System.nanoTime() - start));
 
-            sstable.setup(!validate);
+            sstable.setup(trackHotness);
             if (validate)
                 sstable.validate();
 
@@ -624,7 +630,7 @@ public class SSTableReader extends SSTable implements SelfRefCounted<SSTableRead
         this.dfile = dfile;
         this.indexSummary = indexSummary;
         this.bf = bloomFilter;
-        this.setup(false);
+        this.setup(true);
     }
 
     public static long getTotalBytes(Iterable<SSTableReader> sstables)
@@ -2122,9 +2128,9 @@ public class SSTableReader extends SSTable implements SelfRefCounted<SSTableRead
         return selfRef.ref();
     }
 
-    void setup(boolean isOffline)
+    void setup(boolean trackHotness)
     {
-        tidy.setup(this, isOffline);
+        tidy.setup(this, trackHotness);
         this.readMeter = tidy.global.readMeter;
     }
 
@@ -2171,7 +2177,7 @@ public class SSTableReader extends SSTable implements SelfRefCounted<SSTableRead
 
         private boolean setup;
 
-        void setup(SSTableReader reader, boolean isOffline)
+        void setup(SSTableReader reader, boolean trackHotness)
         {
             this.setup = true;
             this.bf = reader.bf;
@@ -2182,7 +2188,7 @@ public class SSTableReader extends SSTable implements SelfRefCounted<SSTableRead
             this.typeRef = DescriptorTypeTidy.get(reader);
             this.type = typeRef.get();
             this.global = type.globalRef.get();
-            if (!isOffline)
+            if (trackHotness)
                 global.ensureReadMeter();
         }
 
