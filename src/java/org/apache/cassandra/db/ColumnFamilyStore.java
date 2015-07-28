@@ -1610,7 +1610,8 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
                 {
                     if (logger.isDebugEnabled())
                         logger.debug("using snapshot sstable {}", entries.getKey());
-                    sstable = SSTableReader.open(entries.getKey(), entries.getValue(), metadata, partitioner);
+                    // open without tracking hotness
+                    sstable = SSTableReader.open(entries.getKey(), entries.getValue(), metadata, partitioner, true, false);
                     // This is technically not necessary since it's a snapshot but makes things easier
                     refs.tryRef(sstable);
                 }

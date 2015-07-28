@@ -31,6 +31,7 @@ Merged from 2.1:
  * Add consistency level to tracing ouput (CASSANDRA-9827)
 Merged from 2.0:
  * Log when messages are dropped due to cross_node_timeout (CASSANDRA-9793)
+ * Don't track hotness when opening from snapshot for validation (CASSANDRA-9382)
 
 
 2.2.0
@@ -1180,6 +1181,7 @@ Merged from 1.2:
  * Native protocol v3 (CASSANDRA-6855)
  * Optimize Cell liveness checks and clean up Cell (CASSANDRA-7119)
  * Support consistent range movements (CASSANDRA-2434)
+ * Display min timestamp in sstablemetadata viewer (CASSANDRA-6767)
 Merged from 2.0:
  * Avoid race-prone second "scrub" of system keyspace (CASSANDRA-6797)
  * Pool CqlRecordWriter clients by inetaddress rather than Range
