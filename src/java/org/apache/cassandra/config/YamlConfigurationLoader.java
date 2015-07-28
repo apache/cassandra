@@ -55,7 +55,7 @@ public class YamlConfigurationLoader implements ConfigurationLoader
     /**
      * Inspect the classpath to find storage configuration file
      */
-    static URL getStorageConfigURL() throws ConfigurationException
+    private static URL getStorageConfigURL() throws ConfigurationException
     {
         String configUrl = System.getProperty("cassandra.config");
         if (configUrl == null)
@@ -84,20 +84,24 @@ public class YamlConfigurationLoader implements ConfigurationLoader
             }
         }
 
+        logger.info("Configuration location: {}", url);
+
         return url;
     }
+
+    private static final URL storageConfigURL = getStorageConfigURL();
 
     @Override
     public Config loadConfig() throws ConfigurationException
     {
-        return loadConfig(getStorageConfigURL());
+        return loadConfig(storageConfigURL);
     }
 
     public Config loadConfig(URL url) throws ConfigurationException
     {
         try
         {
-            logger.info("Loading settings from {}", url);
+            logger.debug("Loading settings from {}", url);
             byte[] configBytes;
             try (InputStream is = url.openStream())
             {
