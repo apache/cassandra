@@ -149,10 +149,15 @@ public class AntiCompactionTest
             CompactionManager.instance.performAnticompaction(cfs, Arrays.asList(range), refs, txn, 12345);
         }
         long sum = 0;
+        long rows = 0;
         for (SSTableReader x : cfs.getLiveSSTables())
+        {
             sum += x.bytesOnDisk();
+            rows += x.getTotalRows();
+        }
         assertEquals(sum, cfs.metric.liveDiskSpaceUsed.getCount());
-        assertEquals(origSize, cfs.metric.liveDiskSpaceUsed.getCount(), 100000);
+        assertEquals(rows, 1000 * (1000 * 5));//See writeFile for how this number is derived
+        assertEquals(origSize, cfs.metric.liveDiskSpaceUsed.getCount(), 16000000);
     }
 
     private SSTableReader writeFile(ColumnFamilyStore cfs, int count)
@@ -293,7 +298,7 @@ public class AntiCompactionTest
         }
         Collection<SSTableReader> sstables = getUnrepairedSSTables(store);
         assertEquals(store.getLiveSSTables().size(), sstables.size());
-        
+
         Range<Token> range = new Range<Token>(new BytesToken("-10".getBytes()), new BytesToken("-1".getBytes()));
         List<Range<Token>> ranges = Arrays.asList(range);
 
