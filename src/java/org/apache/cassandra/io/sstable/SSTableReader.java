@@ -66,6 +66,11 @@ public class SSTableReader extends SSTable implements Closeable
     private static final Logger logger = LoggerFactory.getLogger(SSTableReader.class);
 
     private static final ScheduledThreadPoolExecutor syncExecutor = new ScheduledThreadPoolExecutor(1);
+    static
+    {
+        // Immediately remove readMeter sync task when cancelled.
+        syncExecutor.setRemoveOnCancelPolicy(true);
+    }
     private static final RateLimiter meterSyncThrottle = RateLimiter.create(100.0);
 
     /**
@@ -107,7 +112,7 @@ public class SSTableReader extends SSTable implements Closeable
 
     @VisibleForTesting
     public RestorableMeter readMeter;
-    private ScheduledFuture readMeterSyncFuture;
+    private final ScheduledFuture readMeterSyncFuture;
 
     public static long getApproximateKeyCount(Iterable<SSTableReader> sstables, CFMetaData metadata)
     {
@@ -152,7 +157,7 @@ public class SSTableReader extends SSTable implements Closeable
 
     public static SSTableReader openNoValidation(Descriptor descriptor, Set<Component> components, CFMetaData metadata) throws IOException
     {
-        return open(descriptor, components, metadata, StorageService.getPartitioner(), false);
+        return open(descriptor, components, metadata, StorageService.getPartitioner(), false, false); // do not track hotness
     }
 
     public static SSTableReader openForBatch(Descriptor descriptor, Set<Component> components, CFMetaData metadata, IPartitioner partitioner) throws IOException
@@ -163,7 +168,8 @@ public class SSTableReader extends SSTable implements Closeable
                                                   metadata,
                                                   partitioner,
                                                   System.currentTimeMillis(),
-                                                  sstableMetadata);
+                                                  sstableMetadata,
+                                                  false); // we don't need to track hotness when using for batch
 
         // special implementation of load to use non-pooled SegmentedFile builders
         SegmentedFile.Builder ibuilder = new BufferedSegmentedFile.Builder();
@@ -181,14 +187,18 @@ public class SSTableReader extends SSTable implements Closeable
 
     public static SSTableReader open(Descriptor descriptor, Set<Component> components, CFMetaData metadata, IPartitioner partitioner) throws IOException
     {
-        return open(descriptor, components, metadata, partitioner, true);
+        // Don't track read rates for tables in the system keyspace and don't bother trying to load or persist
+        // the read meter when in client mode
+        boolean trackHotness = !(Keyspace.SYSTEM_KS.equals(descriptor.ksname) || Config.isClientMode());
+        return open(descriptor, components, metadata, partitioner, true, trackHotness);
     }
 
-    private static SSTableReader open(Descriptor descriptor,
+    public static SSTableReader open(Descriptor descriptor,
                                       Set<Component> components,
                                       CFMetaData metadata,
                                       IPartitioner partitioner,
-                                      boolean validate) throws IOException
+                                      boolean validate,
+                                      boolean trackHotness) throws IOException
     {
         long start = System.nanoTime();
         SSTableMetadata sstableMetadata = openMetadata(descriptor, components, partitioner, validate);
@@ -198,7 +208,8 @@ public class SSTableReader extends SSTable implements Closeable
                                                   metadata,
                                                   partitioner,
                                                   System.currentTimeMillis(),
-                                                  sstableMetadata);
+                                                  sstableMetadata,
+                                                  trackHotness);
 
         sstable.load();
 
@@ -308,6 +319,7 @@ public class SSTableReader extends SSTable implements Closeable
                                       SSTableMetadata sstableMetadata)
     {
         assert desc != null && partitioner != null && ifile != null && dfile != null && isummary != null && bf != null && sstableMetadata != null;
+        boolean trackHotness = !(Keyspace.SYSTEM_KS.equals(desc.ksname) || Config.isClientMode());
         return new SSTableReader(desc,
                                  components,
                                  metadata,
@@ -316,7 +328,8 @@ public class SSTableReader extends SSTable implements Closeable
                                  isummary,
                                  bf,
                                  maxDataAge,
-                                 sstableMetadata);
+                                 sstableMetadata,
+                                 trackHotness);
     }
 
 
@@ -325,7 +338,8 @@ public class SSTableReader extends SSTable implements Closeable
                           CFMetaData metadata,
                           IPartitioner partitioner,
                           long maxDataAge,
-                          SSTableMetadata sstableMetadata)
+                          SSTableMetadata sstableMetadata,
+                          boolean trackHotness)
     {
         super(desc, components, metadata, partitioner);
         this.sstableMetadata = sstableMetadata;
@@ -333,28 +347,27 @@ public class SSTableReader extends SSTable implements Closeable
 
         deletingTask = new SSTableDeletingTask(this);
 
-        // Don't track read rates for tables in the system keyspace and don't bother trying to load or persist
-        // the read meter when in client mode
-        if (Keyspace.SYSTEM_KS.equals(desc.ksname) || Config.isClientMode())
+        if (trackHotness)
+        {
+            readMeter = SystemKeyspace.getSSTableReadMeter(desc.ksname, desc.cfname, desc.generation);
+            // sync the average read rate to system.sstable_activity every five minutes, starting one minute from now
+            readMeterSyncFuture = syncExecutor.scheduleAtFixedRate(new Runnable()
+            {
+                public void run()
+                {
+                    if (!isCompacted.get())
+                    {
+                        meterSyncThrottle.acquire();
+                        SystemKeyspace.persistSSTableReadMeter(desc.ksname, desc.cfname, desc.generation, readMeter);
+                    }
+                }
+            }, 1, 5, TimeUnit.MINUTES);
+        }
+        else
         {
             readMeter = null;
             readMeterSyncFuture = null;
-            return;
         }
-
-        readMeter = SystemKeyspace.getSSTableReadMeter(desc.ksname, desc.cfname, desc.generation);
-        // sync the average read rate to system.sstable_activity every five minutes, starting one minute from now
-        readMeterSyncFuture = syncExecutor.scheduleAtFixedRate(new Runnable()
-        {
-            public void run()
-            {
-                if (!isCompacted.get())
-                {
-                    meterSyncThrottle.acquire();
-                    SystemKeyspace.persistSSTableReadMeter(desc.ksname, desc.cfname, desc.generation, readMeter);
-                }
-            }
-        }, 1, 5, TimeUnit.MINUTES);
     }
 
     private SSTableReader(Descriptor desc,
@@ -366,9 +379,10 @@ public class SSTableReader extends SSTable implements Closeable
                           IndexSummary indexSummary,
                           IFilter bloomFilter,
                           long maxDataAge,
-                          SSTableMetadata sstableMetadata)
+                          SSTableMetadata sstableMetadata,
+                          boolean trackHotness)
     {
-        this(desc, components, metadata, partitioner, maxDataAge, sstableMetadata);
+        this(desc, components, metadata, partitioner, maxDataAge, sstableMetadata, trackHotness);
 
         this.ifile = ifile;
         this.dfile = dfile;
@@ -384,7 +398,7 @@ public class SSTableReader extends SSTable implements Closeable
     public void close() throws IOException
     {
         if (readMeterSyncFuture != null)
-            readMeterSyncFuture.cancel(false);
+            readMeterSyncFuture.cancel(true);
 
         // Force finalizing mmapping if necessary
 

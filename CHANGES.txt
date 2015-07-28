@@ -19,6 +19,7 @@
  * Display min timestamp in sstablemetadata viewer (CASSANDRA-6767)
  * Scrub (recover) sstables even when -Index.db is missing, (CASSANDRA-9591)
  * Fix growing pending background compaction (CASSANDRA-9662)
+ * Don't track hotness when opening from snapshot for validation (CASSANDRA-9382)
 
 
 2.0.16
