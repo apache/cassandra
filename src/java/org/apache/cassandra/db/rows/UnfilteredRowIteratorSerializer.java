@@ -89,7 +89,7 @@ public class UnfilteredRowIteratorSerializer
     // Should only be used for the on-wire format.
     public void serialize(UnfilteredRowIterator iterator, DataOutputPlus out, SerializationHeader header, int version, int rowEstimate) throws IOException
     {
-        ByteBufferUtil.writeWithVIntLength(iterator.partitionKey().getKey(), out);
+        ByteBufferUtil.writeWithLength(iterator.partitionKey().getKey(), out);
 
         int flags = 0;
         if (iterator.isReverseOrder())
@@ -140,7 +140,7 @@ public class UnfilteredRowIteratorSerializer
 
         assert rowEstimate >= 0;
 
-        long size = ByteBufferUtil.serializedSizeWithVIntLength(iterator.partitionKey().getKey())
+        long size = TypeSizes.sizeofWithLength(iterator.partitionKey().getKey())
                   + 1; // flags
 
         if (iterator.isEmpty())
@@ -170,7 +170,7 @@ public class UnfilteredRowIteratorSerializer
 
     public Header deserializeHeader(DataInputPlus in, int version, CFMetaData metadata, SerializationHelper.Flag flag) throws IOException
     {
-        DecoratedKey key = StorageService.getPartitioner().decorateKey(ByteBufferUtil.readWithVIntLength(in));
+        DecoratedKey key = StorageService.getPartitioner().decorateKey(ByteBufferUtil.readWithLength(in));
         int flags = in.readUnsignedByte();
         boolean isReversed = (flags & IS_REVERSED) != 0;
         if ((flags & IS_EMPTY) != 0)

@@ -5,8 +5,8 @@
  * Metrics should use up to date nomenclature (CASSANDRA-9448)
  * Change CREATE/ALTER TABLE syntax for compression (CASSANDRA-8384)
  * Cleanup crc and adler code for java 8 (CASSANDRA-9650)
- * Storage engine refactor (CASSANDRA-8099, 9743, 9746, 9759, 9781, 9808, 9825,
-   9848, 9705, 9859, 9867, 9874, 9828, 9801)
+ * Storage engine refactor (CASSANDRA-8099, 9743, 9746, 9759, 9781, 9808, 9825, 9848,
+   9705, 9859, 9867, 9874, 9828, 9801)
  * Update Guava to 18.0 (CASSANDRA-9653)
  * Bloom filter false positive ratio is not honoured (CASSANDRA-8413)
  * New option for cassandra-stress to leave a ratio of columns null (CASSANDRA-9522)
