@@ -1,4 +1,5 @@
 2.1.9
+ * Commit log segment recycling is disabled by default (CASSANDRA-9896)
  * Add consistency level to tracing ouput (CASSANDRA-9827)
  * Fix MarshalException when upgrading superColumn family (CASSANDRA-9582)
  * Fix broken logging for "empty" flushes in Memtable (CASSANDRA-9837)

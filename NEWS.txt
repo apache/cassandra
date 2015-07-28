@@ -14,6 +14,15 @@ restore snapshots created with the previous major version using the
 using the provided 'sstableupgrade' tool.
 
 
+2.1.9
+=====
+
+Upgrading
+---------
+    - Commit log files are no longer recycled by default, due to negative
+      performance implications. This can be enabled again with the 
+      commitlog_segment_recycling option in your cassandra.yaml 
+
 2.1.8
 =====
 
