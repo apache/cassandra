@@ -23,6 +23,7 @@ import java.io.EOFException;
 import java.io.IOException;
 import java.io.InputStream;
 import java.nio.ByteBuffer;
+import java.nio.ByteOrder;
 import java.nio.channels.ReadableByteChannel;
 import java.nio.channels.SeekableByteChannel;
 
@@ -321,6 +322,8 @@ public class NIODataInputStream extends InputStream implements DataInputPlus, Cl
         int extraBits = extraBytes * 8;
 
         long retval = buf.getLong(position);
+        if (buf.order() == ByteOrder.LITTLE_ENDIAN)
+            retval = Long.reverseBytes(retval);
         buf.position(position + extraBytes);
 
         // truncate the bytes we read in excess of those we needed

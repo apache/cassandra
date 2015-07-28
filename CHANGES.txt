@@ -19,8 +19,8 @@
  * Change gossip stabilization to use endpoit size (CASSANDRA-9401)
  * Change default garbage collector to G1 (CASSANDRA-7486)
  * Populate TokenMetadata early during startup (CASSANDRA-9317)
- * undeprecate cache recentHitRate (CASSANDRA-6591)
- * Add support for selectively varint encoding fields (CASSANDRA-9499)
+ * Undeprecate cache recentHitRate (CASSANDRA-6591)
+ * Add support for selectively varint encoding fields (CASSANDRA-9499, 9865)
 
 
 2.2.1
