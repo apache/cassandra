@@ -15,15 +15,28 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package org.apache.cassandra.db;
 
-public enum WriteType
+package org.apache.cassandra.metrics;
+
+import com.codahale.metrics.Counter;
+
+import static org.apache.cassandra.metrics.CassandraMetricsRegistry.Metrics;
+
+public class MVWriteMetrics extends ClientRequestMetrics
 {
-    SIMPLE,
-    BATCH,
-    UNLOGGED_BATCH,
-    COUNTER,
-    BATCH_LOG,
-    CAS,
-    MATERIALIZED_VIEW;
+    public final Counter viewReplicasAttempted;
+    public final Counter viewReplicasSuccess;
+
+    public MVWriteMetrics(String scope) {
+        super(scope);
+        viewReplicasAttempted = Metrics.counter(factory.createMetricName("ViewReplicasAttempted"));
+        viewReplicasSuccess = Metrics.counter(factory.createMetricName("ViewReplicasSuccess"));
+    }
+
+    public void release()
+    {
+        super.release();
+        Metrics.remove(factory.createMetricName("ViewReplicasAttempted"));
+        Metrics.remove(factory.createMetricName("ViewReplicasSuccess"));
+    }
 }

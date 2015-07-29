@@ -27,6 +27,7 @@ import org.slf4j.LoggerFactory;
 import org.apache.cassandra.auth.Permission;
 import org.apache.cassandra.config.CFMetaData;
 import org.apache.cassandra.config.ColumnDefinition;
+import org.apache.cassandra.config.MaterializedViewDefinition;
 import org.apache.cassandra.config.Schema;
 import org.apache.cassandra.cql3.*;
 import org.apache.cassandra.cql3.functions.Function;
@@ -155,6 +156,16 @@ public abstract class ModificationStatement implements CQLStatement
         return cfm.isCounter();
     }
 
+    public boolean isMaterializedView()
+    {
+        return cfm.isMaterializedView();
+    }
+
+    public boolean hasMaterializedViews()
+    {
+        return !cfm.getMaterializedViews().isEmpty();
+    }
+
     public long getTimestamp(long now, QueryOptions options) throws InvalidRequestException
     {
         return attrs.getTimestamp(now, options);
@@ -178,6 +189,15 @@ public abstract class ModificationStatement implements CQLStatement
         if (hasConditions())
             state.hasColumnFamilyAccess(keyspace(), columnFamily(), Permission.SELECT);
 
+        // MV updates need to get the current state from the table, and might update the materialized views
+        // Require Permission.SELECT on the base table, and Permission.MODIFY on the views
+        if (hasMaterializedViews())
+        {
+            state.hasColumnFamilyAccess(keyspace(), columnFamily(), Permission.SELECT);
+            for (MaterializedViewDefinition view : cfm.getMaterializedViews())
+                state.hasColumnFamilyAccess(keyspace(), view.viewName, Permission.MODIFY);
+        }
+
         for (Function function : getFunctions())
             state.ensureHasPermission(Permission.EXECUTE, function);
     }
@@ -192,6 +212,9 @@ public abstract class ModificationStatement implements CQLStatement
 
         if (isCounter() && attrs.isTimeToLiveSet())
             throw new InvalidRequestException("Cannot provide custom TTL for counter updates");
+
+        if (isMaterializedView())
+            throw new InvalidRequestException("Cannot directly modify a materialized view");
     }
 
     public void addOperation(Operation op)

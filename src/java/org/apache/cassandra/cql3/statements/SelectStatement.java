@@ -29,6 +29,7 @@ import org.slf4j.LoggerFactory;
 import org.apache.cassandra.auth.Permission;
 import org.apache.cassandra.config.CFMetaData;
 import org.apache.cassandra.config.ColumnDefinition;
+import org.apache.cassandra.config.Schema;
 import org.apache.cassandra.cql3.*;
 import org.apache.cassandra.cql3.functions.Function;
 import org.apache.cassandra.cql3.restrictions.StatementRestrictions;
@@ -684,10 +685,10 @@ public class SelectStatement implements CQLStatement
 
     public static class RawStatement extends CFStatement
     {
-        private final Parameters parameters;
-        private final List<RawSelector> selectClause;
-        private final List<Relation> whereClause;
-        private final Term.Raw limit;
+        public final Parameters parameters;
+        public final List<RawSelector> selectClause;
+        public final List<Relation> whereClause;
+        public final Term.Raw limit;
 
         public RawStatement(CFName cfName, Parameters parameters, List<RawSelector> selectClause, List<Relation> whereClause, Term.Raw limit)
         {

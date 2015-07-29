@@ -54,6 +54,8 @@ public class Mutation implements IMutation
     // map of column family id to mutations for that column family.
     private final Map<UUID, PartitionUpdate> modifications;
 
+    // Time at which this mutation was instantiated
+    public final long createdAt = System.currentTimeMillis();
     public Mutation(String keyspaceName, DecoratedKey key)
     {
         this(keyspaceName, key, new HashMap<UUID, PartitionUpdate>());

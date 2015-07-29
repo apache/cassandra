@@ -23,13 +23,15 @@ import java.util.*;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentMap;
 import java.util.concurrent.Future;
+import java.util.concurrent.locks.Lock;
 
 import com.google.common.base.Function;
-import com.google.common.collect.ImmutableList;
 import com.google.common.collect.Iterables;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import org.apache.cassandra.concurrent.Stage;
+import org.apache.cassandra.concurrent.StageManager;
 import org.apache.cassandra.config.*;
 import org.apache.cassandra.db.rows.UnfilteredRowIterator;
 import org.apache.cassandra.db.commitlog.CommitLog;
@@ -37,14 +39,17 @@ import org.apache.cassandra.db.commitlog.ReplayPosition;
 import org.apache.cassandra.db.compaction.CompactionManager;
 import org.apache.cassandra.db.index.SecondaryIndex;
 import org.apache.cassandra.db.index.SecondaryIndexManager;
+import org.apache.cassandra.db.view.MaterializedViewManager;
+import org.apache.cassandra.exceptions.WriteTimeoutException;
 import org.apache.cassandra.db.partitions.PartitionUpdate;
 import org.apache.cassandra.db.lifecycle.SSTableSet;
 import org.apache.cassandra.io.sstable.format.SSTableReader;
 import org.apache.cassandra.locator.AbstractReplicationStrategy;
 import org.apache.cassandra.schema.KeyspaceMetadata;
-import org.apache.cassandra.schema.SchemaKeyspace;
 import org.apache.cassandra.service.StorageService;
 import org.apache.cassandra.tracing.Tracing;
+import org.apache.cassandra.utils.ByteBufferUtil;
+import org.apache.cassandra.utils.JVMStabilityInspector;
 import org.apache.cassandra.utils.concurrent.OpOrder;
 import org.apache.cassandra.utils.FBUtilities;
 import org.apache.cassandra.metrics.KeyspaceMetrics;
@@ -70,7 +75,10 @@ public class Keyspace
     }
 
     private volatile KeyspaceMetadata metadata;
-    public final OpOrder writeOrder = new OpOrder();
+
+    //OpOrder is defined globally since we need to order writes across
+    //Keyspaces in the case of MaterializedViews (batchlog of MV mutations)
+    public static final OpOrder writeOrder = new OpOrder();
 
     /* ColumnFamilyStore per column family */
     private final ConcurrentMap<UUID, ColumnFamilyStore> columnFamilyStores = new ConcurrentHashMap<>();
@@ -122,7 +130,7 @@ public class Keyspace
 
                     // keyspace has to be constructed and in the cache before cacheRow can be called
                     for (ColumnFamilyStore cfs : keyspaceInstance.getColumnFamilyStores())
-                        cfs.initRowCache();
+                        cfs.init();
                 }
             }
         }
@@ -352,10 +360,14 @@ public class Keyspace
             // CFS being created for the first time, either on server startup or new CF being added.
             // We don't worry about races here; startup is safe, and adding multiple idential CFs
             // simultaneously is a "don't do that" scenario.
-            ColumnFamilyStore oldCfs = columnFamilyStores.putIfAbsent(cfId, ColumnFamilyStore.createColumnFamilyStore(this, cfName, loadSSTables));
+            ColumnFamilyStore newCfs = ColumnFamilyStore.createColumnFamilyStore(this, cfName, loadSSTables);
+
+            ColumnFamilyStore oldCfs = columnFamilyStores.putIfAbsent(cfId, newCfs);
             // CFS mbean instantiation will error out before we hit this, but in case that changes...
             if (oldCfs != null)
                 throw new IllegalStateException("added multiple mappings for cf id " + cfId);
+
+            newCfs.init();
         }
         else
         {
@@ -380,11 +392,41 @@ public class Keyspace
      * @param writeCommitLog false to disable commitlog append entirely
      * @param updateIndexes  false to disable index updates (used by CollationController "defragmenting")
      */
-    public void apply(Mutation mutation, boolean writeCommitLog, boolean updateIndexes)
+    public void apply(final Mutation mutation, final boolean writeCommitLog, boolean updateIndexes)
     {
         if (TEST_FAIL_WRITES && metadata.name.equals(TEST_FAIL_WRITES_KS))
             throw new RuntimeException("Testing write failures");
 
+        Lock lock = null;
+        boolean requiresViewUpdate = updateIndexes && MaterializedViewManager.updatesAffectView(Collections.singleton(mutation), false);
+
+        if (requiresViewUpdate)
+        {
+            lock = MaterializedViewManager.acquireLockFor(mutation.key().getKey());
+
+            if (lock == null)
+            {
+                if ((System.currentTimeMillis() - mutation.createdAt) > DatabaseDescriptor.getWriteRpcTimeout())
+                {
+                    logger.debug("Could not acquire lock for {}", ByteBufferUtil.bytesToHex(mutation.key().getKey()));
+                    Tracing.trace("Could not acquire MV lock");
+                    throw new WriteTimeoutException(WriteType.MATERIALIZED_VIEW, ConsistencyLevel.LOCAL_ONE, 0, 1);
+                }
+                else
+                {
+                    //This MV update can't happen right now. so rather than keep this thread busy
+                    // we will re-apply ourself to the queue and try again later
+                    StageManager.getStage(Stage.MUTATION).execute(() -> {
+                        if (writeCommitLog)
+                            mutation.apply();
+                        else
+                            mutation.applyUnsafe();
+                    });
+
+                    return;
+                }
+            }
+        }
         int nowInSec = FBUtilities.nowInSeconds();
         try (OpOrder.Group opGroup = writeOrder.start())
         {
@@ -401,8 +443,24 @@ public class Keyspace
                 ColumnFamilyStore cfs = columnFamilyStores.get(upd.metadata().cfId);
                 if (cfs == null)
                 {
-                    logger.error("Attempting to mutate non-existant table {}", upd.metadata().cfId);
+                    logger.error("Attempting to mutate non-existant table {} ({}.{})", upd.metadata().cfId, upd.metadata().ksName, upd.metadata().cfName);
                     continue;
+                }
+
+                if (requiresViewUpdate)
+                {
+                    try
+                    {
+                        Tracing.trace("Create materialized view mutations from replica");
+                        cfs.materializedViewManager.pushViewReplicaUpdates(upd.partitionKey().getKey(), upd);
+                    }
+                    catch (Exception e)
+                    {
+                        if (!(e instanceof WriteTimeoutException))
+                            logger.warn("Encountered exception when creating materialized view mutations", e);
+
+                        JVMStabilityInspector.inspectThrowable(e);
+                    }
                 }
 
                 Tracing.trace("Adding to {} memtable", upd.metadata().cfName);
@@ -411,6 +469,11 @@ public class Keyspace
                                                       : SecondaryIndexManager.nullUpdater;
                 cfs.apply(upd, updater, opGroup, replayPosition);
             }
+        }
+        finally
+        {
+            if (lock != null)
+                lock.unlock();
         }
     }
 

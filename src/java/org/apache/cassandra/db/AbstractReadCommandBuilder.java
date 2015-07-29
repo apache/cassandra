@@ -1,5 +1,4 @@
 /*
- *
  * Licensed to the Apache Software Foundation (ASF) under one
  * or more contributor license agreements.  See the NOTICE file
  * distributed with this work for additional information
@@ -8,25 +7,26 @@
  * "License"); you may not use this file except in compliance
  * with the License.  You may obtain a copy of the License at
  *
- *   http://www.apache.org/licenses/LICENSE-2.0
+ *     http://www.apache.org/licenses/LICENSE-2.0
  *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
- *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
  */
-package org.apache.cassandra;
+
+package org.apache.cassandra.db;
 
 import java.nio.ByteBuffer;
 import java.util.*;
 
+import org.apache.cassandra.config.CFMetaData;
 import org.apache.cassandra.config.ColumnDefinition;
 import org.apache.cassandra.cql3.*;
 import org.apache.cassandra.db.*;
 import org.apache.cassandra.db.rows.Row;
+import org.apache.cassandra.db.rows.RowIterator;
 import org.apache.cassandra.db.filter.*;
 import org.apache.cassandra.db.partitions.*;
 import org.apache.cassandra.db.marshal.*;
@@ -41,9 +41,9 @@ public abstract class AbstractReadCommandBuilder
 
     private int cqlLimit = -1;
     private int pagingLimit = -1;
-    private boolean reversed = false;
+    protected boolean reversed = false;
 
-    private Set<ColumnIdentifier> columns;
+    protected Set<ColumnIdentifier> columns;
     protected final RowFilter filter = RowFilter.create();
 
     private Slice.Bound lowerClusteringBound;
@@ -181,13 +181,13 @@ public abstract class AbstractReadCommandBuilder
 
     protected ColumnFilter makeColumnFilter()
     {
-        if (columns == null)
+        if (columns == null || columns.isEmpty())
             return ColumnFilter.all(cfs.metadata);
 
-        ColumnFilter.Builder builder = ColumnFilter.allColumnsBuilder(cfs.metadata);
+        ColumnFilter.Builder filter = ColumnFilter.selectionBuilder();
         for (ColumnIdentifier column : columns)
-            builder.add(cfs.metadata.getColumnDefinition(column));
-        return builder.build();
+            filter.add(cfs.metadata.getColumnDefinition(column));
+        return filter.build();
     }
 
     protected ClusteringIndexFilter makeFilter()
@@ -212,33 +212,13 @@ public abstract class AbstractReadCommandBuilder
         return limits;
     }
 
-    public Row getOnlyRow()
-    {
-        return Util.getOnlyRow(build());
-    }
-
-    public Row getOnlyRowUnfiltered()
-    {
-        return Util.getOnlyRowUnfiltered(build());
-    }
-
-    public FilteredPartition getOnlyPartition()
-    {
-        return Util.getOnlyPartition(build());
-    }
-
-    public Partition getOnlyPartitionUnfiltered()
-    {
-        return Util.getOnlyPartitionUnfiltered(build());
-    }
-
     public abstract ReadCommand build();
 
     public static class SinglePartitionBuilder extends AbstractReadCommandBuilder
     {
         private final DecoratedKey partitionKey;
 
-        SinglePartitionBuilder(ColumnFamilyStore cfs, DecoratedKey key)
+        public SinglePartitionBuilder(ColumnFamilyStore cfs, DecoratedKey key)
         {
             super(cfs);
             this.partitionKey = key;
@@ -251,6 +231,37 @@ public abstract class AbstractReadCommandBuilder
         }
     }
 
+    public static class SinglePartitionSliceBuilder extends AbstractReadCommandBuilder
+    {
+        private final DecoratedKey partitionKey;
+        private Slices.Builder sliceBuilder;
+
+        public SinglePartitionSliceBuilder(ColumnFamilyStore cfs, DecoratedKey key)
+        {
+            super(cfs);
+            this.partitionKey = key;
+            sliceBuilder = new Slices.Builder(cfs.getComparator());
+        }
+
+        public SinglePartitionSliceBuilder addSlice(Slice slice)
+        {
+            sliceBuilder.add(slice);
+            return this;
+        }
+
+        @Override
+        protected ClusteringIndexFilter makeFilter()
+        {
+            return new ClusteringIndexSliceFilter(sliceBuilder.build(), reversed);
+        }
+
+        @Override
+        public ReadCommand build()
+        {
+            return SinglePartitionSliceCommand.create(cfs.metadata, nowInSeconds, makeColumnFilter(), filter, makeLimits(), partitionKey, makeFilter());
+        }
+    }
+
     public static class PartitionRangeBuilder extends AbstractReadCommandBuilder
     {
         private DecoratedKey startKey;
@@ -258,7 +269,7 @@ public abstract class AbstractReadCommandBuilder
         private DecoratedKey endKey;
         private boolean endInclusive;
 
-        PartitionRangeBuilder(ColumnFamilyStore cfs)
+        public PartitionRangeBuilder(ColumnFamilyStore cfs)
         {
             super(cfs);
         }
@@ -267,7 +278,7 @@ public abstract class AbstractReadCommandBuilder
         {
             assert startKey == null;
             this.startInclusive = true;
-            this.startKey = Util.makeKey(cfs.metadata, values);
+            this.startKey = makeKey(cfs.metadata, values);
             return this;
         }
 
@@ -275,7 +286,7 @@ public abstract class AbstractReadCommandBuilder
         {
             assert startKey == null;
             this.startInclusive = false;
-            this.startKey = Util.makeKey(cfs.metadata, values);
+            this.startKey = makeKey(cfs.metadata, values);
             return this;
         }
 
@@ -283,7 +294,7 @@ public abstract class AbstractReadCommandBuilder
         {
             assert endKey == null;
             this.endInclusive = true;
-            this.endKey = Util.makeKey(cfs.metadata, values);
+            this.endKey = makeKey(cfs.metadata, values);
             return this;
         }
 
@@ -291,7 +302,7 @@ public abstract class AbstractReadCommandBuilder
         {
             assert endKey == null;
             this.endInclusive = false;
-            this.endKey = Util.makeKey(cfs.metadata, values);
+            this.endKey = makeKey(cfs.metadata, values);
             return this;
         }
 
@@ -310,18 +321,27 @@ public abstract class AbstractReadCommandBuilder
                 end = StorageService.getPartitioner().getMinimumToken().maxKeyBound();
                 endInclusive = true;
             }
-            
+
             AbstractBounds<PartitionPosition> bounds;
             if (startInclusive && endInclusive)
-                bounds = new Bounds<PartitionPosition>(start, end);
+                bounds = new Bounds<>(start, end);
             else if (startInclusive && !endInclusive)
-                bounds = new IncludingExcludingBounds<PartitionPosition>(start, end);
+                bounds = new IncludingExcludingBounds<>(start, end);
             else if (!startInclusive && endInclusive)
-                bounds = new Range<PartitionPosition>(start, end);
+                bounds = new Range<>(start, end);
             else
-                bounds = new ExcludingBounds<PartitionPosition>(start, end);
+                bounds = new ExcludingBounds<>(start, end);
 
             return new PartitionRangeReadCommand(cfs.metadata, nowInSeconds, makeColumnFilter(), filter, makeLimits(), new DataRange(bounds, makeFilter()));
+        }
+
+        static DecoratedKey makeKey(CFMetaData metadata, Object... partitionKey)
+        {
+            if (partitionKey.length == 1 && partitionKey[0] instanceof DecoratedKey)
+                return (DecoratedKey)partitionKey[0];
+
+            ByteBuffer key = CFMetaData.serializePartitionKey(metadata.getKeyValidatorAsClusteringComparator().make(partitionKey));
+            return StorageService.getPartitioner().decorateKey(key);
         }
     }
 }
