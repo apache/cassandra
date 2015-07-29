@@ -361,7 +361,7 @@ public abstract class UnfilteredPartitionIterators
      */
     public static class Serializer
     {
-        public void serialize(UnfilteredPartitionIterator iter, DataOutputPlus out, int version) throws IOException
+        public void serialize(UnfilteredPartitionIterator iter, ColumnFilter selection, DataOutputPlus out, int version) throws IOException
         {
             assert version >= MessagingService.VERSION_30; // We handle backward compatibility directy in ReadResponse.LegacyRangeSliceReplySerializer
 
@@ -371,13 +371,13 @@ public abstract class UnfilteredPartitionIterators
                 out.writeBoolean(true);
                 try (UnfilteredRowIterator partition = iter.next())
                 {
-                    UnfilteredRowIteratorSerializer.serializer.serialize(partition, out, version);
+                    UnfilteredRowIteratorSerializer.serializer.serialize(partition, selection, out, version);
                 }
             }
             out.writeBoolean(false);
         }
 
-        public UnfilteredPartitionIterator deserialize(final DataInputPlus in, final int version, final CFMetaData metadata, final SerializationHelper.Flag flag) throws IOException
+        public UnfilteredPartitionIterator deserialize(final DataInputPlus in, final int version, final CFMetaData metadata, final ColumnFilter selection, final SerializationHelper.Flag flag) throws IOException
         {
             assert version >= MessagingService.VERSION_30; // We handle backward compatibility directy in ReadResponse.LegacyRangeSliceReplySerializer
             final boolean isForThrift = in.readBoolean();
@@ -428,7 +428,7 @@ public abstract class UnfilteredPartitionIterators
                     try
                     {
                         nextReturned = true;
-                        next = UnfilteredRowIteratorSerializer.serializer.deserialize(in, version, metadata, flag);
+                        next = UnfilteredRowIteratorSerializer.serializer.deserialize(in, version, metadata, selection, flag);
                         return next;
                     }
                     catch (IOException e)

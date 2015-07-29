@@ -251,11 +251,11 @@ public abstract class ReadCommand implements ReadQuery
 
     protected abstract int oldestUnrepairedTombstone();
 
-    public ReadResponse createResponse(UnfilteredPartitionIterator iterator)
+    public ReadResponse createResponse(UnfilteredPartitionIterator iterator, ColumnFilter selection)
     {
         return isDigestQuery()
              ? ReadResponse.createDigestResponse(iterator)
-             : ReadResponse.createDataResponse(iterator);
+             : ReadResponse.createDataResponse(iterator, selection);
     }
 
     protected SecondaryIndexSearcher getIndexSearcher(ColumnFamilyStore cfs)

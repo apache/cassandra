@@ -18,13 +18,12 @@
 */
 package org.apache.cassandra.db;
 
-import java.util.ArrayList;
-import java.util.Collections;
-import java.util.Iterator;
-import java.util.List;
+import java.io.IOException;
+import java.util.*;
 import java.util.concurrent.ThreadLocalRandom;
 import java.util.function.Predicate;
 
+import com.google.common.collect.Iterators;
 import com.google.common.collect.Lists;
 
 import org.junit.AfterClass;
@@ -36,6 +35,8 @@ import org.apache.cassandra.config.CFMetaData;
 import org.apache.cassandra.config.ColumnDefinition;
 import org.apache.cassandra.db.marshal.SetType;
 import org.apache.cassandra.db.marshal.UTF8Type;
+import org.apache.cassandra.io.util.DataInputBuffer;
+import org.apache.cassandra.io.util.DataOutputBuffer;
 import org.apache.cassandra.utils.ByteBufferUtil;
 import org.apache.cassandra.utils.btree.BTreeSet;
 
@@ -44,42 +45,39 @@ public class ColumnsTest
 
     private static CFMetaData cfMetaData = MockSchema.newCFS().metadata;
 
+    // this tests most of our functionality, since each subset we perform
+    // reasonably comprehensive tests of basic functionality against
     @Test
     public void testContainsWithoutAndMergeTo()
     {
-        for (RandomColumns randomColumns : random())
-            testContainsWithoutAndMergeTo(randomColumns.columns, randomColumns.definitions);
+        for (ColumnsCheck randomColumns : randomSmall(true))
+            testContainsWithoutAndMergeTo(randomColumns);
     }
 
-    private void testContainsWithoutAndMergeTo(Columns columns, List<ColumnDefinition> definitions)
+    private void testContainsWithoutAndMergeTo(ColumnsCheck input)
     {
         // pick some arbitrary groupings of columns to remove at-once (to avoid factorial complexity)
         // whatever is left after each removal, we perform this logic on again, recursively
-        List<List<ColumnDefinition>> removeGroups = shuffleAndGroup(Lists.newArrayList(definitions));
+        List<List<ColumnDefinition>> removeGroups = shuffleAndGroup(Lists.newArrayList(input.definitions));
         for (List<ColumnDefinition> defs : removeGroups)
         {
-            Columns subset = columns;
-            for (ColumnDefinition def : defs)
-                subset = subset.without(def);
-            Assert.assertEquals(columns.columnCount() - defs.size(), subset.columnCount());
-            List<ColumnDefinition> remainingDefs = Lists.newArrayList(columns);
-            remainingDefs.removeAll(defs);
+            ColumnsCheck subset = input.remove(defs);
 
             // test contents after .without
-            assertContents(subset, remainingDefs);
+            subset.assertContents();
 
             // test .contains
-            assertSubset(columns, subset);
+            assertSubset(input.columns, subset.columns);
 
             // test .mergeTo
-            Columns otherSubset = columns;
-            for (ColumnDefinition def : remainingDefs)
+            Columns otherSubset = input.columns;
+            for (ColumnDefinition def : subset.definitions)
             {
                 otherSubset = otherSubset.without(def);
-                assertContents(otherSubset.mergeTo(subset), definitions);
+                assertContents(otherSubset.mergeTo(subset.columns), input.definitions);
             }
 
-            testContainsWithoutAndMergeTo(subset, remainingDefs);
+            testContainsWithoutAndMergeTo(subset);
         }
     }
 
@@ -88,6 +86,67 @@ public class ColumnsTest
         Assert.assertTrue(superset.contains(superset));
         Assert.assertTrue(superset.contains(subset));
         Assert.assertFalse(subset.contains(superset));
+    }
+
+    @Test
+    public void testSerialize() throws IOException
+    {
+        testSerialize(Columns.NONE, Collections.emptyList());
+        for (ColumnsCheck randomColumns : randomSmall(false))
+            testSerialize(randomColumns.columns, randomColumns.definitions);
+    }
+
+    private void testSerialize(Columns columns, List<ColumnDefinition> definitions) throws IOException
+    {
+        try (DataOutputBuffer out = new DataOutputBuffer())
+        {
+            Columns.serializer.serialize(columns, out);
+            Assert.assertEquals(Columns.serializer.serializedSize(columns), out.buffer().remaining());
+            Columns deserialized = Columns.serializer.deserialize(new DataInputBuffer(out.buffer(), false), mock(columns));
+            Assert.assertEquals(columns, deserialized);
+            Assert.assertEquals(columns.hashCode(), deserialized.hashCode());
+            assertContents(deserialized, definitions);
+        }
+    }
+
+    @Test
+    public void testSerializeSmallSubset() throws IOException
+    {
+        for (ColumnsCheck randomColumns : randomSmall(true))
+            testSerializeSubset(randomColumns);
+    }
+
+    @Test
+    public void testSerializeHugeSubset() throws IOException
+    {
+        for (ColumnsCheck randomColumns : randomHuge())
+            testSerializeSubset(randomColumns);
+    }
+
+    private void testSerializeSubset(ColumnsCheck input) throws IOException
+    {
+        testSerializeSubset(input.columns, input.columns, input.definitions);
+        testSerializeSubset(input.columns, Columns.NONE, Collections.emptyList());
+        List<List<ColumnDefinition>> removeGroups = shuffleAndGroup(Lists.newArrayList(input.definitions));
+        for (List<ColumnDefinition> defs : removeGroups)
+        {
+            Collections.sort(defs);
+            ColumnsCheck subset = input.remove(defs);
+            testSerializeSubset(input.columns, subset.columns, subset.definitions);
+        }
+    }
+
+    private void testSerializeSubset(Columns superset, Columns subset, List<ColumnDefinition> subsetDefinitions) throws IOException
+    {
+        try (DataOutputBuffer out = new DataOutputBuffer())
+        {
+            Columns.serializer.serializeSubset(subset, superset, out);
+            Assert.assertEquals(Columns.serializer.serializedSubsetSize(subset, superset), out.buffer().remaining());
+            Columns deserialized = Columns.serializer.deserializeSubset(superset, new DataInputBuffer(out.buffer(), false));
+            Assert.assertEquals(subset, deserialized);
+            Assert.assertEquals(subset.hashCode(), deserialized.hashCode());
+            assertContents(deserialized, subsetDefinitions);
+        }
     }
 
     private static void assertContents(Columns columns, List<ColumnDefinition> defs)
@@ -109,6 +168,7 @@ public class ColumnsTest
             {
                 hasSimple = true;
                 Assert.assertEquals(i, columns.simpleIdx(def));
+                Assert.assertEquals(def, columns.getSimple(i));
                 Assert.assertEquals(def, simple.next());
                 ++firstComplexIdx;
             }
@@ -117,6 +177,7 @@ public class ColumnsTest
                 Assert.assertFalse(simple.hasNext());
                 hasComplex = true;
                 Assert.assertEquals(i - firstComplexIdx, columns.complexIdx(def));
+                Assert.assertEquals(def, columns.getComplex(i - firstComplexIdx));
                 Assert.assertEquals(def, complex.next());
             }
             i++;
@@ -127,6 +188,16 @@ public class ColumnsTest
         Assert.assertFalse(all.hasNext());
         Assert.assertEquals(hasSimple, columns.hasSimple());
         Assert.assertEquals(hasComplex, columns.hasComplex());
+
+        // check select order
+        if (!columns.hasSimple() || !columns.getSimple(0).kind.isPrimaryKeyKind())
+        {
+            List<ColumnDefinition> selectOrderDefs = new ArrayList<>(defs);
+            Collections.sort(selectOrderDefs, (a, b) -> a.name.bytes.compareTo(b.name.bytes));
+            List<ColumnDefinition> selectOrderColumns = new ArrayList<>();
+            Iterators.addAll(selectOrderColumns, columns.selectOrderIterator());
+            Assert.assertEquals(selectOrderDefs, selectOrderColumns);
+        }
     }
 
     private static <V> List<List<V>> shuffleAndGroup(List<V> list)
@@ -141,7 +212,7 @@ public class ColumnsTest
             list.set(j, v);
         }
 
-        // then group
+        // then group (logarithmically, to ensure our recursive functions don't explode the state space)
         List<List<V>> result = new ArrayList<>();
         for (int i = 0 ; i < list.size() ;)
         {
@@ -162,83 +233,179 @@ public class ColumnsTest
         MockSchema.cleanup();
     }
 
-    private static class RandomColumns
+    private static class ColumnsCheck
     {
         final Columns columns;
         final List<ColumnDefinition> definitions;
 
-        private RandomColumns(List<ColumnDefinition> definitions)
+        private ColumnsCheck(Columns columns, List<ColumnDefinition> definitions)
+        {
+            this.columns = columns;
+            this.definitions = definitions;
+        }
+
+        private ColumnsCheck(List<ColumnDefinition> definitions)
         {
             this.columns = Columns.from(BTreeSet.of(definitions));
             this.definitions = definitions;
         }
+
+        ColumnsCheck remove(List<ColumnDefinition> remove)
+        {
+            Columns subset = columns;
+            for (ColumnDefinition def : remove)
+                subset = subset.without(def);
+            Assert.assertEquals(columns.columnCount() - remove.size(), subset.columnCount());
+            List<ColumnDefinition> remainingDefs = Lists.newArrayList(columns);
+            remainingDefs.removeAll(remove);
+            return new ColumnsCheck(subset, remainingDefs);
+        }
+
+        void assertContents()
+        {
+            ColumnsTest.assertContents(columns, definitions);
+        }
     }
 
-    private static List<RandomColumns> random()
+    private static List<ColumnsCheck> randomHuge()
     {
-        List<RandomColumns> random = new ArrayList<>();
+        List<ColumnsCheck> result = new ArrayList<>();
+        ThreadLocalRandom random = ThreadLocalRandom.current();
+        result.add(randomHuge(random.nextInt(64, 128), 0, 0, 0));
+        result.add(randomHuge(0, random.nextInt(64, 128), 0, 0));
+        result.add(randomHuge(0, 0, random.nextInt(64, 128), 0));
+        result.add(randomHuge(0, 0, 0, random.nextInt(64, 128)));
+        result.add(randomHuge(random.nextInt(64, 128), random.nextInt(64, 128), 0, 0));
+        result.add(randomHuge(0, random.nextInt(64, 128), random.nextInt(64, 128), 0));
+        result.add(randomHuge(0, 0, random.nextInt(64, 128), random.nextInt(64, 128)));
+        result.add(randomHuge(random.nextInt(64, 128), random.nextInt(64, 128), random.nextInt(64, 128), 0));
+        result.add(randomHuge(0, random.nextInt(64, 128), random.nextInt(64, 128), random.nextInt(64, 128)));
+        result.add(randomHuge(random.nextInt(64, 128), random.nextInt(64, 128), random.nextInt(64, 128), random.nextInt(64, 128)));
+        return result;
+    }
+
+    private static List<ColumnsCheck> randomSmall(boolean permitMultiplePartitionKeys)
+    {
+        List<ColumnsCheck> random = new ArrayList<>();
         for (int i = 1 ; i <= 3 ; i++)
         {
-            random.add(random(i, i - 1, i - 1, i - 1));
-            random.add(random(i - 1, i, i - 1, i - 1));
-            random.add(random(i - 1, i - 1, i, i - 1));
-            random.add(random(i - 1, i - 1, i - 1, i));
+            int pkCount = permitMultiplePartitionKeys ? i - 1 : 1;
+            if (permitMultiplePartitionKeys)
+                random.add(randomSmall(i, i - 1, i - 1, i - 1));
+            random.add(randomSmall(0, 0, i, i)); // both kinds of regular, no PK
+            random.add(randomSmall(pkCount, i, i - 1, i - 1)); // PK + clustering, few or none regular
+            random.add(randomSmall(pkCount, i - 1, i, i - 1)); // PK + few or none clustering, some regular, few or none complex
+            random.add(randomSmall(pkCount, i - 1, i - 1, i)); // PK + few or none clustering or regular, some complex
         }
         return random;
     }
 
-    private static RandomColumns random(int pkCount, int clCount, int regularCount, int complexCount)
+    private static ColumnsCheck randomSmall(int pkCount, int clCount, int regularCount, int complexCount)
     {
-        List<Character> chars = new ArrayList<>();
+        List<String> names = new ArrayList<>();
         for (char c = 'a' ; c <= 'z' ; c++)
-            chars.add(c);
+            names .add(Character.toString(c));
 
         List<ColumnDefinition> result = new ArrayList<>();
-        addPartition(select(chars, pkCount), result);
-        addClustering(select(chars, clCount), result);
-        addRegular(select(chars, regularCount), result);
-        addComplex(select(chars, complexCount), result);
+        addPartition(select(names, pkCount), result);
+        addClustering(select(names, clCount), result);
+        addRegular(select(names, regularCount), result);
+        addComplex(select(names, complexCount), result);
         Collections.sort(result);
-        return new RandomColumns(result);
+        return new ColumnsCheck(result);
     }
 
-    private static List<Character> select(List<Character> chars, int count)
+    private static List<String> select(List<String> names, int count)
     {
-        List<Character> result = new ArrayList<>();
+        List<String> result = new ArrayList<>();
         ThreadLocalRandom random = ThreadLocalRandom.current();
         for (int i = 0 ; i < count ; i++)
         {
-            int v = random.nextInt(chars.size());
-            result.add(chars.get(v));
-            chars.remove(v);
+            int v = random.nextInt(names.size());
+            result.add(names.get(v));
+            names.remove(v);
         }
         return result;
     }
 
-    private static void addPartition(List<Character> chars, List<ColumnDefinition> results)
+    private static ColumnsCheck randomHuge(int pkCount, int clCount, int regularCount, int complexCount)
     {
-        addSimple(ColumnDefinition.Kind.PARTITION_KEY, chars, results);
+        List<ColumnDefinition> result = new ArrayList<>();
+        Set<String> usedNames = new HashSet<>();
+        addPartition(names(pkCount, usedNames), result);
+        addClustering(names(clCount, usedNames), result);
+        addRegular(names(regularCount, usedNames), result);
+        addComplex(names(complexCount, usedNames), result);
+        Collections.sort(result);
+        return new ColumnsCheck(result);
     }
 
-    private static void addClustering(List<Character> chars, List<ColumnDefinition> results)
+    private static List<String> names(int count, Set<String> usedNames)
     {
-        addSimple(ColumnDefinition.Kind.CLUSTERING, chars, results);
+        List<String> names = new ArrayList<>();
+        StringBuilder builder = new StringBuilder();
+        ThreadLocalRandom random = ThreadLocalRandom.current();
+        for (int i = 0 ; i < count ; i++)
+        {
+            builder.setLength(0);
+            for (int j = 0 ; j < 3 || usedNames.contains(builder.toString()) ; j++)
+                builder.append((char) random.nextInt('a', 'z' + 1));
+            String name = builder.toString();
+            names.add(name);
+            usedNames.add(name);
+        }
+        return names;
     }
 
-    private static void addRegular(List<Character> chars, List<ColumnDefinition> results)
+    private static void addPartition(List<String> names, List<ColumnDefinition> results)
     {
-        addSimple(ColumnDefinition.Kind.REGULAR, chars, results);
+        for (String name : names)
+            results.add(new ColumnDefinition(cfMetaData, ByteBufferUtil.bytes(name), UTF8Type.instance, null, ColumnDefinition.Kind.PARTITION_KEY));
     }
 
-    private static void addSimple(ColumnDefinition.Kind kind, List<Character> chars, List<ColumnDefinition> results)
+    private static void addClustering(List<String> names, List<ColumnDefinition> results)
     {
-        for (Character c : chars)
-            results.add(new ColumnDefinition(cfMetaData, ByteBufferUtil.bytes(c.toString()), UTF8Type.instance, null, kind));
+        int i = 0;
+        for (String name : names)
+            results.add(new ColumnDefinition(cfMetaData, ByteBufferUtil.bytes(name), UTF8Type.instance, i++, ColumnDefinition.Kind.CLUSTERING));
     }
 
-    private static void addComplex(List<Character> chars, List<ColumnDefinition> results)
+    private static void addRegular(List<String> names, List<ColumnDefinition> results)
     {
-        for (Character c : chars)
-            results.add(new ColumnDefinition(cfMetaData, ByteBufferUtil.bytes(c.toString()), SetType.getInstance(UTF8Type.instance, true), null, ColumnDefinition.Kind.REGULAR));
+        for (String name : names)
+            results.add(new ColumnDefinition(cfMetaData, ByteBufferUtil.bytes(name), UTF8Type.instance, null, ColumnDefinition.Kind.REGULAR));
+    }
+
+    private static <V> void addComplex(List<String> names, List<ColumnDefinition> results)
+    {
+        for (String name : names)
+            results.add(new ColumnDefinition(cfMetaData, ByteBufferUtil.bytes(name), SetType.getInstance(UTF8Type.instance, true), null, ColumnDefinition.Kind.REGULAR));
+    }
+
+    private static CFMetaData mock(Columns columns)
+    {
+        if (columns.isEmpty())
+            return cfMetaData;
+        CFMetaData.Builder builder = CFMetaData.Builder.create(cfMetaData.ksName, cfMetaData.cfName);
+        boolean hasPartitionKey = false;
+        for (ColumnDefinition def : columns)
+        {
+            switch (def.kind)
+            {
+                case PARTITION_KEY:
+                    builder.addPartitionKey(def.name, def.type);
+                    hasPartitionKey = true;
+                    break;
+                case CLUSTERING:
+                    builder.addClusteringColumn(def.name, def.type);
+                    break;
+                case REGULAR:
+                    builder.addRegularColumn(def.name, def.type);
+                    break;
+            }
+        }
+        if (!hasPartitionKey)
+            builder.addPartitionKey("219894021498309239rufejsfjdksfjheiwfhjes", UTF8Type.instance);
+        return builder.build();
     }
 }
