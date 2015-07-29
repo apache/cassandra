@@ -10,8 +10,10 @@ Merged from 2.0:
  * Log when messages are dropped due to cross_node_timeout (CASSANDRA-9793)
  * Don't track hotness when opening from snapshot for validation (CASSANDRA-9382)
 
+
 2.2.0
- * Fix cqlsh copy methods and other windows specific issues (CASSANDRA-9795) 
+ * Allow the selection of columns together with aggregates (CASSANDRA-9767)
+ * Fix cqlsh copy methods and other windows specific issues (CASSANDRA-9795)
  * Don't wrap byte arrays in SequentialWriter (CASSANDRA-9797)
  * sum() and avg() functions missing for smallint and tinyint types (CASSANDRA-9671)
  * Revert CASSANDRA-9542 (allow native functions in UDA) (CASSANDRA-9771)
