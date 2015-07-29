@@ -96,7 +96,7 @@ public class SinglePartitionNamesCommand extends SinglePartitionReadCommand<Clus
         Tracing.trace("Acquiring sstable references");
         ColumnFamilyStore.ViewFragment view = cfs.select(View.select(SSTableSet.LIVE, partitionKey()));
 
-        ArrayBackedPartition result = null;
+        ImmutableBTreePartition result = null;
         ClusteringIndexNamesFilter filter = clusteringIndexFilter();
 
         Tracing.trace("Merging memtable contents");
@@ -182,18 +182,18 @@ public class SinglePartitionNamesCommand extends SinglePartitionReadCommand<Clus
         return result.unfilteredIterator(columnFilter(), Slices.ALL, clusteringIndexFilter().isReversed());
     }
 
-    private ArrayBackedPartition add(UnfilteredRowIterator iter, ArrayBackedPartition result, boolean isRepaired)
+    private ImmutableBTreePartition add(UnfilteredRowIterator iter, ImmutableBTreePartition result, boolean isRepaired)
     {
         if (!isRepaired)
             oldestUnrepairedDeletionTime = Math.min(oldestUnrepairedDeletionTime, iter.stats().minLocalDeletionTime);
 
         int maxRows = Math.max(clusteringIndexFilter().requestedRows().size(), 1);
         if (result == null)
-            return ArrayBackedPartition.create(iter, maxRows);
+            return ImmutableBTreePartition.create(iter, maxRows);
 
         try (UnfilteredRowIterator merged = UnfilteredRowIterators.merge(Arrays.asList(iter, result.unfilteredIterator(columnFilter(), Slices.ALL, false)), nowInSec()))
         {
-            return ArrayBackedPartition.create(merged, maxRows);
+            return ImmutableBTreePartition.create(merged, maxRows);
         }
     }
 

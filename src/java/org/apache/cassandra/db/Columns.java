@@ -38,6 +38,7 @@ import org.apache.cassandra.utils.ByteBufferUtil;
 import org.apache.cassandra.utils.SearchIterator;
 import org.apache.cassandra.utils.btree.BTree;
 import org.apache.cassandra.utils.btree.BTreeSearchIterator;
+import org.apache.cassandra.utils.btree.UpdateFunction;
 
 /**
  * An immutable and sorted list of (non-PK) columns for a given table.
@@ -243,7 +244,8 @@ public class Columns implements Iterable<ColumnDefinition>
         if (this == NONE)
             return other;
 
-        Object[] tree = BTree.<ColumnDefinition>merge(this.columns, other.columns, Comparator.naturalOrder());
+        Object[] tree = BTree.<ColumnDefinition>merge(this.columns, other.columns, Comparator.naturalOrder(),
+                                                      UpdateFunction.noOp());
         if (tree == this.columns)
             return this;
         if (tree == other.columns)

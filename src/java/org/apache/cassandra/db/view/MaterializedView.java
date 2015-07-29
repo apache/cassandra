@@ -52,10 +52,10 @@ import org.apache.cassandra.db.ReadOrderGroup;
 import org.apache.cassandra.db.SinglePartitionReadCommand;
 import org.apache.cassandra.db.Slice;
 import org.apache.cassandra.db.compaction.CompactionManager;
-import org.apache.cassandra.db.partitions.AbstractThreadUnsafePartition;
+import org.apache.cassandra.db.partitions.AbstractBTreePartition;
 import org.apache.cassandra.db.partitions.PartitionIterator;
 import org.apache.cassandra.db.partitions.PartitionUpdate;
-import org.apache.cassandra.db.rows.BTreeBackedRow;
+import org.apache.cassandra.db.rows.BTreeRow;
 import org.apache.cassandra.db.rows.Cell;
 import org.apache.cassandra.db.rows.ColumnData;
 import org.apache.cassandra.db.rows.ComplexColumnData;
@@ -208,7 +208,7 @@ public class MaterializedView
      *
      * @return true if {@param partition} modifies a column included in the view
      */
-    public boolean updateAffectsView(AbstractThreadUnsafePartition partition)
+    public boolean updateAffectsView(AbstractBTreePartition partition)
     {
         // If we are including all of the columns, then any update will be included
         if (includeAll)
@@ -268,7 +268,7 @@ public class MaterializedView
                                             int nowInSec)
     {
         CFMetaData viewCfm = getViewCfs().metadata;
-        Row.Builder builder = BTreeBackedRow.unsortedBuilder(viewCfm.partitionColumns().regulars, nowInSec);
+        Row.Builder builder = BTreeRow.unsortedBuilder(viewCfm.partitionColumns().regulars, nowInSec);
         builder.newRow(viewClustering(temporalRow, resolver));
         builder.addRowDeletion(deletionTime);
         return PartitionUpdate.singleRowUpdate(viewCfm, partitionKey, builder.build());
@@ -286,7 +286,7 @@ public class MaterializedView
     {
 
         CFMetaData viewCfm = getViewCfs().metadata;
-        Row.Builder builder = BTreeBackedRow.unsortedBuilder(viewCfm.partitionColumns().regulars, nowInSec);
+        Row.Builder builder = BTreeRow.unsortedBuilder(viewCfm.partitionColumns().regulars, nowInSec);
         builder.newRow(viewClustering(temporalRow, resolver));
         builder.addComplexDeletion(deletedColumn, deletionTime);
         return PartitionUpdate.singleRowUpdate(viewCfm, partitionKey, builder.build());
@@ -363,7 +363,7 @@ public class MaterializedView
             return null;
         }
 
-        Row.Builder regularBuilder = BTreeBackedRow.unsortedBuilder(viewCfs.metadata.partitionColumns().regulars, temporalRow.nowInSec);
+        Row.Builder regularBuilder = BTreeRow.unsortedBuilder(viewCfs.metadata.partitionColumns().regulars, temporalRow.nowInSec);
 
         CBuilder clustering = CBuilder.create(viewCfs.getComparator());
         for (int i = 0; i < viewCfs.metadata.clusteringColumns().size(); i++)
@@ -395,7 +395,7 @@ public class MaterializedView
      * @return    View Tombstones which delete all of the rows which have been removed from the base table with
      *            {@param partition}
      */
-    private Collection<Mutation> createForDeletionInfo(TemporalRow.Set rowSet, AbstractThreadUnsafePartition partition)
+    private Collection<Mutation> createForDeletionInfo(TemporalRow.Set rowSet, AbstractBTreePartition partition)
     {
         final TemporalRow.Resolver resolver = TemporalRow.earliest;
 
@@ -558,7 +558,7 @@ public class MaterializedView
     /**
      * @return Set of rows which are contained in the partition update {@param partition}
      */
-    private TemporalRow.Set separateRows(ByteBuffer key, AbstractThreadUnsafePartition partition)
+    private TemporalRow.Set separateRows(ByteBuffer key, AbstractBTreePartition partition)
     {
         Set<ColumnIdentifier> columns = new HashSet<>();
         for (ColumnDefinition def : this.columns.primaryKeyDefs)
@@ -578,7 +578,7 @@ public class MaterializedView
      *         have been applied successfully. This is based solely on the changes that are necessary given the current
      *         state of the base table and the newly applying partition data.
      */
-    public Collection<Mutation> createMutations(ByteBuffer key, AbstractThreadUnsafePartition partition, boolean isBuilding)
+    public Collection<Mutation> createMutations(ByteBuffer key, AbstractBTreePartition partition, boolean isBuilding)
     {
         if (!updateAffectsView(partition))
             return null;

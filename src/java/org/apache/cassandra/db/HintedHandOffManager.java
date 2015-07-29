@@ -150,7 +150,7 @@ public class HintedHandOffManager implements HintedHandOffManagerMBean
         ByteBuffer value = ByteBuffer.wrap(FBUtilities.serialize(mutation, Mutation.serializer, MessagingService.current_version));
         Cell cell = BufferCell.expiring(hintColumn, now, ttl, FBUtilities.nowInSeconds(), value);
 
-        return new Mutation(PartitionUpdate.singleRowUpdate(SystemKeyspace.Hints, key, BTreeBackedRow.singleCellRow(clustering, cell)));
+        return new Mutation(PartitionUpdate.singleRowUpdate(SystemKeyspace.Hints, key, BTreeRow.singleCellRow(clustering, cell)));
     }
 
     /*
@@ -193,7 +193,7 @@ public class HintedHandOffManager implements HintedHandOffManagerMBean
     private static void deleteHint(ByteBuffer tokenBytes, Clustering clustering, long timestamp)
     {
         Cell cell = BufferCell.tombstone(hintColumn, timestamp, FBUtilities.nowInSeconds());
-        PartitionUpdate upd = PartitionUpdate.singleRowUpdate(SystemKeyspace.Hints, tokenBytes, BTreeBackedRow.singleCellRow(clustering, cell));
+        PartitionUpdate upd = PartitionUpdate.singleRowUpdate(SystemKeyspace.Hints, tokenBytes, BTreeRow.singleCellRow(clustering, cell));
         new Mutation(upd).applyUnsafe(); // don't bother with commitlog since we're going to flush as soon as we're done with delivery
     }
 

@@ -194,58 +194,121 @@ public class BTreeTest
     }
 
     /**
-     * Tests that the apply method of the <code>UpdateFunction</code> is only called once per value with each build call.
+     * Tests that the apply method of the <code>QuickResolver</code> is called exactly once per duplicate value
      */
     @Test
-    public void testBuilder_Resolver()
+    public void testBuilder_QuickResolver()
+    {
+        // for numbers x in 1..N, we repeat x x times, and resolve values to their sum,
+        // so that the resulting tree is of square numbers
+        BTree.Builder.QuickResolver<Accumulator> resolver = (a, b) -> new Accumulator(a.base, a.sum + b.sum);
+
+        for (int count = 0 ; count < 10 ; count ++)
+        {
+            BTree.Builder<Accumulator> builder;
+            // first check we produce the right output for sorted input
+            List<Accumulator> sorted = resolverInput(count, false);
+            builder = BTree.builder(Comparator.naturalOrder());
+            builder.setQuickResolver(resolver);
+            for (Accumulator i : sorted)
+                builder.add(i);
+            // for sorted input, check non-resolve path works before checking resolution path
+            checkResolverOutput(count, builder.build(), BTree.Dir.ASC);
+            builder.reuse();
+            for (int i = 0 ; i < 10 ; i++)
+            {
+                // now do a few runs of randomized inputs
+                for (Accumulator j : resolverInput(count, true))
+                    builder.add(j);
+                checkResolverOutput(count, builder.build(), BTree.Dir.ASC);
+                builder.reuse();
+            }
+            for (List<Accumulator> add : splitResolverInput(count))
+            {
+                if (ThreadLocalRandom.current().nextBoolean())
+                    builder.addAll(add);
+                else
+                    builder.addAll(new TreeSet<>(add));
+            }
+            checkResolverOutput(count, builder.build(), BTree.Dir.ASC);
+            builder.reuse();
+        }
+    }
+
+    private static class Accumulator extends Number implements Comparable<Accumulator>
+    {
+        final int base;
+        final int sum;
+        private Accumulator(int base, int sum)
+        {
+            this.base = base;
+            this.sum = sum;
+        }
+
+        public int compareTo(Accumulator that) { return Integer.compare(base, that.base); }
+        public int intValue() { return sum; }
+        public long longValue() { return sum; }
+        public float floatValue() { return sum; }
+        public double doubleValue() { return sum; }
+    }
+
+    /**
+     * Tests that the apply method of the <code>Resolver</code> is called exactly once per unique value
+     */
+    @Test
+    public void testBuilder_ResolverAndReverse()
     {
         // for numbers x in 1..N, we repeat x x times, and resolve values to their sum,
         // so that the resulting tree is of square numbers
         BTree.Builder.Resolver resolver = (array, lb, ub) -> {
             int sum = 0;
             for (int i = lb ; i < ub ; i++)
-                sum += (Integer) array[i];
-            return sum;
+                sum += ((Accumulator) array[i]).sum;
+            return new Accumulator(((Accumulator) array[lb]).base, sum);
         };
 
         for (int count = 0 ; count < 10 ; count ++)
         {
-            BTree.Builder<Integer> builder;
+            BTree.Builder<Accumulator> builder;
             // first check we produce the right output for sorted input
-            List<Integer> sorted = resolverInput(count, false);
+            List<Accumulator> sorted = resolverInput(count, false);
             builder = BTree.builder(Comparator.naturalOrder());
             builder.auto(false);
-            for (Integer i : sorted)
+            for (Accumulator i : sorted)
                 builder.add(i);
             // for sorted input, check non-resolve path works before checking resolution path
             Assert.assertTrue(Iterables.elementsEqual(sorted, BTree.iterable(builder.build())));
-            checkResolverOutput(count, builder.resolve(resolver).build());
+            checkResolverOutput(count, builder.resolve(resolver).build(), BTree.Dir.ASC);
             builder = BTree.builder(Comparator.naturalOrder());
             builder.auto(false);
             for (int i = 0 ; i < 10 ; i++)
             {
                 // now do a few runs of randomized inputs
-                for (Integer j : resolverInput(count, true))
+                for (Accumulator j : resolverInput(count, true))
                     builder.add(j);
-                checkResolverOutput(count, builder.sort().resolve(resolver).build());
+                checkResolverOutput(count, builder.sort().resolve(resolver).build(), BTree.Dir.ASC);
+                builder.reuse();
+                for (Accumulator j : resolverInput(count, true))
+                    builder.add(j);
+                checkResolverOutput(count, builder.sort().reverse().resolve(resolver).build(), BTree.Dir.DESC);
                 builder.reuse();
             }
         }
     }
 
-    private static List<Integer> resolverInput(int count, boolean shuffled)
+    private static List<Accumulator> resolverInput(int count, boolean shuffled)
     {
-        List<Integer> result = new ArrayList<>();
+        List<Accumulator> result = new ArrayList<>();
         for (int i = 1 ; i <= count ; i++)
             for (int j = 0 ; j < i ; j++)
-                result.add(i);
+                result.add(new Accumulator(i, i));
         if (shuffled)
         {
             ThreadLocalRandom random = ThreadLocalRandom.current();
             for (int i = 0 ; i < result.size() ; i++)
             {
                 int swapWith = random.nextInt(i, result.size());
-                Integer t = result.get(swapWith);
+                Accumulator t = result.get(swapWith);
                 result.set(swapWith, result.get(i));
                 result.set(i, t);
             }
@@ -253,12 +316,33 @@ public class BTreeTest
         return result;
     }
 
-    private static void checkResolverOutput(int count, Object[] btree)
+    private static List<List<Accumulator>> splitResolverInput(int count)
+    {
+        List<Accumulator> all = resolverInput(count, false);
+        List<List<Accumulator>> result = new ArrayList<>();
+        while (!all.isEmpty())
+        {
+            List<Accumulator> is = new ArrayList<>();
+            int prev = -1;
+            for (Accumulator i : new ArrayList<>(all))
+            {
+                if (i.base == prev)
+                    continue;
+                is.add(i);
+                all.remove(i);
+                prev = i.base;
+            }
+            result.add(is);
+        }
+        return result;
+    }
+
+    private static void checkResolverOutput(int count, Object[] btree, BTree.Dir dir)
     {
         int i = 1;
-        for (Integer current : BTree.<Integer>iterable(btree))
+        for (Accumulator current : BTree.<Accumulator>iterable(btree, dir))
         {
-            Assert.assertEquals(i * i, current.intValue());
+            Assert.assertEquals(i * i, current.sum);
             i++;
         }
         Assert.assertEquals(i, count + 1);

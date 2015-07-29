@@ -49,7 +49,12 @@ public abstract class RowIterators
             iterator.next().digest(digest);
     }
 
-    public static RowIterator emptyIterator(final CFMetaData cfm, final DecoratedKey partitionKey, final boolean isReverseOrder)
+    public static RowIterator emptyIterator(CFMetaData cfm, DecoratedKey partitionKey, boolean isReverseOrder)
+    {
+        return iterator(cfm, partitionKey, isReverseOrder, Collections.emptyIterator());
+    }
+
+    public static RowIterator iterator(CFMetaData cfm, DecoratedKey partitionKey, boolean isReverseOrder, Iterator<Row> iterator)
     {
         return new RowIterator()
         {
@@ -78,23 +83,16 @@ public abstract class RowIterators
                 return Rows.EMPTY_STATIC_ROW;
             }
 
+            public void close() { }
+
             public boolean hasNext()
             {
-                return false;
+                return iterator.hasNext();
             }
 
             public Row next()
             {
-                throw new NoSuchElementException();
-            }
-
-            public void remove()
-            {
-                throw new UnsupportedOperationException();
-            }
-
-            public void close()
-            {
+                return iterator.next();
             }
         };
     }

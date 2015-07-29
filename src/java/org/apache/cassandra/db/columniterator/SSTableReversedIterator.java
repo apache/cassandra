@@ -23,10 +23,11 @@ import java.util.*;
 import org.apache.cassandra.config.CFMetaData;
 import org.apache.cassandra.db.*;
 import org.apache.cassandra.db.filter.ColumnFilter;
+import org.apache.cassandra.db.partitions.ImmutableBTreePartition;
 import org.apache.cassandra.db.rows.*;
-import org.apache.cassandra.db.partitions.AbstractThreadUnsafePartition;
 import org.apache.cassandra.io.sstable.format.SSTableReader;
 import org.apache.cassandra.io.util.FileDataInput;
+import org.apache.cassandra.utils.btree.BTree;
 
 /**
  *  A Cell Iterator in reversed clustering order over SSTable
@@ -123,7 +124,7 @@ public class SSTableReversedIterator extends AbstractSSTableIterator
         protected void setIterator(Slice slice)
         {
             assert buffer != null;
-            iterator = buffer.unfilteredIterator(columns, Slices.with(metadata().comparator, slice), true);
+            iterator = buffer.built.unfilteredIterator(columns, Slices.with(metadata().comparator, slice), true);
         }
 
         protected boolean hasNextInternal() throws IOException
@@ -303,56 +304,49 @@ public class SSTableReversedIterator extends AbstractSSTableIterator
         }
     }
 
-    private class ReusablePartitionData extends AbstractThreadUnsafePartition
+    private class ReusablePartitionData
     {
+        private final CFMetaData metadata;
+        private final DecoratedKey partitionKey;
+        private final PartitionColumns columns;
+
         private MutableDeletionInfo.Builder deletionBuilder;
         private MutableDeletionInfo deletionInfo;
+        private BTree.Builder<Row> rowBuilder;
+        private ImmutableBTreePartition built;
 
         private ReusablePartitionData(CFMetaData metadata,
                                       DecoratedKey partitionKey,
                                       PartitionColumns columns,
                                       int initialRowCapacity)
         {
-            super(metadata, partitionKey, columns, new ArrayList<>(initialRowCapacity));
+            this.metadata = metadata;
+            this.partitionKey = partitionKey;
+            this.columns = columns;
+            this.rowBuilder = BTree.builder(metadata.comparator, initialRowCapacity);
         }
 
-        public DeletionInfo deletionInfo()
-        {
-            return deletionInfo;
-        }
-
-        protected boolean canHaveShadowedData()
-        {
-            return false;
-        }
-
-        public Row staticRow()
-        {
-            return Rows.EMPTY_STATIC_ROW; // we don't actually use that
-        }
-
-        public EncodingStats stats()
-        {
-            return EncodingStats.NO_STATS; // we don't actually use that
-        }
 
         public void add(Unfiltered unfiltered)
         {
             if (unfiltered.isRow())
-                rows.add((Row)unfiltered);
+                rowBuilder.add((Row)unfiltered);
             else
                 deletionBuilder.add((RangeTombstoneMarker)unfiltered);
         }
 
         public void reset()
         {
-            rows.clear();
+            built = null;
+            rowBuilder.reuse();
             deletionBuilder = MutableDeletionInfo.builder(partitionLevelDeletion, metadata().comparator, false);
         }
 
         public void build()
         {
             deletionInfo = deletionBuilder.build();
+            built = new ImmutableBTreePartition(metadata, partitionKey, columns, Rows.EMPTY_STATIC_ROW, rowBuilder.build(),
+                                                DeletionInfo.LIVE, EncodingStats.NO_STATS);
             deletionBuilder = null;
         }
     }

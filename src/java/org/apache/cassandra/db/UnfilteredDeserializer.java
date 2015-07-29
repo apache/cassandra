@@ -121,7 +121,7 @@ public abstract class UnfilteredDeserializer
             super(metadata, in, helper);
             this.header = header;
             this.clusteringDeserializer = new ClusteringPrefix.Deserializer(metadata.comparator, in, header);
-            this.builder = BTreeBackedRow.sortedBuilder(helper.fetchedRegularColumns(header));
+            this.builder = BTreeRow.sortedBuilder(helper.fetchedRegularColumns(header));
         }
 
         public boolean hasNext() throws IOException

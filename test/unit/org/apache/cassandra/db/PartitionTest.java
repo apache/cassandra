@@ -73,7 +73,7 @@ public class PartitionTest
                                  .add("val", "val1")
                                  .buildUpdate();
 
-        ArrayBackedCachedPartition partition = ArrayBackedCachedPartition.create(update.unfilteredIterator(), FBUtilities.nowInSeconds());
+        CachedBTreePartition partition = CachedBTreePartition.create(update.unfilteredIterator(), FBUtilities.nowInSeconds());
 
         DataOutputBuffer bufOut = new DataOutputBuffer();
         CachedPartition.cacheSerializer.serialize(partition, bufOut);
@@ -98,7 +98,7 @@ public class PartitionTest
 
         PartitionUpdate update = builder.buildUpdate();
 
-        ArrayBackedCachedPartition partition = ArrayBackedCachedPartition.create(update.unfilteredIterator(), FBUtilities.nowInSeconds());
+        CachedBTreePartition partition = CachedBTreePartition.create(update.unfilteredIterator(), FBUtilities.nowInSeconds());
 
         DataOutputBuffer bufOut = new DataOutputBuffer();
         CachedPartition.cacheSerializer.serialize(partition, bufOut);
@@ -125,8 +125,8 @@ public class PartitionTest
 
         new RowUpdateBuilder(cfs.metadata, 5, "key2").clustering("c").add("val", "val2").build().applyUnsafe();
 
-        ArrayBackedPartition p1 = Util.getOnlyPartitionUnfiltered(Util.cmd(cfs, "key1").build());
-        ArrayBackedPartition p2 = Util.getOnlyPartitionUnfiltered(Util.cmd(cfs, "key2").build());
+        ImmutableBTreePartition p1 = Util.getOnlyPartitionUnfiltered(Util.cmd(cfs, "key1").build());
+        ImmutableBTreePartition p2 = Util.getOnlyPartitionUnfiltered(Util.cmd(cfs, "key2").build());
 
         MessageDigest digest1 = MessageDigest.getInstance("MD5");
         MessageDigest digest2 = MessageDigest.getInstance("MD5");
@@ -165,7 +165,7 @@ public class PartitionTest
         builder.build().applyUnsafe();
 
         RowUpdateBuilder.deleteRowAt(cfs.metadata, 10L, localDeletionTime, "key1", "c").applyUnsafe();
-        ArrayBackedPartition partition = Util.getOnlyPartitionUnfiltered(Util.cmd(cfs, "key1").build());
+        ImmutableBTreePartition partition = Util.getOnlyPartitionUnfiltered(Util.cmd(cfs, "key1").build());
         EncodingStats stats = partition.stats();
         assertEquals(localDeletionTime, stats.minLocalDeletionTime);
     }

@@ -142,7 +142,7 @@ public class KeysSearcher extends SecondaryIndexSearcher
         {
             // The data we got has gone though ThrifResultsMerger, so we're looking for the row whose clustering
             // is the indexed name. Ans so we need to materialize the partition.
-            ArrayBackedPartition result = ArrayBackedPartition.create(iterator);
+            ImmutableBTreePartition result = ImmutableBTreePartition.create(iterator);
             iterator.close();
             Row data = result.getRow(new Clustering(index.indexedColumn().name.bytes));
             Cell cell = data == null ? null : data.getCell(baseCfs.metadata.compactValueColumn());
