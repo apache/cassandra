@@ -65,7 +65,7 @@ public abstract class AbstractCompactionStrategy
     protected static final String UNCHECKED_TOMBSTONE_COMPACTION_OPTION = "unchecked_tombstone_compaction";
     protected static final String COMPACTION_ENABLED = "enabled";
 
-    public final Map<String, String> options;
+    protected Map<String, String> options;
 
     protected final ColumnFamilyStore cfs;
     protected float tombstoneThreshold;
@@ -84,8 +84,6 @@ public abstract class AbstractCompactionStrategy
      * See CASSANDRA-3430
      */
     protected boolean isActive = false;
-
-    protected volatile boolean enabled = true;
 
     protected AbstractCompactionStrategy(ColumnFamilyStore cfs, Map<String, String> options)
     {
@@ -195,19 +193,12 @@ public abstract class AbstractCompactionStrategy
      */
     public abstract long getMaxSSTableBytes();
 
-    public boolean isEnabled()
-    {
-        return this.enabled && this.isActive;
-    }
-
     public void enable()
     {
-        this.enabled = true;
     }
 
     public void disable()
     {
-        this.enabled = false;
     }
 
     /**
