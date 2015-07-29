@@ -87,7 +87,7 @@ public class KeyspaceMetrics
     public final LatencyMetrics casPropose;
     /** CAS Commit metrics */
     public final LatencyMetrics casCommit;
-    
+
     public final MetricNameFactory factory;
     private Keyspace keyspace;
     

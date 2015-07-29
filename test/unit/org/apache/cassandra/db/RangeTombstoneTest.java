@@ -33,7 +33,6 @@ import org.apache.cassandra.io.sstable.format.SSTableReader;
 import org.junit.BeforeClass;
 import org.junit.Test;
 
-import org.apache.cassandra.AbstractReadCommandBuilder;
 import org.apache.cassandra.SchemaLoader;
 import org.apache.cassandra.config.*;
 import org.apache.cassandra.Util;

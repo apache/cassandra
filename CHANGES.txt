@@ -21,6 +21,7 @@
  * Populate TokenMetadata early during startup (CASSANDRA-9317)
  * Undeprecate cache recentHitRate (CASSANDRA-6591)
  * Add support for selectively varint encoding fields (CASSANDRA-9499, 9865)
+ * Materialized Views (CASSANDRA-6477)
 
 
 2.2.1

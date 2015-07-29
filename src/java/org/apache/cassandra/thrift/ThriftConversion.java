@@ -274,7 +274,10 @@ public class ThriftConversion
                                       subComparator,
                                       defaultValidator);
 
-            CFMetaData newCFMD = CFMetaData.create(cf_def.keyspace, cf_def.name, cfId, isDense, isCompound, isSuper, isCounter, defs);
+            // We do not allow Thrift materialized views, so we always set it to false
+            boolean isMaterializedView = false;
+
+            CFMetaData newCFMD = CFMetaData.create(cf_def.keyspace, cf_def.name, cfId, isDense, isCompound, isSuper, isCounter, isMaterializedView, defs);
 
             if (cf_def.isSetGc_grace_seconds())
                 newCFMD.gcGraceSeconds(cf_def.gc_grace_seconds);

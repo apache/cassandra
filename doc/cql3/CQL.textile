@@ -479,6 +479,61 @@ The @DROP INDEX@ statement is used to drop an existing secondary index. The argu
 
 If the index does not exists, the statement will return an error, unless @IF EXISTS@ is used in which case the operation is a no-op.
 
+
+h3(#createMVStmt). CREATE MATERIALIZED VIEW
+
+__Syntax:__
+
+bc(syntax)..
+<create-table-stmt> ::= CREATE MATERIALIZED VIEW ( IF NOT EXISTS )? <viewname> AS
+                          SELECT ( '(' <identifier> ( ',' <identifier> ) * ')' | '*' )
+                          FROM <tablename>
+                          WHERE ( <identifier> IS NOT NULL ( AND <identifier> IS NOT NULL )* )?
+                          PRIMARY KEY '(' <partition-key> ( ',' <identifier> )* ')'
+                          ( WITH <option> ( AND <option>)* )?
+__Sample:__
+
+bc(sample)..
+CREATE MATERIALIZED VIEW monkeySpecies_by_population AS
+    SELECT *
+    FROM monkeySpecies
+    WHERE population IS NOT NULL AND species IS NOT NULL
+    PRIMARY KEY (population, species)
+    WITH comment='Allow query by population instead of species';
+p.
+The @CREATE MATERIALIZED VIEW@ statement creates a new materialized view. Each such view is a set of _rows_ which corresponds to rows which are present in the underlying, or base, table specified in the @SELECT@ statement. A materialized view cannot be directly updated, but updates to the base table will cause corresponding updates in the view.
+
+Attempting to create an already existing materialized view will return an error unless the @IF NOT EXISTS@ option is used. If it is used, the statement will be a no-op if the materialized view already exists.
+
+h4(#createMVWhere). @WHERE <identifier> IS NOT NULL@
+
+The where clause is required to explicitly exclude all primary key columns' null values. Any row which contains null values in the primary key will not be present in the materialized view.
+
+h3(#alterMVStmt). ALTER MATERIALIZED VIEW
+
+__Syntax:__
+
+bc(syntax). <alter-materialized-view-stmt> ::= ALTER MATERIALIZED VIEW <viewname>
+                                                 WITH <option> ( AND <option> )*
+
+p.
+The @ALTER MATERIALIZED VIEW@ statement allows options to be update; these options are the same as <a href="#createTableOptions">@CREATE TABLE@'s options</a>.
+
+
+h3(#dropMVStmt). DROP MATERIALIZED VIEW
+
+__Syntax:__
+
+bc(syntax). <drop-materialized-stmt> ::= DROP MATERIALIZED VIEW ( IF EXISTS )? <tablename>
+
+__Sample:__
+
+bc(sample). DROP MATERIALIZED VIEW monkeySpecies_by_population;
+
+The @DROP MATERIALIZED VIEW@ statement is used to drop an existing materialized view.
+
+If the materialized view does not exists, the statement will return an error, unless @IF EXISTS@ is used in which case the operation is a no-op.
+
 h3(#createTypeStmt). CREATE TYPE
 
 __Syntax:__

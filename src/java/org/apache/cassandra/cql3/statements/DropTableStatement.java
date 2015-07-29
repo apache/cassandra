@@ -18,6 +18,9 @@
 package org.apache.cassandra.cql3.statements;
 
 import org.apache.cassandra.auth.Permission;
+import org.apache.cassandra.config.CFMetaData;
+import org.apache.cassandra.config.MaterializedViewDefinition;
+import org.apache.cassandra.config.Schema;
 import org.apache.cassandra.cql3.CFName;
 import org.apache.cassandra.exceptions.ConfigurationException;
 import org.apache.cassandra.exceptions.InvalidRequestException;
@@ -58,6 +61,28 @@ public class DropTableStatement extends SchemaAlteringStatement
     {
         try
         {
+            CFMetaData cfm = Schema.instance.getCFMetaData(keyspace(), columnFamily());
+            if (cfm != null)
+            {
+                if (cfm.isMaterializedView())
+                    throw new InvalidRequestException("Cannot use DROP TABLE on Materialized View");
+
+                boolean rejectDrop = false;
+                StringBuilder messageBuilder = new StringBuilder();
+                for (MaterializedViewDefinition def : cfm.getMaterializedViews())
+                {
+                    if (rejectDrop)
+                        messageBuilder.append(',');
+                    rejectDrop = true;
+                    messageBuilder.append(def.viewName);
+                }
+                if (rejectDrop)
+                {
+                    throw new InvalidRequestException(String.format("Cannot drop table when materialized views still depend on it (%s.{%s})",
+                                                                    keyspace(),
+                                                                    messageBuilder.toString()));
+                }
+            }
             MigrationManager.announceColumnFamilyDrop(keyspace(), columnFamily(), isLocalOnly);
             return true;
         }

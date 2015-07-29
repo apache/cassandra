@@ -426,7 +426,7 @@ public class CompactionStrategyManager implements INotificationConsumer
                     return tasks;
                 }
             }
-        }, false);
+        }, false, false);
     }
 
     public AbstractCompactionTask getUserDefinedTask(Collection<SSTableReader> sstables, int gcBefore)

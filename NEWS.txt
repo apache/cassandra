@@ -16,8 +16,18 @@ using the provided 'sstableupgrade' tool.
 3.0
 ===
 
+New features
+------------
+   - Materialized Views, which allow for server-side denormalization, is now
+     available. Materialized views provide an alternative to secondary indexes
+     for non-primary key queries, and perform much better for indexing high
+     cardinality columns. 
+     See http://www.datastax.com/dev/blog/new-in-cassandra-3-0-materialized-views 
+   
 Upgrading
 ---------
+   - New write stages have been added for batchlog and materialized view mutations
+     you can set their size in cassandra.yaml
    - User defined functions are now executed in a sandbox.
      To use UDFs and UDAs, you have to enable them in cassandra.yaml.
    - New SSTable version 'la' with improved bloom-filter false-positive handling

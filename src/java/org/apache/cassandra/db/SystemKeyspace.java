@@ -101,6 +101,8 @@ public final class SystemKeyspace
     public static final String SSTABLE_ACTIVITY = "sstable_activity";
     public static final String SIZE_ESTIMATES = "size_estimates";
     public static final String AVAILABLE_RANGES = "available_ranges";
+    public static final String MATERIALIZEDVIEWS_BUILDS_IN_PROGRESS = "materializedviews_builds_in_progress";
+    public static final String BUILT_MATERIALIZEDVIEWS = "built_materializedviews";
 
     @Deprecated public static final String LEGACY_KEYSPACES = "schema_keyspaces";
     @Deprecated public static final String LEGACY_COLUMNFAMILIES = "schema_columnfamilies";
@@ -261,6 +263,24 @@ public final class SystemKeyspace
                 + "ranges set<blob>,"
                 + "PRIMARY KEY ((keyspace_name)))");
 
+    public static final CFMetaData MaterializedViewsBuildsInProgress =
+        compile(MATERIALIZEDVIEWS_BUILDS_IN_PROGRESS,
+                "materialized views builds current progress",
+                "CREATE TABLE %s ("
+                + "keyspace_name text,"
+                + "view_name text,"
+                + "last_token varchar,"
+                + "generation_number int,"
+                + "PRIMARY KEY ((keyspace_name), view_name))");
+
+    public static final CFMetaData BuiltMaterializedViews =
+    compile(BUILT_MATERIALIZEDVIEWS,
+            "built materialized views",
+            "CREATE TABLE \"%s\" ("
+            + "keyspace_name text,"
+            + "view_name text,"
+            + "PRIMARY KEY ((keyspace_name), view_name))");
+
     @Deprecated
     public static final CFMetaData LegacyKeyspaces =
         compile(LEGACY_KEYSPACES,
@@ -401,6 +421,8 @@ public final class SystemKeyspace
                          SSTableActivity,
                          SizeEstimates,
                          AvailableRanges,
+                         MaterializedViewsBuildsInProgress,
+                         BuiltMaterializedViews,
                          LegacyKeyspaces,
                          LegacyColumnfamilies,
                          LegacyColumns,
@@ -491,6 +513,82 @@ public final class SystemKeyspace
     {
         UntypedResultSet queryResultSet = executeInternal(String.format("SELECT * from system.%s", COMPACTION_HISTORY));
         return CompactionHistoryTabularData.from(queryResultSet);
+    }
+
+    public static boolean isViewBuilt(String keyspaceName, String viewName)
+    {
+        String req = "SELECT view_name FROM %s.\"%s\" WHERE keyspace_name=? AND view_name=?";
+        UntypedResultSet result = executeInternal(String.format(req, NAME, BUILT_MATERIALIZEDVIEWS), keyspaceName, viewName);
+        return !result.isEmpty();
+    }
+
+    public static void setMaterializedViewBuilt(String keyspaceName, String viewName)
+    {
+        String req = "INSERT INTO %s.\"%s\" (keyspace_name, view_name) VALUES (?, ?)";
+        executeInternal(String.format(req, NAME, BUILT_MATERIALIZEDVIEWS), keyspaceName, viewName);
+        forceBlockingFlush(BUILT_MATERIALIZEDVIEWS);
+    }
+
+
+    public static void setMaterializedViewRemoved(String keyspaceName, String viewName)
+    {
+        String buildReq = "DELETE FROM %S.%s WHERE keyspace_name = ? AND view_name = ?";
+        executeInternal(String.format(buildReq, NAME, MATERIALIZEDVIEWS_BUILDS_IN_PROGRESS), keyspaceName, viewName);
+        forceBlockingFlush(MATERIALIZEDVIEWS_BUILDS_IN_PROGRESS);
+
+        String builtReq = "DELETE FROM %s.\"%s\" WHERE keyspace_name = ? AND view_name = ?";
+        executeInternal(String.format(builtReq, NAME, BUILT_MATERIALIZEDVIEWS), keyspaceName, viewName);
+        forceBlockingFlush(BUILT_MATERIALIZEDVIEWS);
+    }
+
+    public static void beginMaterializedViewBuild(String ksname, String viewName, int generationNumber)
+    {
+        executeInternal(String.format("INSERT INTO system.%s (keyspace_name, view_name, generation_number) VALUES (?, ?, ?)", MATERIALIZEDVIEWS_BUILDS_IN_PROGRESS),
+                        ksname,
+                        viewName,
+                        generationNumber);
+    }
+
+    public static void finishMaterializedViewBuildStatus(String ksname, String viewName)
+    {
+        // We flush the view built first, because if we fail now, we'll restart at the last place we checkpointed
+        // materialized view build.
+        // If we flush the delete first, we'll have to restart from the beginning.
+        // Also, if the build succeeded, but the materialized view build failed, we will be able to skip the
+        // materialized view build check next boot.
+        setMaterializedViewBuilt(ksname, viewName);
+        forceBlockingFlush(BUILT_MATERIALIZEDVIEWS);
+        executeInternal(String.format("DELETE FROM system.%s WHERE keyspace_name = ? AND view_name = ?", MATERIALIZEDVIEWS_BUILDS_IN_PROGRESS), ksname, viewName);
+        forceBlockingFlush(MATERIALIZEDVIEWS_BUILDS_IN_PROGRESS);
+    }
+
+    public static void updateMaterializedViewBuildStatus(String ksname, String viewName, Token token)
+    {
+        String req = "INSERT INTO system.%s (keyspace_name, view_name, last_token) VALUES (?, ?, ?)";
+        Token.TokenFactory factory = StorageService.getPartitioner().getTokenFactory();
+        executeInternal(String.format(req, MATERIALIZEDVIEWS_BUILDS_IN_PROGRESS), ksname, viewName, factory.toString(token));
+    }
+
+    public static Pair<Integer, Token> getMaterializedViewBuildStatus(String ksname, String viewName)
+    {
+        String req = "SELECT generation_number, last_token FROM system.%s WHERE keyspace_name = ? AND view_name = ?";
+        UntypedResultSet queryResultSet = executeInternal(String.format(req, MATERIALIZEDVIEWS_BUILDS_IN_PROGRESS), ksname, viewName);
+        if (queryResultSet == null || queryResultSet.isEmpty())
+            return null;
+
+        UntypedResultSet.Row row = queryResultSet.one();
+
+        Integer generation = null;
+        Token lastKey = null;
+        if (row.has("generation_number"))
+            generation = row.getInt("generation_number");
+        if (row.has("last_key"))
+        {
+            Token.TokenFactory factory = StorageService.getPartitioner().getTokenFactory();
+            lastKey = factory.fromString(row.getString("last_key"));
+        }
+
+        return Pair.create(generation, lastKey);
     }
 
     public static synchronized void saveTruncationRecord(ColumnFamilyStore cfs, long truncatedAt, ReplayPosition position)

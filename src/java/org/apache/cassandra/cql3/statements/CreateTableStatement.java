@@ -188,14 +188,12 @@ public class CreateTableStatement extends SchemaAlteringStatement
     public static class RawStatement extends CFStatement
     {
         private final Map<ColumnIdentifier, CQL3Type.Raw> definitions = new HashMap<>();
-        public final CFPropDefs properties = new CFPropDefs();
+        public final CFProperties properties = new CFProperties();
 
         private final List<List<ColumnIdentifier>> keyAliases = new ArrayList<List<ColumnIdentifier>>();
         private final List<ColumnIdentifier> columnAliases = new ArrayList<ColumnIdentifier>();
-        private final Map<ColumnIdentifier, Boolean> definedOrdering = new LinkedHashMap<ColumnIdentifier, Boolean>(); // Insertion ordering is important
         private final Set<ColumnIdentifier> staticColumns = new HashSet<ColumnIdentifier>();
 
-        private boolean useCompactStorage;
         private final Multiset<ColumnIdentifier> definedNames = HashMultiset.create(1);
 
         private final boolean ifNotExists;
@@ -223,7 +221,7 @@ public class CreateTableStatement extends SchemaAlteringStatement
 
             properties.validate();
 
-            CreateTableStatement stmt = new CreateTableStatement(cfName, properties, ifNotExists, staticColumns);
+            CreateTableStatement stmt = new CreateTableStatement(cfName, properties.properties, ifNotExists, staticColumns);
 
             for (Map.Entry<ColumnIdentifier, CQL3Type.Raw> entry : definitions.entrySet())
             {
@@ -240,7 +238,7 @@ public class CreateTableStatement extends SchemaAlteringStatement
                 throw new InvalidRequestException("No PRIMARY KEY specifed (exactly one required)");
             if (keyAliases.size() > 1)
                 throw new InvalidRequestException("Multiple PRIMARY KEYs specifed (exactly one required)");
-            if (stmt.hasCounters && properties.getDefaultTimeToLive() > 0)
+            if (stmt.hasCounters && properties.properties.getDefaultTimeToLive() > 0)
                 throw new InvalidRequestException("Cannot set default_time_to_live on a table with counters");
 
             List<ColumnIdentifier> kAliases = keyAliases.get(0);
@@ -279,6 +277,7 @@ public class CreateTableStatement extends SchemaAlteringStatement
                         throw new InvalidRequestException("Cannot mix counter and non counter columns in the same table");
             }
 
+            boolean useCompactStorage = properties.useCompactStorage;
             // Dense means that on the thrift side, no part of the "thrift column name" stores a "CQL/metadata column name".
             // This means COMPACT STORAGE with at least one clustering type (otherwise it's a thrift "static" CF).
             stmt.isDense = useCompactStorage && !stmt.clusteringTypes.isEmpty();
@@ -327,18 +326,18 @@ public class CreateTableStatement extends SchemaAlteringStatement
             }
 
             // If we give a clustering order, we must explicitly do so for all aliases and in the order of the PK
-            if (!definedOrdering.isEmpty())
+            if (!properties.definedOrdering.isEmpty())
             {
-                if (definedOrdering.size() > columnAliases.size())
+                if (properties.definedOrdering.size() > columnAliases.size())
                     throw new InvalidRequestException("Only clustering key columns can be defined in CLUSTERING ORDER directive");
 
                 int i = 0;
-                for (ColumnIdentifier id : definedOrdering.keySet())
+                for (ColumnIdentifier id : properties.definedOrdering.keySet())
                 {
                     ColumnIdentifier c = columnAliases.get(i);
                     if (!id.equals(c))
                     {
-                        if (definedOrdering.containsKey(c))
+                        if (properties.definedOrdering.containsKey(c))
                             throw new InvalidRequestException(String.format("The order of columns in the CLUSTERING ORDER directive must be the one of the clustering key (%s must appear before %s)", c, id));
                         else
                             throw new InvalidRequestException(String.format("Missing CLUSTERING ORDER for column %s", c));
@@ -359,7 +358,7 @@ public class CreateTableStatement extends SchemaAlteringStatement
                 throw new InvalidRequestException(String.format("Invalid collection type for PRIMARY KEY component %s", t));
 
             columns.remove(t);
-            Boolean isReversed = definedOrdering.get(t);
+            Boolean isReversed = properties.definedOrdering.get(t);
             return isReversed != null && isReversed ? ReversedType.getInstance(type) : type;
         }
 
@@ -379,16 +378,6 @@ public class CreateTableStatement extends SchemaAlteringStatement
         public void addColumnAlias(ColumnIdentifier alias)
         {
             columnAliases.add(alias);
-        }
-
-        public void setOrdering(ColumnIdentifier alias, boolean reversed)
-        {
-            definedOrdering.put(alias, reversed);
-        }
-
-        public void setCompactStorage()
-        {
-            useCompactStorage = true;
         }
     }
 }

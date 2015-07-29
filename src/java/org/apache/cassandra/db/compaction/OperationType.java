@@ -35,7 +35,8 @@ public enum OperationType
     VERIFY("Verify"),
     FLUSH("Flush"),
     STREAM("Stream"),
-    WRITE("Write");
+    WRITE("Write"),
+    VIEW_BUILD("Materialized view build");
 
     public final String type;
     public final String fileName;
