@@ -22,7 +22,6 @@ import java.io.IOError;
 import java.io.IOException;
 import java.net.InetAddress;
 
-import org.apache.cassandra.exceptions.WriteTimeoutException;
 import org.apache.cassandra.io.util.FastByteArrayInputStream;
 import org.apache.cassandra.net.*;
 import org.apache.cassandra.tracing.Tracing;
@@ -48,17 +47,10 @@ public class MutationVerbHandler implements IVerbHandler<Mutation>
                 replyTo = InetAddress.getByAddress(from);
             }
 
-        try
-        {
             message.payload.apply();
             WriteResponse response = new WriteResponse();
             Tracing.trace("Enqueuing response to {}", replyTo);
             MessagingService.instance().sendReply(response.createMessage(), id, replyTo);
-        }
-        catch (WriteTimeoutException wto)
-        {
-            Tracing.trace("Payload application resulted in WriteTimeout, not replying");
-        }
     }
 
     /**

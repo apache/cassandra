@@ -307,9 +307,7 @@ public final class LegacySchemaMigrator
                                     defaultValidator);
         }
 
-        // The legacy schema did not have views, so we know that we are not loading a materialized view
-        boolean isMaterializedView = false;
-        CFMetaData cfm = CFMetaData.create(ksName, cfName, cfId, isDense, isCompound, isSuper, isCounter, isMaterializedView, columnDefs);
+        CFMetaData cfm = CFMetaData.create(ksName, cfName, cfId, isDense, isCompound, isSuper, isCounter, columnDefs);
 
         cfm.readRepairChance(tableRow.getDouble("read_repair_chance"));
         cfm.dcLocalReadRepairChance(tableRow.getDouble("local_read_repair_chance"));

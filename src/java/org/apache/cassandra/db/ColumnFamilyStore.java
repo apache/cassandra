@@ -53,7 +53,6 @@ import org.apache.cassandra.db.compaction.*;
 import org.apache.cassandra.db.filter.*;
 import org.apache.cassandra.db.index.SecondaryIndex;
 import org.apache.cassandra.db.index.SecondaryIndexManager;
-import org.apache.cassandra.db.view.MaterializedViewManager;
 import org.apache.cassandra.db.partitions.*;
 import org.apache.cassandra.dht.*;
 import org.apache.cassandra.dht.Range;
@@ -160,7 +159,6 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
     private final AtomicInteger fileIndexGenerator = new AtomicInteger(0);
 
     public final SecondaryIndexManager indexManager;
-    public final MaterializedViewManager materializedViewManager;
 
     /* These are locally held copies to be changed from the config during runtime */
     private volatile DefaultInteger minCompactionThreshold;
@@ -197,7 +195,6 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
 
         indexManager.reload();
 
-        materializedViewManager.reload();
         // If the CF comparator has changed, we need to change the memtable,
         // because the old one still aliases the previous comparator.
         if (data.getView().getCurrentMemtable().initialComparator != metadata.comparator)
@@ -334,7 +331,6 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
         this.partitioner = partitioner;
         this.directories = directories;
         this.indexManager = new SecondaryIndexManager(this);
-        this.materializedViewManager = new MaterializedViewManager(this);
         this.metric = new TableMetrics(this);
         fileIndexGenerator.set(generation);
         sampleLatencyNanos = DatabaseDescriptor.getReadRpcTimeout() / 2;
@@ -455,7 +451,6 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
         SystemKeyspace.removeTruncationRecord(metadata.cfId);
         data.dropSSTables();
         indexManager.invalidate();
-        materializedViewManager.invalidate();
 
         invalidateCaches();
     }
@@ -577,10 +572,8 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
     }
 
     // must be called after all sstables are loaded since row cache merges all row versions
-    public void init()
+    public void initRowCache()
     {
-        materializedViewManager.init();
-
         if (!isRowCacheEnabled())
             return;
 
@@ -1813,7 +1806,7 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
                     cfs.data.reset();
                     return null;
                 }
-            }, true, false);
+            }, true);
         }
     }
 
@@ -1841,16 +1834,19 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
             // flush the CF being truncated before forcing the new segment
             forceBlockingFlush();
 
-            materializedViewManager.forceBlockingFlush();
-
             // sleep a little to make sure that our truncatedAt comes after any sstable
             // that was part of the flushed we forced; otherwise on a tie, it won't get deleted.
             Uninterruptibles.sleepUninterruptibly(1, TimeUnit.MILLISECONDS);
         }
         else
         {
-            dumpMemtable();
-            materializedViewManager.dumpMemtables();
+            // just nuke the memtable data w/o writing to disk first
+            synchronized (data)
+            {
+                final Flush flush = new Flush(true);
+                flushExecutor.execute(flush);
+                postFlushExecutor.submit(flush.postFlush);
+            }
         }
 
         Runnable truncateRunnable = new Runnable()
@@ -1870,32 +1866,17 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
                 for (SecondaryIndex index : indexManager.getIndexes())
                     index.truncateBlocking(truncatedAt);
 
-                materializedViewManager.truncateBlocking(truncatedAt);
-
                 SystemKeyspace.saveTruncationRecord(ColumnFamilyStore.this, truncatedAt, replayAfter);
                 logger.debug("cleaning out row cache");
                 invalidateCaches();
             }
         };
 
-        runWithCompactionsDisabled(Executors.callable(truncateRunnable), true, true);
+        runWithCompactionsDisabled(Executors.callable(truncateRunnable), true);
         logger.debug("truncate complete");
     }
 
-    /**
-     * Drops current memtable without flushing to disk. This should only be called when truncating a column family which is not durable.
-     */
-    public void dumpMemtable()
-    {
-        synchronized (data)
-        {
-            final Flush flush = new Flush(true);
-            flushExecutor.execute(flush);
-            postFlushExecutor.submit(flush.postFlush);
-        }
-    }
-
-    public <V> V runWithCompactionsDisabled(Callable<V> callable, boolean interruptValidation, boolean interruptViews)
+    public <V> V runWithCompactionsDisabled(Callable<V> callable, boolean interruptValidation)
     {
         // synchronize so that concurrent invocations don't re-enable compactions partway through unexpectedly,
         // and so we only run one major compaction at a time
@@ -1903,20 +1884,17 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
         {
             logger.debug("Cancelling in-progress compactions for {}", metadata.cfName);
 
-            Iterable<ColumnFamilyStore> selfWithAuxiliaryCfs = interruptViews
-                                                               ? Iterables.concat(concatWithIndexes(), materializedViewManager.allViewsCfs())
-                                                               : concatWithIndexes();
-
-            for (ColumnFamilyStore cfs : selfWithAuxiliaryCfs)
+            Iterable<ColumnFamilyStore> selfWithIndexes = concatWithIndexes();
+            for (ColumnFamilyStore cfs : selfWithIndexes)
                 cfs.getCompactionStrategyManager().pause();
             try
             {
                 // interrupt in-progress compactions
-                CompactionManager.instance.interruptCompactionForCFs(selfWithAuxiliaryCfs, interruptValidation);
-                CompactionManager.instance.waitForCessation(selfWithAuxiliaryCfs);
+                CompactionManager.instance.interruptCompactionForCFs(selfWithIndexes, interruptValidation);
+                CompactionManager.instance.waitForCessation(selfWithIndexes);
 
                 // doublecheck that we finished, instead of timing out
-                for (ColumnFamilyStore cfs : selfWithAuxiliaryCfs)
+                for (ColumnFamilyStore cfs : selfWithIndexes)
                 {
                     if (!cfs.getTracker().getCompacting().isEmpty())
                     {
@@ -1938,7 +1916,7 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
             }
             finally
             {
-                for (ColumnFamilyStore cfs : selfWithAuxiliaryCfs)
+                for (ColumnFamilyStore cfs : selfWithIndexes)
                     cfs.getCompactionStrategyManager().resume();
             }
         }
@@ -1958,7 +1936,7 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
             }
         };
 
-        return runWithCompactionsDisabled(callable, false, false);
+        return runWithCompactionsDisabled(callable, false);
     }
 
 

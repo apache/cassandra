@@ -58,10 +58,7 @@ public class CreateTriggerStatement extends SchemaAlteringStatement
 
     public void validate(ClientState state) throws RequestValidationException
     {
-        CFMetaData cfm = ThriftValidation.validateColumnFamily(keyspace(), columnFamily());
-        if (cfm.isMaterializedView())
-            throw new InvalidRequestException("Cannot CREATE TRIGGER against a materialized view");
-
+        ThriftValidation.validateColumnFamily(keyspace(), columnFamily());
         try
         {
             TriggerExecutor.instance.loadTriggerInstance(triggerClass);
