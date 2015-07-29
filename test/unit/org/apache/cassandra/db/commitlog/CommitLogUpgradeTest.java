@@ -23,8 +23,6 @@ package org.apache.cassandra.db.commitlog;
 
 import java.io.*;
 import java.nio.ByteBuffer;
-import java.nio.charset.StandardCharsets;
-import java.util.Iterator;
 import java.util.Properties;
 import java.util.UUID;
 
@@ -42,7 +40,6 @@ import org.apache.cassandra.db.Mutation;
 import org.apache.cassandra.db.rows.Cell;
 import org.apache.cassandra.db.rows.Row;
 import org.apache.cassandra.db.marshal.AsciiType;
-import org.apache.cassandra.db.marshal.UTF8Type;
 import org.apache.cassandra.db.marshal.BytesType;
 import org.apache.cassandra.db.partitions.PartitionUpdate;
 import org.apache.cassandra.schema.KeyspaceParams;
@@ -57,6 +54,7 @@ public class CommitLogUpgradeTest
 
     static final String TABLE = "Standard1";
     static final String KEYSPACE = "Keyspace1";
+    static final String CELLNAME = "name";
 
     @Test
     public void test20() throws Exception
@@ -75,7 +73,7 @@ public class CommitLogUpgradeTest
     {
         CFMetaData metadata = CFMetaData.Builder.createDense(KEYSPACE, TABLE, false, false)
                                                 .addPartitionKey("key", AsciiType.instance)
-                                                .addClusteringColumn("col", BytesType.instance)
+                                                .addClusteringColumn("col", AsciiType.instance)
                                                 .addRegularColumn("val", BytesType.instance)
                                                 .build()
                                                 .compressionParameters(SchemaLoader.getCompressionParameters());
@@ -142,13 +140,15 @@ public class CommitLogUpgradeTest
             for (PartitionUpdate update : mutation.getPartitionUpdates())
             {
                 for (Row row : update)
-                {
-                    for (Cell cell : row.cells())
+                    if (row.clustering().size() > 0 &&
+                        AsciiType.instance.compose(row.clustering().get(0)).startsWith(CELLNAME))
                     {
-                        hash = hash(hash, cell.value());
-                        ++cells;
+                        for (Cell cell : row.cells())
+                        {
+                            hash = hash(hash, cell.value());
+                            ++cells;
+                        }
                     }
-                }
             }
             return true;
         }

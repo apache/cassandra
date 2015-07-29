@@ -239,7 +239,7 @@ public class CommitLogUpgradeTestMaker
                 {
                     int sz = randomSize ? tlr.nextInt(cellSize) : cellSize;
                     ByteBuffer bytes = randomBytes(sz, tlr);
-                    builder.newRow("name" + ii).add("val", bytes);
+                    builder.newRow(CommitLogUpgradeTest.CELLNAME + ii).add("val", bytes);
                     hash = hash(hash, bytes);
                     ++cells;
                     dataSize += sz;
