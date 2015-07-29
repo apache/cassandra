@@ -24,6 +24,8 @@ import java.net.InetAddress;
 import java.net.Socket;
 import java.net.SocketException;
 import java.nio.ByteBuffer;
+import java.nio.channels.Channels;
+import java.nio.channels.WritableByteChannel;
 import java.util.*;
 import java.util.concurrent.BlockingQueue;
 import java.util.concurrent.CountDownLatch;
@@ -401,7 +403,9 @@ public class OutboundTcpConnection extends Thread
                     }
                 }
 
-                out = new BufferedDataOutputStreamPlus(socket.getChannel(), BUFFER_SIZE);
+                // SocketChannel may be null when using SSL
+                WritableByteChannel ch = socket.getChannel();
+                out = new BufferedDataOutputStreamPlus(ch != null ? ch : Channels.newChannel(socket.getOutputStream()), BUFFER_SIZE);
 
                 out.writeInt(MessagingService.PROTOCOL_MAGIC);
                 writeHeader(out, targetVersion, shouldCompressConnection());
