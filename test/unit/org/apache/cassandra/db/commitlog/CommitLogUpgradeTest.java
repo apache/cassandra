@@ -68,6 +68,24 @@ public class CommitLogUpgradeTest
         testRestore(DATA_DIR + "2.1");
     }
 
+    @Test
+    public void test22() throws Exception
+    {
+        testRestore(DATA_DIR + "2.2");
+    }
+
+    @Test
+    public void test22_LZ4() throws Exception
+    {
+        testRestore(DATA_DIR + "2.2-lz4");
+    }
+
+    @Test
+    public void test22_Snappy() throws Exception
+    {
+        testRestore(DATA_DIR + "2.2-snappy");
+    }
+
     @BeforeClass
     static public void initialize() throws FileNotFoundException, IOException, InterruptedException
     {
