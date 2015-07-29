@@ -410,7 +410,7 @@ public class SerializationHeader
             EncodingStats.serializer.serialize(header.stats, out);
 
             writeType(header.keyType, out);
-            out.writeShort(header.clusteringTypes.size());
+            out.writeVInt(header.clusteringTypes.size());
             for (AbstractType<?> type : header.clusteringTypes)
                 writeType(type, out);
 
@@ -424,7 +424,7 @@ public class SerializationHeader
             EncodingStats stats = EncodingStats.serializer.deserialize(in);
 
             AbstractType<?> keyType = readType(in);
-            int size = in.readUnsignedShort();
+            int size = (int)in.readVInt();
             List<AbstractType<?>> clusteringTypes = new ArrayList<>(size);
             for (int i = 0; i < size; i++)
                 clusteringTypes.add(readType(in));
@@ -444,7 +444,7 @@ public class SerializationHeader
             int size = EncodingStats.serializer.serializedSize(header.stats);
 
             size += sizeofType(header.keyType);
-            size += TypeSizes.sizeof((short)header.clusteringTypes.size());
+            size += TypeSizes.sizeofVInt(header.clusteringTypes.size());
             for (AbstractType<?> type : header.clusteringTypes)
                 size += sizeofType(type);
 
@@ -455,20 +455,20 @@ public class SerializationHeader
 
         private void writeColumnsWithTypes(Map<ByteBuffer, AbstractType<?>> columns, DataOutputPlus out) throws IOException
         {
-            out.writeShort(columns.size());
+            out.writeVInt(columns.size());
             for (Map.Entry<ByteBuffer, AbstractType<?>> entry : columns.entrySet())
             {
-                ByteBufferUtil.writeWithShortLength(entry.getKey(), out);
+                ByteBufferUtil.writeWithVIntLength(entry.getKey(), out);
                 writeType(entry.getValue(), out);
             }
         }
 
         private long sizeofColumnsWithTypes(Map<ByteBuffer, AbstractType<?>> columns)
         {
-            long size = TypeSizes.sizeof((short)columns.size());
+            long size = TypeSizes.sizeofVInt(columns.size());
             for (Map.Entry<ByteBuffer, AbstractType<?>> entry : columns.entrySet())
             {
-                size += TypeSizes.sizeofWithShortLength(entry.getKey());
+                size += ByteBufferUtil.serializedSizeWithVIntLength(entry.getKey());
                 size += sizeofType(entry.getValue());
             }
             return size;
@@ -476,10 +476,10 @@ public class SerializationHeader
 
         private void readColumnsWithType(DataInputPlus in, Map<ByteBuffer, AbstractType<?>> typeMap) throws IOException
         {
-            int length = in.readUnsignedShort();
+            int length = (int)in.readVInt();
             for (int i = 0; i < length; i++)
             {
-                ByteBuffer name = ByteBufferUtil.readWithShortLength(in);
+                ByteBuffer name = ByteBufferUtil.readWithVIntLength(in);
                 typeMap.put(name, readType(in));
             }
         }
@@ -487,18 +487,18 @@ public class SerializationHeader
         private void writeType(AbstractType<?> type, DataOutputPlus out) throws IOException
         {
             // TODO: we should have a terser serializaion format. Not a big deal though
-            ByteBufferUtil.writeWithLength(UTF8Type.instance.decompose(type.toString()), out);
+            ByteBufferUtil.writeWithVIntLength(UTF8Type.instance.decompose(type.toString()), out);
         }
 
         private AbstractType<?> readType(DataInputPlus in) throws IOException
         {
-            ByteBuffer raw = ByteBufferUtil.readWithLength(in);
+            ByteBuffer raw = ByteBufferUtil.readWithVIntLength(in);
             return TypeParser.parse(UTF8Type.instance.compose(raw));
         }
 
         private int sizeofType(AbstractType<?> type)
         {
-            return TypeSizes.sizeofWithLength(UTF8Type.instance.decompose(type.toString()));
+            return ByteBufferUtil.serializedSizeWithVIntLength(UTF8Type.instance.decompose(type.toString()));
         }
     }
 }

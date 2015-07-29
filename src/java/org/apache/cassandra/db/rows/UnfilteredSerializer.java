@@ -146,7 +146,7 @@ public class UnfilteredSerializer
             writeComplexColumn(i, (ComplexColumnData)cells.next(columns.getComplex(i - simpleCount)), hasComplexDeletion, pkLiveness, header, out, useSparse);
 
         if (useSparse)
-            out.writeShort(-1);
+            out.writeVInt(-1);
     }
 
     private void writeSimpleColumn(int idx, Cell cell, LivenessInfo rowLiveness, SerializationHeader header, DataOutputPlus out, boolean useSparse)
@@ -157,7 +157,7 @@ public class UnfilteredSerializer
             if (cell == null)
                 return;
 
-            out.writeShort(idx);
+            out.writeVInt(idx);
         }
         Cell.serializer.serialize(cell, out, rowLiveness, header);
     }
@@ -170,7 +170,7 @@ public class UnfilteredSerializer
             if (data == null)
                 return;
 
-            out.writeShort(idx);
+            out.writeVInt(idx);
         }
 
         if (hasComplexDeletion)
@@ -244,7 +244,7 @@ public class UnfilteredSerializer
             size += sizeOfComplexColumn(i, (ComplexColumnData)cells.next(columns.getComplex(i - simpleCount)), hasComplexDeletion, pkLiveness, header, useSparse);
 
         if (useSparse)
-            size += TypeSizes.sizeof((short)-1);
+            size += TypeSizes.sizeofVInt(-1);
 
         return size;
     }
@@ -257,7 +257,7 @@ public class UnfilteredSerializer
             if (cell == null)
                 return size;
 
-            size += TypeSizes.sizeof((short)idx);
+            size += TypeSizes.sizeofVInt(idx);
         }
         return size + Cell.serializer.serializedSize(cell, rowLiveness, header);
     }
@@ -270,7 +270,7 @@ public class UnfilteredSerializer
             if (data == null)
                 return size;
 
-            size += TypeSizes.sizeof((short)idx);
+            size += TypeSizes.sizeofVInt(idx);
         }
 
         if (hasComplexDeletion)
@@ -388,7 +388,7 @@ public class UnfilteredSerializer
                 int count = columns.columnCount();
                 int simpleCount = columns.simpleColumnCount();
                 int i;
-                while ((i = in.readShort()) >= 0)
+                while ((i = (int)in.readVInt()) >= 0)
                 {
                     if (i > count)
                         throw new IOException(String.format("Impossible column index %d, the header has only %d columns defined", i, count));
@@ -489,7 +489,7 @@ public class UnfilteredSerializer
             int count = columns.columnCount();
             int simpleCount = columns.simpleColumnCount();
             int i;
-            while ((i = in.readShort()) >= 0)
+            while ((i = (int)in.readVInt()) >= 0)
             {
                 if (i > count)
                     throw new IOException(String.format("Impossible column index %d, the header has only %d columns defined", i, count));

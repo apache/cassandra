@@ -17,7 +17,6 @@
  */
 package org.apache.cassandra.db.filter;
 
-import java.io.DataInput;
 import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.util.*;
@@ -33,6 +32,7 @@ import org.apache.cassandra.db.partitions.*;
 import org.apache.cassandra.db.marshal.*;
 import org.apache.cassandra.db.partitions.UnfilteredPartitionIterator;
 import org.apache.cassandra.exceptions.InvalidRequestException;
+import org.apache.cassandra.io.util.DataInputPlus;
 import org.apache.cassandra.io.util.DataOutputPlus;
 import org.apache.cassandra.net.MessagingService;
 import org.apache.cassandra.utils.ByteBufferUtil;
@@ -392,7 +392,7 @@ public abstract class RowFilter implements Iterable<RowFilter.Expression>
                 }
             }
 
-            public Expression deserialize(DataInput in, int version, CFMetaData metadata) throws IOException
+            public Expression deserialize(DataInputPlus in, int version, CFMetaData metadata) throws IOException
             {
                 ByteBuffer name = ByteBufferUtil.readWithShortLength(in);
                 Operator operator = Operator.readFrom(in);
@@ -742,15 +742,15 @@ public abstract class RowFilter implements Iterable<RowFilter.Expression>
         public void serialize(RowFilter filter, DataOutputPlus out, int version) throws IOException
         {
             out.writeBoolean(filter instanceof ThriftFilter);
-            out.writeShort(filter.expressions.size());
+            out.writeVInt(filter.expressions.size());
             for (Expression expr : filter.expressions)
                 Expression.serializer.serialize(expr, out, version);
         }
 
-        public RowFilter deserialize(DataInput in, int version, CFMetaData metadata) throws IOException
+        public RowFilter deserialize(DataInputPlus in, int version, CFMetaData metadata) throws IOException
         {
             boolean forThrift = in.readBoolean();
-            int size = in.readUnsignedShort();
+            int size = (int)in.readVInt();
             List<Expression> expressions = new ArrayList<>(size);
             for (int i = 0; i < size; i++)
                 expressions.add(Expression.serializer.deserialize(in, version, metadata));
@@ -762,7 +762,7 @@ public abstract class RowFilter implements Iterable<RowFilter.Expression>
         public long serializedSize(RowFilter filter, int version)
         {
             long size = 1 // forThrift
-                      + TypeSizes.sizeof((short)filter.expressions.size());
+                      + TypeSizes.sizeofVInt(filter.expressions.size());
             for (Expression expr : filter.expressions)
                 size += Expression.serializer.serializedSize(expr, version);
             return size;

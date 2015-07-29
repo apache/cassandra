@@ -20,8 +20,6 @@ package org.apache.cassandra.db;
 import java.io.*;
 import java.nio.ByteBuffer;
 import java.security.MessageDigest;
-import java.util.ArrayList;
-import java.util.List;
 
 import org.apache.cassandra.config.CFMetaData;
 import org.apache.cassandra.db.rows.*;
@@ -165,14 +163,14 @@ public abstract class ReadResponse
             }
 
             boolean isDigest = response.isDigestQuery();
-            ByteBufferUtil.writeWithShortLength(isDigest ? response.digest(response.metadata) : ByteBufferUtil.EMPTY_BYTE_BUFFER, out);
+            ByteBufferUtil.writeWithVIntLength(isDigest ? response.digest(response.metadata) : ByteBufferUtil.EMPTY_BYTE_BUFFER, out);
             if (!isDigest)
             {
                 // Note that we can only get there if version == 3.0, which is the current_version. When we'll change the
                 // version, we'll have to deserialize/re-serialize the data to be in the proper version.
                 assert version == MessagingService.VERSION_30;
                 ByteBuffer data = ((DataResponse)response).data;
-                ByteBufferUtil.writeWithLength(data, out);
+                ByteBufferUtil.writeWithVIntLength(data, out);
             }
         }
 
@@ -184,12 +182,12 @@ public abstract class ReadResponse
                 throw new UnsupportedOperationException();
             }
 
-            ByteBuffer digest = ByteBufferUtil.readWithShortLength(in);
+            ByteBuffer digest = ByteBufferUtil.readWithVIntLength(in);
             if (digest.hasRemaining())
                 return new DigestResponse(digest);
 
             assert version == MessagingService.VERSION_30;
-            ByteBuffer data = ByteBufferUtil.readWithLength(in);
+            ByteBuffer data = ByteBufferUtil.readWithVIntLength(in);
             return new DataResponse(data);
         }
 
@@ -202,15 +200,14 @@ public abstract class ReadResponse
             }
 
             boolean isDigest = response.isDigestQuery();
-            long size = ByteBufferUtil.serializedSizeWithShortLength(isDigest ? response.digest(response.metadata) : ByteBufferUtil.EMPTY_BYTE_BUFFER);
-
+            long size = ByteBufferUtil.serializedSizeWithVIntLength(isDigest ? response.digest(response.metadata) : ByteBufferUtil.EMPTY_BYTE_BUFFER);
             if (!isDigest)
             {
                 // Note that we can only get there if version == 3.0, which is the current_version. When we'll change the
                 // version, we'll have to deserialize/re-serialize the data to be in the proper version.
                 assert version == MessagingService.VERSION_30;
                 ByteBuffer data = ((DataResponse)response).data;
-                size += ByteBufferUtil.serializedSizeWithLength(data);
+                size += ByteBufferUtil.serializedSizeWithVIntLength(data);
             }
             return size;
         }
