@@ -99,12 +99,5 @@ public class CQLSSTableWriterClientTest
 
         File[] dataFiles = this.testDirectory.listFiles(filter);
         assertEquals(2, dataFiles.length);
-
-        File transactionsFolder = Directories.getTransactionsDirectory(testDirectory);
-        assertTrue(transactionsFolder.exists());
-
-        File[] opFiles = transactionsFolder.listFiles();
-        assertEquals(0, opFiles.length);
-
     }
 }

@@ -43,7 +43,7 @@ import org.apache.cassandra.db.compaction.CompactionManager;
 import org.apache.cassandra.db.compaction.OperationType;
 import org.apache.cassandra.db.compaction.Scrubber;
 import org.apache.cassandra.db.lifecycle.LifecycleTransaction;
-import org.apache.cassandra.db.lifecycle.TransactionLogs;
+import org.apache.cassandra.db.lifecycle.TransactionLog;
 import org.apache.cassandra.db.marshal.*;
 import org.apache.cassandra.db.marshal.UUIDType;
 import org.apache.cassandra.db.partitions.Partition;
@@ -371,7 +371,7 @@ public class ScrubTest
             {
                 scrubber.scrub();
             }
-            TransactionLogs.waitForDeletions();
+            TransactionLog.waitForDeletions();
             cfs.loadNewSSTables();
             assertOrderedAll(cfs, 7);
         }

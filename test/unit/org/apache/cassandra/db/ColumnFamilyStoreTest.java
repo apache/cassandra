@@ -532,7 +532,7 @@ public class ColumnFamilyStoreTest
 
         ColumnFamilyStore.scrubDataDirectories(cfs.metadata);
 
-        List<File> ssTableFiles = new Directories(cfs.metadata).sstableLister().listFiles();
+        List<File> ssTableFiles = new Directories(cfs.metadata).sstableLister(Directories.OnTxnErr.THROW).listFiles();
         assertNotNull(ssTableFiles);
         assertEquals(0, ssTableFiles.size());
     }

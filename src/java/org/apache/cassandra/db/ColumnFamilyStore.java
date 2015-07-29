@@ -353,7 +353,7 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
 
         if (data.loadsstables)
         {
-            Directories.SSTableLister sstableFiles = directories.sstableLister().skipTemporary(true);
+            Directories.SSTableLister sstableFiles = directories.sstableLister(Directories.OnTxnErr.IGNORE).skipTemporary(true);
             Collection<SSTableReader> sstables = SSTableReader.openAll(sstableFiles.list().entrySet(), metadata);
             data.addInitialSSTables(sstables);
         }
@@ -459,7 +459,7 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
         SystemKeyspace.removeTruncationRecord(metadata.cfId);
 
         data.dropSSTables();
-        TransactionLogs.waitForDeletions();
+        TransactionLog.waitForDeletions();
 
         indexManager.invalidate();
         materializedViewManager.invalidate();
@@ -503,7 +503,7 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
     {
         // get the max generation number, to prevent generation conflicts
         Directories directories = new Directories(metadata);
-        Directories.SSTableLister lister = directories.sstableLister().includeBackups(true);
+        Directories.SSTableLister lister = directories.sstableLister(Directories.OnTxnErr.IGNORE).includeBackups(true);
         List<Integer> generations = new ArrayList<Integer>();
         for (Map.Entry<Descriptor, Set<Component>> entry : lister.list().entrySet())
         {
@@ -534,7 +534,7 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
         LifecycleTransaction.removeUnfinishedLeftovers(metadata);
 
         logger.debug("Further extra check for orphan sstable files for {}", metadata.cfName);
-        for (Map.Entry<Descriptor,Set<Component>> sstableFiles : directories.sstableLister().list().entrySet())
+        for (Map.Entry<Descriptor,Set<Component>> sstableFiles : directories.sstableLister(Directories.OnTxnErr.IGNORE).list().entrySet())
         {
             Descriptor desc = sstableFiles.getKey();
             Set<Component> components = sstableFiles.getValue();
@@ -642,7 +642,7 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
             currentDescriptors.add(sstable.descriptor);
         Set<SSTableReader> newSSTables = new HashSet<>();
 
-        Directories.SSTableLister lister = directories.sstableLister().skipTemporary(true);
+        Directories.SSTableLister lister = directories.sstableLister(Directories.OnTxnErr.IGNORE).skipTemporary(true);
         for (Map.Entry<Descriptor, Set<Component>> entry : lister.list().entrySet())
         {
             Descriptor descriptor = entry.getKey();
@@ -1644,7 +1644,7 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
         Map<Integer, SSTableReader> active = new HashMap<>();
         for (SSTableReader sstable : getSSTables(SSTableSet.CANONICAL))
             active.put(sstable.descriptor.generation, sstable);
-        Map<Descriptor, Set<Component>> snapshots = directories.sstableLister().snapshots(tag).list();
+        Map<Descriptor, Set<Component>> snapshots = directories.sstableLister(Directories.OnTxnErr.IGNORE).snapshots(tag).list();
         Refs<SSTableReader> refs = new Refs<>();
         try
         {

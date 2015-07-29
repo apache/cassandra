@@ -45,7 +45,7 @@ import org.apache.cassandra.db.*;
 import org.apache.cassandra.db.commitlog.ReplayPosition;
 import org.apache.cassandra.db.filter.ColumnFilter;
 import org.apache.cassandra.db.index.SecondaryIndex;
-import org.apache.cassandra.db.lifecycle.TransactionLogs;
+import org.apache.cassandra.db.lifecycle.TransactionLog;
 import org.apache.cassandra.db.rows.*;
 import org.apache.cassandra.dht.*;
 import org.apache.cassandra.io.FSError;
@@ -1647,7 +1647,7 @@ public abstract class SSTableReader extends SSTable implements SelfRefCounted<SS
      * @return true if the this is the first time the file was marked obsolete.  Calling this
      * multiple times is usually buggy (see exceptions in Tracker.unmarkCompacting and removeOldSSTablesSize).
      */
-    public void markObsolete(TransactionLogs.SSTableTidier tidier)
+    public void markObsolete(TransactionLog.SSTableTidier tidier)
     {
         if (logger.isDebugEnabled())
             logger.debug("Marking {} compacted", getFilename());
@@ -1901,22 +1901,6 @@ public abstract class SSTableReader extends SSTable implements SelfRefCounted<SS
         return sstableMetadata.totalRows < 0
              ? -1
              : (sstableMetadata.totalRows == 0 ? 0 : (int)(sstableMetadata.totalColumnsSet / sstableMetadata.totalRows));
-    }
-
-    public Set<Integer> getAncestors()
-    {
-        try
-        {
-            CompactionMetadata compactionMetadata = (CompactionMetadata) descriptor.getMetadataSerializer().deserialize(descriptor, MetadataType.COMPACTION);
-            if (compactionMetadata != null)
-                return compactionMetadata.ancestors;
-            return Collections.emptySet();
-        }
-        catch (IOException e)
-        {
-            SSTableReader.logOpenException(descriptor, e);
-            return Collections.emptySet();
-        }
     }
 
     public int getSSTableLevel()
@@ -2191,7 +2175,7 @@ public abstract class SSTableReader extends SSTable implements SelfRefCounted<SS
         // sstable have been released
         private ScheduledFuture readMeterSyncFuture;
         // shared state managing if the logical sstable has been compacted; this is used in cleanup
-        private volatile TransactionLogs.SSTableTidier obsoletion;
+        private volatile TransactionLog.SSTableTidier obsoletion;
 
         GlobalTidy(final SSTableReader reader)
         {

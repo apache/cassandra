@@ -44,7 +44,7 @@ import org.apache.cassandra.db.Keyspace;
 import org.apache.cassandra.db.RowUpdateBuilder;
 import org.apache.cassandra.db.SerializationHeader;
 import org.apache.cassandra.db.rows.EncodingStats;
-import org.apache.cassandra.db.lifecycle.TransactionLogs;
+import org.apache.cassandra.db.lifecycle.TransactionLog;
 import org.apache.cassandra.db.rows.UnfilteredRowIterator;
 import org.apache.cassandra.db.compaction.AbstractCompactionStrategy;
 import org.apache.cassandra.db.compaction.CompactionController;
@@ -109,7 +109,7 @@ public class SSTableRewriterTest extends SchemaLoader
         Keyspace keyspace = Keyspace.open(KEYSPACE);
         ColumnFamilyStore store = keyspace.getColumnFamilyStore(CF);
         store.truncateBlocking();
-        TransactionLogs.waitForDeletions();
+        TransactionLog.waitForDeletions();
     }
 
     @Test
@@ -145,7 +145,7 @@ public class SSTableRewriterTest extends SchemaLoader
             }
             writer.finish();
         }
-        TransactionLogs.waitForDeletions();
+        TransactionLog.waitForDeletions();
         validateCFS(cfs);
         int filecounts = assertFileCounts(sstables.iterator().next().descriptor.directory.list());
         assertEquals(1, filecounts);
@@ -177,7 +177,7 @@ public class SSTableRewriterTest extends SchemaLoader
             }
             writer.finish();
         }
-        TransactionLogs.waitForDeletions();
+        TransactionLog.waitForDeletions();
         validateCFS(cfs);
         int filecounts = assertFileCounts(sstables.iterator().next().descriptor.directory.list());
         assertEquals(1, filecounts);
@@ -232,7 +232,7 @@ public class SSTableRewriterTest extends SchemaLoader
             assertTrue(checked);
             writer.finish();
         }
-        TransactionLogs.waitForDeletions();
+        TransactionLog.waitForDeletions();
         validateCFS(cfs);
         int filecounts = assertFileCounts(sstables.iterator().next().descriptor.directory.list());
         assertEquals(1, filecounts);
@@ -277,12 +277,12 @@ public class SSTableRewriterTest extends SchemaLoader
             // open till .abort() is called (via the builder)
             if (!FBUtilities.isWindows())
             {
-                TransactionLogs.waitForDeletions();
+                TransactionLog.waitForDeletions();
                 assertFileCounts(dir.list());
             }
             writer.abort();
             txn.abort();
-            TransactionLogs.waitForDeletions();
+            TransactionLog.waitForDeletions();
             int datafiles = assertFileCounts(dir.list());
             assertEquals(datafiles, 0);
             validateCFS(cfs);
@@ -328,7 +328,7 @@ public class SSTableRewriterTest extends SchemaLoader
             sstables = rewriter.finish();
         }
 
-        TransactionLogs.waitForDeletions();
+        TransactionLog.waitForDeletions();
 
         long sum = 0;
         for (SSTableReader x : cfs.getLiveSSTables())
@@ -337,7 +337,7 @@ public class SSTableRewriterTest extends SchemaLoader
         assertEquals(startStorageMetricsLoad - sBytesOnDisk + sum, StorageMetrics.load.getCount());
         assertEquals(files, sstables.size());
         assertEquals(files, cfs.getLiveSSTables().size());
-        TransactionLogs.waitForDeletions();
+        TransactionLog.waitForDeletions();
 
         // tmplink and tmp files should be gone:
         assertEquals(sum, cfs.metric.totalDiskSpaceUsed.getCount());
@@ -382,7 +382,7 @@ public class SSTableRewriterTest extends SchemaLoader
 
         assertEquals(files, sstables.size());
         assertEquals(files, cfs.getLiveSSTables().size());
-        TransactionLogs.waitForDeletions();
+        TransactionLog.waitForDeletions();
 
         assertFileCounts(s.descriptor.directory.list());
         validateCFS(cfs);
@@ -519,7 +519,7 @@ public class SSTableRewriterTest extends SchemaLoader
             test.run(scanner, controller, s, cfs, rewriter, txn);
         }
 
-        TransactionLogs.waitForDeletions();
+        TransactionLog.waitForDeletions();
 
         assertEquals(startSize, cfs.metric.liveDiskSpaceUsed.getCount());
         assertEquals(1, cfs.getLiveSSTables().size());
@@ -567,7 +567,7 @@ public class SSTableRewriterTest extends SchemaLoader
             }
         }
 
-        TransactionLogs.waitForDeletions();
+        TransactionLog.waitForDeletions();
 
         assertEquals(files - 1, cfs.getLiveSSTables().size()); // we never wrote anything to the last file
         assertFileCounts(s.descriptor.directory.list());
@@ -609,7 +609,7 @@ public class SSTableRewriterTest extends SchemaLoader
             sstables = rewriter.finish();
         }
 
-        TransactionLogs.waitForDeletions();
+        TransactionLog.waitForDeletions();
         assertFileCounts(s.descriptor.directory.list());
         validateCFS(cfs);
     }
@@ -650,7 +650,7 @@ public class SSTableRewriterTest extends SchemaLoader
         }
         assertEquals(files, sstables.size());
         assertEquals(files, cfs.getLiveSSTables().size());
-        TransactionLogs.waitForDeletions();
+        TransactionLog.waitForDeletions();
         assertFileCounts(s.descriptor.directory.list());
 
         validateCFS(cfs);
@@ -670,7 +670,7 @@ public class SSTableRewriterTest extends SchemaLoader
             splitter.split();
 
             assertFileCounts(s.descriptor.directory.list());
-            TransactionLogs.waitForDeletions();
+            TransactionLog.waitForDeletions();
 
             for (File f : s.descriptor.directory.listFiles())
             {
@@ -746,7 +746,7 @@ public class SSTableRewriterTest extends SchemaLoader
                 s.selfRef().release();
         }
 
-        TransactionLogs.waitForDeletions();
+        TransactionLog.waitForDeletions();
 
         int filecount = assertFileCounts(s.descriptor.directory.list());
         assertEquals(filecount, 1);
@@ -825,7 +825,7 @@ public class SSTableRewriterTest extends SchemaLoader
             rewriter.finish();
         }
         validateKeys(keyspace);
-        TransactionLogs.waitForDeletions();
+        TransactionLog.waitForDeletions();
         validateCFS(cfs);
         truncate(cfs);
     }
@@ -923,7 +923,7 @@ public class SSTableRewriterTest extends SchemaLoader
     public static void truncate(ColumnFamilyStore cfs)
     {
         cfs.truncateBlocking();
-        TransactionLogs.waitForDeletions();
+        TransactionLog.waitForDeletions();
         Uninterruptibles.sleepUninterruptibly(10L, TimeUnit.MILLISECONDS);
         assertEquals(0, cfs.metric.liveDiskSpaceUsed.getCount());
         assertEquals(0, cfs.metric.totalDiskSpaceUsed.getCount());

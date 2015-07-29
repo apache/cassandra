@@ -106,12 +106,12 @@ class Helpers
             assert !reader.isReplaced();
     }
 
-    static Throwable markObsolete(List<TransactionLogs.Obsoletion> obsoletions, Throwable accumulate)
+    static Throwable markObsolete(List<TransactionLog.Obsoletion> obsoletions, Throwable accumulate)
     {
         if (obsoletions == null || obsoletions.isEmpty())
             return accumulate;
 
-        for (TransactionLogs.Obsoletion obsoletion : obsoletions)
+        for (TransactionLog.Obsoletion obsoletion : obsoletions)
         {
             try
             {
@@ -125,13 +125,13 @@ class Helpers
         return accumulate;
     }
 
-    static Throwable prepareForObsoletion(Iterable<SSTableReader> readers, TransactionLogs txnLogs, List<TransactionLogs.Obsoletion> obsoletions, Throwable accumulate)
+    static Throwable prepareForObsoletion(Iterable<SSTableReader> readers, TransactionLog txnLogs, List<TransactionLog.Obsoletion> obsoletions, Throwable accumulate)
     {
         for (SSTableReader reader : readers)
         {
             try
             {
-                obsoletions.add(new TransactionLogs.Obsoletion(reader, txnLogs.obsoleted(reader)));
+                obsoletions.add(new TransactionLog.Obsoletion(reader, txnLogs.obsoleted(reader)));
             }
             catch (Throwable t)
             {
@@ -141,12 +141,12 @@ class Helpers
         return accumulate;
     }
 
-    static Throwable abortObsoletion(List<TransactionLogs.Obsoletion> obsoletions, Throwable accumulate)
+    static Throwable abortObsoletion(List<TransactionLog.Obsoletion> obsoletions, Throwable accumulate)
     {
         if (obsoletions == null || obsoletions.isEmpty())
             return accumulate;
 
-        for (TransactionLogs.Obsoletion obsoletion : obsoletions)
+        for (TransactionLog.Obsoletion obsoletion : obsoletions)
         {
             try
             {

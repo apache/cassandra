@@ -69,15 +69,6 @@ public class Upgrader
     private SSTableWriter createCompactionWriter(long repairedAt)
     {
         MetadataCollector sstableMetadataCollector = new MetadataCollector(cfs.getComparator());
-
-        // Get the max timestamp of the precompacted sstables
-        // and adds generation of live ancestors
-        sstableMetadataCollector.addAncestor(sstable.descriptor.generation);
-        for (Integer i : sstable.getAncestors())
-        {
-            if (new File(sstable.descriptor.withGeneration(i).filenameFor(Component.DATA)).exists())
-                sstableMetadataCollector.addAncestor(i);
-        }
         sstableMetadataCollector.sstableLevel(sstable.getSSTableLevel());
         return SSTableWriter.create(Descriptor.fromFilename(cfs.getSSTablePath(directory)),
                                     estimatedRows,

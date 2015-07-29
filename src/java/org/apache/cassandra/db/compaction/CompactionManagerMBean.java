@@ -58,7 +58,8 @@ public interface CompactionManagerMBean
     /**
      * Stop an individual running compaction using the compactionId.
      * @param compactionId Compaction ID of compaction to stop. Such IDs can be found in
-     *                     the compactions_in_progress table of the system keyspace.
+     *                     the transaction log files whose name starts with compaction_,
+     *                     located in the table transactions folder.
      */
     public void stopCompactionById(String compactionId);
 

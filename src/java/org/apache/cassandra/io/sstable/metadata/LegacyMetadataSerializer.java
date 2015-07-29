@@ -23,6 +23,7 @@ import java.util.*;
 
 import com.google.common.collect.Maps;
 
+import org.apache.cassandra.db.TypeSizes;
 import org.apache.cassandra.db.commitlog.ReplayPosition;
 import org.apache.cassandra.io.sstable.Component;
 import org.apache.cassandra.io.sstable.Descriptor;
@@ -60,9 +61,7 @@ public class LegacyMetadataSerializer extends MetadataSerializer
         out.writeDouble(validation.bloomFilterFPChance);
         out.writeDouble(stats.compressionRatio);
         out.writeUTF(validation.partitioner);
-        out.writeInt(compaction.ancestors.size());
-        for (Integer g : compaction.ancestors)
-            out.writeInt(g);
+        out.writeInt(0); // compaction ancestors
         StreamingHistogram.serializer.serialize(stats.estimatedTombstoneDropTime, out);
         out.writeInt(stats.sstableLevel);
         out.writeInt(stats.minClusteringValues.size());
@@ -99,10 +98,8 @@ public class LegacyMetadataSerializer extends MetadataSerializer
                 double bloomFilterFPChance = in.readDouble();
                 double compressionRatio = in.readDouble();
                 String partitioner = in.readUTF();
-                int nbAncestors = in.readInt();
-                Set<Integer> ancestors = new HashSet<>(nbAncestors);
-                for (int i = 0; i < nbAncestors; i++)
-                    ancestors.add(in.readInt());
+                int nbAncestors = in.readInt(); //skip compaction ancestors
+                in.skipBytes(nbAncestors * TypeSizes.sizeof(nbAncestors));
                 StreamingHistogram tombstoneHistogram = StreamingHistogram.serializer.deserialize(in);
                 int sstableLevel = 0;
                 if (in.available() > 0)
@@ -143,7 +140,7 @@ public class LegacyMetadataSerializer extends MetadataSerializer
                                                      -1));
                 if (types.contains(MetadataType.COMPACTION))
                     components.put(MetadataType.COMPACTION,
-                                   new CompactionMetadata(ancestors, null));
+                                   new CompactionMetadata(null));
             }
         }
         return components;

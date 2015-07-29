@@ -39,8 +39,9 @@ import org.apache.cassandra.config.Schema;
 import org.apache.cassandra.cql3.QueryProcessor;
 import org.apache.cassandra.cql3.UntypedResultSet;
 import org.apache.cassandra.db.ColumnFamilyStore;
+import org.apache.cassandra.db.Directories;
 import org.apache.cassandra.db.Keyspace;
-import org.apache.cassandra.db.lifecycle.TransactionLogs;
+import org.apache.cassandra.db.lifecycle.TransactionLog;
 import org.apache.cassandra.db.marshal.BytesType;
 import org.apache.cassandra.db.marshal.UTF8Type;
 import org.apache.cassandra.exceptions.ConfigurationException;
@@ -205,7 +206,7 @@ public class DefsTest
         ColumnFamilyStore store = Keyspace.open(cfm.ksName).getColumnFamilyStore(cfm.cfName);
         assertNotNull(store);
         store.forceBlockingFlush();
-        assertTrue(store.directories.sstableLister().list().size() > 0);
+        assertTrue(store.directories.sstableLister(Directories.OnTxnErr.THROW).list().size() > 0);
 
         MigrationManager.announceColumnFamilyDrop(ks.name, cfm.cfName);
 
@@ -227,7 +228,7 @@ public class DefsTest
 
         // verify that the files are gone.
         Supplier<Object> lambda = () -> {
-            for (File file : store.directories.sstableLister().listFiles())
+            for (File file : store.directories.sstableLister(Directories.OnTxnErr.THROW).listFiles())
             {
                 if (file.getPath().endsWith("Data.db") && !new File(file.getPath().replace("Data.db", "Compacted")).exists())
                     return false;
@@ -276,7 +277,7 @@ public class DefsTest
         ColumnFamilyStore cfs = Keyspace.open(cfm.ksName).getColumnFamilyStore(cfm.cfName);
         assertNotNull(cfs);
         cfs.forceBlockingFlush();
-        assertTrue(!cfs.directories.sstableLister().list().isEmpty());
+        assertTrue(!cfs.directories.sstableLister(Directories.OnTxnErr.THROW).list().isEmpty());
 
         MigrationManager.announceKeyspaceDrop(ks.name);
 
@@ -521,7 +522,7 @@ public class DefsTest
 
         // check
         assertTrue(cfs.indexManager.getIndexes().isEmpty());
-        TransactionLogs.waitForDeletions();
+        TransactionLog.waitForDeletions();
         assertFalse(new File(desc.filenameFor(Component.DATA)).exists());
     }
 

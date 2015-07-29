@@ -38,6 +38,24 @@ Upgrading
    - The default JVM flag -XX:+PerfDisableSharedMem will cause the following tools JVM
      to stop working: jps, jstack, jinfo, jmc, jcmd as well as 3rd party tools like Jolokia.
      If you wish to use these tools you can comment this flag out in cassandra-env.{sh,ps1}
+   - New transaction log files have been introduced to replace the compactions_in_progress
+     system table, temporary file markers (tmp and tmplink) and sstable ancerstors.
+     Therefore, compaction metadata no longer contains ancestors. Transaction log files
+     list sstable descriptors involved in compactions and other operations such as flushing
+     and streaming. Use the sstableutil tool to list any sstable files currently involved
+     in operations not yet completed, which previously would have been marked as temporary.
+     A transaction log file contains one sstable per line, with the prefix "add:" or "remove:".
+     They also contain a special line "commit", only inserted at the end when the transaction
+     is committed. On startup we use these files to cleanup any partial transactions that were
+     in progress when the process exited. If the commit line is found, we keep new sstables
+     (those with the "add" prefix) and delete the old sstables (those with the "remove" prefix),
+     vice-versa if the commit line is missing. Should you lose or delete these log files,
+     both old and new sstable files will be kept as live files, which will result in duplicated
+     sstables. These files are protected by incremental checksums so you should not manually
+     edit them. When restoring a full backup or moving sstable files, you should clean-up
+     any left over transactions and their temporary files first. You can use this command:
+      ===> sstableutil -c ks table
+     See CASSANDRA-7066 for full details.
    - New write stages have been added for batchlog and materialized view mutations
      you can set their size in cassandra.yaml
    - User defined functions are now executed in a sandbox.
