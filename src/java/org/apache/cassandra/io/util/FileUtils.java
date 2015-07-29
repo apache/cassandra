@@ -24,6 +24,7 @@ import java.nio.charset.Charset;
 import java.nio.file.*;
 import java.text.DecimalFormat;
 import java.util.Arrays;
+import java.util.Collections;
 import java.util.List;
 
 import org.apache.cassandra.config.Config;
@@ -614,6 +615,11 @@ public class FileUtils
         try
         {
             return Files.readAllLines(file.toPath(), Charset.forName("utf-8"));
+        }
+        catch (NoSuchFileException ex)
+        {
+            logger.warn("Tried to read non existing file: {}", file);
+            return Collections.emptyList();
         }
         catch (IOException ex)
         {

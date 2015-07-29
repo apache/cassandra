@@ -502,7 +502,31 @@ public class TransactionLogsTest extends AbstractTransactionalTest
         sstable2.selfRef().release();
     }
 
-    public static SSTableReader sstable(ColumnFamilyStore cfs, int generation, int size) throws IOException
+    @Test
+    public void testGetTemporaryFilesSafeAfterObsoletion() throws Throwable
+    {
+        ColumnFamilyStore cfs = MockSchema.newCFS(KEYSPACE);
+        SSTableReader sstable = sstable(cfs, 0, 128);
+        File dataFolder = sstable.descriptor.directory;
+
+        TransactionLogs transactionLogs = new TransactionLogs(OperationType.COMPACTION, cfs.metadata);
+        assertNotNull(transactionLogs);
+
+        TransactionLogs.SSTableTidier tidier = transactionLogs.obsoleted(sstable);
+
+        transactionLogs.finish();
+        sstable.markObsolete(tidier);
+        sstable.selfRef().release();
+
+        for (int i = 0; i < 1000; i++)
+        {
+            // This should race with the asynchronous deletion of txn log files
+            // It doesn't matter what it returns but it should not throw
+            TransactionLogs.getTemporaryFiles(cfs.metadata, dataFolder);
+        }
+    }
+
+    private static SSTableReader sstable(ColumnFamilyStore cfs, int generation, int size) throws IOException
     {
         Directories dir = new Directories(cfs.metadata);
         Descriptor descriptor = new Descriptor(dir.getDirectoryForNewSSTables(), cfs.keyspace.getName(), cfs.getColumnFamilyName(), generation);

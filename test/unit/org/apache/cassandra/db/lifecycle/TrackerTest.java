@@ -205,14 +205,19 @@ public class TrackerTest
 
         try
         {
-            TransactionLogs.pauseDeletions(true);
+           // TransactionLogs.pauseDeletions(true);
             try (LifecycleTransaction txn = tracker.tryModify(readers.get(0), OperationType.COMPACTION))
             {
                 if (invalidate)
+                {
                     cfs.invalidate(false);
+                }
                 else
+                {
                     tracker.dropSSTables();
-                Assert.assertEquals(95, cfs.metric.totalDiskSpaceUsed.getCount());
+                    TransactionLogs.waitForDeletions();
+                }
+                Assert.assertEquals(9, cfs.metric.totalDiskSpaceUsed.getCount());
                 Assert.assertEquals(9, cfs.metric.liveDiskSpaceUsed.getCount());
                 Assert.assertEquals(1, tracker.getView().sstables.size());
             }
@@ -253,7 +258,7 @@ public class TrackerTest
         }
         finally
         {
-            TransactionLogs.pauseDeletions(false);
+           // TransactionLogs.pauseDeletions(false);
         }
     }
 

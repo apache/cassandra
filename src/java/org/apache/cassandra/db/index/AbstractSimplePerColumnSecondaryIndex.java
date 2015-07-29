@@ -18,11 +18,14 @@
 package org.apache.cassandra.db.index;
 
 import java.nio.ByteBuffer;
+import java.util.Collection;
+import java.util.Collections;
 import java.util.concurrent.Future;
 
 import org.apache.cassandra.config.CFMetaData;
 import org.apache.cassandra.config.ColumnDefinition;
 import org.apache.cassandra.db.*;
+import org.apache.cassandra.db.compaction.CompactionManager;
 import org.apache.cassandra.db.rows.*;
 import org.apache.cassandra.db.partitions.*;
 import org.apache.cassandra.db.marshal.AbstractType;
@@ -155,6 +158,15 @@ public abstract class AbstractSimplePerColumnSecondaryIndex extends PerColumnSec
 
     public void removeIndex(ByteBuffer columnName)
     {
+        // interrupt in-progress compactions
+        Collection<ColumnFamilyStore> cfss = Collections.singleton(indexCfs);
+        CompactionManager.instance.interruptCompactionForCFs(cfss, true);
+        CompactionManager.instance.waitForCessation(cfss);
+
+        indexCfs.keyspace.writeOrder.awaitNewBarrier();
+        indexCfs.forceBlockingFlush();
+
+        indexCfs.readOrdering.awaitNewBarrier();
         indexCfs.invalidate();
     }
 
