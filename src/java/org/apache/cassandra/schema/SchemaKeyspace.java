@@ -1340,7 +1340,7 @@ public final class SchemaKeyspace
         String name = row.getString("view_name");
         List<String> partitionColumnNames = row.getList("target_columns", UTF8Type.instance);
 
-        String cfName = row.getString("columnfamily_name");
+        String cfName = row.getString("table_name");
         List<String> clusteringColumnNames = row.getList("clustering_columns", UTF8Type.instance);
 
         List<ColumnIdentifier> partitionColumns = new ArrayList<>();
