@@ -18,54 +18,52 @@
  */
 package org.apache.cassandra.db;
 
+import java.io.File;
+import java.io.IOError;
+import java.io.IOException;
+import java.io.RandomAccessFile;
 import java.lang.reflect.Field;
 import java.lang.reflect.Modifier;
 import java.nio.ByteBuffer;
 import java.util.*;
 import java.util.concurrent.ExecutionException;
 
-import java.io.File;
-import java.io.IOError;
-import java.io.IOException;
-import java.io.RandomAccessFile;
-
-import org.apache.cassandra.Util;
-import org.apache.cassandra.UpdateBuilder;
-import org.apache.cassandra.cql3.QueryProcessor;
-import org.apache.cassandra.db.partitions.*;
-import org.apache.cassandra.db.marshal.BytesType;
-import org.apache.cassandra.db.marshal.UUIDType;
-import org.apache.cassandra.db.compaction.OperationType;
-import org.apache.cassandra.db.lifecycle.LifecycleTransaction;
-import org.apache.cassandra.db.rows.Row;
-import org.apache.cassandra.exceptions.ConfigurationException;
-import org.apache.cassandra.exceptions.RequestExecutionException;
-import org.apache.cassandra.io.compress.CompressionMetadata;
-import org.apache.cassandra.io.sstable.format.SSTableFormat;
-import org.apache.cassandra.io.sstable.format.SSTableReader;
-import org.apache.cassandra.io.sstable.format.SSTableWriter;
-import org.apache.cassandra.schema.KeyspaceParams;
 import org.apache.commons.lang3.StringUtils;
 import org.junit.BeforeClass;
 import org.junit.Test;
 import org.junit.runner.RunWith;
 
-import org.apache.cassandra.config.*;
+import org.apache.cassandra.OrderedJUnit4ClassRunner;
+import org.apache.cassandra.SchemaLoader;
+import org.apache.cassandra.UpdateBuilder;
+import org.apache.cassandra.Util;
+import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.cql3.Operator;
+import org.apache.cassandra.cql3.QueryProcessor;
 import org.apache.cassandra.cql3.UntypedResultSet;
 import org.apache.cassandra.db.compaction.CompactionManager;
+import org.apache.cassandra.db.compaction.OperationType;
 import org.apache.cassandra.db.compaction.Scrubber;
 import org.apache.cassandra.db.index.SecondaryIndex;
+import org.apache.cassandra.db.lifecycle.LifecycleTransaction;
 import org.apache.cassandra.db.marshal.*;
+import org.apache.cassandra.db.partitions.Partition;
+import org.apache.cassandra.db.partitions.PartitionUpdate;
+import org.apache.cassandra.dht.ByteOrderedPartitioner;
+import org.apache.cassandra.dht.IPartitioner;
+import org.apache.cassandra.exceptions.ConfigurationException;
+import org.apache.cassandra.exceptions.RequestExecutionException;
 import org.apache.cassandra.exceptions.WriteTimeoutException;
+import org.apache.cassandra.io.compress.CompressionMetadata;
 import org.apache.cassandra.io.sstable.Component;
 import org.apache.cassandra.io.sstable.Descriptor;
 import org.apache.cassandra.io.sstable.SSTableRewriter;
-import org.apache.cassandra.OrderedJUnit4ClassRunner;
-import org.apache.cassandra.SchemaLoader;
+import org.apache.cassandra.io.sstable.SSTableTxnWriter;
+import org.apache.cassandra.io.sstable.format.SSTableReader;
+import org.apache.cassandra.io.util.FileUtils;
+import org.apache.cassandra.schema.KeyspaceParams;
 import org.apache.cassandra.service.StorageService;
 import org.apache.cassandra.utils.ByteBufferUtil;
-import org.apache.cassandra.utils.OutputHandler;
 
 import static org.junit.Assert.*;
 import static org.junit.Assume.assumeTrue;
@@ -306,74 +304,84 @@ public class ScrubTest
     @Test
     public void testScrubOutOfOrder() throws Exception
     {
-        CompactionManager.instance.disableAutoCompaction();
-        Keyspace keyspace = Keyspace.open(KEYSPACE);
-        String columnFamily = CF3;
-        ColumnFamilyStore cfs = keyspace.getColumnFamilyStore(columnFamily);
-        cfs.clearUnsafe();
+        // This test assumes ByteOrderPartitioner to create out-of-order SSTable
+        IPartitioner oldPartitioner = DatabaseDescriptor.getPartitioner();
+        DatabaseDescriptor.setPartitioner(new ByteOrderedPartitioner());
 
-        /*
-         * Code used to generate an outOfOrder sstable. The test for out-of-order key in BigTableWriter must also be commented out.
-         * The test also assumes an ordered partitioner.
-        List<String> keys = Arrays.asList("t", "a", "b", "z", "c", "y", "d");
-        SSTableWriter writer = new SSTableWriter(cfs.getTempSSTablePath(new File(System.getProperty("corrupt-sstable-root"))),
-        SSTableWriter writer = SSTableWriter.create(cfs.metadata,
-                                                    Descriptor.fromFilename(filename),
-                                                    keys.size(),
-                                                    0L,
-                                                    0,
-                                                    DatabaseDescriptor.getPartitioner(),
-                                                    SerializationHeader.make(cfs.metadata, Collections.emptyList()));
-
-        for (String k : keys)
-        {
-            RowUpdateBuilder builder = new RowUpdateBuilder(cfs.metadata, 0L, Util.dk(k));
-            PartitionUpdate update = builder.clustering("someName")
-                                            .add("val", "someValue")
-                                            .buildUpdate();
-
-            writer.append(update.unfilteredIterator());
-        }
-        writer.finish(false);
-         */
-
-        String root = System.getProperty("corrupt-sstable-root");
-        assert root != null;
-
-        File rootDir = new File(root);
-        assert rootDir.isDirectory();
-        Descriptor desc = new Descriptor("la", rootDir, KEYSPACE, columnFamily, 1, SSTableFormat.Type.BIG);
-        CFMetaData metadata = Schema.instance.getCFMetaData(desc.ksname, desc.cfname);
-
+        // Create out-of-order SSTable
+        File tempDir = File.createTempFile("ScrubTest.testScrubOutOfOrder", "").getParentFile();
+        // create ks/cf directory
+        File tempDataDir = new File(tempDir, String.join(File.separator, KEYSPACE, CF3));
+        tempDataDir.mkdirs();
         try
         {
-            SSTableReader.open(desc, metadata);
-            fail("SSTR validation should have caught the out-of-order rows");
+            CompactionManager.instance.disableAutoCompaction();
+            Keyspace keyspace = Keyspace.open(KEYSPACE);
+            String columnFamily = CF3;
+            ColumnFamilyStore cfs = keyspace.getColumnFamilyStore(columnFamily);
+            cfs.clearUnsafe();
+
+            List<String> keys = Arrays.asList("t", "a", "b", "z", "c", "y", "d");
+            String filename = cfs.getSSTablePath(tempDataDir);
+            Descriptor desc = Descriptor.fromFilename(filename);
+
+            try (SSTableTxnWriter writer = SSTableTxnWriter.create(desc,
+                                                             keys.size(),
+                                                             0L,
+                                                             0,
+                                                             SerializationHeader.make(cfs.metadata,
+                                                                                      Collections.emptyList())))
+            {
+
+                for (String k : keys)
+                {
+                    PartitionUpdate update = UpdateBuilder.create(cfs.metadata, Util.dk(k))
+                                                          .newRow("someName").add("val", "someValue")
+                                                          .build();
+
+                    writer.append(update.unfilteredIterator());
+                }
+                writer.finish(false);
+            }
+
+            try
+            {
+                SSTableReader.open(desc, cfs.metadata);
+                fail("SSTR validation should have caught the out-of-order rows");
+            }
+            catch (IllegalStateException ise)
+            { /* this is expected */ }
+
+            // open without validation for scrubbing
+            Set<Component> components = new HashSet<>();
+            if (new File(desc.filenameFor(Component.COMPRESSION_INFO)).exists())
+                components.add(Component.COMPRESSION_INFO);
+            components.add(Component.DATA);
+            components.add(Component.PRIMARY_INDEX);
+            components.add(Component.FILTER);
+            components.add(Component.STATS);
+            components.add(Component.SUMMARY);
+            components.add(Component.TOC);
+
+            SSTableReader sstable = SSTableReader.openNoValidation(desc, components, cfs);
+            if (sstable.last.compareTo(sstable.first) < 0)
+                sstable.last = sstable.first;
+
+            try (LifecycleTransaction txn = LifecycleTransaction.offline(OperationType.SCRUB, sstable);
+                 Scrubber scrubber = new Scrubber(cfs, txn, false, true, true))
+            {
+                scrubber.scrub();
+            }
+            cfs.loadNewSSTables();
+            assertOrderedAll(cfs, 7);
+            sstable.selfRef().release();
         }
-        catch (IllegalStateException ise) { /* this is expected */ }
-
-        // open without validation for scrubbing
-        Set<Component> components = new HashSet<>();
-        //components.add(Component.COMPRESSION_INFO);
-        components.add(Component.DATA);
-        components.add(Component.PRIMARY_INDEX);
-        components.add(Component.FILTER);
-        components.add(Component.STATS);
-        components.add(Component.SUMMARY);
-        components.add(Component.TOC);
-
-        SSTableReader sstable = SSTableReader.openNoValidation(desc, components, cfs);
-        if (sstable.last.compareTo(sstable.first) < 0)
-            sstable.last = sstable.first;
-
-        try (LifecycleTransaction txn = LifecycleTransaction.offline(OperationType.SCRUB, sstable);
-             Scrubber scrubber = new Scrubber(cfs, txn, false, new OutputHandler.LogOutput(), true, true, true))
+        finally
         {
-            scrubber.scrub();
+            FileUtils.deleteRecursive(tempDataDir);
+            // reset partitioner
+            DatabaseDescriptor.setPartitioner(oldPartitioner);
         }
-        cfs.loadNewSSTables();
-        assertOrderedAll(cfs, 7);
-        sstable.selfRef().release();
     }
 
     private void overrideWithGarbage(SSTableReader sstable, ByteBuffer key1, ByteBuffer key2) throws IOException

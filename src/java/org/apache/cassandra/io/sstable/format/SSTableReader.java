@@ -1251,7 +1251,6 @@ public abstract class SSTableReader extends SSTable implements SelfRefCounted<SS
     {
         if (this.first.compareTo(this.last) > 0)
         {
-            selfRef().release();
             throw new IllegalStateException(String.format("SSTable first key %s > last key %s", this.first, this.last));
         }
     }

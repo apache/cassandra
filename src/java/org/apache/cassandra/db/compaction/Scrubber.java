@@ -59,7 +59,6 @@ public class Scrubber implements Closeable
     private final RowIndexEntry.IndexSerializer rowIndexEntrySerializer;
 
     private final boolean isOffline;
-    private final boolean keepOriginals;
 
     private SSTableReader newSstable;
     private SSTableReader newInOrderSstable;
@@ -86,7 +85,7 @@ public class Scrubber implements Closeable
 
     public Scrubber(ColumnFamilyStore cfs, LifecycleTransaction transaction, boolean skipCorrupted, boolean isOffline, boolean checkData) throws IOException
     {
-        this(cfs, transaction, skipCorrupted, new OutputHandler.LogOutput(), isOffline, checkData, false);
+        this(cfs, transaction, skipCorrupted, new OutputHandler.LogOutput(), isOffline, checkData);
     }
 
     @SuppressWarnings("resource")
@@ -95,8 +94,7 @@ public class Scrubber implements Closeable
                     boolean skipCorrupted,
                     OutputHandler outputHandler,
                     boolean isOffline,
-                    boolean checkData,
-                    boolean keepOriginals) throws IOException
+                    boolean checkData) throws IOException
     {
         this.cfs = cfs;
         this.transaction = transaction;
@@ -104,7 +102,6 @@ public class Scrubber implements Closeable
         this.outputHandler = outputHandler;
         this.skipCorrupted = skipCorrupted;
         this.isOffline = isOffline;
-        this.keepOriginals = keepOriginals;
         this.rowIndexEntrySerializer = sstable.descriptor.version.getSSTableFormat().getIndexSerializer(sstable.metadata,
                                                                                                         sstable.descriptor.version,
                                                                                                         sstable.header);
