@@ -141,8 +141,8 @@ class TreeCursor<K> extends NodeCursor<K>
             if (bound == null)
                 break; // we're all that's left
 
-            int cmpbound = comparator.compare(key, bound.bound(forwards));
-            if (forwards ? cmpbound < 0 : cmpbound > 0)
+            int cmpbound = comparator.compare(bound.bound(forwards), key); // order of provision matters for asymmetric comparators
+            if (forwards ? cmpbound > 0 : cmpbound < 0)
                 break; //  already in correct sub-tree
 
             // bound is on-or-before target, so ascend to that bound and continue looking upwards
