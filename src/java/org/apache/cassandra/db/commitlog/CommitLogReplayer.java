@@ -34,12 +34,9 @@ import com.google.common.collect.HashMultimap;
 import com.google.common.collect.Iterables;
 import com.google.common.collect.Multimap;
 import com.google.common.collect.Ordering;
-
 import org.apache.commons.lang3.StringUtils;
-
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-
 import com.github.tjake.ICRC32;
 
 import org.apache.cassandra.concurrent.Stage;
@@ -64,6 +61,7 @@ import org.cliffc.high_scale_lib.NonBlockingHashSet;
 
 public class CommitLogReplayer
 {
+    static final String IGNORE_REPLAY_ERRORS_PROPERTY = "cassandra.commitlog.ignorereplayerrors";
     private static final Logger logger = LoggerFactory.getLogger(CommitLogReplayer.class);
     private static final int MAX_OUTSTANDING_REPLAY_COUNT = Integer.getInteger("cassandra.commitlog_max_outstanding_replay_count", 1024);
     private static final int LEGACY_END_OF_SEGMENT_MARKER = 0;
@@ -142,14 +140,15 @@ public class CommitLogReplayer
 
     public void recover(File[] clogs) throws IOException
     {
-        for (final File file : clogs)
-            recover(file);
+        int i;
+        for (i = 0; i < clogs.length; ++i)
+            recover(clogs[i], i + 1 == clogs.length);
     }
 
     public int blockForWrites()
     {
         for (Map.Entry<UUID, AtomicInteger> entry : invalidMutations.entrySet())
-            logger.info(String.format("Skipped %d mutations from unknown (probably removed) CF with id %s", entry.getValue().intValue(), entry.getKey()));
+            logger.warn(String.format("Skipped %d mutations from unknown (probably removed) CF with id %s", entry.getValue().intValue(), entry.getKey()));
 
         // wait for all the writes to finish on the mutation stage
         FBUtilities.waitOnFutures(futures);
@@ -163,7 +162,7 @@ public class CommitLogReplayer
         return replayedCount.get();
     }
 
-    private int readSyncMarker(CommitLogDescriptor descriptor, int offset, RandomAccessReader reader) throws IOException
+    private int readSyncMarker(CommitLogDescriptor descriptor, int offset, RandomAccessReader reader, boolean tolerateTruncation) throws IOException
     {
         if (offset > reader.length() - CommitLogSegment.SYNC_MARKER_SIZE)
         {
@@ -181,13 +180,17 @@ public class CommitLogReplayer
         {
             if (end != 0 || filecrc != 0)
             {
-                logger.warn("Encountered bad header at position {} of commit log {}, with invalid CRC. The end of segment marker should be zero.", offset, reader.getPath());
+                handleReplayError(false,
+                                  "Encountered bad header at position %d of commit log %s, with invalid CRC. " +
+                                  "The end of segment marker should be zero.",
+                                  offset, reader.getPath());
             }
             return -1;
         }
         else if (end < offset || end > reader.length())
         {
-            logger.warn("Encountered bad header at position {} of commit log {}, with bad position but valid CRC", offset, reader.getPath());
+            handleReplayError(tolerateTruncation, "Encountered bad header at position %d of commit log %s, with bad position but valid CRC",
+                              offset, reader.getPath());
             return -1;
         }
         return end;
@@ -268,8 +271,7 @@ public class CommitLogReplayer
         }
     }
 
-    @SuppressWarnings("resource")
-    public void recover(File file) throws IOException
+    public void recover(File file, boolean tolerateTruncation) throws IOException
     {
         CommitLogDescriptor desc = CommitLogDescriptor.fromFileName(file.getName());
         RandomAccessReader reader = RandomAccessReader.open(new File(file.getAbsolutePath()));
@@ -281,7 +283,7 @@ public class CommitLogReplayer
                     return;
                 if (globalPosition.segment == desc.id)
                     reader.seek(globalPosition.position);
-                replaySyncSection(reader, (int) reader.getPositionLimit(), desc);
+                replaySyncSection(reader, (int) reader.getPositionLimit(), desc, desc.fileName(), tolerateTruncation);
                 return;
             }
 
@@ -295,10 +297,15 @@ public class CommitLogReplayer
                 desc = null;
             }
             if (desc == null) {
-                logger.warn("Could not read commit log descriptor in file {}", file);
+                handleReplayError(false, "Could not read commit log descriptor in file %s", file);
                 return;
             }
-            assert segmentId == desc.id;
+            if (segmentId != desc.id)
+            {
+                handleReplayError(false, "Segment id mismatch (filename %d, descriptor %d) in file %s", segmentId, desc.id, file);
+                // continue processing if ignored.
+            }
+
             if (logAndCheckIfShouldSkip(file, desc))
                 return;
 
@@ -311,7 +318,7 @@ public class CommitLogReplayer
                 }
                 catch (ConfigurationException e)
                 {
-                    logger.warn("Unknown compression: {}", e.getMessage());
+                    handleReplayError(false, "Unknown compression: %s", e.getMessage());
                     return;
                 }
             }
@@ -320,7 +327,7 @@ public class CommitLogReplayer
             int end = (int) reader.getFilePointer();
             int replayEnd = end;
 
-            while ((end = readSyncMarker(desc, end, reader)) >= 0)
+            while ((end = readSyncMarker(desc, end, reader, tolerateTruncation)) >= 0)
             {
                 int replayPos = replayEnd + CommitLogSegment.SYNC_MARKER_SIZE;
 
@@ -340,11 +347,17 @@ public class CommitLogReplayer
                     continue;
 
                 FileDataInput sectionReader = reader;
+                String errorContext = desc.fileName();
+                // In the uncompressed case the last non-fully-flushed section can be anywhere in the file.
+                boolean tolerateErrorsInSection = tolerateTruncation;
                 if (compressor != null)
                 {
+                    // In the compressed case we know if this is the last section.
+                    tolerateErrorsInSection &= end == reader.length() || end < 0;
+
+                    int start = (int) reader.getFilePointer();
                     try
                     {
-                        int start = (int) reader.getFilePointer();
                         int compressedLength = end - start;
                         if (logger.isDebugEnabled())
                             logger.trace("Decompressing {} between replay positions {} and {}",
@@ -359,15 +372,18 @@ public class CommitLogReplayer
                             uncompressedBuffer = new byte[(int) (1.2 * uncompressedLength)];
                         compressedLength = compressor.uncompress(buffer, 0, compressedLength, uncompressedBuffer, 0);
                         sectionReader = new ByteBufferDataInput(ByteBuffer.wrap(uncompressedBuffer), reader.getPath(), replayPos, 0);
+                        errorContext = "compressed section at " + start + " in " + errorContext;
                     }
-                    catch (IOException e)
+                    catch (IOException | ArrayIndexOutOfBoundsException e)
                     {
-                        logger.error("Unexpected exception decompressing section {}", e);
+                        handleReplayError(tolerateErrorsInSection,
+                                          "Unexpected exception decompressing section at %d: %s",
+                                          start, e);
                         continue;
                     }
                 }
 
-                if (!replaySyncSection(sectionReader, replayEnd, desc))
+                if (!replaySyncSection(sectionReader, replayEnd, desc, errorContext, tolerateErrorsInSection))
                     break;
             }
         }
@@ -399,13 +415,14 @@ public class CommitLogReplayer
      *
      * @return Whether replay should continue with the next section.
      */
-    private boolean replaySyncSection(FileDataInput reader, int end, CommitLogDescriptor desc) throws IOException
+    private boolean replaySyncSection(FileDataInput reader, int end, CommitLogDescriptor desc, String errorContext, boolean tolerateErrors) throws IOException
     {
          /* read the logs populate Mutation and apply */
         while (reader.getFilePointer() < end && !reader.isEOF())
         {
+            long mutationStart = reader.getFilePointer();
             if (logger.isDebugEnabled())
-                logger.trace("Reading mutation at {}", reader.getFilePointer());
+                logger.trace("Reading mutation at {}", mutationStart);
 
             long claimedCRC32;
             int serializedSize;
@@ -424,7 +441,12 @@ public class CommitLogReplayer
                 // 2-byte length from writeUTF/writeWithShortLength) and 4 bytes for column count.
                 // This prevents CRC by being fooled by special-case garbage in the file; see CASSANDRA-2128
                 if (serializedSize < 10)
+                {
+                    handleReplayError(tolerateErrors,
+                                      "Invalid mutation size %d at %d in %s",
+                                      serializedSize, mutationStart, errorContext);
                     return false;
+                }
 
                 long claimedSizeChecksum;
                 if (desc.version < CommitLogDescriptor.VERSION_21)
@@ -438,7 +460,12 @@ public class CommitLogReplayer
                     checksum.updateInt(serializedSize);
 
                 if (checksum.getValue() != claimedSizeChecksum)
+                {
+                    handleReplayError(tolerateErrors,
+                                      "Mutation size checksum failure at %d in %s",
+                                      mutationStart, errorContext);
                     return false;
+                }
                 // ok.
 
                 if (serializedSize > buffer.length)
@@ -451,14 +478,18 @@ public class CommitLogReplayer
             }
             catch (EOFException eof)
             {
+                handleReplayError(tolerateErrors,
+                                  "Unexpected end of segment",
+                                  mutationStart, errorContext);
                 return false; // last CL entry didn't get completely written. that's ok.
             }
 
             checksum.update(buffer, 0, serializedSize);
             if (claimedCRC32 != checksum.getValue())
             {
-                // this entry must not have been fsynced. probably the rest is bad too,
-                // but just in case there is no harm in trying them (since we still read on an entry boundary)
+                handleReplayError(tolerateErrors,
+                                  "Mutation checksum failure at %d in %s",
+                                  mutationStart, errorContext);
                 continue;
             }
             replayMutation(buffer, serializedSize, reader.getFilePointer(), desc);
@@ -508,9 +539,13 @@ public class CommitLogReplayer
                 out.write(inputBuffer, 0, size);
             }
 
-            String st = String.format("Unexpected error deserializing mutation; saved to %s and ignored.  This may be caused by replaying a mutation against a table with the same name but incompatible schema.  Exception follows: ",
-                                      f.getAbsolutePath());
-            logger.error(st, t);
+            // Checksum passed so this error can't be permissible.
+            handleReplayError(false,
+                              "Unexpected error deserializing mutation; saved to %s.  " +
+                              "This may be caused by replaying a mutation against a table with the same name but incompatible schema.  " +
+                              "Exception follows: %s",
+                              f.getAbsolutePath(),
+                              t);
             return;
         }
 
@@ -577,5 +612,36 @@ public class CommitLogReplayer
                 return true;
         }
         return false;
+    }
+
+    static void handleReplayError(boolean permissible, String message, Object... messageArgs) throws IOException
+    {
+        String msg = String.format(message, messageArgs);
+        IOException e = new CommitLogReplayException(msg);
+        if (permissible)
+            logger.error("Ignoring commit log replay error likely due to incomplete flush to disk", e);
+        else if (Boolean.getBoolean(IGNORE_REPLAY_ERRORS_PROPERTY))
+            logger.error("Ignoring commit log replay error", e);
+        else if (!CommitLog.handleCommitError("Failed commit log replay", e))
+        {
+            logger.error("Replay stopped. If you wish to override this error and continue starting the node ignoring " +
+                         "commit log replay problems, specify -D" + IGNORE_REPLAY_ERRORS_PROPERTY + "=true " +
+                         "on the command line");
+            throw e;
+        }
+    }
+
+    @SuppressWarnings("serial")
+    public static class CommitLogReplayException extends IOException
+    {
+        public CommitLogReplayException(String message, Throwable cause)
+        {
+            super(message, cause);
+        }
+
+        public CommitLogReplayException(String message)
+        {
+            super(message);
+        }
     }
 }

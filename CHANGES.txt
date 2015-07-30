@@ -1,4 +1,5 @@
 2.2.1
+ * Apply commit_failure_policy to more errors on startup (CASSANDRA-9749)
  * Fix histogram overflow exception (CASSANDRA-9973)
  * Route gossip messages over dedicated socket (CASSANDRA-9237)
  * Add checksum to saved cache files (CASSANDRA-9265)

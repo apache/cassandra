@@ -36,10 +36,13 @@ import org.junit.Test;
 
 import org.apache.cassandra.SchemaLoader;
 import org.apache.cassandra.config.CFMetaData;
+import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.config.Schema;
 import org.apache.cassandra.db.Cell;
 import org.apache.cassandra.db.ColumnFamily;
+import org.apache.cassandra.config.Config.CommitFailurePolicy;
 import org.apache.cassandra.db.Mutation;
+import org.apache.cassandra.db.commitlog.CommitLogReplayer.CommitLogReplayException;
 
 public class CommitLogUpgradeTest
 {
@@ -63,6 +66,58 @@ public class CommitLogUpgradeTest
     public void test21() throws Exception
     {
         testRestore(DATA_DIR + "2.1");
+    }
+
+    @Test
+    public void test22_truncated() throws Exception
+    {
+        testRestore(DATA_DIR + "2.2-lz4-truncated");
+    }
+
+    @Test(expected = CommitLogReplayException.class)
+    public void test22_bitrot() throws Exception
+    {
+        testRestore(DATA_DIR + "2.2-lz4-bitrot");
+    }
+
+    @Test
+    public void test22_bitrot_ignored() throws Exception
+    {
+        try {
+            System.setProperty(CommitLogReplayer.IGNORE_REPLAY_ERRORS_PROPERTY, "true");
+            testRestore(DATA_DIR + "2.2-lz4-bitrot");
+        } finally {
+            System.clearProperty(CommitLogReplayer.IGNORE_REPLAY_ERRORS_PROPERTY);
+        }
+    }
+
+    @Test
+    public void test22_bitrot_ignore_policy() throws Exception
+    {
+        CommitFailurePolicy existingPolicy = DatabaseDescriptor.getCommitFailurePolicy();
+        try {
+            DatabaseDescriptor.setCommitFailurePolicy(CommitFailurePolicy.ignore);
+            testRestore(DATA_DIR + "2.2-lz4-bitrot");
+        } finally {
+            DatabaseDescriptor.setCommitFailurePolicy(existingPolicy);
+        }
+    }
+
+    @Test(expected = CommitLogReplayException.class)
+    public void test22_bitrot2() throws Exception
+    {
+        testRestore(DATA_DIR + "2.2-lz4-bitrot2");
+    }
+
+    @Test
+    public void test22_bitrot2_ignored() throws Exception
+    {
+        try {
+            System.setProperty(CommitLogReplayer.IGNORE_REPLAY_ERRORS_PROPERTY, "true");
+            testRestore(DATA_DIR + "2.2-lz4-bitrot2");
+        } finally {
+            System.clearProperty(CommitLogReplayer.IGNORE_REPLAY_ERRORS_PROPERTY);
+        }
     }
 
     @BeforeClass

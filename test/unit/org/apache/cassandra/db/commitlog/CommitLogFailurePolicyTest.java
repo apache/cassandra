@@ -17,7 +17,7 @@
 * under the License.
 */
 
-package org.apache.cassandra.db;
+package org.apache.cassandra.db.commitlog;
 
 import org.junit.Assert;
 import org.junit.BeforeClass;
@@ -39,7 +39,6 @@ public class CommitLogFailurePolicyTest
     public static void defineSchema() throws ConfigurationException
     {
         SchemaLoader.prepareServer();
-        System.setProperty("cassandra.commitlog.stop_on_errors", "true");
     }
 
     @Test
