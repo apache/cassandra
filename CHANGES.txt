@@ -25,6 +25,7 @@
 
 
 2.2.1
+ * Avoid grouping sstables for anticompaction with DTCS (CASSANDRA-9900)
  * UDF / UDA execution time in trace (CASSANDRA-9723)
  * Fix broken internode SSL (CASSANDRA-9884)
 Merged from 2.1:
