@@ -169,7 +169,8 @@ public class Config
     public int commitlog_segment_size_in_mb = 32;
     public ParameterizedClass commitlog_compression;
     public int commitlog_max_compression_buffers_in_pool = 3;
- 
+    public TransparentDataEncryptionOptions transparent_data_encryption_options = new TransparentDataEncryptionOptions();
+
     @Deprecated
     public int commitlog_periodic_queue_size = -1;
 
