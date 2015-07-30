@@ -33,7 +33,6 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.apache.cassandra.config.CFMetaData;
 import org.apache.cassandra.config.DatabaseDescriptor;
-import org.apache.cassandra.config.Schema;
 import org.apache.cassandra.cql3.QueryProcessor;
 import org.apache.cassandra.cql3.UntypedResultSet;
 import org.apache.cassandra.cql3.functions.*;
@@ -263,7 +262,7 @@ public final class SystemKeyspace
                 + "ranges set<blob>,"
                 + "PRIMARY KEY ((keyspace_name)))");
 
-    public static final CFMetaData MaterializedViewsBuildsInProgress =
+    private static final CFMetaData MaterializedViewsBuildsInProgress =
         compile(MATERIALIZEDVIEWS_BUILDS_IN_PROGRESS,
                 "materialized views builds current progress",
                 "CREATE TABLE %s ("
@@ -273,13 +272,13 @@ public final class SystemKeyspace
                 + "generation_number int,"
                 + "PRIMARY KEY ((keyspace_name), view_name))");
 
-    public static final CFMetaData BuiltMaterializedViews =
-    compile(BUILT_MATERIALIZEDVIEWS,
-            "built materialized views",
-            "CREATE TABLE \"%s\" ("
-            + "keyspace_name text,"
-            + "view_name text,"
-            + "PRIMARY KEY ((keyspace_name), view_name))");
+    private static final CFMetaData BuiltMaterializedViews =
+        compile(BUILT_MATERIALIZEDVIEWS,
+                "built materialized views",
+                "CREATE TABLE %s ("
+                + "keyspace_name text,"
+                + "view_name text,"
+                + "PRIMARY KEY ((keyspace_name), view_name))");
 
     @Deprecated
     public static final CFMetaData LegacyKeyspaces =
