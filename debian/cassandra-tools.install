@@ -1,5 +1,4 @@
-tools/bin/json2sstable usr/bin
-tools/bin/sstable2json usr/bin
+tools/bin/sstableofflinerelevel usr/bin
 tools/bin/sstablelevelreset usr/bin
 tools/bin/sstablemetadata usr/bin
 tools/bin/sstablerepairedset usr/bin
