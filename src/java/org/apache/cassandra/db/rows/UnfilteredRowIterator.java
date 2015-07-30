@@ -46,40 +46,12 @@ import org.apache.cassandra.db.*;
  * the returned objects for longer than the iteration, it must make a copy of
  * it explicitly.
  */
-public interface UnfilteredRowIterator extends Iterator<Unfiltered>, AutoCloseable
+public interface UnfilteredRowIterator extends BaseRowIterator<Unfiltered>
 {
-    /**
-     * The metadata for the table this iterator on.
-     */
-    public CFMetaData metadata();
-
-    /**
-     * A subset of the columns for the (static and regular) rows returned by this iterator.
-     * Every row returned by this iterator must guarantee that it has only those columns.
-     */
-    public PartitionColumns columns();
-
-    /**
-     * Whether or not the atom returned by this iterator are in reversed
-     * clustering order.
-     */
-    public boolean isReverseOrder();
-
-    /**
-     * The partition key of the partition this in an iterator over.
-     */
-    public DecoratedKey partitionKey();
-
     /**
      * The partition level deletion for the partition this iterate over.
      */
     public DeletionTime partitionLevelDeletion();
-
-    /**
-     * The static part corresponding to this partition (this can be an empty
-     * row).
-     */
-    public Row staticRow();
 
     /**
      * Return "statistics" about what is returned by this iterator. Those are used for
@@ -87,8 +59,6 @@ public interface UnfilteredRowIterator extends Iterator<Unfiltered>, AutoCloseab
      * expect those to be exact.
      */
     public EncodingStats stats();
-
-    public void close();
 
     /**
      * Returns whether this iterator has no data (including no deletion data).

@@ -23,6 +23,10 @@ import java.nio.ByteBuffer;
 import org.apache.cassandra.db.*;
 import org.apache.cassandra.db.rows.*;
 import org.apache.cassandra.db.partitions.*;
+import org.apache.cassandra.db.transform.BasePartitions;
+import org.apache.cassandra.db.transform.BaseRows;
+import org.apache.cassandra.db.transform.StoppingTransformation;
+import org.apache.cassandra.db.transform.Transformation;
 import org.apache.cassandra.io.util.DataInputPlus;
 import org.apache.cassandra.io.util.DataOutputPlus;
 import org.apache.cassandra.utils.ByteBufferUtil;
@@ -125,17 +129,17 @@ public abstract class DataLimits
 
     public UnfilteredPartitionIterator filter(UnfilteredPartitionIterator iter, int nowInSec)
     {
-        return new CountingUnfilteredPartitionIterator(iter, newCounter(nowInSec, false));
+        return this.newCounter(nowInSec, false).applyTo(iter);
     }
 
     public UnfilteredRowIterator filter(UnfilteredRowIterator iter, int nowInSec)
     {
-        return new CountingUnfilteredRowIterator(iter, newCounter(nowInSec, false));
+        return this.newCounter(nowInSec, false).applyTo(iter);
     }
 
     public PartitionIterator filter(PartitionIterator iter, int nowInSec)
     {
-        return new CountingPartitionIterator(iter, this, nowInSec);
+        return this.newCounter(nowInSec, true).applyTo(iter);
     }
 
     /**
@@ -144,11 +148,36 @@ public abstract class DataLimits
      */
     public abstract float estimateTotalResults(ColumnFamilyStore cfs);
 
-    public interface Counter
+    public static abstract class Counter extends StoppingTransformation<BaseRowIterator<?>>
     {
-        public void newPartition(DecoratedKey partitionKey, Row staticRow);
-        public void newRow(Row row);
-        public void endOfPartition();
+        // false means we do not propagate our stop signals onto the iterator, we only count
+        private boolean enforceLimits = true;
+
+        public Counter onlyCount()
+        {
+            this.enforceLimits = false;
+            return this;
+        }
+
+        public PartitionIterator applyTo(PartitionIterator partitions)
+        {
+            return Transformation.apply(partitions, this);
+        }
+
+        public UnfilteredPartitionIterator applyTo(UnfilteredPartitionIterator partitions)
+        {
+            return Transformation.apply(partitions, this);
+        }
+
+        public UnfilteredRowIterator applyTo(UnfilteredRowIterator partition)
+        {
+            return (UnfilteredRowIterator) applyToPartition(partition);
+        }
+
+        public RowIterator applyTo(RowIterator partition)
+        {
+            return (RowIterator) applyToPartition(partition);
+        }
 
         /**
          * The number of results counted.
@@ -157,12 +186,40 @@ public abstract class DataLimits
          *
          * @return the number of results counted.
          */
-        public int counted();
+        public abstract int counted();
+        public abstract int countedInCurrentPartition();
 
-        public int countedInCurrentPartition();
+        public abstract boolean isDone();
+        public abstract boolean isDoneForPartition();
 
-        public boolean isDone();
-        public boolean isDoneForPartition();
+        @Override
+        protected BaseRowIterator<?> applyToPartition(BaseRowIterator<?> partition)
+        {
+            return partition instanceof UnfilteredRowIterator ? Transformation.apply((UnfilteredRowIterator) partition, this)
+                                                              : Transformation.apply((RowIterator) partition, this);
+        }
+
+        // called before we process a given partition
+        protected abstract void applyToPartition(DecoratedKey partitionKey, Row staticRow);
+
+        @Override
+        protected void attachTo(BasePartitions partitions)
+        {
+            if (enforceLimits)
+                super.attachTo(partitions);
+            if (isDone())
+                stop();
+        }
+
+        @Override
+        protected void attachTo(BaseRows rows)
+        {
+            if (enforceLimits)
+                super.attachTo(rows);
+            applyToPartition(rows.partitionKey(), rows.staticRow());
+            if (isDoneForPartition())
+                stopInPartition();
+        }
     }
 
     /**
@@ -241,13 +298,15 @@ public abstract class DataLimits
                 return false;
 
             // Otherwise, we need to re-count
+
+            DataLimits.Counter counter = newCounter(nowInSec, false);
             try (UnfilteredRowIterator cacheIter = cached.unfilteredIterator(ColumnFilter.selection(cached.columns()), Slices.ALL, false);
-                 CountingUnfilteredRowIterator iter = new CountingUnfilteredRowIterator(cacheIter, newCounter(nowInSec, false)))
+                 UnfilteredRowIterator iter = counter.applyTo(cacheIter))
             {
                 // Consume the iterator until we've counted enough
-                while (iter.hasNext() && !iter.counter().isDone())
+                while (iter.hasNext())
                     iter.next();
-                return iter.counter().isDone();
+                return counter.isDone();
             }
         }
 
@@ -274,7 +333,7 @@ public abstract class DataLimits
             return rowsPerPartition * (cfs.estimateKeys());
         }
 
-        protected class CQLCounter implements Counter
+        protected class CQLCounter extends Counter
         {
             protected final int nowInSec;
             protected final boolean assumeLiveData;
@@ -290,23 +349,39 @@ public abstract class DataLimits
                 this.assumeLiveData = assumeLiveData;
             }
 
-            public void newPartition(DecoratedKey partitionKey, Row staticRow)
+            @Override
+            public void applyToPartition(DecoratedKey partitionKey, Row staticRow)
             {
                 rowInCurrentPartition = 0;
                 if (!staticRow.isEmpty() && (assumeLiveData || staticRow.hasLiveData(nowInSec)))
                     hasLiveStaticRow = true;
             }
 
-            public void endOfPartition()
+            @Override
+            public Row applyToRow(Row row)
+            {
+                if (assumeLiveData || row.hasLiveData(nowInSec))
+                    incrementRowCount();
+                return row;
+            }
+
+            @Override
+            public void onPartitionClose()
             {
                 // Normally, we don't count static rows as from a CQL point of view, it will be merge with other
                 // rows in the partition. However, if we only have the static row, it will be returned as one row
                 // so count it.
                 if (hasLiveStaticRow && rowInCurrentPartition == 0)
-                {
-                    ++rowCounted;
-                    ++rowInCurrentPartition;
-                }
+                    incrementRowCount();
+                super.onPartitionClose();
+            }
+
+            private void incrementRowCount()
+            {
+                if (++rowCounted >= rowLimit)
+                    stop();
+                if (++rowInCurrentPartition >= perPartitionLimit)
+                    stopInPartition();
             }
 
             public int counted()
@@ -327,15 +402,6 @@ public abstract class DataLimits
             public boolean isDoneForPartition()
             {
                 return isDone() || rowInCurrentPartition >= perPartitionLimit;
-            }
-
-            public void newRow(Row row)
-            {
-                if (assumeLiveData || row.hasLiveData(nowInSec))
-                {
-                    ++rowCounted;
-                    ++rowInCurrentPartition;
-                }
             }
         }
 
@@ -402,7 +468,7 @@ public abstract class DataLimits
             }
 
             @Override
-            public void newPartition(DecoratedKey partitionKey, Row staticRow)
+            public void applyToPartition(DecoratedKey partitionKey, Row staticRow)
             {
                 if (partitionKey.getKey().equals(lastReturnedKey))
                 {
@@ -415,7 +481,7 @@ public abstract class DataLimits
                 }
                 else
                 {
-                    super.newPartition(partitionKey, staticRow);
+                    super.applyToPartition(partitionKey, staticRow);
                 }
             }
         }
@@ -481,13 +547,14 @@ public abstract class DataLimits
                 return false;
 
             // Otherwise, we need to re-count
+            DataLimits.Counter counter = newCounter(nowInSec, false);
             try (UnfilteredRowIterator cacheIter = cached.unfilteredIterator(ColumnFilter.selection(cached.columns()), Slices.ALL, false);
-                 CountingUnfilteredRowIterator iter = new CountingUnfilteredRowIterator(cacheIter, newCounter(nowInSec, false)))
+                 UnfilteredRowIterator iter = counter.applyTo(cacheIter))
             {
                 // Consume the iterator until we've counted enough
-                while (iter.hasNext() && !iter.counter().isDone())
+                while (iter.hasNext())
                     iter.next();
-                return iter.counter().isDone();
+                return counter.isDone();
             }
         }
 
@@ -513,7 +580,7 @@ public abstract class DataLimits
             return cellsPerPartition * cfs.estimateKeys();
         }
 
-        protected class ThriftCounter implements Counter
+        protected class ThriftCounter extends Counter
         {
             protected final int nowInSec;
             protected final boolean assumeLiveData;
@@ -528,16 +595,35 @@ public abstract class DataLimits
                 this.assumeLiveData = assumeLiveData;
             }
 
-            public void newPartition(DecoratedKey partitionKey, Row staticRow)
+            @Override
+            public void applyToPartition(DecoratedKey partitionKey, Row staticRow)
             {
                 cellsInCurrentPartition = 0;
                 if (!staticRow.isEmpty())
-                    newRow(staticRow);
+                    applyToRow(staticRow);
             }
 
-            public void endOfPartition()
+            @Override
+            public Row applyToRow(Row row)
             {
-                ++partitionsCounted;
+                for (Cell cell : row.cells())
+                {
+                    if (assumeLiveData || cell.isLive(nowInSec))
+                    {
+                        ++cellsCounted;
+                        if (++cellsInCurrentPartition >= cellPerPartitionLimit)
+                            stopInPartition();
+                    }
+                }
+                return row;
+            }
+
+            @Override
+            public void onPartitionClose()
+            {
+                if (++partitionsCounted >= partitionLimit)
+                    stop();
+                super.onPartitionClose();
             }
 
             public int counted()
@@ -558,18 +644,6 @@ public abstract class DataLimits
             public boolean isDoneForPartition()
             {
                 return isDone() || cellsInCurrentPartition >= cellPerPartitionLimit;
-            }
-
-            public void newRow(Row row)
-            {
-                for (Cell cell : row.cells())
-                {
-                    if (assumeLiveData || cell.isLive(nowInSec))
-                    {
-                        ++cellsCounted;
-                        ++cellsInCurrentPartition;
-                    }
-                }
             }
         }
 
@@ -625,14 +699,17 @@ public abstract class DataLimits
                 super(nowInSec, assumeLiveData);
             }
 
-            public void newRow(Row row)
+            @Override
+            public Row applyToRow(Row row)
             {
                 // In the internal format, a row == a super column, so that's what we want to count.
                 if (assumeLiveData || row.hasLiveData(nowInSec))
                 {
                     ++cellsCounted;
-                    ++cellsInCurrentPartition;
+                    if (++cellsInCurrentPartition >= cellPerPartitionLimit)
+                        stopInPartition();
                 }
+                return row;
             }
         }
     }

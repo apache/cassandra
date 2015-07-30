@@ -33,7 +33,6 @@ import org.apache.cassandra.db.rows.*;
  * reference on the returned objects for longer than the iteration, it must
  * make a copy of it explicitely.
  */
-public interface PartitionIterator extends Iterator<RowIterator>, AutoCloseable
+public interface PartitionIterator extends BasePartitionIterator<RowIterator>
 {
-    public void close();
 }

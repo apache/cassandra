@@ -26,6 +26,7 @@ import org.apache.cassandra.db.*;
 import org.apache.cassandra.db.rows.*;
 import org.apache.cassandra.db.partitions.CachedPartition;
 import org.apache.cassandra.db.partitions.Partition;
+import org.apache.cassandra.db.transform.Transformation;
 import org.apache.cassandra.io.sstable.format.SSTableReader;
 import org.apache.cassandra.io.util.DataInputPlus;
 import org.apache.cassandra.io.util.DataOutputPlus;
@@ -91,26 +92,26 @@ public class ClusteringIndexSliceFilter extends AbstractClusteringIndexFilter
 
         // Note that we don't filter markers because that's a bit trickier (we don't know in advance until when
         // the range extend) and it's harmless to leave them.
-        return new AlteringUnfilteredRowIterator(iterator)
+        class FilterNotIndexed extends Transformation
         {
-            @Override
-            public boolean hasNext()
+            public boolean isDoneForPartition()
             {
-                return !tester.isDone() && super.hasNext();
+                return tester.isDone();
             }
 
             @Override
-            public Row computeNextStatic(Row row)
-            {
-                return columnFilter.fetchedColumns().statics.isEmpty() ? null : row.filter(columnFilter, iterator.metadata());
-            }
-
-            @Override
-            public Row computeNext(Row row)
+            public Row applyToRow(Row row)
             {
                 return tester.includes(row.clustering()) ? row.filter(columnFilter, iterator.metadata()) : null;
             }
-        };
+
+            @Override
+            public Row applyToStatic(Row row)
+            {
+                return columnFilter.fetchedColumns().statics.isEmpty() ? Rows.EMPTY_STATIC_ROW : row.filter(columnFilter, iterator.metadata());
+            }
+        }
+        return Transformation.apply(iterator, new FilterNotIndexed());
     }
 
     public UnfilteredRowIterator filter(SliceableUnfilteredRowIterator iterator)

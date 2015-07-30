@@ -76,13 +76,18 @@ public final class Throwables
     @SafeVarargs
     public static <E extends Exception> void perform(DiscreteAction<? extends E> ... actions) throws E
     {
-        perform(Arrays.stream(actions));
+        perform(Stream.of(actions));
+    }
+
+    public static <E extends Exception> void perform(Stream<? extends DiscreteAction<? extends E>> stream, DiscreteAction<? extends E> ... extra) throws E
+    {
+        perform(Stream.concat(stream, Stream.of(extra)));
     }
 
     @SuppressWarnings("unchecked")
     public static <E extends Exception> void perform(Stream<DiscreteAction<? extends E>> actions) throws E
     {
-        Throwable fail = perform(null, actions);
+        Throwable fail = perform((Throwable) null, actions);
         if (failIfCanCast(fail, null))
             throw (E) fail;
     }

@@ -17,14 +17,13 @@
  */
 package org.apache.cassandra.db.rows;
 
-import java.util.*;
 import java.security.MessageDigest;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import org.apache.cassandra.config.CFMetaData;
-import org.apache.cassandra.db.*;
+import org.apache.cassandra.db.transform.Transformation;
 import org.apache.cassandra.utils.FBUtilities;
 
 /**
@@ -49,54 +48,6 @@ public abstract class RowIterators
             iterator.next().digest(digest);
     }
 
-    public static RowIterator emptyIterator(CFMetaData cfm, DecoratedKey partitionKey, boolean isReverseOrder)
-    {
-        return iterator(cfm, partitionKey, isReverseOrder, Collections.emptyIterator());
-    }
-
-    public static RowIterator iterator(CFMetaData cfm, DecoratedKey partitionKey, boolean isReverseOrder, Iterator<Row> iterator)
-    {
-        return new RowIterator()
-        {
-            public CFMetaData metadata()
-            {
-                return cfm;
-            }
-
-            public boolean isReverseOrder()
-            {
-                return isReverseOrder;
-            }
-
-            public PartitionColumns columns()
-            {
-                return PartitionColumns.NONE;
-            }
-
-            public DecoratedKey partitionKey()
-            {
-                return partitionKey;
-            }
-
-            public Row staticRow()
-            {
-                return Rows.EMPTY_STATIC_ROW;
-            }
-
-            public void close() { }
-
-            public boolean hasNext()
-            {
-                return iterator.hasNext();
-            }
-
-            public Row next()
-            {
-                return iterator.next();
-            }
-        };
-    }
-
     /**
      * Wraps the provided iterator so it logs the returned rows for debugging purposes.
      * <p>
@@ -113,24 +64,23 @@ public abstract class RowIterators
                     metadata.getKeyValidator().getString(iterator.partitionKey().getKey()),
                     iterator.isReverseOrder());
 
-        return new WrappingRowIterator(iterator)
+        class Log extends Transformation
         {
             @Override
-            public Row staticRow()
+            public Row applyToStatic(Row row)
             {
-                Row row = super.staticRow();
                 if (!row.isEmpty())
-                    logger.info("[{}] {}", id, row.toString(metadata()));
+                    logger.info("[{}] {}", id, row.toString(metadata));
                 return row;
             }
 
             @Override
-            public Row next()
+            public Row applyToRow(Row row)
             {
-                Row next = super.next();
-                logger.info("[{}] {}", id, next.toString(metadata()));
-                return next;
+                logger.info("[{}] {}", id, row.toString(metadata));
+                return row;
             }
-        };
+        }
+        return Transformation.apply(iterator, new Log());
     }
 }

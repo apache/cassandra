@@ -22,6 +22,7 @@ import java.util.Map;
 
 import org.apache.cassandra.db.*;
 import org.apache.cassandra.db.lifecycle.LifecycleTransaction;
+import org.apache.cassandra.db.transform.Transformation;
 import org.apache.cassandra.io.sstable.*;
 import org.apache.cassandra.io.sstable.format.SSTableReader;
 import org.apache.cassandra.io.sstable.format.SSTableWriter;
@@ -143,11 +144,11 @@ public class BigTableWriter extends SSTableWriter
 
         long startPosition = beforeAppend(key);
 
-        try (StatsCollector withStats = new StatsCollector(iterator, metadataCollector))
+        try (UnfilteredRowIterator collecting = Transformation.apply(iterator, new StatsCollector(metadataCollector)))
         {
-            ColumnIndex index = ColumnIndex.writeAndBuildIndex(withStats, dataFile, header, descriptor.version);
+            ColumnIndex index = ColumnIndex.writeAndBuildIndex(collecting, dataFile, header, descriptor.version);
 
-            RowIndexEntry entry = RowIndexEntry.create(startPosition, iterator.partitionLevelDeletion(), index);
+            RowIndexEntry entry = RowIndexEntry.create(startPosition, collecting.partitionLevelDeletion(), index);
 
             long endPosition = dataFile.position();
             long rowSize = endPosition - startPosition;
@@ -171,20 +172,18 @@ public class BigTableWriter extends SSTableWriter
         }
     }
 
-    private static class StatsCollector extends AlteringUnfilteredRowIterator
+    private static class StatsCollector extends Transformation
     {
         private final MetadataCollector collector;
         private int cellCount;
 
-        StatsCollector(UnfilteredRowIterator iter, MetadataCollector collector)
+        StatsCollector(MetadataCollector collector)
         {
-            super(iter);
             this.collector = collector;
-            collector.update(iter.partitionLevelDeletion());
         }
 
         @Override
-        protected Row computeNextStatic(Row row)
+        public Row applyToStatic(Row row)
         {
             if (!row.isEmpty())
                 cellCount += Rows.collectStats(row, collector);
@@ -192,7 +191,7 @@ public class BigTableWriter extends SSTableWriter
         }
 
         @Override
-        protected Row computeNext(Row row)
+        public Row applyToRow(Row row)
         {
             collector.updateClusteringValues(row.clustering());
             cellCount += Rows.collectStats(row, collector);
@@ -200,7 +199,7 @@ public class BigTableWriter extends SSTableWriter
         }
 
         @Override
-        protected RangeTombstoneMarker computeNext(RangeTombstoneMarker marker)
+        public RangeTombstoneMarker applyToMarker(RangeTombstoneMarker marker)
         {
             collector.updateClusteringValues(marker.clustering());
             if (marker.isBoundary())
@@ -217,10 +216,16 @@ public class BigTableWriter extends SSTableWriter
         }
 
         @Override
-        public void close()
+        public void onPartitionClose()
         {
             collector.addCellPerPartitionCount(cellCount);
-            super.close();
+        }
+
+        @Override
+        public DeletionTime applyToDeletion(DeletionTime deletionTime)
+        {
+            collector.update(deletionTime);
+            return deletionTime;
         }
     }
 

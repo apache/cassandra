@@ -22,7 +22,6 @@ import java.nio.ByteBuffer;
 import java.util.*;
 
 import com.google.common.base.Objects;
-import org.apache.commons.lang3.builder.ToStringBuilder;
 
 import org.apache.cassandra.config.CFMetaData;
 import org.apache.cassandra.config.ColumnDefinition;
@@ -31,6 +30,7 @@ import org.apache.cassandra.db.*;
 import org.apache.cassandra.db.marshal.*;
 import org.apache.cassandra.db.partitions.*;
 import org.apache.cassandra.db.rows.*;
+import org.apache.cassandra.db.transform.Transformation;
 import org.apache.cassandra.exceptions.InvalidRequestException;
 import org.apache.cassandra.io.util.DataInputPlus;
 import org.apache.cassandra.io.util.DataOutputPlus;
@@ -222,28 +222,29 @@ public abstract class RowFilter implements Iterable<RowFilter.Expression>
             if (expressions.isEmpty())
                 return iter;
 
-            return new AlteringUnfilteredPartitionIterator(iter)
+            class IsSatisfiedFilter extends Transformation<UnfilteredRowIterator>
             {
-                protected Row computeNext(DecoratedKey partitionKey, Row row)
+                DecoratedKey pk;
+                public UnfilteredRowIterator applyToPartition(UnfilteredRowIterator partition)
                 {
-                    // We filter tombstones when passing the row to isSatisfiedBy so that the method doesn't have to bother with them.
-                    Row purged = row.purge(DeletionPurger.PURGE_ALL, nowInSec);
-                    return purged != null && CQLFilter.this.isSatisfiedBy(partitionKey, purged) ? row : null;
+                    pk = partition.partitionKey();
+                    return Transformation.apply(partition, this);
                 }
-            };
-        }
 
-        /**
-         * Returns whether the provided row (with it's partition key) satisfies
-         * this row filter or not (that is, if it satisfies all of its expressions).
-         */
-        private boolean isSatisfiedBy(DecoratedKey partitionKey, Row row)
-        {
-            for (Expression e : expressions)
-                if (!e.isSatisfiedBy(partitionKey, row))
-                    return false;
+                public Row applyToRow(Row row)
+                {
+                    Row purged = row.purge(DeletionPurger.PURGE_ALL, nowInSec);
+                    if (purged == null)
+                        return null;
 
-            return true;
+                    for (Expression e : expressions)
+                        if (!e.isSatisfiedBy(pk, purged))
+                            return null;
+                    return row;
+                }
+            }
+
+            return Transformation.apply(iter, new IsSatisfiedFilter());
         }
 
         protected RowFilter withNewExpressions(List<Expression> expressions)
@@ -264,16 +265,17 @@ public abstract class RowFilter implements Iterable<RowFilter.Expression>
             if (expressions.isEmpty())
                 return iter;
 
-            return new WrappingUnfilteredPartitionIterator(iter)
+            class IsSatisfiedThriftFilter extends Transformation<UnfilteredRowIterator>
             {
                 @Override
-                public UnfilteredRowIterator computeNext(final UnfilteredRowIterator iter)
+                public UnfilteredRowIterator applyToPartition(UnfilteredRowIterator iter)
                 {
                     // Thrift does not filter rows, it filters entire partition if any of the expression is not
                     // satisfied, which forces us to materialize the result (in theory we could materialize only
                     // what we need which might or might not be everything, but we keep it simple since in practice
                     // it's not worth that it has ever been).
                     ImmutableBTreePartition result = ImmutableBTreePartition.create(iter);
+                    iter.close();
 
                     // The partition needs to have a row for every expression, and the expression needs to be valid.
                     for (Expression expr : expressions)
@@ -286,7 +288,8 @@ public abstract class RowFilter implements Iterable<RowFilter.Expression>
                     // If we get there, it means all expressions where satisfied, so return the original result
                     return result.unfilteredIterator();
                 }
-            };
+            }
+            return Transformation.apply(iter, new IsSatisfiedThriftFilter());
         }
 
         protected RowFilter withNewExpressions(List<Expression> expressions)

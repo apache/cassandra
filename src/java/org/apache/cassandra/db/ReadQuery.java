@@ -42,12 +42,12 @@ public interface ReadQuery
 
         public PartitionIterator execute(ConsistencyLevel consistency, ClientState clientState) throws RequestExecutionException
         {
-            return PartitionIterators.EMPTY;
+            return EmptyIterators.partition();
         }
 
         public PartitionIterator executeInternal(ReadOrderGroup orderGroup)
         {
-            return PartitionIterators.EMPTY;
+            return EmptyIterators.partition();
         }
 
         public DataLimits limits()

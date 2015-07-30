@@ -34,38 +34,8 @@ import org.apache.cassandra.db.*;
  * reverse clustering order if isReverseOrder is true), and the Row objects returned
  * by next() are only valid until the next call to hasNext() or next().
  */
-public interface RowIterator extends Iterator<Row>, AutoCloseable
+public interface RowIterator extends BaseRowIterator<Row>
 {
-    /**
-     * The metadata for the table this iterator on.
-     */
-    public CFMetaData metadata();
-
-    /**
-     * Whether or not the rows returned by this iterator are in reversed
-     * clustering order.
-     */
-    public boolean isReverseOrder();
-
-    /**
-     * A subset of the columns for the (static and regular) rows returned by this iterator.
-     * Every row returned by this iterator must guarantee that it has only those columns.
-     */
-    public PartitionColumns columns();
-
-    /**
-     * The partition key of the partition this in an iterator over.
-     */
-    public DecoratedKey partitionKey();
-
-    /**
-     * The static part corresponding to this partition (this can be an empty
-     * row).
-     */
-    public Row staticRow();
-
-    public void close();
-
     /**
      * Returns whether the provided iterator has no data.
      */

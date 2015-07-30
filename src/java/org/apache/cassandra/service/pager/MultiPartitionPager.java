@@ -17,8 +17,6 @@
  */
 package org.apache.cassandra.service.pager;
 
-import java.util.List;
-
 import org.apache.cassandra.utils.AbstractIterator;
 
 import org.apache.cassandra.db.*;
@@ -125,9 +123,9 @@ public class MultiPartitionPager implements QueryPager
     {
         int toQuery = Math.min(remaining, pageSize);
         PagersIterator iter = new PagersIterator(toQuery, consistency, clientState, null);
-        CountingPartitionIterator countingIter = new CountingPartitionIterator(iter, limit.forPaging(toQuery), nowInSec);
-        iter.setCounter(countingIter.counter());
-        return countingIter;
+        DataLimits.Counter counter = limit.forPaging(toQuery).newCounter(nowInSec, true);
+        iter.setCounter(counter);
+        return counter.applyTo(iter);
     }
 
     @SuppressWarnings("resource") // iter closed via countingIter
@@ -135,9 +133,9 @@ public class MultiPartitionPager implements QueryPager
     {
         int toQuery = Math.min(remaining, pageSize);
         PagersIterator iter = new PagersIterator(toQuery, null, null, orderGroup);
-        CountingPartitionIterator countingIter = new CountingPartitionIterator(iter, limit.forPaging(toQuery), nowInSec);
-        iter.setCounter(countingIter.counter());
-        return countingIter;
+        DataLimits.Counter counter = limit.forPaging(toQuery).newCounter(nowInSec, true);
+        iter.setCounter(counter);
+        return counter.applyTo(iter);
     }
 
     private class PagersIterator extends AbstractIterator<RowIterator> implements PartitionIterator

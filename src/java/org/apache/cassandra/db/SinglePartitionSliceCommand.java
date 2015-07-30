@@ -235,7 +235,7 @@ public class SinglePartitionSliceCommand extends SinglePartitionReadCommand<Clus
             cfs.metric.updateSSTableIterated(sstablesIterated);
 
             if (iterators.isEmpty())
-                return UnfilteredRowIterators.emptyIterator(cfs.metadata, partitionKey(), filter.isReversed());
+                return EmptyIterators.unfilteredRow(cfs.metadata, partitionKey(), filter.isReversed());
 
             Tracing.trace("Merging data from memtables and {} sstables", sstablesIterated);
 

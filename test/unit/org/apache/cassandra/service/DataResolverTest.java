@@ -327,7 +327,7 @@ public class DataResolverTest
                                                                                                        .add("c2", "v2")
                                                                                                        .buildUpdate())));
         InetAddress peer2 = peer();
-        resolver.preprocess(readResponseMessage(peer2, UnfilteredPartitionIterators.empty(cfm)));
+        resolver.preprocess(readResponseMessage(peer2, EmptyIterators.unfilteredPartition(cfm, false)));
 
         try(PartitionIterator data = resolver.resolve();
             RowIterator rows = Iterators.getOnlyElement(data))
@@ -349,8 +349,8 @@ public class DataResolverTest
     public void testResolveWithBothEmpty()
     {
         DataResolver resolver = new DataResolver(ks, command, ConsistencyLevel.ALL, 2);
-        resolver.preprocess(readResponseMessage(peer(), UnfilteredPartitionIterators.empty(cfm)));
-        resolver.preprocess(readResponseMessage(peer(), UnfilteredPartitionIterators.empty(cfm)));
+        resolver.preprocess(readResponseMessage(peer(), EmptyIterators.unfilteredPartition(cfm, false)));
+        resolver.preprocess(readResponseMessage(peer(), EmptyIterators.unfilteredPartition(cfm, false)));
 
         try(PartitionIterator data = resolver.resolve())
         {
