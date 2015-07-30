@@ -30,6 +30,8 @@ import junit.framework.Assert;
 
 import com.google.common.base.Predicate;
 
+import org.junit.After;
+import org.junit.Before;
 import org.junit.BeforeClass;
 import org.junit.Test;
 
@@ -43,6 +45,9 @@ import org.apache.cassandra.db.marshal.AsciiType;
 import org.apache.cassandra.db.marshal.BytesType;
 import org.apache.cassandra.db.partitions.PartitionUpdate;
 import org.apache.cassandra.schema.KeyspaceParams;
+import org.apache.cassandra.utils.JVMStabilityInspector;
+import org.apache.cassandra.utils.KillerForTests;
+import org.apache.cassandra.db.commitlog.CommitLogReplayer.CommitLogReplayException;
 
 public class CommitLogUpgradeTest
 {
@@ -55,6 +60,24 @@ public class CommitLogUpgradeTest
     static final String TABLE = "Standard1";
     static final String KEYSPACE = "Keyspace1";
     static final String CELLNAME = "name";
+
+    private JVMStabilityInspector.Killer originalKiller;
+    private KillerForTests killerForTests;
+    private boolean shouldBeKilled = false;
+
+    @Before
+    public void prepareToBeKilled()
+    {
+        killerForTests = new KillerForTests();
+        originalKiller = JVMStabilityInspector.replaceKiller(killerForTests);
+    }
+
+    @After
+    public void cleanUp()
+    {
+        JVMStabilityInspector.replaceKiller(originalKiller);
+        Assert.assertEquals("JVM killed", shouldBeKilled, killerForTests.wasKilled());
+    }
 
     @Test
     public void test20() throws Exception
@@ -69,6 +92,7 @@ public class CommitLogUpgradeTest
     }
 
     @Test
+
     public void test22() throws Exception
     {
         testRestore(DATA_DIR + "2.2");
@@ -84,6 +108,47 @@ public class CommitLogUpgradeTest
     public void test22_Snappy() throws Exception
     {
         testRestore(DATA_DIR + "2.2-snappy");
+    }
+
+    public void test22_truncated() throws Exception
+    {
+        testRestore(DATA_DIR + "2.2-lz4-truncated");
+    }
+
+    @Test(expected = CommitLogReplayException.class)
+    public void test22_bitrot() throws Exception
+    {
+        shouldBeKilled = true;
+        testRestore(DATA_DIR + "2.2-lz4-bitrot");
+    }
+
+    @Test
+    public void test22_bitrot_ignored() throws Exception
+    {
+        try {
+            System.setProperty(CommitLogReplayer.IGNORE_REPLAY_ERRORS_PROPERTY, "true");
+            testRestore(DATA_DIR + "2.2-lz4-bitrot");
+        } finally {
+            System.clearProperty(CommitLogReplayer.IGNORE_REPLAY_ERRORS_PROPERTY);
+        }
+    }
+
+    @Test(expected = CommitLogReplayException.class)
+    public void test22_bitrot2() throws Exception
+    {
+        shouldBeKilled = true;
+        testRestore(DATA_DIR + "2.2-lz4-bitrot2");
+    }
+
+    @Test
+    public void test22_bitrot2_ignored() throws Exception
+    {
+        try {
+            System.setProperty(CommitLogReplayer.IGNORE_REPLAY_ERRORS_PROPERTY, "true");
+            testRestore(DATA_DIR + "2.2-lz4-bitrot2");
+        } finally {
+            System.clearProperty(CommitLogReplayer.IGNORE_REPLAY_ERRORS_PROPERTY);
+        }
     }
 
     @BeforeClass
