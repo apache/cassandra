@@ -31,7 +31,6 @@ import org.apache.cassandra.db.Keyspace;
 import org.apache.cassandra.db.SerializationHeader;
 import org.apache.cassandra.db.marshal.*;
 import org.apache.cassandra.db.rows.EncodingStats;
-import org.apache.cassandra.io.sstable.format.SSTableWriter;
 import org.apache.cassandra.schema.KeyspaceParams;
 import org.apache.cassandra.utils.concurrent.AbstractTransactionalTest;
 

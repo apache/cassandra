@@ -128,7 +128,7 @@ public class StreamingTransferTest
     public void testRequestEmpty() throws Exception
     {
         // requesting empty data should succeed
-        IPartitioner p = StorageService.getPartitioner();
+        IPartitioner p = Util.testPartitioner();
         List<Range<Token>> ranges = new ArrayList<>();
         ranges.add(new Range<>(p.getMinimumToken(), p.getToken(ByteBufferUtil.bytes("key1"))));
         ranges.add(new Range<>(p.getToken(ByteBufferUtil.bytes("key2")), p.getMinimumToken()));
@@ -215,7 +215,7 @@ public class StreamingTransferTest
 
     private void transferSSTables(SSTableReader sstable) throws Exception
     {
-        IPartitioner p = StorageService.getPartitioner();
+        IPartitioner p = sstable.getPartitioner();
         List<Range<Token>> ranges = new ArrayList<>();
         ranges.add(new Range<>(p.getMinimumToken(), p.getToken(ByteBufferUtil.bytes("key1"))));
         ranges.add(new Range<>(p.getToken(ByteBufferUtil.bytes("key2")), p.getMinimumToken()));
@@ -224,7 +224,7 @@ public class StreamingTransferTest
 
     private void transferRanges(ColumnFamilyStore cfs) throws Exception
     {
-        IPartitioner p = StorageService.getPartitioner();
+        IPartitioner p = cfs.getPartitioner();
         List<Range<Token>> ranges = new ArrayList<>();
         // wrapped range
         ranges.add(new Range<Token>(p.getToken(ByteBufferUtil.bytes("key1")), p.getToken(ByteBufferUtil.bytes("key0"))));
@@ -418,7 +418,7 @@ public class StreamingTransferTest
         SSTableReader sstable2 = SSTableUtils.prepare().write(content);
 
         // transfer the first and last key
-        IPartitioner p = StorageService.getPartitioner();
+        IPartitioner p = Util.testPartitioner();
         List<Range<Token>> ranges = new ArrayList<>();
         ranges.add(new Range<>(p.getMinimumToken(), p.getToken(ByteBufferUtil.bytes("test"))));
         ranges.add(new Range<>(p.getToken(ByteBufferUtil.bytes("transfer2")), p.getMinimumToken()));
@@ -447,7 +447,7 @@ public class StreamingTransferTest
     public void testTransferOfMultipleColumnFamilies() throws Exception
     {
         String keyspace = KEYSPACE_CACHEKEY;
-        IPartitioner p = StorageService.getPartitioner();
+        IPartitioner p = Util.testPartitioner();
         String[] columnFamilies = new String[] { "Standard1", "Standard2", "Standard3" };
         List<SSTableReader> ssTableReaders = new ArrayList<>();
 
@@ -517,7 +517,7 @@ public class StreamingTransferTest
         SSTableReader sstable = cfs.getLiveSSTables().iterator().next();
         cfs.clearUnsafe();
 
-        IPartitioner p = StorageService.getPartitioner();
+        IPartitioner p = Util.testPartitioner();
         List<Range<Token>> ranges = new ArrayList<>();
         ranges.add(new Range<>(p.getToken(ByteBufferUtil.bytes("key1")), p.getToken(ByteBufferUtil.bytes("key1000"))));
         ranges.add(new Range<>(p.getToken(ByteBufferUtil.bytes("key5")), p.getToken(ByteBufferUtil.bytes("key500"))));

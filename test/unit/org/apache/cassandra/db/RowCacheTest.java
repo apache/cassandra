@@ -88,7 +88,7 @@ public class RowCacheTest
         CacheService.instance.setRowCacheCapacityInMB(1);
 
         ByteBuffer key = ByteBufferUtil.bytes("rowcachekey");
-        DecoratedKey dk = cachedStore.partitioner.decorateKey(key);
+        DecoratedKey dk = cachedStore.decorateKey(key);
         RowCacheKey rck = new RowCacheKey(cachedStore.metadata.cfId, dk);
 
         RowUpdateBuilder rub = new RowUpdateBuilder(cachedStore.metadata, System.currentTimeMillis(), key);
@@ -255,7 +255,7 @@ public class RowCacheTest
         CacheService.instance.setRowCacheCapacityInMB(1);
 
         ByteBuffer key = ByteBufferUtil.bytes("rowcachekey");
-        DecoratedKey dk = cachedStore.partitioner.decorateKey(key);
+        DecoratedKey dk = cachedStore.decorateKey(key);
         RowCacheKey rck = new RowCacheKey(cachedStore.metadata.cfId, dk);
         String values[] = new String[200];
         for (int i = 0; i < 200; i++)

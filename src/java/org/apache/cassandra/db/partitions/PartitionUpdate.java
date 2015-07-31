@@ -102,6 +102,17 @@ public class PartitionUpdate extends AbstractThreadUnsafePartition
         this(metadata, key, columns, Rows.EMPTY_STATIC_ROW, new ArrayList<>(initialRowCapacity), MutableDeletionInfo.live(), null, false, true);
     }
 
+    public PartitionUpdate(CFMetaData metadata,
+                           ByteBuffer key,
+                           PartitionColumns columns,
+                           int initialRowCapacity)
+    {
+        this(metadata,
+             metadata.decorateKey(key),
+             columns,
+             initialRowCapacity);
+    }
+
     /**
      * Creates a empty immutable partition update.
      *
@@ -134,7 +145,7 @@ public class PartitionUpdate extends AbstractThreadUnsafePartition
      * Creates an immutable partition update that contains a single row update.
      *
      * @param metadata the metadata for the created update.
-     * @param key the partition key for the partition that the created update should delete.
+     * @param key the partition key for the partition to update.
      * @param row the row for the update.
      *
      * @return the newly created partition update containing only {@code row}.
@@ -144,6 +155,20 @@ public class PartitionUpdate extends AbstractThreadUnsafePartition
         return row.isStatic()
              ? new PartitionUpdate(metadata, key, new PartitionColumns(row.columns(), Columns.NONE), row, Collections.<Row>emptyList(), MutableDeletionInfo.live(), EncodingStats.NO_STATS, true, false)
              : new PartitionUpdate(metadata, key, new PartitionColumns(Columns.NONE, row.columns()), Rows.EMPTY_STATIC_ROW, Collections.singletonList(row), MutableDeletionInfo.live(), EncodingStats.NO_STATS, true, false);
+    }
+
+    /**
+     * Creates an immutable partition update that contains a single row update.
+     *
+     * @param metadata the metadata for the created update.
+     * @param key the partition key for the partition to update.
+     * @param row the row for the update.
+     *
+     * @return the newly created partition update containing only {@code row}.
+     */
+    public static PartitionUpdate singleRowUpdate(CFMetaData metadata, ByteBuffer key, Row row)
+    {
+        return singleRowUpdate(metadata, metadata.decorateKey(key), row);
     }
 
     /**
@@ -259,6 +284,21 @@ public class PartitionUpdate extends AbstractThreadUnsafePartition
         {
             throw new RuntimeException(e);
         }
+    }
+
+    /**
+     * Creates a partition update that entirely deletes a given partition.
+     *
+     * @param metadata the metadata for the created update.
+     * @param key the partition key for the partition that the created update should delete.
+     * @param timestamp the timestamp for the deletion.
+     * @param nowInSec the current time in seconds to use as local deletion time for the partition deletion.
+     *
+     * @return the newly created partition deletion update.
+     */
+    public static PartitionUpdate fullPartitionDelete(CFMetaData metadata, ByteBuffer key, long timestamp, int nowInSec)
+    {
+        return fullPartitionDelete(metadata, metadata.decorateKey(key), timestamp, nowInSec);
     }
 
     /**
@@ -695,29 +735,39 @@ public class PartitionUpdate extends AbstractThreadUnsafePartition
             }
         }
 
-        public PartitionUpdate deserialize(DataInputPlus in, int version, SerializationHelper.Flag flag, DecoratedKey key) throws IOException
+        public PartitionUpdate deserialize(DataInputPlus in, int version, SerializationHelper.Flag flag, ByteBuffer key) throws IOException
         {
-            if (version < MessagingService.VERSION_30)
+            if (version >= MessagingService.VERSION_30)
+            {
+                assert key == null; // key is only there for the old format
+                return deserialize30(in, version, flag);
+            }
+            else
             {
                 assert key != null;
-
-                // This is only used in mutation, and mutation have never allowed "null" column families
-                boolean present = in.readBoolean();
-                assert present;
-
-                CFMetaData metadata = CFMetaData.serializer.deserialize(in, version);
-                LegacyLayout.LegacyDeletionInfo info = LegacyLayout.LegacyDeletionInfo.serializer.deserialize(metadata, in, version);
-                int size = in.readInt();
-                Iterator<LegacyLayout.LegacyCell> cells = LegacyLayout.deserializeCells(metadata, in, flag, size);
-                SerializationHelper helper = new SerializationHelper(metadata, version, flag);
-                try (UnfilteredRowIterator iterator = LegacyLayout.onWireCellstoUnfilteredRowIterator(metadata, key, info, cells, false, helper))
-                {
-                    return PartitionUpdate.fromIterator(iterator);
-                }
+                CFMetaData metadata = deserializeMetadata(in, version);
+                DecoratedKey dk = metadata.decorateKey(key);
+                return deserializePre30(in, version, flag, metadata, dk);
             }
+        }
 
-            assert key == null; // key is only there for the old format
+        // Used to share same decorated key between updates.
+        public PartitionUpdate deserialize(DataInputPlus in, int version, SerializationHelper.Flag flag, DecoratedKey key) throws IOException
+        {
+            if (version >= MessagingService.VERSION_30)
+            {
+                return deserialize30(in, version, flag);
+            }
+            else
+            {
+                assert key != null;
+                CFMetaData metadata = deserializeMetadata(in, version);
+                return deserializePre30(in, version, flag, metadata, key);
+            }
+        }
 
+        private static PartitionUpdate deserialize30(DataInputPlus in, int version, SerializationHelper.Flag flag) throws IOException
+        {
             CFMetaData metadata = CFMetaData.serializer.deserialize(in, version);
             UnfilteredRowIteratorSerializer.Header header = UnfilteredRowIteratorSerializer.serializer.deserializeHeader(in, version, metadata, flag);
             if (header.isEmpty)
@@ -750,6 +800,28 @@ public class PartitionUpdate extends AbstractThreadUnsafePartition
                                        header.sHeader.stats(),
                                        true,
                                        false);
+        }
+
+        private static CFMetaData deserializeMetadata(DataInputPlus in, int version) throws IOException
+        {
+            // This is only used in mutation, and mutation have never allowed "null" column families
+            boolean present = in.readBoolean();
+            assert present;
+
+            CFMetaData metadata = CFMetaData.serializer.deserialize(in, version);
+            return metadata;
+        }
+
+        private static PartitionUpdate deserializePre30(DataInputPlus in, int version, SerializationHelper.Flag flag, CFMetaData metadata, DecoratedKey dk) throws IOException
+        {
+            LegacyLayout.LegacyDeletionInfo info = LegacyLayout.LegacyDeletionInfo.serializer.deserialize(metadata, in, version);
+            int size = in.readInt();
+            Iterator<LegacyLayout.LegacyCell> cells = LegacyLayout.deserializeCells(metadata, in, flag, size);
+            SerializationHelper helper = new SerializationHelper(metadata, version, flag);
+            try (UnfilteredRowIterator iterator = LegacyLayout.onWireCellstoUnfilteredRowIterator(metadata, dk, info, cells, false, helper))
+            {
+                return PartitionUpdate.fromIterator(iterator);
+            }
         }
 
         public long serializedSize(PartitionUpdate update, int version)

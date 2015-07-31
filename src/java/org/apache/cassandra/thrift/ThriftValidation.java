@@ -31,7 +31,6 @@ import org.apache.cassandra.db.marshal.AbstractType;
 import org.apache.cassandra.dht.IPartitioner;
 import org.apache.cassandra.dht.Token;
 import org.apache.cassandra.serializers.MarshalException;
-import org.apache.cassandra.service.StorageService;
 import org.apache.cassandra.utils.ByteBufferUtil;
 import org.apache.cassandra.utils.FBUtilities;
 
@@ -510,7 +509,7 @@ public class ThriftValidation
         if (range.start_token != null && range.end_key != null)
             throw new org.apache.cassandra.exceptions.InvalidRequestException("start token + end key is not a supported key range");
 
-        IPartitioner p = StorageService.getPartitioner();
+        IPartitioner p = metadata.partitioner;
 
         if (range.start_key != null && range.end_key != null)
         {

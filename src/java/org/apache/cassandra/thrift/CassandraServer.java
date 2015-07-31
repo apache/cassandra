@@ -549,7 +549,7 @@ public class CassandraServer implements Cassandra.Iface
         for (ByteBuffer key: keys)
         {
             ThriftValidation.validateKey(metadata, key);
-            DecoratedKey dk = StorageService.getPartitioner().decorateKey(key);
+            DecoratedKey dk = metadata.decorateKey(key);
             commands.add(SinglePartitionReadCommand.create(true, metadata, nowInSec, columnFilter, RowFilter.NONE, limits, dk, filter));
         }
 
@@ -617,7 +617,7 @@ public class CassandraServer implements Cassandra.Iface
                 filter = new ClusteringIndexNamesFilter(FBUtilities.singleton(cellname.clustering, metadata.comparator), false);
             }
 
-            DecoratedKey dk = StorageService.getPartitioner().decorateKey(key);
+            DecoratedKey dk = metadata.decorateKey(key);
             SinglePartitionReadCommand<?> command = SinglePartitionReadCommand.create(true, metadata, FBUtilities.nowInSeconds(), columns, RowFilter.NONE, DataLimits.NONE, dk, filter);
 
             try (RowIterator result = PartitionIterators.getOnlyElement(read(Arrays.asList(command), consistencyLevel, cState), command))
@@ -694,22 +694,23 @@ public class CassandraServer implements Cassandra.Iface
 
             ColumnFilter columnFilter;
             ClusteringIndexFilter filter;
-            if (cfs.metadata.isSuper() && !column_parent.isSetSuper_column())
+            CFMetaData metadata = cfs.metadata;
+            if (metadata.isSuper() && !column_parent.isSetSuper_column())
             {
                 // If we count on a super column table without having set the super column name, we're in fact interested by the count of super columns
-                columnFilter = ColumnFilter.all(cfs.metadata);
-                filter = new ClusteringIndexSliceFilter(makeSlices(cfs.metadata, sliceRange), sliceRange.reversed);
+                columnFilter = ColumnFilter.all(metadata);
+                filter = new ClusteringIndexSliceFilter(makeSlices(metadata, sliceRange), sliceRange.reversed);
             }
             else
             {
-                columnFilter = makeColumnFilter(cfs.metadata, column_parent, sliceRange);
-                filter = toInternalFilter(cfs.metadata, column_parent, sliceRange);
+                columnFilter = makeColumnFilter(metadata, column_parent, sliceRange);
+                filter = toInternalFilter(metadata, column_parent, sliceRange);
             }
 
-            DataLimits limits = getLimits(1, cfs.metadata.isSuper() && !column_parent.isSetSuper_column(), predicate);
-            DecoratedKey dk = StorageService.getPartitioner().decorateKey(key);
+            DataLimits limits = getLimits(1, metadata.isSuper() && !column_parent.isSetSuper_column(), predicate);
+            DecoratedKey dk = metadata.decorateKey(key);
 
-            return QueryPagers.countPaged(cfs.metadata,
+            return QueryPagers.countPaged(metadata,
                                           dk,
                                           columnFilter,
                                           filter,
@@ -821,11 +822,9 @@ public class CassandraServer implements Cassandra.Iface
         org.apache.cassandra.db.Mutation mutation;
         try
         {
-            DecoratedKey dk = StorageService.getPartitioner().decorateKey(key);
-
             LegacyLayout.LegacyCellName name = LegacyLayout.decodeCellName(metadata, column_parent.super_column, column.name);
             Cell cell = cellFromColumn(metadata, name, column);
-            PartitionUpdate update = PartitionUpdate.singleRowUpdate(metadata, dk, BTreeBackedRow.singleCellRow(name.clustering, cell));
+            PartitionUpdate update = PartitionUpdate.singleRowUpdate(metadata, key, BTreeBackedRow.singleCellRow(name.clustering, cell));
 
             mutation = new org.apache.cassandra.db.Mutation(update);
         }
@@ -913,7 +912,7 @@ public class CassandraServer implements Cassandra.Iface
             for (Column column : updates)
                 ThriftValidation.validateColumnData(metadata, null, column);
 
-            DecoratedKey dk = StorageService.getPartitioner().decorateKey(key);
+            DecoratedKey dk = metadata.decorateKey(key);
             int nowInSec = FBUtilities.nowInSeconds();
 
             PartitionUpdate partitionUpdates = PartitionUpdate.fromIterator(LegacyLayout.toRowIterator(metadata, dk, toLegacyCells(metadata, updates, nowInSec).iterator(), nowInSec));
@@ -1080,7 +1079,6 @@ public class CassandraServer implements Cassandra.Iface
         for (Map.Entry<ByteBuffer, Map<String, List<Mutation>>> mutationEntry: mutation_map.entrySet())
         {
             ByteBuffer key = mutationEntry.getKey();
-            DecoratedKey dk = StorageService.getPartitioner().decorateKey(key);
 
             // We need to separate mutation for standard cf and counter cf (that will be encapsulated in a
             // CounterMutation) because it doesn't follow the same code path
@@ -1120,6 +1118,7 @@ public class CassandraServer implements Cassandra.Iface
                 }
 
                 sortAndMerge(metadata, cells, nowInSec);
+                DecoratedKey dk = metadata.decorateKey(key);
                 PartitionUpdate update = PartitionUpdate.fromIterator(LegacyLayout.toUnfilteredRowIterator(metadata, dk, delInfo, cells.iterator()));
 
                 org.apache.cassandra.db.Mutation mutation;
@@ -1320,7 +1319,7 @@ public class CassandraServer implements Cassandra.Iface
         if (isCommutativeOp)
             ThriftConversion.fromThrift(consistency_level).validateCounterForWrite(metadata);
 
-        DecoratedKey dk = StorageService.getPartitioner().decorateKey(key);
+        DecoratedKey dk = metadata.decorateKey(key);
 
         int nowInSec = FBUtilities.nowInSeconds();
         PartitionUpdate update;
@@ -1473,7 +1472,7 @@ public class CassandraServer implements Cassandra.Iface
             org.apache.cassandra.db.ConsistencyLevel consistencyLevel = ThriftConversion.fromThrift(consistency_level);
             consistencyLevel.validateForRead(keyspace);
 
-            IPartitioner p = StorageService.getPartitioner();
+            IPartitioner p = metadata.partitioner;
             AbstractBounds<PartitionPosition> bounds;
             if (range.start_key == null)
             {
@@ -1558,7 +1557,7 @@ public class CassandraServer implements Cassandra.Iface
             org.apache.cassandra.db.ConsistencyLevel consistencyLevel = ThriftConversion.fromThrift(consistency_level);
             consistencyLevel.validateForRead(keyspace);
 
-            IPartitioner p = StorageService.getPartitioner();
+            IPartitioner p = metadata.partitioner;
             AbstractBounds<PartitionPosition> bounds;
             if (range.start_key == null)
             {
@@ -1670,7 +1669,7 @@ public class CassandraServer implements Cassandra.Iface
             org.apache.cassandra.db.ConsistencyLevel consistencyLevel = ThriftConversion.fromThrift(consistency_level);
             consistencyLevel.validateForRead(keyspace);
 
-            IPartitioner p = StorageService.getPartitioner();
+            IPartitioner p = metadata.partitioner;
             AbstractBounds<PartitionPosition> bounds = new Bounds<>(PartitionPosition.ForKey.get(index_clause.start_key, p),
                                                                     p.getMinimumToken().minKeyBound());
 
@@ -1767,7 +1766,7 @@ public class CassandraServer implements Cassandra.Iface
 
     public String describe_partitioner() throws TException
     {
-        return StorageService.getPartitioner().getClass().getName();
+        return StorageService.instance.getTokenMetadata().getClass().getName();
     }
 
     public String describe_snitch() throws TException
@@ -1796,8 +1795,8 @@ public class CassandraServer implements Cassandra.Iface
     {
         try
         {
-            Token.TokenFactory tf = StorageService.getPartitioner().getTokenFactory();
-            Range<Token> tr = new Range<>(tf.fromString(start_token), tf.fromString(end_token));
+            Token.TokenFactory tf = StorageService.instance.getTokenFactory();
+            Range<Token> tr = new Range<Token>(tf.fromString(start_token), tf.fromString(end_token));
             List<Pair<Range<Token>, Long>> splits =
                     StorageService.instance.getSplits(state().getKeyspace(), cfName, tr, keys_per_split);
             List<CfSplit> result = new ArrayList<>(splits.size());
@@ -2134,14 +2133,13 @@ public class CassandraServer implements Cassandra.Iface
             try
             {
                 LegacyLayout.LegacyCellName name = LegacyLayout.decodeCellName(metadata, column_parent.super_column, column.name);
-                DecoratedKey dk = StorageService.getPartitioner().decorateKey(key);
 
                 // See UpdateParameters.addCounter() for more details on this
                 ByteBuffer value = CounterContext.instance().createLocal(column.value);
                 CellPath path = name.collectionElement == null ? null : CellPath.create(name.collectionElement);
                 Cell cell = BufferCell.live(metadata, name.column, FBUtilities.timestampMicros(), value, path);
 
-                PartitionUpdate update = PartitionUpdate.singleRowUpdate(metadata, dk, BTreeBackedRow.singleCellRow(name.clustering, cell));
+                PartitionUpdate update = PartitionUpdate.singleRowUpdate(metadata, key, BTreeBackedRow.singleCellRow(name.clustering, cell));
 
                 org.apache.cassandra.db.Mutation mutation = new org.apache.cassandra.db.Mutation(update);
                 doInsert(consistency_level, Arrays.asList(new CounterMutation(mutation, ThriftConversion.fromThrift(consistency_level))));
@@ -2412,7 +2410,7 @@ public class CassandraServer implements Cassandra.Iface
             DataLimits limits = getLimits(1, false, request.count);
 
             ThriftValidation.validateKey(metadata, request.key);
-            DecoratedKey dk = StorageService.getPartitioner().decorateKey(request.key);
+            DecoratedKey dk = metadata.decorateKey(request.key);
             SinglePartitionReadCommand<?> cmd = SinglePartitionReadCommand.create(true, metadata, FBUtilities.nowInSeconds(), columns, RowFilter.NONE, limits, dk, filter);
             return getSlice(Collections.<SinglePartitionReadCommand<?>>singletonList(cmd),
                             false,

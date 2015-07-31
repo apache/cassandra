@@ -22,7 +22,6 @@ import org.apache.cassandra.db.rows.*;
 import org.apache.cassandra.db.filter.*;
 import org.apache.cassandra.dht.*;
 import org.apache.cassandra.exceptions.RequestExecutionException;
-import org.apache.cassandra.service.StorageService;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -47,7 +46,7 @@ public class RangeSliceQueryPager extends AbstractQueryPager
 
         if (state != null)
         {
-            lastReturnedKey = StorageService.getPartitioner().decorateKey(state.partitionKey);
+            lastReturnedKey = command.metadata().decorateKey(state.partitionKey);
             lastReturnedClustering = LegacyLayout.decodeClustering(command.metadata(), state.cellName);
             restoreState(lastReturnedKey, state.remaining, state.remainingInPartition);
         }

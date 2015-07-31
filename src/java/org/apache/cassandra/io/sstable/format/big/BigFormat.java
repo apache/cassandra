@@ -23,7 +23,6 @@ import org.apache.cassandra.config.CFMetaData;
 import org.apache.cassandra.db.RowIndexEntry;
 import org.apache.cassandra.db.SerializationHeader;
 import org.apache.cassandra.db.lifecycle.LifecycleTransaction;
-import org.apache.cassandra.dht.IPartitioner;
 import org.apache.cassandra.io.sstable.Component;
 import org.apache.cassandra.io.sstable.Descriptor;
 import org.apache.cassandra.io.sstable.format.SSTableFormat;
@@ -86,21 +85,20 @@ public class BigFormat implements SSTableFormat
                                   long keyCount, 
                                   long repairedAt, 
                                   CFMetaData metadata, 
-                                  IPartitioner partitioner, 
                                   MetadataCollector metadataCollector, 
                                   SerializationHeader header,
                                   LifecycleTransaction txn)
         {
-            return new BigTableWriter(descriptor, keyCount, repairedAt, metadata, partitioner, metadataCollector, header, txn);
+            return new BigTableWriter(descriptor, keyCount, repairedAt, metadata, metadataCollector, header, txn);
         }
     }
 
     static class ReaderFactory extends SSTableReader.Factory
     {
         @Override
-        public SSTableReader open(Descriptor descriptor, Set<Component> components, CFMetaData metadata, IPartitioner partitioner, Long maxDataAge, StatsMetadata sstableMetadata, SSTableReader.OpenReason openReason, SerializationHeader header)
+        public SSTableReader open(Descriptor descriptor, Set<Component> components, CFMetaData metadata, Long maxDataAge, StatsMetadata sstableMetadata, SSTableReader.OpenReason openReason, SerializationHeader header)
         {
-            return new BigTableReader(descriptor, components, metadata, partitioner, maxDataAge, sstableMetadata, openReason, header);
+            return new BigTableReader(descriptor, components, metadata, maxDataAge, sstableMetadata, openReason, header);
         }
     }
 

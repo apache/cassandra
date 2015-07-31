@@ -22,6 +22,7 @@ package org.apache.cassandra.service.paxos;
 
 
 import java.io.IOException;
+import java.nio.ByteBuffer;
 import java.util.UUID;
 
 import com.google.common.base.Objects;
@@ -122,9 +123,9 @@ public class Commit
 
         public Commit deserialize(DataInputPlus in, int version) throws IOException
         {
-            DecoratedKey key = null;
+            ByteBuffer key = null;
             if (version < MessagingService.VERSION_30)
-                key = StorageService.getPartitioner().decorateKey(ByteBufferUtil.readWithShortLength(in));
+                key = ByteBufferUtil.readWithShortLength(in);
 
             UUID ballot = UUIDSerializer.serializer.deserialize(in, version);
             PartitionUpdate update = PartitionUpdate.serializer.deserialize(in, version, SerializationHelper.Flag.LOCAL, key);

@@ -26,12 +26,14 @@ import java.util.concurrent.atomic.AtomicReference;
 import java.util.concurrent.locks.ReadWriteLock;
 import java.util.concurrent.locks.ReentrantReadWriteLock;
 
+import com.google.common.annotations.VisibleForTesting;
 import com.google.common.collect.*;
-import org.apache.commons.lang3.StringUtils;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import org.apache.cassandra.config.DatabaseDescriptor;
+import org.apache.cassandra.db.DecoratedKey;
+import org.apache.cassandra.dht.IPartitioner;
 import org.apache.cassandra.dht.Range;
 import org.apache.cassandra.dht.Token;
 import org.apache.cassandra.gms.FailureDetector;
@@ -92,6 +94,7 @@ public class TokenMetadata
     private volatile ArrayList<Token> sortedTokens;
 
     private final Topology topology;
+    public final IPartitioner partitioner;
 
     private static final Comparator<InetAddress> inetaddressCmp = new Comparator<InetAddress>()
     {
@@ -108,15 +111,26 @@ public class TokenMetadata
     {
         this(SortedBiMultiValMap.<Token, InetAddress>create(null, inetaddressCmp),
              HashBiMap.<InetAddress, UUID>create(),
-             new Topology());
+             new Topology(),
+             DatabaseDescriptor.getPartitioner());
     }
 
-    private TokenMetadata(BiMultiValMap<Token, InetAddress> tokenToEndpointMap, BiMap<InetAddress, UUID> endpointsMap, Topology topology)
+    private TokenMetadata(BiMultiValMap<Token, InetAddress> tokenToEndpointMap, BiMap<InetAddress, UUID> endpointsMap, Topology topology, IPartitioner partitioner)
     {
         this.tokenToEndpointMap = tokenToEndpointMap;
         this.topology = topology;
+        this.partitioner = partitioner;
         endpointToHostIdMap = endpointsMap;
         sortedTokens = sortTokens();
+    }
+
+    /**
+     * To be used by tests only (via {@link StorageService.setPartitionerUnsafe}).
+     */
+    @VisibleForTesting
+    public TokenMetadata cloneWithNewPartitioner(IPartitioner newPartitioner)
+    {
+        return new TokenMetadata(tokenToEndpointMap, endpointToHostIdMap, topology, newPartitioner);
     }
 
     private ArrayList<Token> sortTokens()
@@ -521,7 +535,8 @@ public class TokenMetadata
         {
             return new TokenMetadata(SortedBiMultiValMap.<Token, InetAddress>create(tokenToEndpointMap, null, inetaddressCmp),
                                      HashBiMap.create(endpointToHostIdMap),
-                                     new Topology(topology));
+                                     new Topology(topology),
+                                     partitioner);
         }
         finally
         {
@@ -880,7 +895,7 @@ public class TokenMetadata
     public static Iterator<Token> ringIterator(final ArrayList<Token> ring, Token start, boolean includeMin)
     {
         if (ring.isEmpty())
-            return includeMin ? Iterators.singletonIterator(StorageService.getPartitioner().getMinimumToken())
+            return includeMin ? Iterators.singletonIterator(start.getPartitioner().getMinimumToken())
                               : Iterators.<Token>emptyIterator();
 
         final boolean insertMin = includeMin && !ring.get(0).isMinimum();
@@ -896,7 +911,7 @@ public class TokenMetadata
                 {
                     // return minimum for index == -1
                     if (j == -1)
-                        return StorageService.getPartitioner().getMinimumToken();
+                        return start.getPartitioner().getMinimumToken();
                     // return ring token for other indexes
                     return ring.get(j);
                 }
@@ -1091,6 +1106,11 @@ public class TokenMetadata
     {
         ringVersion++;
         cachedTokenMap.set(null);
+    }
+
+    public DecoratedKey decorateKey(ByteBuffer key)
+    {
+        return partitioner.decorateKey(key);
     }
 
     /**

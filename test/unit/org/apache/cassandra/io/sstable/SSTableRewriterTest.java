@@ -216,7 +216,7 @@ public class SSTableRewriterTest extends SchemaLoader
                         if (sstable.openReason == SSTableReader.OpenReason.EARLY)
                         {
                             SSTableReader c = txn.current(sstables.iterator().next());
-                            Collection<Range<Token>> r = Arrays.asList(new Range<>(cfs.partitioner.getMinimumToken(), cfs.partitioner.getMinimumToken()));
+                            Collection<Range<Token>> r = Arrays.asList(new Range<>(cfs.getPartitioner().getMinimumToken(), cfs.getPartitioner().getMinimumToken()));
                             List<Pair<Long, Long>> tmplinkPositions = sstable.getPositionsForRanges(r);
                             List<Pair<Long, Long>> compactingPositions = c.getPositionsForRanges(r);
                             assertEquals(1, tmplinkPositions.size());

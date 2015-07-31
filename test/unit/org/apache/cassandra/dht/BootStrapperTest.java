@@ -58,8 +58,7 @@ public class BootStrapperTest
     @BeforeClass
     public static void setup() throws ConfigurationException
     {
-        oldPartitioner = DatabaseDescriptor.getPartitioner();
-        DatabaseDescriptor.setPartitioner(Murmur3Partitioner.instance);
+        oldPartitioner = StorageService.instance.setPartitionerUnsafe(Murmur3Partitioner.instance);
         SchemaLoader.startGossiper();
         SchemaLoader.prepareServer();
         SchemaLoader.schemaDefinition("BootStrapperTest");
@@ -68,7 +67,7 @@ public class BootStrapperTest
     @AfterClass
     public static void tearDown()
     {
-        DatabaseDescriptor.setPartitioner(oldPartitioner);
+        DatabaseDescriptor.setPartitionerUnsafe(oldPartitioner);
     }
 
     @Test
@@ -87,12 +86,12 @@ public class BootStrapperTest
     private RangeStreamer testSourceTargetComputation(String keyspaceName, int numOldNodes, int replicationFactor) throws UnknownHostException
     {
         StorageService ss = StorageService.instance;
+        TokenMetadata tmd = ss.getTokenMetadata();
 
         generateFakeEndpoints(numOldNodes);
-        Token myToken = StorageService.getPartitioner().getRandomToken();
+        Token myToken = tmd.partitioner.getRandomToken();
         InetAddress myEndpoint = InetAddress.getByName("127.0.0.1");
 
-        TokenMetadata tmd = ss.getTokenMetadata();
         assertEquals(numOldNodes, tmd.sortedTokens().size());
         RangeStreamer s = new RangeStreamer(tmd, null, myEndpoint, "Bootstrap", true, DatabaseDescriptor.getEndpointSnitch(), new StreamStateStore());
         IFailureDetector mockFailureDetector = new IFailureDetector()
@@ -136,7 +135,7 @@ public class BootStrapperTest
     private void generateFakeEndpoints(TokenMetadata tmd, int numOldNodes, int numVNodes) throws UnknownHostException
     {
         tmd.clearUnsafe();
-        IPartitioner p = StorageService.getPartitioner();
+        IPartitioner p = tmd.partitioner;
 
         for (int i = 1; i <= numOldNodes; i++)
         {

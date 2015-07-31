@@ -23,13 +23,14 @@ import java.io.IOException;
 
 import org.junit.Assert;
 import org.junit.Test;
+
 import org.apache.cassandra.AbstractSerializationsTester;
+import org.apache.cassandra.Util;
 import org.apache.cassandra.db.DecoratedKey;
 import org.apache.cassandra.db.marshal.Int32Type;
-import org.apache.cassandra.dht.IPartitioner;
 import org.apache.cassandra.io.util.DataInputPlus.DataInputStreamPlus;
 import org.apache.cassandra.io.util.DataOutputStreamPlus;
-import org.apache.cassandra.service.StorageService;
+import org.apache.cassandra.dht.IPartitioner;
 import org.apache.cassandra.dht.Murmur3Partitioner;
 
 import java.io.File;
@@ -37,10 +38,9 @@ import java.io.FileInputStream;
 
 public class SerializationsTest extends AbstractSerializationsTester
 {
-
     private static void testBloomFilterWrite(boolean offheap, boolean oldBfHashOrder) throws IOException
     {
-        IPartitioner partitioner = StorageService.getPartitioner();
+        IPartitioner partitioner = Util.testPartitioner();
         try (IFilter bf = FilterFactory.getFilter(1000000, 0.0001, offheap, oldBfHashOrder))
         {
             for (int i = 0; i < 100; i++)
@@ -54,11 +54,10 @@ public class SerializationsTest extends AbstractSerializationsTester
 
     private static void testBloomFilterWrite1000(boolean offheap, boolean oldBfHashOrder) throws IOException
     {
-        IPartitioner partitioner = StorageService.getPartitioner();
         try (IFilter bf = FilterFactory.getFilter(1000000, 0.0001, offheap, oldBfHashOrder))
         {
             for (int i = 0; i < 1000; i++)
-                bf.add(partitioner.decorateKey(Int32Type.instance.decompose(i)));
+                bf.add(Util.dk(Int32Type.instance.decompose(i)));
             try (DataOutputStreamPlus out = getOutput(oldBfHashOrder ? "2.1" : "3.0", "utils.BloomFilter1000.bin"))
             {
                 FilterFactory.serialize(bf, out);
@@ -75,19 +74,18 @@ public class SerializationsTest extends AbstractSerializationsTester
             testBloomFilterWrite1000(true, true);
         }
 
-        IPartitioner partitioner = StorageService.getPartitioner();
         try (DataInputStream in = getInput("3.0", "utils.BloomFilter1000.bin");
              IFilter filter = FilterFactory.deserialize(in, true, false))
         {
             boolean present;
             for (int i = 0 ; i < 1000 ; i++)
             {
-                present = filter.isPresent(partitioner.decorateKey(Int32Type.instance.decompose(i)));
+                present = filter.isPresent(Util.dk(Int32Type.instance.decompose(i)));
                 Assert.assertTrue(present);
             }
             for (int i = 1000 ; i < 2000 ; i++)
             {
-                present = filter.isPresent(partitioner.decorateKey(Int32Type.instance.decompose(i)));
+                present = filter.isPresent(Util.dk(Int32Type.instance.decompose(i)));
                 Assert.assertFalse(present);
             }
         }
@@ -98,12 +96,12 @@ public class SerializationsTest extends AbstractSerializationsTester
             boolean present;
             for (int i = 0 ; i < 1000 ; i++)
             {
-                present = filter.isPresent(partitioner.decorateKey(Int32Type.instance.decompose(i)));
+                present = filter.isPresent(Util.dk(Int32Type.instance.decompose(i)));
                 Assert.assertTrue(present);
             }
             for (int i = 1000 ; i < 2000 ; i++)
             {
-                present = filter.isPresent(partitioner.decorateKey(Int32Type.instance.decompose(i)));
+                present = filter.isPresent(Util.dk(Int32Type.instance.decompose(i)));
                 Assert.assertFalse(present);
             }
         }
@@ -117,13 +115,13 @@ public class SerializationsTest extends AbstractSerializationsTester
             boolean present;
             for (int i = 0 ; i < 1000 ; i++)
             {
-                present = filter.isPresent(partitioner.decorateKey(Int32Type.instance.decompose(i)));
+                present = filter.isPresent(Util.dk(Int32Type.instance.decompose(i)));
                 if (!present)
                     falseNegative ++;
             }
             for (int i = 1000 ; i < 2000 ; i++)
             {
-                present = filter.isPresent(partitioner.decorateKey(Int32Type.instance.decompose(i)));
+                present = filter.isPresent(Util.dk(Int32Type.instance.decompose(i)));
                 if (present)
                     falsePositive ++;
             }

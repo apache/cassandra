@@ -33,7 +33,6 @@ import org.apache.commons.math3.stat.descriptive.SummaryStatistics;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import org.apache.cassandra.dht.IPartitioner;
 import org.apache.cassandra.dht.Token;
 import org.apache.cassandra.exceptions.ConfigurationException;
 import org.apache.cassandra.locator.AbstractReplicationStrategy;
@@ -49,12 +48,11 @@ public class TokenAllocation
 
     public static Collection<Token> allocateTokens(final TokenMetadata tokenMetadata,
                                                    final AbstractReplicationStrategy rs,
-                                                   final IPartitioner partitioner,
                                                    final InetAddress endpoint,
                                                    int numTokens)
     {
         StrategyAdapter strategy = getStrategy(tokenMetadata, rs, endpoint);
-        Collection<Token> tokens = create(tokenMetadata, strategy, partitioner).addUnit(endpoint, numTokens);
+        Collection<Token> tokens = create(tokenMetadata, strategy).addUnit(endpoint, numTokens);
         tokens = adjustForCrossDatacenterClashes(tokenMetadata, strategy, tokens);
 
         if (logger.isWarnEnabled())
@@ -141,7 +139,7 @@ public class TokenAllocation
         return stat;
     }
 
-    static TokenAllocator<InetAddress> create(TokenMetadata tokenMetadata, StrategyAdapter strategy, IPartitioner partitioner)
+    static TokenAllocator<InetAddress> create(TokenMetadata tokenMetadata, StrategyAdapter strategy)
     {
         NavigableMap<Token, InetAddress> sortedTokens = new TreeMap<>();
         for (Map.Entry<Token, InetAddress> en : tokenMetadata.getNormalAndBootstrappingTokenToEndpointMap().entrySet())
@@ -149,7 +147,7 @@ public class TokenAllocation
             if (strategy.inAllocationRing(en.getValue()))
                 sortedTokens.put(en.getKey(), en.getValue());
         }
-        return new ReplicationAwareTokenAllocator<>(sortedTokens, strategy, partitioner);
+        return new ReplicationAwareTokenAllocator<>(sortedTokens, strategy, tokenMetadata.partitioner);
     }
 
     interface StrategyAdapter extends ReplicationStrategy<InetAddress>

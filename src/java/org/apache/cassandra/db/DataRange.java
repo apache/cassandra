@@ -27,7 +27,6 @@ import org.apache.cassandra.db.marshal.CompositeType;
 import org.apache.cassandra.dht.*;
 import org.apache.cassandra.io.util.DataInputPlus;
 import org.apache.cassandra.io.util.DataOutputPlus;
-import org.apache.cassandra.net.MessagingService;
 
 /**
  * Groups both the range of partitions to query, and the clustering index filter to
@@ -374,7 +373,7 @@ public class DataRange
 
         public DataRange deserialize(DataInputPlus in, int version, CFMetaData metadata) throws IOException
         {
-            AbstractBounds<PartitionPosition> range = AbstractBounds.rowPositionSerializer.deserialize(in, MessagingService.globalPartitioner(), version);
+            AbstractBounds<PartitionPosition> range = AbstractBounds.rowPositionSerializer.deserialize(in, metadata.partitioner, version);
             ClusteringIndexFilter filter = ClusteringIndexFilter.serializer.deserialize(in, version, metadata);
             if (in.readBoolean())
             {

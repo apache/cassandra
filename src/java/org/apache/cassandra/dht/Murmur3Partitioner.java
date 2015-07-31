@@ -26,6 +26,7 @@ import java.util.concurrent.ThreadLocalRandom;
 import org.apache.cassandra.db.DecoratedKey;
 import org.apache.cassandra.db.PreHashedDecoratedKey;
 import org.apache.cassandra.db.marshal.AbstractType;
+import org.apache.cassandra.db.marshal.PartitionerDefinedOrder;
 import org.apache.cassandra.db.marshal.LongType;
 import org.apache.cassandra.exceptions.ConfigurationException;
 import org.apache.cassandra.utils.ByteBufferUtil;
@@ -45,6 +46,7 @@ public class Murmur3Partitioner implements IPartitioner
     private static final int HEAP_SIZE = (int) ObjectSizes.measureDeep(MINIMUM);
 
     public static final Murmur3Partitioner instance = new Murmur3Partitioner();
+    public static final AbstractType<?> partitionOrdering = new PartitionerDefinedOrder(instance);
 
     public DecoratedKey decorateKey(ByteBuffer key)
     {
@@ -287,5 +289,10 @@ public class Murmur3Partitioner implements IPartitioner
     public AbstractType<?> getTokenValidator()
     {
         return LongType.instance;
+    }
+
+    public AbstractType<?> partitionOrdering()
+    {
+        return partitionOrdering;
     }
 }

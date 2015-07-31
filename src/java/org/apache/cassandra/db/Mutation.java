@@ -18,6 +18,7 @@
 package org.apache.cassandra.db;
 
 import java.io.IOException;
+import java.nio.ByteBuffer;
 import java.util.*;
 
 import org.apache.commons.lang3.StringUtils;
@@ -31,7 +32,6 @@ import org.apache.cassandra.io.util.DataInputPlus;
 import org.apache.cassandra.io.util.DataOutputPlus;
 import org.apache.cassandra.net.MessageOut;
 import org.apache.cassandra.net.MessagingService;
-import org.apache.cassandra.service.StorageService;
 import org.apache.cassandra.utils.ByteBufferUtil;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -107,6 +107,7 @@ public class Mutation implements IMutation
     public Mutation add(PartitionUpdate update)
     {
         assert update != null;
+        assert update.partitionKey().getPartitioner() == key.getPartitioner();
         PartitionUpdate prev = modifications.put(update.metadata().cfId, update);
         if (prev != null)
             // developer error
@@ -270,15 +271,14 @@ public class Mutation implements IMutation
 
         public Mutation deserialize(DataInputPlus in, int version, SerializationHelper.Flag flag) throws IOException
         {
-            String keyspaceName = null; // will always be set from cf.metadata but javac isn't smart enough to see that
             if (version < MessagingService.VERSION_20)
-                keyspaceName = in.readUTF();
+                in.readUTF(); // read pre-2.0 keyspace name
 
-            DecoratedKey key = null;
+            ByteBuffer key = null;
             int size;
             if (version < MessagingService.VERSION_30)
             {
-                key = StorageService.getPartitioner().decorateKey(ByteBufferUtil.readWithShortLength(in));
+                key = ByteBufferUtil.readWithShortLength(in);
                 size = in.readInt();
             }
             else
@@ -288,23 +288,21 @@ public class Mutation implements IMutation
 
             assert size > 0;
 
+            PartitionUpdate update = PartitionUpdate.serializer.deserialize(in, version, flag, key);
             if (size == 1)
-                return new Mutation(PartitionUpdate.serializer.deserialize(in, version, flag, key));
+                return new Mutation(update);
 
             Map<UUID, PartitionUpdate> modifications = new HashMap<>(size);
-            PartitionUpdate update = null;
-            for (int i = 0; i < size; ++i)
+            DecoratedKey dk = update.partitionKey();
+
+            modifications.put(update.metadata().cfId, update);
+            for (int i = 1; i < size; ++i)
             {
-                update = PartitionUpdate.serializer.deserialize(in, version, flag, key);
+                update = PartitionUpdate.serializer.deserialize(in, version, flag, dk);
                 modifications.put(update.metadata().cfId, update);
             }
 
-            if (keyspaceName == null)
-                keyspaceName = update.metadata().ksName;
-            if (key == null)
-                key = update.partitionKey();
-
-            return new Mutation(keyspaceName, key, modifications);
+            return new Mutation(update.metadata().ksName, dk, modifications);
         }
 
         public Mutation deserialize(DataInputPlus in, int version) throws IOException

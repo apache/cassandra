@@ -114,6 +114,6 @@ public class UpdateBuilder
             return (DecoratedKey)partitionKey[0];
 
         ByteBuffer key = CFMetaData.serializePartitionKey(metadata.getKeyValidatorAsClusteringComparator().make(partitionKey));
-        return StorageService.getPartitioner().decorateKey(key);
+        return metadata.decorateKey(key);
     }
 }

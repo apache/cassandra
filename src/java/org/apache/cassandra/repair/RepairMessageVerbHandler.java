@@ -85,8 +85,8 @@ public class RepairMessageVerbHandler implements IVerbHandler<RepairMessage>
                         public boolean apply(SSTableReader sstable)
                         {
                             return sstable != null &&
-                                    !(sstable.partitioner instanceof LocalPartitioner) && // exclude SSTables from 2i
-                                    new Bounds<>(sstable.first.getToken(), sstable.last.getToken()).intersects(Collections.singleton(repairingRange));
+                                   !sstable.metadata.isIndex() && // exclude SSTables from 2i
+                                   new Bounds<>(sstable.first.getToken(), sstable.last.getToken()).intersects(Collections.singleton(repairingRange));
                         }
                     }, true); //ephemeral snapshot, if repair fails, it will be cleaned next startup
 

@@ -45,6 +45,7 @@ import org.apache.cassandra.db.*;
 import org.apache.cassandra.db.compaction.*;
 import org.apache.cassandra.db.index.SecondaryIndex;
 import org.apache.cassandra.db.marshal.*;
+import org.apache.cassandra.dht.IPartitioner;
 import org.apache.cassandra.exceptions.*;
 import org.apache.cassandra.io.compress.CompressionParameters;
 import org.apache.cassandra.io.compress.LZ4Compressor;
@@ -183,7 +184,10 @@ public final class CFMetaData
     private final boolean isCounter;
     private final boolean isMaterializedView;
 
+    private final boolean isIndex;
+
     public volatile ClusteringComparator comparator;  // bytes, long, timeuuid, utf8, etc. This is built directly from clusteringColumns
+    public final IPartitioner partitioner;            // partitioner the table uses
 
     private final Serializers serializers;
 
@@ -259,7 +263,8 @@ public final class CFMetaData
                        boolean isMaterializedView,
                        List<ColumnDefinition> partitionKeyColumns,
                        List<ColumnDefinition> clusteringColumns,
-                       PartitionColumns partitionColumns)
+                       PartitionColumns partitionColumns,
+                       IPartitioner partitioner)
     {
         this.cfId = cfId;
         this.ksName = keyspace;
@@ -283,6 +288,11 @@ public final class CFMetaData
         if (isMaterializedView)
             flags.add(Flag.MATERIALIZEDVIEW);
         this.flags = Sets.immutableEnumSet(flags);
+
+        isIndex = cfName.contains(".");
+
+        assert partitioner != null;
+        this.partitioner = partitioner;
 
         // A compact table should always have a clustering
         assert isCQLTable() || !clusteringColumns.isEmpty() : String.format("For table %s.%s, isDense=%b, isCompound=%b, clustering=%s", ksName, cfName, isDense, isCompound, clusteringColumns);
@@ -329,7 +339,8 @@ public final class CFMetaData
                                     boolean isSuper,
                                     boolean isCounter,
                                     boolean isMaterializedView,
-                                    List<ColumnDefinition> columns)
+                                    List<ColumnDefinition> columns,
+                                    IPartitioner partitioner)
     {
         List<ColumnDefinition> partitions = new ArrayList<>();
         List<ColumnDefinition> clusterings = new ArrayList<>();
@@ -364,7 +375,8 @@ public final class CFMetaData
                               isMaterializedView,
                               partitions,
                               clusterings,
-                              builder.build());
+                              builder.build(),
+                              partitioner);
     }
 
     private static List<AbstractType<?>> extractTypes(List<ColumnDefinition> clusteringColumns)
@@ -466,7 +478,25 @@ public final class CFMetaData
                                        isMaterializedView(),
                                        copy(partitionKeyColumns),
                                        copy(clusteringColumns),
-                                       copy(partitionColumns)),
+                                       copy(partitionColumns),
+                                       partitioner),
+                        this);
+    }
+
+    public CFMetaData copy(IPartitioner partitioner)
+    {
+        return copyOpts(new CFMetaData(ksName,
+                                       cfName,
+                                       cfId,
+                                       isSuper,
+                                       isCounter,
+                                       isDense,
+                                       isCompound,
+                                       isMaterializedView,
+                                       copy(partitionKeyColumns),
+                                       copy(clusteringColumns),
+                                       copy(partitionColumns),
+                                       partitioner),
                         this);
     }
 
@@ -537,6 +567,19 @@ public final class CFMetaData
         return cfName.contains(".");
     }
 
+    /**
+     * true if this CFS contains secondary index data.
+     */
+    public boolean isIndex()
+    {
+        return isIndex;
+    }
+
+    public DecoratedKey decorateKey(ByteBuffer key)
+    {
+        return partitioner.decorateKey(key);
+    }
+
     public Map<ByteBuffer, ColumnDefinition> getColumnMetadata()
     {
         return columnMetadata;
@@ -548,7 +591,7 @@ public final class CFMetaData
      */
     public String getParentColumnFamilyName()
     {
-        return isSecondaryIndex() ? cfName.substring(0, cfName.indexOf('.')) : null;
+        return isIndex ? cfName.substring(0, cfName.indexOf('.')) : null;
     }
 
     public double getReadRepairChance()
@@ -1392,6 +1435,7 @@ public final class CFMetaData
         private final boolean isSuper;
         private final boolean isCounter;
         private final boolean isMaterializedView;
+        private IPartitioner partitioner;
 
         private UUID tableId;
 
@@ -1409,6 +1453,7 @@ public final class CFMetaData
             this.isSuper = isSuper;
             this.isCounter = isCounter;
             this.isMaterializedView = isMaterializedView;
+            this.partitioner = DatabaseDescriptor.getPartitioner();
         }
 
         public static Builder create(String keyspace, String table)
@@ -1439,6 +1484,12 @@ public final class CFMetaData
         public static Builder createSuper(String keyspace, String table, boolean isCounter)
         {
             return create(keyspace, table, false, false, true, isCounter);
+        }
+
+        public Builder withPartitioner(IPartitioner partitioner)
+        {
+            this.partitioner = partitioner;
+            return this;
         }
 
         public Builder withId(UUID tableId)
@@ -1554,7 +1605,8 @@ public final class CFMetaData
                                   isMaterializedView,
                                   partitions,
                                   clusterings,
-                                  builder.build());
+                                  builder.build(),
+                                  partitioner);
         }
     }
 

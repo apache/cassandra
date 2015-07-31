@@ -17,6 +17,7 @@
  */
 package org.apache.cassandra.db;
 
+import java.nio.ByteBuffer;
 import java.util.*;
 
 import com.google.common.collect.Sets;
@@ -65,6 +66,17 @@ public class SinglePartitionNamesCommand extends SinglePartitionReadCommand<Clus
                                        ClusteringIndexNamesFilter clusteringIndexFilter)
     {
         this(false, false, metadata, nowInSec, columnFilter, rowFilter, limits, partitionKey, clusteringIndexFilter);
+    }
+
+    public SinglePartitionNamesCommand(CFMetaData metadata,
+                                       int nowInSec,
+                                       ColumnFilter columnFilter,
+                                       RowFilter rowFilter,
+                                       DataLimits limits,
+                                       ByteBuffer key,
+                                       ClusteringIndexNamesFilter clusteringIndexFilter)
+    {
+        this(false, false, metadata, nowInSec, columnFilter, rowFilter, limits, metadata.decorateKey(key), clusteringIndexFilter);
     }
 
     public SinglePartitionNamesCommand copy()

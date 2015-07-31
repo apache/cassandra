@@ -300,4 +300,9 @@ public class ByteOrderedPartitioner implements IPartitioner
     {
         return BytesType.instance;
     }
+
+    public AbstractType<?> partitionOrdering()
+    {
+        return BytesType.instance;
+    }
 }

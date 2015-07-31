@@ -78,4 +78,10 @@ public interface IPartitioner
     public Map<Token, Float> describeOwnership(List<Token> sortedTokens);
 
     public AbstractType<?> getTokenValidator();
+
+    /**
+     * Abstract type that orders the same way as DecoratedKeys provided by this partitioner.
+     * Used by secondary indices.
+     */
+    public AbstractType<?> partitionOrdering();
 }

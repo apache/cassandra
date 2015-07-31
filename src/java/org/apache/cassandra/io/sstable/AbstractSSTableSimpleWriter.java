@@ -21,6 +21,7 @@ import java.io.File;
 import java.io.FilenameFilter;
 import java.io.IOException;
 import java.io.Closeable;
+import java.nio.ByteBuffer;
 import java.util.HashSet;
 import java.util.Set;
 import java.util.concurrent.atomic.AtomicInteger;
@@ -30,7 +31,6 @@ import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.db.*;
 import org.apache.cassandra.db.rows.EncodingStats;
 import org.apache.cassandra.db.partitions.PartitionUpdate;
-import org.apache.cassandra.dht.IPartitioner;
 import org.apache.cassandra.io.sstable.format.SSTableFormat;
 import org.apache.cassandra.service.ActiveRepairService;
 import org.apache.cassandra.utils.Pair;
@@ -46,12 +46,11 @@ abstract class AbstractSSTableSimpleWriter implements Closeable
     protected SSTableFormat.Type formatType = DatabaseDescriptor.getSSTableFormat();
     protected static AtomicInteger generation = new AtomicInteger(0);
 
-    protected AbstractSSTableSimpleWriter(File directory, CFMetaData metadata, IPartitioner partitioner, PartitionColumns columns)
+    protected AbstractSSTableSimpleWriter(File directory, CFMetaData metadata, PartitionColumns columns)
     {
         this.metadata = metadata;
         this.directory = directory;
         this.columns = columns;
-        DatabaseDescriptor.setPartitioner(partitioner);
     }
 
     protected void setSSTableFormatType(SSTableFormat.Type type)
@@ -101,6 +100,11 @@ abstract class AbstractSSTableSimpleWriter implements Closeable
             }
         }
         return maxGen;
+    }
+
+    PartitionUpdate getUpdateFor(ByteBuffer key) throws IOException
+    {
+        return getUpdateFor(metadata.decorateKey(key));
     }
 
     /**

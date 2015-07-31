@@ -8,9 +8,6 @@ import com.datastax.driver.core.Statement;
 
 import static org.junit.Assert.assertEquals;
 
-import org.apache.cassandra.config.DatabaseDescriptor;
-import org.apache.cassandra.dht.Murmur3Partitioner;
-
 public class IndexQueryPagingTest extends CQLTester
 {
     /*

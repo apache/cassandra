@@ -137,7 +137,6 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
     public final Keyspace keyspace;
     public final String name;
     public final CFMetaData metadata;
-    public final IPartitioner partitioner;
     private final String mbeanName;
     @Deprecated
     private final String oldMBeanName;
@@ -304,20 +303,18 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
 
     public ColumnFamilyStore(Keyspace keyspace,
                              String columnFamilyName,
-                             IPartitioner partitioner,
                              int generation,
                              CFMetaData metadata,
                              Directories directories,
                              boolean loadSSTables)
     {
-        this(keyspace, columnFamilyName, partitioner, generation, metadata, directories, loadSSTables, true);
+        this(keyspace, columnFamilyName, generation, metadata, directories, loadSSTables, true);
     }
 
 
     @VisibleForTesting
     public ColumnFamilyStore(Keyspace keyspace,
                               String columnFamilyName,
-                              IPartitioner partitioner,
                               int generation,
                               CFMetaData metadata,
                               Directories directories,
@@ -331,7 +328,6 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
         this.metadata = metadata;
         this.minCompactionThreshold = new DefaultInteger(metadata.getMinCompactionThreshold());
         this.maxCompactionThreshold = new DefaultInteger(metadata.getMaxCompactionThreshold());
-        this.partitioner = partitioner;
         this.directories = directories;
         this.indexManager = new SecondaryIndexManager(this);
         this.materializedViewManager = new MaterializedViewManager(this);
@@ -349,7 +345,7 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
         if (data.loadsstables)
         {
             Directories.SSTableLister sstableFiles = directories.sstableLister().skipTemporary(true);
-            Collection<SSTableReader> sstables = SSTableReader.openAll(sstableFiles.list().entrySet(), metadata, this.partitioner);
+            Collection<SSTableReader> sstables = SSTableReader.openAll(sstableFiles.list().entrySet(), metadata);
             data.addInitialSSTables(sstables);
         }
 
@@ -486,12 +482,11 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
 
     public static ColumnFamilyStore createColumnFamilyStore(Keyspace keyspace, String columnFamily, boolean loadSSTables)
     {
-        return createColumnFamilyStore(keyspace, columnFamily, StorageService.getPartitioner(), Schema.instance.getCFMetaData(keyspace.getName(), columnFamily), loadSSTables);
+        return createColumnFamilyStore(keyspace, columnFamily, Schema.instance.getCFMetaData(keyspace.getName(), columnFamily), loadSSTables);
     }
 
     public static synchronized ColumnFamilyStore createColumnFamilyStore(Keyspace keyspace,
                                                                          String columnFamily,
-                                                                         IPartitioner partitioner,
                                                                          CFMetaData metadata,
                                                                          boolean loadSSTables)
     {
@@ -510,7 +505,7 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
         Collections.sort(generations);
         int value = (generations.size() > 0) ? (generations.get(generations.size() - 1)) : 0;
 
-        return new ColumnFamilyStore(keyspace, columnFamily, partitioner, value, metadata, directories, loadSSTables);
+        return new ColumnFamilyStore(keyspace, columnFamily, value, metadata, directories, loadSSTables);
     }
 
     /**
@@ -681,7 +676,7 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
             SSTableReader reader;
             try
             {
-                reader = SSTableReader.open(newDescriptor, entry.getValue(), metadata, partitioner);
+                reader = SSTableReader.open(newDescriptor, entry.getValue(), metadata);
             }
             catch (IOException e)
             {
@@ -1443,7 +1438,7 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
     // WARNING: this returns the set of LIVE sstables only, which may be only partially written
     public List<String> getSSTablesForKey(String key)
     {
-        DecoratedKey dk = partitioner.decorateKey(metadata.getKeyValidator().fromString(key));
+        DecoratedKey dk = decorateKey(metadata.getKeyValidator().fromString(key));
         try (OpOrder.Group op = readOrdering.start())
         {
             List<String> files = new ArrayList<>();
@@ -1489,7 +1484,7 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
              keyIter.hasNext(); )
         {
             RowCacheKey key = keyIter.next();
-            DecoratedKey dk = partitioner.decorateKey(ByteBuffer.wrap(key.key));
+            DecoratedKey dk = decorateKey(ByteBuffer.wrap(key.key));
             if (key.cfId.equals(metadata.cfId) && !Range.isInRanges(dk.getToken(), ranges))
                 invalidateCachedPartition(dk);
         }
@@ -1500,7 +1495,7 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
                  keyIter.hasNext(); )
             {
                 CounterCacheKey key = keyIter.next();
-                DecoratedKey dk = partitioner.decorateKey(ByteBuffer.wrap(key.partitionKey));
+                DecoratedKey dk = decorateKey(ByteBuffer.wrap(key.partitionKey));
                 if (key.cfId.equals(metadata.cfId) && !Range.isInRanges(dk.getToken(), ranges))
                     CacheService.instance.counterCache.remove(key);
             }
@@ -1618,7 +1613,7 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
                     if (logger.isDebugEnabled())
                         logger.debug("using snapshot sstable {}", entries.getKey());
                     // open without tracking hotness
-                    sstable = SSTableReader.open(entries.getKey(), entries.getValue(), metadata, partitioner, true, false);
+                    sstable = SSTableReader.open(entries.getKey(), entries.getValue(), metadata, true, false);
                     // This is technically not necessary since it's a snapshot but makes things easier
                     refs.tryRef(sstable);
                 }
@@ -2080,10 +2075,20 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
         return n;
     }
 
+    public IPartitioner getPartitioner()
+    {
+        return metadata.partitioner;
+    }
+
+    public DecoratedKey decorateKey(ByteBuffer key)
+    {
+        return metadata.decorateKey(key);
+    }
+
     /** true if this CFS contains secondary index data */
     public boolean isIndex()
     {
-        return partitioner instanceof LocalPartitioner;
+        return metadata.isIndex();
     }
 
     public Iterable<ColumnFamilyStore> concatWithIndexes()

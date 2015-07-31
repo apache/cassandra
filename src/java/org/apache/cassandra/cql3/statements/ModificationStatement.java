@@ -541,7 +541,7 @@ public abstract class ModificationStatement implements CQLStatement
                                                          ColumnFilter.selection(toRead),
                                                          RowFilter.NONE,
                                                          DataLimits.NONE,
-                                                         StorageService.getPartitioner().decorateKey(key),
+                                                         key,
                                                          new ClusteringIndexNamesFilter(clusterings, false)));
 
         Map<DecoratedKey, Partition> map = new HashMap();
@@ -639,7 +639,7 @@ public abstract class ModificationStatement implements CQLStatement
         if (keys.size() > 1)
             throw new InvalidRequestException("IN on the partition key is not supported with conditional updates");
 
-        DecoratedKey key = StorageService.getPartitioner().decorateKey(keys.get(0));
+        DecoratedKey key = cfm.decorateKey(keys.get(0));
         long now = options.getTimestamp(queryState);
         CBuilder cbuilder = createClustering(options);
 
@@ -820,8 +820,7 @@ public abstract class ModificationStatement implements CQLStatement
         for (ByteBuffer key: keys)
         {
             ThriftValidation.validateKey(cfm, key);
-            DecoratedKey dk = StorageService.getPartitioner().decorateKey(key);
-            PartitionUpdate upd = new PartitionUpdate(cfm, dk, updatedColumns(), 1);
+            PartitionUpdate upd = new PartitionUpdate(cfm, key, updatedColumns(), 1);
             addUpdateForKey(upd, clustering, params);
             Mutation mut = new Mutation(upd);
 

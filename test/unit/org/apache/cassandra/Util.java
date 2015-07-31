@@ -32,24 +32,21 @@ import java.util.function.Supplier;
 import com.google.common.base.Function;
 import com.google.common.base.Preconditions;
 import com.google.common.collect.Iterators;
+
 import org.apache.commons.lang3.StringUtils;
 
 import org.apache.cassandra.config.CFMetaData;
 import org.apache.cassandra.config.ColumnDefinition;
+import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.cql3.ColumnIdentifier;
-import org.apache.cassandra.cql3.Operator;
 import org.apache.cassandra.db.*;
-import org.apache.cassandra.db.Slice.Bound;
 import org.apache.cassandra.db.rows.*;
 import org.apache.cassandra.db.compaction.AbstractCompactionTask;
 import org.apache.cassandra.db.compaction.CompactionManager;
-import org.apache.cassandra.db.filter.*;
 import org.apache.cassandra.db.marshal.AbstractType;
 import org.apache.cassandra.db.partitions.*;
 import org.apache.cassandra.dht.*;
 import org.apache.cassandra.dht.RandomPartitioner.BigIntegerToken;
-import org.apache.cassandra.dht.Range;
-import org.apache.cassandra.dht.Token;
 import org.apache.cassandra.gms.ApplicationState;
 import org.apache.cassandra.gms.Gossiper;
 import org.apache.cassandra.gms.VersionedValue;
@@ -68,24 +65,29 @@ public class Util
 {
     private static List<UUID> hostIdPool = new ArrayList<UUID>();
 
-    public static DecoratedKey dk(String key)
+    public static IPartitioner testPartitioner()
     {
-        return StorageService.getPartitioner().decorateKey(ByteBufferUtil.bytes(key));
+        return DatabaseDescriptor.getPartitioner();
     }
 
-    public static DecoratedKey dk(String key, AbstractType type)
+    public static DecoratedKey dk(String key)
     {
-        return StorageService.getPartitioner().decorateKey(type.fromString(key));
+        return testPartitioner().decorateKey(ByteBufferUtil.bytes(key));
+    }
+
+    public static DecoratedKey dk(String key, AbstractType<?> type)
+    {
+        return testPartitioner().decorateKey(type.fromString(key));
     }
 
     public static DecoratedKey dk(ByteBuffer key)
     {
-        return StorageService.getPartitioner().decorateKey(key);
+        return testPartitioner().decorateKey(key);
     }
 
     public static PartitionPosition rp(String key)
     {
-        return rp(key, StorageService.getPartitioner());
+        return rp(key, testPartitioner());
     }
 
     public static PartitionPosition rp(String key, IPartitioner partitioner)
@@ -107,7 +109,7 @@ public class Util
 
     public static Token token(String key)
     {
-        return StorageService.getPartitioner().getToken(ByteBufferUtil.bytes(key));
+        return testPartitioner().getToken(ByteBufferUtil.bytes(key));
     }
 
     public static Range<PartitionPosition> range(String left, String right)
@@ -264,7 +266,7 @@ public class Util
             return (DecoratedKey)partitionKey[0];
 
         ByteBuffer key = CFMetaData.serializePartitionKey(metadata.getKeyValidatorAsClusteringComparator().make(partitionKey));
-        return StorageService.getPartitioner().decorateKey(key);
+        return metadata.decorateKey(key);
     }
 
     public static void assertEmptyUnfiltered(ReadCommand command)
@@ -500,5 +502,28 @@ public class Util
             Thread.yield();
         }
         assertEquals(expected, s.get());
+    }
+
+    public static PartitionerSwitcher switchPartitioner(IPartitioner p)
+    {
+        return new PartitionerSwitcher(p);
+    }
+
+    public static class PartitionerSwitcher implements AutoCloseable
+    {
+        final IPartitioner oldP;
+        final IPartitioner newP;
+
+        public PartitionerSwitcher(IPartitioner partitioner)
+        {
+            newP = partitioner;
+            oldP = StorageService.instance.setPartitionerUnsafe(partitioner);
+        }
+
+        public void close()
+        {
+            IPartitioner p = StorageService.instance.setPartitionerUnsafe(oldP);
+            assert p == newP;
+        }
     }
 }

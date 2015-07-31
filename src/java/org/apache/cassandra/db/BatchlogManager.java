@@ -199,8 +199,11 @@ public class BatchlogManager implements BatchlogManagerMBean
 
     private void deleteBatch(UUID id)
     {
-        Mutation mutation = new Mutation(SystemKeyspace.NAME, StorageService.getPartitioner().decorateKey(UUIDType.instance.decompose(id)));
-        mutation.add(PartitionUpdate.fullPartitionDelete(SystemKeyspace.Batchlog, mutation.key(), FBUtilities.timestampMicros(), FBUtilities.nowInSeconds()));
+        Mutation mutation = new Mutation(
+                PartitionUpdate.fullPartitionDelete(SystemKeyspace.Batchlog,
+                                                    UUIDType.instance.decompose(id),
+                                                    FBUtilities.timestampMicros(),
+                                                    FBUtilities.nowInSeconds()));
         mutation.apply();
     }
 

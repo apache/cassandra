@@ -57,12 +57,12 @@ public class StorageProxyTest
 
     private static PartitionPosition startOf(String key)
     {
-        return StorageService.getPartitioner().getToken(ByteBufferUtil.bytes(key)).minKeyBound();
+        return token(key).minKeyBound();
     }
 
     private static PartitionPosition endOf(String key)
     {
-        return StorageService.getPartitioner().getToken(ByteBufferUtil.bytes(key)).maxKeyBound();
+        return token(key).maxKeyBound();
     }
 
     private static Range<Token> tokenRange(String left, String right)

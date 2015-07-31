@@ -961,7 +961,6 @@ public class CompactionManager implements CompactionManagerMBean
                                     expectedBloomFilterSize,
                                     repairedAt,
                                     sstable.getSSTableLevel(),
-                                    cfs.partitioner,
                                     sstable.header,
                                     txn);
     }
@@ -993,7 +992,6 @@ public class CompactionManager implements CompactionManagerMBean
                                     (long) expectedBloomFilterSize,
                                     repairedAt,
                                     cfs.metadata,
-                                    cfs.partitioner,
                                     new MetadataCollector(sstables, cfs.metadata.comparator, minLevel),
                                     SerializationHeader.make(cfs.metadata, sstables),
                                     txn);
@@ -1085,7 +1083,7 @@ public class CompactionManager implements CompactionManagerMBean
             }
             // determine tree depth from number of partitions, but cap at 20 to prevent large tree.
             int depth = numPartitions > 0 ? (int) Math.min(Math.floor(Math.log(numPartitions)), 20) : 0;
-            MerkleTree tree = new MerkleTree(cfs.partitioner, validator.desc.range, MerkleTree.RECOMMENDED_DEPTH, (int) Math.pow(2, depth));
+            MerkleTree tree = new MerkleTree(cfs.getPartitioner(), validator.desc.range, MerkleTree.RECOMMENDED_DEPTH, (int) Math.pow(2, depth));
 
             long start = System.nanoTime();
             try (AbstractCompactionStrategy.ScannerList scanners = cfs.getCompactionStrategyManager().getScanners(sstables, validator.desc.range);

@@ -146,7 +146,7 @@ public class Verifier implements Closeable
                 DecoratedKey key = null;
                 try
                 {
-                    key = sstable.partitioner.decorateKey(ByteBufferUtil.readWithShortLength(dataFile));
+                    key = sstable.decorateKey(ByteBufferUtil.readWithShortLength(dataFile));
                 }
                 catch (Throwable th)
                 {

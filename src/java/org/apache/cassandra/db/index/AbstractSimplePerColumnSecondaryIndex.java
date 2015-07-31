@@ -26,7 +26,6 @@ import org.apache.cassandra.db.*;
 import org.apache.cassandra.db.rows.*;
 import org.apache.cassandra.db.partitions.*;
 import org.apache.cassandra.db.marshal.AbstractType;
-import org.apache.cassandra.dht.LocalPartitioner;
 import org.apache.cassandra.exceptions.InvalidRequestException;
 import org.apache.cassandra.utils.FBUtilities;
 import org.apache.cassandra.utils.concurrent.OpOrder;
@@ -51,10 +50,9 @@ public abstract class AbstractSimplePerColumnSecondaryIndex extends PerColumnSec
 
         columnDef = columnDefs.iterator().next();
 
-        CFMetaData indexedCfMetadata = SecondaryIndex.newIndexMetadata(baseCfs.metadata, columnDef);
+        CFMetaData indexedCfMetadata = SecondaryIndex.newIndexMetadata(baseCfs.metadata, columnDef, getIndexKeyComparator());
         indexCfs = ColumnFamilyStore.createColumnFamilyStore(baseCfs.keyspace,
                                                              indexedCfMetadata.cfName,
-                                                             new LocalPartitioner(getIndexKeyComparator()),
                                                              indexedCfMetadata,
                                                              baseCfs.getTracker().loadsstables);
     }

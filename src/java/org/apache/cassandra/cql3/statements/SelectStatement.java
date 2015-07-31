@@ -410,7 +410,7 @@ public class SelectStatement implements CQLStatement
         for (ByteBuffer key : keys)
         {
             QueryProcessor.validateKey(key);
-            DecoratedKey dk = StorageService.getPartitioner().decorateKey(ByteBufferUtil.clone(key));
+            DecoratedKey dk = cfm.decorateKey(ByteBufferUtil.clone(key));
             commands.add(SinglePartitionReadCommand.create(cfm, nowInSec, queriedColumns, rowFilter, limit, dk, filter));
         }
 

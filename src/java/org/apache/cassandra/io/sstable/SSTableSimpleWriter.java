@@ -44,9 +44,9 @@ class SSTableSimpleWriter extends AbstractSSTableSimpleWriter
 
     private SSTableTxnWriter writer;
 
-    protected SSTableSimpleWriter(File directory, CFMetaData metadata, IPartitioner partitioner, PartitionColumns columns)
+    protected SSTableSimpleWriter(File directory, CFMetaData metadata, PartitionColumns columns)
     {
-        super(directory, metadata, partitioner, columns);
+        super(directory, metadata, columns);
     }
 
     private SSTableTxnWriter getOrCreateWriter()

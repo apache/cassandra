@@ -25,23 +25,17 @@ import org.apache.cassandra.serializers.TypeSerializer;
 import org.apache.cassandra.serializers.MarshalException;
 
 import org.apache.cassandra.dht.IPartitioner;
-import org.apache.cassandra.service.StorageService;
 import org.apache.cassandra.utils.ByteBufferUtil;
 
 /** for sorting columns representing row keys in the row ordering as determined by a partitioner.
  * Not intended for user-defined CFs, and will in fact error out if used with such. */
-public class LocalByPartionerType extends AbstractType<ByteBuffer>
+public class PartitionerDefinedOrder extends AbstractType<ByteBuffer>
 {
     private final IPartitioner partitioner;
 
-    public LocalByPartionerType(IPartitioner partitioner)
+    public PartitionerDefinedOrder(IPartitioner partitioner)
     {
         this.partitioner = partitioner;
-    }
-
-    public static LocalByPartionerType getInstance(TypeParser parser)
-    {
-        return new LocalByPartionerType(StorageService.getPartitioner());
     }
 
     @Override

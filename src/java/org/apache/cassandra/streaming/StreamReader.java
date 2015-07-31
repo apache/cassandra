@@ -193,7 +193,7 @@ public class StreamReader
 
         public DecoratedKey newPartition() throws IOException
         {
-            key = StorageService.getPartitioner().decorateKey(ByteBufferUtil.readWithShortLength(in));
+            key = metadata.decorateKey(ByteBufferUtil.readWithShortLength(in));
             partitionLevelDeletion = DeletionTime.serializer.deserialize(in);
             iterator = SSTableSimpleIterator.create(metadata, in, header, helper, partitionLevelDeletion);
             staticRow = iterator.readStaticRow();

@@ -24,10 +24,10 @@ import com.google.common.base.Strings;
 import com.google.common.collect.Maps;
 
 import org.apache.cassandra.io.compress.ICompressor;
-
 import org.apache.cassandra.cache.CachingOptions;
 import org.apache.cassandra.config.CFMetaData;
 import org.apache.cassandra.config.ColumnDefinition;
+import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.config.Schema;
 import org.apache.cassandra.cql3.ColumnIdentifier;
 import org.apache.cassandra.cql3.Operator;
@@ -277,7 +277,7 @@ public class ThriftConversion
             // We do not allow Thrift materialized views, so we always set it to false
             boolean isMaterializedView = false;
 
-            CFMetaData newCFMD = CFMetaData.create(cf_def.keyspace, cf_def.name, cfId, isDense, isCompound, isSuper, isCounter, isMaterializedView, defs);
+            CFMetaData newCFMD = CFMetaData.create(cf_def.keyspace, cf_def.name, cfId, isDense, isCompound, isSuper, isCounter, isMaterializedView, defs, DatabaseDescriptor.getPartitioner());
 
             if (cf_def.isSetGc_grace_seconds())
                 newCFMD.gcGraceSeconds(cf_def.gc_grace_seconds);
