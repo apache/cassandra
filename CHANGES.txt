@@ -1,5 +1,5 @@
 3.0
- * Implement proper sandboxing for UDFs (CASSANDRA-9402)
+ * Implement proper sandboxing for UDFs (CASSANDRA-9402, 9890)
  * Simplify (and unify) cleanup of compaction leftovers (CASSANDRA-7066)
  * Allow extra schema definitions in cassandra-stress yaml (CASSANDRA-9850)
  * Metrics should use up to date nomenclature (CASSANDRA-9448)

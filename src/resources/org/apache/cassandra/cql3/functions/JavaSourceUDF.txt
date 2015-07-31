@@ -14,15 +14,15 @@ public final class #class_name# extends JavaUDF
         super(returnDataType, argDataTypes);
     }
 
-    public ByteBuffer executeImpl(int protocolVersion, List<ByteBuffer> params)
+    protected ByteBuffer executeImpl(int protocolVersion, List<ByteBuffer> params)
     {
-        #return_type# result = executeInternal(
+        #return_type# result = #execute_internal_name#(
 #arguments#
         );
-        return decompose(protocolVersion, result);
+        return super.decompose(protocolVersion, result);
     }
 
-    private #return_type# executeInternal(#argument_list#)
+    private #return_type# #execute_internal_name#(#argument_list#)
     {
 #body#
     }

@@ -79,3 +79,7 @@ Protocol buffers for varint encoding
 https://developers.google.com/protocol-buffers/
 Copyright 2008 Google Inc.  All rights reserved.
 BSD 3-clause
+
+ASM
+(http://asm.ow2.org/)
+Copyright (c) 2000-2011 INRIA, France Telecom

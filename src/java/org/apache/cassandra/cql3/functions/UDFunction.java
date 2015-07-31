@@ -113,6 +113,7 @@ public abstract class UDFunction extends AbstractFunction implements ScalarFunct
     "com/datastax/driver/core/Statement.class",
     "com/datastax/driver/core/TimestampGenerator.class", // indirectly covers ServerSideTimestampGenerator + ThreadLocalMonotonicTimestampGenerator
     "java/lang/Compiler.class",
+    "java/lang/InheritableThreadLocal.class",
     "java/lang/Package.class",
     "java/lang/Process.class",
     "java/lang/ProcessBuilder.class",

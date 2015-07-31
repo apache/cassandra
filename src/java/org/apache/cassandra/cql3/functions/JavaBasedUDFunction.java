@@ -38,9 +38,11 @@ import java.security.cert.Certificate;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashMap;
+import java.util.Iterator;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import java.util.Set;
 import java.util.StringTokenizer;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ExecutorService;
@@ -90,6 +92,8 @@ final class JavaBasedUDFunction extends UDFunction
 
     private static final EcjTargetClassLoader targetClassLoader = new EcjTargetClassLoader();
 
+    private static final UDFByteCodeVerifier udfByteCodeVerifier = new UDFByteCodeVerifier();
+
     private static final ProtectionDomain protectionDomain;
 
     private static final IErrorHandlingPolicy errorHandlingPolicy = DefaultErrorHandlingPolicies.proceedWithAllProblems();
@@ -105,6 +109,24 @@ final class JavaBasedUDFunction extends UDFunction
 
     static
     {
+        udfByteCodeVerifier.addDisallowedMethodCall("java/lang/Class", "forName");
+        udfByteCodeVerifier.addDisallowedMethodCall("java/lang/Class", "getClassLoader");
+        udfByteCodeVerifier.addDisallowedMethodCall("java/lang/Class", "getResource");
+        udfByteCodeVerifier.addDisallowedMethodCall("java/lang/Class", "getResourceAsStream");
+        udfByteCodeVerifier.addDisallowedMethodCall("java/lang/ClassLoader", "clearAssertionStatus");
+        udfByteCodeVerifier.addDisallowedMethodCall("java/lang/ClassLoader", "getResource");
+        udfByteCodeVerifier.addDisallowedMethodCall("java/lang/ClassLoader", "getResourceAsStream");
+        udfByteCodeVerifier.addDisallowedMethodCall("java/lang/ClassLoader", "getResources");
+        udfByteCodeVerifier.addDisallowedMethodCall("java/lang/ClassLoader", "getSystemClassLoader");
+        udfByteCodeVerifier.addDisallowedMethodCall("java/lang/ClassLoader", "getSystemResource");
+        udfByteCodeVerifier.addDisallowedMethodCall("java/lang/ClassLoader", "getSystemResourceAsStream");
+        udfByteCodeVerifier.addDisallowedMethodCall("java/lang/ClassLoader", "getSystemResources");
+        udfByteCodeVerifier.addDisallowedMethodCall("java/lang/ClassLoader", "loadClass");
+        udfByteCodeVerifier.addDisallowedMethodCall("java/lang/ClassLoader", "setClassAssertionStatus");
+        udfByteCodeVerifier.addDisallowedMethodCall("java/lang/ClassLoader", "setDefaultAssertionStatus");
+        udfByteCodeVerifier.addDisallowedMethodCall("java/lang/ClassLoader", "setPackageAssertionStatus");
+        udfByteCodeVerifier.addDisallowedMethodCall("java/nio/ByteBuffer", "allocateDirect");
+
         Map<String, String> settings = new HashMap<>();
         settings.put(CompilerOptions.OPTION_LineNumberAttribute,
                      CompilerOptions.GENERATE);
@@ -172,6 +194,8 @@ final class JavaBasedUDFunction extends UDFunction
         String pkgName = BASE_PACKAGE + '.' + generateClassName(name, 'p');
         String clsName = generateClassName(name, 'C');
 
+        String executeInternalName = generateClassName(name, 'x');
+
         StringBuilder javaSourceBuilder = new StringBuilder();
         int lineOffset = 1;
         for (int i = 0; i < javaSourceTemplate.length; i++)
@@ -201,6 +225,9 @@ final class JavaBasedUDFunction extends UDFunction
                         break;
                     case "return_type":
                         s = javaSourceName(javaReturnType);
+                        break;
+                    case "execute_internal_name":
+                        s = executeInternalName;
                         break;
                 }
             }
@@ -262,6 +289,23 @@ final class JavaBasedUDFunction extends UDFunction
                     throw new InvalidRequestException("Java source compilation failed:\n" + problems);
             }
 
+            // Verify the UDF bytecode against use of probably dangerous code
+            Set<String> errors = udfByteCodeVerifier.verify(targetClassLoader.classData(targetClassName));
+            String validDeclare = "not allowed method declared: " + executeInternalName + '(';
+            String validCall = "call to " + targetClassName.replace('.', '/') + '.' + executeInternalName + "()";
+            for (Iterator<String> i = errors.iterator(); i.hasNext();)
+            {
+                String error = i.next();
+                // we generate a random name of the private, internal execute method, which is detected by the byte-code verifier
+                if (error.startsWith(validDeclare) || error.equals(validCall))
+                {
+                    i.remove();
+                }
+            }
+            if (!errors.isEmpty())
+                throw new InvalidRequestException("Java UDF validation failed: " + errors);
+
+            // Load the class and create a new instance of it
             Thread thread = Thread.currentThread();
             ClassLoader orig = thread.getContextClassLoader();
             try
@@ -269,7 +313,7 @@ final class JavaBasedUDFunction extends UDFunction
                 thread.setContextClassLoader(UDFunction.udfClassLoader);
                 // Execute UDF intiialization from UDF class loader
 
-                Class cls = targetClassLoader.loadClass(targetClassName);
+                Class cls = Class.forName(targetClassName, false, targetClassLoader);
 
                 if (cls.getDeclaredMethods().length != 2 || cls.getDeclaredConstructors().length != 1)
                     throw new InvalidRequestException("Check your source to not define additional Java methods or constructors");
@@ -382,7 +426,7 @@ final class JavaBasedUDFunction extends UDFunction
 
     private static String composeMethod(Class<?> type)
     {
-        return (type.isPrimitive()) ? ("compose_" + type.getName()) : "compose";
+        return (type.isPrimitive()) ? ("super.compose_" + type.getName()) : "super.compose";
     }
 
     // Java source UDFs are a very simple compilation task, which allows us to let one class implement
@@ -576,6 +620,11 @@ final class JavaBasedUDFunction extends UDFunction
         void addClass(String className, byte[] classData)
         {
             classes.put(className, classData);
+        }
+
+        byte[] classData(String className)
+        {
+            return classes.get(className);
         }
 
         protected Class<?> findClass(String name) throws ClassNotFoundException
