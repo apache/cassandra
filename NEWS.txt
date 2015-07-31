@@ -23,9 +23,15 @@ New features
      for non-primary key queries, and perform much better for indexing high
      cardinality columns. 
      See http://www.datastax.com/dev/blog/new-in-cassandra-3-0-materialized-views 
+
    
 Upgrading
 ---------
+   - 3.0 requires Java 8u20 or later.
+   - The default JVM GC has been changed to G1GC.
+   - The default JVM flag -XX:+PerfDisableSharedMem will cause the following tools JVM
+     to stop working: jps, jstack, jinfo, jmc, jcmd as well as 3rd party tools like Jolokia.
+     If you wish to use these tools you can comment this flag out in cassandra-env.{sh,ps1}
    - New write stages have been added for batchlog and materialized view mutations
      you can set their size in cassandra.yaml
    - User defined functions are now executed in a sandbox.
