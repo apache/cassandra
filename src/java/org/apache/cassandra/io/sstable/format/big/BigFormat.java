@@ -32,6 +32,7 @@ import org.apache.cassandra.io.sstable.format.Version;
 import org.apache.cassandra.io.sstable.metadata.MetadataCollector;
 import org.apache.cassandra.io.sstable.metadata.StatsMetadata;
 import org.apache.cassandra.net.MessagingService;
+import org.apache.cassandra.utils.ChecksumType;
 
 /**
  * Legacy bigtable format
@@ -81,11 +82,11 @@ public class BigFormat implements SSTableFormat
     static class WriterFactory extends SSTableWriter.Factory
     {
         @Override
-        public SSTableWriter open(Descriptor descriptor, 
-                                  long keyCount, 
-                                  long repairedAt, 
-                                  CFMetaData metadata, 
-                                  MetadataCollector metadataCollector, 
+        public SSTableWriter open(Descriptor descriptor,
+                                  long keyCount,
+                                  long repairedAt,
+                                  CFMetaData metadata,
+                                  MetadataCollector metadataCollector,
                                   SerializationHeader header,
                                   LifecycleTransaction txn)
         {
@@ -126,7 +127,8 @@ public class BigFormat implements SSTableFormat
         private final boolean isLatestVersion;
         private final boolean hasSamplingLevel;
         private final boolean newStatsFile;
-        private final boolean hasAllAdlerChecksums;
+        private final ChecksumType compressedChecksumType;
+        private final ChecksumType uncompressedChecksumType;
         private final boolean hasRepairedAt;
         private final boolean tracksLegacyCounterShards;
         private final boolean newFileName;
@@ -145,7 +147,19 @@ public class BigFormat implements SSTableFormat
             isLatestVersion = version.compareTo(current_version) == 0;
             hasSamplingLevel = version.compareTo("ka") >= 0;
             newStatsFile = version.compareTo("ka") >= 0;
-            hasAllAdlerChecksums = version.compareTo("ka") >= 0;
+
+            //For a while Adler32 was in use, now the CRC32 instrinsic is very good especially after Haswell
+            //PureJavaCRC32 was always faster than Adler32. See CASSANDRA-8684
+            ChecksumType checksumType = ChecksumType.CRC32;
+            if (version.compareTo("ka") >= 0 && version.compareTo("ma") < 0)
+                checksumType = ChecksumType.Adler32;
+            this.uncompressedChecksumType = checksumType;
+
+            checksumType = ChecksumType.CRC32;
+            if (version.compareTo("jb") >= 0 && version.compareTo("ma") < 0)
+                checksumType = ChecksumType.Adler32;
+            this.compressedChecksumType = checksumType;
+
             hasRepairedAt = version.compareTo("ka") >= 0;
             tracksLegacyCounterShards = version.compareTo("ka") >= 0;
 
@@ -177,9 +191,15 @@ public class BigFormat implements SSTableFormat
         }
 
         @Override
-        public boolean hasAllAdlerChecksums()
+        public ChecksumType compressedChecksumType()
         {
-            return hasAllAdlerChecksums;
+            return compressedChecksumType;
+        }
+
+        @Override
+        public ChecksumType uncompressedChecksumType()
+        {
+            return uncompressedChecksumType;
         }
 
         @Override

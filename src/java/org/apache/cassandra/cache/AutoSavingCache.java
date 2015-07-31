@@ -62,7 +62,7 @@ public class AutoSavingCache<K extends CacheKey, V> extends InstrumentingCache<K
     protected final CacheService.CacheType cacheType;
 
     private final CacheSerializer<K, V> cacheLoader;
-    private static final String CURRENT_VERSION = "c";
+    private static final String CURRENT_VERSION = "d";
 
     private static volatile IStreamFactory streamFactory = new IStreamFactory()
     {

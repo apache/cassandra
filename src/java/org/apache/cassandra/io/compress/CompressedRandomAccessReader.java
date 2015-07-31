@@ -24,7 +24,7 @@ import java.util.Map;
 import java.util.TreeMap;
 import java.util.concurrent.ThreadLocalRandom;
 import java.util.zip.Adler32;
-
+import java.util.zip.Checksum;
 
 import com.google.common.primitives.Ints;
 
@@ -58,7 +58,7 @@ public class CompressedRandomAccessReader extends RandomAccessReader
     private ByteBuffer compressed;
 
     // re-use single crc object
-    private final Adler32 checksum;
+    private final Checksum checksum;
 
     // raw checksum bytes
     private ByteBuffer checksumBytes;
@@ -67,7 +67,7 @@ public class CompressedRandomAccessReader extends RandomAccessReader
     {
         super(channel, metadata.chunkLength(), metadata.compressedFileLength, metadata.compressor().preferredBufferType());
         this.metadata = metadata;
-        checksum = new Adler32();
+        checksum = metadata.checksumType.newInstance();
 
         chunkSegments = file == null ? null : file.chunkSegments();
         if (chunkSegments == null)
@@ -131,7 +131,7 @@ public class CompressedRandomAccessReader extends RandomAccessReader
             if (metadata.parameters.getCrcCheckChance() > ThreadLocalRandom.current().nextDouble())
             {
                 compressed.rewind();
-                checksum.update(compressed);
+                metadata.checksumType.update( checksum, (compressed));
 
                 if (checksum(chunk) != (int) checksum.getValue())
                     throw new CorruptBlockException(getPath(), chunk);
@@ -193,7 +193,7 @@ public class CompressedRandomAccessReader extends RandomAccessReader
             {
                 compressedChunk.position(chunkOffset).limit(chunkOffset + chunk.length);
 
-                checksum.update(compressedChunk);
+                metadata.checksumType.update( checksum, compressedChunk);
 
                 compressedChunk.limit(compressedChunk.capacity());
                 if (compressedChunk.getInt() != (int) checksum.getValue())

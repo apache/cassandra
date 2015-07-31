@@ -48,7 +48,7 @@ public class Component
         // statistical metadata about the content of the sstable
         STATS("Statistics.db"),
         // holds adler32 checksum of the data file
-        DIGEST("Digest.adler32"),
+        DIGEST(new String[] { "Digest.crc32", "Digest.adler32" }),
         // holds the CRC32 for chunks in an a uncompressed file.
         CRC("CRC.db"),
         // holds SSTable Index Summary (sampling of Index component)
@@ -56,10 +56,15 @@ public class Component
         // table of contents, stores the list of all components for the sstable
         TOC("TOC.txt"),
         // custom component, used by e.g. custom compaction strategy
-        CUSTOM(null);
+        CUSTOM(new String[] { null });
 
-        final String repr;
+        final String[] repr;
         Type(String repr)
+        {
+            this(new String[] { repr });
+        }
+
+        Type(String[] repr)
         {
             this.repr = repr;
         }
@@ -67,8 +72,9 @@ public class Component
         static Type fromRepresentation(String repr)
         {
             for (Type type : TYPES)
-                if (repr.equals(type.repr))
-                    return type;
+                for (String representation : type.repr)
+                    if (repr.equals(representation))
+                        return type;
             return CUSTOM;
         }
     }
@@ -90,7 +96,7 @@ public class Component
 
     public Component(Type type)
     {
-        this(type, type.repr);
+        this(type, type.repr[0]);
         assert type != Type.CUSTOM;
     }
 

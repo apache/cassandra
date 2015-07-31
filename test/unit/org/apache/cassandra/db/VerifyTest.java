@@ -19,6 +19,7 @@
 package org.apache.cassandra.db;
 
 import com.google.common.base.Charsets;
+
 import org.apache.cassandra.OrderedJUnit4ClassRunner;
 import org.apache.cassandra.SchemaLoader;
 import org.apache.cassandra.Util;
@@ -43,7 +44,7 @@ import org.junit.runner.RunWith;
 
 import java.io.*;
 import java.nio.file.Files;
-import java.util.zip.Adler32;
+import java.util.zip.CRC32;
 import java.util.zip.CheckedInputStream;
 
 import static org.junit.Assert.fail;
@@ -371,8 +372,8 @@ public class VerifyTest
     protected long simpleFullChecksum(String filename) throws IOException
     {
         FileInputStream inputStream = new FileInputStream(filename);
-        Adler32 adlerChecksum = new Adler32();
-        CheckedInputStream cinStream = new CheckedInputStream(inputStream, adlerChecksum);
+        CRC32 checksum = new CRC32();
+        CheckedInputStream cinStream = new CheckedInputStream(inputStream, checksum);
         byte[] b = new byte[128];
         while (cinStream.read(b) >= 0) {
         }
