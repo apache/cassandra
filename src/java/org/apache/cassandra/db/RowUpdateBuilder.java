@@ -223,7 +223,7 @@ public class RowUpdateBuilder
             return (DecoratedKey)partitionKey[0];
 
         ByteBuffer key = CFMetaData.serializePartitionKey(metadata.getKeyValidatorAsClusteringComparator().make(partitionKey));
-        return metadata.decorateKey(key);
+        return StorageService.getPartitioner().decorateKey(key);
     }
 
     private static PartitionUpdate getOrAdd(CFMetaData metadata, Mutation mutation)

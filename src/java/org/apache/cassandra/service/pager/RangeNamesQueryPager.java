@@ -19,8 +19,10 @@ package org.apache.cassandra.service.pager;
 
 import org.apache.cassandra.db.*;
 import org.apache.cassandra.db.rows.*;
+import org.apache.cassandra.db.partitions.*;
 import org.apache.cassandra.dht.*;
 import org.apache.cassandra.exceptions.RequestExecutionException;
+import org.apache.cassandra.service.StorageService;
 
 /**
  * Pages a RangeSliceCommand whose predicate is a name query.
@@ -42,7 +44,7 @@ public class RangeNamesQueryPager extends AbstractQueryPager
 
         if (state != null)
         {
-            lastReturnedKey = command.metadata().decorateKey(state.partitionKey);
+            lastReturnedKey = StorageService.getPartitioner().decorateKey(state.partitionKey);
             restoreState(lastReturnedKey, state.remaining, state.remainingInPartition);
         }
     }

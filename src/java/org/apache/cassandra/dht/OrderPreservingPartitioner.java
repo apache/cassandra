@@ -240,9 +240,4 @@ public class OrderPreservingPartitioner implements IPartitioner
     {
         return UTF8Type.instance;
     }
-
-    public AbstractType<?> partitionOrdering()
-    {
-        return UTF8Type.instance;
-    }
 }

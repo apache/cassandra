@@ -133,6 +133,7 @@ public class CFMetaDataTest
 
     private void checkInverses(CFMetaData cfm) throws Exception
     {
+        DecoratedKey k = StorageService.getPartitioner().decorateKey(ByteBufferUtil.bytes(cfm.ksName));
         KeyspaceMetadata keyspace = Schema.instance.getKSMetaData(cfm.ksName);
 
         // Test thrift conversion

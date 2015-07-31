@@ -18,22 +18,19 @@
  */
 package org.apache.cassandra.service;
 
+import java.io.DataInputStream;
 import java.io.IOException;
 import java.net.InetAddress;
 import java.util.Collections;
 import java.util.UUID;
 
-import org.junit.AfterClass;
-import org.junit.BeforeClass;
 import org.junit.Test;
-
 import org.apache.cassandra.AbstractSerializationsTester;
-import org.apache.cassandra.Util;
-import org.apache.cassandra.Util.PartitionerSwitcher;
 import org.apache.cassandra.dht.IPartitioner;
 import org.apache.cassandra.dht.RandomPartitioner;
 import org.apache.cassandra.dht.Range;
 import org.apache.cassandra.dht.Token;
+import org.apache.cassandra.io.util.DataInputPlus;
 import org.apache.cassandra.io.util.DataInputPlus.DataInputStreamPlus;
 import org.apache.cassandra.io.util.DataOutputStreamPlus;
 import org.apache.cassandra.net.MessageIn;
@@ -47,26 +44,14 @@ import org.apache.cassandra.utils.MerkleTree;
 
 public class SerializationsTest extends AbstractSerializationsTester
 {
-    private static PartitionerSwitcher partitionerSwitcher;
-    private static UUID RANDOM_UUID;
-    private static Range<Token> FULL_RANGE;
-    private static RepairJobDesc DESC;
-
-    @BeforeClass
-    public static void defineSchema() throws Exception
+    static
     {
-        partitionerSwitcher = Util.switchPartitioner(RandomPartitioner.instance);
-        RANDOM_UUID = UUID.fromString("b5c3d033-75aa-4c2f-a819-947aac7a0c54");
-        FULL_RANGE = new Range<>(Util.testPartitioner().getMinimumToken(), Util.testPartitioner().getMinimumToken());
-        DESC = new RepairJobDesc(getVersion() < MessagingService.VERSION_21 ? null : RANDOM_UUID, RANDOM_UUID, "Keyspace1", "Standard1", FULL_RANGE);
+        System.setProperty("cassandra.partitioner", "RandomPartitioner");
     }
 
-    @AfterClass
-    public static void tearDown()
-    {
-        partitionerSwitcher.close();
-    }
-
+    private static final UUID RANDOM_UUID = UUID.fromString("b5c3d033-75aa-4c2f-a819-947aac7a0c54");
+    private static final Range<Token> FULL_RANGE = new Range<>(StorageService.getPartitioner().getMinimumToken(), StorageService.getPartitioner().getMinimumToken());
+    private static final RepairJobDesc DESC = new RepairJobDesc(getVersion() < MessagingService.VERSION_21 ? null : RANDOM_UUID, RANDOM_UUID, "Keyspace1", "Standard1", FULL_RANGE);
 
     private void testRepairMessageWrite(String fileName, RepairMessage... messages) throws IOException
     {

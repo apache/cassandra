@@ -39,6 +39,7 @@ import org.apache.cassandra.service.ClientState;
 import org.apache.cassandra.service.ClientWarn;
 import org.apache.cassandra.service.QueryState;
 import org.apache.cassandra.service.StorageProxy;
+import org.apache.cassandra.thrift.Column;
 import org.apache.cassandra.tracing.Tracing;
 import org.apache.cassandra.service.StorageService;
 import org.apache.cassandra.transport.messages.ResultMessage;
@@ -259,7 +260,7 @@ public class BatchStatement implements CQLStatement
 
         for (ByteBuffer key : keys)
         {
-            DecoratedKey dk = statement.cfm.decorateKey(key);
+            DecoratedKey dk = StorageService.getPartitioner().decorateKey(key);
             IMutation mutation = ksMap.get(dk.getKey());
             Mutation mut;
             if (mutation == null)
@@ -425,7 +426,7 @@ public class BatchStatement implements CQLStatement
                 throw new IllegalArgumentException("Batch with conditions cannot span multiple partitions (you cannot use IN on the partition key)");
             if (key == null)
             {
-                key = statement.cfm.decorateKey(pks.get(0));
+                key = StorageService.getPartitioner().decorateKey(pks.get(0));
                 casRequest = new CQL3CasRequest(statement.cfm, key, true, conditionColumns, updatesRegularRows, updatesStaticRow);
             }
             else if (!key.getKey().equals(pks.get(0)))

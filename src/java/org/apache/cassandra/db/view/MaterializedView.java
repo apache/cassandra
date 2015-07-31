@@ -303,10 +303,9 @@ public class MaterializedView
             partitionKey[i] = value;
         }
 
-        CFMetaData metadata = getViewCfs().metadata;
-        return metadata.decorateKey(CFMetaData.serializePartitionKey(metadata
-                                                                     .getKeyValidatorAsClusteringComparator()
-                                                                     .make(partitionKey)));
+        return getViewCfs().partitioner.decorateKey(CFMetaData.serializePartitionKey(getViewCfs().metadata
+                                                                                     .getKeyValidatorAsClusteringComparator()
+                                                                                     .make(partitionKey)));
     }
 
     /**

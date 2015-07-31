@@ -83,6 +83,7 @@ public class Upgrader
                                     estimatedRows,
                                     repairedAt,
                                     cfs.metadata,
+                                    cfs.partitioner,
                                     sstableMetadataCollector,
                                     SerializationHeader.make(cfs.metadata, Sets.newHashSet(sstable)),
                                     transaction);

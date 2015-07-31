@@ -378,7 +378,7 @@ public final class StatementRestrictions
      */
     public AbstractBounds<PartitionPosition> getPartitionKeyBounds(QueryOptions options) throws InvalidRequestException
     {
-        IPartitioner p = cfm.partitioner;
+        IPartitioner p = StorageService.getPartitioner();
 
         if (partitionKeyRestrictions.isOnToken())
         {

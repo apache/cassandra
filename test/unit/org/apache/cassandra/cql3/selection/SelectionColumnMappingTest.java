@@ -33,7 +33,7 @@ public class SelectionColumnMappingTest extends CQLTester
     @BeforeClass
     public static void setUpClass()
     {
-        DatabaseDescriptor.setPartitionerUnsafe(ByteOrderedPartitioner.instance);
+        DatabaseDescriptor.setPartitioner(ByteOrderedPartitioner.instance);
     }
 
     @Test

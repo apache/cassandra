@@ -24,12 +24,10 @@ import com.datastax.driver.core.*;
 
 import org.apache.cassandra.config.ColumnDefinition;
 import org.apache.cassandra.config.CFMetaData;
-import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.cql3.ColumnIdentifier;
 import org.apache.cassandra.db.marshal.*;
 import org.apache.cassandra.dht.*;
 import org.apache.cassandra.dht.Token;
-import org.apache.cassandra.dht.Token.TokenFactory;
 import org.apache.cassandra.io.sstable.SSTableLoader;
 import org.apache.cassandra.schema.SchemaKeyspace;
 
@@ -66,9 +64,11 @@ public class NativeSSTableLoaderClient extends SSTableLoader.Client
 
             Metadata metadata = cluster.getMetadata();
 
+            setPartitioner(metadata.getPartitioner());
+
             Set<TokenRange> tokenRanges = metadata.getTokenRanges();
 
-            TokenFactory tokenFactory = FBUtilities.newPartitioner(metadata.getPartitioner()).getTokenFactory();
+            Token.TokenFactory tokenFactory = getPartitioner().getTokenFactory();
 
             for (TokenRange tokenRange : tokenRanges)
             {
@@ -128,16 +128,7 @@ public class NativeSSTableLoaderClient extends SSTableLoader.Client
             for (Row colRow : session.execute(columnsQuery, keyspace, name))
                 defs.add(createDefinitionFromRow(colRow, keyspace, name));
 
-            tables.put(name, CFMetaData.create(keyspace,
-                                               name,
-                                               id,
-                                               isDense,
-                                               isCompound,
-                                               isSuper,
-                                               isCounter,
-                                               isMaterializedView,
-                                               defs,
-                                               DatabaseDescriptor.getPartitioner()));
+            tables.put(name, CFMetaData.create(keyspace, name, id, isDense, isCompound, isSuper, isCounter, isMaterializedView, defs));
         }
 
         return tables;

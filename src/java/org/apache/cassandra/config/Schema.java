@@ -612,7 +612,7 @@ public class Schema
         MigrationManager.instance.notifyDropAggregate(uda);
     }
 
-    private synchronized KeyspaceMetadata update(String keyspaceName, java.util.function.Function<KeyspaceMetadata, KeyspaceMetadata> transformation)
+    private KeyspaceMetadata update(String keyspaceName, java.util.function.Function<KeyspaceMetadata, KeyspaceMetadata> transformation)
     {
         KeyspaceMetadata current = getKSMetaData(keyspaceName);
         if (current == null)

@@ -33,9 +33,9 @@ import com.google.common.annotations.VisibleForTesting;
 import com.google.common.collect.Lists;
 import com.google.common.util.concurrent.RateLimiter;
 import com.google.common.util.concurrent.Uninterruptibles;
+
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-
 import org.apache.cassandra.concurrent.JMXEnabledScheduledThreadPoolExecutor;
 import org.apache.cassandra.concurrent.NamedThreadFactory;
 import org.apache.cassandra.config.ColumnDefinition;
@@ -46,6 +46,7 @@ import org.apache.cassandra.db.partitions.*;
 import org.apache.cassandra.db.filter.*;
 import org.apache.cassandra.db.marshal.Int32Type;
 import org.apache.cassandra.db.marshal.UUIDType;
+import org.apache.cassandra.dht.Token;
 import org.apache.cassandra.exceptions.WriteTimeoutException;
 import org.apache.cassandra.gms.ApplicationState;
 import org.apache.cassandra.gms.FailureDetector;
@@ -130,7 +131,8 @@ public class HintedHandOffManager implements HintedHandOffManagerMBean
         UUID hintId = UUIDGen.getTimeUUID();
         // serialize the hint with id and version as a composite column name
 
-        ByteBuffer key = UUIDType.instance.decompose(targetId);
+        DecoratedKey key = StorageService.getPartitioner().decorateKey(UUIDType.instance.decompose(targetId));
+
         Clustering clustering = SystemKeyspace.Hints.comparator.make(hintId, MessagingService.current_version);
         ByteBuffer value = ByteBuffer.wrap(FBUtilities.serialize(mutation, Mutation.serializer, MessagingService.current_version));
         Cell cell = BufferCell.expiring(hintColumn, now, ttl, FBUtilities.nowInSeconds(), value);
@@ -177,8 +179,9 @@ public class HintedHandOffManager implements HintedHandOffManagerMBean
 
     private static void deleteHint(ByteBuffer tokenBytes, Clustering clustering, long timestamp)
     {
+        DecoratedKey dk =  StorageService.getPartitioner().decorateKey(tokenBytes);
         Cell cell = BufferCell.tombstone(hintColumn, timestamp, FBUtilities.nowInSeconds());
-        PartitionUpdate upd = PartitionUpdate.singleRowUpdate(SystemKeyspace.Hints, tokenBytes, BTreeBackedRow.singleCellRow(clustering, cell));
+        PartitionUpdate upd = PartitionUpdate.singleRowUpdate(SystemKeyspace.Hints, dk, BTreeBackedRow.singleCellRow(clustering, cell));
         new Mutation(upd).applyUnsafe(); // don't bother with commitlog since we're going to flush as soon as we're done with delivery
     }
 
@@ -201,8 +204,8 @@ public class HintedHandOffManager implements HintedHandOffManagerMBean
         if (!StorageService.instance.getTokenMetadata().isMember(endpoint))
             return;
         UUID hostId = StorageService.instance.getTokenMetadata().getHostId(endpoint);
-        ByteBuffer key = ByteBuffer.wrap(UUIDGen.decompose(hostId));
-        final Mutation mutation = new Mutation(PartitionUpdate.fullPartitionDelete(SystemKeyspace.Hints, key, System.currentTimeMillis(), FBUtilities.nowInSeconds()));
+        DecoratedKey dk =  StorageService.getPartitioner().decorateKey(ByteBuffer.wrap(UUIDGen.decompose(hostId)));
+        final Mutation mutation = new Mutation(PartitionUpdate.fullPartitionDelete(SystemKeyspace.Hints, dk, System.currentTimeMillis(), FBUtilities.nowInSeconds()));
 
         // execute asynchronously to avoid blocking caller (which may be processing gossip)
         Runnable runnable = new Runnable()
@@ -365,6 +368,7 @@ public class HintedHandOffManager implements HintedHandOffManagerMBean
         UUID hostId = Gossiper.instance.getHostId(endpoint);
         logger.info("Started hinted handoff for host: {} with IP: {}", hostId, endpoint);
         final ByteBuffer hostIdBytes = ByteBuffer.wrap(UUIDGen.decompose(hostId));
+        DecoratedKey epkey =  StorageService.getPartitioner().decorateKey(hostIdBytes);
 
         final AtomicInteger rowsReplayed = new AtomicInteger(0);
 
@@ -376,7 +380,7 @@ public class HintedHandOffManager implements HintedHandOffManagerMBean
 
         int nowInSec = FBUtilities.nowInSeconds();
         try (OpOrder.Group op = hintStore.readOrdering.start();
-             RowIterator iter = UnfilteredRowIterators.filter(SinglePartitionReadCommand.fullPartitionRead(SystemKeyspace.Hints, nowInSec, hostIdBytes).queryMemtableAndDisk(hintStore, op), nowInSec))
+             RowIterator iter = UnfilteredRowIterators.filter(SinglePartitionReadCommand.fullPartitionRead(SystemKeyspace.Hints, nowInSec, epkey).queryMemtableAndDisk(hintStore, op), nowInSec))
         {
             List<WriteResponseHandler<Mutation>> responseHandlers = Lists.newArrayList();
 
@@ -476,7 +480,7 @@ public class HintedHandOffManager implements HintedHandOffManagerMBean
                                                         ColumnFilter.all(hintStore.metadata),
                                                         RowFilter.NONE,
                                                         DataLimits.cqlLimits(Integer.MAX_VALUE, 1),
-                                                        DataRange.allData(hintStore.metadata.partitioner));
+                                                        DataRange.allData(StorageService.getPartitioner()));
 
         try (ReadOrderGroup orderGroup = cmd.startOrderGroup(); UnfilteredPartitionIterator iter = cmd.executeLocally(orderGroup))
         {
@@ -542,12 +546,12 @@ public class HintedHandOffManager implements HintedHandOffManagerMBean
 
     public List<String> listEndpointsPendingHints()
     {
-        // Extract the keys as strings to be reported.
-        List<String> result = new ArrayList<>();
+        Token.TokenFactory tokenFactory = StorageService.getPartitioner().getTokenFactory();
 
+        // Extract the keys as strings to be reported.
+        LinkedList<String> result = new LinkedList<>();
         ReadCommand cmd = PartitionRangeReadCommand.allDataRead(SystemKeyspace.Hints, FBUtilities.nowInSeconds());
-        try (ReadOrderGroup orderGroup = cmd.startOrderGroup();
-             UnfilteredPartitionIterator iter = cmd.executeLocally(orderGroup))
+        try (ReadOrderGroup orderGroup = cmd.startOrderGroup(); UnfilteredPartitionIterator iter = cmd.executeLocally(orderGroup))
         {
             while (iter.hasNext())
             {
@@ -556,11 +560,10 @@ public class HintedHandOffManager implements HintedHandOffManagerMBean
                     // We don't delete by range on the hints table, so we don't have to worry about the
                     // iterator returning only range tombstone marker
                     if (partition.hasNext())
-                        result.add(UUIDType.instance.compose(partition.partitionKey().getKey()).toString());
+                        result.addFirst(tokenFactory.toString(partition.partitionKey().getToken()));
                 }
             }
         }
-
         return result;
     }
 }

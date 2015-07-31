@@ -25,14 +25,12 @@ import java.util.*;
 
 import com.google.common.collect.HashMultimap;
 import com.google.common.collect.Multimap;
-
 import org.junit.AfterClass;
 import org.junit.BeforeClass;
 import org.junit.Test;
 
 import org.apache.cassandra.SchemaLoader;
 import org.apache.cassandra.Util;
-import org.apache.cassandra.Util.PartitionerSwitcher;
 import org.apache.cassandra.config.Schema;
 import org.apache.cassandra.db.SystemKeyspace;
 import org.apache.cassandra.dht.IPartitioner;
@@ -52,7 +50,7 @@ import static org.junit.Assert.*;
 public class LeaveAndBootstrapTest
 {
     private static final IPartitioner partitioner = RandomPartitioner.instance;
-    private static PartitionerSwitcher partitionerSwitcher;
+    private static IPartitioner oldPartitioner;
     private static final String KEYSPACE1 = "LeaveAndBootstrapTestKeyspace1";
     private static final String KEYSPACE2 = "LeaveAndBootstrapTestKeyspace2";
     private static final String KEYSPACE3 = "LeaveAndBootstrapTestKeyspace3";
@@ -61,7 +59,7 @@ public class LeaveAndBootstrapTest
     @BeforeClass
     public static void defineSchema() throws Exception
     {
-        partitionerSwitcher = Util.switchPartitioner(partitioner);
+        oldPartitioner = StorageService.instance.setPartitionerUnsafe(partitioner);
         SchemaLoader.loadSchema();
         SchemaLoader.schemaDefinition("LeaveAndBootstrapTest");
     }
@@ -69,7 +67,7 @@ public class LeaveAndBootstrapTest
     @AfterClass
     public static void tearDown()
     {
-        partitionerSwitcher.close();
+        StorageService.instance.setPartitionerUnsafe(oldPartitioner);
     }
 
     /**

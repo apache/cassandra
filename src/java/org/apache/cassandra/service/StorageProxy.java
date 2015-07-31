@@ -643,7 +643,7 @@ public class StorageProxy implements StorageProxyMBean
 
         try
         {
-            Token baseToken = StorageService.instance.getTokenMetadata().partitioner.getToken(dataKey);
+            Token baseToken = StorageService.getPartitioner().getToken(dataKey);
 
             ConsistencyLevel consistencyLevel = ConsistencyLevel.ONE;
 
@@ -862,11 +862,8 @@ public class StorageProxy implements StorageProxyMBean
                                                                         Keyspace.open(SystemKeyspace.NAME),
                                                                         null,
                                                                         WriteType.SIMPLE);
-        Mutation mutation = new Mutation(
-                PartitionUpdate.fullPartitionDelete(SystemKeyspace.Batchlog,
-                                                    UUIDType.instance.decompose(uuid),
-                                                    FBUtilities.timestampMicros(),
-                                                    FBUtilities.nowInSeconds()));
+        Mutation mutation = new Mutation(SystemKeyspace.NAME, StorageService.getPartitioner().decorateKey(UUIDType.instance.decompose(uuid)));
+        mutation.add(PartitionUpdate.fullPartitionDelete(SystemKeyspace.Batchlog, mutation.key(), FBUtilities.timestampMicros(), FBUtilities.nowInSeconds()));
         MessageOut<Mutation> message = mutation.createMessage(MessagingService.Verb.BATCHLOG_MUTATION);
         for (InetAddress target : endpoints)
         {
@@ -1689,7 +1686,7 @@ public class StorageProxy implements StorageProxyMBean
 
     public static List<InetAddress> getLiveSortedEndpoints(Keyspace keyspace, ByteBuffer key)
     {
-        return getLiveSortedEndpoints(keyspace, StorageService.instance.getTokenMetadata().decorateKey(key));
+        return getLiveSortedEndpoints(keyspace, StorageService.getPartitioner().decorateKey(key));
     }
 
     public static List<InetAddress> getLiveSortedEndpoints(Keyspace keyspace, RingPosition pos)

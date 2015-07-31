@@ -23,6 +23,7 @@ import java.util.Set;
 import org.apache.cassandra.config.CFMetaData;
 import org.apache.cassandra.config.ColumnDefinition;
 import org.apache.cassandra.db.*;
+import org.apache.cassandra.db.index.SecondaryIndex;
 import org.apache.cassandra.db.rows.*;
 import org.apache.cassandra.db.index.AbstractSimplePerColumnSecondaryIndex;
 import org.apache.cassandra.db.index.SecondaryIndexSearcher;
@@ -41,7 +42,7 @@ public class KeysIndex extends AbstractSimplePerColumnSecondaryIndex
 {
     public static void addIndexClusteringColumns(CFMetaData.Builder indexMetadata, CFMetaData baseMetadata, ColumnDefinition cfDef)
     {
-        indexMetadata.addClusteringColumn("partition_key", baseMetadata.partitioner.partitionOrdering());
+        indexMetadata.addClusteringColumn("partition_key", SecondaryIndex.keyComparator);
     }
 
     @Override

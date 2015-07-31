@@ -89,13 +89,14 @@ public class BatchlogManagerTest
                 .build()
                 .applyUnsafe();
 
-        DecoratedKey dk = cfs.decorateKey(ByteBufferUtil.bytes("1234"));
+        DecoratedKey dk = StorageService.getPartitioner().decorateKey(ByteBufferUtil.bytes("1234"));
         ArrayBackedPartition results = Util.getOnlyPartitionUnfiltered(Util.cmd(cfs, dk).build());
         Iterator<Row> iter = results.iterator();
         assert iter.hasNext();
 
-        Mutation mutation = new Mutation(PartitionUpdate.fullPartitionDelete(cfm,
-                                                         dk,
+        Mutation mutation = new Mutation(KEYSPACE1, dk);
+        mutation.add(PartitionUpdate.fullPartitionDelete(cfm,
+                                                         mutation.key(),
                                                          FBUtilities.timestampMicros(),
                                                          FBUtilities.nowInSeconds()));
         mutation.applyUnsafe();

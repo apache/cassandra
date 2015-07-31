@@ -179,7 +179,7 @@ public class Scrubber implements Closeable
                 DecoratedKey key = null;
                 try
                 {
-                    key = sstable.decorateKey(ByteBufferUtil.readWithShortLength(dataFile));
+                    key = sstable.partitioner.decorateKey(ByteBufferUtil.readWithShortLength(dataFile));
                 }
                 catch (Throwable th)
                 {
@@ -249,7 +249,7 @@ public class Scrubber implements Closeable
                     {
                         outputHandler.output(String.format("Retrying from row index; data is %s bytes starting at %s",
                                                   dataSizeFromIndex, dataStartFromIndex));
-                        key = sstable.decorateKey(currentIndexKey);
+                        key = sstable.partitioner.decorateKey(currentIndexKey);
                         try
                         {
                             dataFile.seek(dataStartFromIndex);

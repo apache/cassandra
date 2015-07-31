@@ -89,6 +89,7 @@ public class SplittingSizeTieredCompactionWriter extends CompactionAwareWriter
                                                     currentPartitionsToWrite,
                                                     minRepairedAt,
                                                     cfs.metadata,
+                                                    cfs.partitioner,
                                                     new MetadataCollector(allSSTables, cfs.metadata.comparator, 0),
                                                     SerializationHeader.make(cfs.metadata, nonExpiredSSTables),
                                                     txn);
@@ -112,6 +113,7 @@ public class SplittingSizeTieredCompactionWriter extends CompactionAwareWriter
                                                         currentPartitionsToWrite,
                                                         minRepairedAt,
                                                         cfs.metadata,
+                                                        cfs.partitioner,
                                                         new MetadataCollector(allSSTables, cfs.metadata.comparator, 0),
                                                         SerializationHeader.make(cfs.metadata, nonExpiredSSTables),
                                                         txn);

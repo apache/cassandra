@@ -1108,14 +1108,12 @@ public final class MessagingService implements MessagingServiceMBean
 
     public static IPartitioner globalPartitioner()
     {
-        return StorageService.instance.getTokenMetadata().partitioner;
+        return DatabaseDescriptor.getPartitioner();
     }
 
     public static void validatePartitioner(AbstractBounds<?> bounds)
     {
         if (globalPartitioner() != bounds.left.getPartitioner())
-            throw new AssertionError(String.format("Partitioner in bounds serialization. Expected %s, was %s.",
-                                                   globalPartitioner().getClass().getName(),
-                                                   bounds.left.getPartitioner().getClass().getName()));
+            throw new AssertionError();
     }
 }

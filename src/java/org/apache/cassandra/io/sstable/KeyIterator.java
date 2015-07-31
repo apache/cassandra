@@ -23,10 +23,8 @@ import java.io.IOException;
 
 import com.google.common.collect.AbstractIterator;
 
-import org.apache.cassandra.config.CFMetaData;
 import org.apache.cassandra.db.DecoratedKey;
 import org.apache.cassandra.db.RowIndexEntry;
-import org.apache.cassandra.dht.IPartitioner;
 import org.apache.cassandra.io.util.RandomAccessReader;
 import org.apache.cassandra.service.StorageService;
 import org.apache.cassandra.utils.ByteBufferUtil;
@@ -82,13 +80,11 @@ public class KeyIterator extends AbstractIterator<DecoratedKey> implements Close
     }
 
     private final In in;
-    private final IPartitioner partitioner;
 
 
-    public KeyIterator(Descriptor desc, CFMetaData metadata)
+    public KeyIterator(Descriptor desc)
     {
         in = new In(new File(desc.filenameFor(Component.PRIMARY_INDEX)));
-        partitioner = metadata.partitioner;
     }
 
     protected DecoratedKey computeNext()
@@ -98,7 +94,7 @@ public class KeyIterator extends AbstractIterator<DecoratedKey> implements Close
             if (in.isEOF())
                 return endOfData();
 
-            DecoratedKey key = partitioner.decorateKey(ByteBufferUtil.readWithShortLength(in.get()));
+            DecoratedKey key = StorageService.getPartitioner().decorateKey(ByteBufferUtil.readWithShortLength(in.get()));
             RowIndexEntry.Serializer.skip(in.get()); // skip remainder of the entry
             return key;
         }

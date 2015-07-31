@@ -27,11 +27,13 @@ import com.google.common.annotations.VisibleForTesting;
 import com.google.common.collect.Sets;
 
 import org.apache.cassandra.config.CFMetaData;
+import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.config.Schema;
 import org.apache.cassandra.db.RowIndexEntry;
 import org.apache.cassandra.db.SerializationHeader;
 import org.apache.cassandra.db.lifecycle.LifecycleTransaction;
 import org.apache.cassandra.db.rows.UnfilteredRowIterator;
+import org.apache.cassandra.dht.IPartitioner;
 import org.apache.cassandra.io.sstable.Component;
 import org.apache.cassandra.io.sstable.Descriptor;
 import org.apache.cassandra.io.sstable.SSTable;
@@ -72,10 +74,11 @@ public abstract class SSTableWriter extends SSTable implements Transactional
                             long keyCount, 
                             long repairedAt, 
                             CFMetaData metadata, 
+                            IPartitioner partitioner, 
                             MetadataCollector metadataCollector, 
                             SerializationHeader header)
     {
-        super(descriptor, components(metadata), metadata);
+        super(descriptor, components(metadata), metadata, partitioner);
         this.keyCount = keyCount;
         this.repairedAt = repairedAt;
         this.metadataCollector = metadataCollector;
@@ -87,18 +90,19 @@ public abstract class SSTableWriter extends SSTable implements Transactional
                                        Long keyCount,
                                        Long repairedAt,
                                        CFMetaData metadata,
+                                       IPartitioner partitioner,
                                        MetadataCollector metadataCollector,
                                        SerializationHeader header,
                                        LifecycleTransaction txn)
     {
         Factory writerFactory = descriptor.getFormat().getWriterFactory();
-        return writerFactory.open(descriptor, keyCount, repairedAt, metadata, metadataCollector, header, txn);
+        return writerFactory.open(descriptor, keyCount, repairedAt, metadata, partitioner, metadataCollector, header, txn);
     }
 
     public static SSTableWriter create(Descriptor descriptor, long keyCount, long repairedAt, int sstableLevel, SerializationHeader header, LifecycleTransaction txn)
     {
         CFMetaData metadata = Schema.instance.getCFMetaData(descriptor);
-        return create(metadata, descriptor, keyCount, repairedAt, sstableLevel, header, txn);
+        return create(metadata, descriptor, keyCount, repairedAt, sstableLevel, DatabaseDescriptor.getPartitioner(), header, txn);
     }
 
     public static SSTableWriter create(CFMetaData metadata,
@@ -106,11 +110,12 @@ public abstract class SSTableWriter extends SSTable implements Transactional
                                        long keyCount,
                                        long repairedAt,
                                        int sstableLevel,
+                                       IPartitioner partitioner,
                                        SerializationHeader header,
                                        LifecycleTransaction txn)
     {
         MetadataCollector collector = new MetadataCollector(metadata.comparator).sstableLevel(sstableLevel);
-        return create(descriptor, keyCount, repairedAt, metadata, collector, header, txn);
+        return create(descriptor, keyCount, repairedAt, metadata, partitioner, collector, header, txn);
     }
 
     public static SSTableWriter create(String filename, long keyCount, long repairedAt, int sstableLevel, SerializationHeader header,LifecycleTransaction txn)
@@ -250,7 +255,7 @@ public abstract class SSTableWriter extends SSTable implements Transactional
 
     protected Map<MetadataType, MetadataComponent> finalizeMetadata()
     {
-        return metadataCollector.finalizeMetadata(getPartitioner().getClass().getCanonicalName(),
+        return metadataCollector.finalizeMetadata(partitioner.getClass().getCanonicalName(),
                                                   metadata.getBloomFilterFpChance(),
                                                   repairedAt,
                                                   header);
@@ -282,6 +287,7 @@ public abstract class SSTableWriter extends SSTable implements Transactional
                                            long keyCount,
                                            long repairedAt,
                                            CFMetaData metadata,
+                                           IPartitioner partitioner,
                                            MetadataCollector metadataCollector,
                                            SerializationHeader header,
                                            LifecycleTransaction txn);

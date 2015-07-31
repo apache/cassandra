@@ -22,7 +22,6 @@ import java.util.*;
 
 import com.google.common.base.Joiner;
 
-import org.apache.cassandra.config.CFMetaData;
 import org.apache.cassandra.config.ColumnDefinition;
 import org.apache.cassandra.cql3.QueryOptions;
 import org.apache.cassandra.cql3.Term;
@@ -45,18 +44,16 @@ public abstract class TokenRestriction extends AbstractPrimaryKeyRestrictions
      */
     protected final List<ColumnDefinition> columnDefs;
 
-    final CFMetaData metadata;
-
     /**
      * Creates a new <code>TokenRestriction</code> that apply to the specified columns.
      *
+     * @param comparator the clustering comparator
      * @param columnDefs the definition of the columns to which apply the token restriction
      */
-    public TokenRestriction(CFMetaData metadata, List<ColumnDefinition> columnDefs)
+    public TokenRestriction(ClusteringComparator comparator, List<ColumnDefinition> columnDefs)
     {
-        super(metadata.getKeyValidatorAsClusteringComparator());
+        super(comparator);
         this.columnDefs = columnDefs;
-        this.metadata = metadata;
     }
 
     @Override
@@ -157,9 +154,9 @@ public abstract class TokenRestriction extends AbstractPrimaryKeyRestrictions
     {
         private final Term value;
 
-        public EQRestriction(CFMetaData cfm, List<ColumnDefinition> columnDefs, Term value)
+        public EQRestriction(ClusteringComparator comparator, List<ColumnDefinition> columnDefs, Term value)
         {
-            super(cfm, columnDefs);
+            super(comparator, columnDefs);
             this.value = value;
         }
 
@@ -193,9 +190,9 @@ public abstract class TokenRestriction extends AbstractPrimaryKeyRestrictions
     {
         private final TermSlice slice;
 
-        public SliceRestriction(CFMetaData cfm, List<ColumnDefinition> columnDefs, Bound bound, boolean inclusive, Term term)
+        public SliceRestriction(ClusteringComparator comparator, List<ColumnDefinition> columnDefs, Bound bound, boolean inclusive, Term term)
         {
-            super(cfm, columnDefs);
+            super(comparator, columnDefs);
             slice = TermSlice.newInstance(bound, inclusive, term);
         }
 
@@ -253,7 +250,7 @@ public abstract class TokenRestriction extends AbstractPrimaryKeyRestrictions
                 throw invalidRequest("More than one restriction was found for the end bound on %s",
                                      getColumnNamesAsString());
 
-            return new SliceRestriction(metadata, columnDefs,  slice.merge(otherSlice.slice));
+            return new SliceRestriction(comparator, columnDefs,  slice.merge(otherSlice.slice));
         }
 
         @Override
@@ -261,9 +258,9 @@ public abstract class TokenRestriction extends AbstractPrimaryKeyRestrictions
         {
             return String.format("SLICE%s", slice);
         }
-        private SliceRestriction(CFMetaData cfm, List<ColumnDefinition> columnDefs, TermSlice slice)
+        private SliceRestriction(ClusteringComparator comparator, List<ColumnDefinition> columnDefs, TermSlice slice)
         {
-            super(cfm, columnDefs);
+            super(comparator, columnDefs);
             this.slice = slice;
         }
     }

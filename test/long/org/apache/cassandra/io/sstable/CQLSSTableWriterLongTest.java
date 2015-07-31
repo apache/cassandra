@@ -83,6 +83,7 @@ public class CQLSSTableWriterLongTest
         CQLSSTableWriter writer = CQLSSTableWriter.builder()
                                                   .inDirectory(dataDir)
                                                   .forTable(schema)
+                                                  .withPartitioner(StorageService.instance.getPartitioner())
                                                   .using(insert)
                                                   .withBufferSizeInMB(1)
                                                   .build();

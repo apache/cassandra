@@ -86,6 +86,7 @@ public class SSTableLoaderTest
             this.keyspace = keyspace;
             for (Range<Token> range : StorageService.instance.getLocalRanges(KEYSPACE1))
                 addRangeForEndpoint(range, FBUtilities.getBroadcastAddress());
+            setPartitioner(StorageService.getPartitioner());
         }
 
         public CFMetaData getTableMetadata(String tableName)
@@ -106,6 +107,7 @@ public class SSTableLoaderTest
 
         try (CQLSSTableWriter writer = CQLSSTableWriter.builder()
                                                        .inDirectory(dataDir)
+                                                       .withPartitioner(StorageService.getPartitioner())
                                                        .forTable(String.format(schema, KEYSPACE1, CF_STANDARD1))
                                                        .using(String.format(query, KEYSPACE1, CF_STANDARD1))
                                                        .build())
@@ -139,6 +141,7 @@ public class SSTableLoaderTest
 
         CQLSSTableWriter writer = CQLSSTableWriter.builder()
                                                   .inDirectory(dataDir)
+                                                  .withPartitioner(StorageService.getPartitioner())
                                                   .forTable(String.format(schema, KEYSPACE1, CF_STANDARD2))
                                                   .using(String.format(query, KEYSPACE1, CF_STANDARD2))
                                                   .withBufferSizeInMB(1)

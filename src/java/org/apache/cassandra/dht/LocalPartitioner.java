@@ -84,11 +84,6 @@ public class LocalPartitioner implements IPartitioner
         return comparator;
     }
 
-    public AbstractType<?> partitionOrdering()
-    {
-        return comparator;
-    }
-
     public class LocalToken extends ComparableObjectToken<ByteBuffer>
     {
         static final long serialVersionUID = 8437543776403014875L;

@@ -67,6 +67,7 @@ public class MajorLeveledCompactionWriter extends CompactionAwareWriter
                                                     keysPerSSTable,
                                                     minRepairedAt,
                                                     cfs.metadata,
+                                                    cfs.partitioner,
                                                     new MetadataCollector(allSSTables, cfs.metadata.comparator, currentLevel, skipAncestors),
                                                     SerializationHeader.make(cfs.metadata, nonExpiredSSTables),
                                                     txn);
@@ -95,6 +96,7 @@ public class MajorLeveledCompactionWriter extends CompactionAwareWriter
                                                         averageEstimatedKeysPerSSTable,
                                                         minRepairedAt,
                                                         cfs.metadata,
+                                                        cfs.partitioner,
                                                         new MetadataCollector(allSSTables, cfs.metadata.comparator, currentLevel, skipAncestors),
                                                         SerializationHeader.make(cfs.metadata, nonExpiredSSTables),
                                                         txn);

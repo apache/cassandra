@@ -24,6 +24,7 @@ import org.apache.cassandra.config.CFMetaData;
 import org.apache.cassandra.config.ColumnDefinition;
 import org.apache.cassandra.db.*;
 import org.apache.cassandra.db.rows.*;
+import org.apache.cassandra.db.index.SecondaryIndex;
 import org.apache.cassandra.utils.concurrent.OpOrder;
 
 /**
@@ -47,7 +48,7 @@ public class CompositesIndexOnClusteringKey extends CompositesIndex
 {
     public static void addClusteringColumns(CFMetaData.Builder indexMetadata, CFMetaData baseMetadata, ColumnDefinition columnDef)
     {
-        indexMetadata.addClusteringColumn("partition_key", baseMetadata.partitioner.partitionOrdering());
+        indexMetadata.addClusteringColumn("partition_key", SecondaryIndex.keyComparator);
 
         List<ColumnDefinition> cks = baseMetadata.clusteringColumns();
         for (int i = 0; i < columnDef.position(); i++)

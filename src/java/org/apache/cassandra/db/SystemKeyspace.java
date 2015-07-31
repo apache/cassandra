@@ -451,6 +451,11 @@ public final class SystemKeyspace
         DECOMMISSIONED
     }
 
+    private static DecoratedKey decorate(ByteBuffer key)
+    {
+        return StorageService.getPartitioner().decorateKey(key);
+    }
+
     public static void finishStartup()
     {
         persistLocalMetadata();
@@ -559,7 +564,7 @@ public final class SystemKeyspace
     public static void updateMaterializedViewBuildStatus(String ksname, String viewName, Token token)
     {
         String req = "INSERT INTO system.%s (keyspace_name, view_name, last_token) VALUES (?, ?, ?)";
-        Token.TokenFactory factory = MaterializedViewsBuildsInProgress.partitioner.getTokenFactory();
+        Token.TokenFactory factory = StorageService.getPartitioner().getTokenFactory();
         executeInternal(String.format(req, MATERIALIZED_VIEWS_BUILDS_IN_PROGRESS), ksname, viewName, factory.toString(token));
     }
 
@@ -578,7 +583,7 @@ public final class SystemKeyspace
             generation = row.getInt("generation_number");
         if (row.has("last_key"))
         {
-            Token.TokenFactory factory = MaterializedViewsBuildsInProgress.partitioner.getTokenFactory();
+            Token.TokenFactory factory = StorageService.getPartitioner().getTokenFactory();
             lastKey = factory.fromString(row.getString("last_key"));
         }
 
@@ -712,9 +717,7 @@ public final class SystemKeyspace
 
     private static Set<String> tokensAsSet(Collection<Token> tokens)
     {
-        if (tokens.isEmpty())
-            return Collections.emptySet();
-        Token.TokenFactory factory = StorageService.instance.getTokenFactory();
+        Token.TokenFactory factory = StorageService.getPartitioner().getTokenFactory();
         Set<String> s = new HashSet<>(tokens.size());
         for (Token tk : tokens)
             s.add(factory.toString(tk));
@@ -723,7 +726,7 @@ public final class SystemKeyspace
 
     private static Collection<Token> deserializeTokens(Collection<String> tokensStrings)
     {
-        Token.TokenFactory factory = StorageService.instance.getTokenFactory();
+        Token.TokenFactory factory = StorageService.getPartitioner().getTokenFactory();
         List<Token> tokens = new ArrayList<>(tokensStrings.size());
         for (String tk : tokensStrings)
             tokens.add(factory.fromString(tk));
@@ -1162,7 +1165,8 @@ public final class SystemKeyspace
     public static void updateSizeEstimates(String keyspace, String table, Map<Range<Token>, Pair<Long, Long>> estimates)
     {
         long timestamp = FBUtilities.timestampMicros();
-        PartitionUpdate update = new PartitionUpdate(SizeEstimates, UTF8Type.instance.decompose(keyspace), SizeEstimates.partitionColumns(), estimates.size());
+        DecoratedKey key = decorate(UTF8Type.instance.decompose(keyspace));
+        PartitionUpdate update = new PartitionUpdate(SizeEstimates, key, SizeEstimates.partitionColumns(), estimates.size());
         Mutation mutation = new Mutation(update);
 
         // delete all previous values with a single range tombstone.

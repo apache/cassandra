@@ -13,7 +13,7 @@ public class SelectLimitTest extends CQLTester
     @BeforeClass
     public static void setUp()
     {
-        DatabaseDescriptor.setPartitionerUnsafe(ByteOrderedPartitioner.instance);
+        DatabaseDescriptor.setPartitioner(ByteOrderedPartitioner.instance);
     }
 
     /**

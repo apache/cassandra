@@ -38,6 +38,7 @@ import org.apache.cassandra.cql3.QueryProcessor;
 import org.apache.cassandra.cql3.UntypedResultSet;
 import org.apache.cassandra.cql3.functions.*;
 import org.apache.cassandra.cql3.statements.CFPropDefs;
+import org.apache.cassandra.db.ClusteringComparator;
 import org.apache.cassandra.db.*;
 import org.apache.cassandra.db.compaction.AbstractCompactionStrategy;
 import org.apache.cassandra.db.marshal.*;
@@ -46,6 +47,7 @@ import org.apache.cassandra.db.rows.*;
 import org.apache.cassandra.exceptions.ConfigurationException;
 import org.apache.cassandra.exceptions.InvalidRequestException;
 import org.apache.cassandra.io.compress.CompressionParameters;
+import org.apache.cassandra.service.StorageService;
 import org.apache.cassandra.utils.ByteBufferUtil;
 import org.apache.cassandra.utils.FBUtilities;
 import org.apache.cassandra.utils.concurrent.OpOrder;
@@ -395,24 +397,19 @@ public final class SchemaKeyspace
         return AsciiType.instance.fromString(ksName);
     }
 
-    private static <T> T readSchemaPartitionForKeyspaceAndApply(String schemaTableName, String keyspaceName, Function<RowIterator, T> fct)
+    private static DecoratedKey getSchemaKSDecoratedKey(String ksName)
     {
-        return readSchemaPartitionForKeyspaceAndApply(schemaTableName, getSchemaKSKey(keyspaceName), fct);
+        return StorageService.getPartitioner().decorateKey(getSchemaKSKey(ksName));
     }
 
-    private static <T> T readSchemaPartitionForKeyspaceAndApply(String schemaTableName, ByteBuffer keyspaceKey, Function<RowIterator, T> fct)
+    private static <T> T readSchemaPartitionForKeyspaceAndApply(String schemaTableName, String keyspaceName, Function<RowIterator, T> fct)
     {
-        ColumnFamilyStore store = getSchemaCFS(schemaTableName);
-        return readSchemaPartitionForKeyspaceAndApply(store, store.decorateKey(keyspaceKey), fct);
+        return readSchemaPartitionForKeyspaceAndApply(schemaTableName, getSchemaKSDecoratedKey(keyspaceName), fct);
     }
 
     private static <T> T readSchemaPartitionForKeyspaceAndApply(String schemaTableName, DecoratedKey keyspaceKey, Function<RowIterator, T> fct)
     {
-        return readSchemaPartitionForKeyspaceAndApply(getSchemaCFS(schemaTableName), keyspaceKey, fct);
-    }
-
-    private static <T> T readSchemaPartitionForKeyspaceAndApply(ColumnFamilyStore store, DecoratedKey keyspaceKey, Function<RowIterator, T> fct)
-    {
+        ColumnFamilyStore store = getSchemaCFS(schemaTableName);
         int nowInSec = FBUtilities.nowInSeconds();
         try (OpOrder.Group op = store.readOrdering.start();
              RowIterator partition = UnfilteredRowIterators.filter(SinglePartitionReadCommand.fullPartitionRead(store.metadata, nowInSec, keyspaceKey)
@@ -430,7 +427,7 @@ public final class SchemaKeyspace
         Slices slices = Slices.with(comparator, Slice.make(comparator, tableName));
         int nowInSec = FBUtilities.nowInSeconds();
         try (OpOrder.Group op = store.readOrdering.start();
-             RowIterator partition =  UnfilteredRowIterators.filter(SinglePartitionSliceCommand.create(store.metadata, nowInSec, getSchemaKSKey(keyspaceName), slices)
+             RowIterator partition =  UnfilteredRowIterators.filter(SinglePartitionSliceCommand.create(store.metadata, nowInSec, getSchemaKSDecoratedKey(keyspaceName), slices)
                                                                                                .queryMemtableAndDisk(store, op), nowInSec))
         {
             return fct.apply(partition);
@@ -701,8 +698,7 @@ public final class SchemaKeyspace
     public static Mutation makeDropKeyspaceMutation(KeyspaceMetadata keyspace, long timestamp)
     {
         int nowInSec = FBUtilities.nowInSeconds();
-        Mutation mutation = new Mutation(NAME, Keyspaces.decorateKey(getSchemaKSKey(keyspace.name)));
-
+        Mutation mutation = new Mutation(NAME, getSchemaKSDecoratedKey(keyspace.name));
         for (CFMetaData schemaTable : All)
             mutation.add(PartitionUpdate.fullPartitionDelete(schemaTable, mutation.key(), timestamp, nowInSec));
 
@@ -1089,16 +1085,7 @@ public final class SchemaKeyspace
         boolean isCompound = flags.contains(CFMetaData.Flag.COMPOUND);
         boolean isMaterializedView = flags.contains(CFMetaData.Flag.MATERIALIZEDVIEW);
 
-        CFMetaData cfm = CFMetaData.create(keyspace,
-                                           table,
-                                           id,
-                                           isDense,
-                                           isCompound,
-                                           isSuper,
-                                           isCounter,
-                                           isMaterializedView,
-                                           columns,
-                                           DatabaseDescriptor.getPartitioner());
+        CFMetaData cfm = CFMetaData.create(keyspace, table, id, isDense, isCompound, isSuper, isCounter, isMaterializedView, columns);
 
         Map<String, String> compaction = new HashMap<>(row.getTextMap("compaction"));
         Class<? extends AbstractCompactionStrategy> compactionStrategyClass =

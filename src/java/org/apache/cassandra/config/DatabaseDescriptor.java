@@ -18,6 +18,7 @@
 package org.apache.cassandra.config;
 
 import java.io.File;
+import java.io.IOException;
 import java.net.*;
 import java.util.*;
 
@@ -742,12 +743,10 @@ public class DatabaseDescriptor
         return paritionerName;
     }
 
-    /* For tests ONLY, don't use otherwise or all hell will break loose. Tests should restore value at the end. */
-    public static IPartitioner setPartitionerUnsafe(IPartitioner newPartitioner)
+    /* For tests ONLY, don't use otherwise or all hell will break loose */
+    public static void setPartitioner(IPartitioner newPartitioner)
     {
-        IPartitioner old = partitioner;
         partitioner = newPartitioner;
-        return old;
     }
 
     public static IEndpointSnitch getEndpointSnitch()
