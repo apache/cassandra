@@ -1,4 +1,5 @@
 3.0
+ * Add transparent data encryption core classes (CASSANDRA-9945)
  * Implement proper sandboxing for UDFs (CASSANDRA-9402, 9890)
  * Simplify (and unify) cleanup of compaction leftovers (CASSANDRA-7066)
  * Allow extra schema definitions in cassandra-stress yaml (CASSANDRA-9850)
