@@ -342,7 +342,7 @@ public class Memtable implements Comparable<Memtable>
                                     + liveDataSize.get()) // data
                                     * 1.2); // bloom filter and row index overhead
 
-            this.isBatchLogTable = cfs.name.equals(SystemKeyspace.BATCHLOG) && cfs.keyspace.getName().equals(SystemKeyspace.NAME);
+            this.isBatchLogTable = cfs.name.equals(SystemKeyspace.BATCHES) && cfs.keyspace.getName().equals(SystemKeyspace.NAME);
         }
 
         public long getExpectedWriteSize()

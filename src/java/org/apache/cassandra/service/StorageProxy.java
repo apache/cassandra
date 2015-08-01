@@ -863,7 +863,7 @@ public class StorageProxy implements StorageProxyMBean
                                                                         null,
                                                                         WriteType.SIMPLE);
         Mutation mutation = new Mutation(
-                PartitionUpdate.fullPartitionDelete(SystemKeyspace.Batchlog,
+                PartitionUpdate.fullPartitionDelete(SystemKeyspace.Batches,
                                                     UUIDType.instance.decompose(uuid),
                                                     FBUtilities.timestampMicros(),
                                                     FBUtilities.nowInSeconds()));

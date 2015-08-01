@@ -58,6 +58,8 @@ Upgrading
      be done by setting the new option `enabled` to `false`.
    - Only map syntax is now allowed for caching options. ALL/NONE/KEYS_ONLY/ROWS_ONLY syntax
      has been deprecated since 2.1.0 and is being removed in 3.0.0.
+   - Batchlog entries are now stored in a new table - system.batches.
+     The old one has been deprecated.
 
 
 2.2
