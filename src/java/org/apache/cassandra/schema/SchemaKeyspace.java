@@ -50,8 +50,6 @@ import org.apache.cassandra.utils.ByteBufferUtil;
 import org.apache.cassandra.utils.FBUtilities;
 import org.apache.cassandra.utils.concurrent.OpOrder;
 
-import static java.util.stream.Collectors.toSet;
-
 import static org.apache.cassandra.cql3.QueryProcessor.executeOnceInternal;
 import static org.apache.cassandra.utils.FBUtilities.fromJsonMap;
 import static org.apache.cassandra.utils.FBUtilities.json;
@@ -835,7 +833,7 @@ public final class SchemaKeyspace
              .map("caching", table.getCaching().asMap())
              .map("compaction", buildCompactionMap(table))
              .map("compression", table.compressionParameters().asMap())
-             .set("flags", flagsToStrings(table.flags()))
+             .set("flags", CFMetaData.flagsToStrings(table.flags()))
              .build();
 
         if (withColumnsAndTriggers)
@@ -1080,7 +1078,7 @@ public final class SchemaKeyspace
         UUID id = row.getUUID("id");
 
         Set<CFMetaData.Flag> flags = row.has("flags")
-                                   ? flagsFromStrings(row.getSet("flags", UTF8Type.instance))
+                                   ? CFMetaData.flagsFromStrings(row.getSet("flags", UTF8Type.instance))
                                    : Collections.emptySet();
 
         boolean isSuper = flags.contains(CFMetaData.Flag.SUPER);
@@ -1130,22 +1128,6 @@ public final class SchemaKeyspace
            .speculativeRetry(CFMetaData.SpeculativeRetry.fromString(row.getString("speculative_retry")));
 
         return cfm;
-    }
-
-    public static Set<CFMetaData.Flag> flagsFromStrings(Set<String> strings)
-    {
-        return strings.stream()
-                      .map(String::toUpperCase)
-                      .map(CFMetaData.Flag::valueOf)
-                      .collect(toSet());
-    }
-
-    private static Set<String> flagsToStrings(Set<CFMetaData.Flag> flags)
-    {
-        return flags.stream()
-                    .map(CFMetaData.Flag::toString)
-                    .map(String::toLowerCase)
-                    .collect(toSet());
     }
 
     /*
@@ -1241,7 +1223,7 @@ public final class SchemaKeyspace
     private static CFMetaData.DroppedColumn createDroppedColumnFromDroppedColumnRow(UntypedResultSet.Row row)
     {
         String name = row.getString("column_name");
-        AbstractType type = TypeParser.parse(row.getString("type"));
+        AbstractType<?> type = TypeParser.parse(row.getString("type"));
         long droppedTime = TimeUnit.MILLISECONDS.toMicros(row.getLong("dropped_time"));
 
         return new CFMetaData.DroppedColumn(name, type, droppedTime);

@@ -24,6 +24,7 @@ import java.nio.ByteBuffer;
 import java.util.*;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ThreadLocalRandom;
+import java.util.stream.Collectors;
 
 import com.google.common.annotations.VisibleForTesting;
 import com.google.common.base.MoreObjects;
@@ -1388,6 +1389,22 @@ public final class CFMetaData
         return isCounter()
              ? CounterColumnType.instance
              : (isCompactTable() ? compactValueColumn().type : BytesType.instance);
+    }
+
+    public static Set<Flag> flagsFromStrings(Set<String> strings)
+    {
+        return strings.stream()
+                      .map(String::toUpperCase)
+                      .map(Flag::valueOf)
+                      .collect(Collectors.toSet());
+    }
+
+    public static Set<String> flagsToStrings(Set<Flag> flags)
+    {
+        return flags.stream()
+                    .map(Flag::toString)
+                    .map(String::toLowerCase)
+                    .collect(Collectors.toSet());
     }
 
     @Override

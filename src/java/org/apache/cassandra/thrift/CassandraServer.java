@@ -1766,7 +1766,7 @@ public class CassandraServer implements Cassandra.Iface
 
     public String describe_partitioner() throws TException
     {
-        return StorageService.instance.getTokenMetadata().getClass().getName();
+        return StorageService.instance.getPartitionerName();
     }
 
     public String describe_snitch() throws TException
