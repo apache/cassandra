@@ -28,6 +28,7 @@ Merged from 2.1:
  * (cqlsh) Allow the SSL protocol version to be specified through the
    config file or environment variables (CASSANDRA-9544)
 Merged from 2.0:
+ * Don't cast expected bf size to an int (CASSANDRA-9959)
  * checkForEndpointCollision fails for legitimate collisions (CASSANDRA-9765)
  * Complete CASSANDRA-8448 fix (CASSANDRA-9519)
  * Don't include auth credentials in debug log (CASSANDRA-9682)

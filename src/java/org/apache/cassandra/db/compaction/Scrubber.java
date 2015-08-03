@@ -49,7 +49,7 @@ public class Scrubber implements Closeable
     private final boolean isCommutative;
     private final boolean isIndex;
     private final boolean checkData;
-    private final int expectedBloomFilterSize;
+    private final long expectedBloomFilterSize;
 
     private final RandomAccessReader dataFile;
     private final RandomAccessReader indexFile;
@@ -120,7 +120,7 @@ public class Scrubber implements Closeable
         this.checkData = checkData && !this.isIndex; //LocalByPartitionerType does not support validation
         this.expectedBloomFilterSize = Math.max(
             cfs.metadata.getMinIndexInterval(),
-            hasIndexFile ? (int)(SSTableReader.getApproximateKeyCount(toScrub)) : 0);
+            hasIndexFile ? SSTableReader.getApproximateKeyCount(toScrub) : 0);
 
         // loop through each row, deserializing to check for damage.
         // we'll also loop through the index at the same time, using the position from the index to recover if the
