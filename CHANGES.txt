@@ -3,6 +3,7 @@
  * UDF / UDA execution time in trace (CASSANDRA-9723)
  * Fix broken internode SSL (CASSANDRA-9884)
 Merged from 2.1:
+ * Cannot replace token does not exist - DN node removed as Fat Client (CASSANDRA-9871)
  * Fix handling of enable/disable autocompaction (CASSANDRA-9899)
  * Add consistency level to tracing ouput (CASSANDRA-9827)
  * Remove repair snapshot leftover on startup (CASSANDRA-7357)
