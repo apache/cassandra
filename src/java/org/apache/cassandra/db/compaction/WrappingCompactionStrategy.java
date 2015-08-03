@@ -156,7 +156,7 @@ public final class WrappingCompactionStrategy extends AbstractCompactionStrategy
 
     public synchronized void reloadCompactionStrategy(CFMetaData metadata)
     {
-        boolean disabledWithJMX = !isEnabled() && shouldBeEnabled();
+        boolean disabledWithJMX = !enabled && shouldBeEnabled();
         if (repaired != null)
             repaired.shutdown();
         if (unrepaired != null)
