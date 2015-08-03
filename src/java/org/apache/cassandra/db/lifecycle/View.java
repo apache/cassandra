@@ -310,7 +310,7 @@ public class View
     }
 
     // called after flush: removes memtable from flushingMemtables, and inserts flushed into the live sstable set
-    static Function<View, View> replaceFlushed(final Memtable memtable, final Collection<SSTableReader> flushed)
+    static Function<View, View> replaceFlushed(final Memtable memtable, final Iterable<SSTableReader> flushed)
     {
         return new Function<View, View>()
         {

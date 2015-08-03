@@ -66,6 +66,16 @@ public class BlacklistedDirectories implements BlacklistedDirectoriesMBean
         return Collections.unmodifiableSet(unwritableDirectories);
     }
 
+    public void markUnreadable(String path)
+    {
+        maybeMarkUnreadable(new File(path));
+    }
+
+    public void markUnwritable(String path)
+    {
+        maybeMarkUnwritable(new File(path));
+    }
+
     /**
      * Adds parent directory of the file (or the file itself, if it is a directory)
      * to the set of unreadable directories.

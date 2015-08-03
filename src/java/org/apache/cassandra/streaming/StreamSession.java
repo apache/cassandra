@@ -584,9 +584,9 @@ public class StreamSession implements IEndpointStateChangeSubscriber
         receivers.get(message.header.cfId).received(message.sstable);
     }
 
-    public void progress(Descriptor desc, ProgressInfo.Direction direction, long bytes, long total)
+    public void progress(String filename, ProgressInfo.Direction direction, long bytes, long total)
     {
-        ProgressInfo progress = new ProgressInfo(peer, index, desc.filenameFor(Component.DATA), direction, bytes, total);
+        ProgressInfo progress = new ProgressInfo(peer, index, filename, direction, bytes, total);
         streamResult.handleProgress(progress);
     }
 

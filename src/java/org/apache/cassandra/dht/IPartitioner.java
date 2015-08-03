@@ -20,6 +20,7 @@ package org.apache.cassandra.dht;
 import java.nio.ByteBuffer;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 
 import org.apache.cassandra.db.DecoratedKey;
 import org.apache.cassandra.db.marshal.AbstractType;
@@ -47,6 +48,17 @@ public interface IPartitioner
      * Not legal to assign to a node or key.  (But legal to use in range scans.)
      */
     public Token getMinimumToken();
+
+    /**
+     * The biggest token for this partitioner, unlike getMinimumToken, this token is actually used and users wanting to
+     * include all tokens need to do getMaximumToken().maxKeyBound()
+     *
+     * Not implemented for the ordered partitioners
+     */
+    default Token getMaximumToken()
+    {
+        throw new UnsupportedOperationException("If you are using a splitting partitioner, getMaximumToken has to be implemented");
+    }
 
     /**
      * @return a Token that can be used to route a given key
@@ -84,4 +96,9 @@ public interface IPartitioner
      * Used by secondary indices.
      */
     public AbstractType<?> partitionOrdering();
+
+    default Optional<Splitter> splitter()
+    {
+        return Optional.empty();
+    }
 }
