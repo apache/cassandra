@@ -41,7 +41,7 @@ public class Scrubber implements Closeable
 
     private final CompactionController controller;
     private final boolean isCommutative;
-    private final int expectedBloomFilterSize;
+    private final long expectedBloomFilterSize;
 
     private final RandomAccessReader dataFile;
     private final RandomAccessReader indexFile;
@@ -105,7 +105,7 @@ public class Scrubber implements Closeable
         }
 
         this.expectedBloomFilterSize = Math.max(cfs.metadata.getIndexInterval(),
-                hasIndexFile ? (int)(SSTableReader.getApproximateKeyCount(toScrub,cfs.metadata)) : 0);
+                hasIndexFile ? SSTableReader.getApproximateKeyCount(toScrub, cfs.metadata) : 0);
 
         // loop through each row, deserializing to check for damage.
         // we'll also loop through the index at the same time, using the position from the index to recover if the
