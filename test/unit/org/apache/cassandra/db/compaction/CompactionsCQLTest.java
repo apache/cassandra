@@ -30,7 +30,7 @@ public class CompactionsCQLTest extends CQLTester
     public void testTriggerMinorCompaction() throws Throwable
     {
         createTable("CREATE TABLE %s (id text PRIMARY KEY);");
-        assertTrue(Keyspace.open(KEYSPACE).getColumnFamilyStore(currentTable()).getCompactionStrategy().isEnabled());
+        assertTrue(Keyspace.open(KEYSPACE).getColumnFamilyStore(currentTable()).getCompactionStrategyManager().isEnabled());
         execute("insert into %s (id) values ('1')");
         flush();
         execute("insert into %s (id) values ('1')");
