@@ -1488,6 +1488,7 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
                     handleStateBootstrap(endpoint);
                     break;
                 case VersionedValue.STATUS_NORMAL:
+                case VersionedValue.SHUTDOWN:
                     handleStateNormal(endpoint);
                     break;
                 case VersionedValue.REMOVING_TOKEN:
