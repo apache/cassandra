@@ -526,4 +526,9 @@ public class Util
             assert p == newP;
         }
     }
+
+    public static void joinThread(Thread thread) throws InterruptedException
+    {
+        thread.join(10000);
+    }
 }
