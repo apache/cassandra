@@ -34,8 +34,15 @@ goto finally
 
 :err
 echo JAVA_HOME environment variable must be set!
+set ERRORLEVEL=1
 pause
 
 :finally
+ENDLOCAL & set RC=%ERRORLEVEL%
+goto :exit_with_code
 
-ENDLOCAL
+:returncode
+exit /B %RC%
+
+:exit_with_code
+call :returncode %RC%
