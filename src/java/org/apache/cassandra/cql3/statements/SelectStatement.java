@@ -320,6 +320,17 @@ public class SelectStatement implements CQLStatement
     private ResultMessage.Rows pageAggregateQuery(Pager pager, QueryOptions options, int pageSize, int nowInSec)
     throws RequestValidationException, RequestExecutionException
     {
+        if (!restrictions.hasPartitionKeyRestrictions())
+        {
+            logger.warn("Aggregation query used without partition key");
+            ClientWarn.warn("Aggregation query used without partition key");
+        }
+        else if (restrictions.keyIsInRelation())
+        {
+            logger.warn("Aggregation query used on multiple partition keys (IN restriction)");
+            ClientWarn.warn("Aggregation query used on multiple partition keys (IN restriction)");
+        }
+
         Selection.ResultSetBuilder result = selection.resultSetBuilder(parameters.isJson);
         while (!pager.isExhausted())
         {

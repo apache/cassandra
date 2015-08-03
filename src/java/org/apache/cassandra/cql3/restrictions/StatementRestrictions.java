@@ -273,6 +273,11 @@ public final class StatementRestrictions
         return partitionKeyRestrictions.size() <  cfm.partitionKeyColumns().size();
     }
 
+    public boolean hasPartitionKeyRestrictions()
+    {
+        return !partitionKeyRestrictions.isEmpty();
+    }
+
     /**
      * Returns the partition key components that are not restricted.
      * @return the partition key components that are not restricted.
