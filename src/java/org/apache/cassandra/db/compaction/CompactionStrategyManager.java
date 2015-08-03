@@ -178,7 +178,7 @@ public class CompactionStrategyManager implements INotificationConsumer
      */
     public synchronized void reload(CFMetaData metadata)
     {
-        boolean disabledWithJMX = !isEnabled() && shouldBeEnabled();
+        boolean disabledWithJMX = !enabled && shouldBeEnabled();
         if (repaired != null)
             repaired.shutdown();
         if (unrepaired != null)
