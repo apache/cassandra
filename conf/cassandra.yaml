@@ -887,6 +887,12 @@ tracetype_repair_ttl: 604800
 # As of Cassandra 3.0 there is a sandbox in place that should prevent execution of evil code.
 enable_user_defined_functions: false
 
+# Enables scripted UDFs (JavaScript UDFs).
+# Java UDFs are always enabled, if enable_user_defined_functions is true.
+# Enable this option to be able to use UDFs with "language javascript" or any custom JSR-223 provider.
+# This option has no effect, if enable_user_defined_functions is false.
+enable_scripted_user_defined_functions: false
+
 # The default Windows kernel timer and scheduling resolution is 15.6ms for power conservation.
 # Lowering this value on Windows can provide much tighter latency and better throughput, however
 # some virtualized environments may see a negative performance impact from changing this setting

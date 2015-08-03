@@ -266,6 +266,7 @@ public class Config
     public int windows_timer_interval = 0;
 
     public boolean enable_user_defined_functions = false;
+    public boolean enable_scripted_user_defined_functions = false;
     /**
      * Optionally disable asynchronous UDF execution.
      * Disabling asynchronous UDF execution also implicitly disables the security-manager!

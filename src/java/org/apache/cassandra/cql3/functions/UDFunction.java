@@ -209,8 +209,7 @@ public abstract class UDFunction extends AbstractFunction implements ScalarFunct
                                     String language,
                                     String body)
     {
-        if (!DatabaseDescriptor.enableUserDefinedFunctions())
-            throw new InvalidRequestException("User-defined functions are disabled in cassandra.yaml - set enable_user_defined_functions=true to enable if you are aware of the security risks");
+        UDFunction.assertUdfsEnabled(language);
 
         switch (language)
         {
@@ -258,8 +257,7 @@ public abstract class UDFunction extends AbstractFunction implements ScalarFunct
 
     public final ByteBuffer execute(int protocolVersion, List<ByteBuffer> parameters)
     {
-        if (!DatabaseDescriptor.enableUserDefinedFunctions())
-            throw new InvalidRequestException("User-defined-functions are disabled in cassandra.yaml - set enable_user_defined_functions=true to enable if you are aware of the security risks");
+        assertUdfsEnabled(language);
 
         if (!isCallableWrtNullable(parameters))
             return null;
@@ -287,6 +285,14 @@ public abstract class UDFunction extends AbstractFunction implements ScalarFunct
                 throw (VirtualMachineError) t;
             throw FunctionExecutionException.create(this, t);
         }
+    }
+
+    public static void assertUdfsEnabled(String language)
+    {
+        if (!DatabaseDescriptor.enableUserDefinedFunctions())
+            throw new InvalidRequestException("User-defined functions are disabled in cassandra.yaml - set enable_user_defined_functions=true to enable");
+        if (!"java".equalsIgnoreCase(language) && !DatabaseDescriptor.enableScriptedUserDefinedFunctions())
+            throw new InvalidRequestException("Scripted user-defined functions are disabled in cassandra.yaml - set enable_scripted_user_defined_functions=true to enable if you are aware of the security risks");
     }
 
     private static final class ThreadIdAndCpuTime

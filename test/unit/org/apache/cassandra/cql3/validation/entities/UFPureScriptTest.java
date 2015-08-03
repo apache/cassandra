@@ -35,6 +35,7 @@ import org.junit.Test;
 import com.datastax.driver.core.DataType;
 import com.datastax.driver.core.TupleType;
 import com.datastax.driver.core.TupleValue;
+import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.cql3.CQLTester;
 import org.apache.cassandra.cql3.UntypedResultSet;
 import org.apache.cassandra.cql3.functions.FunctionName;
@@ -473,6 +474,27 @@ public class UFPureScriptTest extends CQLTester
                                           "AS 'val;';");
             assertRows(execute("SELECT key, " + col + ", " + fName + '(' + col + ") FROM %s"),
                        row(1, expected1, expected2));
+        }
+    }
+
+    @Test
+    public void testJavascriptDisabled() throws Throwable
+    {
+        createTable("CREATE TABLE %s (key int primary key, val double)");
+
+        DatabaseDescriptor.enableScriptedUserDefinedFunctions(false);
+        try
+        {
+            assertInvalid("double",
+                          "CREATE OR REPLACE FUNCTION " + KEYSPACE + ".assertNotEnabled(val double) " +
+                          "RETURNS NULL ON NULL INPUT " +
+                          "RETURNS double " +
+                          "LANGUAGE javascript\n" +
+                          "AS 'Math.sin(val);';");
+        }
+        finally
+        {
+            DatabaseDescriptor.enableScriptedUserDefinedFunctions(true);
         }
     }
 }
