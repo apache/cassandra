@@ -25,6 +25,9 @@ import com.google.common.base.Predicate;
 import com.google.common.collect.Iterables;
 import com.google.common.collect.Iterators;
 
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+
 import org.apache.cassandra.auth.Permission;
 import org.apache.cassandra.config.CFMetaData;
 import org.apache.cassandra.config.ColumnDefinition;
@@ -44,6 +47,7 @@ import org.apache.cassandra.dht.AbstractBounds;
 import org.apache.cassandra.exceptions.*;
 import org.apache.cassandra.serializers.MarshalException;
 import org.apache.cassandra.service.ClientState;
+import org.apache.cassandra.service.ClientWarn;
 import org.apache.cassandra.service.QueryState;
 import org.apache.cassandra.service.StorageProxy;
 import org.apache.cassandra.service.pager.Pageable;
@@ -71,6 +75,8 @@ import static org.apache.cassandra.utils.ByteBufferUtil.UNSET_BYTE_BUFFER;
  */
 public class SelectStatement implements CQLStatement
 {
+    private static final Logger logger = LoggerFactory.getLogger(SelectStatement.class);
+
     private static final int DEFAULT_COUNT_PAGE_SIZE = 10000;
 
     private final int boundTerms;
@@ -242,10 +248,21 @@ public class SelectStatement implements CQLStatement
     private ResultMessage.Rows pageAggregateQuery(QueryPager pager, QueryOptions options, int pageSize, long now)
             throws RequestValidationException, RequestExecutionException
     {
+        if (!restrictions.hasPartitionKeyRestrictions())
+        {
+            logger.warn("Aggregation query used without partition key");
+            ClientWarn.warn("Aggregation query used without partition key");
+        }
+        else if (restrictions.keyIsInRelation())
+        {
+            logger.warn("Aggregation query used on multiple partition keys (IN restriction)");
+            ClientWarn.warn("Aggregation query used on multiple partition keys (IN restriction)");
+        }
+
         Selection.ResultSetBuilder result = selection.resultSetBuilder(now, parameters.isJson);
         while (!pager.isExhausted())
         {
-            for (org.apache.cassandra.db.Row row : pager.fetchPage(pageSize))
+            for (Row row : pager.fetchPage(pageSize))
             {
                 // Not columns match the query, skip
                 if (row.cf == null)
@@ -619,7 +636,7 @@ public class SelectStatement implements CQLStatement
     private ResultSet process(List<Row> rows, QueryOptions options, int limit, long now) throws InvalidRequestException
     {
         Selection.ResultSetBuilder result = selection.resultSetBuilder(now, parameters.isJson);
-        for (org.apache.cassandra.db.Row row : rows)
+        for (Row row : rows)
         {
             // Not columns match the query, skip
             if (row.cf == null)

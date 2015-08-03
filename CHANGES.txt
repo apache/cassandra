@@ -1,4 +1,5 @@
 2.2.1
+ * Log warning when using an aggregate without partition key (CASSANDRA-9737)
  * Avoid grouping sstables for anticompaction with DTCS (CASSANDRA-9900)
  * UDF / UDA execution time in trace (CASSANDRA-9723)
  * Fix broken internode SSL (CASSANDRA-9884)
