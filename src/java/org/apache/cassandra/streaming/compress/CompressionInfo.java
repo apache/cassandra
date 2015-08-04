@@ -22,7 +22,7 @@ import java.io.IOException;
 import org.apache.cassandra.db.TypeSizes;
 import org.apache.cassandra.io.IVersionedSerializer;
 import org.apache.cassandra.io.compress.CompressionMetadata;
-import org.apache.cassandra.io.compress.CompressionParameters;
+import org.apache.cassandra.schema.CompressionParams;
 import org.apache.cassandra.io.util.DataInputPlus;
 import org.apache.cassandra.io.util.DataOutputPlus;
 
@@ -34,9 +34,9 @@ public class CompressionInfo
     public static final IVersionedSerializer<CompressionInfo> serializer = new CompressionInfoSerializer();
 
     public final CompressionMetadata.Chunk[] chunks;
-    public final CompressionParameters parameters;
+    public final CompressionParams parameters;
 
-    public CompressionInfo(CompressionMetadata.Chunk[] chunks, CompressionParameters parameters)
+    public CompressionInfo(CompressionMetadata.Chunk[] chunks, CompressionParams parameters)
     {
         assert chunks != null && parameters != null;
         this.chunks = chunks;
@@ -58,7 +58,7 @@ public class CompressionInfo
             for (int i = 0; i < chunkCount; i++)
                 CompressionMetadata.Chunk.serializer.serialize(info.chunks[i], out, version);
             // compression params
-            CompressionParameters.serializer.serialize(info.parameters, out, version);
+            CompressionParams.serializer.serialize(info.parameters, out, version);
         }
 
         public CompressionInfo deserialize(DataInputPlus in, int version) throws IOException
@@ -73,7 +73,7 @@ public class CompressionInfo
                 chunks[i] = CompressionMetadata.Chunk.serializer.deserialize(in, version);
 
             // compression params
-            CompressionParameters parameters = CompressionParameters.serializer.deserialize(in, version);
+            CompressionParams parameters = CompressionParams.serializer.deserialize(in, version);
             return new CompressionInfo(chunks, parameters);
         }
 
@@ -88,7 +88,7 @@ public class CompressionInfo
             for (int i = 0; i < chunkCount; i++)
                 size += CompressionMetadata.Chunk.serializer.serializedSize(info.chunks[i], version);
             // compression params
-            size += CompressionParameters.serializer.serializedSize(info.parameters, version);
+            size += CompressionParams.serializer.serializedSize(info.parameters, version);
             return size;
         }
     }

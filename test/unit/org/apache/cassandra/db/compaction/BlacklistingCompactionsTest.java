@@ -96,9 +96,7 @@ public class BlacklistingCompactionsTest
         final ColumnFamilyStore cfs = keyspace.getColumnFamilyStore("Standard1");
 
         final int ROWS_PER_SSTABLE = 10;
-        final int SSTABLES = cfs.metadata.getMinIndexInterval() * 2 / ROWS_PER_SSTABLE;
-
-        cfs.setCompactionStrategyClass(compactionStrategy);
+        final int SSTABLES = cfs.metadata.params.minIndexInterval * 2 / ROWS_PER_SSTABLE;
 
         // disable compaction while flushing
         cfs.disableAutoCompaction();

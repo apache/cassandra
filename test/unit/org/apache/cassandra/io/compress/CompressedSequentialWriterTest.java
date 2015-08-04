@@ -40,10 +40,11 @@ import org.apache.cassandra.io.util.ChannelProxy;
 import org.apache.cassandra.io.util.FileMark;
 import org.apache.cassandra.io.util.RandomAccessReader;
 import org.apache.cassandra.io.util.SequentialWriterTest;
+import org.apache.cassandra.schema.CompressionParams;
 
 public class CompressedSequentialWriterTest extends SequentialWriterTest
 {
-    private CompressionParameters compressionParameters;
+    private CompressionParams compressionParameters;
 
     private void runTests(String testName) throws IOException
     {
@@ -51,30 +52,30 @@ public class CompressedSequentialWriterTest extends SequentialWriterTest
         testWrite(File.createTempFile(testName + "_small", "1"), 25);
 
         // Test to confirm pipeline w/chunk-aligned data writes works
-        testWrite(File.createTempFile(testName + "_chunkAligned", "1"), CompressionParameters.DEFAULT_CHUNK_LENGTH);
+        testWrite(File.createTempFile(testName + "_chunkAligned", "1"), CompressionParams.DEFAULT_CHUNK_LENGTH);
 
         // Test to confirm pipeline on non-chunk boundaries works
-        testWrite(File.createTempFile(testName + "_large", "1"), CompressionParameters.DEFAULT_CHUNK_LENGTH * 3 + 100);
+        testWrite(File.createTempFile(testName + "_large", "1"), CompressionParams.DEFAULT_CHUNK_LENGTH * 3 + 100);
     }
 
     @Test
     public void testLZ4Writer() throws IOException
     {
-        compressionParameters = CompressionParameters.lz4();
+        compressionParameters = CompressionParams.lz4();
         runTests("LZ4");
     }
 
     @Test
     public void testDeflateWriter() throws IOException
     {
-        compressionParameters = CompressionParameters.deflate();
+        compressionParameters = CompressionParams.deflate();
         runTests("Deflate");
     }
 
     @Test
     public void testSnappyWriter() throws IOException
     {
-        compressionParameters = CompressionParameters.snappy();
+        compressionParameters = CompressionParams.snappy();
         runTests("Snappy");
     }
 
@@ -104,7 +105,7 @@ public class CompressedSequentialWriterTest extends SequentialWriterTest
                 FileMark mark = writer.mark();
 
                 // Write enough garbage to transition chunk
-                for (int i = 0; i < CompressionParameters.DEFAULT_CHUNK_LENGTH; i++)
+                for (int i = 0; i < CompressionParams.DEFAULT_CHUNK_LENGTH; i++)
                 {
                     writer.write((byte)i);
                 }
@@ -177,7 +178,7 @@ public class CompressedSequentialWriterTest extends SequentialWriterTest
         {
             this(file, offsetsFile, new CompressedSequentialWriter(file,
                                                                    offsetsFile.getPath(),
-                                                                   CompressionParameters.lz4(BUFFER_SIZE),
+                                                                   CompressionParams.lz4(BUFFER_SIZE),
                                                                    new MetadataCollector(new ClusteringComparator(UTF8Type.instance))));
         }
 

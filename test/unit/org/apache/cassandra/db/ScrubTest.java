@@ -91,7 +91,7 @@ public class ScrubTest
                                     SchemaLoader.standardCFMD(KEYSPACE, CF2),
                                     SchemaLoader.standardCFMD(KEYSPACE, CF3),
                                     SchemaLoader.counterCFMD(KEYSPACE, COUNTER_CF)
-                                                .compressionParameters(SchemaLoader.getCompressionParameters(COMPRESSION_CHUNK_LENGTH)),
+                                                .compression(SchemaLoader.getCompressionParameters(COMPRESSION_CHUNK_LENGTH)),
                                     SchemaLoader.standardCFMD(KEYSPACE, CF_UUID, 0, UUIDType.instance),
                                     SchemaLoader.keysIndexCFMD(KEYSPACE, CF_INDEX1, true),
                                     SchemaLoader.compositeIndexCFMD(KEYSPACE, CF_INDEX2, true),

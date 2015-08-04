@@ -33,8 +33,7 @@ import java.util.concurrent.*;
 import org.apache.cassandra.concurrent.JMXEnabledThreadPoolExecutor;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.exceptions.ConfigurationException;
-import org.apache.cassandra.io.compress.CompressionParameters;
-import org.apache.cassandra.io.util.FileUtils;
+import org.apache.cassandra.schema.CompressionParams;
 import org.apache.cassandra.utils.FBUtilities;
 import org.apache.cassandra.utils.WrappedRunnable;
 import org.slf4j.Logger;
@@ -212,7 +211,7 @@ public class CommitLogArchiver
                 if (descriptor.compression != null) {
                     try
                     {
-                        CompressionParameters.createCompressor(descriptor.compression);
+                        CompressionParams.createCompressor(descriptor.compression);
                     }
                     catch (ConfigurationException e)
                     {

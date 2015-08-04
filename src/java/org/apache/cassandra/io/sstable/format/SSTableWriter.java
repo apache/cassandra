@@ -133,10 +133,10 @@ public abstract class SSTableWriter extends SSTable implements Transactional
                 Component.TOC,
                 Component.DIGEST));
 
-        if (metadata.getBloomFilterFpChance() < 1.0)
+        if (metadata.params.bloomFilterFpChance < 1.0)
             components.add(Component.FILTER);
 
-        if (metadata.compressionParameters().isEnabled())
+        if (metadata.params.compression.isEnabled())
         {
             components.add(Component.COMPRESSION_INFO);
         }
@@ -251,7 +251,7 @@ public abstract class SSTableWriter extends SSTable implements Transactional
     protected Map<MetadataType, MetadataComponent> finalizeMetadata()
     {
         return metadataCollector.finalizeMetadata(getPartitioner().getClass().getCanonicalName(),
-                                                  metadata.getBloomFilterFpChance(),
+                                                  metadata.params.bloomFilterFpChance,
                                                   repairedAt,
                                                   header);
     }

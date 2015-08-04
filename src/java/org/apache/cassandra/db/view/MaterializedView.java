@@ -684,9 +684,6 @@ public class MaterializedView
             }
         }
 
-        CFMetaData cfm = viewBuilder.build();
-        properties.properties.applyToCFMetadata(cfm);
-
-        return cfm;
+        return viewBuilder.build().params(properties.properties.asNewTableParams());
     }
 }

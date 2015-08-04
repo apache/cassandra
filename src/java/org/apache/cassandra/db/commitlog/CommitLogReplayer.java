@@ -47,7 +47,7 @@ import org.apache.cassandra.db.rows.SerializationHelper;
 import org.apache.cassandra.db.partitions.PartitionUpdate;
 import org.apache.cassandra.db.lifecycle.SSTableSet;
 import org.apache.cassandra.exceptions.ConfigurationException;
-import org.apache.cassandra.io.compress.CompressionParameters;
+import org.apache.cassandra.schema.CompressionParams;
 import org.apache.cassandra.io.compress.ICompressor;
 import org.apache.cassandra.io.util.ByteBufferDataInput;
 import org.apache.cassandra.io.util.DataInputBuffer;
@@ -307,7 +307,7 @@ public class CommitLogReplayer
             {
                 try
                 {
-                    compressor = CompressionParameters.createCompressor(desc.compression);
+                    compressor = CompressionParams.createCompressor(desc.compression);
                 }
                 catch (ConfigurationException e)
                 {

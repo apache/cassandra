@@ -94,7 +94,7 @@ public class CommitLogUpgradeTest
                                                 .addClusteringColumn("col", AsciiType.instance)
                                                 .addRegularColumn("val", BytesType.instance)
                                                 .build()
-                                                .compressionParameters(SchemaLoader.getCompressionParameters());
+                                                .compression(SchemaLoader.getCompressionParameters());
         SchemaLoader.loadSchema();
         SchemaLoader.createKeyspace(KEYSPACE,
                                     KeyspaceParams.simple(1),

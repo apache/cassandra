@@ -30,54 +30,40 @@ import org.apache.cassandra.cql3.*;
 import org.apache.cassandra.db.*;
 import org.apache.cassandra.db.marshal.*;
 import org.apache.cassandra.exceptions.*;
-import org.apache.cassandra.io.compress.CompressionParameters;
+import org.apache.cassandra.schema.TableParams;
 import org.apache.cassandra.service.ClientState;
 import org.apache.cassandra.service.MigrationManager;
 import org.apache.cassandra.service.QueryState;
 import org.apache.cassandra.transport.Event;
-import org.apache.cassandra.utils.ByteBufferUtil;
 
-/** A <code>CREATE TABLE</code> parsed from a CQL query statement. */
+/** A {@code CREATE TABLE} parsed from a CQL query statement. */
 public class CreateTableStatement extends SchemaAlteringStatement
 {
     private List<AbstractType<?>> keyTypes;
     private List<AbstractType<?>> clusteringTypes;
 
-    private Map<ByteBuffer, CollectionType> collections = new HashMap<>();
+    private final Map<ByteBuffer, CollectionType> collections = new HashMap<>();
 
     private final List<ColumnIdentifier> keyAliases = new ArrayList<>();
     private final List<ColumnIdentifier> columnAliases = new ArrayList<>();
-    private ByteBuffer valueAlias;
 
     private boolean isDense;
     private boolean isCompound;
     private boolean hasCounters;
 
     // use a TreeMap to preserve ordering across JDK versions (see CASSANDRA-9492)
-    private final Map<ColumnIdentifier, AbstractType> columns = new TreeMap<>(new Comparator<ColumnIdentifier>()
-    {
-        public int compare(ColumnIdentifier o1, ColumnIdentifier o2)
-        {
-            return o1.bytes.compareTo(o2.bytes);
-        }
-    });
+    private final Map<ColumnIdentifier, AbstractType> columns = new TreeMap<>((o1, o2) -> o1.bytes.compareTo(o2.bytes));
+
     private final Set<ColumnIdentifier> staticColumns;
-    private final CFPropDefs properties;
+    private final TableParams params;
     private final boolean ifNotExists;
 
-    public CreateTableStatement(CFName name, CFPropDefs properties, boolean ifNotExists, Set<ColumnIdentifier> staticColumns)
+    public CreateTableStatement(CFName name, TableParams params, boolean ifNotExists, Set<ColumnIdentifier> staticColumns)
     {
         super(name);
-        this.properties = properties;
+        this.params = params;
         this.ifNotExists = ifNotExists;
         this.staticColumns = staticColumns;
-
-        if (!this.properties.hasProperty(CFPropDefs.KW_COMPRESSION) && CFMetaData.DEFAULT_COMPRESSOR != null)
-            this.properties.addProperty(CFPropDefs.KW_COMPRESSION,
-                                        new HashMap<String, String>()
-                                        {{
-                                            put(CompressionParameters.CLASS, CFMetaData.DEFAULT_COMPRESSOR);
-                                        }});
     }
 
     public void checkAccess(ClientState state) throws UnauthorizedException, InvalidRequestException
@@ -168,21 +154,19 @@ public class CreateTableStatement extends SchemaAlteringStatement
 
     /**
      * Returns a CFMetaData instance based on the parameters parsed from this
-     * <code>CREATE</code> statement, or defaults where applicable.
+     * {@code CREATE} statement, or defaults where applicable.
      *
      * @return a CFMetaData instance corresponding to the values parsed from this statement
      * @throws InvalidRequestException on failure to validate parsed parameters
      */
-    public CFMetaData getCFMetaData() throws RequestValidationException
+    public CFMetaData getCFMetaData()
     {
-        CFMetaData newCFMD = metadataBuilder().build();
-        applyPropertiesTo(newCFMD);
-        return newCFMD;
+        return metadataBuilder().build().params(params);
     }
 
-    public void applyPropertiesTo(CFMetaData cfmd) throws RequestValidationException
+    public TableParams params()
     {
-        properties.applyToCFMetadata(cfmd);
+        return params;
     }
 
     public static class RawStatement extends CFStatement
@@ -190,9 +174,9 @@ public class CreateTableStatement extends SchemaAlteringStatement
         private final Map<ColumnIdentifier, CQL3Type.Raw> definitions = new HashMap<>();
         public final CFProperties properties = new CFProperties();
 
-        private final List<List<ColumnIdentifier>> keyAliases = new ArrayList<List<ColumnIdentifier>>();
-        private final List<ColumnIdentifier> columnAliases = new ArrayList<ColumnIdentifier>();
-        private final Set<ColumnIdentifier> staticColumns = new HashSet<ColumnIdentifier>();
+        private final List<List<ColumnIdentifier>> keyAliases = new ArrayList<>();
+        private final List<ColumnIdentifier> columnAliases = new ArrayList<>();
+        private final Set<ColumnIdentifier> staticColumns = new HashSet<>();
 
         private final Multiset<ColumnIdentifier> definedNames = HashMultiset.create(1);
 
@@ -221,7 +205,9 @@ public class CreateTableStatement extends SchemaAlteringStatement
 
             properties.validate();
 
-            CreateTableStatement stmt = new CreateTableStatement(cfName, properties.properties, ifNotExists, staticColumns);
+            TableParams params = properties.properties.asNewTableParams();
+
+            CreateTableStatement stmt = new CreateTableStatement(cfName, params, ifNotExists, staticColumns);
 
             for (Map.Entry<ColumnIdentifier, CQL3Type.Raw> entry : definitions.entrySet())
             {
@@ -238,11 +224,11 @@ public class CreateTableStatement extends SchemaAlteringStatement
                 throw new InvalidRequestException("No PRIMARY KEY specifed (exactly one required)");
             if (keyAliases.size() > 1)
                 throw new InvalidRequestException("Multiple PRIMARY KEYs specifed (exactly one required)");
-            if (stmt.hasCounters && properties.properties.getDefaultTimeToLive() > 0)
+            if (stmt.hasCounters && params.defaultTimeToLive > 0)
                 throw new InvalidRequestException("Cannot set default_time_to_live on a table with counters");
 
             List<ColumnIdentifier> kAliases = keyAliases.get(0);
-            stmt.keyTypes = new ArrayList<AbstractType<?>>(kAliases.size());
+            stmt.keyTypes = new ArrayList<>(kAliases.size());
             for (ColumnIdentifier alias : kAliases)
             {
                 stmt.keyAliases.add(alias);

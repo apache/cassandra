@@ -461,7 +461,7 @@ public class SecondaryIndexTest extends CQLTester
     {
         String tableName = createTable("CREATE TABLE %s (k int PRIMARY KEY, v int,)");
 
-        execute("ALTER TABLE %s WITH CACHING='ALL'");
+        execute("ALTER TABLE %s WITH CACHING = { 'keys': 'ALL', 'rows_per_partition': 'ALL' }");
         execute("INSERT INTO %s (k,v) VALUES (0,0)");
         execute("INSERT INTO %s (k,v) VALUES (1,1)");
 

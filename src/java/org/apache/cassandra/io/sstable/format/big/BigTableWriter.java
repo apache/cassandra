@@ -71,7 +71,7 @@ public class BigTableWriter extends SSTableWriter
         {
             dataFile = SequentialWriter.open(getFilename(),
                                              descriptor.filenameFor(Component.COMPRESSION_INFO),
-                                             metadata.compressionParameters(),
+                                             metadata.params.compression,
                                              metadataCollector);
             dbuilder = SegmentedFile.getCompressedBuilder((CompressedSequentialWriter) dataFile);
         }
@@ -376,8 +376,8 @@ public class BigTableWriter extends SSTableWriter
         {
             indexFile = SequentialWriter.open(new File(descriptor.filenameFor(Component.PRIMARY_INDEX)));
             builder = SegmentedFile.getBuilder(DatabaseDescriptor.getIndexAccessMode(), false);
-            summary = new IndexSummaryBuilder(keyCount, metadata.getMinIndexInterval(), Downsampling.BASE_SAMPLING_LEVEL);
-            bf = FilterFactory.getFilter(keyCount, metadata.getBloomFilterFpChance(), true, descriptor.version.hasOldBfHashOrder());
+            summary = new IndexSummaryBuilder(keyCount, metadata.params.minIndexInterval, Downsampling.BASE_SAMPLING_LEVEL);
+            bf = FilterFactory.getFilter(keyCount, metadata.params.bloomFilterFpChance, true, descriptor.version.hasOldBfHashOrder());
             // register listeners to be alerted when the data files are flushed
             indexFile.setPostFlushListener(new Runnable()
             {

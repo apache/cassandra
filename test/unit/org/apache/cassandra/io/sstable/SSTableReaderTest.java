@@ -38,7 +38,6 @@ import org.junit.runner.RunWith;
 import org.apache.cassandra.OrderedJUnit4ClassRunner;
 import org.apache.cassandra.SchemaLoader;
 import org.apache.cassandra.Util;
-import org.apache.cassandra.cache.CachingOptions;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.cql3.Operator;
 import org.apache.cassandra.db.BufferDecoratedKey;
@@ -58,6 +57,7 @@ import org.apache.cassandra.io.sstable.format.SSTableReader;
 import org.apache.cassandra.io.util.FileDataInput;
 import org.apache.cassandra.io.util.MmappedSegmentedFile;
 import org.apache.cassandra.io.util.SegmentedFile;
+import org.apache.cassandra.schema.CachingParams;
 import org.apache.cassandra.schema.KeyspaceParams;
 import org.apache.cassandra.service.CacheService;
 import org.apache.cassandra.utils.ByteBufferUtil;
@@ -95,7 +95,7 @@ public class SSTableReaderTest
                                     SchemaLoader.standardCFMD(KEYSPACE1, CF_STANDARDLOWINDEXINTERVAL)
                                                 .minIndexInterval(8)
                                                 .maxIndexInterval(256)
-                                                .caching(CachingOptions.NONE));
+                                                .caching(CachingParams.CACHE_NOTHING));
     }
 
     @Test
@@ -342,7 +342,7 @@ public class SSTableReaderTest
 
         DecoratedKey firstKey = null, lastKey = null;
         long timestamp = System.currentTimeMillis();
-        for (int i = 0; i < store.metadata.getMinIndexInterval(); i++)
+        for (int i = 0; i < store.metadata.params.minIndexInterval; i++)
         {
             DecoratedKey key = Util.dk(String.valueOf(i));
             if (firstKey == null)

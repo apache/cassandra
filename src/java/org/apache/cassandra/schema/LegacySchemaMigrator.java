@@ -26,18 +26,17 @@ import com.google.common.collect.ImmutableList;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import org.apache.cassandra.cache.CachingOptions;
 import org.apache.cassandra.config.*;
 import org.apache.cassandra.cql3.*;
 import org.apache.cassandra.cql3.functions.FunctionName;
 import org.apache.cassandra.cql3.functions.UDAggregate;
 import org.apache.cassandra.cql3.functions.UDFunction;
 import org.apache.cassandra.db.*;
+import org.apache.cassandra.db.compaction.AbstractCompactionStrategy;
 import org.apache.cassandra.db.marshal.*;
 import org.apache.cassandra.db.rows.RowIterator;
 import org.apache.cassandra.db.rows.UnfilteredRowIterators;
 import org.apache.cassandra.exceptions.InvalidRequestException;
-import org.apache.cassandra.io.compress.CompressionParameters;
 import org.apache.cassandra.utils.ByteBufferUtil;
 import org.apache.cassandra.utils.FBUtilities;
 import org.apache.cassandra.utils.concurrent.OpOrder;
@@ -189,7 +188,7 @@ public final class LegacySchemaMigrator
 
         Map<String, String> replication = new HashMap<>();
         replication.putAll(fromJsonMap(row.getString("strategy_options")));
-        replication.put(KeyspaceParams.Replication.CLASS, row.getString("strategy_class"));
+        replication.put(ReplicationParams.CLASS, row.getString("strategy_class"));
 
         return KeyspaceParams.create(durableWrites, replication);
     }
@@ -317,41 +316,86 @@ public final class LegacySchemaMigrator
                                            columnDefs,
                                            DatabaseDescriptor.getPartitioner());
 
-        cfm.readRepairChance(tableRow.getDouble("read_repair_chance"));
-        cfm.dcLocalReadRepairChance(tableRow.getDouble("local_read_repair_chance"));
-        cfm.gcGraceSeconds(tableRow.getInt("gc_grace_seconds"));
-        cfm.minCompactionThreshold(tableRow.getInt("min_compaction_threshold"));
-        cfm.maxCompactionThreshold(tableRow.getInt("max_compaction_threshold"));
-        if (tableRow.has("comment"))
-            cfm.comment(tableRow.getString("comment"));
-        if (tableRow.has("memtable_flush_period_in_ms"))
-            cfm.memtableFlushPeriod(tableRow.getInt("memtable_flush_period_in_ms"));
-        cfm.caching(CachingOptions.fromString(tableRow.getString("caching")));
-        if (tableRow.has("default_time_to_live"))
-            cfm.defaultTimeToLive(tableRow.getInt("default_time_to_live"));
-        if (tableRow.has("speculative_retry"))
-            cfm.speculativeRetry(CFMetaData.SpeculativeRetry.fromString(tableRow.getString("speculative_retry")));
-        cfm.compactionStrategyClass(CFMetaData.createCompactionStrategy(tableRow.getString("compaction_strategy_class")));
-        cfm.compressionParameters(CompressionParameters.fromMap(fromJsonMap(tableRow.getString("compression_parameters"))));
-        cfm.compactionStrategyOptions(fromJsonMap(tableRow.getString("compaction_strategy_options")));
-
-        if (tableRow.has("min_index_interval"))
-            cfm.minIndexInterval(tableRow.getInt("min_index_interval"));
-
-        if (tableRow.has("max_index_interval"))
-            cfm.maxIndexInterval(tableRow.getInt("max_index_interval"));
-
-        if (tableRow.has("bloom_filter_fp_chance"))
-            cfm.bloomFilterFpChance(tableRow.getDouble("bloom_filter_fp_chance"));
-        else
-            cfm.bloomFilterFpChance(cfm.getBloomFilterFpChance());
-
         if (tableRow.has("dropped_columns"))
             addDroppedColumns(cfm, rawComparator, tableRow.getMap("dropped_columns", UTF8Type.instance, LongType.instance));
 
-        cfm.triggers(createTriggersFromTriggerRows(triggerRows));
+        return cfm.params(decodeTableParams(tableRow))
+                  .triggers(createTriggersFromTriggerRows(triggerRows));
+    }
 
-        return cfm;
+    private static TableParams decodeTableParams(UntypedResultSet.Row row)
+    {
+        TableParams.Builder params = TableParams.builder();
+
+        params.readRepairChance(row.getDouble("read_repair_chance"))
+              .dcLocalReadRepairChance(row.getDouble("local_read_repair_chance"))
+              .gcGraceSeconds(row.getInt("gc_grace_seconds"));
+
+        if (row.has("comment"))
+            params.comment(row.getString("comment"));
+
+        if (row.has("memtable_flush_period_in_ms"))
+            params.memtableFlushPeriodInMs(row.getInt("memtable_flush_period_in_ms"));
+
+        params.caching(CachingParams.fromMap(fromJsonMap(row.getString("caching"))));
+
+        if (row.has("default_time_to_live"))
+            params.defaultTimeToLive(row.getInt("default_time_to_live"));
+
+        if (row.has("speculative_retry"))
+            params.speculativeRetry(SpeculativeRetryParam.fromString(row.getString("speculative_retry")));
+
+        params.compression(CompressionParams.fromMap(fromJsonMap(row.getString("compression_parameters"))));
+
+        params.compaction(compactionFromRow(row));
+
+        if (row.has("min_index_interval"))
+            params.minIndexInterval(row.getInt("min_index_interval"));
+
+        if (row.has("max_index_interval"))
+            params.maxIndexInterval(row.getInt("max_index_interval"));
+
+        if (row.has("bloom_filter_fp_chance"))
+            params.bloomFilterFpChance(row.getDouble("bloom_filter_fp_chance"));
+
+        return params.build();
+    }
+
+    /*
+     * The method is needed - to migrate max_compaction_threshold and min_compaction_threshold
+     * to the compaction map, where they belong.
+     *
+     * We must use reflection to validate the options because not every compaction strategy respects and supports
+     * the threshold params (LCS doesn't, STCS and DTCS do).
+     */
+    @SuppressWarnings("unchecked")
+    private static CompactionParams compactionFromRow(UntypedResultSet.Row row)
+    {
+        Class<? extends AbstractCompactionStrategy> klass =
+            CFMetaData.createCompactionStrategy(row.getString("compaction_strategy_class"));
+        Map<String, String> options = fromJsonMap(row.getString("compaction_strategy_options"));
+
+        int minThreshold = row.getInt("min_compaction_threshold");
+        int maxThreshold = row.getInt("max_compaction_threshold");
+
+        Map<String, String> optionsWithThresholds = new HashMap<>(options);
+        optionsWithThresholds.putIfAbsent(CompactionParams.Option.MIN_THRESHOLD.toString(), Integer.toString(minThreshold));
+        optionsWithThresholds.putIfAbsent(CompactionParams.Option.MAX_THRESHOLD.toString(), Integer.toString(maxThreshold));
+
+        try
+        {
+            Map<String, String> unrecognizedOptions =
+                (Map<String, String>) klass.getMethod("validateOptions", Map.class).invoke(null, optionsWithThresholds);
+
+            if (unrecognizedOptions.isEmpty())
+                options = optionsWithThresholds;
+        }
+        catch (Exception e)
+        {
+            throw new RuntimeException(e);
+        }
+
+        return CompactionParams.create(klass, options);
     }
 
     // Should only be called on compact tables
@@ -627,10 +671,7 @@ public final class LegacySchemaMigrator
                               SystemKeyspace.NAME,
                               SystemKeyspace.LEGACY_FUNCTIONS);
         HashMultimap<String, List<String>> functionSignatures = HashMultimap.create();
-        query(query, keyspaceName).forEach(row ->
-        {
-            functionSignatures.put(row.getString("function_name"), row.getList("signature", UTF8Type.instance));
-        });
+        query(query, keyspaceName).forEach(row -> functionSignatures.put(row.getString("function_name"), row.getList("signature", UTF8Type.instance)));
 
         Collection<Function> functions = new ArrayList<>();
         functionSignatures.entries().forEach(pair -> functions.add(readFunction(keyspaceName, pair.getKey(), pair.getValue())));
@@ -699,10 +740,7 @@ public final class LegacySchemaMigrator
                               SystemKeyspace.NAME,
                               SystemKeyspace.LEGACY_AGGREGATES);
         HashMultimap<String, List<String>> aggregateSignatures = HashMultimap.create();
-        query(query, keyspaceName).forEach(row ->
-        {
-            aggregateSignatures.put(row.getString("aggregate_name"), row.getList("signature", UTF8Type.instance));
-        });
+        query(query, keyspaceName).forEach(row -> aggregateSignatures.put(row.getString("aggregate_name"), row.getList("signature", UTF8Type.instance)));
 
         Collection<Aggregate> aggregates = new ArrayList<>();
         aggregateSignatures.entries().forEach(pair -> aggregates.add(readAggregate(keyspaceName, pair.getKey(), pair.getValue())));

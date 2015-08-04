@@ -36,7 +36,6 @@ import org.slf4j.LoggerFactory;
 import com.clearspring.analytics.stream.cardinality.CardinalityMergeException;
 import com.clearspring.analytics.stream.cardinality.HyperLogLogPlus;
 import com.clearspring.analytics.stream.cardinality.ICardinality;
-import org.apache.cassandra.cache.CachingOptions;
 import org.apache.cassandra.cache.InstrumentingCache;
 import org.apache.cassandra.cache.KeyCacheKey;
 import org.apache.cassandra.concurrent.DebuggableThreadPoolExecutor;
@@ -56,6 +55,7 @@ import org.apache.cassandra.io.sstable.metadata.*;
 import org.apache.cassandra.io.util.*;
 import org.apache.cassandra.metrics.RestorableMeter;
 import org.apache.cassandra.metrics.StorageMetrics;
+import org.apache.cassandra.schema.CachingParams;
 import org.apache.cassandra.service.ActiveRepairService;
 import org.apache.cassandra.service.CacheService;
 import org.apache.cassandra.utils.*;
@@ -650,7 +650,7 @@ public abstract class SSTableReader extends SSTable implements SelfRefCounted<SS
 
     private void load(ValidationMetadata validation) throws IOException
     {
-        if (metadata.getBloomFilterFpChance() == 1.0)
+        if (metadata.params.bloomFilterFpChance == 1.0)
         {
             // bf is disabled.
             load(false, true);
@@ -667,7 +667,7 @@ public abstract class SSTableReader extends SSTable implements SelfRefCounted<SS
             // bf is enabled, but filter component is missing.
             load(true, true);
         }
-        else if (validation.bloomFilterFPChance != metadata.getBloomFilterFpChance())
+        else if (validation.bloomFilterFPChance != metadata.params.bloomFilterFpChance)
         {
             // bf fp chance in sstable metadata and it has changed since compaction.
             load(true, true);
@@ -789,9 +789,9 @@ public abstract class SSTableReader extends SSTable implements SelfRefCounted<SS
                     : estimateRowsFromIndex(primaryIndex); // statistics is supposed to be optional
 
             if (recreateBloomFilter)
-                bf = FilterFactory.getFilter(estimatedKeys, metadata.getBloomFilterFpChance(), true, descriptor.version.hasOldBfHashOrder());
+                bf = FilterFactory.getFilter(estimatedKeys, metadata.params.bloomFilterFpChance, true, descriptor.version.hasOldBfHashOrder());
 
-            try (IndexSummaryBuilder summaryBuilder = summaryLoaded ? null : new IndexSummaryBuilder(estimatedKeys, metadata.getMinIndexInterval(), samplingLevel))
+            try (IndexSummaryBuilder summaryBuilder = summaryLoaded ? null : new IndexSummaryBuilder(estimatedKeys, metadata.params.minIndexInterval, samplingLevel))
             {
                 long indexPosition;
                 RowIndexEntry.IndexSerializer rowIndexSerializer = descriptor.getFormat().getIndexSerializer(metadata, descriptor.version, header);
@@ -849,7 +849,7 @@ public abstract class SSTableReader extends SSTable implements SelfRefCounted<SS
             iStream = new DataInputStream(new FileInputStream(summariesFile));
             indexSummary = IndexSummary.serializer.deserialize(
                     iStream, getPartitioner(), descriptor.version.hasSamplingLevel(),
-                    metadata.getMinIndexInterval(), metadata.getMaxIndexInterval());
+                    metadata.params.minIndexInterval, metadata.params.maxIndexInterval);
             first = decorateKey(ByteBufferUtil.readWithLength(iStream));
             last = decorateKey(ByteBufferUtil.readWithLength(iStream));
             ibuilder.deserializeBounds(iStream);
@@ -1134,8 +1134,8 @@ public abstract class SSTableReader extends SSTable implements SelfRefCounted<SS
         {
             assert openReason != OpenReason.EARLY;
 
-            int minIndexInterval = metadata.getMinIndexInterval();
-            int maxIndexInterval = metadata.getMaxIndexInterval();
+            int minIndexInterval = metadata.params.minIndexInterval;
+            int maxIndexInterval = metadata.params.maxIndexInterval;
             double effectiveInterval = indexSummary.getEffectiveIndexInterval();
 
             IndexSummary newSummary;
@@ -1183,7 +1183,7 @@ public abstract class SSTableReader extends SSTable implements SelfRefCounted<SS
         try
         {
             long indexSize = primaryIndex.length();
-            try (IndexSummaryBuilder summaryBuilder = new IndexSummaryBuilder(estimatedKeys(), metadata.getMinIndexInterval(), newSamplingLevel))
+            try (IndexSummaryBuilder summaryBuilder = new IndexSummaryBuilder(estimatedKeys(), metadata.params.minIndexInterval, newSamplingLevel))
             {
                 long indexPosition;
                 while ((indexPosition = primaryIndex.getFilePointer()) != indexSize)
@@ -1515,14 +1515,10 @@ public abstract class SSTableReader extends SSTable implements SelfRefCounted<SS
 
     public void cacheKey(DecoratedKey key, RowIndexEntry info)
     {
-        CachingOptions caching = metadata.getCaching();
+        CachingParams caching = metadata.params.caching;
 
-        if (!caching.keyCache.isEnabled()
-                || keyCache == null
-                || keyCache.getCapacity() == 0)
-        {
+        if (!caching.cacheKeys() || keyCache == null || keyCache.getCapacity() == 0)
             return;
-        }
 
         KeyCacheKey cacheKey = new KeyCacheKey(metadata.cfId, descriptor, key.getKey());
         logger.trace("Adding cache entry for {} -> {}", cacheKey, info);

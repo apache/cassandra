@@ -30,6 +30,7 @@ import org.apache.cassandra.Util;
 import org.apache.cassandra.UpdateBuilder;
 import org.apache.cassandra.db.*;
 import org.apache.cassandra.exceptions.ConfigurationException;
+import org.apache.cassandra.schema.CompactionParams;
 import org.apache.cassandra.schema.KeyspaceParams;
 import org.apache.cassandra.utils.FBUtilities;
 
@@ -47,8 +48,7 @@ public class LongLeveledCompactionStrategyTest
         SchemaLoader.createKeyspace(KEYSPACE1,
                                     KeyspaceParams.simple(1),
                                     SchemaLoader.standardCFMD(KEYSPACE1, CF_STANDARDLVL)
-                                                .compactionStrategyClass(LeveledCompactionStrategy.class)
-                                                .compactionStrategyOptions(leveledOptions));
+                                                .compaction(CompactionParams.lcs(leveledOptions)));
     }
 
     @Test

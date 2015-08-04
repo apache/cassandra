@@ -38,7 +38,7 @@ import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.config.ParameterizedClass;
 import org.apache.cassandra.db.*;
 import org.apache.cassandra.io.FSWriteError;
-import org.apache.cassandra.io.compress.CompressionParameters;
+import org.apache.cassandra.schema.CompressionParams;
 import org.apache.cassandra.io.compress.ICompressor;
 import org.apache.cassandra.io.util.BufferedDataOutputStreamPlus;
 import org.apache.cassandra.io.util.DataOutputBufferFixed;
@@ -93,7 +93,7 @@ public class CommitLog implements CommitLogMBean
     {
         compressorClass = DatabaseDescriptor.getCommitLogCompression();
         this.location = location;
-        ICompressor compressor = compressorClass != null ? CompressionParameters.createCompressor(compressorClass) : null;
+        ICompressor compressor = compressorClass != null ? CompressionParams.createCompressor(compressorClass) : null;
         DatabaseDescriptor.createAllDirectories();
 
         this.compressor = compressor;

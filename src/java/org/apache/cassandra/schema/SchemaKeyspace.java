@@ -31,21 +31,18 @@ import com.google.common.collect.Maps;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import org.apache.cassandra.cache.CachingOptions;
 import org.apache.cassandra.config.*;
 import org.apache.cassandra.cql3.ColumnIdentifier;
 import org.apache.cassandra.cql3.QueryProcessor;
 import org.apache.cassandra.cql3.UntypedResultSet;
 import org.apache.cassandra.cql3.functions.*;
-import org.apache.cassandra.cql3.statements.CFPropDefs;
+import org.apache.cassandra.db.ClusteringComparator;
 import org.apache.cassandra.db.*;
-import org.apache.cassandra.db.compaction.AbstractCompactionStrategy;
 import org.apache.cassandra.db.marshal.*;
 import org.apache.cassandra.db.partitions.*;
 import org.apache.cassandra.db.rows.*;
 import org.apache.cassandra.exceptions.ConfigurationException;
 import org.apache.cassandra.exceptions.InvalidRequestException;
-import org.apache.cassandra.io.compress.CompressionParameters;
 import org.apache.cassandra.utils.ByteBufferUtil;
 import org.apache.cassandra.utils.FBUtilities;
 import org.apache.cassandra.utils.concurrent.OpOrder;
@@ -819,20 +816,9 @@ public final class SchemaKeyspace
     {
         RowUpdateBuilder adder = new RowUpdateBuilder(Tables, timestamp, mutation).clustering(table.cfName);
 
-        adder.add("bloom_filter_fp_chance", table.getBloomFilterFpChance())
-             .add("comment", table.getComment())
-             .add("dclocal_read_repair_chance", table.getDcLocalReadRepairChance())
-             .add("default_time_to_live", table.getDefaultTimeToLive())
-             .add("gc_grace_seconds", table.getGcGraceSeconds())
-             .add("id", table.cfId)
-             .add("max_index_interval", table.getMaxIndexInterval())
-             .add("memtable_flush_period_in_ms", table.getMemtableFlushPeriod())
-             .add("min_index_interval", table.getMinIndexInterval())
-             .add("read_repair_chance", table.getReadRepairChance())
-             .add("speculative_retry", table.getSpeculativeRetry().toString())
-             .map("caching", table.getCaching().asMap())
-             .map("compaction", buildCompactionMap(table))
-             .map("compression", table.compressionParameters().asMap())
+        addTableParamsToSchemaMutation(table.params, adder);
+
+        adder.add("id", table.cfId)
              .set("flags", CFMetaData.flagsToStrings(table.flags()))
              .build();
 
@@ -852,38 +838,21 @@ public final class SchemaKeyspace
         }
     }
 
-    /*
-     * The method is needed - temporarily - to migrate max_compaction_threshold and min_compaction_threshold
-     * to the compaction map, where they belong.
-     *
-     * We must use reflection to validate the options because not every compaction strategy respects and supports
-     * the threshold params (LCS doesn't, STCS and DTCS don't).
-     */
-    @SuppressWarnings("unchecked")
-    private static Map<String, String> buildCompactionMap(CFMetaData cfm)
+    private static void addTableParamsToSchemaMutation(TableParams params, RowUpdateBuilder adder)
     {
-        Map<String, String> options = new HashMap<>(cfm.compactionStrategyOptions);
-
-        Map<String, String> optionsWithThresholds = new HashMap<>(options);
-        options.putIfAbsent(CFPropDefs.KW_MINCOMPACTIONTHRESHOLD, Integer.toString(cfm.getMinCompactionThreshold()));
-        options.putIfAbsent(CFPropDefs.KW_MAXCOMPACTIONTHRESHOLD, Integer.toString(cfm.getMaxCompactionThreshold()));
-
-        try
-        {
-            Map<String, String> unrecognizedOptions = (Map<String, String>) cfm.compactionStrategyClass
-                                                                               .getMethod("validateOptions", Map.class)
-                                                                               .invoke(null, optionsWithThresholds);
-            if (unrecognizedOptions.isEmpty())
-                options = optionsWithThresholds;
-        }
-        catch (Exception e)
-        {
-            throw new RuntimeException(e);
-        }
-
-        options.put("class", cfm.compactionStrategyClass.getName());
-
-        return options;
+        adder.add("bloom_filter_fp_chance", params.bloomFilterFpChance)
+             .add("comment", params.comment)
+             .add("dclocal_read_repair_chance", params.dcLocalReadRepairChance)
+             .add("default_time_to_live", params.defaultTimeToLive)
+             .add("gc_grace_seconds", params.gcGraceSeconds)
+             .add("max_index_interval", params.maxIndexInterval)
+             .add("memtable_flush_period_in_ms", params.memtableFlushPeriodInMs)
+             .add("min_index_interval", params.minIndexInterval)
+             .add("read_repair_chance", params.readRepairChance)
+             .add("speculative_retry", params.speculativeRetry.toString())
+             .map("caching", params.caching.asMap())
+             .map("compaction", params.compaction.asMap())
+             .map("compression", params.compression.asMap());
     }
 
     public static Mutation makeUpdateTableMutation(KeyspaceMetadata keyspace,
@@ -1085,49 +1054,38 @@ public final class SchemaKeyspace
         boolean isCounter = flags.contains(CFMetaData.Flag.COUNTER);
         boolean isDense = flags.contains(CFMetaData.Flag.DENSE);
         boolean isCompound = flags.contains(CFMetaData.Flag.COMPOUND);
-        boolean isMaterializedView = flags.contains(CFMetaData.Flag.MATERIALIZEDVIEW);
+        boolean isMaterializedView = flags.contains(CFMetaData.Flag.VIEW);
 
-        CFMetaData cfm = CFMetaData.create(keyspace,
-                                           table,
-                                           id,
-                                           isDense,
-                                           isCompound,
-                                           isSuper,
-                                           isCounter,
-                                           isMaterializedView,
-                                           columns,
-                                           DatabaseDescriptor.getPartitioner());
+        return CFMetaData.create(keyspace,
+                                 table,
+                                 id,
+                                 isDense,
+                                 isCompound,
+                                 isSuper,
+                                 isCounter,
+                                 isMaterializedView,
+                                 columns,
+                                 DatabaseDescriptor.getPartitioner())
+                         .params(createTableParamsFromRow(row));
+    }
 
-        Map<String, String> compaction = new HashMap<>(row.getTextMap("compaction"));
-        Class<? extends AbstractCompactionStrategy> compactionStrategyClass =
-            CFMetaData.createCompactionStrategy(compaction.remove("class"));
-
-        int minCompactionThreshold = compaction.containsKey(CFPropDefs.KW_MINCOMPACTIONTHRESHOLD)
-                                   ? Integer.parseInt(compaction.get(CFPropDefs.KW_MINCOMPACTIONTHRESHOLD))
-                                   : CFMetaData.DEFAULT_MIN_COMPACTION_THRESHOLD;
-
-        int maxCompactionThreshold = compaction.containsKey(CFPropDefs.KW_MAXCOMPACTIONTHRESHOLD)
-                                   ? Integer.parseInt(compaction.get(CFPropDefs.KW_MAXCOMPACTIONTHRESHOLD))
-                                   : CFMetaData.DEFAULT_MAX_COMPACTION_THRESHOLD;
-
-        cfm.bloomFilterFpChance(row.getDouble("bloom_filter_fp_chance"))
-           .caching(CachingOptions.fromMap(row.getTextMap("caching")))
-           .comment(row.getString("comment"))
-           .compactionStrategyClass(compactionStrategyClass)
-           .compactionStrategyOptions(compaction)
-           .compressionParameters(CompressionParameters.fromMap(row.getTextMap("compression")))
-           .dcLocalReadRepairChance(row.getDouble("dclocal_read_repair_chance"))
-           .defaultTimeToLive(row.getInt("default_time_to_live"))
-           .gcGraceSeconds(row.getInt("gc_grace_seconds"))
-           .maxCompactionThreshold(maxCompactionThreshold)
-           .maxIndexInterval(row.getInt("max_index_interval"))
-           .memtableFlushPeriod(row.getInt("memtable_flush_period_in_ms"))
-           .minCompactionThreshold(minCompactionThreshold)
-           .minIndexInterval(row.getInt("min_index_interval"))
-           .readRepairChance(row.getDouble("read_repair_chance"))
-           .speculativeRetry(CFMetaData.SpeculativeRetry.fromString(row.getString("speculative_retry")));
-
-        return cfm;
+    private static TableParams createTableParamsFromRow(UntypedResultSet.Row row)
+    {
+        return TableParams.builder()
+                          .bloomFilterFpChance(row.getDouble("bloom_filter_fp_chance"))
+                          .caching(CachingParams.fromMap(row.getTextMap("caching")))
+                          .comment(row.getString("comment"))
+                          .compaction(CompactionParams.fromMap(row.getTextMap("compaction")))
+                          .compression(CompressionParams.fromMap(row.getTextMap("compression")))
+                          .dcLocalReadRepairChance(row.getDouble("dclocal_read_repair_chance"))
+                          .defaultTimeToLive(row.getInt("default_time_to_live"))
+                          .gcGraceSeconds(row.getInt("gc_grace_seconds"))
+                          .maxIndexInterval(row.getInt("max_index_interval"))
+                          .memtableFlushPeriodInMs(row.getInt("memtable_flush_period_in_ms"))
+                          .minIndexInterval(row.getInt("min_index_interval"))
+                          .readRepairChance(row.getDouble("read_repair_chance"))
+                          .speculativeRetry(SpeculativeRetryParam.fromString(row.getString("speculative_retry")))
+                          .build();
     }
 
     /*

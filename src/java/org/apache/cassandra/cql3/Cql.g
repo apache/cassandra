@@ -807,7 +807,7 @@ alterKeyspaceStatement returns [AlterKeyspaceStatement expr]
 alterTableStatement returns [AlterTableStatement expr]
     @init {
         AlterTableStatement.Type type = null;
-        CFPropDefs props = new CFPropDefs();
+        TableAttributes attrs = new TableAttributes();
         Map<ColumnIdentifier.Raw, ColumnIdentifier.Raw> renames = new HashMap<ColumnIdentifier.Raw, ColumnIdentifier.Raw>();
         boolean isStatic = false;
     }
@@ -815,24 +815,24 @@ alterTableStatement returns [AlterTableStatement expr]
           ( K_ALTER id=cident K_TYPE v=comparatorType { type = AlterTableStatement.Type.ALTER; }
           | K_ADD   id=cident v=comparatorType ({ isStatic=true; } K_STATIC)? { type = AlterTableStatement.Type.ADD; }
           | K_DROP  id=cident                         { type = AlterTableStatement.Type.DROP; }
-          | K_WITH  properties[props]                 { type = AlterTableStatement.Type.OPTS; }
+          | K_WITH  properties[attrs]                 { type = AlterTableStatement.Type.OPTS; }
           | K_RENAME                                  { type = AlterTableStatement.Type.RENAME; }
                id1=cident K_TO toId1=cident { renames.put(id1, toId1); }
                ( K_AND idn=cident K_TO toIdn=cident { renames.put(idn, toIdn); } )*
           )
     {
-        $expr = new AlterTableStatement(cf, type, id, v, props, renames, isStatic);
+        $expr = new AlterTableStatement(cf, type, id, v, attrs, renames, isStatic);
     }
     ;
 
 alterMaterializedViewStatement returns [AlterMaterializedViewStatement expr]
     @init {
-        CFPropDefs props = new CFPropDefs();
+        TableAttributes attrs = new TableAttributes();
     }
     : K_ALTER K_MATERIALIZED K_VIEW name=columnFamilyName
-          K_WITH properties[props]
+          K_WITH properties[attrs]
     {
-        $expr = new AlterMaterializedViewStatement(name, props);
+        $expr = new AlterMaterializedViewStatement(name, attrs);
     }
     ;
     

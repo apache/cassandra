@@ -113,8 +113,8 @@ public class OverflowTest extends CQLTester
                     + "AND gc_grace_seconds = 4 "
                     + "AND bloom_filter_fp_chance = 0.01 "
                     + "AND compaction = { 'class' : 'LeveledCompactionStrategy', 'sstable_size_in_mb' : 10 } "
-                    + "AND compression = { 'sstable_compression' : '' } "
-                    + "AND caching = 'all' ");
+                    + "AND compression = { 'enabled': false } "
+                    + "AND caching = { 'keys': 'ALL', 'rows_per_partition': 'ALL' }");
 
         execute("ALTER TABLE %s WITH "
                 + "comment = 'other comment' "
@@ -123,8 +123,8 @@ public class OverflowTest extends CQLTester
                 + "AND gc_grace_seconds = 100 "
                 + "AND bloom_filter_fp_chance = 0.1 "
                 + "AND compaction = { 'class': 'SizeTieredCompactionStrategy', 'min_sstable_size' : 42 } "
-                + "AND compression = { 'sstable_compression' : 'SnappyCompressor' } "
-                + "AND caching = 'rows_only' ");
+                + "AND compression = { 'class' : 'SnappyCompressor' } "
+                + "AND caching = { 'rows_per_partition': 'ALL' }");
     }
 
     /**

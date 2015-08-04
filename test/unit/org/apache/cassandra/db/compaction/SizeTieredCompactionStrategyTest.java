@@ -53,13 +53,10 @@ public class SizeTieredCompactionStrategyTest
     @BeforeClass
     public static void defineSchema() throws ConfigurationException
     {
-        Map<String, String> leveledOptions = new HashMap<>();
-        leveledOptions.put("sstable_size_in_mb", "1");
         SchemaLoader.prepareServer();
         SchemaLoader.createKeyspace(KEYSPACE1,
                                     KeyspaceParams.simple(1),
-                                    SchemaLoader.standardCFMD(KEYSPACE1, CF_STANDARD1)
-                                                .compactionStrategyOptions(leveledOptions));
+                                    SchemaLoader.standardCFMD(KEYSPACE1, CF_STANDARD1));
     }
 
     @Test

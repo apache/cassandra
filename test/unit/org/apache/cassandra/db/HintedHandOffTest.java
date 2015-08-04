@@ -31,7 +31,6 @@ import org.junit.Test;
 
 import org.apache.cassandra.SchemaLoader;
 import org.apache.cassandra.cql3.UntypedResultSet;
-import org.apache.cassandra.db.compaction.SizeTieredCompactionStrategy;
 import org.apache.cassandra.db.marshal.Int32Type;
 import org.apache.cassandra.db.marshal.UUIDType;
 import org.apache.cassandra.exceptions.ConfigurationException;
@@ -74,7 +73,6 @@ public class HintedHandOffTest
         ColumnFamilyStore hintStore = systemKeyspace.getColumnFamilyStore(SystemKeyspace.HINTS);
         hintStore.clearUnsafe();
         hintStore.metadata.gcGraceSeconds(36000); // 10 hours
-        hintStore.setCompactionStrategyClass(SizeTieredCompactionStrategy.class.getCanonicalName());
         hintStore.disableAutoCompaction();
 
         // insert 1 hint

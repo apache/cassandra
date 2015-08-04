@@ -52,6 +52,7 @@ import org.apache.cassandra.io.util.DataOutputPlus;
 import org.apache.cassandra.io.util.FileUtils;
 import org.apache.cassandra.io.util.Memory;
 import org.apache.cassandra.io.util.SafeMemory;
+import org.apache.cassandra.schema.CompressionParams;
 import org.apache.cassandra.utils.Pair;
 import org.apache.cassandra.utils.concurrent.Transactional;
 import org.apache.cassandra.utils.concurrent.Ref;
@@ -69,7 +70,7 @@ public class CompressionMetadata
     private final Memory chunkOffsets;
     private final long chunkOffsetsSize;
     public final String indexFilePath;
-    public final CompressionParameters parameters;
+    public final CompressionParams parameters;
 
     /**
      * Create metadata about given compressed file including uncompressed data length, chunk size
@@ -107,11 +108,11 @@ public class CompressionMetadata
             int chunkLength = stream.readInt();
             try
             {
-                parameters = new CompressionParameters(compressorName, chunkLength, options);
+                parameters = new CompressionParams(compressorName, chunkLength, options);
             }
             catch (ConfigurationException e)
             {
-                throw new RuntimeException("Cannot create CompressionParameters for stored parameters", e);
+                throw new RuntimeException("Cannot create CompressionParams for stored parameters", e);
             }
 
             dataLength = stream.readLong();
@@ -130,7 +131,7 @@ public class CompressionMetadata
         this.chunkOffsetsSize = chunkOffsets.size();
     }
 
-    private CompressionMetadata(String filePath, CompressionParameters parameters, SafeMemory offsets, long offsetsSize, long dataLength, long compressedLength)
+    private CompressionMetadata(String filePath, CompressionParams parameters, SafeMemory offsets, long offsetsSize, long dataLength, long compressedLength)
     {
         this.indexFilePath = filePath;
         this.parameters = parameters;
@@ -275,7 +276,7 @@ public class CompressionMetadata
     public static class Writer extends Transactional.AbstractTransactional implements Transactional
     {
         // path to the file
-        private final CompressionParameters parameters;
+        private final CompressionParams parameters;
         private final String filePath;
         private int maxCount = 100;
         private SafeMemory offsets = new SafeMemory(maxCount * 8L);
@@ -284,13 +285,13 @@ public class CompressionMetadata
         // provided by user when setDescriptor
         private long dataLength, chunkCount;
 
-        private Writer(CompressionParameters parameters, String path)
+        private Writer(CompressionParams parameters, String path)
         {
             this.parameters = parameters;
             filePath = path;
         }
 
-        public static Writer open(CompressionParameters parameters, String path)
+        public static Writer open(CompressionParams parameters, String path)
         {
             return new Writer(parameters, path);
         }

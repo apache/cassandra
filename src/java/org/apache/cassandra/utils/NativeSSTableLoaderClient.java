@@ -121,7 +121,7 @@ public class NativeSSTableLoaderClient extends SSTableLoader.Client
             boolean isCounter = flags.contains(CFMetaData.Flag.COUNTER);
             boolean isDense = flags.contains(CFMetaData.Flag.DENSE);
             boolean isCompound = flags.contains(CFMetaData.Flag.COMPOUND);
-            boolean isMaterializedView = flags.contains(CFMetaData.Flag.MATERIALIZEDVIEW);
+            boolean isMaterializedView = flags.contains(CFMetaData.Flag.VIEW);
 
             String columnsQuery = String.format("SELECT * FROM %s.%s WHERE keyspace_name = ? AND table_name = ?",
                                                 SchemaKeyspace.NAME,

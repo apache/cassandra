@@ -147,7 +147,7 @@ public class HintedHandOffManager implements HintedHandOffManagerMBean
     {
         int ttl = maxHintTTL;
         for (PartitionUpdate upd : mutation.getPartitionUpdates())
-            ttl = Math.min(ttl, upd.metadata().getGcGraceSeconds());
+            ttl = Math.min(ttl, upd.metadata().params.gcGraceSeconds);
         return ttl;
     }
 

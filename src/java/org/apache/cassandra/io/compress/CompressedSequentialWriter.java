@@ -32,7 +32,7 @@ import org.apache.cassandra.io.sstable.metadata.MetadataCollector;
 import org.apache.cassandra.io.util.DataIntegrityMetadata;
 import org.apache.cassandra.io.util.FileMark;
 import org.apache.cassandra.io.util.SequentialWriter;
-import org.apache.cassandra.utils.FBUtilities;
+import org.apache.cassandra.schema.CompressionParams;
 
 public class CompressedSequentialWriter extends SequentialWriter
 {
@@ -60,7 +60,7 @@ public class CompressedSequentialWriter extends SequentialWriter
 
     public CompressedSequentialWriter(File file,
                                       String offsetsPath,
-                                      CompressionParameters parameters,
+                                      CompressionParams parameters,
                                       MetadataCollector sstableMetadataCollector)
     {
         super(file, parameters.chunkLength(), parameters.getSstableCompressor().preferredBufferType());

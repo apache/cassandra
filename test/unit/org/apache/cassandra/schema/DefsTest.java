@@ -24,6 +24,7 @@ import java.util.HashMap;
 import java.util.Map;
 import java.util.function.Supplier;
 
+import com.google.common.collect.ImmutableMap;
 import org.junit.BeforeClass;
 import org.junit.Test;
 import org.junit.runner.RunWith;
@@ -105,8 +106,8 @@ public class DefsTest
         cfm.comment("No comment")
            .readRepairChance(0.5)
            .gcGraceSeconds(100000)
-           .minCompactionThreshold(500)
-           .maxCompactionThreshold(500);
+           .compaction(CompactionParams.scts(ImmutableMap.of("min_threshold", "500",
+                                                             "max_threshold", "500")));
 
         // we'll be adding this one later. make sure it's not already there.
         assertNull(cfm.getColumnDefinition(ByteBuffer.wrap(new byte[]{ 5 })));
@@ -155,22 +156,6 @@ public class DefsTest
         catch (ConfigurationException expected)
         {
         }
-    }
-
-    @Test
-    public void addNewCfWithNullComment() throws ConfigurationException
-    {
-        final String ks = KEYSPACE1;
-        final String cf = "BrandNewCfWithNull";
-        KeyspaceMetadata original = Schema.instance.getKSMetaData(ks);
-
-        CFMetaData newCf = addTestTable(original.name, cf, null);
-
-        assertFalse(Schema.instance.getKSMetaData(ks).tables.get(newCf.cfName).isPresent());
-        MigrationManager.announceNewColumnFamily(newCf);
-
-        assertTrue(Schema.instance.getKSMetaData(ks).tables.get(newCf.cfName).isPresent());
-        assertEquals(newCf, Schema.instance.getKSMetaData(ks).tables.get(newCf.cfName).get());
     }
 
     @Test
@@ -402,7 +387,7 @@ public class DefsTest
         }
 
         Map<String, String> replicationMap = new HashMap<>();
-        replicationMap.put(KeyspaceParams.Replication.CLASS, OldNetworkTopologyStrategy.class.getName());
+        replicationMap.put(ReplicationParams.CLASS, OldNetworkTopologyStrategy.class.getName());
         replicationMap.put("replication_factor", "1");
 
         KeyspaceMetadata newKs = KeyspaceMetadata.create(cf.ksName, KeyspaceParams.create(true, replicationMap));
