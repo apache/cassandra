@@ -34,6 +34,7 @@ import org.apache.cassandra.dht.Token;
 import org.apache.cassandra.io.sstable.format.SSTableReader;
 import org.apache.cassandra.io.sstable.ISSTableScanner;
 import org.apache.cassandra.notifications.*;
+import org.apache.cassandra.schema.CompactionParams;
 
 /**
  * Manages the compaction strategies.
@@ -49,6 +50,7 @@ public class CompactionStrategyManager implements INotificationConsumer
     private volatile AbstractCompactionStrategy unrepaired;
     private volatile boolean enabled = true;
     public boolean isActive = true;
+    private volatile CompactionParams params;
 
     public CompactionStrategyManager(ColumnFamilyStore cfs)
     {
@@ -56,7 +58,8 @@ public class CompactionStrategyManager implements INotificationConsumer
         logger.debug("{} subscribed to the data tracker.", this);
         this.cfs = cfs;
         reload(cfs.metadata);
-        enabled = cfs.metadata.params.compaction.isEnabled();
+        params = cfs.metadata.params.compaction;
+        enabled = params.isEnabled();
     }
 
     /**
@@ -167,6 +170,7 @@ public class CompactionStrategyManager implements INotificationConsumer
             unrepaired.shutdown();
         repaired = metadata.createCompactionStrategyInstance(cfs);
         unrepaired = metadata.createCompactionStrategyInstance(cfs);
+        params = metadata.params.compaction;
         if (disabledWithJMX || !shouldBeEnabled())
             disable();
         else
@@ -426,7 +430,7 @@ public class CompactionStrategyManager implements INotificationConsumer
 
     public boolean shouldBeEnabled()
     {
-        return cfs.metadata.params.compaction.isEnabled();
+        return params.isEnabled();
     }
 
     public String getName()
