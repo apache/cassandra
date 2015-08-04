@@ -222,7 +222,7 @@ public class SSTableRewriter extends Transactional.AbstractTransactional impleme
 
         final List<DecoratedKey> invalidateKeys = new ArrayList<>();
         invalidateKeys.addAll(cachedKeys.keySet());
-        newReader.setupKeyCache();
+        newReader.setupOnline();
         for (Map.Entry<DecoratedKey, RowIndexEntry> cacheKey : cachedKeys.entrySet())
             newReader.cacheKey(cacheKey.getKey(), cacheKey.getValue());
 

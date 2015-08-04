@@ -350,7 +350,7 @@ public class LifecycleTransaction extends Transactional.AbstractTransactional
         staged.update.add(reader);
         identities.add(reader.instanceId);
         if (!isOffline())
-            reader.setupKeyCache();
+            reader.setupOnline();
     }
 
     /**

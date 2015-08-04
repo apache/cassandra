@@ -276,14 +276,12 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
         }
     }
 
+    // FIXME: this is wrong, JMX should never update live CFMetaData objects
     public void setCrcCheckChance(double crcCheckChance)
     {
         try
         {
-            // TODO: this doesn't affect sstables being written
-            for (SSTableReader sstable : keyspace.getAllSSTables(SSTableSet.CANONICAL))
-                if (sstable.compression)
-                    sstable.getCompressionMetadata().parameters.setCrcCheckChance(crcCheckChance);
+            metadata.params.compression.setCrcCheckChance(crcCheckChance);
         }
         catch (ConfigurationException e)
         {
