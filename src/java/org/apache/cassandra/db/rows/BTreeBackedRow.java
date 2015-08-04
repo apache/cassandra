@@ -42,8 +42,6 @@ import org.apache.cassandra.utils.btree.UpdateFunction;
  */
 public class BTreeBackedRow extends AbstractRow
 {
-    private static final ColumnData[] NO_DATA = new ColumnData[0];
-
     private static final long EMPTY_SIZE = ObjectSizes.measure(emptyRow(Clustering.EMPTY));
 
     private final Clustering clustering;
@@ -169,6 +167,13 @@ public class BTreeBackedRow extends AbstractRow
     public LivenessInfo primaryKeyLivenessInfo()
     {
         return primaryKeyLivenessInfo;
+    }
+
+    public boolean isEmpty()
+    {
+        return primaryKeyLivenessInfo().isEmpty()
+               && deletion().isLive()
+               && BTree.isEmpty(btree);
     }
 
     public DeletionTime deletion()

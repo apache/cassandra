@@ -49,13 +49,6 @@ public abstract class AbstractRow implements Row
         return Iterables.any(cells(), cell -> cell.isLive(nowInSec));
     }
 
-    public boolean isEmpty()
-    {
-        return primaryKeyLivenessInfo().isEmpty()
-            && deletion().isLive()
-            && !iterator().hasNext();
-    }
-
     public boolean isStatic()
     {
         return clustering() == Clustering.STATIC_CLUSTERING;
