@@ -43,7 +43,7 @@ public abstract class AbstractCommitLogService
 
     // signal that writers can wait on to be notified of a completed sync
     protected final WaitQueue syncComplete = new WaitQueue();
-    private final Semaphore haveWork = new Semaphore(1);
+    protected final Semaphore haveWork = new Semaphore(1);
 
     private static final Logger logger = LoggerFactory.getLogger(AbstractCommitLogService.class);
 
@@ -114,6 +114,7 @@ public abstract class AbstractCommitLogService
                         try
                         {
                             haveWork.tryAcquire(sleep, TimeUnit.MILLISECONDS);
+                            haveWork.drainPermits();
                         }
                         catch (InterruptedException e)
                         {
