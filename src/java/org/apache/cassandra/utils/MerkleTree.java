@@ -23,7 +23,6 @@ import java.io.Serializable;
 import java.util.*;
 
 import com.google.common.base.Preconditions;
-import com.google.common.collect.AbstractIterator;
 import com.google.common.collect.PeekingIterator;
 
 import org.apache.cassandra.db.TypeSizes;

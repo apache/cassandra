@@ -20,7 +20,7 @@ package org.apache.cassandra.db.partitions;
 import java.util.*;
 import java.security.MessageDigest;
 
-import com.google.common.collect.AbstractIterator;
+import org.apache.cassandra.utils.AbstractIterator;
 
 import org.apache.cassandra.db.SinglePartitionReadCommand;
 import org.apache.cassandra.db.rows.*;

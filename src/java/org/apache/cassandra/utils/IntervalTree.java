@@ -23,7 +23,7 @@ import java.lang.reflect.InvocationTargetException;
 import java.util.*;
 
 import com.google.common.base.Joiner;
-import com.google.common.collect.AbstractIterator;
+import org.apache.cassandra.utils.AbstractIterator;
 import com.google.common.collect.Iterators;
 
 import org.slf4j.Logger;

@@ -29,7 +29,7 @@ import java.util.concurrent.*;
 import java.util.zip.Checksum;
 
 import com.google.common.base.Joiner;
-import com.google.common.collect.AbstractIterator;
+import org.apache.cassandra.utils.AbstractIterator;
 import org.apache.commons.lang3.StringUtils;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;

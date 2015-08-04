@@ -23,7 +23,7 @@ import java.util.*;
 
 import com.google.common.base.Function;
 import com.google.common.base.Objects;
-import com.google.common.collect.AbstractIterator;
+import org.apache.cassandra.utils.AbstractIterator;
 import com.google.common.collect.ImmutableSet;
 import com.google.common.collect.Iterators;
 import com.google.common.collect.Lists;

@@ -23,7 +23,7 @@ import java.io.IOError;
 import java.nio.ByteBuffer;
 import java.util.*;
 
-import com.google.common.collect.AbstractIterator;
+import org.apache.cassandra.utils.AbstractIterator;
 import com.google.common.collect.Iterators;
 import com.google.common.collect.Lists;
 import com.google.common.collect.PeekingIterator;

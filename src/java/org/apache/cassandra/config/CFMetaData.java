@@ -51,6 +51,7 @@ import org.apache.cassandra.io.util.DataInputPlus;
 import org.apache.cassandra.io.util.DataOutputPlus;
 import org.apache.cassandra.schema.*;
 import org.apache.cassandra.utils.*;
+import org.apache.cassandra.utils.AbstractIterator;
 import org.github.jamm.Unmetered;
 
 /**

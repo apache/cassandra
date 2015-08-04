@@ -21,7 +21,7 @@ package org.apache.cassandra.utils;
 import java.util.Arrays;
 import java.util.Iterator;
 
-import com.google.common.collect.AbstractIterator;
+import org.apache.cassandra.utils.AbstractIterator;
 import com.google.common.collect.Iterators;
 import com.google.common.collect.Ordering;
 import org.junit.Before;
