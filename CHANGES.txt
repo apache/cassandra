@@ -1,4 +1,5 @@
 2.1.9
+ * Add new JMX methods to change local compaction strategy (CASSANDRA-9965)
  * Write hints for paxos commits (CASSANDRA-7342)
  * (cqlsh) Fix timestamps before 1970 on Windows, always
    use UTC for timestamp display (CASSANDRA-10000)

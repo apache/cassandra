@@ -311,14 +311,35 @@ public interface ColumnFamilyStoreMBean
     public void setMaximumCompactionThreshold(int threshold);
 
     /**
+     * Sets the compaction strategy locally for this node
+     *
+     * Note that this will be set until an ALTER with compaction = {..} is executed or the node is restarted
+     *
+     * @param options compaction options with the same syntax as when doing ALTER ... WITH compaction = {..}
+     */
+    public void setLocalCompactionStrategyJson(String options);
+    public String getLocalCompactionStrategyJson();
+
+    /**
+     * Sets the compaction strategy locally for this node
+     *
+     * Note that this will be set until an ALTER with compaction = {..} is executed or the node is restarted
+     *
+     * @param options compaction options map
+     */
+    public void setLocalCompactionStrategy(Map<String, String> options);
+    public Map<String, String> getLocalCompactionStrategy();
+    /**
      * Sets the compaction strategy by class name
      * @param className the name of the compaction strategy class
      */
+    @Deprecated
     public void setCompactionStrategyClass(String className);
 
     /**
      * Gets the compaction strategy class name
      */
+    @Deprecated
     public String getCompactionStrategyClass();
 
     /**
