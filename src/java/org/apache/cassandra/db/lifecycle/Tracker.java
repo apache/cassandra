@@ -177,7 +177,7 @@ public class Tracker
     public void addInitialSSTables(Iterable<SSTableReader> sstables)
     {
         if (!isDummy())
-            setupKeycache(sstables);
+            setupOnline(sstables);
         apply(updateLiveSet(emptySet(), sstables));
         maybeFail(updateSizeTracking(emptySet(), sstables, null));
         // no notifications or backup necessary
@@ -341,7 +341,7 @@ public class Tracker
             return;
         }
 
-        sstable.setupKeyCache();
+        sstable.setupOnline();
         // back up before creating a new Snapshot (which makes the new one eligible for compaction)
         maybeIncrementallyBackup(sstable);
 

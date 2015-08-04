@@ -635,12 +635,19 @@ public abstract class SSTableReader extends SSTable implements SelfRefCounted<SS
         return dfile.path();
     }
 
-    public void setupKeyCache()
+    public void setupOnline()
     {
         // under normal operation we can do this at any time, but SSTR is also used outside C* proper,
         // e.g. by BulkLoader, which does not initialize the cache.  As a kludge, we set up the cache
         // here when we know we're being wired into the rest of the server infrastructure.
         keyCache = CacheService.instance.keyCache;
+
+        // ensure secondary index compression metadata is linked to the parent metadata.
+        if (compression && metadata.isIndex())
+        {
+            getCompressionMetadata().parameters.setLiveMetadata(
+                    Schema.instance.getCFMetaData(metadata.ksName, metadata.getParentColumnFamilyName()));
+        }
     }
 
     public boolean isKeyCacheSetup()
@@ -1287,13 +1294,7 @@ public abstract class SSTableReader extends SSTable implements SelfRefCounted<SS
         if (!compression)
             throw new IllegalStateException(this + " is not compressed");
 
-        CompressionMetadata cmd = ((ICompressedFile) dfile).getMetadata();
-
-        // We need the parent cf metadata
-        String cfName = metadata.isIndex() ? metadata.getParentColumnFamilyName() : metadata.cfName;
-        cmd.parameters.setLiveMetadata(Schema.instance.getCFMetaData(metadata.ksName, cfName));
-
-        return cmd;
+        return ((ICompressedFile) dfile).getMetadata();
     }
 
     /**
@@ -2050,6 +2051,8 @@ public abstract class SSTableReader extends SSTable implements SelfRefCounted<SS
     {
         tidy.setup(this, trackHotness);
         this.readMeter = tidy.global.readMeter;
+        if (compression)
+            getCompressionMetadata().parameters.setLiveMetadata(metadata);
     }
 
     @VisibleForTesting
