@@ -35,12 +35,7 @@ public class UTF8Type extends AbstractType<String>
 {
     public static final UTF8Type instance = new UTF8Type();
 
-    UTF8Type() {} // singleton
-
-    public int compare(ByteBuffer o1, ByteBuffer o2)
-    {
-        return ByteBufferUtil.compareUnsigned(o1, o2);
-    }
+    UTF8Type() {super(ComparisonType.BYTE_ORDER);} // singleton
 
     public ByteBuffer fromString(String source)
     {
@@ -81,11 +76,6 @@ public class UTF8Type extends AbstractType<String>
         // Anything that is ascii is also utf8, and they both use bytes
         // comparison
         return this == previous || previous == AsciiType.instance;
-    }
-
-    public boolean isByteOrderComparable()
-    {
-        return true;
     }
 
     public CQL3Type asCQL3Type()

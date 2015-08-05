@@ -33,22 +33,11 @@ import org.apache.cassandra.utils.ByteBufferUtil;
 public class TimeType extends AbstractType<Long>
 {
     public static final TimeType instance = new TimeType();
-    private TimeType() {} // singleton
-
-    public int compare(ByteBuffer o1, ByteBuffer o2)
-    {
-        return ByteBufferUtil.compareUnsigned(o1, o2);
-    }
+    private TimeType() {super(ComparisonType.BYTE_ORDER);} // singleton
 
     public ByteBuffer fromString(String source) throws MarshalException
     {
         return decompose(TimeSerializer.timeStringToLong(source));
-    }
-
-    @Override
-    public boolean isByteOrderComparable()
-    {
-        return true;
     }
 
     @Override

@@ -35,14 +35,14 @@ public class BooleanType extends AbstractType<Boolean>
 
     public static final BooleanType instance = new BooleanType();
 
-    BooleanType() {} // singleton
+    BooleanType() {super(ComparisonType.CUSTOM);} // singleton
 
     public boolean isEmptyValueMeaningless()
     {
         return true;
     }
 
-    public int compare(ByteBuffer o1, ByteBuffer o2)
+    public int compareCustom(ByteBuffer o1, ByteBuffer o2)
     {
         if (!o1.hasRemaining() || !o2.hasRemaining())
             return o1.hasRemaining() ? 1 : o2.hasRemaining() ? -1 : 0;

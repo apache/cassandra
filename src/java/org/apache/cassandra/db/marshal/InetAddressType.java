@@ -32,16 +32,11 @@ public class InetAddressType extends AbstractType<InetAddress>
 {
     public static final InetAddressType instance = new InetAddressType();
 
-    InetAddressType() {} // singleton
+    InetAddressType() {super(ComparisonType.BYTE_ORDER);} // singleton
 
     public boolean isEmptyValueMeaningless()
     {
         return true;
-    }
-
-    public int compare(ByteBuffer o1, ByteBuffer o2)
-    {
-        return ByteBufferUtil.compareUnsigned(o1, o2);
     }
 
     public ByteBuffer fromString(String source) throws MarshalException
@@ -92,10 +87,5 @@ public class InetAddressType extends AbstractType<InetAddress>
     public TypeSerializer<InetAddress> getSerializer()
     {
         return InetAddressSerializer.instance;
-    }
-
-    public boolean isByteOrderComparable()
-    {
-        return true;
     }
 }

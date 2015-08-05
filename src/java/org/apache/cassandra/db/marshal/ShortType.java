@@ -33,9 +33,10 @@ public class ShortType extends AbstractType<Short>
 
     ShortType()
     {
+        super(ComparisonType.CUSTOM);
     } // singleton
 
-    public int compare(ByteBuffer o1, ByteBuffer o2)
+    public int compareCustom(ByteBuffer o1, ByteBuffer o2)
     {
         int diff = o1.get(o1.position()) - o2.get(o2.position());
         if (diff != 0)

@@ -68,7 +68,7 @@ public class ListType<T> extends CollectionType<List<T>>
 
     private ListType(AbstractType<T> elements, boolean isMultiCell)
     {
-        super(Kind.LIST);
+        super(ComparisonType.CUSTOM, Kind.LIST);
         this.elements = elements;
         this.serializer = ListSerializer.getInstance(elements.getSerializer());
         this.isMultiCell = isMultiCell;
@@ -124,7 +124,7 @@ public class ListType<T> extends CollectionType<List<T>>
     }
 
     @Override
-    public int compare(ByteBuffer o1, ByteBuffer o2)
+    public int compareCustom(ByteBuffer o1, ByteBuffer o2)
     {
         return compareListOrSet(elements, o1, o2);
     }

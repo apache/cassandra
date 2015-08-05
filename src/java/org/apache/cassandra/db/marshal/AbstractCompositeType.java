@@ -36,7 +36,12 @@ import org.apache.cassandra.utils.ByteBufferUtil;
  */
 public abstract class AbstractCompositeType extends AbstractType<ByteBuffer>
 {
-    public int compare(ByteBuffer o1, ByteBuffer o2)
+    protected AbstractCompositeType()
+    {
+        super(ComparisonType.CUSTOM);
+    }
+
+    public int compareCustom(ByteBuffer o1, ByteBuffer o2)
     {
         if (!o1.hasRemaining() || !o2.hasRemaining())
             return o1.hasRemaining() ? 1 : o2.hasRemaining() ? -1 : 0;

@@ -43,14 +43,14 @@ public class TimestampType extends AbstractType<Date>
 
     public static final TimestampType instance = new TimestampType();
 
-    private TimestampType() {} // singleton
+    private TimestampType() {super(ComparisonType.CUSTOM);} // singleton
 
     public boolean isEmptyValueMeaningless()
     {
         return true;
     }
 
-    public int compare(ByteBuffer o1, ByteBuffer o2)
+    public int compareCustom(ByteBuffer o1, ByteBuffer o2)
     {
         return LongType.compareLongs(o1, o2);
     }

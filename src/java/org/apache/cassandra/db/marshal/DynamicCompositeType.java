@@ -343,10 +343,11 @@ public class DynamicCompositeType extends AbstractCompositeType
 
         public FixedValueComparator(int cmp)
         {
+            super(ComparisonType.CUSTOM);
             this.cmp = cmp;
         }
 
-        public int compare(ByteBuffer v1, ByteBuffer v2)
+        public int compareCustom(ByteBuffer v1, ByteBuffer v2)
         {
             return cmp;
         }
@@ -394,11 +395,6 @@ public class DynamicCompositeType extends AbstractCompositeType
         public TypeSerializer<Void> getSerializer()
         {
             throw new UnsupportedOperationException();
-        }
-
-        public boolean isByteOrderComparable()
-        {
-            return false;
         }
     }
 }

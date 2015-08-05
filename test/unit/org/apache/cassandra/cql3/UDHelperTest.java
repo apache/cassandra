@@ -54,6 +54,10 @@ public class UDHelperTest
 {
     static class UFTestCustomType extends AbstractType<String>
     {
+        protected UFTestCustomType()
+        {
+            super(ComparisonType.CUSTOM);
+        }
 
         public ByteBuffer fromString(String source) throws MarshalException
         {
@@ -70,7 +74,7 @@ public class UDHelperTest
             return UTF8Type.instance.getSerializer();
         }
 
-        public int compare(ByteBuffer o1, ByteBuffer o2)
+        public int compareCustom(ByteBuffer o1, ByteBuffer o2)
         {
             return o1.compareTo(o2);
         }

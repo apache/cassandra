@@ -41,6 +41,7 @@ public class TupleType extends AbstractType<ByteBuffer>
 
     public TupleType(List<AbstractType<?>> types)
     {
+        super(ComparisonType.CUSTOM);
         for (int i = 0; i < types.size(); i++)
             types.set(i, types.get(i).freeze());
         this.types = types;
@@ -69,7 +70,7 @@ public class TupleType extends AbstractType<ByteBuffer>
         return types;
     }
 
-    public int compare(ByteBuffer o1, ByteBuffer o2)
+    public int compareCustom(ByteBuffer o1, ByteBuffer o2)
     {
         if (!o1.hasRemaining() || !o2.hasRemaining())
             return o1.hasRemaining() ? 1 : o2.hasRemaining() ? -1 : 0;
