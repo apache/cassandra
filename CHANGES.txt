@@ -12,6 +12,7 @@
  * Remove repair snapshot leftover on startup (CASSANDRA-7357)
  * Use random nodes for batch log when only 2 racks (CASSANDRA-8735)
  * Ensure atomicity inside thrift and stream session (CASSANDRA-7757)
+ * Fix nodetool info error when the node is not joined (CASSANDRA-9031)
 Merged from 2.0:
  * Don't cast expected bf size to an int (CASSANDRA-9959)
  * Log when messages are dropped due to cross_node_timeout (CASSANDRA-9793)
