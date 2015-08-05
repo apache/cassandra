@@ -117,13 +117,22 @@ public class Info extends NodeToolCmd
                 probe.getCacheMetric("CounterCache", "HitRate"),
                 cacheService.getCounterCacheSavePeriodInSeconds());
 
-        // Tokens
-        List<String> tokens = probe.getTokens();
-        if (tokens.size() == 1 || this.tokens)
-            for (String token : tokens)
-                System.out.printf("%-23s: %s%n", "Token", token);
+        // check if node is already joined, before getting tokens, since it throws exception if not.
+        if (probe.isJoined())
+        {
+            // Tokens
+            List<String> tokens = probe.getTokens();
+            if (tokens.size() == 1 || this.tokens)
+                for (String token : tokens)
+                    System.out.printf("%-23s: %s%n", "Token", token);
+            else
+                System.out.printf("%-23s: (invoke with -T/--tokens to see all %d tokens)%n", "Token",
+                                  tokens.size());
+        }
         else
-            System.out.printf("%-23s: (invoke with -T/--tokens to see all %d tokens)%n", "Token", tokens.size());
+        {
+            System.out.printf("%-23s: (node is not joined to the cluster)%n", "Token");
+        }
     }
 
     /**
