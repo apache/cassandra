@@ -153,18 +153,13 @@ public class StandaloneSplitter
                 try (LifecycleTransaction transaction = LifecycleTransaction.offline(OperationType.UNKNOWN, sstable))
                 {
                     new SSTableSplitter(cfs, transaction, options.sizeInMB).split();
-
-                    // Remove the sstable (it's been copied by split and snapshotted)
-                    transaction.obsoleteOriginals();
                 }
                 catch (Exception e)
                 {
                     System.err.println(String.format("Error splitting %s: %s", sstable, e.getMessage()));
                     if (options.debug)
                         e.printStackTrace(System.err);
-                }
-                finally
-                {
+
                     sstable.selfRef().release();
                 }
             }

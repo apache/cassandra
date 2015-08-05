@@ -670,8 +670,6 @@ public class SSTableRewriterTest extends SchemaLoader
             splitter.split();
 
             assertFileCounts(s.descriptor.directory.list());
-
-            s.selfRef().release();
             TransactionLogs.waitForDeletions();
 
             for (File f : s.descriptor.directory.listFiles())

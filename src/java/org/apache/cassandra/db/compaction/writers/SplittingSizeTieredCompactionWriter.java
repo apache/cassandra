@@ -59,7 +59,7 @@ public class SplittingSizeTieredCompactionWriter extends CompactionAwareWriter
     @SuppressWarnings("resource")
     public SplittingSizeTieredCompactionWriter(ColumnFamilyStore cfs, LifecycleTransaction txn, Set<SSTableReader> nonExpiredSSTables, long smallestSSTable)
     {
-        super(cfs, txn, nonExpiredSSTables, false);
+        super(cfs, txn, nonExpiredSSTables, false, false);
         this.allSSTables = txn.originals();
         totalSize = cfs.getExpectedCompactedFileSize(nonExpiredSSTables, txn.opType());
         double[] potentialRatios = new double[20];

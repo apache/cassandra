@@ -39,10 +39,25 @@ public class MaxSSTableSizeWriter extends CompactionAwareWriter
     private final long estimatedSSTables;
     private final Set<SSTableReader> allSSTables;
 
-    @SuppressWarnings("resource")
-    public MaxSSTableSizeWriter(ColumnFamilyStore cfs, LifecycleTransaction txn, Set<SSTableReader> nonExpiredSSTables, long maxSSTableSize, int level, boolean offline)
+    public MaxSSTableSizeWriter(ColumnFamilyStore cfs,
+                                LifecycleTransaction txn,
+                                Set<SSTableReader> nonExpiredSSTables,
+                                long maxSSTableSize,
+                                int level)
     {
-        super(cfs, txn, nonExpiredSSTables, offline);
+        this(cfs, txn, nonExpiredSSTables, maxSSTableSize, level, false, false);
+    }
+
+    @SuppressWarnings("resource")
+    public MaxSSTableSizeWriter(ColumnFamilyStore cfs,
+                                LifecycleTransaction txn,
+                                Set<SSTableReader> nonExpiredSSTables,
+                                long maxSSTableSize,
+                                int level,
+                                boolean offline,
+                                boolean keepOriginals)
+    {
+        super(cfs, txn, nonExpiredSSTables, offline, keepOriginals);
         this.allSSTables = txn.originals();
         this.level = level;
         this.maxSSTableSize = maxSSTableSize;

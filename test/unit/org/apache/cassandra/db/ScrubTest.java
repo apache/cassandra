@@ -43,6 +43,7 @@ import org.apache.cassandra.db.compaction.CompactionManager;
 import org.apache.cassandra.db.compaction.OperationType;
 import org.apache.cassandra.db.compaction.Scrubber;
 import org.apache.cassandra.db.lifecycle.LifecycleTransaction;
+import org.apache.cassandra.db.lifecycle.TransactionLogs;
 import org.apache.cassandra.db.marshal.*;
 import org.apache.cassandra.db.marshal.UUIDType;
 import org.apache.cassandra.db.partitions.Partition;
@@ -142,7 +143,7 @@ public class ScrubTest
 
         // with skipCorrupted == false, the scrub is expected to fail
         try (LifecycleTransaction txn = cfs.getTracker().tryModify(Arrays.asList(sstable), OperationType.SCRUB);
-             Scrubber scrubber = new Scrubber(cfs, txn, false, false, true);)
+             Scrubber scrubber = new Scrubber(cfs, txn, false, false, true))
         {
             scrubber.scrub();
             fail("Expected a CorruptSSTableException to be thrown");
@@ -152,7 +153,7 @@ public class ScrubTest
         // with skipCorrupted == true, the corrupt rows will be skipped
         Scrubber.ScrubResult scrubResult;
         try (LifecycleTransaction txn = cfs.getTracker().tryModify(Arrays.asList(sstable), OperationType.SCRUB);
-             Scrubber scrubber = new Scrubber(cfs, txn, true, false, true);)
+             Scrubber scrubber = new Scrubber(cfs, txn, true, false, true))
         {
             scrubResult = scrubber.scrubWithResult();
         }
@@ -370,9 +371,9 @@ public class ScrubTest
             {
                 scrubber.scrub();
             }
+            TransactionLogs.waitForDeletions();
             cfs.loadNewSSTables();
             assertOrderedAll(cfs, 7);
-            sstable.selfRef().release();
         }
         finally
         {

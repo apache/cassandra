@@ -34,7 +34,7 @@ public class LeveledCompactionTask extends CompactionTask
 
     public LeveledCompactionTask(ColumnFamilyStore cfs, LifecycleTransaction txn, int level, int gcBefore, long maxSSTableBytes, boolean majorCompaction)
     {
-        super(cfs, txn, gcBefore, false);
+        super(cfs, txn, gcBefore);
         this.level = level;
         this.maxSSTableBytes = maxSSTableBytes;
         this.majorCompaction = majorCompaction;
@@ -46,8 +46,8 @@ public class LeveledCompactionTask extends CompactionTask
                                                           Set<SSTableReader> nonExpiredSSTables)
     {
         if (majorCompaction)
-            return new MajorLeveledCompactionWriter(cfs, txn, nonExpiredSSTables, maxSSTableBytes, false);
-        return new MaxSSTableSizeWriter(cfs, txn, nonExpiredSSTables, maxSSTableBytes, getLevel(), false);
+            return new MajorLeveledCompactionWriter(cfs, txn, nonExpiredSSTables, maxSSTableBytes, false, false);
+        return new MaxSSTableSizeWriter(cfs, txn, nonExpiredSSTables, maxSSTableBytes, getLevel(), false, false);
     }
 
     @Override

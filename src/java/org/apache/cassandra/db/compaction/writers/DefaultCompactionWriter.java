@@ -40,10 +40,15 @@ public class DefaultCompactionWriter extends CompactionAwareWriter
 {
     protected static final Logger logger = LoggerFactory.getLogger(DefaultCompactionWriter.class);
 
-    @SuppressWarnings("resource")
-    public DefaultCompactionWriter(ColumnFamilyStore cfs, LifecycleTransaction txn, Set<SSTableReader> nonExpiredSSTables, boolean offline)
+    public DefaultCompactionWriter(ColumnFamilyStore cfs, LifecycleTransaction txn, Set<SSTableReader> nonExpiredSSTables)
     {
-        super(cfs, txn, nonExpiredSSTables, offline);
+        this(cfs, txn, nonExpiredSSTables, false, false);
+    }
+
+    @SuppressWarnings("resource")
+    public DefaultCompactionWriter(ColumnFamilyStore cfs, LifecycleTransaction txn, Set<SSTableReader> nonExpiredSSTables, boolean offline, boolean keepOriginals)
+    {
+        super(cfs, txn, nonExpiredSSTables, offline, keepOriginals);
         logger.debug("Expected bloom filter size : {}", estimatedTotalKeys);
         long expectedWriteSize = cfs.getExpectedCompactedFileSize(nonExpiredSSTables, txn.opType());
         File sstableDirectory = cfs.directories.getLocationForDisk(getWriteDirectory(expectedWriteSize));

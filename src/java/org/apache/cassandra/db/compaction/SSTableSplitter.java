@@ -60,7 +60,7 @@ public class SSTableSplitter {
 
         public SplittingCompactionTask(ColumnFamilyStore cfs, LifecycleTransaction transaction, int sstableSizeInMB)
         {
-            super(cfs, transaction, CompactionManager.NO_GC, true);
+            super(cfs, transaction, CompactionManager.NO_GC, true, false);
             this.sstableSizeInMB = sstableSizeInMB;
 
             if (sstableSizeInMB <= 0)
@@ -78,7 +78,7 @@ public class SSTableSplitter {
                                                               LifecycleTransaction txn,
                                                               Set<SSTableReader> nonExpiredSSTables)
         {
-            return new MaxSSTableSizeWriter(cfs, txn, nonExpiredSSTables, sstableSizeInMB * 1024L * 1024L, 0, true);
+            return new MaxSSTableSizeWriter(cfs, txn, nonExpiredSSTables, sstableSizeInMB * 1024L * 1024L, 0, true, false);
         }
 
         @Override

@@ -52,14 +52,21 @@ public class CompactionTask extends AbstractCompactionTask
     protected static final Logger logger = LoggerFactory.getLogger(CompactionTask.class);
     protected final int gcBefore;
     private final boolean offline;
+    private final boolean keepOriginals;
     protected static long totalBytesCompacted = 0;
     private CompactionExecutorStatsCollector collector;
 
-    public CompactionTask(ColumnFamilyStore cfs, LifecycleTransaction txn, int gcBefore, boolean offline)
+    public CompactionTask(ColumnFamilyStore cfs, LifecycleTransaction txn, int gcBefore)
+    {
+        this(cfs, txn, gcBefore, false, false);
+    }
+
+    public CompactionTask(ColumnFamilyStore cfs, LifecycleTransaction txn, int gcBefore, boolean offline, boolean keepOriginals)
     {
         super(cfs, txn);
         this.gcBefore = gcBefore;
         this.offline = offline;
+        this.keepOriginals = keepOriginals;
     }
 
     public static synchronized long addToTotalBytesCompacted(long bytesCompacted)
@@ -224,7 +231,7 @@ public class CompactionTask extends AbstractCompactionTask
                                                           LifecycleTransaction transaction,
                                                           Set<SSTableReader> nonExpiredSSTables)
     {
-        return new DefaultCompactionWriter(cfs, transaction, nonExpiredSSTables, offline);
+        return new DefaultCompactionWriter(cfs, transaction, nonExpiredSSTables, offline, keepOriginals);
     }
 
     public static String updateCompactionHistory(String keyspaceName, String columnFamilyName, long[] mergedRowCounts, long startSize, long endSize)
