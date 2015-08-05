@@ -17,6 +17,8 @@
  */
 package org.apache.cassandra.service.pager;
 
+import java.util.NoSuchElementException;
+
 import org.apache.cassandra.config.CFMetaData;
 import org.apache.cassandra.db.*;
 import org.apache.cassandra.db.rows.*;
@@ -79,6 +81,9 @@ abstract class AbstractQueryPager implements QueryPager
 
         private Row lastRow;
 
+        private boolean isFirstPartition = true;
+        private RowIterator nextPartition;
+
         private PagerIterator(PartitionIterator iter, DataLimits pageLimits, int nowInSec)
         {
             super(iter, pageLimits, nowInSec);
@@ -86,30 +91,56 @@ abstract class AbstractQueryPager implements QueryPager
         }
 
         @Override
-        @SuppressWarnings("resource") // iter is closed by closing the result
-        public RowIterator next()
+        @SuppressWarnings("resource") // iter is closed by closing the result or in close()
+        public boolean hasNext()
         {
-            RowIterator iter = super.next();
-            try
+            while (nextPartition == null && super.hasNext())
             {
-                DecoratedKey key = iter.partitionKey();
+                if (nextPartition == null)
+                    nextPartition = super.next();
+
+                DecoratedKey key = nextPartition.partitionKey();
                 if (lastKey == null || !lastKey.equals(key))
                     remainingInPartition = limits.perPartitionCount();
 
                 lastKey = key;
-                return new RowPagerIterator(iter);
+
+                // If this is the first partition of this page, this could be the continuation of a partition we've started
+                // on the previous page. In which case, we could have the problem that the partition has no more "regular"
+                // rows (but the page size is such we didn't knew before) but it does has a static row. We should then skip
+                // the partition as returning it would means to the upper layer that the partition has "only" static columns,
+                // which is not the case (and we know the static results have been sent on the previous page).
+                if (isFirstPartition && isPreviouslyReturnedPartition(key) && !nextPartition.hasNext())
+                {
+                    nextPartition.close();
+                    nextPartition = null;
+                }
+
+                isFirstPartition = false;
             }
-            catch (RuntimeException e)
-            {
-                iter.close();
-                throw e;
-            }
+            return nextPartition != null;
+        }
+
+        @Override
+        @SuppressWarnings("resource") // iter is closed by closing the result
+        public RowIterator next()
+        {
+            if (!hasNext())
+                throw new NoSuchElementException();
+
+            RowIterator toReturn = nextPartition;
+            nextPartition = null;
+
+            return new RowPagerIterator(toReturn);
         }
 
         @Override
         public void close()
         {
             super.close();
+            if (nextPartition != null)
+                nextPartition.close();
+
             recordLast(lastKey, lastRow);
 
             int counted = counter.counted();
@@ -158,4 +189,5 @@ abstract class AbstractQueryPager implements QueryPager
 
     protected abstract ReadCommand nextPageReadCommand(int pageSize);
     protected abstract void recordLast(DecoratedKey key, Row row);
+    protected abstract boolean isPreviouslyReturnedPartition(DecoratedKey key);
 }

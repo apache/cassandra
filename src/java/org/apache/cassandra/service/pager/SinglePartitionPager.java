@@ -82,4 +82,10 @@ public class SinglePartitionPager extends AbstractQueryPager
         if (last != null)
             lastReturned = last.clustering();
     }
+
+    protected boolean isPreviouslyReturnedPartition(DecoratedKey key)
+    {
+        // We're querying a single partition, so if it's not the first page, it is the previously returned one.
+        return lastReturned != null;
+    }
 }
