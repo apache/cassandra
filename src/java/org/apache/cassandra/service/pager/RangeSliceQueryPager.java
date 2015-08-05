@@ -99,6 +99,12 @@ public class RangeSliceQueryPager extends AbstractQueryPager
         }
     }
 
+    protected boolean isPreviouslyReturnedPartition(DecoratedKey key)
+    {
+        // Note that lastReturnedKey can be null, but key cannot.
+        return key.equals(lastReturnedKey);
+    }
+
     private AbstractBounds<PartitionPosition> makeKeyBounds(PartitionPosition lastReturnedKey, boolean includeLastKey)
     {
         AbstractBounds<PartitionPosition> bounds = ((PartitionRangeReadCommand)command).dataRange().keyRange();

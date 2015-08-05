@@ -69,6 +69,12 @@ public class RangeNamesQueryPager extends AbstractQueryPager
         lastReturnedKey = key;
     }
 
+    protected boolean isPreviouslyReturnedPartition(DecoratedKey key)
+    {
+        // Note that lastReturnedKey can be null, but key cannot.
+        return key.equals(lastReturnedKey);
+    }
+
     private AbstractBounds<PartitionPosition> makeExcludingKeyBounds(PartitionPosition lastReturnedKey)
     {
         // We return a range that always exclude lastReturnedKey, since we've already

@@ -80,11 +80,6 @@ public class ClusteringIndexNamesFilter extends AbstractClusteringIndexFilter
 
     public ClusteringIndexNamesFilter forPaging(ClusteringComparator comparator, Clustering lastReturned, boolean inclusive)
     {
-        // TODO: Consider removal of the initial check.
-        int cmp = comparator.compare(lastReturned, clusteringsInQueryOrder.first());
-        if (cmp < 0 || (inclusive && cmp == 0))
-            return this;
-
         NavigableSet<Clustering> newClusterings = reversed ?
                                                   clusterings.headSet(lastReturned, inclusive) :
                                                   clusterings.tailSet(lastReturned, inclusive);
