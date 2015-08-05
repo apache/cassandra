@@ -48,14 +48,20 @@ public class DataIntegrityMetadata
     {
         private final Checksum checksum;
         private final RandomAccessReader reader;
-        private final Descriptor descriptor;
         public final int chunkSize;
+        private final String dataFilename;
 
         public ChecksumValidator(Descriptor descriptor) throws IOException
         {
-            this.descriptor = descriptor;
-            checksum = descriptor.version.hasAllAdlerChecksums() ? new Adler32() : CRC32Factory.instance.create();
-            reader = RandomAccessReader.open(new File(descriptor.filenameFor(Component.CRC)));
+            this(descriptor.version.hasAllAdlerChecksums() ? new Adler32() : CRC32Factory.instance.create(),
+                 RandomAccessReader.open(new File(descriptor.filenameFor(Component.CRC))),
+                 descriptor.filenameFor(Component.DATA));
+        }
+
+        public ChecksumValidator(Checksum checksum, RandomAccessReader reader, String dataFilename) throws IOException {
+            this.checksum = checksum;
+            this.reader = reader;
+            this.dataFilename = dataFilename;
             chunkSize = reader.readInt();
         }
 
@@ -78,7 +84,7 @@ public class DataIntegrityMetadata
             checksum.reset();
             int actual = reader.readInt();
             if (current != actual)
-                throw new IOException("Corrupted SSTable : " + descriptor.filenameFor(Component.DATA));
+                throw new IOException("Corrupted File : " + dataFilename);
         }
 
         public void close()

@@ -1122,7 +1122,7 @@ public class DatabaseDescriptor
     {
         return conf.commitlog_segment_size_in_mb * 1024 * 1024;
     }
-    
+
     public static void setCommitLogSegmentSize(int sizeMegabytes)
     {
         conf.commitlog_segment_size_in_mb = sizeMegabytes;
@@ -1271,7 +1271,7 @@ public class DatabaseDescriptor
     {
         return conf.commitlog_sync_period_in_ms;
     }
-    
+
     public static void setCommitLogSyncPeriod(int periodMillis)
     {
         conf.commitlog_sync_period_in_ms = periodMillis;
@@ -1405,14 +1405,19 @@ public class DatabaseDescriptor
         return conf.max_hint_window_in_ms;
     }
 
-    public static File getSerializedCachePath(String ksName, String cfName, UUID cfId, CacheService.CacheType cacheType, String version)
+    public static File getSerializedCachePath(String ksName,
+                                              String cfName,
+                                              UUID cfId,
+                                              CacheService.CacheType cacheType,
+                                              String version,
+                                              String extension)
     {
         StringBuilder builder = new StringBuilder();
         builder.append(ksName).append('-');
         builder.append(cfName).append('-');
         builder.append(ByteBufferUtil.bytesToHex(ByteBufferUtil.bytes(cfId))).append('-');
         builder.append(cacheType);
-        builder.append((version == null ? "" : "-" + version + ".db"));
+        builder.append((version == null ? "" : "-" + version + "." + extension));
         return new File(conf.saved_caches_directory, builder.toString());
     }
 
