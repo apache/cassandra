@@ -992,7 +992,6 @@ public class DatabaseDescriptor
             case PAXOS_PREPARE:
             case PAXOS_PROPOSE:
             case BATCHLOG_MUTATION:
-            case MATERIALIZED_VIEW_MUTATION:
                 return getWriteRpcTimeout();
             case COUNTER_MUTATION:
                 return getCounterWriteRpcTimeout();
