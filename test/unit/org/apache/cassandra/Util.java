@@ -492,18 +492,6 @@ public class Util
         assertEquals(0, cfm.comparator.compare(row.clustering(), cfm.comparator.make(clusteringValue)));
     }
 
-    public static void spinAssertEquals(Object expected, Supplier<Object> s, int timeoutInSeconds)
-    {
-        long now = System.currentTimeMillis();
-        while (System.currentTimeMillis() - now < now + (1000 * timeoutInSeconds))
-        {
-            if (s.get().equals(expected))
-                break;
-            Thread.yield();
-        }
-        assertEquals(expected, s.get());
-    }
-
     public static PartitionerSwitcher switchPartitioner(IPartitioner p)
     {
         return new PartitionerSwitcher(p);
@@ -525,6 +513,18 @@ public class Util
             IPartitioner p = StorageService.instance.setPartitionerUnsafe(oldP);
             assert p == newP;
         }
+    }
+
+    public static void spinAssertEquals(Object expected, Supplier<Object> s, int timeoutInSeconds)
+    {
+        long now = System.currentTimeMillis();
+        while (System.currentTimeMillis() - now < now + (1000 * timeoutInSeconds))
+        {
+            if (s.get().equals(expected))
+                break;
+            Thread.yield();
+        }
+        assertEquals(expected, s.get());
     }
 
     public static void joinThread(Thread thread) throws InterruptedException

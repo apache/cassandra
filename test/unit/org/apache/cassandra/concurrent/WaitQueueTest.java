@@ -41,7 +41,7 @@ public class WaitQueueTest
     }
     public void testSerial(final WaitQueue queue) throws InterruptedException
     {
-        AtomicInteger ready = new AtomicInteger();
+        final AtomicInteger ready = new AtomicInteger();
         Thread[] ts = new Thread[4];
         for (int i = 0 ; i < ts.length ; i++)
             ts[i] = new Thread(new Runnable()
