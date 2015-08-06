@@ -1,4 +1,5 @@
 2.1.9
+ * Write hints for paxos commits (CASSANDRA-7342)
  * (cqlsh) Fix timestamps before 1970 on Windows, always
    use UTC for timestamp display (CASSANDRA-10000)
  * (cqlsh) Avoid overwriting new config file with old config
