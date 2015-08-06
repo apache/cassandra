@@ -17,7 +17,6 @@
  */
 package org.apache.cassandra.repair;
 
-import java.util.ArrayList;
 import java.util.List;
 
 import com.google.common.util.concurrent.AbstractFuture;
@@ -27,7 +26,7 @@ import org.slf4j.LoggerFactory;
 import org.apache.cassandra.dht.Range;
 import org.apache.cassandra.dht.Token;
 import org.apache.cassandra.tracing.Tracing;
-import org.apache.cassandra.utils.MerkleTree;
+import org.apache.cassandra.utils.MerkleTrees;
 
 /**
  * SyncTask will calculate the difference of MerkleTree between two nodes
@@ -56,8 +55,7 @@ public abstract class SyncTask extends AbstractFuture<SyncStat> implements Runna
     public void run()
     {
         // compare trees, and collect differences
-        List<Range<Token>> differences = new ArrayList<>();
-        differences.addAll(MerkleTree.difference(r1.tree, r2.tree));
+        List<Range<Token>> differences = MerkleTrees.difference(r1.trees, r2.trees);
 
         stat = new SyncStat(new NodePair(r1.endpoint, r2.endpoint), differences.size());
 

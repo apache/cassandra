@@ -1111,6 +1111,12 @@ public final class MessagingService implements MessagingServiceMBean
         return StorageService.instance.getTokenMetadata().partitioner;
     }
 
+    public static void validatePartitioner(Collection<? extends AbstractBounds<?>> allBounds)
+    {
+        for (AbstractBounds<?> bounds : allBounds)
+            validatePartitioner(bounds);
+    }
+
     public static void validatePartitioner(AbstractBounds<?> bounds)
     {
         if (globalPartitioner() != bounds.left.getPartitioner())

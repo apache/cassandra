@@ -79,14 +79,14 @@ public class RepairMessageVerbHandler implements IVerbHandler<RepairMessage>
                 case SNAPSHOT:
                     logger.debug("Snapshotting {}", desc);
                     ColumnFamilyStore cfs = Keyspace.open(desc.keyspace).getColumnFamilyStore(desc.columnFamily);
-                    final Range<Token> repairingRange = desc.range;
+                    final Collection<Range<Token>> repairingRange = desc.ranges;
                     Set<SSTableReader> snapshottedSSSTables = cfs.snapshot(desc.sessionId.toString(), new Predicate<SSTableReader>()
                     {
                         public boolean apply(SSTableReader sstable)
                         {
                             return sstable != null &&
                                    !sstable.metadata.isIndex() && // exclude SSTables from 2i
-                                   new Bounds<>(sstable.first.getToken(), sstable.last.getToken()).intersects(Collections.singleton(repairingRange));
+                                   new Bounds<>(sstable.first.getToken(), sstable.last.getToken()).intersects(repairingRange);
                         }
                     }, true); //ephemeral snapshot, if repair fails, it will be cleaned next startup
 

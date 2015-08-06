@@ -130,7 +130,7 @@ public final class SystemDistributedKeyspace
         processSilent(fmtQuery);
     }
 
-    public static void startRepairs(UUID id, UUID parent_id, String keyspaceName, String[] cfnames, Range<Token> range, Iterable<InetAddress> endpoints)
+    public static void startRepairs(UUID id, UUID parent_id, String keyspaceName, String[] cfnames, Collection<Range<Token>> ranges, Iterable<InetAddress> endpoints)
     {
         String coordinator = FBUtilities.getBroadcastAddress().getHostAddress();
         Set<String> participants = Sets.newHashSet(coordinator);
@@ -144,17 +144,20 @@ public final class SystemDistributedKeyspace
 
         for (String cfname : cfnames)
         {
-            String fmtQry = String.format(query, NAME, REPAIR_HISTORY,
-                                          keyspaceName,
-                                          cfname,
-                                          id.toString(),
-                                          parent_id.toString(),
-                                          range.left.toString(),
-                                          range.right.toString(),
-                                          coordinator,
-                                          Joiner.on("', '").join(participants),
-                    RepairState.STARTED.toString());
-            processSilent(fmtQry);
+            for (Range<Token> range : ranges)
+            {
+                String fmtQry = String.format(query, NAME, REPAIR_HISTORY,
+                                              keyspaceName,
+                                              cfname,
+                                              id.toString(),
+                                              parent_id.toString(),
+                                              range.left.toString(),
+                                              range.right.toString(),
+                                              coordinator,
+                                              Joiner.on("', '").join(participants),
+                                              RepairState.STARTED.toString());
+                processSilent(fmtQry);
+            }
         }
     }
 

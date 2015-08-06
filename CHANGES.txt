@@ -1,4 +1,5 @@
 3.0.0-beta1
+ * Repair improvements when using vnodes (CASSANDRA-5220)
  * Disable scripted UDFs by default (CASSANDRA-9889)
  * Add transparent data encryption core classes (CASSANDRA-9945)
  * Bytecode inspection for Java-UDFs (CASSANDRA-9890)

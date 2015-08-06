@@ -37,13 +37,13 @@ import org.apache.cassandra.dht.Token;
 import org.apache.cassandra.gms.*;
 import org.apache.cassandra.tracing.Tracing;
 import org.apache.cassandra.utils.FBUtilities;
-import org.apache.cassandra.utils.MerkleTree;
+import org.apache.cassandra.utils.MerkleTrees;
 import org.apache.cassandra.utils.Pair;
 
 /**
- * Coordinates the (active) repair of a token range.
+ * Coordinates the (active) repair of a list of non overlapping token ranges.
  *
- * A given RepairSession repairs a set of replicas for a given range on a list
+ * A given RepairSession repairs a set of replicas for a given set of ranges on a list
  * of column families. For each of the column family to repair, RepairSession
  * creates a {@link RepairJob} that handles the repair of that CF.
  *
@@ -64,11 +64,11 @@ import org.apache.cassandra.utils.Pair;
  * A given session will execute the first phase (validation phase) of each of it's job
  * sequentially. In other words, it will start the first job and only start the next one
  * once that first job validation phase is complete. This is done so that the replica only
- * create one merkle tree at a time, which is our way to ensure that such creation starts
+ * create one merkle tree per range at a time, which is our way to ensure that such creation starts
  * roughly at the same time on every node (see CASSANDRA-2816). However the synchronization
  * phases are allowed to run concurrently (with each other and with validation phases).
  *
- * A given RepairJob has 2 modes: either sequential or not (isSequential flag). If sequential,
+ * A given RepairJob has 2 modes: either sequential or not (RepairParallelism). If sequential,
  * it will requests merkle tree creation from each replica in sequence (though in that case
  * we still first send a message to each node to flush and snapshot data so each merkle tree
  * creation is still done on similar data, even if the actual creation is not
@@ -88,9 +88,9 @@ public class RepairSession extends AbstractFuture<RepairSessionResult> implement
     private final String[] cfnames;
     public final RepairParallelism parallelismDegree;
     /** Range to repair */
-    public final Range<Token> range;
+    public final Collection<Range<Token>> ranges;
     public final Set<InetAddress> endpoints;
-    private final long repairedAt;
+    public final long repairedAt;
 
     // number of validations left to be performed
     private final AtomicInteger validationRemaining;
@@ -103,7 +103,7 @@ public class RepairSession extends AbstractFuture<RepairSessionResult> implement
     private final ConcurrentMap<Pair<RepairJobDesc, NodePair>, RemoteSyncTask> syncingTasks = new ConcurrentHashMap<>();
 
     // Tasks(snapshot, validate request, differencing, ...) are run on taskExecutor
-    private final ListeningExecutorService taskExecutor = MoreExecutors.listeningDecorator(DebuggableThreadPoolExecutor.createCachedThreadpoolWithMaxSize("RepairJobTask"));
+    public final ListeningExecutorService taskExecutor = MoreExecutors.listeningDecorator(DebuggableThreadPoolExecutor.createCachedThreadpoolWithMaxSize("RepairJobTask"));
 
     private volatile boolean terminated = false;
 
@@ -112,7 +112,7 @@ public class RepairSession extends AbstractFuture<RepairSessionResult> implement
      *
      * @param parentRepairSession the parent sessions id
      * @param id this sessions id
-     * @param range range to repair
+     * @param ranges ranges to repair
      * @param keyspace name of keyspace
      * @param parallelismDegree specifies the degree of parallelism when calculating the merkle trees
      * @param endpoints the data centers that should be part of the repair; null for all DCs
@@ -121,7 +121,7 @@ public class RepairSession extends AbstractFuture<RepairSessionResult> implement
      */
     public RepairSession(UUID parentRepairSession,
                          UUID id,
-                         Range<Token> range,
+                         Collection<Range<Token>> ranges,
                          String keyspace,
                          RepairParallelism parallelismDegree,
                          Set<InetAddress> endpoints,
@@ -135,7 +135,7 @@ public class RepairSession extends AbstractFuture<RepairSessionResult> implement
         this.parallelismDegree = parallelismDegree;
         this.keyspace = keyspace;
         this.cfnames = cfnames;
-        this.range = range;
+        this.ranges = ranges;
         this.endpoints = endpoints;
         this.repairedAt = repairedAt;
         this.validationRemaining = new AtomicInteger(cfnames.length);
@@ -146,9 +146,9 @@ public class RepairSession extends AbstractFuture<RepairSessionResult> implement
         return id;
     }
 
-    public Range<Token> getRange()
+    public Collection<Range<Token>> getRanges()
     {
-        return range;
+        return ranges;
     }
 
     public void waitForValidation(Pair<RepairJobDesc, InetAddress> key, ValidationTask task)
@@ -166,9 +166,9 @@ public class RepairSession extends AbstractFuture<RepairSessionResult> implement
      *
      * @param desc repair job description
      * @param endpoint endpoint that sent merkle tree
-     * @param tree calculated merkle tree, or null if validation failed
+     * @param trees calculated merkle trees, or null if validation failed
      */
-    public void validationComplete(RepairJobDesc desc, InetAddress endpoint, MerkleTree tree)
+    public void validationComplete(RepairJobDesc desc, InetAddress endpoint, MerkleTrees trees)
     {
         ValidationTask task = validating.remove(Pair.create(desc, endpoint));
         if (task == null)
@@ -180,7 +180,7 @@ public class RepairSession extends AbstractFuture<RepairSessionResult> implement
         String message = String.format("Received merkle tree for %s from %s", desc.columnFamily, endpoint);
         logger.info("[repair #{}] {}", getId(), message);
         Tracing.traceRepair(message);
-        task.treeReceived(tree);
+        task.treesReceived(trees);
 
         // Unregister from FailureDetector once we've completed synchronizing Merkle trees.
         // After this point, we rely on tcp_keepalive for individual sockets to notify us when a connection is down.
@@ -234,15 +234,15 @@ public class RepairSession extends AbstractFuture<RepairSessionResult> implement
         if (terminated)
             return;
 
-        logger.info(String.format("[repair #%s] new session: will sync %s on range %s for %s.%s", getId(), repairedNodes(), range, keyspace, Arrays.toString(cfnames)));
-        Tracing.traceRepair("Syncing range {}", range);
-        SystemDistributedKeyspace.startRepairs(getId(), parentRepairSession, keyspace, cfnames, range, endpoints);
+        logger.info(String.format("[repair #%s] new session: will sync %s on range %s for %s.%s", getId(), repairedNodes(), ranges, keyspace, Arrays.toString(cfnames)));
+        Tracing.traceRepair("Syncing range {}", ranges);
+        SystemDistributedKeyspace.startRepairs(getId(), parentRepairSession, keyspace, cfnames, ranges, endpoints);
 
         if (endpoints.isEmpty())
         {
-            logger.info("[repair #{}] {}", getId(), message = String.format("No neighbors to repair with on range %s: session completed", range));
+            logger.info("[repair #{}] {}", getId(), message = String.format("No neighbors to repair with on range %s: session completed", ranges));
             Tracing.traceRepair(message);
-            set(new RepairSessionResult(id, keyspace, range, Lists.<RepairResult>newArrayList()));
+            set(new RepairSessionResult(id, keyspace, ranges, Lists.<RepairResult>newArrayList()));
             SystemDistributedKeyspace.failRepairs(getId(), keyspace, cfnames, new RuntimeException(message));
             return;
         }
@@ -265,7 +265,7 @@ public class RepairSession extends AbstractFuture<RepairSessionResult> implement
         List<ListenableFuture<RepairResult>> jobs = new ArrayList<>(cfnames.length);
         for (String cfname : cfnames)
         {
-            RepairJob job = new RepairJob(this, cfname, parallelismDegree, repairedAt, taskExecutor);
+            RepairJob job = new RepairJob(this, cfname);
             executor.execute(job);
             jobs.add(job);
         }
@@ -277,8 +277,8 @@ public class RepairSession extends AbstractFuture<RepairSessionResult> implement
             {
                 // this repair session is completed
                 logger.info("[repair #{}] {}", getId(), "Session completed successfully");
-                Tracing.traceRepair("Completed sync of range {}", range);
-                set(new RepairSessionResult(id, keyspace, range, results));
+                Tracing.traceRepair("Completed sync of range {}", ranges);
+                set(new RepairSessionResult(id, keyspace, ranges, results));
 
                 taskExecutor.shutdown();
                 // mark this session as terminated

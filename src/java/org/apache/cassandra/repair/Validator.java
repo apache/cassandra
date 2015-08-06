@@ -33,12 +33,15 @@ import org.apache.cassandra.db.ColumnFamilyStore;
 import org.apache.cassandra.db.DecoratedKey;
 import org.apache.cassandra.db.rows.UnfilteredRowIterator;
 import org.apache.cassandra.db.rows.UnfilteredRowIterators;
+import org.apache.cassandra.dht.Range;
+import org.apache.cassandra.dht.Token;
 import org.apache.cassandra.net.MessagingService;
 import org.apache.cassandra.repair.messages.ValidationComplete;
 import org.apache.cassandra.tracing.Tracing;
 import org.apache.cassandra.utils.FBUtilities;
 import org.apache.cassandra.utils.MerkleTree;
 import org.apache.cassandra.utils.MerkleTree.RowHash;
+import org.apache.cassandra.utils.MerkleTrees;
 
 /**
  * Handles the building of a merkle tree for a column family.
@@ -58,11 +61,11 @@ public class Validator implements Runnable
 
     // null when all rows with the min token have been consumed
     private long validated;
-    private MerkleTree tree;
+    private MerkleTrees trees;
     // current range being updated
     private MerkleTree.TreeRange range;
     // iterator for iterating sub ranges (MT's leaves)
-    private MerkleTree.TreeRangeIterator ranges;
+    private MerkleTrees.TreeRangeIterator ranges;
     // last key seen
     private DecoratedKey lastKey;
 
@@ -76,9 +79,9 @@ public class Validator implements Runnable
         ranges = null;
     }
 
-    public void prepare(ColumnFamilyStore cfs, MerkleTree tree)
+    public void prepare(ColumnFamilyStore cfs, MerkleTrees tree)
     {
-        this.tree = tree;
+        this.trees = tree;
 
         if (!tree.partitioner().preservesOrder())
         {
@@ -87,32 +90,35 @@ public class Validator implements Runnable
         }
         else
         {
-            List<DecoratedKey> keys = new ArrayList<>();
-            for (DecoratedKey sample : cfs.keySamples(desc.range))
+            for (Range<Token> range : tree.ranges())
             {
-                assert desc.range.contains(sample.getToken()): "Token " + sample.getToken() + " is not within range " + desc.range;
-                keys.add(sample);
-            }
-
-            if (keys.isEmpty())
-            {
-                // use an even tree distribution
-                tree.init();
-            }
-            else
-            {
-                int numkeys = keys.size();
-                Random random = new Random();
-                // sample the column family using random keys from the index
-                while (true)
+                List<DecoratedKey> keys = new ArrayList<>();
+                for (DecoratedKey sample : cfs.keySamples(range))
                 {
-                    DecoratedKey dk = keys.get(random.nextInt(numkeys));
-                    if (!tree.split(dk.getToken()))
-                        break;
+                    assert range.contains(sample.getToken()) : "Token " + sample.getToken() + " is not within range " + desc.ranges;
+                    keys.add(sample);
+                }
+
+                if (keys.isEmpty())
+                {
+                    // use an even tree distribution
+                    tree.init(range);
+                }
+                else
+                {
+                    int numKeys = keys.size();
+                    Random random = new Random();
+                    // sample the column family using random keys from the index
+                    while (true)
+                    {
+                        DecoratedKey dk = keys.get(random.nextInt(numKeys));
+                        if (!tree.split(dk.getToken()))
+                            break;
+                    }
                 }
             }
         }
-        logger.debug("Prepared AEService tree of size {} for {}", tree.size(), desc);
+        logger.debug("Prepared AEService trees of size {} for {}", trees.size(), desc);
         ranges = tree.invalids();
     }
 
@@ -124,7 +130,7 @@ public class Validator implements Runnable
      */
     public void add(UnfilteredRowIterator partition)
     {
-        assert desc.range.contains(partition.partitionKey().getToken()) : partition.partitionKey().getToken() + " is not contained in " + desc.range;
+        assert Range.isInRanges(partition.partitionKey().getToken(), desc.ranges) : partition.partitionKey().getToken() + " is not contained in " + desc.ranges;
         assert lastKey == null || lastKey.compareTo(partition.partitionKey()) < 0
                : "partition " + partition.partitionKey() + " received out of order wrt " + lastKey;
         lastKey = partition.partitionKey();
@@ -133,19 +139,30 @@ public class Validator implements Runnable
             range = ranges.next();
 
         // generate new ranges as long as case 1 is true
-        while (!range.contains(lastKey.getToken()))
+        if (!findCorrectRange(lastKey.getToken()))
         {
             // add the empty hash, and move to the next range
-            range.ensureHashInitialised();
-            range = ranges.next();
+            ranges = trees.invalids();
+            findCorrectRange(lastKey.getToken());
         }
 
+        assert range.contains(lastKey.getToken()) : "Token not in MerkleTree: " + lastKey.getToken();
         // case 3 must be true: mix in the hashed row
         RowHash rowHash = rowHash(partition);
         if (rowHash != null)
         {
             range.addHash(rowHash);
         }
+    }
+
+    public boolean findCorrectRange(Token t)
+    {
+        while (!range.contains(t) && ranges.hasNext())
+        {
+            range = ranges.next();
+        }
+
+        return range.contains(t);
     }
 
     static class CountingDigest extends MessageDigest
@@ -212,9 +229,9 @@ public class Validator implements Runnable
         {
             // log distribution of rows in tree
             logger.debug("Validated {} partitions for {}.  Partitions per leaf are:", validated, desc.sessionId);
-            tree.histogramOfRowCountPerLeaf().log(logger);
+            trees.logRowCountPerLeaf(logger);
             logger.debug("Validated {} partitions for {}.  Partition sizes are:", validated, desc.sessionId);
-            tree.histogramOfRowSizePerLeaf().log(logger);
+            trees.logRowSizePerLeaf(logger);
         }
     }
 
@@ -223,8 +240,8 @@ public class Validator implements Runnable
     {
         assert ranges != null : "Validator was not prepared()";
 
-        if (range != null)
-            range.ensureHashInitialised();
+        ranges = trees.invalids();
+
         while (ranges.hasNext())
         {
             range = ranges.next();
@@ -255,6 +272,6 @@ public class Validator implements Runnable
             logger.info(String.format("[repair #%s] Sending completed merkle tree to %s for %s.%s", desc.sessionId, initiator, desc.keyspace, desc.columnFamily));
             Tracing.traceRepair("Sending completed merkle tree to {} for {}.{}", initiator, desc.keyspace, desc.columnFamily);
         }
-        MessagingService.instance().sendOneWay(new ValidationComplete(desc, tree).createMessage(), initiator);
+        MessagingService.instance().sendOneWay(new ValidationComplete(desc, trees).createMessage(), initiator);
     }
 }
