@@ -38,6 +38,7 @@ import org.apache.cassandra.db.compaction.OperationType;
 import org.apache.cassandra.db.marshal.BytesType;
 import org.apache.cassandra.io.FSWriteError;
 import org.apache.cassandra.io.util.*;
+import org.apache.cassandra.io.util.ChecksummedRandomAccessReader.CorruptFileException;
 import org.apache.cassandra.io.util.DataInputPlus.DataInputStreamPlus;
 import org.apache.cassandra.service.CacheService;
 import org.apache.cassandra.utils.JVMStabilityInspector;
@@ -48,8 +49,8 @@ public class AutoSavingCache<K extends CacheKey, V> extends InstrumentingCache<K
 {
     public interface IStreamFactory
     {
-        public InputStream getInputStream(File path) throws FileNotFoundException;
-        public OutputStream getOutputStream(File path) throws FileNotFoundException;
+        public InputStream getInputStream(File dataPath, File crcPath) throws IOException;
+        public SequentialWriter getOutputWriter(File dataPath, File crcPath) throws FileNotFoundException;
     }
 
     private static final Logger logger = LoggerFactory.getLogger(AutoSavingCache.class);
@@ -61,18 +62,18 @@ public class AutoSavingCache<K extends CacheKey, V> extends InstrumentingCache<K
     protected final CacheService.CacheType cacheType;
 
     private final CacheSerializer<K, V> cacheLoader;
-    private static final String CURRENT_VERSION = "b";
+    private static final String CURRENT_VERSION = "c";
 
     private static volatile IStreamFactory streamFactory = new IStreamFactory()
     {
-        public InputStream getInputStream(File path) throws FileNotFoundException
+        public InputStream getInputStream(File dataPath, File crcPath) throws IOException
         {
-            return new FileInputStream(path);
+            return ChecksummedRandomAccessReader.open(dataPath, crcPath);
         }
 
-        public OutputStream getOutputStream(File path) throws FileNotFoundException
+        public SequentialWriter getOutputWriter(File dataPath, File crcPath)
         {
-            return new FileOutputStream(path);
+            return SequentialWriter.open(dataPath, crcPath);
         }
     };
 
@@ -89,10 +90,16 @@ public class AutoSavingCache<K extends CacheKey, V> extends InstrumentingCache<K
         this.cacheLoader = cacheloader;
     }
 
-    public File getCachePath(UUID cfId, String version)
+    public File getCacheDataPath(UUID cfId, String version)
     {
         Pair<String, String> names = Schema.instance.getCF(cfId);
-        return DatabaseDescriptor.getSerializedCachePath(names.left, names.right, cfId, cacheType, version);
+        return DatabaseDescriptor.getSerializedCachePath(names.left, names.right, cfId, cacheType, version, "db");
+    }
+
+    public File getCacheCrcPath(UUID cfId, String version)
+    {
+        Pair<String, String> names = Schema.instance.getCF(cfId);
+        return DatabaseDescriptor.getSerializedCachePath(names.left, names.right, cfId, cacheType, version, "crc");
     }
 
     public Writer getWriter(int keysToSave)
@@ -129,14 +136,15 @@ public class AutoSavingCache<K extends CacheKey, V> extends InstrumentingCache<K
         long start = System.nanoTime();
 
         // modern format, allows both key and value (so key cache load can be purely sequential)
-        File path = getCachePath(cfs.metadata.cfId, CURRENT_VERSION);
-        if (path.exists())
+        File dataPath = getCacheDataPath(cfs.metadata.cfId, CURRENT_VERSION);
+        File crcPath = getCacheCrcPath(cfs.metadata.cfId, CURRENT_VERSION);
+        if (dataPath.exists() && crcPath.exists())
         {
             DataInputStreamPlus in = null;
             try
             {
-                logger.info(String.format("reading saved cache %s", path));
-                in = new DataInputStreamPlus(new LengthAvailableInputStream(new BufferedInputStream(streamFactory.getInputStream(path)), path.length()));
+                logger.info(String.format("reading saved cache %s", dataPath));
+                in = new DataInputStreamPlus(new LengthAvailableInputStream(new BufferedInputStream(streamFactory.getInputStream(dataPath, crcPath)), dataPath.length()));
                 List<Future<Pair<K, V>>> futures = new ArrayList<Future<Pair<K, V>>>();
                 while (in.available() > 0)
                 {
@@ -155,10 +163,15 @@ public class AutoSavingCache<K extends CacheKey, V> extends InstrumentingCache<K
                         put(entry.left, entry.right);
                 }
             }
+            catch (CorruptFileException e)
+            {
+                JVMStabilityInspector.inspectThrowable(e);
+                logger.warn(String.format("Non-fatal checksum error reading saved cache %s", dataPath.getAbsolutePath()), e);
+            }
             catch (Exception e)
             {
                 JVMStabilityInspector.inspectThrowable(e);
-                logger.debug(String.format("harmless error reading saved cache %s", path.getAbsolutePath()), e);
+                logger.debug(String.format("harmless error reading saved cache %s", dataPath.getAbsolutePath()), e);
             }
             finally
             {
@@ -167,7 +180,7 @@ public class AutoSavingCache<K extends CacheKey, V> extends InstrumentingCache<K
         }
         if (logger.isDebugEnabled())
             logger.debug("completed reading ({} ms; {} keys) saved cache {}",
-                    TimeUnit.NANOSECONDS.toMillis(System.nanoTime() - start), count, path);
+                    TimeUnit.NANOSECONDS.toMillis(System.nanoTime() - start), count, dataPath);
         return count;
     }
 
@@ -241,9 +254,9 @@ public class AutoSavingCache<K extends CacheKey, V> extends InstrumentingCache<K
 
             long start = System.nanoTime();
 
-            HashMap<UUID, DataOutputPlus> writers = new HashMap<>();
-            HashMap<UUID, OutputStream> streams = new HashMap<>();
-            HashMap<UUID, File> paths = new HashMap<>();
+            HashMap<UUID, DataOutputPlus> dataOutputs = new HashMap<>();
+            HashMap<UUID, SequentialWriter> sequentialWriters = new HashMap<>();
+            HashMap<UUID, Pair<File, File>> paths = new HashMap<>();
 
             try
             {
@@ -254,23 +267,23 @@ public class AutoSavingCache<K extends CacheKey, V> extends InstrumentingCache<K
                     if (!Schema.instance.hasCF(key.getCFId()))
                         continue; // the table has been dropped.
 
-                    DataOutputPlus writer = writers.get(cfId);
+                    DataOutputPlus writer = dataOutputs.get(cfId);
                     if (writer == null)
                     {
-                        File writerPath = tempCacheFile(cfId);
-                        OutputStream stream;
+                        Pair<File, File> cacheFilePaths = tempCacheFiles(cfId);
+                        SequentialWriter sequentialWriter;
                         try
                         {
-                            stream = streamFactory.getOutputStream(writerPath);
-                            writer = new WrappedDataOutputStreamPlus(stream);
+                            sequentialWriter = streamFactory.getOutputWriter(cacheFilePaths.left, cacheFilePaths.right);
+                            writer = new WrappedDataOutputStreamPlus(sequentialWriter);
                         }
                         catch (FileNotFoundException e)
                         {
                             throw new RuntimeException(e);
                         }
-                        paths.put(cfId, writerPath);
-                        streams.put(cfId, stream);
-                        writers.put(cfId, writer);
+                        paths.put(cfId, cacheFilePaths);
+                        sequentialWriters.put(cfId, sequentialWriter);
+                        dataOutputs.put(cfId, writer);
                     }
 
                     try
@@ -279,7 +292,7 @@ public class AutoSavingCache<K extends CacheKey, V> extends InstrumentingCache<K
                     }
                     catch (IOException e)
                     {
-                        throw new FSWriteError(e, paths.get(cfId));
+                        throw new FSWriteError(e, paths.get(cfId).left);
                     }
 
                     keysWritten++;
@@ -299,29 +312,40 @@ public class AutoSavingCache<K extends CacheKey, V> extends InstrumentingCache<K
                         // not thrown (by OHC)
                     }
 
-                for (OutputStream writer : streams.values())
+                for (SequentialWriter writer : sequentialWriters.values())
+                {
+                    writer.finish();
                     FileUtils.closeQuietly(writer);
+                }
             }
 
-            for (Map.Entry<UUID, DataOutputPlus> entry : writers.entrySet())
+            for (Map.Entry<UUID, DataOutputPlus> entry : dataOutputs.entrySet())
             {
                 UUID cfId = entry.getKey();
 
-                File tmpFile = paths.get(cfId);
-                File cacheFile = getCachePath(cfId, CURRENT_VERSION);
+                Pair<File, File> tmpFiles = paths.get(cfId);
+                File cacheFile = getCacheDataPath(cfId, CURRENT_VERSION);
+                File crcFile = getCacheCrcPath(cfId, CURRENT_VERSION);
 
                 cacheFile.delete(); // ignore error if it didn't exist
-                if (!tmpFile.renameTo(cacheFile))
-                    logger.error("Unable to rename {} to {}", tmpFile, cacheFile);
+                crcFile.delete();
+
+                if (!tmpFiles.left.renameTo(cacheFile))
+                    logger.error("Unable to rename {} to {}", tmpFiles.left, cacheFile);
+
+                if (!tmpFiles.right.renameTo(crcFile))
+                    logger.error("Unable to rename {} to {}", tmpFiles.right, crcFile);
             }
 
             logger.info("Saved {} ({} items) in {} ms", cacheType, keysWritten, TimeUnit.NANOSECONDS.toMillis(System.nanoTime() - start));
         }
 
-        private File tempCacheFile(UUID cfId)
+        private Pair<File, File> tempCacheFiles(UUID cfId)
         {
-            File path = getCachePath(cfId, CURRENT_VERSION);
-            return FileUtils.createTempFile(path.getName(), null, path.getParentFile());
+            File dataPath = getCacheDataPath(cfId, CURRENT_VERSION);
+            File crcPath = getCacheCrcPath(cfId, CURRENT_VERSION);
+            return Pair.create(FileUtils.createTempFile(dataPath.getName(), null, dataPath.getParentFile()),
+                               FileUtils.createTempFile(crcPath.getName(), null, crcPath.getParentFile()));
         }
 
         private void deleteOldCacheFiles()

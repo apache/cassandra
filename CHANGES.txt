@@ -6,6 +6,7 @@
  * Bytecode inspection for Java-UDFs (CASSANDRA-9890)
  * Use byte to serialize MT hash length (CASSANDRA-9792)
 Merged from 2.2:
+ * Add checksum to saved cache files (CASSANDRA-9265)
  * Log warning when using an aggregate without partition key (CASSANDRA-9737)
 Merged from 2.1:
  * Cannot replace token does not exist - DN node removed as Fat Client (CASSANDRA-9871)
