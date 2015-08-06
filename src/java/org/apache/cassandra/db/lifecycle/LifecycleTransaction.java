@@ -338,6 +338,7 @@ public class LifecycleTransaction extends Transactional.AbstractTransactional
         return accumulate;
     }
 
+
     /**
      * update a reader: if !original, this is a reader that is being introduced by this transaction;
      * otherwise it must be in the originals() set, i.e. a reader guarded by this transaction
@@ -353,6 +354,14 @@ public class LifecycleTransaction extends Transactional.AbstractTransactional
         identities.add(reader.instanceId);
         if (!isOffline())
             reader.setupOnline();
+    }
+
+    public void update(Collection<SSTableReader> readers, boolean original)
+    {
+        for(SSTableReader reader: readers)
+        {
+            update(reader, original);
+        }
     }
 
     /**

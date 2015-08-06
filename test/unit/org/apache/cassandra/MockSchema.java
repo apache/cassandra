@@ -86,7 +86,7 @@ public class MockSchema
 
     public static SSTableReader sstable(int generation, int size, boolean keepRef, ColumnFamilyStore cfs)
     {
-        Descriptor descriptor = new Descriptor(cfs.directories.getDirectoryForNewSSTables(),
+        Descriptor descriptor = new Descriptor(cfs.getDirectories().getDirectoryForNewSSTables(),
                                                cfs.keyspace.getName(),
                                                cfs.getColumnFamilyName(),
                                                generation);

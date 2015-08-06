@@ -210,6 +210,11 @@ public class Keyspace
         return cfs;
     }
 
+    public boolean hasColumnFamilyStore(UUID id)
+    {
+        return columnFamilyStores.containsKey(id);
+    }
+
     /**
      * Take a snapshot of the specific column family, or the entire set of column families
      * if columnFamily is null with a given timestamp

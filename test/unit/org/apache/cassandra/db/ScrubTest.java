@@ -324,12 +324,12 @@ public class ScrubTest
             String filename = cfs.getSSTablePath(tempDataDir);
             Descriptor desc = Descriptor.fromFilename(filename);
 
-            try (SSTableTxnWriter writer = SSTableTxnWriter.create(desc,
-                                                             keys.size(),
-                                                             0L,
-                                                             0,
-                                                             SerializationHeader.make(cfs.metadata,
-                                                                                      Collections.emptyList())))
+            try (SSTableTxnWriter writer = SSTableTxnWriter.create(cfs, desc,
+                                                                   keys.size(),
+                                                                   0L,
+                                                                   0,
+                                                                   SerializationHeader.make(cfs.metadata,
+                                                                                            Collections.emptyList())))
             {
 
                 for (String k : keys)

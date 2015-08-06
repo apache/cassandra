@@ -25,7 +25,7 @@ import java.nio.channels.ReadableByteChannel;
 
 import com.google.common.base.Throwables;
 
-import org.apache.cassandra.io.sstable.format.SSTableWriter;
+import org.apache.cassandra.io.sstable.SSTableMultiWriter;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -62,7 +62,7 @@ public class CompressedStreamReader extends StreamReader
      */
     @Override
     @SuppressWarnings("resource")
-    public SSTableWriter read(ReadableByteChannel channel) throws IOException
+    public SSTableMultiWriter read(ReadableByteChannel channel) throws IOException
     {
         logger.debug("reading file from {}, repairedAt = {}", session.peer, repairedAt);
         long totalSize = totalSize();
@@ -75,7 +75,7 @@ public class CompressedStreamReader extends StreamReader
         }
         ColumnFamilyStore cfs = Keyspace.open(kscf.left).getColumnFamilyStore(kscf.right);
 
-        SSTableWriter writer = createWriter(cfs, totalSize, repairedAt, format);
+        SSTableMultiWriter writer = createWriter(cfs, totalSize, repairedAt, format);
 
         CompressedInputStream cis = new CompressedInputStream(Channels.newInputStream(channel), compressionInfo, inputVersion.compressedChecksumType());
         BytesReadTracker in = new BytesReadTracker(new DataInputStream(cis));
@@ -102,7 +102,7 @@ public class CompressedStreamReader extends StreamReader
         }
         catch (Throwable e)
         {
-            writer.abort();
+            SSTableMultiWriter.abortOrDie(writer);
             drain(cis, in.getBytesRead());
             if (e instanceof IOException)
                 throw (IOException) e;

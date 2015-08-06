@@ -178,30 +178,36 @@ public class Directories
     }
 
     private final CFMetaData metadata;
+    private final DataDirectory[] paths;
     private final File[] dataPaths;
 
+    public Directories(final CFMetaData metadata)
+    {
+        this(metadata, dataDirectories);
+    }
     /**
      * Create Directories of given ColumnFamily.
      * SSTable directories are created under data_directories defined in cassandra.yaml if not exist at this time.
      *
      * @param metadata metadata of ColumnFamily
      */
-    public Directories(final CFMetaData metadata)
+    public Directories(final CFMetaData metadata, DataDirectory[] paths)
     {
         this.metadata = metadata;
+        this.paths = paths;
 
         String cfId = ByteBufferUtil.bytesToHex(ByteBufferUtil.bytes(metadata.cfId));
         int idx = metadata.cfName.indexOf(SECONDARY_INDEX_NAME_SEPARATOR);
         String cfName = idx >= 0 ? metadata.cfName.substring(0, idx) : metadata.cfName;
         String indexNameWithDot = idx >= 0 ? metadata.cfName.substring(idx) : null;
 
-        this.dataPaths = new File[dataDirectories.length];
+        this.dataPaths = new File[paths.length];
         // If upgraded from version less than 2.1, use existing directories
         String oldSSTableRelativePath = join(metadata.ksName, cfName);
-        for (int i = 0; i < dataDirectories.length; ++i)
+        for (int i = 0; i < paths.length; ++i)
         {
             // check if old SSTable directory exists
-            dataPaths[i] = new File(dataDirectories[i].location, oldSSTableRelativePath);
+            dataPaths[i] = new File(paths[i].location, oldSSTableRelativePath);
         }
         boolean olderDirectoryExists = Iterables.any(Arrays.asList(dataPaths), new Predicate<File>()
         {
@@ -214,13 +220,13 @@ public class Directories
         {
             // use 2.1+ style
             String newSSTableRelativePath = join(metadata.ksName, cfName + '-' + cfId);
-            for (int i = 0; i < dataDirectories.length; ++i)
-                dataPaths[i] = new File(dataDirectories[i].location, newSSTableRelativePath);
+            for (int i = 0; i < paths.length; ++i)
+                dataPaths[i] = new File(paths[i].location, newSSTableRelativePath);
         }
         // if index, then move to its own directory
         if (indexNameWithDot != null)
         {
-            for (int i = 0; i < dataDirectories.length; ++i)
+            for (int i = 0; i < paths.length; ++i)
                 dataPaths[i] = new File(dataPaths[i], indexNameWithDot);
         }
 
@@ -327,7 +333,7 @@ public class Directories
 
         // pick directories with enough space and so that resulting sstable dirs aren't blacklisted for writes.
         boolean tooBig = false;
-        for (DataDirectory dataDir : dataDirectories)
+        for (DataDirectory dataDir : paths)
         {
             if (BlacklistedDirectories.isUnwritable(getLocationForDisk(dataDir)))
             {
@@ -393,7 +399,7 @@ public class Directories
         long writeSize = expectedTotalWriteSize / estimatedSSTables;
         long totalAvailable = 0L;
 
-        for (DataDirectory dataDir : dataDirectories)
+        for (DataDirectory dataDir : paths)
         {
             if (BlacklistedDirectories.isUnwritable(getLocationForDisk(dataDir)))
                   continue;
@@ -480,6 +486,24 @@ public class Directories
         public long getAvailableSpace()
         {
             return location.getUsableSpace();
+        }
+
+        @Override
+        public boolean equals(Object o)
+        {
+            if (this == o) return true;
+            if (o == null || getClass() != o.getClass()) return false;
+
+            DataDirectory that = (DataDirectory) o;
+
+            return location.equals(that.location);
+
+        }
+
+        @Override
+        public int hashCode()
+        {
+            return location.hashCode();
         }
     }
 

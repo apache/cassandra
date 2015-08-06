@@ -246,7 +246,7 @@ public class SSTableRewriterTest extends SchemaLoader
         ColumnFamilyStore cfs = keyspace.getColumnFamilyStore(CF);
         truncate(cfs);
 
-        File dir = cfs.directories.getDirectoryForNewSSTables();
+        File dir = cfs.getDirectories().getDirectoryForNewSSTables();
         LifecycleTransaction txn = LifecycleTransaction.offline(OperationType.WRITE, cfs.metadata);
         try (SSTableWriter writer = getWriter(cfs, dir, txn))
         {
@@ -941,10 +941,10 @@ public class SSTableRewriterTest extends SchemaLoader
         Set<SSTableReader> result = new LinkedHashSet<>();
         for (int f = 0 ; f < fileCount ; f++)
         {
-            File dir = cfs.directories.getDirectoryForNewSSTables();
+            File dir = cfs.getDirectories().getDirectoryForNewSSTables();
             String filename = cfs.getSSTablePath(dir);
 
-            try (SSTableTxnWriter writer = SSTableTxnWriter.create(filename, 0, 0, new SerializationHeader(cfs.metadata, cfs.metadata.partitionColumns(), EncodingStats.NO_STATS)))
+            try (SSTableTxnWriter writer = SSTableTxnWriter.create(cfs, filename, 0, 0, new SerializationHeader(cfs.metadata, cfs.metadata.partitionColumns(), EncodingStats.NO_STATS)))
             {
                 int end = f == fileCount - 1 ? partitionCount : ((f + 1) * partitionCount) / fileCount;
                 for ( ; i < end ; i++)
@@ -955,7 +955,7 @@ public class SSTableRewriterTest extends SchemaLoader
 
                     writer.append(builder.build().unfilteredIterator());
                 }
-                result.add(writer.finish(true));
+                result.addAll(writer.finish(true));
             }
         }
         return result;
@@ -972,7 +972,7 @@ public class SSTableRewriterTest extends SchemaLoader
             liveDescriptors.add(sstable.descriptor.generation);
             spaceUsed += sstable.bytesOnDisk();
         }
-        for (File dir : cfs.directories.getCFDirectories())
+        for (File dir : cfs.getDirectories().getCFDirectories())
         {
             for (File f : dir.listFiles())
             {

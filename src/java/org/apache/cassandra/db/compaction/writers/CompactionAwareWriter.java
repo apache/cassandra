@@ -18,14 +18,17 @@
 
 package org.apache.cassandra.db.compaction.writers;
 
+import java.util.Collection;
 import java.util.List;
 import java.util.Set;
 
 import org.apache.cassandra.db.ColumnFamilyStore;
+import org.apache.cassandra.db.DecoratedKey;
 import org.apache.cassandra.db.Directories;
 import org.apache.cassandra.db.rows.UnfilteredRowIterator;
 import org.apache.cassandra.db.compaction.CompactionTask;
 import org.apache.cassandra.db.lifecycle.LifecycleTransaction;
+import org.apache.cassandra.io.sstable.SSTableMultiWriter;
 import org.apache.cassandra.io.sstable.SSTableRewriter;
 import org.apache.cassandra.io.sstable.format.SSTableReader;
 import org.apache.cassandra.utils.concurrent.Transactional;
@@ -38,6 +41,7 @@ import org.apache.cassandra.utils.concurrent.Transactional;
 public abstract class CompactionAwareWriter extends Transactional.AbstractTransactional implements Transactional
 {
     protected final ColumnFamilyStore cfs;
+    protected final Directories directories;
     protected final Set<SSTableReader> nonExpiredSSTables;
     protected final long estimatedTotalKeys;
     protected final long maxAge;
@@ -45,35 +49,25 @@ public abstract class CompactionAwareWriter extends Transactional.AbstractTransa
 
     protected final LifecycleTransaction txn;
     protected final SSTableRewriter sstableWriter;
+    private boolean isInitialized = false;
 
     public CompactionAwareWriter(ColumnFamilyStore cfs,
-                                 LifecycleTransaction txn,
-                                 Set<SSTableReader> nonExpiredSSTables)
-    {
-        this(cfs, txn, nonExpiredSSTables, false, false);
-    }
-
-    public CompactionAwareWriter(ColumnFamilyStore cfs,
+                                 Directories directories,
                                  LifecycleTransaction txn,
                                  Set<SSTableReader> nonExpiredSSTables,
                                  boolean offline,
                                  boolean keepOriginals)
     {
         this.cfs = cfs;
+        this.directories = directories;
         this.nonExpiredSSTables = nonExpiredSSTables;
         this.estimatedTotalKeys = SSTableReader.getApproximateKeyCount(nonExpiredSSTables);
         this.maxAge = CompactionTask.getMaxDataAge(nonExpiredSSTables);
         this.minRepairedAt = CompactionTask.getMinRepairedAt(nonExpiredSSTables);
         this.txn = txn;
         this.sstableWriter = new SSTableRewriter(cfs, txn, maxAge, offline).keepOriginals(keepOriginals);
-    }
 
-    /**
-     * Writes a partition in an implementation specific way
-     * @param partition the partition to append
-     * @return true if the partition was written, false otherwise
-     */
-    public abstract boolean append(UnfilteredRowIterator partition);
+    }
 
     @Override
     protected Throwable doAbort(Throwable accumulate)
@@ -98,7 +92,7 @@ public abstract class CompactionAwareWriter extends Transactional.AbstractTransa
      * @return all the written sstables sstables
      */
     @Override
-    public List<SSTableReader> finish()
+    public Collection<SSTableReader> finish()
     {
         super.finish();
         return sstableWriter.finished();
@@ -112,12 +106,39 @@ public abstract class CompactionAwareWriter extends Transactional.AbstractTransa
         return estimatedTotalKeys;
     }
 
+    public final boolean append(UnfilteredRowIterator partition)
+    {
+        maybeSwitchWriter(partition.partitionKey());
+        return realAppend(partition);
+    }
+
+    protected abstract boolean realAppend(UnfilteredRowIterator partition);
+
+    /**
+     * Guaranteed to be called before the first call to realAppend.
+     * @param key
+     */
+    protected void maybeSwitchWriter(DecoratedKey key)
+    {
+        if (!isInitialized)
+            switchCompactionLocation(getDirectories().getWriteableLocation(cfs.getExpectedCompactedFileSize(nonExpiredSSTables, txn.opType())));
+        isInitialized = true;
+    }
+
+    /**
+     * Implementations of this method should finish the current sstable writer and start writing to this directory.
+     *
+     * Called once before starting to append and then whenever we see a need to start writing to another directory.
+     * @param directory
+     */
+    protected abstract void switchCompactionLocation(Directories.DataDirectory directory);
+
     /**
      * The directories we can write to
      */
     public Directories getDirectories()
     {
-        return cfs.directories;
+        return directories;
     }
 
     /**

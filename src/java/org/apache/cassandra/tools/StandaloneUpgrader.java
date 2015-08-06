@@ -63,7 +63,7 @@ public class StandaloneUpgrader
             ColumnFamilyStore cfs = keyspace.getColumnFamilyStore(options.cf);
 
             OutputHandler handler = new OutputHandler.SystemOutput(false, options.debug);
-            Directories.SSTableLister lister = cfs.directories.sstableLister(Directories.OnTxnErr.THROW);
+            Directories.SSTableLister lister = cfs.getDirectories().sstableLister(Directories.OnTxnErr.THROW);
             if (options.snapshot != null)
                 lister.onlyBackups(true).snapshots(options.snapshot);
             else
