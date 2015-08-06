@@ -666,7 +666,7 @@ public class MaterializedView
             viewBuilder.addClusteringColumn(ident, properties.getReversableType(ident, column.type));
         }
 
-        for (ColumnDefinition column : baseCf.partitionColumns().regulars.columns)
+        for (ColumnDefinition column : baseCf.partitionColumns().regulars)
         {
             if (column != nonPkTarget && (includeAll || included.contains(column)))
             {

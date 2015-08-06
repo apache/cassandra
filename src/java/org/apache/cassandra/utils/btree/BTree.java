@@ -669,7 +669,18 @@ public class BTree
 
     public static boolean equals(Object[] a, Object[] b)
     {
-        return Iterators.elementsEqual(iterator(a), iterator(b));
+        return size(a) == size(b) && Iterators.elementsEqual(iterator(a), iterator(b));
+    }
+
+    public static int hashCode(Object[] btree)
+    {
+        // we can't just delegate to Arrays.deepHashCode(),
+        // because two equivalent trees may be represented by differently shaped trees
+        int result = 1;
+        for (Object v : iterable(btree))
+            result = 31 * result + Objects.hashCode(v);
+        return result;
+
     }
 
     /**
