@@ -84,4 +84,16 @@ public class CipherFactoryTest
         Cipher c2 = cipherFactory.buildCipher(encryptionOptions.cipher, EncryptionContextGenerator.KEY_ALIAS_2, nextIV(), Cipher.DECRYPT_MODE);
         Assert.assertFalse(c1 == c2);
     }
+
+    @Test(expected = AssertionError.class)
+    public void getDecryptor_NullIv() throws IOException
+    {
+        cipherFactory.getDecryptor(encryptionOptions.cipher, encryptionOptions.key_alias, null);
+    }
+
+    @Test(expected = AssertionError.class)
+    public void getDecryptor_EmptyIv() throws IOException
+    {
+        cipherFactory.getDecryptor(encryptionOptions.cipher, encryptionOptions.key_alias, new byte[0]);
+    }
 }
