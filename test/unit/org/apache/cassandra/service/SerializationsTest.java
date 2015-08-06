@@ -20,6 +20,7 @@ package org.apache.cassandra.service;
 
 import java.io.IOException;
 import java.net.InetAddress;
+import java.util.Arrays;
 import java.util.Collections;
 import java.util.UUID;
 
@@ -43,7 +44,7 @@ import org.apache.cassandra.repair.RepairJobDesc;
 import org.apache.cassandra.repair.Validator;
 import org.apache.cassandra.repair.messages.*;
 import org.apache.cassandra.utils.FBUtilities;
-import org.apache.cassandra.utils.MerkleTree;
+import org.apache.cassandra.utils.MerkleTrees;
 
 public class SerializationsTest extends AbstractSerializationsTester
 {
@@ -58,7 +59,7 @@ public class SerializationsTest extends AbstractSerializationsTester
         partitionerSwitcher = Util.switchPartitioner(RandomPartitioner.instance);
         RANDOM_UUID = UUID.fromString("b5c3d033-75aa-4c2f-a819-947aac7a0c54");
         FULL_RANGE = new Range<>(Util.testPartitioner().getMinimumToken(), Util.testPartitioner().getMinimumToken());
-        DESC = new RepairJobDesc(getVersion() < MessagingService.VERSION_21 ? null : RANDOM_UUID, RANDOM_UUID, "Keyspace1", "Standard1", FULL_RANGE);
+        DESC = new RepairJobDesc(getVersion() < MessagingService.VERSION_21 ? null : RANDOM_UUID, RANDOM_UUID, "Keyspace1", "Standard1", Arrays.asList(FULL_RANGE));
     }
 
     @AfterClass
@@ -66,8 +67,7 @@ public class SerializationsTest extends AbstractSerializationsTester
     {
         partitionerSwitcher.close();
     }
-
-
+    
     private void testRepairMessageWrite(String fileName, RepairMessage... messages) throws IOException
     {
         try (DataOutputStreamPlus out = getOutput(fileName))
@@ -109,13 +109,17 @@ public class SerializationsTest extends AbstractSerializationsTester
     private void testValidationCompleteWrite() throws IOException
     {
         IPartitioner p = RandomPartitioner.instance;
+
+        MerkleTrees mt = new MerkleTrees(p);
+
         // empty validation
-        MerkleTree mt = new MerkleTree(p, FULL_RANGE, MerkleTree.RECOMMENDED_DEPTH, (int) Math.pow(2, 15));
+        mt.addMerkleTree((int) Math.pow(2, 15), FULL_RANGE);
         Validator v0 = new Validator(DESC, FBUtilities.getBroadcastAddress(),  -1);
         ValidationComplete c0 = new ValidationComplete(DESC, mt);
 
         // validation with a tree
-        mt = new MerkleTree(p, FULL_RANGE, MerkleTree.RECOMMENDED_DEPTH, Integer.MAX_VALUE);
+        mt = new MerkleTrees(p);
+        mt.addMerkleTree(Integer.MAX_VALUE, FULL_RANGE);
         for (int i = 0; i < 10; i++)
             mt.split(p.getRandomToken());
         Validator v1 = new Validator(DESC, FBUtilities.getBroadcastAddress(), -1);
@@ -140,24 +144,24 @@ public class SerializationsTest extends AbstractSerializationsTester
             assert message.messageType == RepairMessage.Type.VALIDATION_COMPLETE;
             assert DESC.equals(message.desc);
 
-            assert ((ValidationComplete) message).success;
-            assert ((ValidationComplete) message).tree != null;
+            assert ((ValidationComplete) message).success();
+            assert ((ValidationComplete) message).trees != null;
 
             // validation with a tree
             message = RepairMessage.serializer.deserialize(in, getVersion());
             assert message.messageType == RepairMessage.Type.VALIDATION_COMPLETE;
             assert DESC.equals(message.desc);
 
-            assert ((ValidationComplete) message).success;
-            assert ((ValidationComplete) message).tree != null;
+            assert ((ValidationComplete) message).success();
+            assert ((ValidationComplete) message).trees != null;
 
             // failed validation
             message = RepairMessage.serializer.deserialize(in, getVersion());
             assert message.messageType == RepairMessage.Type.VALIDATION_COMPLETE;
             assert DESC.equals(message.desc);
 
-            assert !((ValidationComplete) message).success;
-            assert ((ValidationComplete) message).tree == null;
+            assert !((ValidationComplete) message).success();
+            assert ((ValidationComplete) message).trees == null;
 
             // MessageOuts
             for (int i = 0; i < 3; i++)

@@ -53,6 +53,7 @@ import org.apache.cassandra.tracing.Tracing;
 import org.apache.cassandra.transport.messages.ResultMessage;
 import org.apache.cassandra.utils.ByteBufferUtil;
 import org.apache.cassandra.utils.FBUtilities;
+import org.apache.cassandra.utils.Pair;
 import org.apache.cassandra.utils.UUIDGen;
 import org.apache.cassandra.utils.WrappedRunnable;
 import org.apache.cassandra.utils.progress.ProgressEvent;
@@ -146,17 +147,19 @@ public class RepairRunnable extends WrappedRunnable implements ProgressEventNoti
         }
 
         final Set<InetAddress> allNeighbors = new HashSet<>();
-        Map<Range, Set<InetAddress>> rangeToNeighbors = new HashMap<>();
+        List<Pair<Set<InetAddress>, ? extends Collection<Range<Token>>>> commonRanges = new ArrayList<>();
         try
         {
             for (Range<Token> range : options.getRanges())
             {
-                    Set<InetAddress> neighbors = ActiveRepairService.getNeighbors(keyspace, range,
-                                                                                  options.getDataCenters(),
-                                                                                  options.getHosts());
-                    rangeToNeighbors.put(range, neighbors);
-                    allNeighbors.addAll(neighbors);
+                Set<InetAddress> neighbors = ActiveRepairService.getNeighbors(keyspace, range,
+                                                                              options.getDataCenters(),
+                                                                              options.getHosts());
+
+                addRangeToNeighbors(commonRanges, range, neighbors);
+                allNeighbors.addAll(neighbors);
             }
+
             progress.incrementAndGet();
         }
         catch (IllegalArgumentException e)
@@ -210,13 +213,13 @@ public class RepairRunnable extends WrappedRunnable implements ProgressEventNoti
                                                                                                                          "internal"));
 
         List<ListenableFuture<RepairSessionResult>> futures = new ArrayList<>(options.getRanges().size());
-        for (Range<Token> range : options.getRanges())
+        for (Pair<Set<InetAddress>, ? extends Collection<Range<Token>>> p : commonRanges)
         {
             final RepairSession session = ActiveRepairService.instance.submitRepairSession(parentSession,
-                                                              range,
+                                                              p.right,
                                                               keyspace,
                                                               options.getParallelism(),
-                                                              rangeToNeighbors.get(range),
+                                                              p.left,
                                                               repairedAt,
                                                               executor,
                                                               cfnames);
@@ -228,7 +231,7 @@ public class RepairRunnable extends WrappedRunnable implements ProgressEventNoti
                 public void onSuccess(RepairSessionResult result)
                 {
                     String message = String.format("Repair session %s for range %s finished", session.getId(),
-                                                   session.getRange().toString());
+                                                   session.getRanges().toString());
                     logger.info(message);
                     fireProgressEvent(tag, new ProgressEvent(ProgressEventType.PROGRESS,
                                                              progress.incrementAndGet(),
@@ -239,7 +242,7 @@ public class RepairRunnable extends WrappedRunnable implements ProgressEventNoti
                 public void onFailure(Throwable t)
                 {
                     String message = String.format("Repair session %s for range %s failed with error %s",
-                                                   session.getId(), session.getRange().toString(), t.getMessage());
+                                                   session.getId(), session.getRanges().toString(), t.getMessage());
                     logger.error(message, t);
                     fireProgressEvent(tag, new ProgressEvent(ProgressEventType.PROGRESS,
                                                              progress.incrementAndGet(),
@@ -265,7 +268,7 @@ public class RepairRunnable extends WrappedRunnable implements ProgressEventNoti
                 {
                     if (sessionResult != null)
                     {
-                        successfulRanges.add(sessionResult.range);
+                        successfulRanges.addAll(sessionResult.ranges);
                     }
                     else
                     {
@@ -323,6 +326,24 @@ public class RepairRunnable extends WrappedRunnable implements ProgressEventNoti
                 executor.shutdownNow();
             }
         });
+    }
+
+    private void addRangeToNeighbors(List<Pair<Set<InetAddress>, ? extends Collection<Range<Token>>>> neighborRangeList, Range<Token> range, Set<InetAddress> neighbors)
+    {
+        for (int i = 0; i < neighborRangeList.size(); i++)
+        {
+            Pair<Set<InetAddress>, ? extends Collection<Range<Token>>> p = neighborRangeList.get(i);
+
+            if (p.left.containsAll(neighbors))
+            {
+                p.right.add(range);
+                return;
+            }
+        }
+
+        List<Range<Token>> ranges = new ArrayList<>();
+        ranges.add(range);
+        neighborRangeList.add(Pair.create(neighbors, ranges));
     }
 
     private Thread createQueryThread(final int cmd, final UUID sessionId)

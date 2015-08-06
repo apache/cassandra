@@ -30,14 +30,14 @@ public class RepairSessionResult
 {
     public final UUID sessionId;
     public final String keyspace;
-    public final Range<Token> range;
+    public final Collection<Range<Token>> ranges;
     public final Collection<RepairResult> repairJobResults;
 
-    public RepairSessionResult(UUID sessionId, String keyspace, Range<Token> range, Collection<RepairResult> repairJobResults)
+    public RepairSessionResult(UUID sessionId, String keyspace, Collection<Range<Token>> ranges, Collection<RepairResult> repairJobResults)
     {
         this.sessionId = sessionId;
         this.keyspace = keyspace;
-        this.range = range;
+        this.ranges = ranges;
         this.repairJobResults = repairJobResults;
     }
 }

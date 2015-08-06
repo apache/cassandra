@@ -18,13 +18,17 @@
 package org.apache.cassandra.repair;
 
 import java.net.InetAddress;
+import java.util.Map;
 
 import com.google.common.util.concurrent.AbstractFuture;
 
+import org.apache.cassandra.dht.Range;
+import org.apache.cassandra.dht.Token;
 import org.apache.cassandra.exceptions.RepairException;
 import org.apache.cassandra.net.MessagingService;
 import org.apache.cassandra.repair.messages.ValidationRequest;
 import org.apache.cassandra.utils.MerkleTree;
+import org.apache.cassandra.utils.MerkleTrees;
 
 /**
  * ValidationTask sends {@link ValidationRequest} to a replica.
@@ -53,19 +57,19 @@ public class ValidationTask extends AbstractFuture<TreeResponse> implements Runn
     }
 
     /**
-     * Receive MerkleTree from replica node.
+     * Receive MerkleTrees from replica node.
      *
-     * @param tree MerkleTree that is sent from replica. Null if validation failed on replica node.
+     * @param trees MerkleTrees that is sent from replica. Null if validation failed on replica node.
      */
-    public void treeReceived(MerkleTree tree)
+    public void treesReceived(MerkleTrees trees)
     {
-        if (tree == null)
+        if (trees == null)
         {
             setException(new RepairException(desc, "Validation failed in " + endpoint));
         }
         else
         {
-            set(new TreeResponse(endpoint, tree));
+            set(new TreeResponse(endpoint, trees));
         }
     }
 }
