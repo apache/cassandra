@@ -42,6 +42,7 @@ import org.apache.cassandra.db.commitlog.ReplayPosition;
 import org.apache.cassandra.db.compaction.CompactionHistoryTabularData;
 import org.apache.cassandra.db.marshal.*;
 import org.apache.cassandra.dht.IPartitioner;
+import org.apache.cassandra.dht.LocalPartitioner;
 import org.apache.cassandra.dht.Range;
 import org.apache.cassandra.dht.Token;
 import org.apache.cassandra.exceptions.ConfigurationException;
@@ -88,7 +89,7 @@ public final class SystemKeyspace
     public static final String NAME = "system";
 
     public static final String HINTS = "hints";
-    public static final String BATCHLOG = "batchlog";
+    public static final String BATCHES = "batches";
     public static final String PAXOS = "paxos";
     public static final String BUILT_INDEXES = "IndexInfo";
     public static final String LOCAL = "local";
@@ -102,6 +103,7 @@ public final class SystemKeyspace
     public static final String MATERIALIZED_VIEWS_BUILDS_IN_PROGRESS = "materialized_views_builds_in_progress";
     public static final String BUILT_MATERIALIZED_VIEWS = "built_materialized_views";
 
+    @Deprecated public static final String LEGACY_BATCHLOG = "batchlog";
     @Deprecated public static final String LEGACY_KEYSPACES = "schema_keyspaces";
     @Deprecated public static final String LEGACY_COLUMNFAMILIES = "schema_columnfamilies";
     @Deprecated public static final String LEGACY_COLUMNS = "schema_columns";
@@ -123,15 +125,15 @@ public final class SystemKeyspace
                 .compaction(CompactionParams.scts(singletonMap("enabled", "false")))
                 .gcGraceSeconds(0);
 
-    public static final CFMetaData Batchlog =
-        compile(BATCHLOG,
+    public static final CFMetaData Batches =
+        compile(BATCHES,
                 "batches awaiting replay",
                 "CREATE TABLE %s ("
-                + "id uuid,"
+                + "id timeuuid,"
                 + "data blob,"
                 + "version int,"
-                + "written_at timestamp,"
                 + "PRIMARY KEY ((id)))")
+                .copy(new LocalPartitioner(TimeUUIDType.instance))
                 .compaction(CompactionParams.scts(singletonMap("min_threshold", "2")))
                 .gcGraceSeconds(0);
 
@@ -280,6 +282,19 @@ public final class SystemKeyspace
                 + "PRIMARY KEY ((keyspace_name), view_name))");
 
     @Deprecated
+    public static final CFMetaData LegacyBatchlog =
+        compile(LEGACY_BATCHLOG,
+                "*DEPRECATED* batchlog entries",
+                "CREATE TABLE %s ("
+                + "id uuid,"
+                + "data blob,"
+                + "version int,"
+                + "written_at timestamp,"
+                + "PRIMARY KEY ((id)))")
+                .compaction(CompactionParams.scts(singletonMap("min_threshold", "2")))
+                .gcGraceSeconds(0);
+
+    @Deprecated
     public static final CFMetaData LegacyKeyspaces =
         compile(LEGACY_KEYSPACES,
                 "*DEPRECATED* keyspace definitions",
@@ -409,7 +424,7 @@ public final class SystemKeyspace
     {
         return Tables.of(BuiltIndexes,
                          Hints,
-                         Batchlog,
+                         Batches,
                          Paxos,
                          Local,
                          Peers,
@@ -421,6 +436,7 @@ public final class SystemKeyspace
                          AvailableRanges,
                          MaterializedViewsBuildsInProgress,
                          BuiltMaterializedViews,
+                         LegacyBatchlog,
                          LegacyKeyspaces,
                          LegacyColumnfamilies,
                          LegacyColumns,

@@ -66,8 +66,36 @@ public class LocalPartitioner implements IPartitioner
 
     public Token.TokenFactory getTokenFactory()
     {
-        throw new UnsupportedOperationException();
+        return tokenFactory;
     }
+
+    private final Token.TokenFactory tokenFactory = new Token.TokenFactory()
+    {
+        public ByteBuffer toByteArray(Token token)
+        {
+            return ((LocalToken)token).token;
+        }
+
+        public Token fromByteArray(ByteBuffer bytes)
+        {
+            return new LocalToken(bytes);
+        }
+
+        public String toString(Token token)
+        {
+            return comparator.getString(((LocalToken)token).token);
+        }
+
+        public void validate(String token)
+        {
+            comparator.validate(comparator.fromString(token));
+        }
+
+        public Token fromString(String string)
+        {
+            return new LocalToken(comparator.fromString(string));
+        }
+    };
 
     public boolean preservesOrder()
     {
