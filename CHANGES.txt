@@ -1,4 +1,5 @@
 2.1.9
+ * Release snapshot selfRef when doing snapshot repair (CASSANDRA-9998)
  * Cannot replace token does not exist - DN node removed as Fat Client (CASSANDRA-9871)
  * Fix handling of enable/disable autocompaction (CASSANDRA-9899)
  * Commit log segment recycling is disabled by default (CASSANDRA-9896)
