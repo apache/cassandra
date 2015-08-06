@@ -382,7 +382,6 @@ public class Util
         return new RangeTombstone(startName, endName, timestamp , localtime);
     }
 
-
     public static void spinAssertEquals(Object expected, Supplier<Object> s, int timeoutInSeconds)
     {
         long now = System.currentTimeMillis();
@@ -393,5 +392,10 @@ public class Util
             Thread.yield();
         }
         assertEquals(expected, s.get());
+    }
+
+    public static void joinThread(Thread thread) throws InterruptedException
+    {
+        thread.join(10000);
     }
 }
