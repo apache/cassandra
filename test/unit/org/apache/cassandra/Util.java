@@ -376,4 +376,9 @@ public class Util
         Composite endName = CellNames.simpleDense(ByteBufferUtil.bytes(finish));
         return new RangeTombstone(startName, endName, timestamp , localtime);
     }
+
+    public static void joinThread(Thread thread) throws InterruptedException
+    {
+        thread.join(10000);
+    }
 }
