@@ -5,6 +5,8 @@
  * UDF / UDA execution time in trace (CASSANDRA-9723)
  * Fix broken internode SSL (CASSANDRA-9884)
 Merged from 2.1:
+ * (cqlsh) Fix timestamps before 1970 on Windows, always
+   use UTC for timestamp display (CASSANDRA-10000)
  * (cqlsh) Avoid overwriting new config file with old config
    when both exist (CASSANDRA-9777)
  * Release snapshot selfRef when doing snapshot repair (CASSANDRA-9998)
