@@ -23,6 +23,8 @@ from collections import defaultdict
 from . import wcwidth
 from .displaying import colorme, FormattedValue, DEFAULT_VALUE_COLORS
 from cassandra.cqltypes import EMPTY
+from cassandra.util import datetime_from_timestamp
+from util import UTC
 
 unicode_controlchars_re = re.compile(r'[\x00-\x31\x7f-\xa0]')
 controlchars_re = re.compile(r'[\x00-\x31\x7f-\xff]')
@@ -175,21 +177,8 @@ def format_value_timestamp(val, colormap, time_format, quote=False, **_):
 formatter_for('datetime')(format_value_timestamp)
 
 def strftime(time_format, seconds):
-    local = time.localtime(seconds)
-    formatted = time.strftime(time_format, local)
-    if local.tm_isdst != 0:
-        offset = -time.altzone
-    else:
-        offset = -time.timezone
-    if formatted[-4:] != '0000' or time_format[-2:] != '%z' or offset == 0:
-        return formatted
-    # deal with %z on platforms where it isn't supported. see CASSANDRA-4746.
-    if offset < 0:
-        sign = '-'
-    else:
-        sign = '+'
-    hours, minutes = divmod(abs(offset) / 60, 60)
-    return formatted[:-5] + sign + '{0:0=2}{1:0=2}'.format(hours, minutes)
+    tzless_dt = datetime_from_timestamp(seconds)
+    return tzless_dt.replace(tzinfo=UTC()).strftime(time_format)
 
 @formatter_for('str')
 def format_value_text(val, encoding, colormap, quote=False, **_):
