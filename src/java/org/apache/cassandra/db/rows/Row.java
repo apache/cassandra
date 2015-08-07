@@ -465,7 +465,7 @@ public interface Row extends Unfiltered, Iterable<ColumnData>
                         cellReducer.setActiveDeletion(activeDeletion);
                     }
 
-                    Iterator<Cell> cells = MergeIterator.get(complexCells, ColumnData.comparator, cellReducer);
+                    Iterator<Cell> cells = MergeIterator.get(complexCells, Cell.comparator, cellReducer);
                     while (cells.hasNext())
                     {
                         Cell merged = cells.next();

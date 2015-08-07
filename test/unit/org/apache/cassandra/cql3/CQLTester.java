@@ -359,16 +359,9 @@ public abstract class CQLTester
 
     public void flush()
     {
-        try
-        {
-            ColumnFamilyStore store = getCurrentColumnFamilyStore();
-            if (store != null)
-                store.forceFlush().get();
-        }
-        catch (InterruptedException | ExecutionException e)
-        {
-            throw new RuntimeException(e);
-        }
+        ColumnFamilyStore store = getCurrentColumnFamilyStore();
+        if (store != null)
+            store.forceBlockingFlush();
     }
 
     public void compact()
