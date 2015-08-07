@@ -325,11 +325,17 @@ public abstract class AbstractThreadUnsafePartition implements Partition, Iterab
             // Note that because a Slice.Bound can never sort equally to a Clustering, we know none of the search will
             // be a match, so we save from testing for it.
 
-            final int start = -search(slice.start(), nextIdx, rows.size()) - 1; // First index to include
+            // since the binary search starts from nextIdx, the position returned will be an offset from nextIdx; to
+            // get an absolute position, add nextIdx back in
+            int searchResult = search(slice.start(), nextIdx, rows.size());
+            final int start = nextIdx + (-searchResult - 1); // First index to include
+
             if (start >= rows.size())
                 return Collections.emptyIterator();
 
-            final int end = -search(slice.end(), start, rows.size()) - 1; // First index to exclude
+            // similarly, add start to the returned position
+            searchResult = search(slice.end(), start, rows.size());
+            final int end = start + (-searchResult - 1); // First index to exclude
 
             // Remember the end to speed up potential further slice search
             nextIdx = end;
