@@ -11,6 +11,8 @@ Merged from 2.2:
  * Add checksum to saved cache files (CASSANDRA-9265)
  * Log warning when using an aggregate without partition key (CASSANDRA-9737)
 Merged from 2.1:
+ * (cqlsh) Avoid overwriting new config file with old config
+   when both exist (CASSANDRA-9777)
  * Release snapshot selfRef when doing snapshot repair (CASSANDRA-9998)
  * Cannot replace token does not exist - DN node removed as Fat Client (CASSANDRA-9871)
 Merged from 2.0:

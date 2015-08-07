@@ -199,7 +199,14 @@ if not os.path.exists(HISTORY_DIR):
 
 OLD_CONFIG_FILE = os.path.expanduser(os.path.join('~', '.cqlshrc'))
 if os.path.exists(OLD_CONFIG_FILE):
-    os.rename(OLD_CONFIG_FILE, CONFIG_FILE)
+    if os.path.exists(CONFIG_FILE):
+        print '\nWarning: cqlshrc config files were found at both the old location (%s) and \
+                the new location (%s), the old config file will not be migrated to the new \
+                location, and the new location will be used for now.  You should manually \
+                consolidate the config files at the new location and remove the old file.' \
+                % (OLD_CONFIG_FILE, CONFIG_FILE)
+    else:
+        os.rename(OLD_CONFIG_FILE, CONFIG_FILE)
 OLD_HISTORY = os.path.expanduser(os.path.join('~', '.cqlsh_history'))
 if os.path.exists(OLD_HISTORY):
     os.rename(OLD_HISTORY, HISTORY)
