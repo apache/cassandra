@@ -2364,8 +2364,9 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
                         logger.debug("using snapshot sstable {}", entries.getKey());
                     // open without tracking hotness
                     sstable = SSTableReader.open(entries.getKey(), entries.getValue(), metadata, partitioner, true, false);
-                    // This is technically not necessary since it's a snapshot but makes things easier
                     refs.tryRef(sstable);
+                    // release the self ref as we never add the snapshot sstable to DataTracker where it is otherwise released
+                    sstable.selfRef().release();
                 }
                 else if (logger.isDebugEnabled())
                 {
