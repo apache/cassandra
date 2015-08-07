@@ -2029,7 +2029,7 @@ public class CassandraServer implements Cassandra.Iface
         {
             String keyspace = cState.getKeyspace();
             cState.hasColumnFamilyAccess(keyspace, cfname, Permission.MODIFY);
-            CFMetaData metadata = ThriftValidation.validateColumnFamily(keyspace, cfname, true);
+            CFMetaData metadata = ThriftValidation.validateColumnFamily(keyspace, cfname, false);
             if (metadata.isMaterializedView())
                 throw new org.apache.cassandra.exceptions.InvalidRequestException("Cannot truncate Materialized Views");
 
