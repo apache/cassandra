@@ -232,7 +232,7 @@ public class ClusteringIndexNamesFilter extends AbstractClusteringIndexFilter
         return sb.toString();
     }
 
-    Kind kind()
+    public Kind kind()
     {
         return Kind.NAMES;
     }
@@ -254,7 +254,7 @@ public class ClusteringIndexNamesFilter extends AbstractClusteringIndexFilter
         return size;
     }
 
-    private static class NamesDeserializer extends InternalDeserializer
+    private static class NamesDeserializer implements InternalDeserializer
     {
         public ClusteringIndexFilter deserialize(DataInputPlus in, int version, CFMetaData metadata, boolean reversed) throws IOException
         {

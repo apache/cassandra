@@ -91,6 +91,12 @@ public class PartitionColumns implements Iterable<ColumnDefinition>
         return Iterators.concat(statics.selectOrderIterator(), regulars.selectOrderIterator());
     }
 
+    /** * Returns the total number of static and regular columns. */
+    public int size()
+    {
+        return regulars.columnCount() + statics.columnCount();
+    }
+
     @Override
     public String toString()
     {

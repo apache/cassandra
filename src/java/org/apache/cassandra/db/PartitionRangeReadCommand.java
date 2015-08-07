@@ -37,6 +37,8 @@ import org.apache.cassandra.io.util.DataInputPlus;
 import org.apache.cassandra.io.util.DataOutputPlus;
 import org.apache.cassandra.io.sstable.format.SSTableReader;
 import org.apache.cassandra.metrics.TableMetrics;
+import org.apache.cassandra.net.MessageOut;
+import org.apache.cassandra.net.MessagingService;
 import org.apache.cassandra.service.*;
 import org.apache.cassandra.service.pager.*;
 import org.apache.cassandra.thrift.ThriftResultsMerger;
@@ -224,6 +226,15 @@ public class PartitionRangeReadCommand extends ReadCommand
                 return iter;
             }
         };
+    }
+
+    @SuppressWarnings("deprecation")
+    protected MessageOut<ReadCommand> createLegacyMessage()
+    {
+        if (this.dataRange.isPaging())
+            return new MessageOut<>(MessagingService.Verb.PAGED_RANGE, this, legacyPagedRangeCommandSerializer);
+        else
+            return new MessageOut<>(MessagingService.Verb.RANGE_SLICE, this, legacyRangeSliceCommandSerializer);
     }
 
     protected void appendCQLWhereClause(StringBuilder sb)

@@ -24,11 +24,7 @@ import org.slf4j.LoggerFactory;
 
 import org.apache.cassandra.db.*;
 import org.apache.cassandra.db.rows.*;
-import org.apache.cassandra.db.partitions.*;
 import org.apache.cassandra.db.filter.*;
-import org.apache.cassandra.exceptions.RequestValidationException;
-import org.apache.cassandra.exceptions.RequestExecutionException;
-import org.apache.cassandra.service.ClientState;
 
 /**
  * Common interface to single partition queries (by slice and by name).
@@ -50,7 +46,9 @@ public class SinglePartitionPager extends AbstractQueryPager
 
         if (state != null)
         {
-            lastReturned = LegacyLayout.decodeClustering(command.metadata(), state.cellName);
+            lastReturned = state.cellName.hasRemaining()
+                         ? LegacyLayout.decodeClustering(command.metadata(), state.cellName)
+                         : null;
             restoreState(command.partitionKey(), state.remaining, state.remainingInPartition);
         }
     }

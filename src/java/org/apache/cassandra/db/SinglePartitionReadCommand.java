@@ -32,6 +32,8 @@ import org.apache.cassandra.exceptions.RequestExecutionException;
 import org.apache.cassandra.io.util.DataInputPlus;
 import org.apache.cassandra.io.util.DataOutputPlus;
 import org.apache.cassandra.metrics.TableMetrics;
+import org.apache.cassandra.net.MessageOut;
+import org.apache.cassandra.net.MessagingService;
 import org.apache.cassandra.service.*;
 import org.apache.cassandra.service.pager.*;
 import org.apache.cassandra.tracing.Tracing;
@@ -257,7 +259,7 @@ public abstract class SinglePartitionReadCommand<F extends ClusteringIndexFilter
     private UnfilteredRowIterator getThroughCache(ColumnFamilyStore cfs, OpOrder.Group readOp)
     {
         assert !cfs.isIndex(); // CASSANDRA-5732
-        assert cfs.isRowCacheEnabled() : String.format("Row cache is not enabled on table [" + cfs.name + "]");
+        assert cfs.isRowCacheEnabled() : String.format("Row cache is not enabled on table [%s]", cfs.name);
 
         UUID cfId = metadata().cfId;
         RowCacheKey key = new RowCacheKey(cfId, partitionKey());
@@ -393,6 +395,11 @@ public abstract class SinglePartitionReadCommand<F extends ClusteringIndexFilter
                              nowInSec());
     }
 
+    protected MessageOut<ReadCommand> createLegacyMessage()
+    {
+        return new MessageOut<>(MessagingService.Verb.READ, this, legacyReadCommandSerializer);
+    }
+
     protected void appendCQLWhereClause(StringBuilder sb)
     {
         sb.append(" WHERE ");
@@ -509,5 +516,5 @@ public abstract class SinglePartitionReadCommand<F extends ClusteringIndexFilter
             else
                 return new SinglePartitionSliceCommand(isDigest, isForThrift, metadata, nowInSec, columnFilter, rowFilter, limits, key, (ClusteringIndexSliceFilter)filter);
         }
-    };
+    }
 }

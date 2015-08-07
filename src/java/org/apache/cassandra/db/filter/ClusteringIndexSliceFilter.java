@@ -153,7 +153,7 @@ public class ClusteringIndexSliceFilter extends AbstractClusteringIndexFilter
         return sb.toString();
     }
 
-    Kind kind()
+    public Kind kind()
     {
         return Kind.SLICE;
     }
@@ -168,7 +168,7 @@ public class ClusteringIndexSliceFilter extends AbstractClusteringIndexFilter
         return Slices.serializer.serializedSize(slices, version);
     }
 
-    private static class SliceDeserializer extends InternalDeserializer
+    private static class SliceDeserializer implements InternalDeserializer
     {
         public ClusteringIndexFilter deserialize(DataInputPlus in, int version, CFMetaData metadata, boolean reversed) throws IOException
         {

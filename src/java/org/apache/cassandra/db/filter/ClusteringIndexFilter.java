@@ -39,6 +39,24 @@ public interface ClusteringIndexFilter
 {
     public static Serializer serializer = AbstractClusteringIndexFilter.serializer;
 
+    public enum Kind
+    {
+        SLICE (ClusteringIndexSliceFilter.deserializer),
+        NAMES (ClusteringIndexNamesFilter.deserializer);
+
+        protected final InternalDeserializer deserializer;
+
+        private Kind(InternalDeserializer deserializer)
+        {
+            this.deserializer = deserializer;
+        }
+    }
+
+    static interface InternalDeserializer
+    {
+        public ClusteringIndexFilter deserialize(DataInputPlus in, int version, CFMetaData metadata, boolean reversed) throws IOException;
+    }
+
     /**
      * Whether the filter query rows in reversed clustering order or not.
      *
@@ -139,6 +157,8 @@ public interface ClusteringIndexFilter
      * @return whether {@code sstable} should be included to answer this filter.
      */
     public boolean shouldInclude(SSTableReader sstable);
+
+    public Kind kind();
 
     public String toString(CFMetaData metadata);
     public String toCQLString(CFMetaData metadata);

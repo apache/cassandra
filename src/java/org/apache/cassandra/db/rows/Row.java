@@ -146,6 +146,18 @@ public interface Row extends Unfiltered, Iterable<ColumnData>
     public Iterable<Cell> cells();
 
     /**
+     * An iterable over the cells of this row that return cells in "legacy order".
+     * <p>
+     * In 3.0+, columns are sorted so that all simple columns are before all complex columns. Previously
+     * however, the cells where just sorted by the column name. This iterator return cells in that
+     * legacy order. It's only ever meaningful for backward/thrift compatibility code.
+     *
+     * @param metadata the table this is a row of.
+     * @return an iterable over the cells of this row in "legacy order".
+     */
+    public Iterable<Cell> cellsInLegacyOrder(CFMetaData metadata);
+
+    /**
      * Whether the row stores any (non-live) complex deletion for any complex column.
      */
     public boolean hasComplexDeletion();

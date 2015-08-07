@@ -189,7 +189,7 @@ public abstract class AbstractThreadUnsafePartition implements Partition, Iterab
         return sliceableUnfilteredIterator(ColumnFilter.all(metadata()), false);
     }
 
-    protected SliceableUnfilteredRowIterator sliceableUnfilteredIterator(ColumnFilter selection, boolean reversed)
+    public SliceableUnfilteredRowIterator sliceableUnfilteredIterator(ColumnFilter selection, boolean reversed)
     {
         return new SliceableIterator(this, selection, reversed);
     }

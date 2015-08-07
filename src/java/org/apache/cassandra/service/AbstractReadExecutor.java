@@ -99,7 +99,7 @@ public abstract class AbstractReadExecutor
                 traceState.trace("reading {} from {}", readCommand.isDigestQuery() ? "digest" : "data", endpoint);
             logger.trace("reading {} from {}", readCommand.isDigestQuery() ? "digest" : "data", endpoint);
             if (message == null)
-                message = readCommand.createMessage();
+                message = readCommand.createMessage(MessagingService.instance().getVersion(endpoint));
             MessagingService.instance().sendRRWithFailure(message, endpoint, handler);
         }
 
@@ -277,7 +277,8 @@ public abstract class AbstractReadExecutor
                 if (traceState != null)
                     traceState.trace("speculating read retry on {}", extraReplica);
                 logger.trace("speculating read retry on {}", extraReplica);
-                MessagingService.instance().sendRRWithFailure(retryCommand.createMessage(), extraReplica, handler);
+                int version = MessagingService.instance().getVersion(extraReplica);
+                MessagingService.instance().sendRRWithFailure(retryCommand.createMessage(version), extraReplica, handler);
                 speculated = true;
 
                 cfs.metric.speculativeRetries.inc();
