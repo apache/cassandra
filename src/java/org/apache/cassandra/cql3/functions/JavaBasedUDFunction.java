@@ -44,9 +44,7 @@ import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
 import java.util.StringTokenizer;
-import java.util.concurrent.ConcurrentHashMap;
-import java.util.concurrent.ExecutorService;
-import java.util.concurrent.ThreadLocalRandom;
+import java.util.concurrent.*;
 import java.util.concurrent.atomic.AtomicInteger;
 
 import com.google.common.io.ByteStreams;
@@ -55,9 +53,8 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import com.datastax.driver.core.DataType;
-import org.apache.cassandra.concurrent.JMXEnabledScheduledThreadPoolExecutor;
+import org.apache.cassandra.concurrent.JMXEnabledThreadPoolExecutor;
 import org.apache.cassandra.concurrent.NamedThreadFactory;
-import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.cql3.ColumnIdentifier;
 import org.apache.cassandra.db.marshal.AbstractType;
 import org.apache.cassandra.exceptions.InvalidRequestException;
@@ -81,14 +78,12 @@ final class JavaBasedUDFunction extends UDFunction
 
     private static final AtomicInteger classSequence = new AtomicInteger();
 
-    private static final JMXEnabledScheduledThreadPoolExecutor executor =
-    new JMXEnabledScheduledThreadPoolExecutor(
-                                             DatabaseDescriptor.getMaxHintsThread(),
-                                             new NamedThreadFactory("UserDefinedFunctions",
-                                                                    Thread.MIN_PRIORITY,
-                                                                    udfClassLoader,
-                                                                    new SecurityThreadGroup("UserDefinedFunctions", null)),
-                                             "userfunction");
+    private static final JMXEnabledThreadPoolExecutor executor =
+    new JMXEnabledThreadPoolExecutor(new NamedThreadFactory("UserDefinedFunctions",
+                                                            Thread.MIN_PRIORITY,
+                                                            udfClassLoader,
+                                                            new SecurityThreadGroup("UserDefinedFunctions", null)),
+                                     "userfunction");
 
     private static final EcjTargetClassLoader targetClassLoader = new EcjTargetClassLoader();
 
