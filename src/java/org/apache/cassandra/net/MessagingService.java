@@ -900,7 +900,7 @@ public final class MessagingService implements MessagingServiceMBean
     {
         List<String> logs = getDroppedMessagesLogs();
         for (String log : logs)
-            logger.error(log);
+            logger.info(log);
 
         if (logs.size() > 0)
             StatusLogger.log();
