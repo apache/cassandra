@@ -17,11 +17,16 @@
  */
 package org.apache.cassandra.cql3.validation.entities;
 
+import java.util.Map;
+import java.util.Random;
+import java.util.Set;
 import java.util.UUID;
 
 import org.junit.Test;
 
 import org.apache.cassandra.cql3.CQLTester;
+
+import static org.junit.Assert.assertEquals;
 
 public class CollectionsTest extends CQLTester
 {
@@ -593,5 +598,73 @@ public class CollectionsTest extends CQLTester
         flush();
         execute("alter table %s drop v");
         execute("alter table %s add v set<int>");
+    }
+
+    @Test
+    public void testMapWithLargePartition() throws Throwable
+    {
+        Random r = new Random();
+        long seed = System.nanoTime();
+        System.out.println("Seed " + seed);
+        r.setSeed(seed);
+
+        int len = (1024 * 1024)/100;
+        createTable("CREATE TABLE %s (userid text PRIMARY KEY, properties map<int, text>) with compression = {}");
+
+        final int numKeys = 200;
+        for (int i = 0; i < numKeys; i++)
+        {
+            byte[] b = new byte[len];
+            r.nextBytes(b);
+            execute("UPDATE %s SET properties[?] = ? WHERE userid = 'user'", i, new String(b));
+        }
+
+        flush();
+
+        Object[][] rows = getRows(execute("SELECT properties from %s where userid = 'user'"));
+        assertEquals(1, rows.length);
+        assertEquals(numKeys, ((Map) rows[0][0]).size());
+    }
+
+    @Test
+    public void testMapWithTwoSStables() throws Throwable
+    {
+        createTable("CREATE TABLE %s (userid text PRIMARY KEY, properties map<int, text>) with compression = {}");
+
+        final int numKeys = 100;
+        for (int i = 0; i < numKeys; i++)
+            execute("UPDATE %s SET properties[?] = ? WHERE userid = 'user'", i, "prop_" + Integer.toString(i));
+
+        flush();
+
+        for (int i = numKeys; i < 2*numKeys; i++)
+            execute("UPDATE %s SET properties[?] = ? WHERE userid = 'user'", i, "prop_" + Integer.toString(i));
+
+        flush();
+
+        Object[][] rows = getRows(execute("SELECT properties from %s where userid = 'user'"));
+        assertEquals(1, rows.length);
+        assertEquals(numKeys * 2, ((Map) rows[0][0]).size());
+    }
+
+    @Test
+    public void testSetWithTwoSStables() throws Throwable
+    {
+        createTable("CREATE TABLE %s (userid text PRIMARY KEY, properties set<text>) with compression = {}");
+
+        final int numKeys = 100;
+        for (int i = 0; i < numKeys; i++)
+            execute("UPDATE %s SET properties = properties + ? WHERE userid = 'user'", set("prop_" + Integer.toString(i)));
+
+        flush();
+
+        for (int i = numKeys; i < 2*numKeys; i++)
+            execute("UPDATE %s SET properties = properties + ? WHERE userid = 'user'", set("prop_" + Integer.toString(i)));
+
+        flush();
+
+        Object[][] rows = getRows(execute("SELECT properties from %s where userid = 'user'"));
+        assertEquals(1, rows.length);
+        assertEquals(numKeys * 2, ((Set) rows[0][0]).size());
     }
 }

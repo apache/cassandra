@@ -41,7 +41,7 @@ public abstract class Cell extends ColumnData
     public static final int NO_TTL = 0;
     public static final int NO_DELETION_TIME = Integer.MAX_VALUE;
 
-    public final Comparator<Cell> comparator = (c1, c2) ->
+    public final static Comparator<Cell> comparator = (c1, c2) ->
     {
         int cmp = c1.column().compareTo(c2.column());
         if (cmp != 0)
