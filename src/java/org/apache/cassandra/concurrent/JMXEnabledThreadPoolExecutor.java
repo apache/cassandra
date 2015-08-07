@@ -53,6 +53,11 @@ public class JMXEnabledThreadPoolExecutor extends DebuggableThreadPoolExecutor i
         this(1, Integer.MAX_VALUE, TimeUnit.SECONDS, new LinkedBlockingQueue<Runnable>(), new NamedThreadFactory(threadPoolName, priority), "internal");
     }
 
+    public JMXEnabledThreadPoolExecutor(NamedThreadFactory threadFactory, String jmxPath)
+    {
+        this(1, Integer.MAX_VALUE, TimeUnit.SECONDS, new LinkedBlockingQueue<Runnable>(), threadFactory, jmxPath);
+    }
+
     public JMXEnabledThreadPoolExecutor(int corePoolSize,
             long keepAliveTime,
             TimeUnit unit,

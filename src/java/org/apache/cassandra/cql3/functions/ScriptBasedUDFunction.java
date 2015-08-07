@@ -48,9 +48,8 @@ import javax.script.ScriptEngineManager;
 import javax.script.ScriptException;
 import javax.script.SimpleScriptContext;
 
-import org.apache.cassandra.concurrent.JMXEnabledScheduledThreadPoolExecutor;
+import org.apache.cassandra.concurrent.JMXEnabledThreadPoolExecutor;
 import org.apache.cassandra.concurrent.NamedThreadFactory;
-import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.cql3.ColumnIdentifier;
 import org.apache.cassandra.db.marshal.AbstractType;
 import org.apache.cassandra.exceptions.InvalidRequestException;
@@ -101,14 +100,12 @@ final class ScriptBasedUDFunction extends UDFunction
     "com.datastax.driver.core.utils"
     };
 
-    private static final JMXEnabledScheduledThreadPoolExecutor executor =
-    new JMXEnabledScheduledThreadPoolExecutor(
-                                             DatabaseDescriptor.getMaxHintsThread(),
-                                             new NamedThreadFactory("UserDefinedScriptFunctions",
-                                                                    Thread.MIN_PRIORITY,
-                                                                    udfClassLoader,
-                                                                    new SecurityThreadGroup("UserDefinedScriptFunctions", Collections.unmodifiableSet(new HashSet<>(Arrays.asList(allowedPackagesArray))))),
-                                             "userscripts");
+    private static final JMXEnabledThreadPoolExecutor executor =
+    new JMXEnabledThreadPoolExecutor(new NamedThreadFactory("UserDefinedScriptFunctions",
+                                                            Thread.MIN_PRIORITY,
+                                                            udfClassLoader,
+                                                            new SecurityThreadGroup("UserDefinedScriptFunctions", Collections.unmodifiableSet(new HashSet<>(Arrays.asList(allowedPackagesArray))))),
+                                     "userscripts");
 
     static
     {
