@@ -16,6 +16,21 @@
 
 import codecs
 from itertools import izip
+from datetime import timedelta, tzinfo
+
+ZERO = timedelta(0)
+
+class UTC(tzinfo):
+    """UTC"""
+
+    def utcoffset(self, dt):
+        return ZERO
+
+    def tzname(self, dt):
+        return "UTC"
+
+    def dst(self, dt):
+        return ZERO
 
 
 def split_list(items, pred):

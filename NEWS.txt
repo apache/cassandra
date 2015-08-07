@@ -101,6 +101,30 @@ New features
      to convert from date into timestamp type and bigint raw value.
 
 
+2.1.9
+=====
+
+Upgrading
+---------
+    - cqlsh will now display timestamps with a UTC timezone. Previously,
+      timestamps were displayed with the local timezone.
+    - Commit log files are no longer recycled by default, due to negative
+      performance implications. This can be enabled again with the 
+      commitlog_segment_recycling option in your cassandra.yaml 
+
+
+2.1.8
+=====
+
+Upgrading
+---------
+    - Nothing specific to this release, but please see 2.1 if you are upgrading
+      from a previous version.
+
+
+2.1.7
+=====
+
 Upgrading
 ---------
    - Thrift rpc is no longer being started by default.
