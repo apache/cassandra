@@ -15,6 +15,7 @@
  * Ensure atomicity inside thrift and stream session (CASSANDRA-7757)
  * Fix nodetool info error when the node is not joined (CASSANDRA-9031)
 Merged from 2.0:
+ * Remove erroneous pending HH tasks from tpstats/jmx (CASSANDRA-9129)
  * Don't cast expected bf size to an int (CASSANDRA-9959)
  * Log when messages are dropped due to cross_node_timeout (CASSANDRA-9793)
  * checkForEndpointCollision fails for legitimate collisions (CASSANDRA-9765)
