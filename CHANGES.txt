@@ -5,6 +5,8 @@
  * UDF / UDA execution time in trace (CASSANDRA-9723)
  * Fix broken internode SSL (CASSANDRA-9884)
 Merged from 2.1:
+ * (cqlsh) Avoid overwriting new config file with old config
+   when both exist (CASSANDRA-9777)
  * Release snapshot selfRef when doing snapshot repair (CASSANDRA-9998)
  * Cannot replace token does not exist - DN node removed as Fat Client (CASSANDRA-9871)
  * Fix handling of enable/disable autocompaction (CASSANDRA-9899)
