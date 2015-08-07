@@ -26,6 +26,7 @@ import java.util.Collections;
 import java.util.Set;
 import java.util.concurrent.ExecutionException;
 
+import com.google.common.collect.Multimap;
 import com.google.common.collect.Sets;
 import org.junit.Test;
 import org.junit.runner.RunWith;
@@ -41,6 +42,7 @@ import org.apache.cassandra.db.RowMutation;
 import org.apache.cassandra.db.columniterator.OnDiskAtomIterator;
 import org.apache.cassandra.io.sstable.SSTableReader;
 import org.apache.cassandra.io.sstable.SSTableScanner;
+import org.apache.cassandra.tools.SSTableExpiredBlockers;
 import org.apache.cassandra.utils.ByteBufferUtil;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertTrue;
@@ -195,6 +197,33 @@ public class TTLExpiryTest extends SchemaLoader
         assertEquals(2, expired.size());
 
         cfs.clearUnsafe();
+    }
+
+    @Test
+    public void testCheckForExpiredSSTableBlockers() throws InterruptedException
+    {
+        String KEYSPACE1 = "Keyspace1";
+        ColumnFamilyStore cfs = Keyspace.open("Keyspace1").getColumnFamilyStore("Standard1");
+        cfs.truncateBlocking();
+        cfs.disableAutoCompaction();
+        cfs.metadata.gcGraceSeconds(0);
+
+        RowMutation rm = new RowMutation(KEYSPACE1, Util.dk("test").key);
+        rm.add("Standard1", ByteBufferUtil.bytes("col1"), ByteBufferUtil.EMPTY_BYTE_BUFFER, System.currentTimeMillis());
+        rm.applyUnsafe();
+        cfs.forceBlockingFlush();
+        SSTableReader blockingSSTable = cfs.getSSTables().iterator().next();
+        for (int i = 0; i < 10; i++)
+        {
+            rm = new RowMutation(KEYSPACE1, Util.dk("test").key);
+            rm.delete("Standard1", System.currentTimeMillis());
+            rm.applyUnsafe();
+            cfs.forceBlockingFlush();
+        }
+        Multimap<SSTableReader, SSTableReader> blockers = SSTableExpiredBlockers.checkForExpiredSSTableBlockers(cfs.getSSTables(), (int) (System.currentTimeMillis() / 1000) + 100);
+        assertEquals(1, blockers.keySet().size());
+        assertTrue(blockers.keySet().contains(blockingSSTable));
+        assertEquals(10, blockers.get(blockingSSTable).size());
     }
 
 }
