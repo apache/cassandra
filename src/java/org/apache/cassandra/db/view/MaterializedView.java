@@ -216,9 +216,14 @@ public class MaterializedView
         if (!partition.deletionInfo().isLive())
             return true;
 
-        // Check whether the update touches any of the columns included in the view
+        // Check each row for deletion or update
         for (Row row : partition)
         {
+            if (row.hasComplexDeletion())
+                return true;
+            if (!row.deletion().isLive())
+                return true;
+
             for (ColumnData data : row)
             {
                 if (getViewCfs().metadata.getColumnDefinition(data.column().name) != null)

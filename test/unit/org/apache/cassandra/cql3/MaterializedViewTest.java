@@ -90,6 +90,49 @@ public class MaterializedViewTest extends CQLTester
         }
     }
 
+    @Test
+    public void testPartitionTombstone() throws Throwable
+    {
+        createTable("CREATE TABLE %s (k1 int, c1 int , val int, PRIMARY KEY (k1))");
+
+        execute("USE " + keyspace());
+        executeNet(protocolVersion, "USE " + keyspace());
+
+        createView("view1", "CREATE MATERIALIZED VIEW view1 AS SELECT k1 FROM %%s WHERE k1 IS NOT NULL AND c1 IS NOT NULL AND val IS NOT NULL PRIMARY KEY (val, k1, c1)");
+
+        updateMV("INSERT INTO %s (k1, c1, val) VALUES (1, 2, 200)");
+        updateMV("INSERT INTO %s (k1, c1, val) VALUES (1, 3, 300)");
+
+        Assert.assertEquals(1, execute("select * from %s").size());
+        Assert.assertEquals(1, execute("select * from view1").size());
+
+        updateMV("DELETE FROM %s WHERE k1 = 1");
+
+        Assert.assertEquals(0, execute("select * from %s").size());
+        Assert.assertEquals(0, execute("select * from view1").size());
+    }
+
+    @Test
+    public void testClusteringKeyTombstone() throws Throwable
+    {
+        createTable("CREATE TABLE %s (k1 int, c1 int , val int, PRIMARY KEY (k1, c1))");
+
+        execute("USE " + keyspace());
+        executeNet(protocolVersion, "USE " + keyspace());
+
+        createView("view1", "CREATE MATERIALIZED VIEW view1 AS SELECT k1 FROM %%s WHERE k1 IS NOT NULL AND c1 IS NOT NULL AND val IS NOT NULL PRIMARY KEY (val, k1, c1)");
+
+        updateMV("INSERT INTO %s (k1, c1, val) VALUES (1, 2, 200)");
+        updateMV("INSERT INTO %s (k1, c1, val) VALUES (1, 3, 300)");
+
+        Assert.assertEquals(2, execute("select * from %s").size());
+        Assert.assertEquals(2, execute("select * from view1").size());
+
+        updateMV("DELETE FROM %s WHERE k1 = 1 and c1 = 3");
+
+        Assert.assertEquals(1, execute("select * from %s").size());
+        Assert.assertEquals(1, execute("select * from view1").size());
+    }
 
     @Test
     public void testAccessAndSchema() throws Throwable
