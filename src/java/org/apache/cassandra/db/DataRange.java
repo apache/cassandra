@@ -149,6 +149,16 @@ public class DataRange
     }
 
     /**
+     * Whether the data range is for a paged request or not.
+     *
+     * @return true if for paging, false otherwise
+     */
+    public boolean isPaging()
+    {
+        return false;
+    }
+
+    /**
      * Whether the range queried by this {@code DataRange} actually wraps around.
      *
      * @return whether the range queried by this {@code DataRange} actually wraps around.
@@ -307,7 +317,7 @@ public class DataRange
      * first queried partition (the one for that last result) so it only fetch results that follow that
      * last result. In other words, this makes sure this resume paging where we left off.
      */
-    private static class Paging extends DataRange
+    public static class Paging extends DataRange
     {
         private final ClusteringComparator comparator;
         private final Clustering lastReturned;
@@ -349,6 +359,20 @@ public class DataRange
                  : new DataRange(range, clusteringIndexFilter);
         }
 
+        /**
+         * @return the last Clustering that was returned (in the previous page)
+         */
+        public Clustering getLastReturned()
+        {
+            return lastReturned;
+        }
+
+        @Override
+        public boolean isPaging()
+        {
+            return true;
+        }
+
         @Override
         public boolean isUnrestricted()
         {
@@ -358,7 +382,7 @@ public class DataRange
         @Override
         public String toString(CFMetaData metadata)
         {
-            return String.format("range=%s pfilter=%s lastReturned=%s (%s)",
+            return String.format("range=%s (paging) pfilter=%s lastReturned=%s (%s)",
                                  keyRange.getString(metadata.getKeyValidator()),
                                  clusteringIndexFilter.toString(metadata),
                                  lastReturned.toString(metadata),

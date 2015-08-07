@@ -57,9 +57,15 @@ public class Clustering extends AbstractClusteringPrefix
         }
 
         @Override
-        public String toString(CFMetaData metadata)
+        public String toString()
         {
             return "STATIC";
+        }
+
+        @Override
+        public String toString(CFMetaData metadata)
+        {
+            return toString();
         }
     };
 

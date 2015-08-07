@@ -47,7 +47,9 @@ public class RangeSliceQueryPager extends AbstractQueryPager
         if (state != null)
         {
             lastReturnedKey = command.metadata().decorateKey(state.partitionKey);
-            lastReturnedClustering = LegacyLayout.decodeClustering(command.metadata(), state.cellName);
+            lastReturnedClustering = state.cellName.hasRemaining()
+                                   ? LegacyLayout.decodeClustering(command.metadata(), state.cellName)
+                                   : null;
             restoreState(lastReturnedKey, state.remaining, state.remainingInPartition);
         }
     }

@@ -19,15 +19,12 @@ package org.apache.cassandra.db;
 
 import java.io.IOException;
 import java.nio.ByteBuffer;
-import java.security.MessageDigest;
 import java.util.*;
 
 import org.apache.cassandra.config.CFMetaData;
 import org.apache.cassandra.db.marshal.AbstractType;
 import org.apache.cassandra.io.util.DataInputPlus;
 import org.apache.cassandra.io.util.DataOutputPlus;
-import org.apache.cassandra.utils.FBUtilities;
-import org.apache.cassandra.utils.ObjectSizes;
 
 /**
  * A slice represents the selection of a range of rows.
@@ -83,11 +80,10 @@ public class Slice
     public static Slice make(ClusteringComparator comparator, Object... values)
     {
         CBuilder builder = CBuilder.create(comparator);
-        for (int i = 0; i < values.length; i++)
+        for (Object val : values)
         {
-            Object val = values[i];
             if (val instanceof ByteBuffer)
-                builder.add((ByteBuffer)val);
+                builder.add((ByteBuffer) val);
             else
                 builder.add(val);
         }
@@ -208,6 +204,9 @@ public class Slice
      */
     public Slice forPaging(ClusteringComparator comparator, Clustering lastReturned, boolean inclusive, boolean reversed)
     {
+        if (lastReturned == null)
+            return this;
+
         if (reversed)
         {
             int cmp = comparator.compare(lastReturned, start);
@@ -286,14 +285,14 @@ public class Slice
         for (int i = 0; i < start.size(); i++)
         {
             if (i > 0)
-                sb.append(":");
+                sb.append(':');
             sb.append(comparator.subtype(i).getString(start.get(i)));
         }
         sb.append(", ");
         for (int i = 0; i < end.size(); i++)
         {
             if (i > 0)
-                sb.append(":");
+                sb.append(':');
             sb.append(comparator.subtype(i).getString(end.get(i)));
         }
         sb.append(end.isInclusive() ? "]" : ")");
@@ -394,14 +393,37 @@ public class Slice
             return create(Kind.EXCL_END_BOUND, values);
         }
 
+        public static Bound inclusiveStartOf(ClusteringPrefix prefix)
+        {
+            ByteBuffer[] values = new ByteBuffer[prefix.size()];
+            for (int i = 0; i < prefix.size(); i++)
+                values[i] = prefix.get(i);
+            return inclusiveStartOf(values);
+        }
+
+        public static Bound exclusiveStartOf(ClusteringPrefix prefix)
+        {
+            ByteBuffer[] values = new ByteBuffer[prefix.size()];
+            for (int i = 0; i < prefix.size(); i++)
+                values[i] = prefix.get(i);
+            return exclusiveStartOf(values);
+        }
+
+        public static Bound inclusiveEndOf(ClusteringPrefix prefix)
+        {
+            ByteBuffer[] values = new ByteBuffer[prefix.size()];
+            for (int i = 0; i < prefix.size(); i++)
+                values[i] = prefix.get(i);
+            return inclusiveEndOf(values);
+        }
+
         public static Bound create(ClusteringComparator comparator, boolean isStart, boolean isInclusive, Object... values)
         {
             CBuilder builder = CBuilder.create(comparator);
-            for (int i = 0; i < values.length; i++)
+            for (Object val : values)
             {
-                Object val = values[i];
                 if (val instanceof ByteBuffer)
-                    builder.add((ByteBuffer)val);
+                    builder.add((ByteBuffer) val);
                 else
                     builder.add(val);
             }
@@ -483,14 +505,14 @@ public class Slice
         public String toString(ClusteringComparator comparator)
         {
             StringBuilder sb = new StringBuilder();
-            sb.append(kind()).append("(");
+            sb.append(kind()).append('(');
             for (int i = 0; i < size(); i++)
             {
                 if (i > 0)
                     sb.append(", ");
                 sb.append(comparator.subtype(i).getString(get(i)));
             }
-            return sb.append(")").toString();
+            return sb.append(')').toString();
         }
 
         /**
