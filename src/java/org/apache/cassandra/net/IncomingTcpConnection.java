@@ -21,6 +21,8 @@ import java.io.*;
 import java.net.InetAddress;
 import java.net.Socket;
 import java.net.SocketException;
+import java.nio.channels.Channels;
+import java.nio.channels.ReadableByteChannel;
 import java.util.zip.Checksum;
 import java.util.Set;
 
@@ -163,7 +165,8 @@ public class IncomingTcpConnection extends Thread implements Closeable
         }
         else
         {
-            in = new NIODataInputStream(socket.getChannel(), BUFFER_SIZE);
+            ReadableByteChannel channel = socket.getChannel();
+            in = new NIODataInputStream(channel != null ? channel : Channels.newChannel(socket.getInputStream()), BUFFER_SIZE);
         }
 
         while (true)
