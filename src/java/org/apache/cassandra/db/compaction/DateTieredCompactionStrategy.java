@@ -71,7 +71,7 @@ public class DateTieredCompactionStrategy extends AbstractCompactionStrategy
 
             LifecycleTransaction modifier = cfs.getTracker().tryModify(latestBucket, OperationType.COMPACTION);
             if (modifier != null)
-                return new CompactionTask(cfs, modifier, gcBefore, false);
+                return new CompactionTask(cfs, modifier, gcBefore);
         }
     }
 
@@ -372,7 +372,7 @@ public class DateTieredCompactionStrategy extends AbstractCompactionStrategy
         if (modifier == null)
             return null;
 
-        return Arrays.<AbstractCompactionTask>asList(new CompactionTask(cfs, modifier, gcBefore, false));
+        return Arrays.<AbstractCompactionTask>asList(new CompactionTask(cfs, modifier, gcBefore));
     }
 
     @Override
@@ -388,7 +388,7 @@ public class DateTieredCompactionStrategy extends AbstractCompactionStrategy
             return null;
         }
 
-        return new CompactionTask(cfs, modifier, gcBefore, false).setUserDefined(true);
+        return new CompactionTask(cfs, modifier, gcBefore).setUserDefined(true);
     }
 
     public int getEstimatedRemainingTasks()

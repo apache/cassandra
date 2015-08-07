@@ -47,10 +47,23 @@ public class MajorLeveledCompactionWriter extends CompactionAwareWriter
     private int sstablesWritten = 0;
     private final boolean skipAncestors;
 
-    @SuppressWarnings("resource")
-    public MajorLeveledCompactionWriter(ColumnFamilyStore cfs, LifecycleTransaction txn, Set<SSTableReader> nonExpiredSSTables, long maxSSTableSize, boolean offline)
+    public MajorLeveledCompactionWriter(ColumnFamilyStore cfs,
+                                        LifecycleTransaction txn,
+                                        Set<SSTableReader> nonExpiredSSTables,
+                                        long maxSSTableSize)
     {
-        super(cfs, txn, nonExpiredSSTables, offline);
+        this(cfs, txn, nonExpiredSSTables, maxSSTableSize, false, false);
+    }
+
+    @SuppressWarnings("resource")
+    public MajorLeveledCompactionWriter(ColumnFamilyStore cfs,
+                                        LifecycleTransaction txn,
+                                        Set<SSTableReader> nonExpiredSSTables,
+                                        long maxSSTableSize,
+                                        boolean offline,
+                                        boolean keepOriginals)
+    {
+        super(cfs, txn, nonExpiredSSTables, offline, keepOriginals);
         this.maxSSTableSize = maxSSTableSize;
         this.allSSTables = txn.originals();
         expectedWriteSize = Math.min(maxSSTableSize, cfs.getExpectedCompactedFileSize(nonExpiredSSTables, txn.opType()));

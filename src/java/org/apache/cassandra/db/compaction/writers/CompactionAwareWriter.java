@@ -48,8 +48,16 @@ public abstract class CompactionAwareWriter extends Transactional.AbstractTransa
 
     public CompactionAwareWriter(ColumnFamilyStore cfs,
                                  LifecycleTransaction txn,
+                                 Set<SSTableReader> nonExpiredSSTables)
+    {
+        this(cfs, txn, nonExpiredSSTables, false, false);
+    }
+
+    public CompactionAwareWriter(ColumnFamilyStore cfs,
+                                 LifecycleTransaction txn,
                                  Set<SSTableReader> nonExpiredSSTables,
-                                 boolean offline)
+                                 boolean offline,
+                                 boolean keepOriginals)
     {
         this.cfs = cfs;
         this.nonExpiredSSTables = nonExpiredSSTables;
@@ -57,7 +65,7 @@ public abstract class CompactionAwareWriter extends Transactional.AbstractTransa
         this.maxAge = CompactionTask.getMaxDataAge(nonExpiredSSTables);
         this.minRepairedAt = CompactionTask.getMinRepairedAt(nonExpiredSSTables);
         this.txn = txn;
-        this.sstableWriter = new SSTableRewriter(cfs, txn, maxAge, offline).keepOriginals(offline);
+        this.sstableWriter = new SSTableRewriter(cfs, txn, maxAge, offline).keepOriginals(keepOriginals);
     }
 
     /**

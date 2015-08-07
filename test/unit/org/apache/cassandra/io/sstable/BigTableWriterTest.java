@@ -62,17 +62,17 @@ public class BigTableWriterTest extends AbstractTransactionalTest
         final Descriptor descriptor;
         final SSTableTxnWriter writer;
 
-        private TestableBTW() throws IOException
+        private TestableBTW()
         {
             this(cfs.getSSTablePath(cfs.directories.getDirectoryForNewSSTables()));
         }
 
-        private TestableBTW(String file) throws IOException
+        private TestableBTW(String file)
         {
             this(file, SSTableTxnWriter.create(file, 0, 0, new SerializationHeader(cfs.metadata, cfs.metadata.partitionColumns(), EncodingStats.NO_STATS)));
         }
 
-        private TestableBTW(String file, SSTableTxnWriter sw) throws IOException
+        private TestableBTW(String file, SSTableTxnWriter sw)
         {
             super(sw);
             this.file = new File(file);
@@ -111,11 +111,18 @@ public class BigTableWriterTest extends AbstractTransactionalTest
             assertPrepared();
         }
 
+        @Override
+        protected boolean commitCanThrow()
+        {
+            return true;
+        }
+
         private void assertExists(Component ... components)
         {
             for (Component component : components)
                 Assert.assertTrue(new File(descriptor.filenameFor(component)).exists());
         }
+
         private void assertNotExists(Component ... components)
         {
             for (Component component : components)

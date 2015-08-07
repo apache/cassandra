@@ -60,9 +60,6 @@ public class Scrubber implements Closeable
 
     private final boolean isOffline;
 
-    private SSTableReader newSstable;
-    private SSTableReader newInOrderSstable;
-
     private int goodRows;
     private int badRows;
     private int emptyRows;
@@ -152,9 +149,10 @@ public class Scrubber implements Closeable
 
     public void scrub()
     {
+        List<SSTableReader> finished = new ArrayList<>();
+        boolean completed = false;
         outputHandler.output(String.format("Scrubbing %s (%s bytes)", sstable, dataFile.length()));
-        int nowInSec = FBUtilities.nowInSeconds();
-        try (SSTableRewriter writer = new SSTableRewriter(cfs, transaction, sstable.maxDataAge, isOffline).keepOriginals(isOffline))
+        try (SSTableRewriter writer = new SSTableRewriter(cfs, transaction, sstable.maxDataAge, isOffline))
         {
             nextIndexKey = indexAvailable() ? ByteBufferUtil.readWithShortLength(indexFile) : null;
             if (indexAvailable())
@@ -296,6 +294,7 @@ public class Scrubber implements Closeable
             {
                 // out of order rows, but no bad rows found - we can keep our repairedAt time
                 long repairedAt = badRows > 0 ? ActiveRepairService.UNREPAIRED_SSTABLE : sstable.getSSTableMetadata().repairedAt;
+                SSTableReader newInOrderSstable;
                 try (SSTableWriter inOrderWriter = CompactionManager.createWriter(cfs, destination, expectedBloomFilterSize, repairedAt, sstable, transaction))
                 {
                     for (Partition partition : outOfOrder)
@@ -303,20 +302,25 @@ public class Scrubber implements Closeable
                     newInOrderSstable = inOrderWriter.finish(-1, sstable.maxDataAge, true);
                 }
                 transaction.update(newInOrderSstable, false);
+                finished.add(newInOrderSstable);
                 outputHandler.warn(String.format("%d out of order rows found while scrubbing %s; Those have been written (in order) to a new sstable (%s)", outOfOrder.size(), sstable, newInOrderSstable));
             }
 
             // finish obsoletes the old sstable
-            List<SSTableReader> finished = writer.setRepairedAt(badRows > 0 ? ActiveRepairService.UNREPAIRED_SSTABLE : sstable.getSSTableMetadata().repairedAt).finish();
-            if (!finished.isEmpty())
-                newSstable = finished.get(0);
+            finished.addAll(writer.setRepairedAt(badRows > 0 ? ActiveRepairService.UNREPAIRED_SSTABLE : sstable.getSSTableMetadata().repairedAt).finish());
+            completed = true;
         }
         catch (IOException e)
         {
             throw Throwables.propagate(e);
         }
+        finally
+        {
+            if (transaction.isOffline())
+                finished.forEach(sstable -> sstable.selfRef().release());
+        }
 
-        if (newSstable == null)
+        if (completed)
         {
             if (badRows > 0)
                 outputHandler.warn("No valid rows found while scrubbing " + sstable + "; it is marked for deletion now. If you want to attempt manual recovery, you can find a copy in the pre-scrub snapshot");
@@ -382,16 +386,6 @@ public class Scrubber implements Closeable
         // TODO bitch if the row is too large?  if it is there's not much we can do ...
         outputHandler.warn(String.format("Out of order row detected (%s found after %s)", key, prevKey));
         outOfOrder.add(ArrayBackedPartition.create(iterator));
-    }
-
-    public SSTableReader getNewSSTable()
-    {
-        return newSstable;
-    }
-
-    public SSTableReader getNewInOrderSSTable()
-    {
-        return newInOrderSstable;
     }
 
     private void throwIfFatal(Throwable th)
