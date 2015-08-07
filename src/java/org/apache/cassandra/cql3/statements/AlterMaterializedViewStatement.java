@@ -20,6 +20,7 @@ package org.apache.cassandra.cql3.statements;
 import org.apache.cassandra.auth.Permission;
 import org.apache.cassandra.config.CFMetaData;
 import org.apache.cassandra.cql3.CFName;
+import org.apache.cassandra.db.view.MaterializedView;
 import org.apache.cassandra.exceptions.InvalidRequestException;
 import org.apache.cassandra.exceptions.RequestValidationException;
 import org.apache.cassandra.exceptions.UnauthorizedException;
@@ -41,7 +42,9 @@ public class AlterMaterializedViewStatement extends SchemaAlteringStatement
 
     public void checkAccess(ClientState state) throws UnauthorizedException, InvalidRequestException
     {
-        state.hasColumnFamilyAccess(keyspace(), columnFamily(), Permission.ALTER);
+        CFMetaData baseTable = MaterializedView.findBaseTable(keyspace(), columnFamily());
+        if (baseTable != null)
+            state.hasColumnFamilyAccess(keyspace(), baseTable.cfName, Permission.ALTER);
     }
 
     public void validate(ClientState state)

@@ -76,7 +76,7 @@ public class CreateMaterializedViewStatement extends SchemaAlteringStatement
     {
         if (!baseName.hasKeyspace())
             baseName.setKeyspace(keyspace(), true);
-        state.hasKeyspaceAccess(keyspace(), Permission.CREATE);
+        state.hasColumnFamilyAccess(keyspace(), baseName.getColumnFamily(), Permission.ALTER);
     }
 
     public void validate(ClientState state) throws RequestValidationException

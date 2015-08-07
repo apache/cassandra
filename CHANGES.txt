@@ -1,4 +1,5 @@
 3.0.0-beta1
+ * Change authorization handling for MVs (CASSANDRA-9927)
  * Add custom JMX enabled executor for UDF sandbox (CASSANDRA-10026)
  * Fix row deletion bug for Materialized Views (CASSANDRA-10014)
  * Support mixed-version clusters with Cassandra 2.1 and 2.2 (CASSANDRA-9704)
