@@ -21,7 +21,7 @@ import java.io.IOException;
 import java.util.*;
 import java.util.concurrent.atomic.AtomicBoolean;
 
-import com.google.common.collect.AbstractIterator;
+import org.apache.cassandra.utils.AbstractIterator;
 import com.google.common.collect.Iterators;
 import com.google.common.util.concurrent.RateLimiter;
 

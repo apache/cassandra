@@ -21,7 +21,7 @@ import java.io.IOException;
 import java.io.IOError;
 import java.util.Iterator;
 
-import com.google.common.collect.AbstractIterator;
+import org.apache.cassandra.utils.AbstractIterator;
 
 import org.apache.cassandra.config.CFMetaData;
 import org.apache.cassandra.config.ColumnDefinition;

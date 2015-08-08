@@ -22,7 +22,7 @@ import java.nio.ByteBuffer;
 import java.util.Arrays;
 import java.util.Iterator;
 
-import com.google.common.collect.AbstractIterator;
+import org.apache.cassandra.utils.AbstractIterator;
 import com.google.common.collect.Iterators;
 
 import org.slf4j.Logger;

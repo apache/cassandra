@@ -19,7 +19,7 @@ package org.apache.cassandra.service.pager;
 
 import java.util.List;
 
-import com.google.common.collect.AbstractIterator;
+import org.apache.cassandra.utils.AbstractIterator;
 
 import org.apache.cassandra.db.*;
 import org.apache.cassandra.db.rows.*;

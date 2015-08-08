@@ -21,7 +21,7 @@ package org.apache.cassandra.utils;
 import java.math.BigInteger;
 import java.util.*;
 
-import com.google.common.collect.AbstractIterator;
+import org.apache.cassandra.utils.AbstractIterator;
 
 import org.junit.Before;
 import org.junit.Test;

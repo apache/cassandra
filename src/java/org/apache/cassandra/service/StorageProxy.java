@@ -67,6 +67,7 @@ import org.apache.cassandra.service.paxos.*;
 import org.apache.cassandra.tracing.Tracing;
 import org.apache.cassandra.triggers.TriggerExecutor;
 import org.apache.cassandra.utils.*;
+import org.apache.cassandra.utils.AbstractIterator;
 
 public class StorageProxy implements StorageProxyMBean
 {
