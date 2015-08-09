@@ -296,9 +296,7 @@ public class MultiColumnRelationTest
         for (String tableSuffix : new String[]{"", "_compact"})
         {
             String[] queries = new String[]{
-                "SELECT * FROM %s.multiple_clustering" + tableSuffix + " WHERE a = 0 AND (b, c, d) > (0, 1, 0) AND b < 1",
                 "SELECT * FROM %s.multiple_clustering" + tableSuffix + " WHERE a = 0 AND (b, c, d) > (0, 1, 0) AND c < 1",
-                "SELECT * FROM %s.multiple_clustering" + tableSuffix + " WHERE a = 0 AND b > 1 AND (b, c, d) < (1, 1, 0)",
                 "SELECT * FROM %s.multiple_clustering" + tableSuffix + " WHERE a = 0 AND c > 1 AND (b, c, d) < (1, 1, 0)",
                 "SELECT * FROM %s.multiple_clustering" + tableSuffix + " WHERE (a, b, c, d) IN ((0, 1, 2, 3))",
                 "SELECT * FROM %s.multiple_clustering" + tableSuffix + " WHERE (c, d) IN ((0, 1))",
@@ -375,6 +373,12 @@ public class MultiColumnRelationTest
 
             results = execute("SELECT * FROM %s.multiple_clustering" + tableSuffix
                     + " WHERE a = 0 and b = 1 and (c, d) > (0, 0) and (c) <= (1)");
+            assertEquals(2, results.size());
+            checkRow(0, results, 0, 1, 1, 0);
+            checkRow(1, results, 0, 1, 1, 1);
+
+            results = execute("SELECT * FROM %s.multiple_clustering" + tableSuffix
+                    + " WHERE a = 0 and b = 1 and (c, d) > (0, 0) and c <= 1");
             assertEquals(2, results.size());
             checkRow(0, results, 0, 1, 1, 0);
             checkRow(1, results, 0, 1, 1, 1);
@@ -477,6 +481,12 @@ public class MultiColumnRelationTest
             checkRow(1, results, 0, 1, 1, 1);
 
             results = execute("SELECT * FROM %s.multiple_clustering" + tableSuffix
+                    + " WHERE a = 0 and (b) = (1) and (c, d) > (0, 0) and c <= 1");
+            assertEquals(2, results.size());
+            checkRow(0, results, 0, 1, 1, 0);
+            checkRow(1, results, 0, 1, 1, 1);
+
+            results = execute("SELECT * FROM %s.multiple_clustering" + tableSuffix
                     + " WHERE a = 0 and (b) = (1) and (c, d) >= (0, 0) and (c, d) < (1, 1)");
             assertEquals(2, results.size());
             checkRow(0, results, 0, 1, 0, 0);
@@ -514,6 +524,14 @@ public class MultiColumnRelationTest
             checkRow(1, results, 0, 1, 0);
 
             results = execute("SELECT * FROM %s.single_clustering" + tableSuffix + " WHERE a=0 AND (b) > (0) AND (b) < (2)");
+            assertEquals(1, results.size());
+            checkRow(0, results, 0, 1, 0);
+
+            results = execute("SELECT * FROM %s.single_clustering" + tableSuffix + " WHERE a=0 AND b > 0 AND (b) < (2)");
+            assertEquals(1, results.size());
+            checkRow(0, results, 0, 1, 0);
+
+            results = execute("SELECT * FROM %s.single_clustering" + tableSuffix + " WHERE a=0 AND (b) > (0) AND b < 2");
             assertEquals(1, results.size());
             checkRow(0, results, 0, 1, 0);
         }
@@ -603,6 +621,10 @@ public class MultiColumnRelationTest
             checkRow(2, results, 0, 0, 1, 1);
 
             results = execute("SELECT * FROM %s.multiple_clustering" + tableSuffix + " WHERE a=0 AND (b, c, d) > (0, 1, 0) AND (b) < (1)");
+            assertEquals(1, results.size());
+            checkRow(0, results, 0, 0, 1, 1);
+
+            results = execute("SELECT * FROM %s.multiple_clustering" + tableSuffix + " WHERE a=0 AND (b, c, d) > (0, 1, 0) AND b < 1");
             assertEquals(1, results.size());
             checkRow(0, results, 0, 0, 1, 1);
 
@@ -973,6 +995,12 @@ public class MultiColumnRelationTest
     }
 
     @Test(expected=InvalidRequestException.class)
+    public void testPrepareMixMultipleInequalitiesOnSameBoundWithSingleColumnRestriction() throws Throwable
+    {
+        prepare("SELECT * FROM %s.single_clustering WHERE a=0 AND (b) > (?) AND b > ?");
+    }
+
+    @Test(expected=InvalidRequestException.class)
     public void testPrepareClusteringColumnsOutOfOrderInInequality() throws Throwable
     {
         prepare("SELECT * FROM %s.multiple_clustering WHERE a=0 AND (d, c, b) > (?, ?, ?)");
@@ -1049,6 +1077,14 @@ public class MultiColumnRelationTest
             checkRow(1, results, 0, 1, 0);
 
             results = executePrepared(prepare("SELECT * FROM %s.single_clustering" + tableSuffix + " WHERE a=0 AND (b) > (?) AND (b) < (?)"), makeIntOptions(0, 2));
+            assertEquals(1, results.size());
+            checkRow(0, results, 0, 1, 0);
+
+            results = executePrepared(prepare("SELECT * FROM %s.single_clustering" + tableSuffix + " WHERE a=0 AND (b) > (?) AND b < ?"), makeIntOptions(0, 2));
+            assertEquals(1, results.size());
+            checkRow(0, results, 0, 1, 0);
+
+            results = executePrepared(prepare("SELECT * FROM %s.single_clustering" + tableSuffix + " WHERE a=0 AND b > ? AND (b) < (?)"), makeIntOptions(0, 2));
             assertEquals(1, results.size());
             checkRow(0, results, 0, 1, 0);
         }
@@ -1129,6 +1165,10 @@ public class MultiColumnRelationTest
             assertEquals(1, results.size());
             checkRow(0, results, 0, 0, 1, 1);
 
+            results = executePrepared(prepare("SELECT * FROM %s.multiple_clustering" + tableSuffix + " WHERE a=0 AND (b, c, d) > (?, ?, ?) AND b < ?"), makeIntOptions(0, 1, 0, 1));
+            assertEquals(1, results.size());
+            checkRow(0, results, 0, 0, 1, 1);
+
             results = executePrepared(prepare
                             ("SELECT * FROM %s.multiple_clustering" + tableSuffix + " WHERE a=0 AND (b, c, d) > (?, ?, ?) AND (b, c) < (?, ?)"),
                     makeIntOptions(0, 1, 1, 1, 1));
@@ -1192,6 +1232,11 @@ public class MultiColumnRelationTest
             results = executePrepared(prepare(
                             "SELECT * FROM %s.multiple_clustering" + tableSuffix + " WHERE a=0 AND (b, c, d) > ? AND (b) < ?"),
                     options(tuple(0, 1, 0), tuple(1)));
+            assertEquals(1, results.size());
+            checkRow(0, results, 0, 0, 1, 1);
+
+            results = executePrepared(prepare("SELECT * FROM %s.multiple_clustering" + tableSuffix
+                    + " WHERE a=0 AND (b, c, d) > ? AND b < ?"), options(tuple(0, 1, 0), ByteBufferUtil.bytes(1)));
             assertEquals(1, results.size());
             checkRow(0, results, 0, 0, 1, 1);
 

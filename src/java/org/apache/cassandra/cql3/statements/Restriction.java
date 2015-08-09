@@ -54,6 +54,8 @@ public interface Restriction
         /** Returns true if the start or end bound (depending on the argument) is set, false otherwise */
         public boolean hasBound(Bound b);
 
+        public Term bound(Bound b);
+
         public ByteBuffer bound(Bound b, List<ByteBuffer> variables) throws InvalidRequestException;
 
         /** Returns true if the start or end bound (depending on the argument) is inclusive, false otherwise */
@@ -64,5 +66,7 @@ public interface Restriction
         public IndexOperator getIndexOperator(Bound b);
 
         public void setBound(Relation.Type type, Term t) throws InvalidRequestException;
+
+        public void setBound(Slice restriction) throws InvalidRequestException;
     }
 }

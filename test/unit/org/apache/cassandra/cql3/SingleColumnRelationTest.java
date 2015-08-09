@@ -21,6 +21,7 @@ import java.util.Iterator;
 import java.util.List;
 
 import org.junit.AfterClass;
+import org.junit.Assert;
 import org.junit.BeforeClass;
 import org.junit.Test;
 
@@ -45,7 +46,8 @@ public class SingleColumnRelationTest
     {
         SchemaLoader.loadSchema();
         executeSchemaChange("CREATE KEYSPACE IF NOT EXISTS %s WITH replication = {'class': 'SimpleStrategy', 'replication_factor': '1'}");
-
+        executeSchemaChange("CREATE TABLE IF NOT EXISTS %s.single_partition (a int PRIMARY KEY, b int, c text)");
+        executeSchemaChange("CREATE TABLE IF NOT EXISTS %s.compound_partition (a int, b int, c text, PRIMARY KEY ((a, b)))");
         executeSchemaChange("CREATE TABLE IF NOT EXISTS %s.partition_with_indices (a int, b int, c int, d int, e int, f int, PRIMARY KEY ((a, b), c, d, e))");
         executeSchemaChange("CREATE INDEX ON %s.partition_with_indices (c)");
         executeSchemaChange("CREATE INDEX ON %s.partition_with_indices (f)");
@@ -133,16 +135,44 @@ public class SingleColumnRelationTest
         checkRow(0, results, 0, 0, 1, 1, 1, 5);
     }
 
-    @Test(expected=InvalidRequestException.class)
-    public void testMissingPartitionComponentAndFileringOnTheSecondClusteringColumnWithoutAllowFiltering() throws Throwable
+    @Test
+    public void testSliceRestrictionOnPartitionKey() throws Throwable
     {
-        execute("SELECT * FROM %s.partition_with_indices WHERE d >= 1 AND f = 5");
+        assertInvalidMessage("Only EQ and IN relation are supported on the partition key (unless you use the token() function)",
+                             "SELECT * FROM %s.single_partition WHERE a >= 1 and a < 4");
     }
 
-    @Test(expected=InvalidRequestException.class)
+    @Test
+    public void testMulticolumnSliceRestrictionOnPartitionKey() throws Throwable
+    {
+        assertInvalidMessage("Multi-column relations can only be applied to clustering columns: a",
+                             "SELECT * FROM %s.single_partition WHERE (a) >= (1) and (a) < (4)");
+        assertInvalidMessage("Multi-column relations can only be applied to clustering columns: a",
+                             "SELECT * FROM %s.compound_partition WHERE (a, b) >= (1, 1) and (a, b) < (4, 1)");
+        assertInvalidMessage("Multi-column relations can only be applied to clustering columns: a",
+                             "SELECT * FROM %s.compound_partition WHERE a >= 1 and (a, b) < (4, 1)");
+        assertInvalidMessage("Multi-column relations can only be applied to clustering columns: a",
+                             "SELECT * FROM %s.compound_partition WHERE b >= 1 and (a, b) < (4, 1)");
+        assertInvalidMessage("Multi-column relations can only be applied to clustering columns: a",
+                             "SELECT * FROM %s.compound_partition WHERE (a, b) >= (1, 1) and (b) < (4)");
+        assertInvalidMessage("Multi-column relations can only be applied to clustering columns: b",
+                             "SELECT * FROM %s.compound_partition WHERE (b) < (4) and (a, b) >= (1, 1)");
+        assertInvalidMessage("Multi-column relations can only be applied to clustering columns: a",
+                             "SELECT * FROM %s.compound_partition WHERE (a, b) >= (1, 1) and a = 1");
+    }
+
+    @Test
+    public void testMissingPartitionComponentAndFileringOnTheSecondClusteringColumnWithoutAllowFiltering() throws Throwable
+    {
+        assertInvalidMessage("Cannot execute this query as it might involve data filtering and thus may have unpredictable performance. If you want to execute this query despite the performance unpredictability, use ALLOW FILTERING",
+                             "SELECT * FROM %s.partition_with_indices WHERE d >= 1 AND f = 5");
+    }
+
+    @Test
     public void testMissingPartitionComponentWithSliceRestrictionOnIndexedColumn() throws Throwable
     {
-        execute("SELECT * FROM %s.partition_with_indices WHERE a = 0 AND c >= 1 ALLOW FILTERING");
+        assertInvalidMessage("Partition key part b must be restricted since preceding part is",
+                             "SELECT * FROM %s.partition_with_indices WHERE a = 0 AND c >= 1 ALLOW FILTERING");
     }
 
     private static void checkRow(int rowIndex, UntypedResultSet results, Integer... expectedValues)
@@ -156,6 +186,19 @@ public class SingleColumnRelationTest
             int actual = row.getInt(columnName);
             assertEquals(String.format("Expected value %d for column %s in row %d, but got %s", actual, columnName, rowIndex, expected),
                          (long) expected, actual);
+        }
+    }
+
+    private static void assertInvalidMessage(String expectedMsg, String query) throws Throwable
+    {
+        try
+        {
+            execute(query);
+            Assert.fail("The statement should trigger an InvalidRequestException but did not");
+        }
+        catch (InvalidRequestException e)
+        {
+            assertEquals("The error message is not the expected one.",expectedMsg, e.getMessage());
         }
     }
 }

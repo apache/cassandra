@@ -218,6 +218,11 @@ public abstract class SingleColumnRestriction implements Restriction
             return bounds[b.idx] != null;
         }
 
+        public Term bound(Bound b)
+        {
+            return bounds[b.idx];
+        }
+
         public ByteBuffer bound(Bound b, List<ByteBuffer> variables) throws InvalidRequestException
         {
             return bounds[b.idx].bindAndGet(variables);
@@ -279,12 +284,24 @@ public abstract class SingleColumnRestriction implements Restriction
                     throw new AssertionError();
             }
 
-            if (bounds[b.idx] != null)
-                throw new InvalidRequestException(String.format(
-                        "More than one restriction was found for the %s bound", b.name().toLowerCase()));
+            setBound(b, inclusive, t);
+        }
 
-            bounds[b.idx] = t;
-            boundInclusive[b.idx] = inclusive;
+        public void setBound(Restriction.Slice slice) throws InvalidRequestException
+        {
+            for (Bound bound : Bound.values())
+                if (slice.hasBound(bound))
+                    setBound(bound, slice.isInclusive(bound), slice.bound(bound));
+        }
+
+        private void setBound(Bound bound, boolean inclusive, Term term) throws InvalidRequestException {
+
+            if (bounds[bound.idx] != null)
+                throw new InvalidRequestException(String.format(
+                        "More than one restriction was found for the %s bound", bound.name().toLowerCase()));
+
+            bounds[bound.idx] = term;
+            boundInclusive[bound.idx] = inclusive;
         }
 
         @Override
