@@ -24,16 +24,23 @@ package org.apache.cassandra.utils;
 public class KillerForTests extends JVMStabilityInspector.Killer
 {
     private boolean killed = false;
+    private boolean quiet = false;
 
     @Override
-    protected void killCurrentJVM(Throwable t)
+    protected void killCurrentJVM(Throwable t, boolean quiet)
     {
-        killed = true;
+        this.killed = true;
+        this.quiet = quiet;
     }
 
     public boolean wasKilled()
     {
         return killed;
+    }
+
+    public boolean wasKilledQuietly()
+    {
+        return quiet;
     }
 
     public void reset()
