@@ -560,4 +560,32 @@ public class SelectSingleColumnRelationTest extends CQLTester
         // range
         assertInvalidMessage("Invalid unset value for column i", "SELECT * from %s WHERE k = 1 AND i > ?", unset());
     }
+
+    @Test
+    public void testInvalidSliceRestrictionOnPartitionKey() throws Throwable
+    {
+        createTable("CREATE TABLE %s (a int PRIMARY KEY, b int, c text)");
+        assertInvalidMessage("Only EQ and IN relation are supported on the partition key (unless you use the token() function)",
+                             "SELECT * FROM %s WHERE a >= 1 and a < 4");
+        assertInvalidMessage("Multi-column relations can only be applied to clustering columns but was applied to: a",
+                             "SELECT * FROM %s WHERE (a) >= (1) and (a) < (4)");
+    }
+
+    @Test
+    public void testInvalidMulticolumnSliceRestrictionOnPartitionKey() throws Throwable
+    {
+        createTable("CREATE TABLE %s (a int, b int, c text, PRIMARY KEY ((a, b)))");
+        assertInvalidMessage("Multi-column relations can only be applied to clustering columns but was applied to: a",
+                             "SELECT * FROM %s WHERE (a, b) >= (1, 1) and (a, b) < (4, 1)");
+        assertInvalidMessage("Only EQ and IN relation are supported on the partition key (unless you use the token() function)",
+                             "SELECT * FROM %s WHERE a >= 1 and (a, b) < (4, 1)");
+        assertInvalidMessage("Only EQ and IN relation are supported on the partition key (unless you use the token() function)",
+                             "SELECT * FROM %s WHERE b >= 1 and (a, b) < (4, 1)");
+        assertInvalidMessage("Multi-column relations can only be applied to clustering columns but was applied to: a",
+                             "SELECT * FROM %s WHERE (a, b) >= (1, 1) and (b) < (4)");
+        assertInvalidMessage("Multi-column relations can only be applied to clustering columns but was applied to: b",
+                             "SELECT * FROM %s WHERE (b) < (4) and (a, b) >= (1, 1)");
+        assertInvalidMessage("Multi-column relations can only be applied to clustering columns but was applied to: a",
+                             "SELECT * FROM %s WHERE (a, b) >= (1, 1) and a = 1");
+    }
 }

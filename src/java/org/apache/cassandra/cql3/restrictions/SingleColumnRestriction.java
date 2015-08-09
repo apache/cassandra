@@ -32,7 +32,6 @@ import org.apache.cassandra.db.filter.RowFilter;
 import org.apache.cassandra.db.index.SecondaryIndex;
 import org.apache.cassandra.db.index.SecondaryIndexManager;
 import org.apache.cassandra.exceptions.InvalidRequestException;
-
 import static org.apache.cassandra.cql3.statements.RequestValidations.checkBindValueSet;
 import static org.apache.cassandra.cql3.statements.RequestValidations.checkFalse;
 import static org.apache.cassandra.cql3.statements.RequestValidations.checkNotNull;
@@ -79,13 +78,34 @@ public abstract class SingleColumnRestriction extends AbstractRestriction
     @Override
     public final Restriction mergeWith(Restriction otherRestriction) throws InvalidRequestException
     {
-            checkFalse(otherRestriction.isMultiColumn(),
-                       "Mixing single column relations and multi column relations on clustering columns is not allowed");
+        // We want to allow query like: b > ? AND (b,c) < (?, ?)
+        if (otherRestriction.isMultiColumn() && canBeConvertedToMultiColumnRestriction())
+        {
+            return toMultiColumnRestriction().mergeWith(otherRestriction);
+        }
 
-            return doMergeWith(otherRestriction);
+        return doMergeWith(otherRestriction);
     }
 
     protected abstract Restriction doMergeWith(Restriction otherRestriction) throws InvalidRequestException;
+
+    /**
+     * Converts this <code>SingleColumnRestriction</code> into a {@link MultiColumnRestriction}
+     *
+     * @return the <code>MultiColumnRestriction</code> corresponding to this
+     */
+    abstract MultiColumnRestriction toMultiColumnRestriction();
+
+    /**
+     * Checks if this <code>Restriction</code> can be converted into a {@link MultiColumnRestriction}
+     *
+     * @return <code>true</code> if this <code>Restriction</code> can be converted into a
+     * {@link MultiColumnRestriction}, <code>false</code> otherwise.
+     */
+    boolean canBeConvertedToMultiColumnRestriction()
+    {
+        return true;
+    }
 
     /**
      * Check if this type of restriction is supported by the specified index.
@@ -107,7 +127,7 @@ public abstract class SingleColumnRestriction extends AbstractRestriction
         }
 
         @Override
-        public Iterable getFunctions()
+        public Iterable<Function> getFunctions()
         {
             return value.getFunctions();
         }
@@ -119,9 +139,15 @@ public abstract class SingleColumnRestriction extends AbstractRestriction
         }
 
         @Override
+        MultiColumnRestriction toMultiColumnRestriction()
+        {
+            return new MultiColumnRestriction.EQRestriction(Collections.singletonList(columnDef), value);
+        }
+
+        @Override
         public void addRowFilterTo(RowFilter filter,
                                    SecondaryIndexManager indexManager,
-                                   QueryOptions options) throws InvalidRequestException
+                                   QueryOptions options)
         {
             filter.add(columnDef, Operator.EQ, value.bindAndGet(options));
         }
@@ -213,6 +239,12 @@ public abstract class SingleColumnRestriction extends AbstractRestriction
         }
 
         @Override
+        MultiColumnRestriction toMultiColumnRestriction()
+        {
+            return new MultiColumnRestriction.InRestrictionWithValues(Collections.singletonList(columnDef), values);
+        }
+
+        @Override
         public Iterable<Function> getFunctions()
         {
             return Terms.getFunctions(values);
@@ -251,6 +283,12 @@ public abstract class SingleColumnRestriction extends AbstractRestriction
         }
 
         @Override
+        MultiColumnRestriction toMultiColumnRestriction()
+        {
+            return new MultiColumnRestriction.InRestrictionWithMarker(Collections.singletonList(columnDef), marker);
+        }
+
+        @Override
         protected List<ByteBuffer> getValues(QueryOptions options) throws InvalidRequestException
         {
             Terminal term = marker.bind(options);
@@ -281,6 +319,12 @@ public abstract class SingleColumnRestriction extends AbstractRestriction
         public Iterable<Function> getFunctions()
         {
             return slice.getFunctions();
+        }
+
+        @Override
+        MultiColumnRestriction toMultiColumnRestriction()
+        {
+            return new MultiColumnRestriction.SliceRestriction(Collections.singletonList(columnDef), slice);
         }
 
         @Override
@@ -383,6 +427,18 @@ public abstract class SingleColumnRestriction extends AbstractRestriction
             super(columnDef);
             entryKeys.add(mapKey);
             entryValues.add(mapValue);
+        }
+
+        @Override
+        MultiColumnRestriction toMultiColumnRestriction()
+        {
+            throw new UnsupportedOperationException();
+        }
+
+        @Override
+        boolean canBeConvertedToMultiColumnRestriction()
+        {
+            return false;
         }
 
         @Override

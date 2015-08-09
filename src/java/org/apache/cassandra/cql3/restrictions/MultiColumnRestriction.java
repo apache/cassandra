@@ -20,6 +20,9 @@ package org.apache.cassandra.cql3.restrictions;
 import java.nio.ByteBuffer;
 import java.util.*;
 
+import org.apache.cassandra.cql3.Term.Terminal;
+
+import org.apache.cassandra.cql3.Term;
 import org.apache.cassandra.config.ColumnDefinition;
 import org.apache.cassandra.cql3.*;
 import org.apache.cassandra.cql3.functions.Function;
@@ -29,7 +32,6 @@ import org.apache.cassandra.db.filter.RowFilter;
 import org.apache.cassandra.db.index.SecondaryIndex;
 import org.apache.cassandra.db.index.SecondaryIndexManager;
 import org.apache.cassandra.exceptions.InvalidRequestException;
-
 import static org.apache.cassandra.cql3.statements.RequestValidations.checkFalse;
 import static org.apache.cassandra.cql3.statements.RequestValidations.checkNotNull;
 import static org.apache.cassandra.cql3.statements.RequestValidations.checkTrue;
@@ -74,9 +76,14 @@ public abstract class MultiColumnRestriction extends AbstractRestriction
     @Override
     public final Restriction mergeWith(Restriction otherRestriction) throws InvalidRequestException
     {
-            checkTrue(otherRestriction.isMultiColumn(),
-                      "Mixing single column relations and multi column relations on clustering columns is not allowed");
-            return doMergeWith(otherRestriction);
+        // We want to allow query like: (b,c) > (?, ?) AND b < ?
+        if (!otherRestriction.isMultiColumn()
+                && ((SingleColumnRestriction) otherRestriction).canBeConvertedToMultiColumnRestriction())
+        {
+            return doMergeWith(((SingleColumnRestriction) otherRestriction).toMultiColumnRestriction());
+        }
+
+        return doMergeWith(otherRestriction);
     }
 
     protected abstract Restriction doMergeWith(Restriction otherRestriction) throws InvalidRequestException;
@@ -329,7 +336,7 @@ public abstract class MultiColumnRestriction extends AbstractRestriction
             this(columnDefs, TermSlice.newInstance(bound, inclusive, term));
         }
 
-        private SliceRestriction(List<ColumnDefinition> columnDefs, TermSlice slice)
+        SliceRestriction(List<ColumnDefinition> columnDefs, TermSlice slice)
         {
             super(columnDefs);
             this.slice = slice;
@@ -391,25 +398,25 @@ public abstract class MultiColumnRestriction extends AbstractRestriction
                       "Column \"%s\" cannot be restricted by both an equality and an inequality relation",
                       getColumnsInCommons(otherRestriction));
 
-            SliceRestriction otherSlice = (SliceRestriction) otherRestriction;
-
             if (!getFirstColumn().equals(otherRestriction.getFirstColumn()))
             {
                 ColumnDefinition column = getFirstColumn().position() > otherRestriction.getFirstColumn().position()
                         ? getFirstColumn() : otherRestriction.getFirstColumn();
 
-                throw invalidRequest("Column \"%s\" cannot be restricted by two tuple-notation inequalities not starting with the same column",
+                throw invalidRequest("Column \"%s\" cannot be restricted by two inequalities not starting with the same column",
                                      column.name);
             }
 
-            checkFalse(hasBound(Bound.START) && otherSlice.hasBound(Bound.START),
+            checkFalse(hasBound(Bound.START) && otherRestriction.hasBound(Bound.START),
                        "More than one restriction was found for the start bound on %s",
                        getColumnsInCommons(otherRestriction));
-            checkFalse(hasBound(Bound.END) && otherSlice.hasBound(Bound.END),
+            checkFalse(hasBound(Bound.END) && otherRestriction.hasBound(Bound.END),
                        "More than one restriction was found for the end bound on %s",
                        getColumnsInCommons(otherRestriction));
 
+            SliceRestriction otherSlice = (SliceRestriction) otherRestriction;
             List<ColumnDefinition> newColumnDefs = columnDefs.size() >= otherSlice.columnDefs.size() ?  columnDefs : otherSlice.columnDefs;
+
             return new SliceRestriction(newColumnDefs, slice.merge(otherSlice.slice));
         }
 
@@ -437,8 +444,14 @@ public abstract class MultiColumnRestriction extends AbstractRestriction
          */
         private List<ByteBuffer> componentBounds(Bound b, QueryOptions options) throws InvalidRequestException
         {
-            Tuples.Value value = (Tuples.Value) slice.bound(b).bind(options);
-            return value.getElements();
+            Terminal terminal = slice.bound(b).bind(options);
+
+            if (terminal instanceof Tuples.Value)
+            {
+                return ((Tuples.Value) terminal).getElements();
+            }
+
+            return Collections.singletonList(terminal.get(options.getProtocolVersion()));
         }
     }
 }
