@@ -28,7 +28,7 @@ import java.util.concurrent.atomic.AtomicInteger;
 
 public class NamedThreadFactory implements ThreadFactory
 {
-    protected final String id;
+    public final String id;
     private final int priority;
     private final ClassLoader contextClassLoader;
     private final ThreadGroup threadGroup;
