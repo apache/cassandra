@@ -25,7 +25,10 @@ import org.apache.cassandra.exceptions.InvalidRequestException;
 
 import java.nio.ByteBuffer;
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.List;
+
+import org.apache.cassandra.cql3.Term.Terminal;
 
 public interface MultiColumnRestriction extends Restriction
 {
@@ -130,8 +133,11 @@ public interface MultiColumnRestriction extends Restriction
          */
         public List<ByteBuffer> componentBounds(Bound b, QueryOptions options) throws InvalidRequestException
         {
-            Tuples.Value value = (Tuples.Value)bounds[b.idx].bind(options);
-            return value.getElements();
+            Terminal terminal = bounds[b.idx].bind(options);
+            if (terminal instanceof Tuples.Value)
+                return ((Tuples.Value) terminal).getElements();
+
+            return Collections.singletonList(terminal.get(options));
         }
     }
 }

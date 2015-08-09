@@ -257,6 +257,11 @@ public abstract class SingleColumnRestriction implements Restriction
             return bounds[b.idx] != null;
         }
 
+        public Term bound(Bound b)
+        {
+            return bounds[b.idx];
+        }
+
         public ByteBuffer bound(Bound b, QueryOptions options) throws InvalidRequestException
         {
             return bounds[b.idx].bindAndGet(options);
@@ -319,10 +324,22 @@ public abstract class SingleColumnRestriction implements Restriction
                     throw new AssertionError();
             }
 
-            assert bounds[b.idx] == null;
+            setBound(b, inclusive, t);
+        }
 
-            bounds[b.idx] = t;
-            boundInclusive[b.idx] = inclusive;
+        public void setBound(Restriction.Slice slice) throws InvalidRequestException
+        {
+            for (Bound bound : Bound.values())
+                if (slice.hasBound(bound))
+                    setBound(bound, slice.isInclusive(bound), slice.bound(bound));
+        }
+
+        private void setBound(Bound bound, boolean inclusive, Term term) throws InvalidRequestException {
+
+            assert bounds[bound.idx] == null;
+
+            bounds[bound.idx] = term;
+            boundInclusive[bound.idx] = inclusive;
         }
 
         @Override

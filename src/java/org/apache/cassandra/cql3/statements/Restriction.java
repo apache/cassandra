@@ -20,7 +20,6 @@ package org.apache.cassandra.cql3.statements;
 import java.nio.ByteBuffer;
 import java.util.List;
 
-import org.apache.cassandra.cql3.ColumnIdentifier;
 import org.apache.cassandra.cql3.Operator;
 import org.apache.cassandra.cql3.QueryOptions;
 import org.apache.cassandra.cql3.Term;
@@ -63,6 +62,8 @@ public interface Restriction
         /** Returns true if the start or end bound (depending on the argument) is set, false otherwise */
         public boolean hasBound(Bound b);
 
+        public Term bound(Bound b);
+
         public ByteBuffer bound(Bound b, QueryOptions options) throws InvalidRequestException;
 
         /** Returns true if the start or end bound (depending on the argument) is inclusive, false otherwise */
@@ -73,5 +74,7 @@ public interface Restriction
         public Operator getIndexOperator(Bound b);
 
         public void setBound(Operator type, Term t) throws InvalidRequestException;
+
+        public void setBound(Slice restriction) throws InvalidRequestException;
     }
 }

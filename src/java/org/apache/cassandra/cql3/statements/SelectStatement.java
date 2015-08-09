@@ -1699,13 +1699,6 @@ public class SelectStatement implements CQLStatement
                     }
                     else
                     {
-                        if (!existing.isMultiColumn())
-                        {
-                            throw new InvalidRequestException(String.format(
-                                    "Column \"%s\" cannot have both tuple-notation inequalities and single-column inequalities: %s",
-                                    def.name, relation));
-                        }
-
                         boolean existingRestrictionStartBefore =
                             (i == 0 && def.position() != 0 && stmt.columnRestrictions[def.position() - 1] == existing);
 
@@ -1714,7 +1707,7 @@ public class SelectStatement implements CQLStatement
                         if (existingRestrictionStartBefore || existingRestrictionStartAfter)
                         {
                             throw new InvalidRequestException(String.format(
-                                    "Column \"%s\" cannot be restricted by two tuple-notation inequalities not starting with the same column: %s",
+                                    "Column \"%s\" cannot be restricted by two inequalities not starting with the same column: %s",
                                     def.name, relation));
                         }
 
@@ -1771,9 +1764,22 @@ public class SelectStatement implements CQLStatement
                 {
                     Term t = relation.getValue().prepare(keyspace(), defs);
                     t.collectMarkerSpecification(boundNames);
-                    Restriction.Slice restriction = (Restriction.Slice)getExistingRestriction(stmt, defs.get(0));
-                    if (restriction == null)
+
+                    Restriction.Slice existingRestriction = (Restriction.Slice) getExistingRestriction(stmt, defs.get(0));
+                    Restriction.Slice restriction;
+                    if (existingRestriction == null)
+                    {
                         restriction = new MultiColumnRestriction.Slice(false);
+                    }
+                    else if (!existingRestriction.isMultiColumn())
+                    {
+                        restriction = new MultiColumnRestriction.Slice(false);
+                        restriction.setBound(existingRestriction);
+                    }
+                    else
+                    {
+                        restriction = existingRestriction;
+                    }
                     restriction.setBound(relation.operator(), t);
 
                     for (ColumnDefinition def : defs)
@@ -1829,26 +1835,39 @@ public class SelectStatement implements CQLStatement
             switch (def.kind)
             {
                 case PARTITION_KEY:
-                    stmt.keyRestrictions[def.position()] = updateSingleColumnRestriction(def, stmt.keyRestrictions[def.position()], relation, names);
+                {
+                    Restriction existingRestriction = stmt.keyRestrictions[def.position()];
+                    Restriction previousRestriction = def.position() == 0 ? null : stmt.keyRestrictions[def.position() - 1];
+                    stmt.keyRestrictions[def.position()] = updateSingleColumnRestriction(def, existingRestriction, previousRestriction, relation, names);
                     break;
+                }
                 case CLUSTERING_COLUMN:
-                    stmt.columnRestrictions[def.position()] = updateSingleColumnRestriction(def, stmt.columnRestrictions[def.position()], relation, names);
+                {
+                    Restriction existingRestriction = stmt.columnRestrictions[def.position()];
+                    Restriction previousRestriction = def.position() == 0 ? null : stmt.columnRestrictions[def.position() - 1];
+                    stmt.columnRestrictions[def.position()] = updateSingleColumnRestriction(def, existingRestriction, previousRestriction, relation, names);
                     break;
+                }
                 case COMPACT_VALUE:
+                {
                     throw new InvalidRequestException(String.format("Predicates on the non-primary-key column (%s) of a COMPACT table are not yet supported", def.name));
+                }
                 case REGULAR:
                 case STATIC:
+                {
                     // We only all IN on the row key and last clustering key so far, never on non-PK columns, and this even if there's an index
-                    Restriction r = updateSingleColumnRestriction(def, stmt.metadataRestrictions.get(def.name), relation, names);
+                    Restriction r = updateSingleColumnRestriction(def, stmt.metadataRestrictions.get(def.name), null, relation, names);
+
                     if (r.isIN() && !((Restriction.IN)r).canHaveOnlyOneValue())
                         // Note: for backward compatibility reason, we conside a IN of 1 value the same as a EQ, so we let that slide.
                         throw new InvalidRequestException(String.format("IN predicates on non-primary-key columns (%s) is not yet supported", def.name));
                     stmt.metadataRestrictions.put(def.name, r);
                     break;
+                }
             }
         }
 
-        Restriction updateSingleColumnRestriction(ColumnDefinition def, Restriction existingRestriction, SingleColumnRelation newRel, VariableSpecifications boundNames) throws InvalidRequestException
+        Restriction updateSingleColumnRestriction(ColumnDefinition def, Restriction existingRestriction, Restriction previousRestriction, SingleColumnRelation newRel, VariableSpecifications boundNames) throws InvalidRequestException
         {
             ColumnSpecification receiver = def;
             if (newRel.onToken)
@@ -1911,12 +1930,14 @@ public class SelectStatement implements CQLStatement
                 case LT:
                 case LTE:
                     {
+                        // A slice restriction can be merged with another one under some conditions:
+                        // 1) both restrictions are on a token function or non of them are
+                        // (e.g. token(partitionKey) > token(?) AND token(partitionKey) <= token(?) or clustering1 > 1 AND clustering1 <= 2).
+                        // 2) both restrictions needs to start with the same column (e.g clustering1 > 0 AND (clustering1, clustering2) <= (2, 1)).
                         if (existingRestriction == null)
                             existingRestriction = new SingleColumnRestriction.Slice(newRel.onToken);
                         else if (!existingRestriction.isSlice())
                             throw new InvalidRequestException(String.format("Column \"%s\" cannot be restricted by both an equality and an inequality relation", def.name));
-                        else if (existingRestriction.isMultiColumn())
-                            throw new InvalidRequestException(String.format("Column \"%s\" cannot be restricted by both a tuple notation inequality and a single column inequality (%s)", def.name, newRel));
                         else if (existingRestriction.isOnToken() != newRel.onToken)
                             // For partition keys, we shouldn't have slice restrictions without token(). And while this is rejected later by
                             // processPartitionKeysRestrictions, we shouldn't update the existing restriction by the new one if the old one was using token()
@@ -1925,9 +1946,14 @@ public class SelectStatement implements CQLStatement
 
                         checkBound(existingRestriction, def, newRel.operator());
 
+                        if (def.position() != 0 && previousRestriction == existingRestriction)
+                            throw new InvalidRequestException(String.format("Column \"%s\" cannot be restricted by two inequalities not starting with the same column: %s",
+                                                                            def.name,
+                                                                            newRel));
+
                         Term t = newRel.getValue().prepare(keyspace(), receiver);
                         t.collectMarkerSpecification(boundNames);
-                        ((SingleColumnRestriction.Slice)existingRestriction).setBound(newRel.operator(), t);
+                        ((SingleColumnRestriction.Slice) existingRestriction).setBound(newRel.operator(), t);
                     }
                     break;
                 case CONTAINS_KEY:
@@ -1947,6 +1973,7 @@ public class SelectStatement implements CQLStatement
                     boolean isKey = newRel.operator() == Operator.CONTAINS_KEY;
                     receiver = makeCollectionReceiver(receiver, isKey);
                     Term t = newRel.getValue().prepare(keyspace(), receiver);
+
                     t.collectMarkerSpecification(boundNames);
                     ((SingleColumnRestriction.Contains)existingRestriction).add(t, isKey);
                     break;
