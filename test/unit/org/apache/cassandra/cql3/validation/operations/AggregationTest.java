@@ -168,7 +168,7 @@ public class AggregationTest extends CQLTester
     }
 
     @Test
-    public void testAggregateWithWithWriteTimeOrTTL() throws Throwable
+    public void testAggregateWithWriteTimeOrTTL() throws Throwable
     {
         createTable("CREATE TABLE %s (a int primary key, b int, c int)");
 
@@ -181,8 +181,9 @@ public class AggregationTest extends CQLTester
         long today = System.currentTimeMillis() * 1000;
         long yesterday = today - (DateUtils.MILLIS_PER_DAY * 1000);
 
-        execute("INSERT INTO %s (a, b, c) VALUES (1, 2, null) USING TTL 5;");
-        execute("INSERT INTO %s (a, b, c) VALUES (2, 4, 6) USING TTL 2;");
+        final int secondsPerMinute = 60;
+        execute("INSERT INTO %s (a, b, c) VALUES (1, 2, null) USING TTL " + (20 * secondsPerMinute));
+        execute("INSERT INTO %s (a, b, c) VALUES (2, 4, 6) USING TTL " + (10 * secondsPerMinute));
         execute("INSERT INTO %s (a, b, c) VALUES (4, 8, 12) USING TIMESTAMP " + yesterday );
 
         assertRows(execute("SELECT count(writetime(b)), count(ttl(b)) FROM %s"),
@@ -191,8 +192,8 @@ public class AggregationTest extends CQLTester
         UntypedResultSet resultSet = execute("SELECT min(ttl(b)), ttl(b) FROM %s");
         assertEquals(1, resultSet.size());
         Row row = resultSet.one();
-        assertTrue(row.getInt("ttl(b)") > 4);
-        assertTrue(row.getInt("system.min(ttl(b))") <= 2);
+        assertTrue(row.getInt("ttl(b)") > (10 * secondsPerMinute));
+        assertTrue(row.getInt("system.min(ttl(b))") <= (10 * secondsPerMinute));
 
         resultSet = execute("SELECT min(writetime(b)), writetime(b) FROM %s");
         assertEquals(1, resultSet.size());
