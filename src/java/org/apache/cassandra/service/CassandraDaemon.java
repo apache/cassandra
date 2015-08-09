@@ -40,6 +40,8 @@ import javax.management.remote.rmi.RMIConnectorServer;
 import com.codahale.metrics.Meter;
 import com.codahale.metrics.MetricRegistryListener;
 import com.codahale.metrics.SharedMetricRegistries;
+import com.google.common.annotations.VisibleForTesting;
+import com.google.common.collect.Iterables;
 import com.google.common.util.concurrent.Uninterruptibles;
 import org.apache.cassandra.metrics.DefaultNameFactory;
 import org.slf4j.Logger;
@@ -337,6 +339,12 @@ public class CassandraDaemon
         int nativePort = DatabaseDescriptor.getNativeTransportPort();
         nativeServer = new org.apache.cassandra.transport.Server(nativeAddr, nativePort);
 
+        completeSetup();
+    }
+
+    @VisibleForTesting
+    public void completeSetup()
+    {
         setupCompleted = true;
     }
 
