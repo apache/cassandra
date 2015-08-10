@@ -151,7 +151,7 @@ public class CompactionsCQLTest extends CQLTester
         createTable("CREATE TABLE %s (id text PRIMARY KEY)");
         Map<String, String> localOptions = new HashMap<>();
         localOptions.put("class", "DateTieredCompactionStrategy");
-        getCurrentColumnFamilyStore().setLocalCompactionStrategy(localOptions);
+        getCurrentColumnFamilyStore().setCompactionParameters(localOptions);
         WrappingCompactionStrategy wrappingCompactionStrategy = (WrappingCompactionStrategy) getCurrentColumnFamilyStore().getCompactionStrategy();
         assertTrue(verifyStrategies(wrappingCompactionStrategy, DateTieredCompactionStrategy.class));
         // altering something non-compaction related
@@ -172,12 +172,12 @@ public class CompactionsCQLTest extends CQLTester
         Map<String, String> localOptions = new HashMap<>();
         localOptions.put("class", "DateTieredCompactionStrategy");
         localOptions.put("enabled", "false");
-        getCurrentColumnFamilyStore().setLocalCompactionStrategy(localOptions);
+        getCurrentColumnFamilyStore().setCompactionParameters(localOptions);
         assertFalse(getCurrentColumnFamilyStore().getCompactionStrategy().isEnabled());
         localOptions.clear();
         localOptions.put("class", "DateTieredCompactionStrategy");
         // localOptions.put("enabled", "true"); - this is default!
-        getCurrentColumnFamilyStore().setLocalCompactionStrategy(localOptions);
+        getCurrentColumnFamilyStore().setCompactionParameters(localOptions);
         assertTrue(getCurrentColumnFamilyStore().getCompactionStrategy().isEnabled());
     }
 
@@ -192,7 +192,7 @@ public class CompactionsCQLTest extends CQLTester
         getCurrentColumnFamilyStore().disableAutoCompaction();
         assertFalse(getCurrentColumnFamilyStore().getCompactionStrategy().isEnabled());
 
-        getCurrentColumnFamilyStore().setLocalCompactionStrategy(localOptions);
+        getCurrentColumnFamilyStore().setCompactionParameters(localOptions);
         assertTrue(getCurrentColumnFamilyStore().getCompactionStrategy().isEnabled());
 
     }
@@ -206,7 +206,7 @@ public class CompactionsCQLTest extends CQLTester
         Map<String, String> localOptions = new HashMap<>();
         localOptions.put("class","SizeTieredCompactionStrategy");
         localOptions.put("sstable_size_in_mb","1234"); // not for STCS
-        getCurrentColumnFamilyStore().setLocalCompactionStrategy(localOptions);
+        getCurrentColumnFamilyStore().setCompactionParameters(localOptions);
     }
 
     public boolean verifyStrategies(WrappingCompactionStrategy wrappingStrategy, Class<? extends AbstractCompactionStrategy> expected)
