@@ -62,6 +62,7 @@ Upgrading
      The old one has been deprecated.
    - JMX methods set/getCompactionStrategyClass have been removed, use
      set/getCompactionParameters or set/getCompactionParametersJson instead.
+   - SizeTieredCompactionStrategy parameter cold_reads_to_omit has been removed.
 
 2.2
 ===
@@ -149,6 +150,7 @@ New features
      to convert from timestamp into date type and bigint raw value.
    - The toTimestamp(date) and toUnixTimestamp(date) functions have been added to allow
      to convert from date into timestamp type and bigint raw value.
+   - SizeTieredCompactionStrategy parameter cold_reads_to_omit has been removed.
 
 
 2.1.9
