@@ -1,5 +1,4 @@
 3.0.0-beta1
- * Replace all usages of Adler32 with CRC32
  * Fix row deletion bug for Materialized Views (CASSANDRA-10014)
  * Support mixed-version clusters with Cassandra 2.1 and 2.2 (CASSANDRA-9704)
  * Fix multiple slices on RowSearchers (CASSANDRA-10002)
