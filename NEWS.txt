@@ -112,7 +112,7 @@ Upgrading
       performance implications. This can be enabled again with the 
       commitlog_segment_recycling option in your cassandra.yaml 
     - JMX methods set/getCompactionStrategyClass have been deprecated, use
-      set/getLocalCompactionStrategy/set/getLocalCompactionStrategyJson instead
+      set/getCompactionParameters/set/getCompactionParametersJson instead
 
 2.1.8
 =====
