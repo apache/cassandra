@@ -19,36 +19,14 @@ package org.apache.cassandra.cql3.functions;
 
 import java.math.BigDecimal;
 import java.math.BigInteger;
-import java.net.MalformedURLException;
-import java.net.URL;
-import java.net.URLConnection;
-import java.net.URLStreamHandler;
+import java.net.*;
 import java.nio.ByteBuffer;
-import java.security.AccessControlContext;
-import java.security.AccessController;
-import java.security.CodeSource;
-import java.security.PrivilegedActionException;
-import java.security.PrivilegedExceptionAction;
-import java.security.ProtectionDomain;
+import java.security.*;
 import java.security.cert.Certificate;
-import java.util.Arrays;
-import java.util.Collections;
-import java.util.HashMap;
-import java.util.HashSet;
-import java.util.List;
-import java.util.Map;
+import java.util.*;
 import java.util.concurrent.ExecutorService;
-import javax.script.Bindings;
-import javax.script.Compilable;
-import javax.script.CompiledScript;
-import javax.script.ScriptContext;
-import javax.script.ScriptEngine;
-import javax.script.ScriptEngineFactory;
-import javax.script.ScriptEngineManager;
-import javax.script.ScriptException;
-import javax.script.SimpleScriptContext;
+import javax.script.*;
 
-import org.apache.cassandra.concurrent.JMXEnabledThreadPoolExecutor;
 import org.apache.cassandra.concurrent.NamedThreadFactory;
 import org.apache.cassandra.cql3.ColumnIdentifier;
 import org.apache.cassandra.db.marshal.AbstractType;
@@ -100,12 +78,14 @@ final class ScriptBasedUDFunction extends UDFunction
     "com.datastax.driver.core.utils"
     };
 
-    private static final JMXEnabledThreadPoolExecutor executor =
-    new JMXEnabledThreadPoolExecutor(new NamedThreadFactory("UserDefinedScriptFunctions",
-                                                            Thread.MIN_PRIORITY,
-                                                            udfClassLoader,
-                                                            new SecurityThreadGroup("UserDefinedScriptFunctions", Collections.unmodifiableSet(new HashSet<>(Arrays.asList(allowedPackagesArray))))),
-                                     "userscripts");
+    // use a JVM standard ExecutorService as DebuggableThreadPoolExecutor references internal
+    // classes, which triggers AccessControlException from the UDF sandbox
+    private static final UDFExecutorService executor =
+        new UDFExecutorService(new NamedThreadFactory("UserDefinedScriptFunctions",
+                                                      Thread.MIN_PRIORITY,
+                                                      udfClassLoader,
+                                                      new SecurityThreadGroup("UserDefinedScriptFunctions", Collections.unmodifiableSet(new HashSet<>(Arrays.asList(allowedPackagesArray))))),
+                               "userscripts");
 
     static
     {
