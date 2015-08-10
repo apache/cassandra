@@ -1,4 +1,6 @@
 3.0.0-beta1
+ * Replace all usages of Adler32 with CRC32
+ * Fix row deletion bug for Materialized Views (CASSANDRA-10014)
  * Support mixed-version clusters with Cassandra 2.1 and 2.2 (CASSANDRA-9704)
  * Fix multiple slices on RowSearchers (CASSANDRA-10002)
  * Fix bug in merging of collections (CASSANDRA-10001)
@@ -8,6 +10,7 @@
  * Add transparent data encryption core classes (CASSANDRA-9945)
  * Bytecode inspection for Java-UDFs (CASSANDRA-9890)
  * Use byte to serialize MT hash length (CASSANDRA-9792)
+ * Replace usage of Adler32 with CRC32 (CASSANDRA-8684)
 Merged from 2.2:
  * Add checksum to saved cache files (CASSANDRA-9265)
  * Log warning when using an aggregate without partition key (CASSANDRA-9737)

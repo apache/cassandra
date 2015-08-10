@@ -24,13 +24,13 @@ import java.util.Iterator;
 import java.util.concurrent.ArrayBlockingQueue;
 import java.util.concurrent.BlockingQueue;
 import java.util.concurrent.ThreadLocalRandom;
-import java.util.zip.Adler32;
 import java.util.zip.Checksum;
 
 import com.google.common.collect.Iterators;
 import com.google.common.primitives.Ints;
 
 import org.apache.cassandra.io.compress.CompressionMetadata;
+import org.apache.cassandra.utils.ChecksumType;
 import org.apache.cassandra.utils.WrappedRunnable;
 
 /**
@@ -65,10 +65,10 @@ public class CompressedInputStream extends InputStream
      * @param source Input source to read compressed data from
      * @param info Compression info
      */
-    public CompressedInputStream(InputStream source, CompressionInfo info)
+    public CompressedInputStream(InputStream source, CompressionInfo info, ChecksumType checksumType)
     {
         this.info = info;
-        this.checksum =  new Adler32();
+        this.checksum =  checksumType.newInstance();
         this.buffer = new byte[info.parameters.chunkLength()];
         // buffer is limited to store up to 1024 chunks
         this.dataBuffer = new ArrayBlockingQueue<byte[]>(Math.min(info.chunks.length, 1024));

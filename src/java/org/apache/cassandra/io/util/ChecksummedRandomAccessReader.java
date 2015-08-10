@@ -20,7 +20,7 @@ package org.apache.cassandra.io.util;
 
 import java.io.File;
 import java.io.IOException;
-import java.util.zip.Adler32;
+import java.util.zip.CRC32;
 
 import org.apache.cassandra.io.compress.BufferType;
 import org.apache.cassandra.utils.ByteBufferUtil;
@@ -52,7 +52,7 @@ public class ChecksummedRandomAccessReader extends RandomAccessReader
     {
         ChannelProxy channel = new ChannelProxy(file);
         RandomAccessReader crcReader = RandomAccessReader.open(crcFile);
-        DataIntegrityMetadata.ChecksumValidator validator = new DataIntegrityMetadata.ChecksumValidator(new Adler32(),
+        DataIntegrityMetadata.ChecksumValidator validator = new DataIntegrityMetadata.ChecksumValidator(new CRC32(),
                                                                                                         crcReader,
                                                                                                         file.getPath());
         return new ChecksummedRandomAccessReader(file, channel, validator);

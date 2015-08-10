@@ -25,7 +25,6 @@ import java.io.IOError;
 import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.nio.file.Files;
-import java.util.zip.Adler32;
 import java.util.zip.CRC32;
 import java.util.zip.CheckedInputStream;
 import java.util.zip.Checksum;
@@ -35,7 +34,6 @@ import com.google.common.base.Charsets;
 import org.apache.cassandra.io.FSWriteError;
 import org.apache.cassandra.io.sstable.Component;
 import org.apache.cassandra.io.sstable.Descriptor;
-import org.apache.cassandra.utils.FBUtilities;
 
 public class DataIntegrityMetadata
 {
@@ -53,7 +51,7 @@ public class DataIntegrityMetadata
 
         public ChecksumValidator(Descriptor descriptor) throws IOException
         {
-            this(descriptor.version.hasAllAdlerChecksums() ? new Adler32() : new CRC32(),
+            this(descriptor.version.uncompressedChecksumType().newInstance(),
                  RandomAccessReader.open(new File(descriptor.filenameFor(Component.CRC))),
                  descriptor.filenameFor(Component.DATA));
         }
@@ -110,7 +108,7 @@ public class DataIntegrityMetadata
         public FileDigestValidator(Descriptor descriptor) throws IOException
         {
             this.descriptor = descriptor;
-            checksum = descriptor.version.hasAllAdlerChecksums() ? new Adler32() : new CRC32();
+            checksum = descriptor.version.uncompressedChecksumType().newInstance();
             digestReader = RandomAccessReader.open(new File(descriptor.filenameFor(Component.DIGEST)));
             dataReader = RandomAccessReader.open(new File(descriptor.filenameFor(Component.DATA)));
             try
@@ -154,9 +152,9 @@ public class DataIntegrityMetadata
 
     public static class ChecksumWriter
     {
-        private final Adler32 incrementalChecksum = new Adler32();
+        private final CRC32 incrementalChecksum = new CRC32();
         private final DataOutput incrementalOut;
-        private final Adler32 fullChecksum = new Adler32();
+        private final CRC32 fullChecksum = new CRC32();
 
         public ChecksumWriter(DataOutput incrementalOut)
         {
