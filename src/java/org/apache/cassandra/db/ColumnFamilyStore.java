@@ -248,14 +248,35 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
         };
     }
 
-    public void setCompactionStrategyClass(String compactionStrategyClass)
+    public void setLocalCompactionStrategyJson(String options)
     {
-        throw new UnsupportedOperationException("ColumnFamilyStore.setCompactionStrategyClass() method is no longer supported");
+        setLocalCompactionStrategy(FBUtilities.fromJsonMap(options));
     }
 
-    public String getCompactionStrategyClass()
+    public String getLocalCompactionStrategyJson()
     {
-        return metadata.params.compaction.klass().getName();
+        return FBUtilities.json(getLocalCompactionStrategy());
+    }
+
+    public void setLocalCompactionStrategy(Map<String, String> options)
+    {
+        try
+        {
+            CompactionParams compactionParams = CompactionParams.fromMap(options);
+            compactionParams.validate();
+            compactionStrategyManager.setNewLocalCompactionStrategy(compactionParams);
+        }
+        catch (Throwable t)
+        {
+            logger.error("Could not set new local compaction strategy", t);
+            // dont propagate the ConfigurationException over jmx, user will only see a ClassNotFoundException
+            throw new IllegalArgumentException("Could not set new local compaction strategy: "+t.getMessage());
+        }
+    }
+
+    public Map<String, String> getLocalCompactionStrategy()
+    {
+        return compactionStrategyManager.getCompactionParams().asMap();
     }
 
     public Map<String,String> getCompressionParameters()
