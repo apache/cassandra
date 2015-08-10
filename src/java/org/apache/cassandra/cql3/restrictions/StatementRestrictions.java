@@ -513,8 +513,10 @@ public final class StatementRestrictions
      */
     public boolean isColumnRange()
     {
+        // For static compact tables we need to ignore the fake clustering column.
+        int numberOfClusteringColumns = cfm.isStaticCompactTable() ? 0 : cfm.clusteringColumns().size();
         // it is a range query if it has at least one the column alias for which no relation is defined or is not EQ.
-        return clusteringColumnsRestrictions.size() < cfm.clusteringColumns().size()
+        return clusteringColumnsRestrictions.size() < numberOfClusteringColumns
             || (!clusteringColumnsRestrictions.isEQ() && !clusteringColumnsRestrictions.isIN());
     }
 
