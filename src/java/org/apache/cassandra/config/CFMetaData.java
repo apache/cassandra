@@ -862,7 +862,9 @@ public final class CFMetaData
         return strategyClass;
     }
 
-    public AbstractCompactionStrategy createCompactionStrategyInstance(ColumnFamilyStore cfs)
+    public static AbstractCompactionStrategy createCompactionStrategyInstance(Class<? extends AbstractCompactionStrategy> compactionStrategyClass,
+                                                                              ColumnFamilyStore cfs,
+                                                                              Map<String, String> compactionStrategyOptions)
     {
         try
         {
@@ -874,6 +876,12 @@ public final class CFMetaData
         {
             throw new RuntimeException(e);
         }
+    }
+
+    @Deprecated
+    public AbstractCompactionStrategy createCompactionStrategyInstance(ColumnFamilyStore cfs)
+    {
+        return createCompactionStrategyInstance(compactionStrategyClass, cfs, compactionStrategyOptions);
     }
 
     /**
