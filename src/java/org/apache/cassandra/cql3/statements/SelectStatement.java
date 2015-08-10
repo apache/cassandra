@@ -29,7 +29,6 @@ import org.slf4j.LoggerFactory;
 import org.apache.cassandra.auth.Permission;
 import org.apache.cassandra.config.CFMetaData;
 import org.apache.cassandra.config.ColumnDefinition;
-import org.apache.cassandra.config.Schema;
 import org.apache.cassandra.cql3.*;
 import org.apache.cassandra.cql3.functions.Function;
 import org.apache.cassandra.cql3.restrictions.StatementRestrictions;
@@ -43,6 +42,7 @@ import org.apache.cassandra.db.index.SecondaryIndexManager;
 import org.apache.cassandra.db.marshal.CollectionType;
 import org.apache.cassandra.db.marshal.CompositeType;
 import org.apache.cassandra.db.marshal.Int32Type;
+import org.apache.cassandra.db.view.MaterializedView;
 import org.apache.cassandra.dht.AbstractBounds;
 import org.apache.cassandra.exceptions.*;
 import org.apache.cassandra.serializers.MarshalException;
@@ -166,7 +166,17 @@ public class SelectStatement implements CQLStatement
 
     public void checkAccess(ClientState state) throws InvalidRequestException, UnauthorizedException
     {
-        state.hasColumnFamilyAccess(keyspace(), columnFamily(), Permission.SELECT);
+        if (cfm.isMaterializedView())
+        {
+            CFMetaData baseTable = MaterializedView.findBaseTable(keyspace(), columnFamily());
+            if (baseTable != null)
+                state.hasColumnFamilyAccess(keyspace(), baseTable.cfName, Permission.SELECT);
+        }
+        else
+        {
+            state.hasColumnFamilyAccess(keyspace(), columnFamily(), Permission.SELECT);
+        }
+
         for (Function function : getFunctions())
             state.ensureHasPermission(Permission.EXECUTE, function);
     }

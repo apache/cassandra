@@ -26,6 +26,8 @@ import java.util.LinkedList;
 import java.util.List;
 import java.util.Set;
 
+import javax.annotation.Nullable;
+
 import com.google.common.collect.Iterables;
 
 import org.apache.cassandra.config.CFMetaData;
@@ -59,6 +61,7 @@ import org.apache.cassandra.db.rows.ColumnData;
 import org.apache.cassandra.db.rows.ComplexColumnData;
 import org.apache.cassandra.db.rows.Row;
 import org.apache.cassandra.db.rows.RowIterator;
+import org.apache.cassandra.schema.KeyspaceMetadata;
 import org.apache.cassandra.service.pager.QueryPager;
 
 /**
@@ -632,6 +635,20 @@ public class MaterializedView
 
         this.builder = new MaterializedViewBuilder(baseCfs, this);
         CompactionManager.instance.submitMaterializedViewBuilder(builder);
+    }
+
+    @Nullable
+    public static CFMetaData findBaseTable(String keyspace, String view)
+    {
+        KeyspaceMetadata ksm = Schema.instance.getKSMetaData(keyspace);
+        if (ksm == null)
+            return null;
+
+        for (CFMetaData cfm : ksm.tables)
+            if (cfm.getMaterializedViews().get(view).isPresent())
+                return cfm;
+
+        return null;
     }
 
     /**

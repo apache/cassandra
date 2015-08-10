@@ -20,14 +20,12 @@ package org.apache.cassandra.cql3.statements;
 
 import org.apache.cassandra.auth.Permission;
 import org.apache.cassandra.config.CFMetaData;
-import org.apache.cassandra.config.MaterializedViewDefinition;
 import org.apache.cassandra.config.Schema;
 import org.apache.cassandra.cql3.CFName;
-import org.apache.cassandra.db.KeyspaceNotDefinedException;
+import org.apache.cassandra.db.view.MaterializedView;
 import org.apache.cassandra.exceptions.ConfigurationException;
 import org.apache.cassandra.exceptions.InvalidRequestException;
 import org.apache.cassandra.exceptions.UnauthorizedException;
-import org.apache.cassandra.schema.KeyspaceMetadata;
 import org.apache.cassandra.service.ClientState;
 import org.apache.cassandra.service.MigrationManager;
 import org.apache.cassandra.transport.Event;
@@ -44,7 +42,9 @@ public class DropMaterializedViewStatement extends SchemaAlteringStatement
 
     public void checkAccess(ClientState state) throws UnauthorizedException, InvalidRequestException
     {
-        state.hasColumnFamilyAccess(keyspace(), columnFamily(), Permission.DROP);
+        CFMetaData baseTable = MaterializedView.findBaseTable(keyspace(), columnFamily());
+        if (baseTable != null)
+            state.hasColumnFamilyAccess(keyspace(), baseTable.cfName, Permission.ALTER);
     }
 
     public void validate(ClientState state)
@@ -67,9 +67,14 @@ public class DropMaterializedViewStatement extends SchemaAlteringStatement
             if (!viewCfm.isMaterializedView())
                 throw new ConfigurationException(String.format("Cannot drop non materialized view '%s' in keyspace '%s'", columnFamily(), keyspace()));
 
-            CFMetaData baseCfm = findBaseCf();
+            CFMetaData baseCfm = MaterializedView.findBaseTable(keyspace(), columnFamily());
             if (baseCfm == null)
-                throw new ConfigurationException(String.format("Cannot drop materialized view '%s' in keyspace '%s' without base CF.", columnFamily(), keyspace()));
+            {
+                if (ifExists)
+                    throw new ConfigurationException(String.format("Cannot drop materialized view '%s' in keyspace '%s' without base CF.", columnFamily(), keyspace()));
+                else
+                    throw new InvalidRequestException(String.format("View '%s' could not be found in any of the tables of keyspace '%s'", cfName, keyspace()));
+            }
 
             CFMetaData updatedCfm = baseCfm.copy();
             updatedCfm.materializedViews(updatedCfm.getMaterializedViews().without(columnFamily()));
@@ -83,23 +88,5 @@ public class DropMaterializedViewStatement extends SchemaAlteringStatement
                 return false;
             throw e;
         }
-    }
-
-    private CFMetaData findBaseCf() throws InvalidRequestException
-    {
-        KeyspaceMetadata ksm = Schema.instance.getKSMetaData(keyspace());
-        if (ksm == null)
-            throw new KeyspaceNotDefinedException("Keyspace " + keyspace() + " does not exist");
-
-        for (CFMetaData cfm : ksm.tables)
-        {
-            if (cfm.getMaterializedViews().get(columnFamily()).isPresent())
-                return cfm;
-        }
-
-        if (ifExists)
-            return null;
-        else
-            throw new InvalidRequestException("View '" + cfName + "' could not be found in any of the tables of keyspace '" + keyspace() + '\'');
     }
 }
