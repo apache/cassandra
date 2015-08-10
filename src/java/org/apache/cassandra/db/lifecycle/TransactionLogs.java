@@ -479,7 +479,7 @@ public class TransactionLogs extends Transactional.AbstractTransactional impleme
         }
         catch (NoSuchFileException e)
         {
-            logger.warn("Unable to delete {} as it does not exist", file);
+            logger.error("Unable to delete {} as it does not exist", file);
         }
         catch (IOException e)
         {
