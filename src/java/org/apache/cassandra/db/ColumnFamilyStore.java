@@ -248,17 +248,17 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
         };
     }
 
-    public void setLocalCompactionStrategyJson(String options)
+    public void setCompactionParametersJson(String options)
     {
-        setLocalCompactionStrategy(FBUtilities.fromJsonMap(options));
+        setCompactionParameters(FBUtilities.fromJsonMap(options));
     }
 
-    public String getLocalCompactionStrategyJson()
+    public String getCompactionParametersJson()
     {
-        return FBUtilities.json(getLocalCompactionStrategy());
+        return FBUtilities.json(getCompactionParameters());
     }
 
-    public void setLocalCompactionStrategy(Map<String, String> options)
+    public void setCompactionParameters(Map<String, String> options)
     {
         try
         {
@@ -274,7 +274,7 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
         }
     }
 
-    public Map<String, String> getLocalCompactionStrategy()
+    public Map<String, String> getCompactionParameters()
     {
         return compactionStrategyManager.getCompactionParams().asMap();
     }

@@ -61,7 +61,7 @@ Upgrading
    - Batchlog entries are now stored in a new table - system.batches.
      The old one has been deprecated.
    - JMX methods set/getCompactionStrategyClass have been removed, use
-     set/getLocalCompactionStrategy or set/getLocalCompactionStrategyJson instead.
+     set/getCompactionParameters or set/getCompactionParametersJson instead.
 
 2.2
 ===
@@ -161,6 +161,8 @@ Upgrading
     - Commit log files are no longer recycled by default, due to negative
       performance implications. This can be enabled again with the 
       commitlog_segment_recycling option in your cassandra.yaml 
+    - JMX methods set/getCompactionStrategyClass have been deprecated, use
+      set/getCompactionParameters/set/getCompactionParametersJson instead
 
 
 2.1.8
