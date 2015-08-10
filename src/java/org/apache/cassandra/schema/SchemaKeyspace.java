@@ -24,6 +24,7 @@ import java.security.NoSuchAlgorithmException;
 import java.util.*;
 import java.util.concurrent.TimeUnit;
 import java.util.function.Function;
+import java.util.stream.Collectors;
 
 import com.google.common.collect.ImmutableList;
 import com.google.common.collect.MapDifference;
@@ -48,8 +49,6 @@ import org.apache.cassandra.utils.FBUtilities;
 import org.apache.cassandra.utils.concurrent.OpOrder;
 
 import static org.apache.cassandra.cql3.QueryProcessor.executeOnceInternal;
-import static org.apache.cassandra.utils.FBUtilities.fromJsonMap;
-import static org.apache.cassandra.utils.FBUtilities.json;
 
 /**
  * system_schema.* tables and methods for manipulating them.
@@ -73,9 +72,10 @@ public final class SchemaKeyspace
     public static final String TYPES = "types";
     public static final String FUNCTIONS = "functions";
     public static final String AGGREGATES = "aggregates";
+    public static final String INDEXES = "indexes";
 
     public static final List<String> ALL =
-        ImmutableList.of(KEYSPACES, TABLES, COLUMNS, TRIGGERS, MATERIALIZED_VIEWS, TYPES, FUNCTIONS, AGGREGATES);
+        ImmutableList.of(KEYSPACES, TABLES, COLUMNS, TRIGGERS, MATERIALIZED_VIEWS, TYPES, FUNCTIONS, AGGREGATES, INDEXES);
 
     private static final CFMetaData Keyspaces =
         compile(KEYSPACES,
@@ -119,9 +119,6 @@ public final class SchemaKeyspace
                 + "column_name text,"
                 + "column_name_bytes blob,"
                 + "component_index int,"
-                + "index_name text,"
-                + "index_options text,"
-                + "index_type text,"
                 + "type text,"
                 + "validator text,"
                 + "PRIMARY KEY ((keyspace_name), table_name, column_name))");
@@ -158,6 +155,19 @@ public final class SchemaKeyspace
                 + "clustering_columns list<text>,"
                 + "included_columns list<text>,"
                 + "PRIMARY KEY ((keyspace_name), table_name, view_name))");
+
+    private static final CFMetaData Indexes =
+        compile(INDEXES,
+                "secondary index definitions",
+                "CREATE TABLE %s ("
+                + "keyspace_name text,"
+                + "table_name text,"
+                + "index_name text,"
+                + "index_type text,"
+                + "options map<text, text>,"
+                + "target_columns set<text>,"
+                + "target_type text,"
+                + "PRIMARY KEY ((keyspace_name), table_name, index_name))");
 
     private static final CFMetaData Types =
         compile(TYPES,
@@ -199,8 +209,8 @@ public final class SchemaKeyspace
                 + "state_type text,"
                 + "PRIMARY KEY ((keyspace_name), aggregate_name, signature))");
 
-    public static final List<CFMetaData> All =
-        ImmutableList.of(Keyspaces, Tables, Columns, Triggers, DroppedColumns, MaterializedViews, Types, Functions, Aggregates);
+    public static final List<CFMetaData> ALL_TABLE_METADATA =
+        ImmutableList.of(Keyspaces, Tables, Columns, Triggers, DroppedColumns, MaterializedViews, Types, Functions, Aggregates, Indexes);
 
     private static CFMetaData compile(String name, String description, String schema)
     {
@@ -211,7 +221,7 @@ public final class SchemaKeyspace
 
     public static KeyspaceMetadata metadata()
     {
-        return KeyspaceMetadata.create(NAME, KeyspaceParams.local(), org.apache.cassandra.schema.Tables.of(All));
+        return KeyspaceMetadata.create(NAME, KeyspaceParams.local(), org.apache.cassandra.schema.Tables.of(ALL_TABLE_METADATA));
     }
 
     /**
@@ -699,7 +709,7 @@ public final class SchemaKeyspace
         int nowInSec = FBUtilities.nowInSeconds();
         Mutation mutation = new Mutation(NAME, Keyspaces.decorateKey(getSchemaKSKey(keyspace.name)));
 
-        for (CFMetaData schemaTable : All)
+        for (CFMetaData schemaTable : ALL_TABLE_METADATA)
             mutation.add(PartitionUpdate.fullPartitionDelete(schemaTable, mutation.key(), timestamp, nowInSec));
 
         return mutation;
@@ -836,6 +846,9 @@ public final class SchemaKeyspace
 
             for (MaterializedViewDefinition materializedView: table.getMaterializedViews())
                 addMaterializedViewToSchemaMutation(table, materializedView, timestamp, mutation);
+
+            for (IndexMetadata index : table.getIndexes())
+                addIndexToSchemaMutation(table, index, timestamp, mutation);
         }
     }
 
@@ -921,15 +934,43 @@ public final class SchemaKeyspace
 
         // newly created materialized views
         for (MaterializedViewDefinition materializedView : materializedViewDiff.entriesOnlyOnRight().values())
-            addMaterializedViewToSchemaMutation(oldTable, materializedView, timestamp, mutation);
+            addMaterializedViewToSchemaMutation(newTable, materializedView, timestamp, mutation);
 
         // updated materialized views need to be updated
         for (MapDifference.ValueDifference<MaterializedViewDefinition> diff : materializedViewDiff.entriesDiffering().values())
         {
-            addUpdatedMaterializedViewDefinitionToSchemaMutation(oldTable, diff.rightValue(), timestamp, mutation);
+            addUpdatedMaterializedViewDefinitionToSchemaMutation(newTable, diff.rightValue(), timestamp, mutation);
+        }
+
+        MapDifference<String, IndexMetadata> indexesDiff = indexesDiff(oldTable.getIndexes(),
+                                                                       newTable.getIndexes());
+
+        // dropped indexes
+        for (IndexMetadata index : indexesDiff.entriesOnlyOnLeft().values())
+            dropIndexFromSchemaMutation(oldTable, index, timestamp, mutation);
+
+        // newly created indexes
+        for (IndexMetadata index : indexesDiff.entriesOnlyOnRight().values())
+            addIndexToSchemaMutation(newTable, index, timestamp, mutation);
+
+        // updated indexes need to be updated
+        for (MapDifference.ValueDifference<IndexMetadata> diff : indexesDiff.entriesDiffering().values())
+        {
+            addUpdatedIndexToSchemaMutation(newTable, diff.rightValue(), timestamp, mutation);
         }
 
         return mutation;
+    }
+
+    private static MapDifference<String, IndexMetadata> indexesDiff(Indexes before, Indexes after)
+    {
+        Map<String, IndexMetadata> beforeMap = new HashMap<>();
+        before.forEach(i -> beforeMap.put(i.name, i));
+
+        Map<String, IndexMetadata> afterMap = new HashMap<>();
+        after.forEach(i -> afterMap.put(i.name, i));
+
+        return Maps.difference(beforeMap, afterMap);
     }
 
     private static MapDifference<String, TriggerMetadata> triggersDiff(Triggers before, Triggers after)
@@ -969,6 +1010,9 @@ public final class SchemaKeyspace
 
         for (MaterializedViewDefinition materializedView : table.getMaterializedViews())
             dropMaterializedViewFromSchemaMutation(table, materializedView, timestamp, mutation);
+
+        for (IndexMetadata index : table.getIndexes())
+            dropIndexFromSchemaMutation(table, index, timestamp, mutation);
 
         return mutation;
     }
@@ -1037,9 +1081,18 @@ public final class SchemaKeyspace
         MaterializedViews views =
             readSchemaPartitionForTableAndApply(MATERIALIZED_VIEWS, keyspace, table, SchemaKeyspace::createMaterializedViewsFromMaterializedViewsPartition);
 
-        return createTableFromTableRowAndColumns(row, columns).droppedColumns(droppedColumns)
-                                                              .triggers(triggers)
-                                                              .materializedViews(views);
+        CFMetaData cfm = createTableFromTableRowAndColumns(row, columns).droppedColumns(droppedColumns)
+                                                                        .triggers(triggers)
+                                                                        .materializedViews(views);
+
+        // the CFMetaData itself is required to build the collection of indexes as
+        // the column definitions are needed because we store only the name each
+        // index's target columns and this is not enough to reconstruct a ColumnIdentifier
+        org.apache.cassandra.schema.Indexes indexes =
+            readSchemaPartitionForTableAndApply(INDEXES, keyspace, table, rowIterator -> createIndexesFromIndexesPartition(cfm, rowIterator));
+        cfm.indexes(indexes);
+
+        return cfm;
     }
 
     public static CFMetaData createTableFromTableRowAndColumns(UntypedResultSet.Row row, List<ColumnDefinition> columns)
@@ -1107,9 +1160,6 @@ public final class SchemaKeyspace
              .add("validator", column.type.toString())
              .add("type", column.kind.toString().toLowerCase())
              .add("component_index", column.isOnAllComponents() ? null : column.position())
-             .add("index_name", column.getIndexName())
-             .add("index_type", column.getIndexType() == null ? null : column.getIndexType().toString())
-             .add("index_options", json(column.getIndexOptions()))
              .build();
     }
 
@@ -1141,19 +1191,7 @@ public final class SchemaKeyspace
 
         AbstractType<?> validator = parseType(row.getString("validator"));
 
-        IndexType indexType = null;
-        if (row.has("index_type"))
-            indexType = IndexType.valueOf(row.getString("index_type"));
-
-        Map<String, String> indexOptions = null;
-        if (row.has("index_options"))
-            indexOptions = fromJsonMap(row.getString("index_options"));
-
-        String indexName = null;
-        if (row.has("index_name"))
-            indexName = row.getString("index_name");
-
-        return new ColumnDefinition(keyspace, table, name, validator, indexType, indexOptions, indexName, componentIndex, kind);
+        return new ColumnDefinition(keyspace, table, name, validator, componentIndex, kind);
     }
 
     /*
@@ -1233,7 +1271,7 @@ public final class SchemaKeyspace
     }
 
     /*
-     * Global Index metadata serialization/deserialization.
+     * Materialized View metadata serialization/deserialization.
      */
 
     private static void addMaterializedViewToSchemaMutation(CFMetaData table, MaterializedViewDefinition materializedView, long timestamp, Mutation mutation)
@@ -1327,6 +1365,100 @@ public final class SchemaKeyspace
                                               partitionColumns,
                                               clusteringColumns,
                                               includedColumns);
+    }
+
+    /*
+     * Secondary Index metadata serialization/deserialization.
+     */
+
+    private static void addIndexToSchemaMutation(CFMetaData table,
+                                                 IndexMetadata index,
+                                                 long timestamp,
+                                                 Mutation mutation)
+    {
+        RowUpdateBuilder builder = new RowUpdateBuilder(Indexes, timestamp, mutation)
+                                   .clustering(table.cfName, index.name);
+
+        builder.add("index_type", index.indexType.toString());
+        builder.map("options", index.options);
+        builder.set("target_columns", index.columns.stream()
+                                                   .map(ColumnIdentifier::toString)
+                                                   .collect(Collectors.toSet()));
+        builder.add("target_type", index.targetType.toString());
+        builder.build();
+    }
+
+    private static void dropIndexFromSchemaMutation(CFMetaData table,
+                                                    IndexMetadata index,
+                                                    long timestamp,
+                                                    Mutation mutation)
+    {
+        RowUpdateBuilder.deleteRow(Indexes, timestamp, mutation, table.cfName, index.name);
+    }
+
+    private static void addUpdatedIndexToSchemaMutation(CFMetaData table,
+                                                        IndexMetadata index,
+                                                        long timestamp,
+                                                        Mutation mutation)
+    {
+        RowUpdateBuilder builder = new RowUpdateBuilder(Indexes, timestamp, mutation).clustering(table.cfName, index.name);
+
+        builder.add("index_type", index.indexType.toString());
+        builder.map("options", index.options);
+        builder.set("target_columns", index.columns.stream().map(ColumnIdentifier::toString).collect(Collectors.toSet()));
+        builder.add("target_type", index.targetType.toString());
+        builder.build();
+    }
+    /**
+     * Deserialize secondary indexes from storage-level representation.
+     *
+     * @param partition storage-level partition containing the index definitions
+     * @return the list of processed IndexMetadata
+     */
+    private static Indexes createIndexesFromIndexesPartition(CFMetaData cfm, RowIterator partition)
+    {
+        Indexes.Builder indexes = org.apache.cassandra.schema.Indexes.builder();
+        String query = String.format("SELECT * FROM %s.%s", NAME, INDEXES);
+        QueryProcessor.resultify(query, partition).forEach(row -> indexes.add(createIndexMetadataFromIndexesRow(cfm, row)));
+        return indexes.build();
+    }
+
+    private static IndexMetadata createIndexMetadataFromIndexesRow(CFMetaData cfm, UntypedResultSet.Row row)
+    {
+        String name = row.getString("index_name");
+        IndexMetadata.IndexType type = IndexMetadata.IndexType.valueOf(row.getString("index_type"));
+        IndexMetadata.TargetType targetType = IndexMetadata.TargetType.valueOf(row.getString("target_type"));
+        Map<String, String> options = row.getTextMap("options");
+        if (options == null)
+            options = Collections.emptyMap();
+
+        Set<String> targetColumnNames = row.getSet("target_columns", UTF8Type.instance);
+        assert targetType == IndexMetadata.TargetType.COLUMN : "Per row indexes with dynamic target columns are not supported yet";
+        assert targetColumnNames.size() == 1 : "Secondary indexes targetting multiple columns are not supported yet";
+
+        Set<ColumnIdentifier> targetColumns = new HashSet<>();
+        // if it's not a CQL table, we can't assume that the column name is utf8, so
+        // in that case we have to do a linear scan of the cfm's columns to get the matching one
+        if (targetColumnNames != null)
+        {
+            targetColumnNames.forEach(targetColumnName -> {
+                if (cfm.isCQLTable())
+                    targetColumns.add(ColumnIdentifier.getInterned(targetColumnName, true));
+                else
+                    findColumnIdentifierWithName(targetColumnName, cfm.allColumns()).ifPresent(targetColumns::add);
+            });
+        }
+        return IndexMetadata.legacyIndex(targetColumns.iterator().next(), name, type, options);
+    }
+
+    private static Optional<ColumnIdentifier> findColumnIdentifierWithName(String name,
+                                                                           Iterable<ColumnDefinition> columns)
+    {
+        for (ColumnDefinition column : columns)
+            if (column.name.toString().equals(name))
+                return Optional.of(column.name);
+
+        return Optional.empty();
     }
 
     /*

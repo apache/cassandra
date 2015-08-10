@@ -27,6 +27,8 @@ import java.util.*;
 import com.google.common.base.Function;
 import com.google.common.base.Joiner;
 import com.google.common.base.Splitter;
+
+import com.datastax.driver.core.TypeCodec;
 import org.apache.cassandra.utils.AbstractIterator;
 import com.google.common.collect.Iterables;
 import com.google.common.collect.Maps;
@@ -340,9 +342,45 @@ public class CqlRecordReader extends RecordReader<Long, Row>
         }
 
         @Override
+        public <T> T get(int i, Class<T> aClass)
+        {
+            return row.get(i, aClass);
+        }
+
+        @Override
+        public <T> T get(int i, TypeToken<T> typeToken)
+        {
+            return row.get(i, typeToken);
+        }
+
+        @Override
+        public <T> T get(int i, TypeCodec<T> typeCodec)
+        {
+            return row.get(i, typeCodec);
+        }
+
+        @Override
         public Object getObject(String s)
         {
             return row.getObject(s);
+        }
+
+        @Override
+        public <T> T get(String s, Class<T> aClass)
+        {
+            return row.get(s, aClass);
+        }
+
+        @Override
+        public <T> T get(String s, TypeToken<T> typeToken)
+        {
+            return row.get(s, typeToken);
+        }
+
+        @Override
+        public <T> T get(String s, TypeCodec<T> typeCodec)
+        {
+            return row.get(s, typeCodec);
         }
 
         @Override

@@ -23,9 +23,14 @@ import java.lang.reflect.Method;
 import java.nio.ByteBuffer;
 import java.util.List;
 
+import com.datastax.driver.core.CodecRegistry;
 import com.datastax.driver.core.DataType;
+import com.datastax.driver.core.ProtocolVersion;
+import com.datastax.driver.core.TypeCodec;
+import com.datastax.driver.core.exceptions.InvalidTypeException;
 import org.apache.cassandra.cql3.CQL3Type;
 import org.apache.cassandra.db.marshal.AbstractType;
+import org.apache.cassandra.transport.Server;
 
 /**
  * Helper class for User Defined Functions + Aggregates.
@@ -34,14 +39,16 @@ public final class UDHelper
 {
     // TODO make these c'tors and methods public in Java-Driver - see https://datastax-oss.atlassian.net/browse/JAVA-502
     static final MethodHandle methodParseOne;
+    static final CodecRegistry codecRegistry;
     static
     {
         try
         {
             Class<?> cls = Class.forName("com.datastax.driver.core.CassandraTypeParser");
-            Method m = cls.getDeclaredMethod("parseOne", String.class);
+            Method m = cls.getDeclaredMethod("parseOne", String.class, ProtocolVersion.class, CodecRegistry.class);
             m.setAccessible(true);
             methodParseOne = MethodHandles.lookup().unreflect(m);
+            codecRegistry = new CodecRegistry();
         }
         catch (Exception e)
         {
@@ -61,7 +68,7 @@ public final class UDHelper
         Class<?>[] paramTypes = new Class[dataTypes.length];
         for (int i = 0; i < paramTypes.length; i++)
         {
-            Class<?> clazz = dataTypes[i].asJavaClass();
+            Class<?> clazz = asJavaClass(dataTypes[i]);
             if (!calledOnNullInput)
             {
                 // only care about classes that can be used in a data type
@@ -108,7 +115,9 @@ public final class UDHelper
         CQL3Type cqlType = abstractType.asCQL3Type();
         try
         {
-            return (DataType) methodParseOne.invoke(cqlType.getType().toString());
+            return (DataType) methodParseOne.invoke(cqlType.getType().toString(),
+                                                    ProtocolVersion.fromInt(Server.CURRENT_VERSION),
+                                                    codecRegistry);
         }
         catch (RuntimeException | Error e)
         {
@@ -119,6 +128,25 @@ public final class UDHelper
         {
             throw new RuntimeException("cannot parse driver type " + cqlType.getType().toString(), e);
         }
+    }
+
+    public static Object deserialize(DataType dataType, int protocolVersion, ByteBuffer value)
+    {
+        return codecRegistry.codecFor(dataType).deserialize(value, ProtocolVersion.fromInt(protocolVersion));
+    }
+
+    public static ByteBuffer serialize(DataType dataType, int protocolVersion, Object value)
+    {
+        TypeCodec<Object> codec = codecRegistry.codecFor(dataType);
+        if (! codec.getJavaType().getRawType().isAssignableFrom(value.getClass()))
+            throw new InvalidTypeException("Invalid value for CQL type " + dataType.getName().toString());
+
+        return codec.serialize(value, ProtocolVersion.fromInt(protocolVersion));
+    }
+
+    public static Class<?> asJavaClass(DataType dataType)
+    {
+        return codecRegistry.codecFor(dataType).getJavaType().getRawType();
     }
 
     public static boolean isNullOrEmpty(AbstractType<?> type, ByteBuffer bb)

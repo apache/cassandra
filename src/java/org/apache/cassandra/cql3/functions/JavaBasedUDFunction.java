@@ -171,7 +171,7 @@ final class JavaBasedUDFunction extends UDFunction
         // javaParamTypes is just the Java representation for argTypes resp. argDataTypes
         Class<?>[] javaParamTypes = UDHelper.javaTypes(argDataTypes, calledOnNullInput);
         // javaReturnType is just the Java representation for returnType resp. returnDataType
-        Class<?> javaReturnType = returnDataType.asJavaClass();
+        Class<?> javaReturnType = UDHelper.asJavaClass(returnDataType);
 
         // put each UDF in a separate package to prevent cross-UDF code access
         String pkgName = BASE_PACKAGE + '.' + generateClassName(name, 'p');

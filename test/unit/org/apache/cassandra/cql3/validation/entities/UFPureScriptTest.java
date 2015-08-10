@@ -183,10 +183,15 @@ public class UFPureScriptTest extends CQLTester
                    row(map));
 
         // same test - but via native protocol
-        TupleType tType = TupleType.of(DataType.cdouble(),
-                                       DataType.list(DataType.cdouble()),
-                                       DataType.set(DataType.text()),
-                                       DataType.map(DataType.cint(), DataType.cboolean()));
+        // we use protocol V3 here to encode the expected version because the server
+        // always serializes Collections using V3 - see CollectionSerializer's
+        // serialize and deserialize methods.
+        TupleType tType = tupleTypeOf(Server.VERSION_3,
+                                      DataType.cdouble(),
+                                      DataType.list(DataType.cdouble()),
+                                      DataType.set(DataType.text()),
+                                      DataType.map(DataType.cint(),
+                                                   DataType.cboolean()));
         TupleValue tup = tType.newValue(1d, list, set, map);
         for (int version = Server.VERSION_2; version <= maxProtocolVersion; version++)
         {

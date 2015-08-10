@@ -371,11 +371,8 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
         }
 
         // create the private ColumnFamilyStores for the secondary column indexes
-        for (ColumnDefinition info : metadata.allColumns())
-        {
-            if (info.getIndexType() != null)
-                indexManager.addIndexedColumn(info);
-        }
+        for (IndexMetadata info : metadata.getIndexes())
+            indexManager.addIndexedColumn(info);
 
         if (registerBookkeeping)
         {
@@ -571,15 +568,9 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
         }
 
         // also clean out any index leftovers.
-        for (ColumnDefinition def : metadata.allColumns())
-        {
-            if (def.isIndexed())
-            {
-                CFMetaData indexMetadata = SecondaryIndex.newIndexMetadata(metadata, def);
-                if (indexMetadata != null)
-                    scrubDataDirectories(indexMetadata);
-            }
-        }
+        for (IndexMetadata def : metadata.getIndexes())
+            if (!def.isCustom())
+                scrubDataDirectories(SecondaryIndex.newIndexMetadata(metadata, def));
     }
 
     // must be called after all sstables are loaded since row cache merges all row versions

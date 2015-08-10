@@ -158,6 +158,6 @@ public class NativeSSTableLoaderClient extends SSTableLoader.Client
 
         AbstractType<?> validator = TypeParser.parse(row.getString("validator"));
 
-        return new ColumnDefinition(keyspace, table, name, validator, null, null, null, componentIndex, kind);
+        return new ColumnDefinition(keyspace, table, name, validator, componentIndex, kind);
     }
 }

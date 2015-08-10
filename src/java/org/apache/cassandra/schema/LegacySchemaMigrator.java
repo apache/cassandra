@@ -121,7 +121,6 @@ public final class LegacySchemaMigrator
     private static void storeKeyspaceInNewSchemaTables(Keyspace keyspace)
     {
         Mutation mutation = SchemaKeyspace.makeCreateKeyspaceMutation(keyspace.name, keyspace.params, keyspace.timestamp);
-
         for (Table table : keyspace.tables)
             SchemaKeyspace.addTableToSchemaMutation(table.metadata, table.timestamp, true, mutation);
 
@@ -293,6 +292,16 @@ public final class LegacySchemaMigrator
                                                                         isStaticCompactTable,
                                                                         needsUpgrade);
 
+        Indexes indexes = createIndexesFromColumnRows(columnRows,
+                                                      ksName,
+                                                      cfName,
+                                                      rawComparator,
+                                                      subComparator,
+                                                      isSuper,
+                                                      isCQLTable,
+                                                      isStaticCompactTable,
+                                                      needsUpgrade);
+
         if (needsUpgrade)
         {
             addDefinitionForUpgrade(columnDefs,
@@ -315,6 +324,7 @@ public final class LegacySchemaMigrator
                                            false, // legacy schema did not contain views
                                            columnDefs,
                                            DatabaseDescriptor.getPartitioner());
+        cfm.indexes(indexes);
 
         if (tableRow.has("dropped_columns"))
             addDroppedColumns(cfm, rawComparator, tableRow.getMap("dropped_columns", UTF8Type.instance, LongType.instance));
@@ -530,29 +540,73 @@ public final class LegacySchemaMigrator
             if (isEmptyCompactValueColumn(row))
                 continue;
 
-            ColumnDefinition.Kind kind = deserializeKind(row.getString("type"));
-            if (needsUpgrade && isStaticCompactTable && kind == ColumnDefinition.Kind.REGULAR)
-                kind = ColumnDefinition.Kind.STATIC;
+            columns.add(createColumnFromColumnRow(row,
+                                                  keyspace,
+                                                  table,
+                                                  rawComparator,
+                                                  rawSubComparator,
+                                                  isSuper,
+                                                  isCQLTable,
+                                                  isStaticCompactTable,
+                                                  needsUpgrade));
+        }
 
-            Integer componentIndex = null;
-            // Note that the component_index is not useful for non-primary key parts (it never really in fact since there is
-            // no particular ordering of non-PK columns, we only used to use it as a simplification but that's not needed
-            // anymore)
-            if (kind.isPrimaryKeyKind() && row.has("component_index"))
-                componentIndex = row.getInt("component_index");
+        return columns;
+    }
 
-            // Note: we save the column name as string, but we should not assume that it is an UTF8 name, we
-            // we need to use the comparator fromString method
-            AbstractType<?> comparator = isCQLTable
-                                       ? UTF8Type.instance
-                                       : CompactTables.columnDefinitionComparator(kind, isSuper, rawComparator, rawSubComparator);
-            ColumnIdentifier name = ColumnIdentifier.getInterned(comparator.fromString(row.getString("column_name")), comparator);
+    private static ColumnDefinition createColumnFromColumnRow(UntypedResultSet.Row row,
+                                                              String keyspace,
+                                                              String table,
+                                                              AbstractType<?> rawComparator,
+                                                              AbstractType<?> rawSubComparator,
+                                                              boolean isSuper,
+                                                              boolean isCQLTable,
+                                                              boolean isStaticCompactTable,
+                                                              boolean needsUpgrade)
+    {
+        ColumnDefinition.Kind kind = deserializeKind(row.getString("type"));
+        if (needsUpgrade && isStaticCompactTable && kind == ColumnDefinition.Kind.REGULAR)
+            kind = ColumnDefinition.Kind.STATIC;
 
-            AbstractType<?> validator = parseType(row.getString("validator"));
+        Integer componentIndex = null;
+        // Note that the component_index is not useful for non-primary key parts (it never really in fact since there is
+        // no particular ordering of non-PK columns, we only used to use it as a simplification but that's not needed
+        // anymore)
+        if (kind.isPrimaryKeyKind() && row.has("component_index"))
+            componentIndex = row.getInt("component_index");
 
-            IndexType indexType = null;
+        // Note: we save the column name as string, but we should not assume that it is an UTF8 name, we
+        // we need to use the comparator fromString method
+        AbstractType<?> comparator = isCQLTable
+                                     ? UTF8Type.instance
+                                     : CompactTables.columnDefinitionComparator(kind, isSuper, rawComparator, rawSubComparator);
+        ColumnIdentifier name = ColumnIdentifier.getInterned(comparator.fromString(row.getString("column_name")), comparator);
+
+        AbstractType<?> validator = parseType(row.getString("validator"));
+
+        return new ColumnDefinition(keyspace, table, name, validator, componentIndex, kind);
+    }
+
+    private static Indexes createIndexesFromColumnRows(UntypedResultSet rows,
+                                                       String keyspace,
+                                                       String table,
+                                                       AbstractType<?> rawComparator,
+                                                       AbstractType<?> rawSubComparator,
+                                                       boolean isSuper,
+                                                       boolean isCQLTable,
+                                                       boolean isStaticCompactTable,
+                                                       boolean needsUpgrade)
+    {
+        Indexes.Builder indexes = Indexes.builder();
+
+        for (UntypedResultSet.Row row : rows)
+        {
+            IndexMetadata.IndexType indexType = null;
             if (row.has("index_type"))
-                indexType = IndexType.valueOf(row.getString("index_type"));
+                indexType = IndexMetadata.IndexType.valueOf(row.getString("index_type"));
+
+            if (indexType == null)
+                continue;
 
             Map<String, String> indexOptions = null;
             if (row.has("index_options"))
@@ -562,10 +616,20 @@ public final class LegacySchemaMigrator
             if (row.has("index_name"))
                 indexName = row.getString("index_name");
 
-            columns.add(new ColumnDefinition(keyspace, table, name, validator, indexType, indexOptions, indexName, componentIndex, kind));
+            ColumnDefinition column = createColumnFromColumnRow(row,
+                                                                keyspace,
+                                                                table,
+                                                                rawComparator,
+                                                                rawSubComparator,
+                                                                isSuper,
+                                                                isCQLTable,
+                                                                isStaticCompactTable,
+                                                                needsUpgrade);
+
+            indexes.add(IndexMetadata.legacyIndex(column, indexName, indexType, indexOptions));
         }
 
-        return columns;
+        return indexes.build();
     }
 
     private static ColumnDefinition.Kind deserializeKind(String kind)

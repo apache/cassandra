@@ -142,7 +142,7 @@ public class JavaDriverClient
 
     public ResultSet execute(String query, org.apache.cassandra.db.ConsistencyLevel consistency)
     {
-        SimpleStatement stmt = new SimpleStatement(query);
+        SimpleStatement stmt = getSession().newSimpleStatement(query);
         stmt.setConsistencyLevel(from(consistency));
         return getSession().execute(stmt);
     }

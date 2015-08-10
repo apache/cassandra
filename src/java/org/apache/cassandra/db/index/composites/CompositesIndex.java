@@ -22,6 +22,7 @@ import java.util.HashMap;
 import java.util.Map;
 import java.util.Set;
 
+import org.apache.cassandra.schema.IndexMetadata;
 import org.apache.cassandra.utils.concurrent.OpOrder;
 import org.apache.cassandra.config.CFMetaData;
 import org.apache.cassandra.config.ColumnDefinition;
@@ -40,8 +41,9 @@ import org.apache.cassandra.exceptions.ConfigurationException;
  */
 public abstract class CompositesIndex extends AbstractSimplePerColumnSecondaryIndex
 {
-    public static CompositesIndex create(ColumnDefinition cfDef)
+    public static CompositesIndex create(IndexMetadata indexDef, CFMetaData baseMetadata)
     {
+        ColumnDefinition cfDef = indexDef.indexedColumn(baseMetadata);
         if (cfDef.type.isCollection() && cfDef.type.isMultiCell())
         {
             switch (((CollectionType)cfDef.type).kind)
@@ -51,9 +53,9 @@ public abstract class CompositesIndex extends AbstractSimplePerColumnSecondaryIn
                 case SET:
                     return new CompositesIndexOnCollectionKey();
                 case MAP:
-                    if (cfDef.hasIndexOption(SecondaryIndex.INDEX_KEYS_OPTION_NAME))
+                    if (indexDef.options.containsKey(SecondaryIndex.INDEX_KEYS_OPTION_NAME))
                         return new CompositesIndexOnCollectionKey();
-                    else if (cfDef.hasIndexOption(SecondaryIndex.INDEX_ENTRIES_OPTION_NAME))
+                    else if (indexDef.options.containsKey(SecondaryIndex.INDEX_ENTRIES_OPTION_NAME))
                         return new CompositesIndexOnCollectionKeyAndValue();
                     else
                         return new CompositesIndexOnCollectionValue();
@@ -74,13 +76,14 @@ public abstract class CompositesIndex extends AbstractSimplePerColumnSecondaryIn
         throw new AssertionError();
     }
 
-    public static void addIndexClusteringColumns(CFMetaData.Builder indexMetadata, CFMetaData baseMetadata, ColumnDefinition cfDef)
+    public static void addIndexClusteringColumns(CFMetaData.Builder indexMetadata, CFMetaData baseMetadata, IndexMetadata indexDef)
     {
+        ColumnDefinition cfDef = indexDef.indexedColumn(baseMetadata);
         if (cfDef.type.isCollection() && cfDef.type.isMultiCell())
         {
             CollectionType type = (CollectionType)cfDef.type;
             if (type.kind == CollectionType.Kind.LIST
-                || (type.kind == CollectionType.Kind.MAP && cfDef.hasIndexOption(SecondaryIndex.INDEX_VALUES_OPTION_NAME)))
+                || (type.kind == CollectionType.Kind.MAP && indexDef.options.containsKey(SecondaryIndex.INDEX_VALUES_OPTION_NAME)))
             {
                 CompositesIndexOnCollectionValue.addClusteringColumns(indexMetadata, baseMetadata, cfDef);
             }
@@ -125,10 +128,10 @@ public abstract class CompositesIndex extends AbstractSimplePerColumnSecondaryIn
         return new CompositesSearcher(baseCfs.indexManager, columns);
     }
 
-    public void validateOptions() throws ConfigurationException
+    public void validateOptions(CFMetaData baseCfm, IndexMetadata indexMetadata) throws ConfigurationException
     {
-        ColumnDefinition columnDef = columnDefs.iterator().next();
-        Map<String, String> options = new HashMap<String, String>(columnDef.getIndexOptions());
+        ColumnDefinition columnDef = indexMetadata.indexedColumn(baseCfm);
+        Map<String, String> options = new HashMap<String, String>(indexMetadata.options);
 
         // We used to have an option called "prefix_size" so skip it silently for backward compatibility sake.
         options.remove("prefix_size");

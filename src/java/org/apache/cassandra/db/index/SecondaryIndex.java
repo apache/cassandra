@@ -18,9 +18,7 @@
 package org.apache.cassandra.db.index;
 
 import java.nio.ByteBuffer;
-import java.util.Collections;
-import java.util.Iterator;
-import java.util.Set;
+import java.util.*;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.Future;
 import java.util.concurrent.FutureTask;
@@ -32,7 +30,7 @@ import org.slf4j.LoggerFactory;
 
 import org.apache.cassandra.config.CFMetaData;
 import org.apache.cassandra.config.ColumnDefinition;
-import org.apache.cassandra.config.IndexType;
+import org.apache.cassandra.cql3.ColumnIdentifier;
 import org.apache.cassandra.cql3.Operator;
 import org.apache.cassandra.db.*;
 import org.apache.cassandra.db.rows.*;
@@ -47,6 +45,7 @@ import org.apache.cassandra.exceptions.ConfigurationException;
 import org.apache.cassandra.io.sstable.format.SSTableReader;
 import org.apache.cassandra.exceptions.InvalidRequestException;
 import org.apache.cassandra.io.sstable.ReducingKeyIterator;
+import org.apache.cassandra.schema.IndexMetadata;
 import org.apache.cassandra.utils.FBUtilities;
 import org.apache.cassandra.utils.concurrent.Refs;
 
@@ -87,6 +86,8 @@ public abstract class SecondaryIndex
      */
     protected final Set<ColumnDefinition> columnDefs = Collections.newSetFromMap(new ConcurrentHashMap<ColumnDefinition,Boolean>());
 
+    protected IndexMetadata indexMetadata;
+
     /**
      * Perform any initialization work
      */
@@ -101,10 +102,10 @@ public abstract class SecondaryIndex
     public abstract void reload();
 
     /**
-     * Validates the index_options passed in the ColumnDef
+     * Validates the index_options passed in the IndexMetadata
      * @throws ConfigurationException
      */
-    public abstract void validateOptions() throws ConfigurationException;
+    public abstract void validateOptions(CFMetaData baseCfm, IndexMetadata def) throws ConfigurationException;
 
     /**
      * @return The name of the index
@@ -268,6 +269,13 @@ public abstract class SecondaryIndex
         return columnDefs;
     }
 
+    void setIndexMetadata(IndexMetadata indexDef)
+    {
+        this.indexMetadata = indexDef;
+        for (ColumnIdentifier col : indexDef.columns)
+            this.columnDefs.add(baseCfs.metadata.getColumnDefinition(col));
+    }
+
     void addColumnDef(ColumnDefinition columnDef)
     {
        columnDefs.add(columnDef);
@@ -312,45 +320,56 @@ public abstract class SecondaryIndex
      * It will validate the index_options before initializing.
      *
      * @param baseCfs the source of data for the Index
-     * @param cdef the meta information about this column (index_type, index_options, name, etc...)
+     * @param indexDef the meta information about this index (index_type, index_options, name, etc...)
      *
      * @return The secondary index instance for this column
      * @throws ConfigurationException
      */
-    public static SecondaryIndex createInstance(ColumnFamilyStore baseCfs, ColumnDefinition cdef) throws ConfigurationException
+    public static SecondaryIndex createInstance(ColumnFamilyStore baseCfs,
+                                                IndexMetadata indexDef) throws ConfigurationException
     {
-        SecondaryIndex index;
+        SecondaryIndex index = uninitializedInstance(baseCfs.metadata, indexDef);
+        index.validateOptions(baseCfs.metadata, indexDef);
+        index.setBaseCfs(baseCfs);
+        index.setIndexMetadata(indexDef);
 
-        switch (cdef.getIndexType())
+        return index;
+    }
+
+    public static void validate(CFMetaData baseMetadata,
+                                IndexMetadata indexDef) throws ConfigurationException
+    {
+        SecondaryIndex index = uninitializedInstance(baseMetadata, indexDef);
+        index.validateOptions(baseMetadata, indexDef);
+    }
+
+    private static SecondaryIndex uninitializedInstance(CFMetaData baseMetadata,
+                                                        IndexMetadata indexDef) throws ConfigurationException
+    {
+        if (indexDef.isKeys())
         {
-        case KEYS:
-            index = new KeysIndex();
-            break;
-        case COMPOSITES:
-            index = CompositesIndex.create(cdef);
-            break;
-        case CUSTOM:
-            assert cdef.getIndexOptions() != null;
-            String class_name = cdef.getIndexOptions().get(CUSTOM_INDEX_OPTION_NAME);
+            return new KeysIndex();
+        }
+        else if (indexDef.isComposites())
+        {
+            return CompositesIndex.create(indexDef, baseMetadata);
+        }
+        else if (indexDef.isCustom())
+        {
+            assert indexDef.options != null;
+            String class_name = indexDef.options.get(CUSTOM_INDEX_OPTION_NAME);
             assert class_name != null;
             try
             {
-                index = (SecondaryIndex) Class.forName(class_name).newInstance();
+                return (SecondaryIndex) Class.forName(class_name).newInstance();
             }
             catch (Exception e)
             {
                 throw new RuntimeException(e);
             }
-            break;
-            default:
-                throw new RuntimeException("Unknown index type: " + cdef.getIndexName());
         }
 
-        index.addColumnDef(cdef);
-        index.validateOptions();
-        index.setBaseCfs(baseCfs);
-
-        return index;
+        throw new AssertionError("Unknown index type: " + indexDef.name);
     }
 
     public abstract void validate(DecoratedKey partitionKey) throws InvalidRequestException;
@@ -372,32 +391,31 @@ public abstract class SecondaryIndex
     /**
      * Create the index metadata for the index on a given column of a given table.
      */
-    public static CFMetaData newIndexMetadata(CFMetaData baseMetadata, ColumnDefinition def)
+    public static CFMetaData newIndexMetadata(CFMetaData baseMetadata, IndexMetadata def)
     {
-        return newIndexMetadata(baseMetadata, def, def.type);
+        return newIndexMetadata(baseMetadata, def, def.indexedColumn(baseMetadata).type);
     }
 
     /**
      * Create the index metadata for the index on a given column of a given table.
      */
-    static CFMetaData newIndexMetadata(CFMetaData baseMetadata, ColumnDefinition def, AbstractType<?> comparator)
+    static CFMetaData newIndexMetadata(CFMetaData baseMetadata, IndexMetadata def, AbstractType<?> comparator)
     {
-        if (def.getIndexType() == IndexType.CUSTOM)
-            return null;
+        assert !def.isCustom();
 
         CFMetaData.Builder builder = CFMetaData.Builder.create(baseMetadata.ksName, baseMetadata.indexColumnFamilyName(def))
                                                        .withId(baseMetadata.cfId)
                                                        .withPartitioner(new LocalPartitioner(comparator))
-                                                       .addPartitionKey(def.name, def.type);
+                                                       .addPartitionKey(def.indexedColumn(baseMetadata).name, comparator);
 
-        if (def.getIndexType() == IndexType.COMPOSITES)
+        if (def.isComposites())
         {
             CompositesIndex.addIndexClusteringColumns(builder, baseMetadata, def);
         }
         else
         {
-            assert def.getIndexType() == IndexType.KEYS;
-            KeysIndex.addIndexClusteringColumns(builder, baseMetadata, def);
+            assert def.isKeys();
+            KeysIndex.addIndexClusteringColumns(builder, baseMetadata);
         }
 
         return builder.build().reloadIndexMetadataProperties(baseMetadata);

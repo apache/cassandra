@@ -36,14 +36,11 @@ import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
 
 import com.google.common.base.Objects;
-
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import com.datastax.driver.core.DataType;
-import com.datastax.driver.core.ProtocolVersion;
 import com.datastax.driver.core.UserType;
-
 import org.apache.cassandra.config.Config;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.config.Schema;
@@ -274,6 +271,7 @@ public abstract class UDFunction extends AbstractFunction implements ScalarFunct
             ByteBuffer result = DatabaseDescriptor.enableUserDefinedFunctionsThreads()
                                 ? executeAsync(protocolVersion, parameters)
                                 : executeUserDefined(protocolVersion, parameters);
+
             Tracing.trace("Executed UDF {} in {}\u03bcs", name(), (System.nanoTime() - tStart) / 1000);
             return result;
         }
@@ -313,8 +311,8 @@ public abstract class UDFunction extends AbstractFunction implements ScalarFunct
             threadMXBean.getCurrentThreadCpuTime();
             //
             // Get the TypeCodec stuff in Java Driver initialized.
-            DataType.inet().format(InetAddress.getLoopbackAddress());
-            DataType.list(DataType.ascii()).format(Collections.emptyList());
+            UDHelper.codecRegistry.codecFor(DataType.inet()).format(InetAddress.getLoopbackAddress());
+            UDHelper.codecRegistry.codecFor(DataType.ascii()).format("");
         }
 
         void setup()
@@ -475,7 +473,7 @@ public abstract class UDFunction extends AbstractFunction implements ScalarFunct
 
     protected static Object compose(DataType[] argDataTypes, int protocolVersion, int argIndex, ByteBuffer value)
     {
-        return value == null ? null : argDataTypes[argIndex].deserialize(value, ProtocolVersion.fromInt(protocolVersion));
+        return value == null ? null : UDHelper.deserialize(argDataTypes[argIndex], protocolVersion, value);
     }
 
     /**
@@ -492,7 +490,7 @@ public abstract class UDFunction extends AbstractFunction implements ScalarFunct
 
     protected static ByteBuffer decompose(DataType dataType, int protocolVersion, Object value)
     {
-        return value == null ? null : dataType.serialize(value, ProtocolVersion.fromInt(protocolVersion));
+        return value == null ? null : UDHelper.serialize(dataType, protocolVersion, value);
     }
 
     @Override

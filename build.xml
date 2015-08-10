@@ -134,13 +134,11 @@
     <!-- Check if all tests are being run or just one. If it's all tests don't spam the console with test output.
          If it's an individual test print the output from the test under the assumption someone is debugging the test
          and wants to know what is going on without having to context switch to the log file that is generated.
-         This may be overridden when running a single test by adding the -Dtest.brief.output property to the ant
-         command (its value is unimportant).
          Debug level output still needs to be retrieved from the log file.  -->
     <script language="javascript">
         if (project.getProperty("cassandra.keepBriefBrief") == null)
         {
-            if (project.getProperty("test.name").equals("*Test") || project.getProperty("test.brief.output"))
+            if (project.getProperty("test.name").equals("*Test"))
                 project.setProperty("cassandra.keepBriefBrief", "true");
             else
                 project.setProperty("cassandra.keepBriefBrief", "false");

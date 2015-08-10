@@ -1857,7 +1857,6 @@ public class CassandraServer implements Cassandra.Iface
             cf_def.unsetId(); // explicitly ignore any id set by client (Hector likes to set zero)
             CFMetaData cfm = ThriftConversion.fromThrift(cf_def);
             cfm.params.compaction.validate();
-            cfm.addDefaultIndexNames();
 
             if (!cfm.getTriggers().isEmpty())
                 state().ensureIsSuper("Only superusers are allowed to add triggers.");
@@ -1921,7 +1920,6 @@ public class CassandraServer implements Cassandra.Iface
             {
                 cf_def.unsetId(); // explicitly ignore any id set by client (same as system_add_column_family)
                 CFMetaData cfm = ThriftConversion.fromThrift(cf_def);
-                cfm.addDefaultIndexNames();
 
                 if (!cfm.getTriggers().isEmpty())
                     state().ensureIsSuper("Only superusers are allowed to add triggers.");
@@ -2007,7 +2005,6 @@ public class CassandraServer implements Cassandra.Iface
 
             CFMetaData cfm = ThriftConversion.fromThriftForUpdate(cf_def, oldCfm);
             cfm.params.compaction.validate();
-            cfm.addDefaultIndexNames();
 
             if (!oldCfm.getTriggers().equals(cfm.getTriggers()))
                 state().ensureIsSuper("Only superusers are allowed to add or remove triggers.");

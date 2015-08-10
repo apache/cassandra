@@ -22,8 +22,6 @@ import java.nio.ByteBuffer;
 import java.util.List;
 
 import com.datastax.driver.core.DataType;
-import com.datastax.driver.core.ProtocolVersion;
-import org.apache.cassandra.db.marshal.AbstractType;
 
 /**
  * Base class for all Java UDFs.
@@ -58,48 +56,48 @@ public abstract class JavaUDF
     protected float compose_float(int protocolVersion, int argIndex, ByteBuffer value)
     {
         assert value != null && value.remaining() > 0;
-        return (float) DataType.cfloat().deserialize(value, ProtocolVersion.fromInt(protocolVersion));
+        return (float) UDHelper.deserialize(DataType.cfloat(), protocolVersion, value);
     }
 
     // do not remove - used by generated Java UDFs
     protected double compose_double(int protocolVersion, int argIndex, ByteBuffer value)
     {
         assert value != null && value.remaining() > 0;
-        return (double) DataType.cdouble().deserialize(value, ProtocolVersion.fromInt(protocolVersion));
+        return (double) UDHelper.deserialize(DataType.cdouble(), protocolVersion, value);
     }
 
     // do not remove - used by generated Java UDFs
     protected byte compose_byte(int protocolVersion, int argIndex, ByteBuffer value)
     {
         assert value != null && value.remaining() > 0;
-        return (byte) DataType.tinyint().deserialize(value, ProtocolVersion.fromInt(protocolVersion));
+        return (byte) UDHelper.deserialize(DataType.tinyint(), protocolVersion, value);
     }
 
     // do not remove - used by generated Java UDFs
     protected short compose_short(int protocolVersion, int argIndex, ByteBuffer value)
     {
         assert value != null && value.remaining() > 0;
-        return (short) DataType.smallint().deserialize(value, ProtocolVersion.fromInt(protocolVersion));
+        return (short) UDHelper.deserialize(DataType.smallint(), protocolVersion, value);
     }
 
     // do not remove - used by generated Java UDFs
     protected int compose_int(int protocolVersion, int argIndex, ByteBuffer value)
     {
         assert value != null && value.remaining() > 0;
-        return (int) DataType.cint().deserialize(value, ProtocolVersion.fromInt(protocolVersion));
+        return (int) UDHelper.deserialize(DataType.cint(), protocolVersion, value);
     }
 
     // do not remove - used by generated Java UDFs
     protected long compose_long(int protocolVersion, int argIndex, ByteBuffer value)
     {
         assert value != null && value.remaining() > 0;
-        return (long) DataType.bigint().deserialize(value, ProtocolVersion.fromInt(protocolVersion));
+        return (long) UDHelper.deserialize(DataType.bigint(), protocolVersion, value);
     }
 
     // do not remove - used by generated Java UDFs
     protected boolean compose_boolean(int protocolVersion, int argIndex, ByteBuffer value)
     {
         assert value != null && value.remaining() > 0;
-        return (boolean) DataType.cboolean().deserialize(value, ProtocolVersion.fromInt(protocolVersion));
+        return (boolean) UDHelper.deserialize(DataType.cboolean(), protocolVersion, value);
     }
 }

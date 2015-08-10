@@ -22,12 +22,13 @@ import java.util.List;
 import java.util.Map;
 
 import org.apache.cassandra.auth.Permission;
-import org.apache.cassandra.config.CFMetaData;
-import org.apache.cassandra.config.ColumnDefinition;
-import org.apache.cassandra.config.MaterializedViewDefinition;
-import org.apache.cassandra.config.Schema;
-import org.apache.cassandra.cql3.*;
-import org.apache.cassandra.db.marshal.*;
+import org.apache.cassandra.config.*;
+import org.apache.cassandra.cql3.CFName;
+import org.apache.cassandra.cql3.CQL3Type;
+import org.apache.cassandra.cql3.ColumnIdentifier;
+import org.apache.cassandra.db.marshal.AbstractType;
+import org.apache.cassandra.db.marshal.CollectionType;
+import org.apache.cassandra.db.marshal.CounterColumnType;
 import org.apache.cassandra.exceptions.*;
 import org.apache.cassandra.schema.TableParams;
 import org.apache.cassandra.service.ClientState;
@@ -262,6 +263,12 @@ public class AlterTableStatement extends SchemaAlteringStatement
                         cfm.recordColumnDrop(toDelete);
                         break;
                 }
+
+                // If a column is dropped which is the target of a secondary index
+                // we need to also drop the index.
+                cfm.getIndexes().get(def).ifPresent(indexMetadata -> {
+                    cfm.indexes(cfm.getIndexes().without(indexMetadata.name));
+                });
 
                 // If a column is dropped which is the target of a materialized view,
                 // then we need to drop the view.

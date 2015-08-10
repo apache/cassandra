@@ -29,6 +29,7 @@ import java.util.TreeSet;
 import java.util.UUID;
 import java.security.AccessControlException;
 
+import com.google.common.collect.Lists;
 import org.junit.Assert;
 import org.junit.Test;
 
@@ -1157,10 +1158,15 @@ public class UFTest extends CQLTester
         assertRows(execute("SELECT " + fTup4 + "(tup) FROM %s WHERE key = 1"),
                    row(map));
 
-        TupleType tType = TupleType.of(DataType.cdouble(),
-                                       DataType.list(DataType.cdouble()),
-                                       DataType.set(DataType.text()),
-                                       DataType.map(DataType.cint(), DataType.cboolean()));
+        // same test - but via native protocol
+        // we use protocol V3 here to encode the expected version because the server
+        // always serializes Collections using V3 - see CollectionSerializer's
+        // serialize and deserialize methods.
+        TupleType tType = tupleTypeOf(Server.VERSION_3,
+                                      DataType.cdouble(),
+                                      DataType.list(DataType.cdouble()),
+                                      DataType.set(DataType.text()),
+                                      DataType.map(DataType.cint(), DataType.cboolean()));
         TupleValue tup = tType.newValue(1d, list, set, map);
         for (int version = Server.VERSION_2; version <= maxProtocolVersion; version++)
         {

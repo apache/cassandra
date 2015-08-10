@@ -38,9 +38,7 @@ public class ColumnDefinitionTest
                          .addRegularColumn("val", AsciiType.instance)
                          .build();
 
-        ColumnDefinition cd0 = ColumnDefinition.staticDef(cfm, ByteBufferUtil.bytes("TestColumnDefinitionName0"), BytesType.instance)
-                                               .setIndex("random index name 0", IndexType.KEYS, null);
-
+        ColumnDefinition cd0 = ColumnDefinition.staticDef(cfm, ByteBufferUtil.bytes("TestColumnDefinitionName0"), BytesType.instance);
         ColumnDefinition cd1 = ColumnDefinition.staticDef(cfm, ByteBufferUtil.bytes("TestColumnDefinition1"), LongType.instance);
 
         testSerializeDeserialize(cfm, cd0);
@@ -49,7 +47,7 @@ public class ColumnDefinitionTest
 
     protected void testSerializeDeserialize(CFMetaData cfm, ColumnDefinition cd) throws Exception
     {
-        ColumnDefinition newCd = ThriftConversion.fromThrift(cfm.ksName, cfm.cfName, cfm.comparator.subtype(0), null, ThriftConversion.toThrift(cd));
+        ColumnDefinition newCd = ThriftConversion.fromThrift(cfm.ksName, cfm.cfName, cfm.comparator.subtype(0), null, ThriftConversion.toThrift(cfm, cd));
         Assert.assertNotSame(cd, newCd);
         Assert.assertEquals(cd.hashCode(), newCd.hashCode());
         Assert.assertEquals(cd, newCd);

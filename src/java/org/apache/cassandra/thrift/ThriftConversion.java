@@ -20,6 +20,7 @@ package org.apache.cassandra.thrift;
 import java.util.*;
 
 import com.google.common.annotations.VisibleForTesting;
+import com.google.common.base.Strings;
 import com.google.common.collect.Maps;
 
 import org.apache.cassandra.db.compaction.AbstractCompactionStrategy;
@@ -278,7 +279,23 @@ public class ThriftConversion
             // We do not allow Thrift materialized views, so we always set it to false
             boolean isMaterializedView = false;
 
-            CFMetaData newCFMD = CFMetaData.create(cf_def.keyspace, cf_def.name, cfId, isDense, isCompound, isSuper, isCounter, isMaterializedView, defs, DatabaseDescriptor.getPartitioner());
+            CFMetaData newCFMD = CFMetaData.create(cf_def.keyspace,
+                                                   cf_def.name,
+                                                   cfId,
+                                                   isDense,
+                                                   isCompound,
+                                                   isSuper,
+                                                   isCounter,
+                                                   isMaterializedView,
+                                                   defs,
+                                                   DatabaseDescriptor.getPartitioner());
+
+            // Convert any secondary indexes defined in the thrift column_metadata
+            newCFMD.indexes(indexDefsFromThrift(cf_def.keyspace,
+                                                cf_def.name,
+                                                rawComparator,
+                                                subComparator,
+                                                cf_def.column_metadata));
 
             if (cf_def.isSetGc_grace_seconds())
                 newCFMD.gcGraceSeconds(cf_def.gc_grace_seconds);
@@ -492,9 +509,6 @@ public class ThriftConversion
                                     cfName,
                                     ColumnIdentifier.getInterned(ByteBufferUtil.clone(thriftColumnDef.name), comparator),
                                     TypeParser.parse(thriftColumnDef.validation_class),
-                                    thriftColumnDef.index_type == null ? null : org.apache.cassandra.config.IndexType.valueOf(thriftColumnDef.index_type.name()),
-                                    thriftColumnDef.index_options,
-                                    thriftColumnDef.index_name,
                                     null,
                                     kind);
     }
@@ -516,16 +530,58 @@ public class ThriftConversion
         return defs;
     }
 
+    private static Indexes indexDefsFromThrift(String ksName,
+                                               String cfName,
+                                               AbstractType<?> thriftComparator,
+                                               AbstractType<?> thriftSubComparator,
+                                               List<ColumnDef> thriftDefs)
+    {
+        if (thriftDefs == null)
+            return Indexes.none();
+
+        Set<String> indexNames = new HashSet<>();
+        Indexes.Builder indexes = Indexes.builder();
+        for (ColumnDef def : thriftDefs)
+        {
+            if (def.isSetIndex_type())
+            {
+                ColumnDefinition column = fromThrift(ksName, cfName, thriftComparator, thriftSubComparator, def);
+
+                String indexName = def.getIndex_name();
+                // add a generated index name if none was supplied
+                if (Strings.isNullOrEmpty(indexName))
+                    indexName = Indexes.getAvailableIndexName(ksName, cfName, column.name);
+
+                if (indexNames.contains(indexName))
+                    throw new ConfigurationException("Duplicate index name " + indexName);
+
+                indexNames.add(indexName);
+
+                Map<String, String> indexOptions = def.getIndex_options();
+                IndexMetadata.IndexType indexType = IndexMetadata.IndexType.valueOf(def.index_type.name());
+
+                indexes.add(IndexMetadata.legacyIndex(column,
+                                                      indexName,
+                                                      indexType,
+                                                      indexOptions));
+            }
+        }
+        return indexes.build();
+    }
+
     @VisibleForTesting
-    public static ColumnDef toThrift(ColumnDefinition column)
+    public static ColumnDef toThrift(CFMetaData cfMetaData, ColumnDefinition column)
     {
         ColumnDef cd = new ColumnDef();
 
         cd.setName(ByteBufferUtil.clone(column.name.bytes));
         cd.setValidation_class(column.type.toString());
-        cd.setIndex_type(column.getIndexType() == null ? null : org.apache.cassandra.thrift.IndexType.valueOf(column.getIndexType().name()));
-        cd.setIndex_name(column.getIndexName());
-        cd.setIndex_options(column.getIndexOptions() == null ? null : Maps.newHashMap(column.getIndexOptions()));
+        Optional<IndexMetadata> index = cfMetaData.getIndexes().get(column);
+        index.ifPresent(def -> {
+            cd.setIndex_type(org.apache.cassandra.thrift.IndexType.valueOf(def.indexType.name()));
+            cd.setIndex_name(def.name);
+            cd.setIndex_options(def.options == null || def.options.isEmpty() ? null : Maps.newHashMap(def.options));
+        });
 
         return cd;
     }
@@ -535,7 +591,7 @@ public class ThriftConversion
         List<ColumnDef> thriftDefs = new ArrayList<>(columns.size());
         for (ColumnDefinition def : columns)
             if (def.isPartOfCellName(metadata.isCQLTable(), metadata.isSuper()))
-                thriftDefs.add(ThriftConversion.toThrift(def));
+                thriftDefs.add(ThriftConversion.toThrift(metadata, def));
         return thriftDefs;
     }
 
