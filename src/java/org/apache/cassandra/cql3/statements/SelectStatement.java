@@ -337,7 +337,12 @@ public class SelectStatement implements CQLStatement
             try (PartitionIterator iter = pager.fetchPage(pageSize))
             {
                 while (iter.hasNext())
-                    processPartition(iter.next(), options, result, nowInSec);
+                {
+                    try (RowIterator partition = iter.next())
+                    {
+                        processPartition(partition, options, result, nowInSec);
+                    }
+                }
             }
         }
         return new ResultMessage.Rows(result.build(options.getProtocolVersion()));
