@@ -52,6 +52,14 @@ public class CompactionStrategyManager implements INotificationConsumer
     private volatile boolean enabled = true;
     public boolean isActive = true;
     private volatile CompactionParams params;
+    /*
+        We keep a copy of the schema compaction parameters here to be able to decide if we
+        should update the compaction strategy in maybeReloadCompactionStrategy() due to an ALTER.
+
+        If a user changes the local compaction strategy and then later ALTERs a compaction parameter,
+        we will use the new compaction parameters.
+     */
+    private CompactionParams schemaCompactionParams;
 
     public CompactionStrategyManager(ColumnFamilyStore cfs)
     {
@@ -148,10 +156,8 @@ public class CompactionStrategyManager implements INotificationConsumer
 
     public synchronized void maybeReload(CFMetaData metadata)
     {
-        if (repaired != null && repaired.getClass().equals(metadata.params.compaction.klass())
-                && unrepaired != null && unrepaired.getClass().equals(metadata.params.compaction.klass())
-                && repaired.options.equals(metadata.params.compaction.options()) // todo: assumes all have the same options
-                && unrepaired.options.equals(metadata.params.compaction.options()))
+        // compare the old schema configuration to the new one, ignore any locally set changes.
+        if (metadata.params.compaction.equals(schemaCompactionParams))
             return;
         reload(metadata);
     }
@@ -165,13 +171,9 @@ public class CompactionStrategyManager implements INotificationConsumer
     public synchronized void reload(CFMetaData metadata)
     {
         boolean disabledWithJMX = !enabled && shouldBeEnabled();
-        if (repaired != null)
-            repaired.shutdown();
-        if (unrepaired != null)
-            unrepaired.shutdown();
-        repaired = metadata.createCompactionStrategyInstance(cfs);
-        unrepaired = metadata.createCompactionStrategyInstance(cfs);
-        params = metadata.params.compaction;
+        setStrategy(metadata.params.compaction);
+        schemaCompactionParams = metadata.params.compaction;
+
         if (disabledWithJMX || !shouldBeEnabled())
             disable();
         else
@@ -449,5 +451,32 @@ public class CompactionStrategyManager implements INotificationConsumer
     public List<AbstractCompactionStrategy> getStrategies()
     {
         return Arrays.asList(repaired, unrepaired);
+    }
+
+    public synchronized void setNewLocalCompactionStrategy(CompactionParams params)
+    {
+        logger.info("Switching local compaction strategy from {} to {}}", this.params, params);
+        setStrategy(params);
+        if (shouldBeEnabled())
+            enable();
+        else
+            disable();
+        startup();
+    }
+
+    private void setStrategy(CompactionParams params)
+    {
+        if (repaired != null)
+            repaired.shutdown();
+        if (unrepaired != null)
+            unrepaired.shutdown();
+        repaired = CFMetaData.createCompactionStrategyInstance(cfs, params);
+        unrepaired = CFMetaData.createCompactionStrategyInstance(cfs, params);
+        this.params = params;
+    }
+
+    public CompactionParams getCompactionParams()
+    {
+        return params;
     }
 }

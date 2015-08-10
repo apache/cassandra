@@ -17,12 +17,16 @@
  */
 package org.apache.cassandra.db.compaction;
 
+import java.util.HashMap;
+import java.util.Map;
+
 import org.junit.Test;
 
 import org.apache.cassandra.cql3.CQLTester;
 import org.apache.cassandra.cql3.UntypedResultSet;
 import org.apache.cassandra.db.ColumnFamilyStore;
 import org.apache.cassandra.db.Keyspace;
+import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertTrue;
 
@@ -141,7 +145,82 @@ public class CompactionsCQLTest extends CQLTester
         assertTrue(minorWasTriggered(KEYSPACE, currentTable()));
     }
 
-    public boolean minorWasTriggered(String keyspace, String cf) throws Throwable
+    @Test
+    public void testSetLocalCompactionStrategy() throws Throwable
+    {
+        createTable("CREATE TABLE %s (id text PRIMARY KEY)");
+        Map<String, String> localOptions = new HashMap<>();
+        localOptions.put("class", "DateTieredCompactionStrategy");
+        getCurrentColumnFamilyStore().setLocalCompactionStrategy(localOptions);
+        assertTrue(verifyStrategies(getCurrentColumnFamilyStore().getCompactionStrategyManager(), DateTieredCompactionStrategy.class));
+        // altering something non-compaction related
+        execute("ALTER TABLE %s WITH gc_grace_seconds = 1000");
+        // should keep the local compaction strat
+        assertTrue(verifyStrategies(getCurrentColumnFamilyStore().getCompactionStrategyManager(), DateTieredCompactionStrategy.class));
+        // altering a compaction option
+        execute("ALTER TABLE %s WITH compaction = {'class':'SizeTieredCompactionStrategy', 'min_threshold':3}");
+        // will use the new option
+        assertTrue(verifyStrategies(getCurrentColumnFamilyStore().getCompactionStrategyManager(), SizeTieredCompactionStrategy.class));
+    }
+
+
+    @Test
+    public void testSetLocalCompactionStrategyDisable() throws Throwable
+    {
+        createTable("CREATE TABLE %s (id text PRIMARY KEY)");
+        Map<String, String> localOptions = new HashMap<>();
+        localOptions.put("class", "DateTieredCompactionStrategy");
+        localOptions.put("enabled", "false");
+        getCurrentColumnFamilyStore().setLocalCompactionStrategy(localOptions);
+        assertFalse(getCurrentColumnFamilyStore().getCompactionStrategyManager().isEnabled());
+        localOptions.clear();
+        localOptions.put("class", "DateTieredCompactionStrategy");
+        // localOptions.put("enabled", "true"); - this is default!
+        getCurrentColumnFamilyStore().setLocalCompactionStrategy(localOptions);
+        assertTrue(getCurrentColumnFamilyStore().getCompactionStrategyManager().isEnabled());
+    }
+
+
+    @Test
+    public void testSetLocalCompactionStrategyEnable() throws Throwable
+    {
+        createTable("CREATE TABLE %s (id text PRIMARY KEY)");
+        Map<String, String> localOptions = new HashMap<>();
+        localOptions.put("class", "DateTieredCompactionStrategy");
+
+        getCurrentColumnFamilyStore().disableAutoCompaction();
+        assertFalse(getCurrentColumnFamilyStore().getCompactionStrategyManager().isEnabled());
+
+        getCurrentColumnFamilyStore().setLocalCompactionStrategy(localOptions);
+        assertTrue(getCurrentColumnFamilyStore().getCompactionStrategyManager().isEnabled());
+
+    }
+
+
+
+    @Test(expected = IllegalArgumentException.class)
+    public void testBadLocalCompactionStrategyOptions()
+    {
+        createTable("CREATE TABLE %s (id text PRIMARY KEY)");
+        Map<String, String> localOptions = new HashMap<>();
+        localOptions.put("class","SizeTieredCompactionStrategy");
+        localOptions.put("sstable_size_in_mb","1234"); // not for STCS
+        getCurrentColumnFamilyStore().setLocalCompactionStrategy(localOptions);
+    }
+
+    public boolean verifyStrategies(CompactionStrategyManager manager, Class<? extends AbstractCompactionStrategy> expected)
+    {
+        boolean found = false;
+        for (AbstractCompactionStrategy actualStrategy : manager.getStrategies())
+        {
+            if (!actualStrategy.getClass().equals(expected))
+                return false;
+            found = true;
+        }
+        return found;
+    }
+
+    private boolean minorWasTriggered(String keyspace, String cf) throws Throwable
     {
         UntypedResultSet res = execute("SELECT * FROM system.compaction_history");
         boolean minorWasTriggered = false;
