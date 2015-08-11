@@ -94,7 +94,7 @@ public class RowAndDeletionMergeIteratorTest
     public void testWithOnlyRangeTombstones()
     {
         int delTime = nowInSeconds + 1;
-        long timestamp = delTime * 1000;
+        long timestamp = toMillis(delTime);
 
         Iterator<RangeTombstone> rangeTombstoneIterator = createRangeTombstoneIterator(rt(1, false, 3, false, timestamp, delTime),
                                                                                        atLeast(4, timestamp, delTime));
@@ -121,7 +121,7 @@ public class RowAndDeletionMergeIteratorTest
         Iterator<Row> rowIterator = createRowIterator();
 
         int delTime = nowInSeconds + 1;
-        long timestamp = delTime * 1000;
+        long timestamp = toMillis(delTime);
 
         Iterator<RangeTombstone> rangeTombstoneIterator = createRangeTombstoneIterator(atMost(0, timestamp, delTime));
 
@@ -129,9 +129,6 @@ public class RowAndDeletionMergeIteratorTest
 
         assertTrue(iterator.hasNext());
         assertRtMarker(iterator.next(), Bound.BOTTOM);
-
-        assertTrue(iterator.hasNext());
-        assertRow(iterator.next(), 0);
 
         assertTrue(iterator.hasNext());
         assertRtMarker(iterator.next(), ClusteringPrefix.Kind.INCL_END_BOUND, 0);
@@ -157,7 +154,7 @@ public class RowAndDeletionMergeIteratorTest
         Iterator<Row> rowIterator = createRowIterator();
 
         int delTime = nowInSeconds + 1;
-        long timestamp = delTime * 1000;
+        long timestamp = toMillis(delTime);
 
         Iterator<RangeTombstone> rangeTombstoneIterator = createRangeTombstoneIterator(greaterThan(2, timestamp, delTime));
 
@@ -176,12 +173,6 @@ public class RowAndDeletionMergeIteratorTest
         assertRtMarker(iterator.next(), ClusteringPrefix.Kind.EXCL_START_BOUND, 2);
 
         assertTrue(iterator.hasNext());
-        assertRow(iterator.next(), 3);
-
-        assertTrue(iterator.hasNext());
-        assertRow(iterator.next(), 4);
-
-        assertTrue(iterator.hasNext());
         assertRtMarker(iterator.next(), Bound.TOP);
 
         assertFalse(iterator.hasNext());
@@ -193,7 +184,7 @@ public class RowAndDeletionMergeIteratorTest
         Iterator<Row> rowIterator = createRowIterator();
 
         int delTime = nowInSeconds + 1;
-        long timestamp = delTime * 1000;
+        long timestamp = toMillis(delTime);
 
         Iterator<RangeTombstone> rangeTombstoneIterator = createRangeTombstoneIterator(atMost(0, timestamp, delTime),
                                                                                        greaterThan(2, timestamp, delTime));
@@ -202,9 +193,6 @@ public class RowAndDeletionMergeIteratorTest
 
         assertTrue(iterator.hasNext());
         assertRtMarker(iterator.next(), Bound.BOTTOM);
-
-        assertTrue(iterator.hasNext());
-        assertRow(iterator.next(), 0);
 
         assertTrue(iterator.hasNext());
         assertRtMarker(iterator.next(), ClusteringPrefix.Kind.INCL_END_BOUND, 0);
@@ -217,12 +205,6 @@ public class RowAndDeletionMergeIteratorTest
 
         assertTrue(iterator.hasNext());
         assertRtMarker(iterator.next(), ClusteringPrefix.Kind.EXCL_START_BOUND, 2);
-
-        assertTrue(iterator.hasNext());
-        assertRow(iterator.next(), 3);
-
-        assertTrue(iterator.hasNext());
-        assertRow(iterator.next(), 4);
 
         assertTrue(iterator.hasNext());
         assertRtMarker(iterator.next(), Bound.TOP);
@@ -243,7 +225,7 @@ public class RowAndDeletionMergeIteratorTest
         Iterator<Row> rowIterator = createRowIterator();
 
         int delTime = nowInSeconds + 1;
-        long timestamp = delTime * 1000;
+        long timestamp = toMillis(delTime);
 
         Iterator<RangeTombstone> rangeTombstoneIterator = createRangeTombstoneIterator(atMost(2, timestamp, delTime),
                                                                                        greaterThan(2, timestamp, delTime));
@@ -254,22 +236,7 @@ public class RowAndDeletionMergeIteratorTest
         assertRtMarker(iterator.next(), Bound.BOTTOM);
 
         assertTrue(iterator.hasNext());
-        assertRow(iterator.next(), 0);
-
-        assertTrue(iterator.hasNext());
-        assertRow(iterator.next(), 1);
-
-        assertTrue(iterator.hasNext());
-        assertRow(iterator.next(), 2);
-
-        assertTrue(iterator.hasNext());
         assertRtMarker(iterator.next(), ClusteringPrefix.Kind.INCL_END_EXCL_START_BOUNDARY, 2);
-
-        assertTrue(iterator.hasNext());
-        assertRow(iterator.next(), 3);
-
-        assertTrue(iterator.hasNext());
-        assertRow(iterator.next(), 4);
 
         assertTrue(iterator.hasNext());
         assertRtMarker(iterator.next(), Bound.TOP);
@@ -283,7 +250,7 @@ public class RowAndDeletionMergeIteratorTest
         Iterator<Row> rowIterator = createRowIterator();
 
         int delTime = nowInSeconds + 1;
-        long timestamp = delTime * 1000;
+        long timestamp = toMillis(delTime);
 
         Iterator<RangeTombstone> rangeTombstoneIterator = createRangeTombstoneIterator(lessThan(2, timestamp, delTime),
                                                                                        atLeast(2, timestamp, delTime));
@@ -294,13 +261,34 @@ public class RowAndDeletionMergeIteratorTest
         assertRtMarker(iterator.next(), Bound.BOTTOM);
 
         assertTrue(iterator.hasNext());
+        assertRtMarker(iterator.next(), ClusteringPrefix.Kind.EXCL_END_INCL_START_BOUNDARY, 2);
+
+        assertTrue(iterator.hasNext());
+        assertRtMarker(iterator.next(), Bound.TOP);
+
+        assertFalse(iterator.hasNext());
+    }
+
+    @Test
+    public void testNonShadowingTombstone()
+    {
+        Iterator<Row> rowIterator = createRowIterator();
+
+        Iterator<RangeTombstone> rangeTombstoneIterator = createRangeTombstoneIterator(atMost(0, -1L, 0));
+
+        UnfilteredRowIterator iterator = createMergeIterator(rowIterator, rangeTombstoneIterator, false);
+
+        assertTrue(iterator.hasNext());
+        assertRtMarker(iterator.next(), Bound.BOTTOM);
+
+        assertTrue(iterator.hasNext());
         assertRow(iterator.next(), 0);
 
         assertTrue(iterator.hasNext());
-        assertRow(iterator.next(), 1);
+        assertRtMarker(iterator.next(), ClusteringPrefix.Kind.INCL_END_BOUND, 0);
 
         assertTrue(iterator.hasNext());
-        assertRtMarker(iterator.next(), ClusteringPrefix.Kind.EXCL_END_INCL_START_BOUNDARY, 2);
+        assertRow(iterator.next(), 1);
 
         assertTrue(iterator.hasNext());
         assertRow(iterator.next(), 2);
@@ -311,11 +299,31 @@ public class RowAndDeletionMergeIteratorTest
         assertTrue(iterator.hasNext());
         assertRow(iterator.next(), 4);
 
-        assertTrue(iterator.hasNext());
-        assertRtMarker(iterator.next(), Bound.TOP);
+        assertFalse(iterator.hasNext());
+    }
+
+    @Test
+    public void testWithPartitionLevelTombstone()
+    {
+        Iterator<Row> rowIterator = createRowIterator();
+
+        int delTime = nowInSeconds - 1;
+        long timestamp = toMillis(delTime);
+
+        Iterator<RangeTombstone> rangeTombstoneIterator = createRangeTombstoneIterator(atMost(0, timestamp, delTime),
+                                                                                       greaterThan(2, timestamp, delTime));
+
+        int partitionDelTime = nowInSeconds + 1;
+        long partitionTimestamp = toMillis(partitionDelTime);
+
+        UnfilteredRowIterator iterator = createMergeIterator(rowIterator,
+                                                             rangeTombstoneIterator,
+                                                             new DeletionTime(partitionTimestamp, partitionDelTime),
+                                                             false);
 
         assertFalse(iterator.hasNext());
     }
+
 
     private void assertRtMarker(Unfiltered unfiltered, Bound bound)
     {
@@ -350,9 +358,17 @@ public class RowAndDeletionMergeIteratorTest
 
     private UnfilteredRowIterator createMergeIterator(Iterator<Row> rows, Iterator<RangeTombstone> tombstones, boolean reversed)
     {
+        return createMergeIterator(rows, tombstones, DeletionTime.LIVE, reversed);
+    }
+
+    private UnfilteredRowIterator createMergeIterator(Iterator<Row> rows,
+                                                      Iterator<RangeTombstone> tombstones,
+                                                      DeletionTime deletionTime,
+                                                      boolean reversed)
+    {
         return new RowAndDeletionMergeIterator(cfm,
                                                Util.dk("k"),
-                                               DeletionTime.LIVE,
+                                               deletionTime,
                                                ColumnFilter.all(cfm),
                                                Rows.EMPTY_STATIC_ROW,
                                                reversed,
@@ -403,5 +419,10 @@ public class RowAndDeletionMergeIteratorTest
     private static ByteBuffer bb(int i)
     {
         return ByteBufferUtil.bytes(i);
+    }
+
+    private long toMillis(int timeInSeconds)
+    {
+        return timeInSeconds * 1000L;
     }
 }
