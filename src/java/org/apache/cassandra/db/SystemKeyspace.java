@@ -1307,7 +1307,7 @@ public final class SystemKeyspace
     }
 
     /**
-     * Check data directories for old files that can be removed when migrating from 2.2 to 3.0,
+     * Check data directories for old files that can be removed when migrating from 2.1 or 2.2 to 3.0,
      * these checks can be removed in 4.0, see CASSANDRA-7066
      */
     public static void migrateDataDirs()
@@ -1323,13 +1323,13 @@ public final class SystemKeyspace
             {
                 for (File cfdir : ksdir.listFiles((d, n) -> d.isDirectory()))
                 {
-                    if (Descriptor.isLegacyFile(cfdir.getName()))
+                    if (Descriptor.isLegacyFile(cfdir))
                     {
                         FileUtils.deleteRecursive(cfdir);
                     }
                     else
                     {
-                        FileUtils.delete(cfdir.listFiles((d, n) -> Descriptor.isLegacyFile(n)));
+                        FileUtils.delete(cfdir.listFiles((d, n) -> Descriptor.isLegacyFile(new File(d, n))));
                     }
                 }
             }

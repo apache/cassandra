@@ -153,9 +153,20 @@ public class SystemKeyspaceTest
     }
 
     @Test
-    public void testMigrateDataDirs() throws IOException
+    public void testMigrateDataDirs_2_1() throws IOException
     {
-        Path migrationSSTableRoot = Paths.get(System.getProperty(MIGRATION_SSTABLES_ROOT), "2.2");
+        testMigrateDataDirs("2.1");
+    }
+
+    @Test
+    public void testMigrateDataDirs_2_2() throws IOException
+    {
+        testMigrateDataDirs("2.2");
+    }
+
+    private void testMigrateDataDirs(String version) throws IOException
+    {
+        Path migrationSSTableRoot = Paths.get(System.getProperty(MIGRATION_SSTABLES_ROOT), version);
         Path dataDir = Paths.get(DatabaseDescriptor.getAllDataFileLocations()[0]);
 
         FileUtils.copyDirectory(migrationSSTableRoot.toFile(), dataDir.toFile());
@@ -178,13 +189,13 @@ public class SystemKeyspaceTest
             {
                 for (File cfdir : ksdir.listFiles((d, n) -> d.isDirectory()))
                 {
-                    if (Descriptor.isLegacyFile(cfdir.getName()))
+                    if (Descriptor.isLegacyFile(cfdir))
                     {
                         ret++;
                     }
                     else
                     {
-                        File[] legacyFiles = cfdir.listFiles((d, n) -> Descriptor.isLegacyFile(n));
+                        File[] legacyFiles = cfdir.listFiles((d, n) -> Descriptor.isLegacyFile(new File(d, n)));
                         ret += legacyFiles.length;
                     }
                 }
