@@ -1,4 +1,5 @@
 2.2.1
+ * Fix histogram overflow exception (CASSANDRA-9973)
  * Route gossip messages over dedicated socket (CASSANDRA-9237)
  * Add checksum to saved cache files (CASSANDRA-9265)
  * Log warning when using an aggregate without partition key (CASSANDRA-9737)
