@@ -1,4 +1,5 @@
 2.1.12
+ * Add Native-Transport-Requests back to tpstats (CASSANDRA-10044)
  * Make paging logic consistent between searcher impls (CASSANDRA-10683)
  * Fix CompressedInputStream for proper cleanup (CASSANDRA-10012)
  * (cqlsh) Support counters in COPY commands (CASSANDRA-9043)
