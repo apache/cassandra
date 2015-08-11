@@ -1,3 +1,7 @@
+3.2
+ * Add transparent data encryption core classes (CASSANDRA-9945)
+
+
 3.0.0-beta1
  * Add option to only purge repaired tombstones (CASSANDRA-6434)
  * Change authorization handling for MVs (CASSANDRA-9927)
@@ -9,7 +13,6 @@
  * Optimize batchlog replay to avoid full scans (CASSANDRA-7237)
  * Repair improvements when using vnodes (CASSANDRA-5220)
  * Disable scripted UDFs by default (CASSANDRA-9889)
- * Add transparent data encryption core classes (CASSANDRA-9945)
  * Bytecode inspection for Java-UDFs (CASSANDRA-9890)
  * Use byte to serialize MT hash length (CASSANDRA-9792)
  * Replace usage of Adler32 with CRC32 (CASSANDRA-8684)
