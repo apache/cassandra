@@ -249,6 +249,8 @@ public abstract class ReadCommand implements ReadQuery
 
     protected abstract UnfilteredPartitionIterator queryStorage(ColumnFamilyStore cfs, ReadOrderGroup orderGroup);
 
+    protected abstract int oldestUnrepairedTombstone();
+
     public ReadResponse createResponse(UnfilteredPartitionIterator iterator)
     {
         return isDigestQuery()
@@ -426,7 +428,7 @@ public abstract class ReadCommand implements ReadQuery
     // are to some extend an artefact of compaction lagging behind and hence counting them is somewhat unintuitive).
     protected UnfilteredPartitionIterator withoutPurgeableTombstones(UnfilteredPartitionIterator iterator, ColumnFamilyStore cfs)
     {
-        return new PurgingPartitionIterator(iterator, cfs.gcBefore(nowInSec()))
+        return new PurgingPartitionIterator(iterator, cfs.gcBefore(nowInSec()), oldestUnrepairedTombstone(), cfs.getCompactionStrategyManager().onlyPurgeRepairedTombstones())
         {
             protected long getMaxPurgeableTimestamp()
             {

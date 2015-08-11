@@ -41,6 +41,8 @@ import org.apache.cassandra.utils.memory.HeapAllocator;
  */
 public class SinglePartitionSliceCommand extends SinglePartitionReadCommand<ClusteringIndexSliceFilter>
 {
+    private int oldestUnrepairedTombstone = Integer.MAX_VALUE;
+
     public SinglePartitionSliceCommand(boolean isDigest,
                                        boolean isForThrift,
                                        CFMetaData metadata,
@@ -119,6 +121,12 @@ public class SinglePartitionSliceCommand extends SinglePartitionReadCommand<Clus
         return new SinglePartitionSliceCommand(isDigestQuery(), isForThrift(), metadata(), nowInSec(), columnFilter(), rowFilter(), limits(), partitionKey(), clusteringIndexFilter());
     }
 
+    @Override
+    protected int oldestUnrepairedTombstone()
+    {
+        return oldestUnrepairedTombstone;
+    }
+
     protected UnfilteredRowIterator queryMemtableAndDiskInternal(ColumnFamilyStore cfs, boolean copyOnHeap)
     {
         Tracing.trace("Acquiring sstable references");
@@ -139,9 +147,9 @@ public class SinglePartitionSliceCommand extends SinglePartitionReadCommand<Clus
                 UnfilteredRowIterator iter = filter.getUnfilteredRowIterator(columnFilter(), partition);
                 @SuppressWarnings("resource") // same as above
                 UnfilteredRowIterator maybeCopied = copyOnHeap ? UnfilteredRowIterators.cloningIterator(iter, HeapAllocator.instance) : iter;
+                oldestUnrepairedTombstone = Math.min(oldestUnrepairedTombstone, partition.stats().minLocalDeletionTime);
                 iterators.add(isForThrift() ? ThriftResultsMerger.maybeWrap(maybeCopied, nowInSec()) : maybeCopied);
             }
-
             /*
              * We can't eliminate full sstables based on the timestamp of what we've already read like
              * in collectTimeOrderedData, but we still want to eliminate sstable whose maxTimestamp < mostRecentTombstone
@@ -185,6 +193,9 @@ public class SinglePartitionSliceCommand extends SinglePartitionReadCommand<Clus
                 sstable.incrementReadCount();
                 @SuppressWarnings("resource") // 'iter' is added to iterators which is closed on exception, or through the closing of the final merged iterator
                 UnfilteredRowIterator iter = filter.filter(sstable.iterator(partitionKey(), columnFilter(), filter.isReversed(), isForThrift()));
+                if (!sstable.isRepaired())
+                    oldestUnrepairedTombstone = Math.min(oldestUnrepairedTombstone, sstable.getMinLocalDeletionTime());
+
                 iterators.add(isForThrift() ? ThriftResultsMerger.maybeWrap(iter, nowInSec()) : iter);
                 mostRecentPartitionTombstone = Math.max(mostRecentPartitionTombstone, iter.partitionLevelDeletion().markedForDeleteAt());
                 sstablesIterated++;
@@ -205,6 +216,8 @@ public class SinglePartitionSliceCommand extends SinglePartitionReadCommand<Clus
                     if (iter.partitionLevelDeletion().markedForDeleteAt() > minTimestamp)
                     {
                         iterators.add(iter);
+                        if (!sstable.isRepaired())
+                            oldestUnrepairedTombstone = Math.min(oldestUnrepairedTombstone, sstable.getMinLocalDeletionTime());
                         includedDueToTombstones++;
                         sstablesIterated++;
                     }

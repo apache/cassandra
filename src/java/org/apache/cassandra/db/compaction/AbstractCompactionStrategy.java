@@ -26,7 +26,6 @@ import com.google.common.collect.Iterables;
 import com.google.common.util.concurrent.RateLimiter;
 
 import org.apache.cassandra.db.lifecycle.SSTableSet;
-import org.apache.cassandra.db.lifecycle.View;
 import org.apache.cassandra.io.sstable.format.SSTableReader;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -39,7 +38,6 @@ import org.apache.cassandra.dht.Token;
 import org.apache.cassandra.exceptions.ConfigurationException;
 import org.apache.cassandra.io.sstable.Component;
 import org.apache.cassandra.io.sstable.ISSTableScanner;
-import org.apache.cassandra.utils.FBUtilities;
 import org.apache.cassandra.utils.JVMStabilityInspector;
 
 /**
@@ -64,6 +62,7 @@ public abstract class AbstractCompactionStrategy
     // disable range overlap check when deciding if an SSTable is candidate for tombstone compaction (CASSANDRA-6563)
     protected static final String UNCHECKED_TOMBSTONE_COMPACTION_OPTION = "unchecked_tombstone_compaction";
     protected static final String COMPACTION_ENABLED = "enabled";
+    public static final String ONLY_PURGE_REPAIRED_TOMBSTONES = "only_purge_repaired_tombstones";
 
     protected Map<String, String> options;
 
@@ -453,6 +452,7 @@ public abstract class AbstractCompactionStrategy
         uncheckedOptions.remove(TOMBSTONE_COMPACTION_INTERVAL_OPTION);
         uncheckedOptions.remove(UNCHECKED_TOMBSTONE_COMPACTION_OPTION);
         uncheckedOptions.remove(COMPACTION_ENABLED);
+        uncheckedOptions.remove(ONLY_PURGE_REPAIRED_TOMBSTONES);
         return uncheckedOptions;
     }
 
