@@ -27,6 +27,7 @@ import java.util.Collections;
 import java.util.Enumeration;
 import java.util.HashSet;
 import java.util.List;
+import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
@@ -35,12 +36,14 @@ import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
 
 import com.google.common.base.Objects;
+
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import com.datastax.driver.core.DataType;
 import com.datastax.driver.core.ProtocolVersion;
 import com.datastax.driver.core.UserType;
+
 import org.apache.cassandra.config.Config;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.config.Schema;
@@ -295,7 +298,7 @@ public abstract class UDFunction extends AbstractFunction implements ScalarFunct
             throw new InvalidRequestException("Scripted user-defined functions are disabled in cassandra.yaml - set enable_scripted_user_defined_functions=true to enable if you are aware of the security risks");
     }
 
-    private static final class ThreadIdAndCpuTime
+    private static final class ThreadIdAndCpuTime extends CompletableFuture<Object>
     {
         long threadId;
         long cpuTime;
@@ -318,6 +321,7 @@ public abstract class UDFunction extends AbstractFunction implements ScalarFunct
         {
             this.threadId = Thread.currentThread().getId();
             this.cpuTime = threadMXBean.getCurrentThreadCpuTime();
+            complete(null);
         }
     }
 
@@ -366,6 +370,9 @@ public abstract class UDFunction extends AbstractFunction implements ScalarFunct
             // retry a last time with the difference of UDF-fail-timeout to consumed CPU time (just in case execution hit a badly timed GC)
             try
             {
+                //The threadIdAndCpuTime shouldn't take a long time to be set so this should return immediately
+                threadIdAndCpuTime.get(1, TimeUnit.SECONDS);
+
                 long cpuTimeMillis = threadMXBean.getThreadCpuTime(threadIdAndCpuTime.threadId) - threadIdAndCpuTime.cpuTime;
                 cpuTimeMillis /= 1000000L;
 
