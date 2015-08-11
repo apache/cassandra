@@ -125,6 +125,7 @@ public class MerkleTrees implements Iterable<Map.Entry<Range<Token>, MerkleTree>
      * @param t
      * @return
      */
+    @VisibleForTesting
     public MerkleTree.TreeRange get(Token t)
     {
         return getMerkleTree(t).get(t);
@@ -167,6 +168,7 @@ public class MerkleTrees implements Iterable<Map.Entry<Range<Token>, MerkleTree>
      * 
      * @param t
      */
+    @VisibleForTesting
     public void invalidate(Token t)
     {
         getMerkleTree(t).invalidate(t);
@@ -215,7 +217,7 @@ public class MerkleTrees implements Iterable<Map.Entry<Range<Token>, MerkleTree>
                 return merkleTrees.get(range);
         }
 
-        return null;
+        throw new AssertionError("Expected tree for token " + t);
     }
 
     private void addTrees(Collection<MerkleTree> trees)
