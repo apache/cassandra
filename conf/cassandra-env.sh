@@ -80,12 +80,12 @@ JVM_VERSION=${jvmver%_*}
 JVM_PATCH_VERSION=${jvmver#*_}
 
 if [ "$JVM_VERSION" \< "1.8" ] ; then
-    echo "Cassandra 3.0 and later require Java 8u20 or later."
+    echo "Cassandra 3.0 and later require Java 8u40 or later."
     exit 1;
 fi
 
-if [ "$JVM_VERSION" \< "1.8" ] && [ "$JVM_PATCH_VERSION" \< "20" ] ; then
-    echo "Cassandra 3.0 and later require Java 8u20 or later."
+if [ "$JVM_VERSION" \< "1.8" ] && [ "$JVM_PATCH_VERSION" \< "40" ] ; then
+    echo "Cassandra 3.0 and later require Java 8u40 or later."
     exit 1;
 fi
 
