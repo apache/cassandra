@@ -386,6 +386,7 @@ public class LifecycleTransaction extends Transactional.AbstractTransactional
         assert !(staged.contains(cancel) || logged.contains(cancel)) : "may only cancel a reader that has not been updated or obsoleted in this transaction: " + cancel;
         originals.remove(cancel);
         marked.remove(cancel);
+        identities.remove(cancel.instanceId);
         maybeFail(unmarkCompacting(singleton(cancel), null));
     }
 

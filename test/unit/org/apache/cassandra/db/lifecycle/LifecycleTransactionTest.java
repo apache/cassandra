@@ -185,9 +185,10 @@ public class LifecycleTransactionTest extends AbstractTransactionalTest
     {
         ColumnFamilyStore cfs = MockSchema.newCFS();
         Tracker tracker = new Tracker(null, false);
-        List<SSTableReader> readers = readers(0, 3, cfs);
+        List<SSTableReader> readers = readers(0, 4, cfs);
         tracker.addInitialSSTables(readers);
         LifecycleTransaction txn = tracker.tryModify(readers, OperationType.UNKNOWN);
+        txn.cancel(readers.get(3));
         LifecycleTransaction txn2 = txn.split(readers.subList(0, 1));
         Assert.assertEquals(2, txn.originals().size());
         Assert.assertTrue(all(readers.subList(1, 3), in(txn.originals())));
