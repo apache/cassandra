@@ -560,10 +560,10 @@ createAggregateStatement returns [CreateAggregateStatement expr]
           ( ',' v=comparatorType { argsTypes.add(v); } )*
         )?
       ')'
-      K_SFUNC sfunc = functionName
+      K_SFUNC sfunc = allowedFunctionName
       K_STYPE stype = comparatorType
       (
-        K_FINALFUNC ffunc = functionName
+        K_FINALFUNC ffunc = allowedFunctionName
       )?
       (
         K_INITCOND ival = term

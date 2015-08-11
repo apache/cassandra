@@ -27,7 +27,6 @@ import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.config.Schema;
 import org.apache.cassandra.cql3.*;
 import org.apache.cassandra.cql3.functions.*;
-import org.apache.cassandra.db.SystemKeyspace;
 import org.apache.cassandra.db.marshal.AbstractType;
 import org.apache.cassandra.exceptions.*;
 import org.apache.cassandra.service.ClientState;
@@ -62,17 +61,17 @@ public final class CreateAggregateStatement extends SchemaAlteringStatement
 
     public CreateAggregateStatement(FunctionName functionName,
                                     List<CQL3Type.Raw> argRawTypes,
-                                    FunctionName stateFunc,
+                                    String stateFunc,
                                     CQL3Type.Raw stateType,
-                                    FunctionName finalFunc,
+                                    String finalFunc,
                                     Term.Raw ival,
                                     boolean orReplace,
                                     boolean ifNotExists)
     {
         this.functionName = functionName;
         this.argRawTypes = argRawTypes;
-        this.stateFunc = stateFunc;
-        this.finalFunc = finalFunc;
+        this.stateFunc = new FunctionName(functionName.keyspace, stateFunc);
+        this.finalFunc = finalFunc != null ? new FunctionName(functionName.keyspace, finalFunc) : null;
         this.stateTypeRaw = stateType;
         this.ival = ival;
         this.orReplace = orReplace;
@@ -88,7 +87,6 @@ public final class CreateAggregateStatement extends SchemaAlteringStatement
         AbstractType<?> stateType = prepareType("state type", stateTypeRaw);
 
         List<AbstractType<?>> stateArgs = stateArguments(stateType, argTypes);
-        stateFunc = validateFunctionKeyspace(stateFunc);
 
         Function f = Schema.instance.findFunction(stateFunc, stateArgs).orElse(null);
         if (!(f instanceof ScalarFunction))
@@ -102,7 +100,6 @@ public final class CreateAggregateStatement extends SchemaAlteringStatement
         if (finalFunc != null)
         {
             List<AbstractType<?>> finalArgs = Collections.<AbstractType<?>>singletonList(stateType);
-            finalFunc = validateFunctionKeyspace(finalFunc);
             f = Schema.instance.findFunction(finalFunc, finalArgs).orElse(null);
             if (!(f instanceof ScalarFunction))
                 throw new InvalidRequestException("Final function " + finalFunc + '(' + stateTypeRaw + ") does not exist or is not a scalar function");
@@ -148,17 +145,10 @@ public final class CreateAggregateStatement extends SchemaAlteringStatement
             throw new InvalidRequestException("Functions must be fully qualified with a keyspace name if a keyspace is not set for the session");
 
         ThriftValidation.validateKeyspaceNotSystem(functionName.keyspace);
-    }
 
-    private FunctionName validateFunctionKeyspace(FunctionName func)
-    {
-        if (!func.hasKeyspace())
-            return new FunctionName(functionName.keyspace, func.name);
-        else if (!SystemKeyspace.NAME.equals(func.keyspace) && !functionName.keyspace.equals(func.keyspace))
-            throw new InvalidRequestException(String.format("Statement on keyspace %s cannot refer to a user function in keyspace %s; "
-                                                            + "user functions can only be used in the keyspace they are defined in",
-                                                            functionName.keyspace, func.keyspace));
-        return func;
+        stateFunc = new FunctionName(functionName.keyspace, stateFunc.name);
+        if (finalFunc != null)
+            finalFunc = new FunctionName(functionName.keyspace, finalFunc.name);
     }
 
     protected void grantPermissionsToCreator(QueryState state)

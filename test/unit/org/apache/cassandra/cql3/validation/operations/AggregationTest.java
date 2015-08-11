@@ -33,6 +33,7 @@ import org.apache.cassandra.cql3.QueryProcessor;
 import org.apache.cassandra.cql3.UntypedResultSet;
 import org.apache.cassandra.cql3.UntypedResultSet.Row;
 import org.apache.cassandra.cql3.functions.UDAggregate;
+import org.apache.cassandra.db.SystemKeyspace;
 import org.apache.cassandra.exceptions.FunctionExecutionException;
 import org.apache.cassandra.exceptions.InvalidRequestException;
 import org.apache.cassandra.schema.KeyspaceMetadata;
@@ -1240,20 +1241,25 @@ public class AggregationTest extends CQLTester
                              "FINALFUNC " + shortFunctionName(fFinal) + ' ' +
                              "INITCOND 1");
 
-        assertInvalidMessage(String.format("Statement on keyspace %s cannot refer to a user type in keyspace %s; user types can only be used in the keyspace they are defined in",
-                                           KEYSPACE_PER_TEST, KEYSPACE),
+        assertInvalidMessage("mismatched input", // specifying a function using "keyspace.functionname" is a syntax error
                              "CREATE AGGREGATE " + KEYSPACE_PER_TEST + ".test_wrong_ks(int) " +
                              "SFUNC " + fStateWrong + ' ' +
                              "STYPE " + type + " " +
                              "FINALFUNC " + shortFunctionName(fFinal) + ' ' +
                              "INITCOND 1");
 
-        assertInvalidMessage(String.format("Statement on keyspace %s cannot refer to a user type in keyspace %s; user types can only be used in the keyspace they are defined in",
-                                           KEYSPACE_PER_TEST, KEYSPACE),
+        assertInvalidMessage("missing EOF", // specifying a function using "keyspace.functionname" is a syntax error
                              "CREATE AGGREGATE " + KEYSPACE_PER_TEST + ".test_wrong_ks(int) " +
                              "SFUNC " + shortFunctionName(fState) + ' ' +
                              "STYPE " + type + " " +
                              "FINALFUNC " + fFinalWrong + ' ' +
+                             "INITCOND 1");
+
+        assertInvalidMessage("missing EOF", // specifying a function using "keyspace.functionname" is a syntax error
+                             "CREATE AGGREGATE " + KEYSPACE_PER_TEST + ".test_wrong_ks(int) " +
+                             "SFUNC " + shortFunctionName(fState) + ' ' +
+                             "STYPE " + type + ' ' +
+                             "FINALFUNC " + SystemKeyspace.NAME + ".min " +
                              "INITCOND 1");
     }
 
@@ -1286,17 +1292,17 @@ public class AggregationTest extends CQLTester
 
         assertInvalidMessage("The function state type should not be frozen",
                              "CREATE AGGREGATE %s(set<int>) " +
-                             "SFUNC " + fState + " " +
+                             "SFUNC " + parseFunctionName(fState).name + ' ' +
                              "STYPE frozen<set<int>> " +
-                             "FINALFUNC " + fFinal + " " +
+                             "FINALFUNC " + parseFunctionName(fFinal).name + ' ' +
                              "INITCOND null");
 
         String aggregation = createAggregate(KEYSPACE,
                                              "set<int>",
                                              "CREATE AGGREGATE %s(set<int>) " +
-                                             "SFUNC " + fState + " " +
+                                             "SFUNC " + parseFunctionName(fState).name + ' ' +
                                              "STYPE set<int> " +
-                                             "FINALFUNC " + fFinal + " " +
+                                             "FINALFUNC " + parseFunctionName(fFinal).name + ' ' +
                                              "INITCOND null");
 
         assertRows(execute("SELECT " + aggregation + "(b) FROM %s"),
@@ -1335,17 +1341,17 @@ public class AggregationTest extends CQLTester
 
         assertInvalidMessage("The function state type should not be frozen",
                              "CREATE AGGREGATE %s(list<int>) " +
-                             "SFUNC " + fState + " " +
+                             "SFUNC " + parseFunctionName(fState).name + ' ' +
                              "STYPE frozen<list<int>> " +
-                             "FINALFUNC " + fFinal + " " +
+                             "FINALFUNC " + parseFunctionName(fFinal).name + " " +
                              "INITCOND null");
 
         String aggregation = createAggregate(KEYSPACE,
                                              "list<int>",
                                              "CREATE AGGREGATE %s(list<int>) " +
-                                             "SFUNC " + fState + " " +
+                                             "SFUNC " + parseFunctionName(fState).name + ' ' +
                                              "STYPE list<int> " +
-                                             "FINALFUNC " + fFinal + " " +
+                                             "FINALFUNC " + parseFunctionName(fFinal).name + ' ' +
                                              "INITCOND null");
 
         assertRows(execute("SELECT " + aggregation + "(b) FROM %s"),
@@ -1384,17 +1390,17 @@ public class AggregationTest extends CQLTester
 
         assertInvalidMessage("The function state type should not be frozen",
                              "CREATE AGGREGATE %s(map<int, int>) " +
-                             "SFUNC " + fState + " " +
+                             "SFUNC " + parseFunctionName(fState).name + ' ' +
                              "STYPE frozen<map<int, int>> " +
-                             "FINALFUNC " + fFinal + " " +
+                             "FINALFUNC " + parseFunctionName(fFinal).name + ' ' +
                              "INITCOND null");
 
         String aggregation = createAggregate(KEYSPACE,
                                              "map<int, int>",
                                              "CREATE AGGREGATE %s(map<int, int>) " +
-                                             "SFUNC " + fState + " " +
+                                             "SFUNC " + parseFunctionName(fState).name + ' ' +
                                              "STYPE map<int, int> " +
-                                             "FINALFUNC " + fFinal + " " +
+                                             "FINALFUNC " + parseFunctionName(fFinal).name + ' ' +
                                              "INITCOND null");
 
         assertRows(execute("SELECT " + aggregation + "(b) FROM %s"),
@@ -1433,17 +1439,17 @@ public class AggregationTest extends CQLTester
 
         assertInvalidMessage("The function state type should not be frozen",
                              "CREATE AGGREGATE %s(tuple<int, int>) " +
-                             "SFUNC " + fState + " " +
+                             "SFUNC " + parseFunctionName(fState).name + ' ' +
                              "STYPE frozen<tuple<int, int>> " +
-                             "FINALFUNC " + fFinal + " " +
+                             "FINALFUNC " + parseFunctionName(fFinal).name + ' ' +
                              "INITCOND null");
 
         String aggregation = createAggregate(KEYSPACE,
                                              "tuple<int, int>",
                                              "CREATE AGGREGATE %s(tuple<int, int>) " +
-                                             "SFUNC " + fState + " " +
+                                             "SFUNC " + parseFunctionName(fState).name + ' ' +
                                              "STYPE tuple<int, int> " +
-                                             "FINALFUNC " + fFinal + " " +
+                                             "FINALFUNC " + parseFunctionName(fFinal).name + ' ' +
                                              "INITCOND null");
 
         assertRows(execute("SELECT " + aggregation + "(b) FROM %s"),
@@ -1483,17 +1489,17 @@ public class AggregationTest extends CQLTester
 
         assertInvalidMessage("The function state type should not be frozen",
                              "CREATE AGGREGATE %s(" + myType + ") " +
-                             "SFUNC " + fState + " " +
+                             "SFUNC " + parseFunctionName(fState).name + ' ' +
                              "STYPE frozen<" + myType + "> " +
-                             "FINALFUNC " + fFinal + " " +
+                             "FINALFUNC " + parseFunctionName(fFinal).name + ' ' +
                              "INITCOND null");
 
         String aggregation = createAggregate(KEYSPACE,
                                              myType,
                                              "CREATE AGGREGATE %s(" + myType + ") " +
-                                             "SFUNC " + fState + " " +
-                                             "STYPE " + myType + " " +
-                                             "FINALFUNC " + fFinal + " " +
+                                             "SFUNC " + parseFunctionName(fState).name + ' ' +
+                                             "STYPE " + myType + ' ' +
+                                             "FINALFUNC " + parseFunctionName(fFinal).name + ' ' +
                                              "INITCOND null");
 
         assertRows(execute("SELECT " + aggregation + "(b).f FROM %s"),
