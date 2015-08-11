@@ -333,6 +333,12 @@ Function SetCassandraEnvironment
         $env:JVM_OPTS = "$env:JVM_OPTS -javaagent:""$env:CASSANDRA_HOME\lib\jamm-0.3.0.jar"""
     }
 
+    if ($env:JVM_VERSION.CompareTo("1.8.0_40" -eq -1))
+    {
+        echo "Cassandra 3.0 and later require Java 8u40 or later."
+        exit
+    }
+
     # enable assertions.  disabling this in production will give a modest
     # performance benefit (around 5%).
     $env:JVM_OPTS = "$env:JVM_OPTS -ea"
