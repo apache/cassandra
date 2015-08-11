@@ -27,6 +27,7 @@ import com.google.common.base.Function;
 
 import org.apache.cassandra.config.CFMetaData;
 import org.apache.cassandra.config.ColumnDefinition;
+import org.apache.cassandra.db.filter.ColumnFilter;
 import org.apache.cassandra.db.rows.*;
 import org.apache.cassandra.db.marshal.AbstractType;
 import org.apache.cassandra.db.marshal.BytesType;
@@ -372,35 +373,62 @@ public class SerializationHeader
 
     public static class Serializer implements IMetadataComponentSerializer<Component>
     {
-        public void serializeForMessaging(SerializationHeader header, DataOutputPlus out, boolean hasStatic) throws IOException
+        public void serializeForMessaging(SerializationHeader header, ColumnFilter selection, DataOutputPlus out, boolean hasStatic) throws IOException
         {
             EncodingStats.serializer.serialize(header.stats, out);
 
-            if (hasStatic)
-                Columns.serializer.serialize(header.columns.statics, out);
-            Columns.serializer.serialize(header.columns.regulars, out);
+            if (selection == null)
+            {
+                if (hasStatic)
+                    Columns.serializer.serialize(header.columns.statics, out);
+                Columns.serializer.serialize(header.columns.regulars, out);
+            }
+            else
+            {
+                if (hasStatic)
+                    Columns.serializer.serializeSubset(header.columns.statics, selection.fetchedColumns().statics, out);
+                Columns.serializer.serializeSubset(header.columns.regulars, selection.fetchedColumns().regulars, out);
+            }
         }
 
-        public SerializationHeader deserializeForMessaging(DataInputPlus in, CFMetaData metadata, boolean hasStatic) throws IOException
+        public SerializationHeader deserializeForMessaging(DataInputPlus in, CFMetaData metadata, ColumnFilter selection, boolean hasStatic) throws IOException
         {
             EncodingStats stats = EncodingStats.serializer.deserialize(in);
 
             AbstractType<?> keyType = metadata.getKeyValidator();
             List<AbstractType<?>> clusteringTypes = typesOf(metadata.clusteringColumns());
 
-            Columns statics = hasStatic ? Columns.serializer.deserialize(in, metadata) : Columns.NONE;
-            Columns regulars = Columns.serializer.deserialize(in, metadata);
+            Columns statics, regulars;
+            if (selection == null)
+            {
+                statics = hasStatic ? Columns.serializer.deserialize(in, metadata) : Columns.NONE;
+                regulars = Columns.serializer.deserialize(in, metadata);
+            }
+            else
+            {
+                statics = hasStatic ? Columns.serializer.deserializeSubset(selection.fetchedColumns().statics, in) : Columns.NONE;
+                regulars = Columns.serializer.deserializeSubset(selection.fetchedColumns().regulars, in);
+            }
 
             return new SerializationHeader(keyType, clusteringTypes, new PartitionColumns(statics, regulars), stats, null);
         }
 
-        public long serializedSizeForMessaging(SerializationHeader header, boolean hasStatic)
+        public long serializedSizeForMessaging(SerializationHeader header, ColumnFilter selection, boolean hasStatic)
         {
             long size = EncodingStats.serializer.serializedSize(header.stats);
 
-            if (hasStatic)
-                size += Columns.serializer.serializedSize(header.columns.statics);
-            size += Columns.serializer.serializedSize(header.columns.regulars);
+            if (selection == null)
+            {
+                if (hasStatic)
+                    size += Columns.serializer.serializedSize(header.columns.statics);
+                size += Columns.serializer.serializedSize(header.columns.regulars);
+            }
+            else
+            {
+                if (hasStatic)
+                    size += Columns.serializer.serializedSubsetSize(header.columns.statics, selection.fetchedColumns().statics);
+                size += Columns.serializer.serializedSubsetSize(header.columns.regulars, selection.fetchedColumns().regulars);
+            }
             return size;
         }
 

@@ -491,7 +491,7 @@ public class DataResolverTest
     public MessageIn<ReadResponse> readResponseMessage(InetAddress from, UnfilteredPartitionIterator partitionIterator)
     {
         return MessageIn.create(from,
-                                ReadResponse.createDataResponse(partitionIterator),
+                                ReadResponse.createRemoteDataResponse(partitionIterator, command.columnFilter()),
                                 Collections.EMPTY_MAP,
                                 MessagingService.Verb.REQUEST_RESPONSE,
                                 MessagingService.current_version);

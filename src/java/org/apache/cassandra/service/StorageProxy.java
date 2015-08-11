@@ -1689,7 +1689,7 @@ public class StorageProxy implements StorageProxyMBean
             {
                 try (ReadOrderGroup orderGroup = command.startOrderGroup(); UnfilteredPartitionIterator iterator = command.executeLocally(orderGroup))
                 {
-                    handler.response(command.createResponse(iterator));
+                    handler.response(command.createResponse(iterator, command.columnFilter()));
                 }
                 MessagingService.instance().addLatency(FBUtilities.getBroadcastAddress(), TimeUnit.NANOSECONDS.toMillis(System.nanoTime() - start));
             }

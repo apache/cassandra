@@ -24,8 +24,11 @@ import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
 
+import com.google.common.annotations.VisibleForTesting;
+
 import org.apache.cassandra.config.CFMetaData;
 import org.apache.cassandra.db.filter.ClusteringIndexFilter;
+import org.apache.cassandra.db.filter.ColumnFilter;
 import org.apache.cassandra.db.rows.*;
 import org.apache.cassandra.db.partitions.*;
 import org.apache.cassandra.io.IVersionedSerializer;
@@ -34,7 +37,6 @@ import org.apache.cassandra.io.util.DataInputPlus;
 import org.apache.cassandra.io.util.DataOutputPlus;
 import org.apache.cassandra.io.util.DataOutputBuffer;
 import org.apache.cassandra.net.MessagingService;
-import org.apache.cassandra.service.StorageService;
 import org.apache.cassandra.utils.ByteBufferUtil;
 import org.apache.cassandra.utils.FBUtilities;
 
@@ -52,9 +54,15 @@ public abstract class ReadResponse
         this.metadata = metadata;
     }
 
-    public static ReadResponse createDataResponse(UnfilteredPartitionIterator data)
+    public static ReadResponse createDataResponse(UnfilteredPartitionIterator data, ColumnFilter selection)
     {
-        return new DataResponse(data);
+        return new LocalDataResponse(data, selection);
+    }
+
+    @VisibleForTesting
+    public static ReadResponse createRemoteDataResponse(UnfilteredPartitionIterator data, ColumnFilter selection)
+    {
+        return new RemoteDataResponse(LocalDataResponse.build(data, selection));
     }
 
     public static ReadResponse createDigestResponse(UnfilteredPartitionIterator data)
@@ -63,7 +71,6 @@ public abstract class ReadResponse
     }
 
     public abstract UnfilteredPartitionIterator makeIterator(CFMetaData metadata, ReadCommand command);
-
     public abstract ByteBuffer digest(CFMetaData metadata, ReadCommand command);
 
     public abstract boolean isDigestQuery();
@@ -102,27 +109,22 @@ public abstract class ReadResponse
         }
     }
 
-    private static class DataResponse extends ReadResponse
+    // built on the owning node responding to a query
+    private static class LocalDataResponse extends DataResponse
     {
-        // The response, serialized in the current messaging version
-        private final ByteBuffer data;
-        private final SerializationHelper.Flag flag;
-
-        private DataResponse(ByteBuffer data)
+        private final ColumnFilter received;
+        private LocalDataResponse(UnfilteredPartitionIterator iter, ColumnFilter received)
         {
-            super(null); // This is never call on the serialization side, where we actually care of the metadata.
-            this.data = data;
-            this.flag = SerializationHelper.Flag.FROM_REMOTE;
+            super(iter.metadata(), build(iter, received), SerializationHelper.Flag.LOCAL);
+            this.received = received;
         }
 
-        private DataResponse(UnfilteredPartitionIterator iter)
+        private static ByteBuffer build(UnfilteredPartitionIterator iter, ColumnFilter selection)
         {
-            super(iter.metadata());
             try (DataOutputBuffer buffer = new DataOutputBuffer())
             {
-                UnfilteredPartitionIterators.serializerForIntraNode().serialize(iter, buffer, MessagingService.current_version);
-                this.data = buffer.buffer();
-                this.flag = SerializationHelper.Flag.LOCAL;
+                UnfilteredPartitionIterators.serializerForIntraNode().serialize(iter, selection, buffer, MessagingService.current_version);
+                return buffer.buffer();
             }
             catch (IOException e)
             {
@@ -131,12 +133,57 @@ public abstract class ReadResponse
             }
         }
 
+        protected ColumnFilter selection(ColumnFilter sent)
+        {
+            // we didn't send anything, so we don't provide it in the serializer methods, but use the
+            // object's reference to the original column filter we received
+            assert sent == null | sent == received;
+            return received;
+        }
+    }
+
+    // built on the coordinator node receiving a response
+    private static class RemoteDataResponse extends DataResponse
+    {
+        protected RemoteDataResponse(ByteBuffer data)
+        {
+            super(null, data, SerializationHelper.Flag.FROM_REMOTE);
+        }
+
+        protected ColumnFilter selection(ColumnFilter sent)
+        {
+            // we should always know what we sent, and should provide it in digest() and makeIterator()
+            assert sent != null;
+            return sent;
+        }
+    }
+
+    static abstract class DataResponse extends ReadResponse
+    {
+        // TODO: can the digest be calculated over the raw bytes now?
+        // The response, serialized in the current messaging version
+        private final ByteBuffer data;
+        private final SerializationHelper.Flag flag;
+
+        protected DataResponse(CFMetaData metadata, ByteBuffer data, SerializationHelper.Flag flag)
+        {
+            super(metadata);
+            this.data = data;
+            this.flag = flag;
+        }
+
+        protected abstract ColumnFilter selection(ColumnFilter filter);
+
         public UnfilteredPartitionIterator makeIterator(CFMetaData metadata, ReadCommand command)
         {
             try
             {
                 DataInputPlus in = new DataInputBuffer(data, true);
-                return UnfilteredPartitionIterators.serializerForIntraNode().deserialize(in, MessagingService.current_version, metadata, flag);
+                return UnfilteredPartitionIterators.serializerForIntraNode().deserialize(in,
+                                                                                         MessagingService.current_version,
+                                                                                         metadata,
+                                                                                         selection(command.columnFilter()),
+                                                                                         flag);
             }
             catch (IOException e)
             {
@@ -307,7 +354,7 @@ public abstract class ReadResponse
 
             assert version == MessagingService.VERSION_30;
             ByteBuffer data = ByteBufferUtil.readWithVIntLength(in);
-            return new DataResponse(data);
+            return new RemoteDataResponse(data);
         }
 
         public long serializedSize(ReadResponse response, int version)

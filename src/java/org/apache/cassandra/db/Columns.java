@@ -26,6 +26,7 @@ import java.security.MessageDigest;
 import com.google.common.collect.ImmutableList;
 import com.google.common.collect.Iterators;
 
+import net.nicoulaj.compilecommand.annotations.DontInline;
 import org.apache.cassandra.config.CFMetaData;
 import org.apache.cassandra.config.ColumnDefinition;
 import org.apache.cassandra.cql3.ColumnIdentifier;
@@ -295,9 +296,9 @@ public class Columns implements Iterable<ColumnDefinition>
      *
      * @return an iterator over all the columns of this object.
      */
-    public Iterator<ColumnDefinition> iterator()
+    public BTreeSearchIterator<ColumnDefinition, ColumnDefinition> iterator()
     {
-        return BTree.iterator(columns);
+        return BTree.<ColumnDefinition, ColumnDefinition>slice(columns, Comparator.naturalOrder(), BTree.Dir.ASC);
     }
 
     /**
@@ -311,8 +312,13 @@ public class Columns implements Iterable<ColumnDefinition>
     {
         // In wildcard selection, we want to return all columns in alphabetical order,
         // irregarding of whether they are complex or not
-        return Iterators.<ColumnDefinition>mergeSorted(ImmutableList.of(simpleColumns(), complexColumns()),
-                                     (s, c) -> s.name.compareTo(c.name));
+        return Iterators.<ColumnDefinition>
+                         mergeSorted(ImmutableList.of(simpleColumns(), complexColumns()),
+                                     (s, c) ->
+                                     {
+                                         assert !s.kind.isPrimaryKeyKind();
+                                         return s.name.bytes.compareTo(c.name.bytes);
+                                     });
     }
 
     /**
@@ -420,5 +426,221 @@ public class Columns implements Iterable<ColumnDefinition>
             }
             return new Columns(builder.build());
         }
+
+        /**
+         * If both ends have a pre-shared superset of the columns we are serializing, we can send them much
+         * more efficiently. Both ends must provide the identically same set of columns.
+         */
+        public void serializeSubset(Columns columns, Columns superset, DataOutputPlus out) throws IOException
+        {
+            /**
+             * We weight this towards small sets, and sets where the majority of items are present, since
+             * we expect this to mostly be used for serializing result sets.
+             *
+             * For supersets with fewer than 64 columns, we encode a bitmap of *missing* columns,
+             * which equates to a zero (single byte) when all columns are present, and otherwise
+             * a positive integer that can typically be vint encoded efficiently.
+             *
+             * If we have 64 or more columns, we cannot neatly perform a bitmap encoding, so we just switch
+             * to a vint encoded set of deltas, either adding or subtracting (whichever is most efficient).
+             * We indicate this switch by sending our bitmap with every bit set, i.e. -1L
+             */
+            int columnCount = columns.columnCount();
+            int supersetCount = superset.columnCount();
+            if (columnCount == supersetCount)
+            {
+                out.writeUnsignedVInt(0);
+            }
+            else if (supersetCount < 64)
+            {
+                out.writeUnsignedVInt(encodeBitmap(columns, superset, supersetCount));
+            }
+            else
+            {
+                serializeLargeSubset(columns, columnCount, superset, supersetCount, out);
+            }
+        }
+
+        public long serializedSubsetSize(Columns columns, Columns superset)
+        {
+            int columnCount = columns.columnCount();
+            int supersetCount = superset.columnCount();
+            if (columnCount == supersetCount)
+            {
+                return TypeSizes.sizeofUnsignedVInt(0);
+            }
+            else if (supersetCount < 64)
+            {
+                return TypeSizes.sizeofUnsignedVInt(encodeBitmap(columns, superset, supersetCount));
+            }
+            else
+            {
+                return serializeLargeSubsetSize(columns, columnCount, superset, supersetCount);
+            }
+        }
+
+        public Columns deserializeSubset(Columns superset, DataInputPlus in) throws IOException
+        {
+            long encoded = in.readUnsignedVInt();
+            if (encoded == -1L)
+            {
+                return deserializeLargeSubset(in, superset);
+            }
+            else if (encoded == 0L)
+            {
+                return superset;
+            }
+            else
+            {
+                BTree.Builder<ColumnDefinition> builder = BTree.builder(Comparator.naturalOrder());
+                int firstComplexIdx = 0;
+                for (ColumnDefinition column : superset)
+                {
+                    if ((encoded & 1) == 0)
+                    {
+                        builder.add(column);
+                        if (column.isSimple())
+                            ++firstComplexIdx;
+                    }
+                    encoded >>>= 1;
+                }
+                return new Columns(builder.build(), firstComplexIdx);
+            }
+        }
+
+        // encodes a 1 bit for every *missing* column, on the assumption presence is more common,
+        // and because this is consistent with encoding 0 to represent all present
+        private static long encodeBitmap(Columns columns, Columns superset, int supersetCount)
+        {
+            long bitmap = 0L;
+            BTreeSearchIterator<ColumnDefinition, ColumnDefinition> iter = superset.iterator();
+            // the index we would encounter next if all columns are present
+            int expectIndex = 0;
+            for (ColumnDefinition column : columns)
+            {
+                if (iter.next(column) == null)
+                    throw new IllegalStateException();
+
+                int currentIndex = iter.indexOfCurrent();
+                int count = currentIndex - expectIndex;
+                // (1L << count) - 1 gives us count bits set at the bottom of the register
+                // so << expectIndex moves these bits to start at expectIndex, which is where our missing portion
+                // begins (assuming count > 0; if not, we're adding 0 bits, so it's a no-op)
+                bitmap |= ((1L << count) - 1) << expectIndex;
+                expectIndex = currentIndex + 1;
+            }
+            int count = supersetCount - expectIndex;
+            bitmap |= ((1L << count) - 1) << expectIndex;
+            return bitmap;
+        }
+
+        @DontInline
+        private void serializeLargeSubset(Columns columns, int columnCount, Columns superset, int supersetCount, DataOutputPlus out) throws IOException
+        {
+            // write flag indicating we're in lengthy mode
+            out.writeUnsignedVInt(-1L);
+            out.writeUnsignedVInt(supersetCount - columnCount);
+            BTreeSearchIterator<ColumnDefinition, ColumnDefinition> iter = superset.iterator();
+            if (columnCount < supersetCount / 2)
+            {
+                // write present columns
+                for (ColumnDefinition column : columns)
+                {
+                    if (iter.next(column) == null)
+                        throw new IllegalStateException();
+                    out.writeUnsignedVInt(iter.indexOfCurrent());
+                }
+            }
+            else
+            {
+                // write missing columns
+                int prev = -1;
+                for (ColumnDefinition column : columns)
+                {
+                    if (iter.next(column) == null)
+                        throw new IllegalStateException();
+                    int cur = iter.indexOfCurrent();
+                    while (++prev != cur)
+                        out.writeUnsignedVInt(prev);
+                }
+                while (++prev != supersetCount)
+                    out.writeUnsignedVInt(prev);
+            }
+        }
+
+        @DontInline
+        private Columns deserializeLargeSubset(DataInputPlus in, Columns superset) throws IOException
+        {
+            int supersetCount = superset.columnCount();
+            int delta = (int) in.readUnsignedVInt();
+            int columnCount = supersetCount - delta;
+
+            BTree.Builder<ColumnDefinition> builder = BTree.builder(Comparator.naturalOrder());
+            if (columnCount < supersetCount / 2)
+            {
+                for (int i = 0 ; i < columnCount ; i++)
+                {
+                    int idx = (int) in.readUnsignedVInt();
+                    builder.add(BTree.findByIndex(superset.columns, idx));
+                }
+            }
+            else
+            {
+                Iterator<ColumnDefinition> iter = superset.iterator();
+                int idx = 0;
+                int skipped = 0;
+                while (true)
+                {
+                    int nextMissingIndex = skipped < delta ? (int)in.readUnsignedVInt() : supersetCount;
+                    while (idx < nextMissingIndex)
+                    {
+                        ColumnDefinition def = iter.next();
+                        builder.add(def);
+                        idx++;
+                    }
+                    if (idx == supersetCount)
+                        break;
+                    iter.next();
+                    idx++;
+                    skipped++;
+                }
+            }
+            return new Columns(builder.build());
+        }
+
+        @DontInline
+        private int serializeLargeSubsetSize(Columns columns, int columnCount, Columns superset, int supersetCount)
+        {
+            // write flag indicating we're in lengthy mode
+            int size = TypeSizes.sizeofUnsignedVInt(-1L) + TypeSizes.sizeofUnsignedVInt(supersetCount - columnCount);
+            BTreeSearchIterator<ColumnDefinition, ColumnDefinition> iter = superset.iterator();
+            if (columnCount < supersetCount / 2)
+            {
+                // write present columns
+                for (ColumnDefinition column : columns)
+                {
+                    if (iter.next(column) == null)
+                        throw new IllegalStateException();
+                    size += TypeSizes.sizeofUnsignedVInt(iter.indexOfCurrent());
+                }
+            }
+            else
+            {
+                // write missing columns
+                int prev = -1;
+                for (ColumnDefinition column : columns)
+                {
+                    if (iter.next(column) == null)
+                        throw new IllegalStateException();
+                    int cur = iter.indexOfCurrent();
+                    while (++prev != cur)
+                        size += TypeSizes.sizeofUnsignedVInt(prev);
+                }
+                while (++prev != supersetCount)
+                    size += TypeSizes.sizeofUnsignedVInt(prev);
+            }
+            return size;
+        }
+
     }
 }

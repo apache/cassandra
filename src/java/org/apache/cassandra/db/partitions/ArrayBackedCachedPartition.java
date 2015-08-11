@@ -216,7 +216,7 @@ public class ArrayBackedCachedPartition extends ArrayBackedPartition implements 
             CFMetaData.serializer.serialize(partition.metadata(), out, version);
             try (UnfilteredRowIterator iter = p.sliceableUnfilteredIterator())
             {
-                UnfilteredRowIteratorSerializer.serializer.serialize(iter, out, version, p.rowCount());
+                UnfilteredRowIteratorSerializer.serializer.serialize(iter, null, out, version, p.rowCount());
             }
         }
 
@@ -238,7 +238,7 @@ public class ArrayBackedCachedPartition extends ArrayBackedPartition implements 
             int nonExpiringLiveCells = in.readInt();
 
             CFMetaData metadata = CFMetaData.serializer.deserialize(in, version);
-            UnfilteredRowIteratorSerializer.Header header = UnfilteredRowIteratorSerializer.serializer.deserializeHeader(in, version, metadata, SerializationHelper.Flag.LOCAL);
+            UnfilteredRowIteratorSerializer.Header header = UnfilteredRowIteratorSerializer.serializer.deserializeHeader(metadata, null, in, version, SerializationHelper.Flag.LOCAL);
             assert !header.isReversed && header.rowEstimate >= 0;
 
             MutableDeletionInfo.Builder deletionBuilder = MutableDeletionInfo.builder(header.partitionDeletion, metadata.comparator, false);
@@ -286,7 +286,7 @@ public class ArrayBackedCachedPartition extends ArrayBackedPartition implements 
                      + TypeSizes.sizeof(p.nonTombstoneCellCount)
                      + TypeSizes.sizeof(p.nonExpiringLiveCells)
                      + CFMetaData.serializer.serializedSize(partition.metadata(), version)
-                     + UnfilteredRowIteratorSerializer.serializer.serializedSize(iter, MessagingService.current_version, p.rowCount());
+                     + UnfilteredRowIteratorSerializer.serializer.serializedSize(iter, null, MessagingService.current_version, p.rowCount());
             }
         }
     }
