@@ -34,6 +34,7 @@ import org.apache.cassandra.Util;
 import org.apache.cassandra.cache.KeyCacheKey;
 import org.apache.cassandra.concurrent.ScheduledExecutors;
 import org.apache.cassandra.config.CFMetaData;
+import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.config.Schema;
 import org.apache.cassandra.db.compaction.CompactionManager;
 import org.apache.cassandra.exceptions.ConfigurationException;
@@ -153,10 +154,12 @@ public class KeyCacheTest
             throw new IllegalStateException();
 
         Util.compactAll(cfs, Integer.MAX_VALUE).get();
+        boolean noEarlyOpen = DatabaseDescriptor.getSSTablePreempiveOpenIntervalInMB() < 0;
+
         // after compaction cache should have entries for new SSTables,
         // but since we have kept a reference to the old sstables,
         // if we had 2 keys in cache previously it should become 4
-        assertKeyCacheSize(4, KEYSPACE1, COLUMN_FAMILY1);
+        assertKeyCacheSize(noEarlyOpen ? 2 : 4, KEYSPACE1, COLUMN_FAMILY1);
 
         refs.release();
 
@@ -172,7 +175,7 @@ public class KeyCacheTest
         Util.getAll(Util.cmd(cfs, "key1").build());
         Util.getAll(Util.cmd(cfs, "key2").build());
 
-        assertKeyCacheSize(2, KEYSPACE1, COLUMN_FAMILY1);
+        assertKeyCacheSize(noEarlyOpen ? 4 : 2, KEYSPACE1, COLUMN_FAMILY1);
     }
 
     private static void readData(String keyspace, String columnFamily, int numberOfRows)
