@@ -52,7 +52,7 @@ public class DatabaseDescriptorTest
         // test serialization of all defined test CFs.
         for (String keyspaceName : Schema.instance.getNonSystemKeyspaces())
         {
-            for (CFMetaData cfm : Schema.instance.getTables(keyspaceName))
+            for (CFMetaData cfm : Schema.instance.getTablesAndViews(keyspaceName))
             {
                 CFMetaData cfmDupe = ThriftConversion.fromThrift(ThriftConversion.toThrift(cfm));
                 assertNotNull(cfmDupe);

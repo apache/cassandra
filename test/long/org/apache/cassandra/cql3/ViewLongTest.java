@@ -38,10 +38,10 @@ import org.apache.cassandra.concurrent.StageManager;
 import org.apache.cassandra.batchlog.BatchlogManager;
 import org.apache.cassandra.utils.WrappedRunnable;
 
-public class MaterializedViewLongTest extends CQLTester
+public class ViewLongTest extends CQLTester
 {
     int protocolVersion = 4;
-    private final List<String> materializedViews = new ArrayList<>();
+    private final List<String> views = new ArrayList<>();
 
     @BeforeClass
     public static void startup()
@@ -51,13 +51,13 @@ public class MaterializedViewLongTest extends CQLTester
     @Before
     public void begin()
     {
-        materializedViews.clear();
+        views.clear();
     }
 
     @After
     public void end() throws Throwable
     {
-        for (String viewName : materializedViews)
+        for (String viewName : views)
             executeNet(protocolVersion, "DROP MATERIALIZED VIEW " + viewName);
     }
 
@@ -66,7 +66,7 @@ public class MaterializedViewLongTest extends CQLTester
         executeNet(protocolVersion, String.format(query, name));
         // If exception is thrown, the view will not be added to the list; since it shouldn't have been created, this is
         // the desired behavior
-        materializedViews.add(name);
+        views.add(name);
     }
 
     @Test
@@ -134,8 +134,8 @@ public class MaterializedViewLongTest extends CQLTester
                 break;
             try
             {
-                // This will throw exceptions whenever there are exceptions trying to push the materialized view values
-                // out, caused by the view becoming overwhelmed.
+                // This will throw exceptions whenever there are exceptions trying to push the view values out, caused
+                // by the view becoming overwhelmed.
                 BatchlogManager.instance.startBatchlogReplay().get();
             }
             catch (Throwable ignore)

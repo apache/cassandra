@@ -48,11 +48,11 @@ import org.apache.cassandra.db.commitlog.ReplayPosition;
 import org.apache.cassandra.db.compaction.*;
 import org.apache.cassandra.db.filter.ClusteringIndexFilter;
 import org.apache.cassandra.db.filter.DataLimits;
+import org.apache.cassandra.db.view.ViewManager;
 import org.apache.cassandra.db.lifecycle.*;
 import org.apache.cassandra.db.partitions.CachedPartition;
 import org.apache.cassandra.db.partitions.PartitionUpdate;
 import org.apache.cassandra.db.rows.CellPath;
-import org.apache.cassandra.db.view.MaterializedViewManager;
 import org.apache.cassandra.dht.*;
 import org.apache.cassandra.dht.Range;
 import org.apache.cassandra.exceptions.ConfigurationException;
@@ -193,7 +193,7 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
     private final AtomicInteger fileIndexGenerator = new AtomicInteger(0);
 
     public final SecondaryIndexManager indexManager;
-    public final MaterializedViewManager materializedViewManager;
+    public final ViewManager.ForStore viewManager;
 
     /* These are locally held copies to be changed from the config during runtime */
     private volatile DefaultInteger minCompactionThreshold;
@@ -231,7 +231,6 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
 
         indexManager.reload();
 
-        materializedViewManager.reload();
         // If the CF comparator has changed, we need to change the memtable,
         // because the old one still aliases the previous comparator.
         if (data.getView().getCurrentMemtable().initialComparator != metadata.comparator)
@@ -377,7 +376,7 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
         this.maxCompactionThreshold = new DefaultInteger(metadata.params.compaction.maxCompactionThreshold());
         this.directories = directories;
         this.indexManager = new SecondaryIndexManager(this);
-        this.materializedViewManager = new MaterializedViewManager(this);
+        this.viewManager = keyspace.viewManager.forTable(metadata.cfId);
         this.metric = new TableMetrics(this);
         fileIndexGenerator.set(generation);
         sampleLatencyNanos = DatabaseDescriptor.getReadRpcTimeout() / 2;
@@ -513,7 +512,6 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
         data.dropSSTables();
         LifecycleTransaction.waitForDeletions();
         indexManager.invalidateAllIndexesBlocking();
-        materializedViewManager.invalidate();
 
         invalidateCaches();
     }
@@ -633,8 +631,6 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
     // must be called after all sstables are loaded since row cache merges all row versions
     public void init()
     {
-        materializedViewManager.init();
-
         if (!isRowCacheEnabled())
             return;
 
@@ -1912,7 +1908,7 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
             // flush the CF being truncated before forcing the new segment
             forceBlockingFlush();
 
-            materializedViewManager.forceBlockingFlush();
+            viewManager.forceBlockingFlush();
 
             // sleep a little to make sure that our truncatedAt comes after any sstable
             // that was part of the flushed we forced; otherwise on a tie, it won't get deleted.
@@ -1921,7 +1917,7 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
         else
         {
             dumpMemtable();
-            materializedViewManager.dumpMemtables();
+            viewManager.dumpMemtables();
         }
 
         Runnable truncateRunnable = new Runnable()
@@ -1940,7 +1936,7 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
 
                 indexManager.truncateAllIndexesBlocking(truncatedAt);
 
-                materializedViewManager.truncateBlocking(truncatedAt);
+                viewManager.truncateBlocking(truncatedAt);
 
                 SystemKeyspace.saveTruncationRecord(ColumnFamilyStore.this, truncatedAt, replayAfter);
                 logger.debug("cleaning out row cache");
@@ -1974,7 +1970,7 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
             logger.debug("Cancelling in-progress compactions for {}", metadata.cfName);
 
             Iterable<ColumnFamilyStore> selfWithAuxiliaryCfs = interruptViews
-                                                               ? Iterables.concat(concatWithIndexes(), materializedViewManager.allViewsCfs())
+                                                               ? Iterables.concat(concatWithIndexes(), viewManager.allViewsCfs())
                                                                : concatWithIndexes();
 
             for (ColumnFamilyStore cfs : selfWithAuxiliaryCfs)

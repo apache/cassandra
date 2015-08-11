@@ -48,12 +48,9 @@ import org.apache.cassandra.db.filter.DataLimits;
 import org.apache.cassandra.db.filter.TombstoneOverwhelmingException;
 import org.apache.cassandra.db.partitions.*;
 import org.apache.cassandra.db.rows.RowIterator;
-import org.apache.cassandra.db.view.MaterializedViewManager;
-import org.apache.cassandra.db.view.MaterializedViewUtils;
-import org.apache.cassandra.dht.AbstractBounds;
-import org.apache.cassandra.dht.Bounds;
-import org.apache.cassandra.dht.RingPosition;
-import org.apache.cassandra.dht.Token;
+import org.apache.cassandra.db.view.ViewManager;
+import org.apache.cassandra.db.view.ViewUtils;
+import org.apache.cassandra.dht.*;
 import org.apache.cassandra.exceptions.*;
 import org.apache.cassandra.gms.FailureDetector;
 import org.apache.cassandra.gms.Gossiper;
@@ -98,7 +95,7 @@ public class StorageProxy implements StorageProxyMBean
     private static final ClientRequestMetrics writeMetrics = new ClientRequestMetrics("Write");
     private static final CASClientRequestMetrics casWriteMetrics = new CASClientRequestMetrics("CASWrite");
     private static final CASClientRequestMetrics casReadMetrics = new CASClientRequestMetrics("CASRead");
-    private static final MVWriteMetrics mvWriteMetrics = new MVWriteMetrics("MVWrite");
+    private static final ViewWriteMetrics viewWriteMetrics = new ViewWriteMetrics("ViewWrite");
 
     private static final double CONCURRENT_SUBREQUESTS_MARGIN = 0.10;
 
@@ -655,6 +652,7 @@ public class StorageProxy implements StorageProxyMBean
      * @param mutations the mutations to be applied across the replicas
      */
     public static void mutateMV(ByteBuffer dataKey, Collection<Mutation> mutations, boolean writeCommitLog)
+    throws UnavailableException, OverloadedException, WriteTimeoutException
     {
         Tracing.trace("Determining replicas for mutation");
         final String localDataCenter = DatabaseDescriptor.getEndpointSnitch().getDatacenter(FBUtilities.getBroadcastAddress());
@@ -679,15 +677,15 @@ public class StorageProxy implements StorageProxyMBean
             {
                 String keyspaceName = mutation.getKeyspaceName();
                 Token tk = mutation.key().getToken();
-                InetAddress pairedEndpoint = MaterializedViewUtils.getViewNaturalEndpoint(keyspaceName, baseToken, tk);
+                InetAddress pairedEndpoint = ViewUtils.getViewNaturalEndpoint(keyspaceName, baseToken, tk);
                 List<InetAddress> naturalEndpoints = Lists.newArrayList(pairedEndpoint);
 
-                WriteResponseHandlerWrapper wrapper = wrapMVBatchResponseHandler(mutation,
-                                                                                 consistencyLevel,
-                                                                                 consistencyLevel,
-                                                                                 naturalEndpoints,
-                                                                                 WriteType.BATCH,
-                                                                                 cleanup);
+                WriteResponseHandlerWrapper wrapper = wrapViewBatchResponseHandler(mutation,
+                                                                                   consistencyLevel,
+                                                                                   consistencyLevel,
+                                                                                   naturalEndpoints,
+                                                                                   WriteType.BATCH,
+                                                                                   cleanup);
 
                 // When local node is the endpoint and there are no pending nodes we can
                 // Just apply the mutation locally.
@@ -704,12 +702,12 @@ public class StorageProxy implements StorageProxyMBean
                                       writeCommitLog);
 
                 // now actually perform the writes and wait for them to complete
-                asyncWriteBatchedMutations(wrappers, localDataCenter, Stage.MATERIALIZED_VIEW_MUTATION);
+                asyncWriteBatchedMutations(wrappers, localDataCenter, Stage.VIEW_MUTATION);
             }
         }
         finally
         {
-            mvWriteMetrics.addNano(System.nanoTime() - startTime);
+            viewWriteMetrics.addNano(System.nanoTime() - startTime);
         }
     }
 
@@ -721,7 +719,9 @@ public class StorageProxy implements StorageProxyMBean
     {
         Collection<Mutation> augmented = TriggerExecutor.instance.execute(mutations);
 
-        boolean updatesView = MaterializedViewManager.updatesAffectView(mutations, true);
+        boolean updatesView = Keyspace.open(mutations.iterator().next().getKeyspaceName())
+                              .viewManager
+                              .updatesAffectView(mutations, true);
 
         if (augmented != null)
             mutateAtomically(augmented, consistencyLevel, updatesView);
@@ -974,14 +974,14 @@ public class StorageProxy implements StorageProxyMBean
 
     /**
      * Same as performWrites except does not initiate writes (but does perform availability checks).
-     * Keeps track of MVWriteMetrics
+     * Keeps track of ViewWriteMetrics
      */
-    private static WriteResponseHandlerWrapper wrapMVBatchResponseHandler(Mutation mutation,
-                                                                          ConsistencyLevel consistency_level,
-                                                                          ConsistencyLevel batchConsistencyLevel,
-                                                                          List<InetAddress> naturalEndpoints,
-                                                                          WriteType writeType,
-                                                                          BatchlogResponseHandler.BatchlogCleanup cleanup)
+    private static WriteResponseHandlerWrapper wrapViewBatchResponseHandler(Mutation mutation,
+                                                                            ConsistencyLevel consistency_level,
+                                                                            ConsistencyLevel batchConsistencyLevel,
+                                                                            List<InetAddress> naturalEndpoints,
+                                                                            WriteType writeType,
+                                                                            BatchlogResponseHandler.BatchlogCleanup cleanup)
     {
         Keyspace keyspace = Keyspace.open(mutation.getKeyspaceName());
         AbstractReplicationStrategy rs = keyspace.getReplicationStrategy();
@@ -989,7 +989,7 @@ public class StorageProxy implements StorageProxyMBean
         Token tk = mutation.key().getToken();
         Collection<InetAddress> pendingEndpoints = StorageService.instance.getTokenMetadata().pendingEndpointsFor(tk, keyspaceName);
         AbstractWriteResponseHandler<IMutation> writeHandler = rs.getWriteResponseHandler(naturalEndpoints, pendingEndpoints, consistency_level, null, writeType);
-        BatchlogResponseHandler<IMutation> batchHandler = new MVWriteMetricsWrapped(writeHandler, batchConsistencyLevel.blockFor(keyspace), cleanup);
+        BatchlogResponseHandler<IMutation> batchHandler = new ViewWriteMetricsWrapped(writeHandler, batchConsistencyLevel.blockFor(keyspace), cleanup);
         return new WriteResponseHandlerWrapper(batchHandler, mutation);
     }
 
@@ -2282,20 +2282,20 @@ public class StorageProxy implements StorageProxyMBean
     }
 
     /**
-     * This class captures metrics for materialized views writes.
+     * This class captures metrics for views writes.
      */
-    private static class MVWriteMetricsWrapped extends BatchlogResponseHandler<IMutation>
+    private static class ViewWriteMetricsWrapped extends BatchlogResponseHandler<IMutation>
     {
-        public MVWriteMetricsWrapped(AbstractWriteResponseHandler<IMutation> writeHandler, int i, BatchlogCleanup cleanup)
+        public ViewWriteMetricsWrapped(AbstractWriteResponseHandler<IMutation> writeHandler, int i, BatchlogCleanup cleanup)
         {
             super(writeHandler, i, cleanup);
-            mvWriteMetrics.viewReplicasAttempted.inc(totalEndpoints());
+            viewWriteMetrics.viewReplicasAttempted.inc(totalEndpoints());
         }
 
         public void response(MessageIn<IMutation> msg)
         {
             super.response(msg);
-            mvWriteMetrics.viewReplicasSuccess.inc();
+            viewWriteMetrics.viewReplicasSuccess.inc();
         }
     }
 

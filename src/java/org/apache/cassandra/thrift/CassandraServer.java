@@ -44,6 +44,7 @@ import org.apache.cassandra.db.marshal.AbstractType;
 import org.apache.cassandra.db.marshal.TimeUUIDType;
 import org.apache.cassandra.db.partitions.*;
 import org.apache.cassandra.db.rows.*;
+import org.apache.cassandra.db.view.View;
 import org.apache.cassandra.dht.*;
 import org.apache.cassandra.dht.Range;
 import org.apache.cassandra.exceptions.*;
@@ -815,7 +816,7 @@ public class CassandraServer implements Cassandra.Iface
         cState.hasColumnFamilyAccess(keyspace, column_parent.column_family, Permission.MODIFY);
 
         CFMetaData metadata = ThriftValidation.validateColumnFamily(keyspace, column_parent.column_family, false);
-        if (metadata.isMaterializedView())
+        if (metadata.isView())
             throw new org.apache.cassandra.exceptions.InvalidRequestException("Cannot modify Materialized Views directly");
 
         ThriftValidation.validateKey(metadata, key);
@@ -912,7 +913,7 @@ public class CassandraServer implements Cassandra.Iface
             cState.hasColumnFamilyAccess(keyspace, column_family, Permission.SELECT);
 
             CFMetaData metadata = ThriftValidation.validateColumnFamily(keyspace, column_family, false);
-            if (metadata.isMaterializedView())
+            if (metadata.isView())
                 throw new org.apache.cassandra.exceptions.InvalidRequestException("Cannot modify Materialized Views directly");
 
             ThriftValidation.validateKey(metadata, key);
@@ -1108,7 +1109,7 @@ public class CassandraServer implements Cassandra.Iface
                 cState.hasColumnFamilyAccess(keyspace, cfName, Permission.MODIFY);
 
                 CFMetaData metadata = ThriftValidation.validateColumnFamily(keyspace, cfName);
-                if (metadata.isMaterializedView())
+                if (metadata.isView())
                     throw new org.apache.cassandra.exceptions.InvalidRequestException("Cannot modify Materialized Views directly");
 
                 ThriftValidation.validateKey(metadata, key);
@@ -1325,7 +1326,7 @@ public class CassandraServer implements Cassandra.Iface
         cState.hasColumnFamilyAccess(keyspace, column_path.column_family, Permission.MODIFY);
 
         CFMetaData metadata = ThriftValidation.validateColumnFamily(keyspace, column_path.column_family, isCommutativeOp);
-        if (metadata.isMaterializedView())
+        if (metadata.isView())
             throw new org.apache.cassandra.exceptions.InvalidRequestException("Cannot modify Materialized Views directly");
 
         ThriftValidation.validateKey(metadata, key);
@@ -1903,7 +1904,7 @@ public class CassandraServer implements Cassandra.Iface
             cState.hasColumnFamilyAccess(keyspace, column_family, Permission.DROP);
 
             CFMetaData metadata = ThriftValidation.validateColumnFamily(keyspace, column_family);
-            if (metadata.isMaterializedView())
+            if (metadata.isView())
                 throw new org.apache.cassandra.exceptions.InvalidRequestException("Cannot drop Materialized Views from Thrift");
 
             MigrationManager.announceColumnFamilyDrop(keyspace, column_family);
@@ -2015,9 +2016,9 @@ public class CassandraServer implements Cassandra.Iface
             if (oldCfm == null)
                 throw new InvalidRequestException("Could not find table definition to modify.");
 
-            if (oldCfm.isMaterializedView())
+            if (oldCfm.isView())
                 throw new InvalidRequestException("Cannot modify Materialized View table " + oldCfm.cfName + " as it may break the schema. You should use cqlsh to modify Materialized View tables instead.");
-            if (!oldCfm.getMaterializedViews().isEmpty())
+            if (!Iterables.isEmpty(View.findAll(cf_def.keyspace, cf_def.name)))
                 throw new InvalidRequestException("Cannot modify table with Materialized View " + oldCfm.cfName + " as it may break the schema. You should use cqlsh to modify tables with Materialized Views instead.");
 
             if (!oldCfm.isThriftCompatible())
@@ -2047,7 +2048,7 @@ public class CassandraServer implements Cassandra.Iface
             String keyspace = cState.getKeyspace();
             cState.hasColumnFamilyAccess(keyspace, cfname, Permission.MODIFY);
             CFMetaData metadata = ThriftValidation.validateColumnFamily(keyspace, cfname, false);
-            if (metadata.isMaterializedView())
+            if (metadata.isView())
                 throw new org.apache.cassandra.exceptions.InvalidRequestException("Cannot truncate Materialized Views");
 
             if (startSessionIfRequested())
@@ -2134,7 +2135,7 @@ public class CassandraServer implements Cassandra.Iface
             cState.hasColumnFamilyAccess(keyspace, column_parent.column_family, Permission.MODIFY);
 
             CFMetaData metadata = ThriftValidation.validateColumnFamily(keyspace, column_parent.column_family, true);
-            if (metadata.isMaterializedView())
+            if (metadata.isView())
                 throw new org.apache.cassandra.exceptions.InvalidRequestException("Cannot modify Materialized Views directly");
 
             ThriftValidation.validateKey(metadata, key);

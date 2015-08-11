@@ -31,6 +31,11 @@ public abstract class MigrationListener
     {
     }
 
+    public void onCreateView(String ksName, String viewName)
+    {
+        onCreateColumnFamily(ksName, viewName);
+    }
+
     public void onCreateUserType(String ksName, String typeName)
     {
     }
@@ -51,6 +56,11 @@ public abstract class MigrationListener
     {
     }
 
+    public void onUpdateView(String ksName, String viewName, boolean columnsDidChange)
+    {
+        onUpdateColumnFamily(ksName, viewName, columnsDidChange);
+    }
+
     public void onUpdateUserType(String ksName, String typeName)
     {
     }
@@ -68,6 +78,10 @@ public abstract class MigrationListener
     }
 
     public void onDropColumnFamily(String ksName, String cfName)
+    {
+    }
+
+    public void onDropView(String ksName, String viewName)
     {
     }
 

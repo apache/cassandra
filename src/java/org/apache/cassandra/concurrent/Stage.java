@@ -27,7 +27,7 @@ public enum Stage
     READ,
     MUTATION,
     COUNTER_MUTATION,
-    MATERIALIZED_VIEW_MUTATION,
+    VIEW_MUTATION,
     GOSSIP,
     REQUEST_RESPONSE,
     ANTI_ENTROPY,
@@ -61,7 +61,7 @@ public enum Stage
                 return "internal";
             case MUTATION:
             case COUNTER_MUTATION:
-            case MATERIALIZED_VIEW_MUTATION:
+            case VIEW_MUTATION:
             case READ:
             case REQUEST_RESPONSE:
             case READ_REPAIR:

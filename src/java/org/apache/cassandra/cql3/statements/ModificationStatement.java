@@ -21,13 +21,13 @@ import java.nio.ByteBuffer;
 import java.util.*;
 
 import com.google.common.collect.Iterables;
-
-import static org.apache.cassandra.cql3.statements.RequestValidations.checkNull;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 import org.apache.cassandra.auth.Permission;
 import org.apache.cassandra.config.CFMetaData;
 import org.apache.cassandra.config.ColumnDefinition;
-import org.apache.cassandra.config.MaterializedViewDefinition;
+import org.apache.cassandra.config.ViewDefinition;
 import org.apache.cassandra.cql3.*;
 import org.apache.cassandra.cql3.ColumnIdentifier.Raw;
 import org.apache.cassandra.cql3.functions.Function;
@@ -38,10 +38,8 @@ import org.apache.cassandra.db.filter.*;
 import org.apache.cassandra.db.marshal.BooleanType;
 import org.apache.cassandra.db.partitions.*;
 import org.apache.cassandra.db.rows.RowIterator;
-import org.apache.cassandra.exceptions.InvalidRequestException;
-import org.apache.cassandra.exceptions.RequestExecutionException;
-import org.apache.cassandra.exceptions.RequestValidationException;
-import org.apache.cassandra.exceptions.UnauthorizedException;
+import org.apache.cassandra.db.view.View;
+import org.apache.cassandra.exceptions.*;
 import org.apache.cassandra.service.ClientState;
 import org.apache.cassandra.service.QueryState;
 import org.apache.cassandra.service.StorageProxy;
@@ -52,9 +50,9 @@ import org.apache.cassandra.triggers.TriggerExecutor;
 import org.apache.cassandra.utils.FBUtilities;
 import org.apache.cassandra.utils.Pair;
 import org.apache.cassandra.utils.UUIDGen;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
+
 import static org.apache.cassandra.cql3.statements.RequestValidations.checkFalse;
+import static org.apache.cassandra.cql3.statements.RequestValidations.checkNull;
 import static org.apache.cassandra.cql3.statements.RequestValidations.checkNotNull;
 
 /*
@@ -170,14 +168,9 @@ public abstract class ModificationStatement implements CQLStatement
         return cfm.isCounter();
     }
 
-    public boolean isMaterializedView()
+    public boolean isView()
     {
-        return cfm.isMaterializedView();
-    }
-
-    public boolean hasMaterializedViews()
-    {
-        return !cfm.getMaterializedViews().isEmpty();
+        return cfm.isView();
     }
 
     public long getTimestamp(long now, QueryOptions options) throws InvalidRequestException
@@ -203,13 +196,16 @@ public abstract class ModificationStatement implements CQLStatement
         if (hasConditions())
             state.hasColumnFamilyAccess(keyspace(), columnFamily(), Permission.SELECT);
 
-        // MV updates need to get the current state from the table, and might update the materialized views
+        // MV updates need to get the current state from the table, and might update the views
         // Require Permission.SELECT on the base table, and Permission.MODIFY on the views
-        if (hasMaterializedViews())
+        Iterator<ViewDefinition> views = View.findAll(keyspace(), columnFamily()).iterator();
+        if (views.hasNext())
         {
             state.hasColumnFamilyAccess(keyspace(), columnFamily(), Permission.SELECT);
-            for (MaterializedViewDefinition view : cfm.getMaterializedViews())
-                state.hasColumnFamilyAccess(keyspace(), view.viewName, Permission.MODIFY);
+            do
+            {
+                state.hasColumnFamilyAccess(keyspace(), views.next().viewName, Permission.MODIFY);
+            } while (views.hasNext());
         }
 
         for (Function function : getFunctions())
@@ -221,7 +217,7 @@ public abstract class ModificationStatement implements CQLStatement
         checkFalse(hasConditions() && attrs.isTimestampSet(), "Cannot provide custom timestamp for conditional updates");
         checkFalse(isCounter() && attrs.isTimestampSet(), "Cannot provide custom timestamp for counter updates");
         checkFalse(isCounter() && attrs.isTimeToLiveSet(), "Cannot provide custom TTL for counter updates");
-        checkFalse(isMaterializedView(), "Cannot directly modify a materialized view");
+        checkFalse(isView(), "Cannot directly modify a materialized view");
     }
 
     public PartitionColumns updatedColumns()

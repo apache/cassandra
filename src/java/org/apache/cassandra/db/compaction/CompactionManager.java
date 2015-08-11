@@ -45,7 +45,7 @@ import org.apache.cassandra.db.lifecycle.LifecycleTransaction;
 import org.apache.cassandra.db.lifecycle.SSTableSet;
 import org.apache.cassandra.db.lifecycle.View;
 import org.apache.cassandra.db.rows.UnfilteredRowIterator;
-import org.apache.cassandra.db.view.MaterializedViewBuilder;
+import org.apache.cassandra.db.view.ViewBuilder;
 import org.apache.cassandra.dht.Bounds;
 import org.apache.cassandra.dht.Range;
 import org.apache.cassandra.dht.Token;
@@ -1334,7 +1334,7 @@ public class CompactionManager implements CompactionManagerMBean
         }
     }
 
-    public Future<?> submitMaterializedViewBuilder(final MaterializedViewBuilder builder)
+    public Future<?> submitViewBuilder(final ViewBuilder builder)
     {
         Runnable runnable = new Runnable()
         {

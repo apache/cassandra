@@ -22,12 +22,12 @@ import com.codahale.metrics.Counter;
 
 import static org.apache.cassandra.metrics.CassandraMetricsRegistry.Metrics;
 
-public class MVWriteMetrics extends ClientRequestMetrics
+public class ViewWriteMetrics extends ClientRequestMetrics
 {
     public final Counter viewReplicasAttempted;
     public final Counter viewReplicasSuccess;
 
-    public MVWriteMetrics(String scope) {
+    public ViewWriteMetrics(String scope) {
         super(scope);
         viewReplicasAttempted = Metrics.counter(factory.createMetricName("ViewReplicasAttempted"));
         viewReplicasSuccess = Metrics.counter(factory.createMetricName("ViewReplicasSuccess"));

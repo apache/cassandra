@@ -316,6 +316,7 @@ public class LegacySchemaMigratorTest
         return KeyspaceMetadata.create(keyspace,
                                        KeyspaceParams.simple(1),
                                        Tables.none(),
+                                       Views.none(),
                                        Types.of(udt1, udt2, udt3),
                                        Functions.none());
     }
@@ -353,6 +354,7 @@ public class LegacySchemaMigratorTest
         return KeyspaceMetadata.create(keyspace,
                                        KeyspaceParams.simple(1),
                                        Tables.none(),
+                                       Views.none(),
                                        Types.none(),
                                        Functions.of(udf1, udf2, udf3));
     }
@@ -365,6 +367,7 @@ public class LegacySchemaMigratorTest
         return KeyspaceMetadata.create(keyspace,
                                        KeyspaceParams.simple(1),
                                        Tables.none(),
+                                       Views.none(),
                                        Types.none(),
                                        Functions.of());
     }

@@ -39,7 +39,6 @@ import org.apache.cassandra.db.compaction.CompactionInfo;
 import org.apache.cassandra.db.compaction.CompactionManager;
 import org.apache.cassandra.db.compaction.OperationType;
 import org.apache.cassandra.db.lifecycle.SSTableSet;
-import org.apache.cassandra.db.lifecycle.View;
 import org.apache.cassandra.db.partitions.FilteredPartition;
 import org.apache.cassandra.db.partitions.PartitionIterator;
 import org.apache.cassandra.db.rows.RowIterator;
@@ -57,18 +56,18 @@ import org.apache.cassandra.utils.Pair;
 import org.apache.cassandra.utils.UUIDGen;
 import org.apache.cassandra.utils.concurrent.Refs;
 
-public class MaterializedViewBuilder extends CompactionInfo.Holder
+public class ViewBuilder extends CompactionInfo.Holder
 {
     private final ColumnFamilyStore baseCfs;
-    private final MaterializedView view;
+    private final View view;
     private final UUID compactionId;
     private volatile Token prevToken = null;
 
-    private static final Logger logger = LoggerFactory.getLogger(MaterializedViewBuilder.class);
+    private static final Logger logger = LoggerFactory.getLogger(ViewBuilder.class);
 
     private volatile boolean isStopped = false;
 
-    public MaterializedViewBuilder(ColumnFamilyStore baseCfs, MaterializedView view)
+    public ViewBuilder(ColumnFamilyStore baseCfs, View view)
     {
         this.baseCfs = baseCfs;
         this.view = view;
@@ -109,13 +108,13 @@ public class MaterializedViewBuilder extends CompactionInfo.Holder
             return;
 
         Iterable<Range<Token>> ranges = StorageService.instance.getLocalRanges(baseCfs.metadata.ksName);
-        final Pair<Integer, Token> buildStatus = SystemKeyspace.getMaterializedViewBuildStatus(ksname, viewName);
+        final Pair<Integer, Token> buildStatus = SystemKeyspace.getViewBuildStatus(ksname, viewName);
         Token lastToken;
-        Function<View, Iterable<SSTableReader>> function;
+        Function<org.apache.cassandra.db.lifecycle.View, Iterable<SSTableReader>> function;
         if (buildStatus == null)
         {
             baseCfs.forceBlockingFlush();
-            function = View.select(SSTableSet.CANONICAL);
+            function = org.apache.cassandra.db.lifecycle.View.select(SSTableSet.CANONICAL);
             int generation = Integer.MIN_VALUE;
 
             try (Refs<SSTableReader> temp = baseCfs.selectAndReference(function).refs)
@@ -126,17 +125,17 @@ public class MaterializedViewBuilder extends CompactionInfo.Holder
                 }
             }
 
-            SystemKeyspace.beginMaterializedViewBuild(ksname, viewName, generation);
+            SystemKeyspace.beginViewBuild(ksname, viewName, generation);
             lastToken = null;
         }
         else
         {
-            function = new Function<View, Iterable<SSTableReader>>()
+            function = new Function<org.apache.cassandra.db.lifecycle.View, Iterable<SSTableReader>>()
             {
                 @Nullable
-                public Iterable<SSTableReader> apply(View view)
+                public Iterable<SSTableReader> apply(org.apache.cassandra.db.lifecycle.View view)
                 {
-                    Iterable<SSTableReader> readers = View.select(SSTableSet.CANONICAL).apply(view);
+                    Iterable<SSTableReader> readers = org.apache.cassandra.db.lifecycle.View.select(SSTableSet.CANONICAL).apply(view);
                     if (readers != null)
                         return Iterables.filter(readers, ssTableReader -> ssTableReader.descriptor.generation <= buildStatus.left);
                     return null;
@@ -163,7 +162,7 @@ public class MaterializedViewBuilder extends CompactionInfo.Holder
 
                             if (prevToken == null || prevToken.compareTo(token) != 0)
                             {
-                                SystemKeyspace.updateMaterializedViewBuildStatus(ksname, viewName, key.getToken());
+                                SystemKeyspace.updateViewBuildStatus(ksname, viewName, key.getToken());
                                 prevToken = token;
                             }
                         }
@@ -173,13 +172,13 @@ public class MaterializedViewBuilder extends CompactionInfo.Holder
             }
 
             if (!isStopped)
-                SystemKeyspace.finishMaterializedViewBuildStatus(ksname, viewName);
+            SystemKeyspace.finishViewBuildStatus(ksname, viewName);
 
         }
         catch (Exception e)
         {
-            final MaterializedViewBuilder builder = new MaterializedViewBuilder(baseCfs, view);
-            ScheduledExecutors.nonPeriodicTasks.schedule(() -> CompactionManager.instance.submitMaterializedViewBuilder(builder),
+            final ViewBuilder builder = new ViewBuilder(baseCfs, view);
+            ScheduledExecutors.nonPeriodicTasks.schedule(() -> CompactionManager.instance.submitViewBuilder(builder),
                                                          5,
                                                          TimeUnit.MINUTES);
             logger.warn("Materialized View failed to complete, sleeping 5 minutes before restarting", e);

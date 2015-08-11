@@ -40,7 +40,7 @@ import org.apache.cassandra.schema.KeyspaceParams;
 import org.apache.cassandra.schema.ReplicationParams;
 import org.apache.cassandra.service.StorageService;
 
-public class MaterializedViewUtilsTest
+public class ViewUtilsTest
 {
     @BeforeClass
     public static void setUp() throws ConfigurationException
@@ -74,9 +74,9 @@ public class MaterializedViewUtilsTest
         KeyspaceMetadata meta = KeyspaceMetadata.create("Keyspace1", KeyspaceParams.create(false, replicationMap));
         Schema.instance.setKeyspaceMetadata(meta);
 
-        InetAddress naturalEndpoint = MaterializedViewUtils.getViewNaturalEndpoint("Keyspace1",
-                                                                                   new StringToken("CA"),
-                                                                                   new StringToken("BB"));
+        InetAddress naturalEndpoint = ViewUtils.getViewNaturalEndpoint("Keyspace1",
+                                                                       new StringToken("CA"),
+                                                                       new StringToken("BB"));
 
         Assert.assertEquals(InetAddress.getByName("127.0.0.2"), naturalEndpoint);
     }
@@ -106,9 +106,9 @@ public class MaterializedViewUtilsTest
         KeyspaceMetadata meta = KeyspaceMetadata.create("Keyspace1", KeyspaceParams.create(false, replicationMap));
         Schema.instance.setKeyspaceMetadata(meta);
 
-        InetAddress naturalEndpoint = MaterializedViewUtils.getViewNaturalEndpoint("Keyspace1",
-                                                                                   new StringToken("CA"),
-                                                                                   new StringToken("BB"));
+        InetAddress naturalEndpoint = ViewUtils.getViewNaturalEndpoint("Keyspace1",
+                                                                       new StringToken("CA"),
+                                                                       new StringToken("BB"));
 
         Assert.assertEquals(InetAddress.getByName("127.0.0.1"), naturalEndpoint);
     }

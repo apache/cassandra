@@ -65,7 +65,7 @@ public class TruncateStatement extends CFStatement implements CQLStatement
         try
         {
             CFMetaData metaData = Schema.instance.getCFMetaData(keyspace(), columnFamily());
-            if (metaData.isMaterializedView())
+            if (metaData.isView())
                 throw new InvalidRequestException("Cannot TRUNCATE materialized view directly; must truncate base table instead");
 
             StorageProxy.truncateBlocking(keyspace(), columnFamily());

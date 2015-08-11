@@ -95,8 +95,8 @@ public final class SystemKeyspace
     public static final String SSTABLE_ACTIVITY = "sstable_activity";
     public static final String SIZE_ESTIMATES = "size_estimates";
     public static final String AVAILABLE_RANGES = "available_ranges";
-    public static final String MATERIALIZED_VIEWS_BUILDS_IN_PROGRESS = "materialized_views_builds_in_progress";
-    public static final String BUILT_MATERIALIZED_VIEWS = "built_materialized_views";
+    public static final String VIEWS_BUILDS_IN_PROGRESS = "views_builds_in_progress";
+    public static final String BUILT_VIEWS = "built_views";
 
     @Deprecated public static final String LEGACY_HINTS = "hints";
     @Deprecated public static final String LEGACY_BATCHLOG = "batchlog";
@@ -246,9 +246,9 @@ public final class SystemKeyspace
                 + "ranges set<blob>,"
                 + "PRIMARY KEY ((keyspace_name)))");
 
-    private static final CFMetaData MaterializedViewsBuildsInProgress =
-        compile(MATERIALIZED_VIEWS_BUILDS_IN_PROGRESS,
-                "materialized views builds current progress",
+    private static final CFMetaData ViewsBuildsInProgress =
+        compile(VIEWS_BUILDS_IN_PROGRESS,
+                "views builds current progress",
                 "CREATE TABLE %s ("
                 + "keyspace_name text,"
                 + "view_name text,"
@@ -256,9 +256,9 @@ public final class SystemKeyspace
                 + "generation_number int,"
                 + "PRIMARY KEY ((keyspace_name), view_name))");
 
-    private static final CFMetaData BuiltMaterializedViews =
-        compile(BUILT_MATERIALIZED_VIEWS,
-                "built materialized views",
+    private static final CFMetaData BuiltViews =
+        compile(BUILT_VIEWS,
+                "built views",
                 "CREATE TABLE %s ("
                 + "keyspace_name text,"
                 + "view_name text,"
@@ -414,7 +414,7 @@ public final class SystemKeyspace
 
     public static KeyspaceMetadata metadata()
     {
-        return KeyspaceMetadata.create(NAME, KeyspaceParams.local(), tables(), Types.none(), functions());
+        return KeyspaceMetadata.create(NAME, KeyspaceParams.local(), tables(), Views.none(), Types.none(), functions());
     }
 
     private static Tables tables()
@@ -430,8 +430,8 @@ public final class SystemKeyspace
                          SSTableActivity,
                          SizeEstimates,
                          AvailableRanges,
-                         MaterializedViewsBuildsInProgress,
-                         BuiltMaterializedViews,
+                         ViewsBuildsInProgress,
+                         BuiltViews,
                          LegacyHints,
                          LegacyBatchlog,
                          LegacyKeyspaces,
@@ -531,61 +531,61 @@ public final class SystemKeyspace
     public static boolean isViewBuilt(String keyspaceName, String viewName)
     {
         String req = "SELECT view_name FROM %s.\"%s\" WHERE keyspace_name=? AND view_name=?";
-        UntypedResultSet result = executeInternal(String.format(req, NAME, BUILT_MATERIALIZED_VIEWS), keyspaceName, viewName);
+        UntypedResultSet result = executeInternal(String.format(req, NAME, BUILT_VIEWS), keyspaceName, viewName);
         return !result.isEmpty();
     }
 
-    public static void setMaterializedViewBuilt(String keyspaceName, String viewName)
+    public static void setViewBuilt(String keyspaceName, String viewName)
     {
         String req = "INSERT INTO %s.\"%s\" (keyspace_name, view_name) VALUES (?, ?)";
-        executeInternal(String.format(req, NAME, BUILT_MATERIALIZED_VIEWS), keyspaceName, viewName);
-        forceBlockingFlush(BUILT_MATERIALIZED_VIEWS);
+        executeInternal(String.format(req, NAME, BUILT_VIEWS), keyspaceName, viewName);
+        forceBlockingFlush(BUILT_VIEWS);
     }
 
 
-    public static void setMaterializedViewRemoved(String keyspaceName, String viewName)
+    public static void setViewRemoved(String keyspaceName, String viewName)
     {
         String buildReq = "DELETE FROM %S.%s WHERE keyspace_name = ? AND view_name = ?";
-        executeInternal(String.format(buildReq, NAME, MATERIALIZED_VIEWS_BUILDS_IN_PROGRESS), keyspaceName, viewName);
-        forceBlockingFlush(MATERIALIZED_VIEWS_BUILDS_IN_PROGRESS);
+        executeInternal(String.format(buildReq, NAME, VIEWS_BUILDS_IN_PROGRESS), keyspaceName, viewName);
+        forceBlockingFlush(VIEWS_BUILDS_IN_PROGRESS);
 
         String builtReq = "DELETE FROM %s.\"%s\" WHERE keyspace_name = ? AND view_name = ?";
-        executeInternal(String.format(builtReq, NAME, BUILT_MATERIALIZED_VIEWS), keyspaceName, viewName);
-        forceBlockingFlush(BUILT_MATERIALIZED_VIEWS);
+        executeInternal(String.format(builtReq, NAME, BUILT_VIEWS), keyspaceName, viewName);
+        forceBlockingFlush(BUILT_VIEWS);
     }
 
-    public static void beginMaterializedViewBuild(String ksname, String viewName, int generationNumber)
+    public static void beginViewBuild(String ksname, String viewName, int generationNumber)
     {
-        executeInternal(String.format("INSERT INTO system.%s (keyspace_name, view_name, generation_number) VALUES (?, ?, ?)", MATERIALIZED_VIEWS_BUILDS_IN_PROGRESS),
+        executeInternal(String.format("INSERT INTO system.%s (keyspace_name, view_name, generation_number) VALUES (?, ?, ?)", VIEWS_BUILDS_IN_PROGRESS),
                         ksname,
                         viewName,
                         generationNumber);
     }
 
-    public static void finishMaterializedViewBuildStatus(String ksname, String viewName)
+    public static void finishViewBuildStatus(String ksname, String viewName)
     {
         // We flush the view built first, because if we fail now, we'll restart at the last place we checkpointed
-        // materialized view build.
+        // view build.
         // If we flush the delete first, we'll have to restart from the beginning.
-        // Also, if the build succeeded, but the materialized view build failed, we will be able to skip the
-        // materialized view build check next boot.
-        setMaterializedViewBuilt(ksname, viewName);
-        forceBlockingFlush(BUILT_MATERIALIZED_VIEWS);
-        executeInternal(String.format("DELETE FROM system.%s WHERE keyspace_name = ? AND view_name = ?", MATERIALIZED_VIEWS_BUILDS_IN_PROGRESS), ksname, viewName);
-        forceBlockingFlush(MATERIALIZED_VIEWS_BUILDS_IN_PROGRESS);
+        // Also, if the build succeeded, but the view build failed, we will be able to skip the view build check
+        // next boot.
+        setViewBuilt(ksname, viewName);
+        forceBlockingFlush(BUILT_VIEWS);
+        executeInternal(String.format("DELETE FROM system.%s WHERE keyspace_name = ? AND view_name = ?", VIEWS_BUILDS_IN_PROGRESS), ksname, viewName);
+        forceBlockingFlush(VIEWS_BUILDS_IN_PROGRESS);
     }
 
-    public static void updateMaterializedViewBuildStatus(String ksname, String viewName, Token token)
+    public static void updateViewBuildStatus(String ksname, String viewName, Token token)
     {
         String req = "INSERT INTO system.%s (keyspace_name, view_name, last_token) VALUES (?, ?, ?)";
-        Token.TokenFactory factory = MaterializedViewsBuildsInProgress.partitioner.getTokenFactory();
-        executeInternal(String.format(req, MATERIALIZED_VIEWS_BUILDS_IN_PROGRESS), ksname, viewName, factory.toString(token));
+        Token.TokenFactory factory = ViewsBuildsInProgress.partitioner.getTokenFactory();
+        executeInternal(String.format(req, VIEWS_BUILDS_IN_PROGRESS), ksname, viewName, factory.toString(token));
     }
 
-    public static Pair<Integer, Token> getMaterializedViewBuildStatus(String ksname, String viewName)
+    public static Pair<Integer, Token> getViewBuildStatus(String ksname, String viewName)
     {
         String req = "SELECT generation_number, last_token FROM system.%s WHERE keyspace_name = ? AND view_name = ?";
-        UntypedResultSet queryResultSet = executeInternal(String.format(req, MATERIALIZED_VIEWS_BUILDS_IN_PROGRESS), ksname, viewName);
+        UntypedResultSet queryResultSet = executeInternal(String.format(req, VIEWS_BUILDS_IN_PROGRESS), ksname, viewName);
         if (queryResultSet == null || queryResultSet.isEmpty())
             return null;
 
@@ -597,7 +597,7 @@ public final class SystemKeyspace
             generation = row.getInt("generation_number");
         if (row.has("last_key"))
         {
-            Token.TokenFactory factory = MaterializedViewsBuildsInProgress.partitioner.getTokenFactory();
+            Token.TokenFactory factory = ViewsBuildsInProgress.partitioner.getTokenFactory();
             lastKey = factory.fromString(row.getString("last_key"));
         }
 

@@ -19,12 +19,13 @@ package org.apache.cassandra.cql3.statements;
 
 import org.apache.cassandra.auth.Permission;
 import org.apache.cassandra.config.CFMetaData;
-import org.apache.cassandra.config.MaterializedViewDefinition;
+import org.apache.cassandra.config.ViewDefinition;
 import org.apache.cassandra.config.Schema;
 import org.apache.cassandra.cql3.CFName;
 import org.apache.cassandra.exceptions.ConfigurationException;
 import org.apache.cassandra.exceptions.InvalidRequestException;
 import org.apache.cassandra.exceptions.UnauthorizedException;
+import org.apache.cassandra.schema.KeyspaceMetadata;
 import org.apache.cassandra.service.ClientState;
 import org.apache.cassandra.service.MigrationManager;
 import org.apache.cassandra.transport.Event;
@@ -61,20 +62,24 @@ public class DropTableStatement extends SchemaAlteringStatement
     {
         try
         {
-            CFMetaData cfm = Schema.instance.getCFMetaData(keyspace(), columnFamily());
+            KeyspaceMetadata ksm = Schema.instance.getKSMetaData(keyspace());
+            CFMetaData cfm = ksm.tables.getNullable(columnFamily());
             if (cfm != null)
             {
-                if (cfm.isMaterializedView())
+                if (cfm.isView())
                     throw new InvalidRequestException("Cannot use DROP TABLE on Materialized View");
 
                 boolean rejectDrop = false;
                 StringBuilder messageBuilder = new StringBuilder();
-                for (MaterializedViewDefinition def : cfm.getMaterializedViews())
+                for (ViewDefinition def : ksm.views)
                 {
-                    if (rejectDrop)
-                        messageBuilder.append(',');
-                    rejectDrop = true;
-                    messageBuilder.append(def.viewName);
+                    if (def.baseTableId.equals(cfm.cfId))
+                    {
+                        if (rejectDrop)
+                            messageBuilder.append(',');
+                        rejectDrop = true;
+                        messageBuilder.append(def.viewName);
+                    }
                 }
                 if (rejectDrop)
                 {
