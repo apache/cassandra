@@ -12,6 +12,7 @@
  * Bytecode inspection for Java-UDFs (CASSANDRA-9890)
  * Use byte to serialize MT hash length (CASSANDRA-9792)
  * Replace usage of Adler32 with CRC32 (CASSANDRA-8684)
+ * Fix migration to new format from 2.1 SSTable (CASSANDRA-10006)
 Merged from 2.2:
  * Add checksum to saved cache files (CASSANDRA-9265)
  * Log warning when using an aggregate without partition key (CASSANDRA-9737)
