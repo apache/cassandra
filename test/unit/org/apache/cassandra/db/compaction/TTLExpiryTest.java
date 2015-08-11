@@ -19,10 +19,12 @@
 package org.apache.cassandra.db.compaction;
 
 import org.apache.cassandra.config.CFMetaData;
+import org.apache.cassandra.db.lifecycle.SSTableSet;
 import org.apache.cassandra.db.rows.UnfilteredRowIterator;
 import org.apache.cassandra.db.marshal.AsciiType;
 import org.apache.cassandra.io.sstable.format.SSTableReader;
 import org.junit.BeforeClass;
+import com.google.common.collect.Multimap;
 import com.google.common.collect.Sets;
 import org.junit.Test;
 import org.junit.runner.RunWith;
@@ -35,6 +37,7 @@ import org.apache.cassandra.db.filter.ColumnFilter;
 import org.apache.cassandra.exceptions.ConfigurationException;
 import org.apache.cassandra.io.sstable.ISSTableScanner;
 import org.apache.cassandra.schema.KeyspaceParams;
+import org.apache.cassandra.tools.SSTableExpiredBlockers;
 import org.apache.cassandra.utils.ByteBufferUtil;
 
 import java.io.IOException;
@@ -223,5 +226,34 @@ public class TTLExpiryTest
             assertEquals(Util.dk(noTTLKey), iter.partitionKey());
         }
         scanner.close();
+    }
+
+    @Test
+    public void testCheckForExpiredSSTableBlockers() throws InterruptedException
+    {
+        ColumnFamilyStore cfs = Keyspace.open(KEYSPACE1).getColumnFamilyStore("Standard1");
+        cfs.truncateBlocking();
+        cfs.disableAutoCompaction();
+        cfs.metadata.gcGraceSeconds(0);
+
+        new RowUpdateBuilder(cfs.metadata, System.currentTimeMillis(), "test")
+                .add("col1", ByteBufferUtil.EMPTY_BYTE_BUFFER)
+                .build()
+                .applyUnsafe();
+
+        cfs.forceBlockingFlush();
+        SSTableReader blockingSSTable = cfs.getSSTables(SSTableSet.LIVE).iterator().next();
+        for (int i = 0; i < 10; i++)
+        {
+            new RowUpdateBuilder(cfs.metadata, System.currentTimeMillis(), "test")
+                            .delete("col1")
+                            .build()
+                            .applyUnsafe();
+            cfs.forceBlockingFlush();
+        }
+        Multimap<SSTableReader, SSTableReader> blockers = SSTableExpiredBlockers.checkForExpiredSSTableBlockers(cfs.getSSTables(SSTableSet.LIVE), (int) (System.currentTimeMillis() / 1000) + 100);
+        assertEquals(1, blockers.keySet().size());
+        assertTrue(blockers.keySet().contains(blockingSSTable));
+        assertEquals(10, blockers.get(blockingSSTable).size());
     }
 }
