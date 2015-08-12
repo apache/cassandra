@@ -157,7 +157,7 @@ public class CommitLogUpgradeTest
         }
 
         Hasher hasher = new Hasher();
-        CommitLogTestReplayer replayer = new CommitLogTestReplayer(hasher);
+        CommitLogTestReplayer replayer = new CommitLogTestReplayer(CommitLog.instance, hasher);
         File[] files = new File(location).listFiles(new FilenameFilter()
         {
             @Override

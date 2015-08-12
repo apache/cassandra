@@ -95,13 +95,12 @@ public class CommitLogSegmentManager
     private volatile boolean run = true;
     private final CommitLog commitLog;
 
-    public CommitLogSegmentManager(final CommitLog commitLog)
+    CommitLogSegmentManager(final CommitLog commitLog)
     {
         this.commitLog = commitLog;
-        start();
     }
 
-    private void start()
+    void start()
     {
         // The run loop for the manager thread
         Runnable runnable = new WrappedRunnable()
@@ -523,14 +522,6 @@ public class CommitLogSegmentManager
         {
             // segment file does not exist
         }
-    }
-
-    /**
-     * Starts CL, for testing purposes. DO NOT USE THIS OUTSIDE OF TESTS.
-     */
-    public void startUnsafe()
-    {
-        start();
     }
 
     /**

@@ -186,7 +186,7 @@ public abstract class AbstractCommitLogService
     /**
      * FOR TESTING ONLY
      */
-    public void startUnsafe()
+    public void restartUnsafe()
     {
         while (haveWork.availablePermits() < 1)
             haveWork.release();
