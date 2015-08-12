@@ -124,6 +124,9 @@ public class CommitLogArchiver
             {
                 segment.waitForFinalSync();
                 String command = archiveCommand.replace("%name", segment.getName());
+                // We need to swap out / with the os-specific separator in the event someone provided an incorrect value
+                if (FBUtilities.isWindows())
+                    archiveCommand.replace('/', File.separatorChar);
                 command = command.replace("%path", segment.getPath());
                 exec(command);
             }
