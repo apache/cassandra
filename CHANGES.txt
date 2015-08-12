@@ -1,4 +1,5 @@
 3.0.0-beta2
+ * Only use batchlog when paired materialized view replica is remote (CASSANDRA-10061)
  * Reuse TemporalRow when updating multiple MaterializedViews (CASSANDRA-10060)
  * Validate gc_grace_seconds for batchlog writes and MVs (CASSANDRA-9917)
  * Fix sstablerepairedset (CASSANDRA-10132)
