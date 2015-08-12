@@ -15,7 +15,6 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-
 package org.apache.cassandra.io.util;
 
 import java.io.File;
@@ -34,6 +33,7 @@ public class ChecksummedRandomAccessReader extends RandomAccessReader
 
         public CorruptFileException(Exception cause, File file)
         {
+            super(cause);
             this.file = file;
         }
     }
@@ -41,23 +41,24 @@ public class ChecksummedRandomAccessReader extends RandomAccessReader
     private final DataIntegrityMetadata.ChecksumValidator validator;
     private final File file;
 
-    protected ChecksummedRandomAccessReader(File file, ChannelProxy channel, DataIntegrityMetadata.ChecksumValidator validator) throws IOException
+    protected ChecksummedRandomAccessReader(File file, ChannelProxy channel, DataIntegrityMetadata.ChecksumValidator validator)
     {
         super(channel, validator.chunkSize, -1, BufferType.ON_HEAP);
         this.validator = validator;
         this.file = file;
     }
 
+    @SuppressWarnings("resource")
     public static ChecksummedRandomAccessReader open(File file, File crcFile) throws IOException
     {
         ChannelProxy channel = new ChannelProxy(file);
         RandomAccessReader crcReader = RandomAccessReader.open(crcFile);
-        DataIntegrityMetadata.ChecksumValidator validator = new DataIntegrityMetadata.ChecksumValidator(new CRC32(),
-                                                                                                        crcReader,
-                                                                                                        file.getPath());
+        DataIntegrityMetadata.ChecksumValidator validator =
+            new DataIntegrityMetadata.ChecksumValidator(new CRC32(), crcReader, file.getPath());
         return new ChecksummedRandomAccessReader(file, channel, validator);
     }
 
+    @Override
     protected void reBuffer()
     {
         long desiredPosition = current();
@@ -89,12 +90,14 @@ public class ChecksummedRandomAccessReader extends RandomAccessReader
         buffer.position((int) (desiredPosition - bufferOffset));
     }
 
+    @Override
     public void seek(long newPosition)
     {
         validator.seek(newPosition);
         super.seek(newPosition);
     }
 
+    @Override
     public void close()
     {
         try
