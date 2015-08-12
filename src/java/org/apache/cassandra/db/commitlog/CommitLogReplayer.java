@@ -79,8 +79,9 @@ public class CommitLogReplayer
     private byte[] uncompressedBuffer;
 
     private final ReplayFilter replayFilter;
+    private final CommitLogArchiver archiver;
 
-    CommitLogReplayer(ReplayPosition globalPosition, Map<UUID, ReplayPosition> cfPositions, ReplayFilter replayFilter)
+    CommitLogReplayer(CommitLog commitLog, ReplayPosition globalPosition, Map<UUID, ReplayPosition> cfPositions, ReplayFilter replayFilter)
     {
         this.keyspacesRecovered = new NonBlockingHashSet<Keyspace>();
         this.futures = new ArrayList<Future<?>>();
@@ -93,9 +94,10 @@ public class CommitLogReplayer
         this.cfPositions = cfPositions;
         this.globalPosition = globalPosition;
         this.replayFilter = replayFilter;
+        this.archiver = commitLog.archiver;
     }
 
-    public static CommitLogReplayer create()
+    public static CommitLogReplayer construct(CommitLog commitLog)
     {
         // compute per-CF and global replay positions
         Map<UUID, ReplayPosition> cfPositions = new HashMap<UUID, ReplayPosition>();
@@ -115,7 +117,7 @@ public class CommitLogReplayer
                 // Point in time restore is taken to mean that the tables need to be recovered even if they were
                 // deleted at a later point in time. Any truncation record after that point must thus be cleared prior
                 // to recovery (CASSANDRA-9195).
-                long restoreTime = CommitLog.instance.archiver.restorePointInTime;
+                long restoreTime = commitLog.archiver.restorePointInTime;
                 long truncatedTime = SystemKeyspace.getTruncatedAt(cfs.metadata.cfId);
                 if (truncatedTime > restoreTime)
                 {
@@ -137,7 +139,7 @@ public class CommitLogReplayer
         }
         ReplayPosition globalPosition = replayPositionOrdering.min(cfPositions.values());
         logger.debug("Global replay position is {} from columnfamilies {}", globalPosition, FBUtilities.toString(cfPositions));
-        return new CommitLogReplayer(globalPosition, cfPositions, replayFilter);
+        return new CommitLogReplayer(commitLog, globalPosition, cfPositions, replayFilter);
     }
 
     public void recover(File[] clogs) throws IOException
@@ -569,11 +571,11 @@ public class CommitLogReplayer
 
     protected boolean pointInTimeExceeded(Mutation fm)
     {
-        long restoreTarget = CommitLog.instance.archiver.restorePointInTime;
+        long restoreTarget = archiver.restorePointInTime;
 
         for (PartitionUpdate upd : fm.getPartitionUpdates())
         {
-            if (CommitLog.instance.archiver.precision.toMillis(upd.maxTimestamp()) > restoreTarget)
+            if (archiver.precision.toMillis(upd.maxTimestamp()) > restoreTarget)
                 return true;
         }
         return false;

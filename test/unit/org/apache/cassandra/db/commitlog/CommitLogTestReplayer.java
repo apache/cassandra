@@ -39,21 +39,21 @@ public class CommitLogTestReplayer extends CommitLogReplayer
     {
         CommitLog.instance.sync(true);
 
-        CommitLogTestReplayer replayer = new CommitLogTestReplayer(processor);
+        CommitLogTestReplayer replayer = new CommitLogTestReplayer(CommitLog.instance, processor);
         File commitLogDir = new File(DatabaseDescriptor.getCommitLogLocation());
         replayer.recover(commitLogDir.listFiles());
     }
 
     final private Predicate<Mutation> processor;
 
-    public CommitLogTestReplayer(Predicate<Mutation> processor)
+    public CommitLogTestReplayer(CommitLog log, Predicate<Mutation> processor)
     {
-        this(ReplayPosition.NONE, processor);
+        this(log, ReplayPosition.NONE, processor);
     }
 
-    public CommitLogTestReplayer(ReplayPosition discardedPos, Predicate<Mutation> processor)
+    public CommitLogTestReplayer(CommitLog log, ReplayPosition discardedPos, Predicate<Mutation> processor)
     {
-        super(discardedPos, null, ReplayFilter.create());
+        super(log, discardedPos, null, ReplayFilter.create());
         this.processor = processor;
     }
 

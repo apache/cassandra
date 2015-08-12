@@ -408,7 +408,7 @@ public class CommitLogTest
             DatabaseDescriptor.setCommitFailurePolicy(Config.CommitFailurePolicy.ignore);
 
             //now let's create a commit log segment manager and wait for it to fail
-            new CommitLogSegmentManager(CommitLog.instance);
+            new CommitLogSegmentManager(CommitLog.instance).start();
 
             //busy wait since commitlogsegmentmanager spawns another thread
             int retries = 0;
@@ -447,7 +447,7 @@ public class CommitLogTest
             DatabaseDescriptor.setCommitFailurePolicy(Config.CommitFailurePolicy.ignore);
 
             //now let's create a commit log segment manager and wait for it to fail
-            new CommitLogSegmentManager(CommitLog.instance);
+            new CommitLogSegmentManager(CommitLog.instance).start();
 
             //wait commit log segment manager thread to execute
             Thread.sleep(50);

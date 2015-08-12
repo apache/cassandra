@@ -74,7 +74,7 @@ public class CommitLog implements CommitLogMBean
 
     private static CommitLog construct()
     {
-        CommitLog log = new CommitLog(DatabaseDescriptor.getCommitLogLocation(), new CommitLogArchiver());
+        CommitLog log = new CommitLog(DatabaseDescriptor.getCommitLogLocation(), CommitLogArchiver.construct());
 
         MBeanServer mbs = ManagementFactory.getPlatformMBeanServer();
         try
@@ -85,7 +85,7 @@ public class CommitLog implements CommitLogMBean
         {
             throw new RuntimeException(e);
         }
-        return log;
+        return log.start();
     }
 
     @VisibleForTesting
@@ -105,10 +105,16 @@ public class CommitLog implements CommitLogMBean
                 : new PeriodicCommitLogService(this);
 
         allocator = new CommitLogSegmentManager(this);
-        executor.start();
 
         // register metrics
         metrics.attach(executor, allocator);
+    }
+
+    CommitLog start()
+    {
+        executor.start();
+        allocator.start();
+        return this;
     }
 
     /**
@@ -177,7 +183,7 @@ public class CommitLog implements CommitLogMBean
      */
     public int recover(File... clogs) throws IOException
     {
-        CommitLogReplayer recovery = CommitLogReplayer.create();
+        CommitLogReplayer recovery = CommitLogReplayer.construct(this);
         recovery.recover(clogs);
         return recovery.blockForWrites();
     }
@@ -412,7 +418,7 @@ public class CommitLog implements CommitLogMBean
     public int resetUnsafe(boolean deleteSegments) throws IOException
     {
         stopUnsafe(deleteSegments);
-        return startUnsafe();
+        return restartUnsafe();
     }
 
     /**
@@ -435,10 +441,10 @@ public class CommitLog implements CommitLogMBean
     /**
      * FOR TESTING PURPOSES.  See CommitLogAllocator
      */
-    public int startUnsafe() throws IOException
+    public int restartUnsafe() throws IOException
     {
-        allocator.startUnsafe();
-        executor.startUnsafe();
+        allocator.start();
+        executor.restartUnsafe();
         return recover();
     }
 
