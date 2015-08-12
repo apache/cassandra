@@ -18,6 +18,9 @@
  */
 package org.apache.cassandra.utils;
 
+import java.lang.annotation.Annotation;
+import java.lang.reflect.InvocationTargetException;
+import java.lang.reflect.Method;
 import java.util.*;
 import java.util.concurrent.Callable;
 import java.util.concurrent.CountDownLatch;
@@ -54,15 +57,16 @@ import static org.junit.Assert.assertTrue;
 public class LongBTreeTest
 {
 
+    private static final boolean DEBUG = false;
     private static int perThreadTrees = 10000;
-    private static int minTreeSize = 5;
-    private static int maxTreeSize = 15;
-    private static final boolean DEBUG = true;
+    private static int minTreeSize = 4;
+    private static int maxTreeSize = 10000;
+    private static int threads = DEBUG ? 1 : Runtime.getRuntime().availableProcessors() * 8;
     private static final MetricRegistry metrics = new MetricRegistry();
     private static final Timer BTREE_TIMER = metrics.timer(MetricRegistry.name(BTree.class, "BTREE"));
     private static final Timer TREE_TIMER = metrics.timer(MetricRegistry.name(BTree.class, "TREE"));
-    private static final ExecutorService MODIFY = Executors.newFixedThreadPool(DEBUG ? 1 : Runtime.getRuntime().availableProcessors(), new NamedThreadFactory("MODIFY"));
-    private static final ExecutorService COMPARE = DEBUG ? MODIFY : Executors.newFixedThreadPool(Runtime.getRuntime().availableProcessors(), new NamedThreadFactory("COMPARE"));
+    private static final ExecutorService MODIFY = Executors.newFixedThreadPool(threads, new NamedThreadFactory("MODIFY"));
+    private static final ExecutorService COMPARE = DEBUG ? MODIFY : Executors.newFixedThreadPool(threads, new NamedThreadFactory("COMPARE"));
     private static final RandomAbort<Integer> SPORADIC_ABORT = new RandomAbort<>(new Random(), 0.0001f);
 
     static
@@ -316,7 +320,7 @@ public class LongBTreeTest
                 latch.await(1L, TimeUnit.SECONDS);
                 Assert.assertEquals(0, errors.get());
             }
-            System.out.println(String.format("%.0f%% complete %s", 100 * count.get() / (double) totalCount, errors.get() > 0 ? ("Errors: " + errors.get()) : ""));
+            log("%.1f%% complete %s", 100 * count.get() / (double) totalCount, errors.get() > 0 ? ("Errors: " + errors.get()) : "");
         }
     }
 
@@ -466,8 +470,10 @@ public class LongBTreeTest
 
     private static RandomTree randomTree(int minSize, int maxSize)
     {
-        return ThreadLocalRandom.current().nextBoolean() ? randomTreeByUpdate(minSize, maxSize)
-                                                         : randomTreeByBuilder(minSize, maxSize);
+        // perform most of our tree constructions via update, as this is more efficient; since every run uses this
+        // we test builder disproportionately more often than if it had its own test anyway
+        return ThreadLocalRandom.current().nextFloat() < 0.95 ? randomTreeByUpdate(minSize, maxSize)
+                                                              : randomTreeByBuilder(minSize, maxSize);
     }
 
     private static RandomTree randomTreeByUpdate(int minSize, int maxSize)
@@ -600,7 +606,7 @@ public class LongBTreeTest
         TreeSet<Integer> canon = new TreeSet<>();
         for (int i = 0 ; i < 10000000 ; i++)
             canon.add(i);
-        Object[] btree = BTree.build(Arrays.asList(Integer.MIN_VALUE, Integer.MAX_VALUE), null);
+        Object[] btree = BTree.build(Arrays.asList(Integer.MIN_VALUE, Integer.MAX_VALUE), UpdateFunction.noOp());
         btree = BTree.update(btree, naturalOrder(), canon, UpdateFunction.<Integer>noOp());
         canon.add(Integer.MIN_VALUE);
         canon.add(Integer.MAX_VALUE);
@@ -611,47 +617,61 @@ public class LongBTreeTest
     @Test
     public void testIndividualInsertsSmallOverlappingRange() throws ExecutionException, InterruptedException
     {
-        testInsertions(10000000, 50, 1, 1, true);
+        testInsertions(50, 1, 1, true);
     }
 
     @Test
     public void testBatchesSmallOverlappingRange() throws ExecutionException, InterruptedException
     {
-        testInsertions(10000000, 50, 1, 5, true);
+        testInsertions(50, 1, 5, true);
     }
 
     @Test
     public void testIndividualInsertsMediumSparseRange() throws ExecutionException, InterruptedException
     {
-        testInsertions(10000000, 500, 10, 1, true);
+        testInsertions(perThreadTrees / 10, 500, 10, 1, true);
     }
 
     @Test
     public void testBatchesMediumSparseRange() throws ExecutionException, InterruptedException
     {
-        testInsertions(10000000, 500, 10, 10, true);
+        testInsertions(500, 10, 10, true);
     }
 
     @Test
     public void testLargeBatchesLargeRange() throws ExecutionException, InterruptedException
     {
-        testInsertions(100000000, 5000, 3, 100, true);
+        testInsertions(perThreadTrees / 10, Math.max(maxTreeSize, 5000), 3, 100, true);
+    }
+
+    @Test
+    public void testRandomRangeAndBatches() throws ExecutionException, InterruptedException
+    {
+        ThreadLocalRandom random = ThreadLocalRandom.current();
+        int treeSize = random.nextInt(maxTreeSize / 10, maxTreeSize * 10);
+        for (int i = 0 ; i < perThreadTrees / 10 ; i++)
+            testInsertions(threads * 10, treeSize, random.nextInt(1, 100) / 10f, treeSize / 100, true);
     }
 
     @Test
     public void testSlicingSmallRandomTrees() throws ExecutionException, InterruptedException
     {
-        testInsertions(10000, 50, 10, 10, false);
+        testInsertions(50, 10, 10, false);
     }
 
-    private static void testInsertions(int totalCount, int perTestCount, int testKeyRatio, int modificationBatchSize, boolean quickEquality) throws ExecutionException, InterruptedException
+    private static void testInsertions(int perTestCount, float testKeyRatio, int modificationBatchSize, boolean quickEquality) throws ExecutionException, InterruptedException
+    {
+        int tests = perThreadTrees * threads;
+        testInsertions(tests, perTestCount, testKeyRatio, modificationBatchSize, quickEquality);
+    }
+
+    private static void testInsertions(int tests, int perTestCount, float testKeyRatio, int modificationBatchSize, boolean quickEquality) throws ExecutionException, InterruptedException
     {
         int batchesPerTest = perTestCount / modificationBatchSize;
-        int maximumRunLength = 100;
-        int testKeyRange = perTestCount * testKeyRatio;
-        int tests = totalCount / perTestCount;
-        System.out.println(String.format("Performing %d tests of %d operations, with %.2f max size/key-range ratio in batches of ~%d ops",
-                tests, perTestCount, 1 / (float) testKeyRatio, modificationBatchSize));
+        int testKeyRange = (int) (perTestCount * testKeyRatio);
+        long totalCount = (long) perTestCount * tests;
+        log("Performing %d tests of %d operations, with %.2f max size/key-range ratio in batches of ~%d ops",
+            tests, perTestCount, 1 / testKeyRatio, modificationBatchSize);
 
         // if we're not doing quick-equality, we can spam with garbage for all the checks we perform, so we'll split the work into smaller chunks
         int chunkSize = quickEquality ? tests : (int) (100000 / Math.pow(perTestCount, 2));
@@ -660,30 +680,33 @@ public class LongBTreeTest
             final List<ListenableFutureTask<List<ListenableFuture<?>>>> outer = new ArrayList<>();
             for (int i = 0 ; i < chunkSize ; i++)
             {
-                outer.add(doOneTestInsertions(testKeyRange, maximumRunLength, modificationBatchSize, batchesPerTest, quickEquality));
+                int maxRunLength = modificationBatchSize == 1 ? 1 : ThreadLocalRandom.current().nextInt(1, modificationBatchSize);
+                outer.add(doOneTestInsertions(testKeyRange, maxRunLength, modificationBatchSize, batchesPerTest, quickEquality));
             }
 
             final List<ListenableFuture<?>> inner = new ArrayList<>();
-            int complete = 0;
-            int reportInterval = totalCount / 100;
-            int lastReportAt = 0;
+            long complete = 0;
+            int reportInterval = Math.max(1000, (int) (totalCount / 10000));
+            long lastReportAt = 0;
             for (ListenableFutureTask<List<ListenableFuture<?>>> f : outer)
             {
                 inner.addAll(f.get());
                 complete += perTestCount;
                 if (complete - lastReportAt >= reportInterval)
                 {
-                    System.out.println(String.format("Completed %d of %d operations", (chunk * perTestCount) + complete, totalCount));
+                    long done = (chunk * perTestCount) + complete;
+                    float ratio = done / (float) totalCount;
+                    log("Completed %.1f%% (%d of %d operations)", ratio * 100, done, totalCount);
                     lastReportAt = complete;
                 }
             }
             Futures.allAsList(inner).get();
         }
         Snapshot snap = BTREE_TIMER.getSnapshot();
-        System.out.println(String.format("btree: %.2fns, %.2fns, %.2fns", snap.getMedian(), snap.get95thPercentile(), snap.get999thPercentile()));
+        log("btree: %.2fns, %.2fns, %.2fns", snap.getMedian(), snap.get95thPercentile(), snap.get999thPercentile());
         snap = TREE_TIMER.getSnapshot();
-        System.out.println(String.format("java: %.2fns, %.2fns, %.2fns", snap.getMedian(), snap.get95thPercentile(), snap.get999thPercentile()));
-        System.out.println("Done");
+        log("java: %.2fns, %.2fns, %.2fns", snap.getMedian(), snap.get95thPercentile(), snap.get999thPercentile());
+        log("Done");
     }
 
     private static ListenableFutureTask<List<ListenableFuture<?>>> doOneTestInsertions(final int upperBound, final int maxRunLength, final int averageModsPerIteration, final int iterations, final boolean quickEquality)
@@ -697,11 +720,11 @@ public class LongBTreeTest
                 NavigableMap<Integer, Integer> canon = new TreeMap<>();
                 Object[] btree = BTree.empty();
                 final TreeMap<Integer, Integer> buffer = new TreeMap<>();
-                final Random rnd = new Random();
+                ThreadLocalRandom rnd = ThreadLocalRandom.current();
                 for (int i = 0 ; i < iterations ; i++)
                 {
                     buffer.clear();
-                    int mods = (averageModsPerIteration >> 1) + 1 + rnd.nextInt(averageModsPerIteration);
+                    int mods = rnd.nextInt(1, averageModsPerIteration * 2);
                     while (mods > 0)
                     {
                         int v = rnd.nextInt(upperBound);
@@ -727,7 +750,7 @@ public class LongBTreeTest
 
                     if (!BTree.isWellFormed(btree, naturalOrder()))
                     {
-                        System.out.println("ERROR: Not well formed");
+                        log("ERROR: Not well formed");
                         throw new AssertionError("Not well formed!");
                     }
                     if (quickEquality)
@@ -754,7 +777,7 @@ public class LongBTreeTest
         for (int i = 0 ; i < 128 ; i++)
         {
             String id = String.format("[0..%d)", canon.size());
-            System.out.println("Testing " + id);
+            log("Testing " + id);
             Futures.allAsList(testAllSlices(id, cur, canon)).get();
             Object[] next = null;
             while (next == null)
@@ -819,7 +842,7 @@ public class LongBTreeTest
     {
         if (test != expect)
         {
-            System.out.println(String.format("%s: Expected %d, Got %d", id, expect, test));
+            log("%s: Expected %d, Got %d", id, expect, test);
         }
     }
 
@@ -832,18 +855,18 @@ public class LongBTreeTest
             Object j = canon.next();
             if (!Objects.equals(i, j))
             {
-                System.out.println(String.format("%s: Expected %d, Got %d", id, j, i));
+                log("%s: Expected %d, Got %d", id, j, i);
                 equal = false;
             }
         }
         while (btree.hasNext())
         {
-            System.out.println(String.format("%s: Expected <Nil>, Got %d", id, btree.next()));
+            log("%s: Expected <Nil>, Got %d", id, btree.next());
             equal = false;
         }
         while (canon.hasNext())
         {
-            System.out.println(String.format("%s: Expected %d, Got Nil", id, canon.next()));
+            log("%s: Expected %d, Got Nil", id, canon.next());
             equal = false;
         }
         if (!equal)
@@ -929,5 +952,59 @@ public class LongBTreeTest
         {
             return v;
         }
+    }
+
+    public static void main(String[] args) throws ExecutionException, InterruptedException, InvocationTargetException, IllegalAccessException
+    {
+        for (String arg : args)
+        {
+            if (arg.startsWith("fan="))
+                System.setProperty("cassandra.btree.fanfactor", arg.substring(4));
+            else if (arg.startsWith("min="))
+                minTreeSize = Integer.parseInt(arg.substring(4));
+            else if (arg.startsWith("max="))
+                maxTreeSize = Integer.parseInt(arg.substring(4));
+            else if (arg.startsWith("count="))
+                perThreadTrees = Integer.parseInt(arg.substring(6));
+            else
+                exit();
+        }
+
+        List<Method> methods = new ArrayList<>();
+        for (Method m : LongBTreeTest.class.getDeclaredMethods())
+        {
+            if (m.getParameters().length > 0)
+                continue;
+            for (Annotation annotation : m.getAnnotations())
+                if (annotation.annotationType() == Test.class)
+                    methods.add(m);
+        }
+
+        LongBTreeTest test = new LongBTreeTest();
+        Collections.sort(methods, (a, b) -> a.getName().compareTo(b.getName()));
+        log(Lists.transform(methods, (m) -> m.getName()).toString());
+        for (Method m : methods)
+        {
+            log(m.getName());
+            m.invoke(test);
+        }
+        log("success");
+    }
+
+    private static void exit()
+    {
+        log("usage: fan=<int> min=<int> max=<int> count=<int>");
+        log("fan:   btree fanout");
+        log("min:   minimum btree size (must be >= 4)");
+        log("max:   maximum btree size (must be >= 4)");
+        log("count: number of trees to assign each core, for each test");
+    }
+
+    private static void log(String formatstr, Object ... args)
+    {
+        args = Arrays.copyOf(args, args.length + 1);
+        System.arraycopy(args, 0, args, 1, args.length - 1);
+        args[0] = System.currentTimeMillis();
+        System.out.printf("%tT: " + formatstr + "\n", args);
     }
 }

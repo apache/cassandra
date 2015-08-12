@@ -56,7 +56,7 @@ public class RowIndexEntryTest extends CQLTester
             execute("INSERT INTO %s (a, b, c) VALUES (?, ?, ?)", 0, "" + i, i);
 
         buffer = new DataOutputBuffer();
-        ArrayBackedPartition partition = Util.getOnlyPartitionUnfiltered(Util.cmd(cfs).build());
+        ImmutableBTreePartition partition = Util.getOnlyPartitionUnfiltered(Util.cmd(cfs).build());
 
         File tempFile = File.createTempFile("row_index_entry_test", null);
         tempFile.deleteOnExit();

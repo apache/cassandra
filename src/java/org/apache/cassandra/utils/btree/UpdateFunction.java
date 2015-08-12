@@ -18,6 +18,8 @@
  */
 package org.apache.cassandra.utils.btree;
 
+import java.util.function.BiFunction;
+
 import com.google.common.base.Function;
 /**
  * An interface defining a function to be applied to both the object we are replacing in a BTree and
@@ -42,27 +44,26 @@ public interface UpdateFunction<K, V> extends Function<K, V>
      */
     void allocated(long heapSize);
 
-    static final UpdateFunction<Object, Object> noOp = new UpdateFunction<Object, Object>()
+    public static final class Simple<V> implements UpdateFunction<V, V>
     {
-        public Object apply(Object replacing, Object updating)
+        private final BiFunction<V, V, V> wrapped;
+        public Simple(BiFunction<V, V, V> wrapped)
         {
-            return updating;
+            this.wrapped = wrapped;
         }
 
-        public boolean abortEarly()
-        {
-            return false;
-        }
+        public V apply(V v) { return v; }
+        public V apply(V replacing, V update) { return wrapped.apply(replacing, update); }
+        public boolean abortEarly() { return false; }
+        public void allocated(long heapSize) { }
 
-        public void allocated(long heapSize)
+        public static <V> Simple<V> of(BiFunction<V, V, V> f)
         {
+            return new Simple<>(f);
         }
+    }
 
-        public Object apply(Object k)
-        {
-            return k;
-        }
-    };
+    static final Simple<Object> noOp = Simple.of((a, b) -> a);
 
     public static <K> UpdateFunction<K, K> noOp()
     {

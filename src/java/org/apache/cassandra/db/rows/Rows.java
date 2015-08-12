@@ -49,7 +49,7 @@ public abstract class Rows
 
     private Rows() {}
 
-    public static final Row EMPTY_STATIC_ROW = BTreeBackedRow.emptyRow(Clustering.STATIC_CLUSTERING);
+    public static final Row EMPTY_STATIC_ROW = BTreeRow.emptyRow(Clustering.STATIC_CLUSTERING);
 
     public static Row.Builder copy(Row row, Row.Builder builder)
     {
@@ -217,7 +217,7 @@ public abstract class Rows
     public static Row merge(Row row1, Row row2, int nowInSec)
     {
         Columns mergedColumns = row1.columns().mergeTo(row2.columns());
-        Row.Builder builder = BTreeBackedRow.sortedBuilder(mergedColumns);
+        Row.Builder builder = BTreeRow.sortedBuilder(mergedColumns);
         merge(row1, row2, mergedColumns, builder, nowInSec, SecondaryIndexManager.nullUpdater);
         return builder.build();
     }

@@ -112,7 +112,7 @@ public class ThriftResultsMerger extends WrappingUnfilteredPartitionIterator
             super(results);
             assert results.metadata().isStaticCompactTable();
             this.nowInSec = nowInSec;
-            this.builder = BTreeBackedRow.sortedBuilder(results.columns().regulars);
+            this.builder = BTreeRow.sortedBuilder(results.columns().regulars);
         }
 
         private void init()
@@ -220,7 +220,7 @@ public class ThriftResultsMerger extends WrappingUnfilteredPartitionIterator
             this.superColumnMapColumn = results.metadata().compactValueColumn();
             assert superColumnMapColumn != null && superColumnMapColumn.type instanceof MapType;
 
-            this.builder = BTreeBackedRow.sortedBuilder(Columns.of(superColumnMapColumn));
+            this.builder = BTreeRow.sortedBuilder(Columns.of(superColumnMapColumn));
             this.columnComparator = ((MapType)superColumnMapColumn.type).nameComparator();
         }
 

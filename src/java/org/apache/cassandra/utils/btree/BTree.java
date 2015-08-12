@@ -183,7 +183,7 @@ public class BTree
         return btree;
     }
 
-    public static <K> Object[] merge(Object[] tree1, Object[] tree2, Comparator<K> comparator)
+    public static <K> Object[] merge(Object[] tree1, Object[] tree2, Comparator<? super K> comparator, UpdateFunction<K, K> updateF)
     {
         if (size(tree1) < size(tree2))
         {
@@ -191,7 +191,7 @@ public class BTree
             tree1 = tree2;
             tree2 = tmp;
         }
-        return update(tree1, comparator, new BTreeSet<K>(tree2, comparator), UpdateFunction.<K>noOp());
+        return update(tree1, comparator, new BTreeSet<K>(tree2, comparator), updateF);
     }
 
     public static <V> Iterator<V> iterator(Object[] btree)
@@ -749,8 +749,15 @@ public class BTree
         return new Builder<>(comparator);
     }
 
+    public static <V> Builder<V> builder(Comparator<? super V> comparator, int initialCapacity)
+    {
+        return new Builder<>(comparator);
+    }
+
     public static class Builder<V>
     {
+
+        // a user-defined bulk resolution, to be applied manually via resolve()
         public static interface Resolver
         {
             // can return a different output type to input, so long as sort order is maintained
@@ -759,15 +766,37 @@ public class BTree
             Object resolve(Object[] array, int lb, int ub);
         }
 
+        // a user-defined resolver that is applied automatically on encountering two duplicate values
+        public static interface QuickResolver<V>
+        {
+            // can return a different output type to input, so long as sort order is maintained
+            // if a resolver is present, this method will be called for every sequence of equal inputs
+            // even those with only one item
+            V resolve(V a, V b);
+        }
+
         Comparator<? super V> comparator;
-        Object[] values = new Object[10];
+        Object[] values;
         int count;
-        boolean detected; // true if we have managed to cheaply ensure sorted (+ filtered, if resolver == null) as we have added
+        boolean detected = true; // true if we have managed to cheaply ensure sorted (+ filtered, if resolver == null) as we have added
         boolean auto = true; // false if the user has promised to enforce the sort order and resolve any duplicates
+        QuickResolver<V> quickResolver;
 
         protected Builder(Comparator<? super V> comparator)
         {
+            this(comparator, 16);
+        }
+
+        protected Builder(Comparator<? super V> comparator, int initialCapacity)
+        {
             this.comparator = comparator;
+            this.values = new Object[initialCapacity];
+        }
+
+        public Builder<V> setQuickResolver(QuickResolver<V> quickResolver)
+        {
+            this.quickResolver = quickResolver;
+            return this;
         }
 
         public void reuse()
@@ -792,14 +821,20 @@ public class BTree
         {
             if (count == values.length)
                 values = Arrays.copyOf(values, count * 2);
-            values[count++] = v;
 
-            if (auto && detected && count > 1)
+            Object[] values = this.values;
+            int prevCount = this.count++;
+            values[prevCount] = v;
+
+            if (auto && detected && prevCount > 0)
             {
-                int c = comparator.compare((V) values[count - 2], (V) values[count - 1]);
+                V prev = (V) values[prevCount - 1];
+                int c = comparator.compare(prev, v);
                 if (c == 0 && auto)
                 {
-                    count--;
+                    count = prevCount;
+                    if (quickResolver != null)
+                        values[prevCount - 1] = quickResolver.resolve(prev, v);
                 }
                 else if (c > 0)
                 {
@@ -881,7 +916,11 @@ public class BTree
                 if (c > 0)
                     break;
                 else if (c == 0)
+                {
+                    if (quickResolver != null)
+                        a[i] = quickResolver.resolve(ai, aj);
                     j++;
+                }
                 i++;
             }
 
@@ -896,11 +935,14 @@ public class BTree
 
             while (i < curEnd && j < addEnd)
             {
+                V ai = (V) a[i];
+                V aj = (V) a[j];
                 // could avoid one comparison if we cared, but would make this ugly
-                int c = comparator.compare((V) a[i], (V) a[j]);
+                int c = comparator.compare(ai, aj);
                 if (c == 0)
                 {
-                    a[newCount++] = a[i];
+                    Object newValue = quickResolver == null ? ai : quickResolver.resolve(ai, aj);
+                    a[newCount++] = newValue;
                     i++;
                     j++;
                 }
@@ -931,6 +973,19 @@ public class BTree
             return count == 0;
         }
 
+        public Builder<V> reverse()
+        {
+            assert !auto;
+            int mid = count / 2;
+            for (int i = 0 ; i < mid ; i++)
+            {
+                Object t = values[i];
+                values[i] = values[count - (1 + i)];
+                values[count - (1 + i)] = t;
+            }
+            return this;
+        }
+
         public Builder<V> sort()
         {
             Arrays.sort((V[]) values, 0, count, comparator);
@@ -943,11 +998,17 @@ public class BTree
             if (!detected && count > 1)
             {
                 sort();
-                int c = 1;
+                int prevIdx = 0;
+                V prev = (V) values[0];
                 for (int i = 1 ; i < count ; i++)
-                    if (comparator.compare((V) values[i], (V) values[i - 1]) != 0)
-                        values[c++] = values[i];
-                count = c;
+                {
+                    V next = (V) values[i];
+                    if (comparator.compare(prev, next) != 0)
+                        values[++prevIdx] = prev = next;
+                    else if (quickResolver != null)
+                        values[prevIdx] = prev = quickResolver.resolve(prev, next);
+                }
+                count = prevIdx + 1;
             }
             detected = true;
         }

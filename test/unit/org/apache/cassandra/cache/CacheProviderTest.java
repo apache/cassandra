@@ -66,16 +66,16 @@ public class CacheProviderTest
                                     cfm);
     }
 
-    private ArrayBackedCachedPartition createPartition()
+    private CachedBTreePartition createPartition()
     {
         PartitionUpdate update = new RowUpdateBuilder(cfm, System.currentTimeMillis(), "key1")
                                  .add("col1", "val1")
                                  .buildUpdate();
 
-        return ArrayBackedCachedPartition.create(update.unfilteredIterator(), FBUtilities.nowInSeconds());
+        return CachedBTreePartition.create(update.unfilteredIterator(), FBUtilities.nowInSeconds());
     }
 
-    private void simpleCase(ArrayBackedCachedPartition partition, ICache<MeasureableString, IRowCacheEntry> cache)
+    private void simpleCase(CachedBTreePartition partition, ICache<MeasureableString, IRowCacheEntry> cache)
     {
         cache.put(key1, partition);
         assertNotNull(cache.get(key1));
@@ -89,15 +89,15 @@ public class CacheProviderTest
         assertEquals(CAPACITY, cache.size());
     }
 
-    private void assertDigests(IRowCacheEntry one, ArrayBackedCachedPartition two)
+    private void assertDigests(IRowCacheEntry one, CachedBTreePartition two)
     {
-        assertTrue(one instanceof ArrayBackedCachedPartition);
+        assertTrue(one instanceof CachedBTreePartition);
         try
         {
             MessageDigest d1 = MessageDigest.getInstance("MD5");
             MessageDigest d2 = MessageDigest.getInstance("MD5");
-            UnfilteredRowIterators.digest(((ArrayBackedCachedPartition) one).unfilteredIterator(), d1);
-            UnfilteredRowIterators.digest(((ArrayBackedCachedPartition) two).unfilteredIterator(), d2);
+            UnfilteredRowIterators.digest(((CachedBTreePartition) one).unfilteredIterator(), d1);
+            UnfilteredRowIterators.digest(((CachedBTreePartition) two).unfilteredIterator(), d2);
             assertTrue(MessageDigest.isEqual(d1.digest(), d2.digest()));
         }
         catch (NoSuchAlgorithmException e)
@@ -106,7 +106,7 @@ public class CacheProviderTest
         }
     }
 
-    private void concurrentCase(final ArrayBackedCachedPartition partition, final ICache<MeasureableString, IRowCacheEntry> cache) throws InterruptedException
+    private void concurrentCase(final CachedBTreePartition partition, final ICache<MeasureableString, IRowCacheEntry> cache) throws InterruptedException
     {
         final long startTime = System.currentTimeMillis() + 500;
         Runnable runnable = new Runnable()
@@ -140,7 +140,7 @@ public class CacheProviderTest
     public void testSerializingCache() throws InterruptedException
     {
         ICache<MeasureableString, IRowCacheEntry> cache = SerializingCache.create(CAPACITY, Weighers.<RefCountedMemory>singleton(), new SerializingCacheProvider.RowCacheSerializer());
-        ArrayBackedCachedPartition partition = createPartition();
+        CachedBTreePartition partition = createPartition();
         simpleCase(partition, cache);
         concurrentCase(partition, cache);
     }

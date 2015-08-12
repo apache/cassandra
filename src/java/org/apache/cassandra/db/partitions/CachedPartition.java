@@ -24,15 +24,13 @@ import org.apache.cassandra.io.ISerializer;
 /**
  * A partition stored in the partition cache.
  *
- * Note that in practice, the only implementation of this is {@link ArrayBackedPartition},
- * we keep this interface mainly 1) to make it clear what we need from partition in the cache
- * (that we don't otherwise) and 2) because {@code ArrayBackedPartition} is used for other
- * purpose (than caching) and hence using {@code CachedPartition} when we talk about caching is
- * clearer.
+ * Note that in practice, the only implementation of this is {@link CachedBTreePartition},
+ * we keep this interface mainly to make it clear what we need from partition in the cache
+ * (that we don't otherwise)
  */
 public interface CachedPartition extends Partition, IRowCacheEntry
 {
-    public static final ISerializer<CachedPartition> cacheSerializer = new ArrayBackedCachedPartition.Serializer();
+    public static final ISerializer<CachedPartition> cacheSerializer = new CachedBTreePartition.Serializer();
 
     /**
      * The number of {@code Row} objects in this cached partition.

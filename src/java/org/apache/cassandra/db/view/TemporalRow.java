@@ -45,7 +45,7 @@ import org.apache.cassandra.db.LivenessInfo;
 import org.apache.cassandra.db.RangeTombstone;
 import org.apache.cassandra.db.Slice;
 import org.apache.cassandra.db.marshal.CompositeType;
-import org.apache.cassandra.db.partitions.AbstractThreadUnsafePartition;
+import org.apache.cassandra.db.partitions.AbstractBTreePartition;
 import org.apache.cassandra.db.rows.BufferCell;
 import org.apache.cassandra.db.rows.Cell;
 import org.apache.cassandra.db.rows.CellPath;
@@ -309,7 +309,7 @@ public class TemporalRow
         return null;
     }
 
-    public DeletionTime deletionTime(AbstractThreadUnsafePartition partition)
+    public DeletionTime deletionTime(AbstractBTreePartition partition)
     {
         DeletionInfo deletionInfo = partition.deletionInfo();
         if (!deletionInfo.getPartitionDeletion().isLive())

@@ -341,7 +341,7 @@ public class UnfilteredSerializer
     {
         int flags = in.readUnsignedByte();
         assert !isEndOfPartition(flags) && kind(flags) == Unfiltered.Kind.ROW && isStatic(flags) : flags;
-        Row.Builder builder = BTreeBackedRow.sortedBuilder(helper.fetchedStaticColumns(header));
+        Row.Builder builder = BTreeRow.sortedBuilder(helper.fetchedStaticColumns(header));
         builder.newRow(Clustering.STATIC_CLUSTERING);
         return deserializeRowBody(in, header, helper, flags, builder);
     }

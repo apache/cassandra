@@ -240,6 +240,17 @@ public class EncodingStats
                                      isTTLSet ? minTTL : TTL_EPOCH,
                                      isColumnSetPerRowSet ? (rows == 0 ? 0 : (int)(totalColumnsSet / rows)) : -1);
         }
+
+        public static EncodingStats collect(Row staticRow, Iterator<Row> rows, DeletionInfo deletionInfo)
+        {
+            Collector collector = new Collector();
+            deletionInfo.collectStats(collector);
+            if (!staticRow.isEmpty())
+                Rows.collectStats(staticRow, collector);
+            while (rows.hasNext())
+                Rows.collectStats(rows.next(), collector);
+            return collector.get();
+        }
     }
 
     public static class Serializer

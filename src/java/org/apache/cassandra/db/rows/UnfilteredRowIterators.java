@@ -89,10 +89,14 @@ public abstract class UnfilteredRowIterators
         return UnfilteredRowMergeIterator.create(iterators, nowInSec, mergeListener);
     }
 
+    public static UnfilteredRowIterator emptyIterator(final CFMetaData cfm, final DecoratedKey partitionKey, final boolean isReverseOrder)
+    {
+        return noRowsIterator(cfm, partitionKey, Rows.EMPTY_STATIC_ROW, DeletionTime.LIVE, isReverseOrder);
+    }
     /**
      * Returns an empty atom iterator for a given partition.
      */
-    public static UnfilteredRowIterator emptyIterator(final CFMetaData cfm, final DecoratedKey partitionKey, final boolean isReverseOrder)
+    public static UnfilteredRowIterator noRowsIterator(final CFMetaData cfm, final DecoratedKey partitionKey, final Row staticRow, final DeletionTime partitionDeletion, final boolean isReverseOrder)
     {
         return new UnfilteredRowIterator()
         {
@@ -118,12 +122,12 @@ public abstract class UnfilteredRowIterators
 
             public DeletionTime partitionLevelDeletion()
             {
-                return DeletionTime.LIVE;
+                return partitionDeletion;
             }
 
             public Row staticRow()
             {
-                return Rows.EMPTY_STATIC_ROW;
+                return staticRow;
             }
 
             public EncodingStats stats()
@@ -225,7 +229,7 @@ public abstract class UnfilteredRowIterators
             @Override
             protected Row computeNextStatic(Row row)
             {
-                Row.Builder staticBuilder = allocator.cloningArrayBackedRowBuilder(columns().statics);
+                Row.Builder staticBuilder = allocator.cloningBTreeRowBuilder(columns().statics);
                 return Rows.copy(row, staticBuilder).build();
             }
 
@@ -233,7 +237,7 @@ public abstract class UnfilteredRowIterators
             protected Row computeNext(Row row)
             {
                 if (regularBuilder == null)
-                    regularBuilder = allocator.cloningArrayBackedRowBuilder(columns().regulars);
+                    regularBuilder = allocator.cloningBTreeRowBuilder(columns().regulars);
 
                 return Rows.copy(row, regularBuilder).build();
             }
@@ -541,7 +545,7 @@ public abstract class UnfilteredRowIterators
                 {
                     Row merged = rowMerger.merge(markerMerger.activeDeletion());
                     if (listener != null)
-                        listener.onMergedRows(merged == null ? BTreeBackedRow.emptyRow(rowMerger.mergedClustering()) : merged, columns().regulars, rowMerger.mergedRows());
+                        listener.onMergedRows(merged == null ? BTreeRow.emptyRow(rowMerger.mergedClustering()) : merged, columns().regulars, rowMerger.mergedRows());
                     return merged;
                 }
                 else

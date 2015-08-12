@@ -214,9 +214,9 @@ public abstract class ReadResponse
      */
     private static class LegacyRemoteDataResponse extends ReadResponse
     {
-        private final List<ArrayBackedPartition> partitions;
+        private final List<ImmutableBTreePartition> partitions;
 
-        private LegacyRemoteDataResponse(List<ArrayBackedPartition> partitions)
+        private LegacyRemoteDataResponse(List<ImmutableBTreePartition> partitions)
         {
             super(null); // we never serialize LegacyRemoteDataResponses, so we don't care about the metadata
             this.partitions = partitions;
@@ -245,7 +245,7 @@ public abstract class ReadResponse
 
                 public UnfilteredRowIterator next()
                 {
-                    ArrayBackedPartition partition = partitions.get(idx++);
+                    ImmutableBTreePartition partition = partitions.get(idx++);
 
                     ClusteringIndexFilter filter = command.clusteringIndexFilter(partition.partitionKey());
 
@@ -340,7 +340,7 @@ public abstract class ReadResponse
 
                 try
                 {
-                    return new LegacyRemoteDataResponse(Collections.singletonList(ArrayBackedPartition.create(rowIterator)));
+                    return new LegacyRemoteDataResponse(Collections.singletonList(ImmutableBTreePartition.create(rowIterator)));
                 }
                 finally
                 {
@@ -440,13 +440,13 @@ public abstract class ReadResponse
         {
             // Contrarily to serialize, we have to read the number of serialized partitions here.
             int partitionCount = in.readInt();
-            ArrayList<ArrayBackedPartition> partitions = new ArrayList<>(partitionCount);
+            ArrayList<ImmutableBTreePartition> partitions = new ArrayList<>(partitionCount);
             for (int i = 0; i < partitionCount; i++)
             {
                 ByteBuffer key = ByteBufferUtil.readWithShortLength(in);
                 try (UnfilteredRowIterator partition = LegacyLayout.deserializeLegacyPartition(in, version, SerializationHelper.Flag.FROM_REMOTE, key))
                 {
-                    partitions.add(ArrayBackedPartition.create(partition));
+                    partitions.add(ImmutableBTreePartition.create(partition));
                 }
             }
             return new LegacyRemoteDataResponse(partitions);

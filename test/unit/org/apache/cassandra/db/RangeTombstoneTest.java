@@ -144,7 +144,7 @@ public class RangeTombstoneTest
 
         new RowUpdateBuilder(cfs.metadata, 2, key).addRangeTombstone(15, 20).build().applyUnsafe();
 
-        ArrayBackedPartition partition;
+        ImmutableBTreePartition partition;
 
         partition = Util.getOnlyPartitionUnfiltered(Util.cmd(cfs, key).fromIncl(11).toIncl(14).build());
         Collection<RangeTombstone> rt = rangeTombstones(partition);
@@ -215,7 +215,7 @@ public class RangeTombstoneTest
         assertEquals(2, rt.size());
     }
 
-    private Collection<RangeTombstone> rangeTombstones(ArrayBackedPartition partition)
+    private Collection<RangeTombstone> rangeTombstones(ImmutableBTreePartition partition)
     {
         List<RangeTombstone> tombstones = new ArrayList<RangeTombstone>();
         Iterators.addAll(tombstones, partition.deletionInfo().rangeIterator(false));

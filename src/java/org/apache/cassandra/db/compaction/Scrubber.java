@@ -385,7 +385,7 @@ public class Scrubber implements Closeable
     {
         // TODO bitch if the row is too large?  if it is there's not much we can do ...
         outputHandler.warn(String.format("Out of order row detected (%s found after %s)", key, prevKey));
-        outOfOrder.add(ArrayBackedPartition.create(iterator));
+        outOfOrder.add(ImmutableBTreePartition.create(iterator));
     }
 
     private void throwIfFatal(Throwable th)

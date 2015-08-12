@@ -221,7 +221,7 @@ public abstract class RowFilter implements Iterable<RowFilter.Expression>
                     // satisfied, which forces us to materialize the result (in theory we could materialize only
                     // what we need which might or might not be everything, but we keep it simple since in practice
                     // it's not worth that it has ever been).
-                    ArrayBackedPartition result = ArrayBackedPartition.create(iter);
+                    ImmutableBTreePartition result = ImmutableBTreePartition.create(iter);
 
                     // The partition needs to have a row for every expression, and the expression needs to be valid.
                     for (Expression expr : expressions)

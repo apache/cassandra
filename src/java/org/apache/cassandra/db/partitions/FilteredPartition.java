@@ -17,24 +17,19 @@
  */
 package org.apache.cassandra.db.partitions;
 
-import java.util.*;
+import java.util.Iterator;
 
 import org.apache.cassandra.config.CFMetaData;
-import org.apache.cassandra.db.*;
+import org.apache.cassandra.db.DecoratedKey;
+import org.apache.cassandra.db.DeletionInfo;
+import org.apache.cassandra.db.PartitionColumns;
 import org.apache.cassandra.db.rows.*;
 
-public class FilteredPartition extends AbstractThreadUnsafePartition
+public class FilteredPartition extends ImmutableBTreePartition
 {
-    private final Row staticRow;
-
-    private FilteredPartition(CFMetaData metadata,
-                              DecoratedKey partitionKey,
-                              PartitionColumns columns,
-                              Row staticRow,
-                              List<Row> rows)
+    public FilteredPartition(RowIterator rows)
     {
-        super(metadata, partitionKey, columns, rows);
-        this.staticRow = staticRow;
+        super(rows.metadata(), rows.partitionKey(), rows.columns(), build(rows, DeletionInfo.LIVE, false, 16));
     }
 
     /**
@@ -45,43 +40,7 @@ public class FilteredPartition extends AbstractThreadUnsafePartition
      */
     public static FilteredPartition create(RowIterator iterator)
     {
-        CFMetaData metadata = iterator.metadata();
-        boolean reversed = iterator.isReverseOrder();
-
-        List<Row> rows = new ArrayList<>();
-
-        while (iterator.hasNext())
-        {
-            Unfiltered unfiltered = iterator.next();
-            if (unfiltered.isRow())
-                rows.add((Row)unfiltered);
-        }
-
-        if (reversed)
-            Collections.reverse(rows);
-
-        return new FilteredPartition(metadata, iterator.partitionKey(), iterator.columns(), iterator.staticRow(), rows);
-    }
-
-    protected boolean canHaveShadowedData()
-    {
-        // We only create instances from RowIterator that don't have shadowed data (nor deletion info really)
-        return false;
-    }
-
-    public Row staticRow()
-    {
-        return staticRow;
-    }
-
-    public DeletionInfo deletionInfo()
-    {
-        return DeletionInfo.LIVE;
-    }
-
-    public EncodingStats stats()
-    {
-        return EncodingStats.NO_STATS;
+        return new FilteredPartition(iterator);
     }
 
     public RowIterator rowIterator()
@@ -106,13 +65,15 @@ public class FilteredPartition extends AbstractThreadUnsafePartition
 
             public DecoratedKey partitionKey()
             {
-                return key;
+                return partitionKey;
             }
 
             public Row staticRow()
             {
                 return FilteredPartition.this.staticRow();
             }
+
+            public void close() {}
 
             public boolean hasNext()
             {
@@ -124,34 +85,10 @@ public class FilteredPartition extends AbstractThreadUnsafePartition
                 return iter.next();
             }
 
-            public void remove()
+            public boolean isEmpty()
             {
-                throw new UnsupportedOperationException();
-            }
-
-            public void close()
-            {
+                return staticRow().isEmpty() && !hasRows();
             }
         };
-    }
-
-    @Override
-    public String toString()
-    {
-        StringBuilder sb = new StringBuilder();
-
-        sb.append(String.format("[%s.%s] key=%s columns=%s",
-                    metadata.ksName,
-                    metadata.cfName,
-                    metadata.getKeyValidator().getString(partitionKey().getKey()),
-                    columns));
-
-        if (staticRow() != Rows.EMPTY_STATIC_ROW)
-            sb.append("\n    ").append(staticRow().toString(metadata));
-
-        for (Row row : this)
-            sb.append("\n    ").append(row.toString(metadata));
-
-        return sb.toString();
     }
 }

@@ -33,7 +33,7 @@ import org.apache.cassandra.config.ColumnDefinition;
 import org.apache.cassandra.db.*;
 import org.apache.cassandra.db.rows.Cell;
 import org.apache.cassandra.db.rows.Row;
-import org.apache.cassandra.db.partitions.ArrayBackedPartition;
+import org.apache.cassandra.db.partitions.ImmutableBTreePartition;
 import org.apache.cassandra.exceptions.ConfigurationException;
 import org.apache.cassandra.exceptions.SyntaxException;
 import org.apache.cassandra.schema.KeyspaceParams;
@@ -197,7 +197,7 @@ public class CompositeTypeTest
 
         ColumnDefinition cdef = cfs.metadata.getColumnDefinition(ByteBufferUtil.bytes("val"));
 
-        ArrayBackedPartition readPartition = Util.getOnlyPartitionUnfiltered(Util.cmd(cfs, key).build());
+        ImmutableBTreePartition readPartition = Util.getOnlyPartitionUnfiltered(Util.cmd(cfs, key).build());
         Iterator<Row> iter = readPartition.iterator();
 
         compareValues(iter.next().getCell(cdef), "cname1");

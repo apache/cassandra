@@ -116,7 +116,7 @@ public abstract class AbstractSimplePerColumnSecondaryIndex extends PerColumnSec
     {
         DecoratedKey valueKey = getIndexKeyFor(getIndexedValue(rowKey, clustering, cellValue, path));
 
-        Row row = BTreeBackedRow.emptyDeletedRow(makeIndexClustering(rowKey, clustering, path), deletion);
+        Row row = BTreeRow.emptyDeletedRow(makeIndexClustering(rowKey, clustering, path), deletion);
         PartitionUpdate upd = PartitionUpdate.singleRowUpdate(indexCfs.metadata, valueKey, row);
 
         indexCfs.apply(upd, SecondaryIndexManager.nullUpdater, opGroup, null);
@@ -133,7 +133,7 @@ public abstract class AbstractSimplePerColumnSecondaryIndex extends PerColumnSec
     {
         DecoratedKey valueKey = getIndexKeyFor(getIndexedValue(rowKey, clustering, cell));
 
-        Row row = BTreeBackedRow.noCellLiveRow(makeIndexClustering(rowKey, clustering, cell), info);
+        Row row = BTreeRow.noCellLiveRow(makeIndexClustering(rowKey, clustering, cell), info);
         PartitionUpdate upd = PartitionUpdate.singleRowUpdate(indexCfs.metadata, valueKey, row);
 
         if (logger.isDebugEnabled())
