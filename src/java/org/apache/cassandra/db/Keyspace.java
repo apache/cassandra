@@ -457,7 +457,7 @@ public class Keyspace
                     try
                     {
                         Tracing.trace("Create materialized view mutations from replica");
-                        cfs.materializedViewManager.pushViewReplicaUpdates(upd.partitionKey().getKey(), upd);
+                        cfs.materializedViewManager.pushViewReplicaUpdates(upd);
                     }
                     catch (Exception e)
                     {

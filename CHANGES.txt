@@ -1,7 +1,7 @@
 3.0.0-beta2
+ * Reuse TemporalRow when updating multiple MaterializedViews (CASSANDRA-10060)
  * Validate gc_grace_seconds for batchlog writes and MVs (CASSANDRA-9917)
  * Fix sstablerepairedset (CASSANDRA-10132)
-
 
 3.0.0-beta1
  * Redesign secondary index API (CASSANDRA-9459, 7771, 9041)

@@ -89,7 +89,10 @@ public class MaterializedViewBuilder extends CompactionInfo.Holder
 
                try (RowIterator rowIterator = partitionIterator.next())
                {
-                   Collection<Mutation> mutations = view.createMutations(key.getKey(), FilteredPartition.create(rowIterator), true);
+                   FilteredPartition partition = FilteredPartition.create(rowIterator);
+                   TemporalRow.Set temporalRows = view.getTemporalRowSet(partition, null, true);
+
+                   Collection<Mutation> mutations = view.createMutations(partition, temporalRows, true);
 
                    if (mutations != null)
                    {

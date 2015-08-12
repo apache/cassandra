@@ -685,10 +685,10 @@ public class StorageProxy implements StorageProxyMBean
                                                                                  cleanup);
 
                 wrappers.add(wrapper);
-
-                //Apply to local batchlog memtable in this thread
-                BatchlogManager.getBatchlogMutationFor(mutations, batchUUID, MessagingService.current_version).apply();
             }
+
+            //Apply to local batchlog memtable in this thread
+            BatchlogManager.getBatchlogMutationFor(mutations, batchUUID, MessagingService.current_version).apply();
 
             // now actually perform the writes and wait for them to complete
             asyncWriteBatchedMutations(wrappers, localDataCenter, Stage.MATERIALIZED_VIEW_MUTATION);
