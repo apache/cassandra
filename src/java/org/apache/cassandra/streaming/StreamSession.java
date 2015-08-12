@@ -24,8 +24,6 @@ import java.util.*;
 import java.util.concurrent.*;
 import java.util.concurrent.atomic.AtomicBoolean;
 
-import javax.annotation.Nullable;
-
 import com.google.common.base.Function;
 import com.google.common.collect.*;
 
@@ -38,7 +36,6 @@ import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.db.ColumnFamilyStore;
 import org.apache.cassandra.db.Keyspace;
 import org.apache.cassandra.db.RowPosition;
-import org.apache.cassandra.dht.AbstractBounds;
 import org.apache.cassandra.dht.Range;
 import org.apache.cassandra.dht.Token;
 import org.apache.cassandra.gms.*;
@@ -316,9 +313,9 @@ public class StreamSession implements IEndpointStateChangeSubscriber
         {
             for (ColumnFamilyStore cfStore : stores)
             {
-                final List<AbstractBounds<RowPosition>> rowBoundsList = new ArrayList<>(ranges.size());
+                final List<Range<RowPosition>> keyRanges = new ArrayList<>(ranges.size());
                 for (Range<Token> range : ranges)
-                    rowBoundsList.add(Range.makeRowRange(range));
+                    keyRanges.add(Range.makeRowRange(range));
                 refs.addAll(cfStore.selectAndReference(new Function<View, List<SSTableReader>>()
                 {
                     public List<SSTableReader> apply(View view)
@@ -328,11 +325,17 @@ public class StreamSession implements IEndpointStateChangeSubscriber
                             permittedInstances.put(reader, reader);
 
                         Set<SSTableReader> sstables = Sets.newHashSet();
-                        for (AbstractBounds<RowPosition> rowBounds : rowBoundsList)
+                        for (Range<RowPosition> keyRange : keyRanges)
                         {
-                            // sstableInBounds may contain early opened sstables
-                            for (SSTableReader sstable : view.sstablesInBounds(rowBounds))
+                            // keyRange excludes its start, while sstableInBounds is inclusive (of both start and end).
+                            // This is fine however, because keyRange has been created from a token range through Range.makeRowRange (see above).
+                            // And that later method uses the Token.maxKeyBound() method to creates the range, which return a "fake" key that
+                            // sort after all keys having the token. That "fake" key cannot however be equal to any real key, so that even
+                            // including keyRange.left will still exclude any key having the token of the original token range, and so we're
+                            // still actually selecting what we wanted.
+                            for (SSTableReader sstable : view.sstablesInBounds(keyRange.left, keyRange.right))
                             {
+                                // sstableInBounds may contain early opened sstables
                                 if (isIncremental && sstable.isRepaired())
                                     continue;
                                 sstable = permittedInstances.get(sstable);

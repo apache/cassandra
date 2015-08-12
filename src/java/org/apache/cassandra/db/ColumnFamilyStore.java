@@ -1929,11 +1929,17 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
      */
     public Function<View, List<SSTableReader>> viewFilter(final AbstractBounds<RowPosition> rowBounds)
     {
+        assert !AbstractBounds.strictlyWrapsAround(rowBounds.left, rowBounds.right);
         return new Function<View, List<SSTableReader>>()
         {
             public List<SSTableReader> apply(View view)
             {
-                return compactionStrategyWrapper.filterSSTablesForReads(view.sstablesInBounds(rowBounds));
+                // Note that View.sstablesInBounds always includes it's bound while rowBounds may not. This is ok however
+                // because the fact we restrict the sstables returned by this function is an optimization in the first
+                // place and the returned sstables will (almost) never cover *exactly* rowBounds anyway. It's also
+                // *very* unlikely that a sstable is included *just* because we consider one of the bound inclusively
+                // instead of exclusively, so the performance impact is negligible in practice.
+                return view.sstablesInBounds(rowBounds.left, rowBounds.right);
             }
         };
     }
@@ -1944,6 +1950,7 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
      */
     public Function<View, List<SSTableReader>> viewFilter(final Collection<AbstractBounds<RowPosition>> rowBoundsCollection, final boolean includeRepaired)
     {
+        assert AbstractBounds.noneStrictlyWrapsAround(rowBoundsCollection);
         return new Function<View, List<SSTableReader>>()
         {
             public List<SSTableReader> apply(View view)
@@ -1951,7 +1958,12 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
                 Set<SSTableReader> sstables = Sets.newHashSet();
                 for (AbstractBounds<RowPosition> rowBounds : rowBoundsCollection)
                 {
-                    for (SSTableReader sstable : view.sstablesInBounds(rowBounds))
+                    // Note that View.sstablesInBounds always includes it's bound while rowBounds may not. This is ok however
+                    // because the fact we restrict the sstables returned by this function is an optimization in the first
+                    // place and the returned sstables will (almost) never cover *exactly* rowBounds anyway. It's also
+                    // *very* unlikely that a sstable is included *just* because we consider one of the bound inclusively
+                    // instead of exclusively, so the performance impact is negligible in practice.
+                    for (SSTableReader sstable : view.sstablesInBounds(rowBounds.left, rowBounds.right))
                     {
                         if (includeRepaired || !sstable.isRepaired())
                             sstables.add(sstable);
@@ -2335,7 +2347,7 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
         {
             if (!manifestFile.getParentFile().exists())
                 manifestFile.getParentFile().mkdirs();
-            
+
             try (PrintStream out = new PrintStream(manifestFile))
             {
                 final JSONObject manifestJSON = new JSONObject();

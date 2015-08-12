@@ -126,12 +126,19 @@ public class View
         return String.format("View(pending_count=%d, sstables=%s, compacting=%s)", liveMemtables.size() + flushingMemtables.size() - 1, sstables, compacting);
     }
 
-    public List<SSTableReader> sstablesInBounds(AbstractBounds<RowPosition> rowBounds)
+    /**
+      * Returns the sstables that have any partition between {@code left} and {@code right}, when both bounds are taken inclusively.
+      * The interval formed by {@code left} and {@code right} shouldn't wrap.
+      */
+    public List<SSTableReader> sstablesInBounds(RowPosition left, RowPosition right)
     {
+        assert !AbstractBounds.strictlyWrapsAround(left, right);
+
         if (intervalTree.isEmpty())
             return Collections.emptyList();
-        RowPosition stopInTree = rowBounds.right.isMinimum() ? intervalTree.max() : rowBounds.right;
-        return intervalTree.search(Interval.<RowPosition, SSTableReader>create(rowBounds.left, stopInTree));
+
+        RowPosition stopInTree = right.isMinimum() ? intervalTree.max() : right;
+        return intervalTree.search(Interval.<RowPosition, SSTableReader>create(left, stopInTree));
     }
 
     // METHODS TO CONSTRUCT FUNCTIONS FOR MODIFYING A VIEW:
