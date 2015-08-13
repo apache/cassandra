@@ -59,6 +59,21 @@ public interface MessagingServiceMBean
     public Map<String, Long> getSmallMessageDroppedTasks();
 
     /**
+     * Pending tasks for gossip message TCP Connections
+     */
+    public Map<String, Integer> getGossipMessagePendingTasks();
+
+    /**
+     * Completed tasks for gossip message TCP Connections
+     */
+    public Map<String, Long> getGossipMessageCompletedTasks();
+
+    /**
+     * Dropped tasks for gossip message TCP Connections
+     */
+    public Map<String, Long> getGossipMessageDroppedTasks();
+
+    /**
      * dropped message counts for server lifetime
      */
     public Map<String, Integer> getDroppedMessages();

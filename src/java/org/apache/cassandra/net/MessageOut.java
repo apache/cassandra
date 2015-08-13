@@ -88,7 +88,7 @@ public class MessageOut<T>
         return new MessageOut<T>(verb, payload, serializer, builder.build());
     }
 
-    private Stage getStage()
+    public Stage getStage()
     {
         return MessagingService.verbStages.get(verb);
     }

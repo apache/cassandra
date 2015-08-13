@@ -3,6 +3,7 @@
 
 
 3.0.0-beta1
+ * Route gossip messages over dedicated socket (CASSANDRA-9237)
  * Add option to only purge repaired tombstones (CASSANDRA-6434)
  * Change authorization handling for MVs (CASSANDRA-9927)
  * Add custom JMX enabled executor for UDF sandbox (CASSANDRA-10026)

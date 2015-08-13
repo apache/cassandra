@@ -110,6 +110,14 @@ public class NetStats extends NodeToolCmd
             for (long n : ms.getSmallMessageCompletedTasks().values())
                 completed += n;
             System.out.printf("%-25s%10s%10s%15s%n", "Small messages", "n/a", pending, completed);
+
+            pending = 0;
+            for (int n : ms.getGossipMessagePendingTasks().values())
+                pending += n;
+            completed = 0;
+            for (long n : ms.getGossipMessageCompletedTasks().values())
+                completed += n;
+            System.out.printf("%-25s%10s%10s%15s%n", "Gossip messages", "n/a", pending, completed);
         }
     }
 }
