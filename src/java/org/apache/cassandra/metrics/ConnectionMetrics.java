@@ -50,6 +50,12 @@ public class ConnectionMetrics
     public final Gauge<Long> smallMessageCompletedTasks;
     /** Dropped tasks for small message TCP Connections */
     public final Gauge<Long> smallMessageDroppedTasks;
+    /** Pending tasks for gossip message TCP Connections */
+    public final Gauge<Integer> gossipMessagePendingTasks;
+    /** Completed tasks for gossip message TCP Connections */
+    public final Gauge<Long> gossipMessageCompletedTasks;
+    /** Dropped tasks for gossip message TCP Connections */
+    public final Gauge<Long> gossipMessageDroppedTasks;
 
     /** Number of timeouts for specific IP */
     public final Meter timeouts;
@@ -111,6 +117,27 @@ public class ConnectionMetrics
                 return connectionPool.smallMessages.getDroppedMessages();
             }
         });
+        gossipMessagePendingTasks = Metrics.register(factory.createMetricName("GossipMessagePendingTasks"), new Gauge<Integer>()
+        {
+            public Integer getValue()
+            {
+                return connectionPool.gossipMessages.getPendingMessages();
+            }
+        });
+        gossipMessageCompletedTasks = Metrics.register(factory.createMetricName("GossipMessageCompletedTasks"), new Gauge<Long>()
+        {
+            public Long getValue()
+            {
+                return connectionPool.gossipMessages.getCompletedMesssages();
+            }
+        });
+        gossipMessageDroppedTasks = Metrics.register(factory.createMetricName("GossipMessageDroppedTasks"), new Gauge<Long>()
+        {
+            public Long getValue()
+            {
+                return connectionPool.gossipMessages.getDroppedMessages();
+            }
+        });
         timeouts = Metrics.meter(factory.createMetricName("Timeouts"));
     }
 
@@ -122,6 +149,9 @@ public class ConnectionMetrics
         Metrics.remove(factory.createMetricName("SmallMessagePendingTasks"));
         Metrics.remove(factory.createMetricName("SmallMessageCompletedTasks"));
         Metrics.remove(factory.createMetricName("SmallMessageDroppedTasks"));
+        Metrics.remove(factory.createMetricName("GossipMessagePendingTasks"));
+        Metrics.remove(factory.createMetricName("GossipMessageCompletedTasks"));
+        Metrics.remove(factory.createMetricName("GossipMessageDroppedTasks"));
         Metrics.remove(factory.createMetricName("Timeouts"));
     }
 }

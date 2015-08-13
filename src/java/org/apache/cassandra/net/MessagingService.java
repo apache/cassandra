@@ -1076,6 +1076,30 @@ public final class MessagingService implements MessagingServiceMBean
         return droppedTasks;
     }
 
+    public Map<String, Integer> getGossipMessagePendingTasks()
+    {
+        Map<String, Integer> pendingTasks = new HashMap<String, Integer>(connectionManagers.size());
+        for (Map.Entry<InetAddress, OutboundTcpConnectionPool> entry : connectionManagers.entrySet())
+            pendingTasks.put(entry.getKey().getHostAddress(), entry.getValue().gossipMessages.getPendingMessages());
+        return pendingTasks;
+    }
+
+    public Map<String, Long> getGossipMessageCompletedTasks()
+    {
+        Map<String, Long> completedTasks = new HashMap<String, Long>(connectionManagers.size());
+        for (Map.Entry<InetAddress, OutboundTcpConnectionPool> entry : connectionManagers.entrySet())
+            completedTasks.put(entry.getKey().getHostAddress(), entry.getValue().gossipMessages.getCompletedMesssages());
+        return completedTasks;
+    }
+
+    public Map<String, Long> getGossipMessageDroppedTasks()
+    {
+        Map<String, Long> droppedTasks = new HashMap<String, Long>(connectionManagers.size());
+        for (Map.Entry<InetAddress, OutboundTcpConnectionPool> entry : connectionManagers.entrySet())
+            droppedTasks.put(entry.getKey().getHostAddress(), entry.getValue().gossipMessages.getDroppedMessages());
+        return droppedTasks;
+    }
+
     public Map<String, Integer> getDroppedMessages()
     {
         Map<String, Integer> map = new HashMap<>(droppedMessagesMap.size());
