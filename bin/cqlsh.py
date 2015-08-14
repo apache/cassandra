@@ -168,6 +168,9 @@ parser.add_option('-k', '--keyspace', help='Authenticate to the given keyspace.'
 parser.add_option("-f", "--file", help="Execute commands from FILE, then exit")
 parser.add_option('--debug', action='store_true',
                   help='Show additional debugging information')
+parser.add_option("--encoding", help="Specify a non-default encoding for output.  If you are " +
+                  "experiencing problems with unicode characters, using utf8 may fix the problem." +
+                  " (Default from system preferences: %s)" % (locale.getpreferredencoding(),))
 parser.add_option("--cqlshrc", help="Specify an alternative cqlshrc file location.")
 parser.add_option('--cqlversion', default=DEFAULT_CQLVER,
                   help='Specify a particular CQL version (default: %default).'
@@ -2520,6 +2523,7 @@ def read_options(cmdlineargs, environment):
     optvalues.debug = False
     optvalues.file = None
     optvalues.ssl = False
+    optvalues.encoding = None
 
     optvalues.tty = sys.stdin.isatty()
     optvalues.cqlversion = option_with_default(configs.get, 'cql', 'version', DEFAULT_CQLVER)
@@ -2575,7 +2579,6 @@ def read_options(cmdlineargs, environment):
         port = int(port)
     except ValueError:
         parser.error('%r is not a valid port number.' % port)
-
     return options, hostname, port
 
 
@@ -2652,7 +2655,8 @@ def main(options, hostname, port):
                       ssl=options.ssl,
                       single_statement=options.execute,
                       client_timeout=options.client_timeout,
-                      connect_timeout=options.connect_timeout)
+                      connect_timeout=options.connect_timeout,
+                      encoding=options.encoding)
     except KeyboardInterrupt:
         sys.exit('Connection aborted.')
     except CQL_ERRORS, e:
