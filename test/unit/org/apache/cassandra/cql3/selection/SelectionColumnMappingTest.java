@@ -414,12 +414,12 @@ public class SelectionColumnMappingTest extends CQLTester
 
     private void testUserDefinedAggregate() throws Throwable
     {
-        String sFunc = createFunction(KEYSPACE, "int",
-                                      " CREATE FUNCTION %s (a int, b int)" +
-                                      " RETURNS NULL ON NULL INPUT" +
-                                      " RETURNS int" +
-                                      " LANGUAGE javascript" +
-                                      " AS 'a + b'");
+        String sFunc = parseFunctionName(createFunction(KEYSPACE, "int",
+                                                        " CREATE FUNCTION %s (a int, b int)" +
+                                                        " RETURNS NULL ON NULL INPUT" +
+                                                        " RETURNS int" +
+                                                        " LANGUAGE javascript" +
+                                                        " AS 'a + b'")).name;
 
         String aFunc = createAggregate(KEYSPACE, "int, int",
                                        " CREATE AGGREGATE %s (int)" +
