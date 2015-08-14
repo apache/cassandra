@@ -35,5 +35,5 @@ echo The JAVA_HOME environment variable must be set to run this program!
 pause
 
 :finally
-
-ENDLOCAL
+ENDLOCAL & set RC=%ERRORLEVEL%
+exit /B %RC%
