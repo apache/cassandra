@@ -32,7 +32,7 @@ public class Bounds<T extends RingPosition<T>> extends AbstractBounds<T>
     {
         super(left, right);
         // unlike a Range, a Bounds may not wrap
-        assert left.compareTo(right) <= 0 || right.isMinimum() : "[" + left + "," + right + "]";
+        assert !strictlyWrapsAround(left, right) : "[" + left + "," + right + "]";
     }
 
     public boolean contains(T position)

@@ -1179,7 +1179,7 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
         Set<SSTableReader> results = null;
         for (SSTableReader sstable : sstables)
         {
-            Set<SSTableReader> overlaps = ImmutableSet.copyOf(view.sstablesInBounds(sstableSet, AbstractBounds.bounds(sstable.first, true, sstable.last, true)));
+            Set<SSTableReader> overlaps = ImmutableSet.copyOf(view.sstablesInBounds(sstableSet, sstable.first, sstable.last));
             results = results == null ? overlaps : Sets.union(results, overlaps).immutableCopy();
         }
         results = Sets.difference(results, ImmutableSet.copyOf(sstables));

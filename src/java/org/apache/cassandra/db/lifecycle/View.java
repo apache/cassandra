@@ -176,12 +176,19 @@ public class View
         return String.format("View(pending_count=%d, sstables=%s, compacting=%s)", liveMemtables.size() + flushingMemtables.size() - 1, sstables, compacting);
     }
 
-    public Iterable<SSTableReader> sstablesInBounds(SSTableSet sstableSet, AbstractBounds<PartitionPosition> rowBounds)
+    /**
+     * Returns the sstables that have any partition between {@code left} and {@code right}, when both bounds are taken inclusively.
+     * The interval formed by {@code left} and {@code right} shouldn't wrap.
+     */
+    public Iterable<SSTableReader> sstablesInBounds(SSTableSet sstableSet, PartitionPosition left, PartitionPosition right)
     {
+        assert !AbstractBounds.strictlyWrapsAround(left, right);
+
         if (intervalTree.isEmpty())
             return Collections.emptyList();
-        PartitionPosition stopInTree = rowBounds.right.isMinimum() ? intervalTree.max() : rowBounds.right;
-        return select(sstableSet, intervalTree.search(Interval.create(rowBounds.left, stopInTree)));
+
+        PartitionPosition stopInTree = right.isMinimum() ? intervalTree.max() : right;
+        return select(sstableSet, intervalTree.search(Interval.create(left, stopInTree)));
     }
 
     public static Function<View, Iterable<SSTableReader>> select(SSTableSet sstableSet)
@@ -210,7 +217,12 @@ public class View
      */
     public static Function<View, Iterable<SSTableReader>> select(SSTableSet sstableSet, AbstractBounds<PartitionPosition> rowBounds)
     {
-        return (view) -> view.sstablesInBounds(sstableSet, rowBounds);
+        // Note that View.sstablesInBounds always includes it's bound while rowBounds may not. This is ok however
+        // because the fact we restrict the sstables returned by this function is an optimization in the first
+        // place and the returned sstables will (almost) never cover *exactly* rowBounds anyway. It's also
+        // *very* unlikely that a sstable is included *just* because we consider one of the bound inclusively
+        // instead of exclusively, so the performance impact is negligible in practice.
+        return (view) -> view.sstablesInBounds(sstableSet, rowBounds.left, rowBounds.right);
     }
 
     // METHODS TO CONSTRUCT FUNCTIONS FOR MODIFYING A VIEW:

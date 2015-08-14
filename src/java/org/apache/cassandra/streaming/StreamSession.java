@@ -36,7 +36,6 @@ import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.db.ColumnFamilyStore;
 import org.apache.cassandra.db.Keyspace;
 import org.apache.cassandra.db.PartitionPosition;
-import org.apache.cassandra.dht.AbstractBounds;
 import org.apache.cassandra.dht.Range;
 import org.apache.cassandra.dht.Token;
 import org.apache.cassandra.gms.*;
@@ -320,15 +319,22 @@ public class StreamSession implements IEndpointStateChangeSubscriber
         {
             for (ColumnFamilyStore cfStore : stores)
             {
-                final List<AbstractBounds<PartitionPosition>> rowBoundsList = new ArrayList<>(ranges.size());
+                final List<Range<PartitionPosition>> keyRanges = new ArrayList<>(ranges.size());
                 for (Range<Token> range : ranges)
-                    rowBoundsList.add(Range.makeRowRange(range));
+                    keyRanges.add(Range.makeRowRange(range));
                 refs.addAll(cfStore.selectAndReference(view -> {
                     Set<SSTableReader> sstables = Sets.newHashSet();
-                    for (AbstractBounds<PartitionPosition> rowBounds : rowBoundsList)
+                    for (Range<PartitionPosition> keyRange : keyRanges)
                     {
-                        for (SSTableReader sstable : view.sstablesInBounds(SSTableSet.CANONICAL, rowBounds))
+                        // keyRange excludes its start, while sstableInBounds is inclusive (of both start and end).
+                        // This is fine however, because keyRange has been created from a token range through Range.makeRowRange (see above).
+                        // And that later method uses the Token.maxKeyBound() method to creates the range, which return a "fake" key that
+                        // sort after all keys having the token. That "fake" key cannot however be equal to any real key, so that even
+                        // including keyRange.left will still exclude any key having the token of the original token range, and so we're
+                        // still actually selecting what we wanted.
+                        for (SSTableReader sstable : view.sstablesInBounds(SSTableSet.CANONICAL, keyRange.left, keyRange.right))
                         {
+                            // sstableInBounds may contain early opened sstables
                             if (!isIncremental || !sstable.isRepaired())
                                 sstables.add(sstable);
                         }
