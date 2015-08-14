@@ -208,7 +208,7 @@ public class CommitLogStressTest
             for (CommitLogSync sync : CommitLogSync.values())
             {
                 DatabaseDescriptor.setCommitLogSync(sync);
-                CommitLog commitLog = new CommitLog(location, CommitLog.instance.archiver);
+                CommitLog commitLog = new CommitLog(location, CommitLogArchiver.disabled()).start();
                 testLog(commitLog);
             }
         }
@@ -273,7 +273,7 @@ public class CommitLogStressTest
 
         System.out.print("Stopped. Replaying... ");
         System.out.flush();
-        Replayer repl = new Replayer();
+        Replayer repl = new Replayer(commitLog);
         File[] files = new File(location).listFiles();
         repl.recover(files);
 
@@ -443,9 +443,9 @@ public class CommitLogStressTest
 
     class Replayer extends CommitLogReplayer
     {
-        Replayer()
+        Replayer(CommitLog log)
         {
-            super(discardedPos, null, ReplayFilter.create());
+            super(log, discardedPos, null, ReplayFilter.create());
         }
 
         int hash = 0;

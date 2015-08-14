@@ -121,15 +121,8 @@ public class CommitLogUpgradeTest
         }
 
         Hasher hasher = new Hasher();
-        CommitLogTestReplayer replayer = new CommitLogTestReplayer(hasher);
-        File[] files = new File(location).listFiles(new FilenameFilter()
-        {
-            @Override
-            public boolean accept(File dir, String name)
-            {
-                return name.endsWith(".log");
-            }
-        });
+        CommitLogTestReplayer replayer = new CommitLogTestReplayer(CommitLog.instance, hasher);
+        File[] files = new File(location).listFiles((file, name) -> name.endsWith(".log"));
         replayer.recover(files);
 
         Assert.assertEquals(cells, hasher.cells);

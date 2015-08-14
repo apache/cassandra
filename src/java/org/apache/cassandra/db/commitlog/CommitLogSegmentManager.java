@@ -34,6 +34,7 @@ import java.util.concurrent.LinkedBlockingQueue;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicLong;
 
+import com.google.common.annotations.VisibleForTesting;
 import com.google.common.collect.Iterables;
 import com.google.common.util.concurrent.*;
 
@@ -95,13 +96,14 @@ public class CommitLogSegmentManager
     private volatile boolean run = true;
     private final CommitLog commitLog;
 
+    @VisibleForTesting
     public CommitLogSegmentManager(final CommitLog commitLog)
     {
         this.commitLog = commitLog;
-        start();
     }
 
-    private void start()
+    @VisibleForTesting
+    public void start()
     {
         // The run loop for the manager thread
         Runnable runnable = new WrappedRunnable()
@@ -302,8 +304,7 @@ public class CommitLogSegmentManager
             if (cfs != null)
                 keyspaces.add(cfs.keyspace);
         }
-        for (Keyspace keyspace : keyspaces)
-            keyspace.writeOrder.awaitNewBarrier();
+        Keyspace.writeOrder.awaitNewBarrier();
 
         // flush and wait for all CFs that are dirty in segments up-to and including 'last'
         Future<?> future = flushDataFrom(segmentsToRecycle, true);
@@ -523,14 +524,6 @@ public class CommitLogSegmentManager
         {
             // segment file does not exist
         }
-    }
-
-    /**
-     * Starts CL, for testing purposes. DO NOT USE THIS OUTSIDE OF TESTS.
-     */
-    public void startUnsafe()
-    {
-        start();
     }
 
     /**

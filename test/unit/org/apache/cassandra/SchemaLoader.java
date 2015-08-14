@@ -464,7 +464,7 @@ public class SchemaLoader
         mkdirs();
         cleanup();
         mkdirs();
-        CommitLog.instance.startUnsafe();
+        CommitLog.instance.restartUnsafe();
     }
 
     public static void cleanup()
