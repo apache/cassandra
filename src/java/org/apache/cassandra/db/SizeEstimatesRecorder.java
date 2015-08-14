@@ -87,9 +87,10 @@ public class SizeEstimatesRecorder extends MigrationListener implements Runnable
     @SuppressWarnings("resource")
     private void recordSizeEstimates(ColumnFamilyStore table, Collection<Range<Token>> localRanges)
     {
+        List<Range<Token>> unwrappedRanges = Range.normalize(localRanges);
         // for each local primary range, estimate (crudely) mean partition size and partitions count.
         Map<Range<Token>, Pair<Long, Long>> estimates = new HashMap<>(localRanges.size());
-        for (Range<Token> range : localRanges)
+        for (Range<Token> range : unwrappedRanges)
         {
             // filter sstables that have partitions in this range.
             Refs<SSTableReader> refs = null;
