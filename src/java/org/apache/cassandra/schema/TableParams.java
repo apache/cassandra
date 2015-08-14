@@ -17,11 +17,14 @@
  */
 package org.apache.cassandra.schema;
 
+import java.nio.ByteBuffer;
+import java.util.Map;
+
 import com.google.common.base.MoreObjects;
 import com.google.common.base.Objects;
+import com.google.common.collect.ImmutableMap;
 
 import org.apache.cassandra.exceptions.ConfigurationException;
-
 import static java.lang.String.format;
 
 public final class TableParams
@@ -37,6 +40,7 @@ public final class TableParams
         COMPRESSION,
         DCLOCAL_READ_REPAIR_CHANCE,
         DEFAULT_TIME_TO_LIVE,
+        EXTENSIONS,
         GC_GRACE_SECONDS,
         MAX_INDEX_INTERVAL,
         MEMTABLE_FLUSH_PERIOD_IN_MS,
@@ -73,6 +77,7 @@ public final class TableParams
     public final CachingParams caching;
     public final CompactionParams compaction;
     public final CompressionParams compression;
+    public final ImmutableMap<String, ByteBuffer> extensions;
 
     private TableParams(Builder builder)
     {
@@ -91,6 +96,7 @@ public final class TableParams
         caching = builder.caching;
         compaction = builder.compaction;
         compression = builder.compression;
+        extensions = builder.extensions;
     }
 
     public static Builder builder()
@@ -112,7 +118,8 @@ public final class TableParams
                             .memtableFlushPeriodInMs(params.memtableFlushPeriodInMs)
                             .minIndexInterval(params.minIndexInterval)
                             .readRepairChance(params.readRepairChance)
-                            .speculativeRetry(params.speculativeRetry);
+                            .speculativeRetry(params.speculativeRetry)
+                            .extensions(params.extensions);
     }
 
     public void validate()
@@ -191,7 +198,8 @@ public final class TableParams
             && speculativeRetry.equals(p.speculativeRetry)
             && caching.equals(p.caching)
             && compaction.equals(p.compaction)
-            && compression.equals(p.compression);
+            && compression.equals(p.compression)
+            && extensions.equals(p.extensions);
     }
 
     @Override
@@ -209,7 +217,8 @@ public final class TableParams
                                 speculativeRetry,
                                 caching,
                                 compaction,
-                                compression);
+                                compression,
+                                extensions);
     }
 
     @Override
@@ -229,6 +238,7 @@ public final class TableParams
                           .add(Option.CACHING.toString(), caching)
                           .add(Option.COMPACTION.toString(), compaction)
                           .add(Option.COMPRESSION.toString(), compression)
+                          .add(Option.EXTENSIONS.toString(), extensions)
                           .toString();
     }
 
@@ -247,6 +257,7 @@ public final class TableParams
         private CachingParams caching = CachingParams.DEFAULT;
         private CompactionParams compaction = CompactionParams.DEFAULT;
         private CompressionParams compression = CompressionParams.DEFAULT;
+        private ImmutableMap<String, ByteBuffer> extensions = ImmutableMap.of();
 
         public Builder()
         {
@@ -332,6 +343,12 @@ public final class TableParams
         public Builder compression(CompressionParams val)
         {
             compression = val;
+            return this;
+        }
+
+        public Builder extensions(Map<String, ByteBuffer> val)
+        {
+            extensions = ImmutableMap.copyOf(val);
             return this;
         }
     }
