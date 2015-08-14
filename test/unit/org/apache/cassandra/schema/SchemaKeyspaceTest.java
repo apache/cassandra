@@ -18,18 +18,29 @@
  */
 package org.apache.cassandra.schema;
 
+import java.io.IOException;
+import java.nio.ByteBuffer;
 import java.util.ArrayList;
-import java.util.List;
+import java.util.Collections;
 import java.util.HashSet;
+import java.util.List;
+
+import com.google.common.collect.ImmutableMap;
+
+import org.junit.BeforeClass;
+import org.junit.Test;
 
 import org.apache.cassandra.SchemaLoader;
 import org.apache.cassandra.config.CFMetaData;
 import org.apache.cassandra.config.Schema;
-import org.apache.cassandra.db.*;
-import org.apache.cassandra.db.rows.UnfilteredRowIterators;
-import org.apache.cassandra.db.partitions.PartitionUpdate;
+import org.apache.cassandra.db.ColumnFamilyStore;
+import org.apache.cassandra.db.Keyspace;
+import org.apache.cassandra.db.Mutation;
+import org.apache.cassandra.db.SystemKeyspace;
 import org.apache.cassandra.db.marshal.AsciiType;
 import org.apache.cassandra.db.marshal.UTF8Type;
+import org.apache.cassandra.db.partitions.PartitionUpdate;
+import org.apache.cassandra.db.rows.UnfilteredRowIterators;
 import org.apache.cassandra.exceptions.ConfigurationException;
 import org.apache.cassandra.thrift.CfDef;
 import org.apache.cassandra.thrift.ColumnDef;
@@ -38,10 +49,8 @@ import org.apache.cassandra.thrift.ThriftConversion;
 import org.apache.cassandra.utils.ByteBufferUtil;
 import org.apache.cassandra.utils.FBUtilities;
 
-import org.junit.BeforeClass;
-import org.junit.Test;
-
 import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertTrue;
 
 public class SchemaKeyspaceTest
 {
@@ -126,6 +135,43 @@ public class SchemaKeyspaceTest
                 checkInverses(withCompression);
             }
         }
+    }
+
+    @Test
+    public void testExtensions() throws IOException
+    {
+        String keyspace = "SandBox";
+
+        createTable(keyspace, "CREATE TABLE test (a text primary key, b int, c int)");
+
+        CFMetaData metadata = Schema.instance.getCFMetaData(keyspace, "test");
+        assertTrue("extensions should be empty", metadata.params.extensions.isEmpty());
+
+        ImmutableMap<String, ByteBuffer> extensions = ImmutableMap.of("From ... with Love",
+                                                                      ByteBuffer.wrap(new byte[]{0, 0, 7}));
+
+        CFMetaData copy = metadata.copy().extensions(extensions);
+
+        updateTable(keyspace, metadata, copy);
+
+        metadata = Schema.instance.getCFMetaData(keyspace, "test");
+        assertEquals(extensions, metadata.params.extensions);
+    }
+
+    private static void updateTable(String keyspace, CFMetaData oldTable, CFMetaData newTable) throws IOException
+    {
+        KeyspaceMetadata ksm = Schema.instance.getKeyspaceInstance(keyspace).getMetadata();
+        Mutation mutation = SchemaKeyspace.makeUpdateTableMutation(ksm, oldTable, newTable, FBUtilities.timestampMicros(), false);
+        SchemaKeyspace.mergeSchema(Collections.singleton(mutation), true);
+    }
+
+    private static void createTable(String keyspace, String cql) throws IOException
+    {
+        CFMetaData table = CFMetaData.compile(cql, keyspace);
+
+        KeyspaceMetadata ksm = KeyspaceMetadata.create(keyspace, KeyspaceParams.simple(1), Tables.of(table));
+        Mutation mutation = SchemaKeyspace.makeCreateTableMutation(ksm, table, FBUtilities.timestampMicros());
+        SchemaKeyspace.mergeSchema(Collections.singleton(mutation), true);
     }
 
     private static void checkInverses(CFMetaData cfm) throws Exception

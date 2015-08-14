@@ -99,6 +99,7 @@ public final class SchemaKeyspace
                 + "compression map<text, text>,"
                 + "dclocal_read_repair_chance double,"
                 + "default_time_to_live int,"
+                + "extensions map<text, blob>,"
                 + "flags set<text>," // SUPER, COUNTER, DENSE, COMPOUND
                 + "gc_grace_seconds int,"
                 + "id uuid,"
@@ -852,7 +853,8 @@ public final class SchemaKeyspace
              .add("speculative_retry", params.speculativeRetry.toString())
              .map("caching", params.caching.asMap())
              .map("compaction", params.compaction.asMap())
-             .map("compression", params.compression.asMap());
+             .map("compression", params.compression.asMap())
+             .map("extensions", params.extensions);
     }
 
     public static Mutation makeUpdateTableMutation(KeyspaceMetadata keyspace,
@@ -1071,21 +1073,26 @@ public final class SchemaKeyspace
 
     private static TableParams createTableParamsFromRow(UntypedResultSet.Row row)
     {
-        return TableParams.builder()
-                          .bloomFilterFpChance(row.getDouble("bloom_filter_fp_chance"))
-                          .caching(CachingParams.fromMap(row.getTextMap("caching")))
-                          .comment(row.getString("comment"))
-                          .compaction(CompactionParams.fromMap(row.getTextMap("compaction")))
-                          .compression(CompressionParams.fromMap(row.getTextMap("compression")))
-                          .dcLocalReadRepairChance(row.getDouble("dclocal_read_repair_chance"))
-                          .defaultTimeToLive(row.getInt("default_time_to_live"))
-                          .gcGraceSeconds(row.getInt("gc_grace_seconds"))
-                          .maxIndexInterval(row.getInt("max_index_interval"))
-                          .memtableFlushPeriodInMs(row.getInt("memtable_flush_period_in_ms"))
-                          .minIndexInterval(row.getInt("min_index_interval"))
-                          .readRepairChance(row.getDouble("read_repair_chance"))
-                          .speculativeRetry(SpeculativeRetryParam.fromString(row.getString("speculative_retry")))
-                          .build();
+        TableParams.Builder builder = TableParams.builder();
+
+        builder.bloomFilterFpChance(row.getDouble("bloom_filter_fp_chance"))
+               .caching(CachingParams.fromMap(row.getTextMap("caching")))
+               .comment(row.getString("comment"))
+               .compaction(CompactionParams.fromMap(row.getTextMap("compaction")))
+               .compression(CompressionParams.fromMap(row.getTextMap("compression")))
+               .dcLocalReadRepairChance(row.getDouble("dclocal_read_repair_chance"))
+               .defaultTimeToLive(row.getInt("default_time_to_live"))
+               .gcGraceSeconds(row.getInt("gc_grace_seconds"))
+               .maxIndexInterval(row.getInt("max_index_interval"))
+               .memtableFlushPeriodInMs(row.getInt("memtable_flush_period_in_ms"))
+               .minIndexInterval(row.getInt("min_index_interval"))
+               .readRepairChance(row.getDouble("read_repair_chance"))
+               .speculativeRetry(SpeculativeRetryParam.fromString(row.getString("speculative_retry")));
+
+        if (row.has("extensions"))
+            builder.extensions(row.getMap("extensions", UTF8Type.instance, BytesType.instance));
+
+        return builder.build();
     }
 
     /*
