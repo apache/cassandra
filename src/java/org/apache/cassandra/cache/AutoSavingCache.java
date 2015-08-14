@@ -49,8 +49,8 @@ public class AutoSavingCache<K extends CacheKey, V> extends InstrumentingCache<K
 {
     public interface IStreamFactory
     {
-        public InputStream getInputStream(File dataPath, File crcPath) throws IOException;
-        public SequentialWriter getOutputWriter(File dataPath, File crcPath) throws FileNotFoundException;
+        InputStream getInputStream(File dataPath, File crcPath) throws IOException;
+        OutputStream getOutputStream(File dataPath, File crcPath) throws FileNotFoundException;
     }
 
     private static final Logger logger = LoggerFactory.getLogger(AutoSavingCache.class);
@@ -71,9 +71,9 @@ public class AutoSavingCache<K extends CacheKey, V> extends InstrumentingCache<K
             return ChecksummedRandomAccessReader.open(dataPath, crcPath);
         }
 
-        public SequentialWriter getOutputWriter(File dataPath, File crcPath)
+        public OutputStream getOutputStream(File dataPath, File crcPath)
         {
-            return SequentialWriter.open(dataPath, crcPath);
+            return SequentialWriter.open(dataPath, crcPath).finishOnClose();
         }
     };
 
@@ -254,8 +254,8 @@ public class AutoSavingCache<K extends CacheKey, V> extends InstrumentingCache<K
 
             long start = System.nanoTime();
 
-            HashMap<UUID, DataOutputPlus> dataOutputs = new HashMap<>();
-            HashMap<UUID, SequentialWriter> sequentialWriters = new HashMap<>();
+            HashMap<UUID, DataOutputPlus> writers = new HashMap<>();
+            HashMap<UUID, OutputStream> streams = new HashMap<>();
             HashMap<UUID, Pair<File, File>> paths = new HashMap<>();
 
             try
@@ -267,23 +267,23 @@ public class AutoSavingCache<K extends CacheKey, V> extends InstrumentingCache<K
                     if (!Schema.instance.hasCF(key.getCFId()))
                         continue; // the table has been dropped.
 
-                    DataOutputPlus writer = dataOutputs.get(cfId);
+                    DataOutputPlus writer = writers.get(cfId);
                     if (writer == null)
                     {
                         Pair<File, File> cacheFilePaths = tempCacheFiles(cfId);
-                        SequentialWriter sequentialWriter;
+                        OutputStream stream;
                         try
                         {
-                            sequentialWriter = streamFactory.getOutputWriter(cacheFilePaths.left, cacheFilePaths.right);
-                            writer = new WrappedDataOutputStreamPlus(sequentialWriter);
+                            stream = streamFactory.getOutputStream(cacheFilePaths.left, cacheFilePaths.right);
+                            writer = new WrappedDataOutputStreamPlus(stream);
                         }
                         catch (FileNotFoundException e)
                         {
                             throw new RuntimeException(e);
                         }
                         paths.put(cfId, cacheFilePaths);
-                        sequentialWriters.put(cfId, sequentialWriter);
-                        dataOutputs.put(cfId, writer);
+                        streams.put(cfId, stream);
+                        writers.put(cfId, writer);
                     }
 
                     try
@@ -312,14 +312,13 @@ public class AutoSavingCache<K extends CacheKey, V> extends InstrumentingCache<K
                         // not thrown (by OHC)
                     }
 
-                for (SequentialWriter writer : sequentialWriters.values())
+                for (OutputStream writer : streams.values())
                 {
-                    writer.finish();
                     FileUtils.closeQuietly(writer);
                 }
             }
 
-            for (Map.Entry<UUID, DataOutputPlus> entry : dataOutputs.entrySet())
+            for (Map.Entry<UUID, DataOutputPlus> entry : writers.entrySet())
             {
                 UUID cfId = entry.getKey();
 

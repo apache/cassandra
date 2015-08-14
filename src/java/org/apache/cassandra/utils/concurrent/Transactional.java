@@ -18,10 +18,6 @@
 */
 package org.apache.cassandra.utils.concurrent;
 
-import java.util.Set;
-
-import com.google.common.collect.ImmutableSet;
-
 import static org.apache.cassandra.utils.Throwables.maybeFail;
 import static org.apache.cassandra.utils.Throwables.merge;
 
@@ -49,6 +45,10 @@ import static org.apache.cassandra.utils.Throwables.merge;
  * of the system should be, and so simply logging the exception is likely best (since it may have been an issue
  * during cleanup, say), and rollback cannot now occur. As such all exceptions and assertions that may be thrown
  * should be checked and ruled out during commit preparation.
+ *
+ * Since Transactional implementations will abort any changes they've made if calls to prepareToCommit() and commit()
+ * aren't made prior to calling close(), the semantics of its close() method differ significantly from
+ * most AutoCloseable implementations.
  */
 public interface Transactional extends AutoCloseable
 {

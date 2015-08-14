@@ -72,6 +72,7 @@ public class SequentialWriter extends OutputStream implements WritableByteChanne
     protected Runnable runPostFlush;
 
     private final TransactionalProxy txnProxy = txnProxy();
+    private boolean finishOnClose;
     protected Descriptor descriptor;
 
     // due to lack of multiple-inheritance, we proxy our transactional implementation
@@ -165,6 +166,12 @@ public class SequentialWriter extends OutputStream implements WritableByteChanne
                                                   MetadataCollector sstableMetadataCollector)
     {
         return new CompressedSequentialWriter(new File(dataFilePath), offsetsPath, parameters, sstableMetadataCollector);
+    }
+
+    public SequentialWriter finishOnClose()
+    {
+        finishOnClose = true;
+        return this;
     }
 
     public void write(int value) throws ClosedChannelException
@@ -472,7 +479,10 @@ public class SequentialWriter extends OutputStream implements WritableByteChanne
     @Override
     public final void close()
     {
-        txnProxy.close();
+        if (finishOnClose)
+            txnProxy.finish();
+        else
+            txnProxy.close();
     }
 
     public final void finish()
