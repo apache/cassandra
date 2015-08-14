@@ -288,7 +288,6 @@ Function ParseJVMInfo
 #-----------------------------------------------------------------------------
 Function SetCassandraEnvironment
 {
-    echo "Setting up Cassandra environment"
     if (Test-Path Env:\JAVA_HOME)
     {
         $env:JAVA_BIN = "$env:JAVA_HOME\bin\java.exe"

@@ -194,7 +194,6 @@ Function PrintVersion()
 #-----------------------------------------------------------------------------
 Function RunCassandra([string]$foreground)
 {
-    echo "Starting cassandra server"
     $cmd = @"
 $env:JAVA_BIN
 "@
