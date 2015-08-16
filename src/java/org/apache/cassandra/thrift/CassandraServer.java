@@ -1118,7 +1118,7 @@ public class CassandraServer implements Cassandra.Iface
                 if (metadata.isCounter())
                     ThriftConversion.fromThrift(consistency_level).validateCounterForWrite(metadata);
 
-                MutableDeletionInfo delInfo = MutableDeletionInfo.live();
+                LegacyLayout.LegacyDeletionInfo delInfo = LegacyLayout.LegacyDeletionInfo.live();
                 List<LegacyLayout.LegacyCell> cells = new ArrayList<>();
                 for (Mutation m : muts)
                 {
@@ -1199,12 +1199,12 @@ public class CassandraServer implements Cassandra.Iface
         }
     }
 
-    private void addRange(CFMetaData cfm, MutableDeletionInfo delInfo, Slice.Bound start, Slice.Bound end, long timestamp, int nowInSec)
+    private void addRange(CFMetaData cfm, LegacyLayout.LegacyDeletionInfo delInfo, Slice.Bound start, Slice.Bound end, long timestamp, int nowInSec)
     {
-        delInfo.add(new RangeTombstone(Slice.make(start, end), new DeletionTime(timestamp, nowInSec)), cfm.comparator);
+        delInfo.add(cfm, new RangeTombstone(Slice.make(start, end), new DeletionTime(timestamp, nowInSec)));
     }
 
-    private void deleteColumnOrSuperColumn(MutableDeletionInfo delInfo, List<LegacyLayout.LegacyCell> cells, CFMetaData cfm, Deletion del, int nowInSec)
+    private void deleteColumnOrSuperColumn(LegacyLayout.LegacyDeletionInfo delInfo, List<LegacyLayout.LegacyCell> cells, CFMetaData cfm, Deletion del, int nowInSec)
     throws InvalidRequestException
     {
         if (del.predicate != null && del.predicate.column_names != null)
@@ -1230,12 +1230,9 @@ public class CassandraServer implements Cassandra.Iface
         {
             if (del.super_column == null)
             {
-                addRange(cfm,
-                         delInfo,
-                         LegacyLayout.decodeBound(cfm, del.predicate.getSlice_range().start, true).bound,
-                         LegacyLayout.decodeBound(cfm, del.predicate.getSlice_range().finish, false).bound,
-                         del.timestamp,
-                         nowInSec);
+                LegacyLayout.LegacyBound start = LegacyLayout.decodeBound(cfm, del.predicate.getSlice_range().start, true);
+                LegacyLayout.LegacyBound end = LegacyLayout.decodeBound(cfm, del.predicate.getSlice_range().finish, false);
+                delInfo.add(cfm, new LegacyLayout.LegacyRangeTombstone(start, end, new DeletionTime(del.timestamp, nowInSec)));
             }
             else
             {
