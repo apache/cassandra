@@ -180,8 +180,9 @@ public abstract class ColumnSubselection implements Comparable<ColumnSubselectio
                     Element eltSelection = (Element)subSel;
                     column.cellPathSerializer().serialize(eltSelection.element, out);
                     break;
+                default:
+                    throw new AssertionError();
             }
-            throw new AssertionError();
         }
 
         public ColumnSubselection deserialize(DataInputPlus in, int version, CFMetaData metadata) throws IOException

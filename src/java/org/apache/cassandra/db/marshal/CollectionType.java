@@ -127,7 +127,7 @@ public abstract class CollectionType<T> extends AbstractType<T>
     public void validateCellValue(ByteBuffer cellValue) throws MarshalException
     {
         if (isMultiCell())
-            valueComparator().validate(cellValue);
+            valueComparator().validateCellValue(cellValue);
         else
             super.validateCellValue(cellValue);
     }
