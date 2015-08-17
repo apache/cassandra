@@ -31,6 +31,7 @@ Merged from 2.1:
  * Cannot replace token does not exist - DN node removed as Fat Client (CASSANDRA-9871)
 Merged from 2.0:
  * Don't cast expected bf size to an int (CASSANDRA-9959)
+ * Make getFullyExpiredSSTables less expensive (CASSANDRA-9882)
 
 
 3.0.0-alpha1
