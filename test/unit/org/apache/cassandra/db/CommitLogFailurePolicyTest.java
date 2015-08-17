@@ -19,8 +19,6 @@
 
 package org.apache.cassandra.db;
 
-import java.io.File;
-
 import org.junit.Assert;
 import org.junit.BeforeClass;
 import org.junit.Test;
@@ -28,7 +26,6 @@ import org.apache.cassandra.SchemaLoader;
 import org.apache.cassandra.config.Config;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.db.commitlog.CommitLog;
-import org.apache.cassandra.db.commitlog.CommitLogSegmentManager;
 import org.apache.cassandra.exceptions.ConfigurationException;
 import org.apache.cassandra.gms.Gossiper;
 import org.apache.cassandra.service.CassandraDaemon;
@@ -38,7 +35,6 @@ import org.apache.cassandra.utils.KillerForTests;
 
 public class CommitLogFailurePolicyTest
 {
-
     @BeforeClass
     public static void defineSchema() throws ConfigurationException
     {
@@ -95,7 +91,7 @@ public class CommitLogFailurePolicyTest
     }
 
     @Test
-    public void testCommitFailurePolicy_mustDieIfNotStartedUp()
+    public void testCommitFailurePolicy_ignore_beforeStartup()
     {
         //startup was not completed successfuly (since method completeSetup() was not called)
         CassandraDaemon daemon = new CassandraDaemon();
@@ -106,9 +102,9 @@ public class CommitLogFailurePolicyTest
         Config.CommitFailurePolicy oldPolicy = DatabaseDescriptor.getCommitFailurePolicy();
         try
         {
+            DatabaseDescriptor.setCommitFailurePolicy(Config.CommitFailurePolicy.ignore);
+            CommitLog.handleCommitError("Testing ignore policy", new Throwable());
             //even though policy is ignore, JVM must die because Daemon has not finished initializing
-            DatabaseDescriptor.setCommitFailurePolicy(Config.CommitFailurePolicy.ignore);
-            CommitLog.handleCommitError("Testing die policy", new Throwable());
             Assert.assertTrue(killerForTests.wasKilled());
             Assert.assertTrue(killerForTests.wasKilledQuietly()); //killed quietly due to startup failure
         }
@@ -120,68 +116,19 @@ public class CommitLogFailurePolicyTest
     }
 
     @Test
-    public void testCommitLogFailureBeforeInitialization_mustKillJVM() throws Exception
+    public void testCommitFailurePolicy_ignore_afterStartup() throws Exception
     {
-        //startup was not completed successfuly (since method completeSetup() was not called)
-        CassandraDaemon daemon = new CassandraDaemon();
-        StorageService.instance.registerDaemon(daemon);
-
-        //let's make the commit log directory non-writable
-        File commitLogDir = new File(DatabaseDescriptor.getCommitLogLocation());
-        commitLogDir.setWritable(false);
-
-        KillerForTests killerForTests = new KillerForTests();
-        JVMStabilityInspector.Killer originalKiller = JVMStabilityInspector.replaceKiller(killerForTests);
-        Config.CommitFailurePolicy oldPolicy = DatabaseDescriptor.getCommitFailurePolicy();
-        try
-        {
-            DatabaseDescriptor.setCommitFailurePolicy(Config.CommitFailurePolicy.ignore);
-
-            //now let's create a commit log segment manager and wait for it to fail
-            new CommitLogSegmentManager(CommitLog.instance);
-
-            //busy wait since commitlogsegmentmanager spawns another thread
-            int retries = 0;
-            while (!killerForTests.wasKilled() && retries++ < 5)
-                Thread.sleep(10);
-
-            //since failure was before CassandraDaemon startup, the JVM must be killed
-            Assert.assertTrue(killerForTests.wasKilled());
-            Assert.assertTrue(killerForTests.wasKilledQuietly()); //killed quietly due to startup failure
-        }
-        finally
-        {
-            DatabaseDescriptor.setCommitFailurePolicy(oldPolicy);
-            JVMStabilityInspector.replaceKiller(originalKiller);
-            commitLogDir.setWritable(true);
-        }
-    }
-
-    @Test
-    public void testCommitLogFailureAfterInitialization_mustRespectFailurePolicy() throws Exception
-    {
-        //startup was not completed successfuly (since method completeSetup() was not called)
         CassandraDaemon daemon = new CassandraDaemon();
         daemon.completeSetup(); //startup must be completed, otherwise commit log failure must kill JVM regardless of failure policy
         StorageService.instance.registerDaemon(daemon);
 
-        //let's make the commit log directory non-writable
-        File commitLogDir = new File(DatabaseDescriptor.getCommitLogLocation());
-        commitLogDir.setWritable(false);
-
         KillerForTests killerForTests = new KillerForTests();
         JVMStabilityInspector.Killer originalKiller = JVMStabilityInspector.replaceKiller(killerForTests);
         Config.CommitFailurePolicy oldPolicy = DatabaseDescriptor.getCommitFailurePolicy();
         try
         {
             DatabaseDescriptor.setCommitFailurePolicy(Config.CommitFailurePolicy.ignore);
-
-            //now let's create a commit log segment manager and wait for it to fail
-            new CommitLogSegmentManager(CommitLog.instance);
-
-            //wait commit log segment manager thread to execute
-            Thread.sleep(50);
-
+            CommitLog.handleCommitError("Testing ignore policy", new Throwable());
             //error policy is set to IGNORE, so JVM must not be killed if error ocurs after startup
             Assert.assertFalse(killerForTests.wasKilled());
         }
@@ -189,7 +136,6 @@ public class CommitLogFailurePolicyTest
         {
             DatabaseDescriptor.setCommitFailurePolicy(oldPolicy);
             JVMStabilityInspector.replaceKiller(originalKiller);
-            commitLogDir.setWritable(true);
         }
     }
 }
