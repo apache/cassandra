@@ -140,6 +140,11 @@ public class BigFormat implements SSTableFormat
          */
         private final boolean hasOldBfHashOrder;
 
+        /**
+         * CASSANDRA-7066: compaction ancerstors are no longer used and have been removed.
+         */
+        private final boolean hasCompactionAncestors;
+
         BigVersion(String version)
         {
             super(instance, version);
@@ -166,6 +171,7 @@ public class BigFormat implements SSTableFormat
             newFileName = version.compareTo("la") >= 0;
 
             hasOldBfHashOrder = version.compareTo("ma") < 0;
+            hasCompactionAncestors = version.compareTo("ma") < 0;
             storeRows = version.compareTo("ma") >= 0;
             correspondingMessagingVersion = storeRows
                                           ? MessagingService.VERSION_30
@@ -218,6 +224,12 @@ public class BigFormat implements SSTableFormat
         public boolean hasOldBfHashOrder()
         {
             return hasOldBfHashOrder;
+        }
+
+        @Override
+        public boolean hasCompactionAncestors()
+        {
+            return hasCompactionAncestors;
         }
 
         @Override

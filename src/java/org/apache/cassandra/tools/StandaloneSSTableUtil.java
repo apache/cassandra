@@ -26,17 +26,20 @@ import org.apache.cassandra.utils.OutputHandler;
 import org.apache.commons.cli.*;
 
 import java.io.File;
+import java.io.IOException;
+import java.util.function.BiFunction;
 
 import static org.apache.cassandra.tools.BulkLoader.CmdLineOptions;
 
-public class StandaloneLister
+public class StandaloneSSTableUtil
 {
-    private static final String TOOL_NAME = "sstablelister";
+    private static final String TOOL_NAME = "sstableutil";
     private static final String TYPE_OPTION  = "type";
     private static final String OP_LOG_OPTION  = "oplog";
     private static final String VERBOSE_OPTION  = "verbose";
     private static final String DEBUG_OPTION  = "debug";
     private static final String HELP_OPTION  = "help";
+    private static final String CLEANUP_OPTION = "cleanup";
 
     public static void main(String args[])
     {
@@ -54,23 +57,15 @@ public class StandaloneLister
 
             OutputHandler handler = new OutputHandler.SystemOutput(options.verbose, options.debug);
 
-            Directories directories = new Directories(metadata);
-            Directories.SSTableLister lister = directories.sstableLister();
-
-            if (options.type == Options.FileType.FINAL)
-                lister.skipTemporary(true);
-            else if (options.type == Options.FileType.TMP)
-                lister.onlyTemporary(true);
-
-            for (File file : lister.listFiles())
-               handler.output(file.getCanonicalPath());
-
-            if (options.oplogs)
+            if (options.cleanup)
             {
-                for (File file : LifecycleTransaction.getLogFiles(metadata))
-                {
-                    handler.output(file.getCanonicalPath());
-                }
+                handler.output("Cleanuping up...");
+                LifecycleTransaction.removeUnfinishedLeftovers(metadata);
+            }
+            else
+            {
+                handler.output("Listing files...");
+                listFiles(options, metadata, handler);
             }
 
             System.exit(0);
@@ -82,6 +77,35 @@ public class StandaloneLister
                 e.printStackTrace(System.err);
             System.exit(1);
         }
+    }
+
+    private static void listFiles(Options options, CFMetaData metadata, OutputHandler handler) throws IOException
+    {
+        Directories directories = new Directories(metadata);
+
+        for (File dir : directories.getCFDirectories())
+        {
+            for (File file : LifecycleTransaction.getFiles(dir.toPath(), getFilter(options), Directories.OnTxnErr.THROW))
+                handler.output(file.getCanonicalPath());
+        }
+    }
+
+    private static BiFunction<File, Directories.FileType, Boolean> getFilter(Options options)
+    {
+        return (file, type) ->
+        {
+            switch(type)
+            {
+                case FINAL:
+                    return options.type != Options.FileType.TMP;
+                case TEMPORARY:
+                    return options.type != Options.FileType.FINAL;
+                case TXN_LOG:
+                    return options.oplogs;
+                default:
+                    throw new AssertionError();
+            }
+        };
     }
 
     private static class Options
@@ -131,6 +155,7 @@ public class StandaloneLister
         public boolean debug;
         public boolean verbose;
         public boolean oplogs;
+        public boolean cleanup;
         public FileType type;
 
         private Options(String keyspaceName, String cfName)
@@ -171,6 +196,7 @@ public class StandaloneLister
                 opts.verbose = cmd.hasOption(VERBOSE_OPTION);
                 opts.type = FileType.fromOption(cmd.getOptionValue(TYPE_OPTION));
                 opts.oplogs = cmd.hasOption(OP_LOG_OPTION);
+                opts.cleanup = cmd.hasOption(CLEANUP_OPTION);
 
                 return opts;
             }
@@ -191,6 +217,7 @@ public class StandaloneLister
         private static CmdLineOptions getCmdLineOptions()
         {
             CmdLineOptions options = new CmdLineOptions();
+            options.addOption("c", CLEANUP_OPTION, "clean-up any outstanding transactions");
             options.addOption("d", DEBUG_OPTION, "display stack traces");
             options.addOption("h", HELP_OPTION, "display this help message");
             options.addOption("o", OP_LOG_OPTION, "include operation logs");

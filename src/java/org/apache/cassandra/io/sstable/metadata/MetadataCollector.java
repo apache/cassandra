@@ -94,7 +94,6 @@ public class MetadataCollector implements PartitionStatisticsCollector
     protected final MinMaxIntTracker localDeletionTimeTracker = new MinMaxIntTracker(Cell.NO_DELETION_TIME, Cell.NO_DELETION_TIME);
     protected final MinMaxIntTracker ttlTracker = new MinMaxIntTracker(Cell.NO_TTL, Cell.NO_TTL);
     protected double compressionRatio = NO_COMPRESSION_RATIO;
-    protected Set<Integer> ancestors = new HashSet<>();
     protected StreamingHistogram estimatedTombstoneDropTime = defaultTombstoneDropTimeHistogram();
     protected int sstableLevel;
     protected ByteBuffer[] minClusteringValues;
@@ -120,29 +119,12 @@ public class MetadataCollector implements PartitionStatisticsCollector
         this.maxClusteringValues = new ByteBuffer[comparator.size()];
     }
 
-    public MetadataCollector(Iterable<SSTableReader> sstables, ClusteringComparator comparator, int level, boolean skipAncestors)
+    public MetadataCollector(Iterable<SSTableReader> sstables, ClusteringComparator comparator, int level)
     {
         this(comparator);
 
         replayPosition(ReplayPosition.getReplayPosition(sstables));
         sstableLevel(level);
-        // Get the max timestamp of the precompacted sstables
-        // and adds generation of live ancestors
-        if (!skipAncestors)
-        {
-            for (SSTableReader sstable : sstables)
-            {
-                addAncestor(sstable.descriptor.generation);
-                for (Integer i : sstable.getAncestors())
-                    if (new File(sstable.descriptor.withGeneration(i).filenameFor(Component.DATA)).exists())
-                        addAncestor(i);
-            }
-        }
-    }
-
-    public MetadataCollector(Iterable<SSTableReader> sstables, ClusteringComparator comparator, int level)
-    {
-        this(sstables, comparator, level, false);
     }
 
     public MetadataCollector addKey(ByteBuffer key)
@@ -237,12 +219,6 @@ public class MetadataCollector implements PartitionStatisticsCollector
         return this;
     }
 
-    public MetadataCollector addAncestor(int generation)
-    {
-        this.ancestors.add(generation);
-        return this;
-    }
-
     public MetadataCollector sstableLevel(int sstableLevel)
     {
         this.sstableLevel = sstableLevel;
@@ -313,7 +289,7 @@ public class MetadataCollector implements PartitionStatisticsCollector
                                                              repairedAt,
                                                              totalColumnsSet,
                                                              totalRows));
-        components.put(MetadataType.COMPACTION, new CompactionMetadata(ancestors, cardinality));
+        components.put(MetadataType.COMPACTION, new CompactionMetadata(cardinality));
         components.put(MetadataType.HEADER, header.toComponent());
         return components;
     }

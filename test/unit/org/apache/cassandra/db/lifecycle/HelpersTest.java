@@ -32,14 +32,9 @@ import org.junit.Test;
 
 import junit.framework.Assert;
 import org.apache.cassandra.MockSchema;
-import org.apache.cassandra.Util;
 import org.apache.cassandra.db.ColumnFamilyStore;
 import org.apache.cassandra.db.compaction.OperationType;
-import org.apache.cassandra.io.sstable.Descriptor;
 import org.apache.cassandra.io.sstable.format.SSTableReader;
-import org.apache.cassandra.io.sstable.format.big.BigTableReader;
-import org.apache.cassandra.utils.Pair;
-import org.apache.cassandra.utils.concurrent.Refs;
 
 import static junit.framework.Assert.assertEquals;
 import static junit.framework.Assert.assertNotNull;
@@ -164,10 +159,10 @@ public class HelpersTest
     public void testMarkObsolete()
     {
         ColumnFamilyStore cfs = MockSchema.newCFS();
-        TransactionLogs txnLogs = new TransactionLogs(OperationType.UNKNOWN, cfs.metadata);
+        TransactionLog txnLogs = new TransactionLog(OperationType.UNKNOWN, cfs.metadata);
         Iterable<SSTableReader> readers = Lists.newArrayList(MockSchema.sstable(1, cfs), MockSchema.sstable(2, cfs));
 
-        List<TransactionLogs.Obsoletion> obsoletions = new ArrayList<>();
+        List<TransactionLog.Obsoletion> obsoletions = new ArrayList<>();
         Assert.assertNull(Helpers.prepareForObsoletion(readers, txnLogs, obsoletions, null));
         assertNotNull(obsoletions);
         assertEquals(2, obsoletions.size());

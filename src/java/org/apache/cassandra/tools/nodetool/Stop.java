@@ -36,7 +36,7 @@ public class Stop extends NodeToolCmd
 
     @Option(title = "compactionId",
            name = {"-id", "--compaction-id"},
-           description = "Use -id to stop a compaction by the specified id. Ids can be found in the system.compactions_in_progress table.",
+           description = "Use -id to stop a compaction by the specified id. Ids can be found in the transaction log files whose name starts with compaction_, located in the table transactions folder.",
            required = false)
     private String compactionId = "";
 

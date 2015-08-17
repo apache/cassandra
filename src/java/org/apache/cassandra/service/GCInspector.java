@@ -39,7 +39,7 @@ import org.slf4j.LoggerFactory;
 import com.sun.management.GarbageCollectionNotificationInfo;
 import com.sun.management.GcInfo;
 
-import org.apache.cassandra.db.lifecycle.TransactionLogs;
+import org.apache.cassandra.db.lifecycle.TransactionLog;
 import org.apache.cassandra.utils.StatusLogger;
 
 public class GCInspector implements NotificationListener, GCInspectorMXBean
@@ -284,7 +284,7 @@ public class GCInspector implements NotificationListener, GCInspectorMXBean
 
             // if we just finished an old gen collection and we're still using a lot of memory, try to reduce the pressure
             if (gcState.assumeGCIsOldGen)
-                TransactionLogs.rescheduleFailedDeletions();
+                TransactionLog.rescheduleFailedDeletions();
         }
     }
 

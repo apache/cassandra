@@ -45,7 +45,6 @@ public class MajorLeveledCompactionWriter extends CompactionAwareWriter
     private long partitionsWritten = 0;
     private long totalWrittenInLevel = 0;
     private int sstablesWritten = 0;
-    private final boolean skipAncestors;
 
     public MajorLeveledCompactionWriter(ColumnFamilyStore cfs,
                                         LifecycleTransaction txn,
@@ -70,17 +69,13 @@ public class MajorLeveledCompactionWriter extends CompactionAwareWriter
         long estimatedSSTables = Math.max(1, SSTableReader.getTotalBytes(nonExpiredSSTables) / maxSSTableSize);
         long keysPerSSTable = estimatedTotalKeys / estimatedSSTables;
         File sstableDirectory = cfs.directories.getLocationForDisk(getWriteDirectory(expectedWriteSize));
-        skipAncestors = estimatedSSTables * allSSTables.size() > 200000; // magic number, avoid storing too much ancestor information since allSSTables are ancestors to *all* resulting sstables
-
-        if (skipAncestors)
-            logger.warn("Many sstables involved in compaction, skipping storing ancestor information to avoid running out of memory");
 
         @SuppressWarnings("resource")
         SSTableWriter writer = SSTableWriter.create(Descriptor.fromFilename(cfs.getSSTablePath(sstableDirectory)),
                                                     keysPerSSTable,
                                                     minRepairedAt,
                                                     cfs.metadata,
-                                                    new MetadataCollector(allSSTables, cfs.metadata.comparator, currentLevel, skipAncestors),
+                                                    new MetadataCollector(allSSTables, cfs.metadata.comparator, currentLevel),
                                                     SerializationHeader.make(cfs.metadata, nonExpiredSSTables),
                                                     txn);
         sstableWriter.switchWriter(writer);
@@ -108,7 +103,7 @@ public class MajorLeveledCompactionWriter extends CompactionAwareWriter
                                                         averageEstimatedKeysPerSSTable,
                                                         minRepairedAt,
                                                         cfs.metadata,
-                                                        new MetadataCollector(allSSTables, cfs.metadata.comparator, currentLevel, skipAncestors),
+                                                        new MetadataCollector(allSSTables, cfs.metadata.comparator, currentLevel),
                                                         SerializationHeader.make(cfs.metadata, nonExpiredSSTables),
                                                         txn);
             sstableWriter.switchWriter(writer);

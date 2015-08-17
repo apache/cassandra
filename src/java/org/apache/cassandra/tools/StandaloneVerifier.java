@@ -69,7 +69,7 @@ public class StandaloneVerifier
             ColumnFamilyStore cfs = keyspace.getColumnFamilyStore(options.cfName);
 
             OutputHandler handler = new OutputHandler.SystemOutput(options.verbose, options.debug);
-            Directories.SSTableLister lister = cfs.directories.sstableLister().skipTemporary(true);
+            Directories.SSTableLister lister = cfs.directories.sstableLister(Directories.OnTxnErr.THROW).skipTemporary(true);
 
             boolean extended = options.extended;
 

@@ -50,6 +50,6 @@ fi
 "$JAVA" $JAVA_AGENT -ea -cp "$CLASSPATH" $JVM_OPTS -Xmx$MAX_HEAP_SIZE \
         -Dcassandra.storagedir="$cassandra_storagedir" \
         -Dlogback.configurationFile=logback-tools.xml \
-        org.apache.cassandra.tools.StandaloneLister "$@"
+        org.apache.cassandra.tools.StandaloneSSTableUtil "$@"
 
 # vi:ai sw=4 ts=4 tw=0 et

@@ -237,8 +237,7 @@ public class StartupChecks
                 {
                     String name = dir.getFileName().toString();
                     return (name.equals(Directories.SNAPSHOT_SUBDIR)
-                            || name.equals(Directories.BACKUPS_SUBDIR)
-                            || name.equals(Directories.TRANSACTIONS_SUBDIR))
+                            || name.equals(Directories.BACKUPS_SUBDIR))
                            ? FileVisitResult.SKIP_SUBTREE
                            : FileVisitResult.CONTINUE;
                 }

@@ -616,11 +616,6 @@ public class FileUtils
         {
             return Files.readAllLines(file.toPath(), Charset.forName("utf-8"));
         }
-        catch (NoSuchFileException ex)
-        {
-            logger.warn("Tried to read non existing file: {}", file);
-            return Collections.emptyList();
-        }
         catch (IOException ex)
         {
             throw new RuntimeException(ex);

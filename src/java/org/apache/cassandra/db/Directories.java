@@ -31,6 +31,7 @@ import java.nio.file.attribute.BasicFileAttributes;
 import java.util.*;
 import java.util.concurrent.ThreadLocalRandom;
 import java.util.concurrent.atomic.AtomicLong;
+import java.util.function.BiFunction;
 
 import com.google.common.annotations.VisibleForTesting;
 import com.google.common.base.Predicate;
@@ -92,7 +93,6 @@ public class Directories
 
     public static final String BACKUPS_SUBDIR = "backups";
     public static final String SNAPSHOT_SUBDIR = "snapshots";
-    public static final String TRANSACTIONS_SUBDIR = "transactions";
     public static final String SECONDARY_INDEX_NAME_SEPARATOR = ".";
 
     public static final DataDirectory[] dataDirectories;
@@ -142,7 +142,7 @@ public class Directories
     {
         X, W, XW, R, XR, RW, XRW;
 
-        private FileAction()
+        FileAction()
         {
         }
 
@@ -468,40 +468,6 @@ public class Directories
         }
     }
 
-    public static File getTransactionsDirectory(File folder)
-    {
-        return getOrCreate(folder, TRANSACTIONS_SUBDIR);
-    }
-
-    public List<File> getExistingDirectories(String subFolder)
-    {
-        List<File> ret = new ArrayList<>();
-        for (File dir : dataPaths)
-        {
-            File subDir = getExistingDirectory(dir, subFolder);
-            if (subDir != null)
-                ret.add(subDir);
-
-        }
-        return ret;
-    }
-
-    public static File getExistingDirectory(File folder, String subFolder)
-    {
-        File subDir = new File(folder, join(subFolder));
-        if (subDir.exists())
-        {
-            assert(subDir.isDirectory());
-            return subDir;
-        }
-        return null;
-    }
-
-    public SSTableLister sstableLister()
-    {
-        return new SSTableLister();
-    }
-
     public static class DataDirectory
     {
         public final File location;
@@ -549,10 +515,42 @@ public class Directories
         }
     }
 
+    /** The type of files that can be listed by SSTableLister, we never return txn logs,
+     * use LifecycleTransaction.getFiles() if you need txn logs. */
+    public enum FileType
+    {
+        /** A permanent sstable file that is safe to use. */
+        FINAL,
+
+        /** A temporary sstable file that will soon be deleted. */
+        TEMPORARY,
+
+        /** A transaction log file (contains information on final and temporary files). */
+        TXN_LOG
+    }
+
+    /**
+     * How to handle a failure to read a txn log file. Note that we will try a few
+     * times before giving up.
+     **/
+    public enum OnTxnErr
+    {
+        /** Throw the exception */
+        THROW,
+
+        /** Ignore the txn log file */
+        IGNORE
+    }
+
+    public SSTableLister sstableLister(OnTxnErr onTxnErr)
+    {
+        return new SSTableLister(onTxnErr);
+    }
+
     public class SSTableLister
     {
+        private final OnTxnErr onTxnErr;
         private boolean skipTemporary;
-        private boolean onlyTemporary;
         private boolean includeBackups;
         private boolean onlyBackups;
         private int nbFiles;
@@ -560,19 +558,16 @@ public class Directories
         private boolean filtered;
         private String snapshotName;
 
+        private SSTableLister(OnTxnErr onTxnErr)
+        {
+            this.onTxnErr = onTxnErr;
+        }
+
         public SSTableLister skipTemporary(boolean b)
         {
             if (filtered)
                 throw new IllegalStateException("list() has already been called");
             skipTemporary = b;
-            return this;
-        }
-
-        public SSTableLister onlyTemporary(boolean b)
-        {
-            if (filtered)
-                throw new IllegalStateException("list() has already been called");
-            onlyTemporary = b;
             return this;
         }
 
@@ -633,56 +628,54 @@ public class Directories
 
                 if (snapshotName != null)
                 {
-                    getSnapshotDirectory(location, snapshotName).listFiles(getFilter(location));
+                    LifecycleTransaction.getFiles(getSnapshotDirectory(location, snapshotName).toPath(), getFilter(), onTxnErr);
                     continue;
                 }
 
                 if (!onlyBackups)
-                    location.listFiles(getFilter(location));
+                    LifecycleTransaction.getFiles(location.toPath(), getFilter(), onTxnErr);
 
                 if (includeBackups)
-                    getBackupsDirectory(location).listFiles(getFilter(location));
+                    LifecycleTransaction.getFiles(getBackupsDirectory(location).toPath(), getFilter(), onTxnErr);
             }
+
             filtered = true;
         }
 
-        private FileFilter getFilter(File location)
+        private BiFunction<File, FileType, Boolean> getFilter()
         {
-           final Set<File> temporaryFiles = skipTemporary || onlyTemporary
-                                            ? LifecycleTransaction.getTemporaryFiles(metadata, location)
-                                            : Collections.<File>emptySet();
-
-            return new FileFilter()
+            // This function always return false since it adds to the components map
+            return (file, type) ->
             {
-                // This function always return false since accepts adds to the components map
-                public boolean accept(File file)
+                switch (type)
                 {
-                    if (file.isDirectory())
+                    case TXN_LOG:
+                        return false;
+                    case TEMPORARY:
+                        if (skipTemporary)
+                            return false;
+
+                    case FINAL:
+                        Pair<Descriptor, Component> pair = SSTable.tryComponentFromFilename(file.getParentFile(), file.getName());
+                        if (pair == null)
+                            return false;
+
+                        // we are only interested in the SSTable files that belong to the specific ColumnFamily
+                        if (!pair.left.ksname.equals(metadata.ksName) || !pair.left.cfname.equals(metadata.cfName))
+                            return false;
+
+                        Set<Component> previous = components.get(pair.left);
+                        if (previous == null)
+                        {
+                            previous = new HashSet<>();
+                            components.put(pair.left, previous);
+                        }
+                        previous.add(pair.right);
+                        nbFiles++;
                         return false;
 
-                    Pair<Descriptor, Component> pair = SSTable.tryComponentFromFilename(file.getParentFile(), file.getName());
-                    if (pair == null)
-                        return false;
-
-                    // we are only interested in the SSTable files that belong to the specific ColumnFamily
-                    if (!pair.left.ksname.equals(metadata.ksName) || !pair.left.cfname.equals(metadata.cfName))
-                        return false;
-
-                    if (skipTemporary && temporaryFiles.contains(file))
-                        return false;
-
-                    if (onlyTemporary && !temporaryFiles.contains(file))
-                        return false;
-
-                    Set<Component> previous = components.get(pair.left);
-                    if (previous == null)
-                    {
-                        previous = new HashSet<>();
-                        components.put(pair.left, previous);
-                    }
-                    previous.add(pair.right);
-                    nbFiles++;
-                    return false;
+                    default:
+                        throw new AssertionError();
                 }
             };
         }
@@ -917,7 +910,7 @@ public class Directories
         {
             super();
             Builder<String> builder = ImmutableSet.builder();
-            for (File file : sstableLister().listFiles())
+            for (File file : sstableLister(Directories.OnTxnErr.THROW).listFiles())
                 builder.add(file.getName());
             alive = builder.build();
         }

@@ -23,7 +23,6 @@ import java.util.concurrent.Callable;
 import java.util.concurrent.Executors;
 import java.util.concurrent.Future;
 
-import com.google.common.collect.Lists;
 import org.apache.commons.lang3.StringUtils;
 
 import org.junit.AfterClass;
@@ -236,7 +235,7 @@ public class DirectoriesTest
             Set<File> listed;
 
             // List all but no snapshot, backup
-            lister = directories.sstableLister();
+            lister = directories.sstableLister(Directories.OnTxnErr.THROW);
             listed = new HashSet<>(lister.listFiles());
             for (File f : files.get(cfm.cfName))
             {
@@ -247,7 +246,7 @@ public class DirectoriesTest
             }
 
             // List all but including backup (but no snapshot)
-            lister = directories.sstableLister().includeBackups(true);
+            lister = directories.sstableLister(Directories.OnTxnErr.THROW).includeBackups(true);
             listed = new HashSet<>(lister.listFiles());
             for (File f : files.get(cfm.cfName))
             {
@@ -258,7 +257,7 @@ public class DirectoriesTest
             }
 
             // Skip temporary and compacted
-            lister = directories.sstableLister().skipTemporary(true);
+            lister = directories.sstableLister(Directories.OnTxnErr.THROW).skipTemporary(true);
             listed = new HashSet<>(lister.listFiles());
             for (File f : files.get(cfm.cfName))
             {

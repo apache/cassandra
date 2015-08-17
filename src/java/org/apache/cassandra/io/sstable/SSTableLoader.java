@@ -18,7 +18,6 @@
 package org.apache.cassandra.io.sstable;
 
 import java.io.File;
-import java.io.FilenameFilter;
 import java.io.IOException;
 import java.net.InetAddress;
 import java.util.*;
@@ -27,16 +26,13 @@ import com.google.common.collect.HashMultimap;
 import com.google.common.collect.Multimap;
 
 import org.apache.cassandra.config.CFMetaData;
-import org.apache.cassandra.config.DatabaseDescriptor;
+import org.apache.cassandra.db.Directories;
 import org.apache.cassandra.db.lifecycle.LifecycleTransaction;
-import org.apache.cassandra.dht.IPartitioner;
 import org.apache.cassandra.dht.Range;
 import org.apache.cassandra.dht.Token;
-import org.apache.cassandra.exceptions.ConfigurationException;
 import org.apache.cassandra.io.sstable.format.SSTableReader;
 import org.apache.cassandra.service.ActiveRepairService;
 import org.apache.cassandra.streaming.*;
-import org.apache.cassandra.utils.FBUtilities;
 import org.apache.cassandra.utils.OutputHandler;
 import org.apache.cassandra.utils.Pair;
 
@@ -77,89 +73,79 @@ public class SSTableLoader implements StreamEventHandler
     {
         outputHandler.output("Opening sstables and calculating sections to stream");
 
-        directory.list(new FilenameFilter()
-        {
-            final Map<File, Set<File>> allTemporaryFiles = new HashMap<>();
-            public boolean accept(File dir, String name)
-            {
-                File file = new File(dir, name);
+        LifecycleTransaction.getFiles(directory.toPath(),
+                                      (file, type) ->
+                                      {
+                                          File dir = file.getParentFile();
+                                          String name = file.getName();
 
-                if (file.isDirectory())
-                    return false;
+                                          if (type != Directories.FileType.FINAL)
+                                          {
+                                              outputHandler.output(String.format("Skipping temporary file %s", name));
+                                              return false;
+                                          }
 
-                Pair<Descriptor, Component> p = SSTable.tryComponentFromFilename(dir, name);
-                Descriptor desc = p == null ? null : p.left;
-                if (p == null || !p.right.equals(Component.DATA))
-                    return false;
+                                          Pair<Descriptor, Component> p = SSTable.tryComponentFromFilename(dir, name);
+                                          Descriptor desc = p == null ? null : p.left;
+                                          if (p == null || !p.right.equals(Component.DATA))
+                                              return false;
 
-                if (!new File(desc.filenameFor(Component.PRIMARY_INDEX)).exists())
-                {
-                    outputHandler.output(String.format("Skipping file %s because index is missing", name));
-                    return false;
-                }
+                                          if (!new File(desc.filenameFor(Component.PRIMARY_INDEX)).exists())
+                                          {
+                                              outputHandler.output(String.format("Skipping file %s because index is missing", name));
+                                              return false;
+                                          }
 
-                CFMetaData metadata = client.getTableMetadata(desc.cfname);
-                if (metadata == null)
-                {
-                    outputHandler.output(String.format("Skipping file %s: table %s.%s doesn't exist", name, keyspace, desc.cfname));
-                    return false;
-                }
+                                          CFMetaData metadata = client.getTableMetadata(desc.cfname);
+                                          if (metadata == null)
+                                          {
+                                              outputHandler.output(String.format("Skipping file %s: table %s.%s doesn't exist", name, keyspace, desc.cfname));
+                                              return false;
+                                          }
 
-                Set<File> temporaryFiles = allTemporaryFiles.get(dir);
-                if (temporaryFiles == null)
-                {
-                    temporaryFiles = LifecycleTransaction.getTemporaryFiles(metadata, dir);
-                    allTemporaryFiles.put(dir, temporaryFiles);
-                }
+                                          Set<Component> components = new HashSet<>();
+                                          components.add(Component.DATA);
+                                          components.add(Component.PRIMARY_INDEX);
+                                          if (new File(desc.filenameFor(Component.SUMMARY)).exists())
+                                              components.add(Component.SUMMARY);
+                                          if (new File(desc.filenameFor(Component.COMPRESSION_INFO)).exists())
+                                              components.add(Component.COMPRESSION_INFO);
+                                          if (new File(desc.filenameFor(Component.STATS)).exists())
+                                              components.add(Component.STATS);
 
-                if (temporaryFiles.contains(file))
-                {
-                    outputHandler.output(String.format("Skipping temporary file %s", name));
-                    return false;
-                }
+                                          try
+                                          {
+                                              // To conserve memory, open SSTableReaders without bloom filters and discard
+                                              // the index summary after calculating the file sections to stream and the estimated
+                                              // number of keys for each endpoint. See CASSANDRA-5555 for details.
+                                              SSTableReader sstable = SSTableReader.openForBatch(desc, components, metadata);
+                                              sstables.add(sstable);
 
-                Set<Component> components = new HashSet<>();
-                components.add(Component.DATA);
-                components.add(Component.PRIMARY_INDEX);
-                if (new File(desc.filenameFor(Component.SUMMARY)).exists())
-                    components.add(Component.SUMMARY);
-                if (new File(desc.filenameFor(Component.COMPRESSION_INFO)).exists())
-                    components.add(Component.COMPRESSION_INFO);
-                if (new File(desc.filenameFor(Component.STATS)).exists())
-                    components.add(Component.STATS);
+                                              // calculate the sstable sections to stream as well as the estimated number of
+                                              // keys per host
+                                              for (Map.Entry<InetAddress, Collection<Range<Token>>> entry : ranges.entrySet())
+                                              {
+                                                  InetAddress endpoint = entry.getKey();
+                                                  Collection<Range<Token>> tokenRanges = entry.getValue();
 
-                try
-                {
-                    // To conserve memory, open SSTableReaders without bloom filters and discard
-                    // the index summary after calculating the file sections to stream and the estimated
-                    // number of keys for each endpoint. See CASSANDRA-5555 for details.
-                    SSTableReader sstable = SSTableReader.openForBatch(desc, components, metadata);
-                    sstables.add(sstable);
+                                                  List<Pair<Long, Long>> sstableSections = sstable.getPositionsForRanges(tokenRanges);
+                                                  long estimatedKeys = sstable.estimatedKeysForRanges(tokenRanges);
+                                                  Ref<SSTableReader> ref = sstable.ref();
+                                                  StreamSession.SSTableStreamingSections details = new StreamSession.SSTableStreamingSections(ref, sstableSections, estimatedKeys, ActiveRepairService.UNREPAIRED_SSTABLE);
+                                                  streamingDetails.put(endpoint, details);
+                                              }
 
-                    // calculate the sstable sections to stream as well as the estimated number of
-                    // keys per host
-                    for (Map.Entry<InetAddress, Collection<Range<Token>>> entry : ranges.entrySet())
-                    {
-                        InetAddress endpoint = entry.getKey();
-                        Collection<Range<Token>> tokenRanges = entry.getValue();
+                                              // to conserve heap space when bulk loading
+                                              sstable.releaseSummary();
+                                          }
+                                          catch (IOException e)
+                                          {
+                                              outputHandler.output(String.format("Skipping file %s, error opening it: %s", name, e.getMessage()));
+                                          }
+                                          return false;
+                                      },
+                                      Directories.OnTxnErr.IGNORE);
 
-                        List<Pair<Long, Long>> sstableSections = sstable.getPositionsForRanges(tokenRanges);
-                        long estimatedKeys = sstable.estimatedKeysForRanges(tokenRanges);
-                        Ref<SSTableReader> ref = sstable.ref();
-                        StreamSession.SSTableStreamingSections details = new StreamSession.SSTableStreamingSections(ref, sstableSections, estimatedKeys, ActiveRepairService.UNREPAIRED_SSTABLE);
-                        streamingDetails.put(endpoint, details);
-                    }
-
-                    // to conserve heap space when bulk loading
-                    sstable.releaseSummary();
-                }
-                catch (IOException e)
-                {
-                    outputHandler.output(String.format("Skipping file %s, error opening it: %s", name, e.getMessage()));
-                }
-                return false;
-            }
-        });
         return sstables;
     }
 

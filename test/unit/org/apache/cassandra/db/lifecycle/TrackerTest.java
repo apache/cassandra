@@ -187,9 +187,9 @@ public class TrackerTest
     public void testDropSSTables()
     {
         testDropSSTables(false);
-        TransactionLogs.waitForDeletions();
+        TransactionLog.waitForDeletions();
         testDropSSTables(true);
-        TransactionLogs.waitForDeletions();
+        TransactionLog.waitForDeletions();
     }
 
     private void testDropSSTables(boolean invalidate)
@@ -203,62 +203,54 @@ public class TrackerTest
                                                              MockSchema.sstable(2, 71, true, cfs));
         tracker.addInitialSSTables(copyOf(readers));
 
-        try
+        try (LifecycleTransaction txn = tracker.tryModify(readers.get(0), OperationType.COMPACTION))
         {
-           // TransactionLogs.pauseDeletions(true);
-            try (LifecycleTransaction txn = tracker.tryModify(readers.get(0), OperationType.COMPACTION))
+            if (invalidate)
             {
-                if (invalidate)
-                {
-                    cfs.invalidate(false);
-                }
-                else
-                {
-                    tracker.dropSSTables();
-                    TransactionLogs.waitForDeletions();
-                }
-                Assert.assertEquals(9, cfs.metric.totalDiskSpaceUsed.getCount());
-                Assert.assertEquals(9, cfs.metric.liveDiskSpaceUsed.getCount());
-                Assert.assertEquals(1, tracker.getView().sstables.size());
-            }
-            if (!invalidate)
-            {
-                Assert.assertEquals(1, tracker.getView().sstables.size());
-                Assert.assertEquals(readers.get(0), Iterables.getFirst(tracker.getView().sstables, null));
-                Assert.assertEquals(1, readers.get(0).selfRef().globalCount());
-                Assert.assertFalse(readers.get(0).isMarkedCompacted());
-                for (SSTableReader reader : readers.subList(1, 3))
-                {
-                    Assert.assertEquals(0, reader.selfRef().globalCount());
-                    Assert.assertTrue(reader.isMarkedCompacted());
-                }
-
-                Assert.assertNull(tracker.dropSSTables(reader -> reader != readers.get(0), OperationType.UNKNOWN, null));
-
-                Assert.assertEquals(1, tracker.getView().sstables.size());
-                Assert.assertEquals(3, listener.received.size());
-                Assert.assertEquals(tracker, listener.senders.get(0));
-                Assert.assertTrue(listener.received.get(0) instanceof SSTableDeletingNotification);
-                Assert.assertTrue(listener.received.get(1) instanceof  SSTableDeletingNotification);
-                Assert.assertTrue(listener.received.get(2) instanceof SSTableListChangedNotification);
-                Assert.assertEquals(readers.get(1), ((SSTableDeletingNotification) listener.received.get(0)).deleting);
-                Assert.assertEquals(readers.get(2), ((SSTableDeletingNotification)listener.received.get(1)).deleting);
-                Assert.assertEquals(2, ((SSTableListChangedNotification) listener.received.get(2)).removed.size());
-                Assert.assertEquals(0, ((SSTableListChangedNotification) listener.received.get(2)).added.size());
-                Assert.assertEquals(9, cfs.metric.liveDiskSpaceUsed.getCount());
-                readers.get(0).selfRef().release();
+                cfs.invalidate(false);
             }
             else
             {
-                Assert.assertEquals(0, tracker.getView().sstables.size());
-                Assert.assertEquals(0, cfs.metric.liveDiskSpaceUsed.getCount());
-                for (SSTableReader reader : readers)
-                    Assert.assertTrue(reader.isMarkedCompacted());
+                tracker.dropSSTables();
+                TransactionLog.waitForDeletions();
             }
+            Assert.assertEquals(9, cfs.metric.totalDiskSpaceUsed.getCount());
+            Assert.assertEquals(9, cfs.metric.liveDiskSpaceUsed.getCount());
+            Assert.assertEquals(1, tracker.getView().sstables.size());
         }
-        finally
+        if (!invalidate)
         {
-           // TransactionLogs.pauseDeletions(false);
+            Assert.assertEquals(1, tracker.getView().sstables.size());
+            Assert.assertEquals(readers.get(0), Iterables.getFirst(tracker.getView().sstables, null));
+            Assert.assertEquals(1, readers.get(0).selfRef().globalCount());
+            Assert.assertFalse(readers.get(0).isMarkedCompacted());
+            for (SSTableReader reader : readers.subList(1, 3))
+            {
+                Assert.assertEquals(0, reader.selfRef().globalCount());
+                Assert.assertTrue(reader.isMarkedCompacted());
+            }
+
+            Assert.assertNull(tracker.dropSSTables(reader -> reader != readers.get(0), OperationType.UNKNOWN, null));
+
+            Assert.assertEquals(1, tracker.getView().sstables.size());
+            Assert.assertEquals(3, listener.received.size());
+            Assert.assertEquals(tracker, listener.senders.get(0));
+            Assert.assertTrue(listener.received.get(0) instanceof SSTableDeletingNotification);
+            Assert.assertTrue(listener.received.get(1) instanceof  SSTableDeletingNotification);
+            Assert.assertTrue(listener.received.get(2) instanceof SSTableListChangedNotification);
+            Assert.assertEquals(readers.get(1), ((SSTableDeletingNotification) listener.received.get(0)).deleting);
+            Assert.assertEquals(readers.get(2), ((SSTableDeletingNotification)listener.received.get(1)).deleting);
+            Assert.assertEquals(2, ((SSTableListChangedNotification) listener.received.get(2)).removed.size());
+            Assert.assertEquals(0, ((SSTableListChangedNotification) listener.received.get(2)).added.size());
+            Assert.assertEquals(9, cfs.metric.liveDiskSpaceUsed.getCount());
+            readers.get(0).selfRef().release();
+        }
+        else
+        {
+            Assert.assertEquals(0, tracker.getView().sstables.size());
+            Assert.assertEquals(0, cfs.metric.liveDiskSpaceUsed.getCount());
+            for (SSTableReader reader : readers)
+                Assert.assertTrue(reader.isMarkedCompacted());
         }
     }
 

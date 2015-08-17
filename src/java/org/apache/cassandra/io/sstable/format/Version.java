@@ -66,6 +66,8 @@ public abstract class Version
 
     public abstract boolean hasOldBfHashOrder();
 
+    public abstract boolean hasCompactionAncestors();
+
     public String getVersion()
     {
         return version;
