@@ -484,7 +484,10 @@ public class SelectStatement implements CQLStatement
         else
         {
             NavigableSet<Clustering> clusterings = getRequestedRows(options);
-            if (clusterings.isEmpty() && !selection.containsStaticColumns()) // in case of IN () for the last column of the key
+            // We can have no clusterings if either we're only selecting the static columns, or if we have
+            // a 'IN ()' for clusterings. In that case, we still want to query if some static columns are
+            // queried. But we're fine otherwise.
+            if (clusterings.isEmpty() && queriedColumns.fetchedColumns().statics.isEmpty())
                 return null;
 
             return new ClusteringIndexNamesFilter(clusterings, isReversed);
