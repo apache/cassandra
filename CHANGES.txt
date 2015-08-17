@@ -18,6 +18,7 @@
  * Use byte to serialize MT hash length (CASSANDRA-9792)
  * Replace usage of Adler32 with CRC32 (CASSANDRA-8684)
  * Fix migration to new format from 2.1 SSTable (CASSANDRA-10006)
+ * SequentialWriter should extend BufferedDataOutputStreamPlus (CASSANDRA-9500)
 Merged from 2.2:
  * Fix histogram overflow exception (CASSANDRA-9973)
  * Route gossip messages over dedicated socket (CASSANDRA-9237)

@@ -31,10 +31,11 @@ public class ChecksummedSequentialWriter extends SequentialWriter
     {
         super(file, bufferSize, BufferType.ON_HEAP);
         crcWriter = new SequentialWriter(crcPath, 8 * 1024, BufferType.ON_HEAP);
-        crcMetadata = new DataIntegrityMetadata.ChecksumWriter(crcWriter.stream);
+        crcMetadata = new DataIntegrityMetadata.ChecksumWriter(crcWriter);
         crcMetadata.writeChunkSize(buffer.capacity());
     }
 
+    @Override
     protected void flushData()
     {
         super.flushData();

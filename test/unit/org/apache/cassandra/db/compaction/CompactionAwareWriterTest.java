@@ -32,10 +32,7 @@ import org.apache.cassandra.db.compaction.writers.MajorLeveledCompactionWriter;
 import org.apache.cassandra.db.compaction.writers.MaxSSTableSizeWriter;
 import org.apache.cassandra.db.compaction.writers.SplittingSizeTieredCompactionWriter;
 import org.apache.cassandra.db.lifecycle.LifecycleTransaction;
-import org.apache.cassandra.exceptions.ConfigurationException;
-import org.apache.cassandra.io.sstable.ISSTableScanner;
 import org.apache.cassandra.io.sstable.format.SSTableReader;
-import org.apache.cassandra.locator.SimpleStrategy;
 import org.apache.cassandra.utils.FBUtilities;
 import org.apache.cassandra.utils.UUIDGen;
 
@@ -183,14 +180,14 @@ public class CompactionAwareWriterTest extends CQLTester
                     rowsWritten++;
             }
         }
-        Collection<SSTableReader> newSSTables = writer.finish();
+        writer.finish();
         return rowsWritten;
     }
 
     private void populate(int count) throws Throwable
     {
-        byte [] payload = new byte[1000];
-        new Random().nextBytes(payload);
+        byte [] payload = new byte[5000];
+        new Random(42).nextBytes(payload);
         ByteBuffer b = ByteBuffer.wrap(payload);
 
         for (int i = 0; i < count; i++)

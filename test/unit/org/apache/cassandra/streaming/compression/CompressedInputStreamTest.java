@@ -71,7 +71,7 @@ public class CompressedInputStreamTest
         for (long l = 0L; l < 1000; l++)
         {
             index.put(l, writer.getFilePointer());
-            writer.stream.writeLong(l);
+            writer.writeLong(l);
         }
         writer.finish();
 

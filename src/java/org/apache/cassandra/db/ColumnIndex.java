@@ -94,10 +94,10 @@ public class ColumnIndex
 
         private void writePartitionHeader(UnfilteredRowIterator iterator) throws IOException
         {
-            ByteBufferUtil.writeWithShortLength(iterator.partitionKey().getKey(), writer.stream);
-            DeletionTime.serializer.serialize(iterator.partitionLevelDeletion(), writer.stream);
+            ByteBufferUtil.writeWithShortLength(iterator.partitionKey().getKey(), writer);
+            DeletionTime.serializer.serialize(iterator.partitionLevelDeletion(), writer);
             if (header.hasStatic())
-                UnfilteredSerializer.serializer.serialize(iterator.staticRow(), header, writer.stream, version);
+                UnfilteredSerializer.serializer.serialize(iterator.staticRow(), header, writer, version);
         }
 
         public ColumnIndex build() throws IOException
@@ -135,7 +135,7 @@ public class ColumnIndex
                 startPosition = currentPosition();
             }
 
-            UnfilteredSerializer.serializer.serialize(unfiltered, header, writer.stream, version);
+            UnfilteredSerializer.serializer.serialize(unfiltered, header, writer, version);
             lastClustering = unfiltered.clustering();
             ++written;
 
@@ -153,7 +153,7 @@ public class ColumnIndex
 
         private ColumnIndex close() throws IOException
         {
-            UnfilteredSerializer.serializer.writeEndOfPartition(writer.stream);
+            UnfilteredSerializer.serializer.writeEndOfPartition(writer);
 
             // It's possible we add no rows, just a top level deletion
             if (written == 0)
