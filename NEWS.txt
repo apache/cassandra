@@ -65,7 +65,7 @@ Upgrading
    - Only map syntax is now allowed for caching options. ALL/NONE/KEYS_ONLY/ROWS_ONLY syntax
      has been deprecated since 2.1.0 and is being removed in 3.0.0.
    - The 'index_interval' option for 'CREATE TABLE' statements, which has been deprecated
-     since 2.0 and replaced with the 'min_index_interval' and 'max_index_interval' options,
+     since 2.1 and replaced with the 'min_index_interval' and 'max_index_interval' options,
      has now been removed.
    - Batchlog entries are now stored in a new table - system.batches.
      The old one has been deprecated.
