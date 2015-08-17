@@ -22,6 +22,7 @@
  * Ensure atomicity inside thrift and stream session (CASSANDRA-7757)
  * Fix nodetool info error when the node is not joined (CASSANDRA-9031)
 Merged from 2.0:
+ * Make getFullyExpiredSSTables less expensive (CASSANDRA-9882)
  * Add tool to find why expired sstables are not getting dropped (CASSANDRA-10015)
  * Remove erroneous pending HH tasks from tpstats/jmx (CASSANDRA-9129)
  * Don't cast expected bf size to an int (CASSANDRA-9959)
