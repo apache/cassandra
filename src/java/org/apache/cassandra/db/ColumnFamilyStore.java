@@ -1176,15 +1176,49 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
 
         View view = data.getView();
 
-        Set<SSTableReader> results = null;
-        for (SSTableReader sstable : sstables)
-        {
-            Set<SSTableReader> overlaps = ImmutableSet.copyOf(view.sstablesInBounds(sstableSet, sstable.first, sstable.last));
-            results = results == null ? overlaps : Sets.union(results, overlaps).immutableCopy();
-        }
-        results = Sets.difference(results, ImmutableSet.copyOf(sstables));
+        List<SSTableReader> sortedByFirst = Lists.newArrayList(sstables);
+        Collections.sort(sortedByFirst, (o1, o2) -> o1.first.compareTo(o2.first));
 
-        return results;
+        List<AbstractBounds<PartitionPosition>> bounds = new ArrayList<>();
+        DecoratedKey first = null, last = null;
+        /*
+        normalize the intervals covered by the sstables
+        assume we have sstables like this (brackets representing first/last key in the sstable);
+        [   ] [   ]    [   ]   [  ]
+           [   ]         [       ]
+        then we can, instead of searching the interval tree 6 times, normalize the intervals and
+        only query the tree 2 times, for these intervals;
+        [         ]    [          ]
+         */
+        for (SSTableReader sstable : sortedByFirst)
+        {
+            if (first == null)
+            {
+                first = sstable.first;
+                last = sstable.last;
+            }
+            else
+            {
+                if (sstable.first.compareTo(last) <= 0) // we do overlap
+                {
+                    if (sstable.last.compareTo(last) > 0)
+                        last = sstable.last;
+                }
+                else
+                {
+                    bounds.add(AbstractBounds.bounds(first, true, last, true));
+                    first = sstable.first;
+                    last = sstable.last;
+                }
+            }
+        }
+        bounds.add(AbstractBounds.bounds(first, true, last, true));
+        Set<SSTableReader> results = new HashSet<>();
+
+        for (AbstractBounds<PartitionPosition> bound : bounds)
+            Iterables.addAll(results, view.sstablesInBounds(sstableSet, bound.left, bound.right));
+
+        return Sets.difference(results, ImmutableSet.copyOf(sstables));
     }
 
     /**
