@@ -38,8 +38,7 @@ public class DateTieredCompactionStrategy extends AbstractCompactionStrategy
 
     protected DateTieredCompactionStrategyOptions options;
     protected volatile int estimatedRemainingTasks;
-    @VisibleForTesting
-    long lastExpiredCheck;
+    private long lastExpiredCheck;
 
     public DateTieredCompactionStrategy(ColumnFamilyStore cfs, Map<String, String> options)
     {
@@ -87,8 +86,8 @@ public class DateTieredCompactionStrategy extends AbstractCompactionStrategy
         Set<SSTableReader> uncompacting = cfs.getUncompactingSSTables();
 
         Set<SSTableReader> expired = Collections.emptySet();
-        // we only check for expired sstables every 10 minutes due to it being an expensive operation
-        if (System.currentTimeMillis() - lastExpiredCheck > TimeUnit.MINUTES.toMillis(10))
+        // we only check for expired sstables every 10 minutes (by default) due to it being an expensive operation
+        if (System.currentTimeMillis() - lastExpiredCheck > options.expiredSSTableCheckFrequency)
         {
             // Find fully expired SSTables. Those will be included no matter what.
             expired = CompactionController.getFullyExpiredSSTables(cfs, uncompacting, cfs.getOverlappingSSTables(uncompacting), gcBefore);
