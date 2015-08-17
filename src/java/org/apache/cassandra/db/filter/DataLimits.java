@@ -270,7 +270,7 @@ public abstract class DataLimits
         {
             // TODO: we should start storing stats on the number of rows (instead of the number of cells, which
             // is what getMeanColumns returns)
-            float rowsPerPartition = ((float) cfs.getMeanColumns()) / cfs.metadata.partitionColumns().regulars.columnCount();
+            float rowsPerPartition = ((float) cfs.getMeanColumns()) / cfs.metadata.partitionColumns().regulars.size();
             return rowsPerPartition * (cfs.estimateKeys());
         }
 
@@ -506,7 +506,7 @@ public abstract class DataLimits
         public float estimateTotalResults(ColumnFamilyStore cfs)
         {
             // remember that getMeansColumns returns a number of cells: we should clean nomenclature
-            float cellsPerPartition = ((float) cfs.getMeanColumns()) / cfs.metadata.partitionColumns().regulars.columnCount();
+            float cellsPerPartition = ((float) cfs.getMeanColumns()) / cfs.metadata.partitionColumns().regulars.size();
             return cellsPerPartition * cfs.estimateKeys();
         }
 

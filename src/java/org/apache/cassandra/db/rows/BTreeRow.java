@@ -22,6 +22,7 @@ import java.util.*;
 import java.util.function.Predicate;
 
 import com.google.common.base.Function;
+import com.google.common.collect.Collections2;
 import com.google.common.collect.Iterators;
 
 import org.apache.cassandra.config.CFMetaData;
@@ -35,6 +36,7 @@ import org.apache.cassandra.utils.ByteBufferUtil;
 import org.apache.cassandra.utils.ObjectSizes;
 import org.apache.cassandra.utils.btree.BTree;
 import org.apache.cassandra.utils.btree.BTreeSearchIterator;
+import org.apache.cassandra.utils.btree.BTreeSet;
 import org.apache.cassandra.utils.btree.UpdateFunction;
 
 /**
@@ -164,6 +166,11 @@ public class BTreeRow extends AbstractRow
         return columns;
     }
 
+    public Collection<ColumnDefinition> actualColumns()
+    {
+        return Collections2.transform(this, ColumnData::column);
+    }
+
     public LivenessInfo primaryKeyLivenessInfo()
     {
         return primaryKeyLivenessInfo;
@@ -205,6 +212,11 @@ public class BTreeRow extends AbstractRow
     public Iterator<ColumnData> iterator()
     {
         return searchIterator();
+    }
+
+    public int size()
+    {
+        return BTree.size(btree);
     }
 
     public Iterable<Cell> cells()

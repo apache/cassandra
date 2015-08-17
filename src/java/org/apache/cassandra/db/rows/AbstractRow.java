@@ -18,6 +18,7 @@ package org.apache.cassandra.db.rows;
 
 import java.nio.ByteBuffer;
 import java.security.MessageDigest;
+import java.util.AbstractCollection;
 import java.util.Objects;
 
 import com.google.common.collect.Iterables;
@@ -34,7 +35,7 @@ import org.apache.cassandra.utils.FBUtilities;
  * Unless you have a very good reason not to, every row implementation
  * should probably extend this class.
  */
-public abstract class AbstractRow implements Row
+public abstract class AbstractRow extends AbstractCollection<ColumnData> implements Row
 {
     public Unfiltered.Kind kind()
     {

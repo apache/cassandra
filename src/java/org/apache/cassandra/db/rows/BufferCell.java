@@ -218,28 +218,21 @@ public class BufferCell extends AbstractCell
      */
     static class Serializer implements Cell.Serializer
     {
-        private final static int PRESENCE_MASK               = 0x01; // Marks the actual presence of a cell. This is used only when serialized on-disk and
-                                                                     // on-wire (i.e. an actual ByteBufferBackedCell instance cannot have this flag set).
-        private final static int IS_DELETED_MASK             = 0x02; // Whether the cell is a tombstone or not.
-        private final static int IS_EXPIRING_MASK            = 0x04; // Whether the cell is expiring.
-        private final static int HAS_EMPTY_VALUE_MASK        = 0x08; // Wether the cell has an empty value. This will be the case for tombstone in particular.
-        private final static int USE_ROW_TIMESTAMP_MASK      = 0x10; // Wether the cell has the same timestamp than the row this is a cell of.
-        private final static int USE_ROW_TTL_MASK            = 0x20; // Wether the cell has the same ttl than the row this is a cell of.
+        private final static int IS_DELETED_MASK             = 0x01; // Whether the cell is a tombstone or not.
+        private final static int IS_EXPIRING_MASK            = 0x02; // Whether the cell is expiring.
+        private final static int HAS_EMPTY_VALUE_MASK        = 0x04; // Wether the cell has an empty value. This will be the case for tombstone in particular.
+        private final static int USE_ROW_TIMESTAMP_MASK      = 0x08; // Wether the cell has the same timestamp than the row this is a cell of.
+        private final static int USE_ROW_TTL_MASK            = 0x10; // Wether the cell has the same ttl than the row this is a cell of.
 
         public void serialize(Cell cell, DataOutputPlus out, LivenessInfo rowLiveness, SerializationHeader header) throws IOException
         {
-            if (cell == null)
-            {
-                out.writeByte((byte)0);
-                return;
-            }
-
+            assert cell != null;
             boolean hasValue = cell.value().hasRemaining();
             boolean isDeleted = cell.isTombstone();
             boolean isExpiring = cell.isExpiring();
             boolean useRowTimestamp = !rowLiveness.isEmpty() && cell.timestamp() == rowLiveness.timestamp();
             boolean useRowTTL = isExpiring && rowLiveness.isExpiring() && cell.ttl() == rowLiveness.ttl() && cell.localDeletionTime() == rowLiveness.localExpirationTime();
-            int flags = PRESENCE_MASK;
+            int flags = 0;
             if (!hasValue)
                 flags |= HAS_EMPTY_VALUE_MASK;
 
@@ -273,9 +266,6 @@ public class BufferCell extends AbstractCell
         public Cell deserialize(DataInputPlus in, LivenessInfo rowLiveness, ColumnDefinition column, SerializationHeader header, SerializationHelper helper) throws IOException
         {
             int flags = in.readUnsignedByte();
-            if ((flags & PRESENCE_MASK) == 0)
-                return null;
-
             boolean hasValue = (flags & HAS_EMPTY_VALUE_MASK) == 0;
             boolean isDeleted = (flags & IS_DELETED_MASK) != 0;
             boolean isExpiring = (flags & IS_EXPIRING_MASK) != 0;
@@ -317,10 +307,6 @@ public class BufferCell extends AbstractCell
         public long serializedSize(Cell cell, LivenessInfo rowLiveness, SerializationHeader header)
         {
             long size = 1; // flags
-
-            if (cell == null)
-                return size;
-
             boolean hasValue = cell.value().hasRemaining();
             boolean isDeleted = cell.isTombstone();
             boolean isExpiring = cell.isExpiring();
@@ -348,9 +334,6 @@ public class BufferCell extends AbstractCell
         public boolean skip(DataInputPlus in, ColumnDefinition column, SerializationHeader header) throws IOException
         {
             int flags = in.readUnsignedByte();
-            if ((flags & PRESENCE_MASK) == 0)
-                return false;
-
             boolean hasValue = (flags & HAS_EMPTY_VALUE_MASK) == 0;
             boolean isDeleted = (flags & IS_DELETED_MASK) != 0;
             boolean isExpiring = (flags & IS_EXPIRING_MASK) != 0;

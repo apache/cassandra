@@ -534,7 +534,7 @@ public abstract class LegacyLayout
             // TODO: there is in practice nothing to do here, but we need to handle the column_metadata for super columns somewhere else
             throw new UnsupportedOperationException();
 
-        Set<ByteBuffer> columnsToFetch = new HashSet<>(statics.columnCount());
+        Set<ByteBuffer> columnsToFetch = new HashSet<>(statics.size());
         for (ColumnDefinition column : statics)
             columnsToFetch.add(column.name.bytes);
 

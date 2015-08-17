@@ -105,7 +105,7 @@ public class PartitionTest
 
         CachedPartition deserialized = CachedPartition.cacheSerializer.deserialize(new DataInputBuffer(bufOut.getData()));
 
-        assertEquals(partition.columns().regulars.columnCount(), deserialized.columns().regulars.columnCount());
+        assertEquals(partition.columns().regulars.size(), deserialized.columns().regulars.size());
         assertTrue(deserialized.columns().regulars.getSimple(1).equals(partition.columns().regulars.getSimple(1)));
         assertTrue(deserialized.columns().regulars.getSimple(5).equals(partition.columns().regulars.getSimple(5)));
 

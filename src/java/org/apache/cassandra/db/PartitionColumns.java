@@ -78,7 +78,7 @@ public class PartitionColumns implements Iterable<ColumnDefinition>
 
     public boolean includes(PartitionColumns columns)
     {
-        return statics.contains(columns.statics) && regulars.contains(columns.regulars);
+        return statics.containsAll(columns.statics) && regulars.containsAll(columns.regulars);
     }
 
     public Iterator<ColumnDefinition> iterator()
@@ -94,7 +94,7 @@ public class PartitionColumns implements Iterable<ColumnDefinition>
     /** * Returns the total number of static and regular columns. */
     public int size()
     {
-        return regulars.columnCount() + statics.columnCount();
+        return regulars.size() + statics.size();
     }
 
     @Override

@@ -74,7 +74,7 @@ public class SSTableReversedIterator extends AbstractSSTableIterator
         protected ReusablePartitionData createBuffer(int blocksCount)
         {
             int estimatedRowCount = 16;
-            int columnCount = metadata().partitionColumns().regulars.columnCount();
+            int columnCount = metadata().partitionColumns().regulars.size();
             if (columnCount == 0 || metadata().clusteringColumns().isEmpty())
             {
                 estimatedRowCount = 1;

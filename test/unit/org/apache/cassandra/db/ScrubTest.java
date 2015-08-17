@@ -42,6 +42,7 @@ import org.apache.cassandra.db.marshal.LongType;
 import org.apache.cassandra.db.marshal.UUIDType;
 import org.apache.cassandra.db.partitions.Partition;
 import org.apache.cassandra.db.partitions.PartitionUpdate;
+import org.apache.cassandra.db.rows.EncodingStats;
 import org.apache.cassandra.dht.ByteOrderedPartitioner;
 import org.apache.cassandra.dht.IPartitioner;
 import org.apache.cassandra.exceptions.ConfigurationException;
@@ -325,8 +326,9 @@ public class ScrubTest
                                                                    keys.size(),
                                                                    0L,
                                                                    0,
-                                                                   SerializationHeader.make(cfs.metadata,
-                                                                                            Collections.emptyList())))
+                                                                   new SerializationHeader(cfs.metadata,
+                                                                                           cfs.metadata.partitionColumns(),
+                                                                                           EncodingStats.NO_STATS)))
             {
 
                 for (String k : keys)

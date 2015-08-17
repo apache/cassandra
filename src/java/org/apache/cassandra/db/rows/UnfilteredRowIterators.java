@@ -98,6 +98,8 @@ public abstract class UnfilteredRowIterators
      */
     public static UnfilteredRowIterator noRowsIterator(final CFMetaData cfm, final DecoratedKey partitionKey, final Row staticRow, final DeletionTime partitionDeletion, final boolean isReverseOrder)
     {
+        PartitionColumns columns = staticRow == null ? PartitionColumns.NONE
+                                                     : new PartitionColumns(staticRow.columns(), Columns.NONE);
         return new UnfilteredRowIterator()
         {
             public CFMetaData metadata()
@@ -112,7 +114,7 @@ public abstract class UnfilteredRowIterators
 
             public PartitionColumns columns()
             {
-                return PartitionColumns.NONE;
+                return columns;
             }
 
             public DecoratedKey partitionKey()

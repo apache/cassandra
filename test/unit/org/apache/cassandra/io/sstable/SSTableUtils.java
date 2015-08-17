@@ -179,9 +179,17 @@ public class SSTableUtils
 
         public Collection<SSTableReader> write(SortedMap<DecoratedKey, PartitionUpdate> sorted) throws IOException
         {
+            PartitionColumns.Builder builder = PartitionColumns.builder();
+            for (PartitionUpdate update : sorted.values())
+                builder.addAll(update.columns());
             final Iterator<Map.Entry<DecoratedKey, PartitionUpdate>> iter = sorted.entrySet().iterator();
             return write(sorted.size(), new Appender()
             {
+                public SerializationHeader header()
+                {
+                    return new SerializationHeader(Schema.instance.getCFMetaData(ksname, cfname), builder.build(), EncodingStats.NO_STATS);
+                }
+
                 @Override
                 public boolean append(SSTableTxnWriter writer) throws IOException
                 {
@@ -207,7 +215,7 @@ public class SSTableUtils
             File datafile = (dest == null) ? tempSSTableFile(ksname, cfname, generation) : new File(dest.filenameFor(Component.DATA));
             CFMetaData cfm = Schema.instance.getCFMetaData(ksname, cfname);
             ColumnFamilyStore cfs = Schema.instance.getColumnFamilyStoreInstance(cfm.cfId);
-            SerializationHeader header = SerializationHeader.make(cfm, Collections.EMPTY_LIST);
+            SerializationHeader header = appender.header();
             SSTableTxnWriter writer = SSTableTxnWriter.create(cfs, datafile.getAbsolutePath(), expectedSize, ActiveRepairService.UNREPAIRED_SSTABLE, 0, header);
             while (appender.append(writer)) { /* pass */ }
             Collection<SSTableReader> readers = writer.finish(true);
@@ -223,6 +231,7 @@ public class SSTableUtils
 
     public static abstract class Appender
     {
+        public abstract SerializationHeader header();
         /** Called with an open writer until it returns false. */
         public abstract boolean append(SSTableTxnWriter writer) throws IOException;
     }
