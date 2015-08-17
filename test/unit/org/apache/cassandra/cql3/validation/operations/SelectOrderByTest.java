@@ -21,6 +21,7 @@ import org.junit.Test;
 
 import org.apache.cassandra.cql3.CQLTester;
 
+import static java.util.Arrays.asList;
 import static org.junit.Assert.assertTrue;
 
 public class SelectOrderByTest extends CQLTester
@@ -486,6 +487,48 @@ public class SelectOrderByTest extends CQLTester
 
         // since we don 't know the write times, just assert that the order matches the order we expect
         assertTrue(isFirstIntSorted(results));
+    }
+
+    @Test
+    public void testInOrderByWithTwoPartitionKeyColumns() throws Throwable
+    {
+        for (String option : asList("", "WITH CLUSTERING ORDER BY (col_3 DESC)"))
+        {
+            createTable("CREATE TABLE %s (col_1 int, col_2 int, col_3 int, PRIMARY KEY ((col_1, col_2), col_3)) " + option);
+            execute("INSERT INTO %s (col_1, col_2, col_3) VALUES(?, ?, ?)", 1, 1, 1);
+            execute("INSERT INTO %s (col_1, col_2, col_3) VALUES(?, ?, ?)", 1, 1, 2);
+            execute("INSERT INTO %s (col_1, col_2, col_3) VALUES(?, ?, ?)", 1, 1, 13);
+            execute("INSERT INTO %s (col_1, col_2, col_3) VALUES(?, ?, ?)", 1, 2, 10);
+            execute("INSERT INTO %s (col_1, col_2, col_3) VALUES(?, ?, ?)", 1, 2, 11);
+
+            assertRows(execute("select * from %s where col_1=? and col_2 IN (?, ?) order by col_3;", 1, 1, 2),
+                       row(1, 1, 1),
+                       row(1, 1, 2),
+                       row(1, 2, 10),
+                       row(1, 2, 11),
+                       row(1, 1, 13));
+
+            assertRows(execute("select * from %s where col_1=? and col_2 IN (?, ?) order by col_3 desc;", 1, 1, 2),
+                       row(1, 1, 13),
+                       row(1, 2, 11),
+                       row(1, 2, 10),
+                       row(1, 1, 2),
+                       row(1, 1, 1));
+
+            assertRows(execute("select * from %s where col_2 IN (?, ?) and col_1=? order by col_3;", 1, 2, 1),
+                       row(1, 1, 1),
+                       row(1, 1, 2),
+                       row(1, 2, 10),
+                       row(1, 2, 11),
+                       row(1, 1, 13));
+
+            assertRows(execute("select * from %s where col_2 IN (?, ?) and col_1=? order by col_3 desc;", 1, 2, 1),
+                       row(1, 1, 13),
+                       row(1, 2, 11),
+                       row(1, 2, 10),
+                       row(1, 1, 2),
+                       row(1, 1, 1));
+        }
     }
 
     private boolean isFirstIntSorted(Object[][] rows)

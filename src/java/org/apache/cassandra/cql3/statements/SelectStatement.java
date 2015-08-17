@@ -747,6 +747,8 @@ public class SelectStatement implements CQLStatement
                 verifyOrderingIsAllowed(restrictions);
                 orderingComparator = getOrderingComparator(cfm, selection, restrictions);
                 isReversed = isReversed(cfm);
+                if (isReversed)
+                    orderingComparator = Collections.reverseOrder(orderingComparator);
             }
 
             checkNeedsFiltering(restrictions);
