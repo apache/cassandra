@@ -98,7 +98,7 @@ final class PrimaryKeyRestrictionSet extends AbstractPrimaryKeyRestrictions
             this.slice = true;
         else if (restriction.isContains() || primaryKeyRestrictions.isContains())
             this.contains = true;
-        else if (restriction.isIN())
+        else if (restriction.isIN() || primaryKeyRestrictions.isIN())
             this.in = true;
         else
             this.eq = true;
