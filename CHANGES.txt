@@ -23,6 +23,7 @@ Merged from 2.1:
  * Ensure atomicity inside thrift and stream session (CASSANDRA-7757)
  * Fix nodetool info error when the node is not joined (CASSANDRA-9031)
 Merged from 2.0:
+ * Make getFullyExpiredSSTables less expensive (CASSANDRA-9882)
  * Log when messages are dropped due to cross_node_timeout (CASSANDRA-9793)
  * Don't track hotness when opening from snapshot for validation (CASSANDRA-9382)
 

@@ -321,6 +321,7 @@ public class DateTieredCompactionStrategyTest extends SchemaLoader
             dtcs.addSSTable(sstable);
         dtcs.startup();
         assertNull(dtcs.getNextBackgroundTask((int) (System.currentTimeMillis() / 1000)));
+        dtcs.lastExpiredCheck = 0;
         Thread.sleep(2000);
         AbstractCompactionTask t = dtcs.getNextBackgroundTask((int) (System.currentTimeMillis()/1000));
         assertNotNull(t);
