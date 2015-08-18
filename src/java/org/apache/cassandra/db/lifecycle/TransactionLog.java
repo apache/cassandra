@@ -1066,7 +1066,7 @@ public class TransactionLog extends Transactional.AbstractTransactional implemen
             try (DirectoryStream<Path> in = Files.newDirectoryStream(folder))
             {
                 if (!(in instanceof SecureDirectoryStream))
-                    noSpamLogger.error("This platform does not support atomic directory streams (SecureDirectoryStream); " +
+                    noSpamLogger.warn("This platform does not support atomic directory streams (SecureDirectoryStream); " +
                                        "race conditions when loading sstable files could occurr");
 
                 in.forEach(path ->
