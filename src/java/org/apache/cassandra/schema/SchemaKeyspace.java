@@ -1434,13 +1434,13 @@ public final class SchemaKeyspace
 
         Set<String> targetColumnNames = row.getSet("target_columns", UTF8Type.instance);
         assert targetType == IndexMetadata.TargetType.COLUMN : "Per row indexes with dynamic target columns are not supported yet";
-        assert targetColumnNames.size() == 1 : "Secondary indexes targetting multiple columns are not supported yet";
 
         Set<ColumnIdentifier> targetColumns = new HashSet<>();
         // if it's not a CQL table, we can't assume that the column name is utf8, so
         // in that case we have to do a linear scan of the cfm's columns to get the matching one
         if (targetColumnNames != null)
         {
+            assert targetColumnNames.size() == 1 : "Secondary indexes targetting multiple columns are not supported yet";
             targetColumnNames.forEach(targetColumnName -> {
                 if (cfm.isCQLTable())
                     targetColumns.add(ColumnIdentifier.getInterned(targetColumnName, true));
