@@ -518,6 +518,8 @@ public class OutboundTcpConnection extends Thread
         while (iter.hasNext())
         {
             QueuedMessage qm = iter.next();
+            if (!qm.droppable)
+                continue;
             if (qm.timestampNanos >= System.nanoTime() - qm.message.getTimeout())
                 return;
             iter.remove();
