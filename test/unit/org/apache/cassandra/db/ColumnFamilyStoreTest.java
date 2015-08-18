@@ -530,6 +530,8 @@ public class ColumnFamilyStoreTest
         String tmpDataFileName = ssTable.descriptor.tmpFilenameFor(Component.DATA);
         new File(dataFileName).renameTo(new File(tmpDataFileName));
 
+        ssTable.selfRef().release();
+
         ColumnFamilyStore.scrubDataDirectories(cfs.metadata);
 
         List<File> ssTableFiles = new Directories(cfs.metadata).sstableLister(Directories.OnTxnErr.THROW).listFiles();
