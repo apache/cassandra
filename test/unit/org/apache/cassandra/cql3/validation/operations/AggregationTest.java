@@ -1465,7 +1465,7 @@ public class AggregationTest extends CQLTester
         execute("INSERT INTO %s (a, b) VALUES (?, {f : ?})", 3, 7);
 
         String fState = createFunction(KEYSPACE,
-                                       "tuple<int, int>",
+                                       myType + ',' + myType,
                                        "CREATE FUNCTION %s (state " + myType + ", values " + myType + ") " +
                                        "CALLED ON NULL INPUT " +
                                        "RETURNS " + myType + " " +
@@ -1535,7 +1535,7 @@ public class AggregationTest extends CQLTester
                                       "INITCOND ''");
 
         String fRNON = createFunction(KEYSPACE,
-                                      "text",
+                                      "text, text",
                                       "CREATE FUNCTION %s(a text, b text) " +
                                       "RETURNS NULL ON NULL INPUT " +
                                       "RETURNS text " +
@@ -1551,7 +1551,7 @@ public class AggregationTest extends CQLTester
                                       "AS 'return \"fin\" + a;'");
 
         String aRNON = createAggregate(KEYSPACE,
-                                      "int",
+                                      "text",
                                       "CREATE AGGREGATE %s(text) " +
                                       "SFUNC " + shortFunctionName(fRNON) + ' ' +
                                       "STYPE text " +
