@@ -48,6 +48,7 @@ import org.apache.cassandra.db.marshal.UTF8Type;
 import org.apache.cassandra.db.marshal.Int32Type;
 import org.apache.cassandra.exceptions.ConfigurationException;
 import org.apache.cassandra.io.sstable.metadata.StatsMetadata;
+import org.apache.cassandra.schema.IndexMetadata;
 import org.apache.cassandra.schema.KeyspaceParams;
 import org.apache.cassandra.utils.ByteBufferUtil;
 import org.apache.cassandra.utils.FBUtilities;
@@ -68,7 +69,12 @@ public class RangeTombstoneTest
         SchemaLoader.prepareServer();
         SchemaLoader.createKeyspace(KSNAME,
                                     KeyspaceParams.simple(1),
-                                    SchemaLoader.standardCFMD(KSNAME, CFNAME, 0, UTF8Type.instance, Int32Type.instance, Int32Type.instance));
+                                    SchemaLoader.standardCFMD(KSNAME,
+                                                              CFNAME,
+                                                              0,
+                                                              UTF8Type.instance,
+                                                              Int32Type.instance,
+                                                              Int32Type.instance));
     }
 
     @Test
@@ -453,7 +459,49 @@ public class RangeTombstoneTest
     @Test
     public void testRowWithRangeTombstonesUpdatesSecondaryIndex() throws Exception
     {
-        runCompactionWithRangeTombstoneAndCheckSecondaryIndex();
+        Keyspace table = Keyspace.open(KSNAME);
+        ColumnFamilyStore cfs = table.getColumnFamilyStore(CFNAME);
+        ByteBuffer key = ByteBufferUtil.bytes("k5");
+        ByteBuffer indexedColumnName = ByteBufferUtil.bytes("val");
+
+        cfs.truncateBlocking();
+        cfs.disableAutoCompaction();
+
+        ColumnDefinition cd = cfs.metadata.getColumnDefinition(indexedColumnName).copy();
+        IndexMetadata indexDef = IndexMetadata.legacyIndex(cd,
+                                                           "test_index",
+                                                           IndexMetadata.IndexType.CUSTOM,
+                                                           ImmutableMap.of(SecondaryIndex.CUSTOM_INDEX_OPTION_NAME,
+                                                                           TestIndex.class.getName()));
+
+        if (!cfs.metadata.getIndexes().get("test_index").isPresent())
+            cfs.metadata.indexes(cfs.metadata.getIndexes().with(indexDef));
+
+        Future<?> rebuild = cfs.indexManager.addIndexedColumn(indexDef);
+        // If rebuild there is, wait for the rebuild to finish so it doesn't race with the following insertions
+        if (rebuild != null)
+            rebuild.get();
+
+        TestIndex index = ((TestIndex)cfs.indexManager.getIndexForColumn(cd));
+        index.resetCounts();
+
+        UpdateBuilder builder = UpdateBuilder.create(cfs.metadata, key).withTimestamp(0);
+        for (int i = 0; i < 10; i++)
+            builder.newRow(i).add("val", i);
+        builder.applyUnsafe();
+        cfs.forceBlockingFlush();
+
+        new RowUpdateBuilder(cfs.metadata, 0, key).addRangeTombstone(0, 7).build().applyUnsafe();
+        cfs.forceBlockingFlush();
+
+        assertEquals(10, index.inserts.size());
+
+        CompactionManager.instance.performMaximal(cfs, false);
+
+        // compacted down to single sstable
+        assertEquals(1, cfs.getLiveSSTables().size());
+
+        assertEquals(8, index.deletes.size());
     }
 
     @Test
@@ -512,12 +560,19 @@ public class RangeTombstoneTest
         cfs.disableAutoCompaction();
 
         ColumnDefinition cd = cfs.metadata.getColumnDefinition(indexedColumnName).copy();
-        cd.setIndex("test_index", IndexType.CUSTOM, ImmutableMap.of(SecondaryIndex.CUSTOM_INDEX_OPTION_NAME, TestIndex.class.getName()));
-        Future<?> rebuild = cfs.indexManager.addIndexedColumn(cd);
+        IndexMetadata indexDef = IndexMetadata.legacyIndex(cd,
+                                                           "test_index",
+                                                           IndexMetadata.IndexType.CUSTOM,
+                                                           ImmutableMap.of(SecondaryIndex.CUSTOM_INDEX_OPTION_NAME,
+                                                                           TestIndex.class.getName()));
+
+        if (!cfs.metadata.getIndexes().get("test_index").isPresent())
+            cfs.metadata.indexes(cfs.metadata.getIndexes().with(indexDef));
+
+        Future<?> rebuild = cfs.indexManager.addIndexedColumn(indexDef);
         // If rebuild there is, wait for the rebuild to finish so it doesn't race with the following insertions
         if (rebuild != null)
             rebuild.get();
-
         TestIndex index = ((TestIndex)cfs.indexManager.getIndexForColumn(cd));
         index.resetCounts();
 
@@ -535,45 +590,6 @@ public class RangeTombstoneTest
         // CASSANDRA-6640 changed index update to just update, not insert then delete
         assertEquals(1, index.inserts.size());
         assertEquals(1, index.updates.size());
-    }
-
-    private void runCompactionWithRangeTombstoneAndCheckSecondaryIndex() throws Exception
-    {
-        Keyspace table = Keyspace.open(KSNAME);
-        ColumnFamilyStore cfs = table.getColumnFamilyStore(CFNAME);
-        ByteBuffer key = ByteBufferUtil.bytes("k5");
-        ByteBuffer indexedColumnName = ByteBufferUtil.bytes("val");
-
-        cfs.truncateBlocking();
-        cfs.disableAutoCompaction();
-
-        ColumnDefinition cd = cfs.metadata.getColumnDefinition(indexedColumnName).copy();
-        cd.setIndex("test_index", IndexType.CUSTOM, ImmutableMap.of(SecondaryIndex.CUSTOM_INDEX_OPTION_NAME, TestIndex.class.getName()));
-        Future<?> rebuild = cfs.indexManager.addIndexedColumn(cd);
-        // If rebuild there is, wait for the rebuild to finish so it doesn't race with the following insertions
-        if (rebuild != null)
-            rebuild.get();
-
-        TestIndex index = ((TestIndex)cfs.indexManager.getIndexForColumn(cd));
-        index.resetCounts();
-
-        UpdateBuilder builder = UpdateBuilder.create(cfs.metadata, key).withTimestamp(0);
-        for (int i = 0; i < 10; i++)
-            builder.newRow(i).add("val", i);
-        builder.applyUnsafe();
-        cfs.forceBlockingFlush();
-
-        new RowUpdateBuilder(cfs.metadata, 0, key).addRangeTombstone(0, 7).build().applyUnsafe();
-        cfs.forceBlockingFlush();
-
-        assertEquals(10, index.inserts.size());
-
-        CompactionManager.instance.performMaximal(cfs, false);
-
-        // compacted down to single sstable
-        assertEquals(1, cfs.getLiveSSTables().size());
-
-        assertEquals(8, index.deletes.size());
     }
 
     private static ByteBuffer bb(int i)
@@ -621,7 +637,7 @@ public class RangeTombstoneTest
 
         public void reload(){}
 
-        public void validateOptions() throws ConfigurationException{}
+        public void validateOptions(CFMetaData cfm, IndexMetadata def) throws ConfigurationException{}
 
         public String getIndexName(){ return "TestIndex";}
 

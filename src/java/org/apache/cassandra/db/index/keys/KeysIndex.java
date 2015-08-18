@@ -27,6 +27,7 @@ import org.apache.cassandra.db.rows.*;
 import org.apache.cassandra.db.index.AbstractSimplePerColumnSecondaryIndex;
 import org.apache.cassandra.db.index.SecondaryIndexSearcher;
 import org.apache.cassandra.exceptions.ConfigurationException;
+import org.apache.cassandra.schema.IndexMetadata;
 import org.apache.cassandra.utils.concurrent.OpOrder;
 
 /**
@@ -39,7 +40,7 @@ import org.apache.cassandra.utils.concurrent.OpOrder;
  */
 public class KeysIndex extends AbstractSimplePerColumnSecondaryIndex
 {
-    public static void addIndexClusteringColumns(CFMetaData.Builder indexMetadata, CFMetaData baseMetadata, ColumnDefinition cfDef)
+    public static void addIndexClusteringColumns(CFMetaData.Builder indexMetadata, CFMetaData baseMetadata)
     {
         indexMetadata.addClusteringColumn("partition_key", baseMetadata.partitioner.partitionOrdering());
     }
@@ -82,7 +83,7 @@ public class KeysIndex extends AbstractSimplePerColumnSecondaryIndex
         return new KeysSearcher(baseCfs.indexManager, columns);
     }
 
-    public void validateOptions() throws ConfigurationException
+    public void validateOptions(CFMetaData baseCfm, IndexMetadata def) throws ConfigurationException
     {
         // no options used
     }

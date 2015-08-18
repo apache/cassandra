@@ -30,7 +30,6 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import org.apache.cassandra.config.ColumnDefinition;
-import org.apache.cassandra.config.IndexType;
 import org.apache.cassandra.db.*;
 import org.apache.cassandra.db.rows.*;
 import org.apache.cassandra.db.filter.RowFilter;
@@ -39,6 +38,7 @@ import org.apache.cassandra.db.compaction.CompactionManager;
 import org.apache.cassandra.exceptions.InvalidRequestException;
 import org.apache.cassandra.io.sstable.ReducingKeyIterator;
 import org.apache.cassandra.io.sstable.format.SSTableReader;
+import org.apache.cassandra.schema.IndexMetadata;
 import org.apache.cassandra.utils.FBUtilities;
 import org.apache.cassandra.utils.concurrent.OpOrder;
 
@@ -107,14 +107,16 @@ public class SecondaryIndexManager
         for (ByteBuffer indexedColumn : indexedColumnNames)
         {
             ColumnDefinition def = baseCfs.metadata.getColumnDefinition(indexedColumn);
-            if (def == null || def.getIndexType() == null)
+            if (def == null || !baseCfs.metadata.getIndexes().get(def).isPresent())
                 removeIndexedColumn(indexedColumn);
         }
 
         // TODO: allow all ColumnDefinition type
-        for (ColumnDefinition cdef : baseCfs.metadata.allColumns())
-            if (cdef.getIndexType() != null && !indexedColumnNames.contains(cdef.name.bytes))
-                addIndexedColumn(cdef);
+        for (IndexMetadata indexDef : baseCfs.metadata.getIndexes())
+        {
+            if (!indexedColumnNames.contains(indexDef.indexedColumn(baseCfs.metadata).name.bytes))
+                addIndexedColumn(indexDef);
+        }
 
         for (SecondaryIndex index : allIndexes)
             index.reload();
@@ -230,17 +232,16 @@ public class SecondaryIndexManager
 
     /**
      * Adds and builds a index for a column
-     * @param cdef the column definition holding the index data
+     * @param indexDef the index metadata
      * @return a future which the caller can optionally block on signaling the index is built
      */
-    public synchronized Future<?> addIndexedColumn(ColumnDefinition cdef)
+    public synchronized Future<?> addIndexedColumn(IndexMetadata indexDef)
     {
+        ColumnDefinition cdef = indexDef.indexedColumn(baseCfs.metadata);
         if (indexesByColumn.containsKey(cdef.name.bytes))
             return null;
 
-        assert cdef.getIndexType() != null;
-
-        SecondaryIndex index = SecondaryIndex.createInstance(baseCfs, cdef);
+        SecondaryIndex index = SecondaryIndex.createInstance(baseCfs, indexDef);
 
         // Keep a single instance of the index per-cf for row level indexes
         // since we want all columns to be under the index
@@ -256,14 +257,14 @@ public class SecondaryIndexManager
             else
             {
                 index = currentIndex;
-                index.addColumnDef(cdef);
-                logger.info("Creating new index : {}",cdef);
+                index.setIndexMetadata(indexDef);
+                logger.info("Creating new index : {}",indexDef.name);
             }
         }
         else
         {
             // TODO: We sould do better than throw a RuntimeException
-            if (cdef.getIndexType() == IndexType.CUSTOM && index instanceof AbstractSimplePerColumnSecondaryIndex)
+            if (indexDef.isCustom() && index instanceof AbstractSimplePerColumnSecondaryIndex)
                 throw new RuntimeException("Cannot use a subclass of AbstractSimplePerColumnSecondaryIndex as a CUSTOM index, as they assume they are CFS backed");
             index.init();
         }

@@ -23,6 +23,7 @@ import org.apache.cassandra.config.CFMetaData;
 import org.apache.cassandra.config.ColumnDefinition;
 import org.apache.cassandra.cql3.ColumnIdentifier;
 import org.apache.cassandra.db.index.SecondaryIndex;
+import org.apache.cassandra.schema.IndexMetadata;
 
 public class IndexTarget
 {
@@ -98,17 +99,29 @@ public class IndexTarget
             }
         }
 
-        public static TargetType fromColumnDefinition(ColumnDefinition cd)
+        public static TargetType fromIndexMetadata(IndexMetadata index, CFMetaData cfm)
         {
-            Map<String, String> options = cd.getIndexOptions();
+            Map<String, String> options = index.options;
             if (options.containsKey(SecondaryIndex.INDEX_KEYS_OPTION_NAME))
+            {
                 return KEYS;
+            }
             else if (options.containsKey(SecondaryIndex.INDEX_ENTRIES_OPTION_NAME))
+            {
                 return KEYS_AND_VALUES;
-            else if (cd.type.isCollection() && !cd.type.isMultiCell())
-                return FULL;
+            }
             else
-                return VALUES;
+            {
+                ColumnDefinition cd = index.indexedColumn(cfm);
+                if (cd.type.isCollection() && !cd.type.isMultiCell())
+                {
+                    return FULL;
+                }
+                else
+                {
+                    return VALUES;
+                }
+            }
         }
     }
 }

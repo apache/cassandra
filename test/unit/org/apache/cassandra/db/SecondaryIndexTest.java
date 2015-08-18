@@ -32,7 +32,6 @@ import org.junit.Test;
 import org.apache.cassandra.SchemaLoader;
 import org.apache.cassandra.Util;
 import org.apache.cassandra.config.ColumnDefinition;
-import org.apache.cassandra.config.IndexType;
 import org.apache.cassandra.cql3.Operator;
 import org.apache.cassandra.db.index.SecondaryIndex;
 import org.apache.cassandra.db.index.SecondaryIndexSearcher;
@@ -40,6 +39,7 @@ import org.apache.cassandra.db.marshal.AbstractType;
 import org.apache.cassandra.db.partitions.*;
 import org.apache.cassandra.db.rows.Row;
 import org.apache.cassandra.exceptions.ConfigurationException;
+import org.apache.cassandra.schema.IndexMetadata;
 import org.apache.cassandra.schema.KeyspaceParams;
 import org.apache.cassandra.utils.ByteBufferUtil;
 import org.apache.cassandra.utils.FBUtilities;
@@ -60,8 +60,8 @@ public class SecondaryIndexTest
         SchemaLoader.prepareServer();
         SchemaLoader.createKeyspace(KEYSPACE1,
                                     KeyspaceParams.simple(1),
-                                    SchemaLoader.compositeIndexCFMD(KEYSPACE1, WITH_COMPOSITE_INDEX, true).gcGraceSeconds(0),
-                                    SchemaLoader.compositeIndexCFMD(KEYSPACE1, COMPOSITE_INDEX_TO_BE_ADDED, false).gcGraceSeconds(0),
+                                    SchemaLoader.compositeIndexCFMD(KEYSPACE1, WITH_COMPOSITE_INDEX, true) .gcGraceSeconds(0),
+                                    SchemaLoader.compositeIndexCFMD(KEYSPACE1, COMPOSITE_INDEX_TO_BE_ADDED, false) .gcGraceSeconds(0),
                                     SchemaLoader.keysIndexCFMD(KEYSPACE1, WITH_KEYS_INDEX, true).gcGraceSeconds(0));
     }
 
@@ -426,8 +426,12 @@ public class SecondaryIndexTest
         new RowUpdateBuilder(cfs.metadata, 0, "k1").clustering("c").add("birthdate", 1L).build().applyUnsafe();
 
         ColumnDefinition old = cfs.metadata.getColumnDefinition(ByteBufferUtil.bytes("birthdate"));
-        old.setIndex("birthdate_index", IndexType.COMPOSITES, Collections.EMPTY_MAP);
-        Future<?> future = cfs.indexManager.addIndexedColumn(old);
+        IndexMetadata indexDef = IndexMetadata.legacyIndex(old,
+                                                           "birthdate_index",
+                                                           IndexMetadata.IndexType.COMPOSITES,
+                                                           Collections.EMPTY_MAP);
+        cfs.metadata.indexes(cfs.metadata.getIndexes().with(indexDef));
+        Future<?> future = cfs.indexManager.addIndexedColumn(indexDef);
         future.get();
         // we had a bug (CASSANDRA-2244) where index would get created but not flushed -- check for that
         ColumnDefinition cDef = cfs.metadata.getColumnDefinition(ByteBufferUtil.bytes("birthdate"));
@@ -441,7 +445,7 @@ public class SecondaryIndexTest
         assert !indexedCfs.isIndexBuilt(ByteBufferUtil.bytes("birthdate"));
 
         // rebuild & re-query
-        future = cfs.indexManager.addIndexedColumn(cDef);
+        future = cfs.indexManager.addIndexedColumn(indexDef);
         future.get();
         assertIndexedOne(cfs, ByteBufferUtil.bytes("birthdate"), 1L);
     }
@@ -477,8 +481,9 @@ public class SecondaryIndexTest
         if (count != 0)
             assertTrue(searchers.size() > 0);
 
-        try (ReadOrderGroup orderGroup = rc.startOrderGroup(); PartitionIterator iter = UnfilteredPartitionIterators.filter(searchers.get(0).search(rc, orderGroup), FBUtilities.nowInSeconds()))
-        {
+        try (ReadOrderGroup orderGroup = rc.startOrderGroup();
+             PartitionIterator iter = UnfilteredPartitionIterators.filter(searchers.get(0).search(rc, orderGroup),
+                                                                          FBUtilities.nowInSeconds())) {
             assertEquals(count, Util.size(iter));
         }
     }

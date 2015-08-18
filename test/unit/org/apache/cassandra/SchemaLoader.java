@@ -34,13 +34,8 @@ import org.apache.cassandra.db.index.SecondaryIndex;
 import org.apache.cassandra.db.marshal.*;
 import org.apache.cassandra.exceptions.ConfigurationException;
 import org.apache.cassandra.gms.Gossiper;
-import org.apache.cassandra.schema.CompressionParams;
+import org.apache.cassandra.schema.*;
 import org.apache.cassandra.io.util.FileUtils;
-import org.apache.cassandra.schema.CachingParams;
-import org.apache.cassandra.schema.CompactionParams;
-import org.apache.cassandra.schema.KeyspaceMetadata;
-import org.apache.cassandra.schema.KeyspaceParams;
-import org.apache.cassandra.schema.Tables;
 import org.apache.cassandra.service.MigrationManager;
 import org.apache.cassandra.utils.ByteBufferUtil;
 import org.apache.cassandra.utils.FBUtilities;
@@ -280,9 +275,6 @@ public class SchemaLoader
                                     ColumnIdentifier.getInterned(IntegerType.instance.fromString("42"), IntegerType.instance),
                                     UTF8Type.instance,
                                     null,
-                                    null,
-                                    null,
-                                    null,
                                     ColumnDefinition.Kind.REGULAR);
     }
 
@@ -292,9 +284,6 @@ public class SchemaLoader
                                     cfName,
                                     ColumnIdentifier.getInterned("fortytwo", true),
                                     UTF8Type.instance,
-                                    null,
-                                    null,
-                                    null,
                                     null,
                                     ColumnDefinition.Kind.REGULAR);
     }
@@ -309,8 +298,16 @@ public class SchemaLoader
                 .addPartitionKey("key", AsciiType.instance)
                 .build();
 
-        return cfm.addOrReplaceColumnDefinition(ColumnDefinition.regularDef(ksName, cfName, "indexed", AsciiType.instance)
-                                                                .setIndex("indexe1", IndexType.CUSTOM, indexOptions));
+        ColumnDefinition indexedColumn = ColumnDefinition.regularDef(ksName, cfName, "indexed", AsciiType.instance);
+        cfm.addOrReplaceColumnDefinition(indexedColumn);
+
+        cfm.indexes(
+            cfm.getIndexes()
+               .with(IndexMetadata.legacyIndex(indexedColumn,
+                                               "indexe1",
+                                               IndexMetadata.IndexType.CUSTOM,
+                                               indexOptions)));
+        return cfm;
     }
 
     private static void useCompression(List<KeyspaceMetadata> schema)
@@ -415,8 +412,12 @@ public class SchemaLoader
                 .build();
 
         if (withIndex)
-            cfm.getColumnDefinition(new ColumnIdentifier("birthdate", true))
-               .setIndex("birthdate_key_index", IndexType.COMPOSITES, Collections.EMPTY_MAP);
+            cfm.indexes(
+                cfm.getIndexes()
+                    .with(IndexMetadata.legacyIndex(cfm.getColumnDefinition(new ColumnIdentifier("birthdate", true)),
+                                                    "birthdate_key_index",
+                                                    IndexMetadata.IndexType.COMPOSITES,
+                                                    Collections.EMPTY_MAP)));
 
         return cfm.compression(getCompressionParameters());
     }
@@ -431,8 +432,13 @@ public class SchemaLoader
                                            .build();
 
         if (withIndex)
-            cfm.getColumnDefinition(new ColumnIdentifier("birthdate", true))
-               .setIndex("birthdate_composite_index", IndexType.KEYS, Collections.EMPTY_MAP);
+            cfm.indexes(
+                cfm.getIndexes()
+                    .with(IndexMetadata.legacyIndex(cfm.getColumnDefinition(new ColumnIdentifier("birthdate", true)),
+                                                    "birthdate_composite_index",
+                                                    IndexMetadata.IndexType.KEYS,
+                                                    Collections.EMPTY_MAP)));
+
 
         return cfm.compression(getCompressionParameters());
     }

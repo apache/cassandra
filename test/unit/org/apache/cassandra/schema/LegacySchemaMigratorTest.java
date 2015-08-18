@@ -474,15 +474,39 @@ public class LegacySchemaMigratorTest
                     ? ""
                     : column.name.toString();
 
-        RowUpdateBuilder adder = new RowUpdateBuilder(SystemKeyspace.LegacyColumns, timestamp, mutation).clustering(table.cfName, name);
+        final RowUpdateBuilder adder = new RowUpdateBuilder(SystemKeyspace.LegacyColumns, timestamp, mutation).clustering(table.cfName, name);
 
         adder.add("validator", column.type.toString())
              .add("type", serializeKind(column.kind, table.isDense()))
-             .add("component_index", column.isOnAllComponents() ? null : column.position())
-             .add("index_name", column.getIndexName())
-             .add("index_type", column.getIndexType() == null ? null : column.getIndexType().toString())
-             .add("index_options", json(column.getIndexOptions()))
-             .build();
+             .add("component_index", column.isOnAllComponents() ? null : column.position());
+
+        Optional<IndexMetadata> index = findIndexForColumn(table.getIndexes(), table, column);
+        if (index.isPresent())
+        {
+            IndexMetadata i = index.get();
+            adder.add("index_name", i.name);
+            adder.add("index_type", i.indexType.toString());
+            adder.add("index_options", json(i.options));
+        }
+        else
+        {
+            adder.add("index_name", null);
+            adder.add("index_type", null);
+            adder.add("index_options", null);
+        }
+
+        adder.build();
+    }
+
+    private static Optional<IndexMetadata> findIndexForColumn(Indexes indexes,
+                                                                CFMetaData table,
+                                                                ColumnDefinition column)
+    {
+        for (IndexMetadata index : indexes)
+            if (index.indexedColumn(table).equals(column))
+                return Optional.of(index);
+
+        return Optional.empty();
     }
 
     private static String serializeKind(ColumnDefinition.Kind kind, boolean isDense)

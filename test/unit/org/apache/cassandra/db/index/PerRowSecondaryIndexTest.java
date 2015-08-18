@@ -41,6 +41,7 @@ import org.apache.cassandra.db.partitions.UnfilteredPartitionIterator;
 import org.apache.cassandra.db.partitions.PartitionUpdate;
 import org.apache.cassandra.exceptions.ConfigurationException;
 import org.apache.cassandra.exceptions.InvalidRequestException;
+import org.apache.cassandra.schema.IndexMetadata;
 import org.apache.cassandra.schema.KeyspaceParams;
 import org.apache.cassandra.utils.ByteBufferUtil;
 import org.apache.cassandra.utils.FBUtilities;
@@ -205,7 +206,7 @@ public class PerRowSecondaryIndexTest
         }
 
         @Override
-        public void validateOptions() throws ConfigurationException
+        public void validateOptions(CFMetaData cfm, IndexMetadata def) throws ConfigurationException{}
         {
         }
 

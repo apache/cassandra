@@ -30,16 +30,15 @@ import org.junit.BeforeClass;
 import org.junit.Test;
 
 import org.apache.cassandra.config.CFMetaData;
-import org.apache.cassandra.config.ColumnDefinition;
 import org.apache.cassandra.config.Config.DiskFailurePolicy;
 import org.apache.cassandra.config.DatabaseDescriptor;
-import org.apache.cassandra.config.IndexType;
 import org.apache.cassandra.db.Directories.DataDirectory;
 import org.apache.cassandra.db.index.SecondaryIndex;
 import org.apache.cassandra.db.marshal.UTF8Type;
 import org.apache.cassandra.io.sstable.Component;
 import org.apache.cassandra.io.sstable.Descriptor;
 import org.apache.cassandra.io.util.FileUtils;
+import org.apache.cassandra.schema.IndexMetadata;
 import org.apache.cassandra.utils.ByteBufferUtil;
 import org.apache.cassandra.io.FSWriteError;
 import org.apache.cassandra.utils.Pair;
@@ -162,9 +161,12 @@ public class DirectoriesTest
                                   .addPartitionKey("thekey", UTF8Type.instance)
                                   .addClusteringColumn("col", UTF8Type.instance)
                                   .build();
-        ColumnDefinition def = PARENT_CFM.getColumnDefinition(ByteBufferUtil.bytes("col"));
-        def.setIndex("idx", IndexType.KEYS, Collections.emptyMap());
-        CFMetaData INDEX_CFM = SecondaryIndex.newIndexMetadata(PARENT_CFM, def);
+        IndexMetadata indexDef = IndexMetadata.legacyIndex(PARENT_CFM.getColumnDefinition(ByteBufferUtil.bytes("col")),
+                                                           "idx",
+                                                           IndexMetadata.IndexType.KEYS,
+                                                           Collections.emptyMap());
+        PARENT_CFM.indexes(PARENT_CFM.getIndexes().with(indexDef));
+        CFMetaData INDEX_CFM = SecondaryIndex.newIndexMetadata(PARENT_CFM, indexDef);
         Directories parentDirectories = new Directories(PARENT_CFM);
         Directories indexDirectories = new Directories(INDEX_CFM);
         // secondary index has its own directory

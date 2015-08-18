@@ -30,7 +30,8 @@ import java.util.stream.Collectors;
 import com.google.common.annotations.VisibleForTesting;
 import com.google.common.base.MoreObjects;
 import com.google.common.base.Objects;
-import com.google.common.collect.*;
+import com.google.common.collect.ImmutableSet;
+import com.google.common.collect.Sets;
 import org.apache.commons.lang3.ArrayUtils;
 import org.apache.commons.lang3.builder.HashCodeBuilder;
 import org.apache.commons.lang3.builder.ToStringBuilder;
@@ -42,16 +43,16 @@ import org.apache.cassandra.cql3.QueryProcessor;
 import org.apache.cassandra.cql3.statements.CFStatement;
 import org.apache.cassandra.cql3.statements.CreateTableStatement;
 import org.apache.cassandra.db.*;
-import org.apache.cassandra.db.compaction.*;
+import org.apache.cassandra.db.compaction.AbstractCompactionStrategy;
 import org.apache.cassandra.db.index.SecondaryIndex;
 import org.apache.cassandra.db.marshal.*;
 import org.apache.cassandra.dht.IPartitioner;
-import org.apache.cassandra.exceptions.*;
+import org.apache.cassandra.exceptions.ConfigurationException;
+import org.apache.cassandra.exceptions.InvalidRequestException;
 import org.apache.cassandra.io.util.DataInputPlus;
 import org.apache.cassandra.io.util.DataOutputPlus;
 import org.apache.cassandra.schema.*;
 import org.apache.cassandra.utils.*;
-import org.apache.cassandra.utils.AbstractIterator;
 import org.github.jamm.Unmetered;
 
 /**
@@ -95,6 +96,7 @@ public final class CFMetaData
     private volatile Map<ByteBuffer, DroppedColumn> droppedColumns = new HashMap<>();
     private volatile Triggers triggers = Triggers.none();
     private volatile MaterializedViews materializedViews = MaterializedViews.none();
+    private volatile Indexes indexes = Indexes.none();
 
     /*
      * All CQL3 columns definition are stored in the columnMetadata map.
@@ -224,6 +226,12 @@ public final class CFMetaData
         return this;
     }
 
+    public CFMetaData indexes(Indexes indexes)
+    {
+        this.indexes = indexes;
+        return this;
+    }
+
     private CFMetaData(String keyspace,
                        String name,
                        UUID cfId,
@@ -300,6 +308,11 @@ public final class CFMetaData
     public MaterializedViews getMaterializedViews()
     {
         return materializedViews;
+    }
+
+    public Indexes getIndexes()
+    {
+        return indexes;
     }
 
     public static CFMetaData create(String ksName,
@@ -491,7 +504,8 @@ public final class CFMetaData
         return newCFMD.params(oldCFMD.params)
                       .droppedColumns(new HashMap<>(oldCFMD.droppedColumns))
                       .triggers(oldCFMD.triggers)
-                      .materializedViews(oldCFMD.materializedViews);
+                      .materializedViews(oldCFMD.materializedViews)
+                      .indexes(oldCFMD.indexes);
     }
 
     /**
@@ -502,18 +516,10 @@ public final class CFMetaData
      *
      * @return name of the index ColumnFamily
      */
-    public String indexColumnFamilyName(ColumnDefinition info)
+    public String indexColumnFamilyName(IndexMetadata info)
     {
         // TODO simplify this when info.index_name is guaranteed to be set
-        return cfName + Directories.SECONDARY_INDEX_NAME_SEPARATOR + (info.getIndexName() == null ? ByteBufferUtil.bytesToHex(info.name.bytes) : info.getIndexName());
-    }
-
-    /**
-     * The '.' char is the only way to identify if the CFMetadata is for a secondary index
-     */
-    public boolean isSecondaryIndex()
-    {
-        return cfName.contains(".");
+        return cfName + Directories.SECONDARY_INDEX_NAME_SEPARATOR + info.name;
     }
 
     /**
@@ -689,7 +695,8 @@ public final class CFMetaData
             && Objects.equal(columnMetadata, other.columnMetadata)
             && Objects.equal(droppedColumns, other.droppedColumns)
             && Objects.equal(triggers, other.triggers)
-            && Objects.equal(materializedViews, other.materializedViews);
+            && Objects.equal(materializedViews, other.materializedViews)
+            && Objects.equal(indexes, other.indexes);
     }
 
     @Override
@@ -707,6 +714,7 @@ public final class CFMetaData
             .append(droppedColumns)
             .append(triggers)
             .append(materializedViews)
+            .append(indexes)
             .toHashCode();
     }
 
@@ -752,6 +760,7 @@ public final class CFMetaData
 
         triggers = cfm.triggers;
         materializedViews = cfm.materializedViews;
+        indexes = cfm.indexes;
 
         logger.debug("application result is {}", this);
 
@@ -820,72 +829,9 @@ public final class CFMetaData
         return columnMetadata.get(name);
     }
 
-    public ColumnDefinition getColumnDefinitionForIndex(String indexName)
-    {
-        for (ColumnDefinition def : allColumns())
-        {
-            if (indexName.equals(def.getIndexName()))
-                return def;
-        }
-        return null;
-    }
-
-    /**
-     * Convert a null index_name to appropriate default name according to column status
-     */
-    public void addDefaultIndexNames() throws ConfigurationException
-    {
-        // if this is ColumnFamily update we need to add previously defined index names to the existing columns first
-        UUID cfId = Schema.instance.getId(ksName, cfName);
-        if (cfId != null)
-        {
-            CFMetaData cfm = Schema.instance.getCFMetaData(cfId);
-
-            for (ColumnDefinition newDef : allColumns())
-            {
-                if (!cfm.columnMetadata.containsKey(newDef.name.bytes) || newDef.getIndexType() == null)
-                    continue;
-
-                String oldIndexName = cfm.getColumnDefinition(newDef.name).getIndexName();
-
-                if (oldIndexName == null)
-                    continue;
-
-                if (newDef.getIndexName() != null && !oldIndexName.equals(newDef.getIndexName()))
-                    throw new ConfigurationException("Can't modify index name: was '" + oldIndexName + "' changed to '" + newDef.getIndexName() + "'.");
-
-                newDef.setIndexName(oldIndexName);
-            }
-        }
-
-        Set<String> existingNames = existingIndexNames(null);
-        for (ColumnDefinition column : allColumns())
-        {
-            if (column.getIndexType() != null && column.getIndexName() == null)
-            {
-                String baseName = getDefaultIndexName(cfName, column.name);
-                String indexName = baseName;
-                int i = 0;
-                while (existingNames.contains(indexName))
-                    indexName = baseName + '_' + (++i);
-                column.setIndexName(indexName);
-            }
-        }
-    }
-
-    public static String getDefaultIndexName(String cfName, ColumnIdentifier columnName)
-    {
-        return (cfName + "_" + columnName + "_idx").replaceAll("\\W", "");
-    }
-
     public static boolean isNameValid(String name)
     {
         return name != null && !name.isEmpty() && name.length() <= Schema.NAME_LENGTH && name.matches("\\w+");
-    }
-
-    public static boolean isIndexNameValid(String name)
-    {
-        return name != null && !name.isEmpty() && name.matches("\\w+");
     }
 
     public CFMetaData validate() throws ConfigurationException
@@ -921,49 +867,28 @@ public final class CFMetaData
                     throw new ConfigurationException("Cannot add a counter column (" + def.name + ") in a non counter column family");
         }
 
+        if (!indexes.isEmpty() && isSuper())
+            throw new ConfigurationException("Secondary indexes are not supported on super column families");
+
         // initialize a set of names NOT in the CF under consideration
-        Set<String> indexNames = existingIndexNames(cfName);
-        for (ColumnDefinition c : allColumns())
+        KeyspaceMetadata ksm = Schema.instance.getKSMetaData(ksName);
+        Set<String> indexNames = ksm == null ? new HashSet<>() : ksm.existingIndexNames(cfName);
+        for (IndexMetadata index : indexes)
         {
-            if (c.getIndexType() == null)
-            {
-                if (c.getIndexName() != null)
-                    throw new ConfigurationException("Index name cannot be set without index type");
-            }
-            else
-            {
-                if (isSuper())
-                    throw new ConfigurationException("Secondary indexes are not supported on super column families");
-                if (!isIndexNameValid(c.getIndexName()))
-                    throw new ConfigurationException("Illegal index name " + c.getIndexName());
-                // check index names against this CF _and_ globally
-                if (indexNames.contains(c.getIndexName()))
-                    throw new ConfigurationException("Duplicate index name " + c.getIndexName());
-                indexNames.add(c.getIndexName());
+            index.validate();
 
-                if (c.getIndexType() == IndexType.CUSTOM)
-                {
-                    if (c.getIndexOptions() == null || !c.hasIndexOption(SecondaryIndex.CUSTOM_INDEX_OPTION_NAME))
-                        throw new ConfigurationException("Required index option missing: " + SecondaryIndex.CUSTOM_INDEX_OPTION_NAME);
-                }
+            // check index names against this CF _and_ globally
+            if (indexNames.contains(index.name))
+                throw new ConfigurationException("Duplicate index name " + index.name);
+            indexNames.add(index.name);
 
-                // This method validates the column metadata but does not intialize the index
-                SecondaryIndex.createInstance(null, c);
-            }
+            // This method validates any custom options in the index metadata but does not intialize the index
+            SecondaryIndex.validate(this, index);
         }
 
         return this;
     }
 
-    private static Set<String> existingIndexNames(String cfToExclude)
-    {
-        Set<String> indexNames = new HashSet<>();
-        for (ColumnFamilyStore cfs : ColumnFamilyStore.all())
-            if (cfToExclude == null || !cfs.name.equals(cfToExclude))
-                for (ColumnDefinition cd : cfs.metadata.allColumns())
-                    indexNames.add(cd.getIndexName());
-        return indexNames;
-    }
 
     // The comparator to validate the definition name with thrift.
     public AbstractType<?> thriftColumnNameType()
@@ -1048,7 +973,7 @@ public final class CFMetaData
         {
             throw new InvalidRequestException(String.format("Cannot rename non PRIMARY KEY part %s", from));
         }
-        else if (def.isIndexed())
+        else if (getIndexes().hasIndexFor(def))
         {
             throw new InvalidRequestException(String.format("Cannot rename column %s because it is secondary indexed", from));
         }
@@ -1172,6 +1097,7 @@ public final class CFMetaData
                     .collect(Collectors.toSet());
     }
 
+
     @Override
     public String toString()
     {
@@ -1190,6 +1116,7 @@ public final class CFMetaData
             .append("droppedColumns", droppedColumns)
             .append("triggers", triggers)
             .append("materializedViews", materializedViews)
+            .append("indexes", indexes)
             .toString();
     }
 

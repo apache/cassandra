@@ -17,6 +17,10 @@
  */
 package org.apache.cassandra.schema;
 
+import java.util.HashSet;
+import java.util.Optional;
+import java.util.Set;
+
 import com.google.common.base.Objects;
 
 import org.apache.cassandra.config.CFMetaData;
@@ -76,6 +80,25 @@ public final class KeyspaceMetadata
     public KeyspaceMetadata withSwapped(Functions functions)
     {
         return new KeyspaceMetadata(name, params, tables, types, functions);
+    }
+
+    public Set<String> existingIndexNames(String cfToExclude)
+    {
+        Set<String> indexNames = new HashSet<>();
+        for (CFMetaData table : tables)
+            if (cfToExclude == null || !table.cfName.equals(cfToExclude))
+                for (IndexMetadata index : table.getIndexes())
+                    indexNames.add(index.name);
+        return indexNames;
+    }
+
+    public Optional<CFMetaData> findIndexedTable(String indexName)
+    {
+        for (CFMetaData cfm : tables)
+            if (cfm.getIndexes().has(indexName))
+                return Optional.of(cfm);
+
+        return Optional.empty();
     }
 
     @Override
