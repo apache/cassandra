@@ -71,7 +71,7 @@ public final class LegacyHintsMigrator
         int meanCellCount = legacyHintsTable.getMeanColumns();
         double meanPartitionSize = legacyHintsTable.getMeanPartitionSize();
 
-        if (meanCellCount != 0 || meanPartitionSize != 0)
+        if (meanCellCount != 0 && meanPartitionSize != 0)
         {
             int avgHintSize = (int) meanPartitionSize / meanCellCount;
             size = Math.max(2, Math.min(size, (512 << 10) / avgHintSize));

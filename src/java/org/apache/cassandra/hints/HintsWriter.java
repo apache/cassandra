@@ -22,6 +22,7 @@ import java.io.IOException;
 import java.io.OutputStream;
 import java.nio.ByteBuffer;
 import java.nio.channels.FileChannel;
+import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.StandardOpenOption;
 import java.util.zip.CRC32;
@@ -98,7 +99,7 @@ final class HintsWriter implements AutoCloseable
         File checksumFile = new File(directory, descriptor.checksumFileName());
         try (OutputStream out = Files.newOutputStream(checksumFile.toPath()))
         {
-            out.write(Integer.toHexString((int) globalCRC.getValue()).getBytes());
+            out.write(Integer.toHexString((int) globalCRC.getValue()).getBytes(StandardCharsets.UTF_8));
         }
         catch (IOException e)
         {
@@ -255,7 +256,7 @@ final class HintsWriter implements AutoCloseable
 
         private void maybeFsync()
         {
-            if (position() >= lastSyncPosition + DatabaseDescriptor.getTrickleFsyncIntervalInKb() * 1024)
+            if (position() >= lastSyncPosition + DatabaseDescriptor.getTrickleFsyncIntervalInKb() * 1024L)
                 fsync();
         }
 
@@ -265,7 +266,7 @@ final class HintsWriter implements AutoCloseable
 
             // don't skip page cache for tiny files, on the assumption that if they are tiny, the target node is probably
             // alive, and if so, the file will be closed and dispatched shortly (within a minute), and the file will be dropped.
-            if (position >= DatabaseDescriptor.getTrickleFsyncIntervalInKb() * 1024)
+            if (position >= DatabaseDescriptor.getTrickleFsyncIntervalInKb() * 1024L)
                 CLibrary.trySkipCache(fd, 0, position - (position % PAGE_SIZE), file.getPath());
         }
     }
