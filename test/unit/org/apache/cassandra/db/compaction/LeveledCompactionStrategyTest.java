@@ -26,11 +26,15 @@ import java.util.List;
 import java.util.Random;
 import java.util.UUID;
 
+import junit.framework.Assert;
 import org.junit.After;
 import org.junit.Before;
 import org.junit.BeforeClass;
 import org.junit.Test;
 import org.junit.runner.RunWith;
+
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 import org.apache.cassandra.OrderedJUnit4ClassRunner;
 import org.apache.cassandra.SchemaLoader;
@@ -59,6 +63,8 @@ import static org.junit.Assert.assertTrue;
 @RunWith(OrderedJUnit4ClassRunner.class)
 public class LeveledCompactionStrategyTest
 {
+    private static final Logger logger = LoggerFactory.getLogger(LeveledCompactionStrategyTest.class);
+
     private static final String KEYSPACE1 = "LeveledCompactionStrategyTest";
     private static final String CF_STANDARDDLEVELED = "StandardLeveled";
     private Keyspace keyspace;
@@ -102,8 +108,8 @@ public class LeveledCompactionStrategyTest
         new Random().nextBytes(value.array());
 
         // Enough data to have a level 1 and 2
-        int rows = 20;
-        int columns = 10;
+        int rows = 40;
+        int columns = 20;
 
         // Adds enough data to trigger multiple sstable per level
         for (int r = 0; r < rows; r++)
@@ -118,8 +124,15 @@ public class LeveledCompactionStrategyTest
         waitForLeveling(cfs);
         CompactionStrategyManager strategy =  cfs.getCompactionStrategyManager();
         // Checking we're not completely bad at math
-        assert strategy.getSSTableCountPerLevel()[1] > 0;
-        assert strategy.getSSTableCountPerLevel()[2] > 0;
+        int l1Count = strategy.getSSTableCountPerLevel()[1];
+        int l2Count = strategy.getSSTableCountPerLevel()[2];
+        if (l1Count == 0 || l2Count == 0)
+        {
+            logger.error("L1 or L2 has 0 sstables. Expected > 0 on both.");
+            logger.error("L1: " + l1Count);
+            logger.error("L2: " + l2Count);
+            Assert.fail();
+        }
 
         Collection<Collection<SSTableReader>> groupedSSTables = cfs.getCompactionStrategyManager().groupSSTablesForAntiCompaction(cfs.getLiveSSTables());
         for (Collection<SSTableReader> sstableGroup : groupedSSTables)
