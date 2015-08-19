@@ -265,9 +265,7 @@ public class SSTableIterator extends AbstractSSTableIterator
         protected Unfiltered computeNext() throws IOException
         {
             // Our previous read might have made us cross an index block boundary. If so, update our informations.
-            int currentBlockIdx = indexState.currentBlockIdx();
-            if (indexState.isPastCurrentBlock() && currentBlockIdx + 1 < indexState.blocksCount())
-                indexState.setToBlock(currentBlockIdx + 1);
+            indexState.updateBlock();
 
             // Return the next unfiltered unless we've reached the end, or we're beyond our slice
             // end (note that unless we're on the last block for the slice, there is no point

@@ -200,6 +200,11 @@ public class CompositeType extends AbstractCompositeType
         return l;
     }
 
+    public static byte lastEOC(ByteBuffer name)
+    {
+        return name.get(name.limit() - 1);
+    }
+
     // Extract component idx from bb. Return null if there is not enough component.
     public static ByteBuffer extractComponent(ByteBuffer bb, int idx)
     {

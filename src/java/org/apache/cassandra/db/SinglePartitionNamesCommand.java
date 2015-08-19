@@ -192,7 +192,7 @@ public class SinglePartitionNamesCommand extends SinglePartitionReadCommand<Clus
         if (result == null)
             return ImmutableBTreePartition.create(iter, maxRows);
 
-        try (UnfilteredRowIterator merged = UnfilteredRowIterators.merge(Arrays.asList(iter, result.unfilteredIterator(columnFilter(), Slices.ALL, false)), nowInSec()))
+        try (UnfilteredRowIterator merged = UnfilteredRowIterators.merge(Arrays.asList(iter, result.unfilteredIterator(columnFilter(), Slices.ALL, clusteringIndexFilter().isReversed())), nowInSec()))
         {
             return ImmutableBTreePartition.create(merged, maxRows);
         }

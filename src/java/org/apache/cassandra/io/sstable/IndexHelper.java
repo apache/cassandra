@@ -152,7 +152,7 @@ public class IndexHelper
 
             public void serialize(IndexInfo info, DataOutputPlus out, SerializationHeader header) throws IOException
             {
-                ISerializer<ClusteringPrefix> clusteringSerializer = metadata.serializers().clusteringPrefixSerializer(version, header);
+                ISerializer<ClusteringPrefix> clusteringSerializer = metadata.serializers().indexEntryClusteringPrefixSerializer(version, header);
                 clusteringSerializer.serialize(info.firstName, out);
                 clusteringSerializer.serialize(info.lastName, out);
                 out.writeLong(info.offset);
@@ -168,7 +168,7 @@ public class IndexHelper
 
             public IndexInfo deserialize(DataInputPlus in, SerializationHeader header) throws IOException
             {
-                ISerializer<ClusteringPrefix> clusteringSerializer = metadata.serializers().clusteringPrefixSerializer(version, header);
+                ISerializer<ClusteringPrefix> clusteringSerializer = metadata.serializers().indexEntryClusteringPrefixSerializer(version, header);
 
                 ClusteringPrefix firstName = clusteringSerializer.deserialize(in);
                 ClusteringPrefix lastName = clusteringSerializer.deserialize(in);
@@ -183,7 +183,7 @@ public class IndexHelper
 
             public long serializedSize(IndexInfo info, SerializationHeader header)
             {
-                ISerializer<ClusteringPrefix> clusteringSerializer = metadata.serializers().clusteringPrefixSerializer(version, header);
+                ISerializer<ClusteringPrefix> clusteringSerializer = metadata.serializers().indexEntryClusteringPrefixSerializer(version, header);
                 long size = clusteringSerializer.serializedSize(info.firstName)
                           + clusteringSerializer.serializedSize(info.lastName)
                           + TypeSizes.sizeof(info.offset)
