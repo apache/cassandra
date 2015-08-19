@@ -3,6 +3,7 @@
 
 
 3.0.0-beta1
+ * Rewrite hinted handoff (CASSANDRA-6230)
  * Fix query on static compact tables (CASSANDRA-10093)
  * Fix race during construction of commit log (CASSANDRA-10049)
  * Add option to only purge repaired tombstones (CASSANDRA-6434)

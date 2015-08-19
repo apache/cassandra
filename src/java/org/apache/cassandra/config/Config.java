@@ -56,6 +56,7 @@ public class Config
     public volatile boolean hinted_handoff_enabled = true;
     public Set<String> hinted_handoff_disabled_datacenters = Sets.newConcurrentHashSet();
     public volatile Integer max_hint_window_in_ms = 3 * 3600 * 1000; // three hours
+    public String hints_directory;
 
     public ParameterizedClass seed_provider;
     public DiskAccessMode disk_access_mode = DiskAccessMode.auto;
@@ -171,6 +172,8 @@ public class Config
     public int commitlog_max_compression_buffers_in_pool = 3;
     public TransparentDataEncryptionOptions transparent_data_encryption_options = new TransparentDataEncryptionOptions();
 
+    public Integer max_mutation_size_in_kb;
+
     @Deprecated
     public int commitlog_periodic_queue_size = -1;
 
@@ -196,7 +199,9 @@ public class Config
 
     public int hinted_handoff_throttle_in_kb = 1024;
     public int batchlog_replay_throttle_in_kb = 1024;
-    public int max_hints_delivery_threads = 1;
+    public int max_hints_delivery_threads = 2;
+    public int hints_flush_period_in_ms = 10000;
+    public int max_hints_file_size_in_mb = 128;
     public int sstable_preemptive_open_interval_in_mb = 50;
 
     public volatile boolean incremental_backups = false;

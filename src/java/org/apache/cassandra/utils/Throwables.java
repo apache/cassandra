@@ -18,10 +18,25 @@
 */
 package org.apache.cassandra.utils;
 
-public class Throwables
-{
+import java.io.File;
+import java.io.IOException;
+import java.util.Arrays;
+import java.util.Iterator;
+import java.util.stream.Stream;
 
-    public static Throwable merge(Throwable existingFail, Throwable newFail)
+import org.apache.cassandra.io.FSReadError;
+import org.apache.cassandra.io.FSWriteError;
+
+public final class Throwables
+{
+    public enum FileOpType { READ, WRITE }
+
+    public interface DiscreteAction<E extends Exception>
+    {
+        void perform() throws E;
+    }
+
+    public static <T extends Throwable> T merge(T existingFail, T newFail)
     {
         if (existingFail == null)
             return newFail;
@@ -31,7 +46,74 @@ public class Throwables
 
     public static void maybeFail(Throwable fail)
     {
-        if (fail != null)
-            com.google.common.base.Throwables.propagate(fail);
+        if (failIfCanCast(fail, null))
+            throw new RuntimeException(fail);
+    }
+
+    public static <T extends Throwable> void maybeFail(Throwable fail, Class<T> checked) throws T
+    {
+        if (failIfCanCast(fail, checked))
+            throw new RuntimeException(fail);
+    }
+
+    public static <T extends Throwable> boolean failIfCanCast(Throwable fail, Class<T> checked) throws T
+    {
+        if (fail == null)
+            return false;
+
+        if (fail instanceof Error)
+            throw (Error) fail;
+
+        if (fail instanceof RuntimeException)
+            throw (RuntimeException) fail;
+
+        if (checked != null && checked.isInstance(fail))
+            throw checked.cast(fail);
+
+        return true;
+    }
+
+    @SafeVarargs
+    public static <E extends Exception> void perform(DiscreteAction<? extends E> ... actions) throws E
+    {
+        perform(Arrays.stream(actions));
+    }
+
+    @SuppressWarnings("unchecked")
+    public static <E extends Exception> void perform(Stream<DiscreteAction<? extends E>> actions) throws E
+    {
+        Throwable fail = null;
+        Iterator<DiscreteAction<? extends E>> iter = actions.iterator();
+        while (iter.hasNext())
+        {
+            DiscreteAction<? extends E> action = iter.next();
+            try
+            {
+                action.perform();
+            }
+            catch (Throwable t)
+            {
+                fail = merge(fail, t);
+            }
+        }
+
+        if (failIfCanCast(fail, null))
+            throw (E) fail;
+    }
+
+    @SafeVarargs
+    public static void perform(File against, FileOpType opType, DiscreteAction<? extends IOException> ... actions)
+    {
+        perform(Arrays.stream(actions).map((action) -> () ->
+        {
+            try
+            {
+                action.perform();
+            }
+            catch (IOException e)
+            {
+                throw (opType == FileOpType.WRITE) ? new FSWriteError(e, against) : new FSReadError(e, against);
+            }
+        }));
     }
 }

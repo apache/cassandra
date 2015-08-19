@@ -21,6 +21,7 @@ import java.net.UnknownHostException;
 import java.util.List;
 import java.util.concurrent.ExecutionException;
 
+@Deprecated
 public interface HintedHandOffManagerMBean
 {
     /**

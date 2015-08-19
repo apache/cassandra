@@ -21,7 +21,6 @@ import java.net.InetAddress;
 import java.util.Map.Entry;
 
 import com.codahale.metrics.Counter;
-import org.apache.cassandra.db.HintedHandOffManager;
 import org.apache.cassandra.db.SystemKeyspace;
 import org.apache.cassandra.utils.UUIDGen;
 import org.slf4j.Logger;
@@ -34,7 +33,7 @@ import com.google.common.cache.LoadingCache;
 import static org.apache.cassandra.metrics.CassandraMetricsRegistry.Metrics;
 
 /**
- * Metrics for {@link HintedHandOffManager}.
+ * Metrics for {@link org.apache.cassandra.hints.HintsService}.
  */
 public class HintedHandoffMetrics
 {
