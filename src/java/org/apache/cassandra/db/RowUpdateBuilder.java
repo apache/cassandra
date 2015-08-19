@@ -18,6 +18,8 @@
 package org.apache.cassandra.db;
 
 import java.nio.ByteBuffer;
+import java.util.ArrayList;
+import java.util.List;
 import java.util.Map;
 import java.util.Set;
 
@@ -25,6 +27,7 @@ import org.apache.cassandra.cql3.ColumnIdentifier;
 import org.apache.cassandra.config.CFMetaData;
 import org.apache.cassandra.config.ColumnDefinition;
 import org.apache.cassandra.db.marshal.SetType;
+import org.apache.cassandra.db.marshal.UTF8Type;
 import org.apache.cassandra.db.rows.*;
 import org.apache.cassandra.db.context.CounterContext;
 import org.apache.cassandra.db.partitions.*;
@@ -330,11 +333,38 @@ public class RowUpdateBuilder
         return this;
     }
 
+    public RowUpdateBuilder frozenList(String columnName, List<?> list)
+    {
+        ColumnDefinition c = getDefinition(columnName);
+        assert c.isStatic() || regularBuilder != null : "Cannot set non static column " + c + " since no clustering has been provided";
+        assert c.type instanceof ListType && !c.type.isMultiCell() : "Column " + c + " is not a frozen list";
+        builder(c).addCell(makeCell(c, bb(((AbstractType)c.type).decompose(list), c.type), null));
+        return this;
+    }
+
+    public RowUpdateBuilder frozenSet(String columnName, Set<?> set)
+    {
+        ColumnDefinition c = getDefinition(columnName);
+        assert c.isStatic() || regularBuilder != null : "Cannot set non static column " + c + " since no clustering has been provided";
+        assert c.type instanceof SetType && !c.type.isMultiCell() : "Column " + c + " is not a frozen set";
+        builder(c).addCell(makeCell(c, bb(((AbstractType)c.type).decompose(set), c.type), null));
+        return this;
+    }
+
+    public RowUpdateBuilder frozenMap(String columnName, Map<?, ?> map)
+    {
+        ColumnDefinition c = getDefinition(columnName);
+        assert c.isStatic() || regularBuilder != null : "Cannot set non static column " + c + " since no clustering has been provided";
+        assert c.type instanceof MapType && !c.type.isMultiCell() : "Column " + c + " is not a frozen map";
+        builder(c).addCell(makeCell(c, bb(((AbstractType)c.type).decompose(map), c.type), null));
+        return this;
+    }
+
     public RowUpdateBuilder addMapEntry(String columnName, Object key, Object value)
     {
         ColumnDefinition c = getDefinition(columnName);
         assert c.isStatic() || update.metadata().comparator.size() == 0 || regularBuilder != null : "Cannot set non static column " + c + " since no clustering has been provided";
-        assert c.type instanceof MapType && c.type.isMultiCell();
+        assert c.type instanceof MapType && c.type.isMultiCell() : "Column " + c + " is not a non-frozen map";
         MapType mt = (MapType)c.type;
         builder(c).addCell(makeCell(c, bb(value, mt.getValuesType()), CellPath.create(bb(key, mt.getKeysType()))));
         return this;
@@ -344,7 +374,7 @@ public class RowUpdateBuilder
     {
         ColumnDefinition c = getDefinition(columnName);
         assert c.isStatic() || regularBuilder != null : "Cannot set non static column " + c + " since no clustering has been provided";
-        assert c.type instanceof ListType && c.type.isMultiCell();
+        assert c.type instanceof ListType && c.type.isMultiCell() : "Column " + c + " is not a non-frozen list";
         ListType lt = (ListType)c.type;
         builder(c).addCell(makeCell(c, bb(value, lt.getElementsType()), CellPath.create(ByteBuffer.wrap(UUIDGen.getTimeUUIDBytes()))));
         return this;
@@ -354,7 +384,7 @@ public class RowUpdateBuilder
     {
         ColumnDefinition c = getDefinition(columnName);
         assert c.isStatic() || regularBuilder != null : "Cannot set non static column " + c + " since no clustering has been provided";
-        assert c.type instanceof SetType && c.type.isMultiCell();
+        assert c.type instanceof SetType && c.type.isMultiCell() : "Column " + c + " is not a non-frozen set";
         SetType st = (SetType)c.type;
         builder(c).addCell(makeCell(c, ByteBufferUtil.EMPTY_BYTE_BUFFER, CellPath.create(bb(value, st.getElementsType()))));
         return this;

@@ -120,6 +120,8 @@ public final class LegacySchemaMigrator
 
     private static void storeKeyspaceInNewSchemaTables(Keyspace keyspace)
     {
+        logger.info("Migrating keyspace {}", keyspace);
+
         Mutation mutation = SchemaKeyspace.makeCreateKeyspaceMutation(keyspace.name, keyspace.params, keyspace.timestamp);
         for (Table table : keyspace.tables)
             SchemaKeyspace.addTableToSchemaMutation(table.metadata, table.timestamp, true, mutation);

@@ -340,6 +340,29 @@ public abstract class UntypedResultSet implements Iterable<UntypedResultSet.Row>
             return getMap(column, UTF8Type.instance, UTF8Type.instance);
         }
 
+        public <T> Set<T> getFrozenSet(String column, AbstractType<T> type)
+        {
+            ByteBuffer raw = data.get(column);
+            return raw == null ? null : SetType.getInstance(type, false).compose(raw);
+        }
+
+        public <T> List<T> getFrozenList(String column, AbstractType<T> type)
+        {
+            ByteBuffer raw = data.get(column);
+            return raw == null ? null : ListType.getInstance(type, false).compose(raw);
+        }
+
+        public <K, V> Map<K, V> getFrozenMap(String column, AbstractType<K> keyType, AbstractType<V> valueType)
+        {
+            ByteBuffer raw = data.get(column);
+            return raw == null ? null : MapType.getInstance(keyType, valueType, false).compose(raw);
+        }
+
+        public Map<String, String> getFrozenTextMap(String column)
+        {
+            return getFrozenMap(column, UTF8Type.instance, UTF8Type.instance);
+        }
+
         public List<ColumnSpecification> getColumns()
         {
             return columns;
