@@ -21,13 +21,12 @@ import java.io.*;
 import java.nio.ByteBuffer;
 import java.nio.channels.FileChannel;
 import java.nio.charset.Charset;
+import java.nio.charset.StandardCharsets;
 import java.nio.file.*;
 import java.text.DecimalFormat;
 import java.util.Arrays;
-import java.util.Collections;
 import java.util.List;
 
-import org.apache.cassandra.config.Config;
 import sun.nio.ch.DirectBuffer;
 
 import org.slf4j.Logger;
@@ -49,6 +48,8 @@ import static org.apache.cassandra.utils.Throwables.merge;
 
 public class FileUtils
 {
+    public static final Charset CHARSET = StandardCharsets.UTF_8;
+
     private static final Logger logger = LoggerFactory.getLogger(FileUtils.class);
     private static final double KB = 1024d;
     private static final double MB = 1024*1024d;
@@ -601,7 +602,7 @@ public class FileUtils
         {
             Files.write(file.toPath(),
                         Arrays.asList(lines),
-                        Charset.forName("utf-8"),
+                        CHARSET,
                         op);
         }
         catch (IOException ex)
@@ -614,7 +615,7 @@ public class FileUtils
     {
         try
         {
-            return Files.readAllLines(file.toPath(), Charset.forName("utf-8"));
+            return Files.readAllLines(file.toPath(), CHARSET);
         }
         catch (IOException ex)
         {

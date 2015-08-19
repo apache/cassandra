@@ -228,7 +228,7 @@ public class TransactionLog extends Transactional.AbstractTransactional implemen
 
         public byte[] getBytes()
         {
-            return record.getBytes();
+            return record.getBytes(FileUtils.CHARSET);
         }
 
         public boolean verify(String parentFolder, boolean lastRecordIsCorrupt)
@@ -360,7 +360,7 @@ public class TransactionLog extends Transactional.AbstractTransactional implemen
                 return Record.make(line, isLast);
             }
 
-            byte[] bytes = matcher.group(1).getBytes();
+            byte[] bytes = matcher.group(1).getBytes(FileUtils.CHARSET);
             checksum.update(bytes, 0, bytes.length);
 
             if (checksum.getValue() != Long.valueOf(matcher.group(2)))
