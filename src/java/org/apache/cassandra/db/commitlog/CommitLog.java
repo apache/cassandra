@@ -193,7 +193,9 @@ public class CommitLog implements CommitLogMBean
      */
     public void recover(String path) throws IOException
     {
-        recover(new File(path));
+        CommitLogReplayer recovery = CommitLogReplayer.construct(this);
+        recovery.recover(new File(path), false);
+        recovery.blockForWrites();
     }
 
     /**

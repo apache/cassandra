@@ -16,7 +16,7 @@
 * specific language governing permissions and limitations
 * under the License.
 */
-package org.apache.cassandra.db;
+package org.apache.cassandra.db.commitlog;
 
 import static junit.framework.Assert.assertTrue;
 import static org.apache.cassandra.utils.ByteBufferUtil.bytes;
@@ -32,50 +32,45 @@ import java.nio.ByteBuffer;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.UUID;
+import java.util.concurrent.Callable;
 import java.util.concurrent.ExecutionException;
 import java.util.zip.CRC32;
 import java.util.zip.Checksum;
 
 import com.google.common.collect.ImmutableMap;
 
+import org.apache.cassandra.db.ColumnFamilyStore;
+import org.apache.cassandra.db.Keyspace;
+import org.apache.cassandra.db.Mutation;
+import org.apache.cassandra.db.RowUpdateBuilder;
 import org.apache.cassandra.db.marshal.AsciiType;
 import org.apache.cassandra.db.marshal.BytesType;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
 
-import org.junit.Assert;
-import org.junit.BeforeClass;
-import org.junit.Test;
+import org.junit.*;
+
 import org.apache.cassandra.SchemaLoader;
 import org.apache.cassandra.Util;
-import org.apache.cassandra.config.Config;
+import org.apache.cassandra.config.Config.CommitFailurePolicy;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.config.ParameterizedClass;
 import org.apache.cassandra.db.commitlog.CommitLog;
 import org.apache.cassandra.db.commitlog.CommitLogDescriptor;
-import org.apache.cassandra.db.commitlog.CommitLogSegmentManager;
 import org.apache.cassandra.db.commitlog.ReplayPosition;
 import org.apache.cassandra.db.commitlog.CommitLogSegment;
+import org.apache.cassandra.db.commitlog.CommitLogReplayer.CommitLogReplayException;
 import org.apache.cassandra.db.compaction.CompactionManager;
 import org.apache.cassandra.exceptions.ConfigurationException;
-import org.apache.cassandra.gms.Gossiper;
 import org.apache.cassandra.io.util.ByteBufferDataInput;
 import org.apache.cassandra.io.util.FileDataInput;
 import org.apache.cassandra.net.MessagingService;
 import org.apache.cassandra.schema.KeyspaceParams;
 import org.apache.cassandra.utils.ByteBufferUtil;
-import org.apache.cassandra.utils.vint.VIntCoding;
-import org.apache.cassandra.service.CassandraDaemon;
-import org.apache.cassandra.service.StorageService;
-import org.apache.cassandra.utils.ByteBufferUtil;
-import org.apache.cassandra.utils.FBUtilities;
 import org.apache.cassandra.utils.JVMStabilityInspector;
 import org.apache.cassandra.utils.KillerForTests;
+import org.apache.cassandra.utils.vint.VIntCoding;
 
 public class CommitLogTest
 {
-    private static final Logger logger = LoggerFactory.getLogger(CommitLogTest.class);
-
     private static final String KEYSPACE1 = "CommitLogTest";
     private static final String KEYSPACE2 = "CommitLogTestNonDurable";
     private static final String STANDARD1 = "Standard1";
@@ -93,14 +88,28 @@ public class CommitLogTest
                                     KeyspaceParams.simpleTransient(1),
                                     SchemaLoader.standardCFMD(KEYSPACE1, STANDARD1, 0, AsciiType.instance, BytesType.instance),
                                     SchemaLoader.standardCFMD(KEYSPACE1, STANDARD2, 0, AsciiType.instance, BytesType.instance));
-        System.setProperty("cassandra.commitlog.stop_on_errors", "true");
         CompactionManager.instance.disableAutoCompaction();
     }
 
     @Test
     public void testRecoveryWithEmptyLog() throws Exception
     {
-        CommitLog.instance.recover(new File[]{ tmpFile() });
+        runExpecting(() -> {
+            CommitLog.instance.recover(new File[]{ tmpFile(CommitLogDescriptor.current_version) });
+            return null;
+        }, CommitLogReplayException.class);
+    }
+
+    @Test
+    public void testRecoveryWithEmptyLog20() throws Exception
+    {
+        CommitLog.instance.recover(new File[]{ tmpFile(CommitLogDescriptor.VERSION_20) });
+    }
+
+    @Test
+    public void testRecoveryWithZeroLog() throws Exception
+    {
+        testRecovery(new byte[10], null);
     }
 
     @Test
@@ -113,21 +122,51 @@ public class CommitLogTest
     @Test
     public void testRecoveryWithShortSize() throws Exception
     {
-        testRecovery(new byte[2]);
+        runExpecting(() -> {
+            testRecovery(new byte[2], CommitLogDescriptor.VERSION_20);
+            return null;
+        }, CommitLogReplayException.class);
     }
 
     @Test
     public void testRecoveryWithShortCheckSum() throws Exception
     {
-        testRecovery(new byte[6]);
+        byte[] data = new byte[8];
+        data[3] = 10;   // make sure this is not a legacy end marker.
+        testRecovery(data, CommitLogReplayException.class);
     }
 
     @Test
-    public void testRecoveryWithGarbageLog() throws Exception
+    public void testRecoveryWithShortMutationSize() throws Exception
+    {
+        testRecoveryWithBadSizeArgument(9, 10);
+    }
+
+    private void testRecoveryWithGarbageLog() throws Exception
     {
         byte[] garbage = new byte[100];
         (new java.util.Random()).nextBytes(garbage);
-        testRecovery(garbage);
+        testRecovery(garbage, CommitLogDescriptor.current_version);
+    }
+
+    @Test
+    public void testRecoveryWithGarbageLog_fail() throws Exception
+    {
+        runExpecting(() -> {
+            testRecoveryWithGarbageLog();
+            return null;
+        }, CommitLogReplayException.class);
+    }
+
+    @Test
+    public void testRecoveryWithGarbageLog_ignoredByProperty() throws Exception
+    {
+        try {
+            System.setProperty(CommitLogReplayer.IGNORE_REPLAY_ERRORS_PROPERTY, "true");
+            testRecoveryWithGarbageLog();
+        } finally {
+            System.clearProperty(CommitLogReplayer.IGNORE_REPLAY_ERRORS_PROPERTY);
+        }
     }
 
     @Test
@@ -136,13 +175,6 @@ public class CommitLogTest
         Checksum checksum = new CRC32();
         checksum.update(100);
         testRecoveryWithBadSizeArgument(100, 100, ~checksum.getValue());
-    }
-
-    @Test
-    public void testRecoveryWithZeroSegmentSizeArgument() throws Exception
-    {
-        // many different combinations of 4 bytes (garbage) will be read as zero by readInt()
-        testRecoveryWithBadSizeArgument(0, 10); // zero size, but no EOF
     }
 
     @Test
@@ -300,6 +332,122 @@ public class CommitLogTest
         }
     }
 
+    protected void testRecoveryWithBadSizeArgument(int size, int dataSize) throws Exception
+    {
+        Checksum checksum = new CRC32();
+        checksum.update(size);
+        testRecoveryWithBadSizeArgument(size, dataSize, checksum.getValue());
+    }
+
+    protected void testRecoveryWithBadSizeArgument(int size, int dataSize, long checksum) throws Exception
+    {
+        ByteArrayOutputStream out = new ByteArrayOutputStream();
+        DataOutputStream dout = new DataOutputStream(out);
+        dout.writeInt(size);
+        dout.writeLong(checksum);
+        dout.write(new byte[dataSize]);
+        dout.close();
+        testRecovery(out.toByteArray(), CommitLogReplayException.class);
+    }
+
+    protected File tmpFile(int version) throws IOException
+    {
+        File logFile = File.createTempFile("CommitLog-" + version + "-", ".log");
+        logFile.deleteOnExit();
+        assert logFile.length() == 0;
+        return logFile;
+    }
+
+    protected Void testRecovery(byte[] logData, int version) throws Exception
+    {
+        File logFile = tmpFile(version);
+        try (OutputStream lout = new FileOutputStream(logFile))
+        {
+            lout.write(logData);
+            //statics make it annoying to test things correctly
+            CommitLog.instance.recover(logFile.getPath()); //CASSANDRA-1119 / CASSANDRA-1179 throw on failure*/
+        }
+        return null;
+    }
+
+    protected Void testRecovery(CommitLogDescriptor desc, byte[] logData) throws Exception
+    {
+        File logFile = tmpFile(desc.version);
+        CommitLogDescriptor fromFile = CommitLogDescriptor.fromFileName(logFile.getName());
+        // Change id to match file.
+        desc = new CommitLogDescriptor(desc.version, fromFile.id, desc.compression);
+        ByteBuffer buf = ByteBuffer.allocate(1024);
+        CommitLogDescriptor.writeHeader(buf, desc);
+        try (OutputStream lout = new FileOutputStream(logFile))
+        {
+            lout.write(buf.array(), 0, buf.position());
+            lout.write(logData);
+            //statics make it annoying to test things correctly
+            CommitLog.instance.recover(logFile.getPath()); //CASSANDRA-1119 / CASSANDRA-1179 throw on failure*/
+        }
+        return null;
+    }
+
+    @Test
+    public void testRecoveryWithIdMismatch() throws Exception
+    {
+        CommitLogDescriptor desc = new CommitLogDescriptor(4, null);
+        File logFile = tmpFile(desc.version);
+        ByteBuffer buf = ByteBuffer.allocate(1024);
+        CommitLogDescriptor.writeHeader(buf, desc);
+        try (OutputStream lout = new FileOutputStream(logFile))
+        {
+            lout.write(buf.array(), 0, buf.position());
+
+            runExpecting(() -> {
+                CommitLog.instance.recover(logFile.getPath()); //CASSANDRA-1119 / CASSANDRA-1179 throw on failure*/
+                return null;
+            }, CommitLogReplayException.class);
+        }
+    }
+
+    @Test
+    public void testRecoveryWithBadCompressor() throws Exception
+    {
+        CommitLogDescriptor desc = new CommitLogDescriptor(4, new ParameterizedClass("UnknownCompressor", null));
+        runExpecting(() -> {
+            testRecovery(desc, new byte[0]);
+            return null;
+        }, CommitLogReplayException.class);
+    }
+
+    protected void runExpecting(Callable<Void> r, Class<?> expected)
+    {
+        JVMStabilityInspector.Killer originalKiller;
+        KillerForTests killerForTests;
+
+        killerForTests = new KillerForTests();
+        originalKiller = JVMStabilityInspector.replaceKiller(killerForTests);
+
+        Throwable caught = null;
+        try
+        {
+            r.call();
+        }
+        catch (Throwable t)
+        {
+            if (expected != t.getClass())
+                throw new AssertionError("Expected exception " + expected + ", got " + t, t);
+            caught = t;
+        }
+        if (expected != null && caught == null)
+            Assert.fail("Expected exception " + expected + " but call completed successfully.");
+
+        JVMStabilityInspector.replaceKiller(originalKiller);
+        assertEquals("JVM killed", expected != null, killerForTests.wasKilled());
+    }
+
+    protected void testRecovery(final byte[] logData, Class<?> expected) throws Exception
+    {
+        runExpecting(() -> testRecovery(logData, CommitLogDescriptor.VERSION_20), expected);
+        runExpecting(() -> testRecovery(new CommitLogDescriptor(4, null), logData), expected);
+    }
+
     @Test
     public void testVersions()
     {
@@ -424,43 +572,6 @@ public class CommitLogTest
         } catch (ConfigurationException e)
         {
             // correct path
-        }
-    }
-
-    protected void testRecoveryWithBadSizeArgument(int size, int dataSize) throws Exception
-    {
-        Checksum checksum = new CRC32();
-        checksum.update(size);
-        testRecoveryWithBadSizeArgument(size, dataSize, checksum.getValue());
-    }
-
-    protected void testRecoveryWithBadSizeArgument(int size, int dataSize, long checksum) throws Exception
-    {
-        ByteArrayOutputStream out = new ByteArrayOutputStream();
-        DataOutputStream dout = new DataOutputStream(out);
-        dout.writeInt(size);
-        dout.writeLong(checksum);
-        dout.write(new byte[dataSize]);
-        dout.close();
-        testRecovery(out.toByteArray());
-    }
-
-    protected File tmpFile() throws IOException
-    {
-        File logFile = File.createTempFile("CommitLog-" + CommitLogDescriptor.current_version + "-", ".log");
-        logFile.deleteOnExit();
-        assert logFile.length() == 0;
-        return logFile;
-    }
-
-    protected void testRecovery(byte[] logData) throws Exception
-    {
-        File logFile = tmpFile();
-        try (OutputStream lout = new FileOutputStream(logFile))
-        {
-            lout.write(logData);
-            //statics make it annoying to test things correctly
-            CommitLog.instance.recover(new File[]{ logFile }); //CASSANDRA-1119 / CASSANDRA-1179 throw on failure
         }
     }
 }

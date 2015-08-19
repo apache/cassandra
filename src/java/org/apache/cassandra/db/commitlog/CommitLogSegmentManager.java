@@ -34,10 +34,8 @@ import java.util.concurrent.LinkedBlockingQueue;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicLong;
 
-import com.google.common.annotations.VisibleForTesting;
 import com.google.common.collect.Iterables;
 import com.google.common.util.concurrent.*;
-
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -96,14 +94,12 @@ public class CommitLogSegmentManager
     private volatile boolean run = true;
     private final CommitLog commitLog;
 
-    @VisibleForTesting
-    public CommitLogSegmentManager(final CommitLog commitLog)
+    CommitLogSegmentManager(final CommitLog commitLog)
     {
         this.commitLog = commitLog;
     }
 
-    @VisibleForTesting
-    public void start()
+    void start()
     {
         // The run loop for the manager thread
         Runnable runnable = new WrappedRunnable()
