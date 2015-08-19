@@ -42,7 +42,12 @@ import org.apache.cassandra.utils.FBUtilities;
 
 public abstract class ReadResponse
 {
+    // Serializer for single partition read response
     public static final IVersionedSerializer<ReadResponse> serializer = new Serializer();
+    // Serializer for partition range read response (this actually delegate to 'serializer' in 3.0 and to
+    // 'legacyRangeSliceReplySerializer' in older version.
+    public static final IVersionedSerializer<ReadResponse> rangeSliceSerializer = new RangeSliceSerializer();
+    // Serializer for the pre-3.0 rang slice responses.
     public static final IVersionedSerializer<ReadResponse> legacyRangeSliceReplySerializer = new LegacyRangeSliceReplySerializer();
 
     // This is used only when serializing data responses and we can't it easily in other cases. So this can be null, which is slighly
@@ -394,6 +399,31 @@ public abstract class ReadResponse
                 size += ByteBufferUtil.serializedSizeWithVIntLength(data);
             }
             return size;
+        }
+    }
+
+    private static class RangeSliceSerializer implements IVersionedSerializer<ReadResponse>
+    {
+        public void serialize(ReadResponse response, DataOutputPlus out, int version) throws IOException
+        {
+            if (version < MessagingService.VERSION_30)
+                legacyRangeSliceReplySerializer.serialize(response, out, version);
+            else
+                serializer.serialize(response, out, version);
+        }
+
+        public ReadResponse deserialize(DataInputPlus in, int version) throws IOException
+        {
+            return version < MessagingService.VERSION_30
+                 ? legacyRangeSliceReplySerializer.deserialize(in, version)
+                 : serializer.deserialize(in, version);
+        }
+
+        public long serializedSize(ReadResponse response, int version)
+        {
+            return version < MessagingService.VERSION_30
+                 ? legacyRangeSliceReplySerializer.serializedSize(response, version)
+                 : serializer.serializedSize(response, version);
         }
     }
 

@@ -59,6 +59,9 @@ public abstract class ReadCommand implements ReadQuery
     protected static final Logger logger = LoggerFactory.getLogger(ReadCommand.class);
 
     public static final IVersionedSerializer<ReadCommand> serializer = new Serializer();
+    // For RANGE_SLICE verb: will either dispatch on 'serializer' for 3.0 or 'legacyRangeSliceCommandSerializer' for earlier version.
+    // Can be removed (and replaced by 'serializer') once we drop pre-3.0 backward compatibility.
+    public static final IVersionedSerializer<ReadCommand> rangeSliceSerializer = new RangeSliceSerializer();
 
     public static final IVersionedSerializer<ReadCommand> legacyRangeSliceCommandSerializer = new LegacyRangeSliceCommandSerializer();
     public static final IVersionedSerializer<ReadCommand> legacyPagedRangeCommandSerializer = new LegacyPagedRangeCommandSerializer();
@@ -411,15 +414,7 @@ public abstract class ReadCommand implements ReadQuery
     /**
      * Creates a message for this command.
      */
-    public MessageOut<ReadCommand> createMessage(int version)
-    {
-        if (version >= MessagingService.VERSION_30)
-            return new MessageOut<>(MessagingService.Verb.READ, this, serializer);
-
-        return createLegacyMessage();
-    }
-
-    protected abstract MessageOut<ReadCommand> createLegacyMessage();
+    public abstract MessageOut<ReadCommand> createMessage(int version);
 
     protected abstract void appendCQLWhereClause(StringBuilder sb);
 
@@ -526,6 +521,33 @@ public abstract class ReadCommand implements ReadQuery
                  + RowFilter.serializer.serializedSize(command.rowFilter(), version)
                  + DataLimits.serializer.serializedSize(command.limits(), version)
                  + command.selectionSerializedSize(version);
+        }
+    }
+
+    // Dispatch to either Serializer or LegacyRangeSliceCommandSerializer. Only useful as long as we maintain pre-3.0
+    // compatibility
+    private static class RangeSliceSerializer implements IVersionedSerializer<ReadCommand>
+    {
+        public void serialize(ReadCommand command, DataOutputPlus out, int version) throws IOException
+        {
+            if (version < MessagingService.VERSION_30)
+                legacyRangeSliceCommandSerializer.serialize(command, out, version);
+            else
+                serializer.serialize(command, out, version);
+        }
+
+        public ReadCommand deserialize(DataInputPlus in, int version) throws IOException
+        {
+            return version < MessagingService.VERSION_30
+                 ? legacyRangeSliceCommandSerializer.deserialize(in, version)
+                 : serializer.deserialize(in, version);
+        }
+
+        public long serializedSize(ReadCommand command, int version)
+        {
+            return version < MessagingService.VERSION_30
+                 ? legacyRangeSliceCommandSerializer.serializedSize(command, version)
+                 : serializer.serializedSize(command, version);
         }
     }
 
