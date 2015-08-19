@@ -1533,7 +1533,7 @@ public class DatabaseDescriptor
 
     public static long getMaxHintsFileSize()
     {
-        return conf.max_hints_file_size_in_mb * 1024 * 1024;
+        return conf.max_hints_file_size_in_mb * 1024L * 1024L;
     }
 
     public static boolean isIncrementalBackupsEnabled()
