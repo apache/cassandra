@@ -40,7 +40,6 @@ import org.apache.cassandra.service.ClientWarn;
 import org.apache.cassandra.service.QueryState;
 import org.apache.cassandra.service.StorageProxy;
 import org.apache.cassandra.tracing.Tracing;
-import org.apache.cassandra.service.StorageService;
 import org.apache.cassandra.transport.messages.ResultMessage;
 import org.apache.cassandra.utils.NoSpamLogger;
 import org.apache.cassandra.utils.Pair;
@@ -65,7 +64,16 @@ public class BatchStatement implements CQLStatement
     private final Attributes attrs;
     private final boolean hasConditions;
     private static final Logger logger = LoggerFactory.getLogger(BatchStatement.class);
-    private static final String unloggedBatchWarning = "Unlogged batch covering {} partition{} detected against table{} {}. You should use a logged batch for atomicity, or asynchronous writes for performance.";
+
+    private static final String UNLOGGED_BATCH_WARNING = "Unlogged batch covering {} partition{} detected " +
+                                                         "against table{} {}. You should use a logged batch for " +
+                                                         "atomicity, or asynchronous writes for performance.";
+
+    private static final String LOGGED_BATCH_LOW_GCGS_WARNING = "Executing a LOGGED BATCH on table{} {}, configured with a " +
+                                                                "gc_grace_seconds of 0. The gc_grace_seconds is used to TTL " +
+                                                                "batchlog entries, so setting gc_grace_seconds too low on " +
+                                                                "tables involved in an atomic batch might cause batchlog " +
+                                                                "entries to expire before being replayed.";
 
     /**
      * Creates a new BatchStatement from a list of statements and a
@@ -137,7 +145,8 @@ public class BatchStatement implements CQLStatement
         {
             if (hasConditions)
                 throw new InvalidRequestException("Cannot provide custom timestamp for conditional BATCH");
-            if (type == Type.COUNTER)
+
+            if (isCounter())
                 throw new InvalidRequestException("Cannot provide custom timestamp for counter BATCH");
         }
 
@@ -152,10 +161,10 @@ public class BatchStatement implements CQLStatement
             if (timestampSet && statement.isTimestampSet())
                 throw new InvalidRequestException("Timestamp must be set either on BATCH or individual statements");
 
-            if (type == Type.COUNTER && !statement.isCounter())
+            if (isCounter() && !statement.isCounter())
                 throw new InvalidRequestException("Cannot include non-counter statement in a counter batch");
 
-            if (type == Type.LOGGED && statement.isCounter())
+            if (isLogged() && statement.isCounter())
                 throw new InvalidRequestException("Cannot include a counter statement in a logged batch");
 
             if (statement.isCounter())
@@ -181,6 +190,16 @@ public class BatchStatement implements CQLStatement
         }
     }
 
+    private boolean isCounter()
+    {
+        return type == Type.COUNTER;
+    }
+
+    private boolean isLogged()
+    {
+        return type == Type.LOGGED;
+    }
+
     // The batch itself will be validated in either Parsed#prepare() - for regular CQL3 batches,
     //   or in QueryProcessor.processBatch() - for native protocol batches.
     public void validate(ClientState state) throws InvalidRequestException
@@ -197,14 +216,32 @@ public class BatchStatement implements CQLStatement
     private Collection<? extends IMutation> getMutations(BatchQueryOptions options, boolean local, long now)
     throws RequestExecutionException, RequestValidationException
     {
+        Set<String> tablesWithZeroGcGs = null;
+
         Map<String, Map<ByteBuffer, IMutation>> mutations = new HashMap<>();
         for (int i = 0; i < statements.size(); i++)
         {
             ModificationStatement statement = statements.get(i);
+            if (isLogged() && statement.cfm.params.gcGraceSeconds == 0)
+            {
+                if (tablesWithZeroGcGs == null)
+                    tablesWithZeroGcGs = new HashSet<>();
+                tablesWithZeroGcGs.add(String.format("%s.%s", statement.cfm.ksName, statement.cfm.cfName));
+            }
             QueryOptions statementOptions = options.forStatement(i);
             long timestamp = attrs.getTimestamp(now, statementOptions);
             addStatementMutations(statement, statementOptions, local, timestamp, mutations);
         }
+
+        if (tablesWithZeroGcGs != null)
+        {
+            String suffix = tablesWithZeroGcGs.size() == 1 ? "" : "s";
+            NoSpamLogger.log(logger, NoSpamLogger.Level.WARN, 1, TimeUnit.MINUTES, LOGGED_BATCH_LOW_GCGS_WARNING,
+                             suffix, tablesWithZeroGcGs);
+            ClientWarn.warn(MessageFormatter.arrayFormat(LOGGED_BATCH_LOW_GCGS_WARNING, new Object[] { suffix, tablesWithZeroGcGs })
+                                            .getMessage());
+        }
+
         return unzipMutations(mutations);
     }
 
@@ -321,7 +358,7 @@ public class BatchStatement implements CQLStatement
 
     private void verifyBatchType(Iterable<PartitionUpdate> updates)
     {
-        if (type != Type.LOGGED && Iterables.size(updates) > 1)
+        if (!isLogged() && Iterables.size(updates) > 1)
         {
             Set<DecoratedKey> keySet = new HashSet<>();
             Set<String> tableNames = new HashSet<>();
@@ -332,11 +369,11 @@ public class BatchStatement implements CQLStatement
                 tableNames.add(String.format("%s.%s", update.metadata().ksName, update.metadata().cfName));
             }
 
-            NoSpamLogger.log(logger, NoSpamLogger.Level.WARN, 1, TimeUnit.MINUTES, unloggedBatchWarning,
+            NoSpamLogger.log(logger, NoSpamLogger.Level.WARN, 1, TimeUnit.MINUTES, UNLOGGED_BATCH_WARNING,
                              keySet.size(), keySet.size() == 1 ? "" : "s",
                              tableNames.size() == 1 ? "" : "s", tableNames);
 
-            ClientWarn.warn(MessageFormatter.arrayFormat(unloggedBatchWarning, new Object[]{keySet.size(), keySet.size() == 1 ? "" : "s",
+            ClientWarn.warn(MessageFormatter.arrayFormat(UNLOGGED_BATCH_WARNING, new Object[]{keySet.size(), keySet.size() == 1 ? "" : "s",
                                                     tableNames.size() == 1 ? "" : "s", tableNames}).getMessage());
 
         }
@@ -381,7 +418,7 @@ public class BatchStatement implements CQLStatement
         verifyBatchSize(updates);
         verifyBatchType(updates);
 
-        boolean mutateAtomic = (type == Type.LOGGED && mutations.size() > 1);
+        boolean mutateAtomic = (isLogged() && mutations.size() > 1);
         StorageProxy.mutateWithTriggers(mutations, cl, mutateAtomic);
     }
 

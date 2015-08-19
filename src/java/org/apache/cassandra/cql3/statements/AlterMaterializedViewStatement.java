@@ -24,6 +24,7 @@ import org.apache.cassandra.db.view.MaterializedView;
 import org.apache.cassandra.exceptions.InvalidRequestException;
 import org.apache.cassandra.exceptions.RequestValidationException;
 import org.apache.cassandra.exceptions.UnauthorizedException;
+import org.apache.cassandra.schema.TableParams;
 import org.apache.cassandra.service.ClientState;
 import org.apache.cassandra.service.MigrationManager;
 import org.apache.cassandra.transport.Event;
@@ -64,7 +65,15 @@ public class AlterMaterializedViewStatement extends SchemaAlteringStatement
             throw new InvalidRequestException("ALTER MATERIALIZED VIEW WITH invoked, but no parameters found");
 
         attrs.validate();
-        cfm.params(attrs.asAlteredTableParams(cfm.params));
+
+        TableParams params = attrs.asAlteredTableParams(cfm.params);
+        if (params.gcGraceSeconds == 0)
+        {
+            throw new InvalidRequestException("Cannot alter gc_grace_seconds of a materialized view to 0, since this " +
+                                              "value is used to TTL undelivered updates. Setting gc_grace_seconds too " +
+                                              "low might cause undelivered updates to expire before being replayed.");
+        }
+        cfm.params(params);
 
         MigrationManager.announceColumnFamilyUpdate(cfm, false, isLocalOnly);
         return true;
