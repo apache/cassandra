@@ -153,7 +153,7 @@ public final class SingleColumnRelation extends Relation
     protected Restriction newINRestriction(CFMetaData cfm,
                                            VariableSpecifications boundNames) throws InvalidRequestException
     {
-        ColumnDefinition columnDef = cfm.getColumnDefinition(getEntity().prepare(cfm));
+        ColumnDefinition columnDef = toColumnDefinition(cfm, entity);
         List<? extends ColumnSpecification> receivers = toReceivers(columnDef, cfm.isDense());
         List<Term> terms = toTerms(receivers, inValues, cfm.ksName, boundNames);
         if (terms == null)

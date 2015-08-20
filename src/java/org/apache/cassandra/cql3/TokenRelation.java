@@ -108,7 +108,7 @@ public final class TokenRelation extends Relation
     @Override
     public String toString()
     {
-        return String.format("token(%s) %s %s", Tuples.tupleToString(entities), relationType, value);
+        return String.format("token%s %s %s", Tuples.tupleToString(entities), relationType, value);
     }
 
     /**
