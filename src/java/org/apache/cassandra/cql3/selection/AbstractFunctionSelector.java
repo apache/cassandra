@@ -22,7 +22,10 @@ import java.util.Arrays;
 import java.util.List;
 
 import com.google.common.collect.Iterables;
+
 import org.apache.commons.lang3.text.StrBuilder;
+
+import org.apache.cassandra.cql3.functions.AggregateFcts;
 
 import org.apache.cassandra.config.ColumnDefinition;
 import org.apache.cassandra.cql3.ColumnSpecification;
@@ -53,6 +56,9 @@ abstract class AbstractFunctionSelector<T extends Function> extends Selector
         {
             protected String getColumnName()
             {
+                if (AggregateFcts.isCountRows(fun))
+                    return "count";
+
                 return new StrBuilder(fun.name().toString()).append('(')
                                                             .appendWithSeparators(factories.getColumnNames(), ", ")
                                                             .append(')')
