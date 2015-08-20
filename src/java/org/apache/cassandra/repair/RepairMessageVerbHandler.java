@@ -72,7 +72,8 @@ public class RepairMessageVerbHandler implements IVerbHandler<RepairMessage>
                     ActiveRepairService.instance.registerParentRepairSession(prepareMessage.parentRepairSession,
                             columnFamilyStores,
                             prepareMessage.ranges,
-                            prepareMessage.isIncremental);
+                            prepareMessage.isIncremental,
+                            prepareMessage.timestamp);
                     MessagingService.instance().sendReply(new MessageOut(MessagingService.Verb.INTERNAL_RESPONSE), id, message.from);
                     break;
 
