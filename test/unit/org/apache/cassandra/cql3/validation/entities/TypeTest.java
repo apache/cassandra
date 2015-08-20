@@ -41,11 +41,11 @@ public class TypeTest extends CQLTester
         createTable("CREATE TABLE %s (a int, b timestamp, c bigint, d varint, PRIMARY KEY (a, b, c, d))");
 
         execute("INSERT INTO %s (a, b, c, d) VALUES (0, toUnixTimestamp(now()), toTimestamp(now()), toTimestamp(now()))");
-        UntypedResultSet results = execute("SELECT * FROM %s WHERE a=0 AND b < toUnixTimestamp(now())");
+        UntypedResultSet results = execute("SELECT * FROM %s WHERE a=0 AND b <= toUnixTimestamp(now())");
         assertEquals(1, results.size());
 
         execute("INSERT INTO %s (a, b, c, d) VALUES (1, unixTimestampOf(now()), dateOf(now()), dateOf(now()))");
-        results = execute("SELECT * FROM %s WHERE a=1 AND b < toUnixTimestamp(now())");
+        results = execute("SELECT * FROM %s WHERE a=1 AND b <= toUnixTimestamp(now())");
         assertEquals(1, results.size());
     }
 
