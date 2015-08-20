@@ -1162,6 +1162,7 @@ idxName[IndexName name]
 
 roleName[RoleName name]
     : t=IDENT              { $name.setName($t.text, false); }
+    | s=STRING_LITERAL     { $name.setName($s.text, false); }
     | t=QUOTED_NAME        { $name.setName($t.text, true); }
     | k=unreserved_keyword { $name.setName(k, false); }
     | QMARK {addRecognitionError("Bind variables cannot be used for role names");}
@@ -1486,6 +1487,7 @@ tuple_type returns [CQL3Type.Raw t]
 username
     : IDENT
     | STRING_LITERAL
+    | QUOTED_NAME { addRecognitionError("Quoted strings are are not supported for user names and USER is deprecated, please use ROLE");}
     ;
 
 // Basically the same as cident, but we need to exlude existing CQL3 types
