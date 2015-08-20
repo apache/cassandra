@@ -100,6 +100,7 @@ New features
    - The toTimestamp(date) and toUnixTimestamp(date) functions have been added to allow
      to convert from date into timestamp type and bigint raw value.
    - SizeTieredCompactionStrategy parameter cold_reads_to_omit has been removed.
+   - COUNT(*) and COUNT(1) can be selected with other columns or functions
 
 
 2.1.9
