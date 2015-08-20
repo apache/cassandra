@@ -588,4 +588,21 @@ public class SelectSingleColumnRelationTest extends CQLTester
         assertInvalidMessage("Multi-column relations can only be applied to clustering columns but was applied to: a",
                              "SELECT * FROM %s WHERE (a, b) >= (1, 1) and a = 1");
     }
+
+    @Test
+    public void testInvalidColumnNames() throws Throwable
+    {
+        createTable("CREATE TABLE %s (a int, b int, c map<int, int>, PRIMARY KEY (a, b))");
+        assertInvalidMessage("Undefined name d in where clause ('d = 0')", "SELECT * FROM %s WHERE d = 0");
+        assertInvalidMessage("Undefined name d in where clause ('d IN [0, 1]')", "SELECT * FROM %s WHERE d IN (0, 1)");
+        assertInvalidMessage("Undefined name d in where clause ('d > 0')", "SELECT * FROM %s WHERE d > 0 and d <= 2");
+        assertInvalidMessage("Undefined name d in where clause ('d CONTAINS 0')", "SELECT * FROM %s WHERE d CONTAINS 0");
+        assertInvalidMessage("Undefined name d in where clause ('d CONTAINS KEY 0')", "SELECT * FROM %s WHERE d CONTAINS KEY 0");
+        assertInvalidMessage("Aliases aren't allowed in the where clause ('d = 0')", "SELECT a AS d FROM %s WHERE d = 0");
+        assertInvalidMessage("Aliases aren't allowed in the where clause ('d IN [0, 1]')", "SELECT b AS d FROM %s WHERE d IN (0, 1)");
+        assertInvalidMessage("Aliases aren't allowed in the where clause ('d > 0')", "SELECT b AS d FROM %s WHERE d > 0 and d <= 2");
+        assertInvalidMessage("Aliases aren't allowed in the where clause ('d CONTAINS 0')", "SELECT c AS d FROM %s WHERE d CONTAINS 0");
+        assertInvalidMessage("Aliases aren't allowed in the where clause ('d CONTAINS KEY 0')", "SELECT c AS d FROM %s WHERE d CONTAINS KEY 0");
+        assertInvalidMessage("Undefined name d in selection clause", "SELECT d FROM %s WHERE a = 0");
+    }
 }
