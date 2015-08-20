@@ -75,7 +75,7 @@ public class CompactionAwareWriterTest extends CQLTester
         populate(rowCount);
         LifecycleTransaction txn = cfs.getTracker().tryModify(cfs.getLiveSSTables(), OperationType.COMPACTION);
         long beforeSize = txn.originals().iterator().next().onDiskLength();
-        CompactionAwareWriter writer = new DefaultCompactionWriter(cfs, txn, txn.originals());
+        CompactionAwareWriter writer = new DefaultCompactionWriter(cfs, cfs.getDirectories(), txn, txn.originals());
         int rows = compact(cfs, txn, writer);
         assertEquals(1, cfs.getLiveSSTables().size());
         assertEquals(rowCount, rows);
@@ -94,7 +94,7 @@ public class CompactionAwareWriterTest extends CQLTester
         LifecycleTransaction txn = cfs.getTracker().tryModify(cfs.getLiveSSTables(), OperationType.COMPACTION);
         long beforeSize = txn.originals().iterator().next().onDiskLength();
         int sstableSize = (int)beforeSize/10;
-        CompactionAwareWriter writer = new MaxSSTableSizeWriter(cfs, txn, txn.originals(), sstableSize, 0);
+        CompactionAwareWriter writer = new MaxSSTableSizeWriter(cfs, cfs.getDirectories(), txn, txn.originals(), sstableSize, 0);
         int rows = compact(cfs, txn, writer);
         assertEquals(10, cfs.getLiveSSTables().size());
         assertEquals(rowCount, rows);
@@ -111,7 +111,7 @@ public class CompactionAwareWriterTest extends CQLTester
         populate(rowCount);
         LifecycleTransaction txn = cfs.getTracker().tryModify(cfs.getLiveSSTables(), OperationType.COMPACTION);
         long beforeSize = txn.originals().iterator().next().onDiskLength();
-        CompactionAwareWriter writer = new SplittingSizeTieredCompactionWriter(cfs, txn, txn.originals(), 0);
+        CompactionAwareWriter writer = new SplittingSizeTieredCompactionWriter(cfs, cfs.getDirectories(), txn, txn.originals(), 0);
         int rows = compact(cfs, txn, writer);
         long expectedSize = beforeSize / 2;
         List<SSTableReader> sortedSSTables = new ArrayList<>(cfs.getLiveSSTables());
@@ -147,7 +147,7 @@ public class CompactionAwareWriterTest extends CQLTester
         LifecycleTransaction txn = cfs.getTracker().tryModify(cfs.getLiveSSTables(), OperationType.COMPACTION);
         long beforeSize = txn.originals().iterator().next().onDiskLength();
         int sstableSize = (int)beforeSize/targetSSTableCount;
-        CompactionAwareWriter writer = new MajorLeveledCompactionWriter(cfs, txn, txn.originals(), sstableSize);
+        CompactionAwareWriter writer = new MajorLeveledCompactionWriter(cfs, cfs.getDirectories(), txn, txn.originals(), sstableSize);
         int rows = compact(cfs, txn, writer);
         assertEquals(targetSSTableCount, cfs.getLiveSSTables().size());
         int [] levelCounts = new int[5];

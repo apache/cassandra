@@ -27,15 +27,21 @@ import org.slf4j.LoggerFactory;
 
 import org.apache.cassandra.config.CFMetaData;
 import org.apache.cassandra.db.ColumnFamilyStore;
+import org.apache.cassandra.db.Directories;
 import org.apache.cassandra.db.Memtable;
+import org.apache.cassandra.db.SerializationHeader;
 import org.apache.cassandra.db.lifecycle.LifecycleTransaction;
 import org.apache.cassandra.db.lifecycle.SSTableSet;
 import org.apache.cassandra.dht.Range;
 import org.apache.cassandra.dht.Token;
+import org.apache.cassandra.io.sstable.Descriptor;
+import org.apache.cassandra.io.sstable.SSTableMultiWriter;
 import org.apache.cassandra.io.sstable.format.SSTableReader;
 import org.apache.cassandra.io.sstable.ISSTableScanner;
+import org.apache.cassandra.io.sstable.metadata.MetadataCollector;
 import org.apache.cassandra.notifications.*;
 import org.apache.cassandra.schema.CompactionParams;
+import org.apache.cassandra.service.ActiveRepairService;
 
 /**
  * Manages the compaction strategies.
@@ -181,10 +187,10 @@ public class CompactionStrategyManager implements INotificationConsumer
         startup();
     }
 
-    public void replaceFlushed(Memtable memtable, SSTableReader sstable)
+    public void replaceFlushed(Memtable memtable, Collection<SSTableReader> sstables)
     {
-        cfs.getTracker().replaceFlushed(memtable, sstable);
-        if (sstable != null)
+        cfs.getTracker().replaceFlushed(memtable, sstables);
+        if (sstables != null && !sstables.isEmpty())
             CompactionManager.instance.submitBackground(cfs);
     }
 
@@ -235,16 +241,24 @@ public class CompactionStrategyManager implements INotificationConsumer
         return repaired.shouldDefragment();
     }
 
+    public Directories getDirectories()
+    {
+        assert repaired.getClass().equals(unrepaired.getClass());
+        return repaired.getDirectories();
+    }
 
     public synchronized void handleNotification(INotification notification, Object sender)
     {
         if (notification instanceof SSTableAddedNotification)
         {
             SSTableAddedNotification flushedNotification = (SSTableAddedNotification) notification;
-            if (flushedNotification.added.isRepaired())
-                repaired.addSSTable(flushedNotification.added);
-            else
-                unrepaired.addSSTable(flushedNotification.added);
+            for (SSTableReader sstable : flushedNotification.added)
+            {
+                if (sstable.isRepaired())
+                    repaired.addSSTable(sstable);
+                else
+                    unrepaired.addSSTable(sstable);
+            }
         }
         else if (notification instanceof SSTableListChangedNotification)
         {
@@ -483,5 +497,17 @@ public class CompactionStrategyManager implements INotificationConsumer
     public boolean onlyPurgeRepairedTombstones()
     {
         return Boolean.parseBoolean(params.options().get(AbstractCompactionStrategy.ONLY_PURGE_REPAIRED_TOMBSTONES));
+    }
+
+    public SSTableMultiWriter createSSTableMultiWriter(Descriptor descriptor, long keyCount, long repairedAt, MetadataCollector collector, SerializationHeader header, LifecycleTransaction txn)
+    {
+        if (repairedAt == ActiveRepairService.UNREPAIRED_SSTABLE)
+        {
+            return unrepaired.createSSTableMultiWriter(descriptor, keyCount, repairedAt, collector, header, txn);
+        }
+        else
+        {
+            return repaired.createSSTableMultiWriter(descriptor, keyCount, repairedAt, collector, header, txn);
+        }
     }
 }
