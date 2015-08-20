@@ -70,8 +70,10 @@ final class ScriptBasedUDFunction extends UDFunction
     "jdk.nashorn.internal.runtime.linker",
     // following required by Java Driver
     "java.math",
+    "java.nio",
     "java.text",
     "com.google.common.base",
+    "com.google.common.collect",
     "com.google.common.reflect",
     // following required by UDF
     "com.datastax.driver.core",
