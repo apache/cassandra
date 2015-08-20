@@ -478,4 +478,14 @@ public class SelectOrderedPartitionerTest extends CQLTester
 
         assertInvalid("SELECT * FROM %s WHERE k >= -1 AND k < 1");
     }
+
+    @Test
+    public void testTokenFunctionWithInvalidColumnNames() throws Throwable
+    {
+        createTable("CREATE TABLE %s (a int, b int, c int, d int, PRIMARY KEY ((a, b), c))");
+        assertInvalidMessage("Undefined name e in where clause ('token(a, e) = token(0, 0)')", "SELECT * FROM %s WHERE token(a, e) = token(0, 0)");
+        assertInvalidMessage("Undefined name e in where clause ('token(a, e) > token(0, 1)')", "SELECT * FROM %s WHERE token(a, e) > token(0, 1)");
+        assertInvalidMessage("Aliases aren't allowed in the where clause ('token(a, e) = token(0, 0)')", "SELECT b AS e FROM %s WHERE token(a, e) = token(0, 0)");
+        assertInvalidMessage("Aliases aren't allowed in the where clause ('token(a, e) > token(0, 1)')", "SELECT b AS e FROM %s WHERE token(a, e) > token(0, 1)");
+    }
 }
