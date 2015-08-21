@@ -194,7 +194,7 @@ public class StartupChecks
             // check that directories exist.
             if (!dir.exists())
             {
-                logger.error("Directory {} doesn't exist", dataDir);
+                logger.warn("Directory {} doesn't exist", dataDir);
                 // if they don't, failing their creation, stop cassandra.
                 if (!dir.mkdirs())
                     throw new StartupException(3, "Has no permission to create directory "+ dataDir);
