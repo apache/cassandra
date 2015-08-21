@@ -18,6 +18,7 @@
 */
 package org.apache.cassandra.io.util;
 
+import java.io.DataOutputStream;
 import java.io.File;
 import java.io.IOException;
 import java.util.ArrayList;
@@ -25,7 +26,9 @@ import java.util.Arrays;
 import java.util.List;
 import java.util.concurrent.ThreadLocalRandom;
 
+import com.google.common.io.Files;
 import org.junit.After;
+import org.junit.Test;
 
 import junit.framework.Assert;
 
@@ -114,6 +117,27 @@ public class SequentialWriterTest extends AbstractTransactionalTest
             file.delete();
             return file;
         }
+    }
+
+    /**
+     * Tests that the output stream exposed by SequentialWriter behaves as expected
+     */
+    @Test
+    public void outputStream()
+    {
+        File tempFile = new File(Files.createTempDir(), "test.txt");
+        Assert.assertFalse("temp file shouldn't exist yet", tempFile.exists());
+
+        try (DataOutputStream os = new DataOutputStream(SequentialWriter.open(tempFile).finishOnClose()))
+        {
+            os.writeUTF("123");
+        }
+        catch (IOException e)
+        {
+            Assert.fail();
+        }
+
+        Assert.assertTrue("temp file should exist", tempFile.exists());
     }
 
 }
