@@ -293,7 +293,7 @@ public class OutboundTcpConnection extends Thread
         catch (Exception e)
         {
             disconnect();
-            if (e instanceof IOException)
+            if (e instanceof IOException || e.getCause() instanceof IOException)
             {
                 if (logger.isDebugEnabled())
                     logger.debug("error writing to {}", poolReference.endPoint(), e);
