@@ -31,11 +31,11 @@ public class TpStats extends NodeToolCmd
     @Override
     public void execute(NodeProbe probe)
     {
-        System.out.printf("%-25s%10s%10s%15s%10s%18s%n", "Pool Name", "Active", "Pending", "Completed", "Blocked", "All time blocked");
+        System.out.printf("%-30s%10s%10s%15s%10s%18s%n", "Pool Name", "Active", "Pending", "Completed", "Blocked", "All time blocked");
 
         for (Stage stage : Stage.jmxEnabledStages())
         {
-            System.out.printf("%-25s%10s%10s%15s%10s%18s%n",
+            System.out.printf("%-30s%10s%10s%15s%10s%18s%n",
                               stage.getJmxName(),
                               probe.getThreadPoolMetric(stage, "ActiveTasks"),
                               probe.getThreadPoolMetric(stage, "PendingTasks"),
