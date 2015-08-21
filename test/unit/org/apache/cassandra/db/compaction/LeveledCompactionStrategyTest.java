@@ -172,8 +172,8 @@ public class LeveledCompactionStrategyTest
         ByteBuffer value = ByteBuffer.wrap(b); // 100 KB value, make it easy to have multiple files
 
         // Enough data to have a level 1 and 2
-        int rows = 20;
-        int columns = 10;
+        int rows = 40;
+        int columns = 20;
 
         // Adds enough data to trigger multiple sstable per level
         for (int r = 0; r < rows; r++)
@@ -258,8 +258,8 @@ public class LeveledCompactionStrategyTest
         ByteBuffer value = ByteBuffer.wrap(new byte[100 * 1024]); // 100 KB value, make it easy to have multiple files
 
         // Enough data to have a level 1 and 2
-        int rows = 20;
-        int columns = 10;
+        int rows = 40;
+        int columns = 20;
 
         // Adds enough data to trigger multiple sstable per level
         for (int r = 0; r < rows; r++)
@@ -306,8 +306,8 @@ public class LeveledCompactionStrategyTest
         ByteBuffer value = ByteBuffer.wrap(b); // 100 KB value, make it easy to have multiple files
 
         // Enough data to have a level 1 and 2
-        int rows = 20;
-        int columns = 10;
+        int rows = 40;
+        int columns = 20;
 
         // Adds enough data to trigger multiple sstable per level
         for (int r = 0; r < rows; r++)
