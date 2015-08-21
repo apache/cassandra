@@ -484,13 +484,13 @@ public class Columns implements Iterable<ColumnDefinition>
         public Columns deserializeSubset(Columns superset, DataInputPlus in) throws IOException
         {
             long encoded = in.readUnsignedVInt();
-            if (encoded == -1L)
-            {
-                return deserializeLargeSubset(in, superset);
-            }
-            else if (encoded == 0L)
+            if (encoded == 0L)
             {
                 return superset;
+            }
+            else if (superset.columnCount() >= 64)
+            {
+                return deserializeLargeSubset(in, superset, (int) encoded);
             }
             else
             {
@@ -540,7 +540,6 @@ public class Columns implements Iterable<ColumnDefinition>
         private void serializeLargeSubset(Columns columns, int columnCount, Columns superset, int supersetCount, DataOutputPlus out) throws IOException
         {
             // write flag indicating we're in lengthy mode
-            out.writeUnsignedVInt(-1L);
             out.writeUnsignedVInt(supersetCount - columnCount);
             BTreeSearchIterator<ColumnDefinition, ColumnDefinition> iter = superset.iterator();
             if (columnCount < supersetCount / 2)
@@ -571,10 +570,9 @@ public class Columns implements Iterable<ColumnDefinition>
         }
 
         @DontInline
-        private Columns deserializeLargeSubset(DataInputPlus in, Columns superset) throws IOException
+        private Columns deserializeLargeSubset(DataInputPlus in, Columns superset, int delta) throws IOException
         {
             int supersetCount = superset.columnCount();
-            int delta = (int) in.readUnsignedVInt();
             int columnCount = supersetCount - delta;
 
             BTree.Builder<ColumnDefinition> builder = BTree.builder(Comparator.naturalOrder());
@@ -614,7 +612,7 @@ public class Columns implements Iterable<ColumnDefinition>
         private int serializeLargeSubsetSize(Columns columns, int columnCount, Columns superset, int supersetCount)
         {
             // write flag indicating we're in lengthy mode
-            int size = TypeSizes.sizeofUnsignedVInt(-1L) + TypeSizes.sizeofUnsignedVInt(supersetCount - columnCount);
+            int size = TypeSizes.sizeofUnsignedVInt(supersetCount - columnCount);
             BTreeSearchIterator<ColumnDefinition, ColumnDefinition> iter = superset.iterator();
             if (columnCount < supersetCount / 2)
             {
