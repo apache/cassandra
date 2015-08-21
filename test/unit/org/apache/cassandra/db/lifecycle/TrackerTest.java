@@ -82,7 +82,7 @@ public class TrackerTest
     {
         ColumnFamilyStore cfs = MockSchema.newCFS();
         Tracker tracker = new Tracker(cfs, false);
-        List<SSTableReader> readers = ImmutableList.of(MockSchema.sstable(0, cfs), MockSchema.sstable(1, cfs), MockSchema.sstable(2, cfs));
+        List<SSTableReader> readers = ImmutableList.of(MockSchema.sstable(0, true, cfs), MockSchema.sstable(1, cfs), MockSchema.sstable(2, cfs));
         tracker.addInitialSSTables(copyOf(readers));
         Assert.assertNull(tracker.tryModify(ImmutableList.of(MockSchema.sstable(0, cfs)), OperationType.COMPACTION));
         try (LifecycleTransaction txn = tracker.tryModify(readers.get(0), OperationType.COMPACTION);)
@@ -97,6 +97,7 @@ public class TrackerTest
             Assert.assertNotNull(txn);
             Assert.assertEquals(0, txn.originals().size());
         }
+        readers.get(0).selfRef().release();
     }
 
     @Test
