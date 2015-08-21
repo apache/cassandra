@@ -395,9 +395,9 @@ public abstract class SinglePartitionReadCommand<F extends ClusteringIndexFilter
                              nowInSec());
     }
 
-    protected MessageOut<ReadCommand> createLegacyMessage()
+    public MessageOut<ReadCommand> createMessage(int version)
     {
-        return new MessageOut<>(MessagingService.Verb.READ, this, legacyReadCommandSerializer);
+        return new MessageOut<>(MessagingService.Verb.READ, this, version < MessagingService.VERSION_30 ? legacyReadCommandSerializer : serializer);
     }
 
     protected void appendCQLWhereClause(StringBuilder sb)

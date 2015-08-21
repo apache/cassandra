@@ -237,13 +237,14 @@ public class PartitionRangeReadCommand extends ReadCommand
         };
     }
 
-    @SuppressWarnings("deprecation")
-    protected MessageOut<ReadCommand> createLegacyMessage()
+    public MessageOut<ReadCommand> createMessage(int version)
     {
-        if (this.dataRange.isPaging())
-            return new MessageOut<>(MessagingService.Verb.PAGED_RANGE, this, legacyPagedRangeCommandSerializer);
-        else
-            return new MessageOut<>(MessagingService.Verb.RANGE_SLICE, this, legacyRangeSliceCommandSerializer);
+        if (version >= MessagingService.VERSION_30)
+            return new MessageOut<>(MessagingService.Verb.RANGE_SLICE, this, serializer);
+
+        return dataRange().isPaging()
+             ? new MessageOut<>(MessagingService.Verb.PAGED_RANGE, this, legacyPagedRangeCommandSerializer)
+             : new MessageOut<>(MessagingService.Verb.RANGE_SLICE, this, legacyRangeSliceCommandSerializer);
     }
 
     protected void appendCQLWhereClause(StringBuilder sb)
