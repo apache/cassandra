@@ -15,7 +15,7 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package org.apache.cassandra.db.index;
+package org.apache.cassandra.index;
 
 import java.io.IOException;
 import java.util.Set;
@@ -25,10 +25,9 @@ import org.apache.cassandra.db.ColumnFamilyStore;
 import org.apache.cassandra.db.DecoratedKey;
 import org.apache.cassandra.db.Keyspace;
 import org.apache.cassandra.db.compaction.CompactionInfo;
-import org.apache.cassandra.db.compaction.OperationType;
 import org.apache.cassandra.db.compaction.CompactionInterruptedException;
+import org.apache.cassandra.db.compaction.OperationType;
 import org.apache.cassandra.io.sstable.ReducingKeyIterator;
-import org.apache.cassandra.utils.FBUtilities;
 import org.apache.cassandra.utils.UUIDGen;
 
 /**
@@ -37,14 +36,14 @@ import org.apache.cassandra.utils.UUIDGen;
 public class SecondaryIndexBuilder extends CompactionInfo.Holder
 {
     private final ColumnFamilyStore cfs;
-    private final Set<String> idxNames;
+    private final Set<Index> indexers;
     private final ReducingKeyIterator iter;
     private final UUID compactionId;
 
-    public SecondaryIndexBuilder(ColumnFamilyStore cfs, Set<String> idxNames, ReducingKeyIterator iter)
+    public SecondaryIndexBuilder(ColumnFamilyStore cfs, Set<Index> indexers, ReducingKeyIterator iter)
     {
         this.cfs = cfs;
-        this.idxNames = idxNames;
+        this.indexers = indexers;
         this.iter = iter;
         this.compactionId = UUIDGen.getTimeUUID();
     }
@@ -67,7 +66,7 @@ public class SecondaryIndexBuilder extends CompactionInfo.Holder
                 if (isStopRequested())
                     throw new CompactionInterruptedException(getCompactionInfo());
                 DecoratedKey key = iter.next();
-                Keyspace.indexPartition(key, cfs, idxNames);
+                Keyspace.indexPartition(key, cfs, indexers);
             }
         }
         finally

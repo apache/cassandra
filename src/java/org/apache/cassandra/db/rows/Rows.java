@@ -17,7 +17,9 @@
  */
 package org.apache.cassandra.db.rows;
 
-import java.util.*;
+import java.util.ArrayList;
+import java.util.Iterator;
+import java.util.List;
 
 import com.google.common.collect.Iterators;
 import com.google.common.collect.PeekingIterator;
@@ -25,7 +27,6 @@ import com.google.common.collect.PeekingIterator;
 import org.apache.cassandra.config.ColumnDefinition;
 import org.apache.cassandra.db.*;
 import org.apache.cassandra.db.partitions.PartitionStatisticsCollector;
-import org.apache.cassandra.db.index.SecondaryIndexManager;
 import org.apache.cassandra.utils.SearchIterator;
 
 /**
@@ -127,7 +128,7 @@ public abstract class Rows
      * @param diffListener the listener to which to signal the differences between the inputs and the merged
      * result.
      */
-    public static void diff(Row merged, Columns columns, Row[] inputs, RowDiffListener diffListener)
+    public static void diff(RowDiffListener diffListener, Row merged, Columns columns, Row...inputs)
     {
         Clustering clustering = merged.clustering();
         LivenessInfo mergedInfo = merged.primaryKeyLivenessInfo().isEmpty() ? null : merged.primaryKeyLivenessInfo();
@@ -218,13 +219,8 @@ public abstract class Rows
     {
         Columns mergedColumns = row1.columns().mergeTo(row2.columns());
         Row.Builder builder = BTreeRow.sortedBuilder(mergedColumns);
-        merge(row1, row2, mergedColumns, builder, nowInSec, SecondaryIndexManager.nullUpdater);
+        merge(row1, row2, mergedColumns, builder, nowInSec);
         return builder.build();
-    }
-
-    public static void merge(Row row1, Row row2, Columns mergedColumns, Row.Builder builder, int nowInSec)
-    {
-        merge(row1, row2, mergedColumns, builder, nowInSec, SecondaryIndexManager.nullUpdater);
     }
 
     // Merge rows in memtable
@@ -233,8 +229,7 @@ public abstract class Rows
                              Row update,
                              Columns mergedColumns,
                              Row.Builder builder,
-                             int nowInSec,
-                             SecondaryIndexManager.Updater indexUpdater)
+                             int nowInSec)
     {
         Clustering clustering = existing.clustering();
         builder.newRow(clustering);
@@ -253,20 +248,16 @@ public abstract class Rows
         builder.addPrimaryKeyLivenessInfo(mergedInfo);
         builder.addRowDeletion(deletion);
 
-        indexUpdater.maybeIndex(clustering, mergedInfo.timestamp(), mergedInfo.ttl(), deletion);
-
         for (int i = 0; i < mergedColumns.simpleColumnCount(); i++)
         {
             ColumnDefinition c = mergedColumns.getSimple(i);
             Cell existingCell = existing.getCell(c);
             Cell updateCell = update.getCell(c);
-            timeDelta = Math.min(timeDelta, Cells.reconcile(clustering,
-                                                            existingCell,
+            timeDelta = Math.min(timeDelta, Cells.reconcile(existingCell,
                                                             updateCell,
                                                             deletion,
                                                             builder,
-                                                            nowInSec,
-                                                            indexUpdater));
+                                                            nowInSec));
         }
 
         for (int i = 0; i < mergedColumns.complexColumnCount(); i++)
@@ -285,7 +276,7 @@ public abstract class Rows
 
             Iterator<Cell> existingCells = existingData == null ? null : existingData.iterator();
             Iterator<Cell> updateCells = updateData == null ? null : updateData.iterator();
-            timeDelta = Math.min(timeDelta, Cells.reconcileComplex(clustering, c, existingCells, updateCells, maxDt, builder, nowInSec, indexUpdater));
+            timeDelta = Math.min(timeDelta, Cells.reconcileComplex(c, existingCells, updateCells, maxDt, builder, nowInSec));
         }
 
         return timeDelta;

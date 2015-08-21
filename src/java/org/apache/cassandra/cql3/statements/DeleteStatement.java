@@ -17,17 +17,19 @@
  */
 package org.apache.cassandra.cql3.statements;
 
-import java.util.*;
+import java.util.Iterator;
+import java.util.List;
 
 import com.google.common.collect.Iterators;
 
-import org.apache.cassandra.cql3.*;
-import org.apache.cassandra.cql3.restrictions.Restriction;
 import org.apache.cassandra.config.CFMetaData;
 import org.apache.cassandra.config.ColumnDefinition;
-import org.apache.cassandra.db.*;
-import org.apache.cassandra.db.partitions.*;
-import org.apache.cassandra.exceptions.*;
+import org.apache.cassandra.cql3.*;
+import org.apache.cassandra.cql3.restrictions.Restriction;
+import org.apache.cassandra.db.CBuilder;
+import org.apache.cassandra.db.Clustering;
+import org.apache.cassandra.db.partitions.PartitionUpdate;
+import org.apache.cassandra.exceptions.InvalidRequestException;
 import org.apache.cassandra.utils.Pair;
 
 /**
@@ -93,6 +95,8 @@ public class DeleteStatement extends ModificationStatement
                 update.add(params.buildRow());
             }
         }
+
+        params.validateIndexedColumns(update);
     }
 
     protected void validateWhereClauseForConditions() throws InvalidRequestException

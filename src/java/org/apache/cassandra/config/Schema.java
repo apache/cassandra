@@ -27,12 +27,10 @@ import com.google.common.collect.Sets;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import org.apache.cassandra.cql3.functions.Function;
-import org.apache.cassandra.cql3.functions.FunctionName;
-import org.apache.cassandra.cql3.functions.UDAggregate;
-import org.apache.cassandra.cql3.functions.UDFunction;
-import org.apache.cassandra.db.*;
+import org.apache.cassandra.cql3.functions.*;
+import org.apache.cassandra.db.ColumnFamilyStore;
 import org.apache.cassandra.db.Keyspace;
+import org.apache.cassandra.db.SystemKeyspace;
 import org.apache.cassandra.db.commitlog.CommitLog;
 import org.apache.cassandra.db.compaction.CompactionManager;
 import org.apache.cassandra.db.marshal.AbstractType;
@@ -539,7 +537,7 @@ public class Schema
         assert cfs != null;
 
         // make sure all the indexes are dropped, or else.
-        cfs.indexManager.setIndexRemoved(new HashSet<>(cfs.indexManager.getBuiltIndexes()));
+        cfs.indexManager.markAllIndexesRemoved();
 
         // reinitialize the keyspace.
         CFMetaData cfm = oldKsm.tables.get(tableName).get();

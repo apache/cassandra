@@ -17,14 +17,18 @@
  */
 package org.apache.cassandra.cql3.statements;
 
-import java.util.*;
+import java.util.Collection;
+import java.util.Collections;
+import java.util.List;
 
-import org.apache.cassandra.cql3.*;
 import org.apache.cassandra.config.CFMetaData;
 import org.apache.cassandra.config.ColumnDefinition;
-import org.apache.cassandra.db.*;
+import org.apache.cassandra.cql3.*;
+import org.apache.cassandra.db.CBuilder;
+import org.apache.cassandra.db.Clustering;
+import org.apache.cassandra.db.CompactTables;
 import org.apache.cassandra.db.partitions.PartitionUpdate;
-import org.apache.cassandra.exceptions.*;
+import org.apache.cassandra.exceptions.InvalidRequestException;
 import org.apache.cassandra.utils.ByteBufferUtil;
 import org.apache.cassandra.utils.Pair;
 
@@ -49,8 +53,6 @@ public class UpdateStatement extends ModificationStatement
     public void addUpdateForKey(PartitionUpdate update, CBuilder cbuilder, UpdateParameters params)
     throws InvalidRequestException
     {
-        params.newPartition(update.partitionKey());
-
         if (updatesRegularRows())
         {
             params.newRow(cbuilder.build());
@@ -90,6 +92,8 @@ public class UpdateStatement extends ModificationStatement
                 op.execute(update.partitionKey(), params);
             update.add(params.buildRow());
         }
+
+        params.validateIndexedColumns(update);
     }
 
     public static class ParsedInsert extends ModificationStatement.Parsed

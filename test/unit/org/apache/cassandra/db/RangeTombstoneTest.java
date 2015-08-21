@@ -22,37 +22,33 @@ import java.nio.ByteBuffer;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.List;
-import java.util.Set;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.Future;
 
 import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.Iterators;
-
-import org.apache.cassandra.io.sstable.format.SSTableReader;
 import org.junit.BeforeClass;
 import org.junit.Test;
 
 import org.apache.cassandra.SchemaLoader;
-import org.apache.cassandra.config.*;
-import org.apache.cassandra.Util;
 import org.apache.cassandra.UpdateBuilder;
+import org.apache.cassandra.Util;
+import org.apache.cassandra.config.ColumnDefinition;
+import org.apache.cassandra.cql3.statements.IndexTarget;
 import org.apache.cassandra.db.compaction.CompactionManager;
-import org.apache.cassandra.db.filter.*;
-import org.apache.cassandra.db.rows.*;
-import org.apache.cassandra.db.partitions.*;
-import org.apache.cassandra.db.index.PerColumnSecondaryIndex;
-import org.apache.cassandra.db.index.SecondaryIndex;
-import org.apache.cassandra.db.index.SecondaryIndexSearcher;
-import org.apache.cassandra.db.marshal.UTF8Type;
+import org.apache.cassandra.db.filter.ColumnFilter;
 import org.apache.cassandra.db.marshal.Int32Type;
+import org.apache.cassandra.db.marshal.UTF8Type;
+import org.apache.cassandra.db.partitions.*;
+import org.apache.cassandra.db.rows.*;
 import org.apache.cassandra.exceptions.ConfigurationException;
+import org.apache.cassandra.index.StubIndex;
+import org.apache.cassandra.io.sstable.format.SSTableReader;
 import org.apache.cassandra.io.sstable.metadata.StatsMetadata;
 import org.apache.cassandra.schema.IndexMetadata;
 import org.apache.cassandra.schema.KeyspaceParams;
 import org.apache.cassandra.utils.ByteBufferUtil;
 import org.apache.cassandra.utils.FBUtilities;
-import org.apache.cassandra.utils.concurrent.OpOrder;
 
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
@@ -71,7 +67,7 @@ public class RangeTombstoneTest
                                     KeyspaceParams.simple(1),
                                     SchemaLoader.standardCFMD(KSNAME,
                                                               CFNAME,
-                                                              0,
+                                                              1,
                                                               UTF8Type.instance,
                                                               Int32Type.instance,
                                                               Int32Type.instance));
@@ -468,22 +464,26 @@ public class RangeTombstoneTest
         cfs.disableAutoCompaction();
 
         ColumnDefinition cd = cfs.metadata.getColumnDefinition(indexedColumnName).copy();
-        IndexMetadata indexDef = IndexMetadata.legacyIndex(cd,
-                                                           "test_index",
-                                                           IndexMetadata.IndexType.CUSTOM,
-                                                           ImmutableMap.of(SecondaryIndex.CUSTOM_INDEX_OPTION_NAME,
-                                                                           TestIndex.class.getName()));
+        IndexMetadata indexDef = IndexMetadata.singleColumnIndex(cd,
+                                                                 "test_index",
+                                                                 IndexMetadata.IndexType.CUSTOM,
+                                                                 ImmutableMap.of(IndexTarget.CUSTOM_INDEX_OPTION_NAME,
+                                                                                 StubIndex.class.getName()));
 
         if (!cfs.metadata.getIndexes().get("test_index").isPresent())
             cfs.metadata.indexes(cfs.metadata.getIndexes().with(indexDef));
 
-        Future<?> rebuild = cfs.indexManager.addIndexedColumn(indexDef);
+        Future<?> rebuild = cfs.indexManager.addIndex(indexDef);
         // If rebuild there is, wait for the rebuild to finish so it doesn't race with the following insertions
         if (rebuild != null)
             rebuild.get();
 
-        TestIndex index = ((TestIndex)cfs.indexManager.getIndexForColumn(cd));
-        index.resetCounts();
+        StubIndex index = (StubIndex)cfs.indexManager.listIndexes()
+                                                     .stream()
+                                                     .filter(i -> "test_index".equals(i.getIndexName()))
+                                                     .findFirst()
+                                                     .orElseThrow(() -> new RuntimeException(new AssertionError("Index not found")));
+        index.reset();
 
         UpdateBuilder builder = UpdateBuilder.create(cfs.metadata, key).withTimestamp(0);
         for (int i = 0; i < 10; i++)
@@ -494,14 +494,14 @@ public class RangeTombstoneTest
         new RowUpdateBuilder(cfs.metadata, 0, key).addRangeTombstone(0, 7).build().applyUnsafe();
         cfs.forceBlockingFlush();
 
-        assertEquals(10, index.inserts.size());
+        assertEquals(10, index.rowsInserted.size());
 
         CompactionManager.instance.performMaximal(cfs, false);
 
         // compacted down to single sstable
         assertEquals(1, cfs.getLiveSSTables().size());
 
-        assertEquals(8, index.deletes.size());
+        assertEquals(8, index.rowsDeleted.size());
     }
 
     @Test
@@ -560,21 +560,26 @@ public class RangeTombstoneTest
         cfs.disableAutoCompaction();
 
         ColumnDefinition cd = cfs.metadata.getColumnDefinition(indexedColumnName).copy();
-        IndexMetadata indexDef = IndexMetadata.legacyIndex(cd,
-                                                           "test_index",
-                                                           IndexMetadata.IndexType.CUSTOM,
-                                                           ImmutableMap.of(SecondaryIndex.CUSTOM_INDEX_OPTION_NAME,
-                                                                           TestIndex.class.getName()));
+        IndexMetadata indexDef = IndexMetadata.singleColumnIndex(cd,
+                                                                 "test_index",
+                                                                 IndexMetadata.IndexType.CUSTOM,
+                                                                 ImmutableMap.of(IndexTarget.CUSTOM_INDEX_OPTION_NAME,
+                                                                                 StubIndex.class.getName()));
 
         if (!cfs.metadata.getIndexes().get("test_index").isPresent())
             cfs.metadata.indexes(cfs.metadata.getIndexes().with(indexDef));
 
-        Future<?> rebuild = cfs.indexManager.addIndexedColumn(indexDef);
+        Future<?> rebuild = cfs.indexManager.addIndex(indexDef);
         // If rebuild there is, wait for the rebuild to finish so it doesn't race with the following insertions
         if (rebuild != null)
             rebuild.get();
-        TestIndex index = ((TestIndex)cfs.indexManager.getIndexForColumn(cd));
-        index.resetCounts();
+
+        StubIndex index = (StubIndex)cfs.indexManager.listIndexes()
+                                                     .stream()
+                                                     .filter(i -> "test_index".equals(i.getIndexName()))
+                                                     .findFirst()
+                                                     .orElseThrow(() -> new RuntimeException(new AssertionError("Index not found")));
+        index.reset();
 
         UpdateBuilder.create(cfs.metadata, key).withTimestamp(0).newRow(1).add("val", 1).applyUnsafe();
 
@@ -588,8 +593,8 @@ public class RangeTombstoneTest
 
         // We should have 1 insert and 1 update to the indexed "1" column
         // CASSANDRA-6640 changed index update to just update, not insert then delete
-        assertEquals(1, index.inserts.size());
-        assertEquals(1, index.updates.size());
+        assertEquals(1, index.rowsInserted.size());
+        assertEquals(1, index.rowsUpdated.size());
     }
 
     private static ByteBuffer bb(int i)
@@ -600,69 +605,5 @@ public class RangeTombstoneTest
     private static int i(ByteBuffer bb)
     {
         return ByteBufferUtil.toInt(bb);
-    }
-
-    public static class TestIndex extends PerColumnSecondaryIndex
-    {
-        public List<Cell> inserts = new ArrayList<>();
-        public List<Cell> deletes = new ArrayList<>();
-        public List<Cell> updates = new ArrayList<>();
-
-        public void resetCounts()
-        {
-            inserts.clear();
-            deletes.clear();
-            updates.clear();
-        }
-
-        public void delete(ByteBuffer rowKey, Clustering clustering, Cell cell, OpOrder.Group opGroup, int nowInSec)
-        {
-            deletes.add(cell);
-        }
-
-        @Override
-        public void deleteForCleanup(ByteBuffer rowKey, Clustering clustering, Cell cell, OpOrder.Group opGroup, int nowInSec) {}
-
-        public void insert(ByteBuffer rowKey, Clustering clustering, Cell cell, OpOrder.Group opGroup)
-        {
-            inserts.add(cell);
-        }
-
-        public void update(ByteBuffer rowKey, Clustering clustering, Cell oldCell, Cell cell, OpOrder.Group opGroup, int nowInSec)
-        {
-            updates.add(cell);
-        }
-
-        public void init(){}
-
-        public void reload(){}
-
-        public void validateOptions(CFMetaData cfm, IndexMetadata def) throws ConfigurationException{}
-
-        public String getIndexName(){ return "TestIndex";}
-
-        protected SecondaryIndexSearcher createSecondaryIndexSearcher(Set<ColumnDefinition> columns) { return null; };
-
-        public void forceBlockingFlush(){}
-
-        public ColumnFamilyStore getIndexCfs(){ return null; }
-
-        public void removeIndex(ByteBuffer columnName){}
-
-        public void invalidate(){}
-
-        public void validate(DecoratedKey key) {}
-        public void validate(ByteBuffer value, CellPath path) {}
-        public void validate(Clustering clustering) {}
-
-        public void truncateBlocking(long truncatedAt) { }
-
-        public boolean indexes(ColumnDefinition name) { return true; }
-
-        @Override
-        public long estimateResultRows()
-        {
-            return 0;
-        }
     }
 }

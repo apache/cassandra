@@ -27,7 +27,9 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import org.apache.cassandra.config.*;
-import org.apache.cassandra.cql3.*;
+import org.apache.cassandra.cql3.ColumnIdentifier;
+import org.apache.cassandra.cql3.QueryProcessor;
+import org.apache.cassandra.cql3.UntypedResultSet;
 import org.apache.cassandra.cql3.functions.FunctionName;
 import org.apache.cassandra.cql3.functions.UDAggregate;
 import org.apache.cassandra.cql3.functions.UDFunction;
@@ -628,7 +630,7 @@ public final class LegacySchemaMigrator
                                                                 isStaticCompactTable,
                                                                 needsUpgrade);
 
-            indexes.add(IndexMetadata.legacyIndex(column, indexName, indexType, indexOptions));
+            indexes.add(IndexMetadata.singleColumnIndex(column, indexName, indexType, indexOptions));
         }
 
         return indexes.build();

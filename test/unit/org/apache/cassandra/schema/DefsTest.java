@@ -40,11 +40,11 @@ import org.apache.cassandra.cql3.UntypedResultSet;
 import org.apache.cassandra.db.ColumnFamilyStore;
 import org.apache.cassandra.db.Directories;
 import org.apache.cassandra.db.Keyspace;
-import org.apache.cassandra.db.index.SecondaryIndex;
 import org.apache.cassandra.db.lifecycle.TransactionLog;
 import org.apache.cassandra.db.marshal.BytesType;
 import org.apache.cassandra.db.marshal.UTF8Type;
 import org.apache.cassandra.exceptions.ConfigurationException;
+import org.apache.cassandra.index.Index;
 import org.apache.cassandra.io.sstable.Component;
 import org.apache.cassandra.io.sstable.Descriptor;
 import org.apache.cassandra.locator.OldNetworkTopologyStrategy;
@@ -511,9 +511,18 @@ public class DefsTest
 
         cfs.forceBlockingFlush();
         ColumnDefinition indexedColumn = cfs.metadata.getColumnDefinition(ByteBufferUtil.bytes("birthdate"));
-        SecondaryIndex index = cfs.indexManager.getIndexForColumn(indexedColumn);
-        ColumnFamilyStore indexedCfs = index.getIndexCfs();
-        Descriptor desc = indexedCfs.getLiveSSTables().iterator().next().descriptor;
+        IndexMetadata index = cfs.metadata.getIndexes()
+                                          .get(indexedColumn)
+                                          .iterator()
+                                          .next();
+        ColumnFamilyStore indexCfs = cfs.indexManager.listIndexes()
+                                                     .stream()
+                                                     .filter(i -> i.getIndexMetadata().equals(index))
+                                                     .map(Index::getBackingTable)
+                                                     .findFirst()
+                                                     .orElseThrow(() -> new AssertionError("Index not found"))
+                                                     .orElseThrow(() -> new AssertionError("Index has no backing table"));
+        Descriptor desc = indexCfs.getLiveSSTables().iterator().next().descriptor;
 
         // drop the index
         CFMetaData meta = cfs.metadata.copy();
@@ -536,7 +545,7 @@ public class DefsTest
         MigrationManager.announceColumnFamilyUpdate(meta, false);
 
         // check
-        assertTrue(cfs.indexManager.getIndexes().isEmpty());
+        assertTrue(cfs.indexManager.listIndexes().isEmpty());
         TransactionLog.waitForDeletions();
         assertFalse(new File(desc.filenameFor(Component.DATA)).exists());
     }

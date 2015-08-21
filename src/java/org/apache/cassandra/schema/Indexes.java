@@ -21,6 +21,7 @@ package org.apache.cassandra.schema;
 import java.util.*;
 
 import com.google.common.collect.ImmutableMap;
+import com.google.common.collect.ImmutableMultimap;
 
 import org.apache.cassandra.config.ColumnDefinition;
 import org.apache.cassandra.config.Schema;
@@ -39,17 +40,13 @@ import static com.google.common.collect.Iterables.filter;
  */
 public class Indexes implements Iterable<IndexMetadata>
 {
-    // lookup for index by target column
-    private final ImmutableMap<ColumnIdentifier, IndexMetadata> indexes;
+    private final ImmutableMap<String, IndexMetadata> indexes;
+    private final ImmutableMultimap<ColumnIdentifier, IndexMetadata> indexesByColumn;
 
     private Indexes(Builder builder)
     {
-        ImmutableMap.Builder<ColumnIdentifier, IndexMetadata> internalBuilder = ImmutableMap.builder();
-        builder.indexes.build()
-                       .values()
-                       .stream()
-                       .forEach(def -> internalBuilder.put(def.columns.iterator().next(), def));
-        indexes = internalBuilder.build();
+        indexes = builder.indexes.build();
+        indexesByColumn = builder.indexesByColumn.build();
     }
 
     public static Builder builder()
@@ -105,9 +102,9 @@ public class Indexes implements Iterable<IndexMetadata>
      * @param column a column definition for which an {@link IndexMetadata} is being sought
      * @return an empty {@link Optional} if the named index is not found; a non-empty optional of {@link IndexMetadata} otherwise
      */
-    public Optional<IndexMetadata> get(ColumnDefinition column)
+    public Collection<IndexMetadata> get(ColumnDefinition column)
     {
-        return Optional.ofNullable(indexes.get(column.name));
+        return indexesByColumn.get(column.name);
     }
 
     /**
@@ -117,7 +114,7 @@ public class Indexes implements Iterable<IndexMetadata>
      */
     public boolean hasIndexFor(ColumnDefinition column)
     {
-        return indexes.get(column.name) != null;
+        return !indexesByColumn.get(column.name).isEmpty();
     }
 
     /**
@@ -183,6 +180,7 @@ public class Indexes implements Iterable<IndexMetadata>
     public static final class Builder
     {
         final ImmutableMap.Builder<String, IndexMetadata> indexes = new ImmutableMap.Builder<>();
+        final ImmutableMultimap.Builder<ColumnIdentifier, IndexMetadata> indexesByColumn = new ImmutableMultimap.Builder<>();
 
         private Builder()
         {
@@ -196,6 +194,13 @@ public class Indexes implements Iterable<IndexMetadata>
         public Builder add(IndexMetadata index)
         {
             indexes.put(index.name, index);
+            // All indexes are column indexes at the moment
+            if (index.isColumnIndex())
+            {
+                for (ColumnIdentifier target : index.columns)
+                    indexesByColumn.put(target, index);
+
+            }
             return this;
         }
 

@@ -28,10 +28,12 @@ import org.apache.cassandra.cql3.QueryOptions;
 import org.apache.cassandra.cql3.Term;
 import org.apache.cassandra.cql3.functions.Function;
 import org.apache.cassandra.cql3.statements.Bound;
-import org.apache.cassandra.db.*;
+import org.apache.cassandra.db.Clustering;
+import org.apache.cassandra.db.MultiCBuilder;
+import org.apache.cassandra.db.Slice;
 import org.apache.cassandra.db.filter.RowFilter;
-import org.apache.cassandra.db.index.SecondaryIndexManager;
 import org.apache.cassandra.exceptions.InvalidRequestException;
+import org.apache.cassandra.index.SecondaryIndexManager;
 
 import static org.apache.cassandra.cql3.statements.RequestValidations.invalidRequest;
 
