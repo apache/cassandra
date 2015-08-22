@@ -853,6 +853,17 @@ public abstract class LegacyLayout
         };
     }
 
+    private static boolean equalValues(ClusteringPrefix c1, ClusteringPrefix c2, ClusteringComparator comparator)
+    {
+        assert c1.size() == c2.size();
+        for (int i = 0; i < c1.size(); i++)
+        {
+            if (comparator.compareComponent(i, c1.get(i), c2.get(i)) != 0)
+                return false;
+        }
+        return true;
+    }
+
     private static Comparator<LegacyAtom> legacyAtomComparator(CFMetaData metadata)
     {
         return (o1, o2) ->
@@ -864,7 +875,7 @@ public abstract class LegacyLayout
             ClusteringPrefix c2 = o2.clustering();
 
             int clusteringComparison;
-            if (c1.size() != c2.size() || (o1.isCell() == o2.isCell()))
+            if (c1.size() != c2.size() || (o1.isCell() == o2.isCell()) || !equalValues(c1, c2, metadata.comparator))
             {
                 clusteringComparison = metadata.comparator.compare(c1, c2);
             }

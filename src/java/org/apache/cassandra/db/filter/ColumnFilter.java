@@ -246,7 +246,7 @@ public class ColumnFilter
         private PartitionColumns.Builder selection;
         private List<ColumnSubselection> subSelections;
 
-        public Builder(CFMetaData metadata)
+        private Builder(CFMetaData metadata)
         {
             this.metadata = metadata;
         }
