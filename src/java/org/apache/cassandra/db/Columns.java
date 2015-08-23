@@ -50,8 +50,13 @@ public class Columns extends AbstractCollection<ColumnDefinition> implements Col
 {
     public static final Serializer serializer = new Serializer();
     public static final Columns NONE = new Columns(BTree.empty(), 0);
-    public static final ColumnDefinition FIRST_COMPLEX = new ColumnDefinition("", "", ColumnIdentifier.getInterned(ByteBufferUtil.EMPTY_BYTE_BUFFER, UTF8Type.instance),
-                                                                              SetType.getInstance(UTF8Type.instance, true), null, ColumnDefinition.Kind.REGULAR);
+    public static final ColumnDefinition FIRST_COMPLEX =
+        new ColumnDefinition("",
+                             "",
+                             ColumnIdentifier.getInterned(ByteBufferUtil.EMPTY_BYTE_BUFFER, UTF8Type.instance),
+                             SetType.getInstance(UTF8Type.instance, true),
+                             ColumnDefinition.NO_POSITION,
+                             ColumnDefinition.Kind.REGULAR);
 
     private final Object[] columns;
     private final int complexIdx; // Index of the first complex column
