@@ -538,6 +538,7 @@ public class StressProfile implements Serializable
                 case BOOLEAN:
                     return new Booleans(name, config);
                 case DECIMAL:
+                    return new BigDecimals(name, config);
                 case DOUBLE:
                     return new Doubles(name, config);
                 case FLOAT:
@@ -559,7 +560,7 @@ public class StressProfile implements Serializable
                 case LIST:
                     return new Lists(name, getGenerator(name, type.getTypeArguments().get(0), config), config);
                 default:
-                    throw new UnsupportedOperationException();
+                    throw new UnsupportedOperationException("Because of this name: "+name+" if you removed it from the yaml and are still seeing this, make sure to drop table");
             }
         }
     }
