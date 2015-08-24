@@ -3,6 +3,9 @@
  * Reuse TemporalRow when updating multiple MaterializedViews (CASSANDRA-10060)
  * Validate gc_grace_seconds for batchlog writes and MVs (CASSANDRA-9917)
  * Fix sstablerepairedset (CASSANDRA-10132)
+Merged from 2.2:
+ * Support string literals as Role names for compatibility (CASSANDRA-10135)
+
 
 3.0.0-beta1
  * Redesign secondary index API (CASSANDRA-9459, 7771, 9041)
@@ -27,6 +30,9 @@
  * SequentialWriter should extend BufferedDataOutputStreamPlus (CASSANDRA-9500)
  * Use the same repairedAt timestamp within incremental repair session (CASSANDRA-9111)
 Merged from 2.2:
+ * Allow count(*) and count(1) to be use as normal aggregation (CASSANDRA-10114)
+ * An NPE is thrown if the column name is unknown for an IN relation (CASSANDRA-10043)
+ * Apply commit_failure_policy to more errors on startup (CASSANDRA-9749)
  * Fix histogram overflow exception (CASSANDRA-9973)
  * Route gossip messages over dedicated socket (CASSANDRA-9237)
  * Add checksum to saved cache files (CASSANDRA-9265)
