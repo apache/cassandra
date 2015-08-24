@@ -1553,18 +1553,12 @@ public final class SchemaKeyspace
                                  .clustering(aggregate.name().name, functionSignatureWithTypes(aggregate));
 
         adder.add("return_type", aggregate.returnType().toString())
-             .add("state_func", aggregate.stateFunction().name().name);
-
-        if (aggregate.stateType() != null)
-            adder.add("state_type", aggregate.stateType().toString());
-        if (aggregate.finalFunction() != null)
-            adder.add("final_func", aggregate.finalFunction().name().name);
-        if (aggregate.initialCondition() != null)
-            adder.add("initcond", aggregate.initialCondition());
-
-        adder.frozenList("argument_types", aggregate.argTypes().stream().map(AbstractType::toString).collect(Collectors.toList()));
-
-        adder.build();
+             .add("state_func", aggregate.stateFunction().name().name)
+             .add("state_type", aggregate.stateType() != null ? aggregate.stateType().toString() : null)
+             .add("final_func", aggregate.finalFunction() != null ? aggregate.finalFunction().name().name : null)
+             .add("initcond", aggregate.initialCondition())
+             .frozenList("argument_types", aggregate.argTypes().stream().map(AbstractType::toString).collect(Collectors.toList()))
+             .build();
     }
 
     private static Collection<UDAggregate> createAggregatesFromAggregatesPartition(RowIterator partition)
