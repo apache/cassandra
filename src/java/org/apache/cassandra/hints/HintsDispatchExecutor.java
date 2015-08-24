@@ -156,7 +156,8 @@ final class HintsDispatchExecutor
 
                 try
                 {
-                    dispatch(descriptor);
+                    if (!dispatch(descriptor))
+                        break;
                 }
                 catch (FSReadError e)
                 {
@@ -168,7 +169,10 @@ final class HintsDispatchExecutor
             }
         }
 
-        private void dispatch(HintsDescriptor descriptor)
+        /*
+         * Will return true if dispatch was successful, false if we hit a failure (destination node went down, for example).
+         */
+        private boolean dispatch(HintsDescriptor descriptor)
         {
             logger.debug("Dispatching hints file {}", descriptor.fileName());
 
@@ -186,12 +190,14 @@ final class HintsDispatchExecutor
                         logger.error("Failed to delete hints file {}", descriptor.fileName());
                     store.cleanUp(descriptor);
                     logger.info("Finished hinted handoff of file {} to endpoint {}", descriptor.fileName(), hostId);
+                    return true;
                 }
                 else
                 {
                     store.markDispatchOffset(descriptor, dispatcher.dispatchOffset());
                     store.offerFirst(descriptor);
                     logger.info("Finished hinted handoff of file {} to endpoint {}, partially", descriptor.fileName(), hostId);
+                    return false;
                 }
             }
         }
