@@ -46,7 +46,7 @@ public class NanoTimeToCurrentTimeMillis
      * There is also the issue of how scalable nanoTime() and currentTimeMillis() are which is a moving target.
      *
      * These timestamps don't order with System.currentTimeMillis() because currentTimeMillis() can tick over
-     * before this one does. I have seen it behind by as much as 2 milliseconds.
+     * before this one does. I have seen it behind by as much as 2ms on Linux and 25ms on Windows.
      */
     public static final long convert(long nanoTime)
     {
