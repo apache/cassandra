@@ -30,9 +30,12 @@ import java.util.zip.Inflater;
 import com.google.common.base.Joiner;
 import com.google.common.collect.*;
 import com.google.common.primitives.Longs;
+
+import org.apache.cassandra.config.ColumnDefinition;
+import org.apache.cassandra.db.filter.ColumnFilter;
+
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-
 import org.apache.cassandra.auth.Permission;
 import org.apache.cassandra.config.*;
 import org.apache.cassandra.cql3.QueryOptions;
@@ -399,8 +402,13 @@ public class CassandraServer implements Cassandra.Iface
                     for (ByteBuffer bb : predicate.column_names)
                     {
                         LegacyLayout.LegacyCellName name = LegacyLayout.decodeCellName(metadata, parent.bufferForSuper_column(), bb);
-                        clusterings.add(name.clustering);
+
+                        if (!name.clustering.equals(Clustering.STATIC_CLUSTERING))
+                            clusterings.add(name.clustering);
                     }
+
+                    // clusterings cannot include STATIC_CLUSTERING, so if the names filter is for static columns, clusterings
+                    // will be empty.  However, by requesting the static columns in our ColumnFilter, this will still work.
                     return new ClusteringIndexNamesFilter(clusterings, false);
                 }
             }
@@ -492,12 +500,16 @@ public class CassandraServer implements Cassandra.Iface
                 }
                 else
                 {
-                    PartitionColumns.Builder builder = new PartitionColumns.Builder();
+                    PartitionColumns.Builder builder = PartitionColumns.builder();
                     for (ByteBuffer bb : predicate.column_names)
                     {
                         LegacyLayout.LegacyCellName name = LegacyLayout.decodeCellName(metadata, parent.bufferForSuper_column(), bb);
                         builder.add(name.column);
                     }
+
+                    if (metadata.isStaticCompactTable())
+                        builder.add(metadata.compactValueColumn());
+
                     return ColumnFilter.selection(builder.build());
                 }
             }
