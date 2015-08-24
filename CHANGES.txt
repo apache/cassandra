@@ -1,4 +1,6 @@
 2.2.1
+ * Allow count(*) and count(1) to be use as normal aggregation (CASSANDRA-10114)
+ * An NPE is thrown if the column name is unknown for an IN relation (CASSANDRA-10043)
  * Apply commit_failure_policy to more errors on startup (CASSANDRA-9749)
  * Fix histogram overflow exception (CASSANDRA-9973)
  * Route gossip messages over dedicated socket (CASSANDRA-9237)
