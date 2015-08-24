@@ -342,13 +342,16 @@ public class SliceQueryFilter implements IDiskAtomFilter
             return new ColumnCounter.GroupByPrefix(now, comparator, compositesToGroup);
     }
 
-    public void trim(ColumnFamily cf, int trimTo, long now)
+    public ColumnFamily trim(ColumnFamily cf, int trimTo, long now)
     {
         // each cell can increment the count by at most one, so if we have fewer cells than trimTo, we can skip trimming
         if (cf.getColumnCount() < trimTo)
-            return;
+            return cf;
 
         ColumnCounter counter = columnCounter(cf.getComparator(), now);
+
+        ColumnFamily trimmedCf = cf.getFactory().create(cf.metadata(), reversed, trimTo);
+        trimmedCf.delete(cf);
 
         Collection<Cell> cells = reversed
                                    ? cf.getReverseSortedColumns()
@@ -363,14 +366,15 @@ public class SliceQueryFilter implements IDiskAtomFilter
 
             if (counter.live() > trimTo)
             {
-                iter.remove();
-                while (iter.hasNext())
-                {
-                    iter.next();
-                    iter.remove();
-                }
+                break;
+            }
+            else
+            {
+                trimmedCf.addColumn(cell);
             }
         }
+
+        return trimmedCf;
     }
 
     public Composite start()

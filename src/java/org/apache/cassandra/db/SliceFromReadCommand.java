@@ -113,12 +113,12 @@ public class SliceFromReadCommand extends ReadCommand
     }
 
     @Override
-    public void maybeTrim(Row row)
+    public Row maybeTrim(Row row)
     {
         if ((row == null) || (row.cf == null))
-            return;
+            return row;
 
-        filter.trim(row.cf, getOriginalRequestedCount(), timestamp);
+        return new Row(row.key, filter.trim(row.cf, getOriginalRequestedCount(), timestamp));
     }
 
     public IDiskAtomFilter filter()

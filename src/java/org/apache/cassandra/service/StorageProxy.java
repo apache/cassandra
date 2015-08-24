@@ -1347,7 +1347,7 @@ public class StorageProxy implements StorageProxyMBean
                     Row row = exec.get();
                     if (row != null)
                     {
-                        exec.command.maybeTrim(row);
+                        row = exec.command.maybeTrim(row);
                         rows.add(row);
                     }
 
@@ -1466,7 +1466,7 @@ public class StorageProxy implements StorageProxyMBean
 
                     if (row != null)
                     {
-                        command.maybeTrim(row);
+                        row = command.maybeTrim(row);
                         rows.add(row);
                     }
                 }
