@@ -2,6 +2,10 @@
  * Add transparent data encryption core classes (CASSANDRA-9945)
 
 
+3.0.0-beta2
+ * Validate gc_grace_seconds for batchlog writes and MVs (CASSANDRA-9917)
+
+
 3.0.0-beta1
  * Redesign secondary index API (CASSANDRA-9459, 7771, 9041)
  * Fix throwing ReadFailure instead of ReadTimeout on range queries (CASSANDRA-10125)
