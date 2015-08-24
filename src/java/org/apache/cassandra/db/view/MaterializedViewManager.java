@@ -150,16 +150,20 @@ public class MaterializedViewManager
      * Calculates and pushes updates to the views replicas. The replicas are determined by
      * {@link MaterializedViewUtils#getViewNaturalEndpoint(String, Token, Token)}.
      */
-    public void pushViewReplicaUpdates(ByteBuffer key, PartitionUpdate update) throws UnavailableException, OverloadedException, WriteTimeoutException
+    public void pushViewReplicaUpdates(PartitionUpdate update) throws UnavailableException, OverloadedException, WriteTimeoutException
     {
         // This happens when we are replaying from commitlog. In that case, we have already sent this commit off to the
         // view node.
         if (!StorageService.instance.isJoined()) return;
 
         List<Mutation> mutations = null;
+        TemporalRow.Set temporalRows = null;
         for (Map.Entry<String, MaterializedView> view : viewsByName.entrySet())
         {
-            Collection<Mutation> viewMutations = view.getValue().createMutations(key, update, false);
+
+            temporalRows = view.getValue().getTemporalRowSet(update, temporalRows, false);
+
+            Collection<Mutation> viewMutations = view.getValue().createMutations(update, temporalRows, false);
             if (viewMutations != null && !viewMutations.isEmpty())
             {
                 if (mutations == null)
@@ -169,7 +173,7 @@ public class MaterializedViewManager
         }
         if (mutations != null)
         {
-            StorageProxy.mutateMV(key, mutations);
+            StorageProxy.mutateMV(update.partitionKey().getKey(), mutations);
         }
     }
 

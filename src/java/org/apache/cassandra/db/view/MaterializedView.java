@@ -481,26 +481,36 @@ public class MaterializedView
 
         if (command != null)
         {
-            QueryPager pager = command.getPager(null);
 
-            // Add all of the rows which were recovered from the query to the row set
-            while (!pager.isExhausted())
+            //We may have already done this work for
+            //another MV update so check
+
+            if (!rowSet.hasTombstonedExisting())
             {
-                try (ReadOrderGroup orderGroup = pager.startOrderGroup();
-                     PartitionIterator iter = pager.fetchPageInternal(128, orderGroup))
-                {
-                    if (!iter.hasNext())
-                        break;
+                QueryPager pager = command.getPager(null);
 
-                    try (RowIterator rowIterator = iter.next())
+                // Add all of the rows which were recovered from the query to the row set
+                while (!pager.isExhausted())
+                {
+                    try (ReadOrderGroup orderGroup = pager.startOrderGroup();
+                         PartitionIterator iter = pager.fetchPageInternal(128, orderGroup))
                     {
-                        while (rowIterator.hasNext())
+                        if (!iter.hasNext())
+                            break;
+
+                        try (RowIterator rowIterator = iter.next())
                         {
-                            Row row = rowIterator.next();
-                            rowSet.addRow(row, false);
+                            while (rowIterator.hasNext())
+                            {
+                                Row row = rowIterator.next();
+                                rowSet.addRow(row, false);
+                            }
                         }
                     }
                 }
+
+                //Incase we fetched nothing, avoid re checking on another MV update
+                rowSet.setTombstonedExisting();
             }
 
             // If the temporal row has been deleted by the deletion info, we generate the corresponding range tombstone
@@ -558,18 +568,52 @@ public class MaterializedView
     /**
      * @return Set of rows which are contained in the partition update {@param partition}
      */
-    private TemporalRow.Set separateRows(ByteBuffer key, AbstractBTreePartition partition)
+    private TemporalRow.Set separateRows(AbstractBTreePartition partition, Set<ColumnIdentifier> viewPrimaryKeyCols)
     {
-        Set<ColumnIdentifier> columns = new HashSet<>();
-        for (ColumnDefinition def : this.columns.primaryKeyDefs)
-            columns.add(def.name);
 
-        TemporalRow.Set rowSet = new TemporalRow.Set(baseCfs, columns, key);
+        TemporalRow.Set rowSet = new TemporalRow.Set(baseCfs, viewPrimaryKeyCols, partition.partitionKey().getKey());
+
         for (Row row : partition)
             rowSet.addRow(row, true);
 
         return rowSet;
     }
+
+    /**
+     * Splits the partition update up and adds the existing state to each row.
+     * This data can be reused for multiple MV updates on the same base table
+     *
+     * @param partition the mutation
+     * @param isBuilding If the view is currently being built, we do not query the values which are already stored,
+     *                   since all of the update will already be present in the base table.
+     * @return The set of temoral rows contained in this update
+     */
+    public TemporalRow.Set getTemporalRowSet(AbstractBTreePartition partition, TemporalRow.Set existing, boolean isBuilding)
+    {
+        if (!updateAffectsView(partition))
+            return null;
+
+        Set<ColumnIdentifier> columns = new HashSet<>(this.columns.primaryKeyDefs.size());
+        for (ColumnDefinition def : this.columns.primaryKeyDefs)
+            columns.add(def.name);
+
+        TemporalRow.Set rowSet = null;
+        if (existing == null)
+        {
+            rowSet = separateRows(partition, columns);
+
+            // If we are building the view, we do not want to add old values; they will always be the same
+            if (!isBuilding)
+                readLocalRows(rowSet);
+        }
+        else
+        {
+            rowSet = existing.withNewViewPrimaryKey(columns);
+        }
+
+        return rowSet;
+    }
+
 
     /**
      * @param isBuilding If the view is currently being built, we do not query the values which are already stored,
@@ -578,16 +622,10 @@ public class MaterializedView
      *         have been applied successfully. This is based solely on the changes that are necessary given the current
      *         state of the base table and the newly applying partition data.
      */
-    public Collection<Mutation> createMutations(ByteBuffer key, AbstractBTreePartition partition, boolean isBuilding)
+    public Collection<Mutation> createMutations(AbstractBTreePartition partition, TemporalRow.Set rowSet, boolean isBuilding)
     {
         if (!updateAffectsView(partition))
             return null;
-
-        TemporalRow.Set rowSet = separateRows(key, partition);
-
-        // If we are building the view, we do not want to add old values; they will always be the same
-        if (!isBuilding)
-            readLocalRows(rowSet);
 
         Collection<Mutation> mutations = null;
         for (TemporalRow temporalRow : rowSet)

@@ -162,7 +162,10 @@ public class TemporalRow
     private final ColumnFamilyStore baseCfs;
     private final java.util.Set<ColumnIdentifier> viewPrimaryKey;
     private final ByteBuffer basePartitionKey;
-    public final Map<ColumnIdentifier, ByteBuffer> clusteringColumns;
+    private final Map<ColumnIdentifier, ByteBuffer> clusteringColumns;
+    private final Row startRow;
+    private final boolean startIsNew;
+
     public final int nowInSec;
     private final Map<ColumnIdentifier, Map<CellPath, SortedMap<Long, TemporalCell>>> columnValues = new HashMap<>();
     private int viewClusteringTtl = NO_TTL;
@@ -174,14 +177,18 @@ public class TemporalRow
         this.baseCfs = baseCfs;
         this.viewPrimaryKey = viewPrimaryKey;
         this.basePartitionKey = key;
+        this.startRow = row;
+        this.startIsNew = isNew;
         this.nowInSec = nowInSec;
-        clusteringColumns = new HashMap<>();
+
         LivenessInfo liveness = row.primaryKeyLivenessInfo();
         this.viewClusteringLocalDeletionTime = minValueIfSet(viewClusteringLocalDeletionTime, row.deletion().localDeletionTime(), NO_DELETION_TIME);
         this.viewClusteringTimestamp = minValueIfSet(viewClusteringTimestamp, liveness.timestamp(), NO_TIMESTAMP);
         this.viewClusteringTtl = minValueIfSet(viewClusteringTtl, liveness.ttl(), NO_TTL);
 
         List<ColumnDefinition> clusteringDefs = baseCfs.metadata.clusteringColumns();
+        clusteringColumns = new HashMap<>();
+
         for (int i = 0; i < clusteringDefs.size(); i++)
         {
             ColumnDefinition cdef = clusteringDefs.get(i);
@@ -371,6 +378,7 @@ public class TemporalRow
         public final DecoratedKey dk;
         private final Map<Clustering, TemporalRow> clusteringToRow;
         final int nowInSec = FBUtilities.nowInSeconds();
+        private boolean hasTombstonedExisting = false;
 
         Set(ColumnFamilyStore baseCfs, java.util.Set<ColumnIdentifier> viewPrimaryKey, ByteBuffer key)
         {
@@ -400,10 +408,54 @@ public class TemporalRow
                 clusteringToRow.put(row.clustering(), temporalRow);
             }
 
-            for (Cell cell: row.cells())
+            for (Cell cell : row.cells())
             {
                 temporalRow.addCell(cell, isNew);
             }
+        }
+
+        private void addRow(TemporalRow row)
+        {
+            TemporalRow newRow = new TemporalRow(baseCfs, viewPrimaryKey, key, row.startRow, nowInSec, row.startIsNew);
+
+            TemporalRow existing = clusteringToRow.put(row.startRow.clustering(), newRow);
+            assert existing == null;
+
+
+            for (Map.Entry<ColumnIdentifier, Map<CellPath, SortedMap<Long, TemporalCell>>> entry : row.columnValues.entrySet())
+            {
+                for (Map.Entry<CellPath, SortedMap<Long, TemporalCell>> cellPathEntry : entry.getValue().entrySet())
+                {
+                    SortedMap<Long, TemporalCell> oldCells = cellPathEntry.getValue();
+
+                    for (Map.Entry<Long, TemporalCell> cellEntry : oldCells.entrySet())
+                    {
+                        newRow.addColumnValue(entry.getKey(), cellPathEntry.getKey(), cellEntry.getKey(),
+                                              cellEntry.getValue().ttl, cellEntry.getValue().localDeletionTime,
+                                              cellEntry.getValue().value, cellEntry.getValue().isNew);
+                    }
+                }
+            }
+        }
+
+        public TemporalRow.Set withNewViewPrimaryKey(java.util.Set<ColumnIdentifier> viewPrimaryKey)
+        {
+            TemporalRow.Set newSet = new Set(baseCfs, viewPrimaryKey, key);
+
+            for (TemporalRow row : this)
+                newSet.addRow(row);
+
+            return newSet;
+        }
+
+        public boolean hasTombstonedExisting()
+        {
+            return hasTombstonedExisting;
+        }
+
+        public void setTombstonedExisting()
+        {
+            hasTombstonedExisting = true;
         }
 
         public int size()
