@@ -221,12 +221,27 @@ Function ParseJVMInfo
     $pinfo.RedirectStandardError = $true
     $pinfo.RedirectStandardOutput = $true
     $pinfo.UseShellExecute = $false
-    $pinfo.Arguments = "-version"
+    $pinfo.Arguments = "-d64 -version"
     $p = New-Object System.Diagnostics.Process
     $p.StartInfo = $pinfo
     $p.Start() | Out-Null
     $p.WaitForExit()
     $stderr = $p.StandardError.ReadToEnd()
+
+    $env:JVM_ARCH = "64-bit"
+
+    if ($stderr.Contains("Error"))
+    {
+        # 32-bit JVM. re-run w/out -d64
+        echo "Failed 64-bit check. Re-running to get version from 32-bit"
+        $pinfo.Arguments = "-version"
+        $p = New-Object System.Diagnostics.Process
+        $p.StartInfo = $pinfo
+        $p.Start() | Out-Null
+        $p.WaitForExit()
+        $stderr = $p.StandardError.ReadToEnd()
+        $env:JVM_ARCH = "32-bit"
+    }
 
     $sa = $stderr.Split("""")
     $env:JVM_VERSION = $sa[1]
@@ -246,23 +261,6 @@ Function ParseJVMInfo
 
     $pa = $sa[1].Split("_")
     $env:JVM_PATCH_VERSION=$pa[1]
-
-    # get 64-bit vs. 32-bit
-    $pinfo.Arguments = "-d64 -version"
-    $pArch = New-Object System.Diagnostics.Process
-    $p.StartInfo = $pinfo
-    $p.Start() | Out-Null
-    $p.WaitForExit()
-    $stderr = $p.StandardError.ReadToEnd()
-
-    if ($stderr.Contains("Error"))
-    {
-        $env:JVM_ARCH = "32-bit"
-    }
-    else
-    {
-        $env:JVM_ARCH = "64-bit"
-    }
 }
 
 #-----------------------------------------------------------------------------
