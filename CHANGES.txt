@@ -7,8 +7,10 @@
 Merged from 2.2:
  * (cqlsh) default load-from-file encoding to utf-8 (CASSANDRA-9898)
  * Avoid returning Permission.NONE when failing to query users table (CASSANDRA-10168)
- * add CLEAR cqlsh command (CASSANDRA-10086)
+ * (cqlsh) add CLEAR command (CASSANDRA-10086)
  * Support string literals as Role names for compatibility (CASSANDRA-10135)
+Merged from 2.1:
+ * (cqlsh) update list of CQL keywords (CASSANDRA-9232)
 
 
 3.0.0-beta1

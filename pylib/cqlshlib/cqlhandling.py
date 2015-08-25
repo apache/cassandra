@@ -24,7 +24,6 @@ Hint = pylexotron.Hint
 
 
 class CqlParsingRuleSet(pylexotron.ParsingRuleSet):
-    keywords = set()
 
     available_compression_classes = (
         'DeflateCompressor',
@@ -56,7 +55,6 @@ class CqlParsingRuleSet(pylexotron.ParsingRuleSet):
 
         # note: commands_end_with_newline may be extended by callers.
         self.commands_end_with_newline = set()
-        self.set_keywords_as_syntax()
 
     def completer_for(self, rulename, symname):
         def registrator(f):
@@ -79,12 +77,6 @@ class CqlParsingRuleSet(pylexotron.ParsingRuleSet):
             return [Hint(explanation)]
 
         return explainer
-
-    def set_keywords_as_syntax(self):
-        syntax = []
-        for k in self.keywords:
-            syntax.append('<K_%s> ::= "%s" ;' % (k.upper(), k))
-        self.append_rules('\n'.join(syntax))
 
     def cql_massage_tokens(self, toklist):
         curstmt = []
@@ -146,9 +138,9 @@ class CqlParsingRuleSet(pylexotron.ParsingRuleSet):
             else:
                 output.append(stmt)
             if len(stmt) > 2:
-                if stmt[-3][0] == 'K_APPLY':
+                if stmt[-3][0] == 'apply':
                     in_batch = False
-                elif stmt[0][0] == 'K_BEGIN':
+                elif stmt[0][0] == 'begin':
                     in_batch = True
         return output, in_batch
 
