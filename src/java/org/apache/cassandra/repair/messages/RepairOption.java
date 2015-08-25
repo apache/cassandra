@@ -287,6 +287,10 @@ public class RepairOption
         return hosts;
     }
 
+    public boolean isGlobal()
+    {
+        return dataCenters.isEmpty() && hosts.isEmpty();
+    }
     @Override
     public String toString()
     {

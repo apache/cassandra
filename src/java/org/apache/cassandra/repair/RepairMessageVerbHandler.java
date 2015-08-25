@@ -73,7 +73,8 @@ public class RepairMessageVerbHandler implements IVerbHandler<RepairMessage>
                             columnFamilyStores,
                             prepareMessage.ranges,
                             prepareMessage.isIncremental,
-                            prepareMessage.timestamp);
+                            prepareMessage.timestamp,
+                            prepareMessage.isGlobal);
                     MessagingService.instance().sendReply(new MessageOut(MessagingService.Verb.INTERNAL_RESPONSE), id, message.from);
                     break;
 
@@ -118,7 +119,7 @@ public class RepairMessageVerbHandler implements IVerbHandler<RepairMessage>
                     logger.debug("Syncing {}", request);
                     long repairedAt = ActiveRepairService.UNREPAIRED_SSTABLE;
                     if (desc.parentSessionId != null && ActiveRepairService.instance.getParentRepairSession(desc.parentSessionId) != null)
-                        repairedAt = ActiveRepairService.instance.getParentRepairSession(desc.parentSessionId).repairedAt;
+                        repairedAt = ActiveRepairService.instance.getParentRepairSession(desc.parentSessionId).getRepairedAt();
 
                     StreamingRepairTask task = new StreamingRepairTask(desc, request, repairedAt);
                     task.run();

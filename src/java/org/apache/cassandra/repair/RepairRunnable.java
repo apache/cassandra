@@ -194,7 +194,7 @@ public class RepairRunnable extends WrappedRunnable implements ProgressEventNoti
         try
         {
             ActiveRepairService.instance.prepareForRepair(parentSession, allNeighbors, options, columnFamilyStores);
-            repairedAt = ActiveRepairService.instance.getParentRepairSession(parentSession).repairedAt;
+            repairedAt = ActiveRepairService.instance.getParentRepairSession(parentSession).getRepairedAt();
             progress.incrementAndGet();
         }
         catch (Throwable t)
