@@ -12,6 +12,7 @@
  * UDF / UDA execution time in trace (CASSANDRA-9723)
  * Fix broken internode SSL (CASSANDRA-9884)
 Merged from 2.1:
+ * (cqlsh) default load-from-file encoding to utf-8 (CASSANDRA-9898)
  * Avoid returning Permission.None when system_auth.permissions table does not
    exist (CASSANDRA-10168)
  * (cqlsh) Allow encoding to be set through command line (CASSANDRA-10004)
