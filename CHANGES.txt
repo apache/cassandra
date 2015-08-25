@@ -1,4 +1,5 @@
 2.2.1
+ * add CLEAR cqlsh command (CASSANDRA-10086)
  * Support string literals as Role names for compatibility (CASSANDRA-10135)
  * Allow count(*) and count(1) to be use as normal aggregation (CASSANDRA-10114)
  * An NPE is thrown if the column name is unknown for an IN relation (CASSANDRA-10043)
