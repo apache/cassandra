@@ -118,9 +118,9 @@ public abstract class ReadCommand implements IReadCommand, Pageable
     }
 
     // maybeTrim removes columns from a response that is too long
-    public void maybeTrim(Row row)
+    public Row maybeTrim(Row row)
     {
-        // noop
+        return row;
     }
 
     public long getTimeout()
