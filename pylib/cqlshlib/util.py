@@ -118,6 +118,6 @@ def get_file_encoding_bomsize(filename):
             file_encoding, size = encoding, len(bom)
             break
     else:
-        file_encoding, size = "ascii", 0
+        file_encoding, size = "utf-8", 0
 
     return (file_encoding, size)
