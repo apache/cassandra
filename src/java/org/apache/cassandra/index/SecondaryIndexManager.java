@@ -341,7 +341,7 @@ public class SecondaryIndexManager implements IndexRegistry
             indexes.forEach(index ->
                 index.getBackingTable()
                      .map(cfs -> wait.add(cfs.forceFlush()))
-                     .orElse(nonCfsIndexes.add(index)));
+                     .orElseGet(() -> nonCfsIndexes.add(index)));
         }
         executeAllBlocking(nonCfsIndexes.stream(), Index::getBlockingFlushTask);
         FBUtilities.waitOnFutures(wait);
