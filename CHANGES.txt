@@ -1,5 +1,8 @@
-2.1.9
+2.1.10
  * (cqlsh) update list of CQL keywords (CASSANDRA-9232)
+
+
+2.1.9
  * Avoid race condition during read repair (CASSANDRA-9460)
  * (cqlsh) default load-from-file encoding to utf-8 (CASSANDRA-9898)
  * Avoid returning Permission.NONE when failing to query users table (CASSANDRA-10168)
