@@ -1,4 +1,6 @@
 2.1.9
+ * Avoid returning Permission.None when system_auth.permissions table does not
+   exist (CASSANDRA-10168)
  * (cqlsh) Allow encoding to be set through command line (CASSANDRA-10004)
  * Add new JMX methods to change local compaction strategy (CASSANDRA-9965)
  * Write hints for paxos commits (CASSANDRA-7342)
