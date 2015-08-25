@@ -37,19 +37,6 @@ SYSTEM_KEYSPACES = ('system', 'system_traces', 'system_auth', 'system_distribute
 NONALTERBALE_KEYSPACES = ('system')
 
 class Cql3ParsingRuleSet(CqlParsingRuleSet):
-    keywords = set((
-        'select', 'from', 'where', 'and', 'key', 'insert', 'update', 'with',
-        'limit', 'using', 'use', 'set',
-        'begin', 'apply', 'batch', 'truncate', 'delete', 'in', 'create',
-        'function', 'aggregate', 'keyspace', 'schema', 'columnfamily', 'table', 'index', 'on', 'drop',
-        'primary', 'into', 'values', 'date', 'time', 'timestamp', 'ttl', 'alter', 'add', 'type',
-        'compact', 'storage', 'order', 'by', 'asc', 'desc', 'clustering',
-        'token', 'writetime', 'map', 'list', 'to', 'custom', 'if', 'not'
-    ))
-
-    unreserved_keywords = set((
-        'key', 'clustering', 'ttl', 'compact', 'storage', 'type', 'values', 'custom', 'exists'
-    ))
 
     columnfamily_layout_options = (
         ('bloom_filter_fp_chance', None),
@@ -88,10 +75,6 @@ class Cql3ParsingRuleSet(CqlParsingRuleSet):
         'EACH_QUORUM',
         'SERIAL'
     )
-
-    maybe_escape_name = staticmethod(maybe_escape_name)
-
-    escape_name = staticmethod(escape_name)
 
     @classmethod
     def escape_value(cls, value):
@@ -132,8 +115,6 @@ explain_completion = CqlRuleSet.explain_completion
 dequote_value = CqlRuleSet.dequote_value
 dequote_name = CqlRuleSet.dequote_name
 escape_value = CqlRuleSet.escape_value
-maybe_escape_name = CqlRuleSet.maybe_escape_name
-
 
 # BEGIN SYNTAX/COMPLETION RULE DEFINITIONS
 
@@ -278,7 +259,7 @@ JUNK ::= /([ \t\r\f\v]+|(--|[/][/])[^\n\r]*([\n\r]|$)|[/][*].*?[*][/])/ ;
                            ;
 
 # timestamp is included here, since it's also a keyword
-<simpleStorageType> ::= typename=( <identifier> | <stringLiteral> | <K_TIMESTAMP> ) ;
+<simpleStorageType> ::= typename=( <identifier> | <stringLiteral> | "timestamp" ) ;
 
 <userType> ::= utname=<cfOrKsName> ;
 
@@ -311,13 +292,14 @@ JUNK ::= /([ \t\r\f\v]+|(--|[/][/])[^\n\r]*([\n\r]|$)|[/][*].*?[*][/])/ ;
                | <unreservedKeyword>;
 
 <unreservedKeyword> ::= nocomplete=
-                        ( <K_KEY>
-                        | <K_CLUSTERING>
-                        | <K_TTL>
-                        | <K_COMPACT>
-                        | <K_STORAGE>
-                        | <K_TYPE>
-                        | <K_VALUES> )
+                        ( "key"
+                        | "clustering"
+                        # | "count" -- to get count(*) completion, treat count as reserved
+                        | "ttl"
+                        | "compact"
+                        | "storage"
+                        | "type"
+                        | "values" )
                       ;
 
 <property> ::= [propname]=<cident> propeq="=" [propval]=<propertyValue>
@@ -1336,7 +1318,7 @@ def username_name_completer(ctxt, cass):
         return "'%s'" % name
 
     # disable completion for CREATE USER.
-    if ctxt.matched[0][0] == 'K_CREATE':
+    if ctxt.matched[0][0] == 'create':
         return [Hint('<username>')]
 
     session = cass.session

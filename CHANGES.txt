@@ -1,5 +1,5 @@
 2.2.1
- * add CLEAR cqlsh command (CASSANDRA-10086)
+ * (cqlsh) add CLEAR command (CASSANDRA-10086)
  * Support string literals as Role names for compatibility (CASSANDRA-10135)
  * Allow count(*) and count(1) to be use as normal aggregation (CASSANDRA-10114)
  * An NPE is thrown if the column name is unknown for an IN relation (CASSANDRA-10043)
@@ -12,6 +12,7 @@
  * UDF / UDA execution time in trace (CASSANDRA-9723)
  * Fix broken internode SSL (CASSANDRA-9884)
 Merged from 2.1:
+ * (cqlsh) update list of CQL keywords (CASSANDRA-9232)
  * Avoid race condition during read repair (CASSANDRA-9460)
  * (cqlsh) default load-from-file encoding to utf-8 (CASSANDRA-9898)
  * Avoid returning Permission.NONE when failing to query users table (CASSANDRA-10168)
