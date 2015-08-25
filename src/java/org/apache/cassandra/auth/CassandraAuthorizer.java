@@ -83,7 +83,7 @@ public class CassandraAuthorizer implements IAuthorizer
         catch (RequestExecutionException e)
         {
             logger.warn("CassandraAuthorizer failed to authorize {} for {}", user, resource);
-            return Permission.NONE;
+            throw new RuntimeException(e);
         }
 
         if (result.isEmpty() || !result.one().has(PERMISSIONS))
