@@ -8,6 +8,7 @@
  * Validate gc_grace_seconds for batchlog writes and MVs (CASSANDRA-9917)
  * Fix sstablerepairedset (CASSANDRA-10132)
 Merged from 2.2:
+ * (cqlsh) default load-from-file encoding to utf-8 (CASSANDRA-9898)
  * Avoid returning Permission.None when system_auth.permissions table does not
    exist (CASSANDRA-10168)
  * add CLEAR cqlsh command (CASSANDRA-10086)
