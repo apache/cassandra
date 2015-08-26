@@ -1038,7 +1038,7 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
         // Also, the addKeyspace above can be racy if multiple nodes are started
         // concurrently - see CASSANDRA-9201
         for (CFMetaData table : AuthKeyspace.metadata().tables)
-            if (Schema.instance.getCFMetaData(table.ksName, table.cfName) == null)
+            if (Schema.instance.getCF(table.cfId) == null)
                 maybeAddTable(table);
 
         DatabaseDescriptor.getRoleManager().setup();
