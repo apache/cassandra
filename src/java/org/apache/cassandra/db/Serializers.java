@@ -43,11 +43,6 @@ public class Serializers
         this.metadata = metadata;
     }
 
-    public IndexInfo.Serializer indexSerializer(Version version)
-    {
-        return new IndexInfo.Serializer(metadata, version);
-    }
-
     // TODO: Once we drop support for old (pre-3.0) sstables, we can drop this method and inline the calls to
     // ClusteringPrefix.serializer in IndexHelper directly. At which point this whole class probably becomes
     // unecessary (since IndexInfo.Serializer won't depend on the metadata either).

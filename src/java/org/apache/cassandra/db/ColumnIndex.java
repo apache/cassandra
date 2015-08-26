@@ -31,14 +31,16 @@ import org.apache.cassandra.utils.ByteBufferUtil;
 
 public class ColumnIndex
 {
+    public final long partitionHeaderLength;
     public final List<IndexHelper.IndexInfo> columnsIndex;
 
-    private static final ColumnIndex EMPTY = new ColumnIndex(Collections.<IndexHelper.IndexInfo>emptyList());
+    private static final ColumnIndex EMPTY = new ColumnIndex(-1, Collections.<IndexHelper.IndexInfo>emptyList());
 
-    private ColumnIndex(List<IndexHelper.IndexInfo> columnsIndex)
+    private ColumnIndex(long partitionHeaderLength, List<IndexHelper.IndexInfo> columnsIndex)
     {
         assert columnsIndex != null;
 
+        this.partitionHeaderLength = partitionHeaderLength;
         this.columnsIndex = columnsIndex;
     }
 
@@ -67,8 +69,10 @@ public class ColumnIndex
         private final SerializationHeader header;
         private final int version;
 
-        private final ColumnIndex result;
+        private final List<IndexHelper.IndexInfo> columnsIndex = new ArrayList<>();
         private final long initialPosition;
+        private long headerLength = -1;
+
         private long startPosition = -1;
 
         private int written;
@@ -87,8 +91,6 @@ public class ColumnIndex
             this.writer = writer;
             this.header = header;
             this.version = version;
-
-            this.result = new ColumnIndex(new ArrayList<IndexHelper.IndexInfo>());
             this.initialPosition = writer.getFilePointer();
         }
 
@@ -103,6 +105,7 @@ public class ColumnIndex
         public ColumnIndex build() throws IOException
         {
             writePartitionHeader(iterator);
+            this.headerLength = writer.getFilePointer() - initialPosition;
 
             while (iterator.hasNext())
                 add(iterator.next());
@@ -119,10 +122,9 @@ public class ColumnIndex
         {
             IndexHelper.IndexInfo cIndexInfo = new IndexHelper.IndexInfo(firstClustering,
                                                                          lastClustering,
-                                                                         startPosition,
                                                                          currentPosition() - startPosition,
                                                                          openMarker);
-            result.columnsIndex.add(cIndexInfo);
+            columnsIndex.add(cIndexInfo);
             firstClustering = null;
         }
 
@@ -164,8 +166,8 @@ public class ColumnIndex
                 addIndexBlock();
 
             // we should always have at least one computed index block, but we only write it out if there is more than that.
-            assert result.columnsIndex.size() > 0;
-            return result;
+            assert columnsIndex.size() > 0 && headerLength >= 0;
+            return new ColumnIndex(headerLength, columnsIndex);
         }
     }
 }

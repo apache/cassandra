@@ -412,6 +412,7 @@ abstract class AbstractSSTableIterator implements SliceableUnfilteredRowIterator
 
         private final RowIndexEntry indexEntry;
         private final List<IndexHelper.IndexInfo> indexes;
+        private final long[] blockOffsets;
         private final boolean reversed;
 
         private int currentIndexIdx;
@@ -427,6 +428,14 @@ abstract class AbstractSSTableIterator implements SliceableUnfilteredRowIterator
             this.indexes = indexEntry.columnsIndex();
             this.reversed = reversed;
             this.currentIndexIdx = reversed ? indexEntry.columnsIndex().size() : -1;
+
+            this.blockOffsets = new long[indexes.size()];
+            long offset = indexEntry.position + indexEntry.headerLength();
+            for (int i = 0; i < blockOffsets.length; i++)
+            {
+                blockOffsets[i] = offset;
+                offset += indexes.get(i).width;
+            }
         }
 
         public boolean isDone()
@@ -438,7 +447,7 @@ abstract class AbstractSSTableIterator implements SliceableUnfilteredRowIterator
         public void setToBlock(int blockIdx) throws IOException
         {
             if (blockIdx >= 0 && blockIdx < indexes.size())
-                reader.seekToPosition(indexEntry.position + indexes.get(blockIdx).offset);
+                reader.seekToPosition(blockOffsets[blockIdx]);
 
             currentIndexIdx = blockIdx;
             reader.openMarker = blockIdx > 0 ? indexes.get(blockIdx - 1).endOpenMarker : null;
@@ -461,7 +470,7 @@ abstract class AbstractSSTableIterator implements SliceableUnfilteredRowIterator
 
                 // We have to set the mark, and we have to set it at the beginning of the block. So if we're not at the beginning of the block, this forces us to a weird seek dance.
                 // This can only happen when reading old file however.
-                long startOfBlock = indexEntry.position + indexes.get(currentIndexIdx).offset;
+                long startOfBlock = blockOffsets[currentIndexIdx];
                 long currentFilePointer = reader.file.getFilePointer();
                 if (startOfBlock == currentFilePointer)
                 {

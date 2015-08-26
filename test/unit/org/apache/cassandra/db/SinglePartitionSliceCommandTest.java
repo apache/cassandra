@@ -132,10 +132,10 @@ public class SinglePartitionSliceCommandTest
     @Test
     public void staticColumnsAreReturned() throws IOException
     {
-        DecoratedKey key = cfm.decorateKey(ByteBufferUtil.bytes("k"));
+        DecoratedKey key = cfm.decorateKey(ByteBufferUtil.bytes("k1"));
 
-        QueryProcessor.executeInternal("INSERT INTO ks.tbl (k, s) VALUES ('k', 's')");
-        Assert.assertFalse(QueryProcessor.executeInternal("SELECT s FROM ks.tbl WHERE k='k'").isEmpty());
+        QueryProcessor.executeInternal("INSERT INTO ks.tbl (k, s) VALUES ('k1', 's')");
+        Assert.assertFalse(QueryProcessor.executeInternal("SELECT s FROM ks.tbl WHERE k='k1'").isEmpty());
 
         ColumnFilter columnFilter = ColumnFilter.selection(PartitionColumns.of(s));
         ClusteringIndexSliceFilter sliceFilter = new ClusteringIndexSliceFilter(Slices.NONE, false);
@@ -147,11 +147,11 @@ public class SinglePartitionSliceCommandTest
                                                           key,
                                                           sliceFilter);
 
-        UnfilteredPartitionIterator pi;
-
         // check raw iterator for static cell
-        pi = cmd.executeLocally(ReadOrderGroup.emptyGroup());
-        checkForS(pi);
+        try (ReadOrderGroup orderGroup = cmd.startOrderGroup(); UnfilteredPartitionIterator pi = cmd.executeLocally(orderGroup))
+        {
+            checkForS(pi);
+        }
 
         ReadResponse response;
         DataOutputBuffer out;
@@ -159,24 +159,33 @@ public class SinglePartitionSliceCommandTest
         ReadResponse dst;
 
         // check (de)serialized iterator for memtable static cell
-        pi = cmd.executeLocally(ReadOrderGroup.emptyGroup());
-        response = ReadResponse.createDataResponse(pi, cmd.columnFilter());
+        try (ReadOrderGroup orderGroup = cmd.startOrderGroup(); UnfilteredPartitionIterator pi = cmd.executeLocally(orderGroup))
+        {
+            response = ReadResponse.createDataResponse(pi, cmd.columnFilter());
+        }
+
         out = new DataOutputBuffer((int) ReadResponse.serializer.serializedSize(response, MessagingService.VERSION_30));
         ReadResponse.serializer.serialize(response, out, MessagingService.VERSION_30);
         in = new DataInputBuffer(out.buffer(), true);
         dst = ReadResponse.serializer.deserialize(in, MessagingService.VERSION_30);
-        pi = dst.makeIterator(cfm, cmd);
-        checkForS(pi);
+        try (UnfilteredPartitionIterator pi = dst.makeIterator(cfm, cmd))
+        {
+            checkForS(pi);
+        }
 
         // check (de)serialized iterator for sstable static cell
         Schema.instance.getColumnFamilyStoreInstance(cfm.cfId).forceBlockingFlush();
-        pi = cmd.executeLocally(ReadOrderGroup.emptyGroup());
-        response = ReadResponse.createDataResponse(pi, cmd.columnFilter());
+        try (ReadOrderGroup orderGroup = cmd.startOrderGroup(); UnfilteredPartitionIterator pi = cmd.executeLocally(orderGroup))
+        {
+            response = ReadResponse.createDataResponse(pi, cmd.columnFilter());
+        }
         out = new DataOutputBuffer((int) ReadResponse.serializer.serializedSize(response, MessagingService.VERSION_30));
         ReadResponse.serializer.serialize(response, out, MessagingService.VERSION_30);
         in = new DataInputBuffer(out.buffer(), true);
         dst = ReadResponse.serializer.deserialize(in, MessagingService.VERSION_30);
-        pi = dst.makeIterator(cfm, cmd);
-        checkForS(pi);
+        try (UnfilteredPartitionIterator pi = dst.makeIterator(cfm, cmd))
+        {
+            checkForS(pi);
+        }
     }
 }

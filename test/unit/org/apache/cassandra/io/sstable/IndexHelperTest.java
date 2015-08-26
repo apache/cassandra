@@ -51,9 +51,9 @@ public class IndexHelperTest
         DeletionTime deletionInfo = new DeletionTime(FBUtilities.timestampMicros(), FBUtilities.nowInSeconds());
 
         List<IndexInfo> indexes = new ArrayList<>();
-        indexes.add(new IndexInfo(cn(0L), cn(5L), 0, 0, deletionInfo));
-        indexes.add(new IndexInfo(cn(10L), cn(15L), 0, 0, deletionInfo));
-        indexes.add(new IndexInfo(cn(20L), cn(25L), 0, 0, deletionInfo));
+        indexes.add(new IndexInfo(cn(0L), cn(5L), 0, deletionInfo));
+        indexes.add(new IndexInfo(cn(10L), cn(15L), 0,deletionInfo));
+        indexes.add(new IndexInfo(cn(20L), cn(25L), 0, deletionInfo));
 
 
         assertEquals(0, IndexHelper.indexFor(cn(-1L), indexes, comp, false, -1));
