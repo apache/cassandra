@@ -33,32 +33,49 @@ public class MapSerializer<K, V> extends CollectionSerializer<Map<K, V>>
 
     public final TypeSerializer<K> keys;
     public final TypeSerializer<V> values;
+    private final Comparator<Pair<ByteBuffer, ByteBuffer>> comparator;
 
-    public static synchronized <K, V> MapSerializer<K, V> getInstance(TypeSerializer<K> keys, TypeSerializer<V> values)
+    public static synchronized <K, V> MapSerializer<K, V> getInstance(TypeSerializer<K> keys, TypeSerializer<V> values, Comparator<ByteBuffer> comparator)
     {
         Pair<TypeSerializer<?>, TypeSerializer<?>> p = Pair.<TypeSerializer<?>, TypeSerializer<?>>create(keys, values);
         MapSerializer<K, V> t = instances.get(p);
         if (t == null)
         {
-            t = new MapSerializer<K, V>(keys, values);
+            t = new MapSerializer<K, V>(keys, values, comparator);
             instances.put(p, t);
         }
         return t;
     }
 
-    private MapSerializer(TypeSerializer<K> keys, TypeSerializer<V> values)
+    private MapSerializer(TypeSerializer<K> keys, TypeSerializer<V> values, Comparator<ByteBuffer> comparator)
     {
         this.keys = keys;
         this.values = values;
+        this.comparator = (p1, p2) -> comparator.compare(p1.left, p2.left);
     }
 
     public List<ByteBuffer> serializeValues(Map<K, V> map)
     {
-        List<ByteBuffer> buffers = new ArrayList<>(map.size() * 2);
-        for (Map.Entry<K, V> entry : map.entrySet())
+        if (map instanceof SortedMap)
         {
-            buffers.add(keys.serialize(entry.getKey()));
-            buffers.add(values.serialize(entry.getValue()));
+            List<ByteBuffer> buffers = new ArrayList<>(map.size() * 2);
+            for (Map.Entry<K, V> entry : map.entrySet())
+            {
+                buffers.add(keys.serialize(entry.getKey()));
+                buffers.add(values.serialize(entry.getValue()));
+            }
+            return buffers;
+        }
+
+        List<Pair<ByteBuffer, ByteBuffer>> pairs = new ArrayList<>(map.size());
+        for (Map.Entry<K, V> entry : map.entrySet())
+            pairs.add(Pair.create(keys.serialize(entry.getKey()), values.serialize(entry.getValue())));
+        Collections.sort(pairs, comparator);
+        List<ByteBuffer> buffers = new ArrayList<>(pairs.size() * 2);
+        for (Pair<ByteBuffer, ByteBuffer> p : pairs)
+        {
+            buffers.add(p.left);
+            buffers.add(p.right);
         }
         return buffers;
     }

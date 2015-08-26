@@ -64,7 +64,7 @@ public class SetType<T> extends CollectionType<Set<T>>
     {
         super(Kind.SET);
         this.elements = elements;
-        this.serializer = SetSerializer.getInstance(elements.getSerializer());
+        this.serializer = SetSerializer.getInstance(elements.getSerializer(), elements);
         this.isMultiCell = isMultiCell;
     }
 

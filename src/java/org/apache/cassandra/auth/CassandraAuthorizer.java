@@ -417,7 +417,7 @@ public class CassandraAuthorizer implements IAuthorizer
                             return resource.applicablePermissions().contains(Permission.valueOf(s));
                         }
                     };
-                    SetSerializer<String> serializer = SetSerializer.getInstance(UTF8Serializer.instance);
+                    SetSerializer<String> serializer = SetSerializer.getInstance(UTF8Serializer.instance, UTF8Type.instance);
                     Set<String> originalPerms = serializer.deserialize(row.getBytes("permissions"));
                     Set<String> filteredPerms = ImmutableSet.copyOf(Iterables.filter(originalPerms, isApplicable));
                     insertStatement.execute(QueryState.forInternalCalls(),

@@ -70,7 +70,7 @@ public class MapType<K, V> extends CollectionType<Map<K, V>>
         super(Kind.MAP);
         this.keys = keys;
         this.values = values;
-        this.serializer = MapSerializer.getInstance(keys.getSerializer(), values.getSerializer());
+        this.serializer = MapSerializer.getInstance(keys.getSerializer(), values.getSerializer(), keys);
         this.isMultiCell = isMultiCell;
     }
 
