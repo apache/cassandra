@@ -47,6 +47,7 @@ import org.apache.cassandra.db.rows.RowIterator;
 import org.apache.cassandra.db.view.MaterializedView;
 import org.apache.cassandra.dht.AbstractBounds;
 import org.apache.cassandra.exceptions.*;
+import org.apache.cassandra.index.Index;
 import org.apache.cassandra.index.SecondaryIndexManager;
 import org.apache.cassandra.serializers.MarshalException;
 import org.apache.cassandra.service.ClientState;
@@ -458,12 +459,13 @@ public class SelectStatement implements CQLStatement
             return ReadQuery.EMPTY;
 
         RowFilter rowFilter = getRowFilter(options);
+
         // The LIMIT provided by the user is the number of CQL row he wants returned.
         // We want to have getRangeSlice to count the number of columns, not the number of keys.
         AbstractBounds<PartitionPosition> keyBounds = restrictions.getPartitionKeyBounds(options);
         return keyBounds == null
              ? ReadQuery.EMPTY
-             : new PartitionRangeReadCommand(cfm, nowInSec, queriedColumns, rowFilter, limit, new DataRange(keyBounds, clusteringIndexFilter));
+             : new PartitionRangeReadCommand(cfm, nowInSec, queriedColumns, rowFilter, limit, new DataRange(keyBounds, clusteringIndexFilter), Optional.empty());
     }
 
     private ClusteringIndexFilter makeClusteringIndexFilter(QueryOptions options)
