@@ -56,17 +56,6 @@ public class MapSerializer<K, V> extends CollectionSerializer<Map<K, V>>
 
     public List<ByteBuffer> serializeValues(Map<K, V> map)
     {
-        if (map instanceof SortedMap)
-        {
-            List<ByteBuffer> buffers = new ArrayList<>(map.size() * 2);
-            for (Map.Entry<K, V> entry : map.entrySet())
-            {
-                buffers.add(keys.serialize(entry.getKey()));
-                buffers.add(values.serialize(entry.getValue()));
-            }
-            return buffers;
-        }
-
         List<Pair<ByteBuffer, ByteBuffer>> pairs = new ArrayList<>(map.size());
         for (Map.Entry<K, V> entry : map.entrySet())
             pairs.add(Pair.create(keys.serialize(entry.getKey()), values.serialize(entry.getValue())));
