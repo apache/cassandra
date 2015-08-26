@@ -3,6 +3,7 @@
 
 
 3.0.0-beta2
+ * Don't deadlock when flushing CFS backed custom indexes (CASSANDRA-10181)
  * Fix double flushing of secondary index tables (CASSANDRA-10180)
  * Fix incorrect handling of range tombstones in thrift (CASSANDRA-10046)
  * Only use batchlog when paired materialized view replica is remote (CASSANDRA-10061)

@@ -94,7 +94,6 @@ public class SecondaryIndexManager implements IndexRegistry
 {
     private static final Logger logger = LoggerFactory.getLogger(SecondaryIndexManager.class);
 
-
     private Map<String, Index> indexes = Maps.newConcurrentMap();
 
     // executes tasks returned by Indexer#addIndexColumn which may require index(es) to be (re)built
@@ -343,6 +342,7 @@ public class SecondaryIndexManager implements IndexRegistry
                      .map(cfs -> wait.add(cfs.forceFlush()))
                      .orElseGet(() -> nonCfsIndexes.add(index)));
         }
+
         executeAllBlocking(nonCfsIndexes.stream(), Index::getBlockingFlushTask);
         FBUtilities.waitOnFutures(wait);
     }
@@ -350,11 +350,11 @@ public class SecondaryIndexManager implements IndexRegistry
     /**
      * Performs a blocking flush of all custom indexes
      */
-    public void flushAllCustomIndexesBlocking()
+    public void flushAllNonCFSBackedIndexesBlocking()
     {
         Set<Index> customIndexers = indexes.values().stream()
-                                             .filter(index -> !(index instanceof CassandraIndex))
-                                             .collect(Collectors.toSet());
+                                                    .filter(index -> !(index.getBackingTable().isPresent()))
+                                                    .collect(Collectors.toSet());
         flushIndexesBlocking(customIndexers);
     }
 

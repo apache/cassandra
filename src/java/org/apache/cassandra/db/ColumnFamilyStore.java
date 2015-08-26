@@ -953,7 +953,7 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
              */
 
             if (flushSecondaryIndexes)
-                indexManager.flushAllCustomIndexesBlocking();
+                indexManager.flushAllNonCFSBackedIndexesBlocking();
 
             try
             {
