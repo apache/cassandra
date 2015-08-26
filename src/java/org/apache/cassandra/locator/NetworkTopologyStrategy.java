@@ -28,6 +28,7 @@ import org.apache.cassandra.exceptions.ConfigurationException;
 import org.apache.cassandra.dht.Token;
 import org.apache.cassandra.locator.TokenMetadata.Topology;
 import org.apache.cassandra.utils.FBUtilities;
+import org.apache.cassandra.utils.Pair;
 
 import com.google.common.collect.Multimap;
 
@@ -48,14 +49,12 @@ import com.google.common.collect.Multimap;
  */
 public class NetworkTopologyStrategy extends AbstractReplicationStrategy
 {
-    private final IEndpointSnitch snitch;
     private final Map<String, Integer> datacenters;
     private static final Logger logger = LoggerFactory.getLogger(NetworkTopologyStrategy.class);
 
     public NetworkTopologyStrategy(String keyspaceName, TokenMetadata tokenMetadata, IEndpointSnitch snitch, Map<String, String> configOptions) throws ConfigurationException
     {
         super(keyspaceName, tokenMetadata, snitch, configOptions);
-        this.snitch = snitch;
 
         Map<String, Integer> newDatacenters = new HashMap<String, Integer>();
         if (configOptions != null)
@@ -75,17 +74,78 @@ public class NetworkTopologyStrategy extends AbstractReplicationStrategy
     }
 
     /**
-     * calculate endpoints in one pass through the tokens by tracking our progress in each DC, rack etc.
+     * Endpoint adder applying the replication rules for a given DC.
      */
-    @SuppressWarnings("serial")
+    private static final class DatacenterEndpoints
+    {
+        /** List accepted endpoints get pushed into. */
+        Set<InetAddress> endpoints;
+        /**
+         * Racks encountered so far. Replicas are put into separate racks while possible.
+         * For efficiency the set is shared between the instances, using the location pair (dc, rack) to make sure
+         * clashing names aren't a problem.
+         */
+        Set<Pair<String, String>> racks;
+
+        /** Number of replicas left to fill from this DC. */
+        int rfLeft;
+        int acceptableRackRepeats;
+
+        DatacenterEndpoints(int rf, int rackCount, int nodeCount, Set<InetAddress> endpoints, Set<Pair<String, String>> racks)
+        {
+            this.endpoints = endpoints;
+            this.racks = racks;
+            // If there aren't enough nodes in this DC to fill the RF, the number of nodes is the effective RF.
+            this.rfLeft = Math.min(rf, nodeCount);
+            // If there aren't enough racks in this DC to fill the RF, we'll still use at least one node from each rack,
+            // and the difference is to be filled by the first encountered nodes.
+            acceptableRackRepeats = rf - rackCount;
+        }
+
+        /**
+         * Attempts to add an endpoint to the replicas for this datacenter, adding to the endpoints set if successful.
+         * Returns true if the endpoint was added, and this datacenter does not require further replicas.
+         */
+        boolean addEndpointAndCheckIfDone(InetAddress ep, Pair<String,String> location)
+        {
+            if (done())
+                return false;
+
+            if (racks.add(location))
+            {
+                // New rack.
+                --rfLeft;
+                boolean added = endpoints.add(ep);
+                assert added;
+                return done();
+            }
+            if (acceptableRackRepeats <= 0)
+                // There must be rfLeft distinct racks left, do not add any more rack repeats.
+                return false;
+            if (!endpoints.add(ep))
+                // Cannot repeat a node.
+                return false;
+            // Added a node that is from an already met rack to match RF when there aren't enough racks.
+            --acceptableRackRepeats;
+            --rfLeft;
+            return done();
+        }
+
+        boolean done()
+        {
+            assert rfLeft >= 0;
+            return rfLeft == 0;
+        }
+    }
+
+    /**
+     * calculate endpoints in one pass through the tokens by tracking our progress in each DC.
+     */
     public List<InetAddress> calculateNaturalEndpoints(Token searchToken, TokenMetadata tokenMetadata)
     {
         // we want to preserve insertion order so that the first added endpoint becomes primary
         Set<InetAddress> replicas = new LinkedHashSet<>();
-        // replicas we have found in each DC
-        Map<String, Set<InetAddress>> dcReplicas = new HashMap<>(datacenters.size());
-        for (Map.Entry<String, Integer> dc : datacenters.entrySet())
-            dcReplicas.put(dc.getKey(), new HashSet<InetAddress>(dc.getValue()));
+        Set<Pair<String, String>> seenRacks = new HashSet<>();
 
         Topology topology = tokenMetadata.getTopology();
         // all endpoints in each DC, so we can check when we have exhausted all the members of a DC
@@ -94,74 +154,45 @@ public class NetworkTopologyStrategy extends AbstractReplicationStrategy
         Map<String, Multimap<String, InetAddress>> racks = topology.getDatacenterRacks();
         assert !allEndpoints.isEmpty() && !racks.isEmpty() : "not aware of any cluster members";
 
-        // tracks the racks we have already placed replicas in
-        Map<String, Set<String>> seenRacks = new HashMap<>(datacenters.size());
-        for (Map.Entry<String, Integer> dc : datacenters.entrySet())
-            seenRacks.put(dc.getKey(), new HashSet<String>());
+        int dcsToFill = 0;
+        Map<String, DatacenterEndpoints> dcs = new HashMap<>(datacenters.size() * 2);
 
-        // tracks the endpoints that we skipped over while looking for unique racks
-        // when we relax the rack uniqueness we can append this to the current result so we don't have to wind back the iterator
-        Map<String, Set<InetAddress>> skippedDcEndpoints = new HashMap<>(datacenters.size());
-        for (Map.Entry<String, Integer> dc : datacenters.entrySet())
-            skippedDcEndpoints.put(dc.getKey(), new LinkedHashSet<InetAddress>());
+        // Create a DatacenterEndpoints object for each non-empty DC.
+        for (Map.Entry<String, Integer> en : datacenters.entrySet())
+        {
+            String dc = en.getKey();
+            int rf = en.getValue();
+            int nodeCount = sizeOrZero(allEndpoints.get(dc));
+
+            if (rf <= 0 || nodeCount <= 0)
+                continue;
+
+            DatacenterEndpoints dcEndpoints = new DatacenterEndpoints(rf, sizeOrZero(racks.get(dc)), nodeCount, replicas, seenRacks);
+            dcs.put(dc, dcEndpoints);
+            ++dcsToFill;
+        }
 
         Iterator<Token> tokenIter = TokenMetadata.ringIterator(tokenMetadata.sortedTokens(), searchToken, false);
-        while (tokenIter.hasNext() && !hasSufficientReplicas(dcReplicas, allEndpoints))
+        while (dcsToFill > 0 && tokenIter.hasNext())
         {
             Token next = tokenIter.next();
             InetAddress ep = tokenMetadata.getEndpoint(next);
-            String dc = snitch.getDatacenter(ep);
-            // have we already found all replicas for this dc?
-            if (!datacenters.containsKey(dc) || hasSufficientReplicas(dc, dcReplicas, allEndpoints))
-                continue;
-            // can we skip checking the rack?
-            if (seenRacks.get(dc).size() == racks.get(dc).keySet().size())
-            {
-                dcReplicas.get(dc).add(ep);
-                replicas.add(ep);
-            }
-            else
-            {
-                String rack = snitch.getRack(ep);
-                // is this a new rack?
-                if (seenRacks.get(dc).contains(rack))
-                {
-                    skippedDcEndpoints.get(dc).add(ep);
-                }
-                else
-                {
-                    dcReplicas.get(dc).add(ep);
-                    replicas.add(ep);
-                    seenRacks.get(dc).add(rack);
-                    // if we've run out of distinct racks, add the hosts we skipped past already (up to RF)
-                    if (seenRacks.get(dc).size() == racks.get(dc).keySet().size())
-                    {
-                        Iterator<InetAddress> skippedIt = skippedDcEndpoints.get(dc).iterator();
-                        while (skippedIt.hasNext() && !hasSufficientReplicas(dc, dcReplicas, allEndpoints))
-                        {
-                            InetAddress nextSkipped = skippedIt.next();
-                            dcReplicas.get(dc).add(nextSkipped);
-                            replicas.add(nextSkipped);
-                        }
-                    }
-                }
-            }
+            Pair<String, String> location = topology.getLocation(ep);
+            DatacenterEndpoints dcEndpoints = dcs.get(location.left);
+            if (dcEndpoints != null && dcEndpoints.addEndpointAndCheckIfDone(ep, location))
+                --dcsToFill;
         }
-
-        return new ArrayList<InetAddress>(replicas);
+        return new ArrayList<>(replicas);
     }
 
-    private boolean hasSufficientReplicas(String dc, Map<String, Set<InetAddress>> dcReplicas, Multimap<String, InetAddress> allEndpoints)
+    private int sizeOrZero(Multimap<?, ?> collection)
     {
-        return dcReplicas.get(dc).size() >= Math.min(allEndpoints.get(dc).size(), getReplicationFactor(dc));
+        return collection != null ? collection.asMap().size() : 0;
     }
 
-    private boolean hasSufficientReplicas(Map<String, Set<InetAddress>> dcReplicas, Multimap<String, InetAddress> allEndpoints)
+    private int sizeOrZero(Collection<?> collection)
     {
-        for (String dc : datacenters.keySet())
-            if (!hasSufficientReplicas(dc, dcReplicas, allEndpoints))
-                return false;
-        return true;
+        return collection != null ? collection.size() : 0;
     }
 
     public int getReplicationFactor()

@@ -828,20 +828,20 @@ public class TokenMetadata
 
     public Token getPredecessor(Token token)
     {
-        List tokens = sortedTokens();
+        List<Token> tokens = sortedTokens();
         int index = Collections.binarySearch(tokens, token);
 //        assert index >= 0 : token + " not found in " + StringUtils.join(tokenToEndpointMap.keySet(), ", ");
         if (index < 0) index = -index-1;
-        return (Token) (index == 0 ? tokens.get(tokens.size() - 1) : tokens.get(index - 1));
+        return index == 0 ? tokens.get(tokens.size() - 1) : tokens.get(index - 1);
     }
 
     public Token getSuccessor(Token token)
     {
-        List tokens = sortedTokens();
+        List<Token> tokens = sortedTokens();
         int index = Collections.binarySearch(tokens, token);
 //        assert index >= 0 : token + " not found in " + StringUtils.join(tokenToEndpointMap.keySet(), ", ");
         if (index < 0) return (Token) tokens.get(-index-1);
-        return (Token) ((index == (tokens.size() - 1)) ? tokens.get(0) : tokens.get(index + 1));
+        return (index == (tokens.size() - 1)) ? tokens.get(0) : tokens.get(index + 1);
     }
 
     /** @return a copy of the bootstrapping tokens map */
@@ -902,7 +902,7 @@ public class TokenMetadata
         }
     }
 
-    public static int firstTokenIndex(final ArrayList ring, Token start, boolean insertMin)
+    public static int firstTokenIndex(final ArrayList<Token> ring, Token start, boolean insertMin)
     {
         assert ring.size() > 0;
         // insert the minimum token (at index == -1) if we were asked to include it and it isn't a member of the ring
@@ -930,7 +930,7 @@ public class TokenMetadata
     {
         if (ring.isEmpty())
             return includeMin ? Iterators.singletonIterator(start.getPartitioner().getMinimumToken())
-                              : Iterators.<Token>emptyIterator();
+                              : Collections.emptyIterator();
 
         final boolean insertMin = includeMin && !ring.get(0).isMinimum();
         final int startIndex = firstTokenIndex(ring, start, insertMin);
@@ -1279,5 +1279,14 @@ public class TokenMetadata
         {
             return dcRacks;
         }
+
+        /**
+         * @return The DC and rack of the given endpoint.
+         */
+        public Pair<String, String> getLocation(InetAddress addr)
+        {
+            return currentLocations.get(addr);
+        }
+
     }
 }
