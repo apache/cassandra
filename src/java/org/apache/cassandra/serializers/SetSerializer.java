@@ -52,8 +52,7 @@ public class SetSerializer<T> extends CollectionSerializer<Set<T>>
         List<ByteBuffer> buffers = new ArrayList<>(values.size());
         for (T value : values)
             buffers.add(elements.serialize(value));
-        if (!(values instanceof SortedSet))
-            Collections.sort(buffers, comparator);
+        Collections.sort(buffers, comparator);
         return buffers;
     }
 
