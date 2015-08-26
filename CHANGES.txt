@@ -1,4 +1,5 @@
 2.1.10
+ * Change streaming_socket_timeout_in_ms default to 1 hour (CASSANDRA-8611)
  * (cqlsh) update list of CQL keywords (CASSANDRA-9232)
 
 
