@@ -1,4 +1,5 @@
 2.2.1
+ * Fix broken UnbufferedDataOutputStreamPlus.writeUTF (CASSANDRA-10203)
  * (cqlsh) add CLEAR command (CASSANDRA-10086)
  * Support string literals as Role names for compatibility (CASSANDRA-10135)
  * Allow count(*) and count(1) to be use as normal aggregation (CASSANDRA-10114)
