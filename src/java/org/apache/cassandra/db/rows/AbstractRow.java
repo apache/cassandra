@@ -154,7 +154,6 @@ public abstract class AbstractRow extends AbstractCollection<ColumnData> impleme
 
         Row that = (Row)other;
         if (!this.clustering().equals(that.clustering())
-             || !this.columns().equals(that.columns())
              || !this.primaryKeyLivenessInfo().equals(that.primaryKeyLivenessInfo())
              || !this.deletion().equals(that.deletion()))
             return false;

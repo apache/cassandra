@@ -71,7 +71,7 @@ public abstract class SSTableSimpleIterator extends AbstractIterator<Unfiltered>
         {
             super(metadata, in, helper);
             this.header = header;
-            this.builder = BTreeRow.sortedBuilder(helper.fetchedRegularColumns(header));
+            this.builder = BTreeRow.sortedBuilder();
         }
 
         public Row readStaticRow() throws IOException

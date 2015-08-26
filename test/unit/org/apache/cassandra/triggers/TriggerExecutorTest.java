@@ -268,7 +268,7 @@ public class TriggerExecutorTest
 
     private static PartitionUpdate makeCf(CFMetaData metadata, String key, String columnValue1, String columnValue2)
     {
-        Row.Builder builder = BTreeRow.unsortedBuilder(metadata.partitionColumns().regulars, FBUtilities.nowInSeconds());
+        Row.Builder builder = BTreeRow.unsortedBuilder(FBUtilities.nowInSeconds());
         builder.newRow(Clustering.EMPTY);
         long ts = FBUtilities.timestampMicros();
         if (columnValue1 != null)

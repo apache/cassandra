@@ -539,7 +539,7 @@ public abstract class LegacyLayout
         for (ColumnDefinition column : statics)
             columnsToFetch.add(column.name.bytes);
 
-        Row.Builder builder = BTreeRow.unsortedBuilder(statics, FBUtilities.nowInSeconds());
+        Row.Builder builder = BTreeRow.unsortedBuilder(FBUtilities.nowInSeconds());
         builder.newRow(Clustering.STATIC_CLUSTERING);
 
         boolean foundOne = false;
@@ -1058,7 +1058,7 @@ public abstract class LegacyLayout
             // We cannot use a sorted builder because we don't have exactly the same ordering in 3.0 and pre-3.0. More precisely, within a row, we
             // store all simple columns before the complex ones in 3.0, which we use to sort everything sorted by the column name before. Note however
             // that the unsorted builder won't have to reconcile cells, so the exact value we pass for nowInSec doesn't matter.
-            this.builder = BTreeRow.unsortedBuilder(isStatic ? metadata.partitionColumns().statics : metadata.partitionColumns().regulars, FBUtilities.nowInSeconds());
+            this.builder = BTreeRow.unsortedBuilder(FBUtilities.nowInSeconds());
         }
 
         public static CellGrouper staticGrouper(CFMetaData metadata, SerializationHelper helper)

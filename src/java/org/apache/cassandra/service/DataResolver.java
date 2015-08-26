@@ -212,7 +212,7 @@ public class DataResolver extends ResponseResolver
             {
                 if (currentRows[i] == null)
                 {
-                    currentRows[i] = BTreeRow.sortedBuilder(clustering == Clustering.STATIC_CLUSTERING ? columns.statics : columns.regulars);
+                    currentRows[i] = BTreeRow.sortedBuilder();
                     currentRows[i].newRow(clustering);
                 }
                 return currentRows[i];
@@ -227,7 +227,7 @@ public class DataResolver extends ResponseResolver
                 }
             }
 
-            public void onMergedRows(Row merged, Columns columns, Row[] versions)
+            public void onMergedRows(Row merged, Row[] versions)
             {
                 // If a row was shadowed post merged, it must be by a partition level or range tombstone, and we handle
                 // those case directly in their respective methods (in other words, it would be inefficient to send a row
@@ -235,7 +235,7 @@ public class DataResolver extends ResponseResolver
                 if (merged.isEmpty())
                     return;
 
-                Rows.diff(diffListener, merged, columns, versions);
+                Rows.diff(diffListener, merged, versions);
                 for (int i = 0; i < currentRows.length; i++)
                 {
                     if (currentRows[i] != null)

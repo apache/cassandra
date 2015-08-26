@@ -268,7 +268,7 @@ public class MaterializedView
                                             int nowInSec)
     {
         CFMetaData viewCfm = getViewCfs().metadata;
-        Row.Builder builder = BTreeRow.unsortedBuilder(viewCfm.partitionColumns().regulars, nowInSec);
+        Row.Builder builder = BTreeRow.unsortedBuilder(nowInSec);
         builder.newRow(viewClustering(temporalRow, resolver));
         builder.addRowDeletion(deletionTime);
         return PartitionUpdate.singleRowUpdate(viewCfm, partitionKey, builder.build());
@@ -286,7 +286,7 @@ public class MaterializedView
     {
 
         CFMetaData viewCfm = getViewCfs().metadata;
-        Row.Builder builder = BTreeRow.unsortedBuilder(viewCfm.partitionColumns().regulars, nowInSec);
+        Row.Builder builder = BTreeRow.unsortedBuilder(nowInSec);
         builder.newRow(viewClustering(temporalRow, resolver));
         builder.addComplexDeletion(deletedColumn, deletionTime);
         return PartitionUpdate.singleRowUpdate(viewCfm, partitionKey, builder.build());
@@ -363,7 +363,7 @@ public class MaterializedView
             return null;
         }
 
-        Row.Builder regularBuilder = BTreeRow.unsortedBuilder(viewCfs.metadata.partitionColumns().regulars, temporalRow.nowInSec);
+        Row.Builder regularBuilder = BTreeRow.unsortedBuilder(temporalRow.nowInSec);
 
         CBuilder clustering = CBuilder.create(viewCfs.getComparator());
         for (int i = 0; i < viewCfs.metadata.clusteringColumns().size(); i++)

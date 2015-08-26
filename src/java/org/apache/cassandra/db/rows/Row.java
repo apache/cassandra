@@ -60,7 +60,7 @@ public interface Row extends Unfiltered, Collection<ColumnData>
      *
      * @return a superset of the columns contained in this row.
      */
-    public Columns columns();
+    public Collection<ColumnDefinition> columns();
 
     /**
      * The row deletion.
@@ -161,6 +161,11 @@ public interface Row extends Unfiltered, Collection<ColumnData>
      * Whether the row stores any (non-live) complex deletion for any complex column.
      */
     public boolean hasComplexDeletion();
+
+    /**
+     * Whether the row stores any (non-RT) data for any complex column.
+     */
+    boolean hasComplex();
 
     /**
      * Whether the row has any deletion info (row deletion, cell tombstone, expired cell or complex deletion).
@@ -312,7 +317,6 @@ public interface Row extends Unfiltered, Collection<ColumnData>
      */
     public static class Merger
     {
-        private final Columns columns;
         private final Row[] rows;
         private final List<Iterator<ColumnData>> columnDataIterators;
 
@@ -323,12 +327,11 @@ public interface Row extends Unfiltered, Collection<ColumnData>
         private final List<ColumnData> dataBuffer = new ArrayList<>();
         private final ColumnDataReducer columnDataReducer;
 
-        public Merger(int size, int nowInSec, Columns columns)
+        public Merger(int size, int nowInSec, boolean hasComplex)
         {
-            this.columns = columns;
             this.rows = new Row[size];
             this.columnDataIterators = new ArrayList<>(size);
-            this.columnDataReducer = new ColumnDataReducer(size, nowInSec, columns.hasComplex());
+            this.columnDataReducer = new ColumnDataReducer(size, nowInSec, hasComplex);
         }
 
         public void clear()
@@ -395,7 +398,7 @@ public interface Row extends Unfiltered, Collection<ColumnData>
             // Because some data might have been shadowed by the 'activeDeletion', we could have an empty row
             return rowInfo.isEmpty() && rowDeletion.isLive() && dataBuffer.isEmpty()
                  ? null
-                 : BTreeRow.create(clustering, columns, rowInfo, rowDeletion, BTree.build(dataBuffer, UpdateFunction.<ColumnData>noOp()));
+                 : BTreeRow.create(clustering, rowInfo, rowDeletion, BTree.build(dataBuffer, UpdateFunction.<ColumnData>noOp()));
         }
 
         public Clustering mergedClustering()

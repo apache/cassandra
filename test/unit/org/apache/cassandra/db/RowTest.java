@@ -127,7 +127,7 @@ public class RowTest
         ColumnDefinition defA = cfm.getColumnDefinition(new ColumnIdentifier("a", true));
         ColumnDefinition defB = cfm.getColumnDefinition(new ColumnIdentifier("b", true));
 
-        Row.Builder builder = BTreeRow.unsortedBuilder(cfm.partitionColumns().regulars, nowInSeconds);
+        Row.Builder builder = BTreeRow.unsortedBuilder(nowInSeconds);
         builder.newRow(cfm.comparator.make("c1"));
         writeSimpleCellValue(builder, cfm, defA, "a1", 0);
         writeSimpleCellValue(builder, cfm, defA, "a2", 1);

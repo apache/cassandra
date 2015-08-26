@@ -86,7 +86,7 @@ public class Columns extends AbstractCollection<ColumnDefinition> implements Col
      * @param s the set from which to create the new {@code Columns}.
      * @return the newly created {@code Columns} containing the columns from {@code s}.
      */
-    public static Columns from(Set<ColumnDefinition> s)
+    public static Columns from(Collection<ColumnDefinition> s)
     {
         Object[] tree = BTree.<ColumnDefinition>builder(Comparator.naturalOrder()).addAll(s).build();
         return new Columns(tree, findFirstComplexIdx(tree));

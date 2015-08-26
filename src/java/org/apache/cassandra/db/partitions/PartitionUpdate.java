@@ -168,12 +168,12 @@ public class PartitionUpdate extends AbstractBTreePartition
         if (row.isStatic())
         {
             Holder holder = new Holder(BTree.empty(), deletionInfo, row, EncodingStats.NO_STATS);
-            return new PartitionUpdate(metadata, key, new PartitionColumns(row.columns(), Columns.NONE), holder, deletionInfo, false);
+            return new PartitionUpdate(metadata, key, new PartitionColumns(Columns.from(row.columns()), Columns.NONE), holder, deletionInfo, false);
         }
         else
         {
             Holder holder = new Holder(BTree.singleton(row), deletionInfo, Rows.EMPTY_STATIC_ROW, EncodingStats.NO_STATS);
-            return new PartitionUpdate(metadata, key, new PartitionColumns(Columns.NONE, row.columns()), holder, deletionInfo, false);
+            return new PartitionUpdate(metadata, key, new PartitionColumns(Columns.NONE, Columns.from(row.columns())), holder, deletionInfo, false);
         }
     }
 
@@ -528,7 +528,8 @@ public class PartitionUpdate extends AbstractBTreePartition
 
         if (row.isStatic())
         {
-            // We test for == first because in most case it'll be true and that is faster
+            // this assert is expensive, and possibly of limited value; we should consider removing it
+            // or introducing a new class of assertions for test purposes
             assert columns().statics.containsAll(row.columns()) : columns().statics + " is not superset of " + row.columns();
             Row staticRow = holder.staticRow.isEmpty()
                       ? row
@@ -537,7 +538,8 @@ public class PartitionUpdate extends AbstractBTreePartition
         }
         else
         {
-            // We test for == first because in most case it'll be true and that is faster
+            // this assert is expensive, and possibly of limited value; we should consider removing it
+            // or introducing a new class of assertions for test purposes
             assert columns().regulars.containsAll(row.columns()) : columns().regulars + " is not superset of " + row.columns();
             rowBuilder.add(row);
         }

@@ -46,18 +46,18 @@ public abstract class AbstractAllocator
 
     public abstract ByteBuffer allocate(int size);
 
-    public Row.Builder cloningBTreeRowBuilder(Columns columns)
+    public Row.Builder cloningBTreeRowBuilder()
     {
-        return new CloningBTreeRowBuilder(columns, this);
+        return new CloningBTreeRowBuilder(this);
     }
 
     private static class CloningBTreeRowBuilder extends BTreeRow.Builder
     {
         private final AbstractAllocator allocator;
 
-        private CloningBTreeRowBuilder(Columns columns, AbstractAllocator allocator)
+        private CloningBTreeRowBuilder(AbstractAllocator allocator)
         {
-            super(columns, true);
+            super(true);
             this.allocator = allocator;
         }
 
