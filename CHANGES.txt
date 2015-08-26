@@ -12,6 +12,7 @@
  * UDF / UDA execution time in trace (CASSANDRA-9723)
  * Fix broken internode SSL (CASSANDRA-9884)
 Merged from 2.1:
+ * Change streaming_socket_timeout_in_ms default to 1 hour (CASSANDRA-8611)
  * (cqlsh) update list of CQL keywords (CASSANDRA-9232)
  * Avoid race condition during read repair (CASSANDRA-9460)
  * (cqlsh) default load-from-file encoding to utf-8 (CASSANDRA-9898)
