@@ -1366,7 +1366,8 @@ public class NodeCmd
                         System.err.println("Decommission will decommission the node you are connected to and does not take arguments!");
                         System.exit(1);
                     }
-                    probe.decommission();
+                    try { probe.decommission(); }
+                    catch (UnsupportedOperationException e) { err("Unsupported operation: " + e.getMessage()); }
                     break;
 
                 case DRAIN :
@@ -1675,6 +1676,12 @@ public class NodeCmd
     {
         System.err.println(useStr);
         printUsage();
+        System.exit(1);
+    }
+
+    private static void err(String useStr)
+    {
+        System.err.println(useStr);
         System.exit(1);
     }
 
