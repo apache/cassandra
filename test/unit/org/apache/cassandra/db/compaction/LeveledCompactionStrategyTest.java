@@ -243,6 +243,7 @@ public class LeveledCompactionStrategyTest
     @Test
     public void testMutateLevel() throws Exception
     {
+        cfs.disableAutoCompaction();
         ByteBuffer value = ByteBuffer.wrap(new byte[100 * 1024]); // 100 KB value, make it easy to have multiple files
 
         // Enough data to have a level 1 and 2
@@ -258,17 +259,13 @@ public class LeveledCompactionStrategyTest
             update.applyUnsafe();
             cfs.forceBlockingFlush();
         }
-        waitForLeveling(cfs);
         cfs.forceBlockingFlush();
         LeveledCompactionStrategy strategy = (LeveledCompactionStrategy) ( cfs.getCompactionStrategyManager()).getStrategies().get(1);
-        cfs.disableAutoCompaction();
-
-        while(CompactionManager.instance.isCompacting(Arrays.asList(cfs)))
-            Thread.sleep(100);
+        cfs.forceMajorCompaction();
 
         for (SSTableReader s : cfs.getLiveSSTables())
         {
-            assertTrue(s.getSSTableLevel() != 6);
+            assertTrue(s.getSSTableLevel() != 6 && s.getSSTableLevel() > 0);
             strategy.manifest.remove(s);
             s.descriptor.getMetadataSerializer().mutateLevel(s.descriptor, 6);
             s.reloadSSTableMetadata();

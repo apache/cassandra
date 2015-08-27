@@ -8,6 +8,7 @@
  * Validate gc_grace_seconds for batchlog writes and MVs (CASSANDRA-9917)
  * Fix sstablerepairedset (CASSANDRA-10132)
 Merged from 2.2:
+ * Fix LeveledCompactionStrategyTest (CASSANDRA-9757)
  * Fix broken UnbufferedDataOutputStreamPlus.writeUTF (CASSANDRA-10203)
  * (cqlsh) default load-from-file encoding to utf-8 (CASSANDRA-9898)
  * Avoid returning Permission.NONE when failing to query users table (CASSANDRA-10168)
