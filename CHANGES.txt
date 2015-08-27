@@ -3,6 +3,7 @@
 
 
 3.0.0-beta2
+ * Choose better poolingOptions for protocol v4 in cassandra-stress (CASSANDRA-10182)
  * Fix LWW bug affecting Materialized Views (CASSANDRA-10197)
  * Ensures frozen sets and maps are always sorted (CASSANDRA-10162)
  * Don't deadlock when flushing CFS backed custom indexes (CASSANDRA-10181)
