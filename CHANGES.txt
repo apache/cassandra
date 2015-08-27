@@ -3,6 +3,8 @@
  * Only check KeyCache when it is enabled
  * Change streaming_socket_timeout_in_ms default to 1 hour (CASSANDRA-8611)
  * (cqlsh) update list of CQL keywords (CASSANDRA-9232)
+Merged from 2.0:
+ * Disallow decommission when node is in drained state (CASSANDRA-8741)
 
 
 2.1.9

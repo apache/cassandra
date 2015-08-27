@@ -1471,6 +1471,9 @@ public class NodeTool
             } catch (InterruptedException e)
             {
                 throw new RuntimeException("Error decommissioning node", e);
+            } catch (UnsupportedOperationException e)
+            {
+                throw new IllegalStateException("Unsupported operation: " + e.getMessage(), e);
             }
         }
     }
