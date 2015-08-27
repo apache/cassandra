@@ -123,6 +123,26 @@ public class ColumnsTest
             testSerializeSubset(randomColumns);
     }
 
+    @Test
+    public void testContainsColumnsWithLargeNumberOfColumns()
+    {
+        List<String> names = new ArrayList<>();
+        for (int i = 0; i < 50; i++)
+            names.add("clustering_" + i);
+
+        List<ColumnDefinition> defs = new ArrayList<>();
+        addClustering(names, defs);
+
+        Columns columns = Columns.from(new HashSet<>(defs));
+
+        defs = new ArrayList<>();
+        addClustering(names.subList(0, 8), defs);
+
+        Columns subset = Columns.from(new HashSet<>(defs));
+
+        org.junit.Assert.assertTrue(columns.contains(subset));
+    }
+
     private void testSerializeSubset(ColumnsCheck input) throws IOException
     {
         testSerializeSubset(input.columns, input.columns, input.definitions);

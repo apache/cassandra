@@ -263,7 +263,7 @@ public class Columns implements Iterable<ColumnDefinition>
      */
     public boolean contains(Columns other)
     {
-        if (other.columns.length > columns.length)
+        if (other.columnCount() > columnCount())
             return false;
 
         BTreeSearchIterator<ColumnDefinition, ColumnDefinition> iter = BTree.slice(columns, Comparator.naturalOrder(), BTree.Dir.ASC);
