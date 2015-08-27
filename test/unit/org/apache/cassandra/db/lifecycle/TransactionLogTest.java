@@ -84,7 +84,7 @@ public class TransactionLogTest extends AbstractTransactionalTest
             final SSTableReader sstableNew;
             final TransactionLog.SSTableTidier tidier;
 
-            public Transaction(ColumnFamilyStore cfs, TransactionLog txnLogs) throws IOException
+            Transaction(ColumnFamilyStore cfs, TransactionLog txnLogs) throws IOException
             {
                 this.cfs = cfs;
                 this.txnLogs = txnLogs;
@@ -129,23 +129,23 @@ public class TransactionLogTest extends AbstractTransactionalTest
                 txnLogs.prepareToCommit();
             }
 
-            protected void assertInProgress() throws Exception
+            void assertInProgress() throws Exception
             {
                 assertFiles(txnLogs.getDataFolder(), Sets.newHashSet(Iterables.concat(sstableNew.getAllFilePaths(),
                                                                                       sstableOld.getAllFilePaths(),
                                                                                       Collections.singleton(txnLogs.getData().getLogFile().file.getPath()))));
             }
 
-            protected void assertPrepared() throws Exception
+            void assertPrepared() throws Exception
             {
             }
 
-            protected void assertAborted() throws Exception
+            void assertAborted() throws Exception
             {
                 assertFiles(txnLogs.getDataFolder(), new HashSet<>(sstableOld.getAllFilePaths()));
             }
 
-            protected void assertCommitted() throws Exception
+            void assertCommitted() throws Exception
             {
                 assertFiles(txnLogs.getDataFolder(), new HashSet<>(sstableNew.getAllFilePaths()));
             }
@@ -334,7 +334,7 @@ public class TransactionLogTest extends AbstractTransactionalTest
         transactionLog.trackNew(sstableNew);
         TransactionLog.SSTableTidier tidier = transactionLog.obsoleted(sstableOld);
 
-        Set<File> tmpFiles = Sets.newHashSet(Iterables.concat(sstableNew.getAllFilePaths().stream().map(p -> new File(p)).collect(Collectors.toList()),
+        Set<File> tmpFiles = Sets.newHashSet(Iterables.concat(sstableNew.getAllFilePaths().stream().map(File::new).collect(Collectors.toList()),
                                                               Collections.singleton(transactionLog.getData().getLogFile().file)));
 
         sstableNew.selfRef().release();
@@ -580,7 +580,7 @@ public class TransactionLogTest extends AbstractTransactionalTest
 
         String txnFilePath = transactionLog.getData().getLogFile().file.getPath();
 
-        transactionLog.complete(null);
+        assertNull(transactionLog.complete(null));
 
         sstableOld.selfRef().release();
         sstableNew.selfRef().release();
@@ -644,7 +644,7 @@ public class TransactionLogTest extends AbstractTransactionalTest
                                  });
     }
 
-    private void testObsoletedFilesChanged(Consumer<SSTableReader> modifier) throws IOException
+    private static void testObsoletedFilesChanged(Consumer<SSTableReader> modifier) throws IOException
     {
         ColumnFamilyStore cfs = MockSchema.newCFS(KEYSPACE);
         SSTableReader sstableOld = sstable(cfs, 0, 128);
@@ -684,7 +684,18 @@ public class TransactionLogTest extends AbstractTransactionalTest
     }
 
     @Test
-    public void testGetTemporaryFilesSafeAfterObsoletion() throws Throwable
+    public void testGetTemporaryFilesSafeAfterObsoletion_1() throws Throwable
+    {
+        testGetTemporaryFilesSafeAfterObsoletion(true);
+    }
+
+    @Test
+    public void testGetTemporaryFilesSafeAfterObsoletion_2() throws Throwable
+    {
+        testGetTemporaryFilesSafeAfterObsoletion(false);
+    }
+
+    private void testGetTemporaryFilesSafeAfterObsoletion(boolean finishBefore) throws Throwable
     {
         ColumnFamilyStore cfs = MockSchema.newCFS(KEYSPACE);
         SSTableReader sstable = sstable(cfs, 0, 128);
@@ -695,27 +706,33 @@ public class TransactionLogTest extends AbstractTransactionalTest
 
         TransactionLog.SSTableTidier tidier = transactionLogs.obsoleted(sstable);
 
-        transactionLogs.finish();
+        if (finishBefore)
+            transactionLogs.finish();
+
         sstable.markObsolete(tidier);
         sstable.selfRef().release();
 
-        for (int i = 0; i < 1000; i++)
+        for (int i = 0; i < 100; i++)
         {
             // This should race with the asynchronous deletion of txn log files
             // It doesn't matter what it returns but it should not throw
             TransactionLog.getTemporaryFiles(cfs.metadata, dataFolder);
         }
+
+        if (!finishBefore)
+            transactionLogs.finish();
     }
 
     private static SSTableReader sstable(ColumnFamilyStore cfs, int generation, int size) throws IOException
     {
         Directories dir = new Directories(cfs.metadata);
-        Descriptor descriptor = new Descriptor(dir.getDirectoryForNewSSTables(), cfs.keyspace.getName(), cfs.getColumnFamilyName(), generation);
+        Descriptor descriptor = new Descriptor(dir.getDirectoryForNewSSTables(), cfs.keyspace.getName(), cfs.getTableName(), generation);
         Set<Component> components = ImmutableSet.of(Component.DATA, Component.PRIMARY_INDEX, Component.FILTER, Component.TOC);
         for (Component component : components)
         {
             File file = new File(descriptor.filenameFor(component));
-            file.createNewFile();
+            if (!file.exists())
+                assertTrue(file.createNewFile());
             try (RandomAccessFile raf = new RandomAccessFile(file, "rw"))
             {
                 raf.setLength(size);
@@ -725,7 +742,7 @@ public class TransactionLogTest extends AbstractTransactionalTest
         SegmentedFile dFile = new BufferedSegmentedFile(new ChannelProxy(new File(descriptor.filenameFor(Component.DATA))), RandomAccessReader.DEFAULT_BUFFER_SIZE, 0);
         SegmentedFile iFile = new BufferedSegmentedFile(new ChannelProxy(new File(descriptor.filenameFor(Component.PRIMARY_INDEX))), RandomAccessReader.DEFAULT_BUFFER_SIZE, 0);
 
-        SerializationHeader header = SerializationHeader.make(cfs.metadata, Collections.EMPTY_LIST);
+        SerializationHeader header = SerializationHeader.make(cfs.metadata, Collections.emptyList());
         StatsMetadata metadata = (StatsMetadata) new MetadataCollector(cfs.metadata.comparator)
                                                  .finalizeMetadata(cfs.metadata.partitioner.getClass().getCanonicalName(), 0.01f, -1, header)
                                                  .get(MetadataType.STATS);
@@ -754,14 +771,18 @@ public class TransactionLogTest extends AbstractTransactionalTest
         TransactionLog.waitForDeletions();
 
         File dir = new File(dirPath);
-        for (File file : dir.listFiles())
+        File[] files = dir.listFiles();
+        if (files != null)
         {
-            if (file.isDirectory())
-                continue;
+            for (File file : files)
+            {
+                if (file.isDirectory())
+                    continue;
 
-            String filePath = file.getPath();
-            assertTrue(filePath, expectedFiles.contains(filePath));
-            expectedFiles.remove(filePath);
+                String filePath = file.getPath();
+                assertTrue(filePath, expectedFiles.contains(filePath));
+                expectedFiles.remove(filePath);
+            }
         }
 
         if (excludeNonExistingFiles)
