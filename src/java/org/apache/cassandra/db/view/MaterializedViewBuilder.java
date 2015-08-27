@@ -95,18 +95,7 @@ public class MaterializedViewBuilder extends CompactionInfo.Holder
                    Collection<Mutation> mutations = view.createMutations(partition, temporalRows, true);
 
                    if (mutations != null)
-                   {
-                       try
-                       {
-                           StorageProxy.mutateMV(key.getKey(), mutations);
-                           break;
-                       }
-                       catch (WriteTimeoutException ex)
-                       {
-                           NoSpamLogger.getLogger(logger, 1, TimeUnit.MINUTES)
-                                       .warn("Encountered write timeout when building materialized view {}, the entries were stored in the batchlog and will be replayed at another time", view.name);
-                       }
-                   }
+                       StorageProxy.mutateMV(key.getKey(), mutations, true);
                }
            }
         }

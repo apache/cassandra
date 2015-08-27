@@ -652,8 +652,7 @@ public class StorageProxy implements StorageProxyMBean
      *
      * @param mutations the mutations to be applied across the replicas
      */
-    public static void mutateMV(ByteBuffer dataKey, Collection<Mutation> mutations)
-    throws UnavailableException, OverloadedException, WriteTimeoutException
+    public static void mutateMV(ByteBuffer dataKey, Collection<Mutation> mutations, boolean writeCommitLog)
     {
         Tracing.trace("Determining replicas for mutation");
         final String localDataCenter = DatabaseDescriptor.getEndpointSnitch().getDatacenter(FBUtilities.getBroadcastAddress());
@@ -693,7 +692,10 @@ public class StorageProxy implements StorageProxyMBean
                 if (pairedEndpoint.equals(FBUtilities.getBroadcastAddress()) &&
                     wrapper.handler.pendingEndpoints.isEmpty())
                 {
-                    mutation.apply();
+                    if (writeCommitLog)
+                        mutation.apply();
+                    else
+                        mutation.applyUnsafe();
                 }
                 else
                 {
@@ -703,30 +705,17 @@ public class StorageProxy implements StorageProxyMBean
 
             if (!wrappers.isEmpty())
             {
+                Mutation blMutation = BatchlogManager.getBatchlogMutationFor(Lists.transform(wrappers, w -> w.mutation), batchUUID, MessagingService.current_version);
+
                 //Apply to local batchlog memtable in this thread
-                BatchlogManager.getBatchlogMutationFor(Lists.transform(wrappers, w -> w.mutation), batchUUID, MessagingService.current_version).apply();
+                if (writeCommitLog)
+                    blMutation.apply();
+                else
+                    blMutation.applyUnsafe();
 
                 // now actually perform the writes and wait for them to complete
                 asyncWriteBatchedMutations(wrappers, localDataCenter, Stage.MATERIALIZED_VIEW_MUTATION);
             }
-        }
-        catch (WriteTimeoutException ex)
-        {
-            mvWriteMetrics.timeouts.mark();
-            Tracing.trace("Write timeout; received {} of {} required replies", ex.received, ex.blockFor);
-            throw ex;
-        }
-        catch (UnavailableException e)
-        {
-            mvWriteMetrics.unavailables.mark();
-            Tracing.trace("Unavailable");
-            throw e;
-        }
-        catch (OverloadedException e)
-        {
-            mvWriteMetrics.unavailables.mark();
-            Tracing.trace("Overloaded");
-            throw e;
         }
         finally
         {

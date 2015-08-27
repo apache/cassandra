@@ -161,8 +161,19 @@ public class CommitLogReplayer
 
         // flush replayed keyspaces
         futures.clear();
+        boolean flushingSystem = false;
         for (Keyspace keyspace : keyspacesRecovered)
+        {
+            if (keyspace.getName().equals(SystemKeyspace.NAME))
+                flushingSystem = true;
+
             futures.addAll(keyspace.flush());
+        }
+
+        // also flush batchlog incase of any MV updates
+        if (!flushingSystem)
+            futures.add(Keyspace.open(SystemKeyspace.NAME).getColumnFamilyStore(SystemKeyspace.BATCHES).forceFlush());
+
         FBUtilities.waitOnFutures(futures);
         return replayedCount.get();
     }
@@ -594,7 +605,7 @@ public class CommitLogReplayer
                 if (newMutation != null)
                 {
                     assert !newMutation.isEmpty();
-                    Keyspace.open(newMutation.getKeyspaceName()).apply(newMutation, false);
+                    Keyspace.open(newMutation.getKeyspaceName()).applyFromCommitLog(newMutation);
                     keyspacesRecovered.add(keyspace);
                 }
             }

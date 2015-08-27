@@ -386,7 +386,17 @@ public class Keyspace
 
     public void apply(Mutation mutation, boolean writeCommitLog)
     {
-        apply(mutation, writeCommitLog, true);
+        apply(mutation, writeCommitLog, true, false);
+    }
+
+    public void apply(Mutation mutation, boolean writeCommitLog, boolean updateIndexes)
+    {
+        apply(mutation, writeCommitLog, updateIndexes, false);
+    }
+
+    public void applyFromCommitLog(Mutation mutation)
+    {
+        apply(mutation, false, true, true);
     }
 
     /**
@@ -396,8 +406,9 @@ public class Keyspace
      *                       may happen concurrently, depending on the CL Executor type.
      * @param writeCommitLog false to disable commitlog append entirely
      * @param updateIndexes  false to disable index updates (used by CollationController "defragmenting")
+     * @param isClReplay     true if caller is the commitlog replayer
      */
-    public void apply(final Mutation mutation, final boolean writeCommitLog, boolean updateIndexes)
+    public void apply(final Mutation mutation, final boolean writeCommitLog, boolean updateIndexes, boolean isClReplay)
     {
         if (TEST_FAIL_WRITES && metadata.name.equals(TEST_FAIL_WRITES_KS))
             throw new RuntimeException("Testing write failures");
@@ -456,15 +467,15 @@ public class Keyspace
                 {
                     try
                     {
-                        Tracing.trace("Create materialized view mutations from replica");
-                        cfs.materializedViewManager.pushViewReplicaUpdates(upd);
+                        Tracing.trace("Creating materialized view mutations from base table replica");
+                        cfs.materializedViewManager.pushViewReplicaUpdates(upd, !isClReplay);
                     }
-                    catch (Exception e)
+                    catch (Throwable t)
                     {
-                        if (!(e instanceof WriteTimeoutException))
-                            logger.warn("Encountered exception when creating materialized view mutations", e);
-
-                        JVMStabilityInspector.inspectThrowable(e);
+                        JVMStabilityInspector.inspectThrowable(t);
+                        logger.error(String.format("Unknown exception caught while attempting to update MaterializedView! %s.%s",
+                                     upd.metadata().ksName, upd.metadata().cfName), t);
+                        throw t;
                     }
                 }
 

@@ -292,6 +292,32 @@ public class MaterializedViewTest extends CQLTester
     }
 
     @Test
+    public void testBuilderWidePartition() throws Throwable
+    {
+        createTable("CREATE TABLE %s (" +
+                    "k int, " +
+                    "c int, " +
+                    "intval int, " +
+                    "PRIMARY KEY (k, c))");
+
+        execute("USE " + keyspace());
+        executeNet(protocolVersion, "USE " + keyspace());
+
+
+        for(int i = 0; i < 1024; i++)
+            execute("INSERT INTO %s (k, c, intval) VALUES (?, ?, ?)", 0, i, 0);
+
+        createView("mv", "CREATE MATERIALIZED VIEW %s AS SELECT * FROM %%s WHERE k IS NOT NULL AND c IS NOT NULL AND intval IS NOT NULL PRIMARY KEY (intval, c, k)");
+
+
+        while (!SystemKeyspace.isViewBuilt(keyspace(), "mv"))
+            Thread.sleep(1000);
+
+        assertRows(execute("SELECT count(*) from %s WHERE k = ?", 0), row(1024L));
+        assertRows(execute("SELECT count(*) from mv WHERE intval = ?", 0), row(1024L));
+    }
+
+    @Test
     public void testRangeTombstone() throws Throwable
     {
         createTable("CREATE TABLE %s (" +

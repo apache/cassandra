@@ -146,7 +146,7 @@ public class StreamReceiveTask extends StreamTask
                     //We have a special path for Materialized view.
                     //Since the MV requires cleaning up any pre-existing state, we must put
                     //all partitions through the same write path as normal mutations.
-                    //This also ensures any 2is are also updated
+                    //This also ensures any 2i's are also updated
                     if (hasMaterializedViews)
                     {
                         for (SSTableReader reader : readers)
@@ -157,7 +157,8 @@ public class StreamReceiveTask extends StreamTask
                                 {
                                     try (UnfilteredRowIterator rowIterator = scanner.next())
                                     {
-                                        new Mutation(PartitionUpdate.fromIterator(rowIterator)).apply();
+                                        //Apply unsafe (we will flush below before transaction is done)
+                                        new Mutation(PartitionUpdate.fromIterator(rowIterator)).applyUnsafe();
                                     }
                                 }
                             }
@@ -183,7 +184,10 @@ public class StreamReceiveTask extends StreamTask
                     //We don't keep the streamed sstables since we've applied them manually
                     //So we abort the txn and delete the streamed sstables
                     if (hasMaterializedViews)
+                    {
+                        cfs.forceBlockingFlush();
                         task.txn.abort();
+                    }
                 }
             }
             finally
