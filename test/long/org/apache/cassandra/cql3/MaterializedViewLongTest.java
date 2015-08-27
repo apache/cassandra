@@ -104,7 +104,7 @@ public class MaterializedViewLongTest extends CQLTester
                         {
                             try
                             {
-                                executeNet(protocolVersion, "INSERT INTO %s (a, b, c) VALUES (?, ?, ?)",
+                                executeNet(protocolVersion, "INSERT INTO %s (a, b, c) VALUES (?, ?, ?) USING TIMESTAMP 1",
                                            1,
                                            1,
                                            i + writerOffset);
@@ -142,12 +142,6 @@ public class MaterializedViewLongTest extends CQLTester
             {
 
             }
-        }
-
-        while (!(((SEPExecutor) StageManager.getStage(Stage.MATERIALIZED_VIEW_MUTATION)).getPendingTasks() == 0
-                 && ((SEPExecutor) StageManager.getStage(Stage.MATERIALIZED_VIEW_MUTATION)).getActiveCount() == 0))
-        {
-            Thread.sleep(1);
         }
 
         int value = executeNet(protocolVersion, "SELECT c FROM %s WHERE a = 1 AND b = 1").one().getInt("c");
