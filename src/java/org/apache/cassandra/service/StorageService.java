@@ -3294,6 +3294,8 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
             throw new UnsupportedOperationException("local node is not a member of the token ring yet");
         if (tokenMetadata.cloneAfterAllLeft().sortedTokens().size() < 2)
             throw new UnsupportedOperationException("no other normal nodes in the ring; decommission would be pointless");
+        if (operationMode != Mode.NORMAL)
+            throw new UnsupportedOperationException("Node in " + operationMode + " state; wait for status to become normal or restart");
 
         PendingRangeCalculatorService.instance.blockUntilFinished();
         for (String keyspaceName : Schema.instance.getNonSystemKeyspaces())
