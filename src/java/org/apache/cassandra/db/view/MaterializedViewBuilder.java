@@ -183,7 +183,8 @@ public class MaterializedViewBuilder extends CompactionInfo.Holder
                 }
             }
 
-            SystemKeyspace.finishMaterializedViewBuildStatus(ksname, viewName);
+            if (!isStopped)
+                SystemKeyspace.finishMaterializedViewBuildStatus(ksname, viewName);
 
         }
         catch (Exception e)
