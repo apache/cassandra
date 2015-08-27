@@ -161,7 +161,6 @@ public abstract class SSTable
         return descriptor.ksname;
     }
 
-    @VisibleForTesting
     public List<String> getAllFilePaths()
     {
         List<String> ret = new ArrayList<>();

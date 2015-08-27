@@ -98,7 +98,7 @@ public class LifecycleTransaction extends Transactional.AbstractTransactional
 
     public final Tracker tracker;
     // The transaction logs keep track of new and old sstable files
-    private final TransactionLog transactionLog;
+    private final LogTransaction log;
     // the original readers this transaction was opened over, and that it guards
     // (no other transactions may operate over these readers concurrently)
     private final Set<SSTableReader> originals = new HashSet<>();
@@ -115,7 +115,7 @@ public class LifecycleTransaction extends Transactional.AbstractTransactional
     private final State staged = new State();
 
     // the tidier and their readers, to be used for marking readers obsoleted during a commit
-    private List<TransactionLog.Obsoletion> obsoletions;
+    private List<LogTransaction.Obsoletion> obsoletions;
 
     /**
      * construct a Transaction for use in an offline operation
@@ -143,7 +143,7 @@ public class LifecycleTransaction extends Transactional.AbstractTransactional
     public static LifecycleTransaction offline(OperationType operationType, CFMetaData metadata)
     {
         Tracker dummy = new Tracker(null, false);
-        return new LifecycleTransaction(dummy, new TransactionLog(operationType, metadata, dummy), Collections.emptyList());
+        return new LifecycleTransaction(dummy, new LogTransaction(operationType, metadata, dummy), Collections.emptyList());
     }
 
     /**
@@ -152,18 +152,18 @@ public class LifecycleTransaction extends Transactional.AbstractTransactional
     public static LifecycleTransaction offline(OperationType operationType, File operationFolder)
     {
         Tracker dummy = new Tracker(null, false);
-        return new LifecycleTransaction(dummy, new TransactionLog(operationType, operationFolder, dummy), Collections.emptyList());
+        return new LifecycleTransaction(dummy, new LogTransaction(operationType, operationFolder, dummy), Collections.emptyList());
     }
 
     LifecycleTransaction(Tracker tracker, OperationType operationType, Iterable<SSTableReader> readers)
     {
-        this(tracker, new TransactionLog(operationType, getMetadata(tracker, readers), tracker), readers);
+        this(tracker, new LogTransaction(operationType, getMetadata(tracker, readers), tracker), readers);
     }
 
-    LifecycleTransaction(Tracker tracker, TransactionLog transactionLog, Iterable<SSTableReader> readers)
+    LifecycleTransaction(Tracker tracker, LogTransaction log, Iterable<SSTableReader> readers)
     {
         this.tracker = tracker;
-        this.transactionLog = transactionLog;
+        this.log = log;
         for (SSTableReader reader : readers)
         {
             originals.add(reader);
@@ -187,19 +187,19 @@ public class LifecycleTransaction extends Transactional.AbstractTransactional
         return null;
     }
 
-    public TransactionLog log()
+    public LogTransaction log()
     {
-        return transactionLog;
+        return log;
     }
 
     public OperationType opType()
     {
-        return transactionLog.getType();
+        return log.getType();
     }
 
     public UUID opId()
     {
-        return transactionLog.getId();
+        return log.getId();
     }
 
     public void doPrepare()
@@ -212,8 +212,8 @@ public class LifecycleTransaction extends Transactional.AbstractTransactional
 
         // prepare for compaction obsolete readers as long as they were part of the original set
         // since those that are not original are early readers that share the same desc with the finals
-        maybeFail(prepareForObsoletion(filterIn(logged.obsolete, originals), transactionLog, obsoletions = new ArrayList<>(), null));
-        transactionLog.prepareToCommit();
+        maybeFail(prepareForObsoletion(filterIn(logged.obsolete, originals), log, obsoletions = new ArrayList<>(), null));
+        log.prepareToCommit();
     }
 
     /**
@@ -228,7 +228,7 @@ public class LifecycleTransaction extends Transactional.AbstractTransactional
         maybeFail(accumulate);
 
         // transaction log commit failure means we must abort; safe commit is not possible
-        maybeFail(transactionLog.commit(null));
+        maybeFail(log.commit(null));
 
         // this is now the point of no return; we cannot safely rollback, so we ignore exceptions until we're done
         // we restore state by obsoleting our obsolete files, releasing our references to them, and updating our size
@@ -237,7 +237,7 @@ public class LifecycleTransaction extends Transactional.AbstractTransactional
         accumulate = markObsolete(obsoletions, accumulate);
         accumulate = tracker.updateSizeTracking(logged.obsolete, logged.update, accumulate);
         accumulate = release(selfRefs(logged.obsolete), accumulate);
-        accumulate = tracker.notifySSTablesChanged(originals, logged.update, transactionLog.getType(), accumulate);
+        accumulate = tracker.notifySSTablesChanged(originals, logged.update, log.getType(), accumulate);
 
         return accumulate;
     }
@@ -253,16 +253,16 @@ public class LifecycleTransaction extends Transactional.AbstractTransactional
         accumulate = abortObsoletion(obsoletions, accumulate);
 
         if (logged.isEmpty() && staged.isEmpty())
-            return transactionLog.abort(accumulate);
+            return log.abort(accumulate);
 
         // mark obsolete all readers that are not versions of those present in the original set
         Iterable<SSTableReader> obsolete = filterOut(concatUniq(staged.update, logged.update), originals);
         logger.debug("Obsoleting {}", obsolete);
 
-        accumulate = prepareForObsoletion(obsolete, transactionLog, obsoletions = new ArrayList<>(), accumulate);
+        accumulate = prepareForObsoletion(obsolete, log, obsoletions = new ArrayList<>(), accumulate);
         // it's safe to abort even if committed, see maybeFail in doCommit() above, in this case it will just report
         // a failure to abort, which is useful information to have for debug
-        accumulate = transactionLog.abort(accumulate);
+        accumulate = log.abort(accumulate);
         accumulate = markObsolete(obsoletions, accumulate);
 
         // replace all updated readers with a version restored to its original state
@@ -502,7 +502,7 @@ public class LifecycleTransaction extends Transactional.AbstractTransactional
             originals.remove(reader);
             marked.remove(reader);
         }
-        return new LifecycleTransaction(tracker, transactionLog.getType(), readers);
+        return new LifecycleTransaction(tracker, log.getType(), readers);
     }
 
     /**
@@ -535,17 +535,17 @@ public class LifecycleTransaction extends Transactional.AbstractTransactional
 
     public void trackNew(SSTable table)
     {
-        transactionLog.trackNew(table);
+        log.trackNew(table);
     }
 
     public void untrackNew(SSTable table)
     {
-        transactionLog.untrackNew(table);
+        log.untrackNew(table);
     }
 
     public static void removeUnfinishedLeftovers(CFMetaData metadata)
     {
-        TransactionLog.removeUnfinishedLeftovers(metadata);
+        LogTransaction.removeUnfinishedLeftovers(metadata);
     }
 
     /**
@@ -562,7 +562,25 @@ public class LifecycleTransaction extends Transactional.AbstractTransactional
      */
     public static List<File> getFiles(Path folder, BiFunction<File, Directories.FileType, Boolean> filter, Directories.OnTxnErr onTxnErr)
     {
-        return new TransactionLog.FileLister(folder, filter, onTxnErr).list();
+        return new LogAwareFileLister(folder, filter, onTxnErr).list();
+    }
+
+    /**
+     * Retry all deletions that failed the first time around (presumably b/c the sstable was still mmap'd.)
+     * Useful because there are times when we know GC has been invoked; also exposed as an mbean.
+     */
+    public static void rescheduleFailedDeletions()
+    {
+        LogTransaction.rescheduleFailedDeletions();
+    }
+
+    /**
+     * Deletions run on the nonPeriodicTasks executor, (both failedDeletions or global tidiers in SSTableReader)
+     * so by scheduling a new empty task and waiting for it we ensure any prior deletion has completed.
+     */
+    public static void waitForDeletions()
+    {
+        LogTransaction.waitForDeletions();
     }
 
     // a class representing the current state of the reader within this transaction, encoding the actions both logged

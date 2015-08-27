@@ -32,6 +32,7 @@ import java.util.*;
 import java.util.concurrent.ThreadLocalRandom;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.function.BiFunction;
+import java.util.function.Consumer;
 
 import com.google.common.annotations.VisibleForTesting;
 import com.google.common.base.Predicate;
@@ -550,7 +551,7 @@ public class Directories
         TEMPORARY,
 
         /** A transaction log file (contains information on final and temporary files). */
-        TXN_LOG
+        TXN_LOG;
     }
 
     /**
@@ -562,7 +563,7 @@ public class Directories
         /** Throw the exception */
         THROW,
 
-        /** Ignore the txn log file */
+        /** Ignore the problematic parts of the txn log file */
         IGNORE
     }
 

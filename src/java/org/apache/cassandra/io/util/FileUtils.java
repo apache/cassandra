@@ -25,6 +25,7 @@ import java.nio.charset.StandardCharsets;
 import java.nio.file.*;
 import java.text.DecimalFormat;
 import java.util.Arrays;
+import java.util.Collections;
 import java.util.List;
 
 import sun.nio.ch.DirectBuffer;
@@ -320,16 +321,16 @@ public class FileUtils
     }
 
     /** Convert absolute path into a path relative to the base path */
-    public static String getRelativePath(String basePath, String absolutePath)
+    public static String getRelativePath(String basePath, String path)
     {
         try
         {
-            return Paths.get(basePath).relativize(Paths.get(absolutePath)).toString();
+            return Paths.get(basePath).relativize(Paths.get(path)).toString();
         }
         catch(Exception ex)
         {
             String absDataPath = FileUtils.getCanonicalPath(basePath);
-            return Paths.get(absDataPath).relativize(Paths.get(absolutePath)).toString();
+            return Paths.get(absDataPath).relativize(Paths.get(path)).toString();
         }
     }
 
@@ -619,6 +620,9 @@ public class FileUtils
         }
         catch (IOException ex)
         {
+            if (ex instanceof NoSuchFileException)
+                return Collections.emptyList();
+
             throw new RuntimeException(ex);
         }
     }

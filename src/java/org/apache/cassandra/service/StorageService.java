@@ -60,7 +60,7 @@ import org.apache.cassandra.batchlog.BatchRemoveVerbHandler;
 import org.apache.cassandra.batchlog.BatchlogManager;
 import org.apache.cassandra.db.commitlog.CommitLog;
 import org.apache.cassandra.db.compaction.CompactionManager;
-import org.apache.cassandra.db.lifecycle.TransactionLog;
+import org.apache.cassandra.db.lifecycle.LifecycleTransaction;
 import org.apache.cassandra.dht.BootStrapper;
 import org.apache.cassandra.dht.IPartitioner;
 import org.apache.cassandra.dht.Range;
@@ -4262,7 +4262,7 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
 
     public void rescheduleFailedDeletions()
     {
-        TransactionLog.rescheduleFailedDeletions();
+        LifecycleTransaction.rescheduleFailedDeletions();
     }
 
     /**

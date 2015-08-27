@@ -264,7 +264,7 @@ public final class CLibrary
             if (!(e instanceof LastErrorException))
                 throw e;
 
-            logger.warn(String.format("fsync(%d) failed, errno (%d).", fd, errno(e)));
+            logger.warn(String.format("fsync(%d) failed, errno (%d) {}", fd, errno(e)), e);
         }
     }
 

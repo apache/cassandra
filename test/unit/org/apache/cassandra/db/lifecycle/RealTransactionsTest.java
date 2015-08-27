@@ -20,13 +20,11 @@ package org.apache.cassandra.db.lifecycle;
 
 import java.io.File;
 import java.io.IOException;
-import java.util.Collections;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
 import java.util.concurrent.TimeUnit;
 
-import org.apache.commons.lang3.StringUtils;
 import org.junit.BeforeClass;
 import org.junit.Test;
 
@@ -36,7 +34,6 @@ import org.apache.cassandra.SchemaLoader;
 import org.apache.cassandra.config.CFMetaData;
 import org.apache.cassandra.config.Schema;
 import org.apache.cassandra.db.ColumnFamilyStore;
-import org.apache.cassandra.db.Directories;
 import org.apache.cassandra.db.Keyspace;
 import org.apache.cassandra.db.SerializationHeader;
 import org.apache.cassandra.db.compaction.AbstractCompactionStrategy;
@@ -87,7 +84,7 @@ public class RealTransactionsTest extends SchemaLoader
         SSTableReader oldSSTable = getSSTable(cfs, 1);
         LifecycleTransaction txn = cfs.getTracker().tryModify(oldSSTable, OperationType.COMPACTION);
         SSTableReader newSSTable = replaceSSTable(cfs, txn, false);
-        TransactionLog.waitForDeletions();
+        LogTransaction.waitForDeletions();
 
         assertFiles(txn.log().getDataFolder(), new HashSet<>(newSSTable.getAllFilePaths()));
     }
@@ -102,7 +99,7 @@ public class RealTransactionsTest extends SchemaLoader
         LifecycleTransaction txn = cfs.getTracker().tryModify(oldSSTable, OperationType.COMPACTION);
 
         replaceSSTable(cfs, txn, true);
-        TransactionLog.waitForDeletions();
+        LogTransaction.waitForDeletions();
 
         assertFiles(txn.log().getDataFolder(), new HashSet<>(oldSSTable.getAllFilePaths()));
     }

@@ -224,7 +224,7 @@ public class Tracker
      */
     public Throwable dropSSTables(final Predicate<SSTableReader> remove, OperationType operationType, Throwable accumulate)
     {
-        try (TransactionLog txnLogs = new TransactionLog(operationType, cfstore.metadata, this))
+        try (LogTransaction txnLogs = new LogTransaction(operationType, cfstore.metadata, this))
         {
             Pair<View, View> result = apply(view -> {
                 Set<SSTableReader> toremove = copyOf(filter(view.sstables, and(remove, notIn(view.compacting))));
@@ -236,7 +236,7 @@ public class Tracker
 
             // It is important that any method accepting/returning a Throwable never throws an exception, and does its best
             // to complete the instructions given to it
-            List<TransactionLog.Obsoletion> obsoletions = new ArrayList<>();
+            List<LogTransaction.Obsoletion> obsoletions = new ArrayList<>();
             accumulate = prepareForObsoletion(removed, txnLogs, obsoletions, accumulate);
             try
             {

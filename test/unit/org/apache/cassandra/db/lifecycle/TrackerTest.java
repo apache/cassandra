@@ -30,7 +30,6 @@ import com.google.common.base.Function;
 import com.google.common.base.Predicate;
 import com.google.common.collect.ImmutableList;
 import com.google.common.collect.Iterables;
-import com.google.common.collect.Lists;
 import org.junit.BeforeClass;
 import org.junit.Test;
 
@@ -189,9 +188,9 @@ public class TrackerTest
     public void testDropSSTables()
     {
         testDropSSTables(false);
-        TransactionLog.waitForDeletions();
+        LogTransaction.waitForDeletions();
         testDropSSTables(true);
-        TransactionLog.waitForDeletions();
+        LogTransaction.waitForDeletions();
     }
 
     private void testDropSSTables(boolean invalidate)
@@ -214,7 +213,7 @@ public class TrackerTest
             else
             {
                 tracker.dropSSTables();
-                TransactionLog.waitForDeletions();
+                LogTransaction.waitForDeletions();
             }
             Assert.assertEquals(9, cfs.metric.totalDiskSpaceUsed.getCount());
             Assert.assertEquals(9, cfs.metric.liveDiskSpaceUsed.getCount());
