@@ -1,4 +1,5 @@
 2.2.2
+ * Handle missing RoleManager in config after upgrade to 2.2 (CASSANDRA-10209) 
  * Retry snapshot deletion after compaction and gc on Windows (CASSANDRA-10222)
  * Fix failure to start with space in directory path on Windows (CASSANDRA-10239)
  * Fix repair hang when snapshot failed (CASSANDRA-10057)
