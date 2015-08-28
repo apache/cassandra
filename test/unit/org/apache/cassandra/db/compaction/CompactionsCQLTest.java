@@ -26,12 +26,17 @@ import org.apache.cassandra.cql3.CQLTester;
 import org.apache.cassandra.cql3.UntypedResultSet;
 import org.apache.cassandra.db.ColumnFamilyStore;
 import org.apache.cassandra.db.Keyspace;
+import org.apache.cassandra.utils.FBUtilities;
+
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertTrue;
 
 public class CompactionsCQLTest extends CQLTester
 {
+
+    public static final int SLEEP_TIME = FBUtilities.isWindows()? 2000 : 1000;
+
     @Test
     public void testTriggerMinorCompactionSTCS() throws Throwable
     {
@@ -41,7 +46,7 @@ public class CompactionsCQLTest extends CQLTester
         flush();
         execute("insert into %s (id) values ('1')");
         flush();
-        Thread.sleep(1000);
+        Thread.sleep(SLEEP_TIME);
         assertTrue(minorWasTriggered(KEYSPACE, currentTable()));
     }
 
@@ -54,7 +59,7 @@ public class CompactionsCQLTest extends CQLTester
         flush();
         execute("insert into %s (id) values ('1')");
         flush();
-        Thread.sleep(1000);
+        Thread.sleep(SLEEP_TIME);
         assertTrue(minorWasTriggered(KEYSPACE, currentTable()));
     }
 
@@ -68,7 +73,7 @@ public class CompactionsCQLTest extends CQLTester
         flush();
         execute("insert into %s (id) values ('1')");
         flush();
-        Thread.sleep(1000);
+        Thread.sleep(SLEEP_TIME);
         assertTrue(minorWasTriggered(KEYSPACE, currentTable()));
     }
 
@@ -81,7 +86,7 @@ public class CompactionsCQLTest extends CQLTester
         flush();
         execute("insert into %s (id) values ('1')");
         flush();
-        Thread.sleep(1000);
+        Thread.sleep(SLEEP_TIME);
         assertFalse(minorWasTriggered(KEYSPACE, currentTable()));
     }
 
@@ -96,7 +101,7 @@ public class CompactionsCQLTest extends CQLTester
         flush();
         execute("insert into %s (id) values ('1')");
         flush();
-        Thread.sleep(1000);
+        Thread.sleep(SLEEP_TIME);
         assertTrue(minorWasTriggered(KEYSPACE, currentTable()));
     }
 
@@ -111,7 +116,7 @@ public class CompactionsCQLTest extends CQLTester
         flush();
         execute("insert into %s (id) values ('1')");
         flush();
-        Thread.sleep(1000);
+        Thread.sleep(SLEEP_TIME);
         assertFalse(minorWasTriggered(KEYSPACE, currentTable()));
     }
 
@@ -126,7 +131,7 @@ public class CompactionsCQLTest extends CQLTester
         flush();
         execute("insert into %s (id) values ('1')");
         flush();
-        Thread.sleep(1000);
+        Thread.sleep(SLEEP_TIME);
         assertFalse(minorWasTriggered(KEYSPACE, currentTable()));
     }
 
@@ -141,7 +146,7 @@ public class CompactionsCQLTest extends CQLTester
         flush();
         execute("insert into %s (id) values ('1')");
         flush();
-        Thread.sleep(1000);
+        Thread.sleep(SLEEP_TIME);
         assertTrue(minorWasTriggered(KEYSPACE, currentTable()));
     }
 
