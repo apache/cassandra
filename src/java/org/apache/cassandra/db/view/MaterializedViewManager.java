@@ -59,6 +59,7 @@ import org.apache.cassandra.service.StorageService;
 public class MaterializedViewManager
 {
     private static final Striped<Lock> LOCKS = Striped.lazyWeakLock(DatabaseDescriptor.getConcurrentWriters() * 1024);
+    private static final boolean disableCoordinatorBatchlog = Boolean.getBoolean("cassandra.mv_disble_coordinator_batchlog");
 
     private final ConcurrentNavigableMap<String, MaterializedView> viewsByName;
 
@@ -197,15 +198,18 @@ public class MaterializedViewManager
         return null;
     }
 
-    public static boolean updatesAffectView(Collection<? extends IMutation> mutations, boolean ignoreRf1)
+    public static boolean updatesAffectView(Collection<? extends IMutation> mutations, boolean coordinatorBatchlog)
     {
+        if (coordinatorBatchlog && disableCoordinatorBatchlog)
+            return false;
+
         for (IMutation mutation : mutations)
         {
             for (PartitionUpdate cf : mutation.getPartitionUpdates())
             {
                 Keyspace keyspace = Keyspace.open(cf.metadata().ksName);
 
-                if (ignoreRf1 && keyspace.getReplicationStrategy().getReplicationFactor() == 1)
+                if (coordinatorBatchlog && keyspace.getReplicationStrategy().getReplicationFactor() == 1)
                     continue;
 
                 MaterializedViewManager viewManager = keyspace.getColumnFamilyStore(cf.metadata().cfId).materializedViewManager;
