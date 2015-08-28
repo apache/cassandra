@@ -59,7 +59,7 @@ import org.apache.cassandra.service.StorageService;
 public class MaterializedViewManager
 {
     private static final Striped<Lock> LOCKS = Striped.lazyWeakLock(DatabaseDescriptor.getConcurrentWriters() * 1024);
-    private static final boolean disableCoordinatorBatchlog = Boolean.getBoolean("cassandra.mv_disble_coordinator_batchlog");
+    private static final boolean disableCoordinatorBatchlog = Boolean.getBoolean("cassandra.mv_disable_coordinator_batchlog");
 
     private final ConcurrentNavigableMap<String, MaterializedView> viewsByName;
 
