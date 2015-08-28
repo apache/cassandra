@@ -30,8 +30,7 @@ import org.apache.cassandra.io.util.DataOutputPlus;
  * <p>
  * Those stats are used to optimize the on-wire and on-disk storage of rows. More precisely,
  * the {@code minTimestamp}, {@code minLocalDeletionTime} and {@code minTTL} stats are used to
- * delta-encode those information for the sake of vint encoding. And {@code avgColumnSetPerRow}
- * is used to decide if cells should be stored in a sparse or dense way (see {@link UnfilteredSerializer}).
+ * delta-encode those information for the sake of vint encoding.
  * <p>
  * Note that due to their use, those stats can suffer to be somewhat inaccurate (the more incurrate
  * they are, the less effective the storage will be, but provided the stats are not completly wacky,
@@ -63,7 +62,7 @@ public class EncodingStats
     }
 
     // We should use this sparingly obviously
-    public static final EncodingStats NO_STATS = new EncodingStats(TIMESTAMP_EPOCH, DELETION_TIME_EPOCH, TTL_EPOCH, -1);
+    public static final EncodingStats NO_STATS = new EncodingStats(TIMESTAMP_EPOCH, DELETION_TIME_EPOCH, TTL_EPOCH);
 
     public static final Serializer serializer = new Serializer();
 
@@ -71,13 +70,9 @@ public class EncodingStats
     public final int minLocalDeletionTime;
     public final int minTTL;
 
-    // Will be < 0 if the value is unknown
-    public final int avgColumnSetPerRow;
-
     public EncodingStats(long minTimestamp,
                          int minLocalDeletionTime,
-                         int minTTL,
-                         int avgColumnSetPerRow)
+                         int minTTL)
     {
         // Note that the exact value of those don't impact correctness, just the efficiency of the encoding. So when we
         // get a value for timestamp (resp. minLocalDeletionTime) that means 'no object had a timestamp' (resp. 'a local
@@ -87,7 +82,6 @@ public class EncodingStats
         this.minTimestamp = minTimestamp == LivenessInfo.NO_TIMESTAMP ? TIMESTAMP_EPOCH : minTimestamp;
         this.minLocalDeletionTime = minLocalDeletionTime == LivenessInfo.NO_EXPIRATION_TIME ? DELETION_TIME_EPOCH : minLocalDeletionTime;
         this.minTTL = minTTL;
-        this.avgColumnSetPerRow = avgColumnSetPerRow;
     }
 
     /**
@@ -110,11 +104,7 @@ public class EncodingStats
                    ? that.minTTL
                    : (that.minTTL == TTL_EPOCH ? this.minTTL : Math.min(this.minTTL, that.minTTL));
 
-        int avgColumnSetPerRow = this.avgColumnSetPerRow < 0
-                               ? that.avgColumnSetPerRow
-                               : (that.avgColumnSetPerRow < 0 ? this.avgColumnSetPerRow : (this.avgColumnSetPerRow + that.avgColumnSetPerRow) / 2);
-
-        return new EncodingStats(minTimestamp, minDelTime, minTTL, avgColumnSetPerRow);
+        return new EncodingStats(minTimestamp, minDelTime, minTTL);
     }
 
     @Override
@@ -125,8 +115,7 @@ public class EncodingStats
 
         EncodingStats that = (EncodingStats) o;
 
-        return this.avgColumnSetPerRow == that.avgColumnSetPerRow
-            && this.minLocalDeletionTime == that.minLocalDeletionTime
+        return this.minLocalDeletionTime == that.minLocalDeletionTime
             && this.minTTL == that.minTTL
             && this.minTimestamp == that.minTimestamp;
     }
@@ -134,13 +123,13 @@ public class EncodingStats
     @Override
     public int hashCode()
     {
-        return Objects.hash(minTimestamp, minLocalDeletionTime, minTTL, avgColumnSetPerRow);
+        return Objects.hash(minTimestamp, minLocalDeletionTime, minTTL);
     }
 
     @Override
     public String toString()
     {
-        return String.format("EncodingStats(ts=%d, ldt=%d, ttl=%d, avgColPerRow=%d)", minTimestamp, minLocalDeletionTime, minTTL, avgColumnSetPerRow);
+        return String.format("EncodingStats(ts=%d, ldt=%d, ttl=%d, avgColPerRow=%d)", minTimestamp, minLocalDeletionTime, minTTL);
     }
 
     public static class Collector implements PartitionStatisticsCollector
@@ -237,8 +226,7 @@ public class EncodingStats
         {
             return new EncodingStats(isTimestampSet ? minTimestamp : TIMESTAMP_EPOCH,
                                      isDelTimeSet ? minDeletionTime : DELETION_TIME_EPOCH,
-                                     isTTLSet ? minTTL : TTL_EPOCH,
-                                     isColumnSetPerRowSet ? (rows == 0 ? 0 : (int)(totalColumnsSet / rows)) : -1);
+                                     isTTLSet ? minTTL : TTL_EPOCH);
         }
 
         public static EncodingStats collect(Row staticRow, Iterator<Row> rows, DeletionInfo deletionInfo)
@@ -260,15 +248,13 @@ public class EncodingStats
             out.writeVInt(stats.minTimestamp - TIMESTAMP_EPOCH);
             out.writeVInt(stats.minLocalDeletionTime - DELETION_TIME_EPOCH);
             out.writeVInt(stats.minTTL - TTL_EPOCH);
-            out.writeVInt(stats.avgColumnSetPerRow);
         }
 
         public int serializedSize(EncodingStats stats)
         {
             return TypeSizes.sizeofVInt(stats.minTimestamp - TIMESTAMP_EPOCH)
-                 + TypeSizes.sizeofVInt(stats.minLocalDeletionTime - DELETION_TIME_EPOCH)
-                 + TypeSizes.sizeofVInt(stats.minTTL - TTL_EPOCH)
-                 + TypeSizes.sizeofVInt(stats.avgColumnSetPerRow);
+                   + TypeSizes.sizeofVInt(stats.minLocalDeletionTime - DELETION_TIME_EPOCH)
+                   + TypeSizes.sizeofVInt(stats.minTTL - TTL_EPOCH);
         }
 
         public EncodingStats deserialize(DataInputPlus in) throws IOException
@@ -276,8 +262,7 @@ public class EncodingStats
             long minTimestamp = in.readVInt() + TIMESTAMP_EPOCH;
             int minLocalDeletionTime = (int)in.readVInt() + DELETION_TIME_EPOCH;
             int minTTL = (int)in.readVInt() + TTL_EPOCH;
-            int avgColumnSetPerRow = (int)in.readVInt();
-            return new EncodingStats(minTimestamp, minLocalDeletionTime, minTTL, avgColumnSetPerRow);
+            return new EncodingStats(minTimestamp, minLocalDeletionTime, minTTL);
         }
     }
 }

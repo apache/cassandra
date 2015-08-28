@@ -141,7 +141,7 @@ public class RowTest
         row = (Row) unfiltered;
         assertEquals("a2", defA.cellValueType().getString(row.getCell(defA).value()));
         assertEquals("b1", defB.cellValueType().getString(row.getCell(defB).value()));
-        assertEquals(2, row.columns().columnCount());
+        assertEquals(2, row.columns().size());
     }
 
     @Test
