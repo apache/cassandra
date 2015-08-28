@@ -26,6 +26,12 @@ New features
 ------------
    - COUNT(*) and COUNT(1) can be selected with other columns or functions
 
+Changed Defaults
+----------------
+   - commitlog_total_space_in_mb will use the smaller of 8192, and 1/4
+     of the total space of the commitlog volume. (Before: always used
+     8192)
+
 
 2.2
 ===

@@ -362,7 +362,9 @@ memtable_allocation_type: heap_buffers
 # in the oldest segment and remove it.  So a small total commitlog space
 # will tend to cause more flush activity on less-active columnfamilies.
 #
-# The default value is 8192.
+# The default value is the smaller of 8192, and 1/4 of the total space
+# of the commitlog volume.
+#
 # commitlog_total_space_in_mb: 8192
 
 # This sets the amount of memtable flush writer threads.  These will
