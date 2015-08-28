@@ -124,7 +124,7 @@ public class ColumnsTest
     }
 
     @Test
-    public void testContainsColumnsWithLargeNumberOfColumns()
+    public void testContainsAllWithLargeNumberOfColumns()
     {
         List<String> names = new ArrayList<>();
         for (int i = 0; i < 50; i++)
@@ -140,7 +140,7 @@ public class ColumnsTest
 
         Columns subset = Columns.from(new HashSet<>(defs));
 
-        org.junit.Assert.assertTrue(columns.contains(subset));
+        Assert.assertTrue(columns.containsAll(subset));
     }
 
     private void testSerializeSubset(ColumnsCheck input) throws IOException
