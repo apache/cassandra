@@ -15,6 +15,9 @@
  * Validate gc_grace_seconds for batchlog writes and MVs (CASSANDRA-9917)
  * Fix sstablerepairedset (CASSANDRA-10132)
 Merged from 2.2:
+ * Fall back to 1/4 commitlog volume for commitlog_total_space on small disks
+   (CASSANDRA-10199)
+ * Fix race during construction of commit log (CASSANDRA-10049)
  * Fix LeveledCompactionStrategyTest (CASSANDRA-9757)
  * Fix broken UnbufferedDataOutputStreamPlus.writeUTF (CASSANDRA-10203)
  * (cqlsh) default load-from-file encoding to utf-8 (CASSANDRA-9898)

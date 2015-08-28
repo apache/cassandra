@@ -33,6 +33,7 @@ New features
      you do not run repair for a long time, you will keep all tombstones around which
      can cause other problems.
 
+
 Upgrading
 ---------
    - Max mutation size is now configurable via max_mutation_size_in_kb setting in
@@ -97,6 +98,17 @@ Upgrading
    - The secondary index API has been comprehensively reworked. This will be a breaking
      change for any custom index implementations, which should now look to implement
      the new org.apache.cassandra.index.Index interface.
+
+
+2.2.2
+=====
+
+Changed Defaults
+----------------
+   - commitlog_total_space_in_mb will use the smaller of 8192, and 1/4
+     of the total space of the commitlog volume. (Before: always used
+     8192)
+
 
 2.2.1
 =====
