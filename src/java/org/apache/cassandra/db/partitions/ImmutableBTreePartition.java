@@ -37,16 +37,15 @@ public class ImmutableBTreePartition extends AbstractBTreePartition
                                       DeletionInfo deletionInfo,
                                       EncodingStats stats)
     {
-        super(metadata, partitionKey, columns);
-        this.holder = new Holder(tree, deletionInfo, staticRow, stats);
+        super(metadata, partitionKey);
+        this.holder = new Holder(columns, tree, deletionInfo, staticRow, stats);
     }
 
     protected ImmutableBTreePartition(CFMetaData metadata,
                                       DecoratedKey partitionKey,
-                                      PartitionColumns columns,
                                       Holder holder)
     {
-        super(metadata, partitionKey, columns);
+        super(metadata, partitionKey);
         this.holder = holder;
     }
 
@@ -77,8 +76,7 @@ public class ImmutableBTreePartition extends AbstractBTreePartition
      */
     public static ImmutableBTreePartition create(UnfilteredRowIterator iterator, int initialRowCapacity)
     {
-        return new ImmutableBTreePartition(iterator.metadata(), iterator.partitionKey(), iterator.columns(),
-                                        build(iterator, initialRowCapacity));
+        return new ImmutableBTreePartition(iterator.metadata(), iterator.partitionKey(), build(iterator, initialRowCapacity));
     }
 
     protected Holder holder()

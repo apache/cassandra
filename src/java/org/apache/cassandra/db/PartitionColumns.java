@@ -40,6 +40,7 @@ public class PartitionColumns implements Iterable<ColumnDefinition>
 
     public PartitionColumns(Columns statics, Columns regulars)
     {
+        assert statics != null && regulars != null;
         this.statics = statics;
         this.regulars = regulars;
     }
@@ -59,6 +60,19 @@ public class PartitionColumns implements Iterable<ColumnDefinition>
     public PartitionColumns withoutStatics()
     {
         return statics.isEmpty() ? this : new PartitionColumns(Columns.NONE, regulars);
+    }
+
+    public PartitionColumns mergeTo(PartitionColumns that)
+    {
+        if (this == that)
+            return this;
+        Columns statics = this.statics.mergeTo(that.statics);
+        Columns regulars = this.regulars.mergeTo(that.regulars);
+        if (statics == this.statics && regulars == this.regulars)
+            return this;
+        if (statics == that.statics && regulars == that.regulars)
+            return that;
+        return new PartitionColumns(statics, regulars);
     }
 
     public boolean isEmpty()
