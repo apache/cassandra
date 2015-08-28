@@ -1,6 +1,9 @@
-2.2.1
+2.2.2
  * Fall back to 1/4 commitlog volume for commitlog_total_space on small disks
    (CASSANDRA-10199)
+
+
+2.2.1
  * Fix race during construction of commit log (CASSANDRA-10049)
  * Fix LeveledCompactionStrategyTest (CASSANDRA-9757)
  * Fix broken UnbufferedDataOutputStreamPlus.writeUTF (CASSANDRA-10203)
