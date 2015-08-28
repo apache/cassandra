@@ -66,6 +66,7 @@ import java.util.Map;
 import java.util.Map.Entry;
 import java.util.Scanner;
 import java.util.Set;
+import java.util.SortedMap;
 import java.util.concurrent.ExecutionException;
 
 import javax.management.InstanceNotFoundException;
@@ -2156,7 +2157,7 @@ public class NodeTool
                 System.exit(1);
             }
 
-            Map<String, SetHostStat> dcs = getOwnershipByDc(probe, resolveIp, tokensToEndpoints, ownerships);
+            SortedMap<String, SetHostStat> dcs = getOwnershipByDc(probe, resolveIp, tokensToEndpoints, ownerships);
 
             // More tokens than nodes (aka vnodes)?
             if (dcs.values().size() < tokensToEndpoints.keySet().size())
@@ -2277,11 +2278,11 @@ public class NodeTool
         }
     }
 
-    private static Map<String, SetHostStat> getOwnershipByDc(NodeProbe probe, boolean resolveIp, 
-                                                             Map<String, String> tokenToEndpoint,
-                                                             Map<InetAddress, Float> ownerships)
+    private static SortedMap<String, SetHostStat> getOwnershipByDc(NodeProbe probe, boolean resolveIp,
+                                                                   Map<String, String> tokenToEndpoint,
+                                                                   Map<InetAddress, Float> ownerships)
     {
-        Map<String, SetHostStat> ownershipByDc = Maps.newLinkedHashMap();
+        SortedMap<String, SetHostStat> ownershipByDc = Maps.newTreeMap();
         EndpointSnitchInfoMBean epSnitchInfo = probe.getEndpointSnitchInfoProxy();
         try
         {
