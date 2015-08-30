@@ -34,16 +34,29 @@ import org.apache.commons.lang3.ArrayUtils;
 @Command(name = "tablehistograms", description = "Print statistic histograms for a given table")
 public class TableHistograms extends NodeToolCmd
 {
-    @Arguments(usage = "<keyspace> <table>", description = "The keyspace and table name")
+    @Arguments(usage = "<keyspace> <table> | <keyspace.table>", description = "The keyspace and table name")
     private List<String> args = new ArrayList<>();
 
     @Override
     public void execute(NodeProbe probe)
     {
-        checkArgument(args.size() == 2, "tablehistograms requires keyspace and table name arguments");
-
-        String keyspace = args.get(0);
-        String table = args.get(1);
+        String keyspace = null, table = null;
+        if (args.size() == 2)
+        {
+            keyspace = args.get(0);
+            table = args.get(1);
+        }
+        else if (args.size() == 1)
+        {
+            String[] input = args.get(0).split("\\.");
+            checkArgument(input.length == 2, "tablehistograms requires keyspace and table name arguments");
+            keyspace = input[0];
+            table = input[1];
+        }
+        else
+        {
+            checkArgument(false, "tablehistograms requires keyspace and table name arguments");
+        }
 
         // calculate percentile of row size and column count
         long[] estimatedPartitionSize = (long[]) probe.getColumnFamilyMetric(keyspace, table, "EstimatedPartitionSizeHistogram");
