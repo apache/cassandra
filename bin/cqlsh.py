@@ -30,30 +30,29 @@ exit 1
 ":"""
 
 from __future__ import with_statement
+
+import cmd
+import codecs
+import ConfigParser
+import csv
+import getpass
+import locale
+import multiprocessing
+import optparse
+import os
+import platform
+import sys
+import time
+import traceback
+import warnings
+from contextlib import contextmanager
+from functools import partial
+from glob import glob
+from StringIO import StringIO
 from uuid import UUID
 
 description = "CQL Shell for Apache Cassandra"
 version = "5.0.1"
-
-from StringIO import StringIO
-from contextlib import contextmanager
-from glob import glob
-
-import cmd
-import sys
-import os
-import time
-import optparse
-import ConfigParser
-import codecs
-import locale
-import platform
-import warnings
-import csv
-import getpass
-from functools import partial
-import traceback
-
 
 readline = None
 try:
@@ -108,12 +107,14 @@ except ImportError, e:
              'Module load path: %r\n\n'
              'Error: %s\n' % (sys.executable, sys.path, e))
 
+from cassandra.auth import PlainTextAuthProvider
 from cassandra.cluster import Cluster, PagedResult
-from cassandra.query import SimpleStatement, ordered_dict_factory
+from cassandra.metadata import (ColumnMetadata, KeyspaceMetadata,
+                                TableMetadata, protect_name, protect_names,
+                                protect_value)
 from cassandra.policies import WhiteListRoundRobinPolicy
 from cassandra.protocol import QueryMessage, ResultMessage
-from cassandra.metadata import protect_name, protect_names, protect_value, KeyspaceMetadata, TableMetadata, ColumnMetadata
-from cassandra.auth import PlainTextAuthProvider
+from cassandra.query import SimpleStatement, ordered_dict_factory
 
 # cqlsh should run correctly when run out of a Cassandra source tree,
 # out of an unpacked Cassandra tarball, and after a proper package install.
@@ -121,16 +122,15 @@ cqlshlibdir = os.path.join(CASSANDRA_PATH, 'pylib')
 if os.path.isdir(cqlshlibdir):
     sys.path.insert(0, cqlshlibdir)
 
-from cqlshlib import cqlhandling, cql3handling, pylexotron, sslhandling
-from cqlshlib.displaying import (RED, BLUE, CYAN, ANSI_RESET, COLUMN_NAME_COLORS,
-                                 FormattedValue, colorme)
-from cqlshlib.formatting import format_by_type, formatter_for, format_value_utype
-from cqlshlib.util import trim_if_present, get_file_encoding_bomsize
-from cqlshlib.formatting import DateTimeFormat
-from cqlshlib.formatting import DEFAULT_TIMESTAMP_FORMAT
-from cqlshlib.formatting import DEFAULT_DATE_FORMAT
-from cqlshlib.formatting import DEFAULT_NANOTIME_FORMAT
-from cqlshlib.tracing import print_trace_session, print_trace
+from cqlshlib import cql3handling, cqlhandling, pylexotron, sslhandling
+from cqlshlib.displaying import (ANSI_RESET, BLUE, COLUMN_NAME_COLORS, CYAN,
+                                 RED, FormattedValue, colorme)
+from cqlshlib.formatting import (DEFAULT_DATE_FORMAT, DEFAULT_NANOTIME_FORMAT,
+                                 DEFAULT_TIMESTAMP_FORMAT, DateTimeFormat,
+                                 format_by_type, format_value_utype,
+                                 formatter_for)
+from cqlshlib.tracing import print_trace, print_trace_session
+from cqlshlib.util import get_file_encoding_bomsize, trim_if_present
 
 DEFAULT_HOST = '127.0.0.1'
 DEFAULT_PORT = 9042
@@ -182,7 +182,7 @@ parser.add_option("--connect-timeout", default=DEFAULT_CONNECT_TIMEOUT_SECONDS, 
 optvalues = optparse.Values()
 (options, arguments) = parser.parse_args(sys.argv[1:], values=optvalues)
 
-#BEGIN history/config definition
+# BEGIN history/config definition
 HISTORY_DIR = os.path.expanduser(os.path.join('~', '.cassandra'))
 
 if hasattr(options, 'cqlshrc'):
@@ -213,7 +213,7 @@ if os.path.exists(OLD_CONFIG_FILE):
 OLD_HISTORY = os.path.expanduser(os.path.join('~', '.cqlsh_history'))
 if os.path.exists(OLD_HISTORY):
     os.rename(OLD_HISTORY, HISTORY)
-#END history/config definition
+# END history/config definition
 
 CQL_ERRORS = (
     cassandra.AlreadyExists, cassandra.AuthenticationFailed, cassandra.InvalidRequest,
@@ -454,11 +454,14 @@ class KeyspaceNotFound(Exception):
 class ColumnFamilyNotFound(Exception):
     pass
 
+
 class IndexNotFound(Exception):
     pass
 
+
 class ObjectNotFound(Exception):
     pass
+
 
 class VersionNotSupported(Exception):
     pass
@@ -467,8 +470,10 @@ class VersionNotSupported(Exception):
 class UserTypeNotFound(Exception):
     pass
 
+
 class FunctionNotFound(Exception):
     pass
+
 
 class AggregateNotFound(Exception):
     pass
@@ -586,6 +591,7 @@ class FrozenType(cassandra.cqltypes._ParameterizedType):
         subtype, = cls.subtypes
         return subtype.to_binary(val, protocol_version)
 
+
 class Shell(cmd.Cmd):
     custom_prompt = os.getenv('CQLSH_PROMPT', '')
     if custom_prompt is not '':
@@ -695,7 +701,7 @@ class Shell(cmd.Cmd):
         self.stdin = stdin
         self.query_out = sys.stdout
         self.consistency_level = cassandra.ConsistencyLevel.ONE
-        self.serial_consistency_level = cassandra.ConsistencyLevel.SERIAL;
+        self.serial_consistency_level = cassandra.ConsistencyLevel.SERIAL
         # the python driver returns BLOBs as string, but we expect them as bytearrays
         cassandra.cqltypes.BytesType.deserialize = staticmethod(lambda byts, protocol_version: bytearray(byts))
         cassandra.cqltypes.CassandraType.support_empty_values = True
@@ -708,7 +714,7 @@ class Shell(cmd.Cmd):
 
     def refresh_schema_metadata_best_effort(self):
         try:
-            self.conn.refresh_schema_metadata(5) #will throw exception if there is a schema mismatch
+            self.conn.refresh_schema_metadata(5)  # will throw exception if there is a schema mismatch
         except Exception:
             self.printerr("Warning: schema version mismatch detected, which might be caused by DOWN nodes; if "
                           "this is not the case, check the schema versions of your nodes in system.local and "
@@ -753,9 +759,9 @@ class Shell(cmd.Cmd):
 
     def show_host(self):
         print "Connected to %s at %s:%d." % \
-               (self.applycolor(self.get_cluster_name(), BLUE),
-                self.hostname,
-                self.port)
+            (self.applycolor(self.get_cluster_name(), BLUE),
+              self.hostname,
+              self.port)
 
     def show_version(self):
         vers = self.connection_versions.copy()
@@ -837,7 +843,7 @@ class Shell(cmd.Cmd):
         return self.conn.metadata.partitioner
 
     def get_keyspace_meta(self, ksname):
-        if not ksname in self.conn.metadata.keyspaces:
+        if ksname not in self.conn.metadata.keyspaces:
             raise KeyspaceNotFound('Keyspace %r not found.' % ksname)
         return self.conn.metadata.keyspaces[ksname]
 
@@ -1283,7 +1289,7 @@ class Shell(cmd.Cmd):
 
     def print_warnings(self, warnings):
         if warnings is None or len(warnings) == 0:
-            return;
+            return
 
         self.writeresult('')
         self.writeresult('Warnings :')
@@ -1502,10 +1508,9 @@ class Shell(cmd.Cmd):
         p = trim_if_present(self.get_partitioner(), 'org.apache.cassandra.dht.')
         print 'Partitioner: %s\n' % p
         # TODO: snitch?
-        #snitch = trim_if_present(self.get_snitch(), 'org.apache.cassandra.locator.')
-        #print 'Snitch: %s\n' % snitch
-        if self.current_keyspace is not None \
-        and self.current_keyspace != 'system':
+        # snitch = trim_if_present(self.get_snitch(), 'org.apache.cassandra.locator.')
+        # print 'Snitch: %s\n' % snitch
+        if self.current_keyspace is not None and self.current_keyspace != 'system':
             print "Range ownership:"
             ring = self.get_ring()
             for entry in ring.items():
@@ -1515,7 +1520,7 @@ class Shell(cmd.Cmd):
     def describe_schema(self, include_system=False):
         print
         for k in self.get_keyspaces():
-            if include_system or not k.name in cql3handling.SYSTEM_KEYSPACES:
+            if include_system or k.name not in cql3handling.SYSTEM_KEYSPACES:
                 self.print_recreate_keyspace(k, sys.stdout)
                 print
 
@@ -1592,7 +1597,7 @@ class Shell(cmd.Cmd):
 
           Output CQL commands that could be used to recreate the entire object schema,
           where object can be either a keyspace or a table or an index (in this order).
-	"""
+  """
         what = parsed.matched[1][1].lower()
         if what == 'functions':
             ksname = self.cql_unprotect_name(parsed.get_binding('ksname', None))
@@ -1747,7 +1752,7 @@ class Shell(cmd.Cmd):
                 linesource.next()
             reader = csv.reader(linesource, **dialect_options)
 
-            from multiprocessing import Process, Pipe, cpu_count
+            from multiprocessing import Pipe, cpu_count
 
             # Pick a resonable number of child processes. We need to leave at
             # least one core for the parent process.  This doesn't necessarily
@@ -2185,7 +2190,7 @@ class Shell(cmd.Cmd):
         Clears the console.
         """
         import subprocess
-        subprocess.call(['clear','cls'][myplatform == 'Windows'], shell=True)
+        subprocess.call(['clear', 'cls'][myplatform == 'Windows'], shell=True)
     do_cls = do_clear
 
     def do_debug(self, parsed):
@@ -2266,8 +2271,9 @@ class Shell(cmd.Cmd):
             text = '%s:%d:%s' % (self.stdin.name, self.lineno, text)
         self.writeresult(text, color, newline=newline, out=sys.stderr)
 
-import multiprocessing
+
 class ImportProcess(multiprocessing.Process):
+
     def __init__(self, parent, pipe, ks, cf, columns, nullval):
         multiprocessing.Process.__init__(self)
         self.pipe = pipe
@@ -2275,7 +2281,7 @@ class ImportProcess(multiprocessing.Process):
         self.ks = ks
         self.cf = cf
 
-        #validate we can fetch metdata but don't store it since win32 needs to pickle
+        # validate we can fetch metdata but don't store it since win32 needs to pickle
         parent.get_table_meta(ks, cf)
 
         self.columns = columns
@@ -2290,15 +2296,15 @@ class ImportProcess(multiprocessing.Process):
 
     def run(self):
         new_cluster = Cluster(
-                contact_points=(self.hostname,),
-                port=self.port,
-                cql_version=self.cql_version,
-                protocol_version=DEFAULT_PROTOCOL_VERSION,
-                auth_provider=self.auth_provider,
-                ssl_options=sslhandling.ssl_settings(hostname, CONFIG_FILE) if self.ssl else None,
-                load_balancing_policy=WhiteListRoundRobinPolicy([self.hostname]),
-                compression=None,
-                connect_timeout=self.connect_timeout)
+            contact_points=(self.hostname,),
+            port=self.port,
+            cql_version=self.cql_version,
+            protocol_version=DEFAULT_PROTOCOL_VERSION,
+            auth_provider=self.auth_provider,
+            ssl_options=sslhandling.ssl_settings(self.hostname, CONFIG_FILE) if self.ssl else None,
+            load_balancing_policy=WhiteListRoundRobinPolicy([self.hostname]),
+            compression=None,
+            connect_timeout=self.connect_timeout)
         session = new_cluster.connect(self.ks)
         conn = session._pools.values()[0]._connection
 
@@ -2378,8 +2384,8 @@ class ImportProcess(multiprocessing.Process):
 
                 full_query = query % (','.join(row),)
                 query_message = QueryMessage(
-                        full_query, self.consistency_level, serial_consistency_level=None,
-                        fetch_size=None, paging_state=None, timestamp=insert_timestamp)
+                    full_query, self.consistency_level, serial_consistency_level=None,
+                    fetch_size=None, paging_state=None, timestamp=insert_timestamp)
 
                 request_id = conn.get_request_id()
                 binary_message = query_message.to_binary(
@@ -2411,7 +2417,6 @@ class ImportProcess(multiprocessing.Process):
 
     def stop(self):
         self.terminate()
-
 
 
 class RateMeter(object):
@@ -2483,6 +2488,7 @@ def option_with_default(cparser_getter, section, option, default=None):
     except ConfigParser.Error:
         return default
 
+
 def raw_option_with_default(configs, section, option, default=None):
     """
     Same (almost) as option_with_default() but won't do any string interpolation.
@@ -2529,7 +2535,7 @@ def read_options(cmdlineargs, environment):
     optvalues.time_format = raw_option_with_default(configs, 'ui', 'time_format',
                                                     DEFAULT_TIMESTAMP_FORMAT)
     optvalues.nanotime_format = raw_option_with_default(configs, 'ui', 'nanotime_format',
-                                                    DEFAULT_NANOTIME_FORMAT)
+                                                        DEFAULT_NANOTIME_FORMAT)
     optvalues.date_format = raw_option_with_default(configs, 'ui', 'date_format',
                                                     DEFAULT_DATE_FORMAT)
     optvalues.float_precision = option_with_default(configs.getint, 'ui', 'float_precision',

@@ -17,7 +17,9 @@
 import re
 from .saferscanner import SaferScanner
 
+
 class LexingError(Exception):
+
     @classmethod
     def from_text(cls, rulestr, unmatched, msg='Lexing error'):
         bad_char = len(rulestr) - len(unmatched)
@@ -37,7 +39,9 @@ class LexingError(Exception):
     def __str__(self):
         return '%s at line %d, char %d' % (self.msg, self.linenum, self.charnum)
 
+
 class Hint:
+
     def __init__(self, text):
         self.text = text
 
@@ -50,8 +54,10 @@ class Hint:
     def __repr__(self):
         return '%s(%r)' % (self.__class__, self.text)
 
+
 def is_hint(x):
     return isinstance(x, Hint)
+
 
 class ParseContext:
     """
@@ -116,7 +122,9 @@ class ParseContext:
         return '<%s matched=%r remainder=%r prodname=%r bindings=%r>' \
                % (self.__class__.__name__, self.matched, self.remainder, self.productionname, self.bindings)
 
+
 class matcher:
+
     def __init__(self, arg):
         self.arg = arg
 
@@ -154,7 +162,9 @@ class matcher:
     def __repr__(self):
         return '%s(%r)' % (self.__class__.__name__, self.arg)
 
+
 class choice(matcher):
+
     def match(self, ctxt, completions):
         foundctxts = []
         for a in self.arg:
@@ -162,11 +172,15 @@ class choice(matcher):
             foundctxts.extend(subctxts)
         return foundctxts
 
+
 class one_or_none(matcher):
+
     def match(self, ctxt, completions):
         return [ctxt] + list(self.arg.match(ctxt, completions))
 
+
 class repeat(matcher):
+
     def match(self, ctxt, completions):
         found = [ctxt]
         ctxts = [ctxt]
@@ -179,7 +193,9 @@ class repeat(matcher):
             found.extend(new_ctxts)
             ctxts = new_ctxts
 
+
 class rule_reference(matcher):
+
     def match(self, ctxt, completions):
         prevname = ctxt.productionname
         try:
@@ -189,7 +205,9 @@ class rule_reference(matcher):
         output = rule.match(ctxt.with_production_named(self.arg), completions)
         return [c.with_production_named(prevname) for c in output]
 
+
 class rule_series(matcher):
+
     def match(self, ctxt, completions):
         ctxts = [ctxt]
         for patpiece in self.arg:
@@ -201,7 +219,9 @@ class rule_series(matcher):
             ctxts = new_ctxts
         return ctxts
 
+
 class named_symbol(matcher):
+
     def __init__(self, name, arg):
         matcher.__init__(self, arg)
         self.name = name
@@ -217,7 +237,9 @@ class named_symbol(matcher):
     def __repr__(self):
         return '%s(%r, %r)' % (self.__class__.__name__, self.name, self.arg)
 
+
 class named_collector(named_symbol):
+
     def match(self, ctxt, completions):
         pass_in_compls = completions
         if self.try_registered_completion(ctxt, self.name, completions):
@@ -229,11 +251,15 @@ class named_collector(named_symbol):
             output.append(ctxt.with_binding(self.name, oldval + (ctxt.extract_orig(matchtoks),)))
         return output
 
+
 class terminal_matcher(matcher):
+
     def pattern(self):
         raise NotImplementedError
 
+
 class regex_rule(terminal_matcher):
+
     def __init__(self, pat):
         terminal_matcher.__init__(self, pat)
         self.regex = pat
@@ -249,6 +275,7 @@ class regex_rule(terminal_matcher):
 
     def pattern(self):
         return self.regex
+
 
 class text_match(terminal_matcher):
     alpha_re = re.compile(r'[a-zA-Z]')
@@ -274,7 +301,9 @@ class text_match(terminal_matcher):
             return '[%s%s]' % (c.upper(), c.lower())
         return self.alpha_re.sub(ignorecaseify, re.escape(self.arg))
 
+
 class case_match(text_match):
+
     def match(self, ctxt, completions):
         if ctxt.remainder:
             if self.arg == ctxt.remainder[0][1]:
@@ -286,15 +315,21 @@ class case_match(text_match):
     def pattern(self):
         return re.escape(self.arg)
 
+
 class word_match(text_match):
+
     def pattern(self):
         return r'\b' + text_match.pattern(self) + r'\b'
 
+
 class case_word_match(case_match):
+
     def pattern(self):
         return r'\b' + case_match.pattern(self) + r'\b'
 
+
 class terminal_type_matcher(matcher):
+
     def __init__(self, tokentype, submatcher):
         matcher.__init__(self, tokentype)
         self.tokentype = tokentype
@@ -311,16 +346,17 @@ class terminal_type_matcher(matcher):
     def __repr__(self):
         return '%s(%r, %r)' % (self.__class__.__name__, self.tokentype, self.submatcher)
 
+
 class ParsingRuleSet:
     RuleSpecScanner = SaferScanner([
-        (r'::=', lambda s,t: t),
-        (r'\[[a-z0-9_]+\]=', lambda s,t: ('named_collector', t[1:-2])),
-        (r'[a-z0-9_]+=', lambda s,t: ('named_symbol', t[:-1])),
-        (r'/(\[\^?.[^]]*\]|[^/]|\\.)*/', lambda s,t: ('regex', t[1:-1].replace(r'\/', '/'))),
-        (r'"([^"]|\\.)*"', lambda s,t: ('litstring', t)),
-        (r'<[^>]*>', lambda s,t: ('reference', t[1:-1])),
-        (r'\bJUNK\b', lambda s,t: ('junk', t)),
-        (r'[@()|?*;]', lambda s,t: t),
+        (r'::=', lambda s, t: t),
+        (r'\[[a-z0-9_]+\]=', lambda s, t: ('named_collector', t[1:-2])),
+        (r'[a-z0-9_]+=', lambda s, t: ('named_symbol', t[:-1])),
+        (r'/(\[\^?.[^]]*\]|[^/]|\\.)*/', lambda s, t: ('regex', t[1:-1].replace(r'\/', '/'))),
+        (r'"([^"]|\\.)*"', lambda s, t: ('litstring', t)),
+        (r'<[^>]*>', lambda s, t: ('reference', t[1:-1])),
+        (r'\bJUNK\b', lambda s, t: ('junk', t)),
+        (r'[@()|?*;]', lambda s, t: t),
         (r'\s+', None),
         (r'#[^\n]*', None),
     ], re.I | re.S)
@@ -482,7 +518,8 @@ class ParsingRuleSet:
         pattern.match(ctxt, completions)
         return completions
 
-import sys, traceback
+import sys
+
 
 class Debugotron(set):
     depth = 10
