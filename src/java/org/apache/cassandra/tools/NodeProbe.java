@@ -971,6 +971,8 @@ public class NodeProbe implements AutoCloseable
         return ssProxy.getStreamThroughputMbPerSec();
     }
 
+    public double getTraceProbability() {return ssProxy.getTraceProbability();}
+
     public int getExceptionCount()
     {
         return ssProxy.getExceptionCount();
