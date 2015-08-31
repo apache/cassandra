@@ -80,6 +80,7 @@ public class NodeTool
                 GetCompactionThreshold.class,
                 GetCompactionThroughput.class,
                 GetStreamThroughput.class,
+                GetTraceProbability.class,
                 GetEndpoints.class,
                 GetSSTables.class,
                 GossipInfo.class,
