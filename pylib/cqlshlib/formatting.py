@@ -16,7 +16,6 @@
 
 import sys
 import re
-import time
 import calendar
 import math
 from collections import defaultdict
@@ -29,6 +28,7 @@ from util import UTC
 unicode_controlchars_re = re.compile(r'[\x00-\x31\x7f-\xa0]')
 controlchars_re = re.compile(r'[\x00-\x31\x7f-\xff]')
 
+
 def _show_control_chars(match):
     txt = repr(match.group(0))
     if txt.startswith('u'):
@@ -38,6 +38,7 @@ def _show_control_chars(match):
     return txt
 
 bits_to_turn_red_re = re.compile(r'\\([^uUx]|u[0-9a-fA-F]{4}|x[0-9a-fA-F]{2}|U[0-9a-fA-F]{8})')
+
 
 def _make_turn_bits_red_f(color1, color2):
     def _turn_bits_red(match):
@@ -52,6 +53,7 @@ default_time_format = ''
 default_float_precision = 3
 default_colormap = DEFAULT_VALUE_COLORS
 empty_colormap = defaultdict(lambda: '')
+
 
 def format_by_type(cqltype, val, encoding, colormap=None, addcolor=False,
                    nullval=None, time_format=None, float_precision=None):
@@ -71,6 +73,7 @@ def format_by_type(cqltype, val, encoding, colormap=None, addcolor=False,
                         time_format=time_format, float_precision=float_precision,
                         nullval=nullval)
 
+
 def color_text(bval, colormap, displaywidth=None):
     # note that here, we render natural backslashes as just backslashes,
     # in the same color as surrounding text, when using color. When not
@@ -89,6 +92,7 @@ def color_text(bval, colormap, displaywidth=None):
         displaywidth -= bval.count(r'\\')
     return FormattedValue(bval, coloredval, displaywidth)
 
+
 def format_value_default(val, colormap, **_):
     val = str(val)
     escapedval = val.replace('\\', '\\\\')
@@ -99,17 +103,20 @@ def format_value_default(val, colormap, **_):
 # making format_value a generic function
 _formatters = {}
 
+
 def format_value(type, val, **kwargs):
     if val == EMPTY:
         return format_value_default('', **kwargs)
     formatter = _formatters.get(type.__name__, format_value_default)
     return formatter(val, **kwargs)
 
+
 def formatter_for(typname):
     def registrator(f):
         _formatters[typname] = f
         return f
     return registrator
+
 
 @formatter_for('bytearray')
 def format_value_blob(val, colormap, **_):
@@ -124,9 +131,11 @@ def format_python_formatted_type(val, colormap, color, quote=False):
         bval = "'%s'" % bval
     return colorme(bval, colormap, color)
 
+
 @formatter_for('Decimal')
 def format_value_decimal(val, colormap, **_):
     return format_python_formatted_type(val, colormap, 'decimal')
+
 
 @formatter_for('UUID')
 def format_value_uuid(val, colormap, **_):
@@ -137,9 +146,11 @@ def format_value_uuid(val, colormap, **_):
 def formatter_value_inet(val, colormap, quote=False, **_):
     return format_python_formatted_type(val, colormap, 'inet', quote=quote)
 
+
 @formatter_for('bool')
 def format_value_boolean(val, colormap, **_):
     return format_python_formatted_type(val, colormap, 'boolean')
+
 
 def format_floating_point_type(val, colormap, float_precision, **_):
     if math.isnan(val):
@@ -147,7 +158,7 @@ def format_floating_point_type(val, colormap, float_precision, **_):
     elif math.isinf(val):
         bval = 'Infinity'
     else:
-        exponent = int(math.log10(abs(val))) if abs(val) > sys.float_info.epsilon else -sys.maxint -1
+        exponent = int(math.log10(abs(val))) if abs(val) > sys.float_info.epsilon else -sys.maxint - 1
         if -4 <= exponent < float_precision:
             # when this is true %g will not use scientific notation,
             # increasing precision should not change this decision
@@ -159,6 +170,7 @@ def format_floating_point_type(val, colormap, float_precision, **_):
 
 formatter_for('float')(format_floating_point_type)
 
+
 def format_integer_type(val, colormap, **_):
     # base-10 only for now; support others?
     bval = str(val)
@@ -166,6 +178,7 @@ def format_integer_type(val, colormap, **_):
 
 formatter_for('long')(format_integer_type)
 formatter_for('int')(format_integer_type)
+
 
 @formatter_for('date')
 def format_value_timestamp(val, colormap, time_format, quote=False, **_):
@@ -176,9 +189,11 @@ def format_value_timestamp(val, colormap, time_format, quote=False, **_):
 
 formatter_for('datetime')(format_value_timestamp)
 
+
 def strftime(time_format, seconds):
     tzless_dt = datetime_from_timestamp(seconds)
     return tzless_dt.replace(tzinfo=UTC()).strftime(time_format)
+
 
 @formatter_for('str')
 def format_value_text(val, encoding, colormap, quote=False, **_):
@@ -195,6 +210,7 @@ def format_value_text(val, encoding, colormap, quote=False, **_):
 # name alias
 formatter_for('unicode')(format_value_text)
 
+
 def format_simple_collection(val, lbracket, rbracket, encoding,
                              colormap, time_format, float_precision, nullval):
     subs = [format_value(type(sval), sval, encoding=encoding, colormap=colormap,
@@ -208,15 +224,18 @@ def format_simple_collection(val, lbracket, rbracket, encoding,
     displaywidth = 2 * len(subs) + sum(sval.displaywidth for sval in subs)
     return FormattedValue(bval, coloredval, displaywidth)
 
+
 @formatter_for('list')
 def format_value_list(val, encoding, colormap, time_format, float_precision, nullval, **_):
     return format_simple_collection(val, '[', ']', encoding, colormap,
                                     time_format, float_precision, nullval)
 
+
 @formatter_for('tuple')
 def format_value_tuple(val, encoding, colormap, time_format, float_precision, nullval, **_):
     return format_simple_collection(val, '(', ')', encoding, colormap,
                                     time_format, float_precision, nullval)
+
 
 @formatter_for('set')
 def format_value_set(val, encoding, colormap, time_format, float_precision, nullval, **_):
@@ -238,8 +257,8 @@ def format_value_map(val, encoding, colormap, time_format, float_precision, null
     lb, comma, colon, rb = [colormap['collection'] + s + colormap['reset']
                             for s in ('{', ', ', ': ', '}')]
     coloredval = lb \
-               + comma.join(k.coloredval + colon + v.coloredval for (k, v) in subs) \
-               + rb
+        + comma.join(k.coloredval + colon + v.coloredval for (k, v) in subs) \
+        + rb
     displaywidth = 4 * len(subs) + sum(k.displaywidth + v.displaywidth for (k, v) in subs)
     return FormattedValue(bval, coloredval, displaywidth)
 formatter_for('OrderedDict')(format_value_map)
@@ -263,7 +282,7 @@ def format_value_utype(val, encoding, colormap, time_format, float_precision, nu
     lb, comma, colon, rb = [colormap['collection'] + s + colormap['reset']
                             for s in ('{', ', ', ': ', '}')]
     coloredval = lb \
-                 + comma.join(k.coloredval + colon + v.coloredval for (k, v) in subs) \
-                 + rb
+        + comma.join(k.coloredval + colon + v.coloredval for (k, v) in subs) \
+        + rb
     displaywidth = 4 * len(subs) + sum(k.displaywidth + v.displaywidth for (k, v) in subs)
     return FormattedValue(bval, coloredval, displaywidth)

@@ -30,30 +30,28 @@ exit 1
 ":"""
 
 from __future__ import with_statement
+
+import cmd
+import codecs
+import ConfigParser
+import csv
+import getpass
+import locale
+import optparse
+import os
+import platform
+import sys
+import time
+import traceback
+import warnings
+from contextlib import contextmanager
+from functools import partial
+from glob import glob
+from StringIO import StringIO
 from uuid import UUID
 
 description = "CQL Shell for Apache Cassandra"
 version = "5.0.1"
-
-from StringIO import StringIO
-from contextlib import contextmanager
-from glob import glob
-
-import cmd
-import sys
-import os
-import time
-import optparse
-import ConfigParser
-import codecs
-import locale
-import platform
-import warnings
-import csv
-import getpass
-from functools import partial
-import traceback
-
 
 readline = None
 try:
@@ -108,12 +106,12 @@ except ImportError, e:
              'Module load path: %r\n\n'
              'Error: %s\n' % (sys.executable, sys.path, e))
 
+from cassandra.auth import PlainTextAuthProvider
 from cassandra.cluster import Cluster, PagedResult
-from cassandra.query import SimpleStatement, ordered_dict_factory
+from cassandra.metadata import protect_name, protect_names, protect_value
 from cassandra.policies import WhiteListRoundRobinPolicy
 from cassandra.protocol import QueryMessage, ResultMessage
-from cassandra.metadata import protect_name, protect_names, protect_value
-from cassandra.auth import PlainTextAuthProvider
+from cassandra.query import SimpleStatement, ordered_dict_factory
 
 # cqlsh should run correctly when run out of a Cassandra source tree,
 # out of an unpacked Cassandra tarball, and after a proper package install.
@@ -121,12 +119,13 @@ cqlshlibdir = os.path.join(CASSANDRA_PATH, 'pylib')
 if os.path.isdir(cqlshlibdir):
     sys.path.insert(0, cqlshlibdir)
 
-from cqlshlib import cqlhandling, cql3handling, pylexotron, sslhandling
-from cqlshlib.displaying import (RED, BLUE, CYAN, ANSI_RESET, COLUMN_NAME_COLORS,
-                                 FormattedValue, colorme)
-from cqlshlib.formatting import format_by_type, formatter_for, format_value_utype
-from cqlshlib.util import trim_if_present, get_file_encoding_bomsize
-from cqlshlib.tracing import print_trace_session, print_trace
+from cqlshlib import cql3handling, cqlhandling, pylexotron, sslhandling
+from cqlshlib.displaying import (ANSI_RESET, BLUE, COLUMN_NAME_COLORS, CYAN,
+                                 RED, FormattedValue, colorme)
+from cqlshlib.formatting import (format_by_type, format_value_utype,
+                                 formatter_for)
+from cqlshlib.tracing import print_trace, print_trace_session
+from cqlshlib.util import get_file_encoding_bomsize, trim_if_present
 
 DEFAULT_HOST = '127.0.0.1'
 DEFAULT_PORT = 9042
@@ -179,7 +178,7 @@ parser.add_option("--connect-timeout", default=DEFAULT_CONNECT_TIMEOUT_SECONDS, 
 optvalues = optparse.Values()
 (options, arguments) = parser.parse_args(sys.argv[1:], values=optvalues)
 
-#BEGIN history/config definition
+# BEGIN history/config definition
 HISTORY_DIR = os.path.expanduser(os.path.join('~', '.cassandra'))
 
 if hasattr(options, 'cqlshrc'):
@@ -210,7 +209,7 @@ if os.path.exists(OLD_CONFIG_FILE):
 OLD_HISTORY = os.path.expanduser(os.path.join('~', '.cqlsh_history'))
 if os.path.exists(OLD_HISTORY):
     os.rename(OLD_HISTORY, HISTORY)
-#END history/config definition
+# END history/config definition
 
 CQL_ERRORS = (
     cassandra.AlreadyExists, cassandra.AuthenticationFailed, cassandra.InvalidRequest,
@@ -443,11 +442,14 @@ class KeyspaceNotFound(Exception):
 class ColumnFamilyNotFound(Exception):
     pass
 
+
 class IndexNotFound(Exception):
     pass
 
+
 class ObjectNotFound(Exception):
     pass
+
 
 class VersionNotSupported(Exception):
     pass
@@ -668,7 +670,7 @@ class Shell(cmd.Cmd):
         self.stdin = stdin
         self.query_out = sys.stdout
         self.consistency_level = cassandra.ConsistencyLevel.ONE
-        self.serial_consistency_level = cassandra.ConsistencyLevel.SERIAL;
+        self.serial_consistency_level = cassandra.ConsistencyLevel.SERIAL
         # the python driver returns BLOBs as string, but we expect them as bytearrays
         cassandra.cqltypes.BytesType.deserialize = staticmethod(lambda byts, protocol_version: bytearray(byts))
         cassandra.cqltypes.CassandraType.support_empty_values = True
@@ -681,7 +683,7 @@ class Shell(cmd.Cmd):
 
     def refresh_schema_metadata_best_effort(self):
         try:
-            self.conn.refresh_schema_metadata(5) #will throw exception if there is a schema mismatch
+            self.conn.refresh_schema_metadata(5)  # will throw exception if there is a schema mismatch
         except Exception:
             self.printerr("Warning: schema version mismatch detected, which might be caused by DOWN nodes; if "
                           "this is not the case, check the schema versions of your nodes in system.local and "
@@ -724,9 +726,9 @@ class Shell(cmd.Cmd):
 
     def show_host(self):
         print "Connected to %s at %s:%d." % \
-               (self.applycolor(self.get_cluster_name(), BLUE),
-                self.hostname,
-                self.port)
+            (self.applycolor(self.get_cluster_name(), BLUE),
+              self.hostname,
+              self.port)
 
     def show_version(self):
         vers = self.connection_versions.copy()
@@ -796,7 +798,7 @@ class Shell(cmd.Cmd):
         return self.conn.metadata.partitioner
 
     def get_keyspace_meta(self, ksname):
-        if not ksname in self.conn.metadata.keyspaces:
+        if ksname not in self.conn.metadata.keyspaces:
             raise KeyspaceNotFound('Keyspace %r not found.' % ksname)
         return self.conn.metadata.keyspaces[ksname]
 
@@ -1361,10 +1363,9 @@ class Shell(cmd.Cmd):
         p = trim_if_present(self.get_partitioner(), 'org.apache.cassandra.dht.')
         print 'Partitioner: %s\n' % p
         # TODO: snitch?
-        #snitch = trim_if_present(self.get_snitch(), 'org.apache.cassandra.locator.')
-        #print 'Snitch: %s\n' % snitch
-        if self.current_keyspace is not None \
-        and self.current_keyspace != 'system':
+        # snitch = trim_if_present(self.get_snitch(), 'org.apache.cassandra.locator.')
+        # print 'Snitch: %s\n' % snitch
+        if self.current_keyspace is not None and self.current_keyspace != 'system':
             print "Range ownership:"
             ring = self.get_ring()
             for entry in ring.items():
@@ -1374,7 +1375,7 @@ class Shell(cmd.Cmd):
     def describe_schema(self, include_system=False):
         print
         for k in self.get_keyspaces():
-            if include_system or not k.name in SYSTEM_KEYSPACES:
+            if include_system or k.name not in SYSTEM_KEYSPACES:
                 self.print_recreate_keyspace(k, sys.stdout)
                 print
 
@@ -1682,15 +1683,15 @@ class Shell(cmd.Cmd):
 
         # open a new connection for this subprocess
         new_cluster = Cluster(
-                contact_points=(self.hostname,),
-                port=self.port,
-                cql_version=self.conn.cql_version,
-                protocol_version=DEFAULT_PROTOCOL_VERSION,
-                auth_provider=self.auth_provider,
-                ssl_options=sslhandling.ssl_settings(self.hostname, CONFIG_FILE) if self.ssl else None,
-                load_balancing_policy=WhiteListRoundRobinPolicy([self.hostname]),
-                compression=None,
-                connect_timeout=self.conn.connect_timeout)
+            contact_points=(self.hostname,),
+            port=self.port,
+            cql_version=self.conn.cql_version,
+            protocol_version=DEFAULT_PROTOCOL_VERSION,
+            auth_provider=self.auth_provider,
+            ssl_options=sslhandling.ssl_settings(self.hostname, CONFIG_FILE) if self.ssl else None,
+            load_balancing_policy=WhiteListRoundRobinPolicy([self.hostname]),
+            compression=None,
+            connect_timeout=self.conn.connect_timeout)
         session = new_cluster.connect(self.keyspace)
         conn = session._pools.values()[0]._connection
 
@@ -2281,6 +2282,7 @@ def option_with_default(cparser_getter, section, option, default=None):
         return cparser_getter(section, option)
     except ConfigParser.Error:
         return default
+
 
 def raw_option_with_default(configs, section, option, default=None):
     """

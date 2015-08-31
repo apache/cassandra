@@ -21,7 +21,9 @@
 import re
 from sre_constants import BRANCH, SUBPATTERN, GROUPREF, GROUPREF_IGNORE, GROUPREF_EXISTS
 
+
 class SaferScanner(re.Scanner):
+
     def __init__(self, lexicon, flags=0):
         self.lexicon = lexicon
         p = []
@@ -29,9 +31,9 @@ class SaferScanner(re.Scanner):
         s.flags = flags
         for phrase, action in lexicon:
             p.append(re.sre_parse.SubPattern(s, [
-                (SUBPATTERN, (len(p)+1, self.subpat(phrase, flags))),
-                ]))
-        s.groups = len(p)+1
+                (SUBPATTERN, (len(p) + 1, self.subpat(phrase, flags))),
+            ]))
+        s.groups = len(p) + 1
         p = re.sre_parse.SubPattern(s, [(BRANCH, (None, p))])
         self.p = p
         self.scanner = re.sre_compile.compile(p)
