@@ -21,6 +21,7 @@ Merged from 2.2:
  * (cqlsh) add CLEAR command (CASSANDRA-10086)
  * Support string literals as Role names for compatibility (CASSANDRA-10135)
 Merged from 2.1:
+ * Only check KeyCache when it is enabled
  * Change streaming_socket_timeout_in_ms default to 1 hour (CASSANDRA-8611)
  * (cqlsh) update list of CQL keywords (CASSANDRA-9232)
 
