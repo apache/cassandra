@@ -1,6 +1,8 @@
 2.2.2
  * Fall back to 1/4 commitlog volume for commitlog_total_space on small disks
    (CASSANDRA-10199)
+Merged from 2.1:
+ * Only check KeyCache when it is enabled
 
 
 2.2.1
