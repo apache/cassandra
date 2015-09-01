@@ -100,11 +100,12 @@ public class CommitLogUpgradeTestMaker
     public void makeLog() throws IOException, InterruptedException
     {
         CommitLog commitLog = CommitLog.instance;
-        System.out.format("\nUsing commit log size %dmb, compressor %s, sync %s%s\n",
+        System.out.format("\nUsing commit log size: %dmb, compressor: %s, encryption: %s, sync: %s, %s\n",
                           mb(DatabaseDescriptor.getCommitLogSegmentSize()),
                           commitLog.compressor != null ? commitLog.compressor.getClass().getSimpleName() : "none",
+                          commitLog.encryptionContext.isEnabled() ? "enabled" : "none",
                           commitLog.executor.getClass().getSimpleName(),
-                          randomSize ? " random size" : "");
+                          randomSize ? "random size" : "");
         final List<CommitlogExecutor> threads = new ArrayList<>();
         ScheduledExecutorService scheduled = startThreads(commitLog, threads);
 
@@ -233,7 +234,6 @@ public class CommitLogUpgradeTestMaker
             {
                 if (rl != null)
                     rl.acquire();
-                String ks = KEYSPACE;
                 ByteBuffer key = randomBytes(16, tlr);
 
                 UpdateBuilder builder = UpdateBuilder.create(Schema.instance.getCFMetaData(KEYSPACE, TABLE), Util.dk(key));

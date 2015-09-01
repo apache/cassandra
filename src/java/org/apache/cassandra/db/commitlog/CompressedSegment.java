@@ -17,43 +17,29 @@
  */
 package org.apache.cassandra.db.commitlog;
 
-import java.io.IOException;
 import java.nio.ByteBuffer;
-import java.util.Queue;
-import java.util.concurrent.ConcurrentLinkedQueue;
 
-import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.io.FSWriteError;
 import org.apache.cassandra.io.compress.BufferType;
 import org.apache.cassandra.io.compress.ICompressor;
 import org.apache.cassandra.io.util.FileUtils;
 import org.apache.cassandra.utils.SyncUtil;
 
-/*
+/**
  * Compressed commit log segment. Provides an in-memory buffer for the mutation threads. On sync compresses the written
  * section of the buffer and writes it to the destination channel.
+ *
+ * The format of the compressed commit log is as follows:
+ * - standard commit log header (as written by {@link CommitLogDescriptor#writeHeader(ByteBuffer, CommitLogDescriptor)})
+ * - a series of 'sync segments' that are written every time the commit log is sync()'ed
+ * -- a sync section header, see {@link CommitLogSegment#writeSyncMarker(ByteBuffer, int, int, int)}
+ * -- total plain text length for this section
+ * -- a block of compressed data
  */
-public class CompressedSegment extends CommitLogSegment
+public class CompressedSegment extends FileDirectSegment
 {
-    private static final ThreadLocal<ByteBuffer> compressedBufferHolder = new ThreadLocal<ByteBuffer>() {
-        protected ByteBuffer initialValue()
-        {
-            return ByteBuffer.allocate(0);
-        }
-    };
-    static Queue<ByteBuffer> bufferPool = new ConcurrentLinkedQueue<>();
-
-    /**
-     * Maximum number of buffers in the compression pool. The default value is 3, it should not be set lower than that
-     * (one segment in compression, one written to, one in reserve); delays in compression may cause the log to use
-     * more, depending on how soon the sync policy stops all writing threads.
-     */
-    static final int MAX_BUFFERPOOL_SIZE = DatabaseDescriptor.getCommitLogMaxCompressionBuffersInPool();
-
     static final int COMPRESSED_MARKER_SIZE = SYNC_MARKER_SIZE + 4;
     final ICompressor compressor;
-
-    volatile long lastWrittenPos = 0;
 
     /**
      * Constructs a new segment file.
@@ -62,15 +48,6 @@ public class CompressedSegment extends CommitLogSegment
     {
         super(commitLog);
         this.compressor = commitLog.compressor;
-        try
-        {
-            channel.write((ByteBuffer) buffer.duplicate().flip());
-            commitLog.allocator.addSize(lastWrittenPos = buffer.position());
-        }
-        catch (IOException e)
-        {
-            throw new FSWriteError(e, getPath());
-        }
     }
 
     ByteBuffer allocate(int size)
@@ -80,17 +57,8 @@ public class CompressedSegment extends CommitLogSegment
 
     ByteBuffer createBuffer(CommitLog commitLog)
     {
-        ByteBuffer buf = bufferPool.poll();
-        if (buf == null)
-        {
-            // this.compressor is not yet set, so we must use the commitLog's one.
-            buf = commitLog.compressor.preferredBufferType().allocate(DatabaseDescriptor.getCommitLogSegmentSize());
-        } else
-            buf.clear();
-        return buf;
+        return createBuffer(commitLog.compressor.preferredBufferType());
     }
-
-    static long startMillis = System.currentTimeMillis();
 
     @Override
     void write(int startMarker, int nextMarker)
@@ -103,13 +71,13 @@ public class CompressedSegment extends CommitLogSegment
         try
         {
             int neededBufferSize = compressor.initialCompressedBufferLength(length) + COMPRESSED_MARKER_SIZE;
-            ByteBuffer compressedBuffer = compressedBufferHolder.get();
+            ByteBuffer compressedBuffer = reusableBufferHolder.get();
             if (compressor.preferredBufferType() != BufferType.typeOf(compressedBuffer) ||
                 compressedBuffer.capacity() < neededBufferSize)
             {
                 FileUtils.clean(compressedBuffer);
                 compressedBuffer = allocate(neededBufferSize);
-                compressedBufferHolder.set(compressedBuffer);
+                reusableBufferHolder.set(compressedBuffer);
             }
 
             ByteBuffer inputBuffer = buffer.duplicate();
@@ -133,22 +101,6 @@ public class CompressedSegment extends CommitLogSegment
         {
             throw new FSWriteError(e, getPath());
         }
-    }
-
-    @Override
-    protected void internalClose()
-    {
-        if (bufferPool.size() < MAX_BUFFERPOOL_SIZE)
-            bufferPool.add(buffer);
-        else
-            FileUtils.clean(buffer);
-
-        super.internalClose();
-    }
-
-    static void shutdown()
-    {
-        bufferPool.clear();
     }
 
     @Override

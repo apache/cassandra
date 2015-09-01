@@ -37,6 +37,7 @@ import org.junit.Test;
 
 import org.apache.cassandra.SchemaLoader;
 import org.apache.cassandra.config.CFMetaData;
+import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.config.Schema;
 import org.apache.cassandra.db.Mutation;
 import org.apache.cassandra.db.rows.Cell;
@@ -45,10 +46,15 @@ import org.apache.cassandra.db.marshal.AsciiType;
 import org.apache.cassandra.db.marshal.BytesType;
 import org.apache.cassandra.db.partitions.PartitionUpdate;
 import org.apache.cassandra.schema.KeyspaceParams;
+import org.apache.cassandra.security.EncryptionContextGenerator;
 import org.apache.cassandra.utils.JVMStabilityInspector;
 import org.apache.cassandra.utils.KillerForTests;
 import org.apache.cassandra.db.commitlog.CommitLogReplayer.CommitLogReplayException;
 
+/**
+ * Note: if you are looking to create new test cases for this test, check out
+ * {@link CommitLogUpgradeTestMaker}
+ */
 public class CommitLogUpgradeTest
 {
     static final String DATA_DIR = "test/data/legacy-commitlog/";
@@ -157,13 +163,20 @@ public class CommitLogUpgradeTest
         }
     }
 
+    @Test
+    public void test34_encrypted() throws Exception
+    {
+        testRestore(DATA_DIR + "3.4-encrypted");
+    }
+
     @BeforeClass
-    static public void initialize() throws FileNotFoundException, IOException, InterruptedException
+    public static void initialize()
     {
         SchemaLoader.loadSchema();
         SchemaLoader.createKeyspace(KEYSPACE,
                                     KeyspaceParams.simple(1),
                                     metadata);
+        DatabaseDescriptor.setEncryptionContext(EncryptionContextGenerator.createContext(true));
     }
 
     public void testRestore(String location) throws IOException, InterruptedException

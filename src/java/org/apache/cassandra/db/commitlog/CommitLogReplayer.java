@@ -23,8 +23,17 @@ import java.io.EOFException;
 import java.io.File;
 import java.io.FileOutputStream;
 import java.io.IOException;
-import java.nio.ByteBuffer;
-import java.util.*;
+import java.util.ArrayDeque;
+import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.Collection;
+import java.util.Collections;
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
+import java.util.Queue;
+import java.util.Set;
+import java.util.UUID;
 import java.util.concurrent.Future;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.zip.CRC32;
@@ -35,31 +44,33 @@ import com.google.common.collect.HashMultimap;
 import com.google.common.collect.Iterables;
 import com.google.common.collect.Multimap;
 import com.google.common.collect.Ordering;
-
 import org.apache.commons.lang3.StringUtils;
+import org.cliffc.high_scale_lib.NonBlockingHashSet;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+
 import org.apache.cassandra.concurrent.Stage;
 import org.apache.cassandra.concurrent.StageManager;
 import org.apache.cassandra.config.CFMetaData;
+import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.config.Schema;
-import org.apache.cassandra.db.*;
-import org.apache.cassandra.db.rows.SerializationHelper;
-import org.apache.cassandra.db.partitions.PartitionUpdate;
+import org.apache.cassandra.db.ColumnFamilyStore;
+import org.apache.cassandra.db.Keyspace;
+import org.apache.cassandra.db.Mutation;
+import org.apache.cassandra.db.SystemKeyspace;
+import org.apache.cassandra.db.UnknownColumnFamilyException;
+import org.apache.cassandra.db.commitlog.SegmentReader.SyncSegment;
 import org.apache.cassandra.db.lifecycle.SSTableSet;
-import org.apache.cassandra.exceptions.ConfigurationException;
-import org.apache.cassandra.io.util.FileSegmentInputStream;
-import org.apache.cassandra.io.util.RebufferingInputStream;
-import org.apache.cassandra.schema.CompressionParams;
-import org.apache.cassandra.io.compress.ICompressor;
+import org.apache.cassandra.db.partitions.PartitionUpdate;
+import org.apache.cassandra.db.rows.SerializationHelper;
 import org.apache.cassandra.io.util.ChannelProxy;
 import org.apache.cassandra.io.util.DataInputBuffer;
 import org.apache.cassandra.io.util.FileDataInput;
 import org.apache.cassandra.io.util.RandomAccessReader;
+import org.apache.cassandra.io.util.RebufferingInputStream;
 import org.apache.cassandra.utils.FBUtilities;
 import org.apache.cassandra.utils.JVMStabilityInspector;
 import org.apache.cassandra.utils.WrappedRunnable;
-import org.cliffc.high_scale_lib.NonBlockingHashSet;
 
 import static org.apache.cassandra.utils.FBUtilities.updateChecksumInt;
 
@@ -82,7 +93,6 @@ public class CommitLogReplayer
     private final ReplayPosition globalPosition;
     private final CRC32 checksum;
     private byte[] buffer;
-    private byte[] uncompressedBuffer;
     private long pendingMutationBytes = 0;
 
     private final ReplayFilter replayFilter;
@@ -152,7 +162,6 @@ public class CommitLogReplayer
         this.keyspacesRecovered = new NonBlockingHashSet<Keyspace>();
         this.futures = new ArrayDeque<Future<Integer>>();
         this.buffer = new byte[4096];
-        this.uncompressedBuffer = new byte[4096];
         this.invalidMutations = new HashMap<UUID, AtomicInteger>();
         // count the number of replayed mutation. We don't really care about atomicity, but we need it to be a reference.
         this.replayedCount = new AtomicInteger();
@@ -246,40 +255,6 @@ public class CommitLogReplayer
         return replayedCount.get();
     }
 
-    private int readSyncMarker(CommitLogDescriptor descriptor, int offset, RandomAccessReader reader, boolean tolerateTruncation) throws IOException
-    {
-        if (offset > reader.length() - CommitLogSegment.SYNC_MARKER_SIZE)
-        {
-            // There was no room in the segment to write a final header. No data could be present here.
-            return -1;
-        }
-        reader.seek(offset);
-        CRC32 crc = new CRC32();
-        updateChecksumInt(crc, (int) (descriptor.id & 0xFFFFFFFFL));
-        updateChecksumInt(crc, (int) (descriptor.id >>> 32));
-        updateChecksumInt(crc, (int) reader.getPosition());
-        int end = reader.readInt();
-        long filecrc = reader.readInt() & 0xffffffffL;
-        if (crc.getValue() != filecrc)
-        {
-            if (end != 0 || filecrc != 0)
-            {
-                handleReplayError(false,
-                                  "Encountered bad header at position %d of commit log %s, with invalid CRC. " +
-                                  "The end of segment marker should be zero.",
-                                  offset, reader.getPath());
-            }
-            return -1;
-        }
-        else if (end < offset || end > reader.length())
-        {
-            handleReplayError(tolerateTruncation, "Encountered bad header at position %d of commit log %s, with bad position but valid CRC",
-                              offset, reader.getPath());
-            return -1;
-        }
-        return end;
-    }
-
     abstract static class ReplayFilter
     {
         public abstract Iterable<PartitionUpdate> filter(Mutation mutation);
@@ -357,7 +332,9 @@ public class CommitLogReplayer
 
     public void recover(File file, boolean tolerateTruncation) throws IOException
     {
+        // just transform from the file name (no reading of headers) to determine version
         CommitLogDescriptor desc = CommitLogDescriptor.fromFileName(file.getName());
+
         try(ChannelProxy channel = new ChannelProxy(file);
             RandomAccessReader reader = RandomAccessReader.open(channel))
         {
@@ -370,16 +347,16 @@ public class CommitLogReplayer
                 replaySyncSection(reader, (int) reader.length(), desc, desc.fileName(), tolerateTruncation);
                 return;
             }
-
             final long segmentId = desc.id;
             try
             {
-                desc = CommitLogDescriptor.readHeader(reader);
+                desc = CommitLogDescriptor.readHeader(reader, DatabaseDescriptor.getEncryptionContext());
             }
-            catch (IOException e)
+            catch (Exception e)
             {
                 desc = null;
             }
+
             if (desc == null) {
                 handleReplayError(false, "Could not read commit log descriptor in file %s", file);
                 return;
@@ -393,83 +370,39 @@ public class CommitLogReplayer
             if (logAndCheckIfShouldSkip(file, desc))
                 return;
 
-            ICompressor compressor = null;
-            if (desc.compression != null)
+            SegmentReader segmentReader;
+            try
             {
-                try
-                {
-                    compressor = CompressionParams.createCompressor(desc.compression);
-                }
-                catch (ConfigurationException e)
-                {
-                    handleReplayError(false, "Unknown compression: %s", e.getMessage());
-                    return;
-                }
+                segmentReader = new SegmentReader(desc, reader, tolerateTruncation);
+            }
+            catch(Exception e)
+            {
+                handleReplayError(false, "unable to create segment reader for commit log file: %s", e);
+                return;
             }
 
-            assert reader.length() <= Integer.MAX_VALUE;
-            int end = (int) reader.getFilePointer();
-            int replayEnd = end;
-
-            while ((end = readSyncMarker(desc, end, reader, tolerateTruncation)) >= 0)
+            try
             {
-                int replayPos = replayEnd + CommitLogSegment.SYNC_MARKER_SIZE;
-
-                if (logger.isTraceEnabled())
-                    logger.trace("Replaying {} between {} and {}", file, reader.getFilePointer(), end);
-                if (compressor != null)
-                {
-                    int uncompressedLength = reader.readInt();
-                    replayEnd = replayPos + uncompressedLength;
-                }
-                else
-                {
-                    replayEnd = end;
-                }
-
-                if (segmentId == globalPosition.segment && replayEnd < globalPosition.position)
-                    // Skip over flushed section.
-                    continue;
-
-                FileDataInput sectionReader = reader;
-                String errorContext = desc.fileName();
-                // In the uncompressed case the last non-fully-flushed section can be anywhere in the file.
                 boolean tolerateErrorsInSection = tolerateTruncation;
-                if (compressor != null)
+                for (SyncSegment syncSegment : segmentReader)
                 {
-                    // In the compressed case we know if this is the last section.
-                    tolerateErrorsInSection &= end == reader.length() || end < 0;
+                    tolerateErrorsInSection &= syncSegment.toleratesErrorsInSection;
 
-                    int start = (int) reader.getFilePointer();
-                    try
-                    {
-                        int compressedLength = end - start;
-                        if (logger.isTraceEnabled())
-                            logger.trace("Decompressing {} between replay positions {} and {}",
-                                         file,
-                                         replayPos,
-                                         replayEnd);
-                        if (compressedLength > buffer.length)
-                            buffer = new byte[(int) (1.2 * compressedLength)];
-                        reader.readFully(buffer, 0, compressedLength);
-                        int uncompressedLength = replayEnd - replayPos;
-                        if (uncompressedLength > uncompressedBuffer.length)
-                            uncompressedBuffer = new byte[(int) (1.2 * uncompressedLength)];
-                        compressor.uncompress(buffer, 0, compressedLength, uncompressedBuffer, 0);
-                        sectionReader = new FileSegmentInputStream(ByteBuffer.wrap(uncompressedBuffer), reader.getPath(), replayPos);
-                        errorContext = "compressed section at " + start + " in " + errorContext;
-                    }
-                    catch (IOException | ArrayIndexOutOfBoundsException e)
-                    {
-                        handleReplayError(tolerateErrorsInSection,
-                                          "Unexpected exception decompressing section at %d: %s",
-                                          start, e);
+                    // Skip over flushed section.
+                    if (desc.id == globalPosition.segment && syncSegment.endPosition < globalPosition.position)
                         continue;
-                    }
+                    String errorContext = String.format("next section at %d in %s", syncSegment.fileStartPosition, desc.fileName());
+                    if (!replaySyncSection(syncSegment.input, syncSegment.endPosition, desc, errorContext, tolerateErrorsInSection))
+                        break;
                 }
-
-                if (!replaySyncSection(sectionReader, replayEnd, desc, errorContext, tolerateErrorsInSection))
-                    break;
+            }
+            // unfortunately, AbstractIterator cannot throw a checked excpetion,
+            // so check to see if a RuntimeException is wrapping an IOException
+            catch (RuntimeException re)
+            {
+                if (re.getCause() instanceof IOException)
+                    throw (IOException) re.getCause();
+                throw re;
             }
             logger.debug("Finished reading {}", file);
         }

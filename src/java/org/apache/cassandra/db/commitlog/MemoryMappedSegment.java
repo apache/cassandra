@@ -39,7 +39,6 @@ public class MemoryMappedSegment extends CommitLogSegment
     /**
      * Constructs a new segment file.
      *
-     * @param filePath  if not null, recycles the existing file by renaming it and truncating it to CommitLog.SEGMENT_SIZE.
      * @param commitLog the commit log it will be used with.
      */
     MemoryMappedSegment(CommitLog commitLog)

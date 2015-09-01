@@ -543,7 +543,7 @@ public class CommitLogSegmentManager
         for (CommitLogSegment segment : availableSegments)
             segment.close();
 
-        CompressedSegment.shutdown();
+        FileDirectSegment.shutdown();
     }
 
     /**

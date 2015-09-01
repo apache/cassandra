@@ -33,7 +33,12 @@ public class EncryptionContextGenerator
 
     public static EncryptionContext createContext(boolean init)
     {
-        return new EncryptionContext(createEncryptionOptions(), init);
+        return createContext(null, init);
+    }
+
+    public static EncryptionContext createContext(byte[] iv, boolean init)
+    {
+        return new EncryptionContext(createEncryptionOptions(), iv, init);
     }
 
     public static TransparentDataEncryptionOptions createEncryptionOptions()

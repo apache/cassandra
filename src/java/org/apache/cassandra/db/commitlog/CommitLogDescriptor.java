@@ -27,6 +27,7 @@ import java.io.IOException;
 import java.io.RandomAccessFile;
 import java.nio.ByteBuffer;
 import java.nio.charset.StandardCharsets;
+import java.util.Collections;
 import java.util.Map;
 import java.util.TreeMap;
 import java.util.regex.Matcher;
@@ -40,6 +41,7 @@ import org.apache.cassandra.config.ParameterizedClass;
 import org.apache.cassandra.exceptions.ConfigurationException;
 import org.apache.cassandra.io.FSReadError;
 import org.apache.cassandra.net.MessagingService;
+import org.apache.cassandra.security.EncryptionContext;
 import org.json.simple.JSONValue;
 
 import static org.apache.cassandra.utils.FBUtilities.updateChecksumInt;
@@ -51,14 +53,16 @@ public class CommitLogDescriptor
     private static final String FILENAME_EXTENSION = ".log";
     // match both legacy and new version of commitlogs Ex: CommitLog-12345.log and CommitLog-4-12345.log.
     private static final Pattern COMMIT_LOG_FILE_PATTERN = Pattern.compile(FILENAME_PREFIX + "((\\d+)(" + SEPARATOR + "\\d+)?)" + FILENAME_EXTENSION);
-    private static final String COMPRESSION_PARAMETERS_KEY = "compressionParameters";
-    private static final String COMPRESSION_CLASS_KEY = "compressionClass";
+
+    static final String COMPRESSION_PARAMETERS_KEY = "compressionParameters";
+    static final String COMPRESSION_CLASS_KEY = "compressionClass";
 
     public static final int VERSION_12 = 2;
     public static final int VERSION_20 = 3;
     public static final int VERSION_21 = 4;
     public static final int VERSION_22 = 5;
     public static final int VERSION_30 = 6;
+
     /**
      * Increment this number if there is a changes in the commit log disc layout or MessagingVersion changes.
      * Note: make sure to handle {@link #getMessagingVersion()}
@@ -69,20 +73,30 @@ public class CommitLogDescriptor
     final int version;
     public final long id;
     public final ParameterizedClass compression;
+    private final EncryptionContext encryptionContext;
 
-    public CommitLogDescriptor(int version, long id, ParameterizedClass compression)
+    public CommitLogDescriptor(int version, long id, ParameterizedClass compression, EncryptionContext encryptionContext)
     {
         this.version = version;
         this.id = id;
         this.compression = compression;
+        this.encryptionContext = encryptionContext;
     }
 
-    public CommitLogDescriptor(long id, ParameterizedClass compression)
+    public CommitLogDescriptor(long id, ParameterizedClass compression, EncryptionContext encryptionContext)
     {
-        this(current_version, id, compression);
+        this(current_version, id, compression, encryptionContext);
     }
 
     public static void writeHeader(ByteBuffer out, CommitLogDescriptor descriptor)
+    {
+        writeHeader(out, descriptor, Collections.<String, String>emptyMap());
+    }
+
+    /**
+     * @param additionalHeaders Allow segments to pass custom header data
+     */
+    public static void writeHeader(ByteBuffer out, CommitLogDescriptor descriptor, Map<String, String> additionalHeaders)
     {
         CRC32 crc = new CRC32();
         out.putInt(descriptor.version);
@@ -91,7 +105,7 @@ public class CommitLogDescriptor
         updateChecksumInt(crc, (int) (descriptor.id & 0xFFFFFFFFL));
         updateChecksumInt(crc, (int) (descriptor.id >>> 32));
         if (descriptor.version >= VERSION_22) {
-            String parametersString = constructParametersString(descriptor);
+            String parametersString = constructParametersString(descriptor.compression, descriptor.encryptionContext, additionalHeaders);
             byte[] parametersBytes = parametersString.getBytes(StandardCharsets.UTF_8);
             if (parametersBytes.length != (((short) parametersBytes.length) & 0xFFFF))
                 throw new ConfigurationException(String.format("Compression parameters too long, length %d cannot be above 65535.",
@@ -105,24 +119,27 @@ public class CommitLogDescriptor
         out.putInt((int) crc.getValue());
     }
 
-    private static String constructParametersString(CommitLogDescriptor descriptor)
+    @VisibleForTesting
+    static String constructParametersString(ParameterizedClass compression, EncryptionContext encryptionContext, Map<String, String> additionalHeaders)
     {
-        Map<String, Object> params = new TreeMap<String, Object>();
-        ParameterizedClass compression = descriptor.compression;
+        Map<String, Object> params = new TreeMap<>();
         if (compression != null)
         {
             params.put(COMPRESSION_PARAMETERS_KEY, compression.parameters);
             params.put(COMPRESSION_CLASS_KEY, compression.class_name);
         }
+        if (encryptionContext != null)
+            params.putAll(encryptionContext.toHeaderParameters());
+        params.putAll(additionalHeaders);
         return JSONValue.toJSONString(params);
     }
 
-    public static CommitLogDescriptor fromHeader(File file)
+    public static CommitLogDescriptor fromHeader(File file, EncryptionContext encryptionContext)
     {
         try (RandomAccessFile raf = new RandomAccessFile(file, "r"))
         {
             assert raf.getFilePointer() == 0;
-            return readHeader(raf);
+            return readHeader(raf, encryptionContext);
         }
         catch (EOFException e)
         {
@@ -134,7 +151,7 @@ public class CommitLogDescriptor
         }
     }
 
-    public static CommitLogDescriptor readHeader(DataInput input) throws IOException
+    public static CommitLogDescriptor readHeader(DataInput input, EncryptionContext encryptionContext) throws IOException
     {
         CRC32 checkcrc = new CRC32();
         int version = input.readInt();
@@ -153,16 +170,20 @@ public class CommitLogDescriptor
         input.readFully(parametersBytes);
         checkcrc.update(parametersBytes, 0, parametersBytes.length);
         int crc = input.readInt();
+
         if (crc == (int) checkcrc.getValue())
-            return new CommitLogDescriptor(version, id,
-                    parseCompression((Map<?, ?>) JSONValue.parse(new String(parametersBytes, StandardCharsets.UTF_8))));
+        {
+            Map<?, ?> map = (Map<?, ?>) JSONValue.parse(new String(parametersBytes, StandardCharsets.UTF_8));
+            return new CommitLogDescriptor(version, id, parseCompression(map), EncryptionContext.createFromMap(map, encryptionContext));
+        }
         return null;
     }
 
     @SuppressWarnings("unchecked")
-    private static ParameterizedClass parseCompression(Map<?, ?> params)
+    @VisibleForTesting
+    static ParameterizedClass parseCompression(Map<?, ?> params)
     {
-        if (params == null)
+        if (params == null || params.isEmpty())
             return null;
         String className = (String) params.get(COMPRESSION_CLASS_KEY);
         if (className == null)
@@ -182,7 +203,7 @@ public class CommitLogDescriptor
             throw new UnsupportedOperationException("Commitlog segment is too old to open; upgrade to 1.2.5+ first");
 
         long id = Long.parseLong(matcher.group(3).split(SEPARATOR)[1]);
-        return new CommitLogDescriptor(Integer.parseInt(matcher.group(2)), id, null);
+        return new CommitLogDescriptor(Integer.parseInt(matcher.group(2)), id, null, new EncryptionContext());
     }
 
     public int getMessagingVersion()
@@ -218,6 +239,11 @@ public class CommitLogDescriptor
         return COMMIT_LOG_FILE_PATTERN.matcher(filename).matches();
     }
 
+    public EncryptionContext getEncryptionContext()
+    {
+        return encryptionContext;
+    }
+
     public String toString()
     {
         return "(" + version + "," + id + (compression != null ? "," + compression : "") + ")";
@@ -235,7 +261,7 @@ public class CommitLogDescriptor
 
     public boolean equals(CommitLogDescriptor that)
     {
-        return equalsIgnoringCompression(that) && Objects.equal(this.compression, that.compression);
+        return equalsIgnoringCompression(that) && Objects.equal(this.compression, that.compression)
+                && Objects.equal(encryptionContext, that.encryptionContext);
     }
-
 }

@@ -215,7 +215,7 @@ public class CommitLogArchiver
             }
             for (File fromFile : files)
             {
-                CommitLogDescriptor fromHeader = CommitLogDescriptor.fromHeader(fromFile);
+                CommitLogDescriptor fromHeader = CommitLogDescriptor.fromHeader(fromFile, DatabaseDescriptor.getEncryptionContext());
                 CommitLogDescriptor fromName = CommitLogDescriptor.isValid(fromFile.getName()) ? CommitLogDescriptor.fromFileName(fromFile.getName()) : null;
                 CommitLogDescriptor descriptor;
                 if (fromHeader == null && fromName == null)
