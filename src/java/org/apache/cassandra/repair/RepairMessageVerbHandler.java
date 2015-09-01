@@ -95,8 +95,13 @@ public class RepairMessageVerbHandler implements IVerbHandler<RepairMessage>
                     Set<SSTableReader> currentlyRepairing = ActiveRepairService.instance.currentlyRepairing(cfs.metadata.cfId, desc.parentSessionId);
                     if (!Sets.intersection(currentlyRepairing, snapshottedSSSTables).isEmpty())
                     {
+                        // clear snapshot that we just created
+                        cfs.clearSnapshot(desc.sessionId.toString());
                         logger.error("Cannot start multiple repair sessions over the same sstables");
-                        throw new RuntimeException("Cannot start multiple repair sessions over the same sstables");
+                        MessageOut reply = new MessageOut(MessagingService.Verb.INTERNAL_RESPONSE)
+                                               .withParameter(MessagingService.FAILURE_RESPONSE_PARAM, MessagingService.ONE_BYTE);
+                        MessagingService.instance().sendReply(reply, id, message.from);
+                        return;
                     }
                     ActiveRepairService.instance.getParentRepairSession(desc.parentSessionId).addSSTables(cfs.metadata.cfId, snapshottedSSSTables);
                     logger.debug("Enqueuing response to snapshot request {} to {}", desc.sessionId, message.from);
