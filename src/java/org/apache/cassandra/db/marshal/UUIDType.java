@@ -48,6 +48,7 @@ public class UUIDType extends AbstractType<UUID>
 
     UUIDType()
     {
+        super(ComparisonType.CUSTOM);
     }
 
     public boolean isEmptyValueMeaningless()
@@ -55,7 +56,7 @@ public class UUIDType extends AbstractType<UUID>
         return true;
     }
 
-    public int compare(ByteBuffer b1, ByteBuffer b2)
+    public int compareCustom(ByteBuffer b1, ByteBuffer b2)
     {
         // Compare for length
         int s1 = b1.position(), s2 = b2.position();

@@ -83,8 +83,9 @@ public abstract class CollectionType<T> extends AbstractType<T>
 
     public final Kind kind;
 
-    protected CollectionType(Kind kind)
+    protected CollectionType(ComparisonType comparisonType, Kind kind)
     {
+        super(comparisonType);
         this.kind = kind;
     }
 

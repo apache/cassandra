@@ -31,14 +31,14 @@ public class DoubleType extends AbstractType<Double>
 {
     public static final DoubleType instance = new DoubleType();
 
-    DoubleType() {} // singleton
+    DoubleType() {super(ComparisonType.CUSTOM);} // singleton
 
     public boolean isEmptyValueMeaningless()
     {
         return true;
     }
 
-    public int compare(ByteBuffer o1, ByteBuffer o2)
+    public int compareCustom(ByteBuffer o1, ByteBuffer o2)
     {
         if (!o1.hasRemaining() || !o2.hasRemaining())
             return o1.hasRemaining() ? 1 : o2.hasRemaining() ? -1 : 0;

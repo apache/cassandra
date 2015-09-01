@@ -31,6 +31,11 @@ import org.apache.cassandra.serializers.MarshalException;
  */
 public class FrozenType extends AbstractType<Void>
 {
+    protected FrozenType()
+    {
+        super(ComparisonType.NOT_COMPARABLE);
+    }
+
     public static AbstractType<?> getInstance(TypeParser parser) throws ConfigurationException, SyntaxException
     {
         List<AbstractType<?>> innerTypes = parser.getTypeParameters();
@@ -39,11 +44,6 @@ public class FrozenType extends AbstractType<Void>
 
         AbstractType<?> innerType = innerTypes.get(0);
         return innerType.freeze();
-    }
-
-    public int compare(ByteBuffer o1, ByteBuffer o2)
-    {
-        throw new UnsupportedOperationException();
     }
 
     public String getString(ByteBuffer bytes)

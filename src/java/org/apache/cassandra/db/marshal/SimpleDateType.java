@@ -31,19 +31,7 @@ public class SimpleDateType extends AbstractType<Integer>
 {
     public static final SimpleDateType instance = new SimpleDateType();
 
-    SimpleDateType() {} // singleton
-
-    public int compare(ByteBuffer o1, ByteBuffer o2)
-    {
-        // We add Integer.MIN_VALUE to overflow to allow unsigned comparison
-        return ByteBufferUtil.compareUnsigned(o1, o2);
-    }
-
-    @Override
-    public boolean isByteOrderComparable()
-    {
-        return true;
-    }
+    SimpleDateType() {super(ComparisonType.BYTE_ORDER);} // singleton
 
     public ByteBuffer fromString(String source) throws MarshalException
     {

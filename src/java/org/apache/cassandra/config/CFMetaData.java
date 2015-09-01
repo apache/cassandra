@@ -293,7 +293,10 @@ public final class CFMetaData
         for (ColumnDefinition def : partitionKeyColumns)
             this.columnMetadata.put(def.name.bytes, def);
         for (ColumnDefinition def : clusteringColumns)
+        {
             this.columnMetadata.put(def.name.bytes, def);
+            def.type.checkComparable();
+        }
         for (ColumnDefinition def : partitionColumns)
             this.columnMetadata.put(def.name.bytes, def);
 

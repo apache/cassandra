@@ -37,19 +37,11 @@ public class DateType extends AbstractType<Date>
 
     public static final DateType instance = new DateType();
 
-    DateType() {} // singleton
+    DateType() {super(ComparisonType.BYTE_ORDER);} // singleton
 
     public boolean isEmptyValueMeaningless()
     {
         return true;
-    }
-
-    public int compare(ByteBuffer o1, ByteBuffer o2)
-    {
-        if (!o1.hasRemaining() || !o2.hasRemaining())
-            return o1.hasRemaining() ? 1 : o2.hasRemaining() ? -1 : 0;
-
-        return ByteBufferUtil.compareUnsigned(o1, o2);
     }
 
     public ByteBuffer fromString(String source) throws MarshalException
@@ -101,11 +93,6 @@ public class DateType extends AbstractType<Date>
         }
 
         return false;
-    }
-
-    public boolean isByteOrderComparable()
-    {
-        return true;
     }
 
     @Override

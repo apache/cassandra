@@ -33,9 +33,10 @@ public class ByteType extends AbstractType<Byte>
 
     ByteType()
     {
+        super(ComparisonType.CUSTOM);
     } // singleton
 
-    public int compare(ByteBuffer o1, ByteBuffer o2)
+    public int compareCustom(ByteBuffer o1, ByteBuffer o2)
     {
         return o1.get(o1.position()) - o2.get(o2.position());
     }

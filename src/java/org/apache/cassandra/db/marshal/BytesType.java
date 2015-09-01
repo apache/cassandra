@@ -32,12 +32,7 @@ public class BytesType extends AbstractType<ByteBuffer>
 {
     public static final BytesType instance = new BytesType();
 
-    BytesType() {} // singleton
-
-    public int compare(ByteBuffer o1, ByteBuffer o2)
-    {
-        return ByteBufferUtil.compareUnsigned(o1, o2);
-    }
+    BytesType() {super(ComparisonType.BYTE_ORDER);} // singleton
 
     public ByteBuffer fromString(String source)
     {
@@ -86,11 +81,6 @@ public class BytesType extends AbstractType<ByteBuffer>
     public boolean isValueCompatibleWithInternal(AbstractType<?> otherType)
     {
         // BytesType can read anything
-        return true;
-    }
-
-    public boolean isByteOrderComparable()
-    {
         return true;
     }
 
