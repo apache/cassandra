@@ -372,8 +372,6 @@ Function SetCassandraEnvironment
     # store in env to check if it's avail in verification
     $env:JMX_PORT=$JMX_PORT
 
-    $env:JVM_OPTS = "$env:JVM_OPTS -Dlog4j.defaultInitOverride=true"
-
     # some JVMs will fill up their heap when accessed via JMX, see CASSANDRA-6541
     $env:JVM_OPTS="$env:JVM_OPTS -XX:+CMSClassUnloadingEnabled"
 
@@ -470,8 +468,6 @@ Function SetCassandraEnvironment
     $env:JVM_OPTS="$env:JVM_OPTS -Dcassandra.jmx.local.port=$JMX_PORT -XX:+DisableExplicitGC"
 
     $env:JVM_OPTS="$env:JVM_OPTS $env:JVM_EXTRA_OPTS"
-
-    $env:JVM_OPTS = "$env:JVM_OPTS -Dlog4j.configuration=log4j-server.properties"
 
     #$env:JVM_OPTS="$env:JVM_OPTS -XX:+UnlockCommercialFeatures -XX:+FlightRecorder"
 }
