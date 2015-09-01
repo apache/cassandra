@@ -347,8 +347,6 @@ Function SetCassandraEnvironment
     # store in env to check if it's avail in verification
     $env:JMX_PORT=$JMX_PORT
 
-    $env:JVM_OPTS = "$env:JVM_OPTS -Dlog4j.defaultInitOverride=true"
-
     # enable thread priorities, primarily so we can give periodic tasks
     # a lower priority to avoid interfering with client workload
     $env:JVM_OPTS="$env:JVM_OPTS -XX:+UseThreadPriorities"
@@ -453,8 +451,6 @@ Function SetCassandraEnvironment
     $env:JVM_OPTS="$env:JVM_OPTS -Dcassandra.jmx.local.port=$JMX_PORT -XX:+DisableExplicitGC"
 
     $env:JVM_OPTS="$env:JVM_OPTS $env:JVM_EXTRA_OPTS"
-
-    $env:JVM_OPTS = "$env:JVM_OPTS -Dlog4j.configuration=log4j-server.properties"
 
     #$env:JVM_OPTS="$env:JVM_OPTS -XX:+UnlockCommercialFeatures -XX:+FlightRecorder"
 }
