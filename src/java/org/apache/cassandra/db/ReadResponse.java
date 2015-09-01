@@ -31,6 +31,7 @@ import org.apache.cassandra.db.filter.ClusteringIndexFilter;
 import org.apache.cassandra.db.filter.ColumnFilter;
 import org.apache.cassandra.db.rows.*;
 import org.apache.cassandra.db.partitions.*;
+import org.apache.cassandra.dht.*;
 import org.apache.cassandra.io.IVersionedSerializer;
 import org.apache.cassandra.io.util.DataInputBuffer;
 import org.apache.cassandra.io.util.DataInputPlus;
@@ -221,11 +222,13 @@ public abstract class ReadResponse
      * sorted order, even if the query asks for reversed results.  Additionally,  pre-3.0 nodes do not have a notion of
      * exclusive slices on non-composite tables, so extra rows may need to be trimmed.
      */
-    private static class LegacyRemoteDataResponse extends ReadResponse
+    @VisibleForTesting
+    static class LegacyRemoteDataResponse extends ReadResponse
     {
         private final List<ImmutableBTreePartition> partitions;
 
-        private LegacyRemoteDataResponse(List<ImmutableBTreePartition> partitions)
+        @VisibleForTesting
+        LegacyRemoteDataResponse(List<ImmutableBTreePartition> partitions)
         {
             super(null); // we never serialize LegacyRemoteDataResponses, so we don't care about the metadata
             this.partitions = partitions;
@@ -233,6 +236,31 @@ public abstract class ReadResponse
 
         public UnfilteredPartitionIterator makeIterator(CFMetaData metadata, final ReadCommand command)
         {
+            // Due to a bug in the serialization of AbstractBounds, anything that isn't a Range is understood by pre-3.0 nodes
+            // as a Bound, which means IncludingExcludingBounds and ExcludingBounds responses may include keys they shouldn't.
+            // So filter partitions that shouldn't be included here.
+            boolean skipFirst = false;
+            boolean skipLast = false;
+            if (!partitions.isEmpty() && command instanceof PartitionRangeReadCommand)
+            {
+                AbstractBounds<PartitionPosition> keyRange = ((PartitionRangeReadCommand)command).dataRange().keyRange();
+                boolean isExcludingBounds = keyRange instanceof ExcludingBounds;
+                skipFirst = isExcludingBounds && !keyRange.contains(partitions.get(0).partitionKey());
+                skipLast = (isExcludingBounds || keyRange instanceof IncludingExcludingBounds) && !keyRange.contains(partitions.get(partitions.size() - 1).partitionKey());
+            }
+
+            final List<ImmutableBTreePartition> toReturn;
+            if (skipFirst || skipLast)
+            {
+                toReturn = partitions.size() == 1
+                         ? Collections.emptyList()
+                         : partitions.subList(skipFirst ? 1 : 0, skipLast ? partitions.size() - 1 : partitions.size());
+            }
+            else
+            {
+                toReturn = partitions;
+            }
+
             return new AbstractUnfilteredPartitionIterator()
             {
                 private int idx;
@@ -249,12 +277,13 @@ public abstract class ReadResponse
 
                 public boolean hasNext()
                 {
-                    return idx < partitions.size();
+                    return idx < toReturn.size();
                 }
 
                 public UnfilteredRowIterator next()
                 {
-                    ImmutableBTreePartition partition = partitions.get(idx++);
+                    ImmutableBTreePartition partition = toReturn.get(idx++);
+
 
                     ClusteringIndexFilter filter = command.clusteringIndexFilter(partition.partitionKey());
 
@@ -468,7 +497,6 @@ public abstract class ReadResponse
 
         public ReadResponse deserialize(DataInputPlus in, int version) throws IOException
         {
-            // Contrarily to serialize, we have to read the number of serialized partitions here.
             int partitionCount = in.readInt();
             ArrayList<ImmutableBTreePartition> partitions = new ArrayList<>(partitionCount);
             for (int i = 0; i < partitionCount; i++)
