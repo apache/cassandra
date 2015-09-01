@@ -129,7 +129,7 @@ public class EncodingStats
     @Override
     public String toString()
     {
-        return String.format("EncodingStats(ts=%d, ldt=%d, ttl=%d, avgColPerRow=%d)", minTimestamp, minLocalDeletionTime, minTTL);
+        return String.format("EncodingStats(ts=%d, ldt=%d, ttl=%d)", minTimestamp, minLocalDeletionTime, minTTL);
     }
 
     public static class Collector implements PartitionStatisticsCollector
@@ -142,10 +142,6 @@ public class EncodingStats
 
         private boolean isTTLSet;
         private int minTTL = Integer.MAX_VALUE;
-
-        private boolean isColumnSetPerRowSet;
-        private long totalColumnsSet;
-        private long rows;
 
         public void update(LivenessInfo info)
         {
@@ -204,17 +200,6 @@ public class EncodingStats
 
         public void updateColumnSetPerRow(long columnSetInRow)
         {
-            updateColumnSetPerRow(columnSetInRow, 1);
-        }
-
-        public void updateColumnSetPerRow(long totalColumnsSet, long rows)
-        {
-            if (totalColumnsSet < 0 || rows < 0)
-                return;
-
-            this.isColumnSetPerRowSet = true;
-            this.totalColumnsSet += totalColumnsSet;
-            this.rows += rows;
         }
 
         public void updateHasLegacyCounterShards(boolean hasLegacyCounterShards)
