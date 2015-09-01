@@ -642,17 +642,20 @@ public class SecondaryIndexManager implements IndexRegistry
 
         public void start()
         {
-            Arrays.stream(indexers).forEach(Index.Indexer::begin);
+            for (Index.Indexer indexer : indexers)
+                indexer.begin();
         }
 
         public void onPartitionDeletion(DeletionTime deletionTime)
         {
-            Arrays.stream(indexers).forEach(h -> h.partitionDelete(deletionTime));
+            for (Index.Indexer indexer : indexers)
+                indexer.partitionDelete(deletionTime);
         }
 
         public void onRangeTombstone(RangeTombstone tombstone)
         {
-            Arrays.stream(indexers) .forEach(h -> h.rangeTombstone(tombstone));
+            for (Index.Indexer indexer : indexers)
+                indexer.rangeTombstone(tombstone);
         }
 
         public void onInserted(Row row)
@@ -696,12 +699,14 @@ public class SecondaryIndexManager implements IndexRegistry
             Rows.diff(diffListener, updated, updated.columns().mergeTo(existing.columns()), existing);
             Row oldRow = toRemove.build();
             Row newRow = toInsert.build();
-            Arrays.stream(indexers).forEach(i -> i.updateRow(oldRow, newRow));
+            for (Index.Indexer indexer : indexers)
+                indexer.updateRow(oldRow, newRow);
         }
 
         public void commit()
         {
-            Arrays.stream(indexers).forEach(Index.Indexer::finish);
+            for (Index.Indexer indexer : indexers)
+                indexer.finish();
         }
 
         private boolean shouldCleanupOldValue(Cell oldCell, Cell newCell)
@@ -801,17 +806,15 @@ public class SecondaryIndexManager implements IndexRegistry
 
             try (OpOrder.Group opGroup = Keyspace.writeOrder.start())
             {
-                Index.Indexer[] indexers = Arrays.stream(indexes)
-                                                 .map(i -> i.indexerFor(key, nowInSec, opGroup, Type.COMPACTION))
-                                                 .toArray(Index.Indexer[]::new);
-
-                Arrays.stream(indexers).forEach(Index.Indexer::begin);
-
-                for (Row row : rows)
-                    if (row != null)
-                        Arrays.stream(indexers).forEach(indexer -> indexer.removeRow(row));
-
-                Arrays.stream(indexers).forEach(Index.Indexer::finish);
+                for (Index index : indexes)
+                {
+                    Index.Indexer indexer = index.indexerFor(key, nowInSec, opGroup, Type.COMPACTION);
+                    indexer.begin();
+                    for (Row row : rows)
+                        if (row != null)
+                            indexer.removeRow(row);
+                    indexer.finish();
+                }
             }
         }
     }
@@ -864,19 +867,14 @@ public class SecondaryIndexManager implements IndexRegistry
 
             try (OpOrder.Group opGroup = Keyspace.writeOrder.start())
             {
-                Index.Indexer[] indexers = Arrays.stream(indexes)
-                                                 .map(i -> i.indexerFor(key, nowInSec, opGroup, Type.CLEANUP))
-                                                 .toArray(Index.Indexer[]::new);
-
-                Arrays.stream(indexers).forEach(Index.Indexer::begin);
-
-                if (partitionDelete != null)
-                    Arrays.stream(indexers).forEach(indexer -> indexer.partitionDelete(partitionDelete));
-
-                if (row != null)
-                    Arrays.stream(indexers).forEach(indexer -> indexer.removeRow(row));
-
-                Arrays.stream(indexers).forEach(Index.Indexer::finish);
+                for (Index index : indexes)
+                {
+                    Index.Indexer indexer = index.indexerFor(key, nowInSec, opGroup, Type.CLEANUP);
+                    indexer.begin();
+                    if (row != null)
+                        indexer.removeRow(row);
+                    indexer.finish();
+                }
             }
         }
     }
