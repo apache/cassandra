@@ -136,6 +136,55 @@ public class MaterializedViewTest extends CQLTester
     }
 
     @Test
+    public void testPrimaryKeyIsNotNull() throws Throwable
+    {
+        createTable("CREATE TABLE %s (" +
+                    "k int, " +
+                    "asciival ascii, " +
+                    "bigintval bigint, " +
+                    "PRIMARY KEY((k, asciival)))");
+
+        // Must include "IS NOT NULL" for primary keys
+        try
+        {
+            createView("mv_test", "CREATE MATERIALIZED VIEW %s AS SELECT * FROM %%s");
+            Assert.fail("Should fail if no primary key is filtered as NOT NULL");
+        }
+        catch (Exception e)
+        {
+        }
+
+        // Must include both when the partition key is composite
+        try
+        {
+            createView("mv_test", "CREATE MATERIALIZED VIEW %s AS SELECT * FROM %%s WHERE bigintval IS NOT NULL AND asciival IS NOT NULL PRIMARY KEY (bigintval, k, asciival)");
+            Assert.fail("Should fail if compound primary is not completely filtered as NOT NULL");
+        }
+        catch (Exception e)
+        {
+        }
+
+        dropTable("DROP TABLE %s");
+
+        createTable("CREATE TABLE %s (" +
+                    "k int, " +
+                    "asciival ascii, " +
+                    "bigintval bigint, " +
+                    "PRIMARY KEY(k, asciival))");
+        try
+        {
+            createView("mv_test", "CREATE MATERIALIZED VIEW %s AS SELECT * FROM %%s");
+            Assert.fail("Should fail if no primary key is filtered as NOT NULL");
+        }
+        catch (Exception e)
+        {
+        }
+
+        // Can omit "k IS NOT NULL" because we have a sinlge partition key
+        createView("mv_test", "CREATE MATERIALIZED VIEW %s AS SELECT * FROM %%s WHERE bigintval IS NOT NULL AND asciival IS NOT NULL PRIMARY KEY (bigintval, k, asciival)");
+    }
+
+    @Test
     public void testAccessAndSchema() throws Throwable
     {
         createTable("CREATE TABLE %s (" +
