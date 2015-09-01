@@ -18,9 +18,9 @@
 package org.apache.cassandra.streaming.messages;
 
 import java.io.IOException;
+import java.net.SocketException;
 import java.nio.ByteBuffer;
 import java.nio.channels.ReadableByteChannel;
-import java.nio.channels.WritableByteChannel;
 
 import org.apache.cassandra.io.util.DataOutputStreamAndChannel;
 import org.apache.cassandra.streaming.StreamSession;
@@ -48,17 +48,22 @@ public abstract class StreamMessage
     public static StreamMessage deserialize(ReadableByteChannel in, int version, StreamSession session) throws IOException
     {
         ByteBuffer buff = ByteBuffer.allocate(1);
-        if (in.read(buff) > 0)
+        int readBytes = in.read(buff);
+        if (readBytes > 0)
         {
             buff.flip();
             Type type = Type.get(buff.get());
             return type.inSerializer.deserialize(in, version, session);
         }
+        else if (readBytes == 0)
+        {
+            // input socket buffer was not filled yet
+            return null;
+        }
         else
         {
-            // when socket gets closed, there is a chance that buff is empty
-            // in that case, just return null
-            return null;
+            // possibly socket gets closed
+            throw new SocketException("End-of-stream reached");
         }
     }
 
