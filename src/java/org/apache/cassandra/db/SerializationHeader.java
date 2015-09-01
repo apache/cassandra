@@ -104,7 +104,6 @@ public class SerializationHeader
             stats.updateTimestamp(sstable.getMinTimestamp());
             stats.updateLocalDeletionTime(sstable.getMinLocalDeletionTime());
             stats.updateTTL(sstable.getMinTTL());
-            stats.updateColumnSetPerRow(sstable.getTotalColumnsSet(), sstable.getTotalRows());
             if (sstable.header == null)
                 columns.addAll(metadata.partitionColumns());
             else
