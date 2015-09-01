@@ -3,6 +3,7 @@
 
 
 3.0.0-beta2
+ * Re-apply MaterializedView updates on commitlog replay (CASSANDRA-10164)
  * Require AbstractType.isByteOrderComparable declaration in constructor (CASSANDRA-9901)
  * Avoid digest mismatch on upgrade to 3.0 (CASSANDRA-9554)
  * Fix Materialized View builder when adding multiple MVs (CASSANDRA-10156)
