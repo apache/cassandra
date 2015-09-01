@@ -110,6 +110,14 @@ final class HintsCatalog
             store.deleteAllHints();
     }
 
+    /**
+     * @return true if at least one of the stores has a file pending dispatch
+     */
+    boolean hasFiles()
+    {
+        return stores().anyMatch(HintsStore::hasFiles);
+    }
+
     void exciseStore(UUID hostId)
     {
         deleteAllHints(hostId);

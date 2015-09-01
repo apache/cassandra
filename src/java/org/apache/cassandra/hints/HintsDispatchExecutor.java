@@ -22,6 +22,7 @@ import java.util.Map;
 import java.util.UUID;
 import java.util.concurrent.*;
 import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.function.Supplier;
 
 import com.google.common.util.concurrent.RateLimiter;
 
@@ -93,7 +94,12 @@ final class HintsDispatchExecutor
          *
          * It also simplifies reasoning about dispatch sessions.
          */
-        return scheduledDispatches.computeIfAbsent(store.hostId, uuid -> executor.submit(new DispatchHintsTask(store, hostId)));
+        return scheduledDispatches.computeIfAbsent(hostId, uuid -> executor.submit(new DispatchHintsTask(store, hostId)));
+    }
+
+    Future transfer(HintsCatalog catalog, Supplier<UUID> hostIdSupplier)
+    {
+        return executor.submit(new TransferHintsTask(catalog, hostIdSupplier));
     }
 
     void completeDispatchBlockingly(HintsStore store)
@@ -107,6 +113,60 @@ final class HintsDispatchExecutor
         catch (ExecutionException | InterruptedException e)
         {
             throw new RuntimeException(e);
+        }
+    }
+
+    private final class TransferHintsTask implements Runnable
+    {
+        private final HintsCatalog catalog;
+
+        /*
+         * Supplies target hosts to stream to. Generally returns the one the DynamicSnitch thinks is closest.
+         * We use a supplier here to be able to get a new host if the current one dies during streaming.
+         */
+        private final Supplier<UUID> hostIdSupplier;
+
+        private TransferHintsTask(HintsCatalog catalog, Supplier<UUID> hostIdSupplier)
+        {
+            this.catalog = catalog;
+            this.hostIdSupplier = hostIdSupplier;
+        }
+
+        @Override
+        public void run()
+        {
+            UUID hostId = hostIdSupplier.get();
+            logger.info("Transferring all hints to {}", hostId);
+            if (transfer(hostId))
+                return;
+
+            logger.warn("Failed to transfer all hints to {}; will retry in {} seconds", hostId, 10);
+
+            try
+            {
+                TimeUnit.SECONDS.sleep(10);
+            }
+            catch (InterruptedException e)
+            {
+                throw new RuntimeException(e);
+            }
+
+            hostId = hostIdSupplier.get();
+            logger.info("Transferring all hints to {}", hostId);
+            if (!transfer(hostId))
+            {
+                logger.error("Failed to transfer all hints to {}", hostId);
+                throw new RuntimeException("Failed to transfer all hints to " + hostId);
+            }
+        }
+
+        private boolean transfer(UUID hostId)
+        {
+            catalog.stores()
+                   .map(store -> new DispatchHintsTask(store, hostId))
+                   .forEach(Runnable::run);
+
+            return !catalog.hasFiles();
         }
     }
 
@@ -179,7 +239,7 @@ final class HintsDispatchExecutor
             File file = new File(hintsDirectory, descriptor.fileName());
             Long offset = store.getDispatchOffset(descriptor).orElse(null);
 
-            try (HintsDispatcher dispatcher = HintsDispatcher.create(file, rateLimiter, hostId, isPaused))
+            try (HintsDispatcher dispatcher = HintsDispatcher.create(file, rateLimiter, hostId, descriptor.hostId, isPaused))
             {
                 if (offset != null)
                     dispatcher.seek(offset);
