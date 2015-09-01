@@ -147,7 +147,7 @@ public class UnfilteredSerializer
     throws IOException
     {
         if (hasComplexDeletion)
-            header.writeDeletionTime(data == null ? DeletionTime.LIVE : data.complexDeletion(), out);
+            header.writeDeletionTime(data.complexDeletion(), out);
 
         out.writeUnsignedVInt(data.cellsCount());
         for (Cell cell : data)
@@ -222,7 +222,7 @@ public class UnfilteredSerializer
         long size = 0;
 
         if (hasComplexDeletion)
-            size += header.deletionTimeSerializedSize(data == null ? DeletionTime.LIVE : data.complexDeletion());
+            size += header.deletionTimeSerializedSize(data.complexDeletion());
 
         size += TypeSizes.sizeofUnsignedVInt(data.cellsCount());
         for (Cell cell : data)
