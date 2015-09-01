@@ -1,4 +1,5 @@
 2.0.17
+ * Backport CASSANDRA-8013 to 2.0 (CASSANDRA-10144)
  * Make getFullyExpiredSSTables less expensive (CASSANDRA-9882)
  * Add tool to find why expired sstables are not getting dropped (CASSANDRA-10015)
  * Remove erroneous pending HH tasks from tpstats/jmx (CASSANDRA-9129)
