@@ -35,6 +35,7 @@ import org.apache.cassandra.db.rows.*;
 import org.apache.cassandra.db.marshal.AsciiType;
 import org.apache.cassandra.db.partitions.*;
 import org.apache.cassandra.exceptions.ConfigurationException;
+import org.apache.cassandra.net.MessagingService;
 import org.apache.cassandra.SchemaLoader;
 import org.apache.cassandra.schema.KeyspaceParams;
 import org.apache.cassandra.utils.FBUtilities;
@@ -96,8 +97,8 @@ public class CacheProviderTest
         {
             MessageDigest d1 = MessageDigest.getInstance("MD5");
             MessageDigest d2 = MessageDigest.getInstance("MD5");
-            UnfilteredRowIterators.digest(((CachedBTreePartition) one).unfilteredIterator(), d1);
-            UnfilteredRowIterators.digest(((CachedBTreePartition) two).unfilteredIterator(), d2);
+            UnfilteredRowIterators.digest(((CachedBTreePartition) one).unfilteredIterator(), d1, MessagingService.current_version);
+            UnfilteredRowIterators.digest(((CachedBTreePartition) two).unfilteredIterator(), d2, MessagingService.current_version);
             assertTrue(MessageDigest.isEqual(d1.digest(), d2.digest()));
         }
         catch (NoSuchAlgorithmException e)

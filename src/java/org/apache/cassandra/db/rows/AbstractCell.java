@@ -44,7 +44,6 @@ public abstract class AbstractCell extends Cell
     {
         digest.update(value().duplicate());
         FBUtilities.updateWithLong(digest, timestamp());
-        FBUtilities.updateWithInt(digest, localDeletionTime());
         FBUtilities.updateWithInt(digest, ttl());
         FBUtilities.updateWithBoolean(digest, isCounterCell());
         if (path() != null)

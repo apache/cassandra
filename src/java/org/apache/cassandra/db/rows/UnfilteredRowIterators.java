@@ -29,6 +29,7 @@ import org.apache.cassandra.db.*;
 import org.apache.cassandra.io.util.FileUtils;
 import org.apache.cassandra.io.sstable.CorruptSSTableException;
 import org.apache.cassandra.serializers.MarshalException;
+import org.apache.cassandra.net.MessagingService;
 import org.apache.cassandra.utils.FBUtilities;
 import org.apache.cassandra.utils.IMergeIterator;
 import org.apache.cassandra.utils.MergeIterator;
@@ -157,12 +158,21 @@ public abstract class UnfilteredRowIterators
         };
     }
 
-    public static void digest(UnfilteredRowIterator iterator, MessageDigest digest)
+    /**
+     * Digests the partition represented by the provided iterator.
+     *
+     * @param iterator the iterator to digest.
+     * @param digest the {@code MessageDigest} to use for the digest.
+     * @param version the messaging protocol to use when producing the digest.
+     */
+    public static void digest(UnfilteredRowIterator iterator, MessageDigest digest, int version)
     {
-        // TODO: we're not computing digest the same way that old nodes. This
-        // means we'll have digest mismatches during upgrade. We should pass the messaging version of
-        // the node this is for (which might mean computing the digest last, and won't work
-        // for schema (where we announce the version through gossip to everyone))
+        if (version < MessagingService.VERSION_30)
+        {
+            LegacyLayout.fromUnfilteredRowIterator(iterator).digest(iterator.metadata(), digest);
+            return;
+        }
+
         digest.update(iterator.partitionKey().getKey().duplicate());
         iterator.partitionLevelDeletion().digest(digest);
         iterator.columns().digest(digest);

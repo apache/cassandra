@@ -319,7 +319,14 @@ public abstract class UnfilteredPartitionIterators
         };
     }
 
-    public static void digest(UnfilteredPartitionIterator iterator, MessageDigest digest)
+    /**
+     * Digests the the provided iterator.
+     *
+     * @param iterator the iterator to digest.
+     * @param digest the {@code MessageDigest} to use for the digest.
+     * @param version the messaging protocol to use when producing the digest.
+     */
+    public static void digest(UnfilteredPartitionIterator iterator, MessageDigest digest, int version)
     {
         try (UnfilteredPartitionIterator iter = iterator)
         {
@@ -327,7 +334,7 @@ public abstract class UnfilteredPartitionIterators
             {
                 try (UnfilteredRowIterator partition = iter.next())
                 {
-                    UnfilteredRowIterators.digest(partition, digest);
+                    UnfilteredRowIterators.digest(partition, digest, version);
                 }
             }
         }
