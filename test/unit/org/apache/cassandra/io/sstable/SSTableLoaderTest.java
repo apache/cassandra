@@ -38,6 +38,7 @@ import org.apache.cassandra.db.partitions.*;
 import org.apache.cassandra.db.marshal.AsciiType;
 import org.apache.cassandra.dht.Range;
 import org.apache.cassandra.dht.Token;
+import org.apache.cassandra.io.FSWriteError;
 import org.apache.cassandra.io.util.FileUtils;
 import org.apache.cassandra.schema.KeyspaceParams;
 import org.apache.cassandra.service.StorageService;
@@ -80,7 +81,18 @@ public class SSTableLoaderTest
     @After
     public void cleanup()
     {
-        FileUtils.deleteRecursive(tmpdir);
+        try {
+            FileUtils.deleteRecursive(tmpdir);
+        } catch (FSWriteError e) {
+            /**
+             * Windows does not allow a mapped file to be deleted, so we probably forgot to clean the buffers somewhere.
+             * We force a GC here to force buffer deallocation, and then try deleting the directory again.
+             * For more information, see: http://bugs.java.com/bugdatabase/view_bug.do?bug_id=4715154
+             * If this is not the problem, the exception will be rethrown anyway.
+             */
+            System.gc();
+            FileUtils.deleteRecursive(tmpdir);
+        }
     }
 
     private static final class TestClient extends SSTableLoader.Client
