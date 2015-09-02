@@ -655,12 +655,11 @@ public abstract class SSTableReader extends SSTable implements SelfRefCounted<SS
         // e.g. by BulkLoader, which does not initialize the cache.  As a kludge, we set up the cache
         // here when we know we're being wired into the rest of the server infrastructure.
         keyCache = CacheService.instance.keyCache;
-
-        // ensure secondary index compression metadata is linked to the parent metadata.
-        if (compression && metadata.isIndex())
+        final ColumnFamilyStore cfs = Schema.instance.getColumnFamilyStoreInstance(metadata.cfId);
+        if (cfs != null)
         {
-            getCompressionMetadata().parameters.setLiveMetadata(
-                    Schema.instance.getCFMetaData(metadata.ksName, metadata.getParentColumnFamilyName()));
+            ifile.setCrcCheckChanceSupplier(cfs::getCrcCheckChance);
+            dfile.setCrcCheckChanceSupplier(cfs::getCrcCheckChance);
         }
     }
 
@@ -1642,6 +1641,12 @@ public abstract class SSTableReader extends SSTable implements SelfRefCounted<SS
         return dfile.onDiskLength;
     }
 
+    @VisibleForTesting
+    public double getCrcCheckChance()
+    {
+        return dfile.getCrcCheckChanceSupplier().get();
+    }
+
     /**
      * Mark the sstable as obsolete, i.e., compacted into newer sstables.
      *
@@ -2047,8 +2052,6 @@ public abstract class SSTableReader extends SSTable implements SelfRefCounted<SS
     {
         tidy.setup(this, trackHotness);
         this.readMeter = tidy.global.readMeter;
-        if (compression)
-            getCompressionMetadata().parameters.setLiveMetadata(metadata);
     }
 
     @VisibleForTesting

@@ -196,8 +196,10 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
     public final ViewManager.ForStore viewManager;
 
     /* These are locally held copies to be changed from the config during runtime */
-    private volatile DefaultInteger minCompactionThreshold;
-    private volatile DefaultInteger maxCompactionThreshold;
+    private volatile DefaultValue<Integer> minCompactionThreshold;
+    private volatile DefaultValue<Integer> maxCompactionThreshold;
+    private volatile DefaultValue<Double> crcCheckChance;
+
     private final CompactionStrategyManager compactionStrategyManager;
 
     private volatile Directories directories;
@@ -219,10 +221,13 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
         // only update these runtime-modifiable settings if they have not been modified.
         if (!minCompactionThreshold.isModified())
             for (ColumnFamilyStore cfs : concatWithIndexes())
-                cfs.minCompactionThreshold = new DefaultInteger(metadata.params.compaction.minCompactionThreshold());
+                cfs.minCompactionThreshold = new DefaultValue(metadata.params.compaction.minCompactionThreshold());
         if (!maxCompactionThreshold.isModified())
             for (ColumnFamilyStore cfs : concatWithIndexes())
-                cfs.maxCompactionThreshold = new DefaultInteger(metadata.params.compaction.maxCompactionThreshold());
+                cfs.maxCompactionThreshold = new DefaultValue(metadata.params.compaction.maxCompactionThreshold());
+        if (!crcCheckChance.isModified())
+            for (ColumnFamilyStore cfs : concatWithIndexes())
+                cfs.crcCheckChance = new DefaultValue(metadata.params.crcCheckChance);
 
         compactionStrategyManager.maybeReload(metadata);
         directories = compactionStrategyManager.getDirectories();
@@ -333,19 +338,6 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
         }
     }
 
-    // FIXME: this is wrong, JMX should never update live CFMetaData objects
-    public void setCrcCheckChance(double crcCheckChance)
-    {
-        try
-        {
-            metadata.params.compression.setCrcCheckChance(crcCheckChance);
-        }
-        catch (ConfigurationException e)
-        {
-            throw new IllegalArgumentException(e.getMessage());
-        }
-    }
-
     private ColumnFamilyStore(Keyspace keyspace,
                              String columnFamilyName,
                              int generation,
@@ -370,14 +362,15 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
         assert metadata != null : "null metadata for " + keyspace + ":" + columnFamilyName;
 
         this.keyspace = keyspace;
-        name = columnFamilyName;
         this.metadata = metadata;
-        this.minCompactionThreshold = new DefaultInteger(metadata.params.compaction.minCompactionThreshold());
-        this.maxCompactionThreshold = new DefaultInteger(metadata.params.compaction.maxCompactionThreshold());
         this.directories = directories;
-        this.indexManager = new SecondaryIndexManager(this);
-        this.viewManager = keyspace.viewManager.forTable(metadata.cfId);
-        this.metric = new TableMetrics(this);
+        name = columnFamilyName;
+        minCompactionThreshold = new DefaultValue<>(metadata.params.compaction.minCompactionThreshold());
+        maxCompactionThreshold = new DefaultValue<>(metadata.params.compaction.maxCompactionThreshold());
+        crcCheckChance = new DefaultValue<>(metadata.params.crcCheckChance);
+        indexManager = new SecondaryIndexManager(this);
+        viewManager = keyspace.viewManager.forTable(metadata.cfId);
+        metric = new TableMetrics(this);
         fileIndexGenerator.set(generation);
         sampleLatencyNanos = DatabaseDescriptor.getReadRpcTimeout() / 2;
 
@@ -394,7 +387,7 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
         }
 
         // compaction strategy should be created after the CFS has been prepared
-        this.compactionStrategyManager = new CompactionStrategyManager(this);
+        compactionStrategyManager = new CompactionStrategyManager(this);
         this.directories = this.compactionStrategyManager.getDirectories();
 
         if (maxCompactionThreshold.value() <= 0 || minCompactionThreshold.value() <=0)
@@ -2039,6 +2032,26 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
     public CompactionStrategyManager getCompactionStrategyManager()
     {
         return compactionStrategyManager;
+    }
+
+    public void setCrcCheckChance(double crcCheckChance)
+    {
+        try
+        {
+            TableParams.builder().crcCheckChance(crcCheckChance).build().validate();
+            for (ColumnFamilyStore cfs : concatWithIndexes())
+                cfs.crcCheckChance.set(crcCheckChance);
+        }
+        catch (ConfigurationException e)
+        {
+            throw new IllegalArgumentException(e.getMessage());
+        }
+    }
+
+
+    public Double getCrcCheckChance()
+    {
+        return crcCheckChance.value();
     }
 
     public void setCompactionThresholds(int minThreshold, int maxThreshold)

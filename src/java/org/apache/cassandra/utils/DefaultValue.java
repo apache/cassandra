@@ -18,23 +18,23 @@
 package org.apache.cassandra.utils;
 
 
-public class DefaultInteger
+public class DefaultValue<T>
 {
-    private final int originalValue;
-    private int currentValue;
+    private final T originalValue;
+    private T currentValue;
 
-    public DefaultInteger(int value)
+    public DefaultValue(T value)
     {
         originalValue = value;
         currentValue = value;
     }
 
-    public int value()
+    public T value()
     {
         return currentValue;
     }
 
-    public void set(int i)
+    public void set(T i)
     {
         currentValue = i;
     }

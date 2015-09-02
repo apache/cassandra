@@ -94,6 +94,8 @@ Upgrading
    - The `sstable_compression` and `chunk_length_kb` compression options have been deprecated.
      The new options are `class` and `chunk_length_in_kb`. Disabling compression should now
      be done by setting the new option `enabled` to `false`.
+   - The compression option `crc_check_chance` became a top-level table option, but is currently
+     enforced only against tables with enabled compression.
    - Only map syntax is now allowed for caching options. ALL/NONE/KEYS_ONLY/ROWS_ONLY syntax
      has been deprecated since 2.1.0 and is being removed in 3.0.0.
    - The 'index_interval' option for 'CREATE TABLE' statements, which has been deprecated

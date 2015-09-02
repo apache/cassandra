@@ -199,6 +199,12 @@ public final class CFMetaData
         return this;
     }
 
+    public CFMetaData crcCheckChance(double prop)
+    {
+        params = TableParams.builder(params).crcCheckChance(prop).build();
+        return this;
+    }
+
     public CFMetaData speculativeRetry(SpeculativeRetryParam prop)
     {
         params = TableParams.builder(params).speculativeRetry(prop).build();
@@ -270,7 +276,8 @@ public final class CFMetaData
 
         isIndex = cfName.contains(".");
 
-        assert partitioner != null;
+        assert partitioner != null : "This assertion failure is probably due to accessing Schema.instance " +
+                                     "from client-mode tools - See CASSANDRA-8143.";
         this.partitioner = partitioner;
 
         // A compact table should always have a clustering
