@@ -55,6 +55,9 @@ import org.apache.cassandra.concurrent.Stage;
 import org.apache.cassandra.concurrent.StageManager;
 import org.apache.cassandra.config.*;
 import org.apache.cassandra.db.*;
+import org.apache.cassandra.batchlog.BatchStoreVerbHandler;
+import org.apache.cassandra.batchlog.BatchRemoveVerbHandler;
+import org.apache.cassandra.batchlog.BatchlogManager;
 import org.apache.cassandra.db.commitlog.CommitLog;
 import org.apache.cassandra.db.compaction.CompactionManager;
 import org.apache.cassandra.db.lifecycle.TransactionLog;
@@ -282,7 +285,6 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
 
         /* register the verb handlers */
         MessagingService.instance().registerVerbHandlers(MessagingService.Verb.MUTATION, new MutationVerbHandler());
-        MessagingService.instance().registerVerbHandlers(MessagingService.Verb.BATCHLOG_MUTATION, new MutationVerbHandler());
         MessagingService.instance().registerVerbHandlers(MessagingService.Verb.READ_REPAIR, new ReadRepairVerbHandler());
         MessagingService.instance().registerVerbHandlers(MessagingService.Verb.READ, new ReadCommandVerbHandler());
         MessagingService.instance().registerVerbHandlers(MessagingService.Verb.RANGE_SLICE, new RangeSliceVerbHandler());
@@ -311,6 +313,9 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
 
         MessagingService.instance().registerVerbHandlers(MessagingService.Verb.SNAPSHOT, new SnapshotVerbHandler());
         MessagingService.instance().registerVerbHandlers(MessagingService.Verb.ECHO, new EchoVerbHandler());
+
+        MessagingService.instance().registerVerbHandlers(MessagingService.Verb.BATCH_STORE, new BatchStoreVerbHandler());
+        MessagingService.instance().registerVerbHandlers(MessagingService.Verb.BATCH_REMOVE, new BatchRemoveVerbHandler());
     }
 
     public void registerDaemon(CassandraDaemon daemon)
@@ -620,12 +625,10 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
             {
                 inShutdownHook = true;
                 ExecutorService materializedViewMutationStage = StageManager.getStage(Stage.MATERIALIZED_VIEW_MUTATION);
-                ExecutorService batchlogMutationStage = StageManager.getStage(Stage.BATCHLOG_MUTATION);
                 ExecutorService counterMutationStage = StageManager.getStage(Stage.COUNTER_MUTATION);
                 ExecutorService mutationStage = StageManager.getStage(Stage.MUTATION);
                 if (mutationStage.isShutdown()
                     && counterMutationStage.isShutdown()
-                    && batchlogMutationStage.isShutdown()
                     && materializedViewMutationStage.isShutdown())
                     return; // drained already
 
@@ -638,12 +641,10 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
                 // before mutation stage, so we can get all the hints saved before shutting down
                 MessagingService.instance().shutdown();
                 materializedViewMutationStage.shutdown();
-                batchlogMutationStage.shutdown();
                 HintsService.instance.pauseDispatch();
                 counterMutationStage.shutdown();
                 mutationStage.shutdown();
                 materializedViewMutationStage.awaitTermination(3600, TimeUnit.SECONDS);
-                batchlogMutationStage.awaitTermination(3600, TimeUnit.SECONDS);
                 counterMutationStage.awaitTermination(3600, TimeUnit.SECONDS);
                 mutationStage.awaitTermination(3600, TimeUnit.SECONDS);
                 StorageProxy.instance.verifyNoHintsInProgress();
@@ -3846,17 +3847,15 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
     {
         inShutdownHook = true;
 
-        BatchlogManager.shutdown();
+        BatchlogManager.instance.shutdown();
 
         HintsService.instance.pauseDispatch();
 
         ExecutorService counterMutationStage = StageManager.getStage(Stage.COUNTER_MUTATION);
-        ExecutorService batchlogMutationStage = StageManager.getStage(Stage.BATCHLOG_MUTATION);
         ExecutorService materializedViewMutationStage = StageManager.getStage(Stage.MATERIALIZED_VIEW_MUTATION);
         ExecutorService mutationStage = StageManager.getStage(Stage.MUTATION);
         if (mutationStage.isTerminated()
             && counterMutationStage.isTerminated()
-            && batchlogMutationStage.isTerminated()
             && materializedViewMutationStage.isTerminated())
         {
             logger.warn("Cannot drain node (did it already happen?)");
@@ -3872,11 +3871,9 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
 
         setMode(Mode.DRAINING, "clearing mutation stage", false);
         materializedViewMutationStage.shutdown();
-        batchlogMutationStage.shutdown();
         counterMutationStage.shutdown();
         mutationStage.shutdown();
         materializedViewMutationStage.awaitTermination(3600, TimeUnit.SECONDS);
-        batchlogMutationStage.awaitTermination(3600, TimeUnit.SECONDS);
         counterMutationStage.awaitTermination(3600, TimeUnit.SECONDS);
         mutationStage.awaitTermination(3600, TimeUnit.SECONDS);
 
@@ -3912,6 +3909,8 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
                 flushes.add(cfs.forceFlush());
         }
         FBUtilities.waitOnFutures(flushes);
+
+        BatchlogManager.instance.shutdown();
 
         HintsService.instance.shutdownBlocking();
 

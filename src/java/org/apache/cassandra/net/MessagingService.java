@@ -47,6 +47,7 @@ import org.apache.cassandra.concurrent.TracingAwareExecutorService;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.config.EncryptionOptions.ServerEncryptionOptions;
 import org.apache.cassandra.db.*;
+import org.apache.cassandra.batchlog.Batch;
 import org.apache.cassandra.dht.AbstractBounds;
 import org.apache.cassandra.dht.BootStrapper;
 import org.apache.cassandra.dht.IPartitioner;
@@ -103,8 +104,8 @@ public final class MessagingService implements MessagingServiceMBean
         READ_REPAIR,
         READ,
         REQUEST_RESPONSE, // client-initiated reads and writes
-        @Deprecated STREAM_INITIATE,
-        @Deprecated STREAM_INITIATE_DONE,
+        BATCH_STORE,  // was @Deprecated STREAM_INITIATE,
+        BATCH_REMOVE, // was @Deprecated STREAM_INITIATE_DONE,
         @Deprecated STREAM_REPLY,
         @Deprecated STREAM_REQUEST,
         RANGE_SLICE,
@@ -135,7 +136,6 @@ public final class MessagingService implements MessagingServiceMBean
         PAXOS_PROPOSE,
         PAXOS_COMMIT,
         @Deprecated PAGED_RANGE,
-        BATCHLOG_MUTATION,
         // remember to add new verbs at the end, since we serialize by ordinal
         UNUSED_1,
         UNUSED_2,
@@ -149,13 +149,14 @@ public final class MessagingService implements MessagingServiceMBean
     {{
         put(Verb.MUTATION, Stage.MUTATION);
         put(Verb.COUNTER_MUTATION, Stage.COUNTER_MUTATION);
-        put(Verb.BATCHLOG_MUTATION, Stage.BATCHLOG_MUTATION);
         put(Verb.READ_REPAIR, Stage.MUTATION);
         put(Verb.HINT, Stage.MUTATION);
         put(Verb.TRUNCATE, Stage.MUTATION);
         put(Verb.PAXOS_PREPARE, Stage.MUTATION);
         put(Verb.PAXOS_PROPOSE, Stage.MUTATION);
         put(Verb.PAXOS_COMMIT, Stage.MUTATION);
+        put(Verb.BATCH_STORE, Stage.MUTATION);
+        put(Verb.BATCH_REMOVE, Stage.MUTATION);
 
         put(Verb.READ, Stage.READ);
         put(Verb.RANGE_SLICE, Stage.READ);
@@ -209,7 +210,6 @@ public final class MessagingService implements MessagingServiceMBean
         put(Verb.INTERNAL_RESPONSE, CallbackDeterminedSerializer.instance);
 
         put(Verb.MUTATION, Mutation.serializer);
-        put(Verb.BATCHLOG_MUTATION, Mutation.serializer);
         put(Verb.READ_REPAIR, Mutation.serializer);
         put(Verb.READ, ReadCommand.serializer);
         put(Verb.RANGE_SLICE, ReadCommand.rangeSliceSerializer);
@@ -229,6 +229,8 @@ public final class MessagingService implements MessagingServiceMBean
         put(Verb.PAXOS_PROPOSE, Commit.serializer);
         put(Verb.PAXOS_COMMIT, Commit.serializer);
         put(Verb.HINT, HintMessage.serializer);
+        put(Verb.BATCH_STORE, Batch.serializer);
+        put(Verb.BATCH_REMOVE, UUIDSerializer.serializer);
     }};
 
     /**
@@ -238,7 +240,6 @@ public final class MessagingService implements MessagingServiceMBean
     {{
         put(Verb.MUTATION, WriteResponse.serializer);
         put(Verb.HINT, HintResponse.serializer);
-        put(Verb.BATCHLOG_MUTATION, WriteResponse.serializer);
         put(Verb.READ_REPAIR, WriteResponse.serializer);
         put(Verb.COUNTER_MUTATION, WriteResponse.serializer);
         put(Verb.RANGE_SLICE, ReadResponse.rangeSliceSerializer);
@@ -254,6 +255,9 @@ public final class MessagingService implements MessagingServiceMBean
 
         put(Verb.PAXOS_PREPARE, PrepareResponse.serializer);
         put(Verb.PAXOS_PROPOSE, BooleanSerializer.serializer);
+
+        put(Verb.BATCH_STORE, WriteResponse.serializer);
+        put(Verb.BATCH_REMOVE, WriteResponse.serializer);
     }};
 
     /* This records all the results mapped by message Id */
@@ -286,7 +290,7 @@ public final class MessagingService implements MessagingServiceMBean
     /* Lookup table for registering message handlers based on the verb. */
     private final Map<Verb, IVerbHandler> verbHandlers;
 
-    private final ConcurrentMap<InetAddress, OutboundTcpConnectionPool> connectionManagers = new NonBlockingHashMap<InetAddress, OutboundTcpConnectionPool>();
+    private final ConcurrentMap<InetAddress, OutboundTcpConnectionPool> connectionManagers = new NonBlockingHashMap<>();
 
     private static final Logger logger = LoggerFactory.getLogger(MessagingService.class);
     private static final int LOG_DROPPED_INTERVAL_IN_MS = 5000;
@@ -301,14 +305,15 @@ public final class MessagingService implements MessagingServiceMBean
      */
     public static final EnumSet<Verb> DROPPABLE_VERBS = EnumSet.of(Verb._TRACE,
                                                                    Verb.MUTATION,
-                                                                   Verb.BATCHLOG_MUTATION, //FIXME: should this be droppable??
                                                                    Verb.COUNTER_MUTATION,
                                                                    Verb.HINT,
                                                                    Verb.READ_REPAIR,
                                                                    Verb.READ,
                                                                    Verb.RANGE_SLICE,
                                                                    Verb.PAGED_RANGE,
-                                                                   Verb.REQUEST_RESPONSE);
+                                                                   Verb.REQUEST_RESPONSE,
+                                                                   Verb.BATCH_STORE,
+                                                                   Verb.BATCH_REMOVE);
 
 
     private static final class DroppedMessages
@@ -372,7 +377,7 @@ public final class MessagingService implements MessagingServiceMBean
             droppedMessagesMap.put(verb, new DroppedMessages(verb));
 
         listenGate = new SimpleCondition();
-        verbHandlers = new EnumMap<Verb, IVerbHandler>(Verb.class);
+        verbHandlers = new EnumMap<>(Verb.class);
         if (!testOnly)
         {
             Runnable logDropped = new Runnable()
@@ -630,7 +635,6 @@ public final class MessagingService implements MessagingServiceMBean
                            boolean allowHints)
     {
         assert message.verb == Verb.MUTATION
-            || message.verb == Verb.BATCHLOG_MUTATION
             || message.verb == Verb.COUNTER_MUTATION
             || message.verb == Verb.PAXOS_COMMIT;
         int messageId = nextId();

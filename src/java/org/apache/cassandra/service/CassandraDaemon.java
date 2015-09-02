@@ -27,7 +27,6 @@ import java.rmi.registry.LocateRegistry;
 import java.rmi.server.RMIServerSocketFactory;
 import java.util.Collections;
 import java.util.Map;
-import java.util.UUID;
 import java.util.concurrent.TimeUnit;
 import javax.management.MBeanServer;
 import javax.management.ObjectName;
@@ -41,7 +40,6 @@ import com.codahale.metrics.Meter;
 import com.codahale.metrics.MetricRegistryListener;
 import com.codahale.metrics.SharedMetricRegistries;
 import com.google.common.annotations.VisibleForTesting;
-import com.google.common.collect.Iterables;
 import com.google.common.util.concurrent.Uninterruptibles;
 
 import org.slf4j.Logger;
@@ -52,6 +50,7 @@ import org.apache.cassandra.config.CFMetaData;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.config.Schema;
 import org.apache.cassandra.db.*;
+import org.apache.cassandra.batchlog.LegacyBatchlogMigrator;
 import org.apache.cassandra.db.commitlog.CommitLog;
 import org.apache.cassandra.exceptions.ConfigurationException;
 import org.apache.cassandra.exceptions.StartupException;
@@ -279,6 +278,9 @@ public class CassandraDaemon
 
         // migrate any legacy (pre-3.0) hints from system.hints table into the new store
         new LegacyHintsMigrator(DatabaseDescriptor.getHintsDirectory(), DatabaseDescriptor.getMaxHintsFileSize()).migrate();
+
+        // migrate any legacy (pre-3.0) batch entries from system.batchlog to system.batches (new table format)
+        LegacyBatchlogMigrator.migrate();
 
         // enable auto compaction
         for (Keyspace keyspace : Keyspace.all())

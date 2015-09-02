@@ -92,7 +92,7 @@ public final class LegacyHintsMigrator
         compactLegacyHints();
 
         // paginate over legacy hints and write them to the new storage
-        logger.info("Migrating legacy hints to the new storage");
+        logger.info("Writing legacy hints to the new storage");
         migrateLegacyHints();
 
         // truncate the legacy hints table

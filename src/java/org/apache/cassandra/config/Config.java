@@ -93,7 +93,6 @@ public class Config
     public Integer concurrent_reads = 32;
     public Integer concurrent_writes = 32;
     public Integer concurrent_counter_writes = 32;
-    public Integer concurrent_batchlog_writes = 32;
     public Integer concurrent_materialized_view_writes = 32;
 
     @Deprecated

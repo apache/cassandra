@@ -28,16 +28,22 @@ import org.apache.cassandra.net.MessagingService;
 /*
  * This empty response is sent by a replica to inform the coordinator that the write succeeded
  */
-public class WriteResponse
+public final class WriteResponse
 {
-    public static final WriteResponseSerializer serializer = new WriteResponseSerializer();
+    public static final Serializer serializer = new Serializer();
 
-    public MessageOut<WriteResponse> createMessage()
+    private static final WriteResponse instance = new WriteResponse();
+
+    private WriteResponse()
     {
-        return new MessageOut<WriteResponse>(MessagingService.Verb.REQUEST_RESPONSE, this, serializer);
     }
 
-    public static class WriteResponseSerializer implements IVersionedSerializer<WriteResponse>
+    public static MessageOut<WriteResponse> createMessage()
+    {
+        return new MessageOut<>(MessagingService.Verb.REQUEST_RESPONSE, instance, serializer);
+    }
+
+    public static class Serializer implements IVersionedSerializer<WriteResponse>
     {
         public void serialize(WriteResponse wm, DataOutputPlus out, int version) throws IOException
         {
@@ -45,7 +51,7 @@ public class WriteResponse
 
         public WriteResponse deserialize(DataInputPlus in, int version) throws IOException
         {
-            return new WriteResponse();
+            return instance;
         }
 
         public long serializedSize(WriteResponse response, int version)

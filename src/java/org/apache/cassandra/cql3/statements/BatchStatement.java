@@ -524,11 +524,6 @@ public class BatchStatement implements CQLStatement
         }
     }
 
-    public interface BatchVariables
-    {
-        public List<ByteBuffer> getVariablesForStatement(int statementInBatch);
-    }
-
     public String toString()
     {
         return String.format("BatchStatement(type=%s, statements=%s)", type, statements);

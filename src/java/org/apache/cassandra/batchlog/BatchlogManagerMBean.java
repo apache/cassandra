@@ -15,17 +15,24 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package org.apache.cassandra.db;
+package org.apache.cassandra.batchlog;
 
-import org.apache.cassandra.net.IVerbHandler;
-import org.apache.cassandra.net.MessageIn;
-import org.apache.cassandra.net.MessagingService;
-
-public class ReadRepairVerbHandler implements IVerbHandler<Mutation>
+public interface BatchlogManagerMBean
 {
-    public void doVerb(MessageIn<Mutation> message, int id)
-    {
-        message.payload.apply();
-        MessagingService.instance().sendReply(WriteResponse.createMessage(), id, message.from);
-    }
+    /**
+     * Counts all batches currently in the batchlog.
+     *
+     * @return total batch count
+     */
+    public int countAllBatches();
+
+    /**
+     * @return total count of batches replayed since node start
+     */
+    public long getTotalBatchesReplayed();
+
+    /**
+     * Forces batchlog replay. Returns immediately if replay is already in progress.
+     */
+    public void forceBatchlogReplay() throws Exception;
 }
