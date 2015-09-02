@@ -95,7 +95,7 @@ public class MessageDeliveryTask implements Runnable
         }
     }
 
-    EnumSet<MessagingService.Verb> GOSSIP_VERBS = EnumSet.of(MessagingService.Verb.GOSSIP_DIGEST_ACK,
-                                                             MessagingService.Verb.GOSSIP_DIGEST_ACK2,
-                                                             MessagingService.Verb.GOSSIP_DIGEST_SYN);
+    private static final EnumSet<MessagingService.Verb> GOSSIP_VERBS = EnumSet.of(MessagingService.Verb.GOSSIP_DIGEST_ACK,
+                                                                                  MessagingService.Verb.GOSSIP_DIGEST_ACK2,
+                                                                                  MessagingService.Verb.GOSSIP_DIGEST_SYN);
 }
