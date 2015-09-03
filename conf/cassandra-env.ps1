@@ -199,7 +199,7 @@ Function CalculateHeapSizes
 #-----------------------------------------------------------------------------
 Function SetJsr223Env
 {
-    $cp = """$env:CLASSPATH"""
+    $cp = $env:CLASSPATH
     foreach ($jsrDir in Get-ChildItem -Path "$env:CASSANDRA_HOME\lib\jsr223")
     {
         foreach ($file in Get-ChildItem -Path "$env:CASSANDRA_HOME\lib\jsr223\$jsrDir\*.jar")
@@ -332,7 +332,7 @@ Function SetCassandraEnvironment
 
     ParseJVMInfo
     # Add sigar env - see Cassandra-7838
-    $env:JVM_OPTS = "$env:JVM_OPTS -Djava.library.path=$env:CASSANDRA_HOME\lib\sigar-bin"
+    $env:JVM_OPTS = "$env:JVM_OPTS -Djava.library.path=""$env:CASSANDRA_HOME\lib\sigar-bin"""
 
     # Confirm we're on high performance power plan, warn if not
     # Change to $true to suppress this warning
