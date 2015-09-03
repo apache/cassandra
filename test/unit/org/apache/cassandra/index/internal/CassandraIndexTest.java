@@ -703,15 +703,14 @@ public class CassandraIndexTest extends CQLTester
         private void waitForIndexBuild() throws Throwable
         {
             ColumnFamilyStore cfs = getCurrentColumnFamilyStore();
-            String fullIndexName = String.format("%s.%s", currentTable(), indexName);
             long maxWaitMillis = 10000;
             long startTime = System.currentTimeMillis();
-            while (! cfs.indexManager.getBuiltIndexNames().contains(fullIndexName))
+            while (! cfs.indexManager.getBuiltIndexNames().contains(indexName))
             {
                 Thread.sleep(100);
                 long wait = System.currentTimeMillis() - startTime;
                 if (wait > maxWaitMillis)
-                    fail(String.format("Timed out waiting for index %s to build (%s)ms", fullIndexName, wait));
+                    fail(String.format("Timed out waiting for index %s to build (%s)ms", indexName, wait));
             }
         }
     }

@@ -29,6 +29,8 @@ import org.junit.Before;
 import org.junit.BeforeClass;
 import org.junit.Test;
 
+import org.apache.cassandra.index.SecondaryIndexManager;
+
 import org.apache.cassandra.SchemaLoader;
 import org.apache.cassandra.Util;
 import org.apache.cassandra.config.ColumnDefinition;
@@ -42,7 +44,6 @@ import org.apache.cassandra.schema.IndexMetadata;
 import org.apache.cassandra.schema.KeyspaceParams;
 import org.apache.cassandra.utils.ByteBufferUtil;
 import org.apache.cassandra.utils.FBUtilities;
-
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertNotNull;
@@ -451,7 +452,7 @@ public class SecondaryIndexTest
         boolean flushed = false;
         for (ColumnFamilyStore indexCfs : cfs.indexManager.getAllIndexColumnFamilyStores())
         {
-            if (indexCfs.name.equals(indexName))
+            if (SecondaryIndexManager.getIndexName(indexCfs).equals(indexName))
                 flushed = indexCfs.getLiveSSTables().size() > 0;
         }
         assertTrue(flushed);

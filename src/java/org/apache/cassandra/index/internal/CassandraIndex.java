@@ -159,8 +159,7 @@ public abstract class CassandraIndex implements Index
 
     public String getIndexName()
     {
-        // should return metadata.name, see CASSANDRA-10127
-        return indexCfs.name;
+        return metadata.name;
     }
 
     public Optional<ColumnFamilyStore> getBackingTable()
