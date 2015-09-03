@@ -106,6 +106,9 @@ public class SSTableDeletingTask implements Runnable
             failedTasks.remove(task);
             task.schedule();
         }
+
+        // On Windows, snapshots cannot be deleted so long as a segment of the root element is memory-mapped in NTFS.
+        SnapshotDeletingTask.rescheduleFailedTasks();
     }
 
     /** for tests */
