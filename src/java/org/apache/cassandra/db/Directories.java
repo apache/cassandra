@@ -800,14 +800,9 @@ public class Directories
                 catch (FSWriteError e)
                 {
                     if (FBUtilities.isWindows())
-                    {
-                        logger.warn("Failed to delete snapshot directory [{}]. Folder will be deleted on JVM shutdown or next node restart on crash. You can safely attempt to delete this folder but it will fail so long as readers are open on the files.", snapshotDir);
-                        WindowsFailedSnapshotTracker.handleFailedSnapshot(snapshotDir);
-                    }
+                        SnapshotDeletingTask.addFailedSnapshot(snapshotDir);
                     else
-                    {
                         throw e;
-                    }
                 }
             }
         }
