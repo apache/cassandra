@@ -101,7 +101,7 @@ public class WindowsFailedSnapshotTracker
 
     public static synchronized void handleFailedSnapshot(File dir)
     {
-        assert(_failedSnapshotFile != null);
+        assert _failedSnapshotFile != null : "_failedSnapshotFile not initialized within WindowsFailedSnapshotTracker";
         FileUtils.deleteRecursiveOnExit(dir);
         _failedSnapshotFile.println(dir.toString());
         _failedSnapshotFile.flush();
