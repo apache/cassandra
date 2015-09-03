@@ -775,7 +775,7 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
         Iterable<SSTableReader> sstables = cfs.getSSTables(SSTableSet.CANONICAL);
         try (Refs<SSTableReader> refs = Refs.ref(sstables))
         {
-            logger.info(String.format("User Requested secondary index re-build for %s/%s indexes", ksName, cfName));
+            logger.info("User Requested secondary index re-build for {}/{} indexes: {}", ksName, cfName, Joiner.on(',').join(idxNames));
             cfs.indexManager.rebuildIndexesBlocking(refs, indexes);
         }
     }
@@ -1382,27 +1382,18 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
      */
     public boolean rebuildOnFailedScrub(Throwable failure)
     {
-        if (!isIndex())
-            return false;
-
-        boolean validIndex = false;
-        ColumnFamilyStore parentCfs = null;
-        String indexName = null;
-        if (metadata.cfName.contains(Directories.SECONDARY_INDEX_NAME_SEPARATOR))
-        {
-            String[] parts = metadata.cfName.split("\\" + Directories.SECONDARY_INDEX_NAME_SEPARATOR, 2);
-            parentCfs = keyspace.getColumnFamilyStore(parts[0]);
-            assert parentCfs.indexManager.getAllIndexColumnFamilyStores().contains(this);
-            validIndex = true;
-            indexName = this.name;
-        }
-
-        if (! validIndex)
+        if (!isIndex() || !SecondaryIndexManager.isIndexColumnFamilyStore(this))
             return false;
 
         truncateBlocking();
 
         logger.warn("Rebuilding index for {} because of <{}>", name, failure.getMessage());
+
+        ColumnFamilyStore parentCfs = SecondaryIndexManager.getParentCfs(this);
+        assert parentCfs.indexManager.getAllIndexColumnFamilyStores().contains(this);
+
+        String indexName = SecondaryIndexManager.getIndexName(this);
+
         parentCfs.rebuildSecondaryIndex(indexName);
         return true;
     }

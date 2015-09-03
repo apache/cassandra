@@ -27,12 +27,13 @@ import java.util.concurrent.locks.Lock;
 
 import com.google.common.base.Function;
 import com.google.common.collect.Iterables;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
 
 import org.apache.cassandra.concurrent.Stage;
 import org.apache.cassandra.concurrent.StageManager;
-import org.apache.cassandra.config.*;
+import org.apache.cassandra.config.CFMetaData;
+import org.apache.cassandra.config.Config;
+import org.apache.cassandra.config.DatabaseDescriptor;
+import org.apache.cassandra.config.Schema;
 import org.apache.cassandra.db.commitlog.CommitLog;
 import org.apache.cassandra.db.commitlog.ReplayPosition;
 import org.apache.cassandra.db.compaction.CompactionManager;
@@ -42,6 +43,7 @@ import org.apache.cassandra.db.rows.UnfilteredRowIterator;
 import org.apache.cassandra.db.view.MaterializedViewManager;
 import org.apache.cassandra.exceptions.WriteTimeoutException;
 import org.apache.cassandra.index.Index;
+import org.apache.cassandra.index.SecondaryIndexManager;
 import org.apache.cassandra.index.transactions.UpdateTransaction;
 import org.apache.cassandra.io.sstable.format.SSTableReader;
 import org.apache.cassandra.locator.AbstractReplicationStrategy;
@@ -53,6 +55,8 @@ import org.apache.cassandra.utils.ByteBufferUtil;
 import org.apache.cassandra.utils.FBUtilities;
 import org.apache.cassandra.utils.JVMStabilityInspector;
 import org.apache.cassandra.utils.concurrent.OpOrder;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 /**
  * It represents a Keyspace.
@@ -548,16 +552,15 @@ public class Keyspace
         // include the specified stores and possibly the stores of any of their indexes
         for (String cfName : cfNames)
         {
-            int separatorPos = cfName.indexOf(Directories.SECONDARY_INDEX_NAME_SEPARATOR);
-            if (separatorPos > -1)
+            if (SecondaryIndexManager.isIndexColumnFamily(cfName))
             {
                 if (!allowIndexes)
                 {
                     logger.warn("Operation not allowed on secondary Index table ({})", cfName);
                     continue;
                 }
-                String baseName = cfName.substring(0, separatorPos);
-                String indexName = cfName.substring(separatorPos + Directories.SECONDARY_INDEX_NAME_SEPARATOR.length());
+                String baseName = SecondaryIndexManager.getParentCfsName(cfName);
+                String indexName = SecondaryIndexManager.getIndexName(cfName);
 
                 ColumnFamilyStore baseCfs = getColumnFamilyStore(baseName);
                 Index index = baseCfs.indexManager.getIndexByName(indexName);

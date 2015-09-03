@@ -18,6 +18,8 @@ using the provided 'sstableupgrade' tool.
 
 New features
 ------------
+   - nodetool rebuild_index accepts the index argument without
+     the redundant table name
    - Materialized Views, which allow for server-side denormalization, is now
      available. Materialized views provide an alternative to secondary indexes
      for non-primary key queries, and perform much better for indexing high

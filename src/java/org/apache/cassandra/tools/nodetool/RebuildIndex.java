@@ -31,7 +31,7 @@ import org.apache.cassandra.tools.NodeTool.NodeToolCmd;
 @Command(name = "rebuild_index", description = "A full rebuild of native secondary indexes for a given table")
 public class RebuildIndex extends NodeToolCmd
 {
-    @Arguments(usage = "<keyspace> <table> <indexName...>", description = "The keyspace and table name followed by a list of index names (IndexNameExample: Standard3.IdxName Standard3.IdxName1)")
+    @Arguments(usage = "<keyspace> <table> <indexName...>", description = "The keyspace and table name followed by a list of index names")
     List<String> args = new ArrayList<>();
 
     @Override

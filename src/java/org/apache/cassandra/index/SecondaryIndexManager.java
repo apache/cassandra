@@ -24,15 +24,19 @@ import java.util.function.Function;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
+import com.google.common.base.Joiner;
 import com.google.common.base.Strings;
 import com.google.common.collect.ImmutableSet;
 import com.google.common.collect.Maps;
 import com.google.common.primitives.Longs;
 import com.google.common.util.concurrent.Futures;
 import com.google.common.util.concurrent.MoreExecutors;
+
+import org.apache.commons.lang3.StringUtils;
+
+import org.apache.cassandra.db.Directories;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-
 import org.apache.cassandra.concurrent.JMXEnabledThreadPoolExecutor;
 import org.apache.cassandra.concurrent.NamedThreadFactory;
 import org.apache.cassandra.concurrent.StageManager;
@@ -209,7 +213,7 @@ public class SecondaryIndexManager implements IndexRegistry
                                                .collect(Collectors.toSet());
         if (toRebuild.isEmpty())
         {
-            logger.info("No defined indexes with the supplied names");
+            logger.info("No defined indexes with the supplied names: {}", Joiner.on(',').join(indexNames));
             return;
         }
 
@@ -234,6 +238,77 @@ public class SecondaryIndexManager implements IndexRegistry
             buildIndexesBlocking(sstables, Collections.singleton(index));
             markIndexBuilt(index.getIndexName());
         }
+    }
+
+    /**
+     * Checks if the specified {@link ColumnFamilyStore} is a secondary index.
+     *
+     * @param cfs the <code>ColumnFamilyStore</code> to check.
+     * @return <code>true</code> if the specified <code>ColumnFamilyStore</code> is a secondary index,
+     * <code>false</code> otherwise.
+     */
+    public static boolean isIndexColumnFamilyStore(ColumnFamilyStore cfs)
+    {
+        return isIndexColumnFamily(cfs.name);
+    }
+
+    /**
+     * Checks if the specified {@link ColumnFamilyStore} is the one secondary index.
+     *
+     * @param cfs the name of the <code>ColumnFamilyStore</code> to check.
+     * @return <code>true</code> if the specified <code>ColumnFamilyStore</code> is a secondary index,
+     * <code>false</code> otherwise.
+     */
+    public static boolean isIndexColumnFamily(String cfName)
+    {
+        return cfName.contains(Directories.SECONDARY_INDEX_NAME_SEPARATOR);
+    }
+
+    /**
+     * Returns the parent of the specified {@link ColumnFamilyStore}.
+     *
+     * @param cfs the <code>ColumnFamilyStore</code>
+     * @return the parent of the specified <code>ColumnFamilyStore</code>
+     */
+    public static ColumnFamilyStore getParentCfs(ColumnFamilyStore cfs)
+    {
+        String parentCfs = getParentCfsName(cfs.name);
+        return cfs.keyspace.getColumnFamilyStore(parentCfs);
+    }
+
+    /**
+     * Returns the parent name of the specified {@link ColumnFamilyStore}.
+     *
+     * @param cfName the <code>ColumnFamilyStore</code> name
+     * @return the parent name of the specified <code>ColumnFamilyStore</code>
+     */
+    public static String getParentCfsName(String cfName)
+    {
+        assert isIndexColumnFamily(cfName);
+        return StringUtils.substringBefore(cfName, Directories.SECONDARY_INDEX_NAME_SEPARATOR);
+    }
+
+    /**
+     * Returns the index name
+     *
+     * @param cfName the <code>ColumnFamilyStore</code> name
+     * @return the index name
+     */
+    public static String getIndexName(ColumnFamilyStore cfs)
+    {
+        return getIndexName(cfs.name);
+    }
+
+    /**
+     * Returns the index name
+     *
+     * @param cfName the <code>ColumnFamilyStore</code> name
+     * @return the index name
+     */
+    public static String getIndexName(String cfName)
+    {
+        assert isIndexColumnFamily(cfName);
+        return StringUtils.substringAfter(cfName, Directories.SECONDARY_INDEX_NAME_SEPARATOR);
     }
 
     private void buildIndexesBlocking(Collection<SSTableReader> sstables, Set<Index> indexes)
