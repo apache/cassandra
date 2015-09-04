@@ -34,6 +34,8 @@ Merged from 2.1:
  * Change streaming_socket_timeout_in_ms default to 1 hour (CASSANDRA-8611)
  * (cqlsh) update list of CQL keywords (CASSANDRA-9232)
  * Add nodetool gettraceprobability command (CASSANDRA-10234)
+Merged from 2.0:
+ * Disallow decommission when node is in drained state (CASSANDRA-8741)
 
 
 2.2.1
