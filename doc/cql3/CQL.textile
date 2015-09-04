@@ -863,8 +863,11 @@ bc(syntax)..
 <where-clause> ::= <relation> ( AND <relation> )*
 
 <relation> ::= <identifier> '=' <term>
-             | <identifier> IN '(' ( <term> ( ',' <term> )* )? ')'
+             | '(' <identifier> (',' <identifier>)* ')' '=' <term-tuple>
+             | <identifier> IN '(' ( <term> ( ',' <term>)* )? ')'
              | <identifier> IN '?'
+             | '(' <identifier> (',' <identifier>)* ')' IN '(' ( <term-tuple> ( ',' <term-tuple>)* )? ')'
+             | '(' <identifier> (',' <identifier>)* ')' IN '?'
 
 <option> ::= TIMESTAMP <integer>
            | TTL <integer>
@@ -914,10 +917,14 @@ bc(syntax)..
 
 <where-clause> ::= <relation> ( AND <relation> )*
 
-<relation> ::= <identifier> '=' <term>
-             | <identifier> IN '(' ( <term> ( ',' <term> )* )? ')'
+<relation> ::= <identifier> <op> <term>
+             | '(' <identifier> (',' <identifier>)* ')' <op> <term-tuple>
+             | <identifier> IN '(' ( <term> ( ',' <term>)* )? ')'
              | <identifier> IN '?'
+             | '(' <identifier> (',' <identifier>)* ')' IN '(' ( <term-tuple> ( ',' <term-tuple>)* )? ')'
+             | '(' <identifier> (',' <identifier>)* ')' IN '?'
 
+<op> ::= '=' | '<' | '>' | '<=' | '>='
 <condition> ::= <identifier> '=' <term>
               | <identifier> '[' <term> ']' '=' <term>
 p. 

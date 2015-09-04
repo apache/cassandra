@@ -216,9 +216,14 @@ public class UpdateParameters
         return deletionTime;
     }
 
-    public RangeTombstone makeRangeTombstone(CBuilder cbuilder)
+    public RangeTombstone makeRangeTombstone(ClusteringComparator comparator, Clustering clustering)
     {
-        return new RangeTombstone(cbuilder.buildSlice(), deletionTime);
+        return makeRangeTombstone(Slice.make(comparator, clustering));
+    }
+
+    public RangeTombstone makeRangeTombstone(Slice slice)
+    {
+        return new RangeTombstone(slice, deletionTime);
     }
 
     public Row getPrefetchedRow(DecoratedKey key, Clustering clustering)

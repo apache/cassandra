@@ -27,7 +27,6 @@ import com.google.common.collect.Iterables;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.slf4j.helpers.MessageFormatter;
-
 import org.apache.cassandra.config.ColumnDefinition;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.cql3.*;
@@ -43,6 +42,8 @@ import org.apache.cassandra.tracing.Tracing;
 import org.apache.cassandra.transport.messages.ResultMessage;
 import org.apache.cassandra.utils.NoSpamLogger;
 import org.apache.cassandra.utils.Pair;
+
+import static org.apache.cassandra.cql3.statements.RequestValidations.checkFalse;
 
 /**
  * A <code>BATCH</code> statement parsed from a CQL query.
@@ -217,8 +218,7 @@ public class BatchStatement implements CQLStatement
     throws RequestExecutionException, RequestValidationException
     {
         Set<String> tablesWithZeroGcGs = null;
-
-        Map<String, Map<ByteBuffer, IMutation>> mutations = new HashMap<>();
+        UpdatesCollector collector = new UpdatesCollector(updatedColumns, updatedRows());
         for (int i = 0; i < statements.size(); i++)
         {
             ModificationStatement statement = statements.get(i);
@@ -230,7 +230,7 @@ public class BatchStatement implements CQLStatement
             }
             QueryOptions statementOptions = options.forStatement(i);
             long timestamp = attrs.getTimestamp(now, statementOptions);
-            addStatementMutations(statement, statementOptions, local, timestamp, mutations);
+            statement.addUpdates(collector, statementOptions, local, timestamp);
         }
 
         if (tablesWithZeroGcGs != null)
@@ -242,27 +242,7 @@ public class BatchStatement implements CQLStatement
                                             .getMessage());
         }
 
-        return unzipMutations(mutations);
-    }
-
-    private Collection<? extends IMutation> unzipMutations(Map<String, Map<ByteBuffer, IMutation>> mutations)
-    {
-
-        // The case where all statement where on the same keyspace is pretty common
-        if (mutations.size() == 1)
-            return mutations.values().iterator().next().values();
-
-
-        List<IMutation> ms = new ArrayList<>();
-        for (Map<ByteBuffer, IMutation> ksMap : mutations.values())
-            ms.addAll(ksMap.values());
-
-        return ms;
-    }
-
-    private PartitionColumns updatedColumns()
-    {
-        return updatedColumns;
+        return collector.toMutations();
     }
 
     private int updatedRows()
@@ -270,55 +250,6 @@ public class BatchStatement implements CQLStatement
         // Note: it's possible for 2 statements to actually apply to the same row, but that's just an estimation
         // for sizing our PartitionUpdate backing array, so it's good enough.
         return statements.size();
-    }
-
-    private void addStatementMutations(ModificationStatement statement,
-                                       QueryOptions options,
-                                       boolean local,
-                                       long now,
-                                       Map<String, Map<ByteBuffer, IMutation>> mutations)
-    throws RequestExecutionException, RequestValidationException
-    {
-        String ksName = statement.keyspace();
-        Map<ByteBuffer, IMutation> ksMap = mutations.get(ksName);
-        if (ksMap == null)
-        {
-            ksMap = new HashMap<>();
-            mutations.put(ksName, ksMap);
-        }
-
-        // The following does the same than statement.getMutations(), but we inline it here because
-        // we don't want to recreate mutations every time as this is particularly inefficient when applying
-        // multiple batch to the same partition (see #6737).
-        List<ByteBuffer> keys = statement.buildPartitionKeyNames(options);
-        CBuilder clustering = statement.createClustering(options);
-        UpdateParameters params = statement.makeUpdateParameters(keys, clustering, options, local, now);
-
-        for (ByteBuffer key : keys)
-        {
-            DecoratedKey dk = statement.cfm.decorateKey(key);
-            IMutation mutation = ksMap.get(dk.getKey());
-            Mutation mut;
-            if (mutation == null)
-            {
-                mut = new Mutation(ksName, dk);
-                mutation = statement.cfm.isCounter() ? new CounterMutation(mut, options.getConsistency()) : mut;
-                ksMap.put(dk.getKey(), mutation);
-            }
-            else
-            {
-                mut = statement.cfm.isCounter() ? ((CounterMutation) mutation).getMutation() : (Mutation) mutation;
-            }
-
-            PartitionUpdate upd = mut.get(statement.cfm);
-            if (upd == null)
-            {
-                upd = new PartitionUpdate(statement.cfm, dk, updatedColumns(), updatedRows());
-                mut.add(upd);
-            }
-
-            statement.addUpdateForKey(upd, clustering, params);
-        }
     }
 
     /**
@@ -470,17 +401,23 @@ public class BatchStatement implements CQLStatement
                 throw new InvalidRequestException("Batch with conditions cannot span multiple partitions");
             }
 
-            CBuilder cbuilder = statement.createClustering(statementOptions);
+            SortedSet<Clustering> clusterings = statement.createClustering(statementOptions);
+
+            checkFalse(clusterings.size() > 1,
+                       "IN on the clustering key columns is not supported with conditional updates");
+
+            Clustering clustering = Iterables.getOnlyElement(clusterings);
+
             if (statement.hasConditions())
             {
-                statement.addConditions(cbuilder.build(), casRequest, statementOptions);
+                statement.addConditions(clustering, casRequest, statementOptions);
                 // As soon as we have a ifNotExists, we set columnsWithConditions to null so that everything is in the resultSet
                 if (statement.hasIfNotExistCondition() || statement.hasIfExistCondition())
                     columnsWithConditions = null;
                 else if (columnsWithConditions != null)
                     Iterables.addAll(columnsWithConditions, statement.getColumnsWithConditions());
             }
-            casRequest.addRowUpdate(cbuilder, statement, statementOptions, timestamp);
+            casRequest.addRowUpdate(clustering, statement, statementOptions, timestamp);
         }
 
         return Pair.create(casRequest, columnsWithConditions);

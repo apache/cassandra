@@ -71,7 +71,7 @@ public class Json
 
         public Prepared prepareAndCollectMarkers(CFMetaData metadata, Collection<ColumnDefinition> receivers, VariableSpecifications boundNames)
         {
-            return new PreparedLiteral(metadata.ksName, parseJson(text, receivers));
+            return new PreparedLiteral(parseJson(text, receivers));
         }
     }
 
@@ -91,7 +91,7 @@ public class Json
         public Prepared prepareAndCollectMarkers(CFMetaData metadata, Collection<ColumnDefinition> receivers, VariableSpecifications boundNames)
         {
             boundNames.add(bindIndex, makeReceiver(metadata));
-            return new PreparedMarker(metadata.ksName, bindIndex, receivers);
+            return new PreparedMarker(bindIndex, receivers);
         }
 
         private ColumnSpecification makeReceiver(CFMetaData metadata)
@@ -105,27 +105,7 @@ public class Json
      */
     public static abstract class Prepared
     {
-        private final String keyspace;
-
-        protected Prepared(String keyspace)
-        {
-            this.keyspace = keyspace;
-        }
-
-        protected abstract Term.Raw getRawTermForColumn(ColumnDefinition def);
-
-        public Term getPrimaryKeyValueForColumn(ColumnDefinition def)
-        {
-            // Note that we know we don't have to call collectMarkerSpecification since it has already been collected
-            return getRawTermForColumn(def).prepare(keyspace, def);
-        }
-
-        public Operation getSetOperationForColumn(ColumnDefinition def)
-        {
-            // Note that we know we don't have to call collectMarkerSpecification on the operation since we have
-            // already collected all we need.
-            return new Operation.SetValue(getRawTermForColumn(def)).prepare(keyspace, def);
-        }
+        public abstract Term.Raw getRawTermForColumn(ColumnDefinition def);
     }
 
     /**
@@ -135,13 +115,12 @@ public class Json
     {
         private final Map<ColumnIdentifier, Term> columnMap;
 
-        public PreparedLiteral(String keyspace, Map<ColumnIdentifier, Term> columnMap)
+        public PreparedLiteral(Map<ColumnIdentifier, Term> columnMap)
         {
-            super(keyspace);
             this.columnMap = columnMap;
         }
 
-        protected Term.Raw getRawTermForColumn(ColumnDefinition def)
+        public Term.Raw getRawTermForColumn(ColumnDefinition def)
         {
             Term value = columnMap.get(def.name);
             return value == null ? Constants.NULL_LITERAL : new ColumnValue(value);
@@ -158,14 +137,13 @@ public class Json
 
         private Map<ColumnIdentifier, Term> columnMap;
 
-        public PreparedMarker(String keyspace, int bindIndex, Collection<ColumnDefinition> columns)
+        public PreparedMarker(int bindIndex, Collection<ColumnDefinition> columns)
         {
-            super(keyspace);
             this.bindIndex = bindIndex;
             this.columns = columns;
         }
 
-        protected DelayedColumnValue getRawTermForColumn(ColumnDefinition def)
+        public DelayedColumnValue getRawTermForColumn(ColumnDefinition def)
         {
             return new DelayedColumnValue(this, def);
         }

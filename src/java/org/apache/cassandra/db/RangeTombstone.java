@@ -19,13 +19,15 @@ package org.apache.cassandra.db;
 
 import java.io.IOException;
 import java.nio.ByteBuffer;
-import java.util.*;
+import java.util.List;
+import java.util.Objects;
 
 import org.apache.cassandra.db.marshal.AbstractType;
 import org.apache.cassandra.db.rows.RangeTombstoneMarker;
 import org.apache.cassandra.io.util.DataInputPlus;
 import org.apache.cassandra.io.util.DataOutputPlus;
 import org.apache.cassandra.utils.memory.AbstractAllocator;
+
 
 /**
  * A range tombstone is a tombstone that covers a slice/range of rows.

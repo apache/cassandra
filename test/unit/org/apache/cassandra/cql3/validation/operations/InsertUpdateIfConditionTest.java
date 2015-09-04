@@ -112,6 +112,10 @@ public class InsertUpdateIfConditionTest extends CQLTester
 
         // Should apply
         assertRows(execute("DELETE FROM %s WHERE k = 0 IF v1 IN (null)"), row(true));
+
+        createTable(" CREATE TABLE %s (k int, c int, v1 text, PRIMARY KEY(k, c))");
+        assertInvalidMessage("IN on the clustering key columns is not supported with conditional updates",
+                             "UPDATE %s SET v1 = 'A' WHERE k = 0 AND c IN (1, 2) IF EXISTS");
     }
 
     /**
@@ -184,11 +188,25 @@ public class InsertUpdateIfConditionTest extends CQLTester
         assertRows(execute("DELETE FROM %s WHERE k='k' AND i=0 IF EXISTS"), row(false));
 
         // CASSANDRA-6430
-        assertInvalid("DELETE FROM %s WHERE k = 'k' IF EXISTS");
-        assertInvalid("DELETE FROM %s WHERE k = 'k' IF v = 'foo'");
-        assertInvalid("DELETE FROM %s WHERE i = 0 IF EXISTS");
-        assertInvalid("DELETE FROM %s WHERE k = 0 AND i > 0 IF EXISTS");
-        assertInvalid("DELETE FROM %s WHERE k = 0 AND i > 0 IF v = 'foo'");
+        assertInvalidMessage("DELETE statements must restrict all PRIMARY KEY columns with equality relations in order to use IF conditions",
+                             "DELETE FROM %s WHERE k = 'k' IF EXISTS");
+        assertInvalidMessage("DELETE statements must restrict all PRIMARY KEY columns with equality relations in order to use IF conditions",
+                             "DELETE FROM %s WHERE k = 'k' IF v = 'foo'");
+        assertInvalidMessage("Some partition key parts are missing: k",
+                             "DELETE FROM %s WHERE i = 0 IF EXISTS");
+
+        assertInvalidMessage("Invalid INTEGER constant (0) for \"k\" of type text",
+                             "DELETE FROM %s WHERE k = 0 AND i > 0 IF EXISTS");
+        assertInvalidMessage("Invalid INTEGER constant (0) for \"k\" of type text",
+                             "DELETE FROM %s WHERE k = 0 AND i > 0 IF v = 'foo'");
+        assertInvalidMessage("DELETE statements must restrict all PRIMARY KEY columns with equality relations in order to use IF conditions",
+                             "DELETE FROM %s WHERE k = 'k' AND i > 0 IF EXISTS");
+        assertInvalidMessage("DELETE statements must restrict all PRIMARY KEY columns with equality relations in order to use IF conditions",
+                             "DELETE FROM %s WHERE k = 'k' AND i > 0 IF v = 'foo'");
+        assertInvalidMessage("IN on the clustering key columns is not supported with conditional deletions",
+                             "DELETE FROM %s WHERE k = 'k' AND i IN (0, 1) IF v = 'foo'");
+        assertInvalidMessage("IN on the clustering key columns is not supported with conditional deletions",
+                             "DELETE FROM %s WHERE k = 'k' AND i IN (0, 1) IF EXISTS");
     }
 
     /**

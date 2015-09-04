@@ -67,9 +67,9 @@ public class CQL3CasRequest implements CASRequest
         this.updatesStaticRow = updatesStaticRow;
     }
 
-    public void addRowUpdate(CBuilder cbuilder, ModificationStatement stmt, QueryOptions options, long timestamp)
+    public void addRowUpdate(Clustering clustering, ModificationStatement stmt, QueryOptions options, long timestamp)
     {
-        updates.add(new RowUpdate(cbuilder, stmt, options, timestamp));
+        updates.add(new RowUpdate(clustering, stmt, options, timestamp));
     }
 
     public void addNotExist(Clustering clustering) throws InvalidRequestException
@@ -129,7 +129,7 @@ public class CQL3CasRequest implements CASRequest
         return conditionColumns;
     }
 
-    public SinglePartitionReadCommand readCommand(int nowInSec)
+    public SinglePartitionReadCommand<?> readCommand(int nowInSec)
     {
         assert !conditions.isEmpty();
         Slices.Builder builder = new Slices.Builder(cfm.comparator, conditions.size());
@@ -184,14 +184,14 @@ public class CQL3CasRequest implements CASRequest
      */
     private class RowUpdate
     {
-        private final CBuilder cbuilder;
+        private final Clustering clustering;
         private final ModificationStatement stmt;
         private final QueryOptions options;
         private final long timestamp;
 
-        private RowUpdate(CBuilder cbuilder, ModificationStatement stmt, QueryOptions options, long timestamp)
+        private RowUpdate(Clustering clustering, ModificationStatement stmt, QueryOptions options, long timestamp)
         {
-            this.cbuilder = cbuilder;
+            this.clustering = clustering;
             this.stmt = stmt;
             this.options = options;
             this.timestamp = timestamp;
@@ -201,7 +201,7 @@ public class CQL3CasRequest implements CASRequest
         {
             Map<DecoratedKey, Partition> map = stmt.requiresRead() ? Collections.<DecoratedKey, Partition>singletonMap(key, current) : null;
             UpdateParameters params = new UpdateParameters(cfm, updates.columns(), options, timestamp, stmt.getTimeToLive(options), map, true);
-            stmt.addUpdateForKey(updates, cbuilder, params);
+            stmt.addUpdateForKey(updates, clustering, params);
         }
     }
 

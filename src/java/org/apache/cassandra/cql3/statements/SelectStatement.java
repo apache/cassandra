@@ -23,9 +23,10 @@ import java.util.*;
 import com.google.common.base.Objects;
 import com.google.common.base.Predicate;
 import com.google.common.collect.Iterables;
-import org.slf4j.Logger;
+
 import org.slf4j.LoggerFactory;
 
+import org.slf4j.Logger;
 import org.apache.cassandra.auth.Permission;
 import org.apache.cassandra.config.CFMetaData;
 import org.apache.cassandra.config.ColumnDefinition;
@@ -57,7 +58,6 @@ import org.apache.cassandra.thrift.ThriftValidation;
 import org.apache.cassandra.transport.messages.ResultMessage;
 import org.apache.cassandra.utils.ByteBufferUtil;
 import org.apache.cassandra.utils.FBUtilities;
-
 import static org.apache.cassandra.cql3.statements.RequestValidations.checkFalse;
 import static org.apache.cassandra.cql3.statements.RequestValidations.checkNotNull;
 import static org.apache.cassandra.cql3.statements.RequestValidations.checkTrue;
@@ -156,7 +156,7 @@ public class SelectStatement implements CQLStatement
                                    0,
                                    defaultParameters,
                                    selection,
-                                   StatementRestrictions.empty(cfm),
+                                   StatementRestrictions.empty(StatementType.SELECT, cfm),
                                    false,
                                    null,
                                    null);
@@ -790,7 +790,8 @@ public class SelectStatement implements CQLStatement
         {
             try
             {
-                return new StatementRestrictions(cfm,
+                return new StatementRestrictions(StatementType.SELECT,
+                                                 cfm,
                                                  whereClause,
                                                  boundNames,
                                                  selection.containsOnlyStaticColumns(),

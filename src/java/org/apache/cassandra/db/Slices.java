@@ -154,6 +154,15 @@ public abstract class Slices implements Iterable<Slice>
     public abstract String toCQLString(CFMetaData metadata);
 
     /**
+     * Checks if this <code>Slices</code> is empty.
+     * @return <code>true</code> if this <code>Slices</code> is empty, <code>false</code> otherwise.
+     */
+    public final boolean isEmpty()
+    {
+        return size() == 0;
+    }
+
+    /**
      * In simple object that allows to test the inclusion of rows in those slices assuming those rows
      * are passed (to {@link #includes}) in clustering order (or reverse clustering ordered, depending
      * of the argument passed to {@link #inOrderTester}).

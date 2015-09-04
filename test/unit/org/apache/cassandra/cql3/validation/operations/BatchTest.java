@@ -18,7 +18,11 @@
 
 package org.apache.cassandra.cql3.validation.operations;
 
+import java.util.Arrays;
+
 import org.junit.Test;
+
+import static org.apache.commons.lang3.StringUtils.isEmpty;
 
 import org.apache.cassandra.cql3.CQLTester;
 
@@ -91,16 +95,81 @@ public class BatchTest extends CQLTester
         createTable("CREATE TABLE %s (k int PRIMARY KEY, s text, i int)");
 
         // test batch and update
-        String qualifiedTable = keyspace() + "." + currentTable();
         execute("BEGIN BATCH " +
-                "INSERT INTO %s (k, s, i) VALUES (100, 'batchtext', 7); " +
-                "INSERT INTO " + qualifiedTable + " (k, s, i) VALUES (111, 'batchtext', 7); " +
-                "UPDATE " + qualifiedTable + " SET s=?, i=? WHERE k = 100; " +
-                "UPDATE " + qualifiedTable + " SET s=?, i=? WHERE k=111; " +
+                "INSERT INTO %1$s (k, s, i) VALUES (100, 'batchtext', 7); " +
+                "INSERT INTO %1$s (k, s, i) VALUES (111, 'batchtext', 7); " +
+                "UPDATE %1$s SET s=?, i=? WHERE k = 100; " +
+                "UPDATE %1$s SET s=?, i=? WHERE k=111; " +
                 "APPLY BATCH;", null, unset(), unset(), null);
         assertRows(execute("SELECT k, s, i FROM %s where k in (100,111)"),
                    row(100, null, 7),
                    row(111, "batchtext", null)
         );
+    }
+
+    @Test
+    public void testBatchRangeDelete() throws Throwable
+    {
+        createTable("CREATE TABLE %s (partitionKey int," +
+                "clustering int," +
+                "value int," +
+                " PRIMARY KEY (partitionKey, clustering)) WITH COMPACT STORAGE");
+
+        int value = 0;
+        for (int partitionKey = 0; partitionKey < 4; partitionKey++)
+            for (int clustering1 = 0; clustering1 < 5; clustering1++)
+                execute("INSERT INTO %s (partitionKey, clustering, value) VALUES (?, ?, ?)",
+                        partitionKey, clustering1, value++);
+
+        execute("BEGIN BATCH " +
+                "DELETE FROM %1$s WHERE partitionKey = 1;" +
+                "DELETE FROM %1$s WHERE partitionKey = 0 AND  clustering >= 4;" +
+                "DELETE FROM %1$s WHERE partitionKey = 0 AND clustering <= 0;" +
+                "DELETE FROM %1$s WHERE partitionKey = 2 AND clustering >= 0 AND clustering <= 3;" +
+                "DELETE FROM %1$s WHERE partitionKey = 2 AND clustering <= 3 AND clustering >= 4;" +
+                "DELETE FROM %1$s WHERE partitionKey = 3 AND (clustering) >= (3) AND (clustering) <= (6);" +
+                "APPLY BATCH;");
+
+        assertRows(execute("SELECT * FROM %s"),
+                   row(0, 1, 1),
+                   row(0, 2, 2),
+                   row(0, 3, 3),
+                   row(2, 4, 14),
+                   row(3, 0, 15),
+                   row(3, 1, 16),
+                   row(3, 2, 17));
+    }
+
+    @Test
+    public void testBatchUpdate() throws Throwable
+    {
+        createTable("CREATE TABLE %s (partitionKey int," +
+                "clustering_1 int," +
+                "value int," +
+                " PRIMARY KEY (partitionKey, clustering_1))");
+
+        execute("INSERT INTO %s (partitionKey, clustering_1, value) VALUES (0, 0, 0)");
+        execute("INSERT INTO %s (partitionKey, clustering_1, value) VALUES (0, 1, 1)");
+        execute("INSERT INTO %s (partitionKey, clustering_1, value) VALUES (0, 2, 2)");
+        execute("INSERT INTO %s (partitionKey, clustering_1, value) VALUES (0, 3, 3)");
+        execute("INSERT INTO %s (partitionKey, clustering_1, value) VALUES (0, 4, 4)");
+        execute("INSERT INTO %s (partitionKey, clustering_1, value) VALUES (0, 5, 5)");
+        execute("INSERT INTO %s (partitionKey, clustering_1, value) VALUES (0, 6, 6)");
+
+        execute("BEGIN BATCH " +
+                "UPDATE %1$s SET value = 7 WHERE partitionKey = 0 AND clustering_1 = 1" +
+                "UPDATE %1$s SET value = 8 WHERE partitionKey = 0 AND (clustering_1) = (2)" +
+                "UPDATE %1$s SET value = 10 WHERE partitionKey = 0 AND clustering_1 IN (3, 4)" +
+                "UPDATE %1$s SET value = 20 WHERE partitionKey = 0 AND (clustering_1) IN ((5), (6))" +
+                "APPLY BATCH;");
+
+        assertRows(execute("SELECT * FROM %s"),
+                   row(0, 0, 0),
+                   row(0, 1, 7),
+                   row(0, 2, 8),
+                   row(0, 3, 10),
+                   row(0, 4, 10),
+                   row(0, 5, 20),
+                   row(0, 6, 20));
     }
 }

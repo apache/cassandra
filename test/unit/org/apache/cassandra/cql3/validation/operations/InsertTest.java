@@ -56,4 +56,237 @@ public class InsertTest extends CQLTester
                    row(new Object[]{ null })
         );
     }
+
+    @Test
+    public void testInsert() throws Throwable
+    {
+        testInsert(false);
+        testInsert(true);
+    }
+
+    private void testInsert(boolean forceFlush) throws Throwable
+    {
+        createTable("CREATE TABLE %s (partitionKey int," +
+                                      "clustering int," +
+                                      "value int," +
+                                      " PRIMARY KEY (partitionKey, clustering))");
+
+        execute("INSERT INTO %s (partitionKey, clustering) VALUES (0, 0)");
+        execute("INSERT INTO %s (partitionKey, clustering, value) VALUES (0, 1, 1)");
+        flush(forceFlush);
+
+        assertRows(execute("SELECT * FROM %s"),
+                   row(0, 0, null),
+                   row(0, 1, 1));
+
+        // Missing primary key columns
+        assertInvalidMessage("Some partition key parts are missing: partitionkey",
+                             "INSERT INTO %s (clustering, value) VALUES (0, 1)");
+        assertInvalidMessage("Some clustering keys are missing: clustering",
+                             "INSERT INTO %s (partitionKey, value) VALUES (0, 2)");
+
+        // multiple time the same value
+        assertInvalidMessage("The column names contains duplicates",
+                             "INSERT INTO %s (partitionKey, clustering, value, value) VALUES (0, 0, 2, 2)");
+
+        // multiple time same primary key element in WHERE clause
+        assertInvalidMessage("The column names contains duplicates",
+                             "INSERT INTO %s (partitionKey, clustering, clustering, value) VALUES (0, 0, 0, 2)");
+
+        // unknown identifiers
+        assertInvalidMessage("Unknown identifier clusteringx",
+                             "INSERT INTO %s (partitionKey, clusteringx, value) VALUES (0, 0, 2)");
+
+        assertInvalidMessage("Unknown identifier valuex",
+                             "INSERT INTO %s (partitionKey, clustering, valuex) VALUES (0, 0, 2)");
+    }
+
+    @Test
+    public void testInsertWithCompactFormat() throws Throwable
+    {
+        testInsertWithCompactFormat(false);
+        testInsertWithCompactFormat(true);
+    }
+
+    private void testInsertWithCompactFormat(boolean forceFlush) throws Throwable
+    {
+        createTable("CREATE TABLE %s (partitionKey int," +
+                                      "clustering int," +
+                                      "value int," +
+                                      " PRIMARY KEY (partitionKey, clustering)) WITH COMPACT STORAGE");
+
+        execute("INSERT INTO %s (partitionKey, clustering, value) VALUES (0, 0, 0)");
+        execute("INSERT INTO %s (partitionKey, clustering, value) VALUES (0, 1, 1)");
+        flush(forceFlush);
+
+        assertRows(execute("SELECT * FROM %s"),
+                   row(0, 0, 0),
+                   row(0, 1, 1));
+
+        // Invalid Null values for the clustering key or the regular column
+        assertInvalidMessage("Some clustering keys are missing: clustering",
+                             "INSERT INTO %s (partitionKey, value) VALUES (0, 0)");
+        assertInvalidMessage("Column value is mandatory for this COMPACT STORAGE table",
+                             "INSERT INTO %s (partitionKey, clustering) VALUES (0, 0)");
+
+        // Missing primary key columns
+        assertInvalidMessage("Some partition key parts are missing: partitionkey",
+                             "INSERT INTO %s (clustering, value) VALUES (0, 1)");
+
+        // multiple time the same value
+        assertInvalidMessage("The column names contains duplicates",
+                             "INSERT INTO %s (partitionKey, clustering, value, value) VALUES (0, 0, 2, 2)");
+
+        // multiple time same primary key element in WHERE clause
+        assertInvalidMessage("The column names contains duplicates",
+                             "INSERT INTO %s (partitionKey, clustering, clustering, value) VALUES (0, 0, 0, 2)");
+
+        // unknown identifiers
+        assertInvalidMessage("Unknown identifier clusteringx",
+                             "INSERT INTO %s (partitionKey, clusteringx, value) VALUES (0, 0, 2)");
+
+        assertInvalidMessage("Unknown identifier valuex",
+                             "INSERT INTO %s (partitionKey, clustering, valuex) VALUES (0, 0, 2)");
+    }
+
+    @Test
+    public void testInsertWithTwoClusteringColumns() throws Throwable
+    {
+        testInsertWithTwoClusteringColumns(false);
+        testInsertWithTwoClusteringColumns(true);
+    }
+
+    private void testInsertWithTwoClusteringColumns(boolean forceFlush) throws Throwable
+    {
+        createTable("CREATE TABLE %s (partitionKey int," +
+                                      "clustering_1 int," +
+                                      "clustering_2 int," +
+                                      "value int," +
+                                      " PRIMARY KEY (partitionKey, clustering_1, clustering_2))");
+
+        execute("INSERT INTO %s (partitionKey, clustering_1, clustering_2) VALUES (0, 0, 0)");
+        execute("INSERT INTO %s (partitionKey, clustering_1, clustering_2, value) VALUES (0, 0, 1, 1)");
+        flush(forceFlush);
+
+        assertRows(execute("SELECT * FROM %s"),
+                   row(0, 0, 0, null),
+                   row(0, 0, 1, 1));
+
+        // Missing primary key columns
+        assertInvalidMessage("Some partition key parts are missing: partitionkey",
+                             "INSERT INTO %s (clustering_1, clustering_2, value) VALUES (0, 0, 1)");
+        assertInvalidMessage("Some clustering keys are missing: clustering_1",
+                             "INSERT INTO %s (partitionKey, clustering_2, value) VALUES (0, 0, 2)");
+
+        // multiple time the same value
+        assertInvalidMessage("The column names contains duplicates",
+                             "INSERT INTO %s (partitionKey, clustering_1, value, clustering_2, value) VALUES (0, 0, 2, 0, 2)");
+
+        // multiple time same primary key element in WHERE clause
+        assertInvalidMessage("The column names contains duplicates",
+                             "INSERT INTO %s (partitionKey, clustering_1, clustering_1, clustering_2, value) VALUES (0, 0, 0, 0, 2)");
+
+        // unknown identifiers
+        assertInvalidMessage("Unknown identifier clustering_1x",
+                             "INSERT INTO %s (partitionKey, clustering_1x, clustering_2, value) VALUES (0, 0, 0, 2)");
+
+        assertInvalidMessage("Unknown identifier valuex",
+                             "INSERT INTO %s (partitionKey, clustering_1, clustering_2, valuex) VALUES (0, 0, 0, 2)");
+    }
+
+    @Test
+    public void testInsertWithCompactStorageAndTwoClusteringColumns() throws Throwable
+    {
+        testInsertWithCompactStorageAndTwoClusteringColumns(false);
+        testInsertWithCompactStorageAndTwoClusteringColumns(true);
+    }
+
+    private void testInsertWithCompactStorageAndTwoClusteringColumns(boolean forceFlush) throws Throwable
+    {
+        createTable("CREATE TABLE %s (partitionKey int," +
+                                      "clustering_1 int," +
+                                      "clustering_2 int," +
+                                      "value int," +
+                                      " PRIMARY KEY (partitionKey, clustering_1, clustering_2)) WITH COMPACT STORAGE");
+
+        execute("INSERT INTO %s (partitionKey, clustering_1, value) VALUES (0, 0, 0)");
+        execute("INSERT INTO %s (partitionKey, clustering_1, clustering_2, value) VALUES (0, 0, 0, 0)");
+        execute("INSERT INTO %s (partitionKey, clustering_1, clustering_2, value) VALUES (0, 0, 1, 1)");
+        flush(forceFlush);
+
+        assertRows(execute("SELECT * FROM %s"),
+                   row(0, 0, null, 0),
+                   row(0, 0, 0, 0),
+                   row(0, 0, 1, 1));
+
+        // Invalid Null values for the clustering key or the regular column
+        assertInvalidMessage("PRIMARY KEY column \"clustering_2\" cannot be restricted as preceding column \"clustering_1\" is not restricted",
+                             "INSERT INTO %s (partitionKey, clustering_2, value) VALUES (0, 0, 0)");
+        assertInvalidMessage("Column value is mandatory for this COMPACT STORAGE table",
+                             "INSERT INTO %s (partitionKey, clustering_1, clustering_2) VALUES (0, 0, 0)");
+
+        // Missing primary key columns
+        assertInvalidMessage("Some partition key parts are missing: partitionkey",
+                             "INSERT INTO %s (clustering_1, clustering_2, value) VALUES (0, 0, 1)");
+        assertInvalidMessage("PRIMARY KEY column \"clustering_2\" cannot be restricted as preceding column \"clustering_1\" is not restricted",
+                             "INSERT INTO %s (partitionKey, clustering_2, value) VALUES (0, 0, 2)");
+
+        // multiple time the same value
+        assertInvalidMessage("The column names contains duplicates",
+                             "INSERT INTO %s (partitionKey, clustering_1, value, clustering_2, value) VALUES (0, 0, 2, 0, 2)");
+
+        // multiple time same primary key element in WHERE clause
+        assertInvalidMessage("The column names contains duplicates",
+                             "INSERT INTO %s (partitionKey, clustering_1, clustering_1, clustering_2, value) VALUES (0, 0, 0, 0, 2)");
+
+        // unknown identifiers
+        assertInvalidMessage("Unknown identifier clustering_1x",
+                             "INSERT INTO %s (partitionKey, clustering_1x, clustering_2, value) VALUES (0, 0, 0, 2)");
+
+        assertInvalidMessage("Unknown identifier valuex",
+                             "INSERT INTO %s (partitionKey, clustering_1, clustering_2, valuex) VALUES (0, 0, 0, 2)");
+    }
+
+    @Test
+    public void testInsertWithAStaticColumn() throws Throwable
+    {
+        testInsertWithAStaticColumn(false);
+        testInsertWithAStaticColumn(true);
+    }
+
+    private void testInsertWithAStaticColumn(boolean forceFlush) throws Throwable
+    {
+        createTable("CREATE TABLE %s (partitionKey int," +
+                                      "clustering_1 int," +
+                                      "clustering_2 int," +
+                                      "value int," +
+                                      "staticValue text static," +
+                                      " PRIMARY KEY (partitionKey, clustering_1, clustering_2))");
+
+        execute("INSERT INTO %s (partitionKey, clustering_1, clustering_2, staticValue) VALUES (0, 0, 0, 'A')");
+        execute("INSERT INTO %s (partitionKey, staticValue) VALUES (1, 'B')");
+        flush(forceFlush);
+
+        assertRows(execute("SELECT * FROM %s"),
+                   row(1, null, null, "B", null),
+                   row(0, 0, 0, "A", null));
+
+        execute("INSERT INTO %s (partitionKey, clustering_1, clustering_2, value) VALUES (1, 0, 0, 0)");
+        flush(forceFlush);
+        assertRows(execute("SELECT * FROM %s"),
+                   row(1, 0, 0, "B", 0),
+                   row(0, 0, 0, "A", null));
+
+        // Missing primary key columns
+        assertInvalidMessage("Some partition key parts are missing: partitionkey",
+                             "INSERT INTO %s (clustering_1, clustering_2, staticValue) VALUES (0, 0, 'A')");
+        assertInvalidMessage("Some clustering keys are missing: clustering_1",
+                             "INSERT INTO %s (partitionKey, clustering_2, staticValue) VALUES (0, 0, 'A')");
+    }
+
+    private void flush(boolean forceFlush)
+    {
+        if (forceFlush)
+            flush();
+    }
 }

@@ -17,37 +17,38 @@
  */
 package org.apache.cassandra.cql3.statements;
 
-import java.util.Iterator;
 import java.util.List;
-
-import com.google.common.collect.Iterators;
 
 import org.apache.cassandra.config.CFMetaData;
 import org.apache.cassandra.config.ColumnDefinition;
 import org.apache.cassandra.cql3.*;
-import org.apache.cassandra.cql3.restrictions.Restriction;
-import org.apache.cassandra.db.CBuilder;
+import org.apache.cassandra.cql3.restrictions.StatementRestrictions;
 import org.apache.cassandra.db.Clustering;
+import org.apache.cassandra.db.Slice;
 import org.apache.cassandra.db.partitions.PartitionUpdate;
 import org.apache.cassandra.exceptions.InvalidRequestException;
 import org.apache.cassandra.utils.Pair;
+
+import static org.apache.cassandra.cql3.statements.RequestValidations.checkFalse;
+import static org.apache.cassandra.cql3.statements.RequestValidations.checkTrue;
 
 /**
  * A <code>DELETE</code> parsed from a CQL query statement.
  */
 public class DeleteStatement extends ModificationStatement
 {
-    private DeleteStatement(StatementType type, int boundTerms, CFMetaData cfm, Attributes attrs)
+    private DeleteStatement(int boundTerms,
+                            CFMetaData cfm,
+                            Operations operations,
+                            StatementRestrictions restrictions,
+                            Conditions conditions,
+                            Attributes attrs)
     {
-        super(type, boundTerms, cfm, attrs);
+        super(StatementType.DELETE, boundTerms, cfm, operations, restrictions, conditions, attrs);
     }
 
-    public boolean requireFullClusteringKey()
-    {
-        return false;
-    }
-
-    public void addUpdateForKey(PartitionUpdate update, CBuilder cbuilder, UpdateParameters params)
+    @Override
+    public void addUpdateForKey(PartitionUpdate update, Clustering clustering, UpdateParameters params)
     throws InvalidRequestException
     {
         List<Operation> regularDeletions = getRegularOperations();
@@ -56,32 +57,29 @@ public class DeleteStatement extends ModificationStatement
         if (regularDeletions.isEmpty() && staticDeletions.isEmpty())
         {
             // We're not deleting any specific columns so it's either a full partition deletion ....
-            if (cbuilder.count() == 0)
+            if (clustering.size() == 0)
             {
                 update.addPartitionDeletion(params.deletionTime());
             }
             // ... or a row deletion ...
-            else if (cbuilder.remainingCount() == 0)
+            else if (clustering.size() == cfm.clusteringColumns().size())
             {
-                params.newRow(cbuilder.build());
+                params.newRow(clustering);
                 params.addRowDeletion();
                 update.add(params.buildRow());
             }
             // ... or a range of rows deletion.
             else
             {
-                update.add(params.makeRangeTombstone(cbuilder));
+                update.add(params.makeRangeTombstone(cfm.comparator, clustering));
             }
         }
         else
         {
             if (!regularDeletions.isEmpty())
             {
-                // We can't delete specific (regular) columns if not all clustering columns have been specified.
-                if (cbuilder.remainingCount() > 0)
-                    throw new InvalidRequestException(String.format("Primary key column '%s' must be specified in order to delete column '%s'", getFirstEmptyKey().name, regularDeletions.get(0).column.name));
+                params.newRow(clustering);
 
-                params.newRow(cbuilder.build());
                 for (Operation op : regularDeletions)
                     op.execute(update.partitionKey(), params);
                 update.add(params.buildRow());
@@ -99,21 +97,16 @@ public class DeleteStatement extends ModificationStatement
         params.validateIndexedColumns(update);
     }
 
-    protected void validateWhereClauseForConditions() throws InvalidRequestException
+    @Override
+    public void addUpdateForKey(PartitionUpdate update, Slice slice, UpdateParameters params)
     {
-        Iterator<ColumnDefinition> iterator = Iterators.concat(cfm.partitionKeyColumns().iterator(), cfm.clusteringColumns().iterator());
-        while (iterator.hasNext())
-        {
-            ColumnDefinition def = iterator.next();
-            Restriction restriction = processedKeys.get(def.name);
-            if (restriction == null || !(restriction.isEQ() || restriction.isIN()))
-            {
-                throw new InvalidRequestException(
-                        String.format("DELETE statements must restrict all PRIMARY KEY columns with equality relations in order " +
-                                      "to use IF conditions, but column '%s' is not restricted", def.name));
-            }
-        }
+        List<Operation> regularDeletions = getRegularOperations();
+        List<Operation> staticDeletions = getStaticOperations();
 
+        checkTrue(regularDeletions.isEmpty() && staticDeletions.isEmpty(),
+                  "Range deletions are not supported for specific columns");
+
+        update.add(params.makeRangeTombstone(slice));
     }
 
     public static class Parsed extends ModificationStatement.Parsed
@@ -133,28 +126,46 @@ public class DeleteStatement extends ModificationStatement
             this.whereClause = whereClause;
         }
 
-        protected ModificationStatement prepareInternal(CFMetaData cfm, VariableSpecifications boundNames, Attributes attrs) throws InvalidRequestException
+
+        @Override
+        protected ModificationStatement prepareInternal(CFMetaData cfm,
+                                                        VariableSpecifications boundNames,
+                                                        Conditions conditions,
+                                                        Attributes attrs)
         {
-            DeleteStatement stmt = new DeleteStatement(ModificationStatement.StatementType.DELETE, boundNames.size(), cfm, attrs);
+            Operations operations = new Operations();
 
             for (Operation.RawDeletion deletion : deletions)
             {
-                ColumnIdentifier id = deletion.affectedColumn().prepare(cfm);
-                ColumnDefinition def = cfm.getColumnDefinition(id);
-                if (def == null)
-                    throw new InvalidRequestException(String.format("Unknown identifier %s", id));
+                ColumnDefinition def = getColumnDefinition(cfm, deletion.affectedColumn());
 
                 // For compact, we only have one value except the key, so the only form of DELETE that make sense is without a column
                 // list. However, we support having the value name for coherence with the static/sparse case
-                if (def.isPrimaryKeyColumn())
-                    throw new InvalidRequestException(String.format("Invalid identifier %s for deletion (should not be a PRIMARY KEY part)", def.name));
+                checkFalse(def.isPrimaryKeyColumn(), "Invalid identifier %s for deletion (should not be a PRIMARY KEY part)", def.name);
 
                 Operation op = deletion.prepare(cfm.ksName, def);
                 op.collectMarkerSpecification(boundNames);
-                stmt.addOperation(op);
+                operations.add(op);
             }
 
-            stmt.processWhereClause(whereClause, boundNames);
+            StatementRestrictions restrictions = newRestrictions(StatementType.DELETE,
+                                                                 cfm,
+                                                                 boundNames,
+                                                                 operations,
+                                                                 whereClause,
+                                                                 conditions);
+
+            DeleteStatement stmt = new DeleteStatement(boundNames.size(),
+                                                       cfm,
+                                                       operations,
+                                                       restrictions,
+                                                       conditions,
+                                                       attrs);
+
+            if (stmt.hasConditions())
+                checkTrue(restrictions.hasAllPKColumnsRestrictedByEqualities(),
+                          "DELETE statements must restrict all PRIMARY KEY columns with equality relations" +
+                          " in order to use IF conditions");
             return stmt;
         }
     }

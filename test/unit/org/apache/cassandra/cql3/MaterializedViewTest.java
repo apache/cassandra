@@ -448,6 +448,39 @@ public class MaterializedViewTest extends CQLTester
     }
 
     @Test
+    public void testRangeTombstone3() throws Throwable
+    {
+        createTable("CREATE TABLE %s (" +
+                    "k int, " +
+                    "asciival ascii, " +
+                    "bigintval bigint, " +
+                    "textval1 text, " +
+                    "PRIMARY KEY((k, asciival), bigintval)" +
+                    ")");
+
+        execute("USE " + keyspace());
+        executeNet(protocolVersion, "USE " + keyspace());
+
+        createView("mv", "CREATE MATERIALIZED VIEW %s AS SELECT * FROM %%s WHERE textval1 IS NOT NULL AND k IS NOT NULL AND asciival IS NOT NULL AND bigintval IS NOT NULL PRIMARY KEY ((textval1, k), asciival, bigintval)");
+
+        for (int i = 0; i < 100; i++)
+            updateMV("INSERT into %s (k,asciival,bigintval,textval1)VALUES(?,?,?,?)", 0, "foo", (long) i % 2, "bar" + i);
+
+        Assert.assertEquals(1, execute("select * from %s where k = 0 and asciival = 'foo' and bigintval = 0").size());
+        Assert.assertEquals(1, execute("select * from %s where k = 0 and asciival = 'foo' and bigintval = 1").size());
+
+
+        Assert.assertEquals(2, execute("select * from %s").size());
+        Assert.assertEquals(2, execute("select * from mv").size());
+
+        //Write a RT and verify the data is removed from index
+        updateMV("DELETE FROM %s WHERE k = ? AND asciival = ? and bigintval >= ?", 0, "foo", 0L);
+
+        Assert.assertEquals(0, execute("select * from %s").size());
+        Assert.assertEquals(0, execute("select * from mv").size());
+    }
+
+    @Test
     public void testCompoundPartitionKey() throws Throwable
     {
         createTable("CREATE TABLE %s (" +
