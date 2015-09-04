@@ -30,7 +30,7 @@ import org.apache.cassandra.db.rows.Cell;
 import org.apache.cassandra.db.rows.Row;
 import org.apache.cassandra.db.rows.UnfilteredRowIterator;
 import org.apache.cassandra.exceptions.ConfigurationException;
-import org.apache.cassandra.io.util.ByteBufferDataInput;
+import org.apache.cassandra.io.util.DataInputBuffer;
 import org.apache.cassandra.io.util.DataInputPlus;
 import org.apache.cassandra.io.util.DataOutputBuffer;
 import org.apache.cassandra.net.MessagingService;
@@ -99,7 +99,7 @@ public class SinglePartitionSliceCommandTest
 
         DataOutputBuffer out = new DataOutputBuffer((int) ReadCommand.legacyReadCommandSerializer.serializedSize(cmd, MessagingService.VERSION_21));
         ReadCommand.legacyReadCommandSerializer.serialize(cmd, out, MessagingService.VERSION_21);
-        DataInputPlus in = new ByteBufferDataInput(out.buffer(), null, 0, 0);
+        DataInputPlus in = new DataInputBuffer(out.buffer(), true);
         cmd = ReadCommand.legacyReadCommandSerializer.deserialize(in, MessagingService.VERSION_21);
 
         logger.debug("ReadCommand: {}", cmd);
@@ -163,7 +163,7 @@ public class SinglePartitionSliceCommandTest
         response = ReadResponse.createDataResponse(pi, cmd.columnFilter());
         out = new DataOutputBuffer((int) ReadResponse.serializer.serializedSize(response, MessagingService.VERSION_30));
         ReadResponse.serializer.serialize(response, out, MessagingService.VERSION_30);
-        in = new ByteBufferDataInput(out.buffer(), null, 0, 0);
+        in = new DataInputBuffer(out.buffer(), true);
         dst = ReadResponse.serializer.deserialize(in, MessagingService.VERSION_30);
         pi = dst.makeIterator(cfm, cmd);
         checkForS(pi);
@@ -174,7 +174,7 @@ public class SinglePartitionSliceCommandTest
         response = ReadResponse.createDataResponse(pi, cmd.columnFilter());
         out = new DataOutputBuffer((int) ReadResponse.serializer.serializedSize(response, MessagingService.VERSION_30));
         ReadResponse.serializer.serialize(response, out, MessagingService.VERSION_30);
-        in = new ByteBufferDataInput(out.buffer(), null, 0, 0);
+        in = new DataInputBuffer(out.buffer(), true);
         dst = ReadResponse.serializer.deserialize(in, MessagingService.VERSION_30);
         pi = dst.makeIterator(cfm, cmd);
         checkForS(pi);
