@@ -26,6 +26,7 @@ import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.db.Keyspace;
 import org.apache.cassandra.dht.Token;
 import org.apache.cassandra.locator.AbstractReplicationStrategy;
+import org.apache.cassandra.service.StorageService;
 import org.apache.cassandra.utils.FBUtilities;
 
 public final class MaterializedViewUtils
@@ -87,8 +88,21 @@ public final class MaterializedViewUtils
         // number of replicas for all of the tokens in the ring.
         assert localBaseEndpoints.size() == localViewEndpoints.size() : "Replication strategy should have the same number of endpoints for the base and the view";
         int baseIdx = localBaseEndpoints.indexOf(FBUtilities.getBroadcastAddress());
+
         if (baseIdx < 0)
+        {
+
+            if (StorageService.instance.getTokenMetadata().pendingEndpointsFor(viewToken, keyspaceName).size() > 0)
+            {
+                //Since there are pending endpoints we are going to store hints this in the batchlog regardless.
+                //So we can pretend we are the views endpoint.
+
+                return FBUtilities.getBroadcastAddress();
+            }
+
             throw new RuntimeException("Trying to get the view natural endpoint on a non-data replica");
+        }
+
 
         return localViewEndpoints.get(baseIdx);
     }
