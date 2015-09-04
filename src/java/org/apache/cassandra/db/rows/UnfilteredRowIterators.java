@@ -48,7 +48,7 @@ public abstract class UnfilteredRowIterators
     {
         public void onMergedPartitionLevelDeletion(DeletionTime mergedDeletion, DeletionTime[] versions);
 
-        public void onMergedRows(Row merged, Columns columns, Row[] versions);
+        public void onMergedRows(Row merged, Row[] versions);
         public void onMergedRangeTombstoneMarkers(RangeTombstoneMarker merged, RangeTombstoneMarker[] versions);
 
         public void close();
@@ -100,7 +100,7 @@ public abstract class UnfilteredRowIterators
     public static UnfilteredRowIterator noRowsIterator(final CFMetaData cfm, final DecoratedKey partitionKey, final Row staticRow, final DeletionTime partitionDeletion, final boolean isReverseOrder)
     {
         PartitionColumns columns = staticRow == null ? PartitionColumns.NONE
-                                                     : new PartitionColumns(staticRow.columns(), Columns.NONE);
+                                                     : new PartitionColumns(Columns.from(staticRow.columns()), Columns.NONE);
         return new UnfilteredRowIterator()
         {
             public CFMetaData metadata()
@@ -241,7 +241,7 @@ public abstract class UnfilteredRowIterators
             @Override
             protected Row computeNextStatic(Row row)
             {
-                Row.Builder staticBuilder = allocator.cloningBTreeRowBuilder(columns().statics);
+                Row.Builder staticBuilder = allocator.cloningBTreeRowBuilder();
                 return Rows.copy(row, staticBuilder).build();
             }
 
@@ -249,7 +249,7 @@ public abstract class UnfilteredRowIterators
             protected Row computeNext(Row row)
             {
                 if (regularBuilder == null)
-                    regularBuilder = allocator.cloningBTreeRowBuilder(columns().regulars);
+                    regularBuilder = allocator.cloningBTreeRowBuilder();
 
                 return Rows.copy(row, regularBuilder).build();
             }
@@ -377,7 +377,7 @@ public abstract class UnfilteredRowIterators
                   iterators.get(0).partitionKey(),
                   partitionDeletion,
                   columns,
-                  mergeStaticRows(metadata, iterators, columns.statics, nowInSec, listener, partitionDeletion),
+                  mergeStaticRows(iterators, columns.statics, nowInSec, listener, partitionDeletion),
                   reversed,
                   mergeStats(iterators));
 
@@ -450,8 +450,7 @@ public abstract class UnfilteredRowIterators
             return delTime;
         }
 
-        private static Row mergeStaticRows(CFMetaData metadata,
-                                           List<UnfilteredRowIterator> iterators,
+        private static Row mergeStaticRows(List<UnfilteredRowIterator> iterators,
                                            Columns columns,
                                            int nowInSec,
                                            MergeListener listener,
@@ -463,7 +462,7 @@ public abstract class UnfilteredRowIterators
             if (iterators.stream().allMatch(iter -> iter.staticRow().isEmpty()))
                 return Rows.EMPTY_STATIC_ROW;
 
-            Row.Merger merger = new Row.Merger(iterators.size(), nowInSec, columns);
+            Row.Merger merger = new Row.Merger(iterators.size(), nowInSec, columns.hasComplex());
             for (int i = 0; i < iterators.size(); i++)
                 merger.add(i, iterators.get(i).staticRow());
 
@@ -471,7 +470,7 @@ public abstract class UnfilteredRowIterators
             if (merged == null)
                 merged = Rows.EMPTY_STATIC_ROW;
             if (listener != null)
-                listener.onMergedRows(merged, columns, merger.mergedRows());
+                listener.onMergedRows(merged, merger.mergedRows());
             return merged;
         }
 
@@ -530,7 +529,7 @@ public abstract class UnfilteredRowIterators
 
             private MergeReducer(int size, boolean reversed, int nowInSec, MergeListener listener)
             {
-                this.rowMerger = new Row.Merger(size, nowInSec, columns().regulars);
+                this.rowMerger = new Row.Merger(size, nowInSec, columns().regulars.hasComplex());
                 this.markerMerger = new RangeTombstoneMarker.Merger(size, partitionLevelDeletion(), reversed);
                 this.listener = listener;
             }
@@ -557,7 +556,7 @@ public abstract class UnfilteredRowIterators
                 {
                     Row merged = rowMerger.merge(markerMerger.activeDeletion());
                     if (listener != null)
-                        listener.onMergedRows(merged == null ? BTreeRow.emptyRow(rowMerger.mergedClustering()) : merged, columns().regulars, rowMerger.mergedRows());
+                        listener.onMergedRows(merged == null ? BTreeRow.emptyRow(rowMerger.mergedClustering()) : merged, rowMerger.mergedRows());
                     return merged;
                 }
                 else

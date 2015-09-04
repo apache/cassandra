@@ -121,13 +121,13 @@ public class UpdateParameters
         if (clustering == Clustering.STATIC_CLUSTERING)
         {
             if (staticBuilder == null)
-                staticBuilder = BTreeRow.unsortedBuilder(updatedColumns.statics, nowInSec);
+                staticBuilder = BTreeRow.unsortedBuilder(nowInSec);
             builder = staticBuilder;
         }
         else
         {
             if (regularBuilder == null)
-                regularBuilder = BTreeRow.unsortedBuilder(updatedColumns.regulars, nowInSec);
+                regularBuilder = BTreeRow.unsortedBuilder(nowInSec);
             builder = regularBuilder;
         }
 

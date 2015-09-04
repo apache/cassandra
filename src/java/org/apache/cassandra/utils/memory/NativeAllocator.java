@@ -53,7 +53,7 @@ public class NativeAllocator extends MemtableAllocator
         super(pool.onHeap.newAllocator(), pool.offHeap.newAllocator());
     }
 
-    public Row.Builder rowBuilder(CFMetaData metadata, OpOrder.Group opGroup, boolean isStatic)
+    public Row.Builder rowBuilder(OpOrder.Group opGroup)
     {
         // TODO
         throw new UnsupportedOperationException();

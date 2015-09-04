@@ -263,10 +263,10 @@ public class AtomicBTreePartition extends AbstractBTreePartition
             boolean isStatic = clustering == Clustering.STATIC_CLUSTERING;
             // We know we only insert/update one static per PartitionUpdate, so no point in saving the builder
             if (isStatic)
-                return allocator.rowBuilder(updating.metadata(), writeOp, true);
+                return allocator.rowBuilder(writeOp);
 
             if (regularBuilder == null)
-                regularBuilder = allocator.rowBuilder(updating.metadata(), writeOp, false);
+                regularBuilder = allocator.rowBuilder(writeOp);
             return regularBuilder;
         }
 
@@ -285,10 +285,8 @@ public class AtomicBTreePartition extends AbstractBTreePartition
 
         public Row apply(Row existing, Row update)
         {
-            Columns mergedColumns = existing.columns().mergeTo(update.columns());
-
             Row.Builder builder = builder(existing.clustering());
-            colUpdateTimeDelta = Math.min(colUpdateTimeDelta, Rows.merge(existing, update, mergedColumns, builder, nowInSec));
+            colUpdateTimeDelta = Math.min(colUpdateTimeDelta, Rows.merge(existing, update, builder, nowInSec));
 
             Row reconciled = builder.build();
 

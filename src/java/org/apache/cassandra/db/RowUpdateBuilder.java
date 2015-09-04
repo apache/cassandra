@@ -82,7 +82,7 @@ public class RowUpdateBuilder
         assert staticBuilder == null : "Cannot update both static and non-static columns with the same RowUpdateBuilder object";
         assert regularBuilder == null : "Cannot add the clustering twice to the same row";
 
-        regularBuilder = BTreeRow.unsortedBuilder(update.columns().regulars, FBUtilities.nowInSeconds());
+        regularBuilder = BTreeRow.unsortedBuilder(FBUtilities.nowInSeconds());
         regularBuilder.newRow(clustering);
 
         // If a CQL table, add the "row marker"
@@ -107,7 +107,7 @@ public class RowUpdateBuilder
         assert regularBuilder == null : "Cannot update both static and non-static columns with the same RowUpdateBuilder object";
         if (staticBuilder == null)
         {
-            staticBuilder = BTreeRow.unsortedBuilder(update.columns().statics, FBUtilities.nowInSeconds());
+            staticBuilder = BTreeRow.unsortedBuilder(FBUtilities.nowInSeconds());
             staticBuilder.newRow(Clustering.STATIC_CLUSTERING);
         }
         return staticBuilder;
@@ -188,7 +188,7 @@ public class RowUpdateBuilder
         assert clusteringValues.length == update.metadata().comparator.size() || (clusteringValues.length == 0 && !update.columns().statics.isEmpty());
 
         boolean isStatic = clusteringValues.length != update.metadata().comparator.size();
-        Row.Builder builder = BTreeRow.sortedBuilder(isStatic ? update.columns().statics : update.columns().regulars);
+        Row.Builder builder = BTreeRow.sortedBuilder();
 
         if (isStatic)
             builder.newRow(Clustering.STATIC_CLUSTERING);

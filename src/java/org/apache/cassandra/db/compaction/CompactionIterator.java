@@ -187,10 +187,10 @@ public class CompactionIterator extends CompactionInfo.Holder implements Unfilte
                     {
                     }
 
-                    public void onMergedRows(Row merged, Columns columns, Row[] versions)
+                    public void onMergedRows(Row merged, Row[] versions)
                     {
                         indexTransaction.start();
-                        indexTransaction.onRowMerge(columns, merged, versions);
+                        indexTransaction.onRowMerge(merged, versions);
                         indexTransaction.commit();
                     }
 

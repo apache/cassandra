@@ -17,9 +17,7 @@
  */
 package org.apache.cassandra.db.rows;
 
-import java.util.ArrayList;
-import java.util.Iterator;
-import java.util.List;
+import java.util.*;
 
 import com.google.common.collect.Iterators;
 import com.google.common.collect.PeekingIterator;
@@ -27,27 +25,13 @@ import com.google.common.collect.PeekingIterator;
 import org.apache.cassandra.config.ColumnDefinition;
 import org.apache.cassandra.db.*;
 import org.apache.cassandra.db.partitions.PartitionStatisticsCollector;
-import org.apache.cassandra.utils.SearchIterator;
+import org.apache.cassandra.utils.MergeIterator;
 
 /**
  * Static utilities to work on Row objects.
  */
 public abstract class Rows
 {
-    // TODO: we could have a that in a more generic place...
-    private static final SearchIterator<ColumnDefinition, ColumnData> EMPTY_SEARCH_ITERATOR = new SearchIterator<ColumnDefinition, ColumnData>()
-    {
-        public boolean hasNext()
-        {
-            return false;
-        }
-
-        public ColumnData next(ColumnDefinition column)
-        {
-            return null;
-        }
-    };
-
     private Rows() {}
 
     public static final Row EMPTY_STATIC_ROW = BTreeRow.emptyRow(Clustering.STATIC_CLUSTERING);
@@ -123,12 +107,11 @@ public abstract class Rows
      * each input and {@code merged} to {@code diffListener}.
      *
      * @param merged the result of merging {@code inputs}.
-     * @param columns a superset of all the columns in any of {@code merged}/{@code inputs}.
      * @param inputs the inputs whose merge yielded {@code merged}.
      * @param diffListener the listener to which to signal the differences between the inputs and the merged
      * result.
      */
-    public static void diff(RowDiffListener diffListener, Row merged, Columns columns, Row...inputs)
+    public static void diff(RowDiffListener diffListener, Row merged, Row...inputs)
     {
         Clustering clustering = merged.clustering();
         LivenessInfo mergedInfo = merged.primaryKeyLivenessInfo().isEmpty() ? null : merged.primaryKeyLivenessInfo();
@@ -145,81 +128,96 @@ public abstract class Rows
                 diffListener.onDeletion(i, clustering, mergedDeletion, inputDeletion);
         }
 
-        SearchIterator<ColumnDefinition, ColumnData> mergedIterator = merged.searchIterator();
-        List<SearchIterator<ColumnDefinition, ColumnData>> inputIterators = new ArrayList<>(inputs.length);
-
+        List<Iterator<ColumnData>> inputIterators = new ArrayList<>(1 + inputs.length);
+        inputIterators.add(merged.iterator());
         for (Row row : inputs)
-            inputIterators.add(row == null ? EMPTY_SEARCH_ITERATOR : row.searchIterator());
+            inputIterators.add(row == null ? Collections.emptyIterator() : row.iterator());
 
-        Iterator<ColumnDefinition> simpleColumns = columns.simpleColumns();
-        while (simpleColumns.hasNext())
+        Iterator<?> iter = MergeIterator.get(inputIterators, ColumnData.comparator, new MergeIterator.Reducer<ColumnData, Object>()
         {
-            ColumnDefinition column = simpleColumns.next();
-            Cell mergedCell = (Cell)mergedIterator.next(column);
-            for (int i = 0; i < inputs.length; i++)
+            ColumnData mergedData;
+            ColumnData[] inputDatas = new ColumnData[inputs.length];
+            public void reduce(int idx, ColumnData current)
             {
-                Cell inputCell = (Cell)inputIterators.get(i).next(column);
-                if (mergedCell != null || inputCell != null)
-                    diffListener.onCell(i, clustering, mergedCell, inputCell);
-            }
-        }
-
-        Iterator<ColumnDefinition> complexColumns = columns.complexColumns();
-        while (complexColumns.hasNext())
-        {
-            ColumnDefinition column = complexColumns.next();
-            ComplexColumnData mergedData = (ComplexColumnData)mergedIterator.next(column);
-            // Doing one input at a time is not the most efficient, but it's a lot simpler for now
-            for (int i = 0; i < inputs.length; i++)
-            {
-                ComplexColumnData inputData = (ComplexColumnData)inputIterators.get(i).next(column);
-                if (mergedData == null)
-                {
-                    if (inputData == null)
-                        continue;
-
-                    // Everything in inputData has been shadowed
-                    if (!inputData.complexDeletion().isLive())
-                        diffListener.onComplexDeletion(i, clustering, column, null, inputData.complexDeletion());
-                    for (Cell inputCell : inputData)
-                        diffListener.onCell(i, clustering, null, inputCell);
-                }
-                else if (inputData == null)
-                {
-                    // Everything in inputData is new
-                    if (!mergedData.complexDeletion().isLive())
-                        diffListener.onComplexDeletion(i, clustering, column, mergedData.complexDeletion(), null);
-                    for (Cell mergedCell : mergedData)
-                        diffListener.onCell(i, clustering, mergedCell, null);
-                }
+                if (idx == 0)
+                    mergedData = current;
                 else
-                {
-                    PeekingIterator<Cell> mergedCells = Iterators.peekingIterator(mergedData.iterator());
-                    PeekingIterator<Cell> inputCells = Iterators.peekingIterator(inputData.iterator());
-                    while (mergedCells.hasNext() && inputCells.hasNext())
-                    {
-                        int cmp = column.cellPathComparator().compare(mergedCells.peek().path(), inputCells.peek().path());
-                        if (cmp == 0)
-                            diffListener.onCell(i, clustering, mergedCells.next(), inputCells.next());
-                        else if (cmp < 0)
-                            diffListener.onCell(i, clustering, mergedCells.next(), null);
-                        else // cmp > 0
-                            diffListener.onCell(i, clustering, null, inputCells.next());
-                    }
-                    while (mergedCells.hasNext())
-                        diffListener.onCell(i, clustering, mergedCells.next(), null);
-                    while (inputCells.hasNext())
-                        diffListener.onCell(i, clustering, null, inputCells.next());
-                }
+                    inputDatas[idx - 1] = current;
             }
-        }
+
+            protected Object getReduced()
+            {
+                for (int i = 0 ; i != inputDatas.length ; i++)
+                {
+                    ColumnData input = inputDatas[i];
+                    if (mergedData != null || input != null)
+                    {
+                        ColumnDefinition column = (mergedData != null ? mergedData : input).column;
+                        if (column.isSimple())
+                        {
+                            diffListener.onCell(i, clustering, (Cell) mergedData, (Cell) input);
+                        }
+                        else
+                        {
+                            ComplexColumnData mergedData = (ComplexColumnData) this.mergedData;
+                            ComplexColumnData inputData = (ComplexColumnData) input;
+                            if (mergedData == null)
+                            {
+                                // Everything in inputData has been shadowed
+                                if (!inputData.complexDeletion().isLive())
+                                    diffListener.onComplexDeletion(i, clustering, column, null, inputData.complexDeletion());
+                                for (Cell inputCell : inputData)
+                                    diffListener.onCell(i, clustering, null, inputCell);
+                            }
+                            else if (inputData == null)
+                            {
+                                // Everything in inputData is new
+                                if (!mergedData.complexDeletion().isLive())
+                                    diffListener.onComplexDeletion(i, clustering, column, mergedData.complexDeletion(), null);
+                                for (Cell mergedCell : mergedData)
+                                    diffListener.onCell(i, clustering, mergedCell, null);
+                            }
+                            else
+                            {
+                                PeekingIterator<Cell> mergedCells = Iterators.peekingIterator(mergedData.iterator());
+                                PeekingIterator<Cell> inputCells = Iterators.peekingIterator(inputData.iterator());
+                                while (mergedCells.hasNext() && inputCells.hasNext())
+                                {
+                                    int cmp = column.cellPathComparator().compare(mergedCells.peek().path(), inputCells.peek().path());
+                                    if (cmp == 0)
+                                        diffListener.onCell(i, clustering, mergedCells.next(), inputCells.next());
+                                    else if (cmp < 0)
+                                        diffListener.onCell(i, clustering, mergedCells.next(), null);
+                                    else // cmp > 0
+                                        diffListener.onCell(i, clustering, null, inputCells.next());
+                                }
+                                while (mergedCells.hasNext())
+                                    diffListener.onCell(i, clustering, mergedCells.next(), null);
+                                while (inputCells.hasNext())
+                                    diffListener.onCell(i, clustering, null, inputCells.next());
+                            }
+                        }
+                    }
+
+                }
+                return null;
+            }
+
+            protected void onKeyChange()
+            {
+                mergedData = null;
+                Arrays.fill(inputDatas, null);
+            }
+        });
+
+        while (iter.hasNext())
+            iter.next();
     }
 
     public static Row merge(Row row1, Row row2, int nowInSec)
     {
-        Columns mergedColumns = row1.columns().mergeTo(row2.columns());
-        Row.Builder builder = BTreeRow.sortedBuilder(mergedColumns);
-        merge(row1, row2, mergedColumns, builder, nowInSec);
+        Row.Builder builder = BTreeRow.sortedBuilder();
+        merge(row1, row2, builder, nowInSec);
         return builder.build();
     }
 
@@ -227,7 +225,6 @@ public abstract class Rows
     // Return the minimum timestamp delta between existing and update
     public static long merge(Row existing,
                              Row update,
-                             Columns mergedColumns,
                              Row.Builder builder,
                              int nowInSec)
     {
@@ -248,37 +245,42 @@ public abstract class Rows
         builder.addPrimaryKeyLivenessInfo(mergedInfo);
         builder.addRowDeletion(deletion);
 
-        for (int i = 0; i < mergedColumns.simpleColumnCount(); i++)
+        Iterator<ColumnData> a = existing.iterator();
+        Iterator<ColumnData> b = update.iterator();
+        ColumnData nexta = a.hasNext() ? a.next() : null, nextb = b.hasNext() ? b.next() : null;
+        while (nexta != null | nextb != null)
         {
-            ColumnDefinition c = mergedColumns.getSimple(i);
-            Cell existingCell = existing.getCell(c);
-            Cell updateCell = update.getCell(c);
-            timeDelta = Math.min(timeDelta, Cells.reconcile(existingCell,
-                                                            updateCell,
-                                                            deletion,
-                                                            builder,
-                                                            nowInSec));
-        }
-
-        for (int i = 0; i < mergedColumns.complexColumnCount(); i++)
-        {
-            ColumnDefinition c = mergedColumns.getComplex(i);
-            ComplexColumnData existingData = existing.getComplexColumnData(c);
-            ComplexColumnData updateData = update.getComplexColumnData(c);
-
-            DeletionTime existingDt = existingData == null ? DeletionTime.LIVE : existingData.complexDeletion();
-            DeletionTime updateDt = updateData == null ? DeletionTime.LIVE : updateData.complexDeletion();
-            DeletionTime maxDt = existingDt.supersedes(updateDt) ? existingDt : updateDt;
-            if (maxDt.supersedes(deletion))
-                builder.addComplexDeletion(c, maxDt);
+            int comparison = nexta == null ? 1 : nextb == null ? -1 : nexta.column.compareTo(nextb.column);
+            ColumnData cura = comparison <= 0 ? nexta : null;
+            ColumnData curb = comparison >= 0 ? nextb : null;
+            ColumnDefinition column = (cura != null ? cura : curb).column;
+            if (column.isSimple())
+            {
+                timeDelta = Math.min(timeDelta, Cells.reconcile((Cell) cura, (Cell) curb, deletion, builder, nowInSec));
+            }
             else
-                maxDt = deletion;
+            {
+                ComplexColumnData existingData = (ComplexColumnData) cura;
+                ComplexColumnData updateData = (ComplexColumnData) curb;
 
-            Iterator<Cell> existingCells = existingData == null ? null : existingData.iterator();
-            Iterator<Cell> updateCells = updateData == null ? null : updateData.iterator();
-            timeDelta = Math.min(timeDelta, Cells.reconcileComplex(c, existingCells, updateCells, maxDt, builder, nowInSec));
+                DeletionTime existingDt = existingData == null ? DeletionTime.LIVE : existingData.complexDeletion();
+                DeletionTime updateDt = updateData == null ? DeletionTime.LIVE : updateData.complexDeletion();
+                DeletionTime maxDt = existingDt.supersedes(updateDt) ? existingDt : updateDt;
+                if (maxDt.supersedes(deletion))
+                    builder.addComplexDeletion(column, maxDt);
+                else
+                    maxDt = deletion;
+
+                Iterator<Cell> existingCells = existingData == null ? null : existingData.iterator();
+                Iterator<Cell> updateCells = updateData == null ? null : updateData.iterator();
+                timeDelta = Math.min(timeDelta, Cells.reconcileComplex(column, existingCells, updateCells, maxDt, builder, nowInSec));
+            }
+
+            if (cura != null)
+                nexta = a.hasNext() ? a.next() : null;
+            if (curb != null)
+                nextb = b.hasNext() ? b.next() : null;
         }
-
         return timeDelta;
     }
 }
