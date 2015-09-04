@@ -28,8 +28,6 @@ import com.google.common.base.Joiner;
 import org.junit.Test;
 import static org.junit.Assert.*;
 
-import org.apache.cassandra.Util;
-import org.apache.cassandra.db.*;
 import org.apache.cassandra.db.marshal.Int32Type;
 import org.apache.cassandra.utils.ByteBufferUtil;
 
@@ -346,6 +344,201 @@ public class RangeTombstoneListTest
         }
     }
 
+    @Test
+    public void nonSortedAdditionTestWithOneTombstoneWithEmptyEnd()
+    {
+        nonSortedAdditionTestWithOneRangeWithEmptyEnd(0);
+        nonSortedAdditionTestWithOneRangeWithEmptyEnd(10);
+    }
+
+  private static void nonSortedAdditionTestWithOneRangeWithEmptyEnd(int initialCapacity)
+    {
+        RangeTombstoneList l = new RangeTombstoneList(cmp, initialCapacity);
+        RangeTombstone rt1 = rt(1, 5, 3);
+        RangeTombstone rt2 = rt(7, 10, 2);
+        RangeTombstone rt3 = atLeast(11, 1, 0);
+
+        l.add(rt2);
+        l.add(rt3);
+        l.add(rt1);
+
+        Iterator<RangeTombstone> iter = l.iterator();
+        assertRT(rt1, iter.next());
+        assertRT(rt2, iter.next());
+        assertRT(rt3, iter.next());
+
+        assert !iter.hasNext();
+    }
+
+    @Test
+    public void addRangeWithEmptyEndWitchIncludeExistingRange()
+    {
+
+        RangeTombstoneList l = new RangeTombstoneList(cmp, 0);
+
+        l.add(rt(4, 10, 3));
+        l.add(atLeast(3, 4, 0));
+
+        Iterator<RangeTombstone> iter = l.iterator();
+        assertRT(atLeast(3, 4, 0), iter.next());
+        assertFalse(iter.hasNext());
+    }
+
+    @Test
+    public void addRangeWithEmptyStartAndEnd()
+    {
+
+        RangeTombstoneList l = new RangeTombstoneList(cmp, 0);
+
+        l.add(rt(4, 10, 3));
+        l.add(atMost(12, 4, 0));
+
+        Iterator<RangeTombstone> iter = l.iterator();
+        assertRT(atMost(12, 4, 0), iter.next());
+        assertFalse(iter.hasNext());
+    }
+
+    @Test
+    public void addRangeWithEmptyEndToRangeWithEmptyStartAndEnd()
+    {
+
+        RangeTombstoneList l = new RangeTombstoneList(cmp, 0);
+
+        l.add(new RangeTombstone(Slice.ALL, new DeletionTime(2, 0)));
+        l.add(atLeast(12, 4, 0));
+
+        Iterator<RangeTombstone> iter = l.iterator();
+        assertRT(lessThan(12, 2, 0), iter.next());
+        assertRT(atLeast(12, 4, 0), iter.next());
+        assertFalse(iter.hasNext());
+    }
+
+    @Test
+    public void addRangeWithEmptyEndWitchIncludeExistingRangeWithEmptyEnd()
+    {
+
+        RangeTombstoneList l = new RangeTombstoneList(cmp, 0);
+
+        l.add(atLeast(5, 3, 0));
+        l.add(atLeast(3, 4, 0));
+
+        Iterator<RangeTombstone> iter = l.iterator();
+        assertRT(atLeast(3, 4, 0), iter.next());
+        assertFalse(iter.hasNext());
+    }
+
+    @Test
+    public void addIncludedRangeToRangeWithEmptyEnd()
+    {
+
+        RangeTombstoneList l = new RangeTombstoneList(cmp, 0);
+
+        l.add(atLeast(3, 3, 0));
+        l.add(rt(4, 10, 4));
+
+        Iterator<RangeTombstone> iter = l.iterator();
+        assertRT(rtie(3, 4, 3), iter.next());
+        assertRT(rt(4, 10, 4), iter.next());
+        assertRT(greaterThan(10, 3, 0), iter.next());
+        assertFalse(iter.hasNext());
+    }
+
+    @Test
+    public void addIncludedRangeWithEmptyEndToRangeWithEmptyEnd()
+    {
+
+        RangeTombstoneList l = new RangeTombstoneList(cmp, 0);
+
+        l.add(atLeast(3, 3, 0));
+        l.add(atLeast(5, 4, 0));
+
+        Iterator<RangeTombstone> iter = l.iterator();
+        assertRT(rtie(3, 5, 3), iter.next());
+        assertRT(atLeast(5, 4, 0), iter.next());
+        assertFalse(iter.hasNext());
+    }
+
+    @Test
+    public void addRangeWithEmptyEndWitchOverlapExistingRange()
+    {
+
+        RangeTombstoneList l = new RangeTombstoneList(cmp, 0);
+
+        l.add(rt(4, 10, 3));
+        l.add(atLeast(6, 4, 0));
+
+        Iterator<RangeTombstone> iter = l.iterator();
+        assertRT(rtie(4, 6, 3), iter.next());
+        assertRT(atLeast(6, 4, 0), iter.next());
+        assertFalse(iter.hasNext());
+    }
+
+    @Test
+    public void addOverlappingRangeToRangeWithEmptyEnd()
+    {
+
+        RangeTombstoneList l = new RangeTombstoneList(cmp, 0);
+
+        l.add(atLeast(3, 3, 0));
+        l.add(rt(1, 10, 4));
+
+        Iterator<RangeTombstone> iter = l.iterator();
+        assertRT(rt(1, 10, 4), iter.next());
+        assertRT(greaterThan(10, 3, 0), iter.next());
+        assertFalse(iter.hasNext());
+    }
+
+    @Test
+    public void searchTestWithEmptyStart()
+    {
+        RangeTombstoneList l = new RangeTombstoneList(cmp, 0);
+        l.add(atMost(4, 5, 0));
+        l.add(rt(4, 6, 2));
+        l.add(rt(9, 12, 1));
+        l.add(rt(14, 15, 3));
+        l.add(rt(15, 17, 6));
+
+        assertEquals(5, l.searchDeletionTime(clustering(-1)).markedForDeleteAt());
+        assertEquals(5, l.searchDeletionTime(clustering(0)).markedForDeleteAt());
+        assertEquals(5, l.searchDeletionTime(clustering(3)).markedForDeleteAt());
+        assertEquals(5, l.searchDeletionTime(clustering(4)).markedForDeleteAt());
+
+        assertEquals(2, l.searchDeletionTime(clustering(5)).markedForDeleteAt());
+
+        assertEquals(null, l.searchDeletionTime(clustering(7)));
+
+        assertEquals(3, l.searchDeletionTime(clustering(14)).markedForDeleteAt());
+
+        assertEquals(6, l.searchDeletionTime(clustering(15)).markedForDeleteAt());
+        assertEquals(null, l.searchDeletionTime(clustering(18)));
+    }
+
+    @Test
+    public void searchTestWithRangeWithEmptyEnd()
+    {
+        RangeTombstoneList l = new RangeTombstoneList(cmp, 0);
+        l.add(rt(0, 4, 5));
+        l.add(rt(4, 6, 2));
+        l.add(rt(9, 12, 1));
+        l.add(rt(14, 15, 3));
+        l.add(atLeast(15, 6, 0));
+
+        assertEquals(null, l.searchDeletionTime(clustering(-1)));
+
+        assertEquals(5, l.searchDeletionTime(clustering(0)).markedForDeleteAt());
+        assertEquals(5, l.searchDeletionTime(clustering(3)).markedForDeleteAt());
+        assertEquals(5, l.searchDeletionTime(clustering(4)).markedForDeleteAt());
+
+        assertEquals(2, l.searchDeletionTime(clustering(5)).markedForDeleteAt());
+
+        assertEquals(null, l.searchDeletionTime(clustering(7)));
+
+        assertEquals(3, l.searchDeletionTime(clustering(14)).markedForDeleteAt());
+
+        assertEquals(6, l.searchDeletionTime(clustering(15)).markedForDeleteAt());
+        assertEquals(6, l.searchDeletionTime(clustering(1000)).markedForDeleteAt());
+    }
+
     private static void assertRT(RangeTombstone expected, RangeTombstone actual)
     {
         assertTrue(String.format("%s != %s", toString(expected), toString(actual)), cmp.compare(expected.deletedSlice().start(), actual.deletedSlice().start()) == 0);
@@ -420,11 +613,6 @@ public class RangeTombstoneListTest
         return ByteBufferUtil.bytes(i);
     }
 
-    private static int i(Slice.Bound bound)
-    {
-        return ByteBufferUtil.toInt(bound.get(0));
-    }
-
     private static RangeTombstone rt(int start, int end, long tstamp)
     {
         return rt(start, end, tstamp, 0);
@@ -458,5 +646,25 @@ public class RangeTombstoneListTest
     private static RangeTombstone rtie(int start, int end, long tstamp, int delTime)
     {
         return new RangeTombstone(Slice.make(Slice.Bound.inclusiveStartOf(bb(start)), Slice.Bound.exclusiveEndOf(bb(end))), new DeletionTime(tstamp, delTime));
+    }
+
+    private static RangeTombstone atLeast(int start, long tstamp, int delTime)
+    {
+        return new RangeTombstone(Slice.make(Slice.Bound.inclusiveStartOf(bb(start)), Slice.Bound.TOP), new DeletionTime(tstamp, delTime));
+    }
+
+    private static RangeTombstone atMost(int end, long tstamp, int delTime)
+    {
+        return new RangeTombstone(Slice.make(Slice.Bound.BOTTOM, Slice.Bound.inclusiveEndOf(bb(end))), new DeletionTime(tstamp, delTime));
+    }
+
+    private static RangeTombstone lessThan(int end, long tstamp, int delTime)
+    {
+        return new RangeTombstone(Slice.make(Slice.Bound.BOTTOM, Slice.Bound.exclusiveEndOf(bb(end))), new DeletionTime(tstamp, delTime));
+    }
+
+    private static RangeTombstone greaterThan(int start, long tstamp, int delTime)
+    {
+        return new RangeTombstone(Slice.make(Slice.Bound.exclusiveStartOf(bb(start)), Slice.Bound.TOP), new DeletionTime(tstamp, delTime));
     }
 }

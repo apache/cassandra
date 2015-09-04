@@ -206,7 +206,7 @@ public class CQLSSTableWriter implements Closeable
 
         QueryOptions options = QueryOptions.forInternalCalls(null, values);
         List<ByteBuffer> keys = insert.buildPartitionKeyNames(options);
-        CBuilder clustering = insert.createClustering(options);
+        SortedSet<Clustering> clusterings = insert.createClustering(options);
 
         long now = System.currentTimeMillis() * 1000;
         // Note that we asks indexes to not validate values (the last 'false' arg below) because that triggers a 'Keyspace.open'
@@ -222,7 +222,10 @@ public class CQLSSTableWriter implements Closeable
         try
         {
             for (ByteBuffer key : keys)
-                insert.addUpdateForKey(writer.getUpdateFor(key), clustering, params);
+            {
+                for (Clustering clustering : clusterings)
+                    insert.addUpdateForKey(writer.getUpdateFor(key), clustering, params);
+            }
             return this;
         }
         catch (SSTableSimpleUnsortedWriter.SyncException e)

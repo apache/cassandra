@@ -1154,9 +1154,9 @@ userPassword[RoleOptions opts]
 // identifiers because the underlying comparator is not necessarily text. See
 // CASSANDRA-8178 for details.
 cident returns [ColumnIdentifier.Raw id]
-    : t=IDENT              { $id = new ColumnIdentifier.Raw($t.text, false); }
-    | t=QUOTED_NAME        { $id = new ColumnIdentifier.Raw($t.text, true); }
-    | k=unreserved_keyword { $id = new ColumnIdentifier.Raw(k, false); }
+    : t=IDENT              { $id = new ColumnIdentifier.Literal($t.text, false); }
+    | t=QUOTED_NAME        { $id = new ColumnIdentifier.Literal($t.text, true); }
+    | k=unreserved_keyword { $id = new ColumnIdentifier.Literal(k, false); }
     ;
 
 // Column identifiers where the comparator is known to be text

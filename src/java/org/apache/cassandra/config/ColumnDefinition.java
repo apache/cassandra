@@ -23,7 +23,7 @@ import java.util.*;
 import com.google.common.annotations.VisibleForTesting;
 import com.google.common.base.Function;
 import com.google.common.base.Objects;
-import com.google.common.collect.Lists;
+import com.google.common.collect.Collections2;
 
 import org.apache.cassandra.cql3.*;
 import org.apache.cassandra.db.rows.*;
@@ -285,9 +285,9 @@ public class ColumnDefinition extends ColumnSpecification implements Comparable<
      * @param definitions the column definitions to convert.
      * @return the column identifiers corresponding to the specified definitions
      */
-    public static List<ColumnIdentifier> toIdentifiers(List<ColumnDefinition> definitions)
+    public static Collection<ColumnIdentifier> toIdentifiers(Collection<ColumnDefinition> definitions)
     {
-        return Lists.transform(definitions, new Function<ColumnDefinition, ColumnIdentifier>()
+        return Collections2.transform(definitions, new Function<ColumnDefinition, ColumnIdentifier>()
         {
             @Override
             public ColumnIdentifier apply(ColumnDefinition columnDef)

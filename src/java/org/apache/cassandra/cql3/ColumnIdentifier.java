@@ -194,12 +194,18 @@ public class ColumnIdentifier extends org.apache.cassandra.cql3.selection.Select
      * once the comparator is known with prepare(). This should only be used with identifiers that are actual
      * column names. See CASSANDRA-8178 for more background.
      */
-    public static class Raw implements Selectable.Raw
+    public static interface Raw extends Selectable.Raw
+    {
+
+        public ColumnIdentifier prepare(CFMetaData cfm);
+    }
+
+    public static class Literal implements Raw
     {
         private final String rawText;
         private final String text;
 
-        public Raw(String rawText, boolean keepCase)
+        public Literal(String rawText, boolean keepCase)
         {
             this.rawText = rawText;
             this.text =  keepCase ? rawText : rawText.toLowerCase(Locale.US);
@@ -239,9 +245,10 @@ public class ColumnIdentifier extends org.apache.cassandra.cql3.selection.Select
         @Override
         public final boolean equals(Object o)
         {
-            if(!(o instanceof ColumnIdentifier.Raw))
+            if(!(o instanceof Literal))
                 return false;
-            ColumnIdentifier.Raw that = (ColumnIdentifier.Raw)o;
+
+            Literal that = (Literal) o;
             return text.equals(that.text);
         }
 
@@ -249,6 +256,47 @@ public class ColumnIdentifier extends org.apache.cassandra.cql3.selection.Select
         public String toString()
         {
             return text;
+        }
+    }
+
+    public static class ColumnIdentifierValue implements Raw
+    {
+        private final ColumnIdentifier identifier;
+
+        public ColumnIdentifierValue(ColumnIdentifier identifier)
+        {
+            this.identifier = identifier;
+        }
+
+        public ColumnIdentifier prepare(CFMetaData cfm)
+        {
+            return identifier;
+        }
+
+        public boolean processesSelection()
+        {
+            return false;
+        }
+
+        @Override
+        public final int hashCode()
+        {
+            return identifier.hashCode();
+        }
+
+        @Override
+        public final boolean equals(Object o)
+        {
+            if(!(o instanceof ColumnIdentifierValue))
+                return false;
+            ColumnIdentifierValue that = (ColumnIdentifierValue) o;
+            return identifier.equals(that.identifier);
+        }
+
+        @Override
+        public String toString()
+        {
+            return identifier.toString();
         }
     }
 }

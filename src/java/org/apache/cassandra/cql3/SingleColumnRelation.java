@@ -223,6 +223,7 @@ public final class SingleColumnRelation extends Relation
         }
 
         checkFalse(isContainsKey() && !(receiver.type instanceof MapType), "Cannot use CONTAINS KEY on non-map column %s", receiver.name);
+        checkFalse(isContains() && !(receiver.type.isCollection()), "Cannot use CONTAINS on non-collection column %s", receiver.name);
 
         if (mapKey != null)
         {

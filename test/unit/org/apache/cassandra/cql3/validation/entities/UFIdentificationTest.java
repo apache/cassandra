@@ -97,15 +97,15 @@ public class UFIdentificationTest extends CQLTester
     @Test
     public void testSimpleModificationStatement() throws Throwable
     {
-        assertFunctions(cql("INSERT INTO %s (key, t_sc) VALUES (0, %s)", functionCall(tFunc, "'foo'")), tFunc);
-        assertFunctions(cql("INSERT INTO %s (key, i_cc) VALUES (0, %s)", functionCall(iFunc, "1")), iFunc);
-        assertFunctions(cql("INSERT INTO %s (key, t_cc) VALUES (0, %s)", functionCall(tFunc, "'foo'")), tFunc);
-        assertFunctions(cql("INSERT INTO %s (key, i_val) VALUES (0, %s)", functionCall(iFunc, "1")), iFunc);
-        assertFunctions(cql("INSERT INTO %s (key, l_val) VALUES (0, %s)", functionCall(lFunc, "[1]")), lFunc);
-        assertFunctions(cql("INSERT INTO %s (key, s_val) VALUES (0, %s)", functionCall(sFunc, "{1}")), sFunc);
-        assertFunctions(cql("INSERT INTO %s (key, m_val) VALUES (0, %s)", functionCall(mFunc, "{1:1}")), mFunc);
-        assertFunctions(cql("INSERT INTO %s (key, udt_val) VALUES (0,%s)", functionCall(udtFunc, "{i : 1, t : 'foo'}")), udtFunc);
-        assertFunctions(cql("INSERT INTO %s (key, u_val) VALUES (0, %s)", functionCall(uFunc, "now()")), uFunc, "system.now");
+        assertFunctions(cql("INSERT INTO %s (key, i_cc, t_cc, t_sc) VALUES (0, 0, 'A', %s)", functionCall(tFunc, "'foo'")), tFunc);
+        assertFunctions(cql("INSERT INTO %s (key, i_cc, t_cc) VALUES (0, %s, 'A')", functionCall(iFunc, "1")), iFunc);
+        assertFunctions(cql("INSERT INTO %s (key, t_cc, i_cc) VALUES (0, %s, 1)", functionCall(tFunc, "'foo'")), tFunc);
+        assertFunctions(cql("INSERT INTO %s (key, i_cc, t_cc, i_val) VALUES (0, 0, 'A', %s)", functionCall(iFunc, "1")), iFunc);
+        assertFunctions(cql("INSERT INTO %s (key, i_cc, t_cc, l_val) VALUES (0, 0, 'A', %s)", functionCall(lFunc, "[1]")), lFunc);
+        assertFunctions(cql("INSERT INTO %s (key, i_cc, t_cc, s_val) VALUES (0, 0, 'A', %s)", functionCall(sFunc, "{1}")), sFunc);
+        assertFunctions(cql("INSERT INTO %s (key, i_cc, t_cc, m_val) VALUES (0, 0, 'A', %s)", functionCall(mFunc, "{1:1}")), mFunc);
+        assertFunctions(cql("INSERT INTO %s (key, i_cc, t_cc, udt_val) VALUES (0, 0, 'A', %s)", functionCall(udtFunc, "{i : 1, t : 'foo'}")), udtFunc);
+        assertFunctions(cql("INSERT INTO %s (key, i_cc, t_cc, u_val) VALUES (0, 0, 'A', %s)", functionCall(uFunc, "now()")), uFunc, "system.now");
     }
 
     @Test
@@ -113,48 +113,48 @@ public class UFIdentificationTest extends CQLTester
     {
         String iFunc2 = createEchoFunction("int");
         String mapValue = String.format("{%s:%s}", functionCall(iFunc, "1"), functionCall(iFunc2, "1"));
-        assertFunctions(cql("INSERT INTO %s (key, m_val) VALUES (0, %s)", mapValue), iFunc, iFunc2);
+        assertFunctions(cql("INSERT INTO %s (key, i_cc, t_cc, m_val) VALUES (0, 0, 'A', %s)", mapValue), iFunc, iFunc2);
 
         String listValue = String.format("[%s]", functionCall(iFunc, "1"));
-        assertFunctions(cql("INSERT INTO %s (key, l_val) VALUES (0, %s)", listValue), iFunc);
+        assertFunctions(cql("INSERT INTO %s (key, i_cc, t_cc, l_val) VALUES (0, 0, 'A',  %s)", listValue), iFunc);
 
         String setValue = String.format("{%s}", functionCall(iFunc, "1"));
-        assertFunctions(cql("INSERT INTO %s (key, s_val) VALUES (0, %s)", setValue), iFunc);
+        assertFunctions(cql("INSERT INTO %s (key, i_cc, t_cc, s_val) VALUES (0, 0, 'A', %s)", setValue), iFunc);
     }
 
     @Test
     public void testNonTerminalUDTLiterals() throws Throwable
     {
         String udtValue = String.format("{ i: %s, t : %s } ", functionCall(iFunc, "1"), functionCall(tFunc, "'foo'"));
-        assertFunctions(cql("INSERT INTO %s (key, udt_val) VALUES (0, %s)", udtValue), iFunc, tFunc);
+        assertFunctions(cql("INSERT INTO %s (key, i_cc, t_cc, udt_val) VALUES (0, 0, 'A', %s)", udtValue), iFunc, tFunc);
     }
 
     @Test
     public void testModificationStatementWithConditions() throws Throwable
     {
-        assertFunctions(cql("UPDATE %s SET i_val=0 WHERE key=0 IF t_sc=%s", functionCall(tFunc, "'foo'")), tFunc);
-        assertFunctions(cql("UPDATE %s SET i_val=0 WHERE key=0 IF i_val=%s", functionCall(iFunc, "1")), iFunc);
-        assertFunctions(cql("UPDATE %s SET i_val=0 WHERE key=0 IF l_val=%s", functionCall(lFunc, "[1]")), lFunc);
-        assertFunctions(cql("UPDATE %s SET i_val=0 WHERE key=0 IF s_val=%s", functionCall(sFunc, "{1}")), sFunc);
-        assertFunctions(cql("UPDATE %s SET i_val=0 WHERE key=0 IF m_val=%s", functionCall(mFunc, "{1:1}")), mFunc);
+        assertFunctions(cql("UPDATE %s SET i_val=0 WHERE key=0 AND i_cc = 0 AND t_cc = 'A' IF t_sc=%s", functionCall(tFunc, "'foo'")), tFunc);
+        assertFunctions(cql("UPDATE %s SET i_val=0 WHERE key=0 AND i_cc = 0 AND t_cc = 'A' IF i_val=%s", functionCall(iFunc, "1")), iFunc);
+        assertFunctions(cql("UPDATE %s SET i_val=0 WHERE key=0 AND i_cc = 0 AND t_cc = 'A' IF l_val=%s", functionCall(lFunc, "[1]")), lFunc);
+        assertFunctions(cql("UPDATE %s SET i_val=0 WHERE key=0 AND i_cc = 0 AND t_cc = 'A' IF s_val=%s", functionCall(sFunc, "{1}")), sFunc);
+        assertFunctions(cql("UPDATE %s SET i_val=0 WHERE key=0 AND i_cc = 0 AND t_cc = 'A' IF m_val=%s", functionCall(mFunc, "{1:1}")), mFunc);
 
 
         String iFunc2 = createEchoFunction("int");
-        assertFunctions(cql("UPDATE %s SET i_val=0 WHERE key=0 IF i_val IN (%s, %S)",
+        assertFunctions(cql("UPDATE %s SET i_val=0 WHERE key=0 AND i_cc = 0 AND t_cc = 'A' IF i_val IN (%s, %S)",
                             functionCall(iFunc, "1"),
                             functionCall(iFunc2, "2")),
                         iFunc, iFunc2);
 
-        assertFunctions(cql("UPDATE %s SET i_val=0 WHERE key=0 IF u_val=%s",
+        assertFunctions(cql("UPDATE %s SET i_val=0 WHERE key=0 AND i_cc = 0 AND t_cc = 'A' IF u_val=%s",
                             functionCall(uFunc, "now()")),
                         uFunc, "system.now");
 
         // conditions on collection elements
-        assertFunctions(cql("UPDATE %s SET i_val=0 WHERE key=0 IF l_val[%s] = %s",
+        assertFunctions(cql("UPDATE %s SET i_val=0 WHERE key=0 AND i_cc = 0 AND t_cc = 'A' IF l_val[%s] = %s",
                             functionCall(iFunc, "1"),
                             functionCall(iFunc2, "1")),
                         iFunc, iFunc2);
-        assertFunctions(cql("UPDATE %s SET i_val=0 WHERE key=0 IF m_val[%s] = %s",
+        assertFunctions(cql("UPDATE %s SET i_val=0 WHERE key=0 AND i_cc = 0 AND t_cc = 'A' IF m_val[%s] = %s",
                             functionCall(iFunc, "1"),
                             functionCall(iFunc2, "1")),
                         iFunc, iFunc2);
