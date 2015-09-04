@@ -116,7 +116,7 @@ public class SSTableReversedIterator extends AbstractSSTableIterator
                 // Note that we can reuse that buffer between slices (we could alternatively re-read from disk
                 // every time, but that feels more wasteful) so we want to include everything from the beginning.
                 // We can stop at the slice end however since any following slice will be before that.
-                loadFromDisk(null, slice.end());
+                loadFromDisk(null, slice.end(), true);
             }
             setIterator(slice);
         }
@@ -150,15 +150,18 @@ public class SSTableReversedIterator extends AbstractSSTableIterator
 
         // Reads the unfiltered from disk and load them into the reader buffer. It stops reading when either the partition
         // is fully read, or when stopReadingDisk() returns true.
-        protected void loadFromDisk(Slice.Bound start, Slice.Bound end) throws IOException
+        protected void loadFromDisk(Slice.Bound start, Slice.Bound end, boolean includeFirst) throws IOException
         {
             buffer.reset();
+
+            boolean isFirst = true;
 
             // If the start might be in this block, skip everything that comes before it.
             if (start != null)
             {
                 while (deserializer.hasNext() && deserializer.compareNextTo(start) <= 0 && !stopReadingDisk())
                 {
+                    isFirst = false;
                     if (deserializer.nextIsRow())
                         deserializer.skipNext();
                     else
@@ -179,7 +182,10 @@ public class SSTableReversedIterator extends AbstractSSTableIterator
                    && !stopReadingDisk())
             {
                 Unfiltered unfiltered = deserializer.readNext();
-                buffer.add(unfiltered);
+                if (!isFirst || includeFirst)
+                    buffer.add(unfiltered);
+
+                isFirst = false;
 
                 if (unfiltered.isRangeTombstoneMarker())
                     updateOpenMarker((RangeTombstoneMarker)unfiltered);
@@ -224,7 +230,7 @@ public class SSTableReversedIterator extends AbstractSSTableIterator
             this.slice = slice;
             isInit = true;
 
-            // if our previous slicing already got us pas the beginning of the sstable, we're done
+            // if our previous slicing already got us past the beginning of the sstable, we're done
             if (indexState.isDone())
             {
                 iterator = Collections.emptyIterator();
@@ -293,8 +299,25 @@ public class SSTableReversedIterator extends AbstractSSTableIterator
             if (buffer == null)
                 buffer = createBuffer(indexState.blocksCount());
 
-            boolean canIncludeSliceStart = indexState.currentBlockIdx() == lastBlockIdx;
-            loadFromDisk(canIncludeSliceStart ? slice.start() : null, canIncludeSliceEnd ? slice.end() : null);
+            int currentBlock = indexState.currentBlockIdx();
+
+            boolean canIncludeSliceStart = currentBlock == lastBlockIdx;
+
+            // When dealing with old format sstable, we have the problem that a row can span 2 index block, i.e. it can
+            // start at the end of a block and end at the beginning of the next one. That's not a problem per se for
+            // UnfilteredDeserializer.OldFormatSerializer, since it always read rows entirely, even if they span index
+            // blocks, but as we reading index block in reverse we must be careful to not read the end of the row at
+            // beginning of a block before we're reading the beginning of that row. So what we do is that if we detect
+            // that the row starting this block is also the row ending the previous one, we skip that first result and
+            // let it be read when we'll read the previous block.
+            boolean includeFirst = true;
+            if (!sstable.descriptor.version.storeRows() && currentBlock > 0)
+            {
+                ClusteringPrefix lastOfPrevious = indexState.index(currentBlock - 1).lastName;
+                ClusteringPrefix firstOfCurrent = indexState.index(currentBlock).firstName;
+                includeFirst = metadata().comparator.compare(lastOfPrevious, firstOfCurrent) != 0;
+            }
+            loadFromDisk(canIncludeSliceStart ? slice.start() : null, canIncludeSliceEnd ? slice.end() : null, includeFirst);
         }
 
         @Override
