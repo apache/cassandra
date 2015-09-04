@@ -52,13 +52,8 @@ public interface Row extends Unfiltered, Collection<ColumnData>
     public Clustering clustering();
 
     /**
-     * The columns this row contains.
-     *
-     * Note that this is actually a superset of the columns the row contains. The row
-     * may not have values for each of those columns, but it can't have values for other
-     * columns.
-     *
-     * @return a superset of the columns contained in this row.
+     * An in-natural-order collection of the columns for which data (incl. simple tombstones)
+     * is present in this row.
      */
     public Collection<ColumnDefinition> columns();
 
