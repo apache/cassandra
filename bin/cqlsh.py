@@ -657,20 +657,9 @@ class Shell(cmd.Cmd):
 
         self.display_float_precision = display_float_precision
 
-        # Workaround for CASSANDRA-8521 until PYTHON-205 is resolved.
-        # If there is no schema metadata present (due to a schema mismatch),
-        # get rid of the code that checks for a schema mismatch and force
-        # the schema metadata to be built.
+        # If there is no schema metadata present (due to a schema mismatch), force schema refresh
         if not self.conn.metadata.keyspaces:
-            self.printerr("Warning: schema version mismatch detected; check the schema versions of your "
-                          "nodes in system.local and system.peers.")
-            original_method = self.conn.control_connection._get_schema_mismatches
-            try:
-                self.conn.control_connection._get_schema_mismatches = lambda *args, **kwargs: None
-                future = self.conn.submit_schema_refresh()
-                future.result(timeout=10)
-            finally:
-                self.conn.control_connection._get_schema_mismatches = original_method
+            self.refresh_schema_metadata_best_effort()
 
         self.session.default_timeout = client_timeout
         self.session.row_factory = ordered_dict_factory
@@ -716,6 +705,15 @@ class Shell(cmd.Cmd):
         self.empty_lines = 0
         self.statement_error = False
         self.single_statement = single_statement
+
+    def refresh_schema_metadata_best_effort(self):
+        try:
+            self.conn.refresh_schema_metadata(5) #will throw exception if there is a schema mismatch
+        except Exception:
+            self.printerr("Warning: schema version mismatch detected, which might be caused by DOWN nodes; if "
+                          "this is not the case, check the schema versions of your nodes in system.local and "
+                          "system.peers.")
+            self.conn.refresh_schema_metadata(0)
 
     def set_expanded_cql_version(self, ver):
         ver, vertuple = full_cql_version(ver)
@@ -1165,6 +1163,10 @@ class Shell(cmd.Cmd):
                 future = self.session.execute_async(statement, trace=self.tracing_enabled)
                 rows = future.result(self.session.default_timeout)
                 break
+            except cassandra.OperationTimedOut, err:
+                self.refresh_schema_metadata_best_effort()
+                self.printerr(str(err.__class__.__name__) + ": " + str(err))
+                return False, None
             except CQL_ERRORS, err:
                 self.printerr(str(err.__class__.__name__) + ": " + str(err))
                 return False, None
