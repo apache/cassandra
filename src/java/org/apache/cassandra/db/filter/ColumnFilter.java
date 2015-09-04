@@ -306,7 +306,7 @@ public class ColumnFilter
     @Override
     public String toString()
     {
-        if (selection == null)
+        if (isFetchAll)
             return "*";
 
         if (selection.isEmpty())
