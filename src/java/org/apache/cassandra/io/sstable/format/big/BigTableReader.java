@@ -178,78 +178,74 @@ public class BigTableReader extends SSTableReader
         // is lesser than the first key of next interval (and in that case we must return the position of the first key
         // of the next interval).
         int i = 0;
-        Iterator<FileDataInput> segments = ifile.iterator(sampledPosition);
-        while (segments.hasNext())
+        String path = null;
+        try (FileDataInput in = ifile.createReader(sampledPosition))
         {
-            String path = null;
-            try (FileDataInput in = segments.next())
+            path = in.getPath();
+            while (!in.isEOF())
             {
-                path = in.getPath();
-                while (!in.isEOF())
+                i++;
+
+                ByteBuffer indexKey = ByteBufferUtil.readWithShortLength(in);
+
+                boolean opSatisfied; // did we find an appropriate position for the op requested
+                boolean exactMatch; // is the current position an exact match for the key, suitable for caching
+
+                // Compare raw keys if possible for performance, otherwise compare decorated keys.
+                if (op == Operator.EQ && i <= effectiveInterval)
                 {
-                    i++;
-
-                    ByteBuffer indexKey = ByteBufferUtil.readWithShortLength(in);
-
-                    boolean opSatisfied; // did we find an appropriate position for the op requested
-                    boolean exactMatch; // is the current position an exact match for the key, suitable for caching
-
-                    // Compare raw keys if possible for performance, otherwise compare decorated keys.
-                    if (op == Operator.EQ && i <= effectiveInterval)
-                    {
-                        opSatisfied = exactMatch = indexKey.equals(((DecoratedKey) key).getKey());
-                    }
-                    else
-                    {
-                        DecoratedKey indexDecoratedKey = decorateKey(indexKey);
-                        int comparison = indexDecoratedKey.compareTo(key);
-                        int v = op.apply(comparison);
-                        opSatisfied = (v == 0);
-                        exactMatch = (comparison == 0);
-                        if (v < 0)
-                        {
-                            Tracing.trace("Partition index lookup allows skipping sstable {}", descriptor.generation);
-                            return null;
-                        }
-                    }
-
-                    if (opSatisfied)
-                    {
-                        // read data position from index entry
-                        RowIndexEntry indexEntry = rowIndexEntrySerializer.deserialize(in);
-                        if (exactMatch && updateCacheAndStats)
-                        {
-                            assert key instanceof DecoratedKey; // key can be == to the index key only if it's a true row key
-                            DecoratedKey decoratedKey = (DecoratedKey)key;
-
-                            if (logger.isTraceEnabled())
-                            {
-                                // expensive sanity check!  see CASSANDRA-4687
-                                try (FileDataInput fdi = dfile.getSegment(indexEntry.position))
-                                {
-                                    DecoratedKey keyInDisk = decorateKey(ByteBufferUtil.readWithShortLength(fdi));
-                                    if (!keyInDisk.equals(key))
-                                        throw new AssertionError(String.format("%s != %s in %s", keyInDisk, key, fdi.getPath()));
-                                }
-                            }
-
-                            // store exact match for the key
-                            cacheKey(decoratedKey, indexEntry);
-                        }
-                        if (op == Operator.EQ && updateCacheAndStats)
-                            bloomFilterTracker.addTruePositive();
-                        Tracing.trace("Partition index with {} entries found for sstable {}", indexEntry.columnsIndex().size(), descriptor.generation);
-                        return indexEntry;
-                    }
-
-                    RowIndexEntry.Serializer.skip(in);
+                    opSatisfied = exactMatch = indexKey.equals(((DecoratedKey) key).getKey());
                 }
+                else
+                {
+                    DecoratedKey indexDecoratedKey = decorateKey(indexKey);
+                    int comparison = indexDecoratedKey.compareTo(key);
+                    int v = op.apply(comparison);
+                    opSatisfied = (v == 0);
+                    exactMatch = (comparison == 0);
+                    if (v < 0)
+                    {
+                        Tracing.trace("Partition index lookup allows skipping sstable {}", descriptor.generation);
+                        return null;
+                    }
+                }
+
+                if (opSatisfied)
+                {
+                    // read data position from index entry
+                    RowIndexEntry indexEntry = rowIndexEntrySerializer.deserialize(in);
+                    if (exactMatch && updateCacheAndStats)
+                    {
+                        assert key instanceof DecoratedKey; // key can be == to the index key only if it's a true row key
+                        DecoratedKey decoratedKey = (DecoratedKey)key;
+
+                        if (logger.isTraceEnabled())
+                        {
+                            // expensive sanity check!  see CASSANDRA-4687
+                            try (FileDataInput fdi = dfile.createReader(indexEntry.position))
+                            {
+                                DecoratedKey keyInDisk = decorateKey(ByteBufferUtil.readWithShortLength(fdi));
+                                if (!keyInDisk.equals(key))
+                                    throw new AssertionError(String.format("%s != %s in %s", keyInDisk, key, fdi.getPath()));
+                            }
+                        }
+
+                        // store exact match for the key
+                        cacheKey(decoratedKey, indexEntry);
+                    }
+                    if (op == Operator.EQ && updateCacheAndStats)
+                        bloomFilterTracker.addTruePositive();
+                    Tracing.trace("Partition index with {} entries found for sstable {}", indexEntry.columnsIndex().size(), descriptor.generation);
+                    return indexEntry;
+                }
+
+                RowIndexEntry.Serializer.skip(in);
             }
-            catch (IOException e)
-            {
-                markSuspect();
-                throw new CorruptSSTableException(e, path);
-            }
+        }
+        catch (IOException e)
+        {
+            markSuspect();
+            throw new CorruptSSTableException(e, path);
         }
 
         if (op == SSTableReader.Operator.EQ && updateCacheAndStats)

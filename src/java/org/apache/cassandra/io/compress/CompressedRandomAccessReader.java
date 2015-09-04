@@ -19,11 +19,7 @@ package org.apache.cassandra.io.compress;
 
 import java.io.*;
 import java.nio.ByteBuffer;
-import java.nio.MappedByteBuffer;
-import java.util.Map;
-import java.util.TreeMap;
 import java.util.concurrent.ThreadLocalRandom;
-import java.util.zip.Adler32;
 import java.util.zip.Checksum;
 
 import com.google.common.primitives.Ints;
@@ -31,7 +27,6 @@ import com.google.common.primitives.Ints;
 import org.apache.cassandra.io.FSReadError;
 import org.apache.cassandra.io.sstable.CorruptSSTableException;
 import org.apache.cassandra.io.util.*;
-import org.apache.cassandra.utils.FBUtilities;
 import org.apache.cassandra.utils.memory.BufferPool;
 
 /**
@@ -40,18 +35,6 @@ import org.apache.cassandra.utils.memory.BufferPool;
  */
 public class CompressedRandomAccessReader extends RandomAccessReader
 {
-    public static CompressedRandomAccessReader open(ChannelProxy channel, CompressionMetadata metadata)
-    {
-        return new CompressedRandomAccessReader(channel, metadata, null);
-    }
-
-    public static CompressedRandomAccessReader open(ICompressedFile file)
-    {
-        return new CompressedRandomAccessReader(file.channel(), file.getMetadata(), file);
-    }
-
-    private final TreeMap<Long, MappedByteBuffer> chunkSegments;
-
     private final CompressionMetadata metadata;
 
     // we read the raw compressed bytes into this buffer, then move the uncompressed ones into super.buffer.
@@ -63,39 +46,59 @@ public class CompressedRandomAccessReader extends RandomAccessReader
     // raw checksum bytes
     private ByteBuffer checksumBytes;
 
-    protected CompressedRandomAccessReader(ChannelProxy channel, CompressionMetadata metadata, ICompressedFile file)
+    protected CompressedRandomAccessReader(Builder builder)
     {
-        super(channel, metadata.chunkLength(), metadata.compressedFileLength, metadata.compressor().preferredBufferType());
-        this.metadata = metadata;
-        checksum = metadata.checksumType.newInstance();
+        super(builder.initializeBuffers(false));
+        this.metadata = builder.metadata;
+        this.checksum = metadata.checksumType.newInstance();
 
-        chunkSegments = file == null ? null : file.chunkSegments();
-        if (chunkSegments == null)
+        initializeBuffer();
+    }
+
+    @Override
+    protected int getBufferSize(RandomAccessReader.Builder builder)
+    {
+        // this is the chunk data length, throttling is OK with this
+        return builder.bufferSize;
+    }
+
+    @Override
+    protected void initializeBuffer()
+    {
+        buffer = allocateBuffer(bufferSize);
+        buffer.limit(0);
+
+        if (regions == null)
         {
-            compressed = allocateBuffer(metadata.compressor().initialCompressedBufferLength(metadata.chunkLength()), metadata.compressor().preferredBufferType());
+            compressed = allocateBuffer(metadata.compressor().initialCompressedBufferLength(metadata.chunkLength()));
             checksumBytes = ByteBuffer.wrap(new byte[4]);
         }
     }
 
-    protected int getBufferSize(int size)
-    {
-        assert Integer.bitCount(size) == 1; //must be a power of two
-        return size;
-    }
-
     @Override
-    public void close()
+    protected void releaseBuffer()
     {
-        super.close();
-
-        if (compressed != null)
+        try
         {
-            BufferPool.put(compressed);
-            compressed = null;
+            if (buffer != null)
+            {
+                BufferPool.put(buffer);
+                buffer = null;
+            }
+        }
+        finally
+        {
+            // this will always be null if using mmap access mode (unlike in parent, where buffer is set to a region)
+            if (compressed != null)
+            {
+                BufferPool.put(compressed);
+                compressed = null;
+            }
         }
     }
 
-    private void reBufferStandard()
+    @Override
+    protected void reBufferStandard()
     {
         try
         {
@@ -105,13 +108,19 @@ public class CompressedRandomAccessReader extends RandomAccessReader
             CompressionMetadata.Chunk chunk = metadata.chunkFor(position);
 
             if (compressed.capacity() < chunk.length)
-                compressed = allocateBuffer(chunk.length, metadata.compressor().preferredBufferType());
+            {
+                BufferPool.put(compressed);
+                compressed = allocateBuffer(chunk.length);
+            }
             else
+            {
                 compressed.clear();
-            compressed.limit(chunk.length);
+            }
 
+            compressed.limit(chunk.length);
             if (channel.read(compressed, chunk.offset) != chunk.length)
                 throw new CorruptBlockException(getPath(), chunk);
+
             compressed.flip();
             buffer.clear();
 
@@ -158,7 +167,8 @@ public class CompressedRandomAccessReader extends RandomAccessReader
         }
     }
 
-    private void reBufferMmap()
+    @Override
+    protected void reBufferMmap()
     {
         try
         {
@@ -167,10 +177,10 @@ public class CompressedRandomAccessReader extends RandomAccessReader
 
             CompressionMetadata.Chunk chunk = metadata.chunkFor(position);
 
-            Map.Entry<Long, MappedByteBuffer> entry = chunkSegments.floorEntry(chunk.offset);
-            long segmentOffset = entry.getKey();
+            MmappedRegions.Region region = regions.floor(chunk.offset);
+            long segmentOffset = region.bottom();
             int chunkOffset = Ints.checkedCast(chunk.offset - segmentOffset);
-            ByteBuffer compressedChunk = entry.getValue().duplicate(); // TODO: change to slice(chunkOffset) when we upgrade LZ4-java
+            ByteBuffer compressedChunk = region.buffer.duplicate(); // TODO: change to slice(chunkOffset) when we upgrade LZ4-java
 
             compressedChunk.position(chunkOffset).limit(chunkOffset + chunk.length);
 
@@ -218,19 +228,6 @@ public class CompressedRandomAccessReader extends RandomAccessReader
 
     }
 
-    @Override
-    protected void reBuffer()
-    {
-        if (chunkSegments != null)
-        {
-            reBufferMmap();
-        }
-        else
-        {
-            reBufferStandard();
-        }
-    }
-
     private int checksum(CompressionMetadata.Chunk chunk) throws IOException
     {
         long position = chunk.offset + chunk.length;
@@ -238,11 +235,6 @@ public class CompressedRandomAccessReader extends RandomAccessReader
         if (channel.read(checksumBytes, position) != checksumBytes.capacity())
             throw new CorruptBlockException(getPath(), chunk);
         return checksumBytes.getInt(0);
-    }
-
-    public int getTotalBufferSize()
-    {
-        return super.getTotalBufferSize() + (chunkSegments != null ? 0 : compressed.capacity());
     }
 
     @Override
@@ -255,5 +247,40 @@ public class CompressedRandomAccessReader extends RandomAccessReader
     public String toString()
     {
         return String.format("%s - chunk length %d, data length %d.", getPath(), metadata.chunkLength(), metadata.dataLength);
+    }
+
+    public final static class Builder extends RandomAccessReader.Builder
+    {
+        private final CompressionMetadata metadata;
+
+        public Builder(ICompressedFile file)
+        {
+            super(file.channel());
+            this.metadata = applyMetadata(file.getMetadata());
+            this.regions = file.regions();
+        }
+
+        public Builder(ChannelProxy channel, CompressionMetadata metadata)
+        {
+            super(channel);
+            this.metadata = applyMetadata(metadata);
+        }
+
+        private CompressionMetadata applyMetadata(CompressionMetadata metadata)
+        {
+            this.overrideLength = metadata.compressedFileLength;
+            this.bufferSize = metadata.chunkLength();
+            this.bufferType = metadata.compressor().preferredBufferType();
+
+            assert Integer.bitCount(this.bufferSize) == 1; //must be a power of two
+
+            return metadata;
+        }
+
+        @Override
+        public RandomAccessReader build()
+        {
+            return new CompressedRandomAccessReader(this);
+        }
     }
 }

@@ -19,119 +19,129 @@ package org.apache.cassandra.io.util;
 
 import java.io.*;
 import java.nio.ByteBuffer;
+import java.nio.ByteOrder;
+
+import com.google.common.primitives.Ints;
+import com.google.common.util.concurrent.RateLimiter;
 
 import org.apache.cassandra.io.FSReadError;
 import org.apache.cassandra.io.compress.BufferType;
-import org.apache.cassandra.utils.ByteBufferUtil;
 import org.apache.cassandra.utils.memory.BufferPool;
 
-public class RandomAccessReader extends AbstractDataInput implements FileDataInput
+public class RandomAccessReader extends RebufferingInputStream implements FileDataInput
 {
+    // The default buffer size when the client doesn't specify it
     public static final int DEFAULT_BUFFER_SIZE = 4096;
+
+    // The maximum buffer size when the limiter is not null, i.e. when throttling
+    // is enabled. This is required to avoid aquiring permits that are too large.
+    public static final int MAX_THROTTLED_BUFFER_SIZE = 1 << 16; // 64k
 
     // the IO channel to the file, we do not own a reference to this due to
     // performance reasons (CASSANDRA-9379) so it's up to the owner of the RAR to
     // ensure that the channel stays open and that it is closed afterwards
     protected final ChannelProxy channel;
 
-    // buffer which will cache file blocks
-    protected ByteBuffer buffer;
+    // optional memory mapped regions for the channel
+    protected final MmappedRegions regions;
 
-    // `bufferOffset` is the offset of the beginning of the buffer
-    // `markedPointer` folds the offset of the last file mark
-    protected long bufferOffset, markedPointer;
+    // An optional limiter that will throttle the amount of data we read
+    protected final RateLimiter limiter;
 
-    // this can be overridden at construction to a value shorter than the true length of the file;
-    // if so, it acts as an imposed limit on reads, rather than a convenience property
+    // the file length, this can be overridden at construction to a value shorter
+    // than the true length of the file; if so, it acts as an imposed limit on reads,
+    // required when opening sstables early not to read past the mark
     private final long fileLength;
 
-    protected RandomAccessReader(ChannelProxy channel, int bufferSize, long overrideLength, BufferType bufferType)
-    {
-        this.channel = channel;
+    // the buffer size for buffered readers
+    protected final int bufferSize;
 
-        if (bufferSize <= 0)
+    // the buffer type for buffered readers
+    private final BufferType bufferType;
+
+    // offset from the beginning of the file
+    protected long bufferOffset;
+
+    // offset of the last file mark
+    protected long markedPointer;
+
+    protected RandomAccessReader(Builder builder)
+    {
+        super(null);
+
+        this.channel = builder.channel;
+        this.regions = builder.regions;
+        this.limiter = builder.limiter;
+        this.fileLength = builder.overrideLength <= 0 ? builder.channel.size() : builder.overrideLength;
+        this.bufferSize = getBufferSize(builder);
+        this.bufferType = builder.bufferType;
+
+        if (builder.bufferSize <= 0)
             throw new IllegalArgumentException("bufferSize must be positive");
 
-        // we can cache file length in read-only mode
-        fileLength = overrideLength <= 0 ? channel.size() : overrideLength;
+        if (builder.initializeBuffers)
+            initializeBuffer();
+    }
 
-        buffer = allocateBuffer(getBufferSize(bufferSize), bufferType);
+    protected int getBufferSize(Builder builder)
+    {
+        if (builder.limiter == null)
+            return builder.bufferSize;
+
+        // limit to ensure more accurate throttling
+        return Math.min(MAX_THROTTLED_BUFFER_SIZE, builder.bufferSize);
+    }
+
+    protected void initializeBuffer()
+    {
+        if (regions == null)
+            buffer = allocateBuffer(bufferSize);
+        else
+            buffer = regions.floor(0).buffer.duplicate();
+
         buffer.limit(0);
     }
 
-    /** The buffer size is typically already page aligned but if that is not the case
-     * make sure that it is a multiple of the page size, 4096.
-     * */
-    protected int getBufferSize(int size)
+    protected ByteBuffer allocateBuffer(int size)
     {
-        if ((size & ~4095) != size)
-        { // should already be a page size multiple but if that's not case round it up
-            size = (size + 4095) & ~4095;
-        }
-        return size;
+        return BufferPool.get(size, bufferType).order(ByteOrder.BIG_ENDIAN);
     }
 
-    protected ByteBuffer allocateBuffer(int size, BufferType bufferType)
+    protected void releaseBuffer()
     {
-        return BufferPool.get(size, bufferType);
-    }
-
-    // A wrapper of the RandomAccessReader that closes the channel when done.
-    // For performance reasons RAR does not increase the reference count of
-    // a channel but assumes the owner will keep it open and close it,
-    // see CASSANDRA-9379, this thin class is just for those cases where we do
-    // not have a shared channel.
-    private static class RandomAccessReaderWithChannel extends RandomAccessReader
-    {
-        @SuppressWarnings("resource")
-        RandomAccessReaderWithChannel(File file)
+        if (buffer != null)
         {
-            super(new ChannelProxy(file), DEFAULT_BUFFER_SIZE, -1L, BufferType.OFF_HEAP);
+            if (regions == null)
+                BufferPool.put(buffer);
+            buffer = null;
         }
-
-        @Override
-        public void close()
-        {
-            try
-            {
-                super.close();
-            }
-            finally
-            {
-                channel.close();
-            }
-        }
-    }
-
-    public static RandomAccessReader open(File file)
-    {
-        return new RandomAccessReaderWithChannel(file);
-    }
-
-    public static RandomAccessReader open(ChannelProxy channel)
-    {
-        return open(channel, DEFAULT_BUFFER_SIZE, -1L);
-    }
-
-    public static RandomAccessReader open(ChannelProxy channel, int bufferSize, long overrideSize)
-    {
-        return new RandomAccessReader(channel, bufferSize, overrideSize, BufferType.OFF_HEAP);
-    }
-
-    public ChannelProxy getChannel()
-    {
-        return channel;
     }
 
     /**
      * Read data from file starting from current currentOffset to populate buffer.
      */
-    protected void reBuffer()
+    public void reBuffer()
+    {
+        if (isEOF())
+            return;
+
+        if (regions == null)
+            reBufferStandard();
+        else
+            reBufferMmap();
+
+        if (limiter != null)
+            limiter.acquire(buffer.remaining());
+
+        assert buffer.order() == ByteOrder.BIG_ENDIAN : "Buffer must have BIG ENDIAN byte ordering";
+    }
+
+    protected void reBufferStandard()
     {
         bufferOffset += buffer.position();
-        buffer.clear();
         assert bufferOffset < fileLength;
 
+        buffer.clear();
         long position = bufferOffset;
         long limit = bufferOffset;
 
@@ -145,13 +155,29 @@ public class RandomAccessReader extends AbstractDataInput implements FileDataInp
         {
             int n = channel.read(buffer, position);
             if (n < 0)
-                break;
+                throw new FSReadError(new IOException("Unexpected end of file"), channel.filePath());
+
             position += n;
             limit = bufferOffset + buffer.position();
         }
-        if (limit > fileLength)
-            buffer.position((int)(fileLength - bufferOffset));
+
         buffer.flip();
+    }
+
+    protected void reBufferMmap()
+    {
+        long position = bufferOffset + buffer.position();
+        assert position < fileLength;
+
+        MmappedRegions.Region region = regions.floor(position);
+        bufferOffset = region.bottom();
+        buffer = region.buffer.duplicate();
+        buffer.position(Ints.checkedCast(position - bufferOffset));
+
+        if (limiter != null && bufferSize < buffer.remaining())
+        { // ensure accurate throttling
+            buffer.limit(buffer.position() + bufferSize);
+        }
     }
 
     @Override
@@ -170,17 +196,21 @@ public class RandomAccessReader extends AbstractDataInput implements FileDataInp
         return channel.filePath();
     }
 
-    public int getTotalBufferSize()
+    public ChannelProxy getChannel()
     {
-        //This may NPE so we make a ref
-        //https://issues.apache.org/jira/browse/CASSANDRA-7756
-        ByteBuffer ref = buffer;
-        return ref != null ? ref.capacity() : 0;
+        return channel;
     }
 
-    public void reset()
+    @Override
+    public void reset() throws IOException
     {
         seek(markedPointer);
+    }
+
+    @Override
+    public boolean markSupported()
+    {
+        return true;
     }
 
     public long bytesPastMark()
@@ -215,12 +245,18 @@ public class RandomAccessReader extends AbstractDataInput implements FileDataInp
      */
     public boolean isEOF()
     {
-        return getFilePointer() == length();
+        return current() == length();
     }
 
     public long bytesRemaining()
     {
         return length() - getFilePointer();
+    }
+
+    @Override
+    public int available() throws IOException
+    {
+        return Ints.saturatedCast(bytesRemaining());
     }
 
     @Override
@@ -230,16 +266,17 @@ public class RandomAccessReader extends AbstractDataInput implements FileDataInp
         if (buffer == null)
             return;
 
-
         bufferOffset += buffer.position();
-        BufferPool.put(buffer);
-        buffer = null;
+        releaseBuffer();
+
+        //For performance reasons we don't keep a reference to the file
+        //channel so we don't close it
     }
 
     @Override
     public String toString()
     {
-        return getClass().getSimpleName() + "(" + "filePath='" + channel + "')";
+        return getClass().getSimpleName() + "(filePath='" + channel + "')";
     }
 
     /**
@@ -286,78 +323,51 @@ public class RandomAccessReader extends AbstractDataInput implements FileDataInp
         assert current() == newPosition;
     }
 
-    // -1 will be returned if there is nothing to read; higher-level methods like readInt
-    // or readFully (from RandomAccessFile) will throw EOFException but this should not
-    public int read()
+    /**
+     * Reads a line of text form the current position in this file. A line is
+     * represented by zero or more characters followed by {@code '\n'}, {@code
+     * '\r'}, {@code "\r\n"} or the end of file marker. The string does not
+     * include the line terminating sequence.
+     * <p/>
+     * Blocks until a line terminating sequence has been read, the end of the
+     * file is reached or an exception is thrown.
+     *
+     * @return the contents of the line or {@code null} if no characters have
+     * been read before the end of the file has been reached.
+     * @throws IOException if this file is closed or another I/O error occurs.
+     */
+    public final String readLine() throws IOException
     {
-        if (buffer == null)
-            throw new AssertionError("Attempted to read from closed RAR");
-
-        if (isEOF())
-            return -1; // required by RandomAccessFile
-
-        if (!buffer.hasRemaining())
-            reBuffer();
-
-        return (int)buffer.get() & 0xff;
-    }
-
-    @Override
-    public int read(byte[] buffer)
-    {
-        return read(buffer, 0, buffer.length);
-    }
-
-    @Override
-    // -1 will be returned if there is nothing to read; higher-level methods like readInt
-    // or readFully (from RandomAccessFile) will throw EOFException but this should not
-    public int read(byte[] buff, int offset, int length)
-    {
-        if (buffer == null)
-            throw new IllegalStateException("Attempted to read from closed RAR");
-
-        if (length == 0)
-            return 0;
-
-        if (isEOF())
-            return -1;
-
-        if (!buffer.hasRemaining())
-            reBuffer();
-
-        int toCopy = Math.min(length, buffer.remaining());
-        buffer.get(buff, offset, toCopy);
-        return toCopy;
-    }
-
-    public ByteBuffer readBytes(int length) throws EOFException
-    {
-        assert length >= 0 : "buffer length should not be negative: " + length;
-
-        if (buffer == null)
-            throw new IllegalStateException("Attempted to read from closed RAR");
-
-        try
+        StringBuilder line = new StringBuilder(80); // Typical line length
+        boolean foundTerminator = false;
+        long unreadPosition = -1;
+        while (true)
         {
-            ByteBuffer result = ByteBuffer.allocate(length);
-            while (result.hasRemaining())
+            int nextByte = read();
+            switch (nextByte)
             {
-                if (isEOF())
-                    throw new EOFException();
-                if (!buffer.hasRemaining())
-                    reBuffer();
-                ByteBufferUtil.put(buffer, result);
+                case -1:
+                    return line.length() != 0 ? line.toString() : null;
+                case (byte) '\r':
+                    if (foundTerminator)
+                    {
+                        seek(unreadPosition);
+                        return line.toString();
+                    }
+                    foundTerminator = true;
+                    /* Have to be able to peek ahead one byte */
+                    unreadPosition = getPosition();
+                    break;
+                case (byte) '\n':
+                    return line.toString();
+                default:
+                    if (foundTerminator)
+                    {
+                        seek(unreadPosition);
+                        return line.toString();
+                    }
+                    line.append((char) nextByte);
             }
-            result.flip();
-            return result;
-        }
-        catch (EOFException e)
-        {
-            throw e;
-        }
-        catch (Exception e)
-        {
-            throw new FSReadError(e, channel.toString());
         }
     }
 
@@ -368,11 +378,142 @@ public class RandomAccessReader extends AbstractDataInput implements FileDataInp
 
     public long getPosition()
     {
-        return bufferOffset + (buffer == null ? 0 : buffer.position());
+        return current();
     }
 
-    public long getPositionLimit()
+    public static class Builder
     {
-        return length();
+        // The NIO file channel or an empty channel
+        public final ChannelProxy channel;
+
+        // We override the file length when we open sstables early, so that we do not
+        // read past the early mark
+        public long overrideLength;
+
+        // The size of the buffer for buffered readers
+        public int bufferSize;
+
+        // The type of the buffer for buffered readers
+        public BufferType bufferType;
+
+        // The mmap segments for mmap readers
+        public MmappedRegions regions;
+
+        // An optional limiter that will throttle the amount of data we read
+        public RateLimiter limiter;
+
+        public boolean initializeBuffers;
+
+        public Builder(ChannelProxy channel)
+        {
+            this.channel = channel;
+            this.overrideLength = -1L;
+            this.bufferSize = getBufferSize(DEFAULT_BUFFER_SIZE);
+            this.bufferType = BufferType.OFF_HEAP;
+            this.regions = null;
+            this.limiter = null;
+            this.initializeBuffers = true;
+        }
+
+        /** The buffer size is typically already page aligned but if that is not the case
+         * make sure that it is a multiple of the page size, 4096.
+         * */
+        private static int getBufferSize(int size)
+        {
+            if ((size & ~4095) != size)
+            { // should already be a page size multiple but if that's not case round it up
+                size = (size + 4095) & ~4095;
+            }
+            return size;
+        }
+
+        public Builder overrideLength(long overrideLength)
+        {
+            if (overrideLength > channel.size())
+                throw new IllegalArgumentException("overrideLength cannot be more than the file size");
+
+            this.overrideLength = overrideLength;
+            return this;
+        }
+
+        public Builder bufferSize(int bufferSize)
+        {
+            if (bufferSize <= 0)
+                throw new IllegalArgumentException("bufferSize must be positive");
+
+            this.bufferSize = getBufferSize(bufferSize);
+            return this;
+        }
+
+        public Builder bufferType(BufferType bufferType)
+        {
+            this.bufferType = bufferType;
+            return this;
+        }
+
+        public Builder regions(MmappedRegions regions)
+        {
+            this.regions = regions;
+            return this;
+        }
+
+        public Builder limiter(RateLimiter limiter)
+        {
+            this.limiter = limiter;
+            return this;
+        }
+
+        public Builder initializeBuffers(boolean initializeBuffers)
+        {
+            this.initializeBuffers = initializeBuffers;
+            return this;
+        }
+
+        public RandomAccessReader build()
+        {
+            return new RandomAccessReader(this);
+        }
+
+        public RandomAccessReader buildWithChannel()
+        {
+            return new RandomAccessReaderWithOwnChannel(this);
+        }
+    }
+
+    // A wrapper of the RandomAccessReader that closes the channel when done.
+    // For performance reasons RAR does not increase the reference count of
+    // a channel but assumes the owner will keep it open and close it,
+    // see CASSANDRA-9379, this thin class is just for those cases where we do
+    // not have a shared channel.
+    public static class RandomAccessReaderWithOwnChannel extends RandomAccessReader
+    {
+        protected RandomAccessReaderWithOwnChannel(Builder builder)
+        {
+            super(builder);
+        }
+
+        @Override
+        public void close()
+        {
+            try
+            {
+                super.close();
+            }
+            finally
+            {
+                channel.close();
+            }
+        }
+    }
+
+    @SuppressWarnings("resource")
+    public static RandomAccessReader open(File file)
+    {
+        return new Builder(new ChannelProxy(file)).buildWithChannel();
+    }
+
+    public static RandomAccessReader open(ChannelProxy channel)
+    {
+        return new Builder(channel).build();
     }
 }

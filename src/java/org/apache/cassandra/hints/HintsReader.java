@@ -24,6 +24,7 @@ import java.util.Iterator;
 
 import javax.annotation.Nullable;
 
+import com.google.common.primitives.Ints;
 import com.google.common.util.concurrent.RateLimiter;
 
 import org.slf4j.Logger;
@@ -32,7 +33,6 @@ import org.slf4j.LoggerFactory;
 import org.apache.cassandra.db.UnknownColumnFamilyException;
 import org.apache.cassandra.io.FSReadError;
 import org.apache.cassandra.io.util.FileUtils;
-import org.apache.cassandra.io.util.RandomAccessReader;
 import org.apache.cassandra.utils.AbstractIterator;
 import org.apache.cassandra.utils.ByteBufferUtil;
 import org.apache.cassandra.utils.CLibrary;
@@ -57,25 +57,23 @@ final class HintsReader implements AutoCloseable, Iterable<HintsReader.Page>
 
     private final HintsDescriptor descriptor;
     private final File file;
-    private final RandomAccessReader reader;
-    private final ChecksummedDataInput crcInput;
+    private final ChecksummedDataInput input;
 
     // we pass the RateLimiter into HintsReader itself because it's cheaper to calculate the size before the hint is deserialized
     @Nullable
     private final RateLimiter rateLimiter;
 
-    private HintsReader(HintsDescriptor descriptor, File file, RandomAccessReader reader, RateLimiter rateLimiter)
+    private HintsReader(HintsDescriptor descriptor, File file, ChecksummedDataInput reader, RateLimiter rateLimiter)
     {
         this.descriptor = descriptor;
         this.file = file;
-        this.reader = reader;
-        this.crcInput = ChecksummedDataInput.wrap(reader);
+        this.input = reader;
         this.rateLimiter = rateLimiter;
     }
 
     static HintsReader open(File file, RateLimiter rateLimiter)
     {
-        RandomAccessReader reader = RandomAccessReader.open(file);
+        ChecksummedDataInput reader = ChecksummedDataInput.open(file);
         try
         {
             HintsDescriptor descriptor = HintsDescriptor.deserialize(reader);
@@ -83,7 +81,7 @@ final class HintsReader implements AutoCloseable, Iterable<HintsReader.Page>
         }
         catch (IOException e)
         {
-            reader.close();
+            FileUtils.closeQuietly(reader);
             throw new FSReadError(e, file);
         }
     }
@@ -95,7 +93,7 @@ final class HintsReader implements AutoCloseable, Iterable<HintsReader.Page>
 
     public void close()
     {
-        FileUtils.closeQuietly(reader);
+        FileUtils.closeQuietly(input);
     }
 
     public HintsDescriptor descriptor()
@@ -105,7 +103,7 @@ final class HintsReader implements AutoCloseable, Iterable<HintsReader.Page>
 
     void seek(long newPosition)
     {
-        reader.seek(newPosition);
+        input.seek(newPosition);
     }
 
     public Iterator<Page> iterator()
@@ -138,12 +136,12 @@ final class HintsReader implements AutoCloseable, Iterable<HintsReader.Page>
         @SuppressWarnings("resource")
         protected Page computeNext()
         {
-            CLibrary.trySkipCache(reader.getChannel().getFileDescriptor(), 0, reader.getFilePointer(), reader.getPath());
+            CLibrary.trySkipCache(input.getChannel().getFileDescriptor(), 0, input.getFilePointer(), input.getPath());
 
-            if (reader.length() == reader.getFilePointer())
+            if (input.length() == input.getFilePointer())
                 return endOfData();
 
-            return new Page(reader.getFilePointer());
+            return new Page(input.getFilePointer());
         }
     }
 
@@ -166,9 +164,9 @@ final class HintsReader implements AutoCloseable, Iterable<HintsReader.Page>
 
             do
             {
-                long position = reader.getFilePointer();
+                long position = input.getFilePointer();
 
-                if (reader.length() == position)
+                if (input.length() == position)
                     return endOfData(); // reached EOF
 
                 if (position - offset >= PAGE_SIZE)
@@ -190,13 +188,13 @@ final class HintsReader implements AutoCloseable, Iterable<HintsReader.Page>
 
         private Hint computeNextInternal() throws IOException
         {
-            crcInput.resetCrc();
-            crcInput.resetLimit();
+            input.resetCrc();
+            input.resetLimit();
 
-            int size = crcInput.readInt();
+            int size = input.readInt();
 
             // if we cannot corroborate the size via crc, then we cannot safely skip this hint
-            if (reader.readInt() != crcInput.getCrc())
+            if (!input.checkCrc())
                 throw new IOException("Digest mismatch exception");
 
             return readHint(size);
@@ -206,12 +204,13 @@ final class HintsReader implements AutoCloseable, Iterable<HintsReader.Page>
         {
             if (rateLimiter != null)
                 rateLimiter.acquire(size);
-            crcInput.limit(size);
+            input.limit(size);
 
             Hint hint;
             try
             {
-                hint = Hint.serializer.deserialize(crcInput, descriptor.messagingVersion());
+                hint = Hint.serializer.deserialize(input, descriptor.messagingVersion());
+                input.checkLimit(0);
             }
             catch (UnknownColumnFamilyException e)
             {
@@ -219,18 +218,18 @@ final class HintsReader implements AutoCloseable, Iterable<HintsReader.Page>
                             descriptor.hostId,
                             e.cfId,
                             descriptor.fileName());
-                reader.skipBytes(crcInput.bytesRemaining());
+                input.skipBytes(Ints.checkedCast(size - input.bytesPastLimit()));
 
                 return null;
             }
 
-            if (reader.readInt() == crcInput.getCrc())
+            if (input.checkCrc())
                 return hint;
 
             // log a warning and skip the corrupted entry
             logger.warn("Failed to read a hint for {} - digest mismatch for hint at position {} in file {}",
                         descriptor.hostId,
-                        crcInput.getPosition() - size - 4,
+                        input.getPosition() - size - 4,
                         descriptor.fileName());
             return null;
         }
@@ -255,9 +254,9 @@ final class HintsReader implements AutoCloseable, Iterable<HintsReader.Page>
 
             do
             {
-                long position = reader.getFilePointer();
+                long position = input.getFilePointer();
 
-                if (reader.length() == position)
+                if (input.length() == position)
                     return endOfData(); // reached EOF
 
                 if (position - offset >= PAGE_SIZE)
@@ -279,13 +278,13 @@ final class HintsReader implements AutoCloseable, Iterable<HintsReader.Page>
 
         private ByteBuffer computeNextInternal() throws IOException
         {
-            crcInput.resetCrc();
-            crcInput.resetLimit();
+            input.resetCrc();
+            input.resetLimit();
 
-            int size = crcInput.readInt();
+            int size = input.readInt();
 
             // if we cannot corroborate the size via crc, then we cannot safely skip this hint
-            if (reader.readInt() != crcInput.getCrc())
+            if (!input.checkCrc())
                 throw new IOException("Digest mismatch exception");
 
             return readBuffer(size);
@@ -295,16 +294,16 @@ final class HintsReader implements AutoCloseable, Iterable<HintsReader.Page>
         {
             if (rateLimiter != null)
                 rateLimiter.acquire(size);
-            crcInput.limit(size);
+            input.limit(size);
 
-            ByteBuffer buffer = ByteBufferUtil.read(crcInput, size);
-            if (reader.readInt() == crcInput.getCrc())
+            ByteBuffer buffer = ByteBufferUtil.read(input, size);
+            if (input.checkCrc())
                 return buffer;
 
             // log a warning and skip the corrupted entry
             logger.warn("Failed to read a hint for {} - digest mismatch for hint at position {} in file {}",
                         descriptor.hostId,
-                        crcInput.getPosition() - size - 4,
+                        input.getPosition() - size - 4,
                         descriptor.fileName());
             return null;
         }

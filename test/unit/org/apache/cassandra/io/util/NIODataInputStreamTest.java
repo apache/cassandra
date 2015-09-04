@@ -14,7 +14,6 @@ import java.util.ArrayDeque;
 import java.util.Queue;
 import java.util.Random;
 
-import org.apache.cassandra.io.util.NIODataInputStream;
 import org.junit.Test;
 
 import com.google.common.base.Charsets;
@@ -180,17 +179,10 @@ public class NIODataInputStreamTest
     }
 
     @SuppressWarnings("resource")
-    @Test(expected = IllegalArgumentException.class)
-    public void testTooSmallBufferSize() throws Exception
-    {
-        new NIODataInputStream(new FakeChannel(), 4);
-    }
-
-    @SuppressWarnings("resource")
     @Test(expected = NullPointerException.class)
     public void testNullRBC() throws Exception
     {
-        new NIODataInputStream(null, 8);
+        new NIODataInputStream(null, 9);
     }
 
     @SuppressWarnings("resource")
@@ -769,7 +761,7 @@ public class NIODataInputStreamTest
                 out.writeUnsignedVInt(value);
 
                 buf.position(ii);
-                NIODataInputStream in = new DataInputBuffer(buf, false);
+                RebufferingInputStream in = new DataInputBuffer(buf, false);
 
                 assertEquals(value, in.readUnsignedVInt());
             }
@@ -792,7 +784,7 @@ public class NIODataInputStreamTest
             out.writeUnsignedVInt(value);
 
             buf.position(0);
-            NIODataInputStream in = new DataInputBuffer(buf, false);
+            RebufferingInputStream in = new DataInputBuffer(buf, false);
 
             assertEquals(value, in.readUnsignedVInt());
 
@@ -831,7 +823,7 @@ public class NIODataInputStreamTest
             truncated.put(buf);
             truncated.flip();
 
-            NIODataInputStream in = new DataInputBuffer(truncated, false);
+            RebufferingInputStream in = new DataInputBuffer(truncated, false);
 
             boolean threw = false;
             try

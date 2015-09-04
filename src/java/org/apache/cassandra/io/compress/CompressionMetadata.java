@@ -92,7 +92,7 @@ public class CompressionMetadata
     }
 
     @VisibleForTesting
-    CompressionMetadata(String indexFilePath, long compressedLength, ChecksumType checksumType)
+    public CompressionMetadata(String indexFilePath, long compressedLength, ChecksumType checksumType)
     {
         this.indexFilePath = indexFilePath;
         this.checksumType = checksumType;
