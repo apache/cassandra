@@ -876,7 +876,8 @@ public abstract class Slices implements Iterable<Slice>
 
         public UnfilteredRowIterator makeSliceIterator(SliceableUnfilteredRowIterator iter)
         {
-            return UnfilteredRowIterators.emptyIterator(iter.metadata(), iter.partitionKey(), iter.isReverseOrder());
+            return UnfilteredRowIterators.noRowsIterator(iter.metadata(), iter.partitionKey(), iter.staticRow(),
+                                                         iter.partitionLevelDeletion(), iter.isReverseOrder());
         }
 
         public Iterator<Slice> iterator()
