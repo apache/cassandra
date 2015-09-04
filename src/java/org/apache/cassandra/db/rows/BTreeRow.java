@@ -164,11 +164,6 @@ public class BTreeRow extends AbstractRow
         return Collections2.transform(this, ColumnData::column);
     }
 
-    public Collection<ColumnDefinition> actualColumns()
-    {
-        return Collections2.transform(this, ColumnData::column);
-    }
-
     public LivenessInfo primaryKeyLivenessInfo()
     {
         return primaryKeyLivenessInfo;
