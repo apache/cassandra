@@ -66,8 +66,6 @@ public class AtomicBTreePartition extends AbstractBTreePartition
     private static final int CLOCK_SHIFT = 17;
     // CLOCK_GRANULARITY = 1^9ns >> CLOCK_SHIFT == 132us == (1/7.63)ms
 
-    private static final Holder EMPTY = new Holder(BTree.empty(), DeletionInfo.LIVE, Rows.EMPTY_STATIC_ROW, EncodingStats.NO_STATS);
-
     private static final AtomicIntegerFieldUpdater<AtomicBTreePartition> wasteTrackerUpdater = AtomicIntegerFieldUpdater.newUpdater(AtomicBTreePartition.class, "wasteTracker");
     private static final AtomicReferenceFieldUpdater<AtomicBTreePartition, Holder> refUpdater = AtomicReferenceFieldUpdater.newUpdater(AtomicBTreePartition.class, Holder.class, "ref");
 
@@ -87,7 +85,7 @@ public class AtomicBTreePartition extends AbstractBTreePartition
     public AtomicBTreePartition(CFMetaData metadata, DecoratedKey partitionKey, MemtableAllocator allocator)
     {
         // involved in potential bug? partition columns may be a subset if we alter columns while it's in memtable
-        super(metadata, partitionKey, metadata.partitionColumns());
+        super(metadata, partitionKey);
         this.allocator = allocator;
         this.ref = EMPTY;
     }
@@ -149,6 +147,7 @@ public class AtomicBTreePartition extends AbstractBTreePartition
                     deletionInfo = current.deletionInfo;
                 }
 
+                PartitionColumns columns = update.columns().mergeTo(current.columns);
                 Row newStatic = update.staticRow();
                 Row staticRow = newStatic.isEmpty()
                               ? current.staticRow
@@ -156,7 +155,7 @@ public class AtomicBTreePartition extends AbstractBTreePartition
                 Object[] tree = BTree.update(current.tree, update.metadata().comparator, update, update.rowCount(), updater);
                 EncodingStats newStats = current.stats.mergeWith(update.stats());
 
-                if (tree != null && refUpdater.compareAndSet(this, current, new Holder(tree, deletionInfo, staticRow, newStats)))
+                if (tree != null && refUpdater.compareAndSet(this, current, new Holder(columns, tree, deletionInfo, staticRow, newStats)))
                 {
                     updater.finish();
                     return new long[]{ updater.dataSize, updater.colUpdateTimeDelta };

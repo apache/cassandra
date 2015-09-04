@@ -32,31 +32,32 @@ import static org.apache.cassandra.utils.btree.BTree.Dir.desc;
 
 public abstract class AbstractBTreePartition implements Partition, Iterable<Row>
 {
-    protected static final Holder EMPTY = new Holder(BTree.empty(), DeletionInfo.LIVE, Rows.EMPTY_STATIC_ROW, EncodingStats.NO_STATS);
+    protected static final Holder EMPTY = new Holder(PartitionColumns.NONE, BTree.empty(), DeletionInfo.LIVE, Rows.EMPTY_STATIC_ROW, EncodingStats.NO_STATS);
 
     protected final CFMetaData metadata;
     protected final DecoratedKey partitionKey;
-    protected final PartitionColumns columns;
+
     protected abstract Holder holder();
     protected abstract boolean canHaveShadowedData();
 
-    protected AbstractBTreePartition(CFMetaData metadata, DecoratedKey partitionKey, PartitionColumns columns)
+    protected AbstractBTreePartition(CFMetaData metadata, DecoratedKey partitionKey)
     {
         this.metadata = metadata;
         this.partitionKey = partitionKey;
-        this.columns = columns;
     }
 
     protected static final class Holder
     {
+        final PartitionColumns columns;
         final DeletionInfo deletionInfo;
         // the btree of rows
         final Object[] tree;
         final Row staticRow;
         final EncodingStats stats;
 
-        Holder(Object[] tree, DeletionInfo deletionInfo, Row staticRow, EncodingStats stats)
+        Holder(PartitionColumns columns, Object[] tree, DeletionInfo deletionInfo, Row staticRow, EncodingStats stats)
         {
+            this.columns = columns;
             this.tree = tree;
             this.deletionInfo = deletionInfo;
             this.staticRow = staticRow;
@@ -103,8 +104,7 @@ public abstract class AbstractBTreePartition implements Partition, Iterable<Row>
 
     public PartitionColumns columns()
     {
-        // We don't really know which columns will be part of the update, so assume it's all of them
-        return metadata.partitionColumns();
+        return holder().columns;
     }
 
     public EncodingStats stats()
@@ -232,7 +232,9 @@ public abstract class AbstractBTreePartition implements Partition, Iterable<Row>
             super(AbstractBTreePartition.this.metadata,
                   AbstractBTreePartition.this.partitionKey,
                   current.deletionInfo.getPartitionDeletion(),
-                  AbstractBTreePartition.this.columns,
+                  selection.fetchedColumns(), // non-selected columns will be filtered in subclasses by RowAndDeletionMergeIterator
+                                              // it would also be more precise to return the intersection of the selection and current.columns,
+                                              // but its probably not worth spending time on computing that.
                   staticRow,
                   isReversed,
                   current.stats);
@@ -317,6 +319,7 @@ public abstract class AbstractBTreePartition implements Partition, Iterable<Row>
     protected static Holder build(UnfilteredRowIterator iterator, int initialRowCapacity)
     {
         CFMetaData metadata = iterator.metadata();
+        PartitionColumns columns = iterator.columns();
         boolean reversed = iterator.isReverseOrder();
 
         BTree.Builder<Row> builder = BTree.builder(metadata.comparator, initialRowCapacity);
@@ -335,13 +338,15 @@ public abstract class AbstractBTreePartition implements Partition, Iterable<Row>
         if (reversed)
             builder.reverse();
 
-        return new Holder(builder.build(), deletionBuilder.build(), iterator.staticRow(), iterator.stats());
+        return new Holder(columns, builder.build(), deletionBuilder.build(), iterator.staticRow(), iterator.stats());
     }
 
-    // live must (as the name suggests) not contain any deletion information
-    protected static Holder build(RowIterator rows, DeletionInfo live, boolean buildEncodingStats, int initialRowCapacity)
+    // Note that when building with a RowIterator, deletion will generally be LIVE, but we allow to pass it nonetheless because PartitionUpdate
+    // passes a MutableDeletionInfo that it mutates later.
+    protected static Holder build(RowIterator rows, DeletionInfo deletion, boolean buildEncodingStats, int initialRowCapacity)
     {
         CFMetaData metadata = rows.metadata();
+        PartitionColumns columns = rows.columns();
         boolean reversed = rows.isReverseOrder();
 
         BTree.Builder<Row> builder = BTree.builder(metadata.comparator, initialRowCapacity);
@@ -357,9 +362,9 @@ public abstract class AbstractBTreePartition implements Partition, Iterable<Row>
 
         Row staticRow = rows.staticRow();
         Object[] tree = builder.build();
-        EncodingStats stats = buildEncodingStats ? EncodingStats.Collector.collect(staticRow, BTree.iterator(tree), live)
+        EncodingStats stats = buildEncodingStats ? EncodingStats.Collector.collect(staticRow, BTree.iterator(tree), deletion)
                                                  : EncodingStats.NO_STATS;
-        return new Holder(tree, live, staticRow, stats);
+        return new Holder(columns, tree, deletion, staticRow, stats);
     }
 
     @Override
@@ -371,7 +376,7 @@ public abstract class AbstractBTreePartition implements Partition, Iterable<Row>
                                 metadata.ksName,
                                 metadata.cfName,
                                 metadata.getKeyValidator().getString(partitionKey().getKey()),
-                                columns));
+                                columns()));
 
         if (staticRow() != Rows.EMPTY_STATIC_ROW)
             sb.append("\n    ").append(staticRow().toString(metadata));
