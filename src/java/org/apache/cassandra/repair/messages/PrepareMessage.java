@@ -34,7 +34,8 @@ import org.apache.cassandra.utils.UUIDSerializer;
 
 public class PrepareMessage extends RepairMessage
 {
-    public final static MessageSerializer serializer = new PrepareMessageSerializer();
+    public final static MessageSerializer serializer = new PrepareMessageSerializer(false);
+    public final static MessageSerializer globalSerializer = new PrepareMessageSerializer(true);
     public final List<UUID> cfIds;
     public final Collection<Range<Token>> ranges;
 
@@ -52,6 +53,13 @@ public class PrepareMessage extends RepairMessage
 
     public static class PrepareMessageSerializer implements MessageSerializer<PrepareMessage>
     {
+        private final boolean isGlobal;
+
+        public PrepareMessageSerializer(boolean global)
+        {
+            this.isGlobal = global;
+        }
+
         public void serialize(PrepareMessage message, DataOutputPlus out, int version) throws IOException
         {
             out.writeInt(message.cfIds.size());
@@ -80,7 +88,7 @@ public class PrepareMessage extends RepairMessage
                 ranges.add((Range<Token>) Range.tokenSerializer.deserialize(in, MessagingService.globalPartitioner(), version));
             boolean isIncremental = in.readBoolean();
 
-            return new PrepareMessage(parentRepairSession, cfIds, ranges, isIncremental, false);
+            return new PrepareMessage(parentRepairSession, cfIds, ranges, isIncremental, isGlobal);
         }
 
         public long serializedSize(PrepareMessage message, int version)

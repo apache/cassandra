@@ -45,7 +45,7 @@ public abstract class RepairMessage
         SYNC_COMPLETE(3, SyncComplete.serializer),
         ANTICOMPACTION_REQUEST(4, AnticompactionRequest.serializer),
         PREPARE_MESSAGE(5, PrepareMessage.serializer),
-        PREPARE_GLOBAL_MESSAGE(8, PrepareMessage.serializer),
+        PREPARE_GLOBAL_MESSAGE(8, PrepareMessage.globalSerializer),
         SNAPSHOT(6, SnapshotMessage.serializer),
         CLEANUP(7, CleanupMessage.serializer);
 
