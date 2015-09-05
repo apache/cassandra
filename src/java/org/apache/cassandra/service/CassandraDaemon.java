@@ -127,7 +127,7 @@ public class CassandraDaemon
     private static final CassandraDaemon instance = new CassandraDaemon();
 
     public Server thriftServer;
-    public Server nativeServer;
+    private NativeTransportService nativeTransportService;
 
     private final boolean runManaged;
     protected final StartupChecks startupChecks;
@@ -365,9 +365,7 @@ public class CassandraDaemon
         thriftServer = new ThriftServer(rpcAddr, rpcPort, listenBacklog);
 
         // Native transport
-        InetAddress nativeAddr = DatabaseDescriptor.getRpcAddress();
-        int nativePort = DatabaseDescriptor.getNativeTransportPort();
-        nativeServer = new org.apache.cassandra.transport.Server(nativeAddr, nativePort);
+        nativeTransportService = new NativeTransportService();
 
         completeSetup();
     }
@@ -431,7 +429,8 @@ public class CassandraDaemon
         String nativeFlag = System.getProperty("cassandra.start_native_transport");
         if ((nativeFlag != null && Boolean.parseBoolean(nativeFlag)) || (nativeFlag == null && DatabaseDescriptor.startNativeTransport()))
         {
-            nativeServer.start();
+            startNativeTransport();
+            StorageService.instance.setRpcReady(true);
         }
         else
             logger.info("Not starting native transport as requested. Use JMX (StorageService->startNativeTransport()) or nodetool (enablebinary) to start it");
@@ -453,9 +452,12 @@ public class CassandraDaemon
         // On linux, this doesn't entirely shut down Cassandra, just the RPC server.
         // jsvc takes care of taking the rest down
         logger.info("Cassandra shutting down...");
-        thriftServer.stop();
-        nativeServer.stop();
-
+        if (thriftServer != null)
+            thriftServer.stop();
+        if (nativeTransportService != null)
+            nativeTransportService.destroy();
+        StorageService.instance.setRpcReady(false);
+        
         // On windows, we need to stop the entire system as prunsrv doesn't have the jsvc hooks
         // We rely on the shutdown hook to drain the node
         if (FBUtilities.isWindows())
@@ -555,6 +557,26 @@ public class CassandraDaemon
             }
         }
     }
+
+    public void startNativeTransport()
+    {
+        if (nativeTransportService == null)
+            throw new IllegalStateException("setup() must be called first for CassandraDaemon");
+        else
+            nativeTransportService.start();
+    }
+
+    public void stopNativeTransport()
+    {
+        if (nativeTransportService != null)
+            nativeTransportService.stop();
+    }
+
+    public boolean isNativeTransportRunning()
+    {
+        return nativeTransportService != null ? nativeTransportService.isRunning() : false;
+    }
+
 
     /**
      * A convenience method to stop and destroy the daemon in one shot.
