@@ -316,7 +316,7 @@ public abstract class CQLTester
         StorageService.instance.initServer();
         SchemaLoader.startGossiper();
 
-        server = new org.apache.cassandra.transport.Server(nativeAddr, nativePort);
+        server = new Server.Builder().withHost(nativeAddr).withPort(nativePort).build();
         server.start();
 
         for (int version = 1; version <= maxProtocolVersion; version++)

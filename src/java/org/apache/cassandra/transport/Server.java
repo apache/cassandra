@@ -22,9 +22,8 @@ import java.net.InetAddress;
 import java.net.InetSocketAddress;
 import java.net.UnknownHostException;
 import java.util.EnumMap;
-import java.util.Map;
 import java.util.List;
-import java.util.concurrent.Callable;
+import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.atomic.AtomicBoolean;
 import javax.net.ssl.SSLContext;
@@ -35,7 +34,6 @@ import org.slf4j.LoggerFactory;
 
 import io.netty.bootstrap.ServerBootstrap;
 import io.netty.channel.*;
-import io.netty.channel.epoll.Epoll;
 import io.netty.channel.epoll.EpollEventLoopGroup;
 import io.netty.channel.epoll.EpollServerSocketChannel;
 import io.netty.channel.group.ChannelGroup;
@@ -51,7 +49,6 @@ import io.netty.util.internal.logging.Slf4JLoggerFactory;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.config.EncryptionOptions;
 import org.apache.cassandra.db.marshal.AbstractType;
-import org.apache.cassandra.metrics.ClientMetrics;
 import org.apache.cassandra.security.SSLFactory;
 import org.apache.cassandra.service.*;
 import org.apache.cassandra.transport.messages.EventMessage;
@@ -64,7 +61,7 @@ public class Server implements CassandraDaemon.Server
     }
 
     private static final Logger logger = LoggerFactory.getLogger(Server.class);
-    private static final boolean enableEpoll = Boolean.valueOf(System.getProperty("cassandra.native.epoll.enabled", "true"));
+    private static final boolean useEpoll = NativeTransportService.useEpoll();
 
     public static final int VERSION_1 = 1;
     public static final int VERSION_2 = 2;
@@ -83,41 +80,32 @@ public class Server implements CassandraDaemon.Server
     };
 
     public final InetSocketAddress socket;
+    public boolean useSSL = false;
     private final AtomicBoolean isRunning = new AtomicBoolean(false);
 
     private EventLoopGroup workerGroup;
     private EventExecutor eventExecutorGroup;
 
-    public Server(InetSocketAddress socket)
+    private Server (Builder builder)
     {
-        this.socket = socket;
+        this.socket = builder.getSocket();
+        this.useSSL = builder.useSSL;
+        if (builder.workerGroup != null)
+        {
+            workerGroup = builder.workerGroup;
+        }
+        else
+        {
+            if (useEpoll)
+                workerGroup = new EpollEventLoopGroup();
+            else
+                workerGroup = new NioEventLoopGroup();
+        }
+        if (builder.eventExecutorGroup != null)
+            eventExecutorGroup = builder.eventExecutorGroup;
         EventNotifier notifier = new EventNotifier(this);
         StorageService.instance.register(notifier);
         MigrationManager.instance.register(notifier);
-        registerMetrics();
-    }
-
-    public Server(String hostname, int port)
-    {
-        this(new InetSocketAddress(hostname, port));
-    }
-
-    public Server(InetAddress host, int port)
-    {
-        this(new InetSocketAddress(host, port));
-    }
-
-    public Server(int port)
-    {
-        this(new InetSocketAddress(port));
-    }
-
-    public void start()
-    {
-	    if(!isRunning())
-	    {
-            run();
-	    }
     }
 
     public void stop()
@@ -131,35 +119,25 @@ public class Server implements CassandraDaemon.Server
         return isRunning.get();
     }
 
-    private void run()
+    public synchronized void start()
     {
+        if(isRunning()) 
+            return;
+
         // Configure the server.
-        eventExecutorGroup = new RequestThreadPoolExecutor();
-
-        boolean hasEpoll = enableEpoll ? Epoll.isAvailable() : false;
-        if (hasEpoll)
-        {
-            workerGroup = new EpollEventLoopGroup();
-            logger.info("Netty using native Epoll event loop");
-        }
-        else
-        {
-            workerGroup = new NioEventLoopGroup();
-            logger.info("Netty using Java NIO event loop");
-        }
-
         ServerBootstrap bootstrap = new ServerBootstrap()
-                                    .group(workerGroup)
-                                    .channel(hasEpoll ? EpollServerSocketChannel.class : NioServerSocketChannel.class)
+                                    .channel(useEpoll ? EpollServerSocketChannel.class : NioServerSocketChannel.class)
                                     .childOption(ChannelOption.TCP_NODELAY, true)
                                     .childOption(ChannelOption.SO_LINGER, 0)
                                     .childOption(ChannelOption.SO_KEEPALIVE, DatabaseDescriptor.getRpcKeepAlive())
                                     .childOption(ChannelOption.ALLOCATOR, CBUtil.allocator)
                                     .childOption(ChannelOption.WRITE_BUFFER_HIGH_WATER_MARK, 32 * 1024)
                                     .childOption(ChannelOption.WRITE_BUFFER_LOW_WATER_MARK, 8 * 1024);
+        if (workerGroup != null)
+            bootstrap = bootstrap.group(workerGroup);
 
         final EncryptionOptions.ClientEncryptionOptions clientEnc = DatabaseDescriptor.getClientEncryptionOptions();
-        if (clientEnc.enabled)
+        if (this.useSSL)
         {
             logger.info("Enabling encrypted CQL connections between client and server");
             bootstrap.childHandler(new SecureInitializer(this, clientEnc));
@@ -171,7 +149,7 @@ public class Server implements CassandraDaemon.Server
 
         // Bind and start to accept incoming connections.
         logger.info("Using Netty Version: {}", Version.identify().entrySet());
-        logger.info("Starting listening for CQL clients on {}...", socket);
+        logger.info("Starting listening for CQL clients on {} ({})...", socket, this.useSSL ? "encrypted" : "unencrypted");
 
         ChannelFuture bindFuture = bootstrap.bind(socket);
         if (!bindFuture.awaitUninterruptibly().isSuccess())
@@ -179,36 +157,83 @@ public class Server implements CassandraDaemon.Server
 
         connectionTracker.allChannels.add(bindFuture.channel());
         isRunning.set(true);
-
-        StorageService.instance.setRpcReady(true);
     }
 
-    private void registerMetrics()
+    public int getConnectedClients()
     {
-        ClientMetrics.instance.addCounter("connectedNativeClients", new Callable<Integer>()
-        {
-            @Override
-            public Integer call() throws Exception
-            {
-                return connectionTracker.getConnectedClients();
-            }
-        });
+        return connectionTracker.getConnectedClients();
     }
-
+    
     private void close()
     {
         // Close opened connections
         connectionTracker.closeAll();
-        workerGroup.shutdownGracefully();
-        workerGroup = null;
-
-        eventExecutorGroup.shutdown();
-        eventExecutorGroup = null;
+        
         logger.info("Stop listening for CQL clients");
-
-        StorageService.instance.setRpcReady(false);
     }
 
+    public static class Builder
+    {
+        private EventLoopGroup workerGroup;
+        private EventExecutor eventExecutorGroup;
+        private boolean useSSL = false;
+        private InetAddress hostAddr;
+        private int port = -1;
+        private InetSocketAddress socket;
+
+        public Builder withSSL(boolean useSSL)
+        {
+            this.useSSL = useSSL;
+            return this;
+        }
+
+        public Builder withEventLoopGroup(EventLoopGroup eventLoopGroup)
+        {
+            this.workerGroup = eventLoopGroup;
+            return this;
+        }
+
+        public Builder withEventExecutor(EventExecutor eventExecutor)
+        {
+            this.eventExecutorGroup = eventExecutor;
+            return this;
+        }
+
+        public Builder withHost(InetAddress host)
+        {
+            this.hostAddr = host;
+            this.socket = null;
+            return this;
+        }
+
+        public Builder withPort(int port)
+        {
+            this.port = port;
+            this.socket = null;
+            return this;
+        }
+
+        public Server build()
+        {
+            return new Server(this);
+        }
+
+        private InetSocketAddress getSocket()
+        {
+            if (this.socket != null)
+                return this.socket;
+            else
+            {
+                if (this.port == -1)
+                    throw new IllegalStateException("Missing port number");
+                if (this.hostAddr != null)
+                    this.socket = new InetSocketAddress(this.hostAddr, this.port);
+                else
+                    throw new IllegalStateException("Missing host");
+                return this.socket;
+            }
+        }
+    }
 
     public static class ConnectionTracker implements Connection.Tracker
     {
@@ -253,7 +278,7 @@ public class Server implements CassandraDaemon.Server
         }
     }
 
-    private static class Initializer extends ChannelInitializer
+    private static class Initializer extends ChannelInitializer<Channel>
     {
         // Stateless handlers
         private static final Message.ProtocolDecoder messageDecoder = new Message.ProtocolDecoder();
@@ -294,7 +319,10 @@ public class Server implements CassandraDaemon.Server
             pipeline.addLast("messageDecoder", messageDecoder);
             pipeline.addLast("messageEncoder", messageEncoder);
 
-            pipeline.addLast(server.eventExecutorGroup, "executor", dispatcher);
+            if (server.eventExecutorGroup != null)
+                pipeline.addLast(server.eventExecutorGroup, "executor", dispatcher);
+            else
+                pipeline.addLast("executor", dispatcher);
         }
     }
 
