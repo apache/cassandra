@@ -1,4 +1,6 @@
 2.1.10
+ * Scrub, Cleanup and Upgrade do not unmark compacting until all operations
+   have completed, regardless of the occurence of exceptions (CASSANDRA-10274)
  * Fix handling of streaming EOF (CASSANDRA-10206)
  * Only check KeyCache when it is enabled
  * Change streaming_socket_timeout_in_ms default to 1 hour (CASSANDRA-8611)

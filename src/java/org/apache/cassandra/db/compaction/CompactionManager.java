@@ -280,8 +280,7 @@ public class CompactionManager implements CompactionManagerMBean
                 }));
             }
 
-            for (Future<Object> f : futures)
-                f.get();
+            FBUtilities.waitOnFutures(futures);
         }
         finally
         {
