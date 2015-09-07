@@ -112,12 +112,12 @@ public class DeleteStatement extends ModificationStatement
     public static class Parsed extends ModificationStatement.Parsed
     {
         private final List<Operation.RawDeletion> deletions;
-        private final List<Relation> whereClause;
+        private final WhereClause whereClause;
 
         public Parsed(CFName name,
                       Attributes.Raw attrs,
                       List<Operation.RawDeletion> deletions,
-                      List<Relation> whereClause,
+                      WhereClause whereClause,
                       List<Pair<ColumnIdentifier.Raw, ColumnCondition.Raw>> conditions,
                       boolean ifExists)
         {

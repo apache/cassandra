@@ -25,17 +25,17 @@ import com.google.common.collect.Iterables;
 
 import org.apache.cassandra.config.CFMetaData;
 import org.apache.cassandra.config.ColumnDefinition;
-import org.apache.cassandra.cql3.ColumnIdentifier;
-import org.apache.cassandra.cql3.QueryOptions;
-import org.apache.cassandra.cql3.Relation;
-import org.apache.cassandra.cql3.VariableSpecifications;
+import org.apache.cassandra.cql3.*;
 import org.apache.cassandra.cql3.functions.Function;
 import org.apache.cassandra.cql3.statements.Bound;
 import org.apache.cassandra.cql3.statements.StatementType;
 import org.apache.cassandra.db.*;
 import org.apache.cassandra.db.filter.RowFilter;
 import org.apache.cassandra.dht.*;
+import org.apache.cassandra.exceptions.InvalidRequestException;
+import org.apache.cassandra.index.Index;
 import org.apache.cassandra.index.SecondaryIndexManager;
+import org.apache.cassandra.net.MessagingService;
 import org.apache.cassandra.utils.ByteBufferUtil;
 import org.apache.cassandra.utils.btree.BTreeSet;
 
@@ -51,6 +51,7 @@ public final class StatementRestrictions
 {
     public static final String NO_INDEX_FOUND_MESSAGE =
         "No supported secondary index found for the non primary key columns restrictions";
+
     /**
      * The type of statement
      */
@@ -79,7 +80,7 @@ public final class StatementRestrictions
     /**
      * The restrictions used to build the row filter
      */
-    private final List<Restrictions> indexRestrictions = new ArrayList<>();
+    private final IndexRestrictions indexRestrictions = new IndexRestrictions();
 
     /**
      * <code>true</code> if the secondary index need to be queried, <code>false</code> otherwise
@@ -114,7 +115,7 @@ public final class StatementRestrictions
 
     public StatementRestrictions(StatementType type,
                                  CFMetaData cfm,
-                                 List<Relation> whereClause,
+                                 WhereClause whereClause,
                                  VariableSpecifications boundNames,
                                  boolean selectsOnlyStaticColumns,
                                  boolean selectACollection,
@@ -131,7 +132,7 @@ public final class StatementRestrictions
          *   - The value_alias cannot be restricted in any way (we don't support wide rows with indexed value
          *     in CQL so far)
          */
-        for (Relation relation : whereClause)
+        for (Relation relation : whereClause.relations)
             addRestriction(relation.toRestriction(cfm, boundNames));
 
         boolean hasQueriableClusteringColumnIndex = false;
@@ -142,8 +143,12 @@ public final class StatementRestrictions
             ColumnFamilyStore cfs = Keyspace.open(cfm.ksName).getColumnFamilyStore(cfm.cfName);
             SecondaryIndexManager secondaryIndexManager = cfs.indexManager;
 
+            if (whereClause.containsCustomExpressions())
+                processCustomIndexExpressions(whereClause.expressions, boundNames, secondaryIndexManager);
+
             hasQueriableClusteringColumnIndex = clusteringColumnsRestrictions.hasSupportingIndex(secondaryIndexManager);
-            hasQueriableIndex = hasQueriableClusteringColumnIndex
+            hasQueriableIndex = !indexRestrictions.getCustomIndexExpressions().isEmpty()
+                    || hasQueriableClusteringColumnIndex
                     || partitionKeyRestrictions.hasSupportingIndex(secondaryIndexManager)
                     || nonPrimaryKeyRestrictions.hasSupportingIndex(secondaryIndexManager);
         }
@@ -244,7 +249,7 @@ public final class StatementRestrictions
     public Set<ColumnDefinition> nonPKRestrictedColumns()
     {
         Set<ColumnDefinition> columns = new HashSet<>();
-        for (Restrictions r : indexRestrictions)
+        for (Restrictions r : indexRestrictions.getRestrictions())
             for (ColumnDefinition def : r.getColumnDefs())
                 if (!def.isPrimaryKeyColumn())
                     columns.add(def);
@@ -432,14 +437,52 @@ public final class StatementRestrictions
         return cfm.clusteringColumns().size() != clusteringColumnsRestrictions.size();
     }
 
+    private void processCustomIndexExpressions(List<CustomIndexExpression> expressions,
+                                               VariableSpecifications boundNames,
+                                               SecondaryIndexManager indexManager)
+    {
+        if (!MessagingService.instance().areAllNodesAtLeast30())
+            throw new InvalidRequestException("Please upgrade all nodes to at least 3.0 before using custom index expressions");
+
+        if (expressions.size() > 1)
+            throw new InvalidRequestException(IndexRestrictions.MULTIPLE_EXPRESSIONS);
+
+        CustomIndexExpression expression = expressions.get(0);
+        expression.prepareValue(cfm, boundNames);
+
+        CFName cfName = expression.targetIndex.getCfName();
+        if (cfName.hasKeyspace()
+            && !expression.targetIndex.getKeyspace().equals(cfm.ksName))
+            throw IndexRestrictions.invalidIndex(expression.targetIndex, cfm);
+
+        if (cfName.getColumnFamily() != null && !cfName.getColumnFamily().equals(cfm.cfName))
+            throw IndexRestrictions.invalidIndex(expression.targetIndex, cfm);
+
+        if (!cfm.getIndexes().has(expression.targetIndex.getIdx()))
+            throw IndexRestrictions.indexNotFound(expression.targetIndex, cfm);
+
+        Index index = indexManager.getIndex(cfm.getIndexes().get(expression.targetIndex.getIdx()).get());
+
+        if (!index.getIndexMetadata().isCustom())
+            throw IndexRestrictions.nonCustomIndexInExpression(expression.targetIndex);
+
+        if (index.customExpressionValueType() == null)
+            throw IndexRestrictions.customExpressionNotSupported(expression.targetIndex);
+
+        indexRestrictions.add(expression);
+    }
+
     public RowFilter getRowFilter(SecondaryIndexManager indexManager, QueryOptions options)
     {
         if (indexRestrictions.isEmpty())
             return RowFilter.NONE;
 
         RowFilter filter = RowFilter.create();
-        for (Restrictions restrictions : indexRestrictions)
+        for (Restrictions restrictions : indexRestrictions.getRestrictions())
             restrictions.addRowFilterTo(filter, indexManager, options);
+
+        for (CustomIndexExpression expression : indexRestrictions.getCustomIndexExpressions())
+            expression.addToRowFilter(filter, cfm, options);
 
         return filter;
     }
@@ -629,13 +672,13 @@ public final class StatementRestrictions
      */
     public boolean needFiltering()
     {
-        int numberOfRestrictedColumns = 0;
-        for (Restrictions restrictions : indexRestrictions)
-            numberOfRestrictedColumns += restrictions.size();
+        int numberOfRestrictions = indexRestrictions.getCustomIndexExpressions().size();
+        for (Restrictions restrictions : indexRestrictions.getRestrictions())
+            numberOfRestrictions += restrictions.size();
 
-        return numberOfRestrictedColumns > 1
-                || (numberOfRestrictedColumns == 0 && !clusteringColumnsRestrictions.isEmpty())
-                || (numberOfRestrictedColumns != 0
+        return numberOfRestrictions > 1
+                || (numberOfRestrictions == 0 && !clusteringColumnsRestrictions.isEmpty())
+                || (numberOfRestrictions != 0
                         && nonPrimaryKeyRestrictions.hasMultipleContains());
     }
 
@@ -664,4 +707,5 @@ public final class StatementRestrictions
                 && !hasUnrestrictedClusteringColumns()
                 && (clusteringColumnsRestrictions.isEQ() || clusteringColumnsRestrictions.isIN());
     }
+
 }

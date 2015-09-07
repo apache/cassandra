@@ -550,11 +550,21 @@ public class SecondaryIndexManager implements IndexRegistry
     }
 
     /**
-     * Called at query time to find the most selective of the registered index implementation
-     * (i.e. the one likely to return the fewest results) from those registered.
-     * Implementation specific validation of the target expression by the most selective
-     * index should be performed in the searcherFor method to ensure that we pick the right
-     * index regardless of the validity of the expression.
+     * Called at query time to choose which (if any) of the registered index implementations to use for a given query.
+     *
+     * This is a two step processes, firstly compiling the set of searchable indexes then choosing the one which reduces
+     * the search space the most.
+     *
+     * In the first phase, if the command's RowFilter contains any custom index expressions, the indexes that they
+     * specify are automatically included. Following that, the registered indexes are filtered to include only those
+     * which support the standard expressions in the RowFilter.
+     *
+     * The filtered set then sorted by selectivity, as reported by the Index implementations' getEstimatedResultRows
+     * method.
+     *
+     * Implementation specific validation of the target expression, either custom or standard, by the selected
+     * index should be performed in the searcherFor method to ensure that we pick the right index regardless of
+     * the validity of the expression.
      *
      * This method is only called once during the lifecycle of a ReadCommand and the result is
      * cached for future use when obtaining a Searcher, getting the index's underlying CFS for
@@ -569,12 +579,20 @@ public class SecondaryIndexManager implements IndexRegistry
         if (indexes.isEmpty() || command.rowFilter().isEmpty())
             return null;
 
-        Set<Index> searchableIndexes = new HashSet<>();
+        List<Index> searchableIndexes = new ArrayList<>();
         for (RowFilter.Expression expression : command.rowFilter())
         {
-            indexes.values().stream()
-                            .filter(index -> index.supportsExpression(expression.column(), expression.operator()))
-                            .forEach(searchableIndexes::add);
+            if (expression.isCustom())
+            {
+                RowFilter.CustomExpression customExpression = (RowFilter.CustomExpression)expression;
+                searchableIndexes.add(indexes.get(customExpression.getTargetIndex().name));
+            }
+            else
+            {
+                indexes.values().stream()
+                       .filter(index -> index.supportsExpression(expression.column(), expression.operator()))
+                       .forEach(searchableIndexes::add);
+            }
         }
 
         if (searchableIndexes.isEmpty())
@@ -584,10 +602,12 @@ public class SecondaryIndexManager implements IndexRegistry
             return null;
         }
 
-        Index selected = searchableIndexes.stream()
-                                          .max((a, b) -> Longs.compare(a.getEstimatedResultRows(),
-                                                                       b.getEstimatedResultRows()))
-                                          .orElseThrow(() -> new AssertionError("Could not select most selective index"));
+        Index selected = searchableIndexes.size() == 1
+                         ? searchableIndexes.get(0)
+                         : searchableIndexes.stream()
+                                            .max((a, b) -> Longs.compare(a.getEstimatedResultRows(),
+                                                                         b.getEstimatedResultRows()))
+                                            .orElseThrow(() -> new AssertionError("Could not select most selective index"));
 
         // pay for an additional threadlocal get() rather than build the strings unnecessarily
         if (Tracing.isTracing())

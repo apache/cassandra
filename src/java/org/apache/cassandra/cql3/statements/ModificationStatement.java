@@ -52,8 +52,8 @@ import org.apache.cassandra.utils.Pair;
 import org.apache.cassandra.utils.UUIDGen;
 
 import static org.apache.cassandra.cql3.statements.RequestValidations.checkFalse;
-import static org.apache.cassandra.cql3.statements.RequestValidations.checkNull;
 import static org.apache.cassandra.cql3.statements.RequestValidations.checkNotNull;
+import static org.apache.cassandra.cql3.statements.RequestValidations.checkNull;
 
 /*
  * Abstract parent class of individual modifications, i.e. INSERT, UPDATE and DELETE.
@@ -61,6 +61,9 @@ import static org.apache.cassandra.cql3.statements.RequestValidations.checkNotNu
 public abstract class ModificationStatement implements CQLStatement
 {
     protected static final Logger logger = LoggerFactory.getLogger(ModificationStatement.class);
+
+    public static final String CUSTOM_EXPRESSIONS_NOT_ALLOWED =
+        "Custom index expressions cannot be used in WHERE clauses for UPDATE or DELETE statements";
 
     private static final ColumnIdentifier CAS_RESULT_COLUMN = new ColumnIdentifier("[applied]", false);
 
@@ -833,7 +836,7 @@ public abstract class ModificationStatement implements CQLStatement
          * @param cfm the column family meta data
          * @param boundNames the bound names
          * @param operations the column operations
-         * @param relations the where relations
+         * @param where the where clause
          * @param conditions the conditions
          * @return the restrictions
          */
@@ -841,11 +844,14 @@ public abstract class ModificationStatement implements CQLStatement
                                                                CFMetaData cfm,
                                                                VariableSpecifications boundNames,
                                                                Operations operations,
-                                                               List<Relation> relations,
+                                                               WhereClause where,
                                                                Conditions conditions)
         {
+            if (where.containsCustomExpressions())
+                throw new InvalidRequestException(CUSTOM_EXPRESSIONS_NOT_ALLOWED);
+
             boolean applyOnlyToStaticColumns = appliesOnlyToStaticColumns(operations, conditions);
-            return new StatementRestrictions(type, cfm, relations, boundNames, applyOnlyToStaticColumns, false, false);
+            return new StatementRestrictions(type, cfm, where, boundNames, applyOnlyToStaticColumns, false, false);
         }
 
         /**

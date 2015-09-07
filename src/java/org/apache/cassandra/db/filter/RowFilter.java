@@ -22,6 +22,7 @@ import java.nio.ByteBuffer;
 import java.util.*;
 
 import com.google.common.base.Objects;
+import org.apache.commons.lang3.builder.ToStringBuilder;
 
 import org.apache.cassandra.config.CFMetaData;
 import org.apache.cassandra.config.ColumnDefinition;
@@ -34,6 +35,7 @@ import org.apache.cassandra.exceptions.InvalidRequestException;
 import org.apache.cassandra.io.util.DataInputPlus;
 import org.apache.cassandra.io.util.DataOutputPlus;
 import org.apache.cassandra.net.MessagingService;
+import org.apache.cassandra.schema.IndexMetadata;
 import org.apache.cassandra.utils.ByteBufferUtil;
 import org.apache.cassandra.utils.FBUtilities;
 
@@ -52,7 +54,7 @@ import static org.apache.cassandra.cql3.statements.RequestValidations.checkNotNu
 public abstract class RowFilter implements Iterable<RowFilter.Expression>
 {
     public static final Serializer serializer = new Serializer();
-    public static final RowFilter NONE = new CQLFilter(Collections.<Expression>emptyList());
+    public static final RowFilter NONE = new CQLFilter(Collections.emptyList());
 
     protected final List<Expression> expressions;
 
@@ -63,17 +65,17 @@ public abstract class RowFilter implements Iterable<RowFilter.Expression>
 
     public static RowFilter create()
     {
-        return new CQLFilter(new ArrayList<Expression>());
+        return new CQLFilter(new ArrayList<>());
     }
 
     public static RowFilter create(int capacity)
     {
-        return new CQLFilter(new ArrayList<Expression>(capacity));
+        return new CQLFilter(new ArrayList<>(capacity));
     }
 
     public static RowFilter forThrift(int capacity)
     {
-        return new ThriftFilter(new ArrayList<Expression>(capacity));
+        return new ThriftFilter(new ArrayList<>(capacity));
     }
 
     public void add(ColumnDefinition def, Operator op, ByteBuffer value)
@@ -90,6 +92,11 @@ public abstract class RowFilter implements Iterable<RowFilter.Expression>
     {
         assert (this instanceof ThriftFilter);
         expressions.add(new ThriftExpression(metadata, name, op, value));
+    }
+
+    public void addCustomIndexExpression(CFMetaData cfm, IndexMetadata targetIndex, ByteBuffer value)
+    {
+        expressions.add(new CustomExpression(cfm, targetIndex, value));
     }
 
     public List<Expression> getExpressions()
@@ -254,7 +261,7 @@ public abstract class RowFilter implements Iterable<RowFilter.Expression>
         private static final Serializer serializer = new Serializer();
 
         // Note: the order of this enum matter, it's used for serialization
-        protected enum Kind { SIMPLE, MAP_EQUALITY, THRIFT_DYN_EXPR }
+        protected enum Kind { SIMPLE, MAP_EQUALITY, THRIFT_DYN_EXPR, CUSTOM }
 
         abstract Kind kind();
         protected final ColumnDefinition column;
@@ -266,6 +273,11 @@ public abstract class RowFilter implements Iterable<RowFilter.Expression>
             this.column = column;
             this.operator = operator;
             this.value = value;
+        }
+
+        public boolean isCustom()
+        {
+            return kind() == Kind.CUSTOM;
         }
 
         public ColumnDefinition column()
@@ -369,11 +381,23 @@ public abstract class RowFilter implements Iterable<RowFilter.Expression>
         {
             public void serialize(Expression expression, DataOutputPlus out, int version) throws IOException
             {
-                ByteBufferUtil.writeWithShortLength(expression.column.name.bytes, out);
-                expression.operator.writeTo(out);
-
                 if (version >= MessagingService.VERSION_30)
                     out.writeByte(expression.kind().ordinal());
+
+                // Custom expressions include neither a column or operator, but all
+                // other expressions do. Also, custom expressions are 3.0+ only, so
+                // the column & operator will always be the first things written for
+                // any pre-3.0 version
+                if (expression.kind() == Kind.CUSTOM)
+                {
+                    assert version >= MessagingService.VERSION_30;
+                    IndexMetadata.serializer.serialize(((CustomExpression)expression).targetIndex, out, version);
+                    ByteBufferUtil.writeWithShortLength(expression.value, out);
+                    return;
+                }
+
+                ByteBufferUtil.writeWithShortLength(expression.column.name.bytes, out);
+                expression.operator.writeTo(out);
 
                 switch (expression.kind())
                 {
@@ -400,19 +424,30 @@ public abstract class RowFilter implements Iterable<RowFilter.Expression>
 
             public Expression deserialize(DataInputPlus in, int version, CFMetaData metadata) throws IOException
             {
-                ByteBuffer name = ByteBufferUtil.readWithShortLength(in);
-                Operator operator = Operator.readFrom(in);
+                Kind kind = null;
+                ByteBuffer name;
+                Operator operator;
+                ColumnDefinition column;
 
-                ColumnDefinition column = metadata.getColumnDefinition(name);
-                if (!metadata.isCompactTable() && column == null)
-                    throw new RuntimeException("Unknown (or dropped) column " + UTF8Type.instance.getString(name) + " during deserialization");
-
-                Kind kind;
                 if (version >= MessagingService.VERSION_30)
                 {
                     kind = Kind.values()[in.readByte()];
+                    // custom expressions (3.0+ only) do not contain a column or operator, only a value
+                    if (kind == Kind.CUSTOM)
+                    {
+                        return new CustomExpression(metadata,
+                                                    IndexMetadata.serializer.deserialize(in, version, metadata),
+                                                    ByteBufferUtil.readWithShortLength(in));
+                    }
                 }
-                else
+
+                name = ByteBufferUtil.readWithShortLength(in);
+                operator = Operator.readFrom(in);
+                column = metadata.getColumnDefinition(name);
+                if (!metadata.isCompactTable() && column == null)
+                    throw new RuntimeException("Unknown (or dropped) column " + UTF8Type.instance.getString(name) + " during deserialization");
+
+                if (version < MessagingService.VERSION_30)
                 {
                     if (column == null)
                         kind = Kind.THRIFT_DYN_EXPR;
@@ -422,6 +457,7 @@ public abstract class RowFilter implements Iterable<RowFilter.Expression>
                         kind = Kind.SIMPLE;
                 }
 
+                assert kind != null;
                 switch (kind)
                 {
                     case SIMPLE:
@@ -446,10 +482,16 @@ public abstract class RowFilter implements Iterable<RowFilter.Expression>
                 throw new AssertionError();
             }
 
+
             public long serializedSize(Expression expression, int version)
             {
-                long size = ByteBufferUtil.serializedSizeWithShortLength(expression.column().name.bytes)
-                          + expression.operator.serializedSize();
+                // version 3.0+ includes a byte for Kind
+                long size = version >= MessagingService.VERSION_30 ? 1 : 0;
+
+                // custom expressions don't include a column or operator, all other expressions do
+                if (expression.kind() != Kind.CUSTOM)
+                    size += ByteBufferUtil.serializedSizeWithShortLength(expression.column().name.bytes)
+                            + expression.operator.serializedSize();
 
                 switch (expression.kind())
                 {
@@ -466,6 +508,11 @@ public abstract class RowFilter implements Iterable<RowFilter.Expression>
                         break;
                     case THRIFT_DYN_EXPR:
                         size += ByteBufferUtil.serializedSizeWithShortLength(((ThriftExpression)expression).value);
+                        break;
+                    case CUSTOM:
+                        if (version >= MessagingService.VERSION_30)
+                            size += IndexMetadata.serializer.serializedSize(((CustomExpression)expression).targetIndex, version)
+                                  + ByteBufferUtil.serializedSizeWithShortLength(expression.value);
                         break;
                 }
                 return size;
@@ -743,6 +790,62 @@ public abstract class RowFilter implements Iterable<RowFilter.Expression>
         }
     }
 
+    /**
+     * A custom index expression for use with 2i implementations which support custom syntax and which are not
+     * necessarily linked to a single column in the base table.
+     */
+    public static final class CustomExpression extends Expression
+    {
+        private final IndexMetadata targetIndex;
+        private final CFMetaData cfm;
+
+        public CustomExpression(CFMetaData cfm, IndexMetadata targetIndex, ByteBuffer value)
+        {
+            // The operator is not relevant, but Expression requires it so for now we just hardcode EQ
+            super(makeDefinition(cfm, targetIndex), Operator.EQ, value);
+            this.targetIndex = targetIndex;
+            this.cfm = cfm;
+        }
+
+        private static ColumnDefinition makeDefinition(CFMetaData cfm, IndexMetadata index)
+        {
+            // Similarly to how we handle non-defined columns in thift, we create a fake column definition to
+            // represent the target index. This is definitely something that can be improved though.
+            return ColumnDefinition.regularDef(cfm, ByteBuffer.wrap(index.name.getBytes()), BytesType.instance);
+        }
+
+        public IndexMetadata getTargetIndex()
+        {
+            return targetIndex;
+        }
+
+        public ByteBuffer getValue()
+        {
+            return value;
+        }
+
+        public String toString()
+        {
+            return String.format("expr(%s, %s)",
+                                 targetIndex.name,
+                                 Keyspace.openAndGetStore(cfm)
+                                         .indexManager
+                                         .getIndex(targetIndex)
+                                         .customExpressionValueType());
+        }
+
+        Kind kind()
+        {
+            return Kind.CUSTOM;
+        }
+
+        // Filtering by custom expressions isn't supported yet, so just accept any row
+        public boolean isSatisfiedBy(DecoratedKey partitionKey, Row row)
+        {
+            return true;
+        }
+    }
+
     public static class Serializer
     {
         public void serialize(RowFilter filter, DataOutputPlus out, int version) throws IOException
@@ -751,6 +854,7 @@ public abstract class RowFilter implements Iterable<RowFilter.Expression>
             out.writeUnsignedVInt(filter.expressions.size());
             for (Expression expr : filter.expressions)
                 Expression.serializer.serialize(expr, out, version);
+
         }
 
         public RowFilter deserialize(DataInputPlus in, int version, CFMetaData metadata) throws IOException
@@ -760,6 +864,7 @@ public abstract class RowFilter implements Iterable<RowFilter.Expression>
             List<Expression> expressions = new ArrayList<>(size);
             for (int i = 0; i < size; i++)
                 expressions.add(Expression.serializer.deserialize(in, version, metadata));
+
             return forThrift
                  ? new ThriftFilter(expressions)
                  : new CQLFilter(expressions);

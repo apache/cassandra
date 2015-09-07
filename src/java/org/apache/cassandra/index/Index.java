@@ -8,6 +8,7 @@ import org.apache.cassandra.config.ColumnDefinition;
 import org.apache.cassandra.cql3.Operator;
 import org.apache.cassandra.db.*;
 import org.apache.cassandra.db.filter.RowFilter;
+import org.apache.cassandra.db.marshal.AbstractType;
 import org.apache.cassandra.db.partitions.PartitionIterator;
 import org.apache.cassandra.db.partitions.PartitionUpdate;
 import org.apache.cassandra.db.partitions.UnfilteredPartitionIterator;
@@ -215,7 +216,6 @@ public interface Index
      */
     public boolean dependsOn(ColumnDefinition column);
 
-    // TODO : this will change when we decouple indexes from specific columns for real per-row indexes
     /**
      * Called to determine whether this index can provide a searcher to execute a query on the
      * supplied column using the specified operator. This forms part of the query validation done
@@ -225,6 +225,19 @@ public interface Index
      * @return true if this index is capable of supporting such expressions, false otherwise
      */
     public boolean supportsExpression(ColumnDefinition column, Operator operator);
+
+    /**
+     * If the index supports custom search expressions using the
+     * {@code}SELECT * FROM table WHERE expr(index_name, expression){@code} syntax, this
+     * method should return the expected type of the expression argument.
+     * For example, if the index supports custom expressions as Strings, calls to this
+     * method should return {@code}UTF8Type.instance{@code}.
+     * If the index implementation does not support custom expressions, then it should
+     * return null.
+     * @return an the type of custom index expressions supported by this index, or an
+     *         null if custom expressions are not supported.
+     */
+    public AbstractType<?> customExpressionValueType();
 
     /**
      * Transform an initial RowFilter into the filter that will still need to applied
@@ -393,10 +406,15 @@ public interface Index
 
     /**
      * Factory method for query time search helper.
+     * Custom index implementations should perform any validation of query expressions here and throw a meaningful
+     * InvalidRequestException when any expression is invalid.
+     *
      * @param command the read command being executed
      * @return an Searcher with which to perform the supplied command
+     * @throws InvalidRequestException if the command's expressions are invalid according to the
+     *         specific syntax supported by the index implementation.
      */
-    public Searcher searcherFor(ReadCommand command);
+    public Searcher searcherFor(ReadCommand command) throws InvalidRequestException;
 
     /**
      * Performs the actual index lookup during execution of a ReadCommand.
