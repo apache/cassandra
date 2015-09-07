@@ -41,8 +41,6 @@ import javax.management.ObjectName;
 import javax.management.openmbean.OpenDataException;
 import javax.management.openmbean.TabularData;
 
-import com.google.common.base.Predicate;
-import com.google.common.base.Throwables;
 import com.google.common.collect.*;
 import com.google.common.util.concurrent.*;
 import org.slf4j.Logger;
@@ -71,13 +69,7 @@ import org.apache.cassandra.metrics.CompactionMetrics;
 import org.apache.cassandra.repair.Validator;
 import org.apache.cassandra.service.ActiveRepairService;
 import org.apache.cassandra.service.StorageService;
-import org.apache.cassandra.utils.CloseableIterator;
-import org.apache.cassandra.utils.FBUtilities;
-import org.apache.cassandra.utils.JVMStabilityInspector;
-import org.apache.cassandra.utils.MerkleTree;
-import org.apache.cassandra.utils.Pair;
-import org.apache.cassandra.utils.WrappedRunnable;
-import org.apache.cassandra.utils.UUIDGen;
+import org.apache.cassandra.utils.*;
 import org.apache.cassandra.utils.concurrent.OpOrder;
 import org.apache.cassandra.utils.concurrent.Refs;
 
@@ -246,6 +238,7 @@ public class CompactionManager implements CompactionManagerMBean
     @SuppressWarnings("resource")
     private AllSSTableOpStatus parallelAllSSTableOperation(final ColumnFamilyStore cfs, final OneSSTableOperation operation, OperationType operationType) throws ExecutionException, InterruptedException
     {
+        List<LifecycleTransaction> transactions = new ArrayList<>();
         try (LifecycleTransaction compacting = cfs.markAllCompacting(operationType);)
         {
             Iterable<SSTableReader> sstables = Lists.newArrayList(operation.filterSSTables(compacting));
@@ -255,7 +248,7 @@ public class CompactionManager implements CompactionManagerMBean
                 return AllSSTableOpStatus.SUCCESSFUL;
             }
 
-            List<Pair<LifecycleTransaction,Future<Object>>> futures = new ArrayList<>();
+            List<Future<Object>> futures = new ArrayList<>();
 
             for (final SSTableReader sstable : sstables)
             {
@@ -266,7 +259,8 @@ public class CompactionManager implements CompactionManagerMBean
                 }
 
                 final LifecycleTransaction txn = compacting.split(singleton(sstable));
-                futures.add(Pair.create(txn,executor.submit(new Callable<Object>()
+                transactions.add(txn);
+                futures.add(executor.submit(new Callable<Object>()
                 {
                     @Override
                     public Object call() throws Exception
@@ -274,38 +268,19 @@ public class CompactionManager implements CompactionManagerMBean
                         operation.execute(txn);
                         return this;
                     }
-                })));
+                }));
             }
 
             assert compacting.originals().isEmpty();
 
-
-            //Collect all exceptions
-            Exception exception = null;
-
-            for (Pair<LifecycleTransaction, Future<Object>> f : futures)
-            {
-                try
-                {
-                    f.right.get();
-                }
-                catch (InterruptedException | ExecutionException e)
-                {
-                    if (exception == null)
-                        exception = new Exception();
-
-                    exception.addSuppressed(e);
-                }
-                finally
-                {
-                    f.left.close();
-                }
-            }
-
-            if (exception != null)
-                Throwables.propagate(exception);
-
+            FBUtilities.waitOnFutures(futures);
             return AllSSTableOpStatus.SUCCESSFUL;
+        }
+        finally
+        {
+            Throwable fail = Throwables.close(null, transactions);
+            if (fail != null)
+                logger.error("Failed to cleanup lifecycle transactions {}", fail);
         }
     }
 
