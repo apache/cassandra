@@ -48,29 +48,13 @@ public class CompressedRandomAccessReader extends RandomAccessReader
 
     protected CompressedRandomAccessReader(Builder builder)
     {
-        super(builder.initializeBuffers(false));
+        super(builder);
         this.metadata = builder.metadata;
         this.checksum = metadata.checksumType.newInstance();
 
-        initializeBuffer();
-    }
-
-    @Override
-    protected int getBufferSize(RandomAccessReader.Builder builder)
-    {
-        // this is the chunk data length, throttling is OK with this
-        return builder.bufferSize;
-    }
-
-    @Override
-    protected void initializeBuffer()
-    {
-        buffer = allocateBuffer(bufferSize);
-        buffer.limit(0);
-
         if (regions == null)
         {
-            compressed = allocateBuffer(metadata.compressor().initialCompressedBufferLength(metadata.chunkLength()));
+            compressed = allocateBuffer(metadata.compressor().initialCompressedBufferLength(metadata.chunkLength()), bufferType);
             checksumBytes = ByteBuffer.wrap(new byte[4]);
         }
     }
@@ -110,7 +94,7 @@ public class CompressedRandomAccessReader extends RandomAccessReader
             if (compressed.capacity() < chunk.length)
             {
                 BufferPool.put(compressed);
-                compressed = allocateBuffer(chunk.length);
+                compressed = allocateBuffer(chunk.length, bufferType);
             }
             else
             {
@@ -275,6 +259,14 @@ public class CompressedRandomAccessReader extends RandomAccessReader
             assert Integer.bitCount(this.bufferSize) == 1; //must be a power of two
 
             return metadata;
+        }
+
+        @Override
+        protected ByteBuffer createBuffer()
+        {
+            buffer = allocateBuffer(bufferSize, bufferType);
+            buffer.limit(0);
+            return buffer;
         }
 
         @Override
