@@ -249,7 +249,7 @@ public class LifecycleTransactionTest extends AbstractTransactionalTest
 
     protected TestableTransaction newTest()
     {
-        TransactionLog.waitForDeletions();
+        LogTransaction.waitForDeletions();
         SSTableReader.resetTidying();
         return new TxnTest();
     }

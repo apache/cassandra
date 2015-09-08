@@ -23,7 +23,6 @@ import java.util.*;
 import java.util.concurrent.TimeUnit;
 
 import org.apache.cassandra.config.Schema;
-import org.apache.cassandra.db.lifecycle.TransactionLog;
 import org.apache.cassandra.io.sstable.format.SSTableReader;
 import org.apache.commons.cli.*;
 
@@ -164,7 +163,7 @@ public class StandaloneSplitter
                 }
             }
             CompactionManager.instance.finishCompactionsAndShutdown(5, TimeUnit.MINUTES);
-            TransactionLog.waitForDeletions();
+            LifecycleTransaction.waitForDeletions();
             System.exit(0); // We need that to stop non daemonized threads
         }
         catch (Exception e)
