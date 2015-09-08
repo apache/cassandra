@@ -47,7 +47,7 @@ public class RowIndexEntry<T> implements IMeasurableMemory
         this.position = position;
     }
 
-    public int promotedSize(CFMetaData metadata, Version version, SerializationHeader header)
+    protected int promotedSize(IndexHelper.IndexInfo.Serializer idxSerializer)
     {
         return 0;
     }
@@ -61,7 +61,7 @@ public class RowIndexEntry<T> implements IMeasurableMemory
         // since if there are insufficient columns to be worth indexing we're going to seek to
         // the beginning of the row anyway, so we might as well read the tombstone there as well.
         if (index.columnsIndex.size() > 1)
-            return new IndexedEntry(position, deletionTime, index.columnsIndex);
+            return new IndexedEntry(position, deletionTime, index.partitionHeaderLength, index.columnsIndex);
         else
             return new RowIndexEntry<>(position);
     }
@@ -89,6 +89,16 @@ public class RowIndexEntry<T> implements IMeasurableMemory
         return 0;
     }
 
+    /**
+     * The length of the row header (partition key, partition deletion and static row).
+     * This value is only provided for indexed entries and this method will throw
+     * {@code UnsupportedOperationException} if {@code !isIndexed()}.
+     */
+    public long headerLength()
+    {
+        throw new UnsupportedOperationException();
+    }
+
     public List<T> columnsIndex()
     {
         return Collections.emptyList();
@@ -108,48 +118,81 @@ public class RowIndexEntry<T> implements IMeasurableMemory
 
     public static class Serializer implements IndexSerializer<IndexHelper.IndexInfo>
     {
-        private final CFMetaData metadata;
+        private final IndexHelper.IndexInfo.Serializer idxSerializer;
         private final Version version;
-        private final SerializationHeader header;
 
         public Serializer(CFMetaData metadata, Version version, SerializationHeader header)
         {
-            this.metadata = metadata;
+            this.idxSerializer = new IndexHelper.IndexInfo.Serializer(metadata, version, header);
             this.version = version;
-            this.header = header;
         }
 
         public void serialize(RowIndexEntry<IndexHelper.IndexInfo> rie, DataOutputPlus out) throws IOException
         {
-            out.writeLong(rie.position);
-            out.writeInt(rie.promotedSize(metadata, version, header));
+            assert version.storeRows() : "We read old index files but we should never write them";
+
+            out.writeUnsignedVInt(rie.position);
+            out.writeUnsignedVInt(rie.promotedSize(idxSerializer));
 
             if (rie.isIndexed())
             {
+                out.writeUnsignedVInt(rie.headerLength());
                 DeletionTime.serializer.serialize(rie.deletionTime(), out);
-                out.writeInt(rie.columnsIndex().size());
-                IndexHelper.IndexInfo.Serializer idxSerializer = metadata.serializers().indexSerializer(version);
+                out.writeUnsignedVInt(rie.columnsIndex().size());
                 for (IndexHelper.IndexInfo info : rie.columnsIndex())
-                    idxSerializer.serialize(info, out, header);
+                    idxSerializer.serialize(info, out);
             }
         }
 
         public RowIndexEntry<IndexHelper.IndexInfo> deserialize(DataInputPlus in) throws IOException
         {
-            long position = in.readLong();
+            if (!version.storeRows())
+            {
+                long position = in.readLong();
 
-            int size = in.readInt();
+                int size = in.readInt();
+                if (size > 0)
+                {
+                    DeletionTime deletionTime = DeletionTime.serializer.deserialize(in);
+
+                    int entries = in.readInt();
+                    List<IndexHelper.IndexInfo> columnsIndex = new ArrayList<>(entries);
+
+                    // The old format didn't saved the partition header length per-se, but rather for each entry it's
+                    // offset from the beginning of the row. We don't use that offset anymore, but we do need the
+                    // header length so we basically need the first entry offset. And so we inline the deserialization
+                    // of the first index entry to get that information. While this is a bit ugly, we'll get rid of that
+                    // code once pre-3.0 backward compatibility is dropped so it feels fine as a temporary hack.
+                    ClusteringPrefix firstName = idxSerializer.clusteringSerializer.deserialize(in);
+                    ClusteringPrefix lastName = idxSerializer.clusteringSerializer.deserialize(in);
+                    long headerLength = in.readLong();
+                    long width = in.readLong();
+
+                    columnsIndex.add(new IndexHelper.IndexInfo(firstName, lastName, width, null));
+                    for (int i = 1; i < entries; i++)
+                        columnsIndex.add(idxSerializer.deserialize(in));
+
+                    return new IndexedEntry(position, deletionTime, headerLength, columnsIndex);
+                }
+                else
+                {
+                    return new RowIndexEntry<>(position);
+                }
+            }
+
+            long position = in.readUnsignedVInt();
+
+            int size = (int)in.readUnsignedVInt();
             if (size > 0)
             {
+                long headerLength = in.readUnsignedVInt();
                 DeletionTime deletionTime = DeletionTime.serializer.deserialize(in);
-
-                int entries = in.readInt();
-                IndexHelper.IndexInfo.Serializer idxSerializer = metadata.serializers().indexSerializer(version);
+                int entries = (int)in.readUnsignedVInt();
                 List<IndexHelper.IndexInfo> columnsIndex = new ArrayList<>(entries);
                 for (int i = 0; i < entries; i++)
-                    columnsIndex.add(idxSerializer.deserialize(in, header));
+                    columnsIndex.add(idxSerializer.deserialize(in));
 
-                return new IndexedEntry(position, deletionTime, columnsIndex);
+                return new IndexedEntry(position, deletionTime, headerLength, columnsIndex);
             }
             else
             {
@@ -157,15 +200,23 @@ public class RowIndexEntry<T> implements IMeasurableMemory
             }
         }
 
-        public static void skip(DataInput in) throws IOException
+        // Reads only the data 'position' of the index entry and returns it. Note that this left 'in' in the middle
+        // of reading an entry, so this is only useful if you know what you are doing and in most case 'deserialize'
+        // should be used instead.
+        public static long readPosition(DataInputPlus in, Version version) throws IOException
         {
-            in.readLong();
-            skipPromotedIndex(in);
+            return version.storeRows() ? in.readUnsignedVInt() : in.readLong();
         }
 
-        public static void skipPromotedIndex(DataInput in) throws IOException
+        public static void skip(DataInputPlus in, Version version) throws IOException
         {
-            int size = in.readInt();
+            readPosition(in, version);
+            skipPromotedIndex(in, version);
+        }
+
+        public static void skipPromotedIndex(DataInputPlus in, Version version) throws IOException
+        {
+            int size = version.storeRows() ? (int)in.readUnsignedVInt() : in.readInt();
             if (size <= 0)
                 return;
 
@@ -174,21 +225,21 @@ public class RowIndexEntry<T> implements IMeasurableMemory
 
         public int serializedSize(RowIndexEntry<IndexHelper.IndexInfo> rie)
         {
-            int size = TypeSizes.sizeof(rie.position) + TypeSizes.sizeof(rie.promotedSize(metadata, version, header));
+            assert version.storeRows() : "We read old index files but we should never write them";
+
+            int size = TypeSizes.sizeofUnsignedVInt(rie.position) + TypeSizes.sizeofUnsignedVInt(rie.promotedSize(idxSerializer));
 
             if (rie.isIndexed())
             {
                 List<IndexHelper.IndexInfo> index = rie.columnsIndex();
 
+                size += TypeSizes.sizeofUnsignedVInt(rie.headerLength());
                 size += DeletionTime.serializer.serializedSize(rie.deletionTime());
-                size += TypeSizes.sizeof(index.size());
+                size += TypeSizes.sizeofUnsignedVInt(index.size());
 
-                IndexHelper.IndexInfo.Serializer idxSerializer = metadata.serializers().indexSerializer(version);
                 for (IndexHelper.IndexInfo info : index)
-                    size += idxSerializer.serializedSize(info, header);
+                    size += idxSerializer.serializedSize(info);
             }
-
-
             return size;
         }
     }
@@ -199,17 +250,21 @@ public class RowIndexEntry<T> implements IMeasurableMemory
     private static class IndexedEntry extends RowIndexEntry<IndexHelper.IndexInfo>
     {
         private final DeletionTime deletionTime;
+
+        // The offset in the file when the index entry end
+        private final long headerLength;
         private final List<IndexHelper.IndexInfo> columnsIndex;
         private static final long BASE_SIZE =
-                ObjectSizes.measure(new IndexedEntry(0, DeletionTime.LIVE, Arrays.<IndexHelper.IndexInfo>asList(null, null)))
+                ObjectSizes.measure(new IndexedEntry(0, DeletionTime.LIVE, 0, Arrays.<IndexHelper.IndexInfo>asList(null, null)))
               + ObjectSizes.measure(new ArrayList<>(1));
 
-        private IndexedEntry(long position, DeletionTime deletionTime, List<IndexHelper.IndexInfo> columnsIndex)
+        private IndexedEntry(long position, DeletionTime deletionTime, long headerLength, List<IndexHelper.IndexInfo> columnsIndex)
         {
             super(position);
             assert deletionTime != null;
             assert columnsIndex != null && columnsIndex.size() > 1;
             this.deletionTime = deletionTime;
+            this.headerLength = headerLength;
             this.columnsIndex = columnsIndex;
         }
 
@@ -220,19 +275,25 @@ public class RowIndexEntry<T> implements IMeasurableMemory
         }
 
         @Override
+        public long headerLength()
+        {
+            return headerLength;
+        }
+
+        @Override
         public List<IndexHelper.IndexInfo> columnsIndex()
         {
             return columnsIndex;
         }
 
         @Override
-        public int promotedSize(CFMetaData metadata, Version version, SerializationHeader header)
+        protected int promotedSize(IndexHelper.IndexInfo.Serializer idxSerializer)
         {
-            long size = DeletionTime.serializer.serializedSize(deletionTime);
-            size += TypeSizes.sizeof(columnsIndex.size()); // number of entries
-            IndexHelper.IndexInfo.Serializer idxSerializer = metadata.serializers().indexSerializer(version);
+            long size = TypeSizes.sizeofUnsignedVInt(headerLength)
+                      + DeletionTime.serializer.serializedSize(deletionTime)
+                      + TypeSizes.sizeofUnsignedVInt(columnsIndex.size()); // number of entries
             for (IndexHelper.IndexInfo info : columnsIndex)
-                size += idxSerializer.serializedSize(info, header);
+                size += idxSerializer.serializedSize(info);
 
             return Ints.checkedCast(size);
         }

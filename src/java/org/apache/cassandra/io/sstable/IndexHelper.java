@@ -37,34 +37,6 @@ import org.apache.cassandra.utils.*;
  */
 public class IndexHelper
 {
-    public static void skipBloomFilter(DataInput in) throws IOException
-    {
-        int size = in.readInt();
-        FileUtils.skipBytesFully(in, size);
-    }
-
-    /**
-     * Skip the index
-     * @param in the data input from which the index should be skipped
-     * @throws IOException if an I/O error occurs.
-     */
-    public static void skipIndex(DataInput in) throws IOException
-    {
-        /* read only the column index list */
-        int columnIndexSize = in.readInt();
-        /* skip the column index data */
-        if (in instanceof FileDataInput)
-        {
-            FileUtils.skipBytesFully(in, columnIndexSize);
-        }
-        else
-        {
-            // skip bytes
-            byte[] skip = new byte[columnIndexSize];
-            in.readFully(skip);
-        }
-    }
-
     /**
      * The index of the IndexInfo in which a scan starting with @name should begin.
      *
@@ -78,7 +50,7 @@ public class IndexHelper
      */
     public static int indexFor(ClusteringPrefix name, List<IndexInfo> indexList, ClusteringComparator comparator, boolean reversed, int lastIndex)
     {
-        IndexInfo target = new IndexInfo(name, name, 0, 0, null);
+        IndexInfo target = new IndexInfo(name, name, 0, null);
         /*
         Take the example from the unit test, and say your index looks like this:
         [0..5][10..15][20..25]
@@ -115,12 +87,11 @@ public class IndexHelper
 
     public static class IndexInfo
     {
-        private static final long EMPTY_SIZE = ObjectSizes.measure(new IndexInfo(null, null, 0, 0, null));
+        private static final long EMPTY_SIZE = ObjectSizes.measure(new IndexInfo(null, null, 0, null));
 
         public final long width;
-        public final ClusteringPrefix lastName;
         public final ClusteringPrefix firstName;
-        public final long offset;
+        public final ClusteringPrefix lastName;
 
         // If at the end of the index block there is an open range tombstone marker, this marker
         // deletion infos. null otherwise.
@@ -128,73 +99,77 @@ public class IndexHelper
 
         public IndexInfo(ClusteringPrefix firstName,
                          ClusteringPrefix lastName,
-                         long offset,
                          long width,
                          DeletionTime endOpenMarker)
         {
             this.firstName = firstName;
             this.lastName = lastName;
-            this.offset = offset;
             this.width = width;
             this.endOpenMarker = endOpenMarker;
         }
 
         public static class Serializer
         {
-            private final CFMetaData metadata;
+            // This is the default index size that we use to delta-encode width when serializing so we get better vint-encoding.
+            // This is imperfect as user can change the index size and ideally we would save the index size used with each index file
+            // to use as base. However, that's a bit more involved a change that we want for now and very seldom do use change the index
+            // size so using the default is almost surely better than using no base at all.
+            private static final long WIDTH_BASE = 64 * 1024;
+
+            // TODO: Only public for use in RowIndexEntry for backward compatibility code. Can be made private once backward compatibility is dropped.
+            public final ISerializer<ClusteringPrefix> clusteringSerializer;
             private final Version version;
 
-            public Serializer(CFMetaData metadata, Version version)
+            public Serializer(CFMetaData metadata, Version version, SerializationHeader header)
             {
-                this.metadata = metadata;
+                this.clusteringSerializer = metadata.serializers().indexEntryClusteringPrefixSerializer(version, header);
                 this.version = version;
             }
 
-            public void serialize(IndexInfo info, DataOutputPlus out, SerializationHeader header) throws IOException
+            public void serialize(IndexInfo info, DataOutputPlus out) throws IOException
             {
-                ISerializer<ClusteringPrefix> clusteringSerializer = metadata.serializers().indexEntryClusteringPrefixSerializer(version, header);
+                assert version.storeRows() : "We read old index files but we should never write them";
+
                 clusteringSerializer.serialize(info.firstName, out);
                 clusteringSerializer.serialize(info.lastName, out);
-                out.writeLong(info.offset);
-                out.writeLong(info.width);
+                out.writeVInt(info.width - WIDTH_BASE);
 
-                if (version.storeRows())
-                {
-                    out.writeBoolean(info.endOpenMarker != null);
-                    if (info.endOpenMarker != null)
-                        DeletionTime.serializer.serialize(info.endOpenMarker, out);
-                }
+                out.writeBoolean(info.endOpenMarker != null);
+                if (info.endOpenMarker != null)
+                    DeletionTime.serializer.serialize(info.endOpenMarker, out);
             }
 
-            public IndexInfo deserialize(DataInputPlus in, SerializationHeader header) throws IOException
+            public IndexInfo deserialize(DataInputPlus in) throws IOException
             {
-                ISerializer<ClusteringPrefix> clusteringSerializer = metadata.serializers().indexEntryClusteringPrefixSerializer(version, header);
-
                 ClusteringPrefix firstName = clusteringSerializer.deserialize(in);
                 ClusteringPrefix lastName = clusteringSerializer.deserialize(in);
-                long offset = in.readLong();
-                long width = in.readLong();
-                DeletionTime endOpenMarker = version.storeRows() && in.readBoolean()
-                                           ? DeletionTime.serializer.deserialize(in)
-                                           : null;
-
-                return new IndexInfo(firstName, lastName, offset, width, endOpenMarker);
-            }
-
-            public long serializedSize(IndexInfo info, SerializationHeader header)
-            {
-                ISerializer<ClusteringPrefix> clusteringSerializer = metadata.serializers().indexEntryClusteringPrefixSerializer(version, header);
-                long size = clusteringSerializer.serializedSize(info.firstName)
-                          + clusteringSerializer.serializedSize(info.lastName)
-                          + TypeSizes.sizeof(info.offset)
-                          + TypeSizes.sizeof(info.width);
-
+                long width;
+                DeletionTime endOpenMarker = null;
                 if (version.storeRows())
                 {
-                    size += TypeSizes.sizeof(info.endOpenMarker != null);
-                    if (info.endOpenMarker != null)
-                        size += DeletionTime.serializer.serializedSize(info.endOpenMarker);
+                    width = in.readVInt() + WIDTH_BASE;
+                    if (in.readBoolean())
+                        endOpenMarker = DeletionTime.serializer.deserialize(in);
                 }
+                else
+                {
+                    in.readLong(); // skip offset
+                    width = in.readLong();
+                }
+                return new IndexInfo(firstName, lastName, width, endOpenMarker);
+            }
+
+            public long serializedSize(IndexInfo info)
+            {
+                assert version.storeRows() : "We read old index files but we should never write them";
+
+                long size = clusteringSerializer.serializedSize(info.firstName)
+                          + clusteringSerializer.serializedSize(info.lastName)
+                          + TypeSizes.sizeofVInt(info.width - WIDTH_BASE)
+                          + TypeSizes.sizeof(info.endOpenMarker != null);
+
+                if (info.endOpenMarker != null)
+                    size += DeletionTime.serializer.serializedSize(info.endOpenMarker);
                 return size;
             }
         }
