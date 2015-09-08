@@ -19,8 +19,9 @@ package org.apache.cassandra.io.sstable;
 
 import java.io.File;
 import java.util.Collections;
+import java.util.Queue;
 import java.util.Set;
-import java.util.concurrent.CopyOnWriteArraySet;
+import java.util.concurrent.ConcurrentLinkedQueue;
 import java.util.concurrent.TimeUnit;
 
 import com.google.common.annotations.VisibleForTesting;
@@ -30,7 +31,6 @@ import org.slf4j.LoggerFactory;
 
 import com.codahale.metrics.Counter;
 import org.apache.cassandra.concurrent.ScheduledExecutors;
-import org.apache.cassandra.db.lifecycle.Tracker;
 import org.apache.cassandra.utils.FBUtilities;
 import org.apache.cassandra.utils.concurrent.Blocker;
 
@@ -42,7 +42,7 @@ public class SSTableDeletingTask implements Runnable
     // and delete will fail (on Windows) until it is (we only force the unmapping on SUN VMs).
     // Additionally, we need to make sure to delete the data file first, so on restart the others
     // will be recognized as GCable.
-    private static final Set<SSTableDeletingTask> failedTasks = new CopyOnWriteArraySet<>();
+    private static final Queue<Runnable> failedTasks = new ConcurrentLinkedQueue<>();
     private static final Blocker blocker = new Blocker();
 
     private final Descriptor desc;
@@ -73,11 +73,6 @@ public class SSTableDeletingTask implements Runnable
         }
     }
 
-    public void schedule()
-    {
-        ScheduledExecutors.nonPeriodicTasks.submit(this);
-    }
-
     public void run()
     {
         blocker.ask();
@@ -101,11 +96,9 @@ public class SSTableDeletingTask implements Runnable
      */
     public static void rescheduleFailedTasks()
     {
-        for (SSTableDeletingTask task : failedTasks)
-        {
-            failedTasks.remove(task);
-            task.schedule();
-        }
+        Runnable task;
+        while ( null != (task = failedTasks.poll()))
+            ScheduledExecutors.nonPeriodicTasks.submit(task);
 
         // On Windows, snapshots cannot be deleted so long as a segment of the root element is memory-mapped in NTFS.
         SnapshotDeletingTask.rescheduleFailedTasks();

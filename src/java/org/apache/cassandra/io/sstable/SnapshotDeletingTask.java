@@ -19,8 +19,8 @@
 package org.apache.cassandra.io.sstable;
 
 import java.io.File;
-import java.util.Set;
-import java.util.concurrent.CopyOnWriteArraySet;
+import java.util.Queue;
+import java.util.concurrent.ConcurrentLinkedQueue;
 
 import com.google.common.annotations.VisibleForTesting;
 import org.slf4j.Logger;
@@ -36,7 +36,7 @@ public class SnapshotDeletingTask implements Runnable
     private static final Logger logger = LoggerFactory.getLogger(SnapshotDeletingTask.class);
 
     public final File path;
-    private static final Set<SnapshotDeletingTask> failedTasks = new CopyOnWriteArraySet<>();
+    private static final Queue<Runnable> failedTasks = new ConcurrentLinkedQueue<>();
 
     public static void addFailedSnapshot(File path)
     {
@@ -68,11 +68,9 @@ public class SnapshotDeletingTask implements Runnable
      */
     public static void rescheduleFailedTasks()
     {
-        for (SnapshotDeletingTask task : failedTasks)
-        {
-            failedTasks.remove(task);
+        Runnable task;
+        while ( null != (task = failedTasks.poll()))
             ScheduledExecutors.nonPeriodicTasks.submit(task);
-        }
     }
 
     @VisibleForTesting
