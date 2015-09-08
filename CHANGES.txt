@@ -1,6 +1,8 @@
 3.0.0-rc1
  * Small optimizations of sstable index serialization (CASSANDRA-10232)
  * Support for both encrypted and unencrypted native transport connections (CASSANDRA-9590)
+Merged from 2.2:
+ * Handle missing RoleManager in config after upgrade to 2.2 (CASSANDRA-10209)
 
 
 3.0.0-beta2
