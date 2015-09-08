@@ -1,4 +1,5 @@
 2.2.2
+ * Defer default role manager setup until all nodes are on 2.2+ (CASSANDRA-9761)
  * Cancel transaction for sstables we wont redistribute index summary
    for (CASSANDRA-10270)
  * Handle missing RoleManager in config after upgrade to 2.2 (CASSANDRA-10209) 
