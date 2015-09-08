@@ -392,9 +392,9 @@ public class BTreeRow extends AbstractRow
             ((ComplexColumnData) current).setValue(path, value);
     }
 
-    public Iterable<Cell> cellsInLegacyOrder(CFMetaData metadata)
+    public Iterable<Cell> cellsInLegacyOrder(CFMetaData metadata, boolean reversed)
     {
-        return () -> new CellInLegacyOrderIterator(metadata);
+        return () -> new CellInLegacyOrderIterator(metadata, reversed);
     }
 
     private class CellIterator extends AbstractIterator<Cell>
@@ -429,15 +429,17 @@ public class BTreeRow extends AbstractRow
     private class CellInLegacyOrderIterator extends AbstractIterator<Cell>
     {
         private final AbstractType<?> comparator;
+        private final boolean reversed;
         private final int firstComplexIdx;
         private int simpleIdx;
         private int complexIdx;
         private Iterator<Cell> complexCells;
         private final Object[] data;
 
-        private CellInLegacyOrderIterator(CFMetaData metadata)
+        private CellInLegacyOrderIterator(CFMetaData metadata, boolean reversed)
         {
             this.comparator = metadata.getColumnDefinitionNameComparator(isStatic() ? ColumnDefinition.Kind.STATIC : ColumnDefinition.Kind.REGULAR);
+            this.reversed = reversed;
 
             // copy btree into array for simple separate iteration of simple and complex columns
             this.data = new Object[BTree.size(btree)];
@@ -446,6 +448,36 @@ public class BTreeRow extends AbstractRow
             int idx = Iterators.indexOf(Iterators.forArray(data), cd -> cd instanceof ComplexColumnData);
             this.firstComplexIdx = idx < 0 ? data.length : idx;
             this.complexIdx = firstComplexIdx;
+        }
+
+        private int getSimpleIdx()
+        {
+            return reversed ? firstComplexIdx - simpleIdx - 1 : simpleIdx;
+        }
+
+        private int getSimpleIdxAndIncrement()
+        {
+            int idx = getSimpleIdx();
+            ++simpleIdx;
+            return idx;
+        }
+
+        private int getComplexIdx()
+        {
+            return reversed ? data.length - simpleIdx - 1 : simpleIdx;
+        }
+
+        private int getComplexIdxAndIncrement()
+        {
+            int idx = getComplexIdx();
+            ++complexIdx;
+            return idx;
+        }
+
+        private Iterator<Cell> makeComplexIterator(Object complexData)
+        {
+            ComplexColumnData ccd = (ComplexColumnData)complexData;
+            return reversed ? ccd.reverseIterator() : ccd.iterator();
         }
 
         protected Cell computeNext()
@@ -465,17 +497,17 @@ public class BTreeRow extends AbstractRow
                     if (complexIdx >= data.length)
                         return endOfData();
 
-                    complexCells = ((ComplexColumnData)data[complexIdx++]).iterator();
+                    complexCells = makeComplexIterator(data[getComplexIdxAndIncrement()]);
                 }
                 else
                 {
                     if (complexIdx >= data.length)
-                        return (Cell)data[simpleIdx++];
+                        return (Cell)data[getSimpleIdxAndIncrement()];
 
-                    if (comparator.compare(((ColumnData) data[simpleIdx]).column().name.bytes, ((ColumnData) data[complexIdx]).column().name.bytes) < 0)
-                        return (Cell)data[simpleIdx++];
+                    if (comparator.compare(((ColumnData) data[getSimpleIdx()]).column().name.bytes, ((ColumnData) data[getComplexIdx()]).column().name.bytes) < 0)
+                        return (Cell)data[getSimpleIdxAndIncrement()];
                     else
-                        complexCells = ((ComplexColumnData)data[complexIdx++]).iterator();
+                        complexCells = makeComplexIterator(data[getComplexIdxAndIncrement()]);
                 }
             }
         }

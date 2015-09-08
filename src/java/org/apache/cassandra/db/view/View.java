@@ -64,6 +64,7 @@ import org.apache.cassandra.db.rows.RowIterator;
 import org.apache.cassandra.schema.KeyspaceMetadata;
 import org.apache.cassandra.service.pager.QueryPager;
 import org.apache.cassandra.utils.FBUtilities;
+import org.apache.cassandra.transport.Server;
 
 /**
  * A View copies data from a base table into a view table which can be queried independently from the
@@ -481,7 +482,7 @@ public class View
 
             if (!rowSet.hasTombstonedExisting())
             {
-                QueryPager pager = command.getPager(null);
+                QueryPager pager = command.getPager(null, Server.CURRENT_VERSION);
 
                 // Add all of the rows which were recovered from the query to the row set
                 while (!pager.isExhausted())
@@ -538,7 +539,7 @@ public class View
         for (TemporalRow temporalRow : rowSet)
             builder.addSlice(temporalRow.baseSlice());
 
-        QueryPager pager = builder.build().getPager(null);
+        QueryPager pager = builder.build().getPager(null, Server.CURRENT_VERSION);
 
         while (!pager.isExhausted())
         {

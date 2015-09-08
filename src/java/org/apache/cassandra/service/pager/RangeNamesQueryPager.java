@@ -35,9 +35,9 @@ public class RangeNamesQueryPager extends AbstractQueryPager
 {
     private volatile DecoratedKey lastReturnedKey;
 
-    public RangeNamesQueryPager(PartitionRangeReadCommand command, PagingState state)
+    public RangeNamesQueryPager(PartitionRangeReadCommand command, PagingState state, int protocolVersion)
     {
-        super(command);
+        super(command, protocolVersion);
         assert command.isNamesQuery();
 
         if (state != null)

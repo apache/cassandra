@@ -58,7 +58,7 @@ public interface ReadQuery
             return DataLimits.cqlLimits(0);
         }
 
-        public QueryPager getPager(PagingState state)
+        public QueryPager getPager(PagingState state, int protocolVersion)
         {
             return QueryPager.EMPTY;
         }
@@ -104,10 +104,11 @@ public interface ReadQuery
      *
      * @param pagingState the {@code PagingState} to start from if this is a paging continuation. This can be
      * {@code null} if this is the start of paging.
+     * @param protocolVersion the protocol version to use for the paging state of that pager.
      *
      * @return a pager for the query.
      */
-    public QueryPager getPager(PagingState pagingState);
+    public QueryPager getPager(PagingState pagingState, int protocolVersion);
 
     /**
      * The limits for the query.

@@ -209,7 +209,7 @@ public class SelectStatement implements CQLStatement
         if (pageSize <= 0 || query.limits().count() <= pageSize)
             return execute(query, options, state, nowInSec);
 
-        QueryPager pager = query.getPager(options.getPagingState());
+        QueryPager pager = query.getPager(options.getPagingState(), options.getProtocolVersion());
         return execute(Pager.forDistributedQuery(pager, cl, state.getClientState()), options, pageSize, nowInSec);
     }
 
@@ -389,7 +389,7 @@ public class SelectStatement implements CQLStatement
             }
             else
             {
-                QueryPager pager = query.getPager(options.getPagingState());
+                QueryPager pager = query.getPager(options.getPagingState(), options.getProtocolVersion());
                 return execute(Pager.forInternalQuery(pager, orderGroup), options, pageSize, nowInSec);
             }
         }

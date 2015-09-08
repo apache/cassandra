@@ -708,7 +708,7 @@ public abstract class LegacyLayout
 
         Iterator<LegacyCell> cells = new AbstractIterator<LegacyCell>()
         {
-            private final Iterator<Cell> cells = row.cellsInLegacyOrder(metadata).iterator();
+            private final Iterator<Cell> cells = row.cellsInLegacyOrder(metadata, false).iterator();
             // we don't have (and shouldn't have) row markers for compact tables.
             private boolean hasReturnedRowMarker = metadata.isCompactTable();
 
