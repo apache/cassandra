@@ -335,10 +335,23 @@ public class FBUtilities
         return (int) (System.currentTimeMillis() / 1000);
     }
 
-    public static void waitOnFutures(Iterable<Future<?>> futures)
+    public static <T> List<T> waitOnFutures(Iterable<? extends Future<? extends T>> futures)
     {
-        for (Future f : futures)
-            waitOnFuture(f);
+        List<T> results = new ArrayList<>();
+        Throwable fail = null;
+        for (Future<? extends T> f : futures)
+        {
+            try
+            {
+                results.add(f.get());
+            }
+            catch (Throwable t)
+            {
+                fail = Throwables.merge(fail, t);
+            }
+        }
+        Throwables.maybeFail(fail);
+        return results;
     }
 
     public static <T> T waitOnFuture(Future<T> future)

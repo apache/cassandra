@@ -141,4 +141,20 @@ public final class Throwables
             }
         }));
     }
+
+    public static Throwable close(Throwable accumulate, Iterable<? extends AutoCloseable> closeables)
+    {
+        for (AutoCloseable closeable : closeables)
+        {
+            try
+            {
+                closeable.close();
+            }
+            catch (Throwable t)
+            {
+                accumulate = merge(accumulate, t);
+            }
+        }
+        return accumulate;
+    }
 }
