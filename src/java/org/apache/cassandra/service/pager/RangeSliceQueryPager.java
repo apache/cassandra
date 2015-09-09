@@ -17,14 +17,16 @@
  */
 package org.apache.cassandra.service.pager;
 
-import org.apache.cassandra.db.*;
-import org.apache.cassandra.db.rows.*;
-import org.apache.cassandra.db.filter.*;
-import org.apache.cassandra.dht.*;
-import org.apache.cassandra.exceptions.RequestExecutionException;
+import java.util.Optional;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+
+import org.apache.cassandra.db.*;
+import org.apache.cassandra.db.filter.DataLimits;
+import org.apache.cassandra.db.rows.Row;
+import org.apache.cassandra.dht.*;
+import org.apache.cassandra.exceptions.RequestExecutionException;
 
 /**
  * Pages a RangeSliceCommand whose predicate is a slice query.
@@ -89,7 +91,9 @@ public class RangeSliceQueryPager extends AbstractQueryPager
             }
         }
 
-        return new PartitionRangeReadCommand(command.metadata(), command.nowInSec(), command.columnFilter(), command.rowFilter(), limits, pageRange);
+        // it won't hurt for the next page command to query the index manager
+        // again to check for an applicable index, so don't supply one here
+        return new PartitionRangeReadCommand(command.metadata(), command.nowInSec(), command.columnFilter(), command.rowFilter(), limits, pageRange, Optional.empty());
     }
 
     protected void recordLast(DecoratedKey key, Row last)

@@ -30,12 +30,9 @@ import java.util.zip.Inflater;
 import com.google.common.base.Joiner;
 import com.google.common.collect.*;
 import com.google.common.primitives.Longs;
-
-import org.apache.cassandra.config.ColumnDefinition;
-import org.apache.cassandra.db.filter.ColumnFilter;
-
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+
 import org.apache.cassandra.auth.Permission;
 import org.apache.cassandra.config.*;
 import org.apache.cassandra.cql3.QueryOptions;
@@ -1520,7 +1517,8 @@ public class CassandraServer implements Cassandra.Iface
                                                                               columns,
                                                                               ThriftConversion.rowFilterFromThrift(metadata, range.row_filter),
                                                                               limits,
-                                                                              new DataRange(bounds, filter));
+                                                                              new DataRange(bounds, filter),
+                                                                              Optional.empty());
                 try (PartitionIterator results = StorageProxy.getRangeSlice(cmd, consistencyLevel))
                 {
                     assert results != null;
@@ -1613,7 +1611,8 @@ public class CassandraServer implements Cassandra.Iface
                                                                               ColumnFilter.all(metadata),
                                                                               RowFilter.NONE,
                                                                               limits,
-                                                                              new DataRange(bounds, filter).forPaging(bounds, metadata.comparator, pageFrom, true));
+                                                                              new DataRange(bounds, filter).forPaging(bounds, metadata.comparator, pageFrom, true),
+                                                                              Optional.empty());
                 try (PartitionIterator results = StorageProxy.getRangeSlice(cmd, consistencyLevel))
                 {
                     return thriftifyKeySlices(results, new ColumnParent(column_family), limits.perPartitionCount());
@@ -1704,7 +1703,8 @@ public class CassandraServer implements Cassandra.Iface
                                                                           columns,
                                                                           ThriftConversion.rowFilterFromThrift(metadata, index_clause.expressions),
                                                                           limits,
-                                                                          new DataRange(bounds, filter));
+                                                                          new DataRange(bounds, filter),
+                                                                          Optional.empty());
             try (PartitionIterator results = StorageProxy.getRangeSlice(cmd, consistencyLevel))
             {
                 return thriftifyKeySlices(results, column_parent, limits.perPartitionCount());

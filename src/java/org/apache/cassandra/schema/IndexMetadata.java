@@ -18,10 +18,9 @@
 
 package org.apache.cassandra.schema;
 
+import java.io.IOException;
 import java.lang.reflect.InvocationTargetException;
-import java.util.Collections;
-import java.util.Map;
-import java.util.Set;
+import java.util.*;
 
 import com.google.common.base.Objects;
 import com.google.common.collect.ImmutableMap;
@@ -37,7 +36,10 @@ import org.apache.cassandra.cql3.ColumnIdentifier;
 import org.apache.cassandra.cql3.statements.IndexTarget;
 import org.apache.cassandra.exceptions.ConfigurationException;
 import org.apache.cassandra.index.Index;
+import org.apache.cassandra.io.util.DataInputPlus;
+import org.apache.cassandra.io.util.DataOutputPlus;
 import org.apache.cassandra.utils.FBUtilities;
+import org.apache.cassandra.utils.UUIDSerializer;
 
 /**
  * An immutable representation of secondary index metadata.
@@ -45,6 +47,8 @@ import org.apache.cassandra.utils.FBUtilities;
 public final class IndexMetadata
 {
     private static final Logger logger = LoggerFactory.getLogger(IndexMetadata.class);
+
+    public static final Serializer serializer = new Serializer();
 
     public enum IndexType
     {
@@ -56,6 +60,9 @@ public final class IndexMetadata
         COLUMN, ROW
     }
 
+    // UUID for serialization. This is a deterministic UUID generated from the index name
+    // Both the id and name are guaranteed unique per keyspace.
+    public final UUID id;
     public final String name;
     public final IndexType indexType;
     public final TargetType targetType;
@@ -68,6 +75,7 @@ public final class IndexMetadata
                           TargetType targetType,
                           Set<ColumnIdentifier> columns)
     {
+        this.id = UUID.nameUUIDFromBytes(name.getBytes());
         this.name = name;
         this.options = options == null ? ImmutableMap.of() : ImmutableMap.copyOf(options);
         this.indexType = indexType;
@@ -194,7 +202,7 @@ public final class IndexMetadata
 
     public int hashCode()
     {
-        return Objects.hashCode(name, indexType, targetType, options, columns);
+        return Objects.hashCode(id, name, indexType, targetType, options, columns);
     }
 
     public boolean equalsWithoutName(IndexMetadata other)
@@ -215,17 +223,38 @@ public final class IndexMetadata
 
         IndexMetadata other = (IndexMetadata)obj;
 
-        return Objects.equal(name, other.name) && equalsWithoutName(other);
+        return Objects.equal(id, other.id) && Objects.equal(name, other.name) && equalsWithoutName(other);
     }
 
     public String toString()
     {
         return new ToStringBuilder(this)
+            .append("id", id.toString())
             .append("name", name)
             .append("indexType", indexType)
             .append("targetType", targetType)
             .append("columns", columns)
             .append("options", options)
             .build();
+    }
+
+    public static class Serializer
+    {
+        public void serialize(IndexMetadata metadata, DataOutputPlus out, int version) throws IOException
+        {
+            UUIDSerializer.serializer.serialize(metadata.id, out, version);
+        }
+
+        public IndexMetadata deserialize(DataInputPlus in, int version, CFMetaData cfm) throws IOException
+        {
+            UUID id = UUIDSerializer.serializer.deserialize(in, version);
+            return cfm.getIndexes().get(id).orElseThrow(() -> new UnknownIndexException(cfm, id));
+        }
+
+        public long serializedSize(IndexMetadata metadata, int version)
+        {
+            return UUIDSerializer.serializer.serializedSize(metadata.id, version);
+        }
+
     }
 }

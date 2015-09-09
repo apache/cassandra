@@ -536,19 +536,15 @@ public class SecondaryIndexManager implements IndexRegistry
      * index should be performed in the searcherFor method to ensure that we pick the right
      * index regardless of the validity of the expression.
      *
-     * This method is called at various points during the lifecycle of a ReadCommand (to obtain a Searcher,
-     * get the index's underlying CFS for ReadOrderGroup, or an estimate of the result size from an average index
-     * query).
-     *
-     * Ideally, we would do this relatively expensive operation only once, and attach the index to the
-     * ReadCommand for future reference. This requires the index be passed onto additional commands generated
-     * to process subranges etc.
+     * This method is only called once during the lifecycle of a ReadCommand and the result is
+     * cached for future use when obtaining a Searcher, getting the index's underlying CFS for
+     * ReadOrderGroup, or an estimate of the result size from an average index query.
      *
      * @param command ReadCommand to be executed
      * @return an Index instance, ready to use during execution of the command, or null if none
      * of the registered indexes can support the command.
      */
-    public Index getBestIndexFor(ReadCommand command, boolean includeInTrace)
+    public Index getBestIndexFor(ReadCommand command)
     {
         if (indexes.isEmpty() || command.rowFilter().isEmpty())
             return null;
@@ -564,8 +560,7 @@ public class SecondaryIndexManager implements IndexRegistry
         if (searchableIndexes.isEmpty())
         {
             logger.debug("No applicable indexes found");
-            if (includeInTrace)
-                Tracing.trace("No applicable indexes found");
+            Tracing.trace("No applicable indexes found");
             return null;
         }
 
@@ -575,7 +570,7 @@ public class SecondaryIndexManager implements IndexRegistry
                                           .orElseThrow(() -> new AssertionError("Could not select most selective index"));
 
         // pay for an additional threadlocal get() rather than build the strings unnecessarily
-        if (includeInTrace && Tracing.isTracing())
+        if (Tracing.isTracing())
         {
             Tracing.trace("Index mean cardinalities are {}. Scanning with {}.",
                           searchableIndexes.stream().map(i -> i.getIndexName() + ':' + i.getEstimatedResultRows())
@@ -583,12 +578,6 @@ public class SecondaryIndexManager implements IndexRegistry
                           selected.getIndexName());
         }
         return selected;
-    }
-
-    // convenience method which doesn't emit tracing messages
-    public Index getBestIndexFor(ReadCommand command)
-    {
-        return getBestIndexFor(command, false);
     }
 
     /**

@@ -98,7 +98,7 @@ public class ReadOrderGroup implements AutoCloseable
 
     private static ColumnFamilyStore maybeGetIndexCfs(ColumnFamilyStore baseCfs, ReadCommand command)
     {
-        Index index = baseCfs.indexManager.getBestIndexFor(command);
+        Index index = command.getIndex(baseCfs);
         return index == null ? null : index.getBackingTable().orElse(null);
     }
 

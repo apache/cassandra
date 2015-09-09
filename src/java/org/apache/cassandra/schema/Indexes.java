@@ -40,12 +40,14 @@ import static com.google.common.collect.Iterables.filter;
  */
 public class Indexes implements Iterable<IndexMetadata>
 {
-    private final ImmutableMap<String, IndexMetadata> indexes;
+    private final ImmutableMap<String, IndexMetadata> indexesByName;
+    private final ImmutableMap<UUID, IndexMetadata> indexesById;
     private final ImmutableMultimap<ColumnIdentifier, IndexMetadata> indexesByColumn;
 
     private Indexes(Builder builder)
     {
-        indexes = builder.indexes.build();
+        indexesByName = builder.indexesByName.build();
+        indexesById = builder.indexesById.build();
         indexesByColumn = builder.indexesByColumn.build();
     }
 
@@ -61,17 +63,17 @@ public class Indexes implements Iterable<IndexMetadata>
 
     public Iterator<IndexMetadata> iterator()
     {
-        return indexes.values().iterator();
+        return indexesByName.values().iterator();
     }
 
     public int size()
     {
-        return indexes.size();
+        return indexesByName.size();
     }
 
     public boolean isEmpty()
     {
-        return indexes.isEmpty();
+        return indexesByName.isEmpty();
     }
 
     /**
@@ -82,7 +84,7 @@ public class Indexes implements Iterable<IndexMetadata>
      */
     public Optional<IndexMetadata> get(String name)
     {
-        return indexes.values().stream().filter(def -> def.name.equals(name)).findFirst();
+        return Optional.ofNullable(indexesByName.get(name));
     }
 
     /**
@@ -92,7 +94,30 @@ public class Indexes implements Iterable<IndexMetadata>
      */
     public boolean has(String name)
     {
-        return get(name).isPresent();
+        return indexesByName.containsKey(name);
+    }
+
+    /**
+     * Get the index with the specified id
+     *
+     * @param name a UUID which identifies an index
+     * @return an empty {@link Optional} if no index with the specified id is found; a non-empty optional of
+     *         {@link IndexMetadata} otherwise
+     */
+
+    public Optional<IndexMetadata> get(UUID id)
+    {
+        return Optional.ofNullable(indexesById.get(id));
+    }
+
+    /**
+     * Answer true if contains an index with the specified id.
+     * @param name a UUID which identifies an index.
+     * @return true if an index with the specified id is found; false otherwise
+     */
+    public boolean has(UUID id)
+    {
+        return indexesById.containsKey(id);
     }
 
     /**
@@ -148,19 +173,19 @@ public class Indexes implements Iterable<IndexMetadata>
     @Override
     public boolean equals(Object o)
     {
-        return this == o || (o instanceof Indexes && indexes.equals(((Indexes) o).indexes));
+        return this == o || (o instanceof Indexes && indexesByName.equals(((Indexes) o).indexesByName));
     }
 
     @Override
     public int hashCode()
     {
-        return indexes.hashCode();
+        return indexesByName.hashCode();
     }
 
     @Override
     public String toString()
     {
-        return indexes.values().toString();
+        return indexesByName.values().toString();
     }
 
     public static String getAvailableIndexName(String ksName, String cfName, ColumnIdentifier columnName)
@@ -179,7 +204,8 @@ public class Indexes implements Iterable<IndexMetadata>
 
     public static final class Builder
     {
-        final ImmutableMap.Builder<String, IndexMetadata> indexes = new ImmutableMap.Builder<>();
+        final ImmutableMap.Builder<String, IndexMetadata> indexesByName = new ImmutableMap.Builder<>();
+        final ImmutableMap.Builder<UUID, IndexMetadata> indexesById = new ImmutableMap.Builder<>();
         final ImmutableMultimap.Builder<ColumnIdentifier, IndexMetadata> indexesByColumn = new ImmutableMultimap.Builder<>();
 
         private Builder()
@@ -193,7 +219,8 @@ public class Indexes implements Iterable<IndexMetadata>
 
         public Builder add(IndexMetadata index)
         {
-            indexes.put(index.name, index);
+            indexesByName.put(index.name, index);
+            indexesById.put(index.id, index);
             // All indexes are column indexes at the moment
             if (index.isColumnIndex())
             {
