@@ -131,11 +131,14 @@ public class SSTableLoaderTest
             writer.addRow("key1", "col1", "100");
         }
 
+        ColumnFamilyStore cfs = Keyspace.open(KEYSPACE1).getColumnFamilyStore(CF_STANDARD1);
+        cfs.forceBlockingFlush(); // wait for sstables to be on disk else we won't be able to stream them
+
         final CountDownLatch latch = new CountDownLatch(1);
         SSTableLoader loader = new SSTableLoader(dataDir, new TestClient(), new OutputHandler.SystemOutput(false, false));
         loader.stream(Collections.emptySet(), completionStreamListener(latch)).get();
 
-        List<FilteredPartition> partitions = Util.getAll(Util.cmd(Keyspace.open(KEYSPACE1).getColumnFamilyStore(CF_STANDARD1)).build());
+        List<FilteredPartition> partitions = Util.getAll(Util.cmd(cfs).build());
 
         assertEquals(1, partitions.size());
         assertEquals("key1", AsciiType.instance.getString(partitions.get(0).partitionKey().getKey()));
@@ -175,6 +178,9 @@ public class SSTableLoaderTest
                 writer.addRow(String.format("key%d", i), String.format("col%d", j), "100");
         }
 
+        ColumnFamilyStore cfs = Keyspace.open(KEYSPACE1).getColumnFamilyStore(CF_STANDARD2);
+        cfs.forceBlockingFlush(); // wait for sstables to be on disk else we won't be able to stream them
+
         //make sure we have some tables...
         assertTrue(dataDir.listFiles().length > 0);
 
@@ -183,7 +189,7 @@ public class SSTableLoaderTest
         SSTableLoader loader = new SSTableLoader(dataDir, new TestClient(), new OutputHandler.SystemOutput(false, false));
         loader.stream(Collections.emptySet(), completionStreamListener(latch)).get();
 
-        List<FilteredPartition> partitions = Util.getAll(Util.cmd(Keyspace.open(KEYSPACE1).getColumnFamilyStore(CF_STANDARD2)).build());
+        List<FilteredPartition> partitions = Util.getAll(Util.cmd(cfs).build());
 
         assertTrue(partitions.size() > 0 && partitions.size() < NB_PARTITIONS);
 

@@ -88,7 +88,8 @@ public interface Transactional extends AutoCloseable
         // Transactional objects will perform cleanup in the commit() or abort() calls
 
         /**
-         * perform an exception-safe pre-abort cleanup; this will still be run *after* commit
+         * perform an exception-safe pre-abort/commit cleanup;
+         * this will be run after prepareToCommit (so before commit), and before abort
          */
         protected Throwable doPreCleanup(Throwable accumulate){ return accumulate; }
 
@@ -113,7 +114,6 @@ public interface Transactional extends AutoCloseable
             if (state != State.READY_TO_COMMIT)
                 throw new IllegalStateException("Cannot commit unless READY_TO_COMMIT; state is " + state);
             accumulate = doCommit(accumulate);
-            accumulate = doPreCleanup(accumulate);
             accumulate = doPostCleanup(accumulate);
             state = State.COMMITTED;
             return accumulate;
@@ -171,6 +171,7 @@ public interface Transactional extends AutoCloseable
                 throw new IllegalStateException("Cannot prepare to commit unless IN_PROGRESS; state is " + state);
 
             doPrepare();
+            maybeFail(doPreCleanup(null));
             state = State.READY_TO_COMMIT;
         }
 

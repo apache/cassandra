@@ -50,7 +50,7 @@ public class ChecksummedSequentialWriter extends SequentialWriter
         @Override
         protected Throwable doCommit(Throwable accumulate)
         {
-            return crcWriter.commit(accumulate);
+            return super.doCommit(crcWriter.commit(accumulate));
         }
 
         @Override
@@ -66,9 +66,6 @@ public class ChecksummedSequentialWriter extends SequentialWriter
             if (descriptor != null)
                 crcMetadata.writeFullChecksum(descriptor);
             crcWriter.setDescriptor(descriptor).prepareToCommit();
-            // we must cleanup our file handles during prepareCommit for Windows compatibility as we cannot rename an open file;
-            // TODO: once we stop file renaming, remove this for clarity
-            releaseFileHandle();
         }
     }
 
