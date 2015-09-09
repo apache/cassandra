@@ -1343,7 +1343,7 @@ public class CassandraServer implements Cassandra.Iface
         }
         else if (column_path.super_column != null && column_path.column == null)
         {
-            Row row = BTreeRow.emptyDeletedRow(new Clustering(column_path.super_column), new DeletionTime(timestamp, nowInSec));
+            Row row = BTreeRow.emptyDeletedRow(new Clustering(column_path.super_column), Row.Deletion.regular(new DeletionTime(timestamp, nowInSec)));
             update = PartitionUpdate.singleRowUpdate(metadata, dk, row);
         }
         else

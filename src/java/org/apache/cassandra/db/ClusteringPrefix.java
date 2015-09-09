@@ -416,9 +416,9 @@ public interface ClusteringPrefix extends IMeasurableMemory, Clusterable
             this.serializationHeader = header;
         }
 
-        public void prepare(int flags) throws IOException
+        public void prepare(int flags, int extendedFlags) throws IOException
         {
-            assert !UnfilteredSerializer.isStatic(flags) : "Flags = " + flags;
+            assert !UnfilteredSerializer.isStatic(extendedFlags) : "Flags = " + flags;
             this.nextIsRow = UnfilteredSerializer.kind(flags) == Unfiltered.Kind.ROW;
             this.nextKind = nextIsRow ? Kind.CLUSTERING : ClusteringPrefix.Kind.values()[in.readByte()];
             this.nextSize = nextIsRow ? comparator.size() : in.readUnsignedShort();

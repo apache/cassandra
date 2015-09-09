@@ -153,7 +153,7 @@ public class UpdateParameters
         if (metadata.isCompactTable() && builder.clustering() != Clustering.STATIC_CLUSTERING)
             addTombstone(metadata.compactValueColumn());
         else
-            builder.addRowDeletion(deletionTime);
+            builder.addRowDeletion(Row.Deletion.regular(deletionTime));
     }
 
     public void addTombstone(ColumnDefinition column) throws InvalidRequestException

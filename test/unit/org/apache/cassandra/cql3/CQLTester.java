@@ -753,12 +753,12 @@ public abstract class CQLTester
             Object[] expected = rows[i];
             UntypedResultSet.Row actual = iter.next();
 
-            Assert.assertEquals(String.format("Invalid number of (expected) values provided for row %d", i), expected.length, meta.size());
+            Assert.assertEquals(String.format("Invalid number of (expected) values provided for row %d", i), expected == null ? 1 : expected.length, meta.size());
 
             for (int j = 0; j < meta.size(); j++)
             {
                 ColumnSpecification column = meta.get(j);
-                ByteBuffer expectedByteValue = makeByteBuffer(expected[j], column.type);
+                ByteBuffer expectedByteValue = makeByteBuffer(expected == null ? null : expected[j], column.type);
                 ByteBuffer actualValue = actual.getBytes(column.name.toString());
 
                 if (!Objects.equal(expectedByteValue, actualValue))

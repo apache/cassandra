@@ -256,7 +256,7 @@ public class TemporalRow
         this.nowInSec = nowInSec;
 
         LivenessInfo liveness = row.primaryKeyLivenessInfo();
-        this.viewClusteringLocalDeletionTime = minValueIfSet(viewClusteringLocalDeletionTime, row.deletion().localDeletionTime(), NO_DELETION_TIME);
+        this.viewClusteringLocalDeletionTime = minValueIfSet(viewClusteringLocalDeletionTime, row.deletion().time().localDeletionTime(), NO_DELETION_TIME);
         this.viewClusteringTimestamp = minValueIfSet(viewClusteringTimestamp, liveness.timestamp(), NO_TIMESTAMP);
         this.viewClusteringTtl = minValueIfSet(viewClusteringTtl, liveness.ttl(), NO_TTL);
 
@@ -402,7 +402,7 @@ public class TemporalRow
             return clusterTombstone.deletionTime();
 
         Row row = partition.getRow(baseClustering);
-        return row == null || row.deletion().isLive() ? DeletionTime.LIVE : row.deletion();
+        return row == null || row.deletion().isLive() ? DeletionTime.LIVE : row.deletion().time();
     }
 
     public Collection<org.apache.cassandra.db.rows.Cell> values(ColumnDefinition definition, Resolver resolver)

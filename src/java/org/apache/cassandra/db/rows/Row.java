@@ -18,12 +18,14 @@
 package org.apache.cassandra.db.rows;
 
 import java.util.*;
+import java.security.MessageDigest;
 
 import org.apache.cassandra.config.CFMetaData;
 import org.apache.cassandra.config.ColumnDefinition;
 import org.apache.cassandra.db.*;
 import org.apache.cassandra.db.filter.ColumnFilter;
 import org.apache.cassandra.service.paxos.Commit;
+import org.apache.cassandra.utils.FBUtilities;
 import org.apache.cassandra.utils.MergeIterator;
 import org.apache.cassandra.utils.SearchIterator;
 import org.apache.cassandra.utils.btree.BTree;
@@ -64,7 +66,7 @@ public interface Row extends Unfiltered, Collection<ColumnData>
      *
      * @return the row deletion.
      */
-    public DeletionTime deletion();
+    public Deletion deletion();
 
     /**
      * Liveness information for the primary key columns of this row.
@@ -219,6 +221,130 @@ public interface Row extends Unfiltered, Collection<ColumnData>
     public String toString(CFMetaData metadata, boolean fullDetails);
 
     /**
+     * A row deletion/tombstone.
+     * <p>
+     * A row deletion mostly consists of the time of said deletion, but there is 2 variants: shadowable
+     * and regular row deletion.
+     * <p>
+     * A shadowable row deletion only exists if the row timestamp ({@code primaryKeyLivenessInfo().timestamp()})
+     * is lower than the deletion timestamp. That is, if a row has a shadowable deletion with timestamp A and an update is made
+     * to that row with a timestamp B such that B > A, then the shadowable deletion is 'shadowed' by that update. A concrete
+     * consequence is that if said update has cells with timestamp lower than A, then those cells are preserved
+     * (since the deletion is removed), and this contrarily to a normal (regular) deletion where the deletion is preserved
+     * and such cells are removed.
+     * <p>
+     * Currently, the only use of shadowable row deletions is Materialized Views, see CASSANDRA-10261.
+     */
+    public static class Deletion
+    {
+        public static final Deletion LIVE = new Deletion(DeletionTime.LIVE, false);
+
+        private final DeletionTime time;
+        private final boolean isShadowable;
+
+        public Deletion(DeletionTime time, boolean isShadowable)
+        {
+            assert !time.isLive() || !isShadowable;
+            this.time = time;
+            this.isShadowable = isShadowable;
+        }
+
+        public static Deletion regular(DeletionTime time)
+        {
+            return time.isLive() ? LIVE : new Deletion(time, false);
+        }
+
+        public static Deletion shadowable(DeletionTime time)
+        {
+            return new Deletion(time, true);
+        }
+
+        /**
+         * The time of the row deletion.
+         *
+         * @return the time of the row deletion.
+         */
+        public DeletionTime time()
+        {
+            return time;
+        }
+
+        /**
+         * Whether the deletion is a shadowable one or not.
+         *
+         * @return whether the deletion is a shadowable one. Note that if {@code isLive()}, then this is
+         * guarantee to return {@code false}.
+         */
+        public boolean isShadowable()
+        {
+            return isShadowable;
+        }
+
+        /**
+         * Wether the deletion is live or not, that is if its an actual deletion or not.
+         *
+         * @return {@code true} if this represents no deletion of the row, {@code false} if that's an actual
+         * deletion.
+         */
+        public boolean isLive()
+        {
+            return time().isLive();
+        }
+
+        public boolean supersedes(DeletionTime that)
+        {
+            return time.supersedes(that);
+        }
+
+        public boolean supersedes(Deletion that)
+        {
+            return time.supersedes(that.time);
+        }
+
+        public boolean isShadowedBy(LivenessInfo primaryKeyLivenessInfo)
+        {
+            return isShadowable && primaryKeyLivenessInfo.timestamp() > time.markedForDeleteAt();
+        }
+
+        public boolean deletes(LivenessInfo info)
+        {
+            return time.deletes(info);
+        }
+
+        public void digest(MessageDigest digest)
+        {
+            time.digest(digest);
+            FBUtilities.updateWithBoolean(digest, isShadowable);
+        }
+
+        public int dataSize()
+        {
+            return time.dataSize() + 1;
+        }
+
+        @Override
+        public boolean equals(Object o)
+        {
+            if(!(o instanceof Deletion))
+                return false;
+            Deletion that = (Deletion)o;
+            return this.time.equals(that.time) && this.isShadowable == that.isShadowable;
+        }
+
+        @Override
+        public final int hashCode()
+        {
+            return Objects.hash(time, isShadowable);
+        }
+
+        @Override
+        public String toString()
+        {
+            return String.format("%s%s", time, isShadowable ? "(shadowable)" : "");
+        }
+    }
+
+    /**
      * Interface for building rows.
      * <p>
      * The builder of a row should always abid to the following rules:
@@ -280,9 +406,9 @@ public interface Row extends Unfiltered, Collection<ColumnData>
          *
          * This call is optional and can be skipped if the row is not deleted.
          *
-         * @param deletion the row deletion time, or {@code DeletionTime.LIVE} if the row isn't deleted.
+         * @param deletion the row deletion time, or {@code Deletion.LIVE} if the row isn't deleted.
          */
-        public void addRowDeletion(DeletionTime deletion);
+        public void addRowDeletion(Deletion deletion);
 
         /**
          * Adds a cell to this builder.
@@ -358,7 +484,7 @@ public interface Row extends Unfiltered, Collection<ColumnData>
             }
 
             LivenessInfo rowInfo = LivenessInfo.EMPTY;
-            DeletionTime rowDeletion = DeletionTime.LIVE;
+            Deletion rowDeletion = Deletion.LIVE;
             for (Row row : rows)
             {
                 if (row == null)
@@ -370,10 +496,13 @@ public interface Row extends Unfiltered, Collection<ColumnData>
                     rowDeletion = row.deletion();
             }
 
-            if (activeDeletion.supersedes(rowDeletion))
-                rowDeletion = DeletionTime.LIVE;
+            if (rowDeletion.isShadowedBy(rowInfo))
+                rowDeletion = Deletion.LIVE;
+
+            if (rowDeletion.supersedes(activeDeletion))
+                activeDeletion = rowDeletion.time();
             else
-                activeDeletion = rowDeletion;
+                rowDeletion = Deletion.LIVE;
 
             if (activeDeletion.deletes(rowInfo))
                 rowInfo = LivenessInfo.EMPTY;

@@ -49,6 +49,7 @@ import org.apache.cassandra.db.SystemKeyspace;
 import org.apache.cassandra.serializers.SimpleDateSerializer;
 import org.apache.cassandra.serializers.TimeSerializer;
 import org.apache.cassandra.utils.ByteBufferUtil;
+import org.apache.cassandra.utils.FBUtilities;
 
 public class MaterializedViewTest extends CQLTester
 {
@@ -338,6 +339,124 @@ public class MaterializedViewTest extends CQLTester
         catch (InvalidQueryException e)
         {
         }
+    }
+
+    @Test
+    public void complexTimestampUpdateTestWithFlush() throws Throwable
+    {
+        complexTimestampUpdateTest(true);
+    }
+
+    @Test
+    public void complexTimestampUpdateTestWithoutFlush() throws Throwable
+    {
+        complexTimestampUpdateTest(false);
+    }
+
+    public void complexTimestampUpdateTest(boolean flush) throws Throwable
+    {
+        createTable("CREATE TABLE %s (a int, b int, c int, d int, e int, PRIMARY KEY (a, b))");
+
+        execute("USE " + keyspace());
+        executeNet(protocolVersion, "USE " + keyspace());
+        Keyspace ks = Keyspace.open(keyspace());
+
+        createView("mv", "CREATE MATERIALIZED VIEW %s AS SELECT * FROM %%s WHERE a IS NOT NULL AND b IS NOT NULL AND c IS NOT NULL PRIMARY KEY (c, a, b)");
+        ks.getColumnFamilyStore("mv").disableAutoCompaction();
+
+        //Set initial values TS=0, leaving e null and verify view
+        executeNet(protocolVersion, "INSERT INTO %s (a, b, c, d) VALUES (0, 0, 1, 0) USING TIMESTAMP 0");
+        assertRows(execute("SELECT d from mv WHERE c = ? and a = ? and b = ?", 1, 0, 0), row(0));
+
+        if (flush)
+            FBUtilities.waitOnFutures(ks.flush());
+
+        //update c's timestamp TS=2
+        executeNet(protocolVersion, "UPDATE %s USING TIMESTAMP 2 SET c = ? WHERE a = ? and b = ? ", 1, 0, 0);
+        assertRows(execute("SELECT d from mv WHERE c = ? and a = ? and b = ?", 1, 0, 0), row(0));
+
+        if (flush)
+            FBUtilities.waitOnFutures(ks.flush());
+
+            //change c's value and TS=3, tombstones c=1 and adds c=0 record
+        executeNet(protocolVersion, "UPDATE %s USING TIMESTAMP 3 SET c = ? WHERE a = ? and b = ? ", 0, 0, 0);
+        assertRows(execute("SELECT d from mv WHERE c = ? and a = ? and b = ?", 1, 0, 0));
+
+        if(flush)
+        {
+            ks.getColumnFamilyStore("mv").forceMajorCompaction();
+            FBUtilities.waitOnFutures(ks.flush());
+        }
+
+
+        //change c's value back to 1 with TS=4, check we can see d
+        executeNet(protocolVersion, "UPDATE %s USING TIMESTAMP 4 SET c = ? WHERE a = ? and b = ? ", 1, 0, 0);
+        if (flush)
+        {
+            ks.getColumnFamilyStore("mv").forceMajorCompaction();
+            FBUtilities.waitOnFutures(ks.flush());
+        }
+
+        assertRows(execute("SELECT d,e from mv WHERE c = ? and a = ? and b = ?", 1, 0, 0), row(0, null));
+
+
+            //Add e value @ TS=1
+        executeNet(protocolVersion, "UPDATE %s USING TIMESTAMP 1 SET e = ? WHERE a = ? and b = ? ", 1, 0, 0);
+        assertRows(execute("SELECT d,e from mv WHERE c = ? and a = ? and b = ?", 1, 0, 0), row(0, 1));
+
+        if (flush)
+            FBUtilities.waitOnFutures(ks.flush());
+
+
+        //Change d value @ TS=2
+        executeNet(protocolVersion, "UPDATE %s USING TIMESTAMP 2 SET d = ? WHERE a = ? and b = ? ", 2, 0, 0);
+        assertRows(execute("SELECT d from mv WHERE c = ? and a = ? and b = ?", 1, 0, 0), row(2));
+
+        if (flush)
+            FBUtilities.waitOnFutures(ks.flush());
+
+
+        //Change d value @ TS=3
+        executeNet(protocolVersion, "UPDATE %s USING TIMESTAMP 3 SET d = ? WHERE a = ? and b = ? ", 1, 0, 0);
+        assertRows(execute("SELECT d from mv WHERE c = ? and a = ? and b = ?", 1, 0, 0), row(1));
+
+
+        //Tombstone c
+        executeNet(protocolVersion, "DELETE FROM %s WHERE a = ? and b = ?", 0, 0);
+        assertRows(execute("SELECT d from mv"));
+
+        //Add back without D
+        executeNet(protocolVersion, "INSERT INTO %s (a, b, c) VALUES (0, 0, 1)");
+
+        //Make sure D doesn't pop back in.
+        assertRows(execute("SELECT d from mv WHERE c = ? and a = ? and b = ?", 1, 0, 0), row((Object) null));
+
+
+        //New partition
+        // insert a row with timestamp 0
+        executeNet(protocolVersion, "INSERT INTO %s (a, b, c, d, e) VALUES (?, ?, ?, ?, ?) USING TIMESTAMP 0", 1, 0, 0, 0, 0);
+
+        // overwrite pk and e with timestamp 1, but don't overwrite d
+        executeNet(protocolVersion, "INSERT INTO %s (a, b, c, e) VALUES (?, ?, ?, ?) USING TIMESTAMP 1", 1, 0, 0, 0);
+
+        // delete with timestamp 0 (which should only delete d)
+        executeNet(protocolVersion, "DELETE FROM %s USING TIMESTAMP 0 WHERE a = ? AND b = ?", 1, 0);
+        assertRows(execute("SELECT a, b, c, d, e from mv WHERE c = ? and a = ? and b = ?", 0, 1, 0),
+                   row(1, 0, 0, null, 0)
+        );
+
+        executeNet(protocolVersion, "UPDATE %s USING TIMESTAMP 2 SET c = ? WHERE a = ? AND b = ?", 1, 1, 0);
+        executeNet(protocolVersion, "UPDATE %s USING TIMESTAMP 3 SET c = ? WHERE a = ? AND b = ?", 0, 1, 0);
+        assertRows(execute("SELECT a, b, c, d, e from mv WHERE c = ? and a = ? and b = ?", 0, 1, 0),
+                   row(1, 0, 0, null, 0)
+        );
+
+        executeNet(protocolVersion, "UPDATE %s USING TIMESTAMP 3 SET d = ? WHERE a = ? AND b = ?", 0, 1, 0);
+        assertRows(execute("SELECT a, b, c, d, e from mv WHERE c = ? and a = ? and b = ?", 0, 1, 0),
+                   row(1, 0, 0, 0, 0)
+        );
+
+
     }
 
     @Test

@@ -682,7 +682,7 @@ public abstract class LegacyLayout
             LegacyBound start = new LegacyLayout.LegacyBound(startBound, false, null);
             LegacyBound end = new LegacyLayout.LegacyBound(endBound, false, null);
 
-            deletions.add(start, end, row.deletion().markedForDeleteAt(), row.deletion().localDeletionTime());
+            deletions.add(start, end, row.deletion().time().markedForDeleteAt(), row.deletion().time().localDeletionTime());
         }
 
         for (ColumnData cd : row)
@@ -1155,7 +1155,7 @@ public abstract class LegacyLayout
 
                 clustering = tombstone.start.getAsClustering(metadata);
                 builder.newRow(clustering);
-                builder.addRowDeletion(tombstone.deletionTime);
+                builder.addRowDeletion(Row.Deletion.regular(tombstone.deletionTime));
                 rowDeletion = tombstone;
                 return true;
             }

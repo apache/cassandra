@@ -31,8 +31,10 @@ import org.apache.cassandra.io.util.DataOutputPlus;
  *
  * The encoded format for an unfiltered is <flags>(<row>|<marker>) where:
  *
- *   <flags> is a byte whose bits are flags used by the rest of the serialization. Each
- *       flag is defined/explained below as the "Unfiltered flags" constants.
+ *   <flags> is a byte (or two) whose bits are flags used by the rest of the serialization. Each
+ *       flag is defined/explained below as the "Unfiltered flags" constants. One of those flags
+ *       is an extension flag, and if present, trigger the rid of another byte that contains more
+ *       flags. If the extension is not set, defaults are assumed for the flags of that 2nd byte.
  *   <row> is <clustering>[<timestamp>][<ttl>][<deletion>]<sc1>...<sci><cc1>...<ccj> where
  *       <clustering> is the row clustering as serialized by
  *       {@code Clustering.serializer}. Note that static row are an exception and
@@ -72,12 +74,18 @@ public class UnfilteredSerializer
      */
     private final static int END_OF_PARTITION     = 0x01; // Signal the end of the partition. Nothing follows a <flags> field with that flag.
     private final static int IS_MARKER            = 0x02; // Whether the encoded unfiltered is a marker or a row. All following markers applies only to rows.
-    private final static int IS_STATIC            = 0x04; // Whether the encoded row is a static.
-    private final static int HAS_TIMESTAMP        = 0x08; // Whether the encoded row has a timestamp (i.e. if row.partitionKeyLivenessInfo().hasTimestamp() == true).
-    private final static int HAS_TTL              = 0x10; // Whether the encoded row has some expiration info (i.e. if row.partitionKeyLivenessInfo().hasTTL() == true).
-    private final static int HAS_DELETION         = 0x20; // Whether the encoded row has some deletion info.
+    private final static int HAS_TIMESTAMP        = 0x04; // Whether the encoded row has a timestamp (i.e. if row.partitionKeyLivenessInfo().hasTimestamp() == true).
+    private final static int HAS_TTL              = 0x08; // Whether the encoded row has some expiration info (i.e. if row.partitionKeyLivenessInfo().hasTTL() == true).
+    private final static int HAS_DELETION         = 0x10; // Whether the encoded row has some deletion info.
+    private final static int HAS_ALL_COLUMNS      = 0x20; // Whether the encoded row has all of the columns from the header present.
     private final static int HAS_COMPLEX_DELETION = 0x40; // Whether the encoded row has some complex deletion for at least one of its columns.
-    private final static int HAS_ALL_COLUMNS      = 0x80; // Whether the encoded row has all of the columns from the header present
+    private final static int EXTENSION_FLAG       = 0x80; // If present, another byte is read containing the "extended flags" above.
+
+    /*
+     * Extended flags
+     */
+    private final static int IS_STATIC               = 0x01; // Whether the encoded row is a static. If there is no extended flag, the row is assumed not static.
+    private final static int HAS_SHADOWABLE_DELETION = 0x02; // Whether the row deletion is shadowable. If there is no extended flag (or no row deletion), the deletion is assumed not shadowable.
 
     public void serialize(Unfiltered unfiltered, SerializationHeader header, DataOutputPlus out, int version)
     throws IOException
@@ -96,28 +104,47 @@ public class UnfilteredSerializer
     throws IOException
     {
         int flags = 0;
-        boolean isStatic = row.isStatic();
+        int extendedFlags = 0;
+        boolean hasExtendedFlags = false;
 
+        boolean isStatic = row.isStatic();
         Columns headerColumns = header.columns(isStatic);
         LivenessInfo pkLiveness = row.primaryKeyLivenessInfo();
-        DeletionTime deletion = row.deletion();
+        Row.Deletion deletion = row.deletion();
         boolean hasComplexDeletion = row.hasComplexDeletion();
         boolean hasAllColumns = (row.size() == headerColumns.size());
 
         if (isStatic)
-            flags |= IS_STATIC;
+        {
+            hasExtendedFlags = true;
+            extendedFlags |= IS_STATIC;
+        }
+
         if (!pkLiveness.isEmpty())
             flags |= HAS_TIMESTAMP;
         if (pkLiveness.isExpiring())
             flags |= HAS_TTL;
         if (!deletion.isLive())
+        {
             flags |= HAS_DELETION;
+            if (deletion.isShadowable())
+            {
+                hasExtendedFlags = true;
+                extendedFlags |= HAS_SHADOWABLE_DELETION;
+            }
+        }
         if (hasComplexDeletion)
             flags |= HAS_COMPLEX_DELETION;
         if (hasAllColumns)
             flags |= HAS_ALL_COLUMNS;
 
+        if (hasExtendedFlags)
+            flags |= EXTENSION_FLAG;
+
         out.writeByte((byte)flags);
+        if (hasExtendedFlags)
+            out.writeByte((byte)extendedFlags);
+
         if (!isStatic)
             Clustering.serializer.serialize(row.clustering(), out, version, header.clusteringTypes());
 
@@ -129,7 +156,7 @@ public class UnfilteredSerializer
             header.writeLocalDeletionTime(pkLiveness.localExpirationTime(), out);
         }
         if ((flags & HAS_DELETION) != 0)
-            header.writeDeletionTime(deletion, out);
+            header.writeDeletionTime(deletion.time(), out);
 
         if (!hasAllColumns)
             Columns.serializer.serializeSubset(Collections2.transform(row, ColumnData::column), headerColumns, out);
@@ -186,9 +213,12 @@ public class UnfilteredSerializer
         boolean isStatic = row.isStatic();
         Columns headerColumns = header.columns(isStatic);
         LivenessInfo pkLiveness = row.primaryKeyLivenessInfo();
-        DeletionTime deletion = row.deletion();
+        Row.Deletion deletion = row.deletion();
         boolean hasComplexDeletion = row.hasComplexDeletion();
         boolean hasAllColumns = (row.size() == headerColumns.size());
+
+        if (isStatic || deletion.isShadowable())
+            size += 1; // extended flags
 
         if (!isStatic)
             size += Clustering.serializer.serializedSize(row.clustering(), version, header.clusteringTypes());
@@ -201,7 +231,7 @@ public class UnfilteredSerializer
             size += header.localDeletionTimeSerializedSize(pkLiveness.localExpirationTime());
         }
         if (!deletion.isLive())
-            size += header.deletionTimeSerializedSize(deletion);
+            size += header.deletionTimeSerializedSize(deletion.time());
 
         if (!hasAllColumns)
             size += Columns.serializer.serializedSubsetSize(Collections2.transform(row, ColumnData::column), header.columns(isStatic));
@@ -269,6 +299,8 @@ public class UnfilteredSerializer
         if (isEndOfPartition(flags))
             return null;
 
+        int extendedFlags = isExtended(flags) ? in.readUnsignedByte() : 0;
+
         if (kind(flags) == Unfiltered.Kind.RANGE_TOMBSTONE_MARKER)
         {
             RangeTombstone.Bound bound = RangeTombstone.Bound.serializer.deserialize(in, helper.version, header.clusteringTypes());
@@ -276,9 +308,9 @@ public class UnfilteredSerializer
         }
         else
         {
-            assert !isStatic(flags); // deserializeStaticRow should be used for that.
+            assert !isStatic(extendedFlags); // deserializeStaticRow should be used for that.
             builder.newRow(Clustering.serializer.deserialize(in, helper.version, header.clusteringTypes()));
-            return deserializeRowBody(in, header, helper, flags, builder);
+            return deserializeRowBody(in, header, helper, flags, extendedFlags, builder);
         }
     }
 
@@ -286,10 +318,11 @@ public class UnfilteredSerializer
     throws IOException
     {
         int flags = in.readUnsignedByte();
-        assert !isEndOfPartition(flags) && kind(flags) == Unfiltered.Kind.ROW && isStatic(flags) : flags;
+        assert !isEndOfPartition(flags) && kind(flags) == Unfiltered.Kind.ROW && isExtended(flags) : flags;
+        int extendedFlags = in.readUnsignedByte();
         Row.Builder builder = BTreeRow.sortedBuilder();
         builder.newRow(Clustering.STATIC_CLUSTERING);
-        return deserializeRowBody(in, header, helper, flags, builder);
+        return deserializeRowBody(in, header, helper, flags, extendedFlags, builder);
     }
 
     public RangeTombstoneMarker deserializeMarkerBody(DataInputPlus in, SerializationHeader header, RangeTombstone.Bound bound)
@@ -305,15 +338,17 @@ public class UnfilteredSerializer
                                   SerializationHeader header,
                                   SerializationHelper helper,
                                   int flags,
+                                  int extendedFlags,
                                   Row.Builder builder)
     throws IOException
     {
         try
         {
-            boolean isStatic = isStatic(flags);
+            boolean isStatic = isStatic(extendedFlags);
             boolean hasTimestamp = (flags & HAS_TIMESTAMP) != 0;
             boolean hasTTL = (flags & HAS_TTL) != 0;
             boolean hasDeletion = (flags & HAS_DELETION) != 0;
+            boolean deletionIsShadowable = (extendedFlags & HAS_SHADOWABLE_DELETION) != 0;
             boolean hasComplexDeletion = (flags & HAS_COMPLEX_DELETION) != 0;
             boolean hasAllColumns = (flags & HAS_ALL_COLUMNS) != 0;
             Columns headerColumns = header.columns(isStatic);
@@ -328,7 +363,7 @@ public class UnfilteredSerializer
             }
 
             builder.addPrimaryKeyLivenessInfo(rowLiveness);
-            builder.addRowDeletion(hasDeletion ? header.readDeletionTime(in) : DeletionTime.LIVE);
+            builder.addRowDeletion(hasDeletion ? new Row.Deletion(header.readDeletionTime(in), deletionIsShadowable) : Row.Deletion.LIVE);
 
             Columns columns = hasAllColumns ? headerColumns : Columns.serializer.deserializeSubset(headerColumns, in);
             for (ColumnDefinition column : columns)
@@ -395,9 +430,9 @@ public class UnfilteredSerializer
         }
     }
 
-    public void skipRowBody(DataInputPlus in, SerializationHeader header, int flags) throws IOException
+    public void skipRowBody(DataInputPlus in, SerializationHeader header, int flags, int extendedFlags) throws IOException
     {
-        boolean isStatic = isStatic(flags);
+        boolean isStatic = isStatic(extendedFlags);
         boolean hasTimestamp = (flags & HAS_TIMESTAMP) != 0;
         boolean hasTTL = (flags & HAS_TTL) != 0;
         boolean hasDeletion = (flags & HAS_DELETION) != 0;
@@ -430,8 +465,10 @@ public class UnfilteredSerializer
     public void skipStaticRow(DataInputPlus in, SerializationHeader header, SerializationHelper helper) throws IOException
     {
         int flags = in.readUnsignedByte();
-        assert !isEndOfPartition(flags) && kind(flags) == Unfiltered.Kind.ROW && isStatic(flags) : "Flags is " + flags;
-        skipRowBody(in, header, flags);
+        assert !isEndOfPartition(flags) && kind(flags) == Unfiltered.Kind.ROW && isExtended(flags) : "Flags is " + flags;
+        int extendedFlags = in.readUnsignedByte();
+        assert isStatic(extendedFlags);
+        skipRowBody(in, header, flags, extendedFlags);
     }
 
     public void skipMarkerBody(DataInputPlus in, SerializationHeader header, boolean isBoundary) throws IOException
@@ -468,8 +505,13 @@ public class UnfilteredSerializer
         return (flags & IS_MARKER) != 0 ? Unfiltered.Kind.RANGE_TOMBSTONE_MARKER : Unfiltered.Kind.ROW;
     }
 
-    public static boolean isStatic(int flags)
+    public static boolean isStatic(int extendedFlags)
     {
-        return (flags & IS_MARKER) == 0 && (flags & IS_STATIC) != 0;
+        return (extendedFlags & IS_STATIC) != 0;
+    }
+
+    public static boolean isExtended(int flags)
+    {
+        return (flags & EXTENSION_FLAG) != 0;
     }
 }
