@@ -667,4 +667,23 @@ public class CollectionsTest extends CQLTester
         assertEquals(1, rows.length);
         assertEquals(numKeys * 2, ((Set) rows[0][0]).size());
     }
+
+    @Test
+    public void testUpdateStaticList() throws Throwable
+    {
+        createTable("CREATE TABLE %s (k1 text, k2 text, s_list list<int> static, PRIMARY KEY (k1, k2))");
+
+        execute("insert into %s (k1, k2) VALUES ('a','b')");
+        execute("update %s set s_list = s_list + [0] where k1='a'");
+        assertRows(execute("select s_list from %s where k1='a'"), row(list(0)));
+
+        execute("update %s set s_list[0] = 100 where k1='a'");
+        assertRows(execute("select s_list from %s where k1='a'"), row(list(100)));
+
+        execute("update %s set s_list = s_list + [0] where k1='a'");
+        assertRows(execute("select s_list from %s where k1='a'"), row(list(100, 0)));
+
+        execute("delete s_list[0] from %s where k1='a'");
+        assertRows(execute("select s_list from %s where k1='a'"), row(list(0)));
+    }
 }
