@@ -125,7 +125,7 @@ public class BigFormat implements SSTableFormat
     // we always incremented the major version.
     static class BigVersion extends Version
     {
-        public static final String current_version = "la";
+        public static final String current_version = "lb";
         public static final String earliest_supported_version = "jb";
 
         // jb (2.0.1): switch from crc32 to adler32 for compression checksums
@@ -135,6 +135,7 @@ public class BigFormat implements SSTableFormat
         //             switch uncompressed checksums to adler32
         //             tracks presense of legacy (local and remote) counter shards
         // la (2.2.0): new file name format
+        // lb (2.2.7): commit log lower bound included
 
         private final boolean isLatestVersion;
         private final boolean hasSamplingLevel;
@@ -143,6 +144,7 @@ public class BigFormat implements SSTableFormat
         private final boolean hasRepairedAt;
         private final boolean tracksLegacyCounterShards;
         private final boolean newFileName;
+        private final boolean hasCommitLogLowerBound;
 
         public BigVersion(String version)
         {
@@ -155,6 +157,7 @@ public class BigFormat implements SSTableFormat
             hasRepairedAt = version.compareTo("ka") >= 0;
             tracksLegacyCounterShards = version.compareTo("ka") >= 0;
             newFileName = version.compareTo("la") >= 0;
+            hasCommitLogLowerBound = version.compareTo("lb") >= 0;
         }
 
         @Override
@@ -197,6 +200,11 @@ public class BigFormat implements SSTableFormat
         public boolean hasNewFileName()
         {
             return newFileName;
+        }
+
+        public boolean hasCommitLogLowerBound()
+        {
+            return hasCommitLogLowerBound;
         }
 
         @Override

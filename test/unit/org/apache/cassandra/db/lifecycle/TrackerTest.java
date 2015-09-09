@@ -38,6 +38,7 @@ import org.apache.cassandra.MockSchema;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.db.ColumnFamilyStore;
 import org.apache.cassandra.db.Memtable;
+import org.apache.cassandra.db.commitlog.CommitLog;
 import org.apache.cassandra.db.commitlog.ReplayPosition;
 import org.apache.cassandra.db.compaction.OperationType;
 import org.apache.cassandra.io.sstable.SSTableDeletingTask;
@@ -263,15 +264,15 @@ public class TrackerTest
         Tracker tracker = cfs.getTracker();
         tracker.subscribe(listener);
 
-        Memtable prev1 = tracker.switchMemtable(true);
+        Memtable prev1 = tracker.switchMemtable(true, new Memtable(new AtomicReference<>(CommitLog.instance.getContext()), cfs));
         OpOrder.Group write1 = cfs.keyspace.writeOrder.getCurrent();
         OpOrder.Barrier barrier1 = cfs.keyspace.writeOrder.newBarrier();
-        prev1.setDiscarding(barrier1, new AtomicReference<ReplayPosition>());
+        prev1.setDiscarding(barrier1, new AtomicReference<>(CommitLog.instance.getContext()));
         barrier1.issue();
-        Memtable prev2 = tracker.switchMemtable(false);
+        Memtable prev2 = tracker.switchMemtable(false, new Memtable(new AtomicReference<>(CommitLog.instance.getContext()), cfs));
         OpOrder.Group write2 = cfs.keyspace.writeOrder.getCurrent();
         OpOrder.Barrier barrier2 = cfs.keyspace.writeOrder.newBarrier();
-        prev2.setDiscarding(barrier2, new AtomicReference<ReplayPosition>());
+        prev2.setDiscarding(barrier2, new AtomicReference<>(CommitLog.instance.getContext()));
         barrier2.issue();
         Memtable cur = tracker.getView().getCurrentMemtable();
         OpOrder.Group writecur = cfs.keyspace.writeOrder.getCurrent();
@@ -297,6 +298,9 @@ public class TrackerTest
         SSTableReader reader = MockSchema.sstable(0, 10, false, cfs);
         tracker.replaceFlushed(prev2, reader);
         Assert.assertEquals(1, tracker.getView().sstables.size());
+        Assert.assertEquals(1, tracker.getView().premature.size());
+        tracker.permitCompactionOfFlushed(reader);
+        Assert.assertEquals(0, tracker.getView().premature.size());
         Assert.assertEquals(1, listener.received.size());
         Assert.assertEquals(reader, ((SSTableAddedNotification) listener.received.get(0)).added);
         listener.received.clear();
@@ -307,16 +311,17 @@ public class TrackerTest
         tracker = cfs.getTracker();
         listener = new MockListener(false);
         tracker.subscribe(listener);
-        prev1 = tracker.switchMemtable(false);
+        prev1 = tracker.switchMemtable(false, new Memtable(new AtomicReference<>(CommitLog.instance.getContext()), cfs));
         tracker.markFlushing(prev1);
         reader = MockSchema.sstable(0, 10, true, cfs);
         cfs.invalidate(false);
         tracker.replaceFlushed(prev1, reader);
+        tracker.permitCompactionOfFlushed(reader);
         Assert.assertEquals(0, tracker.getView().sstables.size());
         Assert.assertEquals(0, tracker.getView().flushingMemtables.size());
         Assert.assertEquals(0, cfs.metric.liveDiskSpaceUsed.getCount());
-        Assert.assertEquals(reader, ((SSTableAddedNotification) listener.received.get(0)).added);
-        Assert.assertEquals(1, ((SSTableListChangedNotification) listener.received.get(1)).removed.size());
+        Assert.assertEquals(1, ((SSTableListChangedNotification) listener.received.get(0)).removed.size());
+        Assert.assertEquals(reader, (((SSTableDeletingNotification) listener.received.get(1)).deleting));
         DatabaseDescriptor.setIncrementalBackupsEnabled(backups);
     }
 

@@ -72,7 +72,7 @@ public class CompactionMetadata extends MetadataComponent
 
     public static class CompactionMetadataSerializer implements IMetadataComponentSerializer<CompactionMetadata>
     {
-        public int serializedSize(CompactionMetadata component) throws IOException
+        public int serializedSize(CompactionMetadata component, Version version) throws IOException
         {
             int size = 0;
             size += TypeSizes.NATIVE.sizeof(component.ancestors.size());
@@ -83,7 +83,7 @@ public class CompactionMetadata extends MetadataComponent
             return size;
         }
 
-        public void serialize(CompactionMetadata component, DataOutputPlus out) throws IOException
+        public void serialize(CompactionMetadata component, Version version, DataOutputPlus out) throws IOException
         {
             out.writeInt(component.ancestors.size());
             for (int g : component.ancestors)

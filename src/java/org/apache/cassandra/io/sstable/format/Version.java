@@ -52,6 +52,8 @@ public abstract class Version
 
     public abstract boolean hasNewFileName();
 
+    public abstract boolean hasCommitLogLowerBound();
+
     public String getVersion()
     {
         return version;

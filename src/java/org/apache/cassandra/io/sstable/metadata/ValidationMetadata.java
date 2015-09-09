@@ -71,12 +71,12 @@ public class ValidationMetadata extends MetadataComponent
 
     public static class ValidationMetadataSerializer implements IMetadataComponentSerializer<ValidationMetadata>
     {
-        public int serializedSize(ValidationMetadata component) throws IOException
+        public int serializedSize(ValidationMetadata component, Version version) throws IOException
         {
             return TypeSizes.NATIVE.sizeof(component.partitioner) + 8;
         }
 
-        public void serialize(ValidationMetadata component, DataOutputPlus out) throws IOException
+        public void serialize(ValidationMetadata component, Version version, DataOutputPlus out) throws IOException
         {
             out.writeUTF(component.partitioner);
             out.writeDouble(component.bloomFilterFPChance);

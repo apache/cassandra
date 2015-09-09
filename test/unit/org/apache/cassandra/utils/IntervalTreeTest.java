@@ -157,7 +157,7 @@ public class IntervalTreeTest
                 public String deserialize(DataInput in) throws IOException { return in.readUTF(); }
                 public long serializedSize(String v, TypeSizes s) { return v.length(); }
             },
-            (Constructor<Interval<Integer, String>>) (Object) Interval.class.getConstructor(Object.class, Object.class, Object.class)
+            (Constructor<Interval<Integer, String>>) (Constructor<?>) Interval.class.getConstructor(Object.class, Object.class, Object.class)
         );
 
         DataOutputBuffer out = new DataOutputBuffer();

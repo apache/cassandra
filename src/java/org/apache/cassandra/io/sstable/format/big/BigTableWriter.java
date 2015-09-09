@@ -432,7 +432,7 @@ public class BigTableWriter extends SSTableWriter
         File file = new File(desc.filenameFor(Component.STATS));
         try (SequentialWriter out = SequentialWriter.open(file);)
         {
-            desc.getMetadataSerializer().serialize(components, out.stream);
+            desc.getMetadataSerializer().serialize(components, desc.version, out.stream);
             out.setDescriptor(desc).finish();
         }
         catch (IOException e)

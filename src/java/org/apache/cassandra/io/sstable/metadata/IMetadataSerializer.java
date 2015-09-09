@@ -22,6 +22,7 @@ import java.util.EnumSet;
 import java.util.Map;
 
 import org.apache.cassandra.io.sstable.Descriptor;
+import org.apache.cassandra.io.sstable.format.Version;
 import org.apache.cassandra.io.util.DataOutputPlus;
 
 /**
@@ -37,7 +38,7 @@ public interface IMetadataSerializer
      * @param out
      * @throws IOException
      */
-    void serialize(Map<MetadataType, MetadataComponent> components, DataOutputPlus out) throws IOException;
+    void serialize(Map<MetadataType, MetadataComponent> components, Version version, DataOutputPlus out) throws IOException;
 
     /**
      * Deserialize specified metadata components from given descriptor.

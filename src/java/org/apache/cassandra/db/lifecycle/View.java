@@ -19,6 +19,8 @@ package org.apache.cassandra.db.lifecycle;
 
 import java.util.*;
 
+import javax.annotation.Nullable;
+
 import com.google.common.base.Function;
 import com.google.common.base.Functions;
 import com.google.common.base.Predicate;
@@ -66,6 +68,7 @@ public class View
     public final List<Memtable> flushingMemtables;
     public final Set<SSTableReader> compacting;
     public final Set<SSTableReader> sstables;
+    public final Set<SSTableReader> premature;
     // we use a Map here so that we can easily perform identity checks as well as equality checks.
     // When marking compacting, we now  indicate if we expect the sstables to be present (by default we do),
     // and we then check that not only are they all present in the live set, but that the exact instance present is
@@ -74,7 +77,7 @@ public class View
 
     public final SSTableIntervalTree intervalTree;
 
-    View(List<Memtable> liveMemtables, List<Memtable> flushingMemtables, Map<SSTableReader, SSTableReader> sstables, Set<SSTableReader> compacting, SSTableIntervalTree intervalTree)
+    View(List<Memtable> liveMemtables, List<Memtable> flushingMemtables, Map<SSTableReader, SSTableReader> sstables, Set<SSTableReader> compacting, Set<SSTableReader> premature, SSTableIntervalTree intervalTree)
     {
         assert liveMemtables != null;
         assert flushingMemtables != null;
@@ -88,6 +91,7 @@ public class View
         this.sstablesMap = sstables;
         this.sstables = sstablesMap.keySet();
         this.compacting = compacting;
+        this.premature = premature;
         this.intervalTree = intervalTree;
     }
 
@@ -155,7 +159,7 @@ public class View
                 assert all(mark, Helpers.idIn(view.sstablesMap));
                 return new View(view.liveMemtables, view.flushingMemtables, view.sstablesMap,
                                 replace(view.compacting, unmark, mark),
-                                view.intervalTree);
+                                view.premature, view.intervalTree);
             }
         };
     }
@@ -169,7 +173,7 @@ public class View
             public boolean apply(View view)
             {
                 for (SSTableReader reader : readers)
-                    if (view.compacting.contains(reader) || view.sstablesMap.get(reader) != reader || reader.isMarkedCompacted())
+                    if (view.compacting.contains(reader) || view.sstablesMap.get(reader) != reader || reader.isMarkedCompacted() || view.premature.contains(reader))
                         return false;
                 return true;
             }
@@ -186,7 +190,7 @@ public class View
             public View apply(View view)
             {
                 Map<SSTableReader, SSTableReader> sstableMap = replace(view.sstablesMap, remove, add);
-                return new View(view.liveMemtables, view.flushingMemtables, sstableMap, view.compacting,
+                return new View(view.liveMemtables, view.flushingMemtables, sstableMap, view.compacting, view.premature,
                                 SSTableIntervalTree.build(sstableMap.keySet()));
             }
         };
@@ -201,7 +205,7 @@ public class View
             {
                 List<Memtable> newLive = ImmutableList.<Memtable>builder().addAll(view.liveMemtables).add(newMemtable).build();
                 assert newLive.size() == view.liveMemtables.size() + 1;
-                return new View(newLive, view.flushingMemtables, view.sstablesMap, view.compacting, view.intervalTree);
+                return new View(newLive, view.flushingMemtables, view.sstablesMap, view.compacting, view.premature, view.intervalTree);
             }
         };
     }
@@ -220,7 +224,7 @@ public class View
                                                            filter(flushing, not(lessThan(toFlush)))));
                 assert newLive.size() == live.size() - 1;
                 assert newFlushing.size() == flushing.size() + 1;
-                return new View(newLive, newFlushing, view.sstablesMap, view.compacting, view.intervalTree);
+                return new View(newLive, newFlushing, view.sstablesMap, view.compacting, view.premature, view.intervalTree);
             }
         };
     }
@@ -237,14 +241,32 @@ public class View
 
                 if (flushed == null)
                     return new View(view.liveMemtables, flushingMemtables, view.sstablesMap,
-                                    view.compacting, view.intervalTree);
+                                    view.compacting, view.premature, view.intervalTree);
 
                 Map<SSTableReader, SSTableReader> sstableMap = replace(view.sstablesMap, emptySet(), singleton(flushed));
-                return new View(view.liveMemtables, flushingMemtables, sstableMap, view.compacting,
+                Set<SSTableReader> compacting = replace(view.compacting, emptySet(), singleton(flushed));
+                Set<SSTableReader> premature = replace(view.premature, emptySet(), singleton(flushed));
+                return new View(view.liveMemtables, flushingMemtables, sstableMap, compacting, premature,
                                 SSTableIntervalTree.build(sstableMap.keySet()));
             }
         };
     }
+
+    static Function<View, View> permitCompactionOfFlushed(final SSTableReader reader)
+    {
+        return new Function<View, View>()
+        {
+
+            @Nullable
+            public View apply(View view)
+            {
+                Set<SSTableReader> premature = ImmutableSet.copyOf(filter(view.premature, not(equalTo(reader))));
+                Set<SSTableReader> compacting = ImmutableSet.copyOf(filter(view.compacting, not(equalTo(reader))));
+                return new View(view.liveMemtables, view.flushingMemtables, view.sstablesMap, compacting, premature, view.intervalTree);
+            }
+        };
+    }
+
 
     private static <T extends Comparable<T>> Predicate<T> lessThan(final T lessThan)
     {

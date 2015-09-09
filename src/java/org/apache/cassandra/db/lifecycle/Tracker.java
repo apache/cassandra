@@ -31,11 +31,13 @@ import com.google.common.collect.*;
 import org.apache.cassandra.db.ColumnFamilyStore;
 import org.apache.cassandra.db.Directories;
 import org.apache.cassandra.db.Memtable;
+import org.apache.cassandra.db.commitlog.CommitLog;
 import org.apache.cassandra.db.commitlog.ReplayPosition;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import org.apache.cassandra.config.DatabaseDescriptor;
+import org.apache.cassandra.db.compaction.CompactionManager;
 import org.apache.cassandra.db.compaction.OperationType;
 import org.apache.cassandra.io.sstable.format.SSTableReader;
 import org.apache.cassandra.io.util.FileUtils;
@@ -45,6 +47,8 @@ import org.apache.cassandra.utils.Pair;
 import org.apache.cassandra.utils.concurrent.OpOrder;
 
 import static com.google.common.base.Predicates.and;
+import static com.google.common.base.Predicates.in;
+import static com.google.common.base.Predicates.not;
 import static com.google.common.collect.ImmutableSet.copyOf;
 import static com.google.common.collect.Iterables.filter;
 import static java.util.Collections.singleton;
@@ -195,9 +199,11 @@ public class Tracker
     public void reset()
     {
         view.set(new View(
-                         !isDummy() ? ImmutableList.of(new Memtable(cfstore)) : Collections.<Memtable>emptyList(),
+                         !isDummy() ? ImmutableList.of(new Memtable(new AtomicReference<>(CommitLog.instance.getContext()), cfstore))
+                                    : ImmutableList.<Memtable>of(),
                          ImmutableList.<Memtable>of(),
                          Collections.<SSTableReader, SSTableReader>emptyMap(),
+                         Collections.<SSTableReader>emptySet(),
                          Collections.<SSTableReader>emptySet(),
                          SSTableIntervalTree.empty()));
     }
@@ -294,9 +300,8 @@ public class Tracker
      *
      * @return the previously active memtable
      */
-    public Memtable switchMemtable(boolean truncating)
+    public Memtable switchMemtable(boolean truncating, Memtable newMemtable)
     {
-        Memtable newMemtable = new Memtable(cfstore);
         Pair<View, View> result = apply(View.switchMemtable(newMemtable));
         if (truncating)
             notifyRenewed(newMemtable);
@@ -328,13 +333,33 @@ public class Tracker
 
         Throwable fail;
         fail = updateSizeTracking(emptySet(), singleton(sstable), null);
-        // TODO: if we're invalidated, should we notifyadded AND removed, or just skip both?
-        fail = notifyAdded(sstable, fail);
-
-        if (!isDummy() && !cfstore.isValid())
-            dropSSTables();
 
         maybeFail(fail);
+    }
+
+    /**
+     * permit compaction of the provided sstable; this translates to notifying compaction
+     * strategies of its existence, and potentially submitting a background task
+     */
+    public void permitCompactionOfFlushed(SSTableReader sstable)
+    {
+        if (sstable == null)
+            return;
+
+        apply(View.permitCompactionOfFlushed(sstable));
+
+        if (isDummy())
+            return;
+
+        if (cfstore.isValid())
+        {
+            notifyAdded(sstable);
+            CompactionManager.instance.submitBackground(cfstore);
+        }
+        else
+        {
+            dropSSTables();
+        }
     }
 
 
@@ -344,6 +369,12 @@ public class Tracker
     public Set<SSTableReader> getSSTables()
     {
         return view.get().sstables;
+    }
+
+    public Iterable<SSTableReader> getPermittedToCompact()
+    {
+        View view = this.view.get();
+        return filter(view.sstables, not(in(view.premature)));
     }
 
     public Set<SSTableReader> getCompacting()

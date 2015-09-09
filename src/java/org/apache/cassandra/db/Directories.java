@@ -346,7 +346,7 @@ public class Directories
 
         if (candidates.isEmpty())
             if (tooBig)
-                return null;
+                throw new RuntimeException("Insufficient disk space to write " + writeSize + " bytes");
             else
                 throw new FSWriteError(new IOException("All configured data directories have been blacklisted as unwritable for erroring out"), "");
 

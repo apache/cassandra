@@ -98,8 +98,6 @@ public class Scrubber implements Closeable
 
         // Calculate the expected compacted filesize
         this.destination = cfs.directories.getWriteableLocationAsFile(cfs.getExpectedCompactedFileSize(toScrub, OperationType.SCRUB));
-        if (destination == null)
-            throw new IOException("disk full");
 
         // If we run scrub offline, we should never purge tombstone, as we cannot know if other sstable have data that the tombstone deletes.
         this.controller = transaction.isOffline()
