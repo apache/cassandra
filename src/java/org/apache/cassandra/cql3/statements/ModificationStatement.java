@@ -438,7 +438,10 @@ public abstract class ModificationStatement implements CQLStatement
             if (row.cf == null || row.cf.isEmpty())
                 continue;
 
-            Iterator<CQL3Row> iter = cfm.comparator.CQL3RowBuilder(cfm, now).group(row.cf.getSortedColumns().iterator());
+            CQL3Row.RowIterator iter = cfm.comparator.CQL3RowBuilder(cfm, now).group(row.cf.getSortedColumns().iterator());
+            if(iter.getStaticRow() != null) {
+                map.put(row.key.getKey(), iter.getStaticRow());
+            }
             if (iter.hasNext())
             {
                 map.put(row.key.getKey(), iter.next());
