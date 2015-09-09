@@ -2556,7 +2556,7 @@ def read_options(cmdlineargs, environment):
     try:
         options.connect_timeout = int(options.connect_timeout)
     except ValueError:
-        parser.error('{} is not a valid timeout.'.format(options.connect_timeout))
+        parser.error('"%s" is not a valid timeout.' % (options.connect_timeout,))
         options.connect_timeout = DEFAULT_CONNECT_TIMEOUT_SECONDS
 
     options.client_timeout = option_with_default(configs.get, 'connection', 'client_timeout', '10')
@@ -2651,8 +2651,8 @@ def main(options, hostname, port):
             sys.exit("Can't open %r: %s" % (options.file, e))
 
     if options.debug:
-        sys.stderr.write("Using CQL driver: {}\n".format(cassandra))
-        sys.stderr.write("Using connect timeout: {} seconds\n".format(options.connect_timeout))
+        sys.stderr.write("Using CQL driver: %s\n" % (cassandra,))
+        sys.stderr.write("Using connect timeout: %s seconds\n" % (options.connect_timeout,))
 
     try:
         shell = Shell(hostname,
