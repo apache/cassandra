@@ -5,6 +5,7 @@
 Merged from 2.2:
  * Handle missing RoleManager in config after upgrade to 2.2 (CASSANDRA-10209)
 Merged from 2.1:
+ * (cqlsh) Fix error when starting cqlsh with --debug (CASSANDRA-10282)
  * Scrub, Cleanup and Upgrade do not unmark compacting until all operations
    have completed, regardless of the occurence of exceptions (CASSANDRA-10274)
 
