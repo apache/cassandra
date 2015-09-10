@@ -401,7 +401,8 @@ class LogTransaction extends Transactional.AbstractTransactional implements Tran
                     if (data.verify())
                     {
                         Throwable failure = data.removeUnfinishedLeftovers(null);
-                        logger.error("Failed to remove unfinished transaction leftovers for log {}", log, failure);
+                        if (failure != null)
+                            logger.error("Failed to remove unfinished transaction leftovers for log {}", log, failure);
                     }
                     else
                     {
