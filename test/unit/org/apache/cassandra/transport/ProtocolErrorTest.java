@@ -20,25 +20,36 @@ package org.apache.cassandra.transport;
 import io.netty.buffer.ByteBuf;
 import io.netty.buffer.Unpooled;
 import org.apache.cassandra.transport.messages.ErrorMessage;
+
 import org.junit.Assert;
 import org.junit.Test;
 
 import java.util.ArrayList;
 import java.util.List;
 
+import static org.apache.cassandra.transport.Message.Direction.*;
+
 public class ProtocolErrorTest {
 
     @Test
     public void testInvalidProtocolVersion() throws Exception
     {
+        // test using a protocol version higher than the current version
+        testInvalidProtocolVersion(Server.CURRENT_VERSION + 1);
+     // test using a protocol version lower than the lowest version
+        testInvalidProtocolVersion(Server.MIN_SUPPORTED_VERSION - 1);
+
+    }
+
+    public void testInvalidProtocolVersion(int version) throws Exception
+    {
         Frame.Decoder dec = new Frame.Decoder(null);
 
         List<Object> results = new ArrayList<>();
-        // should generate a protocol exception for using a protocol version higher than the current version
         byte[] frame = new byte[] {
-                (byte) ((Server.CURRENT_VERSION + 1) & Frame.PROTOCOL_VERSION_MASK),  // direction & version
+                (byte) REQUEST.addToVersion(version),  // direction & version
                 0x00,  // flags
-                0x01,  // stream ID
+                0x00, 0x01,  // stream ID
                 0x09,  // opcode
                 0x00, 0x00, 0x00, 0x21,  // body length
                 0x00, 0x00, 0x00, 0x1b, 0x00, 0x1b, 0x53, 0x45,
@@ -52,6 +63,7 @@ public class ProtocolErrorTest {
             dec.decode(null, buf, results);
             Assert.fail("Expected protocol error");
         } catch (ProtocolException e) {
+            Assert.assertTrue(e.getMessage().contains("Invalid or unsupported protocol version"));
         }
     }
 
@@ -64,9 +76,9 @@ public class ProtocolErrorTest {
         // should generate a protocol exception for using a response frame with
         // a prepare op, ensure that it comes back with stream ID 1
         byte[] frame = new byte[] {
-                (byte) 0x82,  // direction & version
+                (byte) RESPONSE.addToVersion(Server.CURRENT_VERSION),  // direction & version
                 0x00,  // flags
-                0x01,  // stream ID
+                0x00, 0x01,  // stream ID
                 0x09,  // opcode
                 0x00, 0x00, 0x00, 0x21,  // body length
                 0x00, 0x00, 0x00, 0x1b, 0x00, 0x1b, 0x53, 0x45,
@@ -82,29 +94,7 @@ public class ProtocolErrorTest {
         } catch (ErrorMessage.WrappedException e) {
             // make sure the exception has the correct stream ID
             Assert.assertEquals(1, e.getStreamId());
-        }
-    }
-
-    @Test
-    public void testNegativeBodyLength() throws Exception
-    {
-        Frame.Decoder dec = new Frame.Decoder(null);
-
-        List<Object> results = new ArrayList<>();
-        byte[] frame = new byte[] {
-                (byte) 0x82,  // direction & version
-                0x00,  // flags
-                0x01,  // stream ID
-                0x09,  // opcode
-                (byte) 0xff, (byte) 0xff, (byte) 0xff, (byte) 0xff,  // body length (-1)
-        };
-        ByteBuf buf = Unpooled.wrappedBuffer(frame);
-        try {
-            dec.decode(null, buf, results);
-            Assert.fail("Expected protocol error");
-        } catch (ErrorMessage.WrappedException e) {
-            // make sure the exception has the correct stream ID
-            Assert.assertEquals(1, e.getStreamId());
+            Assert.assertTrue(e.getMessage().contains("Wrong protocol direction"));
         }
     }
 
@@ -115,19 +105,21 @@ public class ProtocolErrorTest {
 
         List<Object> results = new ArrayList<>();
         byte[] frame = new byte[] {
-                (byte) 0x82,  // direction & version
+                (byte) REQUEST.addToVersion(Server.CURRENT_VERSION),  // direction & version
                 0x00,  // flags
-                0x01,  // stream ID
+                0x00, 0x01,  // stream ID
                 0x09,  // opcode
-                0x7f, (byte) 0xff, (byte) 0xff, (byte) 0xff,  // body length
+                0x10, (byte) 0x00, (byte) 0x00, (byte) 0x00,  // body length
         };
-        ByteBuf buf = Unpooled.wrappedBuffer(frame);
+        byte[] body = new byte[0x10000000];
+        ByteBuf buf = Unpooled.wrappedBuffer(frame, body);
         try {
             dec.decode(null, buf, results);
             Assert.fail("Expected protocol error");
         } catch (ErrorMessage.WrappedException e) {
             // make sure the exception has the correct stream ID
             Assert.assertEquals(1, e.getStreamId());
+            Assert.assertTrue(e.getMessage().contains("Request is too big"));
         }
     }
 }

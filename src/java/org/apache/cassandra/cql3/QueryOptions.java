@@ -47,14 +47,9 @@ public abstract class QueryOptions
 
     public static final CBCodec<QueryOptions> codec = new Codec();
 
-    public static QueryOptions fromProtocolV1(ConsistencyLevel consistency, List<ByteBuffer> values)
+    public static QueryOptions fromThrift(ConsistencyLevel consistency, List<ByteBuffer> values)
     {
-        return new DefaultQueryOptions(consistency, values, false, SpecificOptions.DEFAULT, Server.VERSION_1);
-    }
-
-    public static QueryOptions fromProtocolV2(ConsistencyLevel consistency, List<ByteBuffer> values)
-    {
-        return new DefaultQueryOptions(consistency, values, false, SpecificOptions.DEFAULT, Server.VERSION_2);
+        return new DefaultQueryOptions(consistency, values, false, SpecificOptions.DEFAULT, Server.VERSION_3);
     }
 
     public static QueryOptions forInternalCalls(ConsistencyLevel consistency, List<ByteBuffer> values)
@@ -65,11 +60,6 @@ public abstract class QueryOptions
     public static QueryOptions forInternalCalls(List<ByteBuffer> values)
     {
         return new DefaultQueryOptions(ConsistencyLevel.ONE, values, false, SpecificOptions.DEFAULT, Server.VERSION_3);
-    }
-
-    public static QueryOptions fromPreV3Batch(ConsistencyLevel consistency)
-    {
-        return new DefaultQueryOptions(consistency, Collections.<ByteBuffer>emptyList(), false, SpecificOptions.DEFAULT, Server.VERSION_2);
     }
 
     public static QueryOptions forProtocolVersion(int protocolVersion)
@@ -301,8 +291,6 @@ public abstract class QueryOptions
 
         public QueryOptions decode(ByteBuf body, int version)
         {
-            assert version >= 2;
-
             ConsistencyLevel consistency = CBUtil.readConsistencyLevel(body);
             EnumSet<Flag> flags = Flag.deserialize((int)body.readByte());
 
@@ -349,8 +337,6 @@ public abstract class QueryOptions
 
         public void encode(QueryOptions options, ByteBuf dest, int version)
         {
-            assert version >= 2;
-
             CBUtil.writeConsistencyLevel(options.getConsistency(), dest);
 
             EnumSet<Flag> flags = gatherFlags(options);

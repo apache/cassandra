@@ -22,23 +22,18 @@ import java.io.IOException;
 import java.util.List;
 import java.util.Iterator;
 
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
 import org.apache.cassandra.config.ColumnDefinition;
 import org.apache.cassandra.cql3.CQL3Type;
 import org.apache.cassandra.cql3.ColumnSpecification;
 import org.apache.cassandra.cql3.Lists;
 import org.apache.cassandra.cql3.Maps;
 import org.apache.cassandra.cql3.Sets;
-import org.apache.cassandra.db.TypeSizes;
 import org.apache.cassandra.db.rows.Cell;
 import org.apache.cassandra.db.rows.CellPath;
 import org.apache.cassandra.io.util.DataInputPlus;
 import org.apache.cassandra.io.util.DataOutputPlus;
-import org.apache.cassandra.io.util.FileUtils;
 import org.apache.cassandra.serializers.CollectionSerializer;
 import org.apache.cassandra.serializers.MarshalException;
-import org.apache.cassandra.transport.Server;
 import org.apache.cassandra.utils.ByteBufferUtil;
 
 /**
@@ -48,10 +43,6 @@ import org.apache.cassandra.utils.ByteBufferUtil;
  */
 public abstract class CollectionType<T> extends AbstractType<T>
 {
-    private static final Logger logger = LoggerFactory.getLogger(CollectionType.class);
-
-    public static final int MAX_ELEMENTS = 65535;
-
     public static CellPath.Serializer cellPathSerializer = new CollectionPathSerializer();
 
     public enum Kind
@@ -148,26 +139,11 @@ public abstract class CollectionType<T> extends AbstractType<T>
         return values.size();
     }
 
-    protected int enforceLimit(ColumnDefinition def, List<ByteBuffer> values, int version)
-    {
-        assert isMultiCell();
-
-        int size = collectionSize(values);
-        if (version >= Server.VERSION_3 || size <= MAX_ELEMENTS)
-            return size;
-
-        logger.error("Detected collection for table {}.{} with {} elements, more than the {} limit. Only the first {}" +
-                     " elements will be returned to the client. Please see " +
-                     "http://cassandra.apache.org/doc/cql3/CQL.html#collections for more details.",
-                     def.ksName, def.cfName, values.size(), MAX_ELEMENTS, MAX_ELEMENTS);
-        return MAX_ELEMENTS;
-    }
-
     public ByteBuffer serializeForNativeProtocol(ColumnDefinition def, Iterator<Cell> cells, int version)
     {
         assert isMultiCell();
         List<ByteBuffer> values = serializedValues(cells);
-        int size = enforceLimit(def, values, version);
+        int size = collectionSize(values);
         return CollectionSerializer.pack(values, size, version);
     }
 

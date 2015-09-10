@@ -17,20 +17,20 @@
  */
 package org.apache.cassandra.transport.messages;
 
-import java.nio.ByteBuffer;
-import java.util.Collections;
 import java.util.UUID;
 
 import com.google.common.collect.ImmutableMap;
-import io.netty.buffer.ByteBuf;
 
+import io.netty.buffer.ByteBuf;
 import org.apache.cassandra.cql3.QueryOptions;
-import org.apache.cassandra.db.ConsistencyLevel;
-import org.apache.cassandra.exceptions.*;
+import org.apache.cassandra.exceptions.RequestExecutionException;
+import org.apache.cassandra.exceptions.RequestValidationException;
 import org.apache.cassandra.service.ClientState;
 import org.apache.cassandra.service.QueryState;
 import org.apache.cassandra.tracing.Tracing;
-import org.apache.cassandra.transport.*;
+import org.apache.cassandra.transport.CBUtil;
+import org.apache.cassandra.transport.Message;
+import org.apache.cassandra.transport.ProtocolException;
 import org.apache.cassandra.utils.JVMStabilityInspector;
 import org.apache.cassandra.utils.UUIDGen;
 
@@ -44,15 +44,7 @@ public class QueryMessage extends Message.Request
         public QueryMessage decode(ByteBuf body, int version)
         {
             String query = CBUtil.readLongString(body);
-            if (version == 1)
-            {
-                ConsistencyLevel consistency = CBUtil.readConsistencyLevel(body);
-                return new QueryMessage(query, QueryOptions.fromProtocolV1(consistency, Collections.<ByteBuffer>emptyList()));
-            }
-            else
-            {
-                return new QueryMessage(query, QueryOptions.codec.decode(body, version));
-            }
+            return new QueryMessage(query, QueryOptions.codec.decode(body, version));
         }
 
         public void encode(QueryMessage msg, ByteBuf dest, int version)

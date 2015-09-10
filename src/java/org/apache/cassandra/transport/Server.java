@@ -63,11 +63,10 @@ public class Server implements CassandraDaemon.Server
     private static final Logger logger = LoggerFactory.getLogger(Server.class);
     private static final boolean useEpoll = NativeTransportService.useEpoll();
 
-    public static final int VERSION_1 = 1;
-    public static final int VERSION_2 = 2;
     public static final int VERSION_3 = 3;
     public static final int VERSION_4 = 4;
     public static final int CURRENT_VERSION = VERSION_4;
+    public static final int MIN_SUPPORTED_VERSION = VERSION_3;
 
     private final ConnectionTracker connectionTracker = new ConnectionTracker();
 

@@ -45,9 +45,6 @@ public class BatchMessage extends Message.Request
     {
         public BatchMessage decode(ByteBuf body, int version)
         {
-            if (version == 1)
-                throw new ProtocolException("BATCH messages are not support in version 1 of the protocol");
-
             byte type = body.readByte();
             int n = body.readUnsignedShort();
             List<Object> queryOrIds = new ArrayList<>(n);
@@ -63,9 +60,7 @@ public class BatchMessage extends Message.Request
                     throw new ProtocolException("Invalid query kind in BATCH messages. Must be 0 or 1 but got " + kind);
                 variables.add(CBUtil.readValueList(body, version));
             }
-            QueryOptions options = version < 3
-                                 ? QueryOptions.fromPreV3Batch(CBUtil.readConsistencyLevel(body))
-                                 : QueryOptions.codec.decode(body, version);
+            QueryOptions options = QueryOptions.codec.decode(body, version);
 
             return new BatchMessage(toType(type), queryOrIds, variables, options);
         }

@@ -3,7 +3,6 @@ package org.apache.cassandra.cql3;
 import org.junit.Test;
 
 import com.datastax.driver.core.Session;
-import com.datastax.driver.core.SimpleStatement;
 import com.datastax.driver.core.Statement;
 
 import static org.junit.Assert.assertEquals;
@@ -77,7 +76,7 @@ public class IndexQueryPagingTest extends CQLTester
         // setting the fetch size < than the row count. Assert
         // that all rows are returned, so we know that paging
         // of the results was involved.
-        Session session = sessionNet(maxProtocolVersion);
+        Session session = sessionNet();
         Statement stmt = session.newSimpleStatement(String.format(cql, KEYSPACE + "." + currentTable()));
         stmt.setFetchSize(rowCount - 1);
         assertEquals(rowCount, session.execute(stmt).all().size());

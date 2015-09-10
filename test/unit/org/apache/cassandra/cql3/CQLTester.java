@@ -32,12 +32,16 @@ import java.util.concurrent.atomic.AtomicInteger;
 
 import com.datastax.driver.core.*;
 import com.datastax.driver.core.ResultSet;
+
 import com.google.common.base.Objects;
+import com.google.common.collect.ImmutableList;
 import com.google.common.collect.ImmutableSet;
+
 import org.junit.*;
+
+import com.datastax.driver.core.Cluster;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-
 import org.apache.cassandra.SchemaLoader;
 import org.apache.cassandra.concurrent.ScheduledExecutors;
 import org.apache.cassandra.config.CFMetaData;
@@ -52,7 +56,6 @@ import org.apache.cassandra.db.marshal.*;
 import org.apache.cassandra.db.marshal.TupleType;
 import org.apache.cassandra.dht.Murmur3Partitioner;
 import org.apache.cassandra.exceptions.*;
-import org.apache.cassandra.gms.Gossiper;
 import org.apache.cassandra.io.util.FileUtils;
 import org.apache.cassandra.serializers.TypeSerializer;
 import org.apache.cassandra.service.ClientState;
@@ -62,7 +65,6 @@ import org.apache.cassandra.transport.Event;
 import org.apache.cassandra.transport.Server;
 import org.apache.cassandra.transport.messages.ResultMessage;
 import org.apache.cassandra.utils.ByteBufferUtil;
-
 import static junit.framework.Assert.assertNotNull;
 
 /**
@@ -81,30 +83,29 @@ public abstract class CQLTester
     private static org.apache.cassandra.transport.Server server;
     protected static final int nativePort;
     protected static final InetAddress nativeAddr;
-    private static final Cluster[] cluster;
-    private static final Session[] session;
+    private static final Map<Integer, Cluster> clusters = new HashMap<>();
+    private static final Map<Integer, Session> sessions = new HashMap<>();
 
     private static boolean isServerPrepared = false;
 
-    public static int maxProtocolVersion;
+    public static final List<Integer> PROTOCOL_VERSIONS;
     static
     {
-        int version;
-        for (version = 1; version <= Server.CURRENT_VERSION; )
+        // The latest versions might not be supported yet by the java driver
+        ImmutableList.Builder<Integer> builder = ImmutableList.builder();
+        for (int version = Server.MIN_SUPPORTED_VERSION; version <= Server.CURRENT_VERSION; version++)
         {
             try
             {
-                ProtocolVersion.fromInt(++version);
+                ProtocolVersion.fromInt(version);
+                builder.add(version);
             }
             catch (IllegalArgumentException e)
             {
-                version--;
                 break;
             }
         }
-        maxProtocolVersion = version;
-        cluster = new Cluster[maxProtocolVersion];
-        session = new Session[maxProtocolVersion];
+        PROTOCOL_VERSIONS = builder.build();
 
         // Once per-JVM is enough
         prepareServer(true);
@@ -227,11 +228,9 @@ public abstract class CQLTester
     @AfterClass
     public static void tearDownClass()
     {
-        for (Session sess : session)
-            if (sess != null)
+        for (Session sess : sessions.values())
                 sess.close();
-        for (Cluster cl : cluster)
-            if (cl != null)
+        for (Cluster cl : clusters.values())
                 cl.close();
 
         if (server != null)
@@ -319,17 +318,19 @@ public abstract class CQLTester
         server = new Server.Builder().withHost(nativeAddr).withPort(nativePort).build();
         server.start();
 
-        for (int version = 1; version <= maxProtocolVersion; version++)
+        for (int version : PROTOCOL_VERSIONS)
         {
-            if (cluster[version-1] != null)
+            if (clusters.containsKey(version))
                 continue;
 
-            cluster[version-1] = Cluster.builder().addContactPoints(nativeAddr)
-                                  .withClusterName("Test Cluster")
-                                  .withPort(nativePort)
-                                  .withProtocolVersion(ProtocolVersion.fromInt(version))
-                                  .build();
-            session[version-1] = cluster[version-1].connect();
+            Cluster cluster = Cluster.builder()
+                                     .addContactPoints(nativeAddr)
+                                     .withClusterName("Test Cluster")
+                                     .withPort(nativePort)
+                                     .withProtocolVersion(ProtocolVersion.fromInt(version))
+                                     .build();
+            clusters.put(version, cluster);
+            sessions.put(version, cluster.connect());
 
             logger.info("Started Java Driver instance for protocol version {}", version);
         }
@@ -623,16 +624,19 @@ public abstract class CQLTester
 
     protected com.datastax.driver.core.ResultSet executeNet(int protocolVersion, String query, Object... values) throws Throwable
     {
-        requireNetwork();
+        return sessionNet(protocolVersion).execute(formatQuery(query), values);
+    }
 
-        return session[protocolVersion-1].execute(formatQuery(query), values);
+    protected Session sessionNet()
+    {
+        return sessionNet(PROTOCOL_VERSIONS.get(PROTOCOL_VERSIONS.size() - 1));
     }
 
     protected Session sessionNet(int protocolVersion)
     {
         requireNetwork();
 
-        return session[protocolVersion-1];
+        return sessions.get(protocolVersion);
     }
 
     private String formatQuery(String query)
@@ -696,9 +700,9 @@ public abstract class CQLTester
             for (int j = 0; j < meta.size(); j++)
             {
                 DataType type = meta.getType(j);
-                com.datastax.driver.core.TypeCodec<Object> codec = cluster[protocolVersion -1].getConfiguration()
-                                                                                              .getCodecRegistry()
-                                                                                              .codecFor(type);
+                com.datastax.driver.core.TypeCodec<Object> codec = clusters.get(protocolVersion).getConfiguration()
+                                                                                                .getCodecRegistry()
+                                                                                                .codecFor(type);
                 ByteBuffer expectedByteValue = codec.serialize(expected[j], ProtocolVersion.fromInt(protocolVersion));
                 int expectedBytes = expectedByteValue.remaining();
                 ByteBuffer actualValue = actual.getBytesUnsafe(meta.getName(j));
@@ -1237,7 +1241,7 @@ public abstract class CQLTester
     protected com.datastax.driver.core.TupleType tupleTypeOf(int protocolVersion, DataType...types)
     {
         requireNetwork();
-        return cluster[protocolVersion -1].getMetadata().newTupleType(types);
+        return clusters.get(protocolVersion).getMetadata().newTupleType(types);
     }
 
     // Attempt to find an AbstracType from a value (for serialization/printing sake).
