@@ -440,12 +440,18 @@ public class CompactionManager implements CompactionManagerMBean
         Iterator<SSTableReader> sstableIterator = sstables.iterator();
         try
         {
+            List<Range<Token>> normalizedRanges = Range.normalize(ranges);
+
             while (sstableIterator.hasNext())
             {
                 SSTableReader sstable = sstableIterator.next();
-                for (Range<Token> r : Range.normalize(ranges))
+
+                Range<Token> sstableRange = new Range<>(sstable.first.getToken(), sstable.last.getToken(), sstable.partitioner);
+
+                boolean shouldAnticompact = false;
+
+                for (Range<Token> r : normalizedRanges)
                 {
-                    Range<Token> sstableRange = new Range<>(sstable.first.getToken(), sstable.last.getToken(), sstable.partitioner);
                     if (r.contains(sstableRange))
                     {
                         logger.info("SSTable {} fully contained in range {}, mutating repairedAt instead of anticompacting", sstable, r);
@@ -453,19 +459,21 @@ public class CompactionManager implements CompactionManagerMBean
                         sstable.reloadSSTableMetadata();
                         mutatedRepairStatuses.add(sstable);
                         sstableIterator.remove();
+                        shouldAnticompact = true;
                         break;
                     }
-                    else if (!sstableRange.intersects(r))
-                    {
-                        logger.info("SSTable {} ({}) does not intersect repaired range {}, not touching repairedAt.", sstable, sstableRange, r);
-                        nonAnticompacting.add(sstable);
-                        sstableIterator.remove();
-                        break;
-                    }
-                    else
+                    else if (sstableRange.intersects(r))
                     {
                         logger.info("SSTable {} ({}) will be anticompacted on range {}", sstable, sstableRange, r);
+                        shouldAnticompact = true;
                     }
+                }
+
+                if (!shouldAnticompact)
+                {
+                    logger.info("SSTable {} ({}) does not intersect repaired ranges {}, not touching repairedAt.", sstable, sstableRange, normalizedRanges);
+                    nonAnticompacting.add(sstable);
+                    sstableIterator.remove();
                 }
             }
             cfs.getDataTracker().notifySSTableRepairedStatusChanged(mutatedRepairStatuses);
