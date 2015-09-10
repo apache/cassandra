@@ -254,6 +254,7 @@ public class IndexSummaryManager implements IndexSummaryManagerMBean
     @VisibleForTesting
     public static List<SSTableReader> redistributeSummaries(List<SSTableReader> compacting, Map<UUID, LifecycleTransaction> transactions, long memoryPoolBytes) throws IOException
     {
+        logger.info("Redistributing index summaries");
         List<SSTableReader> oldFormatSSTables = new ArrayList<>();
         List<SSTableReader> redistribute = new ArrayList<>();
         for (LifecycleTransaction txn : transactions.values())
@@ -404,6 +405,7 @@ public class IndexSummaryManager implements IndexSummaryManagerMBean
                 logger.trace("SSTable {} is within thresholds of ideal sampling", sstable);
                 remainingSpace -= sstable.getIndexSummaryOffHeapSize();
                 newSSTables.add(sstable);
+                transactions.get(sstable.metadata.cfId).cancel(sstable);
             }
             totalReadsPerSec -= readsPerSec;
         }
@@ -413,6 +415,8 @@ public class IndexSummaryManager implements IndexSummaryManagerMBean
             Pair<List<SSTableReader>, List<ResampleEntry>> result = distributeRemainingSpace(toDownsample, remainingSpace);
             toDownsample = result.right;
             newSSTables.addAll(result.left);
+            for (SSTableReader sstable : result.left)
+                transactions.get(sstable.metadata.cfId).cancel(sstable);
         }
 
         // downsample first, then upsample
