@@ -35,6 +35,8 @@ Merged from 2.1:
  * Validate gc_grace_seconds for batchlog writes and MVs (CASSANDRA-9917)
  * Fix sstablerepairedset (CASSANDRA-10132)
 Merged from 2.2:
+ * Cancel transaction for sstables we wont redistribute index summary
+   for (CASSANDRA-10270)
  * Retry snapshot deletion after compaction and gc on Windows (CASSANDRA-10222)
  * Fix failure to start with space in directory path on Windows (CASSANDRA-10239)
  * Fix repair hang when snapshot failed (CASSANDRA-10057)
