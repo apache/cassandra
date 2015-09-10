@@ -137,7 +137,7 @@ public final class ChecksummedDataInput extends RandomAccessReader.RandomAccessR
 
     private void updateCrc()
     {
-        if (crcPosition == buffer.position() | crcUpdateDisabled)
+        if (crcPosition == buffer.position() || crcUpdateDisabled)
             return;
 
         assert crcPosition >= 0 && crcPosition < buffer.position();

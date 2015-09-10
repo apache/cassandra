@@ -33,9 +33,13 @@ public class RandomAccessReader extends RebufferingInputStream implements FileDa
     // The default buffer size when the client doesn't specify it
     public static final int DEFAULT_BUFFER_SIZE = 4096;
 
-    // The maximum buffer size when the limiter is not null, i.e. when throttling
-    // is enabled. This is required to avoid aquiring permits that are too large.
-    public static final int MAX_THROTTLED_BUFFER_SIZE = 1 << 16; // 64k
+    // The maximum buffer size, we will never buffer more than this size. Further,
+    // when the limiter is not null, i.e. when throttling is enabled, we read exactly
+    // this size, since when throttling the intention is to eventually read everything,
+    // see CASSANDRA-8630
+    // NOTE: this size is chosen both for historical consistency, as a reasonable upper bound,
+    //       and because our BufferPool currently has a maximum allocation size of this.
+    public static final int MAX_BUFFER_SIZE = 1 << 16; // 64k
 
     // the IO channel to the file, we do not own a reference to this due to
     // performance reasons (CASSANDRA-9379) so it's up to the owner of the RAR to
@@ -57,7 +61,7 @@ public class RandomAccessReader extends RebufferingInputStream implements FileDa
     protected final int bufferSize;
 
     // the buffer type for buffered readers
-    private final BufferType bufferType;
+    protected final BufferType bufferType;
 
     // offset from the beginning of the file
     protected long bufferOffset;
@@ -67,42 +71,18 @@ public class RandomAccessReader extends RebufferingInputStream implements FileDa
 
     protected RandomAccessReader(Builder builder)
     {
-        super(null);
+        super(builder.createBuffer());
 
         this.channel = builder.channel;
         this.regions = builder.regions;
         this.limiter = builder.limiter;
         this.fileLength = builder.overrideLength <= 0 ? builder.channel.size() : builder.overrideLength;
-        this.bufferSize = getBufferSize(builder);
+        this.bufferSize = builder.bufferSize;
         this.bufferType = builder.bufferType;
-
-        if (builder.bufferSize <= 0)
-            throw new IllegalArgumentException("bufferSize must be positive");
-
-        if (builder.initializeBuffers)
-            initializeBuffer();
+        this.buffer = builder.buffer;
     }
 
-    protected int getBufferSize(Builder builder)
-    {
-        if (builder.limiter == null)
-            return builder.bufferSize;
-
-        // limit to ensure more accurate throttling
-        return Math.min(MAX_THROTTLED_BUFFER_SIZE, builder.bufferSize);
-    }
-
-    protected void initializeBuffer()
-    {
-        if (regions == null)
-            buffer = allocateBuffer(bufferSize);
-        else
-            buffer = regions.floor(0).buffer.duplicate();
-
-        buffer.limit(0);
-    }
-
-    protected ByteBuffer allocateBuffer(int size)
+    protected static ByteBuffer allocateBuffer(int size, BufferType bufferType)
     {
         return BufferPool.get(size, bufferType).order(ByteOrder.BIG_ENDIAN);
     }
@@ -396,35 +376,56 @@ public class RandomAccessReader extends RebufferingInputStream implements FileDa
         // The type of the buffer for buffered readers
         public BufferType bufferType;
 
+        // The buffer
+        public ByteBuffer buffer;
+
         // The mmap segments for mmap readers
         public MmappedRegions regions;
 
         // An optional limiter that will throttle the amount of data we read
         public RateLimiter limiter;
 
-        public boolean initializeBuffers;
-
         public Builder(ChannelProxy channel)
         {
             this.channel = channel;
             this.overrideLength = -1L;
-            this.bufferSize = getBufferSize(DEFAULT_BUFFER_SIZE);
+            this.bufferSize = DEFAULT_BUFFER_SIZE;
             this.bufferType = BufferType.OFF_HEAP;
             this.regions = null;
             this.limiter = null;
-            this.initializeBuffers = true;
         }
 
         /** The buffer size is typically already page aligned but if that is not the case
-         * make sure that it is a multiple of the page size, 4096.
+         * make sure that it is a multiple of the page size, 4096. Also limit it to the maximum
+         * buffer size unless we are throttling, in which case we may as well read the maximum
+         * directly since the intention is to read the full file, see CASSANDRA-8630.
          * */
-        private static int getBufferSize(int size)
+        private void setBufferSize()
         {
-            if ((size & ~4095) != size)
-            { // should already be a page size multiple but if that's not case round it up
-                size = (size + 4095) & ~4095;
+            if (limiter != null)
+            {
+                bufferSize = MAX_BUFFER_SIZE;
+                return;
             }
-            return size;
+
+            if ((bufferSize & ~4095) != bufferSize)
+            { // should already be a page size multiple but if that's not case round it up
+                bufferSize = (bufferSize + 4095) & ~4095;
+            }
+
+            bufferSize = Math.min(MAX_BUFFER_SIZE, bufferSize);
+        }
+
+        protected ByteBuffer createBuffer()
+        {
+            setBufferSize();
+
+            buffer = regions == null
+                     ? allocateBuffer(bufferSize, bufferType)
+                     : regions.floor(0).buffer.duplicate();
+
+            buffer.limit(0);
+            return buffer;
         }
 
         public Builder overrideLength(long overrideLength)
@@ -441,7 +442,7 @@ public class RandomAccessReader extends RebufferingInputStream implements FileDa
             if (bufferSize <= 0)
                 throw new IllegalArgumentException("bufferSize must be positive");
 
-            this.bufferSize = getBufferSize(bufferSize);
+            this.bufferSize = bufferSize;
             return this;
         }
 
@@ -460,12 +461,6 @@ public class RandomAccessReader extends RebufferingInputStream implements FileDa
         public Builder limiter(RateLimiter limiter)
         {
             this.limiter = limiter;
-            return this;
-        }
-
-        public Builder initializeBuffers(boolean initializeBuffers)
-        {
-            this.initializeBuffers = initializeBuffers;
             return this;
         }
 
