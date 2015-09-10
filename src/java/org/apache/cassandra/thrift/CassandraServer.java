@@ -2286,7 +2286,7 @@ public class CassandraServer implements Cassandra.Iface
             ThriftClientState cState = state();
             return ClientState.getCQLQueryHandler().process(queryString,
                                                             cState.getQueryState(),
-                                                            QueryOptions.fromProtocolV2(ThriftConversion.fromThrift(cLevel),
+                                                            QueryOptions.fromThrift(ThriftConversion.fromThrift(cLevel),
                                                             Collections.<ByteBuffer>emptyList()),
                                                             null).toThriftResult();
         }
@@ -2358,7 +2358,7 @@ public class CassandraServer implements Cassandra.Iface
 
             return ClientState.getCQLQueryHandler().processPrepared(prepared.statement,
                                                                     cState.getQueryState(),
-                                                                    QueryOptions.fromProtocolV2(ThriftConversion.fromThrift(cLevel), bindVariables),
+                                                                    QueryOptions.fromThrift(ThriftConversion.fromThrift(cLevel), bindVariables),
                                                                     null).toThriftResult();
         }
         catch (RequestExecutionException e)

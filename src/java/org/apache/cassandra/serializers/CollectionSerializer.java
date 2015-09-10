@@ -50,11 +50,6 @@ public abstract class CollectionSerializer<T> implements TypeSerializer<T>
         return deserializeForNativeProtocol(bytes, Server.VERSION_3);
     }
 
-    public ByteBuffer reserializeToV3(ByteBuffer bytes)
-    {
-        return serialize(deserializeForNativeProtocol(bytes, 2));
-    }
-
     public void validate(ByteBuffer bytes) throws MarshalException
     {
         // Same thing as above
@@ -76,69 +71,42 @@ public abstract class CollectionSerializer<T> implements TypeSerializer<T>
 
     protected static void writeCollectionSize(ByteBuffer output, int elements, int version)
     {
-        if (version >= Server.VERSION_3)
             output.putInt(elements);
-        else
-            output.putShort((short)elements);
     }
 
     public static int readCollectionSize(ByteBuffer input, int version)
     {
-        return version >= Server.VERSION_3 ? input.getInt() : ByteBufferUtil.readShortLength(input);
+        return input.getInt();
     }
 
     protected static int sizeOfCollectionSize(int elements, int version)
     {
-        return version >= Server.VERSION_3 ? 4 : 2;
+        return 4;
     }
 
     public static void writeValue(ByteBuffer output, ByteBuffer value, int version)
     {
-        if (version >= Server.VERSION_3)
+        if (value == null)
         {
-            if (value == null)
-            {
-                output.putInt(-1);
-                return;
-            }
+            output.putInt(-1);
+            return;
+        }
 
-            output.putInt(value.remaining());
-            output.put(value.duplicate());
-        }
-        else
-        {
-            assert value != null;
-            output.putShort((short)value.remaining());
-            output.put(value.duplicate());
-        }
+        output.putInt(value.remaining());
+        output.put(value.duplicate());
     }
 
     public static ByteBuffer readValue(ByteBuffer input, int version)
     {
-        if (version >= Server.VERSION_3)
-        {
-            int size = input.getInt();
-            if (size < 0)
-                return null;
+        int size = input.getInt();
+        if (size < 0)
+            return null;
 
-            return ByteBufferUtil.readBytes(input, size);
-        }
-        else
-        {
-            return ByteBufferUtil.readBytesWithShortLength(input);
-        }
+        return ByteBufferUtil.readBytes(input, size);
     }
 
     public static int sizeOfValue(ByteBuffer value, int version)
     {
-        if (version >= Server.VERSION_3)
-        {
-            return value == null ? 4 : 4 + value.remaining();
-        }
-        else
-        {
-            assert value != null;
-            return 2 + value.remaining();
-        }
+        return value == null ? 4 : 4 + value.remaining();
     }
 }

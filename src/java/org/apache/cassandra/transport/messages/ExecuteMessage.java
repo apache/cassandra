@@ -17,8 +17,6 @@
  */
 package org.apache.cassandra.transport.messages;
 
-import java.nio.ByteBuffer;
-import java.util.List;
 import java.util.UUID;
 
 import com.google.common.collect.ImmutableMap;
@@ -28,7 +26,6 @@ import org.apache.cassandra.cql3.CQLStatement;
 import org.apache.cassandra.cql3.QueryHandler;
 import org.apache.cassandra.cql3.QueryOptions;
 import org.apache.cassandra.cql3.statements.ParsedStatement;
-import org.apache.cassandra.db.ConsistencyLevel;
 import org.apache.cassandra.exceptions.PreparedQueryNotFoundException;
 import org.apache.cassandra.service.ClientState;
 import org.apache.cassandra.service.QueryState;
@@ -45,16 +42,7 @@ public class ExecuteMessage extends Message.Request
         public ExecuteMessage decode(ByteBuf body, int version)
         {
             byte[] id = CBUtil.readBytes(body);
-            if (version == 1)
-            {
-                List<ByteBuffer> values = CBUtil.readValueList(body, version);
-                ConsistencyLevel consistency = CBUtil.readConsistencyLevel(body);
-                return new ExecuteMessage(MD5Digest.wrap(id), QueryOptions.fromProtocolV1(consistency, values));
-            }
-            else
-            {
-                return new ExecuteMessage(MD5Digest.wrap(id), QueryOptions.codec.decode(body, version));
-            }
+            return new ExecuteMessage(MD5Digest.wrap(id), QueryOptions.codec.decode(body, version));
         }
 
         public void encode(ExecuteMessage msg, ByteBuf dest, int version)

@@ -25,7 +25,6 @@ import io.netty.buffer.ByteBuf;
 
 import org.junit.Test;
 import org.apache.cassandra.cql3.*;
-import org.apache.cassandra.db.ConsistencyLevel;
 import org.apache.cassandra.db.marshal.*;
 import org.apache.cassandra.serializers.CollectionSerializer;
 import org.apache.cassandra.transport.Event.TopologyChange;
@@ -46,8 +45,8 @@ public class SerDeserTest
     @Test
     public void collectionSerDeserTest() throws Exception
     {
-        collectionSerDeserTest(2);
         collectionSerDeserTest(3);
+        collectionSerDeserTest(4);
     }
 
     public void collectionSerDeserTest(int version) throws Exception
@@ -93,7 +92,6 @@ public class SerDeserTest
     @Test
     public void eventSerDeserTest() throws Exception
     {
-        eventSerDeserTest(2);
         eventSerDeserTest(3);
         eventSerDeserTest(4);
     }
@@ -173,8 +171,8 @@ public class SerDeserTest
     @Test
     public void udtSerDeserTest() throws Exception
     {
-        udtSerDeserTest(2);
         udtSerDeserTest(3);
+        udtSerDeserTest(4);
     }
 
     public void udtSerDeserTest(int version) throws Exception
@@ -200,10 +198,6 @@ public class SerDeserTest
         Term t = u.prepare("ks", columnSpec("myValue", udt));
 
         QueryOptions options = QueryOptions.DEFAULT;
-        if (version == 2)
-            options = QueryOptions.fromProtocolV2(ConsistencyLevel.ONE, Collections.<ByteBuffer>emptyList());
-        else if (version != 3)
-            throw new AssertionError("Invalid protocol version for test");
 
         ByteBuffer serialized = t.bindAndGet(options);
 

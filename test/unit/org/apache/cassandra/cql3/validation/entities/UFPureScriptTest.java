@@ -89,7 +89,7 @@ public class UFPureScriptTest extends CQLTester
         assertRows(execute("SELECT " + fName1 + "(lst), " + fName2 + "(st), " + fName3 + "(mp) FROM %s WHERE key = 1"),
                    row(list, set, map));
 
-        for (int version = Server.VERSION_2; version <= maxProtocolVersion; version++)
+        for (int version : PROTOCOL_VERSIONS)
             assertRowsNet(version,
                           executeNet(version, "SELECT " + fName1 + "(lst), " + fName2 + "(st), " + fName3 + "(mp) FROM %s WHERE key = 1"),
                           row(list, set, map));
@@ -193,7 +193,7 @@ public class UFPureScriptTest extends CQLTester
                                       DataType.map(DataType.cint(),
                                                    DataType.cboolean()));
         TupleValue tup = tType.newValue(1d, list, set, map);
-        for (int version = Server.VERSION_2; version <= maxProtocolVersion; version++)
+        for (int version : PROTOCOL_VERSIONS)
         {
             assertRowsNet(version,
                           executeNet(version, "SELECT " + fTup1 + "(tup) FROM %s WHERE key = 1"),
@@ -303,7 +303,7 @@ public class UFPureScriptTest extends CQLTester
                    row("three", "one", "two"));
 
         // same test - but via native protocol
-        for (int version = Server.VERSION_2; version <= maxProtocolVersion; version++)
+        for (int version : PROTOCOL_VERSIONS)
             assertRowsNet(version,
                           executeNet(version, cqlSelect),
                           row("three", "one", "two"));

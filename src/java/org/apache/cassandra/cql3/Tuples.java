@@ -199,8 +199,6 @@ public class Tuples
 
         private ByteBuffer[] bindInternal(QueryOptions options) throws InvalidRequestException
         {
-            int version = options.getProtocolVersion();
-
             ByteBuffer[] buffers = new ByteBuffer[elements.size()];
             for (int i = 0; i < elements.size(); i++)
             {
@@ -208,10 +206,6 @@ public class Tuples
                 // Since A tuple value is always written in its entirety Cassandra can't preserve a pre-existing value by 'not setting' the new value. Reject the query.
                 if (buffers[i] == ByteBufferUtil.UNSET_BYTE_BUFFER)
                     throw new InvalidRequestException(String.format("Invalid unset value for tuple field number %d", i));
-                // Inside tuples, we must force the serialization of collections to v3 whatever protocol
-                // version is in use since we're going to store directly that serialized value.
-                if (version < 3 && type.type(i).isCollection())
-                    buffers[i] = ((CollectionType)type.type(i)).getSerializer().reserializeToV3(buffers[i]);
             }
             return buffers;
         }
