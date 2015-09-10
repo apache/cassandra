@@ -17,6 +17,12 @@ using the provided 'sstableupgrade' tool.
 2.2.2
 =====
 
+Upgrading
+---------
+    - Version 1 and 2 of the native protocol are now deprecated and support
+      will be removed in Cassandra 3.0. You are encouraged to upgrade to a
+      client driver using version 3 of the native protocol.
+
 Changed Defaults
 ----------------
    - commitlog_total_space_in_mb will use the smaller of 8192, and 1/4

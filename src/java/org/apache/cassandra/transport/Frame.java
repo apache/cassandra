@@ -22,22 +22,31 @@ import java.io.IOException;
 import java.util.EnumSet;
 import java.util.List;
 
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+
 import io.netty.buffer.ByteBuf;
 import io.netty.channel.*;
 import io.netty.handler.codec.ByteToMessageDecoder;
 import io.netty.handler.codec.MessageToMessageDecoder;
 import io.netty.handler.codec.MessageToMessageEncoder;
-
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.exceptions.InvalidRequestException;
 import org.apache.cassandra.transport.messages.ErrorMessage;
 
 public class Frame
 {
+    private static final Logger logger = LoggerFactory.getLogger(Frame.class);
+
     public static final byte PROTOCOL_VERSION_MASK = 0x7f;
 
     public final Header header;
     public final ByteBuf body;
+
+    /**
+     * <code>true</code> if the deprecation warning for protocol versions 1 and 2 has been logged.
+     */
+    private static boolean hasLoggedDeprecationWarning;
 
     /**
      * An on-wire frame consists of a header and a body.
@@ -188,6 +197,15 @@ public class Frame
                 throw new ProtocolException(String.format("Invalid or unsupported protocol version (%d); highest supported is %d ",
                                                           version, Server.CURRENT_VERSION));
 
+            if (version < Server.VERSION_3 && !hasLoggedDeprecationWarning)
+            {
+                hasLoggedDeprecationWarning = true;
+                logger.warn("Detected connection using native protocol version {}. Both version 1 and 2"
+                          + " of the native protocol are now deprecated and support will be removed in Cassandra 3.0."
+                          + " You are encouraged to upgrade to a client driver using version 3 of the native protocol",
+                            version);
+            }
+
             // Wait until we have the complete V3+ header
             if (version >= Server.VERSION_3 && buffer.readableBytes() < Header.MODERN_LENGTH)
                 return;
@@ -221,13 +239,6 @@ public class Frame
 
             long bodyLength = buffer.getUnsignedInt(idx);
             idx += Header.BODY_LENGTH_SIZE;
-
-            if (bodyLength < 0)
-            {
-                buffer.skipBytes(headerLength);
-                throw ErrorMessage.wrap(new ProtocolException("Invalid frame body length: " + bodyLength), streamId);
-            }
-
             long frameLength = bodyLength + headerLength;
             if (frameLength > MAX_FRAME_LENGTH)
             {
