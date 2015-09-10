@@ -96,6 +96,8 @@ public final class MessagingService implements MessagingServiceMBean
      */
     public static final int PROTOCOL_MAGIC = 0xCA552DFA;
 
+    private boolean allNodesAtLeast22 = true;
+
     /* All verb handler identifiers */
     public enum Verb
     {
@@ -838,20 +840,49 @@ public final class MessagingService implements MessagingServiceMBean
         return packed >>> (start + 1) - count & ~(-1 << count);
     }
 
+    public boolean areAllNodesAtLeast22()
+    {
+        return allNodesAtLeast22;
+    }
+
     /**
      * @return the last version associated with address, or @param version if this is the first such version
      */
     public int setVersion(InetAddress endpoint, int version)
     {
         logger.debug("Setting version {} for {}", version, endpoint);
+
+        if (version < VERSION_22)
+            allNodesAtLeast22 = false;
+
         Integer v = versions.put(endpoint, version);
+
+        // if the version was increased to 2.2 or later, see if all nodes are >= 2.2 now
+        if (v != null && v < VERSION_22 && version >= VERSION_22)
+            refreshAllNodesAtLeast22();
+
         return v == null ? version : v;
     }
 
     public void resetVersion(InetAddress endpoint)
     {
         logger.debug("Resetting version for {}", endpoint);
-        versions.remove(endpoint);
+        Integer removed = versions.remove(endpoint);
+        if (removed != null && removed <= VERSION_22)
+            refreshAllNodesAtLeast22();
+    }
+
+    private void refreshAllNodesAtLeast22()
+    {
+        for (Integer version: versions.values())
+        {
+            if (version < VERSION_22)
+            {
+                allNodesAtLeast22 = false;
+                return;
+            }
+        }
+        allNodesAtLeast22 = true;
     }
 
     public int getVersion(InetAddress endpoint)
