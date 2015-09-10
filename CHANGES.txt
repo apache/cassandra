@@ -1,4 +1,5 @@
 3.0.0-rc1
+ * Fix descending iteration past end of BTreeSearchIterator (CASSANDRA-10301)
  * Transfer hints to a different node on decommission (CASSANDRA-10198)
  * Check partition keys for CAS operations during stmt validation (CASSANDRA-10338)
  * Add custom query expressions to SELECT (CASSANDRA-10217)

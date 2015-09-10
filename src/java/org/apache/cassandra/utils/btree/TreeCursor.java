@@ -93,9 +93,9 @@ class TreeCursor<K> extends NodeCursor<K>
     /**
      * seeks from the current position, forwards or backwards, for the provided key
      * while the direction could be inferred (or ignored), it is required so that (e.g.) we do not infinitely loop on bad inputs
-     * if there is no such key, it moves to the key that would naturally proceed it (i.e. it behaves as ceil when ascending; floor when descending)
+     * if there is no such key, it moves to the key that would naturally follow/succeed it (i.e. it behaves as ceil when ascending; floor when descending)
      */
-    int seekTo(K key, boolean forwards, boolean skipOne)
+    boolean seekTo(K key, boolean forwards, boolean skipOne)
     {
         NodeCursor<K> cur = this.cur;
 
@@ -114,7 +114,7 @@ class TreeCursor<K> extends NodeCursor<K>
         {
             // we moved out of the tree; return out-of-bounds
             this.cur = root();
-            return forwards ? -1 - size(rootNode()) : -1;
+            return false;
         }
 
         if (tryOne)
@@ -128,9 +128,8 @@ class TreeCursor<K> extends NodeCursor<K>
             if (forwards ? cmp >= 0 : cmp <= 0)
             {
                 // we've either matched, or excluded the value from being present
-                int index = cur.globalIndex();
                 this.cur = cur;
-                return cmp == 0 ? index : -1 -index;
+                return cmp == 0;
             }
         }
 
@@ -151,7 +150,7 @@ class TreeCursor<K> extends NodeCursor<K>
             if (cmpbound == 0) // it was an exact match, so terminate here
             {
                 this.cur = cur;
-                return cur.globalBranchIndex();
+                return true;
             }
         }
 
@@ -168,8 +167,7 @@ class TreeCursor<K> extends NodeCursor<K>
 
         this.cur = cur;
         assert !cur.inChild;
-        int index = cur.globalIndex();
-        return match ? index : -1 -index;
+        return match;
     }
 
     /**
@@ -189,7 +187,7 @@ class TreeCursor<K> extends NodeCursor<K>
 
     /**
      * move out of a leaf node that is currently out of (its own) bounds
-     * @return null if we're now out-of-bounds of the whole true
+     * @return null if we're now out-of-bounds of the whole tree
      */
     private <K> NodeCursor<K> moveOutOfLeaf(boolean forwards, NodeCursor<K> cur, NodeCursor<K> ifFail)
     {
