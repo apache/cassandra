@@ -219,12 +219,6 @@ public class Frame
             long bodyLength = buffer.getUnsignedInt(idx);
             idx += Header.BODY_LENGTH_SIZE;
 
-            if (bodyLength < 0)
-            {
-                buffer.skipBytes(headerLength);
-                throw ErrorMessage.wrap(new ProtocolException("Invalid frame body length: " + bodyLength), streamId);
-            }
-
             long frameLength = bodyLength + headerLength;
             if (frameLength > MAX_FRAME_LENGTH)
             {
