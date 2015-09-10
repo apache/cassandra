@@ -26,7 +26,6 @@ import java.nio.ByteBuffer;
 import java.nio.ByteOrder;
 
 import net.nicoulaj.compilecommand.annotations.DontInline;
-import net.nicoulaj.compilecommand.annotations.Print;
 import org.apache.cassandra.utils.FastByteOperations;
 import org.apache.cassandra.utils.vint.VIntCoding;
 
@@ -69,7 +68,6 @@ public abstract class RebufferingInputStream extends InputStream implements Data
             throw new EOFException();
     }
 
-    @Print
     @Override
     public int read(byte[] b, int off, int len) throws IOException {
 
