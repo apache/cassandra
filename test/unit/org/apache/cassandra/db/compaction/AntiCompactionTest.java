@@ -302,14 +302,14 @@ public class AntiCompactionTest
         Collection<SSTableReader> sstables = getUnrepairedSSTables(store);
         assertEquals(store.getLiveSSTables().size(), sstables.size());
 
-        Range<Token> range = new Range<Token>(new BytesToken("-10".getBytes()), new BytesToken("-1".getBytes()));
+        Range<Token> range = new Range<Token>(new BytesToken("-1".getBytes()), new BytesToken("-10".getBytes()));
         List<Range<Token>> ranges = Arrays.asList(range);
 
 
         try (LifecycleTransaction txn = store.getTracker().tryModify(sstables, OperationType.ANTICOMPACTION);
              Refs<SSTableReader> refs = Refs.ref(sstables))
         {
-            CompactionManager.instance.performAnticompaction(store, ranges, refs, txn, 0);
+            CompactionManager.instance.performAnticompaction(store, ranges, refs, txn, 1);
         }
 
         assertThat(store.getLiveSSTables().size(), is(10));
