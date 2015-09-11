@@ -118,9 +118,9 @@ public final class SchemaKeyspace
                 + "table_name text,"
                 + "column_name text,"
                 + "column_name_bytes blob,"
-                + "component_index int,"
+                + "kind text,"
+                + "position int,"
                 + "type text,"
-                + "validator text,"
                 + "PRIMARY KEY ((keyspace_name), table_name, column_name))");
 
     private static final CFMetaData DroppedColumns =
@@ -141,7 +141,7 @@ public final class SchemaKeyspace
                 + "keyspace_name text,"
                 + "table_name text,"
                 + "trigger_name text,"
-                + "trigger_options frozen<map<text, text>>,"
+                + "options frozen<map<text, text>>,"
                 + "PRIMARY KEY ((keyspace_name), table_name, trigger_name))");
 
     private static final CFMetaData MaterializedViews =
@@ -1162,9 +1162,9 @@ public final class SchemaKeyspace
         RowUpdateBuilder adder = new RowUpdateBuilder(Columns, timestamp, mutation).clustering(table.cfName, column.name.toString());
 
         adder.add("column_name_bytes", column.name.bytes)
-             .add("validator", column.type.toString())
-             .add("type", column.kind.toString().toLowerCase())
-             .add("component_index", column.isOnAllComponents() ? null : column.position())
+             .add("kind", column.kind.toString().toLowerCase())
+             .add("position", column.isOnAllComponents() ? ColumnDefinition.NO_POSITION : column.position())
+             .add("type", column.type.toString())
              .build();
     }
 
@@ -1188,15 +1188,13 @@ public final class SchemaKeyspace
 
         ColumnIdentifier name = ColumnIdentifier.getInterned(row.getBytes("column_name_bytes"), row.getString("column_name"));
 
-        ColumnDefinition.Kind kind = ColumnDefinition.Kind.valueOf(row.getString("type").toUpperCase());
+        ColumnDefinition.Kind kind = ColumnDefinition.Kind.valueOf(row.getString("kind").toUpperCase());
 
-        Integer componentIndex = null;
-        if (row.has("component_index"))
-            componentIndex = row.getInt("component_index");
+        int position = row.getInt("position");
 
-        AbstractType<?> validator = parseType(row.getString("validator"));
+        AbstractType<?> type = parseType(row.getString("type"));
 
-        return new ColumnDefinition(keyspace, table, name, validator, componentIndex, kind);
+        return new ColumnDefinition(keyspace, table, name, type, position, kind);
     }
 
     /*
@@ -1245,7 +1243,7 @@ public final class SchemaKeyspace
     {
         new RowUpdateBuilder(Triggers, timestamp, mutation)
             .clustering(table.cfName, trigger.name)
-            .frozenMap("trigger_options", Collections.singletonMap("class", trigger.classOption))
+            .frozenMap("options", Collections.singletonMap("class", trigger.classOption))
             .build();
     }
 
@@ -1271,7 +1269,7 @@ public final class SchemaKeyspace
     private static TriggerMetadata createTriggerFromTriggerRow(UntypedResultSet.Row row)
     {
         String name = row.getString("trigger_name");
-        String classOption = row.getFrozenTextMap("trigger_options").get("class");
+        String classOption = row.getFrozenTextMap("options").get("class");
         return new TriggerMetadata(name, classOption);
     }
 

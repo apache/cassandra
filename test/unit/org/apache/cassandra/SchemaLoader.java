@@ -270,7 +270,7 @@ public class SchemaLoader
                                     cfName,
                                     ColumnIdentifier.getInterned(IntegerType.instance.fromString("42"), IntegerType.instance),
                                     UTF8Type.instance,
-                                    null,
+                                    ColumnDefinition.NO_POSITION,
                                     ColumnDefinition.Kind.REGULAR);
     }
 
@@ -280,7 +280,7 @@ public class SchemaLoader
                                     cfName,
                                     ColumnIdentifier.getInterned("fortytwo", true),
                                     UTF8Type.instance,
-                                    null,
+                                    ColumnDefinition.NO_POSITION,
                                     ColumnDefinition.Kind.REGULAR);
     }
 

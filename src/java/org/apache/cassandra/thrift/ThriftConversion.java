@@ -238,7 +238,7 @@ public class ThriftConversion
             // historical reasons)
             boolean hasKeyAlias = cf_def.isSetKey_alias() && keyValidator != null && !(keyValidator instanceof CompositeType);
             if (hasKeyAlias)
-                defs.add(ColumnDefinition.partitionKeyDef(cf_def.keyspace, cf_def.name, UTF8Type.instance.getString(cf_def.key_alias), keyValidator, null));
+                defs.add(ColumnDefinition.partitionKeyDef(cf_def.keyspace, cf_def.name, UTF8Type.instance.getString(cf_def.key_alias), keyValidator, ColumnDefinition.NO_POSITION));
 
             // Now add any CQL metadata that we want to copy, skipping the keyAlias if there was one
             for (ColumnDefinition def : previousCQLMetadata)
@@ -376,14 +376,14 @@ public class ThriftConversion
             }
             else
             {
-                defs.add(ColumnDefinition.partitionKeyDef(ks, cf, names.defaultPartitionKeyName(), keyValidator, null));
+                defs.add(ColumnDefinition.partitionKeyDef(ks, cf, names.defaultPartitionKeyName(), keyValidator, ColumnDefinition.NO_POSITION));
             }
         }
 
         if (subComparator != null)
         {
             // SuperColumn tables: we use a special map to hold dynamic values within a given super column
-            defs.add(ColumnDefinition.clusteringKeyDef(ks, cf, names.defaultClusteringName(), comparator, 0));
+            defs.add(ColumnDefinition.clusteringDef(ks, cf, names.defaultClusteringName(), comparator, 0));
             defs.add(ColumnDefinition.regularDef(ks, cf, CompactTables.SUPER_COLUMN_MAP_COLUMN_STR, MapType.getInstance(subComparator, defaultValidator, true)));
         }
         else
@@ -393,7 +393,7 @@ public class ThriftConversion
                                            : Collections.<AbstractType<?>>singletonList(comparator);
 
             for (int i = 0; i < subTypes.size(); i++)
-                defs.add(ColumnDefinition.clusteringKeyDef(ks, cf, names.defaultClusteringName(), subTypes.get(i), i));
+                defs.add(ColumnDefinition.clusteringDef(ks, cf, names.defaultClusteringName(), subTypes.get(i), i));
 
             defs.add(ColumnDefinition.regularDef(ks, cf, names.defaultCompactValueName(), defaultValidator));
         }
@@ -505,7 +505,7 @@ public class ThriftConversion
                                     cfName,
                                     ColumnIdentifier.getInterned(ByteBufferUtil.clone(thriftColumnDef.name), comparator),
                                     TypeParser.parse(thriftColumnDef.validation_class),
-                                    null,
+                                    ColumnDefinition.NO_POSITION,
                                     kind);
     }
 

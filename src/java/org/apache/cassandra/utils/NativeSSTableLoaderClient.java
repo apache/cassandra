@@ -149,15 +149,9 @@ public class NativeSSTableLoaderClient extends SSTableLoader.Client
     private static ColumnDefinition createDefinitionFromRow(Row row, String keyspace, String table)
     {
         ColumnIdentifier name = ColumnIdentifier.getInterned(row.getBytes("column_name_bytes"), row.getString("column_name"));
-
-        ColumnDefinition.Kind kind = ColumnDefinition.Kind.valueOf(row.getString("type").toUpperCase());
-
-        Integer componentIndex = null;
-        if (!row.isNull("component_index"))
-            componentIndex = row.getInt("component_index");
-
-        AbstractType<?> validator = TypeParser.parse(row.getString("validator"));
-
-        return new ColumnDefinition(keyspace, table, name, validator, componentIndex, kind);
+        AbstractType<?> type = TypeParser.parse(row.getString("type"));
+        int position = row.getInt("position");
+        ColumnDefinition.Kind kind = ColumnDefinition.Kind.valueOf(row.getString("kind").toUpperCase());
+        return new ColumnDefinition(keyspace, table, name, type, position, kind);
     }
 }

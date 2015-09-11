@@ -37,13 +37,14 @@ import org.apache.cassandra.db.marshal.SetType;
 import org.apache.cassandra.db.marshal.UTF8Type;
 import org.apache.cassandra.io.util.DataInputBuffer;
 import org.apache.cassandra.io.util.DataOutputBuffer;
-import org.apache.cassandra.utils.ByteBufferUtil;
 import org.apache.cassandra.utils.btree.BTreeSet;
+
+import static org.apache.cassandra.utils.ByteBufferUtil.bytes;
 
 public class ColumnsTest
 {
 
-    private static CFMetaData cfMetaData = MockSchema.newCFS().metadata;
+    private static final CFMetaData cfMetaData = MockSchema.newCFS().metadata;
 
     // this tests most of our functionality, since each subset we perform
     // reasonably comprehensive tests of basic functionality against
@@ -380,26 +381,26 @@ public class ColumnsTest
     private static void addPartition(List<String> names, List<ColumnDefinition> results)
     {
         for (String name : names)
-            results.add(new ColumnDefinition(cfMetaData, ByteBufferUtil.bytes(name), UTF8Type.instance, null, ColumnDefinition.Kind.PARTITION_KEY));
+            results.add(ColumnDefinition.partitionKeyDef(cfMetaData, bytes(name), UTF8Type.instance, ColumnDefinition.NO_POSITION));
     }
 
     private static void addClustering(List<String> names, List<ColumnDefinition> results)
     {
         int i = 0;
         for (String name : names)
-            results.add(new ColumnDefinition(cfMetaData, ByteBufferUtil.bytes(name), UTF8Type.instance, i++, ColumnDefinition.Kind.CLUSTERING));
+            results.add(ColumnDefinition.clusteringDef(cfMetaData, bytes(name), UTF8Type.instance, i++));
     }
 
     private static void addRegular(List<String> names, List<ColumnDefinition> results)
     {
         for (String name : names)
-            results.add(new ColumnDefinition(cfMetaData, ByteBufferUtil.bytes(name), UTF8Type.instance, null, ColumnDefinition.Kind.REGULAR));
+            results.add(ColumnDefinition.regularDef(cfMetaData, bytes(name), UTF8Type.instance));
     }
 
     private static <V> void addComplex(List<String> names, List<ColumnDefinition> results)
     {
         for (String name : names)
-            results.add(new ColumnDefinition(cfMetaData, ByteBufferUtil.bytes(name), SetType.getInstance(UTF8Type.instance, true), null, ColumnDefinition.Kind.REGULAR));
+            results.add(ColumnDefinition.regularDef(cfMetaData, bytes(name), SetType.getInstance(UTF8Type.instance, true)));
     }
 
     private static CFMetaData mock(Columns columns)

@@ -476,7 +476,7 @@ public final class LegacySchemaMigrator
         }
         else if (isStaticCompactTable)
         {
-            defs.add(ColumnDefinition.clusteringKeyDef(ksName, cfName, names.defaultClusteringName(), rawComparator, null));
+            defs.add(ColumnDefinition.clusteringDef(ksName, cfName, names.defaultClusteringName(), rawComparator, ColumnDefinition.NO_POSITION));
             defs.add(ColumnDefinition.regularDef(ksName, cfName, names.defaultCompactValueName(), defaultValidator));
         }
         else
@@ -572,7 +572,7 @@ public final class LegacySchemaMigrator
         if (needsUpgrade && isStaticCompactTable && kind == ColumnDefinition.Kind.REGULAR)
             kind = ColumnDefinition.Kind.STATIC;
 
-        Integer componentIndex = null;
+        int componentIndex = ColumnDefinition.NO_POSITION;
         // Note that the component_index is not useful for non-primary key parts (it never really in fact since there is
         // no particular ordering of non-PK columns, we only used to use it as a simplification but that's not needed
         // anymore)
