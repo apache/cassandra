@@ -27,6 +27,7 @@ import org.apache.cassandra.db.TypeSizes;
 import org.apache.cassandra.db.commitlog.ReplayPosition;
 import org.apache.cassandra.io.sstable.Component;
 import org.apache.cassandra.io.sstable.Descriptor;
+import org.apache.cassandra.io.sstable.format.Version;
 import org.apache.cassandra.io.util.DataInputPlus.DataInputStreamPlus;
 import org.apache.cassandra.io.util.DataOutputPlus;
 import org.apache.cassandra.service.ActiveRepairService;
@@ -44,7 +45,7 @@ public class LegacyMetadataSerializer extends MetadataSerializer
      * Legacy serialization is only used for SSTable level reset.
      */
     @Override
-    public void serialize(Map<MetadataType, MetadataComponent> components, DataOutputPlus out) throws IOException
+    public void serialize(Map<MetadataType, MetadataComponent> components, DataOutputPlus out, Version version) throws IOException
     {
         ValidationMetadata validation = (ValidationMetadata) components.get(MetadataType.VALIDATION);
         StatsMetadata stats = (StatsMetadata) components.get(MetadataType.STATS);

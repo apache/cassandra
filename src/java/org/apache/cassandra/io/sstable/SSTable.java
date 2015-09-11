@@ -23,7 +23,6 @@ import java.nio.charset.Charset;
 import java.util.*;
 import java.util.concurrent.CopyOnWriteArraySet;
 
-import com.google.common.annotations.VisibleForTesting;
 import com.google.common.base.Predicates;
 import com.google.common.collect.Collections2;
 import com.google.common.collect.Sets;
@@ -220,9 +219,17 @@ public abstract class SSTable
         Set<Component> components = Sets.newHashSetWithExpectedSize(knownTypes.size());
         for (Component.Type componentType : knownTypes)
         {
-            Component component = new Component(componentType);
-            if (new File(desc.filenameFor(component)).exists())
-                components.add(component);
+            if (componentType == Component.Type.DIGEST)
+            {
+                if (desc.digestComponent != null && new File(desc.filenameFor(desc.digestComponent)).exists())
+                    components.add(desc.digestComponent);
+            }
+            else
+            {
+                Component component = new Component(componentType);
+                if (new File(desc.filenameFor(component)).exists())
+                    components.add(component);
+            }
         }
         return components;
     }

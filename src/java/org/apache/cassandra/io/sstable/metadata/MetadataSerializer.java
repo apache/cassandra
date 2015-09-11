@@ -27,6 +27,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.apache.cassandra.io.sstable.Component;
 import org.apache.cassandra.io.sstable.Descriptor;
+import org.apache.cassandra.io.sstable.format.Version;
 import org.apache.cassandra.io.util.DataOutputPlus;
 import org.apache.cassandra.io.util.DataOutputStreamPlus;
 import org.apache.cassandra.io.util.FileDataInput;
@@ -49,7 +50,7 @@ public class MetadataSerializer implements IMetadataSerializer
 {
     private static final Logger logger = LoggerFactory.getLogger(MetadataSerializer.class);
 
-    public void serialize(Map<MetadataType, MetadataComponent> components, DataOutputPlus out) throws IOException
+    public void serialize(Map<MetadataType, MetadataComponent> components, DataOutputPlus out, Version version) throws IOException
     {
         // sort components by type
         List<MetadataComponent> sortedComponents = Lists.newArrayList(components.values());
@@ -66,12 +67,12 @@ public class MetadataSerializer implements IMetadataSerializer
             out.writeInt(type.ordinal());
             // serialize position
             out.writeInt(lastPosition);
-            lastPosition += type.serializer.serializedSize(component);
+            lastPosition += type.serializer.serializedSize(version, component);
         }
         // serialize components
         for (MetadataComponent component : sortedComponents)
         {
-            component.getType().serializer.serialize(component, out);
+            component.getType().serializer.serialize(version, component, out);
         }
     }
 
@@ -115,14 +116,13 @@ public class MetadataSerializer implements IMetadataSerializer
         }
         for (MetadataType type : types)
         {
-            MetadataComponent component = null;
             Integer offset = toc.get(type);
             if (offset != null)
             {
                 in.seek(offset);
-                component = type.serializer.deserialize(descriptor.version, in);
+                MetadataComponent component = type.serializer.deserialize(descriptor.version, in);
+                components.put(type, component);
             }
-            components.put(type, component);
         }
         return components;
     }
@@ -152,7 +152,7 @@ public class MetadataSerializer implements IMetadataSerializer
         String filePath = descriptor.tmpFilenameFor(Component.STATS);
         try (DataOutputStreamPlus out = new BufferedDataOutputStreamPlus(new FileOutputStream(filePath)))
         {
-            serialize(currentComponents, out);
+            serialize(currentComponents, out, descriptor.version);
             out.flush();
         }
         // we cant move a file on top of another file in windows:

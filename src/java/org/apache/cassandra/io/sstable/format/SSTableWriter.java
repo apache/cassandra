@@ -35,6 +35,7 @@ import org.apache.cassandra.db.rows.UnfilteredRowIterator;
 import org.apache.cassandra.io.sstable.Component;
 import org.apache.cassandra.io.sstable.Descriptor;
 import org.apache.cassandra.io.sstable.SSTable;
+import org.apache.cassandra.io.sstable.format.big.BigFormat;
 import org.apache.cassandra.io.sstable.metadata.MetadataCollector;
 import org.apache.cassandra.io.sstable.metadata.MetadataComponent;
 import org.apache.cassandra.io.sstable.metadata.MetadataType;
@@ -131,7 +132,7 @@ public abstract class SSTableWriter extends SSTable implements Transactional
                 Component.STATS,
                 Component.SUMMARY,
                 Component.TOC,
-                Component.DIGEST));
+                Component.digestFor(BigFormat.latestVersion.uncompressedChecksumType())));
 
         if (metadata.params.bloomFilterFpChance < 1.0)
             components.add(Component.FILTER);

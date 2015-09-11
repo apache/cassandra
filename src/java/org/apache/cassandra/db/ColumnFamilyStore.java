@@ -64,6 +64,7 @@ import org.apache.cassandra.io.sstable.Component;
 import org.apache.cassandra.io.sstable.Descriptor;
 import org.apache.cassandra.io.sstable.SSTableMultiWriter;
 import org.apache.cassandra.io.sstable.format.*;
+import org.apache.cassandra.io.sstable.format.big.BigFormat;
 import org.apache.cassandra.io.sstable.metadata.MetadataCollector;
 import org.apache.cassandra.io.util.FileUtils;
 import org.apache.cassandra.metrics.TableMetrics;
@@ -724,7 +725,8 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
                                                descriptor.ksname,
                                                descriptor.cfname,
                                                fileIndexGenerator.incrementAndGet(),
-                                               descriptor.formatType);
+                                               descriptor.formatType,
+                                               descriptor.digestComponent);
             }
             while (new File(newDescriptor.filenameFor(Component.DATA)).exists());
 
@@ -808,7 +810,8 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
                                          keyspace.getName(),
                                          name,
                                          fileIndexGenerator.incrementAndGet(),
-                                         format);
+                                         format,
+                                         Component.digestFor(BigFormat.latestVersion.uncompressedChecksumType()));
         return desc.filenameFor(Component.DATA);
     }
 

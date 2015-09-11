@@ -275,11 +275,11 @@ public class VerifyTest
         SSTableReader sstable = cfs.getLiveSSTables().iterator().next();
 
 
-        RandomAccessFile file = new RandomAccessFile(sstable.descriptor.filenameFor(Component.DIGEST), "rw");
+        RandomAccessFile file = new RandomAccessFile(sstable.descriptor.filenameFor(sstable.descriptor.digestComponent), "rw");
         Long correctChecksum = Long.parseLong(file.readLine());
         file.close();
 
-        writeChecksum(++correctChecksum, sstable.descriptor.filenameFor(Component.DIGEST));
+        writeChecksum(++correctChecksum, sstable.descriptor.filenameFor(sstable.descriptor.digestComponent));
 
         try (Verifier verifier = new Verifier(cfs, sstable, false))
         {
@@ -315,7 +315,7 @@ public class VerifyTest
         file.close();
 
         // Update the Digest to have the right Checksum
-        writeChecksum(simpleFullChecksum(sstable.getFilename()), sstable.descriptor.filenameFor(Component.DIGEST));
+        writeChecksum(simpleFullChecksum(sstable.getFilename()), sstable.descriptor.filenameFor(sstable.descriptor.digestComponent));
 
         try (Verifier verifier = new Verifier(cfs, sstable, false))
         {

@@ -91,12 +91,13 @@ public class Verifier implements Closeable
         outputHandler.output(String.format("Checking computed hash of %s ", sstable));
 
 
-        // Verify will use the adler32 Digest files, which works for both compressed and uncompressed sstables
+        // Verify will use the Digest files, which works for both compressed and uncompressed sstables
         try
         {
             validator = null;
 
-            if (new File(sstable.descriptor.filenameFor(Component.DIGEST)).exists())
+            if (sstable.descriptor.digestComponent != null &&
+                new File(sstable.descriptor.filenameFor(sstable.descriptor.digestComponent)).exists())
             {
                 validator = DataIntegrityMetadata.fileDigestValidator(sstable.descriptor);
                 validator.validate();

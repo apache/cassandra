@@ -40,7 +40,7 @@ import org.apache.cassandra.utils.ChecksumType;
 public class BigFormat implements SSTableFormat
 {
     public static final BigFormat instance = new BigFormat();
-    public static final BigVersion latestVersion = new BigVersion(BigVersion.current_version);
+    public static final Version latestVersion = new BigVersion(BigVersion.current_version);
     private static final SSTableReader.Factory readerFactory = new ReaderFactory();
     private static final SSTableWriter.Factory writerFactory = new WriterFactory();
 
@@ -123,6 +123,8 @@ public class BigFormat implements SSTableFormat
         // la (2.2.0): new file name format
         // ma (3.0.0): swap bf hash order
         //             store rows natively
+        //
+        // NOTE: when adding a new version, please add that to LegacySSTableTest, too.
 
         private final boolean isLatestVersion;
         private final boolean hasSamplingLevel;
