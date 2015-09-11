@@ -358,6 +358,11 @@ public class DatabaseDescriptor
         }
         paritionerName = partitioner.getClass().getCanonicalName();
 
+        if (conf.gc_warn_threshold_in_ms < 0)
+        {
+            throw new ConfigurationException("gc_warn_threshold_in_ms must be a positive integer");
+        }
+
         if (conf.max_hint_window_in_ms == null)
         {
             throw new ConfigurationException("max_hint_window_in_ms cannot be set to null", false);
@@ -1929,4 +1934,10 @@ public class DatabaseDescriptor
     {
         conf.user_function_timeout_policy = userFunctionTimeoutPolicy;
     }
+
+    public static long getGCWarnThreshold()
+    {
+        return conf.gc_warn_threshold_in_ms;
+    }
+
 }
