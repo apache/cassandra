@@ -39,6 +39,8 @@ New features
      compaction option 'only_purge_repaired_tombstones':true but keep in mind that if
      you do not run repair for a long time, you will keep all tombstones around which
      can cause other problems.
+   - Enabled warning on GC taking longer than 1000ms. See
+     cassandra.yaml:gc_warn_threshold_in_ms
 
 Upgrading
 ---------
