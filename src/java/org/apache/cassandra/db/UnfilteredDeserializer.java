@@ -108,6 +108,7 @@ public abstract class UnfilteredDeserializer
         private final SerializationHeader header;
 
         private int nextFlags;
+        private int nextExtendedFlags;
         private boolean isReady;
         private boolean isDone;
 
@@ -146,7 +147,9 @@ public abstract class UnfilteredDeserializer
                 return;
             }
 
-            clusteringDeserializer.prepare(nextFlags);
+            nextExtendedFlags = UnfilteredSerializer.isExtended(nextFlags) ? in.readUnsignedByte() : 0;
+
+            clusteringDeserializer.prepare(nextFlags, nextExtendedFlags);
             isReady = true;
         }
 
@@ -185,7 +188,7 @@ public abstract class UnfilteredDeserializer
             else
             {
                 builder.newRow(clusteringDeserializer.deserializeNextClustering());
-                return UnfilteredSerializer.serializer.deserializeRowBody(in, header, helper, nextFlags, builder);
+                return UnfilteredSerializer.serializer.deserializeRowBody(in, header, helper, nextFlags, nextExtendedFlags, builder);
             }
         }
 
@@ -199,7 +202,7 @@ public abstract class UnfilteredDeserializer
             }
             else
             {
-                UnfilteredSerializer.serializer.skipRowBody(in, header, nextFlags);
+                UnfilteredSerializer.serializer.skipRowBody(in, header, nextFlags, nextExtendedFlags);
             }
         }
 

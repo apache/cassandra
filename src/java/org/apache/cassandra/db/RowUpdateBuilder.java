@@ -194,7 +194,7 @@ public class RowUpdateBuilder
             builder.newRow(Clustering.STATIC_CLUSTERING);
         else
             builder.newRow(clusteringValues.length == 0 ? Clustering.EMPTY : update.metadata().comparator.make(clusteringValues));
-        builder.addRowDeletion(new DeletionTime(timestamp, localDeletionTime));
+        builder.addRowDeletion(Row.Deletion.regular(new DeletionTime(timestamp, localDeletionTime)));
 
         update.add(builder.build());
     }

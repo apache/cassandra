@@ -70,7 +70,7 @@ public abstract class Rows
         assert !row.isEmpty();
 
         collector.update(row.primaryKeyLivenessInfo());
-        collector.update(row.deletion());
+        collector.update(row.deletion().time());
 
         int columnCount = 0;
         int cellCount = 0;
@@ -115,12 +115,12 @@ public abstract class Rows
     {
         Clustering clustering = merged.clustering();
         LivenessInfo mergedInfo = merged.primaryKeyLivenessInfo().isEmpty() ? null : merged.primaryKeyLivenessInfo();
-        DeletionTime mergedDeletion = merged.deletion().isLive() ? null : merged.deletion();
+        Row.Deletion mergedDeletion = merged.deletion().isLive() ? null : merged.deletion();
         for (int i = 0; i < inputs.length; i++)
         {
             Row input = inputs[i];
             LivenessInfo inputInfo = input == null || input.primaryKeyLivenessInfo().isEmpty() ? null : input.primaryKeyLivenessInfo();
-            DeletionTime inputDeletion = input == null || input.deletion().isLive() ? null : input.deletion();
+            Row.Deletion inputDeletion = input == null || input.deletion().isLive() ? null : input.deletion();
 
             if (mergedInfo != null || inputInfo != null)
                 diffListener.onPrimaryKeyLivenessInfo(i, clustering, mergedInfo, inputInfo);
@@ -237,13 +237,17 @@ public abstract class Rows
 
         long timeDelta = Math.abs(existingInfo.timestamp() - mergedInfo.timestamp());
 
-        DeletionTime deletion = existing.deletion().supersedes(update.deletion()) ? existing.deletion() : update.deletion();
+        Row.Deletion rowDeletion = existing.deletion().supersedes(update.deletion()) ? existing.deletion() : update.deletion();
 
-        if (deletion.deletes(mergedInfo))
+        if (rowDeletion.deletes(mergedInfo))
             mergedInfo = LivenessInfo.EMPTY;
+        else if (rowDeletion.isShadowedBy(mergedInfo))
+            rowDeletion = Row.Deletion.LIVE;
 
         builder.addPrimaryKeyLivenessInfo(mergedInfo);
-        builder.addRowDeletion(deletion);
+        builder.addRowDeletion(rowDeletion);
+
+        DeletionTime deletion = rowDeletion.time();
 
         Iterator<ColumnData> a = existing.iterator();
         Iterator<ColumnData> b = update.iterator();

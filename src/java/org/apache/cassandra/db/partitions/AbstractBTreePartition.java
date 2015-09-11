@@ -160,7 +160,7 @@ public abstract class AbstractBTreePartition implements Partition, Iterable<Row>
                     activeDeletion = rt.deletionTime();
 
                 if (row == null)
-                    return activeDeletion.isLive() ? null : BTreeRow.emptyDeletedRow(clustering, activeDeletion);
+                    return activeDeletion.isLive() ? null : BTreeRow.emptyDeletedRow(clustering, Row.Deletion.regular(activeDeletion));
 
                 return row.filter(columns, activeDeletion, true, metadata);
             }

@@ -263,14 +263,14 @@ public class MaterializedView
      */
     private PartitionUpdate createTombstone(TemporalRow temporalRow,
                                             DecoratedKey partitionKey,
-                                            DeletionTime deletionTime,
+                                            Row.Deletion deletion,
                                             TemporalRow.Resolver resolver,
                                             int nowInSec)
     {
         CFMetaData viewCfm = getViewCfs().metadata;
         Row.Builder builder = BTreeRow.unsortedBuilder(nowInSec);
         builder.newRow(viewClustering(temporalRow, resolver));
-        builder.addRowDeletion(deletionTime);
+        builder.addRowDeletion(deletion);
         return PartitionUpdate.singleRowUpdate(viewCfm, partitionKey, builder.build());
     }
 
@@ -342,7 +342,7 @@ public class MaterializedView
         TemporalRow.Resolver resolver = TemporalRow.earliest;
         return createTombstone(temporalRow,
                                viewPartitionKey(temporalRow, resolver),
-                               new DeletionTime(temporalRow.viewClusteringTimestamp(), temporalRow.nowInSec),
+                               Row.Deletion.shadowable(new DeletionTime(temporalRow.viewClusteringTimestamp(), temporalRow.nowInSec)),
                                resolver,
                                temporalRow.nowInSec);
     }
@@ -523,7 +523,7 @@ public class MaterializedView
                     DecoratedKey value = viewPartitionKey(temporalRow, resolver);
                     if (value != null)
                     {
-                        PartitionUpdate update = createTombstone(temporalRow, value, deletionTime, resolver, temporalRow.nowInSec);
+                        PartitionUpdate update = createTombstone(temporalRow, value, Row.Deletion.regular(deletionTime), resolver, temporalRow.nowInSec);
                         if (update != null)
                             mutations.add(new Mutation(update));
                     }

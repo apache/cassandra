@@ -411,13 +411,13 @@ public abstract class CassandraIndex implements Index
 
             private void indexPrimaryKey(final Clustering clustering,
                                          final LivenessInfo liveness,
-                                         final DeletionTime deletion)
+                                         final Row.Deletion deletion)
             {
                 if (liveness.timestamp() != LivenessInfo.NO_TIMESTAMP)
                     insert(key.getKey(), clustering, null, liveness, opGroup);
 
                 if (!deletion.isLive())
-                    delete(key.getKey(), clustering, deletion, opGroup);
+                    delete(key.getKey(), clustering, deletion.time(), opGroup);
             }
 
             private LivenessInfo getPrimaryKeyIndexLiveness(Row row)
@@ -516,7 +516,7 @@ public abstract class CassandraIndex implements Index
                           DeletionTime deletion,
                           OpOrder.Group opGroup)
     {
-        Row row = BTreeRow.emptyDeletedRow(indexClustering, deletion);
+        Row row = BTreeRow.emptyDeletedRow(indexClustering, Row.Deletion.regular(deletion));
         PartitionUpdate upd = partitionUpdate(indexKey, row);
         indexCfs.apply(upd, UpdateTransaction.NO_OP, opGroup, null);
         logger.debug("Removed index entry for value {}", indexKey);

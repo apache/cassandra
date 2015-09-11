@@ -78,7 +78,7 @@ public abstract class AbstractRow extends AbstractCollection<ColumnData> impleme
         }
 
         primaryKeyLivenessInfo().validate();
-        if (deletion().localDeletionTime() < 0)
+        if (deletion().time().localDeletionTime() < 0)
             throw new MarshalException("A local deletion time should not be negative");
 
         for (ColumnData cd : this)
