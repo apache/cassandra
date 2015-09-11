@@ -389,6 +389,11 @@ public class DatabaseDescriptor
         }
         paritionerName = partitioner.getClass().getCanonicalName();
 
+        if (conf.gc_warn_threshold_in_ms < 0)
+        {
+            throw new ConfigurationException("gc_warn_threshold_in_ms must be a positive integer");
+        }
+
         if (conf.max_hint_window_in_ms == null)
         {
             throw new ConfigurationException("max_hint_window_in_ms cannot be set to null");
@@ -1707,4 +1712,10 @@ public class DatabaseDescriptor
     {
         return conf.otc_coalescing_window_us;
     }
+
+    public static long getGCWarnThreshold()
+    {
+        return conf.gc_warn_threshold_in_ms;
+    }
+
 }

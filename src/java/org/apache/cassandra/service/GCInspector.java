@@ -25,17 +25,20 @@ import java.util.HashMap;
 import java.util.Map;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicReference;
+
 import javax.management.MBeanServer;
 import javax.management.Notification;
 import javax.management.NotificationListener;
 import javax.management.ObjectName;
 import javax.management.openmbean.CompositeData;
 
+import com.sun.management.GarbageCollectionNotificationInfo;
+import com.sun.management.GcInfo;
+
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import com.sun.management.GarbageCollectionNotificationInfo;
-import com.sun.management.GcInfo;
+import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.io.sstable.SSTableDeletingTask;
 import org.apache.cassandra.utils.StatusLogger;
 
@@ -44,7 +47,8 @@ public class GCInspector implements NotificationListener, GCInspectorMXBean
     public static final String MBEAN_NAME = "org.apache.cassandra.service:type=GCInspector";
     private static final Logger logger = LoggerFactory.getLogger(GCInspector.class);
     final static long MIN_LOG_DURATION = 200;
-    final static long MIN_LOG_DURATION_TPSTATS = 1000;
+    final static long GC_WARN_THRESHOLD_IN_MS = DatabaseDescriptor.getGCWarnThreshold();
+    final static long STAT_THRESHOLD = Math.min(GC_WARN_THRESHOLD_IN_MS != 0 ? GC_WARN_THRESHOLD_IN_MS : MIN_LOG_DURATION, MIN_LOG_DURATION);
 
     static final class State
     {
@@ -248,12 +252,14 @@ public class GCInspector implements NotificationListener, GCInspectorMXBean
             }
 
             String st = sb.toString();
-            if (duration > MIN_LOG_DURATION)
+            if (GC_WARN_THRESHOLD_IN_MS != 0 && duration > GC_WARN_THRESHOLD_IN_MS)
+                logger.warn(st);
+            else if (duration > MIN_LOG_DURATION)
                 logger.info(st);
             else if (logger.isDebugEnabled())
                 logger.debug(st);
 
-            if (duration > MIN_LOG_DURATION_TPSTATS)
+            if (duration > STAT_THRESHOLD)
                 StatusLogger.log();
 
             // if we just finished an old gen collection and we're still using a lot of memory, try to reduce the pressure

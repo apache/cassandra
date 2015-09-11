@@ -802,3 +802,8 @@ internode_compression: all
 # reducing overhead from the TCP protocol itself, at the cost of increasing
 # latency if you block for cross-datacenter responses.
 inter_dc_tcp_nodelay: false
+
+# GC Pauses greater than gc_warn_threshold_in_ms will be logged at WARN level
+# Adjust the threshold based on your application throughput requirement
+# By default, Cassandra logs GC Pauses greater than 200 ms at INFO level
+# gc_warn_threshold_in_ms: 1000
