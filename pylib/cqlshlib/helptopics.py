@@ -16,9 +16,11 @@
 
 from .cql3handling import simple_cql_types
 
+
 class CQLHelpTopics(object):
+
     def get_help_topics(self):
-        return [ t[5:] for t in dir(self) if t.startswith('help_') ]
+        return [t[5:] for t in dir(self) if t.startswith('help_')]
 
     def print_help_topic(self, topic):
         getattr(self, 'help_' + topic.lower())()
@@ -613,7 +615,9 @@ class CQLHelpTopics(object):
         unset.
         """
 
+
 class CQL3HelpTopics(CQLHelpTopics):
+
     def help_create_keyspace(self):
         print """
         CREATE KEYSPACE <ksname>

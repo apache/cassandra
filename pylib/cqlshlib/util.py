@@ -20,6 +20,7 @@ from datetime import timedelta, tzinfo
 
 ZERO = timedelta(0)
 
+
 class UTC(tzinfo):
     """UTC"""
 
