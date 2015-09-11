@@ -210,17 +210,17 @@ class CqlParsingRuleSet(pylexotron.ParsingRuleSet):
             newcandidates = []
             for c in candidates:
                 if self.want_space_between(tokens[-1], c) \
-                and prefix is None \
-                and not text[-1].isspace() \
-                and not c[0].isspace():
+                        and prefix is None \
+                        and not text[-1].isspace() \
+                        and not c[0].isspace():
                     c = ' ' + c
                 newcandidates.append(c)
             candidates = newcandidates
 
         # append a space for single, complete identifiers
         if len(candidates) == 1 and candidates[0][-1].isalnum()  \
-                                and lasttype != 'unclosedString' \
-                                and lasttype != 'unclosedName':
+                and lasttype != 'unclosedString' \
+                and lasttype != 'unclosedName':
             candidates[0] += ' '
         return candidates, hints
 

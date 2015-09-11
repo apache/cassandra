@@ -16,7 +16,6 @@
 
 from .cqlhandling import CqlParsingRuleSet, Hint
 from cassandra.metadata import maybe_escape_name
-from cassandra.metadata import escape_name
 
 
 simple_cql_types = set(('ascii', 'bigint', 'blob', 'boolean', 'counter', 'date', 'decimal', 'double', 'float', 'inet', 'int',
@@ -26,7 +25,9 @@ simple_cql_types.difference_update(('set', 'map', 'list'))
 from . import helptopics
 cqldocs = helptopics.CQL3HelpTopics()
 
+
 class UnexpectedTableStructure(UserWarning):
+
     def __init__(self, msg):
         self.msg = msg
 
@@ -35,6 +36,7 @@ class UnexpectedTableStructure(UserWarning):
 
 SYSTEM_KEYSPACES = ('system', 'system_schema', 'system_traces', 'system_auth', 'system_distributed')
 NONALTERBALE_KEYSPACES = ('system', 'system_schema')
+
 
 class Cql3ParsingRuleSet(CqlParsingRuleSet):
 
@@ -79,7 +81,7 @@ class Cql3ParsingRuleSet(CqlParsingRuleSet):
     @classmethod
     def escape_value(cls, value):
         if value is None:
-            return 'NULL' # this totally won't work
+            return 'NULL'  # this totally won't work
         if isinstance(value, bool):
             value = str(value).lower()
         elif isinstance(value, float):
@@ -320,6 +322,7 @@ JUNK ::= /([ \t\r\f\v]+|(--|[/][/])[^\n\r]*([\n\r]|$)|[/][*].*?[*][/])/ ;
 
 '''
 
+
 def prop_equals_completer(ctxt, cass):
     if not working_on_keyspace(ctxt):
         # we know if the thing in the property name position is "compact" or
@@ -334,12 +337,14 @@ def prop_equals_completer(ctxt, cass):
 
 completer_for('property', 'propeq')(prop_equals_completer)
 
+
 @completer_for('property', 'propname')
 def prop_name_completer(ctxt, cass):
     if working_on_keyspace(ctxt):
         return ks_prop_name_completer(ctxt, cass)
     else:
         return cf_prop_name_completer(ctxt, cass)
+
 
 @completer_for('propertyValue', 'propsimpleval')
 def prop_val_completer(ctxt, cass):
@@ -348,12 +353,14 @@ def prop_val_completer(ctxt, cass):
     else:
         return cf_prop_val_completer(ctxt, cass)
 
+
 @completer_for('propertyValue', 'propmapkey')
 def prop_val_mapkey_completer(ctxt, cass):
     if working_on_keyspace(ctxt):
         return ks_prop_val_mapkey_completer(ctxt, cass)
     else:
         return cf_prop_val_mapkey_completer(ctxt, cass)
+
 
 @completer_for('propertyValue', 'propmapval')
 def prop_val_mapval_completer(ctxt, cass):
@@ -362,6 +369,7 @@ def prop_val_mapval_completer(ctxt, cass):
     else:
         return cf_prop_val_mapval_completer(ctxt, cass)
 
+
 @completer_for('propertyValue', 'ender')
 def prop_val_mapender_completer(ctxt, cass):
     if working_on_keyspace(ctxt):
@@ -369,11 +377,13 @@ def prop_val_mapender_completer(ctxt, cass):
     else:
         return cf_prop_val_mapender_completer(ctxt, cass)
 
+
 def ks_prop_name_completer(ctxt, cass):
     optsseen = ctxt.get_binding('propname', ())
     if 'replication' not in optsseen:
         return ['replication']
     return ["durable_writes"]
+
 
 def ks_prop_val_completer(ctxt, cass):
     optname = ctxt.get_binding('propname')[-1]
@@ -382,6 +392,7 @@ def ks_prop_val_completer(ctxt, cass):
     if optname == 'replication':
         return ["{'class': '"]
     return ()
+
 
 def ks_prop_val_mapkey_completer(ctxt, cass):
     optname = ctxt.get_binding('propname')[-1]
@@ -401,6 +412,7 @@ def ks_prop_val_mapkey_completer(ctxt, cass):
         return [Hint('<dc_name>')]
     return map(escape_value, opts.difference(keysseen))
 
+
 def ks_prop_val_mapval_completer(ctxt, cass):
     optname = ctxt.get_binding('propname')[-1]
     if optname != 'replication':
@@ -409,6 +421,7 @@ def ks_prop_val_mapval_completer(ctxt, cass):
     if currentkey == 'class':
         return map(escape_value, CqlRuleSet.replication_strategies)
     return [Hint('<term>')]
+
 
 def ks_prop_val_mapender_completer(ctxt, cass):
     optname = ctxt.get_binding('propname')[-1]
@@ -429,9 +442,11 @@ def ks_prop_val_mapender_completer(ctxt, cass):
         return [',']
     return ['}']
 
+
 def cf_prop_name_completer(ctxt, cass):
     return [c[0] for c in (CqlRuleSet.columnfamily_layout_options +
                            CqlRuleSet.columnfamily_layout_map_options)]
+
 
 def cf_prop_val_completer(ctxt, cass):
     exist_opts = ctxt.get_binding('propname')
@@ -451,6 +466,7 @@ def cf_prop_val_completer(ctxt, cass):
                     'gc_grace_seconds', 'min_index_interval', 'max_index_interval'):
         return [Hint('<integer>')]
     return [Hint('<option_value>')]
+
 
 def cf_prop_val_mapkey_completer(ctxt, cass):
     optname = ctxt.get_binding('propname')[-1]
@@ -488,6 +504,7 @@ def cf_prop_val_mapkey_completer(ctxt, cass):
         return map(escape_value, opts)
     return ()
 
+
 def cf_prop_val_mapval_completer(ctxt, cass):
     opt = ctxt.get_binding('propname')[-1]
     key = dequote_value(ctxt.get_binding('propmapkey')[-1])
@@ -506,35 +523,43 @@ def cf_prop_val_mapval_completer(ctxt, cass):
             return ["'ALL'", "'NONE'"]
     return ()
 
+
 def cf_prop_val_mapender_completer(ctxt, cass):
     return [',', '}']
+
 
 @completer_for('tokenDefinition', 'token')
 def token_word_completer(ctxt, cass):
     return ['token(']
 
+
 @completer_for('simpleStorageType', 'typename')
 def storagetype_completer(ctxt, cass):
     return simple_cql_types
 
+
 @completer_for('keyspaceName', 'ksname')
 def ks_name_completer(ctxt, cass):
     return map(maybe_escape_name, cass.get_keyspace_names())
+
 
 @completer_for('nonSystemKeyspaceName', 'ksname')
 def ks_name_completer(ctxt, cass):
     ksnames = [n for n in cass.get_keyspace_names() if n not in SYSTEM_KEYSPACES]
     return map(maybe_escape_name, ksnames)
 
+
 @completer_for('alterableKeyspaceName', 'ksname')
 def ks_name_completer(ctxt, cass):
     ksnames = [n for n in cass.get_keyspace_names() if n not in NONALTERBALE_KEYSPACES]
     return map(maybe_escape_name, ksnames)
 
+
 def cf_ks_name_completer(ctxt, cass):
     return [maybe_escape_name(ks) + '.' for ks in cass.get_keyspace_names()]
 
 completer_for('columnFamilyName', 'ksname')(cf_ks_name_completer)
+
 
 def cf_ks_dot_completer(ctxt, cass):
     name = dequote_name(ctxt.get_binding('ksname'))
@@ -543,6 +568,7 @@ def cf_ks_dot_completer(ctxt, cass):
     return []
 
 completer_for('columnFamilyName', 'dot')(cf_ks_dot_completer)
+
 
 @completer_for('columnFamilyName', 'cfname')
 def cf_name_completer(ctxt, cass):
@@ -561,6 +587,7 @@ completer_for('userTypeName', 'ksname')(cf_ks_name_completer)
 
 completer_for('userTypeName', 'dot')(cf_ks_dot_completer)
 
+
 def ut_name_completer(ctxt, cass):
     ks = ctxt.get_binding('ksname', None)
     if ks is not None:
@@ -577,12 +604,14 @@ def ut_name_completer(ctxt, cass):
 completer_for('userTypeName', 'utname')(ut_name_completer)
 completer_for('userType', 'utname')(ut_name_completer)
 
+
 @completer_for('unreservedKeyword', 'nocomplete')
 def unreserved_keyword_completer(ctxt, cass):
     # we never want to provide completions through this production;
     # this is always just to allow use of some keywords as column
     # names, CF names, property values, etc.
     return ()
+
 
 def get_table_meta(ctxt, cass):
     ks = ctxt.get_binding('ksname', None)
@@ -591,12 +620,14 @@ def get_table_meta(ctxt, cass):
     cf = dequote_name(ctxt.get_binding('cfname'))
     return cass.get_table_meta(ks, cf)
 
+
 def get_ut_layout(ctxt, cass):
     ks = ctxt.get_binding('ksname', None)
     if ks is not None:
         ks = dequote_name(ks)
     ut = dequote_name(ctxt.get_binding('utname'))
     return cass.get_usertype_layout(ks, ut)
+
 
 def working_on_keyspace(ctxt):
     wat = ctxt.get_binding('wat').upper()
@@ -639,7 +670,6 @@ syntax_rules += r'''
 <orderByClause> ::= [ordercol]=<cident> ( "ASC" | "DESC" )?
                   ;
 '''
-
 
 
 def udf_name_completer(ctxt, cass):
@@ -703,6 +733,7 @@ completer_for('userAggregateName', 'ksname')(cf_ks_dot_completer)
 completer_for('userAggregateName', 'dot')(cf_ks_dot_completer)
 completer_for('userAggregateName', 'udaname')(uda_name_completer)
 
+
 @completer_for('orderByClause', 'ordercol')
 def select_order_column_completer(ctxt, cass):
     prev_order_cols = ctxt.get_binding('ordercol', ())
@@ -717,14 +748,17 @@ def select_order_column_completer(ctxt, cass):
         return [maybe_escape_name(order_by_candidates[len(prev_order_cols)])]
     return [Hint('No more orderable columns here.')]
 
+
 @completer_for('relation', 'token')
 def relation_token_word_completer(ctxt, cass):
     return ['TOKEN(']
+
 
 @completer_for('relation', 'rel_tokname')
 def relation_token_subject_completer(ctxt, cass):
     layout = get_table_meta(ctxt, cass)
     return [key.name for key in layout.partition_key]
+
 
 @completer_for('relation', 'rel_lhs')
 def select_relation_lhs_completer(ctxt, cass):
@@ -762,13 +796,15 @@ syntax_rules += r'''
                 ;
 '''
 
+
 def regular_column_names(table_meta):
     if not table_meta or not table_meta.columns:
         return []
-    regular_coulmns = list(set(table_meta.columns.keys())
-                           - set([key.name for key in table_meta.partition_key])
-                           - set([key.name for key in table_meta.clustering_key]))
-    return regular_coulmns
+    regular_columns = list(set(table_meta.columns.keys()) -
+                           set([key.name for key in table_meta.partition_key]) -
+                           set([key.name for key in table_meta.clustering_key]))
+    return regular_columns
+
 
 @completer_for('insertStatement', 'colname')
 def insert_colname_completer(ctxt, cass):
@@ -780,6 +816,7 @@ def insert_colname_completer(ctxt, cass):
             return [maybe_escape_name(k.name)]
     normalcols = set(regular_column_names(layout)) - colnames
     return map(maybe_escape_name, normalcols)
+
 
 @completer_for('insertStatement', 'newval')
 def insert_newval_completer(ctxt, cass):
@@ -800,6 +837,7 @@ def insert_newval_completer(ctxt, cass):
     return [Hint('<value for %s (%s)>' % (maybe_escape_name(curcol),
                                           cqltype.cql_parameterized_type()))]
 
+
 @completer_for('insertStatement', 'valcomma')
 def insert_valcomma_completer(ctxt, cass):
     layout = get_table_meta(ctxt, cass)
@@ -808,6 +846,7 @@ def insert_valcomma_completer(ctxt, cass):
     if numcols > numvals:
         return [',']
     return [')']
+
 
 @completer_for('insertStatement', 'insertopt')
 def insert_option_completer(ctxt, cass):
@@ -837,6 +876,7 @@ syntax_rules += r'''
               ;
 '''
 
+
 @completer_for('updateStatement', 'updateopt')
 def insert_option_completer(ctxt, cass):
     opts = set('TIMESTAMP TTL'.split())
@@ -844,10 +884,12 @@ def insert_option_completer(ctxt, cass):
         opts.discard(opt.split()[0])
     return opts
 
+
 @completer_for('assignment', 'updatecol')
 def update_col_completer(ctxt, cass):
     layout = get_table_meta(ctxt, cass)
     return map(maybe_escape_name, regular_column_names(layout))
+
 
 @completer_for('assignment', 'update_rhs')
 def update_countername_completer(ctxt, cass):
@@ -863,11 +905,13 @@ def update_countername_completer(ctxt, cass):
         return ["["]
     return [Hint('<term (%s)>' % cqltype.cql_parameterized_type())]
 
+
 @completer_for('assignment', 'counterop')
 def update_counterop_completer(ctxt, cass):
     layout = get_table_meta(ctxt, cass)
     curcol = dequote_name(ctxt.get_binding('updatecol', ''))
     return ['+', '-'] if layout.columns[curcol].data_type.typename == 'counter' else []
+
 
 @completer_for('assignment', 'inc')
 def update_counter_inc_completer(ctxt, cass):
@@ -877,12 +921,14 @@ def update_counter_inc_completer(ctxt, cass):
         return [Hint('<wholenumber>')]
     return []
 
+
 @completer_for('assignment', 'listadder')
 def update_listadder_completer(ctxt, cass):
     rhs = ctxt.get_binding('update_rhs')
     if rhs.startswith('['):
         return ['+']
     return []
+
 
 @completer_for('assignment', 'listcol')
 def update_listcol_completer(ctxt, cass):
@@ -891,6 +937,7 @@ def update_listcol_completer(ctxt, cass):
         colname = dequote_name(ctxt.get_binding('updatecol'))
         return [maybe_escape_name(colname)]
     return []
+
 
 @completer_for('assignment', 'indexbracket')
 def update_indexbracket_completer(ctxt, cass):
@@ -914,12 +961,14 @@ syntax_rules += r'''
                  ;
 '''
 
+
 @completer_for('deleteStatement', 'delopt')
 def delete_opt_completer(ctxt, cass):
     opts = set('TIMESTAMP'.split())
     for opt in ctxt.get_binding('delopt', ()):
         opts.discard(opt.split()[0])
     return opts
+
 
 @completer_for('deleteSelector', 'delcol')
 def delete_delcol_completer(ctxt, cass):
@@ -940,6 +989,7 @@ syntax_rules += r'''
                          ;
 '''
 
+
 @completer_for('batchStatement', 'batchopt')
 def batch_opt_completer(ctxt, cass):
     opts = set('TIMESTAMP'.split())
@@ -957,6 +1007,7 @@ syntax_rules += r'''
                                 "WITH" <property> ( "AND" <property> )*
                             ;
 '''
+
 
 @completer_for('createKeyspaceStatement', 'wat')
 def create_ks_wat_completer(ctxt, cass):
@@ -997,12 +1048,14 @@ syntax_rules += r'''
           ;
 '''
 
+
 @completer_for('cfamOrdering', 'ordercol')
 def create_cf_clustering_order_colname_completer(ctxt, cass):
     colnames = map(dequote_name, ctxt.get_binding('newcolname', ()))
     # Definitely some of these aren't valid for ordering, but I'm not sure
     # precisely which are. This is good enough for now
     return colnames
+
 
 @completer_for('createColumnFamilyStatement', 'wat')
 def create_cf_wat_completer(ctxt, cass):
@@ -1014,12 +1067,14 @@ def create_cf_wat_completer(ctxt, cass):
 explain_completion('createColumnFamilyStatement', 'cf', '<new_table_name>')
 explain_completion('compositeKeyCfSpec', 'newcolname', '<new_column_name>')
 
+
 @completer_for('createColumnFamilyStatement', 'dot')
 def create_cf_ks_dot_completer(ctxt, cass):
     ks = dequote_name(ctxt.get_binding('ks'))
     if ks in cass.get_keyspace_names():
         return ['.']
     return []
+
 
 @completer_for('pkDef', 'ptkey')
 def create_cf_pkdef_declaration_completer(ctxt, cass):
@@ -1032,6 +1087,7 @@ def create_cf_pkdef_declaration_completer(ctxt, cass):
             return ()
     return [maybe_escape_name(cols_declared[0])]
 
+
 @completer_for('compositeKeyCfSpec', 'pkey')
 def create_cf_composite_key_declaration_completer(ctxt, cass):
     cols_declared = ctxt.get_binding('newcolname')
@@ -1043,13 +1099,16 @@ def create_cf_composite_key_declaration_completer(ctxt, cass):
             return ()
     return [maybe_escape_name(cols_declared[0])]
 
+
 @completer_for('compositeKeyCfSpec', 'k')
 def create_cf_composite_primary_key_keyword_completer(ctxt, cass):
     return ['KEY (']
 
+
 @completer_for('compositeKeyCfSpec', 'p')
 def create_cf_composite_primary_key_paren_completer(ctxt, cass):
     return ['(']
+
 
 @completer_for('compositeKeyCfSpec', 'c')
 def create_cf_composite_primary_key_comma_completer(ctxt, cass):
@@ -1113,6 +1172,7 @@ explain_completion('createIndexStatement', 'indexname', '<new_index_name>')
 explain_completion('createUserTypeStatement', 'typename', '<new_type_name>')
 explain_completion('createUserTypeStatement', 'newcol', '<new_field_name>')
 
+
 @completer_for('createIndexStatement', 'col')
 def create_index_col_completer(ctxt, cass):
     layout = get_table_meta(ctxt, cass)
@@ -1149,9 +1209,11 @@ syntax_rules += r'''
 
 '''
 
+
 @completer_for('indexName', 'ksname')
 def idx_ks_name_completer(ctxt, cass):
     return [maybe_escape_name(ks) + '.' for ks in cass.get_keyspace_names()]
+
 
 @completer_for('indexName', 'dot')
 def idx_ks_dot_completer(ctxt, cass):
@@ -1159,6 +1221,7 @@ def idx_ks_dot_completer(ctxt, cass):
     if name in cass.get_keyspace_names():
         return ['.']
     return []
+
 
 @completer_for('indexName', 'idxname')
 def idx_ks_idx_name_completer(ctxt, cass):
@@ -1195,11 +1258,13 @@ syntax_rules += r'''
                            ;
 '''
 
+
 @completer_for('alterInstructions', 'existcol')
 def alter_table_col_completer(ctxt, cass):
     layout = get_table_meta(ctxt, cass)
     cols = [str(md) for md in layout.columns]
     return map(maybe_escape_name, cols)
+
 
 @completer_for('alterTypeInstructions', 'existcol')
 def alter_type_field_completer(ctxt, cass):
@@ -1320,6 +1385,7 @@ syntax_rules += r'''
                      ;
 '''
 
+
 @completer_for('username', 'name')
 def username_name_completer(ctxt, cass):
     def maybe_quote(name):
@@ -1333,6 +1399,7 @@ def username_name_completer(ctxt, cass):
 
     session = cass.session
     return [maybe_quote(row.values()[0].replace("'", "''")) for row in session.execute("LIST USERS")]
+
 
 @completer_for('rolename', 'role')
 def rolename_completer(ctxt, cass):
@@ -1358,11 +1425,13 @@ syntax_rules += r'''
 '''
 explain_completion('createTriggerStatement', 'class', '\'fully qualified class name\'')
 
+
 def get_trigger_names(ctxt, cass):
     ks = ctxt.get_binding('ksname', None)
     if ks is not None:
         ks = dequote_name(ks)
     return cass.get_trigger_names(ks)
+
 
 @completer_for('dropTriggerStatement', 'triggername')
 def alter_type_field_completer(ctxt, cass):
