@@ -27,6 +27,7 @@ import org.apache.cassandra.cql3.ColumnSpecification;
 import org.apache.cassandra.cql3.functions.Function;
 import org.apache.cassandra.cql3.selection.Selection.ResultSetBuilder;
 import org.apache.cassandra.db.marshal.AbstractType;
+import org.apache.cassandra.db.marshal.ReversedType;
 import org.apache.cassandra.exceptions.InvalidRequestException;
 
 /**
@@ -179,6 +180,9 @@ public abstract class Selector implements AssignmentTestable
         AbstractType<?> receiverType = receiver.type;
         if (getType().isFrozenCollection())
             receiverType = receiverType.freeze();
+
+        if (getType().isReversed())
+            receiverType = ReversedType.getInstance(receiverType);
 
         if (receiverType.equals(getType()))
             return AssignmentTestable.TestResult.EXACT_MATCH;

@@ -429,6 +429,21 @@ public class UFTest extends CQLTester
     }
 
     @Test
+    public void testFunctionExecutionWithReversedTypeAsOutput() throws Throwable
+    {
+        createTable("CREATE TABLE %s (k int, v text, PRIMARY KEY(k, v)) WITH CLUSTERING ORDER BY (v DESC)");
+
+        String fRepeat = createFunction(KEYSPACE_PER_TEST, "text",
+                                        "CREATE FUNCTION %s(v text) " +
+                                        "RETURNS NULL ON NULL INPUT " +
+                                        "RETURNS text " +
+                                        "LANGUAGE java " +
+                                        "AS 'return v + v;'");
+
+        execute("INSERT INTO %s(k, v) VALUES (?, " + fRepeat + "(?))", 1, "a");
+    }
+
+    @Test
     public void testFunctionOverloading() throws Throwable
     {
         createTable("CREATE TABLE %s (k text PRIMARY KEY, v int)");

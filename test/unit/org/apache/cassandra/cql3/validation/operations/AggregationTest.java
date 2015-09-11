@@ -276,6 +276,18 @@ public class AggregationTest extends CQLTester
     }
 
     @Test
+    public void testReversedType() throws Throwable
+    {
+        createTable("CREATE TABLE %s (a int, b int, c int, primary key (a, b)) WITH CLUSTERING ORDER BY (b DESC)");
+        execute("INSERT INTO %s (a, b, c) VALUES (1, 1, 10)");
+        execute("INSERT INTO %s (a, b, c) VALUES (1, 2, 9)");
+        execute("INSERT INTO %s (a, b, c) VALUES (1, 3, 8)");
+        execute("INSERT INTO %s (a, b, c) VALUES (1, 4, 7)");
+
+        assertRows(execute("SELECT max(c), min(c), avg(c) FROM %s WHERE a = 1 AND b > 1"), row(9, 7, 8));
+    }
+
+    @Test
     public void testNestedFunctions() throws Throwable
     {
         createTable("CREATE TABLE %s (a int primary key, b timeuuid, c double, d double)");
