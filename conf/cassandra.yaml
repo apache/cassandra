@@ -853,6 +853,11 @@ inter_dc_tcp_nodelay: false
 tracetype_query_ttl: 86400
 tracetype_repair_ttl: 604800
 
+# GC Pauses greater than gc_warn_threshold_in_ms will be logged at WARN level
+# Adjust the threshold based on your application throughput requirement
+# By default, Cassandra logs GC Pauses greater than 200 ms at INFO level
+# gc_warn_threshold_in_ms: 1000
+
 # UDFs (user defined functions) are disabled by default.
 # As of Cassandra 2.2, there is no security manager or anything else in place that
 # prevents execution of evil code. CASSANDRA-9402 will fix this issue for Cassandra 3.0.

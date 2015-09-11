@@ -9,6 +9,7 @@
  * Fall back to 1/4 commitlog volume for commitlog_total_space on small disks
    (CASSANDRA-10199)
 Merged from 2.1:
+ * Added configurable warning threshold for GC duration (CASSANDRA-8907)
  * (cqlsh) Make cqlsh PEP8 Compliant (CASSANDRA-10066)
  * (cqlsh) Fix error when starting cqlsh with --debug (CASSANDRA-10282)
  * Scrub, Cleanup and Upgrade do not unmark compacting until all operations
