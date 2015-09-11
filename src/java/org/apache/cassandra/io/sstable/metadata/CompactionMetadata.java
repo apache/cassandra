@@ -72,13 +72,13 @@ public class CompactionMetadata extends MetadataComponent
 
     public static class CompactionMetadataSerializer implements IMetadataComponentSerializer<CompactionMetadata>
     {
-        public int serializedSize(CompactionMetadata component) throws IOException
+        public int serializedSize(Version version, CompactionMetadata component) throws IOException
         {
             byte[] serializedCardinality = component.cardinalityEstimator.getBytes();
             return TypeSizes.sizeof(serializedCardinality.length) + serializedCardinality.length;
         }
 
-        public void serialize(CompactionMetadata component, DataOutputPlus out) throws IOException
+        public void serialize(Version version, CompactionMetadata component, DataOutputPlus out) throws IOException
         {
             ByteBufferUtil.writeWithLength(component.cardinalityEstimator.getBytes(), out);
         }

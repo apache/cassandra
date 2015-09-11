@@ -31,21 +31,26 @@ public interface IMetadataComponentSerializer<T extends MetadataComponent>
     /**
      * Calculate and return serialized size.
      *
+     *
+     *
+     * @param version
      * @param component MetadataComponent to calculate serialized size
      * @return serialized size of this component
      * @throws IOException
      */
-    int serializedSize(T component) throws IOException;
+    int serializedSize(Version version, T component) throws IOException;
 
     /**
      * Serialize metadata component to given output.
      *
      *
+     *
+     * @param version
      * @param component MetadataComponent to serialize
      * @param out  serialize destination
      * @throws IOException
      */
-    void serialize(T component, DataOutputPlus out) throws IOException;
+    void serialize(Version version, T component, DataOutputPlus out) throws IOException;
 
     /**
      * Deserialize metadata component from given input.

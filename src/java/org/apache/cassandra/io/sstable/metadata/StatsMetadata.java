@@ -227,13 +227,16 @@ public class StatsMetadata extends MetadataComponent
 
     public static class StatsMetadataSerializer implements IMetadataComponentSerializer<StatsMetadata>
     {
-        public int serializedSize(StatsMetadata component) throws IOException
+        public int serializedSize(Version version, StatsMetadata component) throws IOException
         {
             int size = 0;
             size += EstimatedHistogram.serializer.serializedSize(component.estimatedPartitionSize);
             size += EstimatedHistogram.serializer.serializedSize(component.estimatedColumnCount);
             size += ReplayPosition.serializer.serializedSize(component.replayPosition);
-            size += 8 + 8 + 4 + 4 + 4 + 4 + 8 + 8; // mix/max timestamp(long), min/maxLocalDeletionTime(int), min/max TTL, compressionRatio(double), repairedAt (long)
+            if (version.storeRows())
+                size += 8 + 8 + 4 + 4 + 4 + 4 + 8 + 8; // mix/max timestamp(long), min/maxLocalDeletionTime(int), min/max TTL, compressionRatio(double), repairedAt (long)
+            else
+                size += 8 + 8 + 4 + 8 + 8; // mix/max timestamp(long), maxLocalDeletionTime(int), compressionRatio(double), repairedAt (long)
             size += StreamingHistogram.serializer.serializedSize(component.estimatedTombstoneDropTime);
             size += TypeSizes.sizeof(component.sstableLevel);
             // min column names
@@ -245,21 +248,26 @@ public class StatsMetadata extends MetadataComponent
             for (ByteBuffer value : component.maxClusteringValues)
                 size += 2 + value.remaining(); // with short length
             size += TypeSizes.sizeof(component.hasLegacyCounterShards);
-            size += 8 + 8; // totalColumnsSet, totalRows
+            if (version.storeRows())
+                size += 8 + 8; // totalColumnsSet, totalRows
             return size;
         }
 
-        public void serialize(StatsMetadata component, DataOutputPlus out) throws IOException
+        public void serialize(Version version, StatsMetadata component, DataOutputPlus out) throws IOException
         {
             EstimatedHistogram.serializer.serialize(component.estimatedPartitionSize, out);
             EstimatedHistogram.serializer.serialize(component.estimatedColumnCount, out);
             ReplayPosition.serializer.serialize(component.replayPosition, out);
             out.writeLong(component.minTimestamp);
             out.writeLong(component.maxTimestamp);
-            out.writeInt(component.minLocalDeletionTime);
+            if (version.storeRows())
+                out.writeInt(component.minLocalDeletionTime);
             out.writeInt(component.maxLocalDeletionTime);
-            out.writeInt(component.minTTL);
-            out.writeInt(component.maxTTL);
+            if (version.storeRows())
+            {
+                out.writeInt(component.minTTL);
+                out.writeInt(component.maxTTL);
+            }
             out.writeDouble(component.compressionRatio);
             StreamingHistogram.serializer.serialize(component.estimatedTombstoneDropTime, out);
             out.writeInt(component.sstableLevel);
@@ -272,8 +280,11 @@ public class StatsMetadata extends MetadataComponent
                 ByteBufferUtil.writeWithShortLength(value, out);
             out.writeBoolean(component.hasLegacyCounterShards);
 
-            out.writeLong(component.totalColumnsSet);
-            out.writeLong(component.totalRows);
+            if (version.storeRows())
+            {
+                out.writeLong(component.totalColumnsSet);
+                out.writeLong(component.totalRows);
+            }
         }
 
         public StatsMetadata deserialize(Version version, DataInputPlus in) throws IOException

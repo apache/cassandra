@@ -413,7 +413,7 @@ public class SerializationHeader
         }
 
         // For SSTables
-        public void serialize(Component header, DataOutputPlus out) throws IOException
+        public void serialize(Version version, Component header, DataOutputPlus out) throws IOException
         {
             EncodingStats.serializer.serialize(header.stats, out);
 
@@ -447,7 +447,7 @@ public class SerializationHeader
         }
 
         // For SSTables
-        public int serializedSize(Component header)
+        public int serializedSize(Version version, Component header)
         {
             int size = EncodingStats.serializer.serializedSize(header.stats);
 

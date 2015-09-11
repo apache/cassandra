@@ -695,6 +695,24 @@ public class Directories
                             previous = new HashSet<>();
                             components.put(pair.left, previous);
                         }
+                        else if (pair.right.type == Component.Type.DIGEST)
+                        {
+                            if (pair.right != pair.left.digestComponent)
+                            {
+                                // Need to update the DIGEST component as it might be set to another
+                                // digest type as a guess. This may happen if the first component is
+                                // not the DIGEST (but the Data component for example), so the digest
+                                // type is _guessed_ from the Version.
+                                // Although the Version explicitly defines the digest type, it doesn't
+                                // seem to be true under all circumstances. Generated sstables from a
+                                // post 2.1.8 snapshot produced Digest.sha1 files although Version
+                                // defines Adler32.
+                                // TL;DR this piece of code updates the digest component to be "correct".
+                                components.remove(pair.left);
+                                Descriptor updated = pair.left.withDigestComponent(pair.right);
+                                components.put(updated, previous);
+                            }
+                        }
                         previous.add(pair.right);
                         nbFiles++;
                         return false;

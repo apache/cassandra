@@ -23,7 +23,6 @@ import java.util.List;
 import java.util.UUID;
 
 import org.apache.cassandra.config.DatabaseDescriptor;
-import org.apache.cassandra.config.Schema;
 import org.apache.cassandra.db.SerializationHeader;
 import org.apache.cassandra.db.TypeSizes;
 import org.apache.cassandra.io.IVersionedSerializer;
@@ -162,7 +161,7 @@ public class FileMessageHeader
             out.writeInt(header.sstableLevel);
 
             if (version >= StreamMessage.VERSION_30)
-                SerializationHeader.serializer.serialize(header.header, out);
+                SerializationHeader.serializer.serialize(header.version, header.header, out);
         }
 
         public FileMessageHeader deserialize(DataInputPlus in, int version) throws IOException
@@ -211,7 +210,7 @@ public class FileMessageHeader
             size += TypeSizes.sizeof(header.sstableLevel);
 
             if (version >= StreamMessage.VERSION_30)
-                size += SerializationHeader.serializer.serializedSize(header.header);
+                size += SerializationHeader.serializer.serializedSize(header.version, header.header);
 
             return size;
         }
