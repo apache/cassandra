@@ -3,6 +3,7 @@
 
 
 3.0.0-rc1
+ * CFS.loadNewSSTables() broken for pre-3.0 sstables
  * Cache selected index in read command to reduce lookups (CASSANDRA-10215)
  * Small optimizations of sstable index serialization (CASSANDRA-10232)
  * Support for both encrypted and unencrypted native transport connections (CASSANDRA-9590)
