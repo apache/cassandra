@@ -17,8 +17,7 @@
  */
 package org.apache.cassandra.cql3.statements;
 
-import java.util.Collections;
-import java.util.Map;
+import java.util.*;
 
 import com.google.common.base.Optional;
 import com.google.common.base.Strings;
@@ -31,6 +30,7 @@ import org.apache.cassandra.config.CFMetaData;
 import org.apache.cassandra.config.ColumnDefinition;
 import org.apache.cassandra.config.Schema;
 import org.apache.cassandra.cql3.CFName;
+import org.apache.cassandra.cql3.ColumnIdentifier;
 import org.apache.cassandra.cql3.IndexName;
 import org.apache.cassandra.db.marshal.MapType;
 import org.apache.cassandra.exceptions.InvalidRequestException;
@@ -49,19 +49,19 @@ public class CreateIndexStatement extends SchemaAlteringStatement
     private static final Logger logger = LoggerFactory.getLogger(CreateIndexStatement.class);
 
     private final String indexName;
-    private final IndexTarget.Raw rawTarget;
+    private final List<IndexTarget.Raw> rawTargets;
     private final IndexPropDefs properties;
     private final boolean ifNotExists;
 
     public CreateIndexStatement(CFName name,
                                 IndexName indexName,
-                                IndexTarget.Raw target,
+                                List<IndexTarget.Raw> targets,
                                 IndexPropDefs properties,
                                 boolean ifNotExists)
     {
         super(name);
         this.indexName = indexName.getIdx();
-        this.rawTarget = target;
+        this.rawTargets = targets;
         this.properties = properties;
         this.ifNotExists = ifNotExists;
     }
@@ -74,24 +74,58 @@ public class CreateIndexStatement extends SchemaAlteringStatement
     public void validate(ClientState state) throws RequestValidationException
     {
         CFMetaData cfm = ThriftValidation.validateColumnFamily(keyspace(), columnFamily());
+
         if (cfm.isCounter())
             throw new InvalidRequestException("Secondary indexes are not supported on counter tables");
 
-        IndexTarget target = rawTarget.prepare(cfm);
-        ColumnDefinition cd = cfm.getColumnDefinition(target.column);
+        if (cfm.isCompactTable() && !cfm.isStaticCompactTable())
+            throw new InvalidRequestException("Secondary indexes are not supported on COMPACT STORAGE tables that have clustering columns");
 
-        boolean isMap = cd.type instanceof MapType;
-        boolean isFrozenCollection = cd.type.isCollection() && !cd.type.isMultiCell();
+        List<IndexTarget> targets = new ArrayList<>(rawTargets.size());
+        for (IndexTarget.Raw rawTarget : rawTargets)
+            targets.add(rawTarget.prepare(cfm));
 
-        if (isFrozenCollection)
+        if (targets.isEmpty() && !properties.isCustom)
+            throw new InvalidRequestException("Only CUSTOM indexes can be created without specifying a target column");
+
+        if (targets.size() > 1)
+            validateTargetsForMultiColumnIndex(targets);
+
+        for (IndexTarget target : targets)
         {
-            validateForFrozenCollection(target);
-        }
-        else
-        {
-            validateNotFullIndex(target);
-            validateIsSimpleIndexIfTargetColumnNotCollection(cd, target);
-            validateTargetColumnIsMapIfIndexInvolvesKeys(isMap, target);
+            ColumnDefinition cd = cfm.getColumnDefinition(target.column);
+
+            if (cd == null)
+                throw new InvalidRequestException("No column definition found for column " + target.column);
+
+            // TODO: we could lift that limitation
+            if (cfm.isCompactTable() && cd.isPrimaryKeyColumn())
+                throw new InvalidRequestException("Secondary indexes are not supported on PRIMARY KEY columns in COMPACT STORAGE tables");
+
+            // It would be possible to support 2ndary index on static columns (but not without modifications of at least ExtendedFilter and
+            // CompositesIndex) and maybe we should, but that means a query like:
+            //     SELECT * FROM foo WHERE static_column = 'bar'
+            // would pull the full partition every time the static column of partition is 'bar', which sounds like offering a
+            // fair potential for foot-shooting, so I prefer leaving that to a follow up ticket once we have identified cases where
+            // such indexing is actually useful.
+            if (!cfm.isCompactTable() && cd.isStatic())
+                throw new InvalidRequestException("Secondary indexes are not allowed on static columns");
+
+            if (cd.kind == ColumnDefinition.Kind.PARTITION_KEY && cd.isOnAllComponents())
+                throw new InvalidRequestException(String.format("Cannot create secondary index on partition key column %s", target.column));
+
+            boolean isMap = cd.type instanceof MapType;
+            boolean isFrozenCollection = cd.type.isCollection() && !cd.type.isMultiCell();
+            if (isFrozenCollection)
+            {
+                validateForFrozenCollection(target);
+            }
+            else
+            {
+                validateNotFullIndex(target);
+                validateIsSimpleIndexIfTargetColumnNotCollection(cd, target);
+                validateTargetColumnIsMapIfIndexInvolvesKeys(isMap, target);
+            }
         }
 
         if (!Strings.isNullOrEmpty(indexName))
@@ -106,27 +140,6 @@ public class CreateIndexStatement extends SchemaAlteringStatement
         }
 
         properties.validate();
-
-        if (cfm.isCompactTable())
-        {
-            if (!cfm.isStaticCompactTable())
-                throw new InvalidRequestException("Secondary indexes are not supported on COMPACT STORAGE tables that have clustering columns");
-            else if (cd.isPrimaryKeyColumn())
-                // TODO: we could lift that limitation
-                throw new InvalidRequestException("Secondary indexes are not supported on PRIMARY KEY columns in COMPACT STORAGE tables");
-        }
-
-        // It would be possible to support 2ndary index on static columns (but not without modifications of at least ExtendedFilter and
-        // CompositesIndex) and maybe we should, but that means a query like:
-        //     SELECT * FROM foo WHERE static_column = 'bar'
-        // would pull the full partition every time the static column of partition is 'bar', which sounds like offering a
-        // fair potential for foot-shooting, so I prefer leaving that to a follow up ticket once we have identified cases where
-        // such indexing is actually useful.
-        if (!cfm.isCompactTable() && cd.isStatic())
-            throw new InvalidRequestException("Secondary indexes are not allowed on static columns");
-
-        if (cd.kind == ColumnDefinition.Kind.PARTITION_KEY && cd.isOnAllComponents())
-            throw new InvalidRequestException(String.format("Cannot create secondary index on partition key column %s", target.column));
     }
 
     private void validateForFrozenCollection(IndexTarget target) throws InvalidRequestException
@@ -161,15 +174,31 @@ public class CreateIndexStatement extends SchemaAlteringStatement
         }
     }
 
+    private void validateTargetsForMultiColumnIndex(List<IndexTarget> targets)
+    {
+        if (!properties.isCustom)
+            throw new InvalidRequestException("Only CUSTOM indexes support multiple columns");
+
+        Set<ColumnIdentifier> columns = new HashSet<>();
+        for (IndexTarget target : targets)
+            if (!columns.add(target.column))
+                throw new InvalidRequestException("Duplicate column " + target.column + " in index target list");
+    }
+
     public boolean announceMigration(boolean isLocalOnly) throws RequestValidationException
     {
         CFMetaData cfm = Schema.instance.getCFMetaData(keyspace(), columnFamily()).copy();
-        IndexTarget target = rawTarget.prepare(cfm);
+        List<IndexTarget> targets = new ArrayList<>(rawTargets.size());
+        for (IndexTarget.Raw rawTarget : rawTargets)
+            targets.add(rawTarget.prepare(cfm));
 
-        ColumnDefinition cd = cfm.getColumnDefinition(target.column);
         String acceptedName = indexName;
         if (Strings.isNullOrEmpty(acceptedName))
-            acceptedName = Indexes.getAvailableIndexName(keyspace(), columnFamily(), cd.name);
+        {
+            acceptedName = Indexes.getAvailableIndexName(keyspace(),
+                                                         columnFamily(),
+                                                         targets.size() == 1 ? targets.get(0).column.toString() : null);
+        }
 
         if (Schema.instance.getKSMetaData(keyspace()).existingIndexNames(null).contains(acceptedName))
         {
@@ -192,7 +221,7 @@ public class CreateIndexStatement extends SchemaAlteringStatement
             kind = cfm.isCompound() ? IndexMetadata.Kind.COMPOSITES : IndexMetadata.Kind.KEYS;
         }
 
-        IndexMetadata index = IndexMetadata.singleTargetIndex(cfm, target, acceptedName, kind, indexOptions);
+        IndexMetadata index = IndexMetadata.fromIndexTargets(cfm, targets, acceptedName, kind, indexOptions);
 
         // check to disallow creation of an index which duplicates an existing one in all but name
         Optional<IndexMetadata> existingIndex = Iterables.tryFind(cfm.getIndexes(), existing -> existing.equalsWithoutName(index));

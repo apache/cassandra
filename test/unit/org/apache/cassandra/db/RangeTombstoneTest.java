@@ -19,9 +19,7 @@
 package org.apache.cassandra.db;
 
 import java.nio.ByteBuffer;
-import java.util.ArrayList;
-import java.util.Collection;
-import java.util.List;
+import java.util.*;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.Future;
 
@@ -464,12 +462,13 @@ public class RangeTombstoneTest
         cfs.disableAutoCompaction();
 
         ColumnDefinition cd = cfs.metadata.getColumnDefinition(indexedColumnName).copy();
-        IndexMetadata indexDef = IndexMetadata.singleTargetIndex(cfs.metadata,
-                                                                 new IndexTarget(cd.name, IndexTarget.Type.VALUES),
-                                                                 "test_index",
-                                                                 IndexMetadata.Kind.CUSTOM,
-                                                                 ImmutableMap.of(IndexTarget.CUSTOM_INDEX_OPTION_NAME,
-                                                                                 StubIndex.class.getName()));
+        IndexMetadata indexDef =
+            IndexMetadata.fromIndexTargets(cfs.metadata,
+                                           Collections.singletonList(new IndexTarget(cd.name, IndexTarget.Type.VALUES)),
+                                           "test_index",
+                                           IndexMetadata.Kind.CUSTOM,
+                                           ImmutableMap.of(IndexTarget.CUSTOM_INDEX_OPTION_NAME,
+                                                           StubIndex.class.getName()));
 
         if (!cfs.metadata.getIndexes().get("test_index").isPresent())
             cfs.metadata.indexes(cfs.metadata.getIndexes().with(indexDef));
@@ -561,12 +560,13 @@ public class RangeTombstoneTest
         cfs.disableAutoCompaction();
 
         ColumnDefinition cd = cfs.metadata.getColumnDefinition(indexedColumnName).copy();
-        IndexMetadata indexDef = IndexMetadata.singleTargetIndex(cfs.metadata,
-                                                                 new IndexTarget(cd.name,IndexTarget.Type.VALUES),
-                                                                 "test_index",
-                                                                 IndexMetadata.Kind.CUSTOM,
-                                                                 ImmutableMap.of(IndexTarget.CUSTOM_INDEX_OPTION_NAME,
-                                                                                 StubIndex.class.getName()));
+        IndexMetadata indexDef =
+            IndexMetadata.fromIndexTargets(cfs.metadata,
+                                           Collections.singletonList(new IndexTarget(cd.name, IndexTarget.Type.VALUES)),
+                                           "test_index",
+                                           IndexMetadata.Kind.CUSTOM,
+                                           ImmutableMap.of(IndexTarget.CUSTOM_INDEX_OPTION_NAME,
+                                                           StubIndex.class.getName()));
 
         if (!cfs.metadata.getIndexes().get("test_index").isPresent())
             cfs.metadata.indexes(cfs.metadata.getIndexes().with(indexDef));

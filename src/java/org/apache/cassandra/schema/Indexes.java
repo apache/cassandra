@@ -23,7 +23,6 @@ import java.util.*;
 import com.google.common.collect.ImmutableMap;
 
 import org.apache.cassandra.config.Schema;
-import org.apache.cassandra.cql3.ColumnIdentifier;
 
 import static com.google.common.collect.Iterables.filter;
 
@@ -162,12 +161,12 @@ public class Indexes implements Iterable<IndexMetadata>
         return indexesByName.values().toString();
     }
 
-    public static String getAvailableIndexName(String ksName, String cfName, ColumnIdentifier columnName)
+    public static String getAvailableIndexName(String ksName, String cfName, String indexNameRoot)
     {
 
         KeyspaceMetadata ksm = Schema.instance.getKSMetaData(ksName);
         Set<String> existingNames = ksm == null ? new HashSet<>() : ksm.existingIndexNames(null);
-        String baseName = IndexMetadata.getDefaultIndexName(cfName, columnName);
+        String baseName = IndexMetadata.getDefaultIndexName(cfName, indexNameRoot);
         String acceptedName = baseName;
         int i = 0;
         while (existingNames.contains(acceptedName))

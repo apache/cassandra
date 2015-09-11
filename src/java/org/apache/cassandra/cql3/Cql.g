@@ -717,20 +717,21 @@ createIndexStatement returns [CreateIndexStatement expr]
         IndexPropDefs props = new IndexPropDefs();
         boolean ifNotExists = false;
         IndexName name = new IndexName();
+        List<IndexTarget.Raw> targets = new ArrayList<>();
     }
     : K_CREATE (K_CUSTOM { props.isCustom = true; })? K_INDEX (K_IF K_NOT K_EXISTS { ifNotExists = true; } )?
-        (idxName[name])? K_ON cf=columnFamilyName '(' id=indexIdent ')'
+        (idxName[name])? K_ON cf=columnFamilyName '(' (indexIdent[targets] (',' indexIdent[targets])*)? ')'
         (K_USING cls=STRING_LITERAL { props.customClass = $cls.text; })?
         (K_WITH properties[props])?
-      { $expr = new CreateIndexStatement(cf, name, id, props, ifNotExists); }
+      { $expr = new CreateIndexStatement(cf, name, targets, props, ifNotExists); }
     ;
 
-indexIdent returns [IndexTarget.Raw id]
-    : c=cident                   { $id = IndexTarget.Raw.simpleIndexOn(c); }
-    | K_VALUES '(' c=cident ')'  { $id = IndexTarget.Raw.valuesOf(c); }
-    | K_KEYS '(' c=cident ')'    { $id = IndexTarget.Raw.keysOf(c); }
-    | K_ENTRIES '(' c=cident ')' { $id = IndexTarget.Raw.keysAndValuesOf(c); }
-    | K_FULL '(' c=cident ')'    { $id = IndexTarget.Raw.fullCollection(c); }
+indexIdent [List<IndexTarget.Raw> targets]
+    : c=cident                   { $targets.add(IndexTarget.Raw.simpleIndexOn(c)); }
+    | K_VALUES '(' c=cident ')'  { $targets.add(IndexTarget.Raw.valuesOf(c)); }
+    | K_KEYS '(' c=cident ')'    { $targets.add(IndexTarget.Raw.keysOf(c)); }
+    | K_ENTRIES '(' c=cident ')' { $targets.add(IndexTarget.Raw.keysAndValuesOf(c)); }
+    | K_FULL '(' c=cident ')'    { $targets.add(IndexTarget.Raw.fullCollection(c)); }
     ;
 
 /**

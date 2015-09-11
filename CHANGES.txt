@@ -1,4 +1,5 @@
 3.0.0-rc1
+ * Allow custom indexes with 0,1 or multiple target columns (CASSANDRA-10124)
  * Improve MV schema representation (CASSANDRA-9921)
  * Add flag to enable/disable coordinator batchlog for MV writes (CASSANDRA-10230)
  * Update cqlsh COPY for new internal driver serialization interface (CASSANDRA-10318)

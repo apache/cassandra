@@ -20,11 +20,9 @@ package org.apache.cassandra.schema;
 
 import java.io.IOException;
 import java.lang.reflect.InvocationTargetException;
-import java.util.HashMap;
-import java.util.Map;
-import java.util.UUID;
+import java.util.*;
+import java.util.stream.Collectors;
 
-import com.google.common.annotations.VisibleForTesting;
 import com.google.common.base.Objects;
 import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.Maps;
@@ -34,7 +32,6 @@ import org.slf4j.LoggerFactory;
 
 import org.apache.cassandra.config.CFMetaData;
 import org.apache.cassandra.config.ColumnDefinition;
-import org.apache.cassandra.cql3.ColumnIdentifier;
 import org.apache.cassandra.cql3.statements.IndexTarget;
 import org.apache.cassandra.exceptions.ConfigurationException;
 import org.apache.cassandra.index.Index;
@@ -115,14 +112,16 @@ public final class IndexMetadata
         return new IndexMetadata(name, options, kind);
     }
 
-    public static IndexMetadata singleTargetIndex(CFMetaData cfm,
-                                                  IndexTarget target,
-                                                  String name,
-                                                  Kind kind,
-                                                  Map<String, String> options)
+    public static IndexMetadata fromIndexTargets(CFMetaData cfm,
+                                                 List<IndexTarget> targets,
+                                                 String name,
+                                                 Kind kind,
+                                                 Map<String, String> options)
     {
         Map<String, String> newOptions = new HashMap<>(options);
-        newOptions.put(IndexTarget.TARGET_OPTION_NAME, target.asCqlString(cfm));
+        newOptions.put(IndexTarget.TARGET_OPTION_NAME, targets.stream()
+                                                              .map(target -> target.asCqlString(cfm))
+                                                              .collect(Collectors.joining(", ")));
         return new IndexMetadata(name, newOptions, kind);
     }
 
@@ -131,10 +130,12 @@ public final class IndexMetadata
         return name != null && !name.isEmpty() && name.matches("\\w+");
     }
 
-    // these will go away as part of #9459 as we enable real per-row indexes
-    public static String getDefaultIndexName(String cfName, ColumnIdentifier columnName)
+    public static String getDefaultIndexName(String cfName, String root)
     {
-        return (cfName + "_" + columnName + "_idx").replaceAll("\\W", "");
+        if (root == null)
+            return (cfName + "_" + "idx").replaceAll("\\W", "");
+        else
+            return (cfName + "_" + root + "_idx").replaceAll("\\W", "");
     }
 
     public void validate()
