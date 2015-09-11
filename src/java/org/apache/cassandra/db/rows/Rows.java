@@ -80,7 +80,7 @@ public abstract class Rows
             {
                 ++columnCount;
                 ++cellCount;
-                Cells.collectStats((Cell)cd, collector);
+                Cells.collectStats((Cell) cd, collector);
             }
             else
             {
@@ -105,11 +105,13 @@ public abstract class Rows
     /**
      * Given the result ({@code merged}) of merging multiple {@code inputs}, signals the difference between
      * each input and {@code merged} to {@code diffListener}.
+     * <p>
+     * Note that this method doesn't only emit cells etc where there's a difference. The listener is informed
+     * of every corresponding entity between the merged and input rows, including those that are equal.
      *
+     * @param diffListener the listener to which to signal the differences between the inputs and the merged result.
      * @param merged the result of merging {@code inputs}.
      * @param inputs the inputs whose merge yielded {@code merged}.
-     * @param diffListener the listener to which to signal the differences between the inputs and the merged
-     * result.
      */
     public static void diff(RowDiffListener diffListener, Row merged, Row...inputs)
     {
@@ -179,6 +181,10 @@ public abstract class Rows
                             }
                             else
                             {
+
+                                if (!mergedData.complexDeletion().isLive() || !inputData.complexDeletion().isLive())
+                                    diffListener.onComplexDeletion(i, clustering, column, mergedData.complexDeletion(), inputData.complexDeletion());
+
                                 PeekingIterator<Cell> mergedCells = Iterators.peekingIterator(mergedData.iterator());
                                 PeekingIterator<Cell> inputCells = Iterators.peekingIterator(inputData.iterator());
                                 while (mergedCells.hasNext() && inputCells.hasNext())
@@ -221,8 +227,24 @@ public abstract class Rows
         return builder.build();
     }
 
-    // Merge rows in memtable
-    // Return the minimum timestamp delta between existing and update
+    /**
+     * Merges two rows into the given builder, mainly for merging memtable rows. In addition to reconciling the cells
+     * in each row, the liveness info, and deletion times for the row and complex columns are also merged.
+     * <p>
+     * Note that this method assumes that the provided rows can meaningfully be reconciled together. That is,
+     * that the rows share the same clustering value, and belong to the same partition.
+     *
+     * @param existing
+     * @param update
+     * @param builder the row build to which the result of the reconciliation is written.
+     * @param nowInSec the current time in seconds (which plays a role during reconciliation
+     * because deleted cells always have precedence on timestamp equality and deciding if a
+     * cell is a live or not depends on the current time due to expiring cells).
+     *
+     * @return the smallest timestamp delta between corresponding rows from existing and update. A
+     * timestamp delta being computed as the difference between the cells and DeletionTimes from {@code existing}
+     * and those in {@code existing}.
+     */
     public static long merge(Row existing,
                              Row update,
                              Row.Builder builder,

@@ -20,15 +20,22 @@ package org.apache.cassandra.service;
 
 import java.net.InetAddress;
 import java.net.UnknownHostException;
+import java.nio.ByteBuffer;
 import java.util.*;
 
 import com.google.common.collect.Iterators;
+import com.google.common.collect.Sets;
 import org.junit.*;
 
 import org.apache.cassandra.SchemaLoader;
 import org.apache.cassandra.Util;
 import org.apache.cassandra.config.CFMetaData;
+import org.apache.cassandra.config.ColumnDefinition;
+import org.apache.cassandra.cql3.ColumnIdentifier;
 import org.apache.cassandra.db.*;
+import org.apache.cassandra.db.marshal.ByteType;
+import org.apache.cassandra.db.marshal.IntegerType;
+import org.apache.cassandra.db.marshal.MapType;
 import org.apache.cassandra.db.rows.*;
 import org.apache.cassandra.db.marshal.AsciiType;
 import org.apache.cassandra.db.marshal.BytesType;
@@ -36,6 +43,7 @@ import org.apache.cassandra.db.partitions.*;
 import org.apache.cassandra.exceptions.ConfigurationException;
 import org.apache.cassandra.net.*;
 import org.apache.cassandra.schema.KeyspaceParams;
+import org.apache.cassandra.utils.ByteBufferUtil;
 import org.apache.cassandra.utils.FBUtilities;
 
 import static org.apache.cassandra.Util.assertClustering;
@@ -50,6 +58,7 @@ public class DataResolverTest
 {
     public static final String KEYSPACE1 = "DataResolverTest";
     public static final String CF_STANDARD = "Standard1";
+    public static final String CF_COLLECTION = "Collection1";
 
     // counter to generate the last byte of the respondent's address in a ReadResponse message
     private int addressSuffix = 10;
@@ -57,7 +66,10 @@ public class DataResolverTest
     private DecoratedKey dk;
     private Keyspace ks;
     private ColumnFamilyStore cfs;
+    private ColumnFamilyStore cfs2;
     private CFMetaData cfm;
+    private CFMetaData cfm2;
+    private ColumnDefinition m;
     private int nowInSec;
     private ReadCommand command;
     private MessageRecorder messageRecorder;
@@ -74,10 +86,15 @@ public class DataResolverTest
                                                   .addRegularColumn("one", AsciiType.instance)
                                                   .addRegularColumn("two", AsciiType.instance)
                                                   .build();
+
+        CFMetaData cfMetaData2 = CFMetaData.Builder.create(KEYSPACE1, CF_COLLECTION)
+                                                   .addPartitionKey("k", ByteType.instance)
+                                                   .addRegularColumn("m", MapType.getInstance(IntegerType.instance, IntegerType.instance, true))
+                                                   .build();
         SchemaLoader.prepareServer();
         SchemaLoader.createKeyspace(KEYSPACE1,
                                     KeyspaceParams.simple(1),
-                                    cfMetadata);
+                                    cfMetadata, cfMetaData2);
     }
 
     @Before
@@ -87,6 +104,10 @@ public class DataResolverTest
         ks = Keyspace.open(KEYSPACE1);
         cfs = ks.getColumnFamilyStore(CF_STANDARD);
         cfm = cfs.metadata;
+        cfs2 = ks.getColumnFamilyStore(CF_COLLECTION);
+        cfm2 = cfs2.metadata;
+        m = cfm2.getColumnDefinition(new ColumnIdentifier("m", false));
+
         nowInSec = FBUtilities.nowInSeconds();
         command = Util.cmd(cfs, dk).withNowInSeconds(nowInSec).build();
     }
@@ -419,6 +440,200 @@ public class DataResolverTest
         assertRepairContainsColumn(msg, "1", "two", "B", 3);
     }
 
+    private static ByteBuffer bb(int b)
+    {
+        return ByteBufferUtil.bytes(b);
+    }
+
+    private Cell mapCell(int k, int v, long ts)
+    {
+        return BufferCell.live(cfm2, m, ts, bb(v), CellPath.create(bb(k)));
+    }
+
+    @Test
+    public void testResolveComplexDelete()
+    {
+        ReadCommand cmd = Util.cmd(cfs2, dk).withNowInSeconds(nowInSec).build();
+        DataResolver resolver = new DataResolver(ks, cmd, ConsistencyLevel.ALL, 2);
+
+        long[] ts = {100, 200};
+
+        Row.Builder builder = BTreeRow.unsortedBuilder(nowInSec);
+        builder.newRow(Clustering.EMPTY);
+        builder.addComplexDeletion(m, new DeletionTime(ts[0] - 1, nowInSec));
+        builder.addCell(mapCell(0, 0, ts[0]));
+
+        InetAddress peer1 = peer();
+        resolver.preprocess(readResponseMessage(peer1, iter(PartitionUpdate.singleRowUpdate(cfm2, dk, builder.build())), cmd));
+
+        builder.newRow(Clustering.EMPTY);
+        DeletionTime expectedCmplxDelete = new DeletionTime(ts[1] - 1, nowInSec);
+        builder.addComplexDeletion(m, expectedCmplxDelete);
+        Cell expectedCell = mapCell(1, 1, ts[1]);
+        builder.addCell(expectedCell);
+
+        InetAddress peer2 = peer();
+        resolver.preprocess(readResponseMessage(peer2, iter(PartitionUpdate.singleRowUpdate(cfm2, dk, builder.build())), cmd));
+
+        try(PartitionIterator data = resolver.resolve(); RowIterator rows = Iterators.getOnlyElement(data))
+        {
+            Row row = Iterators.getOnlyElement(rows);
+            assertColumns(row, "m");
+            Assert.assertNull(row.getCell(m, CellPath.create(bb(0))));
+            Assert.assertNotNull(row.getCell(m, CellPath.create(bb(1))));
+        }
+
+        MessageOut<Mutation> msg;
+        msg = getSentMessage(peer1);
+        Iterator<Row> rowIter = msg.payload.getPartitionUpdate(cfm2.cfId).iterator();
+        assertTrue(rowIter.hasNext());
+        Row row = rowIter.next();
+        assertFalse(rowIter.hasNext());
+
+        ComplexColumnData cd = row.getComplexColumnData(m);
+
+        assertEquals(Collections.singleton(expectedCell), Sets.newHashSet(cd));
+        assertEquals(expectedCmplxDelete, cd.complexDeletion());
+
+        Assert.assertNull(messageRecorder.sent.get(peer2));
+    }
+
+    @Test
+    public void testResolveDeletedCollection()
+    {
+
+        ReadCommand cmd = Util.cmd(cfs2, dk).withNowInSeconds(nowInSec).build();
+        DataResolver resolver = new DataResolver(ks, cmd, ConsistencyLevel.ALL, 2);
+
+        long[] ts = {100, 200};
+
+        Row.Builder builder = BTreeRow.unsortedBuilder(nowInSec);
+        builder.newRow(Clustering.EMPTY);
+        builder.addComplexDeletion(m, new DeletionTime(ts[0] - 1, nowInSec));
+        builder.addCell(mapCell(0, 0, ts[0]));
+
+        InetAddress peer1 = peer();
+        resolver.preprocess(readResponseMessage(peer1, iter(PartitionUpdate.singleRowUpdate(cfm2, dk, builder.build())), cmd));
+
+        builder.newRow(Clustering.EMPTY);
+        DeletionTime expectedCmplxDelete = new DeletionTime(ts[1] - 1, nowInSec);
+        builder.addComplexDeletion(m, expectedCmplxDelete);
+
+        InetAddress peer2 = peer();
+        resolver.preprocess(readResponseMessage(peer2, iter(PartitionUpdate.singleRowUpdate(cfm2, dk, builder.build())), cmd));
+
+        try(PartitionIterator data = resolver.resolve())
+        {
+            assertFalse(data.hasNext());
+        }
+
+        MessageOut<Mutation> msg;
+        msg = getSentMessage(peer1);
+        Iterator<Row> rowIter = msg.payload.getPartitionUpdate(cfm2.cfId).iterator();
+        assertTrue(rowIter.hasNext());
+        Row row = rowIter.next();
+        assertFalse(rowIter.hasNext());
+
+        ComplexColumnData cd = row.getComplexColumnData(m);
+
+        assertEquals(Collections.emptySet(), Sets.newHashSet(cd));
+        assertEquals(expectedCmplxDelete, cd.complexDeletion());
+
+        Assert.assertNull(messageRecorder.sent.get(peer2));
+    }
+
+    @Test
+    public void testResolveNewCollection()
+    {
+        ReadCommand cmd = Util.cmd(cfs2, dk).withNowInSeconds(nowInSec).build();
+        DataResolver resolver = new DataResolver(ks, cmd, ConsistencyLevel.ALL, 2);
+
+        long[] ts = {100, 200};
+
+        // map column
+        Row.Builder builder = BTreeRow.unsortedBuilder(nowInSec);
+        builder.newRow(Clustering.EMPTY);
+        DeletionTime expectedCmplxDelete = new DeletionTime(ts[0] - 1, nowInSec);
+        builder.addComplexDeletion(m, expectedCmplxDelete);
+        Cell expectedCell = mapCell(0, 0, ts[0]);
+        builder.addCell(expectedCell);
+
+        // empty map column
+        InetAddress peer1 = peer();
+        resolver.preprocess(readResponseMessage(peer1, iter(PartitionUpdate.singleRowUpdate(cfm2, dk, builder.build())), cmd));
+
+        InetAddress peer2 = peer();
+        resolver.preprocess(readResponseMessage(peer2, iter(PartitionUpdate.emptyUpdate(cfm2, dk))));
+
+        try(PartitionIterator data = resolver.resolve(); RowIterator rows = Iterators.getOnlyElement(data))
+        {
+            Row row = Iterators.getOnlyElement(rows);
+            assertColumns(row, "m");
+            ComplexColumnData cd = row.getComplexColumnData(m);
+            assertEquals(Collections.singleton(expectedCell), Sets.newHashSet(cd));
+        }
+
+        Assert.assertNull(messageRecorder.sent.get(peer1));
+
+        MessageOut<Mutation> msg;
+        msg = getSentMessage(peer2);
+        Iterator<Row> rowIter = msg.payload.getPartitionUpdate(cfm2.cfId).iterator();
+        assertTrue(rowIter.hasNext());
+        Row row = rowIter.next();
+        assertFalse(rowIter.hasNext());
+
+        ComplexColumnData cd = row.getComplexColumnData(m);
+
+        assertEquals(Sets.newHashSet(expectedCell), Sets.newHashSet(cd));
+        assertEquals(expectedCmplxDelete, cd.complexDeletion());
+    }
+
+    @Test
+    public void testResolveNewCollectionOverwritingDeleted()
+    {
+        ReadCommand cmd = Util.cmd(cfs2, dk).withNowInSeconds(nowInSec).build();
+        DataResolver resolver = new DataResolver(ks, cmd, ConsistencyLevel.ALL, 2);
+
+        long[] ts = {100, 200};
+
+        // cleared map column
+        Row.Builder builder = BTreeRow.unsortedBuilder(nowInSec);
+        builder.newRow(Clustering.EMPTY);
+        builder.addComplexDeletion(m, new DeletionTime(ts[0] - 1, nowInSec));
+
+        InetAddress peer1 = peer();
+        resolver.preprocess(readResponseMessage(peer1, iter(PartitionUpdate.singleRowUpdate(cfm2, dk, builder.build())), cmd));
+
+        // newer, overwritten map column
+        builder.newRow(Clustering.EMPTY);
+        DeletionTime expectedCmplxDelete = new DeletionTime(ts[1] - 1, nowInSec);
+        builder.addComplexDeletion(m, expectedCmplxDelete);
+        Cell expectedCell = mapCell(1, 1, ts[1]);
+        builder.addCell(expectedCell);
+
+        InetAddress peer2 = peer();
+        resolver.preprocess(readResponseMessage(peer2, iter(PartitionUpdate.singleRowUpdate(cfm2, dk, builder.build())), cmd));
+
+        try(PartitionIterator data = resolver.resolve(); RowIterator rows = Iterators.getOnlyElement(data))
+        {
+            Row row = Iterators.getOnlyElement(rows);
+            assertColumns(row, "m");
+            ComplexColumnData cd = row.getComplexColumnData(m);
+            assertEquals(Collections.singleton(expectedCell), Sets.newHashSet(cd));
+        }
+
+        MessageOut<Mutation> msg;
+        msg = getSentMessage(peer1);
+        Row row = Iterators.getOnlyElement(msg.payload.getPartitionUpdate(cfm2.cfId).iterator());
+
+        ComplexColumnData cd = row.getComplexColumnData(m);
+
+        assertEquals(Collections.singleton(expectedCell), Sets.newHashSet(cd));
+        assertEquals(expectedCmplxDelete, cd.complexDeletion());
+
+        Assert.assertNull(messageRecorder.sent.get(peer2));
+    }
+
     private InetAddress peer()
     {
         try
@@ -488,10 +703,16 @@ public class DataResolverTest
         assertEquals(update.metadata().cfName, cfm.cfName);
     }
 
+
     public MessageIn<ReadResponse> readResponseMessage(InetAddress from, UnfilteredPartitionIterator partitionIterator)
     {
+        return readResponseMessage(from, partitionIterator, command);
+
+    }
+    public MessageIn<ReadResponse> readResponseMessage(InetAddress from, UnfilteredPartitionIterator partitionIterator, ReadCommand cmd)
+    {
         return MessageIn.create(from,
-                                ReadResponse.createRemoteDataResponse(partitionIterator, command.columnFilter()),
+                                ReadResponse.createRemoteDataResponse(partitionIterator, cmd.columnFilter()),
                                 Collections.EMPTY_MAP,
                                 MessagingService.Verb.REQUEST_RESPONSE,
                                 MessagingService.current_version);

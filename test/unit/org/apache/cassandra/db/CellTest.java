@@ -19,6 +19,9 @@
 package org.apache.cassandra.db;
 
 import java.nio.ByteBuffer;
+import java.util.List;
+
+import com.google.common.collect.Lists;
 
 import junit.framework.Assert;
 import org.junit.BeforeClass;
@@ -26,6 +29,9 @@ import org.junit.Test;
 
 import org.apache.cassandra.config.CFMetaData;
 import org.apache.cassandra.config.ColumnDefinition;
+import org.apache.cassandra.cql3.ColumnIdentifier;
+import org.apache.cassandra.db.marshal.IntegerType;
+import org.apache.cassandra.db.marshal.MapType;
 import org.apache.cassandra.db.rows.*;
 import org.apache.cassandra.exceptions.ConfigurationException;
 import org.apache.cassandra.SchemaLoader;
@@ -37,16 +43,21 @@ public class CellTest
 {
     private static final String KEYSPACE1 = "CellTest";
     private static final String CF_STANDARD1 = "Standard1";
+    private static final String CF_COLLECTION = "Collection1";
 
-    private CFMetaData cfm = SchemaLoader.standardCFMD(KEYSPACE1, CF_STANDARD1);
+    private static final CFMetaData cfm = SchemaLoader.standardCFMD(KEYSPACE1, CF_STANDARD1);
+    private static final CFMetaData cfm2 = CFMetaData.Builder.create(KEYSPACE1, CF_COLLECTION)
+                                                             .addPartitionKey("k", IntegerType.instance)
+                                                             .addClusteringColumn("c", IntegerType.instance)
+                                                             .addRegularColumn("v", IntegerType.instance)
+                                                             .addRegularColumn("m", MapType.getInstance(IntegerType.instance, IntegerType.instance, true))
+                                                             .build();
 
     @BeforeClass
     public static void defineSchema() throws ConfigurationException
     {
         SchemaLoader.prepareServer();
-        SchemaLoader.createKeyspace(KEYSPACE1,
-                                    KeyspaceParams.simple(1),
-                                    SchemaLoader.standardCFMD(KEYSPACE1, CF_STANDARD1));
+        SchemaLoader.createKeyspace(KEYSPACE1, KeyspaceParams.simple(1), cfm, cfm2);
     }
 
     @Test
@@ -88,6 +99,35 @@ public class CellTest
         // newer value
         Assert.assertEquals(-1, testExpiring("val", "b", 2, 1, null, "a", null, null));
         Assert.assertEquals(-1, testExpiring("val", "b", 2, 1, null, "a", null, 2));
+    }
+
+    private static ByteBuffer bb(int i)
+    {
+        return ByteBufferUtil.bytes(i);
+    }
+
+    @Test
+    public void testComplexCellReconcile()
+    {
+        ColumnDefinition m = cfm2.getColumnDefinition(new ColumnIdentifier("m", false));
+        int now1 = FBUtilities.nowInSeconds();
+        long ts1 = now1*1000000;
+
+
+        Cell r1m1 = BufferCell.live(cfm2, m, ts1, bb(1), CellPath.create(bb(1)));
+        Cell r1m2 = BufferCell.live(cfm2, m, ts1, bb(2), CellPath.create(bb(2)));
+        List<Cell> cells1 = Lists.newArrayList(r1m1, r1m2);
+
+        int now2 = now1 + 1;
+        long ts2 = now2*1000000;
+        Cell r2m2 = BufferCell.live(cfm2, m, ts2, bb(1), CellPath.create(bb(2)));
+        Cell r2m3 = BufferCell.live(cfm2, m, ts2, bb(2), CellPath.create(bb(3)));
+        Cell r2m4 = BufferCell.live(cfm2, m, ts2, bb(3), CellPath.create(bb(4)));
+        List<Cell> cells2 = Lists.newArrayList(r2m2, r2m3, r2m4);
+
+        RowBuilder builder = new RowBuilder();
+        Cells.reconcileComplex(m, cells1.iterator(), cells2.iterator(), DeletionTime.LIVE, builder, now2 + 1);
+        Assert.assertEquals(Lists.newArrayList(r1m1, r2m2, r2m3, r2m4), builder.cells);
     }
 
     private int testExpiring(String n1, String v1, long t1, int et1, String n2, String v2, Long t2, Integer et2)
