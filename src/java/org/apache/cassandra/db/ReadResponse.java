@@ -283,13 +283,12 @@ public abstract class ReadResponse
                 {
                     ImmutableBTreePartition partition = toReturn.get(idx++);
 
-
                     ClusteringIndexFilter filter = command.clusteringIndexFilter(partition.partitionKey());
 
                     // Pre-3.0, we didn't have a way to express exclusivity for non-composite comparators, so all slices were
                     // inclusive on both ends. If we have exclusive slice ends, we need to filter the results here.
                     if (!command.metadata().isCompound())
-                        return filter.filter(partition.sliceableUnfilteredIterator(command.columnFilter(), filter.isReversed()));
+                        return partition.unfilteredIterator(command.columnFilter(), filter.getSlices(command.metadata()), filter.isReversed());
 
                     return partition.unfilteredIterator(command.columnFilter(), Slices.ALL, filter.isReversed());
                 }

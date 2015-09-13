@@ -314,10 +314,10 @@ public class PartitionImplementationTest
         testSearchIterator(sortedContent, partition, cf, true);
 
         // sliceable iter
-        testSliceableIterator(sortedContent, partition, ColumnFilter.all(cfm), false);
-        testSliceableIterator(sortedContent, partition, cf, false);
-        testSliceableIterator(sortedContent, partition, ColumnFilter.all(cfm), true);
-        testSliceableIterator(sortedContent, partition, cf, true);
+        testSlicingOfIterators(sortedContent, partition, ColumnFilter.all(cfm), false);
+        testSlicingOfIterators(sortedContent, partition, cf, false);
+        testSlicingOfIterators(sortedContent, partition, ColumnFilter.all(cfm), true);
+        testSlicingOfIterators(sortedContent, partition, cf, true);
     }
 
     void testSearchIterator(NavigableSet<Clusterable> sortedContent, Partition partition, ColumnFilter cf, boolean reversed)
@@ -361,23 +361,30 @@ public class PartitionImplementationTest
         return builder.build();
     }
 
-    void testSliceableIterator(NavigableSet<Clusterable> sortedContent, AbstractBTreePartition partition, ColumnFilter cf, boolean reversed)
+    void testSlicingOfIterators(NavigableSet<Clusterable> sortedContent, AbstractBTreePartition partition, ColumnFilter cf, boolean reversed)
     {
         Function<? super Clusterable, ? extends Clusterable> colFilter = x -> x instanceof Row ? ((Row) x).filter(cf, cfm) : x;
         Slices slices = makeSlices();
-        try (SliceableUnfilteredRowIterator sliceableIter = partition.sliceableUnfilteredIterator(cf, reversed))
+
+        // fetch each slice in turn
+        for (Slice slice : (Iterable<Slice>) () -> directed(slices, reversed))
         {
-            for (Slice slice : (Iterable<Slice>) () -> directed(slices, reversed))
+            try (UnfilteredRowIterator slicedIter = partition.unfilteredIterator(cf, Slices.with(cfm.comparator, slice), reversed))
+            {
                 assertIteratorsEqual(streamOf(directed(slice(sortedContent, slice), reversed)).map(colFilter).iterator(),
-                                     sliceableIter.slice(slice));
+                                     slicedIter);
+            }
         }
 
-        // Try using sliceable as unfiltered iterator
-        try (SliceableUnfilteredRowIterator sliceableIter = partition.sliceableUnfilteredIterator(cf, reversed))
+        // Fetch all slices at once
+        try (UnfilteredRowIterator slicedIter = partition.unfilteredIterator(cf, slices, reversed))
         {
-            assertIteratorsEqual((reversed ? sortedContent.descendingSet() : sortedContent).
-                                     stream().map(colFilter).iterator(),
-                                 sliceableIter);
+            List<Iterator<? extends Clusterable>> slicelist = new ArrayList<>();
+            slices.forEach(slice -> slicelist.add(directed(slice(sortedContent, slice), reversed)));
+            if (reversed)
+                Collections.reverse(slicelist);
+
+            assertIteratorsEqual(Iterators.concat(slicelist.toArray(new Iterator[0])), slicedIter);
         }
     }
 

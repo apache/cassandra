@@ -21,10 +21,12 @@ import com.google.common.util.concurrent.RateLimiter;
 import org.apache.cassandra.cache.KeyCacheKey;
 import org.apache.cassandra.config.CFMetaData;
 import org.apache.cassandra.db.*;
-import org.apache.cassandra.db.rows.SliceableUnfilteredRowIterator;
 import org.apache.cassandra.db.filter.ColumnFilter;
 import org.apache.cassandra.db.columniterator.SSTableIterator;
 import org.apache.cassandra.db.columniterator.SSTableReversedIterator;
+import org.apache.cassandra.db.rows.Rows;
+import org.apache.cassandra.db.rows.UnfilteredRowIterator;
+import org.apache.cassandra.db.rows.UnfilteredRowIterators;
 import org.apache.cassandra.dht.IPartitioner;
 import org.apache.cassandra.dht.Range;
 import org.apache.cassandra.dht.Token;
@@ -57,18 +59,19 @@ public class BigTableReader extends SSTableReader
         super(desc, components, metadata, maxDataAge, sstableMetadata, openReason, header);
     }
 
-    public SliceableUnfilteredRowIterator iterator(DecoratedKey key, ColumnFilter selectedColumns, boolean reversed, boolean isForThrift)
+    public UnfilteredRowIterator iterator(DecoratedKey key, Slices slices, ColumnFilter selectedColumns, boolean reversed, boolean isForThrift)
     {
-        return reversed
-             ? new SSTableReversedIterator(this, key, selectedColumns, isForThrift)
-             : new SSTableIterator(this, key, selectedColumns, isForThrift);
+        RowIndexEntry rie = getPosition(key, SSTableReader.Operator.EQ);
+        return iterator(null, key, rie, slices, selectedColumns, reversed, isForThrift);
     }
 
-    public SliceableUnfilteredRowIterator iterator(FileDataInput file, DecoratedKey key, RowIndexEntry indexEntry, ColumnFilter selectedColumns, boolean reversed, boolean isForThrift)
+    public UnfilteredRowIterator iterator(FileDataInput file, DecoratedKey key, RowIndexEntry indexEntry, Slices slices, ColumnFilter selectedColumns, boolean reversed, boolean isForThrift)
     {
+        if (indexEntry == null)
+            return UnfilteredRowIterators.noRowsIterator(metadata, key, Rows.EMPTY_STATIC_ROW, DeletionTime.LIVE, reversed);
         return reversed
-             ? new SSTableReversedIterator(this, file, key, indexEntry, selectedColumns, isForThrift)
-             : new SSTableIterator(this, file, key, indexEntry, selectedColumns, isForThrift);
+             ? new SSTableReversedIterator(this, file, key, indexEntry, slices, selectedColumns, isForThrift)
+             : new SSTableIterator(this, file, key, indexEntry, slices, selectedColumns, isForThrift);
     }
 
     /**

@@ -44,9 +44,10 @@ import org.apache.cassandra.cql3.UntypedResultSet;
 import org.apache.cassandra.db.ColumnFamilyStore;
 import org.apache.cassandra.db.DeletionTime;
 import org.apache.cassandra.db.Keyspace;
-import org.apache.cassandra.db.rows.SliceableUnfilteredRowIterator;
+import org.apache.cassandra.db.Slices;
 import org.apache.cassandra.db.filter.ColumnFilter;
 import org.apache.cassandra.db.marshal.BytesType;
+import org.apache.cassandra.db.rows.UnfilteredRowIterator;
 import org.apache.cassandra.dht.IPartitioner;
 import org.apache.cassandra.dht.Range;
 import org.apache.cassandra.dht.Token;
@@ -174,7 +175,7 @@ public class LegacySSTableTest
         {
             ByteBuffer key = bytes(keystring);
 
-            SliceableUnfilteredRowIterator iter = sstable.iterator(Util.dk(key), ColumnFilter.selectionBuilder().add(cfs.metadata.getColumnDefinition(bytes("name"))).build(), false, false);
+            UnfilteredRowIterator iter = sstable.iterator(Util.dk(key), Slices.ALL, ColumnFilter.selectionBuilder().add(cfs.metadata.getColumnDefinition(bytes("name"))).build(), false, false);
 
             // check not deleted (CASSANDRA-6527)
             assert iter.partitionLevelDeletion().equals(DeletionTime.LIVE);
@@ -215,7 +216,7 @@ public class LegacySSTableTest
 
                 ByteBuffer key = bytes(keystring);
 
-                SliceableUnfilteredRowIterator iter = reader.iterator(Util.dk(key), ColumnFilter.selection(cfs.metadata.partitionColumns()), false, false);
+                UnfilteredRowIterator iter = reader.iterator(Util.dk(key), Slices.ALL, ColumnFilter.selection(cfs.metadata.partitionColumns()), false, false);
 
                 // check not deleted (CASSANDRA-6527)
                 assert iter.partitionLevelDeletion().equals(DeletionTime.LIVE);

@@ -33,7 +33,7 @@ import org.apache.cassandra.io.util.FileDataInput;
 import org.apache.cassandra.io.util.FileMark;
 import org.apache.cassandra.utils.ByteBufferUtil;
 
-abstract class AbstractSSTableIterator implements SliceableUnfilteredRowIterator
+abstract class AbstractSSTableIterator implements UnfilteredRowIterator
 {
     protected final SSTableReader sstable;
     protected final DecoratedKey key;
@@ -48,18 +48,23 @@ abstract class AbstractSSTableIterator implements SliceableUnfilteredRowIterator
 
     private boolean isClosed;
 
+    protected final Slices slices;
+    protected int slice;
+
     @SuppressWarnings("resource") // We need this because the analysis is not able to determine that we do close
                                   // file on every path where we created it.
     protected AbstractSSTableIterator(SSTableReader sstable,
                                       FileDataInput file,
                                       DecoratedKey key,
                                       RowIndexEntry indexEntry,
+                                      Slices slices,
                                       ColumnFilter columnFilter,
                                       boolean isForThrift)
     {
         this.sstable = sstable;
         this.key = key;
         this.columns = columnFilter;
+        this.slices = slices;
         this.helper = new SerializationHelper(sstable.metadata, sstable.descriptor.version.correspondingMessagingVersion(), SerializationHelper.Flag.LOCAL, columnFilter);
         this.isForThrift = isForThrift;
 
@@ -108,6 +113,9 @@ abstract class AbstractSSTableIterator implements SliceableUnfilteredRowIterator
                     this.staticRow = Rows.EMPTY_STATIC_ROW;
                     this.reader = needsReader ? createReader(indexEntry, file, shouldCloseFile) : null;
                 }
+
+                if (reader != null && slices.size() > 0)
+                    reader.setForSlice(slices.get(0));
 
                 if (reader == null && file != null && shouldCloseFile)
                     file.close();
@@ -216,7 +224,19 @@ abstract class AbstractSSTableIterator implements SliceableUnfilteredRowIterator
 
     public boolean hasNext()
     {
-        return reader != null && reader.hasNext();
+        while (true)
+        {
+            if (reader == null)
+                return false;
+
+            if (reader.hasNext())
+                return true;
+
+            if (++slice >= slices.size())
+                return false;
+
+            slice(slices.get(slice));
+        }
     }
 
     public Unfiltered next()
@@ -225,15 +245,12 @@ abstract class AbstractSSTableIterator implements SliceableUnfilteredRowIterator
         return reader.next();
     }
 
-    public Iterator<Unfiltered> slice(Slice slice)
+    private void slice(Slice slice)
     {
         try
         {
-            if (reader == null)
-                return Collections.emptyIterator();
-
-            reader.setForSlice(slice);
-            return reader;
+            if (reader != null)
+                reader.setForSlice(slice);
         }
         catch (IOException e)
         {

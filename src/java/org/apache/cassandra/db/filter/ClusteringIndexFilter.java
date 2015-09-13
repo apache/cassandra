@@ -128,14 +128,7 @@ public interface ClusteringIndexFilter
      */
     public UnfilteredRowIterator filterNotIndexed(ColumnFilter columnFilter, UnfilteredRowIterator iterator);
 
-    /**
-     * Returns an iterator that only returns the rows of the provided sliceable iterator that this filter selects.
-     *
-     * @param iterator the sliceable iterator for which we should filter rows.
-     *
-     * @return an iterator that only returns the rows (or rather unfiltered) from {@code iterator} that are selected by this filter.
-     */
-    public UnfilteredRowIterator filter(SliceableUnfilteredRowIterator iterator);
+    public Slices getSlices(CFMetaData metadata);
 
     /**
      * Given a partition, returns a row iterator for the rows of this partition that are selected by this filter.

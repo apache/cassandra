@@ -282,40 +282,6 @@ public abstract class AbstractBTreePartition implements Partition, Iterable<Row>
         }
     }
 
-    public class SliceableIterator extends AbstractIterator implements SliceableUnfilteredRowIterator
-    {
-        private Iterator<Unfiltered> iterator;
-
-        protected SliceableIterator(ColumnFilter selection, boolean isReversed)
-        {
-            super(selection, isReversed);
-        }
-
-        protected Unfiltered computeNext()
-        {
-            if (iterator == null)
-                iterator = unfilteredIterator(selection, Slices.ALL, isReverseOrder);
-            if (!iterator.hasNext())
-                return endOfData();
-            return iterator.next();
-        }
-
-        public Iterator<Unfiltered> slice(Slice slice)
-        {
-            return sliceIterator(selection, slice, isReverseOrder, current, staticRow);
-        }
-    }
-
-    public SliceableUnfilteredRowIterator sliceableUnfilteredIterator(ColumnFilter columns, boolean reversed)
-    {
-        return new SliceableIterator(columns, reversed);
-    }
-
-    protected SliceableUnfilteredRowIterator sliceableUnfilteredIterator()
-    {
-        return sliceableUnfilteredIterator(ColumnFilter.all(metadata), false);
-    }
-
     protected static Holder build(UnfilteredRowIterator iterator, int initialRowCapacity)
     {
         CFMetaData metadata = iterator.metadata();

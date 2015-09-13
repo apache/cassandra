@@ -141,16 +141,6 @@ public abstract class Slices implements Iterable<Slice>
      */
     public abstract boolean intersects(List<ByteBuffer> minClusteringValues, List<ByteBuffer> maxClusteringValues);
 
-    /**
-     * Given a sliceable row iterator, returns a row iterator that only return rows selected by the slice of
-     * this {@code Slices} object.
-     *
-     * @param iter the sliceable iterator to filter.
-     *
-     * @return an iterator that only returns the rows (or rather Unfiltered) of {@code iter} that are selected by those slices.
-     */
-    public abstract UnfilteredRowIterator makeSliceIterator(SliceableUnfilteredRowIterator iter);
-
     public abstract String toCQLString(CFMetaData metadata);
 
     /**
@@ -452,65 +442,6 @@ public abstract class Slices implements Iterable<Slice>
             return false;
         }
 
-        public UnfilteredRowIterator makeSliceIterator(final SliceableUnfilteredRowIterator iter)
-        {
-            return new WrappingUnfilteredRowIterator(iter)
-            {
-                private int nextSlice = iter.isReverseOrder() ? slices.length - 1 : 0;
-                private Iterator<Unfiltered> currentSliceIterator = Collections.emptyIterator();
-
-                private Unfiltered next;
-
-                @Override
-                public boolean hasNext()
-                {
-                    prepareNext();
-                    return next != null;
-                }
-
-                @Override
-                public Unfiltered next()
-                {
-                    prepareNext();
-                    Unfiltered toReturn = next;
-                    next = null;
-                    return toReturn;
-                }
-
-                private boolean hasMoreSlice()
-                {
-                    return isReverseOrder()
-                         ? nextSlice >= 0
-                         : nextSlice < slices.length;
-                }
-
-                private Slice popNextSlice()
-                {
-                    return slices[isReverseOrder() ? nextSlice-- : nextSlice++];
-                }
-
-                private void prepareNext()
-                {
-                    if (next != null)
-                        return;
-
-                    while (true)
-                    {
-                        if (currentSliceIterator.hasNext())
-                        {
-                            next = currentSliceIterator.next();
-                            return;
-                        }
-
-                        if (!hasMoreSlice())
-                            return;
-
-                        currentSliceIterator = iter.slice(popNextSlice());
-                    }
-                }
-            };
-        }
-
         public Iterator<Slice> iterator()
         {
             return Iterators.forArray(slices);
@@ -803,11 +734,6 @@ public abstract class Slices implements Iterable<Slice>
             return true;
         }
 
-        public UnfilteredRowIterator makeSliceIterator(SliceableUnfilteredRowIterator iter)
-        {
-            return iter;
-        }
-
         public Iterator<Slice> iterator()
         {
             return Iterators.singletonIterator(Slice.ALL);
@@ -881,12 +807,6 @@ public abstract class Slices implements Iterable<Slice>
         public boolean intersects(List<ByteBuffer> minClusteringValues, List<ByteBuffer> maxClusteringValues)
         {
             return false;
-        }
-
-        public UnfilteredRowIterator makeSliceIterator(SliceableUnfilteredRowIterator iter)
-        {
-            return UnfilteredRowIterators.noRowsIterator(iter.metadata(), iter.partitionKey(), iter.staticRow(),
-                                                         iter.partitionLevelDeletion(), iter.isReverseOrder());
         }
 
         public Iterator<Slice> iterator()

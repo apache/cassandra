@@ -31,19 +31,15 @@ import org.apache.cassandra.io.util.FileDataInput;
  */
 public class SSTableIterator extends AbstractSSTableIterator
 {
-    public SSTableIterator(SSTableReader sstable, DecoratedKey key, ColumnFilter columns, boolean isForThrift)
-    {
-        this(sstable, null, key, sstable.getPosition(key, SSTableReader.Operator.EQ), columns, isForThrift);
-    }
-
     public SSTableIterator(SSTableReader sstable,
                            FileDataInput file,
                            DecoratedKey key,
                            RowIndexEntry indexEntry,
+                           Slices slices,
                            ColumnFilter columns,
                            boolean isForThrift)
     {
-        super(sstable, file, key, indexEntry, columns, isForThrift);
+        super(sstable, file, key, indexEntry, slices, columns, isForThrift);
     }
 
     protected Reader createReader(RowIndexEntry indexEntry, FileDataInput file, boolean shouldCloseFile)

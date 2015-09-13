@@ -29,15 +29,13 @@ import org.junit.Test;
 import org.apache.cassandra.concurrent.ScheduledExecutors;
 import org.apache.cassandra.config.CFMetaData;
 import org.apache.cassandra.config.Config;
+import org.apache.cassandra.db.Slices;
 import org.apache.cassandra.db.filter.ColumnFilter;
 import org.apache.cassandra.db.marshal.BytesType;
-import org.apache.cassandra.db.rows.SliceableUnfilteredRowIterator;
+import org.apache.cassandra.db.rows.UnfilteredRowIterator;
 import org.apache.cassandra.dht.ByteOrderedPartitioner;
 import org.apache.cassandra.exceptions.ConfigurationException;
 import org.apache.cassandra.io.sstable.Descriptor;
-import org.apache.cassandra.io.sstable.format.SSTableFormat;
-import org.apache.cassandra.io.sstable.format.SSTableReader;
-import org.apache.cassandra.io.sstable.format.Version;
 
 /**
  * Tests backwards compatibility for SSTables
@@ -107,7 +105,7 @@ public class ClientModeSSTableTest
 
             ByteBuffer key = bytes(Integer.toString(100));
 
-            try (SliceableUnfilteredRowIterator iter = reader.iterator(metadata.decorateKey(key), ColumnFilter.selection(metadata.partitionColumns()), false, false))
+            try (UnfilteredRowIterator iter = reader.iterator(metadata.decorateKey(key), Slices.ALL, ColumnFilter.selection(metadata.partitionColumns()), false, false))
             {
                 assert iter.next().clustering().get(0).equals(key);
             }
