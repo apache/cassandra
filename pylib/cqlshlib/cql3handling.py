@@ -1221,7 +1221,7 @@ def username_name_completer(ctxt, cass):
         return "'%s'" % name
 
     # disable completion for CREATE USER.
-    if ctxt.matched[0][0] == 'create':
+    if ctxt.matched[0][1].upper() == 'CREATE':
         return [Hint('<username>')]
 
     session = cass.session

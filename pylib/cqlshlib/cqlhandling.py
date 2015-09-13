@@ -138,9 +138,9 @@ class CqlParsingRuleSet(pylexotron.ParsingRuleSet):
             else:
                 output.append(stmt)
             if len(stmt) > 2:
-                if stmt[-3][0] == 'apply':
+                if stmt[-3][1].upper() == 'APPLY':
                     in_batch = False
-                elif stmt[0][0] == 'begin':
+                elif stmt[0][1].upper() == 'BEGIN':
                     in_batch = True
         return output, in_batch
 
