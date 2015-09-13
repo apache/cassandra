@@ -8,6 +8,7 @@ Merged from 2.2:
  * Defer default role manager setup until all nodes are on 2.2+ (CASSANDRA-9761)
  * Handle missing RoleManager in config after upgrade to 2.2 (CASSANDRA-10209)
 Merged from 2.1:
+ * BATCH statement is broken in cqlsh (CASSANDRA-10272)
  * (cqlsh) Make cqlsh PEP8 Compliant (CASSANDRA-10066)
  * (cqlsh) Fix error when starting cqlsh with --debug (CASSANDRA-10282)
  * Scrub, Cleanup and Upgrade do not unmark compacting until all operations
