@@ -163,6 +163,11 @@ public class CustomCassandraIndex implements Index
         };
     }
 
+    public boolean shouldBuildBlocking()
+    {
+        return true;
+    }
+
     public boolean indexes(PartitionColumns columns)
     {
         // if we have indexes on the partition key or clustering columns, return true

@@ -209,7 +209,8 @@ public class SecondaryIndexManager implements IndexRegistry
     public void rebuildIndexesBlocking(Collection<SSTableReader> sstables, Set<String> indexNames)
     {
         Set<Index> toRebuild = indexes.values().stream()
-                                               .filter(indexer -> indexNames.contains(indexer.getIndexName()))
+                                               .filter(index -> indexNames.contains(index.getIndexName()))
+                                               .filter(Index::shouldBuildBlocking)
                                                .collect(Collectors.toSet());
         if (toRebuild.isEmpty())
         {
@@ -226,17 +227,23 @@ public class SecondaryIndexManager implements IndexRegistry
 
     public void buildAllIndexesBlocking(Collection<SSTableReader> sstables)
     {
-        buildIndexesBlocking(sstables, ImmutableSet.copyOf(indexes.values()));
+        buildIndexesBlocking(sstables, indexes.values()
+                                              .stream()
+                                              .filter(Index::shouldBuildBlocking)
+                                              .collect(Collectors.toSet()));
     }
 
     // For convenience, may be called directly from Index impls
     public void buildIndexBlocking(Index index)
     {
-        try (ColumnFamilyStore.RefViewFragment viewFragment = baseCfs.selectAndReference(View.select(SSTableSet.CANONICAL));
-             Refs<SSTableReader> sstables = viewFragment.refs)
+        if (index.shouldBuildBlocking())
         {
-            buildIndexesBlocking(sstables, Collections.singleton(index));
-            markIndexBuilt(index.getIndexName());
+            try (ColumnFamilyStore.RefViewFragment viewFragment = baseCfs.selectAndReference(View.select(SSTableSet.CANONICAL));
+                 Refs<SSTableReader> sstables = viewFragment.refs)
+            {
+                buildIndexesBlocking(sstables, Collections.singleton(index));
+                markIndexBuilt(index.getIndexName());
+            }
         }
     }
 
