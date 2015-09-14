@@ -37,6 +37,11 @@ public class ColumnDefinition extends ColumnSpecification implements Comparable<
 
     public static final int NO_POSITION = -1;
 
+    public enum ClusteringOrder
+    {
+        ASC, DESC, NONE
+    }
+
     /*
      * The type of CQL3 column this definition represents.
      * There is 4 main type of CQL3 columns: those parts of the partition key,
@@ -220,6 +225,14 @@ public class ColumnDefinition extends ColumnSpecification implements Comparable<
     public boolean isRegular()
     {
         return kind == Kind.REGULAR;
+    }
+
+    public ClusteringOrder clusteringOrder()
+    {
+        if (!isClusteringColumn())
+            return ClusteringOrder.NONE;
+
+        return type.isReversed() ? ClusteringOrder.DESC : ClusteringOrder.ASC;
     }
 
     /**
