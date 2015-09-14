@@ -458,18 +458,6 @@ public class FileUtils
         dir.deleteOnExit();
     }
 
-    public static void skipBytesFully(DataInput in, int bytes) throws IOException
-    {
-        int n = 0;
-        while (n < bytes)
-        {
-            int skipped = in.skipBytes(bytes - n);
-            if (skipped == 0)
-                throw new EOFException("EOF after " + n + " bytes out of " + bytes);
-            n += skipped;
-        }
-    }
-
     public static void handleCorruptSSTable(CorruptSSTableException e)
     {
         if (!StorageService.instance.isSetupCompleted())

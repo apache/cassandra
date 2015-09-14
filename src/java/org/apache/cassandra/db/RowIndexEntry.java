@@ -217,7 +217,7 @@ public class RowIndexEntry<T> implements IMeasurableMemory
                 for (int i = 0; i < entries; i++)
                     columnsIndex.add(idxSerializer.deserialize(in));
 
-                FileUtils.skipBytesFully(in, entries * TypeSizes.sizeof(0));
+                in.skipBytesFully(entries * TypeSizes.sizeof(0));
 
                 return new IndexedEntry(position, deletionTime, headerLength, columnsIndex);
             }
@@ -247,7 +247,7 @@ public class RowIndexEntry<T> implements IMeasurableMemory
             if (size <= 0)
                 return;
 
-            FileUtils.skipBytesFully(in, size);
+            in.skipBytesFully(size);
         }
 
         public int serializedSize(RowIndexEntry<IndexHelper.IndexInfo> rie)

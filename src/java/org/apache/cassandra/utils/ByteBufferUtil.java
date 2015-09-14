@@ -357,7 +357,7 @@ public class ByteBufferUtil
         if (length < 0)
             throw new IOException("Corrupt (negative) value length encountered");
 
-        FileUtils.skipBytesFully(in, length);
+        in.skipBytesFully(length);
     }
 
     /* @return An unsigned short in an integer. */
@@ -387,10 +387,10 @@ public class ByteBufferUtil
      * @return null
      * @throws IOException if an I/O error occurs.
      */
-    public static void skipShortLength(DataInput in) throws IOException
+    public static void skipShortLength(DataInputPlus in) throws IOException
     {
         int skip = readShortLength(in);
-        FileUtils.skipBytesFully(in, skip);
+        in.skipBytesFully(skip);
     }
 
     public static ByteBuffer read(DataInput in, int length) throws IOException

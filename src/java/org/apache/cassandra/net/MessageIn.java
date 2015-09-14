@@ -88,7 +88,7 @@ public class MessageIn<T>
             if (callback == null)
             {
                 // reply for expired callback.  we'll have to skip it.
-                FileUtils.skipBytesFully(in, payloadSize);
+                in.skipBytesFully(payloadSize);
                 return null;
             }
             serializer = (IVersionedSerializer<T2>) callback.serializer;
