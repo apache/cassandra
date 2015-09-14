@@ -52,7 +52,7 @@ public class ColumnIdentifier extends org.apache.cassandra.cql3.selection.Select
      * since these objects are compared frequently, we stash an efficiently compared prefix of the bytes, in the expectation
      * that the majority of comparisons can be answered by this value only
      */
-    private final long prefixComparison;
+    public final long prefixComparison;
     private final boolean interned;
 
     private static final long EMPTY_SIZE = ObjectSizes.measure(new ColumnIdentifier(ByteBufferUtil.EMPTY_BYTE_BUFFER, "", false));
