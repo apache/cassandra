@@ -19,7 +19,6 @@ package org.apache.cassandra.io.sstable;
 
 import java.io.*;
 import java.util.Collections;
-import java.util.Comparator;
 import java.util.List;
 
 import org.apache.cassandra.config.CFMetaData;
@@ -28,15 +27,17 @@ import org.apache.cassandra.io.ISerializer;
 import org.apache.cassandra.io.sstable.format.Version;
 import org.apache.cassandra.io.util.DataInputPlus;
 import org.apache.cassandra.io.util.DataOutputPlus;
-import org.apache.cassandra.io.util.FileDataInput;
-import org.apache.cassandra.io.util.FileUtils;
 import org.apache.cassandra.utils.*;
 
 /**
  * Provides helper to serialize, deserialize and use column indexes.
  */
-public class IndexHelper
+public final class IndexHelper
 {
+    private IndexHelper()
+    {
+    }
+
     /**
      * The index of the IndexInfo in which a scan starting with @name should begin.
      *
@@ -50,7 +51,7 @@ public class IndexHelper
      */
     public static int indexFor(ClusteringPrefix name, List<IndexInfo> indexList, ClusteringComparator comparator, boolean reversed, int lastIndex)
     {
-        IndexInfo target = new IndexInfo(name, name, 0, null);
+        IndexInfo target = new IndexInfo(name, name, 0, 0, null);
         /*
         Take the example from the unit test, and say your index looks like this:
         [0..5][10..15][20..25]
@@ -87,8 +88,9 @@ public class IndexHelper
 
     public static class IndexInfo
     {
-        private static final long EMPTY_SIZE = ObjectSizes.measure(new IndexInfo(null, null, 0, null));
+        private static final long EMPTY_SIZE = ObjectSizes.measure(new IndexInfo(null, null, 0, 0, null));
 
+        public final long offset;
         public final long width;
         public final ClusteringPrefix firstName;
         public final ClusteringPrefix lastName;
@@ -99,11 +101,13 @@ public class IndexHelper
 
         public IndexInfo(ClusteringPrefix firstName,
                          ClusteringPrefix lastName,
+                         long offset,
                          long width,
                          DeletionTime endOpenMarker)
         {
             this.firstName = firstName;
             this.lastName = lastName;
+            this.offset = offset;
             this.width = width;
             this.endOpenMarker = endOpenMarker;
         }
@@ -114,10 +118,9 @@ public class IndexHelper
             // This is imperfect as user can change the index size and ideally we would save the index size used with each index file
             // to use as base. However, that's a bit more involved a change that we want for now and very seldom do use change the index
             // size so using the default is almost surely better than using no base at all.
-            private static final long WIDTH_BASE = 64 * 1024;
+            public static final long WIDTH_BASE = 64 * 1024;
 
-            // TODO: Only public for use in RowIndexEntry for backward compatibility code. Can be made private once backward compatibility is dropped.
-            public final ISerializer<ClusteringPrefix> clusteringSerializer;
+            private final ISerializer<ClusteringPrefix> clusteringSerializer;
             private final Version version;
 
             public Serializer(CFMetaData metadata, Version version, SerializationHeader header)
@@ -132,6 +135,7 @@ public class IndexHelper
 
                 clusteringSerializer.serialize(info.firstName, out);
                 clusteringSerializer.serialize(info.lastName, out);
+                out.writeUnsignedVInt(info.offset);
                 out.writeVInt(info.width - WIDTH_BASE);
 
                 out.writeBoolean(info.endOpenMarker != null);
@@ -143,20 +147,22 @@ public class IndexHelper
             {
                 ClusteringPrefix firstName = clusteringSerializer.deserialize(in);
                 ClusteringPrefix lastName = clusteringSerializer.deserialize(in);
+                long offset;
                 long width;
                 DeletionTime endOpenMarker = null;
                 if (version.storeRows())
                 {
+                    offset = in.readUnsignedVInt();
                     width = in.readVInt() + WIDTH_BASE;
                     if (in.readBoolean())
                         endOpenMarker = DeletionTime.serializer.deserialize(in);
                 }
                 else
                 {
-                    in.readLong(); // skip offset
+                    offset = in.readLong();
                     width = in.readLong();
                 }
-                return new IndexInfo(firstName, lastName, width, endOpenMarker);
+                return new IndexInfo(firstName, lastName, offset, width, endOpenMarker);
             }
 
             public long serializedSize(IndexInfo info)
@@ -165,6 +171,7 @@ public class IndexHelper
 
                 long size = clusteringSerializer.serializedSize(info.firstName)
                           + clusteringSerializer.serializedSize(info.lastName)
+                          + TypeSizes.sizeofUnsignedVInt(info.offset)
                           + TypeSizes.sizeofVInt(info.width - WIDTH_BASE)
                           + TypeSizes.sizeof(info.endOpenMarker != null);
 

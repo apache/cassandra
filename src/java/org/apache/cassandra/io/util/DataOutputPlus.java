@@ -60,4 +60,13 @@ public interface DataOutputPlus extends DataOutput
         VIntCoding.writeUnsignedVInt(i, this);
     }
 
+    default long getFilePointer()
+    {
+        throw new UnsupportedOperationException();
+    }
+
+    default boolean hasFilePointer()
+    {
+        return false;
+    }
 }

@@ -50,7 +50,7 @@ import static org.apache.cassandra.dht.AbstractBounds.minRight;
 
 public class BigTableScanner implements ISSTableScanner
 {
-    private AtomicBoolean isClosed = new AtomicBoolean(false);
+    private final AtomicBoolean isClosed = new AtomicBoolean(false);
     protected final RandomAccessReader dfile;
     protected final RandomAccessReader ifile;
     public final SSTableReader sstable;

@@ -17,7 +17,6 @@
  */
 package org.apache.cassandra.db;
 
-import java.io.DataInput;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -28,7 +27,6 @@ import com.google.common.primitives.Ints;
 
 import org.apache.cassandra.config.CFMetaData;
 import org.apache.cassandra.cache.IMeasurableMemory;
-import org.apache.cassandra.io.ISerializer;
 import org.apache.cassandra.io.sstable.IndexHelper;
 import org.apache.cassandra.io.sstable.format.Version;
 import org.apache.cassandra.io.util.DataInputPlus;
@@ -109,11 +107,11 @@ public class RowIndexEntry<T> implements IMeasurableMemory
         return EMPTY_SIZE;
     }
 
-    public static interface IndexSerializer<T>
+    public interface IndexSerializer<T>
     {
         void serialize(RowIndexEntry<T> rie, DataOutputPlus out) throws IOException;
         RowIndexEntry<T> deserialize(DataInputPlus in) throws IOException;
-        public int serializedSize(RowIndexEntry<T> rie);
+        int serializedSize(RowIndexEntry<T> rie);
     }
 
     public static class Serializer implements IndexSerializer<IndexHelper.IndexInfo>
@@ -139,8 +137,39 @@ public class RowIndexEntry<T> implements IMeasurableMemory
                 out.writeUnsignedVInt(rie.headerLength());
                 DeletionTime.serializer.serialize(rie.deletionTime(), out);
                 out.writeUnsignedVInt(rie.columnsIndex().size());
-                for (IndexHelper.IndexInfo info : rie.columnsIndex())
-                    idxSerializer.serialize(info, out);
+
+                // Calculate and write the offsets to the IndexInfo objects.
+
+                int[] offsets = new int[rie.columnsIndex().size()];
+
+                if (out.hasFilePointer())
+                {
+                    // Out is usually a SequentialWriter, so using the file-pointer is fine to generate the offsets.
+                    // A DataOutputBuffer also works.
+                    long start = out.getFilePointer();
+                    int i = 0;
+                    for (IndexHelper.IndexInfo info : rie.columnsIndex())
+                    {
+                        offsets[i++] = i == 0 ? 0 : (int)(out.getFilePointer() - start);
+                        idxSerializer.serialize(info, out);
+                    }
+                }
+                else
+                {
+                    // Not sure this branch will ever be needed, but if it is called, it has to calculate the
+                    // serialized sizes instead of simply using the file-pointer.
+                    int i = 0;
+                    int offset = 0;
+                    for (IndexHelper.IndexInfo info : rie.columnsIndex())
+                    {
+                        offsets[i++] = offset;
+                        idxSerializer.serialize(info, out);
+                        offset += idxSerializer.serializedSize(info);
+                    }
+                }
+
+                for (int off : offsets)
+                    out.writeInt(off);
             }
         }
 
@@ -158,19 +187,14 @@ public class RowIndexEntry<T> implements IMeasurableMemory
                     int entries = in.readInt();
                     List<IndexHelper.IndexInfo> columnsIndex = new ArrayList<>(entries);
 
-                    // The old format didn't saved the partition header length per-se, but rather for each entry it's
-                    // offset from the beginning of the row. We don't use that offset anymore, but we do need the
-                    // header length so we basically need the first entry offset. And so we inline the deserialization
-                    // of the first index entry to get that information. While this is a bit ugly, we'll get rid of that
-                    // code once pre-3.0 backward compatibility is dropped so it feels fine as a temporary hack.
-                    ClusteringPrefix firstName = idxSerializer.clusteringSerializer.deserialize(in);
-                    ClusteringPrefix lastName = idxSerializer.clusteringSerializer.deserialize(in);
-                    long headerLength = in.readLong();
-                    long width = in.readLong();
-
-                    columnsIndex.add(new IndexHelper.IndexInfo(firstName, lastName, width, null));
-                    for (int i = 1; i < entries; i++)
-                        columnsIndex.add(idxSerializer.deserialize(in));
+                    long headerLength = 0L;
+                    for (int i = 0; i < entries; i++)
+                    {
+                        IndexHelper.IndexInfo info = idxSerializer.deserialize(in);
+                        columnsIndex.add(info);
+                        if (i == 0)
+                            headerLength = info.offset;
+                    }
 
                     return new IndexedEntry(position, deletionTime, headerLength, columnsIndex);
                 }
@@ -191,6 +215,8 @@ public class RowIndexEntry<T> implements IMeasurableMemory
                 List<IndexHelper.IndexInfo> columnsIndex = new ArrayList<>(entries);
                 for (int i = 0; i < entries; i++)
                     columnsIndex.add(idxSerializer.deserialize(in));
+
+                FileUtils.skipBytesFully(in, entries * TypeSizes.sizeof(0));
 
                 return new IndexedEntry(position, deletionTime, headerLength, columnsIndex);
             }
@@ -227,20 +253,22 @@ public class RowIndexEntry<T> implements IMeasurableMemory
         {
             assert version.storeRows() : "We read old index files but we should never write them";
 
-            int size = TypeSizes.sizeofUnsignedVInt(rie.position) + TypeSizes.sizeofUnsignedVInt(rie.promotedSize(idxSerializer));
-
+            int indexedSize = 0;
             if (rie.isIndexed())
             {
                 List<IndexHelper.IndexInfo> index = rie.columnsIndex();
 
-                size += TypeSizes.sizeofUnsignedVInt(rie.headerLength());
-                size += DeletionTime.serializer.serializedSize(rie.deletionTime());
-                size += TypeSizes.sizeofUnsignedVInt(index.size());
+                indexedSize += TypeSizes.sizeofUnsignedVInt(rie.headerLength());
+                indexedSize += DeletionTime.serializer.serializedSize(rie.deletionTime());
+                indexedSize += TypeSizes.sizeofUnsignedVInt(index.size());
 
                 for (IndexHelper.IndexInfo info : index)
-                    size += idxSerializer.serializedSize(info);
+                    indexedSize += idxSerializer.serializedSize(info);
+
+                indexedSize += index.size() * TypeSizes.sizeof(0);
             }
-            return size;
+
+            return TypeSizes.sizeofUnsignedVInt(rie.position) + TypeSizes.sizeofUnsignedVInt(indexedSize) + indexedSize;
         }
     }
 
@@ -294,6 +322,8 @@ public class RowIndexEntry<T> implements IMeasurableMemory
                       + TypeSizes.sizeofUnsignedVInt(columnsIndex.size()); // number of entries
             for (IndexHelper.IndexInfo info : columnsIndex)
                 size += idxSerializer.serializedSize(info);
+
+            size += columnsIndex.size() * TypeSizes.sizeof(0);
 
             return Ints.checkedCast(size);
         }

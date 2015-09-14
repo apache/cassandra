@@ -122,6 +122,7 @@ public class ColumnIndex
         {
             IndexHelper.IndexInfo cIndexInfo = new IndexHelper.IndexInfo(firstClustering,
                                                                          lastClustering,
+                                                                         startPosition,
                                                                          currentPosition() - startPosition,
                                                                          openMarker);
             columnsIndex.add(cIndexInfo);
