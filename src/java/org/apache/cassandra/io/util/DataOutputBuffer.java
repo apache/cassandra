@@ -115,6 +115,16 @@ public class DataOutputBuffer extends BufferedDataOutputStreamPlus
         return buffer.position();
     }
 
+    public boolean hasFilePointer()
+    {
+        return true;
+    }
+
+    public long getFilePointer()
+    {
+        return getLength();
+    }
+
     public byte[] toByteArray()
     {
         ByteBuffer buffer = buffer();

@@ -3,6 +3,7 @@
 
 
 3.0.0-rc1
+ * Update index file format (CASSANDRA-10314)
  * Add "shadowable" row tombstones to deal with mv timestamp issues (CASSANDRA-10261)
  * CFS.loadNewSSTables() broken for pre-3.0 sstables
  * Cache selected index in read command to reduce lookups (CASSANDRA-10215)
