@@ -38,6 +38,8 @@ import org.apache.cassandra.utils.concurrent.OpOrder;
 
 public class StubIndex implements Index
 {
+    public List<DeletionTime> partitionDeletions = new ArrayList<>();
+    public List<RangeTombstone> rangeTombstones = new ArrayList<>();
     public List<Row> rowsInserted = new ArrayList<>();
     public List<Row> rowsDeleted = new ArrayList<>();
     public List<Pair<Row,Row>> rowsUpdated = new ArrayList<>();
@@ -48,6 +50,8 @@ public class StubIndex implements Index
     {
         rowsInserted.clear();
         rowsDeleted.clear();
+        partitionDeletions.clear();
+        rangeTombstones.clear();
     }
 
     public StubIndex(ColumnFamilyStore baseCfs, IndexMetadata metadata)
@@ -58,11 +62,7 @@ public class StubIndex implements Index
 
     public boolean indexes(PartitionColumns columns)
     {
-        for (ColumnDefinition col : columns)
-            for (ColumnIdentifier indexed : indexMetadata.columns)
-                if (indexed.equals(col.name))
-                    return true;
-        return false;
+        return true;
     }
 
     public boolean shouldBuildBlocking()
@@ -80,7 +80,7 @@ public class StubIndex implements Index
         return filter;
     }
 
-    public Indexer indexerFor(DecoratedKey key,
+    public Indexer indexerFor(final DecoratedKey key,
                               int nowInSec,
                               OpOrder.Group opGroup,
                               IndexTransaction.Type transactionType)
@@ -93,10 +93,12 @@ public class StubIndex implements Index
 
             public void partitionDelete(DeletionTime deletionTime)
             {
+                partitionDeletions.add(deletionTime);
             }
 
             public void rangeTombstone(RangeTombstone tombstone)
             {
+                rangeTombstones.add(tombstone);
             }
 
             public void insertRow(Row row)
