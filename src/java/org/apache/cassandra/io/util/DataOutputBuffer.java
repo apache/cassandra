@@ -114,12 +114,12 @@ public class DataOutputBuffer extends BufferedDataOutputStreamPlus
         return buffer.position();
     }
 
-    public boolean hasFilePointer()
+    public boolean hasPosition()
     {
         return true;
     }
 
-    public long getFilePointer()
+    public long position()
     {
         return getLength();
     }

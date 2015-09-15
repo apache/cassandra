@@ -70,7 +70,7 @@ public class CompressedInputStreamTest
         Map<Long, Long> index = new HashMap<Long, Long>();
         for (long l = 0L; l < 1000; l++)
         {
-            index.put(l, writer.getFilePointer());
+            index.put(l, writer.position());
             writer.writeLong(l);
         }
         writer.finish();
