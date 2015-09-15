@@ -34,12 +34,15 @@ import com.datastax.driver.core.Row;
 import com.datastax.driver.core.Session;
 import com.datastax.driver.core.TableMetadata;
 import com.datastax.driver.core.exceptions.NoHostAvailableException;
+
 import org.apache.cassandra.db.marshal.*;
 import org.apache.cassandra.exceptions.AuthenticationException;
 import org.apache.cassandra.exceptions.ConfigurationException;
 import org.apache.cassandra.exceptions.SyntaxException;
 import org.apache.cassandra.hadoop.ConfigHelper;
 import org.apache.cassandra.hadoop.HadoopCompat;
+import org.apache.cassandra.hadoop.cql3.CqlBulkOutputFormat;
+import org.apache.cassandra.hadoop.cql3.CqlBulkRecordWriter;
 import org.apache.cassandra.hadoop.cql3.CqlConfigHelper;
 import org.apache.cassandra.hadoop.cql3.CqlRecordReader;
 import org.apache.cassandra.serializers.CollectionSerializer;
@@ -82,6 +85,7 @@ public class CqlNativeStorage extends LoadFunc implements StoreFuncInterface, Lo
     protected int nativeProtocolVersion = 1;
 
     private static final Logger logger = LoggerFactory.getLogger(CqlNativeStorage.class);
+    private static String BULK_OUTPUT_FORMAT = "org.apache.cassandra.hadoop.cql3.CqlBulkOutputFormat";
     private int pageSize = 1000;
     private String columns;
     private String outputQuery;
@@ -108,6 +112,16 @@ public class CqlNativeStorage extends LoadFunc implements StoreFuncInterface, Lo
     private String nativeSSLKeystorePassword;
     private String nativeSSLCipherSuites;
     private String inputCql;
+
+    private boolean bulkOutputFormat = false;
+    private String bulkCfSchema;
+    private String bulkInsertStatement;
+    private String bulkOutputLocation;
+    private int bulkBuffSize = -1;
+    private int bulkStreamThrottle = -1;
+    private int bulkMaxFailedHosts = -1;
+    private boolean bulkDeleteSourceOnSuccess = true;
+    private String bulkTableAlias;
 
     public CqlNativeStorage()
     {
@@ -268,56 +282,21 @@ public class CqlNativeStorage extends LoadFunc implements StoreFuncInterface, Lo
         return client.getCluster().getMetadata().getKeyspace(Metadata.quote(keyspace)).getTable(Metadata.quote(column_family));
     }
 
-    /** output: (((name, value), (name, value)), (value ... value), (value...value)) */
-    public void putNext(Tuple t) throws IOException
-    {
-        if (t.size() < 1)
-        {
-            // simply nothing here, we can't even delete without a key
-            logger.warn("Empty output skipped, filter empty tuples to suppress this warning");
-            return;
-        }
-
-        if (t.getType(0) == DataType.TUPLE)
-        {
-            if (t.getType(1) == DataType.TUPLE)
-            {
-                Map<String, ByteBuffer> key = tupleToKeyMap((Tuple)t.get(0));
-                cqlQueryFromTuple(key, t, 1);
-            }
-            else
-                throw new IOException("Second argument in output must be a tuple");
-        }
-        else
-            throw new IOException("First argument in output must be a tuple");
-    }
-
     /** convert key tuple to key map */
     private Map<String, ByteBuffer> tupleToKeyMap(Tuple t) throws IOException
     {
         Map<String, ByteBuffer> keys = new HashMap<String, ByteBuffer>();
         for (int i = 0; i < t.size(); i++)
         {
-            if (t.getType(i) == DataType.TUPLE)
-            {
-                Tuple inner = (Tuple) t.get(i);
-                if (inner.size() == 2)
-                {
-                    Object name = inner.get(0);
-                    if (name != null)
-                    {
-                        keys.put(name.toString(), objToBB(inner.get(1)));
-                    }
-                    else
-                        throw new IOException("Key name was empty");
-                }
-                else
-                    throw new IOException("Keys were not in name and value pairs");
-            }
-            else
-            {
+            if (t.getType(i) != DataType.TUPLE)
                 throw new IOException("keys was not a tuple");
-            }
+            Tuple inner = (Tuple) t.get(i);
+            if (inner.size() != 2)
+                throw new IOException("Keys were not in name and value pairs");
+            Object name = inner.get(0);
+            if (name == null)
+                throw new IOException("Key name was empty");
+            keys.put(name.toString(), objToBB(inner.get(1)));
         }
         return keys;
     }
@@ -412,21 +391,16 @@ public class CqlNativeStorage extends LoadFunc implements StoreFuncInterface, Lo
     {
         for (int i = offset; i < t.size(); i++)
         {
-            if (t.getType(i) == DataType.TUPLE)
-            {
-                Tuple inner = (Tuple) t.get(i);
-                if (inner.size() > 0)
-                {
-                    List<ByteBuffer> bindedVariables = bindedVariablesFromTuple(inner);
-                    if (bindedVariables.size() > 0)
-                        sendCqlQuery(key, bindedVariables);
-                    else
-                        throw new IOException("Missing binded variables");
-                }
-            }
-            else
-            {
+            if (t.getType(i) != DataType.TUPLE)
                 throw new IOException("Output type was not a tuple");
+
+            Tuple inner = (Tuple) t.get(i);
+            if (inner.size() > 0)
+            {
+                List<ByteBuffer> bindedVariables = bindedVariablesFromTuple(inner);
+                if (bindedVariables.size() <= 0)
+                    throw new IOException("Missing binded variables");
+                sendCqlQuery(key, bindedVariables);
             }
         }
     }
@@ -545,6 +519,37 @@ public class CqlNativeStorage extends LoadFunc implements StoreFuncInterface, Lo
         UDFContext context = UDFContext.getUDFContext();
         Properties property = context.getUDFProperties(CqlNativeStorage.class);
         return property.getProperty(StorageHelper.PARTITION_FILTER_SIGNATURE);
+    }
+
+    /**
+     *  output: (((name, value), (name, value)), (value ... value), (value...value))
+     *  bulk output: ((value ... value), (value...value))
+     *
+     * */
+    public void putNext(Tuple t) throws IOException
+    {
+        if (t.size() < 1)
+        {
+            // simply nothing here, we can't even delete without a key
+            logger.warn("Empty output skipped, filter empty tuples to suppress this warning");
+            return;
+        }
+
+        if (t.getType(0) != DataType.TUPLE)
+            throw new IOException("First argument in output must be a tuple");
+
+        if (!bulkOutputFormat && t.getType(1) != DataType.TUPLE)
+            throw new IOException("Second argument in output must be a tuple");
+
+        if (bulkOutputFormat)
+        {
+            cqlQueryFromTuple(null, t, 0);
+        }
+        else
+        {
+            Map<String, ByteBuffer> key = tupleToKeyMap((Tuple)t.get(0));
+            cqlQueryFromTuple(key, t, 1);
+        }
     }
 
     /** set read configuration settings */
@@ -672,6 +677,32 @@ public class CqlNativeStorage extends LoadFunc implements StoreFuncInterface, Lo
         ConfigHelper.setOutputColumnFamily(conf, keyspace, column_family);
         CqlConfigHelper.setOutputCql(conf, outputQuery);
 
+        if (bulkOutputFormat)
+        {
+            DEFAULT_OUTPUT_FORMAT = BULK_OUTPUT_FORMAT;
+            if (bulkCfSchema != null)
+                CqlBulkOutputFormat.setTableSchema(conf, column_family, bulkCfSchema);
+            else
+                throw new IOException("bulk_cf_schema is missing in input url parameter");
+            if (bulkInsertStatement != null)
+                CqlBulkOutputFormat.setTableInsertStatement(conf, column_family, bulkInsertStatement);
+            else
+                throw new IOException("bulk_insert_statement is missing in input url parameter");
+            if (bulkTableAlias != null)
+                CqlBulkOutputFormat.setTableAlias(conf, bulkTableAlias, column_family); 
+            CqlBulkOutputFormat.setDeleteSourceOnSuccess(conf, bulkDeleteSourceOnSuccess);
+            if (bulkOutputLocation != null)
+                conf.set(CqlBulkRecordWriter.OUTPUT_LOCATION, bulkOutputLocation);
+            if (bulkBuffSize > 0)
+                conf.set(CqlBulkRecordWriter.BUFFER_SIZE_IN_MB, String.valueOf(bulkBuffSize));
+            if (bulkStreamThrottle > 0)
+                conf.set(CqlBulkRecordWriter.STREAM_THROTTLE_MBITS, String.valueOf(bulkStreamThrottle));
+            if (bulkMaxFailedHosts > 0)
+                conf.set(CqlBulkRecordWriter.MAX_FAILED_HOSTS, String.valueOf(bulkMaxFailedHosts));
+            if (partitionerClass!= null)
+                ConfigHelper.setInputPartitioner(conf, partitionerClass);
+        }
+
         setConnectionInformation();
 
         if (ConfigHelper.getOutputRpcPort(conf) == 0)
@@ -773,6 +804,25 @@ public class CqlNativeStorage extends LoadFunc implements StoreFuncInterface, Lo
                 if (urlQuery.containsKey("output_query"))
                     outputQuery = urlQuery.get("output_query");
 
+                if (urlQuery.containsKey("bulk_output_format"))
+                    bulkOutputFormat = Boolean.valueOf(urlQuery.get("bulk_output_format"));
+                if (urlQuery.containsKey("bulk_cf_schema"))
+                    bulkCfSchema = urlQuery.get("bulk_cf_schema");
+                if (urlQuery.containsKey("bulk_insert_statement"))
+                    bulkInsertStatement = urlQuery.get("bulk_insert_statement");
+                if (urlQuery.containsKey("bulk_output_location"))
+                    bulkOutputLocation = urlQuery.get("bulk_output_location");
+                if (urlQuery.containsKey("bulk_buff_size"))
+                    bulkBuffSize = Integer.valueOf(urlQuery.get("bulk_buff_size"));
+                if (urlQuery.containsKey("bulk_stream_throttle"))
+                    bulkStreamThrottle = Integer.valueOf(urlQuery.get("bulk_stream_throttle"));
+                if (urlQuery.containsKey("bulk_max_failed_hosts"))
+                    bulkMaxFailedHosts = Integer.valueOf(urlQuery.get("bulk_max_failed_hosts"));
+                if (urlQuery.containsKey("bulk_delete_source"))
+                    bulkDeleteSourceOnSuccess = Boolean.parseBoolean(urlQuery.get("bulk_delete_source"));
+                if (urlQuery.containsKey("bulk_table_alias"))
+                    bulkTableAlias = urlQuery.get("bulk_table_alias");
+
                 //split size
                 if (urlQuery.containsKey("split_size"))
                     splitSize = Integer.parseInt(urlQuery.get("split_size"));
@@ -855,8 +905,11 @@ public class CqlNativeStorage extends LoadFunc implements StoreFuncInterface, Lo
                     "[&keep_alive=<keep_alive>][&auth_provider=<auth_provider>][&trust_store_path=<trust_store_path>]" +
                     "[&key_store_path=<key_store_path>][&trust_store_password=<trust_store_password>]" +
                     "[&key_store_password=<key_store_password>][&cipher_suites=<cipher_suites>][&input_cql=<input_cql>]" +
-                    "[columns=<columns>][where_clause=<where_clause>]]': " + e.getMessage());
-        }
+                    "[columns=<columns>][where_clause=<where_clause>]" +
+                    "[&bulk_cf_schema=bulk_cf_schema][&bulk_insert_statement=bulk_insert_statement][&bulk_table_alias=<bulk_table_alias>]" +
+                    "[&bulk_output_location=<bulk_output_location>][&bulk_buff_size=<bulk_buff_size>][&bulk_delete_source=<bulk_delete_source>]" +
+                    "[&bulk_stream_throttle=<bulk_stream_throttle>][&bulk_max_failed_hosts=<bulk_max_failed_hosts>]]': " +  e.getMessage());
+         }
     }
 
     public ByteBuffer nullToBB()
