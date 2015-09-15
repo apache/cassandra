@@ -254,7 +254,7 @@ public class BulkLoader
         }
     }
 
-    static class ExternalClient extends SSTableLoader.Client
+    public static class ExternalClient extends SSTableLoader.Client
     {
         private final Map<String, CFMetaData> knownCfs = new HashMap<>();
         private final Set<InetAddress> hosts;

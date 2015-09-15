@@ -22,6 +22,7 @@ import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.util.List;
 
+import org.apache.cassandra.config.EncryptionOptions;
 import org.apache.cassandra.hadoop.AbstractBulkOutputFormat;
 import org.apache.cassandra.hadoop.ConfigHelper;
 import org.apache.hadoop.conf.Configuration;
@@ -54,6 +55,16 @@ public class CqlBulkOutputFormat extends AbstractBulkOutputFormat<Object, List<B
     private static final String OUTPUT_CQL_SCHEMA_PREFIX = "cassandra.columnfamily.schema.";
     private static final String OUTPUT_CQL_INSERT_PREFIX = "cassandra.columnfamily.insert.";
     private static final String DELETE_SOURCE = "cassandra.output.delete.source";
+    private static final String OUTPUT_CQL_STORAGE_PORT = "cassandra.storage.port";
+    private static final String OUTPUT_CQL_SSL_STORAGE_PORT = "cassandra.ssl.storage.port";
+    private static final String INTERNODE_ENCRYPTION = "cassandra.internode.encryption";
+    private static final String SERVER_KEYSTORE = "cassandra.server.keystore";
+    private static final String SERVER_KEYSTORE_PASSWORD = "cassandra.server.keystore.password";
+    private static final String SERVER_TRUSTSTORE = "cassandra.server.truststore";
+    private static final String SERVER_TRUSTSTORE_PASSWORD = "cassandra.server.truststore.password";
+    private static final String SERVER_CIPHER_SUITES = "cassandra.server.truststore.password";
+    public static final int DEFAULT_STORAGE_PORT = 7000;
+    public static final int DEFAULT_SSL_STORAGE_PORT = 7001;
   
     /** Fills the deprecated OutputFormat interface for streaming. */
     @Deprecated
@@ -84,7 +95,87 @@ public class CqlBulkOutputFormat extends AbstractBulkOutputFormat<Object, List<B
     {
         conf.set(OUTPUT_CQL_INSERT_PREFIX + columnFamily, insertStatement);
     }
-    
+
+    public static void setStoragePort(Configuration conf, int port)
+    {
+        conf.set(OUTPUT_CQL_STORAGE_PORT, "" + port);
+    }
+
+    public static void setSSLStoragePort(Configuration conf, int port)
+    {
+        conf.set(OUTPUT_CQL_SSL_STORAGE_PORT, "" + port);
+    }
+
+    public static void setInternodeEncryption(Configuration conf, String encrypt)
+    {
+        conf.set(INTERNODE_ENCRYPTION, encrypt);
+    }
+
+    public static void setServerKeystore(Configuration conf, String keystore)
+    {
+        conf.set(SERVER_KEYSTORE, keystore);
+    }
+
+    public static void setServerKeystorePassword(Configuration conf, String keystorePass)
+    {
+        conf.set(SERVER_KEYSTORE_PASSWORD, keystorePass);
+    }
+
+    public static void setServerTruststore(Configuration conf, String truststore)
+    {
+        conf.set(SERVER_TRUSTSTORE, truststore);
+    }
+
+    public static void setServerTruststorePassword(Configuration conf, String truststorePass)
+    {
+        conf.set(SERVER_TRUSTSTORE_PASSWORD, truststorePass);
+    }
+
+    public static void setServerCipherSuites(Configuration conf, String cipherSuites)
+    {
+        conf.set(SERVER_CIPHER_SUITES, cipherSuites);
+    }
+
+    public static int getStoragePort(Configuration conf)
+    {
+        return conf.getInt(OUTPUT_CQL_STORAGE_PORT, DEFAULT_STORAGE_PORT);
+    }
+
+    public static int getSSLStoragePort(Configuration conf)
+    {
+        return conf.getInt(OUTPUT_CQL_SSL_STORAGE_PORT, DEFAULT_SSL_STORAGE_PORT);
+    }
+
+    public static String getInternodeEncryption(Configuration conf)
+    {
+        return conf.get(INTERNODE_ENCRYPTION, EncryptionOptions.ServerEncryptionOptions.InternodeEncryption.none.name());
+    }
+
+    public static String getServerKeystore(Configuration conf)
+    {
+        return conf.get(SERVER_KEYSTORE);
+    }
+
+    public static String getServerTruststore(Configuration conf)
+    {
+        return conf.get(SERVER_TRUSTSTORE);
+    }
+
+    public static String getServerKeystorePassword(Configuration conf)
+    {
+        return conf.get(SERVER_KEYSTORE_PASSWORD);
+    }
+
+    public static String getServerTruststorePassword(Configuration conf)
+    {
+        return conf.get(SERVER_TRUSTSTORE_PASSWORD);
+    }
+
+    public static String getServerCipherSuites(Configuration conf)
+    {
+        return conf.get(SERVER_CIPHER_SUITES);
+    }
+
     public static String getColumnFamilySchema(Configuration conf, String columnFamily)
     {
         String schema = conf.get(OUTPUT_CQL_SCHEMA_PREFIX + columnFamily);

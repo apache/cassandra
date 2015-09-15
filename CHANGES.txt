@@ -1,4 +1,5 @@
 2.1.10
+ * (Pig) support BulkOutputFormat as a URL parameter (CASSANDRA-7410)
  * BATCH statement is broken in cqlsh (CASSANDRA-10272)
  * Added configurable warning threshold for GC duration (CASSANDRA-8907)
  * (cqlsh) Make cqlsh PEP8 compliant (CASSANDRA-10066)

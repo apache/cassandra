@@ -38,4 +38,3 @@ public class CqlStorage extends CqlNativeStorage
         super(pageSize);
     }
 }
-

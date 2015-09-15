@@ -10,6 +10,7 @@ commitlog_segment_size_in_mb: 5
 partitioner: org.apache.cassandra.dht.ByteOrderedPartitioner
 listen_address: 127.0.0.1
 storage_port: 7010
+ssl_storage_port: 7011
 rpc_port: 9170
 start_native_transport: true
 native_transport_port: 9042

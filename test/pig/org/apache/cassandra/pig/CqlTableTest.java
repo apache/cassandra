@@ -53,6 +53,10 @@ public class CqlTableTest extends PigTestBase
             "CREATE INDEX test_b on test (b);",
 
             "CREATE TABLE moredata (x int PRIMARY KEY, y int);",
+            "CREATE TABLE test_bulk (a int PRIMARY KEY, b int);",
+            "INSERT INTO test_bulk (a,b) VALUES (1,1);",
+            "INSERT INTO test_bulk (a,b) VALUES (2,2);",
+            "INSERT INTO test_bulk (a,b) VALUES (3,3);",
             "INSERT INTO test (a,b) VALUES (1,1);",
             "INSERT INTO test (a,b) VALUES (2,2);",
             "INSERT INTO test (a,b) VALUES (3,3);",
@@ -160,10 +164,13 @@ public class CqlTableTest extends PigTestBase
         //input_cql=select * from test where token(a) > ? and token(a) <= ?
         pig.registerQuery("result= LOAD 'cql://cql3ks/test?" + defaultParameters + nativeParameters + "&input_cql=select%20*%20from%20test%20where%20token(a)%20%3E%20%3F%20and%20token(a)%20%3C%3D%20%3F' USING CqlNativeStorage();");
         Iterator<Tuple> it = pig.openIterator("result");
+        int count = 0;
         while (it.hasNext()) {
             Tuple t = it.next();
             Assert.assertEquals(t.get(0), t.get(1));
+            count ++;
         }
+        Assert.assertEquals(6, count);
     }
 
     @Test
@@ -310,4 +317,33 @@ public class CqlTableTest extends PigTestBase
             Assert.fail("Can't fetch any data");
         }
     }
+
+    @Test
+    public void testCqlStorageSingleKeyTableBulkLoad()
+    throws AuthenticationException, AuthorizationException, InvalidRequestException, UnavailableException, TimedOutException, TException, NotFoundException, SchemaDisagreementException, IOException
+    {
+        pig.setBatchOn();
+        //input_cql=select * from moredata where token(x) > ? and token(x) <= ?
+        pig.registerQuery("moretestvalues= LOAD 'cql://cql3ks/moredata?" + defaultParameters + nativeParameters + "&input_cql=select%20*%20from%20moredata%20where%20token(x)%20%3E%20%3F%20and%20token(x)%20%3C%3D%20%3F' USING CqlNativeStorage();");
+        pig.registerQuery("insertformat= FOREACH moretestvalues GENERATE TOTUPLE(x, y);");
+        pig.registerQuery("STORE insertformat INTO 'cql://cql3ks/test_bulk?" + defaultParameters + nativeParameters +  "&bulk_output_format=true&bulk_cf_schema=CREATE%20TABLE%20cql3ks.test_bulk%20(a%20int%20PRIMARY%20KEY%2C%20b%20int)&bulk_insert_statement=Insert%20into%20cql3ks.test_bulk(a%2C%20b)%20values(%3F%2C%3F)' USING CqlNativeStorage();");
+        pig.executeBatch();
+
+        //(5,5)
+        //(6,6)
+        //(4,4)
+        //(2,2)
+        //(3,3)
+        //(1,1)
+        //input_cql=select * from test_bulk1 where token(a) > ? and token(a) <= ?
+        pig.registerQuery("result= LOAD 'cql://cql3ks/test_bulk?" + defaultParameters + nativeParameters + "&input_cql=select%20*%20from%20test_bulk%20where%20token(a)%20%3E%20%3F%20and%20token(a)%20%3C%3D%20%3F' USING CqlNativeStorage();");
+        Iterator<Tuple> it = pig.openIterator("result");
+        int count = 0;
+        while (it.hasNext()) {
+            Tuple t = it.next();
+            Assert.assertEquals(t.get(0), t.get(1));
+            count ++;
+        }
+        Assert.assertEquals(6, count);
+     }
 }

@@ -19,13 +19,16 @@ package org.apache.cassandra.hadoop.cql3;
 
 import java.io.File;
 import java.io.IOException;
+import java.net.InetAddress;
+import java.net.UnknownHostException;
 import java.nio.ByteBuffer;
-import java.util.HashMap;
+import java.util.HashSet;
 import java.util.List;
-import java.util.Map;
+import java.util.Set;
 import java.util.UUID;
 
-import org.apache.cassandra.config.CFMetaData;
+import org.apache.cassandra.config.EncryptionOptions;
+import org.apache.cassandra.config.EncryptionOptions.ServerEncryptionOptions;
 import org.apache.cassandra.exceptions.InvalidRequestException;
 import org.apache.cassandra.hadoop.AbstractBulkRecordWriter;
 import org.apache.cassandra.hadoop.BulkRecordWriter;
@@ -35,6 +38,9 @@ import org.apache.cassandra.io.sstable.CQLSSTableWriter;
 import org.apache.cassandra.io.sstable.SSTableLoader;
 import org.apache.cassandra.io.util.FileUtils;
 import org.apache.cassandra.streaming.StreamState;
+import org.apache.cassandra.thrift.ITransportFactory;
+import org.apache.cassandra.tools.BulkLoader;
+import org.apache.commons.lang.StringUtils;
 import org.apache.hadoop.conf.Configuration;
 import org.apache.hadoop.mapreduce.TaskAttemptContext;
 import org.apache.hadoop.util.Progressable;
@@ -108,10 +114,7 @@ public class CqlBulkRecordWriter extends AbstractBulkRecordWriter<Object, List<B
             }
             if (loader == null)
             {
-                ExternalClient externalClient = new ExternalClient(conf);
-                
-                externalClient.addKnownCfs(keyspace, schema);
-
+                BulkLoader.ExternalClient externalClient = getExternalClient(conf);
                 this.loader = new SSTableLoader(outputDir, externalClient, new BulkRecordWriter.NullOutputHandler()) {
                     @Override
                     public void onSuccess(StreamState finalState)
@@ -171,41 +174,53 @@ public class CqlBulkRecordWriter extends AbstractBulkRecordWriter<Object, List<B
         
         return dir;
     }
-    
-    public static class ExternalClient extends AbstractBulkRecordWriter.ExternalClient
-    {
-        private Map<String, Map<String, CFMetaData>> knownCqlCfs = new HashMap<>();
-        
-        public ExternalClient(Configuration conf)
-        {
-            super(conf);
-        }
 
-        public void addKnownCfs(String keyspace, String cql)
+    private BulkLoader.ExternalClient getExternalClient(Configuration conf)
+    {
+        Set<InetAddress> hosts = new HashSet<InetAddress>();
+        String outputAddress = ConfigHelper.getOutputInitialAddress(conf);
+        if (outputAddress == null) outputAddress = "localhost";
+        String[] nodes = outputAddress.split(",");
+        for (String node : nodes)
         {
-            Map<String, CFMetaData> cfs = knownCqlCfs.get(keyspace);
-            
-            if (cfs == null)
+            try
             {
-                cfs = new HashMap<>();
-                knownCqlCfs.put(keyspace, cfs);
+                hosts.add(InetAddress.getByName(node));
             }
-            
-            CFMetaData metadata = CFMetaData.compile(cql, keyspace);
-            cfs.put(metadata.cfName, metadata);
-        }
-        
-        @Override
-        public CFMetaData getCFMetaData(String keyspace, String cfName)
-        {
-            CFMetaData metadata = super.getCFMetaData(keyspace, cfName);
-            if (metadata != null)
+            catch (UnknownHostException e)
             {
-                return metadata;
+                throw new RuntimeException(e);
             }
-            
-            Map<String, CFMetaData> cfs = knownCqlCfs.get(keyspace);
-            return cfs != null ? cfs.get(cfName) : null;
         }
+        int rpcPort = ConfigHelper.getOutputRpcPort(conf);
+        String username = ConfigHelper.getOutputKeyspaceUserName(conf);
+        String password = ConfigHelper.getOutputKeyspacePassword(conf);
+        ITransportFactory transportFactory = ConfigHelper.getClientTransportFactory(conf);
+        return new BulkLoader.ExternalClient(hosts,
+                rpcPort,
+                username,
+                password,
+                transportFactory,
+                CqlBulkOutputFormat.getStoragePort(conf),
+                CqlBulkOutputFormat.getSSLStoragePort(conf),
+                getServerEncryptOpt(conf));
+    }
+
+    private ServerEncryptionOptions getServerEncryptOpt(Configuration conf)
+    {
+        ServerEncryptionOptions encryptOpt = new ServerEncryptionOptions();
+        String internodeEncrypt = CqlBulkOutputFormat.getInternodeEncryption(conf);
+        if (StringUtils.isEmpty(internodeEncrypt))
+            return encryptOpt;
+
+        encryptOpt.internode_encryption = EncryptionOptions.ServerEncryptionOptions.InternodeEncryption.valueOf(internodeEncrypt);
+        encryptOpt.keystore = CqlBulkOutputFormat.getServerKeystore(conf);
+        encryptOpt.truststore = CqlBulkOutputFormat.getServerTruststore(conf);
+        encryptOpt.keystore_password = CqlBulkOutputFormat.getServerKeystorePassword(conf);
+        encryptOpt.truststore_password = CqlBulkOutputFormat.getServerTruststorePassword(conf);
+        String cipherSuites = CqlBulkOutputFormat.getServerCipherSuites(conf);
+        if (!StringUtils.isEmpty(cipherSuites))
+            encryptOpt.cipher_suites = cipherSuites.replace(" ", "").split(",");
+        return encryptOpt;
     }
 }
