@@ -215,6 +215,12 @@ public abstract class CassandraIndex implements Index
         };
     }
 
+    public boolean shouldBuildBlocking()
+    {
+        // built-in indexes are always included in builds initiated from SecondaryIndexManager
+        return true;
+    }
+
     public boolean indexes(PartitionColumns columns)
     {
         // if we have indexes on the partition key or clustering columns, return true

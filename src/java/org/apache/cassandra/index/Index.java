@@ -178,6 +178,19 @@ public interface Index
      */
     public Callable<?> getTruncateTask(long truncatedAt);
 
+    /**
+     * Return true if this index can be built or rebuilt when the index manager determines it is necessary. Returning
+     * false enables the index implementation (or some other component) to control if and when SSTable data is
+     * incorporated into the index.
+     *
+     * This is called by SecondaryIndexManager in buildIndexBlocking, buildAllIndexesBlocking & rebuildIndexesBlocking
+     * where a return value of false causes the index to be exluded from the set of those which will process the
+     * SSTable data.
+     * @return if the index should be included in the set which processes SSTable data, false otherwise.
+     */
+    public boolean shouldBuildBlocking();
+
+
     /*
      * Index selection
      */

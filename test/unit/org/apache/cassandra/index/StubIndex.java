@@ -65,6 +65,11 @@ public class StubIndex implements Index
         return false;
     }
 
+    public boolean shouldBuildBlocking()
+    {
+        return false;
+    }
+
     public boolean supportsExpression(ColumnDefinition column, Operator operator)
     {
         return operator == Operator.EQ;
