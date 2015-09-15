@@ -48,6 +48,7 @@ public class ColumnDefinition extends ColumnSpecification implements Comparable<
      */
     public enum Kind
     {
+        // NOTE: if adding a new type, must modify comparisonOrder
         PARTITION_KEY,
         CLUSTERING,
         REGULAR,
@@ -75,13 +76,17 @@ public class ColumnDefinition extends ColumnSpecification implements Comparable<
 
     /**
      * These objects are compared frequently, so we encode several of their comparison components
-     * into a single int value so that this can be done efficiently
+     * into a single long value so that this can be done efficiently
      */
-    private final int comparisonOrder;
+    private final long comparisonOrder;
 
-    private static int comparisonOrder(Kind kind, boolean isComplex, int position)
+    private static long comparisonOrder(Kind kind, boolean isComplex, long position, ColumnIdentifier name)
     {
-        return (kind.ordinal() << 28) | (isComplex ? 1 << 27 : 0) | position;
+        assert position >= 0 && position < 1 << 12;
+        return   (((long) kind.ordinal()) << 61)
+               | (isComplex ? 1L << 60 : 0)
+               | (position << 48)
+               | (name.prefixComparison >>> 16);
     }
 
     public static ColumnDefinition partitionKeyDef(CFMetaData cfm, ByteBuffer name, AbstractType<?> type, int position)
@@ -147,7 +152,7 @@ public class ColumnDefinition extends ColumnSpecification implements Comparable<
         this.cellPathComparator = makeCellPathComparator(kind, type);
         this.cellComparator = cellPathComparator == null ? ColumnData.comparator : (a, b) -> cellPathComparator.compare(a.path(), b.path());
         this.asymmetricCellPathComparator = cellPathComparator == null ? null : (a, b) -> cellPathComparator.compare(((Cell)a).path(), (CellPath) b);
-        this.comparisonOrder = comparisonOrder(kind, isComplex(), position());
+        this.comparisonOrder = comparisonOrder(kind, isComplex(), position(), name);
     }
 
     private static Comparator<CellPath> makeCellPathComparator(Kind kind, AbstractType<?> type)
@@ -308,7 +313,7 @@ public class ColumnDefinition extends ColumnSpecification implements Comparable<
             return 0;
 
         if (comparisonOrder != other.comparisonOrder)
-            return comparisonOrder - other.comparisonOrder;
+            return Long.compare(comparisonOrder, other.comparisonOrder);
 
         return this.name.compareTo(other.name);
     }
