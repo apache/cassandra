@@ -30,6 +30,7 @@ import com.datastax.driver.core.ResultSet;
 import com.datastax.driver.core.Row;
 import com.datastax.driver.core.Session;
 import com.datastax.driver.core.TokenRange;
+
 import org.apache.cassandra.db.SystemKeyspace;
 import org.apache.cassandra.dht.ByteOrderedPartitioner;
 import org.apache.cassandra.dht.IPartitioner;
@@ -275,6 +276,7 @@ public abstract class AbstractColumnFamilyInputFormat<K, Y> extends InputFormat<
         long partitionCount = row.getLong("partitions_count");
 
         int splitCount = (int)((meanPartitionSize * partitionCount) / splitSize);
+        if (splitCount <= 0) splitCount = 1;
         List<TokenRange> splitRanges = tokenRange.splitEvenly(splitCount);
         Map<TokenRange, Long> rangesWithLength = new HashMap<>();
         for (TokenRange range : splitRanges)
