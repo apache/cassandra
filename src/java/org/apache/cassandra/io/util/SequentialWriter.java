@@ -253,12 +253,12 @@ public class SequentialWriter extends BufferedDataOutputStreamPlus implements Tr
             runPostFlush.run();
     }
 
-    public boolean hasFilePointer()
+    public boolean hasPosition()
     {
         return true;
     }
 
-    public long getFilePointer()
+    public long position()
     {
         return current();
     }
@@ -274,7 +274,7 @@ public class SequentialWriter extends BufferedDataOutputStreamPlus implements Tr
      */
     public long getOnDiskFilePointer()
     {
-        return getFilePointer();
+        return position();
     }
 
     public long length()

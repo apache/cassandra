@@ -91,7 +91,7 @@ public class ColumnIndex
             this.writer = writer;
             this.header = header;
             this.version = version;
-            this.initialPosition = writer.getFilePointer();
+            this.initialPosition = writer.position();
         }
 
         private void writePartitionHeader(UnfilteredRowIterator iterator) throws IOException
@@ -105,7 +105,7 @@ public class ColumnIndex
         public ColumnIndex build() throws IOException
         {
             writePartitionHeader(iterator);
-            this.headerLength = writer.getFilePointer() - initialPosition;
+            this.headerLength = writer.position() - initialPosition;
 
             while (iterator.hasNext())
                 add(iterator.next());
@@ -115,7 +115,7 @@ public class ColumnIndex
 
         private long currentPosition()
         {
-            return writer.getFilePointer() - initialPosition;
+            return writer.position() - initialPosition;
         }
 
         private void addIndexBlock()

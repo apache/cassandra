@@ -142,15 +142,15 @@ public class RowIndexEntry<T> implements IMeasurableMemory
 
                 int[] offsets = new int[rie.columnsIndex().size()];
 
-                if (out.hasFilePointer())
+                if (out.hasPosition())
                 {
                     // Out is usually a SequentialWriter, so using the file-pointer is fine to generate the offsets.
                     // A DataOutputBuffer also works.
-                    long start = out.getFilePointer();
+                    long start = out.position();
                     int i = 0;
                     for (IndexHelper.IndexInfo info : rie.columnsIndex())
                     {
-                        offsets[i] = i == 0 ? 0 : (int)(out.getFilePointer() - start);
+                        offsets[i] = i == 0 ? 0 : (int)(out.position() - start);
                         i++;
                         idxSerializer.serialize(info, out);
                     }

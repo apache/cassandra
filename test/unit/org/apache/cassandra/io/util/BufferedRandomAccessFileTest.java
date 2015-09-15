@@ -46,7 +46,7 @@ public class BufferedRandomAccessFileTest
         byte[] data = "Hello".getBytes();
         w.write(data);
         assertEquals(data.length, w.length());
-        assertEquals(data.length, w.getFilePointer());
+        assertEquals(data.length, w.position());
 
         w.sync();
 
@@ -67,9 +67,9 @@ public class BufferedRandomAccessFileTest
         for (int i = 0; i < bigData.length; i++)
             bigData[i] = 'd';
 
-        long initialPosition = w.getFilePointer();
+        long initialPosition = w.position();
         w.write(bigData); // writing data
-        assertEquals(w.getFilePointer(), initialPosition + bigData.length);
+        assertEquals(w.position(), initialPosition + bigData.length);
         assertEquals(w.length(), initialPosition + bigData.length); // file size should equals to last position
 
         w.sync();
@@ -285,10 +285,10 @@ public class BufferedRandomAccessFileTest
     {
         final SequentialWriter w = createTempFile("brafGetFilePointer");
 
-        assertEquals(w.getFilePointer(), 0); // initial position should be 0
+        assertEquals(w.position(), 0); // initial position should be 0
 
         w.write(generateByteArray(20));
-        assertEquals(w.getFilePointer(), 20); // position 20 after writing 20 bytes
+        assertEquals(w.position(), 20); // position 20 after writing 20 bytes
 
         w.sync();
 

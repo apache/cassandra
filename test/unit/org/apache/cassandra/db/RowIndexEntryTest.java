@@ -155,12 +155,12 @@ public class RowIndexEntryTest extends CQLTester
         // test with an output stream that doesn't support a file-pointer
         buffer = new DataOutputBuffer()
         {
-            public boolean hasFilePointer()
+            public boolean hasPosition()
             {
                 return false;
             }
 
-            public long getFilePointer()
+            public long position()
             {
                 throw new UnsupportedOperationException();
             }
