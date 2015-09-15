@@ -28,10 +28,11 @@ import java.util.concurrent.*;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-
 import org.apache.cassandra.config.CFMetaData;
 import org.apache.cassandra.config.Config;
 import org.apache.cassandra.config.DatabaseDescriptor;
+import org.apache.cassandra.dht.IPartitioner;
+import org.apache.cassandra.dht.Murmur3Partitioner;
 import org.apache.cassandra.exceptions.InvalidRequestException;
 import org.apache.cassandra.hadoop.ConfigHelper;
 import org.apache.cassandra.hadoop.HadoopCompat;
@@ -84,6 +85,7 @@ public class CqlBulkRecordWriter extends RecordWriter<Object, List<ByteBuffer>>
     private String insertStatement;
     private File outputDir;
     private boolean deleteSrc;
+    private IPartitioner partitioner;
 
     CqlBulkRecordWriter(TaskAttemptContext context) throws IOException
     {
@@ -124,6 +126,14 @@ public class CqlBulkRecordWriter extends RecordWriter<Object, List<ByteBuffer>>
         insertStatement = CqlBulkOutputFormat.getTableInsertStatement(conf, table);
         outputDir = getTableDirectory();
         deleteSrc = CqlBulkOutputFormat.getDeleteSourceOnSuccess(conf);
+        try
+        {
+            partitioner = ConfigHelper.getInputPartitioner(conf);
+        }
+        catch (Exception e)
+        {
+            partitioner = Murmur3Partitioner.instance;
+        }
     }
 
     protected String getOutputLocation() throws IOException
@@ -144,6 +154,7 @@ public class CqlBulkRecordWriter extends RecordWriter<Object, List<ByteBuffer>>
                                      .withPartitioner(ConfigHelper.getOutputPartitioner(conf))
                                      .inDirectory(outputDir)
                                      .withBufferSizeInMB(Integer.parseInt(conf.get(BUFFER_SIZE_IN_MB, "64")))
+                                     .withPartitioner(partitioner)
                                      .build();
         }
 
