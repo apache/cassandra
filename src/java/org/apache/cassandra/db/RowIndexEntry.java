@@ -150,7 +150,8 @@ public class RowIndexEntry<T> implements IMeasurableMemory
                     int i = 0;
                     for (IndexHelper.IndexInfo info : rie.columnsIndex())
                     {
-                        offsets[i++] = i == 0 ? 0 : (int)(out.getFilePointer() - start);
+                        offsets[i] = i == 0 ? 0 : (int)(out.getFilePointer() - start);
+                        i++;
                         idxSerializer.serialize(info, out);
                     }
                 }
