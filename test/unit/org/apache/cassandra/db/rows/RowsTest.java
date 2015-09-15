@@ -149,8 +149,8 @@ public class RowsTest
             updates++;
         }
 
-        List<MergedPair<DeletionTime>> deletions = new LinkedList<>();
-        public void onDeletion(int i, Clustering clustering, DeletionTime merged, DeletionTime original)
+        List<MergedPair<Row.Deletion>> deletions = new LinkedList<>();
+        public void onDeletion(int i, Clustering clustering, Row.Deletion merged, Row.Deletion original)
         {
             updateClustering(clustering);
             deletions.add(MergedPair.create(i, merged, original));
@@ -240,7 +240,7 @@ public class RowsTest
                                                       BufferCell.live(kcvm, m, secondToTs(now), BB1, CellPath.create(BB1)),
                                                       BufferCell.live(kcvm, m, secondToTs(now), BB2, CellPath.create(BB2)));
         expectedCells.forEach(originalBuilder::addCell);
-        DeletionTime rowDeletion = new DeletionTime(ts, now);
+        Row.Deletion rowDeletion = new Row.Deletion(new DeletionTime(ts, now), false);
         originalBuilder.addRowDeletion(rowDeletion);
 
         RowBuilder builder = new RowBuilder();
@@ -268,14 +268,14 @@ public class RowsTest
                                                       BufferCell.live(kcvm, m, ts, BB1, CellPath.create(BB1)),
                                                       BufferCell.live(kcvm, m, ts, BB2, CellPath.create(BB2)));
         expectedCells.forEach(builder::addCell);
-        DeletionTime rowDeletion = new DeletionTime(ts, now);
+        Row.Deletion rowDeletion = new Row.Deletion(new DeletionTime(ts, now), false);
         builder.addRowDeletion(rowDeletion);
 
         StatsCollector collector = new StatsCollector();
         Rows.collectStats(builder.build(), collector);
 
         Assert.assertEquals(Lists.newArrayList(liveness), collector.liveness);
-        Assert.assertEquals(Sets.newHashSet(rowDeletion, complexDeletion), Sets.newHashSet(collector.deletions));
+        Assert.assertEquals(Sets.newHashSet(rowDeletion.time(), complexDeletion), Sets.newHashSet(collector.deletions));
         Assert.assertEquals(Sets.newHashSet(expectedCells), Sets.newHashSet(collector.cells));
         Assert.assertEquals(2, collector.columnCount);
         Assert.assertFalse(collector.hasLegacyCounterShards);
@@ -322,7 +322,7 @@ public class RowsTest
         List<Cell> r2ExpectedCells = Lists.newArrayList(r2v, r2m2, r2m3, r2m4);
 
         r2ExpectedCells.forEach(r2Builder::addCell);
-        DeletionTime r2RowDeletion = new DeletionTime(ts1 - 2, now2);
+        Row.Deletion r2RowDeletion = new Row.Deletion(new DeletionTime(ts1 - 2, now2), false);
         r2Builder.addRowDeletion(r2RowDeletion);
 
         Row r1 = r1Builder.build();
@@ -353,7 +353,7 @@ public class RowsTest
         Assert.assertEquals(expectedLiveness, listener.liveness);
 
         // deletions
-        List<MergedPair<DeletionTime>> expectedDeletions = Lists.newArrayList(MergedPair.create(0, r2RowDeletion, null),
+        List<MergedPair<Row.Deletion>> expectedDeletions = Lists.newArrayList(MergedPair.create(0, r2RowDeletion, null),
                                                                               MergedPair.create(1, r2RowDeletion, r2RowDeletion));
         Assert.assertEquals(expectedDeletions, listener.deletions);
 
@@ -392,7 +392,7 @@ public class RowsTest
         List<Cell> r2ExpectedCells = Lists.newArrayList(r2v, r2m2, r2m3, r2m4);
 
         r2ExpectedCells.forEach(r2Builder::addCell);
-        DeletionTime r2RowDeletion = new DeletionTime(ts1 - 1, now2);
+        Row.Deletion r2RowDeletion = new Row.Deletion(new DeletionTime(ts1 - 1, now2), false);
         r2Builder.addRowDeletion(r2RowDeletion);
 
         Row r1 = r1Builder.build();
@@ -446,7 +446,7 @@ public class RowsTest
         List<Cell> r2ExpectedCells = Lists.newArrayList(r2v, r2m2, r2m3, r2m4);
 
         r2ExpectedCells.forEach(r2Builder::addCell);
-        DeletionTime r2RowDeletion = new DeletionTime(ts1 - 1, now2);
+        Row.Deletion r2RowDeletion = new Row.Deletion(new DeletionTime(ts1 - 1, now2), false);
         r2Builder.addRowDeletion(r2RowDeletion);
 
         Row r1 = r1Builder.build();
@@ -510,7 +510,7 @@ public class RowsTest
         int now2 = now1 + 1;
         Row.Builder updateBuilder = createBuilder(c1, now2, null, BB1, BB1);
         int now3 = now2 + 1;
-        DeletionTime expectedDeletion = new DeletionTime(secondToTs(now3), now3);
+        Row.Deletion expectedDeletion = new Row.Deletion(new DeletionTime(secondToTs(now3), now3), false);
         updateBuilder.addRowDeletion(expectedDeletion);
 
         RowBuilder builder = new RowBuilder();
@@ -534,7 +534,7 @@ public class RowsTest
         int now2 = now1 + 1;
         Row.Builder updateBuilder = createBuilder(c1, now2, BB1, BB1, BB1);
         int now3 = now2 + 1;
-        DeletionTime expectedDeletion = new DeletionTime(secondToTs(now3), now3);
+        Row.Deletion expectedDeletion = new Row.Deletion(new DeletionTime(secondToTs(now3), now3), false);
         updateBuilder.addRowDeletion(expectedDeletion);
 
         RowBuilder builder = new RowBuilder();
