@@ -108,7 +108,7 @@ public class CollationController
 
             /* add the SSTables on disk */
             Collections.sort(view.sstables, SSTableReader.maxTimestampComparator);
-
+            boolean onlyUnrepaired = true;
             // read sorted sstables
             for (SSTableReader sstable : view.sstables)
             {
@@ -122,7 +122,8 @@ public class CollationController
                 reduceNameFilter(reducedFilter, container, currentMaxTs);
                 if (((NamesQueryFilter) reducedFilter.filter).columns.isEmpty())
                     break;
-
+                if (sstable.isRepaired())
+                    onlyUnrepaired = false;
                 Tracing.trace("Merging data from sstable {}", sstable.descriptor.generation);
                 sstable.incrementReadCount();
                 OnDiskAtomIterator iter = reducedFilter.getSSTableColumnIterator(sstable);
@@ -149,6 +150,7 @@ public class CollationController
 
             // "hoist up" the requested data into a more recent sstable
             if (sstablesIterated > cfs.getMinimumCompactionThreshold()
+                && onlyUnrepaired
                 && !cfs.isAutoCompactionDisabled()
                 && cfs.getCompactionStrategy().shouldDefragment())
             {
