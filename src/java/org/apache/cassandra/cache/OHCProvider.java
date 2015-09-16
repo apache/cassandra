@@ -23,7 +23,6 @@ import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.nio.channels.WritableByteChannel;
 import java.util.Iterator;
-import java.util.UUID;
 
 import com.google.common.base.Function;
 
@@ -33,6 +32,7 @@ import org.apache.cassandra.db.TypeSizes;
 import org.apache.cassandra.io.util.DataOutputPlus;
 import org.apache.cassandra.io.util.Memory;
 import org.apache.cassandra.net.MessagingService;
+import org.apache.cassandra.utils.Pair;
 import org.caffinitas.ohc.OHCache;
 import org.caffinitas.ohc.OHCacheBuilder;
 
@@ -128,24 +128,27 @@ public class OHCProvider implements CacheProvider<RowCacheKey, IRowCacheEntry>
     {
         public void serialize(RowCacheKey rowCacheKey, DataOutput dataOutput) throws IOException
         {
-            dataOutput.writeLong(rowCacheKey.cfId.getMostSignificantBits());
-            dataOutput.writeLong(rowCacheKey.cfId.getLeastSignificantBits());
+            dataOutput.writeUTF(rowCacheKey.ksAndCFName.left);
+            dataOutput.writeUTF(rowCacheKey.ksAndCFName.right);
             dataOutput.writeInt(rowCacheKey.key.length);
             dataOutput.write(rowCacheKey.key);
         }
 
         public RowCacheKey deserialize(DataInput dataInput) throws IOException
         {
-            long msb = dataInput.readLong();
-            long lsb = dataInput.readLong();
+            String ksName = dataInput.readUTF();
+            String cfName = dataInput.readUTF();
             byte[] key = new byte[dataInput.readInt()];
             dataInput.readFully(key);
-            return new RowCacheKey(new UUID(msb, lsb), key);
+            return new RowCacheKey(Pair.create(ksName, cfName), key);
         }
 
         public int serializedSize(RowCacheKey rowCacheKey)
         {
-            return 20 + rowCacheKey.key.length;
+            return TypeSizes.NATIVE.sizeof(rowCacheKey.ksAndCFName.left)
+                    + TypeSizes.NATIVE.sizeof(rowCacheKey.ksAndCFName.right)
+                    + 4
+                    + rowCacheKey.key.length;
         }
     }
 

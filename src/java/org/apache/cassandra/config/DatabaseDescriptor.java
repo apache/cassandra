@@ -1480,20 +1480,11 @@ public class DatabaseDescriptor
         return conf.max_hint_window_in_ms;
     }
 
-    public static File getSerializedCachePath(String ksName,
-                                              String cfName,
-                                              UUID cfId,
-                                              CacheService.CacheType cacheType,
-                                              String version,
-                                              String extension)
+    public static File getSerializedCachePath(CacheService.CacheType cacheType, String version, String extension)
     {
-        StringBuilder builder = new StringBuilder();
-        builder.append(ksName).append('-');
-        builder.append(cfName).append('-');
-        builder.append(ByteBufferUtil.bytesToHex(ByteBufferUtil.bytes(cfId))).append('-');
-        builder.append(cacheType);
-        builder.append((version == null ? "" : "-" + version + "." + extension));
-        return new File(conf.saved_caches_directory, builder.toString());
+        String name = cacheType.toString()
+                + (version == null ? "" : "-" + version + "." + extension);
+        return new File(conf.saved_caches_directory, name);
     }
 
     public static int getDynamicUpdateInterval()

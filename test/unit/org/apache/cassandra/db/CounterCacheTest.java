@@ -27,6 +27,7 @@ import org.apache.cassandra.SchemaLoader;
 import org.apache.cassandra.config.KSMetaData;
 import org.apache.cassandra.db.marshal.CounterColumnType;
 import org.apache.cassandra.exceptions.ConfigurationException;
+import org.apache.cassandra.config.Schema;
 import org.apache.cassandra.exceptions.WriteTimeoutException;
 import org.apache.cassandra.locator.SimpleStrategy;
 import org.apache.cassandra.service.CacheService;
@@ -63,6 +64,7 @@ public class CounterCacheTest
     public void testReadWrite()
     {
         ColumnFamilyStore cfs = Keyspace.open(KEYSPACE1).getColumnFamilyStore(CF);
+        cfs.truncateBlocking();
         CacheService.instance.invalidateCounterCache();
 
         assertEquals(0, CacheService.instance.counterCache.size());
@@ -87,6 +89,7 @@ public class CounterCacheTest
     public void testSaveLoad() throws ExecutionException, InterruptedException, WriteTimeoutException
     {
         ColumnFamilyStore cfs = Keyspace.open(KEYSPACE1).getColumnFamilyStore(CF);
+        cfs.truncateBlocking();
         CacheService.instance.invalidateCounterCache();
 
         ColumnFamily cells = ArrayBackedSortedColumns.factory.create(cfs.metadata);
@@ -101,11 +104,76 @@ public class CounterCacheTest
         assertEquals(0, CacheService.instance.counterCache.size());
 
         // load from cache and validate
-        CacheService.instance.counterCache.loadSaved(cfs);
+        CacheService.instance.counterCache.loadSaved();
         assertEquals(4, CacheService.instance.counterCache.size());
         assertEquals(ClockAndCount.create(1L, 1L), cfs.getCachedCounter(bytes(1), cellname(1)));
         assertEquals(ClockAndCount.create(1L, 2L), cfs.getCachedCounter(bytes(1), cellname(2)));
         assertEquals(ClockAndCount.create(1L, 1L), cfs.getCachedCounter(bytes(2), cellname(1)));
         assertEquals(ClockAndCount.create(1L, 2L), cfs.getCachedCounter(bytes(2), cellname(2)));
     }
+
+    @Test
+    public void testDroppedSaveLoad() throws ExecutionException, InterruptedException, WriteTimeoutException
+    {
+        ColumnFamilyStore cfs = Keyspace.open(KEYSPACE1).getColumnFamilyStore(CF);
+        cfs.truncateBlocking();
+        CacheService.instance.invalidateCounterCache();
+
+        ColumnFamily cells = ArrayBackedSortedColumns.factory.create(cfs.metadata);
+        cells.addColumn(new BufferCounterUpdateCell(cellname(1), 1L, FBUtilities.timestampMicros()));
+        cells.addColumn(new BufferCounterUpdateCell(cellname(2), 2L, FBUtilities.timestampMicros()));
+        new CounterMutation(new Mutation(KEYSPACE1, bytes(1), cells), ConsistencyLevel.ONE).apply();
+        new CounterMutation(new Mutation(KEYSPACE1, bytes(2), cells), ConsistencyLevel.ONE).apply();
+
+        // flush the counter cache and invalidate
+        CacheService.instance.counterCache.submitWrite(Integer.MAX_VALUE).get();
+        CacheService.instance.invalidateCounterCache();
+        assertEquals(0, CacheService.instance.counterCache.size());
+
+        Keyspace ks = Schema.instance.removeKeyspaceInstance(KEYSPACE1);
+
+        try
+        {
+            // load from cache and validate
+            CacheService.instance.counterCache.loadSaved();
+            assertEquals(0, CacheService.instance.counterCache.size());
+        }
+        finally
+        {
+            Schema.instance.storeKeyspaceInstance(ks);
+        }
+    }
+
+    @Test
+    public void testDisabledSaveLoad() throws ExecutionException, InterruptedException, WriteTimeoutException
+    {
+        ColumnFamilyStore cfs = Keyspace.open(KEYSPACE1).getColumnFamilyStore(CF);
+        cfs.truncateBlocking();
+        CacheService.instance.invalidateCounterCache();
+
+        ColumnFamily cells = ArrayBackedSortedColumns.factory.create(cfs.metadata);
+        cells.addColumn(new BufferCounterUpdateCell(cellname(1), 1L, FBUtilities.timestampMicros()));
+        cells.addColumn(new BufferCounterUpdateCell(cellname(2), 2L, FBUtilities.timestampMicros()));
+        new CounterMutation(new Mutation(KEYSPACE1, bytes(1), cells), ConsistencyLevel.ONE).apply();
+        new CounterMutation(new Mutation(KEYSPACE1, bytes(2), cells), ConsistencyLevel.ONE).apply();
+
+        // flush the counter cache and invalidate
+        CacheService.instance.counterCache.submitWrite(Integer.MAX_VALUE).get();
+        CacheService.instance.invalidateCounterCache();
+        assertEquals(0, CacheService.instance.counterCache.size());
+
+
+        CacheService.instance.setCounterCacheCapacityInMB(0);
+        try
+        {
+            // load from cache and validate
+            CacheService.instance.counterCache.loadSaved();
+            assertEquals(0, CacheService.instance.counterCache.size());
+        }
+        finally
+        {
+            CacheService.instance.setCounterCacheCapacityInMB(1);
+        }
+    }
+
 }
