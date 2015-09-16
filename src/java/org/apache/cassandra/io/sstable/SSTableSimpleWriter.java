@@ -65,6 +65,13 @@ public class SSTableSimpleWriter extends AbstractSSTableSimpleWriter
         writer = getWriter();
     }
 
+    SSTableReader closeAndOpenReader()
+    {
+        if (currentKey != null)
+            writeRow(currentKey, columnFamily);
+        return writer.closeAndOpenReader();
+    }
+
     public void close()
     {
         try
@@ -88,5 +95,10 @@ public class SSTableSimpleWriter extends AbstractSSTableSimpleWriter
     protected ColumnFamily getColumnFamily()
     {
         return ArrayBackedSortedColumns.factory.create(metadata);
+    }
+
+    public Descriptor getCurrentDescriptor()
+    {
+        return writer.descriptor;
     }
 }

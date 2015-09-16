@@ -200,4 +200,6 @@ public abstract class AbstractSSTableSimpleWriter implements Closeable
     protected abstract void writeRow(DecoratedKey key, ColumnFamily columnFamily) throws IOException;
 
     protected abstract ColumnFamily getColumnFamily() throws IOException;
+
+    public abstract Descriptor getCurrentDescriptor();
 }

@@ -140,6 +140,12 @@ public class SSTableSimpleUnsortedWriter extends AbstractSSTableSimpleWriter
         return previous;
     }
 
+    public Descriptor getCurrentDescriptor()
+    {
+        // can be implemented, but isn't necessary
+        throw new UnsupportedOperationException();
+    }
+
     protected ColumnFamily createColumnFamily() throws IOException
     {
         return ArrayBackedSortedColumns.factory.create(metadata);
