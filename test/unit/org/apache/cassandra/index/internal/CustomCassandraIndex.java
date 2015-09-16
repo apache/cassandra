@@ -20,26 +20,26 @@ import org.apache.cassandra.db.compaction.CompactionManager;
 import org.apache.cassandra.db.filter.RowFilter;
 import org.apache.cassandra.db.lifecycle.SSTableSet;
 import org.apache.cassandra.db.lifecycle.View;
-import org.apache.cassandra.db.marshal.AbstractType;
-import org.apache.cassandra.db.marshal.CollectionType;
 import org.apache.cassandra.db.partitions.PartitionIterator;
 import org.apache.cassandra.db.partitions.PartitionUpdate;
 import org.apache.cassandra.db.rows.*;
-import org.apache.cassandra.dht.LocalPartitioner;
 import org.apache.cassandra.exceptions.InvalidRequestException;
 import org.apache.cassandra.index.Index;
 import org.apache.cassandra.index.IndexRegistry;
 import org.apache.cassandra.index.SecondaryIndexBuilder;
-import org.apache.cassandra.index.internal.composites.CompositesSearcher;
-import org.apache.cassandra.index.internal.keys.KeysSearcher;
 import org.apache.cassandra.index.transactions.IndexTransaction;
 import org.apache.cassandra.index.transactions.UpdateTransaction;
 import org.apache.cassandra.io.sstable.ReducingKeyIterator;
 import org.apache.cassandra.io.sstable.format.SSTableReader;
 import org.apache.cassandra.schema.IndexMetadata;
 import org.apache.cassandra.utils.FBUtilities;
+import org.apache.cassandra.utils.Pair;
 import org.apache.cassandra.utils.concurrent.OpOrder;
 import org.apache.cassandra.utils.concurrent.Refs;
+
+import static org.apache.cassandra.index.internal.CassandraIndex.getFunctions;
+import static org.apache.cassandra.index.internal.CassandraIndex.indexCfsMetadata;
+import static org.apache.cassandra.index.internal.CassandraIndex.parseTarget;
 
 /**
  * Clone of KeysIndex used in CassandraIndexTest#testCustomIndexWithCFS to verify
@@ -145,14 +145,14 @@ public class CustomCassandraIndex implements Index
     private void setMetadata(IndexMetadata indexDef)
     {
         metadata = indexDef;
-        functions = getFunctions(baseCfs.metadata, indexDef);
+        Pair<ColumnDefinition, IndexTarget.Type> target = parseTarget(baseCfs.metadata, indexDef);
+        functions = getFunctions(indexDef, target);
         CFMetaData cfm = indexCfsMetadata(baseCfs.metadata, indexDef);
         indexCfs = ColumnFamilyStore.createColumnFamilyStore(baseCfs.keyspace,
                                                              cfm.cfName,
                                                              cfm,
                                                              baseCfs.getTracker().loadsstables);
-        assert indexDef.columns.size() == 1 : "Build in indexes on multiple target columns are not supported";
-        indexedColumn = indexDef.indexedColumn(baseCfs.metadata);
+        indexedColumn = target.left;
     }
 
     public Callable<?> getTruncateTask(final long truncatedAt)
@@ -172,6 +172,11 @@ public class CustomCassandraIndex implements Index
     {
         // if we have indexes on the partition key or clustering columns, return true
         return isPrimaryKeyIndex() || columns.contains(indexedColumn);
+    }
+
+    public boolean dependsOn(ColumnDefinition column)
+    {
+        return column.equals(indexedColumn);
     }
 
     public boolean supportsExpression(ColumnDefinition column, Operator operator)
@@ -667,77 +672,5 @@ public class CustomCassandraIndex implements Index
         return StreamSupport.stream(sstables.spliterator(), false)
                             .map(SSTableReader::toString)
                             .collect(Collectors.joining(", "));
-    }
-
-    /**
-     * Construct the CFMetadata for an index table, the clustering columns in the index table
-     * vary dependent on the kind of the indexed value.
-     * @param baseCfsMetadata
-     * @param indexMetadata
-     * @return
-     */
-    public static final CFMetaData indexCfsMetadata(CFMetaData baseCfsMetadata, IndexMetadata indexMetadata)
-    {
-        CassandraIndexFunctions utils = getFunctions(baseCfsMetadata, indexMetadata);
-        ColumnDefinition indexedColumn = indexMetadata.indexedColumn(baseCfsMetadata);
-        AbstractType<?> indexedValueType = utils.getIndexedValueType(indexedColumn);
-        CFMetaData.Builder builder = CFMetaData.Builder.create(baseCfsMetadata.ksName,
-                                                               baseCfsMetadata.indexColumnFamilyName(indexMetadata))
-                                                       .withId(baseCfsMetadata.cfId)
-                                                       .withPartitioner(new LocalPartitioner(indexedValueType))
-                                                       .addPartitionKey(indexedColumn.name, indexedColumn.type);
-
-        builder.addClusteringColumn("partition_key", baseCfsMetadata.partitioner.partitionOrdering());
-        builder = utils.addIndexClusteringColumns(builder, baseCfsMetadata, indexedColumn);
-        return builder.build().reloadIndexMetadataProperties(baseCfsMetadata);
-    }
-
-    /**
-     * Factory method for new CassandraIndex instances
-     * @param baseCfs
-     * @param indexMetadata
-     * @return
-     */
-    public static final CassandraIndex newIndex(ColumnFamilyStore baseCfs, IndexMetadata indexMetadata)
-    {
-        return getFunctions(baseCfs.metadata, indexMetadata).newIndexInstance(baseCfs, indexMetadata);
-    }
-
-    private static CassandraIndexFunctions getFunctions(CFMetaData baseCfMetadata, IndexMetadata indexDef)
-    {
-        if (indexDef.isKeys())
-            return CassandraIndexFunctions.KEYS_INDEX_FUNCTIONS;
-
-        ColumnDefinition indexedColumn = indexDef.indexedColumn(baseCfMetadata);
-        if (indexedColumn.type.isCollection() && indexedColumn.type.isMultiCell())
-        {
-            switch (((CollectionType)indexedColumn.type).kind)
-            {
-                case LIST:
-                    return CassandraIndexFunctions.COLLECTION_VALUE_INDEX_FUNCTIONS;
-                case SET:
-                    return CassandraIndexFunctions.COLLECTION_KEY_INDEX_FUNCTIONS;
-                case MAP:
-                    if (indexDef.options.containsKey(IndexTarget.INDEX_KEYS_OPTION_NAME))
-                        return CassandraIndexFunctions.COLLECTION_KEY_INDEX_FUNCTIONS;
-                    else if (indexDef.options.containsKey(IndexTarget.INDEX_ENTRIES_OPTION_NAME))
-                        return CassandraIndexFunctions.COLLECTION_ENTRY_INDEX_FUNCTIONS;
-                    else
-                        return CassandraIndexFunctions.COLLECTION_VALUE_INDEX_FUNCTIONS;
-            }
-        }
-
-        switch (indexedColumn.kind)
-        {
-            case CLUSTERING:
-                return CassandraIndexFunctions.CLUSTERING_COLUMN_INDEX_FUNCTIONS;
-            case REGULAR:
-                return CassandraIndexFunctions.REGULAR_COLUMN_INDEX_FUNCTIONS;
-            case PARTITION_KEY:
-                return CassandraIndexFunctions.PARTITION_KEY_INDEX_FUNCTIONS;
-            //case COMPACT_VALUE:
-            //    return new CompositesIndexOnCompactValue();
-        }
-        throw new AssertionError();
     }
 }

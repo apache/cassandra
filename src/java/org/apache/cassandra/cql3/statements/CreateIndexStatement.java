@@ -22,7 +22,6 @@ import java.util.Map;
 
 import com.google.common.base.Optional;
 import com.google.common.base.Strings;
-import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.Iterables;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -81,9 +80,6 @@ public class CreateIndexStatement extends SchemaAlteringStatement
         IndexTarget target = rawTarget.prepare(cfm);
         ColumnDefinition cd = cfm.getColumnDefinition(target.column);
 
-        if (cd == null)
-            throw new InvalidRequestException("No column definition found for column " + target.column);
-
         boolean isMap = cd.type instanceof MapType;
         boolean isFrozenCollection = cd.type.isCollection() && !cd.type.isMultiCell();
 
@@ -94,7 +90,7 @@ public class CreateIndexStatement extends SchemaAlteringStatement
         else
         {
             validateNotFullIndex(target);
-            validateIsValuesIndexIfTargetColumnNotCollection(cd, target);
+            validateIsSimpleIndexIfTargetColumnNotCollection(cd, target);
             validateTargetColumnIsMapIfIndexInvolvesKeys(isMap, target);
         }
 
@@ -136,7 +132,9 @@ public class CreateIndexStatement extends SchemaAlteringStatement
     private void validateForFrozenCollection(IndexTarget target) throws InvalidRequestException
     {
         if (target.type != IndexTarget.Type.FULL)
-            throw new InvalidRequestException(String.format("Cannot create index on %s of frozen<map> column %s", target.type, target.column));
+            throw new InvalidRequestException(String.format("Cannot create %s() index on frozen column %s. " +
+                                                            "Frozen collections only support full() indexes",
+                                                            target.type, target.column));
     }
 
     private void validateNotFullIndex(IndexTarget target) throws InvalidRequestException
@@ -145,11 +143,12 @@ public class CreateIndexStatement extends SchemaAlteringStatement
             throw new InvalidRequestException("full() indexes can only be created on frozen collections");
     }
 
-    private void validateIsValuesIndexIfTargetColumnNotCollection(ColumnDefinition cd, IndexTarget target) throws InvalidRequestException
+    private void validateIsSimpleIndexIfTargetColumnNotCollection(ColumnDefinition cd, IndexTarget target) throws InvalidRequestException
     {
-        if (!cd.type.isCollection() && target.type != IndexTarget.Type.VALUES)
-            throw new InvalidRequestException(String.format("Cannot create index on %s of column %s; only non-frozen collections support %s indexes",
-                                                            target.type, target.column, target.type));
+        if (!cd.type.isCollection() && target.type != IndexTarget.Type.SIMPLE)
+            throw new InvalidRequestException(String.format("Cannot create %s() index on %s. " +
+                                                            "Non-collection columns support only simple indexes",
+                                                            target.type.toString(), target.column));
     }
 
     private void validateTargetColumnIsMapIfIndexInvolvesKeys(boolean isMap, IndexTarget target) throws InvalidRequestException
@@ -180,31 +179,20 @@ public class CreateIndexStatement extends SchemaAlteringStatement
                 throw new InvalidRequestException(String.format("Index %s already exists", acceptedName));
         }
 
-        IndexMetadata.IndexType indexType;
+        IndexMetadata.Kind kind;
         Map<String, String> indexOptions;
         if (properties.isCustom)
         {
-            indexType = IndexMetadata.IndexType.CUSTOM;
+            kind = IndexMetadata.Kind.CUSTOM;
             indexOptions = properties.getOptions();
-        }
-        else if (cfm.isCompound())
-        {
-            Map<String, String> options = Collections.emptyMap();
-            // For now, we only allow indexing values for collections, but we could later allow
-            // to also index map keys, so we record that this is the values we index to make our
-            // lives easier then.
-            if (cd.type.isCollection() && cd.type.isMultiCell())
-                options = ImmutableMap.of(target.type.indexOption(), "");
-            indexType = IndexMetadata.IndexType.COMPOSITES;
-            indexOptions = options;
         }
         else
         {
-            indexType = IndexMetadata.IndexType.KEYS;
             indexOptions = Collections.emptyMap();
+            kind = cfm.isCompound() ? IndexMetadata.Kind.COMPOSITES : IndexMetadata.Kind.KEYS;
         }
 
-        IndexMetadata index = IndexMetadata.singleColumnIndex(cd, acceptedName, indexType, indexOptions);
+        IndexMetadata index = IndexMetadata.singleTargetIndex(cfm, target, acceptedName, kind, indexOptions);
 
         // check to disallow creation of an index which duplicates an existing one in all but name
         Optional<IndexMetadata> existingIndex = Iterables.tryFind(cfm.getIndexes(), existing -> existing.equalsWithoutName(index));

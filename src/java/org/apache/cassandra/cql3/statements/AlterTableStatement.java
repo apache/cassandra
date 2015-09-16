@@ -18,6 +18,7 @@
 package org.apache.cassandra.cql3.statements;
 
 import java.util.*;
+import java.util.stream.Collectors;
 
 import com.google.common.collect.Iterables;
 
@@ -26,6 +27,8 @@ import org.apache.cassandra.config.*;
 import org.apache.cassandra.cql3.CFName;
 import org.apache.cassandra.cql3.CQL3Type;
 import org.apache.cassandra.cql3.ColumnIdentifier;
+import org.apache.cassandra.db.ColumnFamilyStore;
+import org.apache.cassandra.db.Keyspace;
 import org.apache.cassandra.db.marshal.AbstractType;
 import org.apache.cassandra.db.marshal.CollectionType;
 import org.apache.cassandra.db.marshal.CounterColumnType;
@@ -268,17 +271,21 @@ public class AlterTableStatement extends SchemaAlteringStatement
                         break;
                 }
 
-                // If the dropped column is the only target column of a secondary
-                // index (and it's only possible to create an index with TargetType.COLUMN
-                // and a single target right now) we need to also drop the index.
+                // If the dropped column is required by any secondary indexes
+                // we reject the operation, as the indexes must be dropped first
                 Indexes allIndexes = cfm.getIndexes();
-                Collection<IndexMetadata> indexes = allIndexes.get(def);
-                for (IndexMetadata index : indexes)
+                if (!allIndexes.isEmpty())
                 {
-                    assert index.columns.size() == 1 : String.format("Can't drop column %s as it's a target of multi-column index %s", def.name, index.name);
-                    allIndexes = allIndexes.without(index.name);
+                    ColumnFamilyStore store = Keyspace.openAndGetStore(cfm);
+                    Set<IndexMetadata> dependentIndexes = store.indexManager.getDependentIndexes(def);
+                    if (!dependentIndexes.isEmpty())
+                        throw new InvalidRequestException(String.format("Cannot drop column %s because it has " +
+                                                                        "dependent secondary indexes (%s)",
+                                                                        def,
+                                                                        dependentIndexes.stream()
+                                                                                        .map(i -> i.name)
+                                                                                        .collect(Collectors.joining(","))));
                 }
-                cfm.indexes(allIndexes);
 
                 // If a column is dropped which is included in a view, we don't allow the drop to take place.
                 boolean rejectAlter = false;

@@ -601,8 +601,10 @@ public class FrozenCollectionsTest extends CQLTester
 
         // for now, we don't support indexing values or keys of collections in the primary key
         assertInvalidIndexCreationWithMessage("CREATE INDEX ON %s (full(a))", "Cannot create secondary index on partition key column");
-        assertInvalidIndexCreationWithMessage("CREATE INDEX ON %s (keys(a))", "Cannot create index on keys of frozen<map> column");
-        assertInvalidIndexCreationWithMessage("CREATE INDEX ON %s (keys(b))", "Cannot create index on keys of frozen<map> column");
+        assertInvalidIndexCreationWithMessage("CREATE INDEX ON %s (keys(a))", "Cannot create keys() index on frozen column a. " +
+                                                                              "Frozen collections only support full() indexes");
+        assertInvalidIndexCreationWithMessage("CREATE INDEX ON %s (keys(b))", "Cannot create keys() index on frozen column b. " +
+                                                                              "Frozen collections only support full() indexes");
 
         createTable("CREATE TABLE %s (a int, b frozen<list<int>>, c frozen<set<int>>, d frozen<map<int, text>>, PRIMARY KEY (a, b))");
 

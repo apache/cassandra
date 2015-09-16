@@ -177,10 +177,8 @@ public final class SchemaKeyspace
                 + "keyspace_name text,"
                 + "table_name text,"
                 + "index_name text,"
-                + "index_type text,"
+                + "kind text,"
                 + "options frozen<map<text, text>>,"
-                + "target_columns frozen<set<text>>,"
-                + "target_type text,"
                 + "PRIMARY KEY ((keyspace_name), table_name, index_name))");
 
     private static final CFMetaData Types =
@@ -1449,10 +1447,8 @@ public final class SchemaKeyspace
     {
         RowUpdateBuilder builder = new RowUpdateBuilder(Indexes, timestamp, mutation).clustering(table.cfName, index.name);
 
-        builder.add("index_type", index.indexType.toString());
+        builder.add("kind", index.kind.toString());
         builder.frozenMap("options", index.options);
-        builder.frozenSet("target_columns", index.columns.stream().map(ColumnIdentifier::toString).collect(Collectors.toSet()));
-        builder.add("target_type", index.targetType.toString());
         builder.build();
     }
 
@@ -1481,46 +1477,16 @@ public final class SchemaKeyspace
     {
         Indexes.Builder indexes = org.apache.cassandra.schema.Indexes.builder();
         String query = String.format("SELECT * FROM %s.%s", NAME, INDEXES);
-        QueryProcessor.resultify(query, partition).forEach(row -> indexes.add(createIndexMetadataFromIndexesRow(cfm, row)));
+        QueryProcessor.resultify(query, partition).forEach(row -> indexes.add(createIndexMetadataFromIndexesRow(row)));
         return indexes.build();
     }
 
-    private static IndexMetadata createIndexMetadataFromIndexesRow(CFMetaData cfm, UntypedResultSet.Row row)
+    private static IndexMetadata createIndexMetadataFromIndexesRow(UntypedResultSet.Row row)
     {
         String name = row.getString("index_name");
-        IndexMetadata.IndexType type = IndexMetadata.IndexType.valueOf(row.getString("index_type"));
-        IndexMetadata.TargetType targetType = IndexMetadata.TargetType.valueOf(row.getString("target_type"));
+        IndexMetadata.Kind type = IndexMetadata.Kind.valueOf(row.getString("kind"));
         Map<String, String> options = row.getFrozenTextMap("options");
-        if (options == null)
-            options = Collections.emptyMap();
-
-        Set<String> targetColumnNames = row.getFrozenSet("target_columns", UTF8Type.instance);
-        assert targetType == IndexMetadata.TargetType.COLUMN : "Per row indexes with dynamic target columns are not supported yet";
-
-        Set<ColumnIdentifier> targetColumns = new HashSet<>();
-        // if it's not a CQL table, we can't assume that the column name is utf8, so
-        // in that case we have to do a linear scan of the cfm's columns to get the matching one
-        if (targetColumnNames != null)
-        {
-            assert targetColumnNames.size() == 1 : "Secondary indexes targetting multiple columns are not supported yet";
-            targetColumnNames.forEach(targetColumnName -> {
-                if (cfm.isCQLTable())
-                    targetColumns.add(ColumnIdentifier.getInterned(targetColumnName, true));
-                else
-                    findColumnIdentifierWithName(targetColumnName, cfm.allColumns()).ifPresent(targetColumns::add);
-            });
-        }
-        return IndexMetadata.singleColumnIndex(targetColumns.iterator().next(), name, type, options);
-    }
-
-    private static Optional<ColumnIdentifier> findColumnIdentifierWithName(String name,
-                                                                           Iterable<ColumnDefinition> columns)
-    {
-        for (ColumnDefinition column : columns)
-            if (column.name.toString().equals(name))
-                return Optional.of(column.name);
-
-        return Optional.empty();
+        return IndexMetadata.fromSchemaMetadata(name, type, options);
     }
 
     /*

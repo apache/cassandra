@@ -299,9 +299,10 @@ public class SchemaLoader
 
         cfm.indexes(
             cfm.getIndexes()
-               .with(IndexMetadata.singleColumnIndex(indexedColumn,
+               .with(IndexMetadata.singleTargetIndex(cfm,
+                                                     new IndexTarget(indexedColumn.name, IndexTarget.Type.VALUES),
                                                      "indexe1",
-                                                     IndexMetadata.IndexType.CUSTOM,
+                                                     IndexMetadata.Kind.CUSTOM,
                                                      indexOptions)));
         return cfm;
     }
@@ -410,9 +411,11 @@ public class SchemaLoader
         if (withIndex)
             cfm.indexes(
                 cfm.getIndexes()
-                   .with(IndexMetadata.singleColumnIndex(cfm.getColumnDefinition(new ColumnIdentifier("birthdate", true)),
+                   .with(IndexMetadata.singleTargetIndex(cfm,
+                                                         new IndexTarget(new ColumnIdentifier("birthdate", true),
+                                                                         IndexTarget.Type.VALUES),
                                                          "birthdate_key_index",
-                                                         IndexMetadata.IndexType.COMPOSITES,
+                                                         IndexMetadata.Kind.COMPOSITES,
                                                          Collections.EMPTY_MAP)));
 
         return cfm.compression(getCompressionParameters());
@@ -430,9 +433,11 @@ public class SchemaLoader
         if (withIndex)
             cfm.indexes(
                 cfm.getIndexes()
-                   .with(IndexMetadata.singleColumnIndex(cfm.getColumnDefinition(new ColumnIdentifier("birthdate", true)),
+                   .with(IndexMetadata.singleTargetIndex(cfm,
+                                                         new IndexTarget(new ColumnIdentifier("birthdate", true),
+                                                                         IndexTarget.Type.VALUES),
                                                          "birthdate_composite_index",
-                                                         IndexMetadata.IndexType.KEYS,
+                                                         IndexMetadata.Kind.KEYS,
                                                          Collections.EMPTY_MAP)));
 
 

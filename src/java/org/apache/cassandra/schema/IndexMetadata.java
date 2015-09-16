@@ -20,11 +20,13 @@ package org.apache.cassandra.schema;
 
 import java.io.IOException;
 import java.lang.reflect.InvocationTargetException;
-import java.util.*;
+import java.util.HashMap;
+import java.util.Map;
+import java.util.UUID;
 
+import com.google.common.annotations.VisibleForTesting;
 import com.google.common.base.Objects;
 import com.google.common.collect.ImmutableMap;
-import com.google.common.collect.ImmutableSet;
 import com.google.common.collect.Maps;
 import org.apache.commons.lang3.builder.ToStringBuilder;
 import org.slf4j.Logger;
@@ -50,53 +52,78 @@ public final class IndexMetadata
 
     public static final Serializer serializer = new Serializer();
 
-    public enum IndexType
+    public enum Kind
     {
         KEYS, CUSTOM, COMPOSITES
-    }
-
-    public enum TargetType
-    {
-        COLUMN, ROW
     }
 
     // UUID for serialization. This is a deterministic UUID generated from the index name
     // Both the id and name are guaranteed unique per keyspace.
     public final UUID id;
     public final String name;
-    public final IndexType indexType;
-    public final TargetType targetType;
+    public final Kind kind;
     public final Map<String, String> options;
-    public final Set<ColumnIdentifier> columns;
 
     private IndexMetadata(String name,
                           Map<String, String> options,
-                          IndexType indexType,
-                          TargetType targetType,
-                          Set<ColumnIdentifier> columns)
+                          Kind kind)
     {
         this.id = UUID.nameUUIDFromBytes(name.getBytes());
         this.name = name;
         this.options = options == null ? ImmutableMap.of() : ImmutableMap.copyOf(options);
-        this.indexType = indexType;
-        this.targetType = targetType;
-        this.columns = columns == null ? ImmutableSet.of() : ImmutableSet.copyOf(columns);
+        this.kind = kind;
     }
 
-    public static IndexMetadata singleColumnIndex(ColumnIdentifier column,
-                                                  String name,
-                                                  IndexType type,
-                                                  Map<String, String> options)
+    public static IndexMetadata fromLegacyMetadata(CFMetaData cfm,
+                                                   ColumnDefinition column,
+                                                   String name,
+                                                   Kind kind,
+                                                   Map<String, String> options)
     {
-        return new IndexMetadata(name, options, type, TargetType.COLUMN, Collections.singleton(column));
+        Map<String, String> newOptions = new HashMap<>();
+        if (options != null)
+            newOptions.putAll(options);
+
+        IndexTarget target;
+        if (newOptions.containsKey(IndexTarget.INDEX_KEYS_OPTION_NAME))
+        {
+            newOptions.remove(IndexTarget.INDEX_KEYS_OPTION_NAME);
+            target = new IndexTarget(column.name, IndexTarget.Type.KEYS);
+        }
+        else if (newOptions.containsKey(IndexTarget.INDEX_ENTRIES_OPTION_NAME))
+        {
+            newOptions.remove(IndexTarget.INDEX_KEYS_OPTION_NAME);
+            target = new IndexTarget(column.name, IndexTarget.Type.KEYS_AND_VALUES);
+        }
+        else
+        {
+            if (column.type.isCollection() && !column.type.isMultiCell())
+            {
+                target = new IndexTarget(column.name, IndexTarget.Type.FULL);
+            }
+            else
+            {
+                target = new IndexTarget(column.name, IndexTarget.Type.VALUES);
+            }
+        }
+        newOptions.put(IndexTarget.TARGET_OPTION_NAME, target.asCqlString(cfm));
+        return new IndexMetadata(name, newOptions, kind);
     }
 
-    public static IndexMetadata singleColumnIndex(ColumnDefinition column,
+    public static IndexMetadata fromSchemaMetadata(String name, Kind kind, Map<String, String> options)
+    {
+        return new IndexMetadata(name, options, kind);
+    }
+
+    public static IndexMetadata singleTargetIndex(CFMetaData cfm,
+                                                  IndexTarget target,
                                                   String name,
-                                                  IndexType type,
+                                                  Kind kind,
                                                   Map<String, String> options)
     {
-        return singleColumnIndex(column.name, name, type, options);
+        Map<String, String> newOptions = new HashMap<>(options);
+        newOptions.put(IndexTarget.TARGET_OPTION_NAME, target.asCqlString(cfm));
+        return new IndexMetadata(name, newOptions, kind);
     }
 
     public static boolean isNameValid(String name)
@@ -115,13 +142,10 @@ public final class IndexMetadata
         if (!isNameValid(name))
             throw new ConfigurationException("Illegal index name " + name);
 
-        if (indexType == null)
-            throw new ConfigurationException("Index type is null for index " + name);
+        if (kind == null)
+            throw new ConfigurationException("Index kind is null for index " + name);
 
-        if (targetType == null)
-            throw new ConfigurationException("Target type is null for index " + name);
-
-        if (indexType == IndexMetadata.IndexType.CUSTOM)
+        if (kind == Kind.CUSTOM)
         {
             if (options == null || !options.containsKey(IndexTarget.CUSTOM_INDEX_OPTION_NAME))
                 throw new ConfigurationException(String.format("Required option missing for index %s : %s",
@@ -169,47 +193,29 @@ public final class IndexMetadata
         }
     }
 
-    // to be removed in CASSANDRA-10124 with multi-target & row based indexes
-    public ColumnDefinition indexedColumn(CFMetaData cfm)
-    {
-       return cfm.getColumnDefinition(columns.iterator().next());
-    }
-
     public boolean isCustom()
     {
-        return indexType == IndexType.CUSTOM;
+        return kind == Kind.CUSTOM;
     }
 
     public boolean isKeys()
     {
-        return indexType == IndexType.KEYS;
+        return kind == Kind.KEYS;
     }
 
     public boolean isComposites()
     {
-        return indexType == IndexType.COMPOSITES;
-    }
-
-    public boolean isRowIndex()
-    {
-        return targetType == TargetType.ROW;
-    }
-
-    public boolean isColumnIndex()
-    {
-        return targetType == TargetType.COLUMN;
+        return kind == Kind.COMPOSITES;
     }
 
     public int hashCode()
     {
-        return Objects.hashCode(id, name, indexType, targetType, options, columns);
+        return Objects.hashCode(id, name, kind, options);
     }
 
     public boolean equalsWithoutName(IndexMetadata other)
     {
-        return Objects.equal(indexType, other.indexType)
-            && Objects.equal(targetType, other.targetType)
-            && Objects.equal(columns, other.columns)
+        return Objects.equal(kind, other.kind)
             && Objects.equal(options, other.options);
     }
 
@@ -231,9 +237,7 @@ public final class IndexMetadata
         return new ToStringBuilder(this)
             .append("id", id.toString())
             .append("name", name)
-            .append("indexType", indexType)
-            .append("targetType", targetType)
-            .append("columns", columns)
+            .append("kind", kind)
             .append("options", options)
             .build();
     }
@@ -255,6 +259,5 @@ public final class IndexMetadata
         {
             return UUIDSerializer.serializer.serializedSize(metadata.id, version);
         }
-
     }
 }

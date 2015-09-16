@@ -464,9 +464,10 @@ public class RangeTombstoneTest
         cfs.disableAutoCompaction();
 
         ColumnDefinition cd = cfs.metadata.getColumnDefinition(indexedColumnName).copy();
-        IndexMetadata indexDef = IndexMetadata.singleColumnIndex(cd,
+        IndexMetadata indexDef = IndexMetadata.singleTargetIndex(cfs.metadata,
+                                                                 new IndexTarget(cd.name, IndexTarget.Type.VALUES),
                                                                  "test_index",
-                                                                 IndexMetadata.IndexType.CUSTOM,
+                                                                 IndexMetadata.Kind.CUSTOM,
                                                                  ImmutableMap.of(IndexTarget.CUSTOM_INDEX_OPTION_NAME,
                                                                                  StubIndex.class.getName()));
 
@@ -560,9 +561,10 @@ public class RangeTombstoneTest
         cfs.disableAutoCompaction();
 
         ColumnDefinition cd = cfs.metadata.getColumnDefinition(indexedColumnName).copy();
-        IndexMetadata indexDef = IndexMetadata.singleColumnIndex(cd,
+        IndexMetadata indexDef = IndexMetadata.singleTargetIndex(cfs.metadata,
+                                                                 new IndexTarget(cd.name,IndexTarget.Type.VALUES),
                                                                  "test_index",
-                                                                 IndexMetadata.IndexType.CUSTOM,
+                                                                 IndexMetadata.Kind.CUSTOM,
                                                                  ImmutableMap.of(IndexTarget.CUSTOM_INDEX_OPTION_NAME,
                                                                                  StubIndex.class.getName()));
 
@@ -574,11 +576,7 @@ public class RangeTombstoneTest
         if (rebuild != null)
             rebuild.get();
 
-        StubIndex index = (StubIndex)cfs.indexManager.listIndexes()
-                                                     .stream()
-                                                     .filter(i -> "test_index".equals(i.getIndexName()))
-                                                     .findFirst()
-                                                     .orElseThrow(() -> new RuntimeException(new AssertionError("Index not found")));
+        StubIndex index = (StubIndex)cfs.indexManager.getIndexByName("test_index");
         index.reset();
 
         UpdateBuilder.create(cfs.metadata, key).withTimestamp(0).newRow(1).add("val", 1).applyUnsafe();

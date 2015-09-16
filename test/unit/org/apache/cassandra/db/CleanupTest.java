@@ -114,9 +114,7 @@ public class CleanupTest
         assertEquals(LOOPS, Util.getAll(Util.cmd(cfs).build()).size());
 
         ColumnDefinition cdef = cfs.metadata.getColumnDefinition(COLUMN);
-        String indexName = cfs.metadata.getIndexes()
-                                       .get(cdef)
-                                       .iterator().next().name;
+        String indexName = "birthdate_key_index";
         long start = System.nanoTime();
         while (!cfs.getBuiltIndexes().contains(indexName) && System.nanoTime() - start < TimeUnit.SECONDS.toNanos(10))
             Thread.sleep(10);

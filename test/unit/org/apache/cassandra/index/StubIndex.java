@@ -23,7 +23,6 @@ import java.util.concurrent.Callable;
 import java.util.function.BiFunction;
 
 import org.apache.cassandra.config.ColumnDefinition;
-import org.apache.cassandra.cql3.ColumnIdentifier;
 import org.apache.cassandra.cql3.Operator;
 import org.apache.cassandra.db.*;
 import org.apache.cassandra.db.filter.RowFilter;
@@ -66,6 +65,11 @@ public class StubIndex implements Index
     }
 
     public boolean shouldBuildBlocking()
+    {
+        return false;
+    }
+
+    public boolean dependsOn(ColumnDefinition column)
     {
         return false;
     }

@@ -29,12 +29,11 @@ import org.junit.Before;
 import org.junit.BeforeClass;
 import org.junit.Test;
 
-import org.apache.cassandra.index.SecondaryIndexManager;
-
 import org.apache.cassandra.SchemaLoader;
 import org.apache.cassandra.Util;
 import org.apache.cassandra.config.ColumnDefinition;
 import org.apache.cassandra.cql3.Operator;
+import org.apache.cassandra.cql3.statements.IndexTarget;
 import org.apache.cassandra.db.marshal.AbstractType;
 import org.apache.cassandra.db.partitions.*;
 import org.apache.cassandra.db.rows.Row;
@@ -44,6 +43,8 @@ import org.apache.cassandra.schema.IndexMetadata;
 import org.apache.cassandra.schema.KeyspaceParams;
 import org.apache.cassandra.utils.ByteBufferUtil;
 import org.apache.cassandra.utils.FBUtilities;
+
+import static org.apache.cassandra.Util.throwAssert;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertNotNull;
@@ -63,8 +64,8 @@ public class SecondaryIndexTest
         SchemaLoader.prepareServer();
         SchemaLoader.createKeyspace(KEYSPACE1,
                                     KeyspaceParams.simple(1),
-                                    SchemaLoader.compositeIndexCFMD(KEYSPACE1, WITH_COMPOSITE_INDEX, true) .gcGraceSeconds(0),
-                                    SchemaLoader.compositeIndexCFMD(KEYSPACE1, COMPOSITE_INDEX_TO_BE_ADDED, false) .gcGraceSeconds(0),
+                                    SchemaLoader.compositeIndexCFMD(KEYSPACE1, WITH_COMPOSITE_INDEX, true).gcGraceSeconds(0),
+                                    SchemaLoader.compositeIndexCFMD(KEYSPACE1, COMPOSITE_INDEX_TO_BE_ADDED, false).gcGraceSeconds(0),
                                     SchemaLoader.keysIndexCFMD(KEYSPACE1, WITH_KEYS_INDEX, true).gcGraceSeconds(0));
     }
 
@@ -435,10 +436,12 @@ public class SecondaryIndexTest
         // create a row and update the birthdate value, test that the index query fetches the new version
         new RowUpdateBuilder(cfs.metadata, 0, "k1").clustering("c").add("birthdate", 1L).build().applyUnsafe();
 
+        String indexName = "birthdate_index";
         ColumnDefinition old = cfs.metadata.getColumnDefinition(ByteBufferUtil.bytes("birthdate"));
-        IndexMetadata indexDef = IndexMetadata.singleColumnIndex(old,
-                                                                 "birthdate_index",
-                                                                 IndexMetadata.IndexType.COMPOSITES,
+        IndexMetadata indexDef = IndexMetadata.singleTargetIndex(cfs.metadata,
+                                                                 new IndexTarget(old.name, IndexTarget.Type.VALUES),
+                                                                 indexName,
+                                                                 IndexMetadata.Kind.COMPOSITES,
                                                                  Collections.EMPTY_MAP);
         cfs.metadata.indexes(cfs.metadata.getIndexes().with(indexDef));
         Future<?> future = cfs.indexManager.addIndex(indexDef);
@@ -446,15 +449,11 @@ public class SecondaryIndexTest
 
         // we had a bug (CASSANDRA-2244) where index would get created but not flushed -- check for that
         // the way we find the index cfs is a bit convoluted at the moment
-        ColumnDefinition cDef = cfs.metadata.getColumnDefinition(ByteBufferUtil.bytes("birthdate"));
-        String indexName = getIndexNameForColumn(cfs, cDef);
-        assertNotNull(indexName);
         boolean flushed = false;
-        for (ColumnFamilyStore indexCfs : cfs.indexManager.getAllIndexColumnFamilyStores())
-        {
-            if (SecondaryIndexManager.getIndexName(indexCfs).equals(indexName))
-                flushed = indexCfs.getLiveSSTables().size() > 0;
-        }
+        ColumnFamilyStore indexCfs = cfs.indexManager.getIndex(indexDef)
+                                                     .getBackingTable()
+                                                     .orElseThrow(throwAssert("Index not found"));
+        flushed = !indexCfs.getLiveSSTables().isEmpty();
         assertTrue(flushed);
         assertIndexedOne(cfs, ByteBufferUtil.bytes("birthdate"), 1L);
 
@@ -467,18 +466,6 @@ public class SecondaryIndexTest
         future = cfs.indexManager.addIndex(indexDef);
         future.get();
         assertIndexedOne(cfs, ByteBufferUtil.bytes("birthdate"), 1L);
-    }
-
-    private String getIndexNameForColumn(ColumnFamilyStore cfs, ColumnDefinition column)
-    {
-        // this is mega-ugly because there is a mismatch between the name of an index
-        // stored in schema metadata & the name used to refer to that index in other
-        // places (such as system.IndexInfo). Hopefully this is temporary and
-        // Index.getIndexName() can be made equalivalent to Index.getIndexMetadata().name
-        // (ideally even removing the former completely)
-        Collection<IndexMetadata> indexes = cfs.metadata.getIndexes().get(column);
-        assertEquals(1, indexes.size());
-        return cfs.indexManager.getIndex(indexes.iterator().next()).getIndexName();
     }
 
     @Test
