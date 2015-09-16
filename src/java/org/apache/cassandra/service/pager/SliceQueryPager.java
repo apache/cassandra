@@ -59,9 +59,10 @@ public class SliceQueryPager extends AbstractQueryPager implements SinglePartiti
 
         if (state != null)
         {
-            // The only case where this could be a non-CellName Composite is if it's Composites.EMPTY, but that's not
-            // valid for PagingState.cellName, so we can safely cast to CellName.
-            lastReturned = (CellName) cfm.comparator.fromByteBuffer(state.cellName);
+            // The cellname can be empty if this is used in a MultiPartitionPager and we're supposed to start reading this row
+            // (because the previous page has exhausted the previous pager). See #10352 for details.
+            if (state.cellName.hasRemaining())
+                lastReturned = (CellName) cfm.comparator.fromByteBuffer(state.cellName);
             restoreState(state.remaining, true);
         }
     }
