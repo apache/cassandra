@@ -726,7 +726,8 @@ createIndexStatement returns [CreateIndexStatement expr]
     ;
 
 indexIdent returns [IndexTarget.Raw id]
-    : c=cident                   { $id = IndexTarget.Raw.valuesOf(c); }
+    : c=cident                   { $id = IndexTarget.Raw.simpleIndexOn(c); }
+    | K_VALUES '(' c=cident ')'  { $id = IndexTarget.Raw.valuesOf(c); }
     | K_KEYS '(' c=cident ')'    { $id = IndexTarget.Raw.keysOf(c); }
     | K_ENTRIES '(' c=cident ')' { $id = IndexTarget.Raw.keysAndValuesOf(c); }
     | K_FULL '(' c=cident ')'    { $id = IndexTarget.Raw.fullCollection(c); }

@@ -202,6 +202,19 @@ public interface Index
      */
     public boolean indexes(PartitionColumns columns);
 
+    /**
+     * Called to determine whether this index targets a specific column.
+     * Used during schema operations such as when dropping or renaming a column, to check if
+     * the index will be affected by the change. Typically, if an index answers that it does
+     * depend upon a column, then schema operations on that column are not permitted until the index
+     * is dropped or altered.
+     *
+     * @param column the column definition to check
+     * @return true if the index depends on the supplied column being present; false if the column may be
+     *              safely dropped or modified without adversely affecting the index
+     */
+    public boolean dependsOn(ColumnDefinition column);
+
     // TODO : this will change when we decouple indexes from specific columns for real per-row indexes
     /**
      * Called to determine whether this index can provide a searcher to execute a query on the

@@ -5,14 +5,18 @@ import java.util.*;
 import java.util.concurrent.Callable;
 import java.util.concurrent.Future;
 import java.util.function.BiFunction;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 import java.util.stream.Collectors;
 import java.util.stream.StreamSupport;
 
+import org.apache.commons.lang3.StringUtils;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import org.apache.cassandra.config.CFMetaData;
 import org.apache.cassandra.config.ColumnDefinition;
+import org.apache.cassandra.cql3.ColumnIdentifier;
 import org.apache.cassandra.cql3.Operator;
 import org.apache.cassandra.cql3.statements.IndexTarget;
 import org.apache.cassandra.db.*;
@@ -38,6 +42,7 @@ import org.apache.cassandra.io.sstable.ReducingKeyIterator;
 import org.apache.cassandra.io.sstable.format.SSTableReader;
 import org.apache.cassandra.schema.IndexMetadata;
 import org.apache.cassandra.utils.FBUtilities;
+import org.apache.cassandra.utils.Pair;
 import org.apache.cassandra.utils.concurrent.OpOrder;
 import org.apache.cassandra.utils.concurrent.Refs;
 
@@ -49,13 +54,15 @@ public abstract class CassandraIndex implements Index
 {
     private static final Logger logger = LoggerFactory.getLogger(CassandraIndex.class);
 
+    public static final Pattern TARGET_REGEX = Pattern.compile("^(keys|entries|values|full)\\((.+)\\)$");
+
     public final ColumnFamilyStore baseCfs;
     protected IndexMetadata metadata;
     protected ColumnFamilyStore indexCfs;
     protected ColumnDefinition indexedColumn;
     protected CassandraIndexFunctions functions;
 
-    public CassandraIndex(ColumnFamilyStore baseCfs, IndexMetadata indexDef)
+    protected CassandraIndex(ColumnFamilyStore baseCfs, IndexMetadata indexDef)
     {
         this.baseCfs = baseCfs;
         setMetadata(indexDef);
@@ -69,7 +76,7 @@ public abstract class CassandraIndex implements Index
      */
     protected boolean supportsOperator(ColumnDefinition indexedColumn, Operator operator)
     {
-        return operator.equals(Operator.EQ);
+        return operator == Operator.EQ;
     }
 
     /**
@@ -77,7 +84,6 @@ public abstract class CassandraIndex implements Index
      * The clustering columns in the index table encode the values required to retrieve the correct data from the base
      * table and varies depending on the kind of the indexed column. See indexCfsMetadata for more details
      * Used whenever a row in the index table is written or deleted.
-     * @param metadata
      * @param partitionKey from the base data being indexed
      * @param prefix from the base data being indexed
      * @param path from the base data being indexed
@@ -90,7 +96,6 @@ public abstract class CassandraIndex implements Index
     /**
      * Used at search time to convert a row in the index table into a simple struct containing the values required
      * to retrieve the corresponding row from the base table.
-     * @param metadata
      * @param indexedValue the partition key of the indexed table (i.e. the value that was indexed)
      * @param indexEntry a row from the index table
      * @return
@@ -102,7 +107,6 @@ public abstract class CassandraIndex implements Index
      * Check whether a value retrieved from an index is still valid by comparing it to current row from the base table.
      * Used at read time to identify out of date index entries so that they can be excluded from search results and
      * repaired
-     * @param metadata required to get the indexed column definition
      * @param row the current row from the primary data table
      * @param indexValue the value we retrieved from the index
      * @param nowInSec
@@ -112,7 +116,6 @@ public abstract class CassandraIndex implements Index
 
     /**
      * Extract the value to be inserted into the index from the components of the base data
-     * @param metadata
      * @param partitionKey from the primary data
      * @param clustering from the primary data
      * @param path from the primary data
@@ -197,14 +200,14 @@ public abstract class CassandraIndex implements Index
     private void setMetadata(IndexMetadata indexDef)
     {
         metadata = indexDef;
-        functions = getFunctions(baseCfs.metadata, indexDef);
+        Pair<ColumnDefinition, IndexTarget.Type> target = parseTarget(baseCfs.metadata, indexDef);
+        functions = getFunctions(indexDef, target);
         CFMetaData cfm = indexCfsMetadata(baseCfs.metadata, indexDef);
         indexCfs = ColumnFamilyStore.createColumnFamilyStore(baseCfs.keyspace,
                                                              cfm.cfName,
                                                              cfm,
                                                              baseCfs.getTracker().loadsstables);
-        assert indexDef.columns.size() == 1 : "Build in indexes on multiple target columns are not supported";
-        indexedColumn = indexDef.indexedColumn(baseCfs.metadata);
+        indexedColumn = target.left;
     }
 
     public Callable<?> getTruncateTask(final long truncatedAt)
@@ -225,6 +228,11 @@ public abstract class CassandraIndex implements Index
     {
         // if we have indexes on the partition key or clustering columns, return true
         return isPrimaryKeyIndex() || columns.contains(indexedColumn);
+    }
+
+    public boolean dependsOn(ColumnDefinition column)
+    {
+        return indexedColumn.name.equals(column.name);
     }
 
     public boolean supportsExpression(ColumnDefinition column, Operator operator)
@@ -269,7 +277,7 @@ public abstract class CassandraIndex implements Index
         if (target.isPresent())
         {
             target.get().validateForIndexing();
-            switch (getIndexMetadata().indexType)
+            switch (getIndexMetadata().kind)
             {
                 case COMPOSITES:
                     return new CompositesSearcher(command, target.get(), this);
@@ -277,7 +285,7 @@ public abstract class CassandraIndex implements Index
                     return new KeysSearcher(command, target.get(), this);
                 default:
                     throw new IllegalStateException(String.format("Unsupported index type %s for index %s on %s",
-                                                                  metadata.indexType,
+                                                                  metadata.kind,
                                                                   metadata.name,
                                                                   indexedColumn.name.toString()));
             }
@@ -531,7 +539,7 @@ public abstract class CassandraIndex implements Index
     private void validatePartitionKey(DecoratedKey partitionKey) throws InvalidRequestException
     {
         assert indexedColumn.isPartitionKey();
-        validateIndexedValue(getIndexedValue(partitionKey.getKey(), null, null ));
+        validateIndexedValue(getIndexedValue(partitionKey.getKey(), null, null));
     }
 
     private void validateClusterings(PartitionUpdate update) throws InvalidRequestException
@@ -613,7 +621,7 @@ public abstract class CassandraIndex implements Index
         Collection<ColumnFamilyStore> cfss = Collections.singleton(indexCfs);
         CompactionManager.instance.interruptCompactionForCFs(cfss, true);
         CompactionManager.instance.waitForCessation(cfss);
-        indexCfs.keyspace.writeOrder.awaitNewBarrier();
+        Keyspace.writeOrder.awaitNewBarrier();
         indexCfs.forceBlockingFlush();
         indexCfs.readOrdering.awaitNewBarrier();
         indexCfs.invalidate();
@@ -695,8 +703,9 @@ public abstract class CassandraIndex implements Index
      */
     public static final CFMetaData indexCfsMetadata(CFMetaData baseCfsMetadata, IndexMetadata indexMetadata)
     {
-        CassandraIndexFunctions utils = getFunctions(baseCfsMetadata, indexMetadata);
-        ColumnDefinition indexedColumn = indexMetadata.indexedColumn(baseCfsMetadata);
+        Pair<ColumnDefinition, IndexTarget.Type> target = parseTarget(baseCfsMetadata, indexMetadata);
+        CassandraIndexFunctions utils = getFunctions(indexMetadata, target);
+        ColumnDefinition indexedColumn = target.left;
         AbstractType<?> indexedValueType = utils.getIndexedValueType(indexedColumn);
         CFMetaData.Builder builder = CFMetaData.Builder.create(baseCfsMetadata.ksName,
                                                                baseCfsMetadata.indexColumnFamilyName(indexMetadata))
@@ -715,17 +724,65 @@ public abstract class CassandraIndex implements Index
      * @param indexMetadata
      * @return
      */
-    public static final CassandraIndex newIndex(ColumnFamilyStore baseCfs, IndexMetadata indexMetadata)
+    public static CassandraIndex newIndex(ColumnFamilyStore baseCfs, IndexMetadata indexMetadata)
     {
-        return getFunctions(baseCfs.metadata, indexMetadata).newIndexInstance(baseCfs, indexMetadata);
+        return getFunctions(indexMetadata, parseTarget(baseCfs.metadata, indexMetadata)).newIndexInstance(baseCfs, indexMetadata);
     }
 
-    private static CassandraIndexFunctions getFunctions(CFMetaData baseCfMetadata, IndexMetadata indexDef)
+    // Public because it's also used to convert index metadata into a thrift-compatible format
+    public static Pair<ColumnDefinition, IndexTarget.Type> parseTarget(CFMetaData cfm,
+                                                                       IndexMetadata indexDef)
+    {
+        String target = indexDef.options.get("target");
+        assert target != null : String.format("No target definition found for index %s", indexDef.name);
+
+        // if the regex matches then the target is in the form "keys(foo)", "entries(bar)" etc
+        // if not, then it must be a simple column name and implictly its type is VALUES
+        Matcher matcher = TARGET_REGEX.matcher(target);
+        String columnName;
+        IndexTarget.Type targetType;
+        if (matcher.matches())
+        {
+            targetType = IndexTarget.Type.fromString(matcher.group(1));
+            columnName = matcher.group(2);
+        }
+        else
+        {
+            columnName = target;
+            targetType = IndexTarget.Type.VALUES;
+        }
+
+        // in the case of a quoted column name the name in the target string
+        // will be enclosed in quotes, which we need to unwrap. It may also
+        // include quote characters internally, escaped like so:
+        //      abc"def -> abc""def.
+        // Because the target string is stored in a CQL compatible form, we
+        // need to un-escape any such quotes to get the actual column name
+        if (columnName.startsWith("\""))
+        {
+            columnName = StringUtils.substring(StringUtils.substring(columnName, 1), 0, -1);
+            columnName = columnName.replaceAll("\"\"", "\"");
+        }
+
+        // if it's not a CQL table, we can't assume that the column name is utf8, so
+        // in that case we have to do a linear scan of the cfm's columns to get the matching one
+        if (cfm.isCQLTable())
+            return Pair.create(cfm.getColumnDefinition(new ColumnIdentifier(columnName, true)), targetType);
+        else
+            for (ColumnDefinition column : cfm.allColumns())
+                if (column.name.toString().equals(columnName))
+                    return Pair.create(column, targetType);
+
+        throw new RuntimeException(String.format("Unable to parse targets for index %s (%s)", indexDef.name, target));
+    }
+
+    static CassandraIndexFunctions getFunctions(IndexMetadata indexDef,
+                                                Pair<ColumnDefinition, IndexTarget.Type> target)
     {
         if (indexDef.isKeys())
             return CassandraIndexFunctions.KEYS_INDEX_FUNCTIONS;
 
-        ColumnDefinition indexedColumn = indexDef.indexedColumn(baseCfMetadata);
+        ColumnDefinition indexedColumn = target.left;
         if (indexedColumn.type.isCollection() && indexedColumn.type.isMultiCell())
         {
             switch (((CollectionType)indexedColumn.type).kind)
@@ -735,12 +792,16 @@ public abstract class CassandraIndex implements Index
                 case SET:
                     return CassandraIndexFunctions.COLLECTION_KEY_INDEX_FUNCTIONS;
                 case MAP:
-                    if (indexDef.options.containsKey(IndexTarget.INDEX_KEYS_OPTION_NAME))
-                        return CassandraIndexFunctions.COLLECTION_KEY_INDEX_FUNCTIONS;
-                    else if (indexDef.options.containsKey(IndexTarget.INDEX_ENTRIES_OPTION_NAME))
-                        return CassandraIndexFunctions.COLLECTION_ENTRY_INDEX_FUNCTIONS;
-                    else
-                        return CassandraIndexFunctions.COLLECTION_VALUE_INDEX_FUNCTIONS;
+                    switch (target.right)
+                    {
+                        case KEYS:
+                            return CassandraIndexFunctions.COLLECTION_KEY_INDEX_FUNCTIONS;
+                        case KEYS_AND_VALUES:
+                            return CassandraIndexFunctions.COLLECTION_ENTRY_INDEX_FUNCTIONS;
+                        case VALUES:
+                            return CassandraIndexFunctions.COLLECTION_VALUE_INDEX_FUNCTIONS;
+                    }
+                    throw new AssertionError();
             }
         }
 

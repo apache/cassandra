@@ -31,12 +31,10 @@ import com.google.common.collect.Maps;
 import com.google.common.primitives.Longs;
 import com.google.common.util.concurrent.Futures;
 import com.google.common.util.concurrent.MoreExecutors;
-
 import org.apache.commons.lang3.StringUtils;
-
-import org.apache.cassandra.db.Directories;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+
 import org.apache.cassandra.concurrent.JMXEnabledThreadPoolExecutor;
 import org.apache.cassandra.concurrent.NamedThreadFactory;
 import org.apache.cassandra.concurrent.StageManager;
@@ -187,6 +185,21 @@ public class SecondaryIndexManager implements IndexRegistry
             unregisterIndex(index);
         }
     }
+
+
+    public Set<IndexMetadata> getDependentIndexes(ColumnDefinition column)
+    {
+        if (indexes.isEmpty())
+            return Collections.emptySet();
+
+        Set<IndexMetadata> dependentIndexes = new HashSet<>();
+        for (Index index : indexes.values())
+            if (index.dependsOn(column))
+                dependentIndexes.add(index.getIndexMetadata());
+
+        return dependentIndexes;
+    }
+
 
     /**
      * Called when dropping a Table

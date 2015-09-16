@@ -18,6 +18,7 @@
 package org.apache.cassandra.thrift;
 
 import java.util.*;
+import java.util.regex.Matcher;
 
 import com.google.common.annotations.VisibleForTesting;
 import com.google.common.base.Strings;
@@ -26,6 +27,7 @@ import com.google.common.collect.Maps;
 import org.apache.cassandra.config.*;
 import org.apache.cassandra.cql3.ColumnIdentifier;
 import org.apache.cassandra.cql3.Operator;
+import org.apache.cassandra.cql3.statements.IndexTarget;
 import org.apache.cassandra.db.CompactTables;
 import org.apache.cassandra.db.LegacyLayout;
 import org.apache.cassandra.db.WriteType;
@@ -33,6 +35,7 @@ import org.apache.cassandra.db.compaction.AbstractCompactionStrategy;
 import org.apache.cassandra.db.filter.RowFilter;
 import org.apache.cassandra.db.marshal.*;
 import org.apache.cassandra.exceptions.*;
+import org.apache.cassandra.index.internal.CassandraIndex;
 import org.apache.cassandra.io.compress.ICompressor;
 import org.apache.cassandra.locator.AbstractReplicationStrategy;
 import org.apache.cassandra.locator.LocalStrategy;
@@ -287,7 +290,8 @@ public class ThriftConversion
                                                    DatabaseDescriptor.getPartitioner());
 
             // Convert any secondary indexes defined in the thrift column_metadata
-            newCFMD.indexes(indexDefsFromThrift(cf_def.keyspace,
+            newCFMD.indexes(indexDefsFromThrift(newCFMD,
+                                                cf_def.keyspace,
                                                 cf_def.name,
                                                 rawComparator,
                                                 subComparator,
@@ -526,7 +530,8 @@ public class ThriftConversion
         return defs;
     }
 
-    private static Indexes indexDefsFromThrift(String ksName,
+    private static Indexes indexDefsFromThrift(CFMetaData cfm,
+                                               String ksName,
                                                String cfName,
                                                AbstractType<?> thriftComparator,
                                                AbstractType<?> thriftSubComparator,
@@ -554,12 +559,12 @@ public class ThriftConversion
                 indexNames.add(indexName);
 
                 Map<String, String> indexOptions = def.getIndex_options();
-                IndexMetadata.IndexType indexType = IndexMetadata.IndexType.valueOf(def.index_type.name());
+                if (indexOptions != null && indexOptions.containsKey(IndexTarget.TARGET_OPTION_NAME))
+                        throw new ConfigurationException("Reserved index option 'target' cannot be used");
 
-                indexes.add(IndexMetadata.singleColumnIndex(column,
-                                                            indexName,
-                                                            indexType,
-                                                            indexOptions));
+                IndexMetadata.Kind kind = IndexMetadata.Kind.valueOf(def.index_type.name());
+
+                indexes.add(IndexMetadata.fromLegacyMetadata(cfm, column, indexName, kind, indexOptions));
             }
         }
         return indexes.build();
@@ -572,22 +577,44 @@ public class ThriftConversion
 
         cd.setName(ByteBufferUtil.clone(column.name.bytes));
         cd.setValidation_class(column.type.toString());
-        Collection<IndexMetadata> indexes = cfMetaData.getIndexes().get(column);
-        // we include the index in the ColumnDef iff
-        //   * it is the only index on the column
-        //   * it is the only target column for the index
-        if (indexes.size() == 1)
+
+        // we include the index in the ColumnDef iff its targets are compatible with
+        // pre-3.0 indexes AND it is the only index defined on the given column, that is:
+        //   * it is the only index on the column (i.e. with this column as its target)
+        //   * it has only a single target, which matches the pattern for pre-3.0 indexes
+        //     i.e. keys/values/entries/full, with exactly 1 argument that matches the
+        //     column name OR a simple column name (for indexes on non-collection columns)
+        // n.b. it's a guess that using a pre-compiled regex and checking the group is
+        // cheaper than compiling a new regex for each column, but as this isn't on
+        // any hot path this hasn't been verified yet.
+        IndexMetadata matchedIndex = null;
+        for (IndexMetadata index : cfMetaData.getIndexes())
         {
-            IndexMetadata index = indexes.iterator().next();
-            if (index.columns.size() == 1)
+            String target = index.options.get(IndexTarget.TARGET_OPTION_NAME);
+            Matcher m = CassandraIndex.TARGET_REGEX.matcher(target);
+            if (target.equals(column.name.toString()) ||
+                (m.matches() && m.group(2).equals(column.name.toString())))
             {
-                cd.setIndex_type(org.apache.cassandra.thrift.IndexType.valueOf(index.indexType.name()));
-                cd.setIndex_name(index.name);
-                cd.setIndex_options(index.options == null || index.options.isEmpty()
-                                    ? null
-                                    : Maps.newHashMap(index.options));
+                // we already found an index for this column, we've no option but to
+                // ignore both of them (and any others we've yet to find)
+                if (matchedIndex != null)
+                    return cd;
+
+                matchedIndex = index;
             }
         }
+
+        if (matchedIndex != null)
+        {
+            cd.setIndex_type(org.apache.cassandra.thrift.IndexType.valueOf(matchedIndex.kind.name()));
+            cd.setIndex_name(matchedIndex.name);
+            Map<String, String> filteredOptions = Maps.filterKeys(matchedIndex.options,
+                                                                  s -> !IndexTarget.TARGET_OPTION_NAME.equals(s));
+            cd.setIndex_options(filteredOptions.isEmpty()
+                                ? null
+                                : Maps.newHashMap(matchedIndex.options));
+        }
+
         return cd;
     }
 

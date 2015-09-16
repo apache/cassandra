@@ -27,15 +27,19 @@ import org.apache.cassandra.config.CFMetaData;
 import org.apache.cassandra.config.ColumnDefinition;
 import org.apache.cassandra.cql3.CQLTester;
 import org.apache.cassandra.cql3.ColumnIdentifier;
+import org.apache.cassandra.cql3.statements.IndexTarget;
 import org.apache.cassandra.db.ColumnFamilyStore;
 import org.apache.cassandra.db.marshal.AbstractType;
 import org.apache.cassandra.db.rows.Row;
 import org.apache.cassandra.exceptions.ConfigurationException;
 import org.apache.cassandra.exceptions.SyntaxException;
+import org.apache.cassandra.index.SecondaryIndexManager;
 import org.apache.cassandra.index.StubIndex;
+import org.apache.cassandra.schema.IndexMetadata;
 
 import static org.apache.cassandra.Util.throwAssert;
 import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertTrue;
 import static org.junit.Assert.fail;
 
@@ -209,7 +213,7 @@ public class SecondaryIndexTest extends CQLTester
         assertInvalidThrow(SyntaxException.class, String.format("CREATE TABLE %s (key varchar PRIMARY KEY, password varchar, gender varchar) WITH compression_parameters:sstable_compressor = 'DeflateCompressor'", tableName));
 
         assertInvalidThrow(ConfigurationException.class, String.format("CREATE TABLE %s (key varchar PRIMARY KEY, password varchar, gender varchar) WITH compression = { 'sstable_compressor': 'DeflateCompressor' }",
-                                                                      tableName));
+                                                                       tableName));
     }
 
     /**
@@ -461,6 +465,67 @@ public class SecondaryIndexTest extends CQLTester
 
         assertRows(execute("select count(*) from %s where app_name='foo' and account='bar' and last_access > 4 allow filtering"), row(1L));
     }
+
+    @Test
+    public void testSyntaxVariationsForIndexOnCollectionsValue() throws Throwable
+    {
+        createTable("CREATE TABLE %s (k int, m map<int, int>, l list<int>, s set<int>, PRIMARY KEY (k))");
+        createAndDropCollectionValuesIndex("m");
+        createAndDropCollectionValuesIndex("l");
+        createAndDropCollectionValuesIndex("s");
+    }
+
+    private void createAndDropCollectionValuesIndex(String columnName) throws Throwable
+    {
+        String indexName = columnName + "_idx";
+        SecondaryIndexManager indexManager = getCurrentColumnFamilyStore().indexManager;
+        createIndex(String.format("CREATE INDEX %s on %%s(%s)", indexName, columnName));
+        IndexMetadata indexDef = indexManager.getIndexByName(indexName).getIndexMetadata();
+        assertEquals(String.format("values(%s)", columnName), indexDef.options.get(IndexTarget.TARGET_OPTION_NAME));
+        dropIndex(String.format("DROP INDEX %s.%s", KEYSPACE, indexName));
+        assertFalse(indexManager.hasIndexes());
+        createIndex(String.format("CREATE INDEX %s on %%s(values(%s))", indexName, columnName));
+        assertEquals(indexDef, indexManager.getIndexByName(indexName).getIndexMetadata());
+        dropIndex(String.format("DROP INDEX %s.%s", KEYSPACE, indexName));
+    }
+
+    @Test
+    public void testCreateIndexWithQuotedColumnNames() throws Throwable
+    {
+        createTable("CREATE TABLE %s (" +
+                    " k int," +
+                    " v int, " +
+                    " lower_case_map map<int, int>," +
+                    " \"MixedCaseMap\" map<int, int>," +
+                    " lower_case_frozen_list frozen<list<int>>," +
+                    " \"UPPER_CASE_FROZEN_LIST\" frozen<list<int>>," +
+                    " \"set name with spaces\" set<int>," +
+                    " \"column_name_with\"\"escaped quote\" int," +
+                    " PRIMARY KEY (k))");
+
+        createAndDropIndexWithQuotedColumnIdentifier("\"v\"");
+        createAndDropIndexWithQuotedColumnIdentifier("keys(\"lower_case_map\")");
+        createAndDropIndexWithQuotedColumnIdentifier("keys(\"MixedCaseMap\")");
+        createAndDropIndexWithQuotedColumnIdentifier("full(\"lower_case_frozen_list\")");
+        createAndDropIndexWithQuotedColumnIdentifier("full(\"UPPER_CASE_FROZEN_LIST\")");
+        createAndDropIndexWithQuotedColumnIdentifier("values(\"set name with spaces\")");
+        createAndDropIndexWithQuotedColumnIdentifier("\"column_name_with\"\"escaped quote\"");
+    }
+
+    private void createAndDropIndexWithQuotedColumnIdentifier(String target) throws Throwable
+    {
+        String indexName = "test_mixed_case_idx";
+        createIndex(String.format("CREATE INDEX %s ON %%s(%s)", indexName, target));
+        SecondaryIndexManager indexManager = getCurrentColumnFamilyStore().indexManager;
+        IndexMetadata indexDef = indexManager.getIndexByName(indexName).getIndexMetadata();
+        dropIndex(String.format("DROP INDEX %s.%s", KEYSPACE, indexName));
+        // verify we can re-create the index using the target string
+        createIndex(String.format("CREATE INDEX %s ON %%s(%s)",
+                                  indexName, indexDef.options.get(IndexTarget.TARGET_OPTION_NAME)));
+        assertEquals(indexDef, indexManager.getIndexByName(indexName).getIndexMetadata());
+        dropIndex(String.format("DROP INDEX %s.%s", KEYSPACE, indexName));
+    }
+
 
     /**
      * Test for CASSANDRA-5732, Can not query secondary index

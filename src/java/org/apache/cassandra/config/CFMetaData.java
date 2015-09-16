@@ -957,9 +957,18 @@ public final class CFMetaData
         {
             throw new InvalidRequestException(String.format("Cannot rename non PRIMARY KEY part %s", from));
         }
-        else if (getIndexes().hasIndexFor(def))
+
+        if (!getIndexes().isEmpty())
         {
-            throw new InvalidRequestException(String.format("Cannot rename column %s because it is secondary indexed", from));
+            ColumnFamilyStore store = Keyspace.openAndGetStore(this);
+            Set<IndexMetadata> dependentIndexes = store.indexManager.getDependentIndexes(def);
+            if (!dependentIndexes.isEmpty())
+                throw new InvalidRequestException(String.format("Cannot rename column %s because it has " +
+                                                                "dependent secondary indexes (%s)",
+                                                                from,
+                                                                dependentIndexes.stream()
+                                                                                .map(i -> i.name)
+                                                                                .collect(Collectors.joining(","))));
         }
 
         ColumnDefinition newDef = def.withNewName(to);

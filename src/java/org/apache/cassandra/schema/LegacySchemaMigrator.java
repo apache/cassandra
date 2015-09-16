@@ -296,15 +296,6 @@ public final class LegacySchemaMigrator
                                                                         isStaticCompactTable,
                                                                         needsUpgrade);
 
-        Indexes indexes = createIndexesFromColumnRows(columnRows,
-                                                      ksName,
-                                                      cfName,
-                                                      rawComparator,
-                                                      subComparator,
-                                                      isSuper,
-                                                      isCQLTable,
-                                                      isStaticCompactTable,
-                                                      needsUpgrade);
 
         if (needsUpgrade)
         {
@@ -328,6 +319,17 @@ public final class LegacySchemaMigrator
                                            false, // legacy schema did not contain views
                                            columnDefs,
                                            DatabaseDescriptor.getPartitioner());
+
+        Indexes indexes = createIndexesFromColumnRows(cfm,
+                                                      columnRows,
+                                                      ksName,
+                                                      cfName,
+                                                      rawComparator,
+                                                      subComparator,
+                                                      isSuper,
+                                                      isCQLTable,
+                                                      isStaticCompactTable,
+                                                      needsUpgrade);
         cfm.indexes(indexes);
 
         if (tableRow.has("dropped_columns"))
@@ -591,7 +593,8 @@ public final class LegacySchemaMigrator
         return new ColumnDefinition(keyspace, table, name, validator, componentIndex, kind);
     }
 
-    private static Indexes createIndexesFromColumnRows(UntypedResultSet rows,
+    private static Indexes createIndexesFromColumnRows(CFMetaData cfm,
+                                                       UntypedResultSet rows,
                                                        String keyspace,
                                                        String table,
                                                        AbstractType<?> rawComparator,
@@ -605,11 +608,11 @@ public final class LegacySchemaMigrator
 
         for (UntypedResultSet.Row row : rows)
         {
-            IndexMetadata.IndexType indexType = null;
+            IndexMetadata.Kind kind = null;
             if (row.has("index_type"))
-                indexType = IndexMetadata.IndexType.valueOf(row.getString("index_type"));
+                kind = IndexMetadata.Kind.valueOf(row.getString("index_type"));
 
-            if (indexType == null)
+            if (kind == null)
                 continue;
 
             Map<String, String> indexOptions = null;
@@ -630,7 +633,7 @@ public final class LegacySchemaMigrator
                                                                 isStaticCompactTable,
                                                                 needsUpgrade);
 
-            indexes.add(IndexMetadata.singleColumnIndex(column, indexName, indexType, indexOptions));
+            indexes.add(IndexMetadata.fromLegacyMetadata(cfm, column, indexName, kind, indexOptions));
         }
 
         return indexes.build();

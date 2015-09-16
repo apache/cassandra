@@ -44,14 +44,13 @@ import org.apache.cassandra.db.lifecycle.LifecycleTransaction;
 import org.apache.cassandra.db.marshal.BytesType;
 import org.apache.cassandra.db.marshal.UTF8Type;
 import org.apache.cassandra.exceptions.ConfigurationException;
-import org.apache.cassandra.index.Index;
 import org.apache.cassandra.io.sstable.Component;
 import org.apache.cassandra.io.sstable.Descriptor;
 import org.apache.cassandra.locator.OldNetworkTopologyStrategy;
 import org.apache.cassandra.service.MigrationManager;
-import org.apache.cassandra.utils.ByteBufferUtil;
 import org.apache.cassandra.utils.FBUtilities;
 
+import static org.apache.cassandra.Util.throwAssert;
 import static org.apache.cassandra.cql3.CQLTester.assertRows;
 import static org.apache.cassandra.cql3.CQLTester.row;
 import static org.junit.Assert.assertEquals;
@@ -501,6 +500,7 @@ public class DefsTest
         // persist keyspace definition in the system keyspace
         SchemaKeyspace.makeCreateKeyspaceMutation(Schema.instance.getKSMetaData(KEYSPACE6), FBUtilities.timestampMicros()).applyUnsafe();
         ColumnFamilyStore cfs = Keyspace.open(KEYSPACE6).getColumnFamilyStore(TABLE1i);
+        String indexName = "birthdate_key_index";
 
         // insert some data.  save the sstable descriptor so we can make sure it's marked for delete after the drop
         QueryProcessor.executeInternal(String.format(
@@ -510,37 +510,17 @@ public class DefsTest
                                        "key0", "col0", 1L, 1L);
 
         cfs.forceBlockingFlush();
-        ColumnDefinition indexedColumn = cfs.metadata.getColumnDefinition(ByteBufferUtil.bytes("birthdate"));
-        IndexMetadata index = cfs.metadata.getIndexes()
-                                          .get(indexedColumn)
-                                          .iterator()
-                                          .next();
-        ColumnFamilyStore indexCfs = cfs.indexManager.listIndexes()
-                                                     .stream()
-                                                     .filter(i -> i.getIndexMetadata().equals(index))
-                                                     .map(Index::getBackingTable)
-                                                     .findFirst()
-                                                     .orElseThrow(() -> new AssertionError("Index not found"))
-                                                     .orElseThrow(() -> new AssertionError("Index has no backing table"));
+        ColumnFamilyStore indexCfs = cfs.indexManager.getIndexByName(indexName)
+                                                     .getBackingTable()
+                                                     .orElseThrow(throwAssert("Cannot access index cfs"));
         Descriptor desc = indexCfs.getLiveSSTables().iterator().next().descriptor;
 
         // drop the index
         CFMetaData meta = cfs.metadata.copy();
-        // We currently have a mismatch between IndexMetadata.name (which is simply the name
-        // of the index) and what gets returned from SecondaryIndex#getIndexName() (usually, this
-        // defaults to <tablename>.<indexname>.
-        // IndexMetadata takes its lead from the prior implementation of ColumnDefinition.name
-        // which did not include the table name.
-        // This mismatch causes some other, long standing inconsistencies:
-        // nodetool rebuild_index <ks> <tbl> <idx>  - <idx> must be qualified, i.e. include the redundant table name
-        //                                            without it, the rebuild silently fails
-        // system.IndexInfo (which is also exposed over JMX as CF.BuildIndexes) uses the form <tbl>.<idx>
-        // cqlsh> describe index [<ks>.]<idx>  - here <idx> must not be qualified by the table name.
-        //
-        // This should get resolved as part of #9459 by better separating the index name from the
-        // name of it's underlying CFS (if it as one), as the comment in CFMetaData#indexColumnFamilyName promises
-        // Then we will be able to just use the value of SI#getIndexName() when removing an index from CFMetaData
-        IndexMetadata existing = meta.getIndexes().iterator().next();
+        IndexMetadata existing = cfs.metadata.getIndexes()
+                                             .get(indexName)
+                                             .orElseThrow(throwAssert("Index not found"));
+
         meta.indexes(meta.getIndexes().without(existing.name));
         MigrationManager.announceColumnFamilyUpdate(meta, false);
 

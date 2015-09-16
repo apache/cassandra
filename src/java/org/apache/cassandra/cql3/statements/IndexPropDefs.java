@@ -54,6 +54,11 @@ public class IndexPropDefs extends PropertyDefinitions
         if (getRawOptions().containsKey(IndexTarget.CUSTOM_INDEX_OPTION_NAME))
             throw new InvalidRequestException(String.format("Cannot specify %s as a CUSTOM option",
                                                             IndexTarget.CUSTOM_INDEX_OPTION_NAME));
+
+        if (getRawOptions().containsKey(IndexTarget.TARGET_OPTION_NAME))
+            throw new InvalidRequestException(String.format("Cannot specify %s as a CUSTOM option",
+                                                            IndexTarget.TARGET_OPTION_NAME));
+
     }
 
     public Map<String, String> getRawOptions() throws SyntaxException

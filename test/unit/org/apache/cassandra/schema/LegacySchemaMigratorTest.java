@@ -34,6 +34,7 @@ import org.apache.cassandra.cql3.ColumnIdentifier;
 import org.apache.cassandra.cql3.functions.*;
 import org.apache.cassandra.db.*;
 import org.apache.cassandra.db.marshal.*;
+import org.apache.cassandra.index.internal.CassandraIndex;
 import org.apache.cassandra.thrift.ThriftConversion;
 
 import static java.lang.String.format;
@@ -490,7 +491,7 @@ public class LegacySchemaMigratorTest
         {
             IndexMetadata i = index.get();
             adder.add("index_name", i.name);
-            adder.add("index_type", i.indexType.toString());
+            adder.add("index_type", i.kind.toString());
             adder.add("index_options", json(i.options));
         }
         else
@@ -504,11 +505,14 @@ public class LegacySchemaMigratorTest
     }
 
     private static Optional<IndexMetadata> findIndexForColumn(Indexes indexes,
-                                                                CFMetaData table,
-                                                                ColumnDefinition column)
+                                                              CFMetaData table,
+                                                              ColumnDefinition column)
     {
+        // makes the assumptions that the string option denoting the
+        // index targets can be parsed by CassandraIndex.parseTarget
+        // which should be true for any pre-3.0 index
         for (IndexMetadata index : indexes)
-            if (index.indexedColumn(table).equals(column))
+          if (CassandraIndex.parseTarget(table, index).left.equals(column))
                 return Optional.of(index);
 
         return Optional.empty();
