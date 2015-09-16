@@ -28,6 +28,7 @@ import org.junit.Test;
 import org.apache.cassandra.SchemaLoader;
 import org.apache.cassandra.Util;
 import org.apache.cassandra.cache.RowCacheKey;
+import org.apache.cassandra.config.Schema;
 import org.apache.cassandra.db.composites.*;
 import org.apache.cassandra.db.compaction.CompactionManager;
 import org.apache.cassandra.db.filter.QueryFilter;
@@ -37,6 +38,7 @@ import org.apache.cassandra.service.CacheService;
 import org.apache.cassandra.service.StorageService;
 import org.apache.cassandra.utils.ByteBufferUtil;
 import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertTrue;
 
 public class RowCacheTest extends SchemaLoader
 {
@@ -156,6 +158,42 @@ public class RowCacheTest extends SchemaLoader
         rowCacheLoad(100, 50, 0);
         CacheService.instance.setRowCacheCapacityInMB(0);
     }
+
+    @Test
+    public void testRowCacheDropSaveLoad() throws Exception
+    {
+        CacheService.instance.setRowCacheCapacityInMB(1);
+        rowCacheLoad(100, 50, 0);
+        CacheService.instance.rowCache.submitWrite(Integer.MAX_VALUE).get();
+        Keyspace instance = Schema.instance.removeKeyspaceInstance(KEYSPACE);
+        try
+        {
+            CacheService.instance.rowCache.size();
+            CacheService.instance.rowCache.clear();
+            CacheService.instance.rowCache.loadSaved();
+            int after = CacheService.instance.rowCache.size();
+            assertEquals(0, after);
+        }
+        finally
+        {
+            Schema.instance.storeKeyspaceInstance(instance);
+        }
+    }
+
+    @Test
+    public void testRowCacheDisabled() throws Exception
+    {
+        CacheService.instance.setRowCacheCapacityInMB(1);
+        rowCacheLoad(100, 50, 0);
+        CacheService.instance.rowCache.submitWrite(Integer.MAX_VALUE).get();
+        CacheService.instance.setRowCacheCapacityInMB(0);
+        CacheService.instance.rowCache.size();
+        CacheService.instance.rowCache.clear();
+        CacheService.instance.rowCache.loadSaved();
+        int after = CacheService.instance.rowCache.size();
+        assertEquals(0, after);
+    }
+
     @Test
     public void testRowCacheRange()
     {
@@ -174,7 +212,7 @@ public class RowCacheTest extends SchemaLoader
 
         ByteBuffer key = ByteBufferUtil.bytes("rowcachekey");
         DecoratedKey dk = cachedStore.partitioner.decorateKey(key);
-        RowCacheKey rck = new RowCacheKey(cachedStore.metadata.cfId, dk);
+        RowCacheKey rck = new RowCacheKey(cachedStore.metadata.ksAndCFName, dk);
         Mutation mutation = new Mutation(KEYSPACE, key);
         for (int i = 0; i < 200; i++)
             mutation.add(cf, Util.cellname(i), ByteBufferUtil.bytes("val" + i), System.currentTimeMillis());
@@ -251,6 +289,6 @@ public class RowCacheTest extends SchemaLoader
         // empty the cache again to make sure values came from disk
         CacheService.instance.invalidateRowCache();
         assert CacheService.instance.rowCache.size() == 0;
-        assert CacheService.instance.rowCache.loadSaved(store) == (keysToSave == Integer.MAX_VALUE ? totalKeys : keysToSave);
+        assert CacheService.instance.rowCache.loadSaved() == (keysToSave == Integer.MAX_VALUE ? totalKeys : keysToSave);
     }
 }

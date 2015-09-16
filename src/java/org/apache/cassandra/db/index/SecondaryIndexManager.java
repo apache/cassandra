@@ -95,7 +95,8 @@ public class SecondaryIndexManager
     /**
      * Keeps all secondary index instances, either per-column or per-row
      */
-    private final Set<SecondaryIndex> allIndexes;
+    private final Collection<SecondaryIndex> allIndexes;
+    private final Map<String, SecondaryIndex> indexesByName;
 
 
     /**
@@ -107,7 +108,8 @@ public class SecondaryIndexManager
     {
         indexesByColumn = new ConcurrentSkipListMap<>();
         rowLevelIndexMap = new ConcurrentHashMap<>();
-        allIndexes = Collections.newSetFromMap(new ConcurrentHashMap<SecondaryIndex, Boolean>());
+        indexesByName = new ConcurrentHashMap<String, SecondaryIndex>();
+        allIndexes = indexesByName.values();
 
         this.baseCfs = baseCfs;
     }
@@ -158,7 +160,7 @@ public class SecondaryIndexManager
     {
         idxNames = filterByColumn(idxNames);
         if (idxNames.isEmpty())
-            return;        
+            return;
 
         logger.info(String.format("Submitting index build of %s for data in %s",
                                   idxNames, StringUtils.join(sstables, ", ")));
@@ -172,7 +174,7 @@ public class SecondaryIndexManager
         logger.info("Index build of {} complete", idxNames);
     }
 
-    public boolean indexes(CellName name, Set<SecondaryIndex> indexes)
+    public boolean indexes(CellName name, Collection<SecondaryIndex> indexes)
     {
         boolean matching = false;
         for (SecondaryIndex index : indexes)
@@ -186,7 +188,7 @@ public class SecondaryIndexManager
         return matching;
     }
 
-    public Set<SecondaryIndex> indexFor(CellName name, Set<SecondaryIndex> indexes)
+    public Set<SecondaryIndex> indexFor(CellName name, Collection<SecondaryIndex> indexes)
     {
         Set<SecondaryIndex> matching = null;
         for (SecondaryIndex index : indexes)
@@ -319,7 +321,7 @@ public class SecondaryIndexManager
         indexesByColumn.put(cdef.name.bytes, index);
 
         // Add to all indexes set:
-        allIndexes.add(index);
+        indexesByName.put(index.getIndexName(), index);
 
         // if we're just linking in the index to indexedColumns on an
         // already-built index post-restart, we're done
@@ -422,9 +424,14 @@ public class SecondaryIndexManager
     /**
      * @return all of the secondary indexes without distinction to the (non-)backed by secondary ColumnFamilyStore.
      */
-    public Set<SecondaryIndex> getIndexes()
+    public Collection<SecondaryIndex> getIndexes()
     {
         return allIndexes;
+    }
+
+    public SecondaryIndex getIndexByName(String name)
+    {
+        return indexesByName.get(name);
     }
 
     /**

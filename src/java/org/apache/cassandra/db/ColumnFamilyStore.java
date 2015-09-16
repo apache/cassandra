@@ -358,8 +358,6 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
         fileIndexGenerator.set(generation);
         sampleLatencyNanos = DatabaseDescriptor.getReadRpcTimeout() / 2;
 
-        CachingOptions caching = metadata.getCaching();
-
         logger.info("Initializing {}.{}", keyspace.getName(), name);
 
         // scan for sstables corresponding to this cf and load them
@@ -371,9 +369,6 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
             Collection<SSTableReader> sstables = SSTableReader.openAll(sstableFiles.list().entrySet(), metadata, this.partitioner);
             data.addInitialSSTables(sstables);
         }
-
-        if (caching.keyCache.isEnabled())
-            CacheService.instance.keyCache.loadSaved(this);
 
         // compaction strategy should be created after the CFS has been prepared
         this.compactionStrategyWrapper = new WrappingCompactionStrategy(this);
@@ -632,7 +627,6 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
     public static void removeUnfinishedCompactionLeftovers(CFMetaData metadata, Map<Integer, UUID> unfinishedCompactions)
     {
         Directories directories = new Directories(metadata);
-
         Set<Integer> allGenerations = new HashSet<>();
         for (Descriptor desc : directories.sstableLister().list().keySet())
             allGenerations.add(desc.generation);
@@ -700,39 +694,6 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
                     SystemKeyspace.finishCompaction(unfinishedCompactions.get(desc.generation));
             }
         }
-    }
-
-    // must be called after all sstables are loaded since row cache merges all row versions
-    public void initRowCache()
-    {
-        if (!isRowCacheEnabled())
-            return;
-
-        long start = System.nanoTime();
-
-        int cachedRowsRead = CacheService.instance.rowCache.loadSaved(this);
-        if (cachedRowsRead > 0)
-            logger.info("Completed loading ({} ms; {} keys) row cache for {}.{}",
-                        TimeUnit.NANOSECONDS.toMillis(System.nanoTime() - start),
-                        cachedRowsRead,
-                        keyspace.getName(),
-                        name);
-    }
-
-    public void initCounterCache()
-    {
-        if (!metadata.isCounter() || CacheService.instance.counterCache.getCapacity() == 0)
-            return;
-
-        long start = System.nanoTime();
-
-        int cachedShardsRead = CacheService.instance.counterCache.loadSaved(this);
-        if (cachedShardsRead > 0)
-            logger.info("Completed loading ({} ms; {} shards) counter cache for {}.{}",
-                        TimeUnit.NANOSECONDS.toMillis(System.nanoTime() - start),
-                        cachedShardsRead,
-                        keyspace.getName(),
-                        name);
     }
 
     /**
@@ -1246,7 +1207,7 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
         if (!isRowCacheEnabled())
             return;
 
-        RowCacheKey cacheKey = new RowCacheKey(metadata.cfId, key);
+        RowCacheKey cacheKey = new RowCacheKey(metadata.ksAndCFName, key);
         invalidateCachedRow(cacheKey);
     }
 
@@ -1696,7 +1657,7 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
         assert isRowCacheEnabled()
                : String.format("Row cache is not enabled on column family [" + name + "]");
 
-        RowCacheKey key = new RowCacheKey(cfId, filter.key);
+        RowCacheKey key = new RowCacheKey(metadata.ksAndCFName, filter.key);
 
         // attempt a sentinel-read-cache sequence.  if a write invalidates our sentinel, we'll return our
         // (now potentially obsolete) data, but won't cache it. see CASSANDRA-3862
@@ -2068,7 +2029,7 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
         for (RowCacheKey key : CacheService.instance.rowCache.getKeySet())
         {
             DecoratedKey dk = partitioner.decorateKey(ByteBuffer.wrap(key.key));
-            if (key.cfId == metadata.cfId && !Range.isInRanges(dk.getToken(), ranges))
+            if (key.ksAndCFName.equals(metadata.ksAndCFName) && !Range.isInRanges(dk.getToken(), ranges))
                 invalidateCachedRow(dk);
         }
 
@@ -2077,7 +2038,7 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
             for (CounterCacheKey key : CacheService.instance.counterCache.getKeySet())
             {
                 DecoratedKey dk = partitioner.decorateKey(ByteBuffer.wrap(key.partitionKey));
-                if (key.cfId == metadata.cfId && !Range.isInRanges(dk.getToken(), ranges))
+                if (key.ksAndCFName.equals(metadata.ksAndCFName) && !Range.isInRanges(dk.getToken(), ranges))
                     CacheService.instance.counterCache.remove(key);
             }
         }
@@ -2527,16 +2488,16 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
         if (!isRowCacheEnabled())
             return null;
 
-        IRowCacheEntry cached = CacheService.instance.rowCache.getInternal(new RowCacheKey(metadata.cfId, key));
+        IRowCacheEntry cached = CacheService.instance.rowCache.getInternal(new RowCacheKey(metadata.ksAndCFName, key));
         return cached == null || cached instanceof RowCacheSentinel ? null : (ColumnFamily)cached;
     }
 
     private void invalidateCaches()
     {
-        CacheService.instance.invalidateKeyCacheForCf(metadata.cfId);
-        CacheService.instance.invalidateRowCacheForCf(metadata.cfId);
+        CacheService.instance.invalidateKeyCacheForCf(metadata.ksAndCFName);
+        CacheService.instance.invalidateRowCacheForCf(metadata.ksAndCFName);
         if (metadata.isCounter())
-            CacheService.instance.invalidateCounterCacheForCf(metadata.cfId);
+            CacheService.instance.invalidateCounterCacheForCf(metadata.ksAndCFName);
     }
 
     /**
@@ -2544,7 +2505,7 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
      */
     public boolean containsCachedRow(DecoratedKey key)
     {
-        return CacheService.instance.rowCache.getCapacity() != 0 && CacheService.instance.rowCache.containsKey(new RowCacheKey(metadata.cfId, key));
+        return CacheService.instance.rowCache.getCapacity() != 0 && CacheService.instance.rowCache.containsKey(new RowCacheKey(metadata.ksAndCFName, key));
     }
 
     public void invalidateCachedRow(RowCacheKey key)
@@ -2558,21 +2519,21 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
         if (cfId == null)
             return; // secondary index
 
-        invalidateCachedRow(new RowCacheKey(cfId, key));
+        invalidateCachedRow(new RowCacheKey(metadata.ksAndCFName, key));
     }
 
     public ClockAndCount getCachedCounter(ByteBuffer partitionKey, CellName cellName)
     {
         if (CacheService.instance.counterCache.getCapacity() == 0L) // counter cache disabled.
             return null;
-        return CacheService.instance.counterCache.get(CounterCacheKey.create(metadata.cfId, partitionKey, cellName));
+        return CacheService.instance.counterCache.get(CounterCacheKey.create(metadata.ksAndCFName, partitionKey, cellName));
     }
 
     public void putCachedCounter(ByteBuffer partitionKey, CellName cellName, ClockAndCount clockAndCount)
     {
         if (CacheService.instance.counterCache.getCapacity() == 0L) // counter cache disabled.
             return;
-        CacheService.instance.counterCache.put(CounterCacheKey.create(metadata.cfId, partitionKey, cellName), clockAndCount);
+        CacheService.instance.counterCache.put(CounterCacheKey.create(metadata.ksAndCFName, partitionKey, cellName), clockAndCount);
     }
 
     public void forceMajorCompaction() throws InterruptedException, ExecutionException
@@ -3008,9 +2969,19 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
         return view.sstables.isEmpty() && view.getCurrentMemtable().getOperations() == 0 && view.getCurrentMemtable() == view.getOldestMemtable();
     }
 
-    private boolean isRowCacheEnabled()
+    public boolean isRowCacheEnabled()
     {
         return metadata.getCaching().rowCache.isEnabled() && CacheService.instance.rowCache.getCapacity() > 0;
+    }
+
+    public boolean isCounterCacheEnabled()
+    {
+        return metadata.isCounter() && CacheService.instance.counterCache.getCapacity() > 0;
+    }
+
+    public boolean isKeyCacheEnabled()
+    {
+        return metadata.getCaching().keyCache.isEnabled() && CacheService.instance.keyCache.getCapacity() > 0;
     }
 
     /**

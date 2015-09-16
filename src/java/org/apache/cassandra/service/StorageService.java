@@ -719,10 +719,15 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
 
         prepareToJoin();
 
-        // Has to be called after the host id has potentially changed in prepareToJoin().
-        for (ColumnFamilyStore cfs : ColumnFamilyStore.all())
-            if (cfs.metadata.isCounter())
-                cfs.initCounterCache();
+        try
+        {
+            CacheService.instance.counterCache.loadSavedAsync().get();
+        }
+        catch (Throwable t)
+        {
+            JVMStabilityInspector.inspectThrowable(t);
+            logger.warn("Error loading counter cache", t);
+        }
 
         if (Boolean.parseBoolean(System.getProperty("cassandra.join_ring", "true")))
         {
@@ -2443,8 +2448,8 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
 
     /**
      * Takes the snapshot of a multiple column family from different keyspaces. A snapshot name must be specified.
-     * 
-     * 
+     *
+     *
      * @param tag
      *            the tag given to the snapshot; may not be null or empty
      * @param columnFamilyList
@@ -3817,7 +3822,7 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
     public synchronized void drain() throws IOException, InterruptedException, ExecutionException
     {
         inShutdownHook = true;
-        
+
         ExecutorService counterMutationStage = StageManager.getStage(Stage.COUNTER_MUTATION);
         ExecutorService mutationStage = StageManager.getStage(Stage.MUTATION);
         if (mutationStage.isTerminated() && counterMutationStage.isTerminated())
@@ -3947,32 +3952,32 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
      */
     public LinkedHashMap<InetAddress, Float> effectiveOwnership(String keyspace) throws IllegalStateException
     {
-    	
+
     	if (keyspace != null)
     	{
     		Keyspace keyspaceInstance = Schema.instance.getKeyspaceInstance(keyspace);
 			if(keyspaceInstance == null)
 				throw new IllegalArgumentException("The keyspace " + keyspace + ", does not exist");
-    		
+
     		if(keyspaceInstance.getReplicationStrategy() instanceof LocalStrategy)
 				throw new IllegalStateException("Ownership values for keyspaces with LocalStrategy are meaningless");
     	}
     	else
     	{
         	List<String> nonSystemKeyspaces = Schema.instance.getNonSystemKeyspaces();
-        	
+
         	//system_traces is a non-system keyspace however it needs to be counted as one for this process
         	int specialTableCount = 0;
         	if (nonSystemKeyspaces.contains("system_traces"))
 			{
         		specialTableCount += 1;
 			}
-        	if (nonSystemKeyspaces.size() > specialTableCount) 	   		
+        	if (nonSystemKeyspaces.size() > specialTableCount)
         		throw new IllegalStateException("Non-system keyspaces don't have the same replication settings, effective ownership information is meaningless");
-        	
+
         	keyspace = "system_traces";
     	}
-    	
+
         TokenMetadata metadata = tokenMetadata.cloneOnlyTokenMap();
 
         Collection<Collection<InetAddress>> endpointsGroupedByDc = new ArrayList<>();

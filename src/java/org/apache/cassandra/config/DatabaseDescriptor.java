@@ -1437,16 +1437,11 @@ public class DatabaseDescriptor
         return conf.index_interval;
     }
 
-    public static File getSerializedCachePath(String ksName, String cfName, UUID cfId, CacheService.CacheType cacheType, String version)
+    public static File getSerializedCachePath(CacheService.CacheType cacheType, String version)
     {
-        StringBuilder builder = new StringBuilder();
-        builder.append(ksName).append('-');
-        builder.append(cfName).append('-');
-        if (cfId != null)
-            builder.append(ByteBufferUtil.bytesToHex(ByteBufferUtil.bytes(cfId))).append('-');
-        builder.append(cacheType);
-        builder.append((version == null ? "" : "-" + version + ".db"));
-        return new File(conf.saved_caches_directory, builder.toString());
+        String name = cacheType.toString()
+                + (version == null ? "" : "-" + version + ".db");
+        return new File(conf.saved_caches_directory, name);
     }
 
     public static int getDynamicUpdateInterval()

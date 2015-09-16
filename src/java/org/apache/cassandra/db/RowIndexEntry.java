@@ -142,7 +142,7 @@ public class RowIndexEntry implements IMeasurableMemory
             skipPromotedIndex(in);
         }
 
-        public static void skipPromotedIndex(DataInput in) throws IOException
+        private static void skipPromotedIndex(DataInput in) throws IOException
         {
             int size = in.readInt();
             if (size <= 0)

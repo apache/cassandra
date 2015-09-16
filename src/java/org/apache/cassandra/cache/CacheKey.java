@@ -17,12 +17,14 @@
  */
 package org.apache.cassandra.cache;
 
-import java.util.UUID;
+import org.apache.cassandra.utils.Pair;
 
-public interface CacheKey extends IMeasurableMemory
+public abstract class CacheKey implements IMeasurableMemory
 {
-    /**
-     * @return The cf id of the cache key.
-     */
-    public UUID getCFId();
+    public final Pair<String, String> ksAndCFName;
+
+    public CacheKey(Pair<String, String> ksAndCFName)
+    {
+        this.ksAndCFName = ksAndCFName;
+    }
 }

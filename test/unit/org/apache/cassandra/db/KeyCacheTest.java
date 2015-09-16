@@ -86,7 +86,7 @@ public class KeyCacheTest extends SchemaLoader
         CacheService.instance.invalidateKeyCache();
         assertKeyCacheSize(0, KEYSPACE1, COLUMN_FAMILY2);
 
-        CacheService.instance.keyCache.loadSaved(store);
+        CacheService.instance.keyCache.loadSaved();
         assertKeyCacheSize(savedMap.size(), KEYSPACE1, COLUMN_FAMILY2);
 
         // probably it's better to add equals/hashCode to RowIndexEntry...

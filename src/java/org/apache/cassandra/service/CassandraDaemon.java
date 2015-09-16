@@ -25,8 +25,10 @@ import java.net.InetAddress;
 import java.net.UnknownHostException;
 import java.rmi.registry.LocateRegistry;
 import java.rmi.server.RMIServerSocketFactory;
+import java.util.List;
 import java.util.*;
 import java.util.concurrent.TimeUnit;
+
 import javax.management.MBeanServer;
 import javax.management.ObjectName;
 import javax.management.StandardMBean;
@@ -36,6 +38,8 @@ import javax.management.remote.rmi.RMIConnectorServer;
 
 import com.google.common.annotations.VisibleForTesting;
 import com.google.common.collect.Iterables;
+import com.google.common.util.concurrent.Futures;
+import com.google.common.util.concurrent.ListenableFuture;
 import com.google.common.util.concurrent.Uninterruptibles;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -99,7 +103,7 @@ public class CassandraDaemon
                     url.append("service:jmx:");
                     url.append("rmi://localhost/jndi/");
                     url.append("rmi://localhost:").append(jmxPort).append("/jmxrmi");
-                    
+
                     Map env = new HashMap();
                     env.put(RMIConnectorServer.RMI_SERVER_SOCKET_FACTORY_ATTRIBUTE, serverFactory);
 
@@ -144,7 +148,7 @@ public class CassandraDaemon
      */
     protected void setup()
     {
-        try 
+        try
         {
             logger.info("Hostname: {}", InetAddress.getLocalHost().getHostName());
         }
@@ -330,11 +334,16 @@ public class CassandraDaemon
             }
         }
 
-        if (CacheService.instance.keyCache.size() > 0)
-            logger.info("completed pre-loading ({} keys) key cache.", CacheService.instance.keyCache.size());
 
-        if (CacheService.instance.rowCache.size() > 0)
-            logger.info("completed pre-loading ({} keys) row cache.", CacheService.instance.rowCache.size());
+        try
+        {
+            loadRowAndKeyCacheAsync().get();
+        }
+        catch (Throwable t)
+        {
+            JVMStabilityInspector.inspectThrowable(t);
+            logger.warn("Error loading key or row cache", t);
+        }
 
         try
         {
@@ -427,6 +436,22 @@ public class CassandraDaemon
         nativeServer = new org.apache.cassandra.transport.Server(nativeAddr, nativePort);
 
         completeSetup();
+    }
+
+    /*
+     * Asynchronously load the row and key cache in one off threads and return a compound future of the result.
+     * Error handling is pushed into the cache load since cache loads are allowed to fail and are handled by logging.
+     */
+    private ListenableFuture<?> loadRowAndKeyCacheAsync()
+    {
+        final ListenableFuture<Integer> keyCacheLoad = CacheService.instance.keyCache.loadSavedAsync();
+
+        final ListenableFuture<Integer> rowCacheLoad = CacheService.instance.rowCache.loadSavedAsync();
+
+        @SuppressWarnings("unchecked")
+        ListenableFuture<List<Integer>> retval = Futures.successfulAsList(keyCacheLoad, rowCacheLoad);
+
+        return retval;
     }
 
     @VisibleForTesting
@@ -533,7 +558,7 @@ public class CassandraDaemon
                 logger.error("error registering MBean {}", MBEAN_NAME, e);
                 //Allow the server to start even if the bean can't be registered
             }
-            
+
             setup();
 
             if (pidFile != null)
@@ -625,15 +650,15 @@ public class CassandraDaemon
     {
         instance.activate();
     }
-    
+
     static class NativeAccess implements NativeAccessMBean
     {
         public boolean isAvailable()
         {
             return CLibrary.jnaAvailable();
         }
-        
-        public boolean isMemoryLockable() 
+
+        public boolean isMemoryLockable()
         {
             return CLibrary.jnaMemoryLockable();
         }
