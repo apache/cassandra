@@ -26,6 +26,8 @@ import java.util.List;
 import org.junit.Assert;
 import org.junit.Test;
 
+import org.apache.cassandra.cache.KeyCacheKey;
+import org.apache.cassandra.config.Schema;
 import org.apache.cassandra.db.Keyspace;
 import org.apache.cassandra.metrics.CacheMetrics;
 import org.apache.cassandra.metrics.CassandraMetricsRegistry;
@@ -35,6 +37,9 @@ import org.apache.cassandra.service.StorageService;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertTrue;
+import static org.junit.Assert.assertNull;
+import org.apache.cassandra.utils.Pair;
+
 
 public class KeyCacheCqlTest extends CQLTester
 {
@@ -167,13 +172,90 @@ public class KeyCacheCqlTest extends CQLTester
         insertData(table, "some_index", true);
         clearCache();
 
+        CacheMetrics metrics = CacheService.instance.keyCache.getMetrics();
+
         for (int i = 0; i < 10; i++)
         {
             UntypedResultSet result = execute("SELECT part_key_a FROM %s WHERE col_int = ?", i);
             assertEquals(500, result.size());
         }
 
+        long hits = metrics.hits.getCount();
+        long requests = metrics.requests.getCount();
+        assertEquals(0, hits);
+        assertEquals(210, requests);
+
+        for (int i = 0; i < 10; i++)
+        {
+            UntypedResultSet result = execute("SELECT part_key_a FROM %s WHERE col_int = ?", i);
+            // 100 part-keys * 50 clust-keys
+            // indexed on part-key % 10 = 10 index partitions
+            // (50 clust-keys  *  100-part-keys  /  10 possible index-values) = 500
+            assertEquals(500, result.size());
+        }
+
+        metrics = CacheService.instance.keyCache.getMetrics();
+        hits = metrics.hits.getCount();
+        requests = metrics.requests.getCount();
+        assertEquals(200, hits);
+        assertEquals(420, requests);
+
+        CacheService.instance.keyCache.submitWrite(Integer.MAX_VALUE).get();
+
+        int beforeSize = CacheService.instance.keyCache.size();
+
+        CacheService.instance.keyCache.clear();
+
+        Assert.assertEquals(0, CacheService.instance.keyCache.size());
+
+        // then load saved
+        CacheService.instance.keyCache.loadSaved();
+
+        assertEquals(beforeSize, CacheService.instance.keyCache.size());
+
+        for (int i = 0; i < 10; i++)
+        {
+            UntypedResultSet result = execute("SELECT part_key_a FROM %s WHERE col_int = ?", i);
+            // 100 part-keys * 50 clust-keys
+            // indexed on part-key % 10 = 10 index partitions
+            // (50 clust-keys  *  100-part-keys  /  10 possible index-values) = 500
+            assertEquals(500, result.size());
+        }
+
+        //Test Schema.getColumnFamilyStoreIncludingIndexes, several null check paths
+        //are defensive and unreachable
+        assertNull(Schema.instance.getColumnFamilyStoreIncludingIndexes(Pair.create("foo", "bar")));
+        assertNull(Schema.instance.getColumnFamilyStoreIncludingIndexes(Pair.create(KEYSPACE, "bar")));
+
+        dropTable("DROP TABLE %s");
+
+        //Test loading for a dropped 2i/table
+        CacheService.instance.keyCache.clear();
+
+        // then load saved
+        CacheService.instance.keyCache.loadSaved();
+
+        assertEquals(0, CacheService.instance.keyCache.size());
+    }
+
+    @Test
+    public void test2iKeyCachePathsSaveKeysForDroppedTable() throws Throwable
+    {
+        String table = createTable("CREATE TABLE %s ("
+                                   + commonColumnsDef
+                                   + "PRIMARY KEY ((part_key_a, part_key_b),clust_key_a,clust_key_b,clust_key_c))");
+        createIndex("CREATE INDEX some_index ON %s (col_int)");
+        insertData(table, "some_index", true);
+        clearCache();
+
         CacheMetrics metrics = CacheService.instance.keyCache.getMetrics();
+
+        for (int i = 0; i < 10; i++)
+        {
+            UntypedResultSet result = execute("SELECT part_key_a FROM %s WHERE col_int = ?", i);
+            assertEquals(500, result.size());
+        }
+
         long hits = metrics.hits.getCount();
         long requests = metrics.requests.getCount();
         assertEquals(0, hits);
@@ -195,6 +277,25 @@ public class KeyCacheCqlTest extends CQLTester
         requests = metrics.requests.getCount();
         assertEquals(200, hits);
         assertEquals(420, requests);
+
+        dropTable("DROP TABLE %s");
+
+        CacheService.instance.keyCache.submitWrite(Integer.MAX_VALUE).get();
+
+        CacheService.instance.keyCache.clear();
+
+        Assert.assertEquals(0, CacheService.instance.keyCache.size());
+
+        // then load saved
+        CacheService.instance.keyCache.loadSaved();
+
+        Iterator<KeyCacheKey> iter = CacheService.instance.keyCache.keyIterator();
+        while(iter.hasNext())
+        {
+            KeyCacheKey key = iter.next();
+            Assert.assertFalse(key.ksAndCFName.left.equals("KEYSPACE"));
+            Assert.assertFalse(key.ksAndCFName.right.startsWith(table));
+        }
     }
 
     @Test

@@ -268,8 +268,7 @@ public abstract class SinglePartitionReadCommand<F extends ClusteringIndexFilter
         assert !cfs.isIndex(); // CASSANDRA-5732
         assert cfs.isRowCacheEnabled() : String.format("Row cache is not enabled on table [%s]", cfs.name);
 
-        UUID cfId = metadata().cfId;
-        RowCacheKey key = new RowCacheKey(cfId, partitionKey());
+        RowCacheKey key = new RowCacheKey(metadata().ksAndCFName, partitionKey());
 
         // Attempt a sentinel-read-cache sequence.  if a write invalidates our sentinel, we'll return our
         // (now potentially obsolete) data, but won't cache it. see CASSANDRA-3862

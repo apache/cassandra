@@ -88,7 +88,7 @@ public class RowCacheTest
 
         ByteBuffer key = ByteBufferUtil.bytes("rowcachekey");
         DecoratedKey dk = cachedStore.decorateKey(key);
-        RowCacheKey rck = new RowCacheKey(cachedStore.metadata.cfId, dk);
+        RowCacheKey rck = new RowCacheKey(cachedStore.metadata.ksAndCFName, dk);
 
         RowUpdateBuilder rub = new RowUpdateBuilder(cachedStore.metadata, System.currentTimeMillis(), key);
         rub.clustering(String.valueOf(0));
@@ -238,6 +238,41 @@ public class RowCacheTest
     }
 
     @Test
+    public void testRowCacheDropSaveLoad() throws Exception
+    {
+        CacheService.instance.setRowCacheCapacityInMB(1);
+        rowCacheLoad(100, 50, 0);
+        CacheService.instance.rowCache.submitWrite(Integer.MAX_VALUE).get();
+        Keyspace instance = Schema.instance.removeKeyspaceInstance(KEYSPACE_CACHED);
+        try
+        {
+            CacheService.instance.rowCache.size();
+            CacheService.instance.rowCache.clear();
+            CacheService.instance.rowCache.loadSaved();
+            int after = CacheService.instance.rowCache.size();
+            assertEquals(0, after);
+        }
+        finally
+        {
+            Schema.instance.storeKeyspaceInstance(instance);
+        }
+    }
+
+    @Test
+    public void testRowCacheDisabled() throws Exception
+    {
+        CacheService.instance.setRowCacheCapacityInMB(1);
+        rowCacheLoad(100, 50, 0);
+        CacheService.instance.rowCache.submitWrite(Integer.MAX_VALUE).get();
+        CacheService.instance.setRowCacheCapacityInMB(0);
+        CacheService.instance.rowCache.size();
+        CacheService.instance.rowCache.clear();
+        CacheService.instance.rowCache.loadSaved();
+        int after = CacheService.instance.rowCache.size();
+        assertEquals(0, after);
+    }
+
+    @Test
     public void testRowCacheRange()
     {
         CompactionManager.instance.disableAutoCompaction();
@@ -255,7 +290,7 @@ public class RowCacheTest
 
         ByteBuffer key = ByteBufferUtil.bytes("rowcachekey");
         DecoratedKey dk = cachedStore.decorateKey(key);
-        RowCacheKey rck = new RowCacheKey(cachedStore.metadata.cfId, dk);
+        RowCacheKey rck = new RowCacheKey(cachedStore.metadata.ksAndCFName, dk);
         String values[] = new String[200];
         for (int i = 0; i < 200; i++)
         {
@@ -335,7 +370,7 @@ public class RowCacheTest
         // empty the cache again to make sure values came from disk
         CacheService.instance.invalidateRowCache();
         assertEquals(0, CacheService.instance.rowCache.size());
-        assertEquals(keysToSave == Integer.MAX_VALUE ? totalKeys : keysToSave, CacheService.instance.rowCache.loadSaved(store));
+        assertEquals(keysToSave == Integer.MAX_VALUE ? totalKeys : keysToSave, CacheService.instance.rowCache.loadSaved());
     }
 
     private static void readData(String keyspace, String columnFamily, int offset, int numberOfRows)

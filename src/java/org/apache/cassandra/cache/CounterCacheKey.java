@@ -19,7 +19,6 @@ package org.apache.cassandra.cache;
 
 import java.nio.ByteBuffer;
 import java.util.Arrays;
-import java.util.UUID;
 
 import org.apache.cassandra.config.ColumnDefinition;
 import org.apache.cassandra.db.*;
@@ -27,25 +26,23 @@ import org.apache.cassandra.db.rows.CellPath;
 import org.apache.cassandra.db.marshal.CompositeType;
 import org.apache.cassandra.utils.*;
 
-public class CounterCacheKey implements CacheKey
+public final class CounterCacheKey extends CacheKey
 {
-    private static final long EMPTY_SIZE = ObjectSizes.measure(new CounterCacheKey(null, ByteBufferUtil.EMPTY_BYTE_BUFFER, ByteBuffer.allocate(1)))
-                                           + ObjectSizes.measure(new UUID(0, 0));
+    private static final long EMPTY_SIZE = ObjectSizes.measure(new CounterCacheKey(null, ByteBufferUtil.EMPTY_BYTE_BUFFER, ByteBuffer.allocate(1)));
 
-    public final UUID cfId;
     public final byte[] partitionKey;
     public final byte[] cellName;
 
-    public CounterCacheKey(UUID cfId, ByteBuffer partitionKey, ByteBuffer cellName)
+    public CounterCacheKey(Pair<String, String> ksAndCFName, ByteBuffer partitionKey, ByteBuffer cellName)
     {
-        this.cfId = cfId;
+        super(ksAndCFName);
         this.partitionKey = ByteBufferUtil.getArray(partitionKey);
         this.cellName = ByteBufferUtil.getArray(cellName);
     }
 
-    public static CounterCacheKey create(UUID cfId, ByteBuffer partitionKey, Clustering clustering, ColumnDefinition c, CellPath path)
+    public static CounterCacheKey create(Pair<String, String> ksAndCFName, ByteBuffer partitionKey, Clustering clustering, ColumnDefinition c, CellPath path)
     {
-        return new CounterCacheKey(cfId, partitionKey, makeCellName(clustering, c, path));
+        return new CounterCacheKey(ksAndCFName, partitionKey, makeCellName(clustering, c, path));
     }
 
     private static ByteBuffer makeCellName(Clustering clustering, ColumnDefinition c, CellPath path)
@@ -61,11 +58,6 @@ public class CounterCacheKey implements CacheKey
         return CompositeType.build(values);
     }
 
-    public UUID getCFId()
-    {
-        return cfId;
-    }
-
     public long unsharedHeapSize()
     {
         return EMPTY_SIZE
@@ -77,7 +69,7 @@ public class CounterCacheKey implements CacheKey
     public String toString()
     {
         return String.format("CounterCacheKey(%s, %s, %s)",
-                             cfId,
+                             ksAndCFName,
                              ByteBufferUtil.bytesToHex(ByteBuffer.wrap(partitionKey)),
                              ByteBufferUtil.bytesToHex(ByteBuffer.wrap(cellName)));
     }
@@ -85,7 +77,7 @@ public class CounterCacheKey implements CacheKey
     @Override
     public int hashCode()
     {
-        return Arrays.deepHashCode(new Object[]{cfId, partitionKey, cellName});
+        return Arrays.deepHashCode(new Object[]{ksAndCFName, partitionKey, cellName});
     }
 
     @Override
@@ -99,7 +91,7 @@ public class CounterCacheKey implements CacheKey
 
         CounterCacheKey cck = (CounterCacheKey) o;
 
-        return cfId.equals(cck.cfId)
+        return ksAndCFName.equals(cck.ksAndCFName)
             && Arrays.equals(partitionKey, cck.partitionKey)
             && Arrays.equals(cellName, cck.cellName);
     }

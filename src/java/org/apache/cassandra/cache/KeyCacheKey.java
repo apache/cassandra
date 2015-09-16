@@ -19,15 +19,14 @@ package org.apache.cassandra.cache;
 
 import java.nio.ByteBuffer;
 import java.util.Arrays;
-import java.util.UUID;
 
 import org.apache.cassandra.io.sstable.Descriptor;
 import org.apache.cassandra.utils.ByteBufferUtil;
 import org.apache.cassandra.utils.ObjectSizes;
+import org.apache.cassandra.utils.Pair;
 
-public class KeyCacheKey implements CacheKey
+public class KeyCacheKey extends CacheKey
 {
-    public final UUID cfId;
     public final Descriptor desc;
 
     private static final long EMPTY_SIZE = ObjectSizes.measure(new KeyCacheKey(null, null, ByteBufferUtil.EMPTY_BYTE_BUFFER));
@@ -36,17 +35,13 @@ public class KeyCacheKey implements CacheKey
     // without extra copies on lookup since client-provided key ByteBuffers will be array-backed already
     public final byte[] key;
 
-    public KeyCacheKey(UUID cfId, Descriptor desc, ByteBuffer key)
+    public KeyCacheKey(Pair<String, String> ksAndCFName, Descriptor desc, ByteBuffer key)
     {
-        this.cfId = cfId;
+
+        super(ksAndCFName);
         this.desc = desc;
         this.key = ByteBufferUtil.getArray(key);
         assert this.key != null;
-    }
-
-    public UUID getCFId()
-    {
-        return cfId;
     }
 
     public String toString()
@@ -67,13 +62,13 @@ public class KeyCacheKey implements CacheKey
 
         KeyCacheKey that = (KeyCacheKey) o;
 
-        return cfId.equals(that.cfId) && desc.equals(that.desc) && Arrays.equals(key, that.key);
+        return ksAndCFName.equals(that.ksAndCFName) && desc.equals(that.desc) && Arrays.equals(key, that.key);
     }
 
     @Override
     public int hashCode()
     {
-        int result = cfId.hashCode();
+        int result = ksAndCFName.hashCode();
         result = 31 * result + desc.hashCode();
         result = 31 * result + Arrays.hashCode(key);
         return result;
