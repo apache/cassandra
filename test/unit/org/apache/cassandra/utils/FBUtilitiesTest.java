@@ -26,6 +26,10 @@ import java.nio.charset.StandardCharsets;
 import com.google.common.primitives.Ints;
 import org.junit.Test;
 
+import java.util.Map;
+import java.util.TreeMap;
+
+import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.fail;
 
 public class FBUtilitiesTest
@@ -69,6 +73,20 @@ public class FBUtilitiesTest
         } catch (AssertionError ae)
         {
         }
+    }
+
+    @Test
+    public void testToString()
+    {
+        // null turns to empty string
+        assertEquals("", FBUtilities.toString(null));
+        Map<String, String> map = new TreeMap<>();
+        // empty map turns to empty string
+        assertEquals("", FBUtilities.toString(map));
+        map.put("aaa", "bbb");
+        assertEquals("aaa:bbb", FBUtilities.toString(map));
+        map.put("ccc", "ddd");
+        assertEquals("aaa:bbb, ccc:ddd", FBUtilities.toString(map));
     }
 
     @Test(expected=CharacterCodingException.class)
