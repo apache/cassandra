@@ -83,6 +83,7 @@ public class GossipingPropertyFileSnitch extends AbstractNetworkTopologySnitch//
                 protected void runMayThrow() throws ConfigurationException
                 {
                     reloadConfiguration();
+                    StorageService.instance.updateTopology(FBUtilities.getBroadcastAddress());
                 }
             };
             ResourceWatcher.watch(SnitchProperties.RACKDC_PROPERTY_FILENAME, runnable, refreshPeriodInSeconds * 1000);
