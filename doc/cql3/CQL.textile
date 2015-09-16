@@ -327,13 +327,12 @@ Table creation supports the following other @<property>@:
 |@dclocal_read_repair_chance@ | _simple_ | 0           | The probability with which to query extra nodes (e.g. more nodes than required by the consistency level) belonging to the same data center than the read coordinator for the purpose of read repairs.|
 |@gc_grace_seconds@           | _simple_ | 864000      | Time to wait before garbage collecting tombstones (deletion markers).|
 |@bloom_filter_fp_chance@     | _simple_ | 0.00075     | The target probability of false positive of the sstable bloom filters. Said bloom filters will be sized to provide the provided probability (thus lowering this value impact the size of bloom filters in-memory and on-disk)|
-|@compaction@                 | _map_    | _see below_ | The compaction options to use, see below.|
-|@compression@                | _map_    | _see below_ | Compression options, see below. |
-|@caching@                    | _simple_ | keys_only   | Whether to cache keys ("key cache") and/or rows ("row cache") for this table. Valid values are: @all@, @keys_only@, @rows_only@ and @none@. |
 |@default_time_to_live@       | _simple_ | 0           | The default expiration time ("TTL") in seconds for a table.|
+|@compaction@                 | _map_    | _see below_ | Compaction options, see "below":#compactionOptions.|
+|@compression@                | _map_    | _see below_ | Compression options, see "below":#compressionOptions.|
+|@caching@                    | _map_    | _see below_ | Caching options, see "below":#cachingOptions.|
 
-
-h4(#compactionOptions). @compaction@ options
+h4(#compactionOptions). Compaction options
 
 The @compaction@ property must at least define the @'class'@ sub-option, that defines the compaction strategy class to use. The default supported class are @'SizeTieredCompactionStrategy'@, @'LeveledCompactionStrategy'@ and @'DateTieredCompactionStrategy'@. Custom strategy can be provided by specifying the full class name as a "string constant":#constants. The rest of the sub-options depends on the chosen class. The sub-options supported by the default classes are:
 
@@ -353,13 +352,22 @@ The @compaction@ property must at least define the @'class'@ sub-option, that de
 | @max_sstable_age_days@           | DateTieredCompactionStrategy    | 365          | SSTables only containing data that is older than this will never be compacted. |
 
 
-For the @compression@ property, the following default sub-options are available:
+h4(#compressionOptions). Compression options
+
+For the @compression@ property, the following sub-options are available:
 
 |_. option              |_. default        |_. description |
 | @sstable_compression@ | LZ4Compressor    | The compression algorithm to use. Default compressor are: LZ4Compressor, SnappyCompressor and DeflateCompressor. Use an empty string (@''@) to disable compression. Custom compressor can be provided by specifying the full class name as a "string constant":#constants.|
 | @chunk_length_kb@     | 64KB             | On disk SSTables are compressed by block (to allow random reads). This defines the size (in KB) of said block. Bigger values may improve the compression rate, but increases the minimum size of data to be read from disk for a read |
 | @crc_check_chance@    | 1.0              | When compression is enabled, each compressed block includes a checksum of that block for the purpose of detecting disk bitrot and avoiding the propagation of corruption to other replica. This option defines the probability with which those checksums are checked during read. By default they are always checked. Set to 0 to disable checksum checking and to 0.5 for instance to check them every other read|
 
+h4(#cachingOptions). Caching options
+
+For the @caching@ property, the following sub-options are available:
+
+|_. option              |_. default        |_. description |
+|@keys@                 | ALL   | Whether to cache keys ("key cache") for this table. Valid values are: @ALL@ and @NONE@.|
+|@rows_per_partition@   | NONE   | The amount of rows to cache per partition ("row cache"). If an integer @n@ is specified, the first @n@ queried rows of a partition will be cached. Other possible options are @ALL@, to cache all rows of a queried partition, or @NONE@ to disable row caching.|
 
 h4. Other considerations:
 
