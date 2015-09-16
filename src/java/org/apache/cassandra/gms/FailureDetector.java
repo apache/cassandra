@@ -164,7 +164,15 @@ public class FailureDetector implements IFailureDetector, FailureDetectorMBean
         {
             if (state.getKey() == ApplicationState.TOKENS)
                 continue;
-            sb.append("  ").append(state.getKey()).append(":").append(state.getValue().value).append("\n");
+            sb.append("  ").append(state.getKey()).append(":").append(state.getValue().version).append(":").append(state.getValue().value).append("\n");
+        }
+        if (endpointState.applicationState.containsKey(ApplicationState.TOKENS))
+        {
+            sb.append("  TOKENS:").append(endpointState.applicationState.get(ApplicationState.TOKENS).version).append(":<hidden>\n");
+        }
+        else
+        {
+            sb.append("  TOKENS: not present");
         }
     }
 
