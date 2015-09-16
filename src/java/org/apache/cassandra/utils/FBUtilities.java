@@ -26,11 +26,13 @@ import java.net.*;
 import java.nio.ByteBuffer;
 import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
-import java.text.NumberFormat;
 import java.util.*;
 import java.util.concurrent.*;
 import java.util.zip.Adler32;
 import java.util.zip.Checksum;
+
+import javax.annotation.Nonnull;
+import javax.annotation.Nullable;
 
 import com.google.common.base.Joiner;
 import com.google.common.collect.AbstractIterator;
@@ -484,8 +486,18 @@ public class FBUtilities
         return s;
     }
 
-    public static String toString(Map<?,?> map)
+    /**
+     * Make straing out of the given {@code Map}.
+     *
+     * @param map Map to make string.
+     * @return String representation of all entries in the map,
+     *         where key and value pair is concatenated with ':'.
+     */
+    @Nonnull
+    public static String toString(@Nullable Map<?, ?> map)
     {
+        if (map == null)
+            return "";
         Joiner.MapJoiner joiner = Joiner.on(", ").withKeyValueSeparator(":");
         return joiner.join(map);
     }
