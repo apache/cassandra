@@ -31,6 +31,7 @@ import org.apache.cassandra.concurrent.Stage;
 import org.apache.cassandra.concurrent.StageManager;
 import org.apache.cassandra.config.CFMetaData;
 import org.apache.cassandra.config.Schema;
+import org.apache.cassandra.config.ViewDefinition;
 import org.apache.cassandra.cql3.functions.UDAggregate;
 import org.apache.cassandra.cql3.functions.UDFunction;
 import org.apache.cassandra.db.*;
@@ -162,6 +163,12 @@ public class MigrationManager
             listener.onCreateColumnFamily(cfm.ksName, cfm.cfName);
     }
 
+    public void notifyCreateView(ViewDefinition view)
+    {
+        for (MigrationListener listener : listeners)
+            listener.onCreateView(view.ksName, view.viewName);
+    }
+
     public void notifyCreateUserType(UserType ut)
     {
         for (MigrationListener listener : listeners)
@@ -190,6 +197,12 @@ public class MigrationManager
     {
         for (MigrationListener listener : listeners)
             listener.onUpdateColumnFamily(cfm.ksName, cfm.cfName, columnsDidChange);
+    }
+
+    public void notifyUpdateView(ViewDefinition view, boolean columnsDidChange)
+    {
+        for (MigrationListener listener : listeners)
+            listener.onUpdateView(view.ksName, view.viewName, columnsDidChange);
     }
 
     public void notifyUpdateUserType(UserType ut)
@@ -223,6 +236,12 @@ public class MigrationManager
     {
         for (MigrationListener listener : listeners)
             listener.onDropColumnFamily(cfm.ksName, cfm.cfName);
+    }
+
+    public void notifyDropView(ViewDefinition view)
+    {
+        for (MigrationListener listener : listeners)
+            listener.onDropView(view.ksName, view.viewName);
     }
 
     public void notifyDropUserType(UserType ut)
@@ -276,11 +295,26 @@ public class MigrationManager
         KeyspaceMetadata ksm = Schema.instance.getKSMetaData(cfm.ksName);
         if (ksm == null)
             throw new ConfigurationException(String.format("Cannot add table '%s' to non existing keyspace '%s'.", cfm.cfName, cfm.ksName));
-        else if (ksm.tables.get(cfm.cfName).isPresent())
+        // If we have a table or a view which has the same name, we can't add a new one
+        else if (ksm.getTableOrViewNullable(cfm.cfName) != null)
             throw new AlreadyExistsException(cfm.ksName, cfm.cfName);
 
         logger.info(String.format("Create new table: %s", cfm));
         announce(SchemaKeyspace.makeCreateTableMutation(ksm, cfm, FBUtilities.timestampMicros()), announceLocally);
+    }
+
+    public static void announceNewView(ViewDefinition view, boolean announceLocally) throws ConfigurationException
+    {
+        view.metadata.validate();
+
+        KeyspaceMetadata ksm = Schema.instance.getKSMetaData(view.ksName);
+        if (ksm == null)
+            throw new ConfigurationException(String.format("Cannot add table '%s' to non existing keyspace '%s'.", view.viewName, view.ksName));
+        else if (ksm.getTableOrViewNullable(view.viewName) != null)
+            throw new AlreadyExistsException(view.ksName, view.viewName);
+
+        logger.info(String.format("Create new view: %s", view));
+        announce(SchemaKeyspace.makeCreateViewMutation(ksm, view, FBUtilities.timestampMicros()), announceLocally);
     }
 
     public static void announceNewType(UserType newType, boolean announceLocally)
@@ -340,6 +374,21 @@ public class MigrationManager
         announce(SchemaKeyspace.makeUpdateTableMutation(ksm, oldCfm, cfm, FBUtilities.timestampMicros(), fromThrift), announceLocally);
     }
 
+    public static void announceViewUpdate(ViewDefinition view, boolean announceLocally) throws ConfigurationException
+    {
+        view.metadata.validate();
+
+        ViewDefinition oldView = Schema.instance.getView(view.ksName, view.viewName);
+        if (oldView == null)
+            throw new ConfigurationException(String.format("Cannot update non existing materialized view '%s' in keyspace '%s'.", view.viewName, view.ksName));
+        KeyspaceMetadata ksm = Schema.instance.getKSMetaData(view.ksName);
+
+        oldView.metadata.validateCompatility(view.metadata);
+
+        logger.info(String.format("Update view '%s/%s' From %s To %s", view.ksName, view.viewName, oldView, view));
+        announce(SchemaKeyspace.makeUpdateViewMutation(ksm, oldView, view, FBUtilities.timestampMicros()), announceLocally);
+    }
+
     public static void announceTypeUpdate(UserType updatedType, boolean announceLocally)
     {
         announceNewType(updatedType, announceLocally);
@@ -374,6 +423,17 @@ public class MigrationManager
 
         logger.info(String.format("Drop table '%s/%s'", oldCfm.ksName, oldCfm.cfName));
         announce(SchemaKeyspace.makeDropTableMutation(ksm, oldCfm, FBUtilities.timestampMicros()), announceLocally);
+    }
+
+    public static void announceViewDrop(String ksName, String viewName, boolean announceLocally) throws ConfigurationException
+    {
+        ViewDefinition view = Schema.instance.getView(ksName, viewName);
+        if (view == null)
+            throw new ConfigurationException(String.format("Cannot drop non existing materialized view '%s' in keyspace '%s'.", viewName, ksName));
+        KeyspaceMetadata ksm = Schema.instance.getKSMetaData(ksName);
+
+        logger.info(String.format("Drop table '%s/%s'", view.ksName, view.viewName));
+        announce(SchemaKeyspace.makeDropViewMutation(ksm, view, FBUtilities.timestampMicros()), announceLocally);
     }
 
     public static void announceTypeDrop(UserType droppedType)

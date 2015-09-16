@@ -36,7 +36,7 @@ public enum OperationType
     FLUSH("Flush"),
     STREAM("Stream"),
     WRITE("Write"),
-    VIEW_BUILD("Materialized view build");
+    VIEW_BUILD("View build");
 
     public final String type;
     public final String fileName;

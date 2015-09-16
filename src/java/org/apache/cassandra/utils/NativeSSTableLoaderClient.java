@@ -80,6 +80,8 @@ public class NativeSSTableLoaderClient extends SSTableLoader.Client
             }
 
             tables.putAll(fetchTablesMetadata(keyspace, session, partitioner));
+            // We only need the CFMetaData for the views, so we only load that.
+            tables.putAll(fetchViewMetadata(keyspace, session, partitioner));
         }
     }
 
@@ -111,39 +113,59 @@ public class NativeSSTableLoaderClient extends SSTableLoader.Client
         for (Row row : session.execute(query, keyspace))
         {
             String name = row.getString("table_name");
-            UUID id = row.getUUID("id");
-
-            Set<CFMetaData.Flag> flags = row.isNull("flags")
-                                       ? Collections.emptySet()
-                                       : CFMetaData.flagsFromStrings(row.getSet("flags", String.class));
-
-            boolean isSuper = flags.contains(CFMetaData.Flag.SUPER);
-            boolean isCounter = flags.contains(CFMetaData.Flag.COUNTER);
-            boolean isDense = flags.contains(CFMetaData.Flag.DENSE);
-            boolean isCompound = flags.contains(CFMetaData.Flag.COMPOUND);
-            boolean isMaterializedView = flags.contains(CFMetaData.Flag.VIEW);
-
-            String columnsQuery = String.format("SELECT * FROM %s.%s WHERE keyspace_name = ? AND table_name = ?",
-                                                SchemaKeyspace.NAME,
-                                                SchemaKeyspace.COLUMNS);
-
-            List<ColumnDefinition> defs = new ArrayList<>();
-            for (Row colRow : session.execute(columnsQuery, keyspace, name))
-                defs.add(createDefinitionFromRow(colRow, keyspace, name));
-
-            tables.put(name, CFMetaData.create(keyspace,
-                                               name,
-                                               id,
-                                               isDense,
-                                               isCompound,
-                                               isSuper,
-                                               isCounter,
-                                               isMaterializedView,
-                                               defs,
-                                               partitioner));
+            tables.put(name, createTableMetadata(keyspace, session, partitioner, false, row, name));
         }
 
         return tables;
+    }
+
+    /*
+     * In the case where we are creating View CFMetaDatas, we
+     */
+    private static Map<String, CFMetaData> fetchViewMetadata(String keyspace, Session session, IPartitioner partitioner)
+    {
+        Map<String, CFMetaData> tables = new HashMap<>();
+        String query = String.format("SELECT * FROM %s.%s WHERE keyspace_name = ?", SchemaKeyspace.NAME, SchemaKeyspace.VIEWS);
+
+        for (Row row : session.execute(query, keyspace))
+        {
+            String name = row.getString("view_name");
+            tables.put(name, createTableMetadata(keyspace, session, partitioner, true, row, name));
+        }
+
+        return tables;
+    }
+
+    private static CFMetaData createTableMetadata(String keyspace, Session session, IPartitioner partitioner, boolean isView, Row row, String name)
+    {
+        UUID id = row.getUUID("id");
+        Set<CFMetaData.Flag> flags = row.isNull("flags")
+                                     ? Collections.emptySet()
+                                     : CFMetaData.flagsFromStrings(row.getSet("flags", String.class));
+
+        boolean isSuper = flags.contains(CFMetaData.Flag.SUPER);
+        boolean isCounter = flags.contains(CFMetaData.Flag.COUNTER);
+        boolean isDense = flags.contains(CFMetaData.Flag.DENSE);
+        boolean isCompound = flags.contains(CFMetaData.Flag.COMPOUND);
+
+        String columnsQuery = String.format("SELECT * FROM %s.%s WHERE keyspace_name = ? AND table_name = ?",
+                                            SchemaKeyspace.NAME,
+                                            SchemaKeyspace.COLUMNS);
+
+        List<ColumnDefinition> defs = new ArrayList<>();
+        for (Row colRow : session.execute(columnsQuery, keyspace, name))
+            defs.add(createDefinitionFromRow(colRow, keyspace, name));
+
+        return CFMetaData.create(keyspace,
+                                 name,
+                                 id,
+                                 isDense,
+                                 isCompound,
+                                 isSuper,
+                                 isCounter,
+                                 isView,
+                                 defs,
+                                 partitioner);
     }
 
     private static ColumnDefinition createDefinitionFromRow(Row row, String keyspace, String table)

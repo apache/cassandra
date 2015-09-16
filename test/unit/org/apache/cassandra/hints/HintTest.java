@@ -67,7 +67,7 @@ public class HintTest
     @Before
     public void resetGcGraceSeconds()
     {
-        for (CFMetaData table : Schema.instance.getTables(KEYSPACE))
+        for (CFMetaData table : Schema.instance.getTablesAndViews(KEYSPACE))
             table.gcGraceSeconds(TableParams.DEFAULT_GC_GRACE_SECONDS);
     }
 

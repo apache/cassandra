@@ -25,6 +25,7 @@ import java.util.Iterator;
 import java.util.LinkedList;
 import java.util.List;
 import java.util.Set;
+import java.util.UUID;
 
 import javax.annotation.Nullable;
 
@@ -32,10 +33,9 @@ import com.google.common.collect.Iterables;
 
 import org.apache.cassandra.config.CFMetaData;
 import org.apache.cassandra.config.ColumnDefinition;
-import org.apache.cassandra.config.MaterializedViewDefinition;
+import org.apache.cassandra.config.ViewDefinition;
 import org.apache.cassandra.config.Schema;
 import org.apache.cassandra.cql3.ColumnIdentifier;
-import org.apache.cassandra.cql3.statements.CFProperties;
 import org.apache.cassandra.db.AbstractReadCommandBuilder.SinglePartitionSliceBuilder;
 import org.apache.cassandra.db.CBuilder;
 import org.apache.cassandra.db.Clustering;
@@ -43,7 +43,6 @@ import org.apache.cassandra.db.ColumnFamilyStore;
 import org.apache.cassandra.db.DecoratedKey;
 import org.apache.cassandra.db.DeletionInfo;
 import org.apache.cassandra.db.DeletionTime;
-import org.apache.cassandra.db.Keyspace;
 import org.apache.cassandra.db.LivenessInfo;
 import org.apache.cassandra.db.Mutation;
 import org.apache.cassandra.db.RangeTombstone;
@@ -65,23 +64,23 @@ import org.apache.cassandra.schema.KeyspaceMetadata;
 import org.apache.cassandra.service.pager.QueryPager;
 
 /**
- * A Materialized View copies data from a base table into a view table which can be queried independently from the
- * base. Every update which targets the base table must be fed through the {@link MaterializedViewManager} to ensure
+ * A View copies data from a base table into a view table which can be queried independently from the
+ * base. Every update which targets the base table must be fed through the {@link ViewManager} to ensure
  * that if a view needs to be updated, the updates are properly created and fed into the view.
  *
  * This class does the job of translating the base row to the view row.
  *
  * It handles reading existing state and figuring out what tombstones need to be generated.
  *
- * createMutations below is the "main method"
+ * {@link View#createMutations(AbstractBTreePartition, TemporalRow.Set, boolean)} is the "main method"
  *
  */
-public class MaterializedView
+public class View
 {
     /**
      * The columns should all be updated together, so we use this object as group.
      */
-    private static class MVColumns
+    private static class Columns
     {
         //These are the base column definitions in terms of the *views* partitioning.
         //Meaning we can see (for example) the partition key of the view contains a clustering key
@@ -90,7 +89,7 @@ public class MaterializedView
         public final List<ColumnDefinition> primaryKeyDefs;
         public final List<ColumnDefinition> baseComplexColumns;
 
-        private MVColumns(List<ColumnDefinition> partitionDefs, List<ColumnDefinition> primaryKeyDefs, List<ColumnDefinition> baseComplexColumns)
+        private Columns(List<ColumnDefinition> partitionDefs, List<ColumnDefinition> primaryKeyDefs, List<ColumnDefinition> baseComplexColumns)
         {
             this.partitionDefs = partitionDefs;
             this.primaryKeyDefs = primaryKeyDefs;
@@ -99,41 +98,31 @@ public class MaterializedView
     }
 
     public final String name;
+    private volatile ViewDefinition definition;
 
     private final ColumnFamilyStore baseCfs;
-    private ColumnFamilyStore _viewCfs = null;
 
-    private MVColumns columns;
+    private Columns columns;
 
     private final boolean viewHasAllPrimaryKeys;
-    private final boolean includeAll;
-    private MaterializedViewBuilder builder;
+    private final boolean includeAllColumns;
+    private ViewBuilder builder;
 
-    public MaterializedView(MaterializedViewDefinition definition,
-                            ColumnFamilyStore baseCfs)
+    public View(ViewDefinition definition,
+                ColumnFamilyStore baseCfs)
     {
         this.baseCfs = baseCfs;
 
         name = definition.viewName;
-        includeAll = definition.includeAll;
+        includeAllColumns = definition.includeAllColumns;
 
         viewHasAllPrimaryKeys = updateDefinition(definition);
     }
 
-    /**
-     * Lazily fetch the CFS instance for the view.
-     * We do this lazily to avoid initilization issues.
-     *
-     * @return The views CFS instance
-     */
-    public ColumnFamilyStore getViewCfs()
+    public ViewDefinition getDefinition()
     {
-        if (_viewCfs == null)
-            _viewCfs = Keyspace.openAndGetStore(Schema.instance.getCFMetaData(baseCfs.keyspace.getName(), name));
-
-        return _viewCfs;
+        return definition;
     }
-
 
     /**
      * Lookup column definitions in the base table that correspond to the view columns (should be 1:1)
@@ -170,17 +159,20 @@ public class MaterializedView
      * @return true if the view contains only columns which are part of the base's primary key; false if there is at
      *         least one column which is not.
      */
-    public boolean updateDefinition(MaterializedViewDefinition definition)
+    public boolean updateDefinition(ViewDefinition definition)
     {
-        List<ColumnDefinition> partitionDefs = new ArrayList<>(definition.partitionColumns.size());
-        List<ColumnDefinition> primaryKeyDefs = new ArrayList<>(definition.partitionColumns.size()
-                                                                + definition.clusteringColumns.size());
+        this.definition = definition;
+
+        CFMetaData viewCfm = definition.metadata;
+        List<ColumnDefinition> partitionDefs = new ArrayList<>(viewCfm.partitionKeyColumns().size());
+        List<ColumnDefinition> primaryKeyDefs = new ArrayList<>(viewCfm.partitionKeyColumns().size()
+                                                                + viewCfm.clusteringColumns().size());
         List<ColumnDefinition> baseComplexColumns = new ArrayList<>();
 
         // We only add the partition columns to the partitions list, but both partition columns and clustering
         // columns are added to the primary keys list
-        boolean partitionAllPrimaryKeyColumns = resolveAndAddColumns(definition.partitionColumns, primaryKeyDefs, partitionDefs);
-        boolean clusteringAllPrimaryKeyColumns = resolveAndAddColumns(definition.clusteringColumns, primaryKeyDefs);
+        boolean partitionAllPrimaryKeyColumns = resolveAndAddColumns(Iterables.transform(viewCfm.partitionKeyColumns(), cd -> cd.name), primaryKeyDefs, partitionDefs);
+        boolean clusteringAllPrimaryKeyColumns = resolveAndAddColumns(Iterables.transform(viewCfm.clusteringColumns(), cd -> cd.name), primaryKeyDefs);
 
         for (ColumnDefinition cdef : baseCfs.metadata.allColumns())
         {
@@ -190,7 +182,7 @@ public class MaterializedView
             }
         }
 
-        this.columns = new MVColumns(partitionDefs, primaryKeyDefs, baseComplexColumns);
+        this.columns = new Columns(partitionDefs, primaryKeyDefs, baseComplexColumns);
 
         return partitionAllPrimaryKeyColumns && clusteringAllPrimaryKeyColumns;
     }
@@ -211,10 +203,10 @@ public class MaterializedView
     public boolean updateAffectsView(AbstractBTreePartition partition)
     {
         // If we are including all of the columns, then any update will be included
-        if (includeAll)
+        if (includeAllColumns)
             return true;
 
-        // If there are range tombstones, tombstones will also need to be generated for the materialized view
+        // If there are range tombstones, tombstones will also need to be generated for the view
         // This requires a query of the base rows and generating tombstones for all of those values
         if (!partition.deletionInfo().isLive())
             return true;
@@ -229,7 +221,7 @@ public class MaterializedView
 
             for (ColumnData data : row)
             {
-                if (getViewCfs().metadata.getColumnDefinition(data.column().name) != null)
+                if (definition.metadata.getColumnDefinition(data.column().name) != null)
                     return true;
             }
         }
@@ -246,9 +238,9 @@ public class MaterializedView
      */
     private Clustering viewClustering(TemporalRow temporalRow, TemporalRow.Resolver resolver)
     {
-        CFMetaData viewCfm = getViewCfs().metadata;
+        CFMetaData viewCfm = definition.metadata;
         int numViewClustering = viewCfm.clusteringColumns().size();
-        CBuilder clustering = CBuilder.create(getViewCfs().getComparator());
+        CBuilder clustering = CBuilder.create(viewCfm.comparator);
         for (int i = 0; i < numViewClustering; i++)
         {
             ColumnDefinition definition = viewCfm.clusteringColumns().get(i);
@@ -267,7 +259,7 @@ public class MaterializedView
                                             TemporalRow.Resolver resolver,
                                             int nowInSec)
     {
-        CFMetaData viewCfm = getViewCfs().metadata;
+        CFMetaData viewCfm = definition.metadata;
         Row.Builder builder = BTreeRow.unsortedBuilder(nowInSec);
         builder.newRow(viewClustering(temporalRow, resolver));
         builder.addRowDeletion(deletion);
@@ -284,8 +276,7 @@ public class MaterializedView
                                                    TemporalRow.Resolver resolver,
                                                    int nowInSec)
     {
-
-        CFMetaData viewCfm = getViewCfs().metadata;
+        CFMetaData viewCfm = definition.metadata;
         Row.Builder builder = BTreeRow.unsortedBuilder(nowInSec);
         builder.newRow(viewClustering(temporalRow, resolver));
         builder.addComplexDeletion(deletedColumn, deletionTime);
@@ -311,7 +302,7 @@ public class MaterializedView
             partitionKey[i] = value;
         }
 
-        CFMetaData metadata = getViewCfs().metadata;
+        CFMetaData metadata = definition.metadata;
         return metadata.decorateKey(CFMetaData.serializePartitionKey(metadata
                                                                      .getKeyValidatorAsClusteringComparator()
                                                                      .make(partitionKey)));
@@ -348,14 +339,14 @@ public class MaterializedView
     }
 
     /**
-     * @return Mutation which is the transformed base table mutation for the materialized view.
+     * @return Mutation which is the transformed base table mutation for the view.
      */
     private PartitionUpdate createUpdatesForInserts(TemporalRow temporalRow)
     {
         TemporalRow.Resolver resolver = TemporalRow.latest;
 
         DecoratedKey partitionKey = viewPartitionKey(temporalRow, resolver);
-        ColumnFamilyStore viewCfs = getViewCfs();
+        CFMetaData viewCfm = definition.metadata;
 
         if (partitionKey == null)
         {
@@ -365,18 +356,18 @@ public class MaterializedView
 
         Row.Builder regularBuilder = BTreeRow.unsortedBuilder(temporalRow.nowInSec);
 
-        CBuilder clustering = CBuilder.create(viewCfs.getComparator());
-        for (int i = 0; i < viewCfs.metadata.clusteringColumns().size(); i++)
+        CBuilder clustering = CBuilder.create(viewCfm.comparator);
+        for (int i = 0; i < viewCfm.clusteringColumns().size(); i++)
         {
-            clustering.add(temporalRow.clusteringValue(viewCfs.metadata.clusteringColumns().get(i), resolver));
+            clustering.add(temporalRow.clusteringValue(viewCfm.clusteringColumns().get(i), resolver));
         }
         regularBuilder.newRow(clustering.build());
-        regularBuilder.addPrimaryKeyLivenessInfo(LivenessInfo.create(viewCfs.metadata,
+        regularBuilder.addPrimaryKeyLivenessInfo(LivenessInfo.create(viewCfm,
                                                                      temporalRow.viewClusteringTimestamp(),
                                                                      temporalRow.viewClusteringTtl(),
                                                                      temporalRow.viewClusteringLocalDeletionTime()));
 
-        for (ColumnDefinition columnDefinition : viewCfs.metadata.allColumns())
+        for (ColumnDefinition columnDefinition : viewCfm.allColumns())
         {
             if (columnDefinition.isPrimaryKeyColumn())
                 continue;
@@ -387,7 +378,7 @@ public class MaterializedView
             }
         }
 
-        return PartitionUpdate.singleRowUpdate(viewCfs.metadata, partitionKey, regularBuilder.build());
+        return PartitionUpdate.singleRowUpdate(viewCfm, partitionKey, regularBuilder.build());
     }
 
     /**
@@ -597,7 +588,7 @@ public class MaterializedView
         for (ColumnDefinition def : this.columns.primaryKeyDefs)
             columns.add(def.name);
 
-        TemporalRow.Set rowSet = null;
+        TemporalRow.Set rowSet;
         if (existing == null)
         {
             rowSet = separateRows(partition, columns);
@@ -671,79 +662,21 @@ public class MaterializedView
             this.builder = null;
         }
 
-        this.builder = new MaterializedViewBuilder(baseCfs, this);
-        CompactionManager.instance.submitMaterializedViewBuilder(builder);
+        this.builder = new ViewBuilder(baseCfs, this);
+        CompactionManager.instance.submitViewBuilder(builder);
     }
 
     @Nullable
-    public static CFMetaData findBaseTable(String keyspace, String view)
+    public static CFMetaData findBaseTable(String keyspace, String viewName)
     {
-        KeyspaceMetadata ksm = Schema.instance.getKSMetaData(keyspace);
-        if (ksm == null)
-            return null;
-
-        for (CFMetaData cfm : ksm.tables)
-            if (cfm.getMaterializedViews().get(view).isPresent())
-                return cfm;
-
-        return null;
+        ViewDefinition view = Schema.instance.getView(keyspace, viewName);
+        return (view == null) ? null : Schema.instance.getCFMetaData(view.baseTableId);
     }
 
-    /**
-     * @return CFMetaData which represents the definition given
-     */
-    public static CFMetaData getCFMetaData(MaterializedViewDefinition definition,
-                                           CFMetaData baseCf,
-                                           CFProperties properties)
+    public static Iterable<ViewDefinition> findAll(String keyspace, String baseTable)
     {
-        CFMetaData.Builder viewBuilder = CFMetaData.Builder
-                                         .createView(baseCf.ksName, definition.viewName);
-
-        ColumnDefinition nonPkTarget = null;
-
-        for (ColumnIdentifier targetIdentifier : definition.partitionColumns)
-        {
-            ColumnDefinition target = baseCf.getColumnDefinition(targetIdentifier);
-            if (!target.isPartitionKey())
-                nonPkTarget = target;
-
-            viewBuilder.addPartitionKey(target.name, properties.getReversableType(targetIdentifier, target.type));
-        }
-
-        Collection<ColumnDefinition> included = new ArrayList<>();
-        for(ColumnIdentifier identifier : definition.included)
-        {
-            ColumnDefinition cfDef = baseCf.getColumnDefinition(identifier);
-            assert cfDef != null;
-            included.add(cfDef);
-        }
-
-        boolean includeAll = included.isEmpty();
-
-        for (ColumnIdentifier ident : definition.clusteringColumns)
-        {
-            ColumnDefinition column = baseCf.getColumnDefinition(ident);
-            viewBuilder.addClusteringColumn(ident, properties.getReversableType(ident, column.type));
-        }
-
-        for (ColumnDefinition column : baseCf.partitionColumns().regulars)
-        {
-            if (column != nonPkTarget && (includeAll || included.contains(column)))
-            {
-                viewBuilder.addRegularColumn(column.name, column.type);
-            }
-        }
-
-        //Add any extra clustering columns
-        for (ColumnDefinition column : Iterables.concat(baseCf.partitionKeyColumns(), baseCf.clusteringColumns()))
-        {
-            if ( (!definition.partitionColumns.contains(column.name) && !definition.clusteringColumns.contains(column.name)) &&
-                 (includeAll || included.contains(column)) )
-            {
-                viewBuilder.addRegularColumn(column.name, column.type);
-            }
-        }
-
-        return viewBuilder.build().params(properties.properties.asNewTableParams());
+        KeyspaceMetadata ksm = Schema.instance.getKSMetaData(keyspace);
+        final UUID baseId = Schema.instance.getId(keyspace, baseTable);
+        return Iterables.filter(ksm.views, view -> view.baseTableId.equals(baseId));
     }
 }

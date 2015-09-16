@@ -115,6 +115,16 @@ public abstract class AlterTypeStatement extends SchemaAlteringStatement
                 MigrationManager.announceColumnFamilyUpdate(copy, false, isLocalOnly);
         }
 
+        for (ViewDefinition view : ksm.views)
+        {
+            ViewDefinition copy = view.copy();
+            boolean modified = false;
+            for (ColumnDefinition def : copy.metadata.allColumns())
+                modified |= updateDefinition(copy.metadata, def, toUpdate.keyspace, toUpdate.name, updated);
+            if (modified)
+                MigrationManager.announceViewUpdate(copy, isLocalOnly);
+        }
+
         // Other user types potentially using the updated type
         for (UserType ut : ksm.types)
         {

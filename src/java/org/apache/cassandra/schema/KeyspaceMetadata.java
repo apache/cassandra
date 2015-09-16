@@ -22,9 +22,12 @@ import java.util.Optional;
 import java.util.Set;
 
 import com.google.common.base.Objects;
+import com.google.common.collect.Iterables;
 
+import org.apache.avro.reflect.Nullable;
 import org.apache.cassandra.config.CFMetaData;
 import org.apache.cassandra.config.Schema;
+import org.apache.cassandra.config.ViewDefinition;
 import org.apache.cassandra.exceptions.ConfigurationException;
 
 /**
@@ -35,51 +38,72 @@ public final class KeyspaceMetadata
     public final String name;
     public final KeyspaceParams params;
     public final Tables tables;
+    public final Views views;
     public final Types types;
     public final Functions functions;
 
-    private KeyspaceMetadata(String name, KeyspaceParams params, Tables tables, Types types, Functions functions)
+    private KeyspaceMetadata(String name, KeyspaceParams params, Tables tables, Views views, Types types, Functions functions)
     {
         this.name = name;
         this.params = params;
         this.tables = tables;
+        this.views = views;
         this.types = types;
         this.functions = functions;
     }
 
     public static KeyspaceMetadata create(String name, KeyspaceParams params)
     {
-        return new KeyspaceMetadata(name, params, Tables.none(), Types.none(), Functions.none());
+        return new KeyspaceMetadata(name, params, Tables.none(), Views.none(), Types.none(), Functions.none());
     }
 
     public static KeyspaceMetadata create(String name, KeyspaceParams params, Tables tables)
     {
-        return new KeyspaceMetadata(name, params, tables, Types.none(), Functions.none());
+        return new KeyspaceMetadata(name, params, tables, Views.none(), Types.none(), Functions.none());
     }
 
-    public static KeyspaceMetadata create(String name, KeyspaceParams params, Tables tables, Types types, Functions functions)
+    public static KeyspaceMetadata create(String name, KeyspaceParams params, Tables tables, Views views, Types types, Functions functions)
     {
-        return new KeyspaceMetadata(name, params, tables, types, functions);
+        return new KeyspaceMetadata(name, params, tables, views, types, functions);
     }
 
     public KeyspaceMetadata withSwapped(KeyspaceParams params)
     {
-        return new KeyspaceMetadata(name, params, tables, types, functions);
+        return new KeyspaceMetadata(name, params, tables, views, types, functions);
     }
 
-    public KeyspaceMetadata withSwapped(Tables tables)
+    public KeyspaceMetadata withSwapped(Tables regular)
     {
-        return new KeyspaceMetadata(name, params, tables, types, functions);
+        return new KeyspaceMetadata(name, params, regular, views, types, functions);
+    }
+
+    public KeyspaceMetadata withSwapped(Views views)
+    {
+        return new KeyspaceMetadata(name, params, tables, views, types, functions);
     }
 
     public KeyspaceMetadata withSwapped(Types types)
     {
-        return new KeyspaceMetadata(name, params, tables, types, functions);
+        return new KeyspaceMetadata(name, params, tables, views, types, functions);
     }
 
     public KeyspaceMetadata withSwapped(Functions functions)
     {
-        return new KeyspaceMetadata(name, params, tables, types, functions);
+        return new KeyspaceMetadata(name, params, tables, views, types, functions);
+    }
+
+    public Iterable<CFMetaData> tablesAndViews()
+    {
+        return Iterables.concat(tables, views.metadatas());
+    }
+
+    @Nullable
+    public CFMetaData getTableOrViewNullable(String tableOrViewName)
+    {
+        ViewDefinition view = views.getNullable(tableOrViewName);
+        return view == null
+             ? tables.getNullable(tableOrViewName)
+             : view.metadata;
     }
 
     public Set<String> existingIndexNames(String cfToExclude)
@@ -94,7 +118,7 @@ public final class KeyspaceMetadata
 
     public Optional<CFMetaData> findIndexedTable(String indexName)
     {
-        for (CFMetaData cfm : tables)
+        for (CFMetaData cfm : tablesAndViews())
             if (cfm.getIndexes().has(indexName))
                 return Optional.of(cfm);
 
@@ -104,7 +128,7 @@ public final class KeyspaceMetadata
     @Override
     public int hashCode()
     {
-        return Objects.hashCode(name, params, tables, functions, types);
+        return Objects.hashCode(name, params, tables, views, functions, types);
     }
 
     @Override
@@ -121,6 +145,7 @@ public final class KeyspaceMetadata
         return name.equals(other.name)
             && params.equals(other.params)
             && tables.equals(other.tables)
+            && views.equals(other.views)
             && functions.equals(other.functions)
             && types.equals(other.types);
     }
@@ -132,6 +157,7 @@ public final class KeyspaceMetadata
                       .add("name", name)
                       .add("params", params)
                       .add("tables", tables)
+                      .add("views", views)
                       .add("functions", functions)
                       .add("types", types)
                       .toString();
@@ -144,6 +170,6 @@ public final class KeyspaceMetadata
                                                            + "or contain non-alphanumeric-underscore characters (got \"%s\")",
                                                            Schema.NAME_LENGTH,
                                                            name));
-        tables.forEach(CFMetaData::validate);
+        tablesAndViews().forEach(CFMetaData::validate);
     }
 }

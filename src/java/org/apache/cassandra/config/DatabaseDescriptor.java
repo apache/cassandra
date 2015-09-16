@@ -1149,7 +1149,7 @@ public class DatabaseDescriptor
         return conf.concurrent_counter_writes;
     }
 
-    public static int getConcurrentMaterializedViewWriters()
+    public static int getConcurrentViewWriters()
     {
         return conf.concurrent_materialized_view_writes;
     }

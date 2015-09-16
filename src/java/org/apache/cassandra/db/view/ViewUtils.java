@@ -29,9 +29,9 @@ import org.apache.cassandra.locator.AbstractReplicationStrategy;
 import org.apache.cassandra.service.StorageService;
 import org.apache.cassandra.utils.FBUtilities;
 
-public final class MaterializedViewUtils
+public final class ViewUtils
 {
-    private MaterializedViewUtils()
+    private ViewUtils()
     {
     }
 

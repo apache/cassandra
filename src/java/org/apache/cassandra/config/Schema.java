@@ -147,6 +147,7 @@ public class Schema
     public Schema load(KeyspaceMetadata keyspaceDef)
     {
         keyspaceDef.tables.forEach(this::load);
+        keyspaceDef.views.forEach(this::load);
         setKeyspaceMetadata(keyspaceDef);
         return this;
     }
@@ -224,8 +225,11 @@ public class Schema
     public CFMetaData getCFMetaData(String keyspaceName, String cfName)
     {
         assert keyspaceName != null;
+
         KeyspaceMetadata ksm = keyspaces.get(keyspaceName);
-        return (ksm == null) ? null : ksm.tables.getNullable(cfName);
+        return ksm == null
+             ? null
+             : ksm.getTableOrViewNullable(cfName);
     }
 
     /**
@@ -244,6 +248,13 @@ public class Schema
     public CFMetaData getCFMetaData(Descriptor descriptor)
     {
         return getCFMetaData(descriptor.ksname, descriptor.cfname);
+    }
+
+    public ViewDefinition getView(String keyspaceName, String viewName)
+    {
+        assert keyspaceName != null;
+        KeyspaceMetadata ksm = keyspaces.get(keyspaceName);
+        return (ksm == null) ? null : ksm.views.getNullable(viewName);
     }
 
     /**
@@ -274,12 +285,12 @@ public class Schema
      *
      * @return metadata about ColumnFamilies the belong to the given keyspace
      */
-    public Tables getTables(String keyspaceName)
+    public Iterable<CFMetaData> getTablesAndViews(String keyspaceName)
     {
         assert keyspaceName != null;
         KeyspaceMetadata ksm = keyspaces.get(keyspaceName);
         assert ksm != null;
-        return ksm.tables;
+        return ksm.tablesAndViews();
     }
 
     /**
@@ -356,6 +367,24 @@ public class Schema
     }
 
     /**
+     * Load individual View Definition to the schema
+     * (to make View lookup faster)
+     *
+     * @param view The View definition to load
+     */
+    public void load(ViewDefinition view)
+    {
+        CFMetaData cfm = view.metadata;
+        Pair<String, String> key = Pair.create(cfm.ksName, cfm.cfName);
+
+        if (cfIdMap.containsKey(key))
+            throw new RuntimeException(String.format("Attempting to load already loaded view %s.%s", cfm.ksName, cfm.cfName));
+
+        logger.debug("Adding {} to cfIdMap", cfm);
+        cfIdMap.put(key, cfm.cfId);
+    }
+
+    /**
      * Used for ColumnFamily data eviction out from the schema
      *
      * @param cfm The ColumnFamily Definition to evict
@@ -363,6 +392,16 @@ public class Schema
     public void unload(CFMetaData cfm)
     {
         cfIdMap.remove(Pair.create(cfm.ksName, cfm.cfName));
+    }
+
+    /**
+     * Used for View eviction from the schema
+     *
+     * @param view The view definition to evict
+     */
+    private void unload(ViewDefinition view)
+    {
+        cfIdMap.remove(Pair.create(view.ksName, view.viewName));
     }
 
     /* Function helpers */
@@ -442,6 +481,7 @@ public class Schema
         {
             KeyspaceMetadata ksm = getKSMetaData(keyspaceName);
             ksm.tables.forEach(this::unload);
+            ksm.views.forEach(this::unload);
             clearKeyspaceMetadata(ksm);
         }
 
@@ -468,13 +508,13 @@ public class Schema
         KeyspaceMetadata ksm = Schema.instance.getKSMetaData(ksName);
         String snapshotName = Keyspace.getTimestampedSnapshotName(ksName);
 
-        CompactionManager.instance.interruptCompactionFor(ksm.tables, true);
+        CompactionManager.instance.interruptCompactionFor(ksm.tablesAndViews(), true);
 
         Keyspace keyspace = Keyspace.open(ksm.name);
 
         // remove all cfs from the keyspace instance.
         List<UUID> droppedCfs = new ArrayList<>();
-        for (CFMetaData cfm : ksm.tables)
+        for (CFMetaData cfm : ksm.tablesAndViews())
         {
             ColumnFamilyStore cfs = keyspace.getColumnFamilyStore(cfm.cfName);
 
@@ -554,6 +594,67 @@ public class Schema
         MigrationManager.instance.notifyDropColumnFamily(cfm);
 
         CommitLog.instance.forceRecycleAllSegments(Collections.singleton(cfm.cfId));
+    }
+
+    public void addView(ViewDefinition view)
+    {
+        assert getCFMetaData(view.ksName, view.viewName) == null;
+
+        update(view.ksName, ks ->
+        {
+            load(view);
+
+            // make sure it's init-ed w/ the old definitions first,
+            // since we're going to call initCf on the new one manually
+            Keyspace.open(view.ksName);
+
+            return ks.withSwapped(ks.views.with(view));
+        });
+
+        Keyspace.open(view.ksName).initCf(view.metadata.cfId, view.viewName, true);
+        Keyspace.open(view.ksName).viewManager.reload();
+        MigrationManager.instance.notifyCreateView(view);
+    }
+
+    public void updateView(String ksName, String viewName)
+    {
+        Optional<ViewDefinition> optView = getKSMetaData(ksName).views.get(viewName);
+        assert optView.isPresent();
+        ViewDefinition view = optView.get();
+        boolean columnsDidChange = view.metadata.reload();
+
+        Keyspace keyspace = Keyspace.open(view.ksName);
+        keyspace.getColumnFamilyStore(view.viewName).reload();
+        Keyspace.open(view.ksName).viewManager.update(view.viewName);
+        MigrationManager.instance.notifyUpdateView(view, columnsDidChange);
+    }
+
+    public void dropView(String ksName, String viewName)
+    {
+        KeyspaceMetadata oldKsm = getKSMetaData(ksName);
+        assert oldKsm != null;
+        ColumnFamilyStore cfs = Keyspace.open(ksName).getColumnFamilyStore(viewName);
+        assert cfs != null;
+
+        // make sure all the indexes are dropped, or else.
+        cfs.indexManager.markAllIndexesRemoved();
+
+        // reinitialize the keyspace.
+        ViewDefinition view = oldKsm.views.get(viewName).get();
+        KeyspaceMetadata newKsm = oldKsm.withSwapped(oldKsm.views.without(viewName));
+
+        unload(view);
+        setKeyspaceMetadata(newKsm);
+
+        CompactionManager.instance.interruptCompactionFor(Collections.singleton(view.metadata), true);
+
+        if (DatabaseDescriptor.isAutoSnapshot())
+            cfs.snapshot(Keyspace.getTimestampedSnapshotName(cfs.name));
+        Keyspace.open(ksName).dropCf(view.metadata.cfId);
+        Keyspace.open(ksName).viewManager.reload();
+        MigrationManager.instance.notifyDropView(view);
+
+        CommitLog.instance.forceRecycleAllSegments(Collections.singleton(view.metadata.cfId));
     }
 
     public void addType(UserType ut)

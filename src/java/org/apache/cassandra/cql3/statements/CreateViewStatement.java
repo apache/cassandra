@@ -28,23 +28,27 @@ import com.google.common.collect.Iterables;
 import org.apache.cassandra.auth.Permission;
 import org.apache.cassandra.config.CFMetaData;
 import org.apache.cassandra.config.ColumnDefinition;
-import org.apache.cassandra.config.MaterializedViewDefinition;
+import org.apache.cassandra.config.Schema;
+import org.apache.cassandra.config.ViewDefinition;
 import org.apache.cassandra.cql3.CFName;
 import org.apache.cassandra.cql3.ColumnIdentifier;
 import org.apache.cassandra.cql3.selection.RawSelector;
 import org.apache.cassandra.cql3.selection.Selectable;
-import org.apache.cassandra.db.view.MaterializedView;
+import org.apache.cassandra.db.marshal.AbstractType;
+import org.apache.cassandra.db.marshal.ReversedType;
+import org.apache.cassandra.db.view.View;
 import org.apache.cassandra.exceptions.AlreadyExistsException;
 import org.apache.cassandra.exceptions.InvalidRequestException;
 import org.apache.cassandra.exceptions.RequestValidationException;
 import org.apache.cassandra.exceptions.UnauthorizedException;
+import org.apache.cassandra.schema.TableParams;
 import org.apache.cassandra.service.ClientState;
 import org.apache.cassandra.service.ClientWarn;
 import org.apache.cassandra.service.MigrationManager;
 import org.apache.cassandra.thrift.ThriftValidation;
 import org.apache.cassandra.transport.Event;
 
-public class CreateMaterializedViewStatement extends SchemaAlteringStatement
+public class CreateViewStatement extends SchemaAlteringStatement
 {
     private final CFName baseName;
     private final List<RawSelector> selectClause;
@@ -54,13 +58,13 @@ public class CreateMaterializedViewStatement extends SchemaAlteringStatement
     public final CFProperties properties = new CFProperties();
     private final boolean ifNotExists;
 
-    public CreateMaterializedViewStatement(CFName viewName,
-                                           CFName baseName,
-                                           List<RawSelector> selectClause,
-                                           List<ColumnIdentifier.Raw> notNullWhereClause,
-                                           List<ColumnIdentifier.Raw> partitionKeys,
-                                           List<ColumnIdentifier.Raw> clusteringKeys,
-                                           boolean ifNotExists)
+    public CreateViewStatement(CFName viewName,
+                               CFName baseName,
+                               List<RawSelector> selectClause,
+                               List<ColumnIdentifier.Raw> notNullWhereClause,
+                               List<ColumnIdentifier.Raw> partitionKeys,
+                               List<ColumnIdentifier.Raw> clusteringKeys,
+                               boolean ifNotExists)
     {
         super(viewName);
         this.baseName = baseName;
@@ -82,6 +86,31 @@ public class CreateMaterializedViewStatement extends SchemaAlteringStatement
     public void validate(ClientState state) throws RequestValidationException
     {
         // We do validation in announceMigration to reduce doubling up of work
+    }
+
+    private interface AddColumn {
+        void add(ColumnIdentifier identifier, AbstractType<?> type);
+    }
+
+    private void add(CFMetaData baseCfm, Iterable<ColumnIdentifier> columns, AddColumn adder)
+    {
+        for (ColumnIdentifier column : columns)
+        {
+            AbstractType<?> type = baseCfm.getColumnDefinition(column).type;
+            if (properties.definedOrdering.containsKey(column))
+            {
+                boolean desc = properties.definedOrdering.get(column);
+                if (!desc && type.isReversed())
+                {
+                    type = ((ReversedType)type).baseType;
+                }
+                else if (desc && !type.isReversed())
+                {
+                    type = ReversedType.getInstance(type);
+                }
+            }
+            adder.add(column, type);
+        }
     }
 
     public boolean announceMigration(boolean isLocalOnly) throws RequestValidationException
@@ -109,8 +138,7 @@ public class CreateMaterializedViewStatement extends SchemaAlteringStatement
 
         if (cfm.isCounter())
             throw new InvalidRequestException("Materialized views are not supported on counter tables");
-
-        if (cfm.isMaterializedView())
+        if (cfm.isView())
             throw new InvalidRequestException("Materialized views cannot be created against other materialized views");
 
         if (cfm.params.gcGraceSeconds == 0)
@@ -194,18 +222,25 @@ public class CreateMaterializedViewStatement extends SchemaAlteringStatement
         }
 
         // We need to include all of the primary key colums from the base table in order to make sure that we do not
-        // overwrite values in the materialized view. We cannot support "collapsing" the base table into a smaller
-        // number of rows in the view because if we need to generate a tombstone, we have no way of knowing which value
-        // is currently being used in the view and whether or not to generate a tombstone.
-        // In order to not surprise our users, we require that they include all of the columns. We provide them with
-        // a list of all of the columns left to include.
+        // overwrite values in the view. We cannot support "collapsing" the base table into a smaller number of rows in
+        // the view because if we need to generate a tombstone, we have no way of knowing which value is currently being
+        // used in the view and whether or not to generate a tombstone. In order to not surprise our users, we require
+        // that they include all of the columns. We provide them with a list of all of the columns left to include.
         boolean missingClusteringColumns = false;
         StringBuilder columnNames = new StringBuilder();
+        List<ColumnIdentifier> includedColumns = new ArrayList<>();
         for (ColumnDefinition def : cfm.allColumns())
         {
+            ColumnIdentifier identifier = def.name;
+
+            if ((included.isEmpty() || included.contains(identifier))
+                && !targetClusteringColumns.contains(identifier) && !targetPartitionKeys.contains(identifier)
+                && !def.isStatic())
+            {
+                includedColumns.add(identifier);
+            }
             if (!def.isPrimaryKeyColumn()) continue;
 
-            ColumnIdentifier identifier = def.name;
             if (!targetClusteringColumns.contains(identifier) && !targetPartitionKeys.contains(identifier))
             {
                 if (missingClusteringColumns)
@@ -225,16 +260,21 @@ public class CreateMaterializedViewStatement extends SchemaAlteringStatement
         if (targetClusteringColumns.isEmpty())
             throw new InvalidRequestException("No columns are defined for Materialized View other than primary key");
 
-        MaterializedViewDefinition definition = new MaterializedViewDefinition(baseName.getColumnFamily(),
-                                                                               columnFamily(),
-                                                                               targetPartitionKeys,
-                                                                               targetClusteringColumns,
-                                                                               included);
+        CFMetaData.Builder cfmBuilder = CFMetaData.Builder.createView(keyspace(), columnFamily());
+        add(cfm, targetPartitionKeys, cfmBuilder::addPartitionKey);
+        add(cfm, targetClusteringColumns, cfmBuilder::addClusteringColumn);
+        add(cfm, includedColumns, cfmBuilder::addRegularColumn);
+        TableParams params = properties.properties.asNewTableParams();
+        CFMetaData viewCfm = cfmBuilder.build().params(params);
+        ViewDefinition definition = new ViewDefinition(keyspace(),
+                                                       columnFamily(),
+                                                       Schema.instance.getId(keyspace(), baseName.getColumnFamily()),
+                                                       included.isEmpty(),
+                                                       viewCfm);
 
-        CFMetaData indexCf = MaterializedView.getCFMetaData(definition, cfm, properties);
         try
         {
-            MigrationManager.announceNewColumnFamily(indexCf, isLocalOnly);
+            MigrationManager.announceNewView(definition, isLocalOnly);
         }
         catch (AlreadyExistsException e)
         {
@@ -242,11 +282,6 @@ public class CreateMaterializedViewStatement extends SchemaAlteringStatement
                 return false;
             throw e;
         }
-
-        CFMetaData newCfm = cfm.copy();
-        newCfm.materializedViews(newCfm.getMaterializedViews().with(definition));
-
-        MigrationManager.announceColumnFamilyUpdate(newCfm, false, isLocalOnly);
 
         return true;
     }

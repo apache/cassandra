@@ -44,7 +44,7 @@ import org.apache.cassandra.db.partitions.PartitionIterator;
 import org.apache.cassandra.db.rows.ComplexColumnData;
 import org.apache.cassandra.db.rows.Row;
 import org.apache.cassandra.db.rows.RowIterator;
-import org.apache.cassandra.db.view.MaterializedView;
+import org.apache.cassandra.db.view.View;
 import org.apache.cassandra.dht.AbstractBounds;
 import org.apache.cassandra.exceptions.*;
 import org.apache.cassandra.index.Index;
@@ -175,9 +175,9 @@ public class SelectStatement implements CQLStatement
 
     public void checkAccess(ClientState state) throws InvalidRequestException, UnauthorizedException
     {
-        if (cfm.isMaterializedView())
+        if (cfm.isView())
         {
-            CFMetaData baseTable = MaterializedView.findBaseTable(keyspace(), columnFamily());
+            CFMetaData baseTable = View.findBaseTable(keyspace(), columnFamily());
             if (baseTable != null)
                 state.hasColumnFamilyAccess(keyspace(), baseTable.cfName, Permission.SELECT);
         }
