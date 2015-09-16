@@ -241,7 +241,7 @@ public class RowIndexEntry<T> implements IMeasurableMemory
             skipPromotedIndex(in, version);
         }
 
-        public static void skipPromotedIndex(DataInputPlus in, Version version) throws IOException
+        private static void skipPromotedIndex(DataInputPlus in, Version version) throws IOException
         {
             int size = version.storeRows() ? (int)in.readUnsignedVInt() : in.readInt();
             if (size <= 0)
