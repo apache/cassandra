@@ -86,7 +86,7 @@ public final class HintMessage
             long size = UUIDSerializer.serializer.serializedSize(message.hostId, version);
 
             long hintSize = Hint.serializer.serializedSize(message.hint, version);
-            size += TypeSizes.sizeofVInt(hintSize);
+            size += TypeSizes.sizeofUnsignedVInt(hintSize);
             size += hintSize;
 
             return size;
@@ -102,7 +102,7 @@ public final class HintMessage
              * We are serializing the hint size so that the receiver of the message could gracefully handle
              * deserialize failure when a table had been dropped, by simply skipping the unread bytes.
              */
-            out.writeVInt(Hint.serializer.serializedSize(message.hint, version));
+            out.writeUnsignedVInt(Hint.serializer.serializedSize(message.hint, version));
 
             Hint.serializer.serialize(message.hint, out, version);
         }
@@ -116,7 +116,7 @@ public final class HintMessage
         {
             UUID hostId = UUIDSerializer.serializer.deserialize(in, version);
 
-            long hintSize = in.readVInt();
+            long hintSize = in.readUnsignedVInt();
             BytesReadTracker countingIn = new BytesReadTracker(in);
             try
             {

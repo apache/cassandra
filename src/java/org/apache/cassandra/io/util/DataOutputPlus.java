@@ -49,11 +49,11 @@ public interface DataOutputPlus extends DataOutput
     }
 
     /**
-     * Think hard before opting for an unsigned encoding. Is this going to bite someone because some day
-     * they might need to pass in a sentinel value using negative numbers? Is the risk worth it
-     * to save a few bytes?
+     * This is more efficient for storing unsigned values, both in storage and CPU burden.
      *
-     * Signed, not a fan of unsigned values in protocols and formats
+     * Note that it is still possible to store negative values, they just take up more space.
+     * So this method doesn't forbid e.g. negative sentinel values in future, if they need to be snuck in.
+     * A protocol version bump can then be introduced to improve efficiency.
      */
     default void writeUnsignedVInt(long i) throws IOException
     {

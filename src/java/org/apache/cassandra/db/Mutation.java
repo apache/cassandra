@@ -279,7 +279,7 @@ public class Mutation implements IMutation
             }
             else
             {
-                out.writeVInt(size);
+                out.writeUnsignedVInt(size);
             }
 
             assert size > 0;
@@ -301,7 +301,7 @@ public class Mutation implements IMutation
             }
             else
             {
-                size = (int)in.readVInt();
+                size = (int)in.readUnsignedVInt();
             }
 
             assert size > 0;
@@ -343,7 +343,7 @@ public class Mutation implements IMutation
             }
             else
             {
-                size += TypeSizes.sizeofVInt(mutation.modifications.size());
+                size += TypeSizes.sizeofUnsignedVInt(mutation.modifications.size());
             }
 
             for (Map.Entry<UUID, PartitionUpdate> entry : mutation.modifications.entrySet())

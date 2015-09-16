@@ -123,7 +123,7 @@ public class UnfilteredRowIteratorSerializer
             UnfilteredSerializer.serializer.serialize(staticRow, header, out, version);
 
         if (rowEstimate >= 0)
-            out.writeVInt(rowEstimate);
+            out.writeUnsignedVInt(rowEstimate);
 
         while (iterator.hasNext())
             UnfilteredSerializer.serializer.serialize(iterator.next(), header, out, version);
@@ -159,7 +159,7 @@ public class UnfilteredRowIteratorSerializer
             size += UnfilteredSerializer.serializer.serializedSize(staticRow, header, version);
 
         if (rowEstimate >= 0)
-            size += TypeSizes.sizeofVInt(rowEstimate);
+            size += TypeSizes.sizeofUnsignedVInt(rowEstimate);
 
         while (iterator.hasNext())
             size += UnfilteredSerializer.serializer.serializedSize(iterator.next(), header, version);
@@ -191,7 +191,7 @@ public class UnfilteredRowIteratorSerializer
         if (hasStatic)
             staticRow = UnfilteredSerializer.serializer.deserializeStaticRow(in, header, new SerializationHelper(metadata, version, flag));
 
-        int rowEstimate = hasRowEstimate ? (int)in.readVInt() : -1;
+        int rowEstimate = hasRowEstimate ? (int)in.readUnsignedVInt() : -1;
         return new Header(header, key, isReversed, false, partitionDeletion, staticRow, rowEstimate);
     }
 

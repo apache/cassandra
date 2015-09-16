@@ -30,7 +30,7 @@ import org.apache.cassandra.utils.ByteBufferUtil;
 import org.apache.cassandra.utils.UUIDSerializer;
 
 import static org.apache.cassandra.db.TypeSizes.sizeof;
-import static org.apache.cassandra.db.TypeSizes.sizeofVInt;
+import static org.apache.cassandra.db.TypeSizes.sizeofUnsignedVInt;
 
 public final class Batch
 {
@@ -87,11 +87,11 @@ public final class Batch
             long size = UUIDSerializer.serializer.serializedSize(batch.id, version);
             size += sizeof(batch.creationTime);
 
-            size += sizeofVInt(batch.decodedMutations.size());
+            size += sizeofUnsignedVInt(batch.decodedMutations.size());
             for (Mutation mutation : batch.decodedMutations)
             {
                 int mutationSize = (int) Mutation.serializer.serializedSize(mutation, version);
-                size += sizeofVInt(mutationSize);
+                size += sizeofUnsignedVInt(mutationSize);
                 size += mutationSize;
             }
 
@@ -105,10 +105,10 @@ public final class Batch
             UUIDSerializer.serializer.serialize(batch.id, out, version);
             out.writeLong(batch.creationTime);
 
-            out.writeVInt(batch.decodedMutations.size());
+            out.writeUnsignedVInt(batch.decodedMutations.size());
             for (Mutation mutation : batch.decodedMutations)
             {
-                out.writeVInt(Mutation.serializer.serializedSize(mutation, version));
+                out.writeUnsignedVInt(Mutation.serializer.serializedSize(mutation, version));
                 Mutation.serializer.serialize(mutation, out, version);
             }
         }
@@ -129,7 +129,7 @@ public final class Batch
 
         private static Collection<ByteBuffer> readEncodedMutations(DataInputPlus in) throws IOException
         {
-            int count = (int) in.readVInt();
+            int count = (int) in.readUnsignedVInt();
 
             ArrayList<ByteBuffer> mutations = new ArrayList<>(count);
             for (int i = 0; i < count; i++)
@@ -140,12 +140,12 @@ public final class Batch
 
         private static Collection<Mutation> decodeMutations(DataInputPlus in, int version) throws IOException
         {
-            int count = (int) in.readVInt();
+            int count = (int) in.readUnsignedVInt();
 
             ArrayList<Mutation> mutations = new ArrayList<>(count);
             for (int i = 0; i < count; i++)
             {
-                in.readVInt(); // skip mutation size
+                in.readUnsignedVInt(); // skip mutation size
                 mutations.add(Mutation.serializer.deserialize(in, version));
             }
 

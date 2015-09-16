@@ -400,14 +400,14 @@ public class Columns extends AbstractCollection<ColumnDefinition> implements Col
     {
         public void serialize(Columns columns, DataOutputPlus out) throws IOException
         {
-            out.writeVInt(columns.size());
+            out.writeUnsignedVInt(columns.size());
             for (ColumnDefinition column : columns)
                 ByteBufferUtil.writeWithVIntLength(column.name.bytes, out);
         }
 
         public long serializedSize(Columns columns)
         {
-            long size = TypeSizes.sizeofVInt(columns.size());
+            long size = TypeSizes.sizeofUnsignedVInt(columns.size());
             for (ColumnDefinition column : columns)
                 size += ByteBufferUtil.serializedSizeWithVIntLength(column.name.bytes);
             return size;
@@ -415,7 +415,7 @@ public class Columns extends AbstractCollection<ColumnDefinition> implements Col
 
         public Columns deserialize(DataInputPlus in, CFMetaData metadata) throws IOException
         {
-            int length = (int)in.readVInt();
+            int length = (int)in.readUnsignedVInt();
             BTree.Builder<ColumnDefinition> builder = BTree.builder(Comparator.naturalOrder());
             builder.auto(false);
             for (int i = 0; i < length; i++)
