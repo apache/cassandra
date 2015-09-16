@@ -169,12 +169,12 @@ public class MultiPartitionPager implements QueryPager
         {
             while (result == null || !result.hasNext())
             {
+                if (result != null)
+                    result.close();
+
                 // This sets us on the first non-exhausted pager
                 if (isExhausted())
                     return endOfData();
-
-                if (result != null)
-                    result.close();
 
                 int toQuery = pageSize - counter.counted();
                 result = consistency == null
