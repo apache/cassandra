@@ -27,7 +27,7 @@ import org.apache.cassandra.io.util.DataInputPlus;
 import org.apache.cassandra.io.util.DataOutputPlus;
 
 import static org.apache.cassandra.db.TypeSizes.sizeof;
-import static org.apache.cassandra.db.TypeSizes.sizeofVInt;
+import static org.apache.cassandra.db.TypeSizes.sizeofUnsignedVInt;
 
 /**
  * Encapsulates the hinted mutation, its creation time, and the gc grace seconds param for each table involved.
@@ -111,7 +111,7 @@ public final class Hint
         public long serializedSize(Hint hint, int version)
         {
             long size = sizeof(hint.creationTime);
-            size += sizeofVInt(hint.gcgs);
+            size += sizeofUnsignedVInt(hint.gcgs);
             size += Mutation.serializer.serializedSize(hint.mutation, version);
             return size;
         }
@@ -119,14 +119,14 @@ public final class Hint
         public void serialize(Hint hint, DataOutputPlus out, int version) throws IOException
         {
             out.writeLong(hint.creationTime);
-            out.writeVInt(hint.gcgs);
+            out.writeUnsignedVInt(hint.gcgs);
             Mutation.serializer.serialize(hint.mutation, out, version);
         }
 
         public Hint deserialize(DataInputPlus in, int version) throws IOException
         {
             long creationTime = in.readLong();
-            int gcgs = (int) in.readVInt();
+            int gcgs = (int) in.readUnsignedVInt();
             return new Hint(Mutation.serializer.deserialize(in, version), creationTime, gcgs);
         }
     }

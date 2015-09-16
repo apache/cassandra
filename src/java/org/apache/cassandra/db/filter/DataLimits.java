@@ -644,21 +644,21 @@ public abstract class DataLimits
                 case CQL_LIMIT:
                 case CQL_PAGING_LIMIT:
                     CQLLimits cqlLimits = (CQLLimits)limits;
-                    out.writeVInt(cqlLimits.rowLimit);
-                    out.writeVInt(cqlLimits.perPartitionLimit);
+                    out.writeUnsignedVInt(cqlLimits.rowLimit);
+                    out.writeUnsignedVInt(cqlLimits.perPartitionLimit);
                     out.writeBoolean(cqlLimits.isDistinct);
                     if (limits.kind() == Kind.CQL_PAGING_LIMIT)
                     {
                         CQLPagingLimits pagingLimits = (CQLPagingLimits)cqlLimits;
                         ByteBufferUtil.writeWithVIntLength(pagingLimits.lastReturnedKey, out);
-                        out.writeVInt(pagingLimits.lastReturnedKeyRemaining);
+                        out.writeUnsignedVInt(pagingLimits.lastReturnedKeyRemaining);
                     }
                     break;
                 case THRIFT_LIMIT:
                 case SUPER_COLUMN_COUNTING_LIMIT:
                     ThriftLimits thriftLimits = (ThriftLimits)limits;
-                    out.writeVInt(thriftLimits.partitionLimit);
-                    out.writeVInt(thriftLimits.cellPerPartitionLimit);
+                    out.writeUnsignedVInt(thriftLimits.partitionLimit);
+                    out.writeUnsignedVInt(thriftLimits.cellPerPartitionLimit);
                     break;
             }
         }
@@ -670,19 +670,19 @@ public abstract class DataLimits
             {
                 case CQL_LIMIT:
                 case CQL_PAGING_LIMIT:
-                    int rowLimit = (int)in.readVInt();
-                    int perPartitionLimit = (int)in.readVInt();
+                    int rowLimit = (int)in.readUnsignedVInt();
+                    int perPartitionLimit = (int)in.readUnsignedVInt();
                     boolean isDistinct = in.readBoolean();
                     if (kind == Kind.CQL_LIMIT)
                         return new CQLLimits(rowLimit, perPartitionLimit, isDistinct);
 
                     ByteBuffer lastKey = ByteBufferUtil.readWithVIntLength(in);
-                    int lastRemaining = (int)in.readVInt();
+                    int lastRemaining = (int)in.readUnsignedVInt();
                     return new CQLPagingLimits(rowLimit, perPartitionLimit, isDistinct, lastKey, lastRemaining);
                 case THRIFT_LIMIT:
                 case SUPER_COLUMN_COUNTING_LIMIT:
-                    int partitionLimit = (int)in.readVInt();
-                    int cellPerPartitionLimit = (int)in.readVInt();
+                    int partitionLimit = (int)in.readUnsignedVInt();
+                    int cellPerPartitionLimit = (int)in.readUnsignedVInt();
                     return kind == Kind.THRIFT_LIMIT
                          ? new ThriftLimits(partitionLimit, cellPerPartitionLimit)
                          : new SuperColumnCountingLimits(partitionLimit, cellPerPartitionLimit);
@@ -698,21 +698,21 @@ public abstract class DataLimits
                 case CQL_LIMIT:
                 case CQL_PAGING_LIMIT:
                     CQLLimits cqlLimits = (CQLLimits)limits;
-                    size += TypeSizes.sizeofVInt(cqlLimits.rowLimit);
-                    size += TypeSizes.sizeofVInt(cqlLimits.perPartitionLimit);
+                    size += TypeSizes.sizeofUnsignedVInt(cqlLimits.rowLimit);
+                    size += TypeSizes.sizeofUnsignedVInt(cqlLimits.perPartitionLimit);
                     size += TypeSizes.sizeof(cqlLimits.isDistinct);
                     if (limits.kind() == Kind.CQL_PAGING_LIMIT)
                     {
                         CQLPagingLimits pagingLimits = (CQLPagingLimits)cqlLimits;
                         size += ByteBufferUtil.serializedSizeWithVIntLength(pagingLimits.lastReturnedKey);
-                        size += TypeSizes.sizeofVInt(pagingLimits.lastReturnedKeyRemaining);
+                        size += TypeSizes.sizeofUnsignedVInt(pagingLimits.lastReturnedKeyRemaining);
                     }
                     break;
                 case THRIFT_LIMIT:
                 case SUPER_COLUMN_COUNTING_LIMIT:
                     ThriftLimits thriftLimits = (ThriftLimits)limits;
-                    size += TypeSizes.sizeofVInt(thriftLimits.partitionLimit);
-                    size += TypeSizes.sizeofVInt(thriftLimits.cellPerPartitionLimit);
+                    size += TypeSizes.sizeofUnsignedVInt(thriftLimits.partitionLimit);
+                    size += TypeSizes.sizeofUnsignedVInt(thriftLimits.cellPerPartitionLimit);
                     break;
                 default:
                     throw new AssertionError();

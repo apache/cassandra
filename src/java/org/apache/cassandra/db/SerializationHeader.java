@@ -164,17 +164,17 @@ public class SerializationHeader
 
     public void writeTimestamp(long timestamp, DataOutputPlus out) throws IOException
     {
-        out.writeVInt(timestamp - stats.minTimestamp);
+        out.writeUnsignedVInt(timestamp - stats.minTimestamp);
     }
 
     public void writeLocalDeletionTime(int localDeletionTime, DataOutputPlus out) throws IOException
     {
-        out.writeVInt(localDeletionTime - stats.minLocalDeletionTime);
+        out.writeUnsignedVInt(localDeletionTime - stats.minLocalDeletionTime);
     }
 
     public void writeTTL(int ttl, DataOutputPlus out) throws IOException
     {
-        out.writeVInt(ttl - stats.minTTL);
+        out.writeUnsignedVInt(ttl - stats.minTTL);
     }
 
     public void writeDeletionTime(DeletionTime dt, DataOutputPlus out) throws IOException
@@ -185,17 +185,17 @@ public class SerializationHeader
 
     public long readTimestamp(DataInputPlus in) throws IOException
     {
-        return in.readVInt() + stats.minTimestamp;
+        return in.readUnsignedVInt() + stats.minTimestamp;
     }
 
     public int readLocalDeletionTime(DataInputPlus in) throws IOException
     {
-        return (int)in.readVInt() + stats.minLocalDeletionTime;
+        return (int)in.readUnsignedVInt() + stats.minLocalDeletionTime;
     }
 
     public int readTTL(DataInputPlus in) throws IOException
     {
-        return (int)in.readVInt() + stats.minTTL;
+        return (int)in.readUnsignedVInt() + stats.minTTL;
     }
 
     public DeletionTime readDeletionTime(DataInputPlus in) throws IOException
@@ -207,17 +207,17 @@ public class SerializationHeader
 
     public long timestampSerializedSize(long timestamp)
     {
-        return TypeSizes.sizeofVInt(timestamp - stats.minTimestamp);
+        return TypeSizes.sizeofUnsignedVInt(timestamp - stats.minTimestamp);
     }
 
     public long localDeletionTimeSerializedSize(int localDeletionTime)
     {
-        return TypeSizes.sizeofVInt(localDeletionTime - stats.minLocalDeletionTime);
+        return TypeSizes.sizeofUnsignedVInt(localDeletionTime - stats.minLocalDeletionTime);
     }
 
     public long ttlSerializedSize(int ttl)
     {
-        return TypeSizes.sizeofVInt(ttl - stats.minTTL);
+        return TypeSizes.sizeofUnsignedVInt(ttl - stats.minTTL);
     }
 
     public long deletionTimeSerializedSize(DeletionTime dt)
@@ -228,17 +228,17 @@ public class SerializationHeader
 
     public void skipTimestamp(DataInputPlus in) throws IOException
     {
-        in.readVInt();
+        in.readUnsignedVInt();
     }
 
     public void skipLocalDeletionTime(DataInputPlus in) throws IOException
     {
-        in.readVInt();
+        in.readUnsignedVInt();
     }
 
     public void skipTTL(DataInputPlus in) throws IOException
     {
-        in.readVInt();
+        in.readUnsignedVInt();
     }
 
     public void skipDeletionTime(DataInputPlus in) throws IOException
@@ -418,7 +418,7 @@ public class SerializationHeader
             EncodingStats.serializer.serialize(header.stats, out);
 
             writeType(header.keyType, out);
-            out.writeVInt(header.clusteringTypes.size());
+            out.writeUnsignedVInt(header.clusteringTypes.size());
             for (AbstractType<?> type : header.clusteringTypes)
                 writeType(type, out);
 
@@ -432,7 +432,7 @@ public class SerializationHeader
             EncodingStats stats = EncodingStats.serializer.deserialize(in);
 
             AbstractType<?> keyType = readType(in);
-            int size = (int)in.readVInt();
+            int size = (int)in.readUnsignedVInt();
             List<AbstractType<?>> clusteringTypes = new ArrayList<>(size);
             for (int i = 0; i < size; i++)
                 clusteringTypes.add(readType(in));
@@ -452,7 +452,7 @@ public class SerializationHeader
             int size = EncodingStats.serializer.serializedSize(header.stats);
 
             size += sizeofType(header.keyType);
-            size += TypeSizes.sizeofVInt(header.clusteringTypes.size());
+            size += TypeSizes.sizeofUnsignedVInt(header.clusteringTypes.size());
             for (AbstractType<?> type : header.clusteringTypes)
                 size += sizeofType(type);
 
@@ -463,7 +463,7 @@ public class SerializationHeader
 
         private void writeColumnsWithTypes(Map<ByteBuffer, AbstractType<?>> columns, DataOutputPlus out) throws IOException
         {
-            out.writeVInt(columns.size());
+            out.writeUnsignedVInt(columns.size());
             for (Map.Entry<ByteBuffer, AbstractType<?>> entry : columns.entrySet())
             {
                 ByteBufferUtil.writeWithVIntLength(entry.getKey(), out);
@@ -473,7 +473,7 @@ public class SerializationHeader
 
         private long sizeofColumnsWithTypes(Map<ByteBuffer, AbstractType<?>> columns)
         {
-            long size = TypeSizes.sizeofVInt(columns.size());
+            long size = TypeSizes.sizeofUnsignedVInt(columns.size());
             for (Map.Entry<ByteBuffer, AbstractType<?>> entry : columns.entrySet())
             {
                 size += ByteBufferUtil.serializedSizeWithVIntLength(entry.getKey());
@@ -484,7 +484,7 @@ public class SerializationHeader
 
         private void readColumnsWithType(DataInputPlus in, Map<ByteBuffer, AbstractType<?>> typeMap) throws IOException
         {
-            int length = (int)in.readVInt();
+            int length = (int)in.readUnsignedVInt();
             for (int i = 0; i < length; i++)
             {
                 ByteBuffer name = ByteBufferUtil.readWithVIntLength(in);

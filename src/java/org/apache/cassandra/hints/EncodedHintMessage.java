@@ -66,7 +66,7 @@ final class EncodedHintMessage
                 throw new IllegalArgumentException("serializedSize() called with non-matching version " + version);
 
             long size = UUIDSerializer.serializer.serializedSize(message.hostId, version);
-            size += TypeSizes.sizeofVInt(message.hint.remaining());
+            size += TypeSizes.sizeofUnsignedVInt(message.hint.remaining());
             size += message.hint.remaining();
             return size;
         }
@@ -77,7 +77,7 @@ final class EncodedHintMessage
                 throw new IllegalArgumentException("serialize() called with non-matching version " + version);
 
             UUIDSerializer.serializer.serialize(message.hostId, out, version);
-            out.writeVInt(message.hint.remaining());
+            out.writeUnsignedVInt(message.hint.remaining());
             out.write(message.hint);
         }
 

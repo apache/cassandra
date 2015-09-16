@@ -297,7 +297,7 @@ public abstract class Slices implements Iterable<Slice>
         public void serialize(Slices slices, DataOutputPlus out, int version) throws IOException
         {
             int size = slices.size();
-            out.writeVInt(size);
+            out.writeUnsignedVInt(size);
 
             if (size == 0)
                 return;
@@ -312,7 +312,7 @@ public abstract class Slices implements Iterable<Slice>
 
         public long serializedSize(Slices slices, int version)
         {
-            long size = TypeSizes.sizeofVInt(slices.size());
+            long size = TypeSizes.sizeofUnsignedVInt(slices.size());
 
             if (slices.size() == 0)
                 return size;
@@ -329,7 +329,7 @@ public abstract class Slices implements Iterable<Slice>
 
         public Slices deserialize(DataInputPlus in, int version, CFMetaData metadata) throws IOException
         {
-            int size = (int)in.readVInt();
+            int size = (int)in.readUnsignedVInt();
 
             if (size == 0)
                 return NONE;

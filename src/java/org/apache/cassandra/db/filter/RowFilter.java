@@ -748,7 +748,7 @@ public abstract class RowFilter implements Iterable<RowFilter.Expression>
         public void serialize(RowFilter filter, DataOutputPlus out, int version) throws IOException
         {
             out.writeBoolean(filter instanceof ThriftFilter);
-            out.writeVInt(filter.expressions.size());
+            out.writeUnsignedVInt(filter.expressions.size());
             for (Expression expr : filter.expressions)
                 Expression.serializer.serialize(expr, out, version);
         }
@@ -756,7 +756,7 @@ public abstract class RowFilter implements Iterable<RowFilter.Expression>
         public RowFilter deserialize(DataInputPlus in, int version, CFMetaData metadata) throws IOException
         {
             boolean forThrift = in.readBoolean();
-            int size = (int)in.readVInt();
+            int size = (int)in.readUnsignedVInt();
             List<Expression> expressions = new ArrayList<>(size);
             for (int i = 0; i < size; i++)
                 expressions.add(Expression.serializer.deserialize(in, version, metadata));
@@ -768,7 +768,7 @@ public abstract class RowFilter implements Iterable<RowFilter.Expression>
         public long serializedSize(RowFilter filter, int version)
         {
             long size = 1 // forThrift
-                      + TypeSizes.sizeofVInt(filter.expressions.size());
+                      + TypeSizes.sizeofUnsignedVInt(filter.expressions.size());
             for (Expression expr : filter.expressions)
                 size += Expression.serializer.serializedSize(expr, version);
             return size;

@@ -564,7 +564,7 @@ public abstract class ReadCommand implements ReadQuery
             out.writeByte(command.kind.ordinal());
             out.writeByte(digestFlag(command.isDigestQuery()) | thriftFlag(command.isForThrift()) | indexFlag(command.index.isPresent()));
             if (command.isDigestQuery())
-                out.writeVInt(command.digestVersion());
+                out.writeUnsignedVInt(command.digestVersion());
             CFMetaData.serializer.serialize(command.metadata(), out, version);
             out.writeInt(command.nowInSec());
             ColumnFilter.serializer.serialize(command.columnFilter(), out, version);
@@ -586,7 +586,7 @@ public abstract class ReadCommand implements ReadQuery
             boolean isDigest = isDigest(flags);
             boolean isForThrift = isForThrift(flags);
             boolean hasIndex = hasIndex(flags);
-            int digestVersion = isDigest ? (int)in.readVInt() : 0;
+            int digestVersion = isDigest ? (int)in.readUnsignedVInt() : 0;
             CFMetaData metadata = CFMetaData.serializer.deserialize(in, version);
             int nowInSec = in.readInt();
             ColumnFilter columnFilter = ColumnFilter.serializer.deserialize(in, version, metadata);
@@ -623,7 +623,7 @@ public abstract class ReadCommand implements ReadQuery
             assert version >= MessagingService.VERSION_30;
 
             return 2 // kind + flags
-                 + (command.isDigestQuery() ? TypeSizes.sizeofVInt(command.digestVersion()) : 0)
+                 + (command.isDigestQuery() ? TypeSizes.sizeofUnsignedVInt(command.digestVersion()) : 0)
                  + CFMetaData.serializer.serializedSize(command.metadata(), version)
                  + TypeSizes.sizeof(command.nowInSec())
                  + ColumnFilter.serializer.serializedSize(command.columnFilter(), version)

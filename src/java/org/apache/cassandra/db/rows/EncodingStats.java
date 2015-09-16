@@ -230,23 +230,23 @@ public class EncodingStats
     {
         public void serialize(EncodingStats stats, DataOutputPlus out) throws IOException
         {
-            out.writeVInt(stats.minTimestamp - TIMESTAMP_EPOCH);
-            out.writeVInt(stats.minLocalDeletionTime - DELETION_TIME_EPOCH);
-            out.writeVInt(stats.minTTL - TTL_EPOCH);
+            out.writeUnsignedVInt(stats.minTimestamp - TIMESTAMP_EPOCH);
+            out.writeUnsignedVInt(stats.minLocalDeletionTime - DELETION_TIME_EPOCH);
+            out.writeUnsignedVInt(stats.minTTL - TTL_EPOCH);
         }
 
         public int serializedSize(EncodingStats stats)
         {
-            return TypeSizes.sizeofVInt(stats.minTimestamp - TIMESTAMP_EPOCH)
-                   + TypeSizes.sizeofVInt(stats.minLocalDeletionTime - DELETION_TIME_EPOCH)
-                   + TypeSizes.sizeofVInt(stats.minTTL - TTL_EPOCH);
+            return TypeSizes.sizeofUnsignedVInt(stats.minTimestamp - TIMESTAMP_EPOCH)
+                   + TypeSizes.sizeofUnsignedVInt(stats.minLocalDeletionTime - DELETION_TIME_EPOCH)
+                   + TypeSizes.sizeofUnsignedVInt(stats.minTTL - TTL_EPOCH);
         }
 
         public EncodingStats deserialize(DataInputPlus in) throws IOException
         {
-            long minTimestamp = in.readVInt() + TIMESTAMP_EPOCH;
-            int minLocalDeletionTime = (int)in.readVInt() + DELETION_TIME_EPOCH;
-            int minTTL = (int)in.readVInt() + TTL_EPOCH;
+            long minTimestamp = in.readUnsignedVInt() + TIMESTAMP_EPOCH;
+            int minLocalDeletionTime = (int)in.readUnsignedVInt() + DELETION_TIME_EPOCH;
+            int minTTL = (int)in.readUnsignedVInt() + TTL_EPOCH;
             return new EncodingStats(minTimestamp, minLocalDeletionTime, minTTL);
         }
     }

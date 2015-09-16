@@ -70,7 +70,7 @@ public final class TypeSizes
 
     public static int sizeofWithVIntLength(ByteBuffer value)
     {
-        return sizeofVInt(value.remaining()) + value.remaining();
+        return sizeofUnsignedVInt(value.remaining()) + value.remaining();
     }
 
     public static int sizeof(boolean value)
