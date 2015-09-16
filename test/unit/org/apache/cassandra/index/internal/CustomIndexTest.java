@@ -57,6 +57,35 @@ public class CustomIndexTest extends CQLTester
         assertTrue(excluded.rowsInserted.isEmpty());
     }
 
+    @Test
+    public void indexReceivesWriteTimeDeletionsCorrectly() throws Throwable
+    {
+        createTable("CREATE TABLE %s (a int, b int, c int, d int, PRIMARY KEY (a, b, c))");
+        String indexName = "test_index";
+        createIndex(String.format("CREATE CUSTOM INDEX %s ON %%s(d) USING '%s'",
+                                  indexName, StubIndex.class.getName()));
+
+        execute("INSERT INTO %s (a, b, c, d) VALUES (?, ?, ?, ?)", 0, 0, 0, 0);
+        execute("INSERT INTO %s (a, b, c, d) VALUES (?, ?, ?, ?)", 0, 0, 1, 1);
+        execute("INSERT INTO %s (a, b, c, d) VALUES (?, ?, ?, ?)", 0, 0, 2, 2);
+        execute("INSERT INTO %s (a, b, c, d) VALUES (?, ?, ?, ?)", 0, 1, 3, 3);
+
+        SecondaryIndexManager indexManager = getCurrentColumnFamilyStore().indexManager;
+        StubIndex index = (StubIndex)indexManager.getIndexByName(indexName);
+        assertEquals(4, index.rowsInserted.size());
+        assertTrue(index.partitionDeletions.isEmpty());
+        assertTrue(index.rangeTombstones.isEmpty());
+
+        execute("DELETE FROM %s WHERE a=0 AND b=0");
+        assertTrue(index.partitionDeletions.isEmpty());
+        assertEquals(1, index.rangeTombstones.size());
+
+        execute("DELETE FROM %s WHERE a=0");
+        assertEquals(1, index.partitionDeletions.size());
+        assertEquals(1, index.rangeTombstones.size());
+    }
+
+
     public static final class IndexIncludedInBuild extends StubIndex
     {
         public IndexIncludedInBuild(ColumnFamilyStore baseCfs, IndexMetadata metadata)

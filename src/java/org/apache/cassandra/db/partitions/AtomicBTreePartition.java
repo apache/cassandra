@@ -127,7 +127,7 @@ public class AtomicBTreePartition extends AbstractBTreePartition
                 updater.ref = current;
                 updater.reset();
 
-                if (!update.deletionInfo().isLive())
+                if (!update.deletionInfo().getPartitionDeletion().isLive())
                     indexer.onPartitionDeletion(update.deletionInfo().getPartitionDeletion());
 
                 if (update.deletionInfo().hasRanges())
