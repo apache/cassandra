@@ -59,7 +59,7 @@ import org.apache.cassandra.service.StorageService;
 public class MaterializedViewManager
 {
     private static final Striped<Lock> LOCKS = Striped.lazyWeakLock(DatabaseDescriptor.getConcurrentWriters() * 1024);
-    private static final boolean disableCoordinatorBatchlog = Boolean.getBoolean("cassandra.mv_disable_coordinator_batchlog");
+    private static final boolean enableCoordinatorBatchlog = Boolean.getBoolean("cassandra.mv_enable_coordinator_batchlog");
 
     private final ConcurrentNavigableMap<String, MaterializedView> viewsByName;
 
@@ -196,7 +196,7 @@ public class MaterializedViewManager
 
     public static boolean updatesAffectView(Collection<? extends IMutation> mutations, boolean coordinatorBatchlog)
     {
-        if (coordinatorBatchlog && disableCoordinatorBatchlog)
+        if (coordinatorBatchlog && !enableCoordinatorBatchlog)
             return false;
 
         for (IMutation mutation : mutations)
