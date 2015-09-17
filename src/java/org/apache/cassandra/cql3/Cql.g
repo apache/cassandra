@@ -897,7 +897,7 @@ dropMaterializedViewStatement returns [DropViewStatement expr]
   * TRUNCATE <CF>;
   */
 truncateStatement returns [TruncateStatement stmt]
-    : K_TRUNCATE cf=columnFamilyName { $stmt = new TruncateStatement(cf); }
+    : K_TRUNCATE (K_COLUMNFAMILY)? cf=columnFamilyName { $stmt = new TruncateStatement(cf); }
     ;
 
 /**

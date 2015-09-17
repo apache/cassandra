@@ -1,6 +1,7 @@
 <link rel="StyleSheet" href="CQL.css" type="text/css" media="screen">
 
-h1. Cassandra Query Language (CQL) v3.3.0
+h1. Cassandra Query Language (CQL) v3.3.1
+
 
 
  <span id="tableOfContents">
@@ -435,7 +436,7 @@ h3(#truncateStmt). TRUNCATE
 
 __Syntax:__
 
-bc(syntax). <truncate-stmt> ::= TRUNCATE <tablename>
+bc(syntax). <truncate-stmt> ::= TRUNCATE ( TABLE | COLUMNFAMILY )? <tablename>
 
 __Sample:__
 
@@ -2259,6 +2260,11 @@ The following type names are not currently used by CQL, but are reserved for pot
 h2(#changes). Changes
 
 The following describes the changes in each version of CQL.
+
+
+h3. 3.3.1
+
+* The syntax @TRUNCATE TABLE X@ is now accepted as an alias for @TRUNCATE X@
 
 h3. 3.3.0
 
