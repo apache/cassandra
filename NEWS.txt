@@ -33,6 +33,12 @@ Changed Defaults
    - Parallel repairs are the default since 2.2.0, run sequential repairs
      by providing the '-seq' parameter to nodetool repair.
 
+New features
+------------
+   - Custom QueryHandlers can retrieve the column specifications for the bound
+     variables from QueryOptions by using the hasColumnSpecifications()
+     and getColumnSpecifications() methods.
+
 
 2.2.1
 =====
