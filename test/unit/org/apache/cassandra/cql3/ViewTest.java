@@ -186,6 +186,9 @@ public class ViewTest extends CQLTester
                     "bigintval bigint, " +
                     "PRIMARY KEY((k, asciival)))");
 
+        execute("USE " + keyspace());
+        executeNet(protocolVersion, "USE " + keyspace());
+
         // Must include "IS NOT NULL" for primary keys
         try
         {
@@ -1335,8 +1338,8 @@ public class ViewTest extends CQLTester
         createView("mv3", "CREATE MATERIALIZED VIEW %s AS SELECT * FROM %%s WHERE b IS NOT NULL AND c IS NOT NULL PRIMARY KEY (a, b, c)");
         createView("mv4", "CREATE MATERIALIZED VIEW %s AS SELECT * FROM %%s WHERE b IS NOT NULL AND c IS NOT NULL PRIMARY KEY (a, c, b) WITH CLUSTERING ORDER BY (c DESC)");
 
-        updateView("INSERT INTO %s (a, b, c, d) VALUES (?, ?, ?, ?) USING TIMESTAMP 1", 1, 1, 1, 1);
-        updateView("INSERT INTO %s (a, b, c, d) VALUES (?, ?, ?, ?) USING TIMESTAMP 1", 1, 2, 2, 2);
+        updateView("INSERT INTO %s (a, b, c, d) VALUES (?, ?, ?, ?)", 1, 1, 1, 1);
+        updateView("INSERT INTO %s (a, b, c, d) VALUES (?, ?, ?, ?)", 1, 2, 2, 2);
 
         ResultSet mvRows = executeNet(protocolVersion, "SELECT b FROM mv1");
         assertRowsNet(protocolVersion, mvRows,
@@ -1383,5 +1386,74 @@ public class ViewTest extends CQLTester
         {
             Assert.assertEquals("Cannot use DROP TABLE on Materialized View", e.getMessage());
         }
+    }
+
+    @Test
+    public void testMultipleDeletes() throws Throwable
+    {
+        createTable("CREATE TABLE %s (" +
+                    "a int," +
+                    "b int," +
+                    "PRIMARY KEY (a, b))");
+
+        executeNet(protocolVersion, "USE " + keyspace());
+
+        createView("mv1", "CREATE MATERIALIZED VIEW %s AS SELECT * FROM %%s WHERE b IS NOT NULL PRIMARY KEY (b, a)");
+
+        updateView("INSERT INTO %s (a, b) VALUES (?, ?)", 1, 1);
+        updateView("INSERT INTO %s (a, b) VALUES (?, ?)", 1, 2);
+        updateView("INSERT INTO %s (a, b) VALUES (?, ?)", 1, 3);
+
+        ResultSet mvRows = executeNet(protocolVersion, "SELECT a, b FROM mv1");
+        assertRowsNet(protocolVersion, mvRows,
+                      row(1, 1),
+                      row(1, 2),
+                      row(1, 3));
+
+        updateView(String.format("BEGIN UNLOGGED BATCH " +
+                   "DELETE FROM %s WHERE a = 1 AND b > 1 AND b < 3;" +
+                   "DELETE FROM %s WHERE a = 1;" +
+                   "APPLY BATCH", currentTable(), currentTable()));
+
+        mvRows = executeNet(protocolVersion, "SELECT a, b FROM mv1");
+        assertRowsNet(protocolVersion, mvRows);
+    }
+
+    @Test
+    public void testPrimaryKeyOnlyTable() throws Throwable
+    {
+        createTable("CREATE TABLE %s (" +
+                    "a int," +
+                    "b int," +
+                    "PRIMARY KEY (a, b))");
+
+        executeNet(protocolVersion, "USE " + keyspace());
+
+        // Cannot use SELECT *, as those are always handled by the includeAll shortcut in View.updateAffectsView
+        createView("mv1", "CREATE MATERIALIZED VIEW %s AS SELECT a, b FROM %%s WHERE b IS NOT NULL PRIMARY KEY (b, a)");
+
+        updateView("INSERT INTO %s (a, b) VALUES (?, ?)", 1, 1);
+
+        ResultSet mvRows = executeNet(protocolVersion, "SELECT a, b FROM mv1");
+        assertRowsNet(protocolVersion, mvRows, row(1, 1));
+    }
+
+    @Test
+    public void testPartitionKeyOnlyTable() throws Throwable
+    {
+        createTable("CREATE TABLE %s (" +
+                    "a int," +
+                    "b int," +
+                    "PRIMARY KEY ((a, b)))");
+
+        executeNet(protocolVersion, "USE " + keyspace());
+
+        // Cannot use SELECT *, as those are always handled by the includeAll shortcut in View.updateAffectsView
+        createView("mv1", "CREATE MATERIALIZED VIEW %s AS SELECT a, b FROM %%s WHERE a IS NOT NULL AND b IS NOT NULL PRIMARY KEY (b, a)");
+
+        updateView("INSERT INTO %s (a, b) VALUES (?, ?)", 1, 1);
+
+        ResultSet mvRows = executeNet(protocolVersion, "SELECT a, b FROM mv1");
+        assertRowsNet(protocolVersion, mvRows, row(1, 1));
     }
 }
