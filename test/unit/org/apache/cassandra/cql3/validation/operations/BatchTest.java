@@ -103,4 +103,10 @@ public class BatchTest extends CQLTester
                    row(111, "batchtext", null)
         );
     }
+
+    @Test
+    public void testBatchEmpty() throws Throwable
+    {
+        execute("BEGIN BATCH APPLY BATCH;");
+    }
 }
