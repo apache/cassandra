@@ -118,6 +118,12 @@ Changed Defaults
      of the total space of the commitlog volume. (Before: always used
      8192)
 
+New features
+------------
+   - Custom QueryHandlers can retrieve the column specifications for the bound
+     variables from QueryOptions by using the hasColumnSpecifications()
+     and getColumnSpecifications() methods.
+
 
 2.2.1
 =====
