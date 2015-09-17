@@ -1158,7 +1158,6 @@ public class Gossiper implements IFailureDetectionEventListener, GossiperMBean
         localState.setHeartBeatState(remoteState.getHeartBeatState());
         if (logger.isTraceEnabled())
             logger.trace("Updating heartbeat state version to {} from {} for {} ...", localState.getHeartBeatState().getHeartBeatVersion(), oldVersion, addr);
-
         // we need to make two loops here, one to apply, then another to notify, this way all states in an update are present and current when the notifications are received
         for (Entry<ApplicationState, VersionedValue> remoteEntry : remoteState.getApplicationStateMap().entrySet())
         {
@@ -1404,8 +1403,9 @@ public class Gossiper implements IFailureDetectionEventListener, GossiperMBean
             logger.trace("Adding saved endpoint {} {}", ep, epState.getHeartBeatState().getGeneration());
     }
 
-    public void addLocalApplicationState(ApplicationState state, VersionedValue value)
+    private void addLocalApplicationStateInternal(ApplicationState state, VersionedValue value)
     {
+        assert taskLock.isHeldByCurrentThread();
         EndpointState epState = endpointStateMap.get(FBUtilities.getBroadcastAddress());
         InetAddress epAddr = FBUtilities.getBroadcastAddress();
         assert epState != null;
@@ -1420,6 +1420,11 @@ public class Gossiper implements IFailureDetectionEventListener, GossiperMBean
         doOnChangeNotifications(epAddr, state, value);
     }
 
+    public void addLocalApplicationState(ApplicationState applicationState, VersionedValue value)
+    {
+        addLocalApplicationStates(Arrays.asList(Pair.create(applicationState, value)));
+    }
+
     public void addLocalApplicationStates(List<Pair<ApplicationState, VersionedValue>> states)
     {
         taskLock.lock();
@@ -1427,7 +1432,7 @@ public class Gossiper implements IFailureDetectionEventListener, GossiperMBean
         {
             for (Pair<ApplicationState, VersionedValue> pair : states)
             {
-               addLocalApplicationState(pair.left, pair.right);
+               addLocalApplicationStateInternal(pair.left, pair.right);
             }
         }
         finally
