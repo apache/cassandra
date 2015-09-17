@@ -172,7 +172,7 @@ public class FailureDetector implements IFailureDetector, FailureDetectorMBean
         }
         else
         {
-            sb.append("  TOKENS: not present");
+            sb.append("  TOKENS: not present\n");
         }
     }
 
