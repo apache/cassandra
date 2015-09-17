@@ -124,6 +124,12 @@ New features
      variables from QueryOptions by using the hasColumnSpecifications()
      and getColumnSpecifications() methods.
 
+New features
+------------
+   - Custom QueryHandlers can retrieve the column specifications for the bound
+     variables from QueryOptions by using the hasColumnSpecifications()
+     and getColumnSpecifications() methods.
+
 
 2.2.1
 =====
