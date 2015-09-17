@@ -24,6 +24,7 @@ Merged from 2.1:
  * (cqlsh) update list of CQL keywords (CASSANDRA-9232)
  * Add nodetool gettraceprobability command (CASSANDRA-10234)
 Merged from 2.0:
+ * Fix rare race where older gossip states can be shadowed (CASSANDRA-10366)
  * Fix consolidating racks violating the RF contract (CASSANDRA-10238)
  * Disallow decommission when node is in drained state (CASSANDRA-8741)
 
