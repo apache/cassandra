@@ -203,7 +203,7 @@ public class BatchMessage extends Message.Request
             for (int i = 0; i < prepared.size(); i++)
             {
                 ParsedStatement.Prepared p = prepared.get(i);
-                batchOptions.forStatement(i).prepare(p.boundNames);
+                batchOptions.prepareStatement(i, p.boundNames);
 
                 if (!(p.statement instanceof ModificationStatement))
                     throw new InvalidRequestException("Invalid statement in batch: only UPDATE, INSERT and DELETE statements are allowed.");

@@ -18,11 +18,7 @@
 
 package org.apache.cassandra.cql3.validation.operations;
 
-import java.util.Arrays;
-
 import org.junit.Test;
-
-import static org.apache.commons.lang3.StringUtils.isEmpty;
 
 import org.apache.cassandra.cql3.CQLTester;
 
@@ -171,5 +167,11 @@ public class BatchTest extends CQLTester
                    row(0, 4, 10),
                    row(0, 5, 20),
                    row(0, 6, 20));
+    }
+
+    @Test
+    public void testBatchEmpty() throws Throwable
+    {
+        assertEmpty(execute("BEGIN BATCH APPLY BATCH;"));
     }
 }

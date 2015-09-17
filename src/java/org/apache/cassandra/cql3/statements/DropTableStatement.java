@@ -63,7 +63,7 @@ public class DropTableStatement extends SchemaAlteringStatement
         try
         {
             KeyspaceMetadata ksm = Schema.instance.getKSMetaData(keyspace());
-            CFMetaData cfm = ksm.tables.getNullable(columnFamily());
+            CFMetaData cfm = ksm.getTableOrViewNullable(columnFamily());
             if (cfm != null)
             {
                 if (cfm.isView())

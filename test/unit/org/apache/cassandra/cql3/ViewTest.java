@@ -22,18 +22,16 @@ import java.math.BigDecimal;
 import java.math.BigInteger;
 import java.net.InetAddress;
 import java.text.SimpleDateFormat;
-import java.util.*;
+import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.Date;
+import java.util.HashSet;
+import java.util.List;
+import java.util.UUID;
 import java.util.concurrent.TimeUnit;
 
-import org.junit.After;
-import org.junit.Before;
-import org.junit.BeforeClass;
-import org.junit.Test;
-
-import com.datastax.driver.core.*;
-import com.datastax.driver.core.ResultSet;
-import com.datastax.driver.core.exceptions.InvalidQueryException;
 import junit.framework.Assert;
+
 import org.apache.cassandra.concurrent.SEPExecutor;
 import org.apache.cassandra.concurrent.Stage;
 import org.apache.cassandra.concurrent.StageManager;
@@ -46,6 +44,14 @@ import org.apache.cassandra.serializers.SimpleDateSerializer;
 import org.apache.cassandra.serializers.TimeSerializer;
 import org.apache.cassandra.utils.ByteBufferUtil;
 import org.apache.cassandra.utils.FBUtilities;
+import org.junit.After;
+import org.junit.Before;
+import org.junit.BeforeClass;
+import org.junit.Test;
+
+import com.datastax.driver.core.ResultSet;
+import com.datastax.driver.core.Row;
+import com.datastax.driver.core.exceptions.InvalidQueryException;
 
 public class ViewTest extends CQLTester
 {
@@ -1351,5 +1357,31 @@ public class ViewTest extends CQLTester
         assertRowsNet(protocolVersion, mvRows,
                       row(2),
                       row(1));
+    }
+
+    @Test
+    public void testDropTableWithMV() throws Throwable
+    {
+        createTable("CREATE TABLE %s (" +
+                "a int," +
+                "b int," +
+                "c int," +
+                "d int," +
+                "PRIMARY KEY (a, b, c))");
+
+        executeNet(protocolVersion, "USE " + keyspace());
+
+        createView(keyspace() + ".mv1",
+                   "CREATE MATERIALIZED VIEW %s AS SELECT * FROM %%s WHERE b IS NOT NULL AND c IS NOT NULL PRIMARY KEY (a, b, c)");
+
+        try
+        {
+            executeNet(protocolVersion, "DROP TABLE " + keyspace() + ".mv1");
+            Assert.fail();
+        }
+        catch (InvalidQueryException e)
+        {
+            Assert.assertEquals("Cannot use DROP TABLE on Materialized View", e.getMessage());
+        }
     }
 }
