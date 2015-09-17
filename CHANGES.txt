@@ -1,4 +1,5 @@
 2.0.17
+ * Fix rare race where older gossip states can be shadowed (CASSANDRA-10366)
  * Fix consolidating racks violating the RF contract (CASSANDRA-10238)
  * Disallow decommission when node is in drained state (CASSANDRA-8741)
  * Backport CASSANDRA-8013 to 2.0 (CASSANDRA-10144)
