@@ -228,6 +228,7 @@ public class KeyCacheCqlTest extends CQLTester
         assertNull(Schema.instance.getColumnFamilyStoreIncludingIndexes(Pair.create(KEYSPACE, "bar")));
 
         dropTable("DROP TABLE %s");
+        Schema.instance.updateVersion();
 
         //Test loading for a dropped 2i/table
         CacheService.instance.keyCache.clear();

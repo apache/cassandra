@@ -13,7 +13,7 @@ Merged from 2.2:
  * Defer default role manager setup until all nodes are on 2.2+ (CASSANDRA-9761)
  * Handle missing RoleManager in config after upgrade to 2.2 (CASSANDRA-10209)
 Merged from 2.1:
- * Fix cache handling of 2i and base tables (CASSANDRA-10155)
+ * Fix cache handling of 2i and base tables (CASSANDRA-10155, 10359)
  * Fix NPE in nodetool compactionhistory (CASSANDRA-9758)
  * (Pig) support BulkOutputFormat as a URL parameter (CASSANDRA-7410)
  * BATCH statement is broken in cqlsh (CASSANDRA-10272)

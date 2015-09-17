@@ -188,6 +188,15 @@ public class AutoSavingCache<K extends CacheKey, V> extends InstrumentingCache<K
             {
                 logger.info(String.format("reading saved cache %s", dataPath));
                 in = new DataInputStreamPlus(new LengthAvailableInputStream(new BufferedInputStream(streamFactory.getInputStream(dataPath, crcPath)), dataPath.length()));
+
+                //Check the schema has not changed since CFs are looked up by name which is ambiguous
+                UUID schemaVersion = new UUID(in.readLong(), in.readLong());
+                if (!schemaVersion.equals(Schema.instance.getVersion()))
+                    throw new RuntimeException("Cache schema version "
+                                              + schemaVersion.toString()
+                                              + " does not match current schema version "
+                                              + Schema.instance.getVersion());
+
                 ArrayDeque<Future<Pair<K, V>>> futures = new ArrayDeque<Future<Pair<K, V>>>();
                 while (in.available() > 0)
                 {
@@ -337,27 +346,38 @@ public class AutoSavingCache<K extends CacheKey, V> extends InstrumentingCache<K
                     throw new RuntimeException(e);
                 }
 
-                while (keyIterator.hasNext())
+                try
                 {
-                    K key = keyIterator.next();
-
-                    ColumnFamilyStore cfs = Schema.instance.getColumnFamilyStoreIncludingIndexes(key.ksAndCFName);
-                    if (cfs == null)
-                        continue; // the table or 2i has been dropped.
-
-                    try
+                    //Need to be able to check schema version because CF names are ambiguous
+                    UUID schemaVersion = Schema.instance.getVersion();
+                    if (schemaVersion == null)
                     {
+                        Schema.instance.updateVersion();
+                        schemaVersion = Schema.instance.getVersion();
+                    }
+                    writer.writeLong(schemaVersion.getMostSignificantBits());
+                    writer.writeLong(schemaVersion.getLeastSignificantBits());
+
+                    while (keyIterator.hasNext())
+                    {
+                        K key = keyIterator.next();
+
+                        ColumnFamilyStore cfs = Schema.instance.getColumnFamilyStoreIncludingIndexes(key.ksAndCFName);
+                        if (cfs == null)
+                            continue; // the table or 2i has been dropped.
+
                         cacheLoader.serialize(key, writer, cfs);
-                    }
-                    catch (IOException e)
-                    {
-                        throw new FSWriteError(e, cacheFilePaths.left);
-                    }
 
-                    keysWritten++;
-                    if (keysWritten >= keysEstimate)
-                        break;
+                        keysWritten++;
+                        if (keysWritten >= keysEstimate)
+                            break;
+                    }
                 }
+                catch (IOException e)
+                {
+                    throw new FSWriteError(e, cacheFilePaths.left);
+                }
+
             }
             finally
             {
