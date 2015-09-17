@@ -230,6 +230,14 @@ New features
    - SizeTieredCompactionStrategy parameter cold_reads_to_omit has been removed.
 
 
+2.1.10
+=====
+
+New features
+------------
+   - The syntax TRUNCATE TABLE X is now accepted as an alias for TRUNCATE X
+
+
 2.1.9
 =====
 
