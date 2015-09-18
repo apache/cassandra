@@ -85,7 +85,6 @@ public class ChecksummedSequentialWriterTest extends SequentialWriterTest
         protected void assertAborted() throws Exception
         {
             super.assertAborted();
-            Assert.assertFalse(crcFile.exists());
         }
     }
 

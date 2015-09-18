@@ -222,7 +222,6 @@ public class CompressedSequentialWriterTest extends SequentialWriterTest
         protected void assertAborted() throws Exception
         {
             super.assertAborted();
-            Assert.assertFalse(offsetsFile.exists());
         }
 
         void cleanup()

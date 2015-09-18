@@ -263,7 +263,7 @@ public class CompressedSequentialWriter extends SequentialWriter
         @Override
         protected Throwable doCommit(Throwable accumulate)
         {
-            return metadataWriter.commit(accumulate);
+            return super.doCommit(metadataWriter.commit(accumulate));
         }
 
         @Override
@@ -278,7 +278,6 @@ public class CompressedSequentialWriter extends SequentialWriter
             syncInternal();
             if (descriptor != null)
                 crcMetadata.writeFullChecksum(descriptor);
-            releaseFileHandle();
             sstableMetadataCollector.addCompressionRatio(compressedSize, uncompressedSize);
             metadataWriter.finalizeLength(current(), chunkCount).prepareToCommit();
         }

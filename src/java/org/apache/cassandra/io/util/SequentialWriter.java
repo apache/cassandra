@@ -68,8 +68,6 @@ public class SequentialWriter extends BufferedDataOutputStreamPlus implements Tr
     // due to lack of multiple-inheritance, we proxy our transactional implementation
     protected class TransactionalProxy extends AbstractTransactional
     {
-        private boolean deleteFile = true;
-
         @Override
         protected Throwable doPreCleanup(Throwable accumulate)
         {
@@ -90,9 +88,6 @@ public class SequentialWriter extends BufferedDataOutputStreamPlus implements Tr
         protected void doPrepare()
         {
             syncInternal();
-            // we must cleanup our file handles during prepareCommit for Windows compatibility as we cannot rename an open file;
-            // TODO: once we stop file renaming, remove this for clarity
-            releaseFileHandle();
         }
 
         protected Throwable doCommit(Throwable accumulate)
@@ -102,10 +97,7 @@ public class SequentialWriter extends BufferedDataOutputStreamPlus implements Tr
 
         protected Throwable doAbort(Throwable accumulate)
         {
-            if (deleteFile)
-                return FileUtils.deleteWithConfirm(filePath, false, accumulate);
-            else
-                return accumulate;
+            return accumulate;
         }
     }
 
@@ -407,23 +399,6 @@ public class SequentialWriter extends BufferedDataOutputStreamPlus implements Tr
     protected TransactionalProxy txnProxy()
     {
         return new TransactionalProxy();
-    }
-
-    public void deleteFile(boolean val)
-    {
-        txnProxy.deleteFile = val;
-    }
-
-    public void releaseFileHandle()
-    {
-        try
-        {
-            channel.close();
-        }
-        catch (IOException e)
-        {
-            throw new FSWriteError(e, filePath);
-        }
     }
 
     /**

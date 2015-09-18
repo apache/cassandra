@@ -102,7 +102,6 @@ public class SequentialWriterTest extends AbstractTransactionalTest
         protected void assertAborted() throws Exception
         {
             Assert.assertFalse(writer.isOpen());
-            Assert.assertFalse(file.exists());
         }
 
         protected void assertCommitted() throws Exception
