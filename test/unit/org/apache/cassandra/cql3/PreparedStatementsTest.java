@@ -24,12 +24,15 @@ import org.junit.Test;
 import com.datastax.driver.core.Cluster;
 import com.datastax.driver.core.PreparedStatement;
 import com.datastax.driver.core.Session;
+import com.datastax.driver.core.exceptions.SyntaxError;
 import org.apache.cassandra.SchemaLoader;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.config.Schema;
+import org.apache.cassandra.index.StubIndex;
 import org.apache.cassandra.service.EmbeddedCassandraService;
 
-import static junit.framework.Assert.assertEquals;
+import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.fail;
 
 public class PreparedStatementsTest extends SchemaLoader
 {
@@ -126,5 +129,38 @@ public class PreparedStatementsTest extends SchemaLoader
         session.execute(preparedInsert.bind(1, 1, "value"));
 
         assertEquals(1, session.execute(preparedSelect.bind(1)).all().size());
+    }
+
+    @Test
+    public void prepareAndExecuteWithCustomExpressions() throws Throwable
+    {
+        session.execute(dropKsStatement);
+        session.execute(createKsStatement);
+        String table = "custom_expr_test";
+        String index = "custom_index";
+
+        session.execute(String.format("CREATE TABLE IF NOT EXISTS %s.%s (id int PRIMARY KEY, cid int, val text);",
+                                      KEYSPACE, table));
+        session.execute(String.format("CREATE CUSTOM INDEX %s ON %s.%s(val) USING '%s'",
+                                      index, KEYSPACE, table, StubIndex.class.getName()));
+        session.execute(String.format("INSERT INTO %s.%s(id, cid, val) VALUES (0, 0, 'test')", KEYSPACE, table));
+
+        PreparedStatement prepared1 = session.prepare(String.format("SELECT * FROM %s.%s WHERE expr(%s, 'foo')",
+                                                                    KEYSPACE, table, index));
+        assertEquals(1, session.execute(prepared1.bind()).all().size());
+
+        PreparedStatement prepared2 = session.prepare(String.format("SELECT * FROM %s.%s WHERE expr(%s, ?)",
+                                                                    KEYSPACE, table, index));
+        assertEquals(1, session.execute(prepared2.bind("foo bar baz")).all().size());
+
+        try
+        {
+            session.prepare(String.format("SELECT * FROM %s.%s WHERE expr(?, 'foo bar baz')", KEYSPACE, table));
+            fail("Expected syntax exception, but none was thrown");
+        }
+        catch(SyntaxError e)
+        {
+            assertEquals("Bind variables cannot be used for index names", e.getMessage());
+        }
     }
 }

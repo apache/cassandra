@@ -246,6 +246,11 @@ public abstract class CassandraIndex implements Index
         return supportsExpression(expression.column(), expression.operator());
     }
 
+    public AbstractType<?> customExpressionValueType()
+    {
+        return null;
+    }
+
     public long getEstimatedResultRows()
     {
         return indexCfs.getMeanColumns();

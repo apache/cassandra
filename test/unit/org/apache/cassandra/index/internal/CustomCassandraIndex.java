@@ -20,6 +20,7 @@ import org.apache.cassandra.db.compaction.CompactionManager;
 import org.apache.cassandra.db.filter.RowFilter;
 import org.apache.cassandra.db.lifecycle.SSTableSet;
 import org.apache.cassandra.db.lifecycle.View;
+import org.apache.cassandra.db.marshal.AbstractType;
 import org.apache.cassandra.db.partitions.PartitionIterator;
 import org.apache.cassandra.db.partitions.PartitionUpdate;
 import org.apache.cassandra.db.rows.*;
@@ -183,6 +184,11 @@ public class CustomCassandraIndex implements Index
     {
         return indexedColumn.name.equals(column.name)
                && supportsOperator(indexedColumn, operator);
+    }
+
+    public AbstractType<?> customExpressionValueType()
+    {
+        return null;
     }
 
     private boolean supportsExpression(RowFilter.Expression expression)

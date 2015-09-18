@@ -3,6 +3,7 @@
 
 
 3.0.0-rc1
+ * Add custom query expressions to SELECT (CASSANDRA-10217)
  * Fix minor bugs in MV handling (CASSANDRA-10362)
  * Allow custom indexes with 0,1 or multiple target columns (CASSANDRA-10124)
  * Improve MV schema representation (CASSANDRA-9921)

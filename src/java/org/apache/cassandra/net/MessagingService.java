@@ -97,6 +97,7 @@ public final class MessagingService implements MessagingServiceMBean
     public static final int PROTOCOL_MAGIC = 0xCA552DFA;
 
     private boolean allNodesAtLeast22 = true;
+    private boolean allNodesAtLeast30 = true;
 
     /* All verb handler identifiers */
     public enum Verb
@@ -845,6 +846,11 @@ public final class MessagingService implements MessagingServiceMBean
         return allNodesAtLeast22;
     }
 
+    public boolean areAllNodesAtLeast30()
+    {
+        return allNodesAtLeast30;
+    }
+
     /**
      * @return the last version associated with address, or @param version if this is the first such version
      */
@@ -854,12 +860,14 @@ public final class MessagingService implements MessagingServiceMBean
 
         if (version < VERSION_22)
             allNodesAtLeast22 = false;
+        if (version < VERSION_30)
+            allNodesAtLeast30 = false;
 
         Integer v = versions.put(endpoint, version);
 
-        // if the version was increased to 2.2 or later, see if all nodes are >= 2.2 now
-        if (v != null && v < VERSION_22 && version >= VERSION_22)
-            refreshAllNodesAtLeast22();
+        // if the version was increased to 2.2 or later see if the min version across the cluster has changed
+        if (v != null && (v < VERSION_30 && version >= VERSION_22))
+            refreshAllNodeMinVersions();
 
         return v == null ? version : v;
     }
@@ -868,21 +876,29 @@ public final class MessagingService implements MessagingServiceMBean
     {
         logger.debug("Resetting version for {}", endpoint);
         Integer removed = versions.remove(endpoint);
-        if (removed != null && removed <= VERSION_22)
-            refreshAllNodesAtLeast22();
+        if (removed != null && removed <= VERSION_30)
+            refreshAllNodeMinVersions();
     }
 
-    private void refreshAllNodesAtLeast22()
+    private void refreshAllNodeMinVersions()
     {
-        for (Integer version: versions.values())
+        boolean anyNodeLowerThan30 = false;
+        for (Integer version : versions.values())
         {
-            if (version < VERSION_22)
+            if (version < MessagingService.VERSION_30)
+            {
+                anyNodeLowerThan30 = true;
+                allNodesAtLeast30 = false;
+            }
+
+            if (version < MessagingService.VERSION_22)
             {
                 allNodesAtLeast22 = false;
                 return;
             }
         }
         allNodesAtLeast22 = true;
+        allNodesAtLeast30 = !anyNodeLowerThan30;
     }
 
     public int getVersion(InetAddress endpoint)

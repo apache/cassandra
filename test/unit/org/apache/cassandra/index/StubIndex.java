@@ -26,8 +26,11 @@ import org.apache.cassandra.config.ColumnDefinition;
 import org.apache.cassandra.cql3.Operator;
 import org.apache.cassandra.db.*;
 import org.apache.cassandra.db.filter.RowFilter;
+import org.apache.cassandra.db.marshal.AbstractType;
+import org.apache.cassandra.db.marshal.UTF8Type;
 import org.apache.cassandra.db.partitions.PartitionIterator;
 import org.apache.cassandra.db.partitions.PartitionUpdate;
+import org.apache.cassandra.db.partitions.UnfilteredPartitionIterator;
 import org.apache.cassandra.db.rows.Row;
 import org.apache.cassandra.exceptions.InvalidRequestException;
 import org.apache.cassandra.index.transactions.IndexTransaction;
@@ -35,6 +38,12 @@ import org.apache.cassandra.schema.IndexMetadata;
 import org.apache.cassandra.utils.Pair;
 import org.apache.cassandra.utils.concurrent.OpOrder;
 
+/**
+ * Basic custom index implementation for testing.
+ * During indexing by default it just records the updates for later inspection.
+ * At query time, the Searcher implementation simply performs a local scan of the entire target table
+ * with no further filtering applied.
+ */
 public class StubIndex implements Index
 {
     public List<DeletionTime> partitionDeletions = new ArrayList<>();
@@ -77,6 +86,11 @@ public class StubIndex implements Index
     public boolean supportsExpression(ColumnDefinition column, Operator operator)
     {
         return operator == Operator.EQ;
+    }
+
+    public AbstractType<?> customExpressionValueType()
+    {
+        return UTF8Type.instance;
     }
 
     public RowFilter getPostIndexQueryFilter(RowFilter filter)
@@ -185,13 +199,37 @@ public class StubIndex implements Index
 
     }
 
-    public Searcher searcherFor(ReadCommand command)
+    public Searcher searcherFor(final ReadCommand command)
     {
-        return null;
+        return orderGroup -> new InternalPartitionRangeReadCommand((PartitionRangeReadCommand)command)
+                             .queryStorageInternal(baseCfs, orderGroup);
     }
 
     public BiFunction<PartitionIterator, ReadCommand, PartitionIterator> postProcessorFor(ReadCommand readCommand)
     {
-        return null;
+        return (iter, command) -> iter;
+    }
+
+    private static final class InternalPartitionRangeReadCommand extends PartitionRangeReadCommand
+    {
+
+        private InternalPartitionRangeReadCommand(PartitionRangeReadCommand original)
+        {
+            super(original.isDigestQuery(),
+                  original.digestVersion(),
+                  original.isForThrift(),
+                  original.metadata(),
+                  original.nowInSec(),
+                  original.columnFilter(),
+                  original.rowFilter(),
+                  original.limits(),
+                  original.dataRange(),
+                  Optional.empty());
+        }
+
+        private UnfilteredPartitionIterator queryStorageInternal(ColumnFamilyStore cfs, ReadOrderGroup orderGroup)
+        {
+            return queryStorage(cfs, orderGroup);
+        }
     }
 }

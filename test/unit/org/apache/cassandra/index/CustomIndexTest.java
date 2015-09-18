@@ -10,8 +10,14 @@ import org.junit.Test;
 import org.apache.cassandra.config.CFMetaData;
 import org.apache.cassandra.cql3.CQLTester;
 import org.apache.cassandra.cql3.ColumnIdentifier;
+import org.apache.cassandra.cql3.restrictions.IndexRestrictions;
 import org.apache.cassandra.cql3.statements.IndexTarget;
+import org.apache.cassandra.cql3.statements.ModificationStatement;
+import org.apache.cassandra.cql3.statements.SelectStatement;
 import org.apache.cassandra.db.ColumnFamilyStore;
+import org.apache.cassandra.db.ReadCommand;
+import org.apache.cassandra.db.marshal.AbstractType;
+import org.apache.cassandra.exceptions.InvalidRequestException;
 import org.apache.cassandra.schema.IndexMetadata;
 import org.apache.cassandra.schema.Indexes;
 
@@ -294,6 +300,80 @@ public class CustomIndexTest extends CQLTester
         assertIndexCreated("no_targets", new HashMap<>());
     }
 
+    @Test
+    public void testCustomIndexExpressionSyntax() throws Throwable
+    {
+        Object[] row = row(0, 0, 0, 0);
+        createTable("CREATE TABLE %s (a int, b int, c int, d int, PRIMARY KEY (a, b))");
+        execute("INSERT INTO %s (a, b, c, d) VALUES (?, ?, ?, ?)", row);
+
+        assertInvalidMessage(String.format(IndexRestrictions.INDEX_NOT_FOUND, "custom_index", keyspace(), currentTable()),
+                             "SELECT * FROM %s WHERE expr(custom_index, 'foo bar baz')");
+
+        createIndex(String.format("CREATE CUSTOM INDEX custom_index ON %%s(c) USING '%s'", StubIndex.class.getName()));
+
+        assertInvalidMessage(String.format(IndexRestrictions.INDEX_NOT_FOUND, "no_such_index", keyspace(), currentTable()),
+                             "SELECT * FROM %s WHERE expr(no_such_index, 'foo bar baz ')");
+
+        // simple case
+        assertRows(execute("SELECT * FROM %s WHERE expr(custom_index, 'foo bar baz')"), row);
+        assertRows(execute("SELECT * FROM %s WHERE expr(\"custom_index\", 'foo bar baz')"), row);
+        assertRows(execute("SELECT * FROM %s WHERE expr(custom_index, $$foo \" ~~~ bar Baz$$)"), row);
+
+        // multiple expressions on the same index
+        assertInvalidMessage(IndexRestrictions.MULTIPLE_EXPRESSIONS,
+                             "SELECT * FROM %s WHERE expr(custom_index, 'foo') AND expr(custom_index, 'bar')");
+
+        // multiple expressions on different indexes
+        createIndex(String.format("CREATE CUSTOM INDEX other_custom_index ON %%s(d) USING '%s'", StubIndex.class.getName()));
+        assertInvalidMessage(IndexRestrictions.MULTIPLE_EXPRESSIONS,
+                             "SELECT * FROM %s WHERE expr(custom_index, 'foo') AND expr(other_custom_index, 'bar')");
+
+        assertInvalidMessage(SelectStatement.REQUIRES_ALLOW_FILTERING_MESSAGE,
+                             "SELECT * FROM %s WHERE expr(custom_index, 'foo') AND d=0");
+        assertRows(execute("SELECT * FROM %s WHERE expr(custom_index, 'foo') AND d=0 ALLOW FILTERING"), row);
+    }
+
+    @Test
+    public void customIndexDoesntSupportCustomExpressions() throws Throwable
+    {
+        createTable("CREATE TABLE %s (a int, b int, c int, d int, PRIMARY KEY (a, b))");
+        createIndex(String.format("CREATE CUSTOM INDEX custom_index ON %%s(c) USING '%s'",
+                                  NoCustomExpressionsIndex.class.getName()));
+        assertInvalidMessage(String.format( IndexRestrictions.CUSTOM_EXPRESSION_NOT_SUPPORTED, "custom_index"),
+                             "SELECT * FROM %s WHERE expr(custom_index, 'foo bar baz')");
+    }
+
+    @Test
+    public void customIndexRejectsExpressionSyntax() throws Throwable
+    {
+        createTable("CREATE TABLE %s (a int, b int, c int, d int, PRIMARY KEY (a, b))");
+        createIndex(String.format("CREATE CUSTOM INDEX custom_index ON %%s(c) USING '%s'",
+                                  ExpressionRejectingIndex.class.getName()));
+        assertInvalidMessage("None shall pass", "SELECT * FROM %s WHERE expr(custom_index, 'foo bar baz')");
+    }
+
+    @Test
+    public void customExpressionsMustTargetCustomIndex() throws Throwable
+    {
+        createTable("CREATE TABLE %s (a int, b int, c int, d int, PRIMARY KEY (a, b))");
+        createIndex("CREATE INDEX non_custom_index ON %s(c)");
+        assertInvalidMessage(String.format(IndexRestrictions.NON_CUSTOM_INDEX_IN_EXPRESSION, "non_custom_index"),
+                             "SELECT * FROM %s WHERE expr(non_custom_index, 'c=0')");
+    }
+
+    @Test
+    public void customExpressionsDisallowedInModifications() throws Throwable
+    {
+        createTable("CREATE TABLE %s (a int, b int, c int, d int, PRIMARY KEY (a, b))");
+        createIndex(String.format("CREATE CUSTOM INDEX custom_index ON %%s(c) USING '%s'", StubIndex.class.getName()));
+
+        assertInvalidMessage(ModificationStatement.CUSTOM_EXPRESSIONS_NOT_ALLOWED,
+                             "DELETE FROM %s WHERE expr(custom_index, 'foo bar baz ')");
+        assertInvalidMessage(ModificationStatement.CUSTOM_EXPRESSIONS_NOT_ALLOWED,
+                             "UPDATE %s SET d=0 WHERE expr(custom_index, 'foo bar baz ')");
+    }
+
     private void testCreateIndex(String indexName, String... targetColumnNames) throws Throwable
     {
         createIndex(String.format("CREATE CUSTOM INDEX %s ON %%s(%s) USING '%s'",
@@ -360,6 +440,32 @@ public class CustomIndexTest extends CQLTester
         public boolean shouldBuildBlocking()
         {
             return false;
+        }
+    }
+
+    public static final class NoCustomExpressionsIndex extends StubIndex
+    {
+        public NoCustomExpressionsIndex(ColumnFamilyStore baseCfs, IndexMetadata metadata)
+        {
+            super(baseCfs, metadata);
+        }
+
+        public AbstractType<?> customExpressionValueType()
+        {
+            return null;
+        }
+    }
+
+    public static final class ExpressionRejectingIndex extends StubIndex
+    {
+        public ExpressionRejectingIndex(ColumnFamilyStore baseCfs, IndexMetadata metadata)
+        {
+            super(baseCfs, metadata);
+        }
+
+        public Searcher searcherFor(ReadCommand command) throws InvalidRequestException
+        {
+            throw new InvalidRequestException("None shall pass");
         }
     }
 }
