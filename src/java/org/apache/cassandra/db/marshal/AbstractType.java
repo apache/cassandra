@@ -395,7 +395,7 @@ public abstract class AbstractType<T> implements Comparator<ByteBuffer>
     {
         int length = valueLengthIfFixed();
         if (length >= 0)
-            FileUtils.skipBytesFully(in, length);
+            in.skipBytesFully(length);
         else
             ByteBufferUtil.skipWithVIntLength(in);
     }

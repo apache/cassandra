@@ -173,7 +173,7 @@ public class DeletionTime implements Comparable<DeletionTime>, IMeasurableMemory
 
         public void skip(DataInputPlus in) throws IOException
         {
-            FileUtils.skipBytesFully(in, 4 + 8);
+            in.skipBytesFully(4 + 8);
         }
 
         public long serializedSize(DeletionTime delTime)
