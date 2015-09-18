@@ -281,7 +281,11 @@ public abstract class ModificationStatement implements CQLStatement
     public List<ByteBuffer> buildPartitionKeyNames(QueryOptions options)
     throws InvalidRequestException
     {
-        return restrictions.getPartitionKeys(options);
+        List<ByteBuffer> partitionKeys = restrictions.getPartitionKeys(options);
+        for (ByteBuffer key : partitionKeys)
+            QueryProcessor.validateKey(key);
+
+        return partitionKeys;
     }
 
     public NavigableSet<Clustering> createClustering(QueryOptions options)
