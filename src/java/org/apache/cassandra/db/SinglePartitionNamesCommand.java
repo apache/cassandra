@@ -45,6 +45,7 @@ import org.apache.cassandra.utils.memory.HeapAllocator;
 public class SinglePartitionNamesCommand extends SinglePartitionReadCommand<ClusteringIndexNamesFilter>
 {
     private int oldestUnrepairedDeletionTime = Integer.MAX_VALUE;
+
     protected SinglePartitionNamesCommand(boolean isDigest,
                                           int digestVersion,
                                           boolean isForThrift,

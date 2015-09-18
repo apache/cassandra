@@ -32,6 +32,7 @@ abstract class AbstractQueryPager implements QueryPager
 {
     protected final ReadCommand command;
     protected final DataLimits limits;
+    protected final int protocolVersion;
 
     private int remaining;
 
@@ -43,9 +44,10 @@ abstract class AbstractQueryPager implements QueryPager
 
     private boolean exhausted;
 
-    protected AbstractQueryPager(ReadCommand command)
+    protected AbstractQueryPager(ReadCommand command, int protocolVersion)
     {
         this.command = command;
+        this.protocolVersion = protocolVersion;
         this.limits = command.limits();
 
         this.remaining = limits.count();

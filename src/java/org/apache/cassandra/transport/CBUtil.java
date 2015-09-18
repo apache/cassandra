@@ -430,6 +430,13 @@ public abstract class CBUtil
         return 4 + (bytes == null ? 0 : bytes.remaining());
     }
 
+    // The size of serializing a value given the size (in bytes) of said value. The provided size can be negative
+    // to indicate that the value is null.
+    public static int sizeOfValue(int valueSize)
+    {
+        return 4 + (valueSize < 0 ? 0 : valueSize);
+    }
+
     public static List<ByteBuffer> readValueList(ByteBuf cb, int protocolVersion)
     {
         int size = cb.readUnsignedShort();

@@ -230,14 +230,14 @@ public abstract class SinglePartitionReadCommand<F extends ClusteringIndexFilter
         return StorageProxy.read(Group.one(this), consistency, clientState);
     }
 
-    public SinglePartitionPager getPager(PagingState pagingState)
+    public SinglePartitionPager getPager(PagingState pagingState, int protocolVersion)
     {
-        return getPager(this, pagingState);
+        return getPager(this, pagingState, protocolVersion);
     }
 
-    private static SinglePartitionPager getPager(SinglePartitionReadCommand command, PagingState pagingState)
+    private static SinglePartitionPager getPager(SinglePartitionReadCommand command, PagingState pagingState, int protocolVersion)
     {
-        return new SinglePartitionPager(command, pagingState);
+        return new SinglePartitionPager(command, pagingState, protocolVersion);
     }
 
     protected void recordLatency(TableMetrics metric, long latencyNanos)
@@ -495,12 +495,12 @@ public abstract class SinglePartitionReadCommand<F extends ClusteringIndexFilter
             return limits.filter(PartitionIterators.concat(partitions), nowInSec);
         }
 
-        public QueryPager getPager(PagingState pagingState)
+        public QueryPager getPager(PagingState pagingState, int protocolVersion)
         {
             if (commands.size() == 1)
-                return SinglePartitionReadCommand.getPager(commands.get(0), pagingState);
+                return SinglePartitionReadCommand.getPager(commands.get(0), pagingState, protocolVersion);
 
-            return new MultiPartitionPager(this, pagingState);
+            return new MultiPartitionPager(this, pagingState, protocolVersion);
         }
 
         @Override

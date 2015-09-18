@@ -150,9 +150,10 @@ public interface Row extends Unfiltered, Collection<ColumnData>
      * legacy order. It's only ever meaningful for backward/thrift compatibility code.
      *
      * @param metadata the table this is a row of.
+     * @param reversed if cells should returned in reverse order.
      * @return an iterable over the cells of this row in "legacy order".
      */
-    public Iterable<Cell> cellsInLegacyOrder(CFMetaData metadata);
+    public Iterable<Cell> cellsInLegacyOrder(CFMetaData metadata, boolean reversed);
 
     /**
      * Whether the row stores any (non-live) complex deletion for any complex column.

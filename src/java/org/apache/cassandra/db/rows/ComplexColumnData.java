@@ -102,6 +102,11 @@ public class ComplexColumnData extends ColumnData implements Iterable<Cell>
         return BTree.iterator(cells);
     }
 
+    public Iterator<Cell> reverseIterator()
+    {
+        return BTree.iterator(cells, BTree.Dir.DESC);
+    }
+
     public int dataSize()
     {
         int size = complexDeletion.dataSize();

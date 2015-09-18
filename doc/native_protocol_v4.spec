@@ -1006,6 +1006,9 @@ Table of Contents
     <result_page_size> results. While the current implementation always respect
     the exact value of <result_page_size>, we reserve ourselves the right to return
     slightly smaller or bigger pages in the future for performance reasons.
+  - The <paging_state> is specific to a protocol version and drivers should not
+    send a <paging_state> returned by a node using the protocol v3 to query a node
+    using the protocol v4 for instance.
 
 
 9. Error codes
@@ -1160,3 +1163,5 @@ Table of Contents
   * Add warnings to frames for responses for which the server generated a warning during processing, which the client needs to address.
   * Add the date and time data types
   * Add the tinyint and smallint data types
+  * The <paging_state> return on the v4 protocol is not compatible with the v3 protocol. In other words, a <paging_state> returned by a
+    node using the protocol v4 should not be used to query a node using the protocol v3 (and vice-versa).

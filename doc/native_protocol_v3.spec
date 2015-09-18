@@ -917,6 +917,9 @@ Table of Contents
     <result_page_size> results. While the current implementation always respect
     the exact value of <result_page_size>, we reserve ourselves the right to return
     slightly smaller or bigger pages in the future for performance reasons.
+  - The <paging_state> is specific to a protocol version and drivers should not
+    send a <paging_state> returned by a node using the protocol v3 to query a node
+    using the protocol v4 for instance.
 
 
 9. Error codes

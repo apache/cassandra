@@ -155,12 +155,12 @@ public class PartitionRangeReadCommand extends ReadCommand
         return StorageProxy.getRangeSlice(this, consistency);
     }
 
-    public QueryPager getPager(PagingState pagingState)
+    public QueryPager getPager(PagingState pagingState, int protocolVersion)
     {
         if (isNamesQuery())
-            return new RangeNamesQueryPager(this, pagingState);
+            return new RangeNamesQueryPager(this, pagingState, protocolVersion);
         else
-            return new RangeSliceQueryPager(this, pagingState);
+            return new RangeSliceQueryPager(this, pagingState, protocolVersion);
     }
 
     protected void recordLatency(TableMetrics metric, long latencyNanos)

@@ -37,18 +37,16 @@ public class SinglePartitionPager extends AbstractQueryPager
 
     private final SinglePartitionReadCommand<?> command;
 
-    private volatile Clustering lastReturned;
+    private volatile PagingState.RowMark lastReturned;
 
-    public SinglePartitionPager(SinglePartitionReadCommand<?> command, PagingState state)
+    public SinglePartitionPager(SinglePartitionReadCommand<?> command, PagingState state, int protocolVersion)
     {
-        super(command);
+        super(command, protocolVersion);
         this.command = command;
 
         if (state != null)
         {
-            lastReturned = state.cellName.hasRemaining()
-                         ? LegacyLayout.decodeClustering(command.metadata(), state.cellName)
-                         : null;
+            lastReturned = state.rowMark;
             restoreState(command.partitionKey(), state.remaining, state.remainingInPartition);
         }
     }
@@ -67,18 +65,18 @@ public class SinglePartitionPager extends AbstractQueryPager
     {
         return lastReturned == null
              ? null
-             : new PagingState(null, LegacyLayout.encodeClustering(command.metadata(), lastReturned), maxRemaining(), remainingInPartition());
+             : new PagingState(null, lastReturned, maxRemaining(), remainingInPartition());
     }
 
     protected ReadCommand nextPageReadCommand(int pageSize)
     {
-        return command.forPaging(lastReturned, pageSize);
+        return command.forPaging(lastReturned == null ? null : lastReturned.clustering(command.metadata()), pageSize);
     }
 
     protected void recordLast(DecoratedKey key, Row last)
     {
         if (last != null)
-            lastReturned = last.clustering();
+            lastReturned = PagingState.RowMark.create(command.metadata(), last, protocolVersion);
     }
 
     protected boolean isPreviouslyReturnedPartition(DecoratedKey key)
