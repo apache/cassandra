@@ -370,6 +370,12 @@ public abstract class SSTableReader extends SSTable implements SelfRefCounted<SS
         return open(descriptor, components, cfs.metadata, false, false); // do not track hotness
     }
 
+    // use only for offline or "Standalone" operations
+    public static SSTableReader openNoValidation(Descriptor descriptor, CFMetaData metadata) throws IOException
+    {
+        return open(descriptor, componentsFor(descriptor), metadata, false, false); // do not track hotness
+    }
+
     /**
      * Open SSTable reader to be used in batch mode(such as sstableloader).
      *
