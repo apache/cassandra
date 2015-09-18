@@ -427,6 +427,7 @@ public class TokenMetadata
         {
             logger.info("Updating topology for {}", endpoint);
             topology.updateEndpoint(endpoint);
+            invalidateCachedRings();
         }
         finally
         {
@@ -445,6 +446,7 @@ public class TokenMetadata
         {
             logger.info("Updating topology for all endpoints that have changed");
             topology.updateEndpoints();
+            invalidateCachedRings();
         }
         finally
         {
