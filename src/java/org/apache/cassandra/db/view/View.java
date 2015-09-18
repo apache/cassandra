@@ -36,6 +36,7 @@ import org.apache.cassandra.config.ColumnDefinition;
 import org.apache.cassandra.config.ViewDefinition;
 import org.apache.cassandra.config.Schema;
 import org.apache.cassandra.cql3.ColumnIdentifier;
+import org.apache.cassandra.db.AbstractReadCommandBuilder;
 import org.apache.cassandra.db.AbstractReadCommandBuilder.SinglePartitionSliceBuilder;
 import org.apache.cassandra.db.CBuilder;
 import org.apache.cassandra.db.Clustering;
@@ -62,6 +63,7 @@ import org.apache.cassandra.db.rows.Row;
 import org.apache.cassandra.db.rows.RowIterator;
 import org.apache.cassandra.schema.KeyspaceMetadata;
 import org.apache.cassandra.service.pager.QueryPager;
+import org.apache.cassandra.utils.FBUtilities;
 
 /**
  * A View copies data from a base table into a view table which can be queried independently from the
@@ -214,9 +216,10 @@ public class View
         // Check each row for deletion or update
         for (Row row : partition)
         {
-            if (row.hasComplexDeletion())
-                return true;
             if (!row.deletion().isLive())
+                return true;
+
+            if (row.primaryKeyLivenessInfo().isLive(FBUtilities.nowInSeconds()))
                 return true;
 
             for (ColumnData data : row)
@@ -434,7 +437,11 @@ public class View
             // entire partition of data which is not distributed on a single partition node.
             DecoratedKey dk = rowSet.dk;
 
-            if (deletionInfo.hasRanges())
+            if (!deletionInfo.getPartitionDeletion().isLive())
+            {
+                command = SinglePartitionReadCommand.fullPartitionRead(baseCfs.metadata, rowSet.nowInSec, dk);
+            }
+            else
             {
                 SinglePartitionSliceBuilder builder = new SinglePartitionSliceBuilder(baseCfs, dk);
                 Iterator<RangeTombstone> tombstones = deletionInfo.rangeIterator(false);
@@ -446,10 +453,6 @@ public class View
                 }
 
                 command = builder.build();
-            }
-            else
-            {
-                command = SinglePartitionReadCommand.fullPartitionRead(baseCfs.metadata, rowSet.nowInSec, dk);
             }
         }
 
