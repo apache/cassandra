@@ -1,4 +1,5 @@
 3.0-rc2
+ * Fix handling of static columns for range tombstones in thrift (CASSANDRA-10174)
  * Support empty ColumnFilter for backward compatility on empty IN (CASSANDRA-10471)
  * Remove Pig support (CASSANDRA-10542)
  * Fix LogFile throws Exception when assertion is disabled (CASSANDRA-10522)

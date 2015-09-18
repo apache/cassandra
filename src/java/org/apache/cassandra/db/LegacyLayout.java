@@ -506,13 +506,37 @@ public abstract class LegacyLayout
                                                                  boolean reversed,
                                                                  SerializationHelper helper)
     {
+        // A reducer that basically does nothing, we know the 2 merged iterators can't have conflicting atoms (since we merge cells with range tombstones).
+        MergeIterator.Reducer<LegacyAtom, LegacyAtom> reducer = new MergeIterator.Reducer<LegacyAtom, LegacyAtom>()
+        {
+            private LegacyAtom atom;
+
+            public void reduce(int idx, LegacyAtom current)
+            {
+                // We're merging cell with range tombstones, so we should always only have a single atom to reduce.
+                assert atom == null;
+                atom = current;
+            }
+
+            protected LegacyAtom getReduced()
+            {
+                return atom;
+            }
+
+            protected void onKeyChange()
+            {
+                atom = null;
+            }
+        };
+        List<Iterator<LegacyAtom>> iterators = Arrays.asList(asLegacyAtomIterator(cells), asLegacyAtomIterator(delInfo.inRowRangeTombstones()));
+        PeekingIterator<LegacyAtom> atoms = Iterators.peekingIterator(MergeIterator.get(iterators, legacyAtomComparator(metadata), reducer));
+
         // Check if we have some static
-        PeekingIterator<LegacyCell> iter = Iterators.peekingIterator(cells);
-        Row staticRow = iter.hasNext() && iter.peek().name.clustering == Clustering.STATIC_CLUSTERING
-                      ? getNextRow(CellGrouper.staticGrouper(metadata, helper), iter)
+        Row staticRow = atoms.hasNext() && atoms.peek().isStatic()
+                      ? getNextRow(CellGrouper.staticGrouper(metadata, helper), atoms)
                       : Rows.EMPTY_STATIC_ROW;
 
-        Iterator<Row> rows = convertToRows(new CellGrouper(metadata, helper), iter, delInfo);
+        Iterator<Row> rows = convertToRows(new CellGrouper(metadata, helper), atoms);
         Iterator<RangeTombstone> ranges = delInfo.deletionInfo.rangeIterator(reversed);
         return new RowAndDeletionMergeIterator(metadata,
                                                key,
@@ -587,34 +611,8 @@ public abstract class LegacyLayout
         return (Iterator<LegacyAtom>)iter;
     }
 
-    private static Iterator<Row> convertToRows(final CellGrouper grouper, final Iterator<LegacyCell> cells, final LegacyDeletionInfo delInfo)
+    private static Iterator<Row> convertToRows(final CellGrouper grouper, final PeekingIterator<LegacyAtom> atoms)
     {
-        // A reducer that basically does nothing, we know the 2 merge iterators can't have conflicting atoms.
-        MergeIterator.Reducer<LegacyAtom, LegacyAtom> reducer = new MergeIterator.Reducer<LegacyAtom, LegacyAtom>()
-        {
-            private LegacyAtom atom;
-
-            public void reduce(int idx, LegacyAtom current)
-            {
-                // We're merging cell with range tombstones, so we should always only have a single atom to reduce.
-                assert atom == null;
-                atom = current;
-            }
-
-            protected LegacyAtom getReduced()
-            {
-                return atom;
-            }
-
-            protected void onKeyChange()
-            {
-                atom = null;
-            }
-        };
-        List<Iterator<LegacyAtom>> iterators = Arrays.asList(asLegacyAtomIterator(cells), asLegacyAtomIterator(delInfo.inRowRangeTombstones()));
-        Iterator<LegacyAtom> merged = MergeIterator.get(iterators, legacyAtomComparator(grouper.metadata), reducer);
-        final PeekingIterator<LegacyAtom> atoms = Iterators.peekingIterator(merged);
-
         return new AbstractIterator<Row>()
         {
             protected Row computeNext()
@@ -871,6 +869,14 @@ public abstract class LegacyLayout
             // First we want to compare by clustering, but we have to be careful with range tombstone, because
             // we can have collection deletion and we want those to sort properly just before the column they
             // delete, not before the whole row.
+            // We also want to special case static so they sort before any non-static. Note in particular that
+            // this special casing is important in the case of one of the Atom being Slice.Bound.BOTTOM: we want
+            // it to sort after the static as we deal with static first in toUnfilteredAtomIterator and having
+            // Slice.Bound.BOTTOM first would mess that up (note that static deletion is handled through a specific
+            // static tombstone, see LegacyDeletionInfo.add()).
+            if (o1.isStatic() != o2.isStatic())
+                return o1.isStatic() ? -1 : 1;
+
             ClusteringPrefix c1 = o1.clustering();
             ClusteringPrefix c2 = o2.clustering();
 
@@ -1290,6 +1296,9 @@ public abstract class LegacyLayout
 
         public Clustering getAsClustering(CFMetaData metadata)
         {
+            if (isStatic)
+                return Clustering.STATIC_CLUSTERING;
+
             assert bound.size() == metadata.comparator.size();
             ByteBuffer[] values = new ByteBuffer[bound.size()];
             for (int i = 0; i < bound.size(); i++)
@@ -1499,6 +1508,16 @@ public abstract class LegacyLayout
             return start.bound;
         }
 
+        public LegacyRangeTombstone withNewStart(LegacyBound newStart)
+        {
+            return new LegacyRangeTombstone(newStart, stop, deletionTime);
+        }
+
+        public LegacyRangeTombstone withNewEnd(LegacyBound newStop)
+        {
+            return new LegacyRangeTombstone(start, newStop, deletionTime);
+        }
+
         public boolean isCell()
         {
             return false;
@@ -1506,7 +1525,7 @@ public abstract class LegacyLayout
 
         public boolean isStatic()
         {
-            return start.isStatic;
+            return start.isStatic || stop.isStatic;
         }
 
         public LegacyCell asCell()
@@ -1565,8 +1584,60 @@ public abstract class LegacyLayout
             deletionInfo.add(topLevel);
         }
 
+        private static Slice.Bound staticBound(CFMetaData metadata, boolean isStart)
+        {
+            // In pre-3.0 nodes, static row started by a clustering with all empty values so we
+            // preserve that here. Note that in practice, it doesn't really matter since the rest
+            // of the code will ignore the bound for RT that have their static flag set.
+            ByteBuffer[] values = new ByteBuffer[metadata.comparator.size()];
+            for (int i = 0; i < values.length; i++)
+                values[i] = ByteBufferUtil.EMPTY_BYTE_BUFFER;
+            return isStart
+                 ? Slice.Bound.inclusiveStartOf(values)
+                 : Slice.Bound.inclusiveEndOf(values);
+        }
+
         public void add(CFMetaData metadata, LegacyRangeTombstone tombstone)
         {
+            if (metadata.hasStaticColumns())
+            {
+                /*
+                 * For table having static columns we have to deal with the following cases:
+                 *  1. the end of the tombstone is static (in which case either the start is static or is BOTTOM, which is the same
+                 *     for our consideration). This mean that either the range only delete the static row, or that it's a collection
+                 *     tombstone of a static collection. In both case, we just add the tombstone to the inRowTombstones.
+                 *  2. only the start is static. There is then 2 subcase: either the start is inclusive, and that mean we include the
+                 *     static row and more (so we add an inRowTombstone for the static and deal with the rest normally). Or the start
+                 *     is exclusive, and that means we explicitely exclude the static (in which case we can just add the tombstone
+                 *     as if it started at BOTTOM).
+                 *  3. none of the bound are static but the start is BOTTOM. This means we intended to delete the static row so we
+                 *     need to add it to the inRowTombstones (and otherwise handle the range normally).
+                 */
+                if (tombstone.stop.isStatic)
+                {
+                    // If the start is BOTTOM, we replace it by the beginning of the starting row so as to not confuse the
+                    // RangeTombstone.isRowDeletion() method
+                    if (tombstone.start == LegacyBound.BOTTOM)
+                        tombstone = tombstone.withNewStart(new LegacyBound(staticBound(metadata, true), true, null));
+                    inRowTombstones.add(tombstone);
+                    return;
+                }
+
+                if (tombstone.start.isStatic)
+                {
+                    if (tombstone.start.bound.isInclusive())
+                        inRowTombstones.add(tombstone.withNewEnd(new LegacyBound(staticBound(metadata, false), true, null)));
+
+                    tombstone = tombstone.withNewStart(LegacyBound.BOTTOM);
+                }
+                else if (tombstone.start == LegacyBound.BOTTOM)
+                {
+                    inRowTombstones.add(new LegacyRangeTombstone(new LegacyBound(staticBound(metadata, true), true, null),
+                                                                 new LegacyBound(staticBound(metadata, false), true, null),
+                                                                 tombstone.deletionTime));
+                }
+            }
+
             if (tombstone.isCollectionTombstone() || tombstone.isRowDeletion(metadata))
                 inRowTombstones.add(tombstone);
             else
