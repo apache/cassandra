@@ -78,6 +78,9 @@ public class CreateIndexStatement extends SchemaAlteringStatement
         if (cfm.isCounter())
             throw new InvalidRequestException("Secondary indexes are not supported on counter tables");
 
+        if (cfm.isView())
+            throw new InvalidRequestException("Secondary indexes are not supported on materialized views");
+
         if (cfm.isCompactTable() && !cfm.isStaticCompactTable())
             throw new InvalidRequestException("Secondary indexes are not supported on COMPACT STORAGE tables that have clustering columns");
 
