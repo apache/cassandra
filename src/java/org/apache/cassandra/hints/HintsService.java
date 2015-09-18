@@ -25,6 +25,7 @@ import java.util.Collections;
 import java.util.UUID;
 import java.util.concurrent.*;
 import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.function.Supplier;
 
 import javax.management.MBeanServer;
 import javax.management.ObjectName;
@@ -202,11 +203,6 @@ public final class HintsService implements HintsServiceMBean
         writeExecutor.shutdownBlocking();
     }
 
-    public void decommission()
-    {
-        resumeDispatch();
-    }
-
     /**
      * Deletes all hints for all destinations. Doesn't make snapshots - should be used with care.
      */
@@ -287,5 +283,44 @@ public final class HintsService implements HintsServiceMBean
 
         // delete all the hints files and remove the HintsStore instance from the map in the catalog
         catalog.exciseStore(hostId);
+    }
+
+    /**
+     * Transfer all local hints to the hostId supplied by hostIdSupplier
+     *
+     * Flushes the buffer to make sure all hints are on disk and closes the hint writers
+     * so we don't leave any hint files around.
+     *
+     * After that, we serially dispatch all the hints in the HintsCatalog.
+     *
+     * If we fail delivering all hints, we will ask the hostIdSupplier for a new target host
+     * and retry delivering any remaining hints there, once, with a delay of 10 seconds before retrying.
+     *
+     * @param hostIdSupplier supplier of stream target host ids. This is generally
+     *                       the closest one according to the DynamicSnitch
+     * @return When this future is done, it either has streamed all hints to remote nodes or has failed with a proper
+     *         log message
+     */
+    public Future transferHints(Supplier<UUID> hostIdSupplier)
+    {
+        Future flushFuture = writeExecutor.flushBufferPool(bufferPool);
+        Future closeFuture = writeExecutor.closeAllWriters();
+        try
+        {
+            flushFuture.get();
+            closeFuture.get();
+        }
+        catch (InterruptedException | ExecutionException e)
+        {
+            throw new RuntimeException(e);
+        }
+
+        // unpause dispatch, or else transfer() will return immediately
+        resumeDispatch();
+
+        // wait for the current dispatch session to end
+        catalog.stores().forEach(dispatchExecutor::completeDispatchBlockingly);
+
+        return dispatchExecutor.transfer(catalog, hostIdSupplier);
     }
 }
