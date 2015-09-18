@@ -60,7 +60,7 @@ public class PropertyFileSnitch extends AbstractNetworkTopologySnitch
 
     public PropertyFileSnitch() throws ConfigurationException
     {
-        reloadConfiguration();
+        reloadConfiguration(false);
 
         try
         {
@@ -69,8 +69,7 @@ public class PropertyFileSnitch extends AbstractNetworkTopologySnitch
             {
                 protected void runMayThrow() throws ConfigurationException
                 {
-                    reloadConfiguration();
-                    StorageService.instance.updateTopology();
+                    reloadConfiguration(true);
                 }
             };
             ResourceWatcher.watch(SNITCH_PROPERTIES_FILENAME, runnable, 60 * 1000);
@@ -132,7 +131,7 @@ public class PropertyFileSnitch extends AbstractNetworkTopologySnitch
         return info[1];
     }
 
-    public void reloadConfiguration() throws ConfigurationException
+    public void reloadConfiguration(boolean isUpdate) throws ConfigurationException
     {
         HashMap<InetAddress, String[]> reloadedMap = new HashMap<InetAddress, String[]>();
 
@@ -193,7 +192,12 @@ public class PropertyFileSnitch extends AbstractNetworkTopologySnitch
 
         endpointMap = reloadedMap;
         if (StorageService.instance != null) // null check tolerates circular dependency; see CASSANDRA-4145
-            StorageService.instance.getTokenMetadata().invalidateCachedRings();
+        {
+            if (isUpdate)
+                StorageService.instance.updateTopology();
+            else
+                StorageService.instance.getTokenMetadata().invalidateCachedRings();
+        }
 
         if (gossipStarted)
             StorageService.instance.gossipSnitchInfo();

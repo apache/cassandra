@@ -63,7 +63,7 @@ public class GossipingPropertyFileSnitch extends AbstractNetworkTopologySnitch//
     {
         snitchHelperReference = new AtomicReference<ReconnectableSnitchHelper>();
 
-        reloadConfiguration();
+        reloadConfiguration(false);
 
         try
         {
@@ -82,8 +82,7 @@ public class GossipingPropertyFileSnitch extends AbstractNetworkTopologySnitch//
             {
                 protected void runMayThrow() throws ConfigurationException
                 {
-                    reloadConfiguration();
-                    StorageService.instance.updateTopology(FBUtilities.getBroadcastAddress());
+                    reloadConfiguration(true);
                 }
             };
             ResourceWatcher.watch(SnitchProperties.RACKDC_PROPERTY_FILENAME, runnable, refreshPeriodInSeconds * 1000);
@@ -162,7 +161,7 @@ public class GossipingPropertyFileSnitch extends AbstractNetworkTopologySnitch//
         gossipStarted = true;
     }
     
-    private void reloadConfiguration() throws ConfigurationException
+    private void reloadConfiguration(boolean isUpdate) throws ConfigurationException
     {
         final SnitchProperties properties = new SnitchProperties();
 
@@ -184,7 +183,12 @@ public class GossipingPropertyFileSnitch extends AbstractNetworkTopologySnitch//
             reloadGossiperState();
 
             if (StorageService.instance != null)
-                StorageService.instance.getTokenMetadata().invalidateCachedRings();
+            {
+                if (isUpdate)
+                    StorageService.instance.updateTopology(FBUtilities.getBroadcastAddress());
+                else
+                    StorageService.instance.getTokenMetadata().invalidateCachedRings();
+            }
 
             if (gossipStarted)
                 StorageService.instance.gossipSnitchInfo();
