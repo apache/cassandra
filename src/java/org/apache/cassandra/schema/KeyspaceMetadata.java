@@ -21,10 +21,11 @@ import java.util.HashSet;
 import java.util.Optional;
 import java.util.Set;
 
+import javax.annotation.Nullable;
+
 import com.google.common.base.Objects;
 import com.google.common.collect.Iterables;
 
-import org.apache.avro.reflect.Nullable;
 import org.apache.cassandra.config.CFMetaData;
 import org.apache.cassandra.config.Schema;
 import org.apache.cassandra.config.ViewDefinition;
