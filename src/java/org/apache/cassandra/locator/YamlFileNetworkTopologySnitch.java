@@ -103,7 +103,7 @@ public class YamlFileNetworkTopologySnitch
             throws ConfigurationException
     {
         this.topologyConfigFilename = topologyConfigFilename;
-        loadTopologyConfiguration();
+        loadTopologyConfiguration(false);
 
         try
         {
@@ -119,8 +119,7 @@ public class YamlFileNetworkTopologySnitch
                  */
                 protected void runMayThrow() throws ConfigurationException
                 {
-                    loadTopologyConfiguration();
-                    StorageService.instance.updateTopology();
+                    loadTopologyConfiguration(true);
                 }
             };
             ResourceWatcher.watch(topologyConfigFilename, runnable,
@@ -202,7 +201,7 @@ public class YamlFileNetworkTopologySnitch
      * @throws ConfigurationException
      *             on failure
      */
-    private synchronized void loadTopologyConfiguration()
+    private synchronized void loadTopologyConfiguration(boolean isUpdate)
             throws ConfigurationException
     {
         logger.debug("Loading topology configuration from {}",
@@ -354,6 +353,9 @@ public class YamlFileNetworkTopologySnitch
         {
             StorageService.instance.gossipSnitchInfo();
         }
+
+        if (isUpdate && StorageService.instance != null)
+            StorageService.instance.updateTopology();
     }
 
     /**
