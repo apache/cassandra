@@ -402,4 +402,53 @@ public class UserTypesTest extends CQLTester
         execute("ALTER TYPE " + keyspace() + "." + typeName + " ADD foomap map <int,text>");
         execute("INSERT INTO %s (key, data) VALUES (1, {fooint: 1, fooset: {'2'}, foomap: {3 : 'bar'}})");
     }
+
+    @Test
+    public void testCircularReferences() throws Throwable
+    {
+        String type1 = createType("CREATE TYPE %s (foo int)");
+
+        String typeX = createType("CREATE TYPE %s (bar frozen<" + typeWithKs(type1) + ">)");
+        assertInvalidMessage("would create a circular reference", "ALTER TYPE " + typeWithKs(type1) + " ADD needs_to_fail frozen<" + typeWithKs(typeX) + '>');
+
+        typeX = createType("CREATE TYPE %s (bar frozen<list<" + typeWithKs(type1) + ">>)");
+        assertInvalidMessage("would create a circular reference", "ALTER TYPE " + typeWithKs(type1) + " ADD needs_to_fail frozen<" + typeWithKs(typeX) + '>');
+
+        typeX = createType("CREATE TYPE %s (bar frozen<set<" + typeWithKs(type1) + ">>)");
+        assertInvalidMessage("would create a circular reference", "ALTER TYPE " + typeWithKs(type1) + " ADD needs_to_fail frozen<" + typeWithKs(typeX) + '>');
+
+        typeX = createType("CREATE TYPE %s (bar frozen<map<text, " + typeWithKs(type1) + ">>)");
+        assertInvalidMessage("would create a circular reference", "ALTER TYPE " + typeWithKs(type1) + " ADD needs_to_fail frozen<" + typeWithKs(typeX) + '>');
+
+        typeX = createType("CREATE TYPE %s (bar frozen<map<" + typeWithKs(type1) + ", text>>)");
+        assertInvalidMessage("would create a circular reference", "ALTER TYPE " + typeWithKs(type1) + " ADD needs_to_fail frozen<" + typeWithKs(typeX) + '>');
+
+        //
+
+        String type2 = createType("CREATE TYPE %s (foo frozen<" + typeWithKs(type1) + ">)");
+
+        typeX = createType("CREATE TYPE %s (bar frozen<" + keyspace() + '.' + type2 + ">)");
+        assertInvalidMessage("would create a circular reference", "ALTER TYPE " + typeWithKs(type1) + " ADD needs_to_fail frozen<" + typeWithKs(typeX) + '>');
+
+        typeX = createType("CREATE TYPE %s (bar frozen<list<" + keyspace() + '.' + type2 + ">>)");
+        assertInvalidMessage("would create a circular reference", "ALTER TYPE " + typeWithKs(type1) + " ADD needs_to_fail frozen<" + typeWithKs(typeX) + '>');
+
+        typeX = createType("CREATE TYPE %s (bar frozen<set<" + keyspace() + '.' + type2 + ">>)");
+        assertInvalidMessage("would create a circular reference", "ALTER TYPE " + typeWithKs(type1) + " ADD needs_to_fail frozen<" + typeWithKs(typeX) + '>');
+
+        typeX = createType("CREATE TYPE %s (bar frozen<map<text, " + keyspace() + '.' + type2 + ">>)");
+        assertInvalidMessage("would create a circular reference", "ALTER TYPE " + typeWithKs(type1) + " ADD needs_to_fail frozen<" + typeWithKs(typeX) + '>');
+
+        typeX = createType("CREATE TYPE %s (bar frozen<map<" + keyspace() + '.' + type2 + ", text>>)");
+        assertInvalidMessage("would create a circular reference", "ALTER TYPE " + typeWithKs(type1) + " ADD needs_to_fail frozen<" + typeWithKs(typeX) + '>');
+
+        //
+
+        assertInvalidMessage("would create a circular reference", "ALTER TYPE " + typeWithKs(type1) + " ADD needs_to_fail frozen<list<" + typeWithKs(type1) + ">>");
+    }
+
+    private String typeWithKs(String type1)
+    {
+        return keyspace() + '.' + type1;
+    }
 }

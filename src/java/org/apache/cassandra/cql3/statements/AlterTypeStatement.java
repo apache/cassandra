@@ -264,9 +264,13 @@ public abstract class AlterTypeStatement extends SchemaAlteringStatement
             newNames.addAll(toUpdate.fieldNames());
             newNames.add(fieldName.bytes);
 
+            AbstractType<?> addType = type.prepare(keyspace()).getType();
+            if (addType.references(toUpdate))
+                throw new InvalidRequestException(String.format("Cannot add new field %s of type %s to type %s as this would create a circular reference", fieldName, type, name));
+
             List<AbstractType<?>> newTypes = new ArrayList<>(toUpdate.size() + 1);
             newTypes.addAll(toUpdate.fieldTypes());
-            newTypes.add(type.prepare(keyspace()).getType());
+            newTypes.add(addType);
 
             return new UserType(toUpdate.keyspace, toUpdate.name, newNames, newTypes);
         }

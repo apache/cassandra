@@ -68,6 +68,12 @@ public class SetType<T> extends CollectionType<Set<T>>
         this.isMultiCell = isMultiCell;
     }
 
+    @Override
+    public boolean references(AbstractType<?> check)
+    {
+        return super.references(check) || elements.references(check);
+    }
+
     public AbstractType<T> getElementsType()
     {
         return elements;
