@@ -401,6 +401,14 @@ public abstract class AbstractType<T> implements Comparator<ByteBuffer>
     }
 
     /**
+     * Checks whether this type or any of the types this type contains references the given type.
+     */
+    public boolean references(AbstractType<?> check)
+    {
+        return this.equals(check);
+    }
+
+    /**
      * This must be overriden by subclasses if necessary so that for any
      * AbstractType, this == TypeParser.parse(toString()).
      *

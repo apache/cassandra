@@ -55,6 +55,17 @@ public class TupleType extends AbstractType<ByteBuffer>
         return new TupleType(types);
     }
 
+    @Override
+    public boolean references(AbstractType<?> check)
+    {
+        if (super.references(check))
+            return true;
+        for (AbstractType<?> type : types)
+            if (type.references(check))
+                return true;
+        return false;
+    }
+
     public AbstractType<?> type(int i)
     {
         return types.get(i);
