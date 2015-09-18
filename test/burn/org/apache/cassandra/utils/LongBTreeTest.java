@@ -569,12 +569,12 @@ public class LongBTreeTest
         boolean useFake = mixInNotPresentItems && rnd.nextBoolean();
         final float fakeRatio = rnd.nextFloat();
         List<Integer> results = new ArrayList<>();
-        Long fakeLb = null, fakeUb = null;
+        Long fakeLb = (long) Integer.MIN_VALUE, fakeUb = null;
+        Integer max = null;
         for (Integer v : canonical)
         {
             if (    !useFake
-                ||  fakeLb == null
-                || (fakeUb == null ? v - 1 : fakeUb) <= fakeLb + 1
+                ||  (fakeUb == null ? v - 1 : fakeUb) <= fakeLb + 1
                 ||  rnd.nextFloat() < fakeRatio)
             {
                 // if we cannot safely construct a fake value, or our randomizer says not to, we emit the next real value
@@ -593,7 +593,10 @@ public class LongBTreeTest
                 results.add((int) mid);
                 fakeLb = mid;
             }
+            max = v;
         }
+        if (useFake && max != null && max < Integer.MAX_VALUE)
+            results.add(max + 1);
         final float useChance = rnd.nextFloat();
         return Lists.newArrayList(filter(results, (x) -> rnd.nextFloat() < useChance));
     }
