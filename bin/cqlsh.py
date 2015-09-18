@@ -289,12 +289,13 @@ cqlsh_extra_syntax_rules = r'''
                                   | "KEYSPACE" ksname=<keyspaceName>?
                                   | ( "COLUMNFAMILY" | "TABLE" ) cf=<columnFamilyName>
                                   | "INDEX" idx=<indexName>
+                                  | "MATERIALIZED" "VIEW" mv=<materializedViewName>
                                   | ( "COLUMNFAMILIES" | "TABLES" )
                                   | "FULL"? "SCHEMA"
                                   | "CLUSTER"
                                   | "TYPES"
                                   | "TYPE" ut=<userTypeName>
-                                  | (ksname=<keyspaceName> | cf=<columnFamilyName> | idx=<indexName>))
+                                  | (ksname=<keyspaceName> | cf=<columnFamilyName> | idx=<indexName> | mv=<materializedViewName>))
                     ;
 
 <consistencyCommand> ::= "CONSISTENCY" ( level=<consistencyLevel> )?
@@ -456,6 +457,10 @@ class ColumnFamilyNotFound(Exception):
 
 
 class IndexNotFound(Exception):
+    pass
+
+
+class MaterializedViewNotFound(Exception):
     pass
 
 
@@ -792,6 +797,12 @@ class Shell(cmd.Cmd):
 
         return map(str, self.get_keyspace_meta(ksname).tables.keys())
 
+    def get_materialized_view_names(self, ksname=None):
+        if ksname is None:
+            ksname = self.current_keyspace
+
+        return map(str, self.get_keyspace_meta(ksname).views.keys())
+
     def get_index_names(self, ksname=None):
         if ksname is None:
             ksname = self.current_keyspace
@@ -898,6 +909,15 @@ class Shell(cmd.Cmd):
 
         return ksmeta.indexes[idxname]
 
+    def get_view_meta(self, ksname, viewname):
+        if ksname is None:
+            ksname = self.current_keyspace
+        ksmeta = self.get_keyspace_meta(ksname)
+
+        if viewname not in ksmeta.views:
+            raise MaterializedViewNotFound("Materialized view %r not found" % viewname)
+        return ksmeta.views[viewname]
+
     def get_object_meta(self, ks, name):
         if name is None:
             if ks and ks in self.conn.metadata.keyspaces:
@@ -917,6 +937,8 @@ class Shell(cmd.Cmd):
             return ksmeta.tables[name]
         elif name in ksmeta.indexes:
             return ksmeta.indexes[name]
+        elif name in ksmeta.views:
+            return ksmeta.views[name]
 
         raise ObjectNotFound("%r not found in keyspace %r" % (name, ks))
 
@@ -1151,7 +1173,22 @@ class Shell(cmd.Cmd):
 
         return result
 
-    def parse_for_table_meta(self, query_string):
+    def parse_for_select_meta(self, query_string):
+        try:
+            parsed = cqlruleset.cql_parse(query_string)[1]
+        except IndexError:
+            return None
+        ks = self.cql_unprotect_name(parsed.get_binding('ksname', None))
+        name = self.cql_unprotect_name(parsed.get_binding('cfname', None))
+        try:
+            return self.get_table_meta(ks, name)
+        except ColumnFamilyNotFound:
+            try:
+               return self.get_view_meta(ks, name)
+            except MaterializedViewNotFound:
+                raise ObjectNotFound("%r not found in keyspace %r" % (name, ks))
+
+    def parse_for_update_meta(self, query_string):
         try:
             parsed = cqlruleset.cql_parse(query_string)[1]
         except IndexError:
@@ -1182,7 +1219,7 @@ class Shell(cmd.Cmd):
                 return False, None
 
         if statement.query_string[:6].lower() == 'select':
-            self.print_result(rows, self.parse_for_table_meta(statement.query_string))
+            self.print_result(rows, self.parse_for_select_meta(statement.query_string))
         elif statement.query_string.lower().startswith("list users") or statement.query_string.lower().startswith("list roles"):
             self.print_result(rows, self.get_table_meta('system_auth', 'roles'))
         elif statement.query_string.lower().startswith("list"):
@@ -1190,7 +1227,7 @@ class Shell(cmd.Cmd):
         elif rows:
             # CAS INSERT/UPDATE
             self.writeresult("")
-            self.print_static_result(rows, self.parse_for_table_meta(statement.query_string))
+            self.print_static_result(rows, self.parse_for_update_meta(statement.query_string))
         self.flush_output()
         return True, future
 
@@ -1369,6 +1406,16 @@ class Shell(cmd.Cmd):
         out.write(self.get_index_meta(ksname, idxname).export_as_string())
         out.write("\n")
 
+    def print_recreate_materialized_view(self, ksname, viewname, out):
+        """
+        Output CQL commands which should be pasteable back into a CQL session
+        to recreate the given materialized view.
+
+        Writes output to the given out stream.
+        """
+        out.write(self.get_view_meta(ksname, viewname).export_as_string())
+        out.write("\n")
+
     def print_recreate_object(self, ks, name, out):
         """
         Output CQL commands which should be pasteable back into a CQL session
@@ -1401,6 +1448,15 @@ class Shell(cmd.Cmd):
     def describe_index(self, ksname, idxname):
         print
         self.print_recreate_index(ksname, idxname, sys.stdout)
+        print
+
+    def describe_materialized_view(self, ksname, viewname):
+        if ksname is None:
+            ksname = self.current_keyspace
+        if ksname is None:
+            raise NoKeyspaceError("No keyspace specified and no current keyspace")
+        print
+        self.print_recreate_materialized_view(ksname, viewname, sys.stdout)
         print
 
     def describe_object(self, ks, name):
@@ -1564,6 +1620,12 @@ class Shell(cmd.Cmd):
           In some cases, there may be index metadata which is not representable
           and which will not be shown.
 
+        DESCRIBE MATERIALIZED VIEW <viewname>
+
+          Output CQL commands that could be used to recreate the given materialized view.
+          In some cases, there may be materialized view metadata which is not representable
+          and which will not be shown.
+
         DESCRIBE CLUSTER
 
           Output information about the connected Cassandra cluster, such as the
@@ -1596,7 +1658,8 @@ class Shell(cmd.Cmd):
         DESCRIBE <objname>
 
           Output CQL commands that could be used to recreate the entire object schema,
-          where object can be either a keyspace or a table or an index (in this order).
+          where object can be either a keyspace or a table or an index or a materialized
+          view (in this order).
   """
         what = parsed.matched[1][1].lower()
         if what == 'functions':
@@ -1631,6 +1694,10 @@ class Shell(cmd.Cmd):
             ks = self.cql_unprotect_name(parsed.get_binding('ksname', None))
             idx = self.cql_unprotect_name(parsed.get_binding('idxname', None))
             self.describe_index(ks, idx)
+        elif what == 'materialized' and parsed.matched[2][1].lower() == 'view':
+            ks = self.cql_unprotect_name(parsed.get_binding('ksname', None))
+            mv = self.cql_unprotect_name(parsed.get_binding('mvname'))
+            self.describe_materialized_view(ks, mv)
         elif what in ('columnfamilies', 'tables'):
             self.describe_columnfamilies(self.current_keyspace)
         elif what == 'types':
@@ -1650,6 +1717,8 @@ class Shell(cmd.Cmd):
             name = self.cql_unprotect_name(parsed.get_binding('cfname'))
             if not name:
                 name = self.cql_unprotect_name(parsed.get_binding('idxname', None))
+            if not name:
+                name = self.cql_unprotect_name(parsed.get_binding('mvname', None))
             self.describe_object(ks, name)
     do_desc = do_describe
 
