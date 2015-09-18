@@ -23,8 +23,6 @@ import java.util.List;
 
 import com.google.common.base.Objects;
 
-import org.apache.cassandra.exceptions.InvalidRequestException;
-
 import org.apache.cassandra.cql3.CQL3Type;
 import org.apache.cassandra.exceptions.ConfigurationException;
 import org.apache.cassandra.exceptions.SyntaxException;
@@ -52,6 +50,17 @@ public class TupleType extends AbstractType<ByteBuffer>
         for (int i = 0; i < types.size(); i++)
             types.set(i, types.get(i).freeze());
         return new TupleType(types);
+    }
+
+    @Override
+    public boolean references(AbstractType<?> check)
+    {
+        if (super.references(check))
+            return true;
+        for (AbstractType<?> type : types)
+            if (type.references(check))
+                return true;
+        return false;
     }
 
     public AbstractType<?> type(int i)

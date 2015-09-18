@@ -70,6 +70,12 @@ public class MapType<K, V> extends CollectionType<Map<K, V>>
         this.isMultiCell = isMultiCell;
     }
 
+    @Override
+    public boolean references(AbstractType<?> check)
+    {
+        return super.references(check) || keys.references(check) || values.references(check);
+    }
+
     public AbstractType<K> getKeysType()
     {
         return keys;
