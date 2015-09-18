@@ -791,10 +791,11 @@ public abstract class ReadCommand implements ReadQuery
             }
             else
             {
-                filter = LegacyReadCommandSerializer.deserializeSlicePartitionFilter(in, metadata);
+                Pair<ClusteringIndexSliceFilter, Boolean> p = LegacyReadCommandSerializer.deserializeSlicePartitionFilter(in, metadata);
+                filter = p.left;
                 perPartitionLimit = in.readInt();
                 compositesToGroup = in.readInt();
-                selection = getColumnSelectionForSlice((ClusteringIndexSliceFilter) filter, compositesToGroup, metadata);
+                selection = getColumnSelectionForSlice(p.right, compositesToGroup, metadata);
             }
 
             RowFilter rowFilter = deserializeRowFilter(in, metadata);
@@ -929,14 +930,14 @@ public abstract class ReadCommand implements ReadQuery
                     command.columnFilter(), command.rowFilter(), command.limits(), newRange, Optional.empty());
         }
 
-        static ColumnFilter getColumnSelectionForSlice(ClusteringIndexSliceFilter filter, int compositesToGroup, CFMetaData metadata)
+        static ColumnFilter getColumnSelectionForSlice(boolean selectsStatics, int compositesToGroup, CFMetaData metadata)
         {
             // A value of -2 indicates this is a DISTINCT query that doesn't select static columns, only partition keys.
             if (compositesToGroup == -2)
                 return ColumnFilter.selection(PartitionColumns.NONE);
 
             // if a slice query from a pre-3.0 node doesn't cover statics, we shouldn't select them at all
-            PartitionColumns columns = filter.selects(Clustering.STATIC_CLUSTERING)
+            PartitionColumns columns = selectsStatics
                                      ? metadata.partitionColumns()
                                      : metadata.partitionColumns().withoutStatics();
             return ColumnFilter.selectionBuilder().addAll(columns).build();
@@ -1039,27 +1040,28 @@ public abstract class ReadCommand implements ReadQuery
             int nowInSec = (int) (in.readLong() / 1000);  // convert from millis to seconds
             AbstractBounds<PartitionPosition> keyRange = AbstractBounds.rowPositionSerializer.deserialize(in, metadata.partitioner, version);
 
-            ClusteringIndexSliceFilter filter = LegacyReadCommandSerializer.deserializeSlicePartitionFilter(in, metadata);
+            Pair<ClusteringIndexSliceFilter, Boolean> p = LegacyReadCommandSerializer.deserializeSlicePartitionFilter(in, metadata);
+            ClusteringIndexSliceFilter filter = p.left;
+            boolean selectsStatics = p.right;
+
             int perPartitionLimit = in.readInt();
             int compositesToGroup = in.readInt();
 
             // command-level Composite "start" and "stop"
             LegacyLayout.LegacyBound startBound = LegacyLayout.decodeBound(metadata, ByteBufferUtil.readWithShortLength(in), true);
+
             ByteBufferUtil.readWithShortLength(in);  // the composite "stop", which isn't actually needed
 
-            ColumnFilter selection = LegacyRangeSliceCommandSerializer.getColumnSelectionForSlice(filter, compositesToGroup, metadata);
+            ColumnFilter selection = LegacyRangeSliceCommandSerializer.getColumnSelectionForSlice(selectsStatics, compositesToGroup, metadata);
 
             RowFilter rowFilter = LegacyRangeSliceCommandSerializer.deserializeRowFilter(in, metadata);
             int maxResults = in.readInt();
             in.readBoolean(); // countCQL3Rows
 
-            boolean selectsStatics = (!selection.fetchedColumns().statics.isEmpty() || filter.selects(Clustering.STATIC_CLUSTERING));
             boolean isDistinct = compositesToGroup == -2 || (perPartitionLimit == 1 && selectsStatics);
             DataLimits limits;
             if (isDistinct)
                 limits = DataLimits.distinctLimits(maxResults);
-            else if (compositesToGroup == -1)
-                limits = DataLimits.thriftLimits(1, perPartitionLimit); // we only use paging w/ thrift for get_count(), so partition limit must be 1
             else
                 limits = DataLimits.cqlLimits(maxResults);
 
@@ -1354,16 +1356,14 @@ public abstract class ReadCommand implements ReadQuery
 
         private SinglePartitionSliceCommand deserializeSliceCommand(DataInputPlus in, boolean isDigest, CFMetaData metadata, DecoratedKey key, int nowInSeconds, int version) throws IOException
         {
-            ClusteringIndexSliceFilter filter = deserializeSlicePartitionFilter(in, metadata);
+            Pair<ClusteringIndexSliceFilter, Boolean> p = deserializeSlicePartitionFilter(in, metadata);
+            ClusteringIndexSliceFilter filter = p.left;
+            boolean selectsStatics = p.right;
             int count = in.readInt();
             int compositesToGroup = in.readInt();
 
             // if a slice query from a pre-3.0 node doesn't cover statics, we shouldn't select them at all
-            boolean selectsStatics = filter.selects(Clustering.STATIC_CLUSTERING);
-            PartitionColumns columns = selectsStatics
-                                     ? metadata.partitionColumns()
-                                     : metadata.partitionColumns().withoutStatics();
-            ColumnFilter columnFilter = ColumnFilter.selectionBuilder().addAll(columns).build();
+            ColumnFilter columnFilter = LegacyRangeSliceCommandSerializer.getColumnSelectionForSlice(selectsStatics, compositesToGroup, metadata);
 
             boolean isDistinct = compositesToGroup == -2 || (count == 1 && selectsStatics);
             DataLimits limits;
@@ -1484,7 +1484,9 @@ public abstract class ReadCommand implements ReadQuery
             }
         }
 
-        static ClusteringIndexSliceFilter deserializeSlicePartitionFilter(DataInputPlus in, CFMetaData metadata) throws IOException
+        // Returns the deserialized filter, and whether static columns are queried (in pre-3.0, both info are determined by the slices,
+        // but in 3.0 they are separated: whether static columns are queried or not depends on the ColumnFilter).
+        static Pair<ClusteringIndexSliceFilter, Boolean> deserializeSlicePartitionFilter(DataInputPlus in, CFMetaData metadata) throws IOException
         {
             int numSlices = in.readInt();
             ByteBuffer[] startBuffers = new ByteBuffer[numSlices];
@@ -1495,28 +1497,52 @@ public abstract class ReadCommand implements ReadQuery
                 finishBuffers[i] = ByteBufferUtil.readWithShortLength(in);
             }
 
-            // we have to know if the query is reversed before we can correctly build the slices
             boolean reversed = in.readBoolean();
 
+            if (reversed)
+            {
+                // pre-3.0, reversed query slices put the greater element at the start of the slice
+                ByteBuffer[] tmp = finishBuffers;
+                finishBuffers = startBuffers;
+                startBuffers = tmp;
+            }
+
+            boolean selectsStatics = false;
             Slices.Builder slicesBuilder = new Slices.Builder(metadata.comparator);
             for (int i = 0; i < numSlices; i++)
             {
-                Slice.Bound start, finish;
-                if (!reversed)
+                LegacyLayout.LegacyBound start = LegacyLayout.decodeBound(metadata, startBuffers[i], true);
+                LegacyLayout.LegacyBound finish = LegacyLayout.decodeBound(metadata, finishBuffers[i], false);
+
+                if (start.isStatic)
                 {
-                    start = LegacyLayout.decodeBound(metadata, startBuffers[i], true).bound;
-                    finish = LegacyLayout.decodeBound(metadata, finishBuffers[i], false).bound;
+                    // If we start at the static block, this means we start at the beginning of the partition in 3.0
+                    // terms (since 3.0 handles static outside of the slice).
+                    start = LegacyLayout.LegacyBound.BOTTOM;
+
+                    // Then if we include the static, records it
+                    if (start.bound.isInclusive())
+                        selectsStatics = true;
                 }
-                else
+                else if (start == LegacyLayout.LegacyBound.BOTTOM)
                 {
-                    // pre-3.0, reversed query slices put the greater element at the start of the slice
-                    finish = LegacyLayout.decodeBound(metadata, startBuffers[i], false).bound;
-                    start = LegacyLayout.decodeBound(metadata, finishBuffers[i], true).bound;
+                    selectsStatics = true;
                 }
-                slicesBuilder.add(Slice.make(start, finish));
+
+                // If the end of the slice is the end of the statics, then that mean this slice was just selecting static
+                // columns. We have already recorded that in selectsStatics, so we can ignore the slice (which doesn't make
+                // sense for 3.0).
+                if (finish.isStatic)
+                {
+                    assert finish.bound.isInclusive(); // it would make no sense for a pre-3.0 node to have a slice that stops
+                                                     // before the static columns (since there is nothing before that)
+                    continue;
+                }
+
+                slicesBuilder.add(Slice.make(start.bound, finish.bound));
             }
 
-            return new ClusteringIndexSliceFilter(slicesBuilder.build(), reversed);
+            return Pair.create(new ClusteringIndexSliceFilter(slicesBuilder.build(), reversed), selectsStatics);
         }
 
         private static SinglePartitionReadCommand maybeConvertNamesToSlice(SinglePartitionReadCommand command)
