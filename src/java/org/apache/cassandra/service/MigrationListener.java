@@ -83,6 +83,7 @@ public abstract class MigrationListener
 
     public void onDropView(String ksName, String viewName)
     {
+        onDropColumnFamily(ksName, viewName);
     }
 
     public void onDropUserType(String ksName, String typeName)
