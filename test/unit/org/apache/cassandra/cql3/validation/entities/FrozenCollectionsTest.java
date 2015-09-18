@@ -17,6 +17,15 @@
  */
 package org.apache.cassandra.cql3.validation.entities;
 
+import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.List;
+
+import org.apache.commons.lang3.StringUtils;
+import org.junit.Assert;
+import org.junit.BeforeClass;
+import org.junit.Test;
+
 import org.apache.cassandra.cql3.CQLTester;
 import org.apache.cassandra.db.marshal.*;
 import org.apache.cassandra.dht.ByteOrderedPartitioner;
@@ -24,14 +33,6 @@ import org.apache.cassandra.exceptions.ConfigurationException;
 import org.apache.cassandra.exceptions.InvalidRequestException;
 import org.apache.cassandra.exceptions.SyntaxException;
 import org.apache.cassandra.service.StorageService;
-import org.apache.commons.lang3.StringUtils;
-import org.junit.Assert;
-import org.junit.BeforeClass;
-import org.junit.Test;
-
-import java.util.ArrayList;
-import java.util.Arrays;
-import java.util.List;
 
 import static org.junit.Assert.assertEquals;
 
@@ -601,8 +602,7 @@ public class FrozenCollectionsTest extends CQLTester
 
         // for now, we don't support indexing values or keys of collections in the primary key
         assertInvalidIndexCreationWithMessage("CREATE INDEX ON %s (full(a))", "Cannot create secondary index on partition key column");
-        assertInvalidIndexCreationWithMessage("CREATE INDEX ON %s (keys(a))", "Cannot create keys() index on frozen column a. " +
-                                                                              "Frozen collections only support full() indexes");
+        assertInvalidIndexCreationWithMessage("CREATE INDEX ON %s (keys(a))", "Cannot create secondary index on partition key column");
         assertInvalidIndexCreationWithMessage("CREATE INDEX ON %s (keys(b))", "Cannot create keys() index on frozen column b. " +
                                                                               "Frozen collections only support full() indexes");
 

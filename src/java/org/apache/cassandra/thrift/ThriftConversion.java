@@ -551,7 +551,7 @@ public class ThriftConversion
                 String indexName = def.getIndex_name();
                 // add a generated index name if none was supplied
                 if (Strings.isNullOrEmpty(indexName))
-                    indexName = Indexes.getAvailableIndexName(ksName, cfName, column.name);
+                    indexName = Indexes.getAvailableIndexName(ksName, cfName, column.name.toString());
 
                 if (indexNames.contains(indexName))
                     throw new ConfigurationException("Duplicate index name " + indexName);

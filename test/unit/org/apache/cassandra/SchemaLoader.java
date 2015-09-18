@@ -299,11 +299,12 @@ public class SchemaLoader
 
         cfm.indexes(
             cfm.getIndexes()
-               .with(IndexMetadata.singleTargetIndex(cfm,
-                                                     new IndexTarget(indexedColumn.name, IndexTarget.Type.VALUES),
-                                                     "indexe1",
-                                                     IndexMetadata.Kind.CUSTOM,
-                                                     indexOptions)));
+               .with(IndexMetadata.fromIndexTargets(cfm,
+                                                    Collections.singletonList(new IndexTarget(indexedColumn.name,
+                                                                                              IndexTarget.Type.VALUES)),
+                                                    "indexe1",
+                                                    IndexMetadata.Kind.CUSTOM,
+                                                    indexOptions)));
         return cfm;
     }
 
@@ -411,12 +412,13 @@ public class SchemaLoader
         if (withIndex)
             cfm.indexes(
                 cfm.getIndexes()
-                   .with(IndexMetadata.singleTargetIndex(cfm,
-                                                         new IndexTarget(new ColumnIdentifier("birthdate", true),
-                                                                         IndexTarget.Type.VALUES),
-                                                         "birthdate_key_index",
-                                                         IndexMetadata.Kind.COMPOSITES,
-                                                         Collections.EMPTY_MAP)));
+                   .with(IndexMetadata.fromIndexTargets(cfm,
+                                                        Collections.singletonList(
+                                                            new IndexTarget(new ColumnIdentifier("birthdate", true),
+                                                                            IndexTarget.Type.VALUES)),
+                                                        "birthdate_key_index",
+                                                        IndexMetadata.Kind.COMPOSITES,
+                                                        Collections.EMPTY_MAP)));
 
         return cfm.compression(getCompressionParameters());
     }
@@ -433,9 +435,10 @@ public class SchemaLoader
         if (withIndex)
             cfm.indexes(
                 cfm.getIndexes()
-                   .with(IndexMetadata.singleTargetIndex(cfm,
-                                                         new IndexTarget(new ColumnIdentifier("birthdate", true),
-                                                                         IndexTarget.Type.VALUES),
+                   .with(IndexMetadata.fromIndexTargets(cfm,
+                                                        Collections.singletonList(
+                                                            new IndexTarget(new ColumnIdentifier("birthdate", true),
+                                                                            IndexTarget.Type.VALUES)),
                                                          "birthdate_composite_index",
                                                          IndexMetadata.Kind.KEYS,
                                                          Collections.EMPTY_MAP)));
