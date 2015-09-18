@@ -9,6 +9,7 @@
  * Fall back to 1/4 commitlog volume for commitlog_total_space on small disks
    (CASSANDRA-10199)
 Merged from 2.1:
+ * Prevent ALTER TYPE from creating circular references (CASSANDRA-10339)
  * Fix cache handling of 2i and base tables (CASSANDRA-10155, 10359)
  * Fix NPE in nodetool compactionhistory (CASSANDRA-9758)
  * (Pig) support BulkOutputFormat as a URL parameter (CASSANDRA-7410)
