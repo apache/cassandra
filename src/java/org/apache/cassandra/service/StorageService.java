@@ -1731,7 +1731,6 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
     public void updateTopology()
     {
         getTokenMetadata().updateTopology();
-
     }
 
     private void updatePeerInfo(InetAddress endpoint)
@@ -4118,6 +4117,8 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
 
         if (oldSnitch instanceof DynamicEndpointSnitch)
             ((DynamicEndpointSnitch)oldSnitch).unregisterMBean();
+
+        updateTopology();
     }
 
     /**
