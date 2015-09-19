@@ -42,6 +42,7 @@ import org.apache.cassandra.locator.LocalStrategy;
 import org.apache.cassandra.schema.*;
 import org.apache.cassandra.serializers.MarshalException;
 import org.apache.cassandra.utils.ByteBufferUtil;
+import org.apache.cassandra.utils.Pair;
 import org.apache.cassandra.utils.UUIDGen;
 
 /**
@@ -590,10 +591,8 @@ public class ThriftConversion
         IndexMetadata matchedIndex = null;
         for (IndexMetadata index : cfMetaData.getIndexes())
         {
-            String target = index.options.get(IndexTarget.TARGET_OPTION_NAME);
-            Matcher m = CassandraIndex.TARGET_REGEX.matcher(target);
-            if (target.equals(column.name.toString()) ||
-                (m.matches() && m.group(2).equals(column.name.toString())))
+            Pair<ColumnDefinition, IndexTarget.Type> target  = CassandraIndex.parseTarget(cfMetaData, index);
+            if (target.left.equals(column))
             {
                 // we already found an index for this column, we've no option but to
                 // ignore both of them (and any others we've yet to find)
