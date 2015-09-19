@@ -1297,6 +1297,12 @@ public abstract class ReadCommand implements ReadQuery
                 selectionBuilder.add(cellName.column);
             }
 
+            // for compact storage tables without clustering keys, the column holding the selected value is named
+            // 'value' internally we add it to the selection here to prevent errors due to unexpected column names
+            // when serializing the initial local data response
+            if (metadata.isStaticCompactTable() && clusterings.isEmpty())
+                selectionBuilder.addAll(metadata.partitionColumns());
+
             in.readBoolean();  // countCql3Rows
 
             // clusterings cannot include STATIC_CLUSTERING, so if the names filter is for static columns, clusterings

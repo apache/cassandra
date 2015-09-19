@@ -3,6 +3,8 @@
 
 
 3.0.0-rc1
+ * Fix mixed version read request compatibility for compact static tables
+   (CASSANDRA-10373)
  * Fix paging of DISTINCT with static and IN (CASSANDRA-10354)
  * Allow MATERIALIZED VIEW's SELECT statement to restrict primary key
    columns (CASSANDRA-9664)
