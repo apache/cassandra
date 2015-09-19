@@ -3,6 +3,7 @@
 
 
 3.0.0-rc1
+ * Fix paging of DISTINCT with static and IN (CASSANDRA-10354)
  * Allow MATERIALIZED VIEW's SELECT statement to restrict primary key
    columns (CASSANDRA-9664)
  * Move crc_check_chance out of compression options (CASSANDRA-9839)

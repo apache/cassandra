@@ -303,7 +303,10 @@ public abstract class DataLimits
                 // rows in the partition. However, if we only have the static row, it will be returned as one row
                 // so count it.
                 if (hasLiveStaticRow && rowInCurrentPartition == 0)
+                {
                     ++rowCounted;
+                    ++rowInCurrentPartition;
+                }
             }
 
             public int counted()
