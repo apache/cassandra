@@ -46,7 +46,7 @@ public abstract class Constants
 
     public static final Value UNSET_VALUE = new Value(ByteBufferUtil.UNSET_BYTE_BUFFER);
 
-    public static final Term.Raw NULL_LITERAL = new Term.Raw()
+    private static class NullLiteral extends Term.Raw
     {
         public Term prepare(String keyspace, ColumnSpecification receiver) throws InvalidRequestException
         {
@@ -63,12 +63,13 @@ public abstract class Constants
                  : AssignmentTestable.TestResult.WEAKLY_ASSIGNABLE;
         }
 
-        @Override
-        public String toString()
+        public String getText()
         {
-            return "null";
+            return "NULL";
         }
-    };
+    }
+
+    public static final NullLiteral NULL_LITERAL = new NullLiteral();
 
     public static final Term.Terminal NULL_VALUE = new Value(null)
     {
@@ -86,7 +87,7 @@ public abstract class Constants
         }
     };
 
-    public static class Literal implements Term.Raw
+    public static class Literal extends Term.Raw
     {
         private final Type type;
         private final String text;
@@ -153,11 +154,6 @@ public abstract class Constants
             {
                 throw new InvalidRequestException(e.getMessage());
             }
-        }
-
-        public String getRawText()
-        {
-            return text;
         }
 
         public AssignmentTestable.TestResult testAssignment(String keyspace, ColumnSpecification receiver)
@@ -238,8 +234,12 @@ public abstract class Constants
             return AssignmentTestable.TestResult.NOT_ASSIGNABLE;
         }
 
-        @Override
-        public String toString()
+        public String getRawText()
+        {
+            return text;
+        }
+
+        public String getText()
         {
             return type == Type.STRING ? String.format("'%s'", text) : text;
         }

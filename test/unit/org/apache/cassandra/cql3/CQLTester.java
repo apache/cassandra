@@ -29,6 +29,7 @@ import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.stream.Collectors;
 
 import com.datastax.driver.core.*;
 import com.datastax.driver.core.ResultSet;
@@ -788,6 +789,83 @@ public abstract class CQLTester
         }
 
         Assert.assertTrue(String.format("Got %s rows than expected. Expected %d but got %d", rows.length>i ? "less" : "more", rows.length, i), i == rows.length);
+    }
+
+    /**
+     * Like assertRows(), but ignores the ordering of rows.
+     */
+    public static void assertRowsIgnoringOrder(UntypedResultSet result, Object[]... rows)
+    {
+        if (result == null)
+        {
+            if (rows.length > 0)
+                Assert.fail(String.format("No rows returned by query but %d expected", rows.length));
+            return;
+        }
+
+        List<ColumnSpecification> meta = result.metadata();
+
+        Set<List<ByteBuffer>> expectedRows = new HashSet<>(rows.length);
+        for (Object[] expected : rows)
+        {
+            Assert.assertEquals("Invalid number of (expected) values provided for row", expected.length, meta.size());
+            List<ByteBuffer> expectedRow = new ArrayList<>(meta.size());
+            for (int j = 0; j < meta.size(); j++)
+                expectedRow.add(makeByteBuffer(expected[j], meta.get(j).type));
+            expectedRows.add(expectedRow);
+        }
+
+        Set<List<ByteBuffer>> actualRows = new HashSet<>(result.size());
+        for (UntypedResultSet.Row actual : result)
+        {
+            List<ByteBuffer> actualRow = new ArrayList<>(meta.size());
+            for (int j = 0; j < meta.size(); j++)
+                actualRow.add(actual.getBytes(meta.get(j).name.toString()));
+            actualRows.add(actualRow);
+        }
+
+        com.google.common.collect.Sets.SetView<List<ByteBuffer>> extra = com.google.common.collect.Sets.difference(actualRows, expectedRows);
+        com.google.common.collect.Sets.SetView<List<ByteBuffer>> missing = com.google.common.collect.Sets.difference(expectedRows, actualRows);
+        if (!extra.isEmpty() || !missing.isEmpty())
+        {
+            List<String> extraRows = makeRowStrings(extra, meta);
+            List<String> missingRows = makeRowStrings(missing, meta);
+            StringBuilder sb = new StringBuilder();
+            if (!extra.isEmpty())
+            {
+                sb.append("Got ").append(extra.size()).append(" extra row(s) ");
+                if (!missing.isEmpty())
+                    sb.append("and ").append(missing.size()).append(" missing row(s) ");
+                sb.append("in result.  Extra rows:\n    ");
+                sb.append(extraRows.stream().collect(Collectors.joining("\n    ")));
+                if (!missing.isEmpty())
+                    sb.append("\nMissing Rows:\n    ").append(missingRows.stream().collect(Collectors.joining("\n    ")));
+                Assert.fail(sb.toString());
+            }
+
+            if (!missing.isEmpty())
+                Assert.fail("Missing " + missing.size() + " row(s) in result: \n    " + missingRows.stream().collect(Collectors.joining("\n    ")));
+        }
+
+        assert expectedRows.size() == actualRows.size();
+    }
+
+    private static List<String> makeRowStrings(Iterable<List<ByteBuffer>> rows, List<ColumnSpecification> meta)
+    {
+        List<String> strings = new ArrayList<>();
+        for (List<ByteBuffer> row : rows)
+        {
+            StringBuilder sb = new StringBuilder("row(");
+            for (int j = 0; j < row.size(); j++)
+            {
+                ColumnSpecification column = meta.get(j);
+                sb.append(column.name.toString()).append("=").append(formatValue(row.get(j), column.type));
+                if (j < (row.size() - 1))
+                    sb.append(", ");
+            }
+            strings.add(sb.append(")").toString());
+        }
+        return strings;
     }
 
     protected void assertRowCount(UntypedResultSet result, int numExpectedRows)

@@ -51,7 +51,7 @@ public class CompositesSearcher extends CassandraIndexSearcher
 
     private boolean isMatchingEntry(DecoratedKey partitionKey, IndexEntry entry, ReadCommand command)
     {
-        return command.selects(partitionKey, entry.indexedEntryClustering);
+        return command.selectsKey(partitionKey) && command.selectsClustering(partitionKey, entry.indexedEntryClustering);
     }
 
     protected UnfilteredPartitionIterator queryDataFromIndex(final DecoratedKey indexKey,

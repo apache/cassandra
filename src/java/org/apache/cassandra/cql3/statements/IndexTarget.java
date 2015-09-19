@@ -60,18 +60,10 @@ public class IndexTarget
 
     public String asCqlString(CFMetaData cfm)
     {
-        if (! cfm.getColumnDefinition(column).type.isCollection())
-            return maybeEscapeQuotedName(column.toString());
+        if (!cfm.getColumnDefinition(column).type.isCollection())
+            return column.toCQLString();
 
-        return String.format("%s(%s)", type.toString(), maybeEscapeQuotedName(column.toString()));
-    }
-
-    // Quoted column names may themselves contain quotes, these need
-    // to be escaped with a preceding quote when written out as cql.
-    // Of course, the escaped name also needs to be wrapped in quotes.
-    private String maybeEscapeQuotedName(String name)
-    {
-        return quoteName ? '\"' + name.replace("\"", "\"\"") + '\"' : name;
+        return String.format("%s(%s)", type.toString(), column.toCQLString());
     }
 
     public static class Raw

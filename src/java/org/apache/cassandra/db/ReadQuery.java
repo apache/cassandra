@@ -33,7 +33,7 @@ import org.apache.cassandra.service.pager.PagingState;
  */
 public interface ReadQuery
 {
-    public static final ReadQuery EMPTY = new ReadQuery()
+    ReadQuery EMPTY = new ReadQuery()
     {
         public ReadOrderGroup startOrderGroup()
         {
@@ -66,6 +66,16 @@ public interface ReadQuery
         public QueryPager getLocalPager()
         {
             return QueryPager.EMPTY;
+        }
+
+        public boolean selectsKey(DecoratedKey key)
+        {
+            return false;
+        }
+
+        public boolean selectsClustering(DecoratedKey key, Clustering clustering)
+        {
+            return false;
         }
     };
 
@@ -116,4 +126,16 @@ public interface ReadQuery
      * @return The limits for the query.
      */
     public DataLimits limits();
+
+    /**
+     * @return true if the read query would select the given key, including checks against the row filter, if
+     * checkRowFilter is true
+     */
+    public boolean selectsKey(DecoratedKey key);
+
+    /**
+     * @return true if the read query would select the given clustering, including checks against the row filter, if
+     * checkRowFilter is true
+     */
+    public boolean selectsClustering(DecoratedKey key, Clustering clustering);
 }

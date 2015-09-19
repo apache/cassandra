@@ -39,6 +39,11 @@ public abstract class ParsedStatement
         this.variables = new VariableSpecifications(boundNames);
     }
 
+    public void setBoundVariables(VariableSpecifications variables)
+    {
+        this.variables = variables;
+    }
+
     public abstract Prepared prepare() throws RequestValidationException;
 
     public static class Prepared

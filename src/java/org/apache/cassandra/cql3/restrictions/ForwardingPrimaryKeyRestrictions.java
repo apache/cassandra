@@ -167,6 +167,12 @@ abstract class ForwardingPrimaryKeyRestrictions implements PrimaryKeyRestriction
     }
 
     @Override
+    public boolean isNotNull()
+    {
+        return getDelegate().isNotNull();
+    }
+
+    @Override
     public boolean isMultiColumn()
     {
         return getDelegate().isMultiColumn();

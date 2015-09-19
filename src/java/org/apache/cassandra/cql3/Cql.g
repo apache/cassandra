@@ -762,17 +762,16 @@ createMaterializedViewStatement returns [CreateViewStatement expr]
     }
     : K_CREATE K_MATERIALIZED K_VIEW (K_IF K_NOT K_EXISTS { ifNotExists = true; })? cf=columnFamilyName K_AS
         K_SELECT sclause=selectClause K_FROM basecf=columnFamilyName
-        (K_WHERE wclause=mvWhereClause)?
+        (K_WHERE wclause=whereClause)?
         K_PRIMARY K_KEY (
         '(' '(' k1=cident { partitionKeys.add(k1); } ( ',' kn=cident { partitionKeys.add(kn); } )* ')' ( ',' c1=cident { compositeKeys.add(c1); } )* ')'
     |   '(' k1=cident { partitionKeys.add(k1); } ( ',' cn=cident { compositeKeys.add(cn); } )* ')'
         )
-        { $expr = new CreateViewStatement(cf, basecf, sclause, wclause, partitionKeys, compositeKeys, ifNotExists); }
+        {
+             WhereClause where = wclause == null ? WhereClause.empty() : wclause.build();
+             $expr = new CreateViewStatement(cf, basecf, sclause, where, partitionKeys, compositeKeys, ifNotExists);
+        }
         ( K_WITH cfamProperty[expr.properties] ( K_AND cfamProperty[expr.properties] )*)?
-    ;
-
-mvWhereClause returns [List<ColumnIdentifier.Raw> expr]
-    : t1=cident { $expr = new ArrayList<ColumnIdentifier.Raw>(); $expr.add(t1); } K_IS K_NOT K_NULL (K_AND tN=cident { $expr.add(tN); } K_IS K_NOT K_NULL)*
     ;
 
 /**
@@ -1423,6 +1422,7 @@ relationType returns [Operator op]
 
 relation[WhereClause.Builder clauses]
     : name=cident type=relationType t=term { $clauses.add(new SingleColumnRelation(name, type, t)); }
+    | name=cident K_IS K_NOT K_NULL { $clauses.add(new SingleColumnRelation(name, Operator.IS_NOT, Constants.NULL_LITERAL)); }
     | K_TOKEN l=tupleOfIdentifiers type=relationType t=term
         { $clauses.add(new TokenRelation(l, type, t)); }
     | name=cident K_IN marker=inMarker

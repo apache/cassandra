@@ -21,6 +21,7 @@ import static org.apache.cassandra.cql3.Constants.UNSET_VALUE;
 
 import java.nio.ByteBuffer;
 import java.util.*;
+import java.util.stream.Collectors;
 
 import com.google.common.base.Joiner;
 
@@ -48,7 +49,7 @@ public abstract class Sets
         return new ColumnSpecification(column.ksName, column.cfName, new ColumnIdentifier("value(" + column.name + ")", true), ((SetType)column.type).getElementsType());
     }
 
-    public static class Literal implements Term.Raw
+    public static class Literal extends Term.Raw
     {
         private final List<Term.Raw> elements;
 
@@ -124,10 +125,9 @@ public abstract class Sets
             return AssignmentTestable.TestResult.testAll(keyspace, valueSpec, elements);
         }
 
-        @Override
-        public String toString()
+        public String getText()
         {
-            return "{" + Joiner.on(", ").join(elements) + "}";
+            return elements.stream().map(Term.Raw::getText).collect(Collectors.joining(", ", "{", "}"));
         }
     }
 

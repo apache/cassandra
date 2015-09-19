@@ -21,6 +21,7 @@ import static org.apache.cassandra.cql3.Constants.UNSET_VALUE;
 
 import java.nio.ByteBuffer;
 import java.util.*;
+import java.util.stream.Collectors;
 
 import com.google.common.collect.Iterables;
 
@@ -54,7 +55,7 @@ public abstract class Maps
         return new ColumnSpecification(column.ksName, column.cfName, new ColumnIdentifier("value(" + column.name + ")", true), ((MapType)column.type).getValuesType());
     }
 
-    public static class Literal implements Term.Raw
+    public static class Literal extends Term.Raw
     {
         public final List<Pair<Term.Raw, Term.Raw>> entries;
 
@@ -129,18 +130,11 @@ public abstract class Maps
             return res;
         }
 
-        @Override
-        public String toString()
+        public String getText()
         {
-            StringBuilder sb = new StringBuilder();
-            sb.append("{");
-            for (int i = 0; i < entries.size(); i++)
-            {
-                if (i > 0) sb.append(", ");
-                sb.append(entries.get(i).left).append(":").append(entries.get(i).right);
-            }
-            sb.append("}");
-            return sb.toString();
+            return entries.stream()
+                    .map(entry -> String.format("%s: %s", entry.left.getText(), entry.right.getText()))
+                    .collect(Collectors.joining(", ", "{", "}"));
         }
     }
 

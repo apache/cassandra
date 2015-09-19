@@ -341,7 +341,7 @@ public class AlterTableStatement extends SchemaAlteringStatement
                         ViewDefinition viewCopy = view.copy();
                         ColumnIdentifier viewFrom = entry.getKey().prepare(viewCopy.metadata);
                         ColumnIdentifier viewTo = entry.getValue().prepare(viewCopy.metadata);
-                        viewCopy.metadata.renameColumn(viewFrom, viewTo);
+                        viewCopy.renameColumn(viewFrom, viewTo);
 
                         if (viewUpdates == null)
                             viewUpdates = new ArrayList<>();

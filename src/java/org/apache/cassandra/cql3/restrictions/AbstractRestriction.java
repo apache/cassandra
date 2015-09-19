@@ -17,17 +17,9 @@
  */
 package org.apache.cassandra.cql3.restrictions;
 
-import java.nio.ByteBuffer;
-
-import org.apache.cassandra.cql3.ColumnSpecification;
 import org.apache.cassandra.cql3.QueryOptions;
 import org.apache.cassandra.cql3.statements.Bound;
 import org.apache.cassandra.db.MultiCBuilder;
-import org.apache.cassandra.exceptions.InvalidRequestException;
-
-import static org.apache.cassandra.cql3.statements.RequestValidations.checkBindValueSet;
-import static org.apache.cassandra.cql3.statements.RequestValidations.checkFalse;
-import static org.apache.cassandra.cql3.statements.RequestValidations.checkNotNull;
 
 /**
  * Base class for <code>Restriction</code>s
@@ -66,6 +58,12 @@ abstract class AbstractRestriction  implements Restriction
 
     @Override
     public boolean isContains()
+    {
+        return false;
+    }
+
+    @Override
+    public boolean isNotNull()
     {
         return false;
     }

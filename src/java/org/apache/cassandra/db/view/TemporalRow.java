@@ -27,6 +27,7 @@ import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 
+import com.google.common.base.MoreObjects;
 import com.google.common.collect.Iterables;
 
 import org.apache.cassandra.config.CFMetaData;
@@ -92,6 +93,18 @@ public class TemporalRow
             this.ttl = ttl;
             this.localDeletionTime = localDeletionTime;
             this.isNew = isNew;
+        }
+
+        @Override
+        public String toString()
+        {
+            return MoreObjects.toStringHelper(this)
+                    .add("value", value == null ? "null" : ByteBufferUtil.bytesToHex(value))
+                    .add("timestamp", timestamp)
+                    .add("ttl", ttl)
+                    .add("localDeletionTime", localDeletionTime)
+                    .add("isNew", isNew)
+                    .toString();
         }
 
         public TemporalCell reconcile(TemporalCell that)
@@ -208,13 +221,13 @@ public class TemporalRow
 
                 if (cell.isNew)
                 {
-                    assert newCell == null || newCell.equals(cell) : "Only one cell version can be marked New";
+                    assert newCell == null || newCell.equals(cell) : "Only one cell version can be marked New; newCell: " + newCell + ", cell: " + cell;
                     newCell = cell;
                     numSet = existingCell == null ? 1 : 2;
                 }
                 else
                 {
-                    assert existingCell == null || existingCell.equals(cell) : "Only one cell version can be marked Existing";
+                    assert existingCell == null || existingCell.equals(cell) : "Only one cell version can be marked Existing; existingCell: " + existingCell + ", cell: " + cell;
                     existingCell = cell;
                     numSet = newCell == null ? 1 : 2;
                 }

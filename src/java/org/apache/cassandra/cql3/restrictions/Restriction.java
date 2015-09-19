@@ -41,6 +41,7 @@ public interface Restriction
     public boolean isEQ();
     public boolean isIN();
     public boolean isContains();
+    public boolean isNotNull();
     public boolean isMultiColumn();
 
     /**

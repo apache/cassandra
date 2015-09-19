@@ -77,6 +77,8 @@ public final class StatementRestrictions
      */
     private RestrictionSet nonPrimaryKeyRestrictions;
 
+    private Set<ColumnDefinition> notNullColumns;
+
     /**
      * The restrictions used to build the row filter
      */
@@ -111,6 +113,7 @@ public final class StatementRestrictions
         this.partitionKeyRestrictions = new PrimaryKeyRestrictionSet(cfm.getKeyValidatorAsClusteringComparator(), true);
         this.clusteringColumnsRestrictions = new PrimaryKeyRestrictionSet(cfm.comparator, false);
         this.nonPrimaryKeyRestrictions = new RestrictionSet();
+        this.notNullColumns = new HashSet<>();
     }
 
     public StatementRestrictions(StatementType type,
@@ -119,7 +122,8 @@ public final class StatementRestrictions
                                  VariableSpecifications boundNames,
                                  boolean selectsOnlyStaticColumns,
                                  boolean selectACollection,
-                                 boolean useFiltering)
+                                 boolean useFiltering,
+                                 boolean forView) throws InvalidRequestException
     {
         this(type, cfm);
 
@@ -133,7 +137,20 @@ public final class StatementRestrictions
          *     in CQL so far)
          */
         for (Relation relation : whereClause.relations)
-            addRestriction(relation.toRestriction(cfm, boundNames));
+        {
+            if (relation.operator() == Operator.IS_NOT)
+            {
+                if (!forView)
+                    throw new InvalidRequestException("Unsupported restriction: " + relation);
+
+                for (ColumnDefinition def : relation.toRestriction(cfm, boundNames).getColumnDefs())
+                    this.notNullColumns.add(def);
+            }
+            else
+            {
+                addRestriction(relation.toRestriction(cfm, boundNames));
+            }
+        }
 
         boolean hasQueriableClusteringColumnIndex = false;
         boolean hasQueriableIndex = false;
@@ -180,7 +197,7 @@ public final class StatementRestrictions
                 throw invalidRequest("Cannot restrict clustering columns when selecting only static columns");
         }
 
-        processClusteringColumnsRestrictions(hasQueriableIndex, selectsOnlyStaticColumns, selectACollection);
+        processClusteringColumnsRestrictions(hasQueriableIndex, selectsOnlyStaticColumns, selectACollection, forView);
 
         // Covers indexes on the first clustering column (among others).
         if (isKeyRange && hasQueriableClusteringColumnIndex)
@@ -244,16 +261,53 @@ public final class StatementRestrictions
     }
 
     /**
-     * Returns the non-PK column that are restricted.
+     * Returns the non-PK column that are restricted.  If includeNotNullRestrictions is true, columns that are restricted
+     * by an IS NOT NULL restriction will be included, otherwise they will not be included (unless another restriction
+     * applies to them).
      */
-    public Set<ColumnDefinition> nonPKRestrictedColumns()
+    public Set<ColumnDefinition> nonPKRestrictedColumns(boolean includeNotNullRestrictions)
     {
         Set<ColumnDefinition> columns = new HashSet<>();
         for (Restrictions r : indexRestrictions.getRestrictions())
+        {
             for (ColumnDefinition def : r.getColumnDefs())
                 if (!def.isPrimaryKeyColumn())
                     columns.add(def);
+        }
+
+        if (includeNotNullRestrictions)
+        {
+            for (ColumnDefinition def : notNullColumns)
+            {
+                if (!def.isPrimaryKeyColumn())
+                    columns.add(def);
+            }
+        }
+
         return columns;
+    }
+
+    /**
+     * @return the set of columns that have an IS NOT NULL restriction on them
+     */
+    public Set<ColumnDefinition> notNullColumns()
+    {
+        return notNullColumns;
+    }
+
+    /**
+     * @return true if column is restricted by some restriction, false otherwise
+     */
+    public boolean isRestricted(ColumnDefinition column)
+    {
+        if (notNullColumns.contains(column))
+            return true;
+        else if (column.isPartitionKey())
+            return partitionKeyRestrictions.getColumnDefs().contains(column);
+        else if (column.isClusteringColumn())
+            return clusteringColumnsRestrictions.getColumnDefs().contains(column);
+        else
+            return nonPrimaryKeyRestrictions.getColumnDefs().contains(column);
     }
 
     /**
@@ -370,7 +424,8 @@ public final class StatementRestrictions
      */
     private void processClusteringColumnsRestrictions(boolean hasQueriableIndex,
                                                       boolean selectsOnlyStaticColumns,
-                                                      boolean selectACollection)
+                                                      boolean selectACollection,
+                                                      boolean forView) throws InvalidRequestException
     {
         checkFalse(!type.allowClusteringColumnSlices() && clusteringColumnsRestrictions.isSlice(),
                    "Slice restrictions are not supported on the clustering columns in %s statements", type);
@@ -401,7 +456,7 @@ public final class StatementRestrictions
 
                     if (!clusteringColumn.equals(restrictedColumn))
                     {
-                        checkTrue(hasQueriableIndex,
+                        checkTrue(hasQueriableIndex || forView,
                                   "PRIMARY KEY column \"%s\" cannot be restricted as preceding column \"%s\" is not restricted",
                                   restrictedColumn.name,
                                   clusteringColumn.name);
