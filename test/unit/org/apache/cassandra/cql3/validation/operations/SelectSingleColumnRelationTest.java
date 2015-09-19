@@ -62,6 +62,10 @@ public class SelectSingleColumnRelationTest extends CQLTester
                              "SELECT * FROM %s WHERE c = 0 AND b <= ?", set(0));
         assertInvalidMessage("Collection column 'b' (set<int>) cannot be restricted by a 'IN' relation",
                              "SELECT * FROM %s WHERE c = 0 AND b IN (?)", set(0));
+        assertInvalidMessage("Unsupported \"!=\" relation: b != 5",
+                "SELECT * FROM %s WHERE c = 0 AND b != 5");
+        assertInvalidMessage("Unsupported restriction: b IS NOT NULL",
+                "SELECT * FROM %s WHERE c = 0 AND b IS NOT NULL");
     }
 
     @Test

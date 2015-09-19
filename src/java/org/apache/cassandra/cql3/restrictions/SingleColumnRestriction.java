@@ -587,4 +587,62 @@ public abstract class SingleColumnRestriction extends AbstractRestriction
             super(columnDef);
         }
     }
+
+    public static final class IsNotNullRestriction extends SingleColumnRestriction
+    {
+        public IsNotNullRestriction(ColumnDefinition columnDef)
+        {
+            super(columnDef);
+        }
+
+        @Override
+        public Iterable<Function> getFunctions()
+        {
+            return Collections.emptyList();
+        }
+
+        @Override
+        public boolean isNotNull()
+        {
+            return true;
+        }
+
+        @Override
+        MultiColumnRestriction toMultiColumnRestriction()
+        {
+            return new MultiColumnRestriction.NotNullRestriction(Collections.singletonList(columnDef));
+        }
+
+        @Override
+        public void addRowFilterTo(RowFilter filter,
+                                   SecondaryIndexManager indexManager,
+                                   QueryOptions options)
+        {
+            throw new UnsupportedOperationException("Secondary indexes do not support IS NOT NULL restrictions");
+        }
+
+        @Override
+        public MultiCBuilder appendTo(MultiCBuilder builder, QueryOptions options)
+        {
+            throw new UnsupportedOperationException("Cannot use IS NOT NULL restriction for slicing");
+        }
+
+        @Override
+        public String toString()
+        {
+            return "IS NOT NULL";
+        }
+
+        @Override
+        public Restriction doMergeWith(Restriction otherRestriction) throws InvalidRequestException
+        {
+            throw invalidRequest("%s cannot be restricted by a relation if it includes an IS NOT NULL", columnDef.name);
+        }
+
+        @Override
+        protected boolean isSupportedBy(Index index)
+        {
+            return index.supportsExpression(columnDef, Operator.IS_NOT);
+        }
+    }
 }

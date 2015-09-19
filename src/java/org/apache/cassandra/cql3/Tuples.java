@@ -21,6 +21,7 @@ import java.nio.ByteBuffer;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
+import java.util.stream.Collectors;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -53,7 +54,7 @@ public class Tuples
      * A raw, literal tuple.  When prepared, this will become a Tuples.Value or Tuples.DelayedValue, depending
      * on whether the tuple holds NonTerminals.
      */
-    public static class Literal implements Term.MultiColumnRaw
+    public static class Literal extends Term.MultiColumnRaw
     {
         private final List<Term.Raw> elements;
 
@@ -133,10 +134,9 @@ public class Tuples
             }
         }
 
-        @Override
-        public String toString()
+        public String getText()
         {
-            return tupleToString(elements);
+            return elements.stream().map(Term.Raw::getText).collect(Collectors.joining(", ", "(", ")"));
         }
     }
 
@@ -287,7 +287,7 @@ public class Tuples
      * For example, "SELECT ... WHERE (col1, col2) > ?".
      * }
      */
-    public static class Raw extends AbstractMarker.Raw implements Term.MultiColumnRaw
+    public static class Raw extends AbstractMarker.MultiColumnRaw
     {
         public Raw(int bindIndex)
         {
@@ -317,18 +317,12 @@ public class Tuples
         {
             return new Tuples.Marker(bindIndex, makeReceiver(receivers));
         }
-
-        @Override
-        public AbstractMarker prepare(String keyspace, ColumnSpecification receiver)
-        {
-            throw new AssertionError("Tuples.Raw.prepare() requires a list of receivers");
-        }
     }
 
     /**
      * A raw marker for an IN list of tuples, like "SELECT ... WHERE (a, b, c) IN ?"
      */
-    public static class INRaw extends AbstractMarker.Raw implements MultiColumnRaw
+    public static class INRaw extends AbstractMarker.MultiColumnRaw
     {
         public INRaw(int bindIndex)
         {
@@ -361,12 +355,6 @@ public class Tuples
         public AbstractMarker prepare(String keyspace, List<? extends ColumnSpecification> receivers) throws InvalidRequestException
         {
             return new InMarker(bindIndex, makeInReceiver(receivers));
-        }
-
-        @Override
-        public AbstractMarker prepare(String keyspace, ColumnSpecification receiver)
-        {
-            throw new AssertionError("Tuples.INRaw.prepare() requires a list of receivers");
         }
     }
 

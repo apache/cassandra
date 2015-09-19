@@ -21,8 +21,14 @@ import java.io.DataInput;
 import java.io.DataOutput;
 import java.io.IOException;
 import java.nio.ByteBuffer;
+import java.util.List;
+import java.util.Map;
+import java.util.Set;
 
 import org.apache.cassandra.db.marshal.AbstractType;
+import org.apache.cassandra.db.marshal.ListType;
+import org.apache.cassandra.db.marshal.MapType;
+import org.apache.cassandra.db.marshal.SetType;
 
 public enum Operator
 {
@@ -87,6 +93,14 @@ public enum Operator
         {
             return "!=";
         }
+    },
+    IS_NOT(9)
+    {
+        @Override
+        public String toString()
+        {
+            return "IS NOT";
+        }
     };
 
     /**
@@ -114,6 +128,11 @@ public enum Operator
         output.writeInt(b);
     }
 
+    public int getValue()
+    {
+        return b;
+    }
+
     /**
      * Deserializes a <code>Operator</code> instance from the specified input.
      *
@@ -134,27 +153,48 @@ public enum Operator
     /**
      * Whether 2 values satisfy this operator (given the type they should be compared with).
      *
-     * @throws AssertionError for IN, CONTAINS and CONTAINS_KEY as this doesn't make sense for this function.
+     * @throws AssertionError for CONTAINS and CONTAINS_KEY as this doesn't support those operators yet
      */
     public boolean isSatisfiedBy(AbstractType<?> type, ByteBuffer leftOperand, ByteBuffer rightOperand)
     {
-        int comparison = type.compareForCQL(leftOperand, rightOperand);
         switch (this)
         {
             case EQ:
-                return comparison == 0;
+                return type.compareForCQL(leftOperand, rightOperand) == 0;
             case LT:
-                return comparison < 0;
+                return type.compareForCQL(leftOperand, rightOperand) < 0;
             case LTE:
-                return comparison <= 0;
+                return type.compareForCQL(leftOperand, rightOperand) <= 0;
             case GT:
-                return comparison > 0;
+                return type.compareForCQL(leftOperand, rightOperand) > 0;
             case GTE:
-                return comparison >= 0;
+                return type.compareForCQL(leftOperand, rightOperand) >= 0;
             case NEQ:
-                return comparison != 0;
+                return type.compareForCQL(leftOperand, rightOperand) != 0;
+            case IN:
+                List inValues = ((List) ListType.getInstance(type, false).getSerializer().deserialize(rightOperand));
+                return inValues.contains(type.getSerializer().deserialize(leftOperand));
+            case CONTAINS:
+                if (type instanceof ListType)
+                {
+                    List list = (List) type.getSerializer().deserialize(leftOperand);
+                    return list.contains(((ListType) type).getElementsType().getSerializer().deserialize(rightOperand));
+                }
+                else if (type instanceof SetType)
+                {
+                    Set set = (Set) type.getSerializer().deserialize(leftOperand);
+                    return set.contains(((SetType) type).getElementsType().getSerializer().deserialize(rightOperand));
+                }
+                else  // MapType
+                {
+                    Map map = (Map) type.getSerializer().deserialize(leftOperand);
+                    return map.containsValue(((MapType) type).getValuesType().getSerializer().deserialize(rightOperand));
+                }
+            case CONTAINS_KEY:
+                Map map = (Map) type.getSerializer().deserialize(leftOperand);
+                return map.containsKey(((MapType) type).getKeysType().getSerializer().deserialize(rightOperand));
             default:
-                // we shouldn't get IN, CONTAINS, or CONTAINS KEY here
+                // we shouldn't get CONTAINS, CONTAINS KEY, or IS NOT here
                 throw new AssertionError();
         }
     }

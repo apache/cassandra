@@ -54,6 +54,9 @@ public final class SingleColumnRelation extends Relation
         this.relationType = type;
         this.value = value;
         this.inValues = inValues;
+
+        if (type == Operator.IS_NOT)
+            assert value == Constants.NULL_LITERAL;
     }
 
     /**
@@ -79,6 +82,16 @@ public final class SingleColumnRelation extends Relation
     public SingleColumnRelation(ColumnIdentifier.Raw entity, Operator type, Term.Raw value)
     {
         this(entity, null, type, value);
+    }
+
+    public Term.Raw getValue()
+    {
+        return value;
+    }
+
+    public List<? extends Term.Raw> getInValues()
+    {
+        return inValues;
     }
 
     public static SingleColumnRelation createInRelation(ColumnIdentifier.Raw entity, List<Term.Raw> inValues)
@@ -118,6 +131,13 @@ public final class SingleColumnRelation extends Relation
             case LT: return new SingleColumnRelation(entity, Operator.LTE, value);
             default: return this;
         }
+    }
+
+    public Relation renameIdentifier(ColumnIdentifier.Raw from, ColumnIdentifier.Raw to)
+    {
+        return entity.equals(from)
+               ? new SingleColumnRelation(to, mapKey, operator(), value, inValues)
+               : this;
     }
 
     @Override
@@ -183,6 +203,16 @@ public final class SingleColumnRelation extends Relation
         ColumnDefinition columnDef = toColumnDefinition(cfm, entity);
         Term term = toTerm(toReceivers(columnDef, cfm.isDense()), value, cfm.ksName, boundNames);
         return new SingleColumnRestriction.ContainsRestriction(columnDef, term, isKey);
+    }
+
+    @Override
+    protected Restriction newIsNotRestriction(CFMetaData cfm,
+                                              VariableSpecifications boundNames) throws InvalidRequestException
+    {
+        ColumnDefinition columnDef = toColumnDefinition(cfm, entity);
+        // currently enforced by the grammar
+        assert value == Constants.NULL_LITERAL : "Expected null literal for IS NOT relation: " + this.toString();
+        return new SingleColumnRestriction.IsNotNullRestriction(columnDef);
     }
 
     /**

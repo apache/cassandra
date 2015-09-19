@@ -459,4 +459,59 @@ public abstract class MultiColumnRestriction extends AbstractRestriction
             return Collections.singletonList(terminal.get(options.getProtocolVersion()));
         }
     }
+
+    public static class NotNullRestriction extends MultiColumnRestriction
+    {
+        public NotNullRestriction(List<ColumnDefinition> columnDefs)
+        {
+            super(columnDefs);
+            assert columnDefs.size() == 1;
+        }
+
+        @Override
+        public Iterable<Function> getFunctions()
+        {
+            return Collections.emptyList();
+        }
+
+        @Override
+        public boolean isNotNull()
+        {
+            return true;
+        }
+
+        @Override
+        public String toString()
+        {
+            return "IS NOT NULL";
+        }
+
+        @Override
+        public Restriction doMergeWith(Restriction otherRestriction) throws InvalidRequestException
+        {
+            throw invalidRequest("%s cannot be restricted by a relation if it includes an IS NOT NULL clause",
+                                 getColumnsInCommons(otherRestriction));
+        }
+
+        @Override
+        protected boolean isSupportedBy(Index index)
+        {
+            for(ColumnDefinition column : columnDefs)
+                if (index.supportsExpression(column, Operator.IS_NOT))
+                    return true;
+            return false;
+        }
+
+        @Override
+        public MultiCBuilder appendTo(MultiCBuilder builder, QueryOptions options)
+        {
+            throw new UnsupportedOperationException("Cannot use IS NOT NULL restriction for slicing");
+        }
+
+        @Override
+        public final void addRowFilterTo(RowFilter filter, SecondaryIndexManager indexMananger, QueryOptions options) throws InvalidRequestException
+        {
+            throw new UnsupportedOperationException("Secondary indexes do not support IS NOT NULL restrictions");
+        }
+    }
 }

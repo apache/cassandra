@@ -143,9 +143,9 @@ public class Json
             this.columns = columns;
         }
 
-        public DelayedColumnValue getRawTermForColumn(ColumnDefinition def)
+        public RawDelayedColumnValue getRawTermForColumn(ColumnDefinition def)
         {
-            return new DelayedColumnValue(this, def);
+            return new RawDelayedColumnValue(this, def);
         }
 
         public void bind(QueryOptions options) throws InvalidRequestException
@@ -173,7 +173,7 @@ public class Json
      * Note that this is intrinsically an already prepared term, but this still implements Term.Raw so that we can
      * easily use it to create raw operations.
      */
-    private static class ColumnValue implements Term.Raw
+    private static class ColumnValue extends Term.Raw
     {
         private final Term term;
 
@@ -193,19 +193,22 @@ public class Json
         {
             return TestResult.NOT_ASSIGNABLE;
         }
+
+        public String getText()
+        {
+            return term.toString();
+        }
     }
 
     /**
-     * A NonTerminal for a single column.
-     *
-     * As with {@code ColumnValue}, this is intrinsically a prepared term but implements Terms.Raw for convenience.
+     * A Raw term for a single column. Like ColumnValue, this is intrinsically already prepared.
      */
-    private static class DelayedColumnValue extends Term.NonTerminal implements Term.Raw
+    private static class RawDelayedColumnValue extends Term.Raw
     {
         private final PreparedMarker marker;
         private final ColumnDefinition column;
 
-        public DelayedColumnValue(PreparedMarker prepared, ColumnDefinition column)
+        public RawDelayedColumnValue(PreparedMarker prepared, ColumnDefinition column)
         {
             this.marker = prepared;
             this.column = column;
@@ -214,13 +217,33 @@ public class Json
         @Override
         public Term prepare(String keyspace, ColumnSpecification receiver) throws InvalidRequestException
         {
-            return this;
+            return new DelayedColumnValue(marker, column);
         }
 
         @Override
         public TestResult testAssignment(String keyspace, ColumnSpecification receiver)
         {
             return TestResult.WEAKLY_ASSIGNABLE;
+        }
+
+        public String getText()
+        {
+            return marker.toString();
+        }
+    }
+
+    /**
+     * A NonTerminal for a single column. As with {@code ColumnValue}, this is intrinsically a prepared.
+     */
+    private static class DelayedColumnValue extends Term.NonTerminal
+    {
+        private final PreparedMarker marker;
+        private final ColumnDefinition column;
+
+        public DelayedColumnValue(PreparedMarker prepared, ColumnDefinition column)
+        {
+            this.marker = prepared;
+            this.column = column;
         }
 
         @Override
@@ -248,6 +271,7 @@ public class Json
         {
             return Collections.emptyList();
         }
+
     }
 
     /**

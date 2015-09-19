@@ -276,18 +276,6 @@ public abstract class ReadCommand implements ReadQuery
      */
     public abstract ReadCommand copy();
 
-    /**
-     * Whether the provided row, identified by its primary key components, is selected by
-     * this read command.
-     *
-     * @param partitionKey the partition key for the row to test.
-     * @param clustering the clustering for the row to test.
-     *
-     * @return whether the row of partition key {@code partitionKey} and clustering
-     * {@code clustering} is selected by this command.
-     */
-    public abstract boolean selects(DecoratedKey partitionKey, Clustering clustering);
-
     protected abstract UnfilteredPartitionIterator queryStorage(ColumnFamilyStore cfs, ReadOrderGroup orderGroup);
 
     protected abstract int oldestUnrepairedTombstone();

@@ -20,6 +20,7 @@ package org.apache.cassandra.cql3.functions;
 import java.nio.ByteBuffer;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.stream.Collectors;
 
 import com.google.common.collect.Iterables;
 
@@ -110,7 +111,7 @@ public class FunctionCall extends Term.NonTerminal
         throw new AssertionError();
     }
 
-    public static class Raw implements Term.Raw
+    public static class Raw extends Term.Raw
     {
         private FunctionName name;
         private final List<Term.Raw> terms;
@@ -181,18 +182,9 @@ public class FunctionCall extends Term.NonTerminal
             }
         }
 
-        @Override
-        public String toString()
+        public String getText()
         {
-            StringBuilder sb = new StringBuilder();
-            sb.append(name).append("(");
-            for (int i = 0; i < terms.size(); i++)
-            {
-                if (i > 0)
-                    sb.append(", ");
-                sb.append(terms.get(i));
-            }
-            return sb.append(")").toString();
+            return name + terms.stream().map(Term.Raw::getText).collect(Collectors.joining(", ", "(", ")"));
         }
     }
 }

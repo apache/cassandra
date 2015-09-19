@@ -558,14 +558,14 @@ public class ViewTest extends CQLTester
         createView("mv_test2", "CREATE MATERIALIZED VIEW %s AS SELECT * FROM %%s WHERE textval2 IS NOT NULL AND k IS NOT NULL AND asciival IS NOT NULL AND bigintval IS NOT NULL AND textval1 IS NOT NULL PRIMARY KEY ((textval2, k), asciival, bigintval, textval1)");
 
         while (!SystemKeyspace.isViewBuilt(keyspace(), "mv_test2"))
-            Thread.sleep(1000);
+            Thread.sleep(10);
 
         Assert.assertEquals(100, execute("select * from mv_test2").size());
 
         createView("mv_test3", "CREATE MATERIALIZED VIEW %s AS SELECT * FROM %%s WHERE textval2 IS NOT NULL AND k IS NOT NULL AND asciival IS NOT NULL AND bigintval IS NOT NULL AND textval1 IS NOT NULL PRIMARY KEY ((textval2, k), bigintval, textval1, asciival)");
 
         while (!SystemKeyspace.isViewBuilt(keyspace(), "mv_test3"))
-            Thread.sleep(1000);
+            Thread.sleep(10);
 
         Assert.assertEquals(100, execute("select * from mv_test3").size());
         Assert.assertEquals(100, execute("select asciival from mv_test3 where textval2 = ? and k = ?", "baz", 0).size());

@@ -1,4 +1,6 @@
 3.0.0-rc1
+ * Allow MATERIALIZED VIEW's SELECT statement to restrict primary key
+   columns (CASSANDRA-9664)
  * Move crc_check_chance out of compression options (CASSANDRA-9839)
  * Fix descending iteration past end of BTreeSearchIterator (CASSANDRA-10301)
  * Transfer hints to a different node on decommission (CASSANDRA-10198)

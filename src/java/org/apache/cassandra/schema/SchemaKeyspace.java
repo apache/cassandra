@@ -35,14 +35,14 @@ import org.slf4j.LoggerFactory;
 
 import org.apache.cassandra.config.*;
 import org.apache.cassandra.config.ColumnDefinition.ClusteringOrder;
-import org.apache.cassandra.cql3.ColumnIdentifier;
-import org.apache.cassandra.cql3.QueryProcessor;
-import org.apache.cassandra.cql3.UntypedResultSet;
+import org.apache.cassandra.cql3.*;
 import org.apache.cassandra.cql3.functions.*;
+import org.apache.cassandra.cql3.statements.SelectStatement;
 import org.apache.cassandra.db.*;
 import org.apache.cassandra.db.marshal.*;
 import org.apache.cassandra.db.partitions.*;
 import org.apache.cassandra.db.rows.*;
+import org.apache.cassandra.db.view.View;
 import org.apache.cassandra.exceptions.ConfigurationException;
 import org.apache.cassandra.exceptions.InvalidRequestException;
 import org.apache.cassandra.utils.ByteBufferUtil;
@@ -74,6 +74,7 @@ public final class SchemaKeyspace
     public static final String FUNCTIONS = "functions";
     public static final String AGGREGATES = "aggregates";
     public static final String INDEXES = "indexes";
+
 
     public static final List<String> ALL =
         ImmutableList.of(KEYSPACES, TABLES, COLUMNS, TRIGGERS, VIEWS, TYPES, FUNCTIONS, AGGREGATES, INDEXES);
@@ -155,6 +156,7 @@ public final class SchemaKeyspace
                 + "view_name text,"
                 + "base_table_id uuid,"
                 + "base_table_name text,"
+                + "where_clause text,"
                 + "bloom_filter_fp_chance double,"
                 + "caching frozen<map<text, text>>,"
                 + "comment text,"
@@ -1311,6 +1313,7 @@ public final class SchemaKeyspace
         builder.add("include_all_columns", view.includeAllColumns)
                .add("base_table_id", view.baseTableId)
                .add("base_table_name", view.baseTableMetadata().cfName)
+               .add("where_clause", view.whereClause)
                .add("id", table.cfId);
 
         addTableParamsToSchemaMutation(table.params, builder);
@@ -1426,7 +1429,9 @@ public final class SchemaKeyspace
         String view = row.getString("view_name");
         UUID id = row.getUUID("id");
         UUID baseTableId = row.getUUID("base_table_id");
+        String baseTableName = row.getString("base_table_name");
         boolean includeAll = row.getBoolean("include_all_columns");
+        String whereClause = row.getString("where_clause");
 
         List<ColumnDefinition> columns =
             readSchemaPartitionForTableAndApply(COLUMNS, keyspace, view, SchemaKeyspace::createColumnsFromColumnsPartition);
@@ -1447,7 +1452,10 @@ public final class SchemaKeyspace
                                    .params(createTableParamsFromRow(row))
                                    .droppedColumns(droppedColumns);
 
-        return new ViewDefinition(keyspace, view, baseTableId, includeAll, cfm);
+        String rawSelect = View.buildSelectStatement(baseTableName, columns, whereClause);
+        SelectStatement.RawStatement rawStatement = (SelectStatement.RawStatement) QueryProcessor.parseStatement(rawSelect);
+
+        return new ViewDefinition(keyspace, view, baseTableId, baseTableName, includeAll, rawStatement, whereClause, cfm);
     }
 
     /*

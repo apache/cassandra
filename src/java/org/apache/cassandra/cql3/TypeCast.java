@@ -20,7 +20,7 @@ package org.apache.cassandra.cql3;
 import org.apache.cassandra.db.marshal.AbstractType;
 import org.apache.cassandra.exceptions.InvalidRequestException;
 
-public class TypeCast implements Term.Raw
+public class TypeCast extends Term.Raw
 {
     private final CQL3Type.Raw type;
     private final Term.Raw term;
@@ -58,8 +58,7 @@ public class TypeCast implements Term.Raw
             return AssignmentTestable.TestResult.NOT_ASSIGNABLE;
     }
 
-    @Override
-    public String toString()
+    public String getText()
     {
         return "(" + type + ")" + term;
     }
