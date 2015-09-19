@@ -35,11 +35,28 @@ import org.apache.cassandra.utils.FBUtilities;
 
 public class CrcCheckChanceTest extends CQLTester
 {
+
+
     @Test
-    public void testChangingCrcCheckChance() throws Throwable
+    public void testChangingCrcCheckChanceNewFormat() throws Throwable
+    {
+        testChangingCrcCheckChance(true);
+    }
+
+    @Test
+    public void testChangingCrcCheckChanceOldFormat() throws Throwable
+    {
+        testChangingCrcCheckChance(false);
+    }
+
+
+    public void testChangingCrcCheckChance(boolean newFormat) throws Throwable
     {
         //Start with crc_check_chance of 99%
-        createTable("CREATE TABLE %s (p text, c text, v text, s text static, PRIMARY KEY (p, c)) WITH compression = {'sstable_compression': 'LZ4Compressor', 'crc_check_chance' : 0.99}");
+        if (newFormat)
+            createTable("CREATE TABLE %s (p text, c text, v text, s text static, PRIMARY KEY (p, c)) WITH compression = {'sstable_compression': 'LZ4Compressor'} AND crc_check_chance = 0.99;");
+        else
+            createTable("CREATE TABLE %s (p text, c text, v text, s text static, PRIMARY KEY (p, c)) WITH compression = {'sstable_compression': 'LZ4Compressor', 'crc_check_chance' : 0.99}");
 
         execute("CREATE INDEX foo ON %s(v)");
 
@@ -47,37 +64,31 @@ public class CrcCheckChanceTest extends CQLTester
         execute("INSERT INTO %s(p, c, v) values (?, ?, ?)", "p1", "k2", "v2");
         execute("INSERT INTO %s(p, s) values (?, ?)", "p2", "sv2");
 
-
         ColumnFamilyStore cfs = Keyspace.open(CQLTester.KEYSPACE).getColumnFamilyStore(currentTable());
         ColumnFamilyStore indexCfs = cfs.indexManager.getAllIndexColumnFamilyStores().iterator().next();
         cfs.forceBlockingFlush();
 
-        Assert.assertEquals(0.99, cfs.metadata.params.compression.getCrcCheckChance());
-        Assert.assertEquals(0.99, cfs.getLiveSSTables().iterator().next().getCompressionMetadata().parameters.getCrcCheckChance());
-        Assert.assertEquals(0.99, indexCfs.metadata.params.compression.getCrcCheckChance());
-        Assert.assertEquals(0.99, indexCfs.getLiveSSTables().iterator().next().getCompressionMetadata().parameters.getCrcCheckChance());
+        Assert.assertEquals(0.99, cfs.getCrcCheckChance());
+        Assert.assertEquals(0.99, cfs.getLiveSSTables().iterator().next().getCrcCheckChance());
+        Assert.assertEquals(0.99, indexCfs.getCrcCheckChance());
+        Assert.assertEquals(0.99, indexCfs.getLiveSSTables().iterator().next().getCrcCheckChance());
 
         //Test for stack overflow
-        cfs.setCrcCheckChance(0.99);
+        if (newFormat)
+            alterTable("ALTER TABLE %s WITH crc_check_chance = 0.99");
+        else
+            alterTable("ALTER TABLE %s WITH compression = {'sstable_compression': 'LZ4Compressor', 'crc_check_chance': 0.99}");
 
         assertRows(execute("SELECT * FROM %s WHERE p=?", "p1"),
-                row("p1", "k1", "sv1", "v1"),
-                row("p1", "k2", "sv1", "v2")
+                   row("p1", "k1", "sv1", "v1"),
+                   row("p1", "k2", "sv1", "v2")
         );
 
         assertRows(execute("SELECT * FROM %s WHERE v=?", "v1"),
-                row("p1", "k1", "sv1", "v1")
+                   row("p1", "k1", "sv1", "v1")
         );
 
         //Write a few SSTables then Compact
-
-        execute("INSERT INTO %s(p, c, v, s) values (?, ?, ?, ?)", "p1", "k1", "v1", "sv1");
-        execute("INSERT INTO %s(p, c, v) values (?, ?, ?)", "p1", "k2", "v2");
-        execute("INSERT INTO %s(p, s) values (?, ?)", "p2", "sv2");
-
-        cfs.forceBlockingFlush();
-
-
         execute("INSERT INTO %s(p, c, v, s) values (?, ?, ?, ?)", "p1", "k1", "v1", "sv1");
         execute("INSERT INTO %s(p, c, v) values (?, ?, ?)", "p1", "k2", "v2");
         execute("INSERT INTO %s(p, s) values (?, ?)", "p2", "sv2");
@@ -90,33 +101,50 @@ public class CrcCheckChanceTest extends CQLTester
 
         cfs.forceBlockingFlush();
 
+        execute("INSERT INTO %s(p, c, v, s) values (?, ?, ?, ?)", "p1", "k1", "v1", "sv1");
+        execute("INSERT INTO %s(p, c, v) values (?, ?, ?)", "p1", "k2", "v2");
+        execute("INSERT INTO %s(p, s) values (?, ?)", "p2", "sv2");
+
+        cfs.forceBlockingFlush();
         cfs.forceMajorCompaction();
 
-        //Verify when we alter the value the live sstable readers hold the new one
-        alterTable("ALTER TABLE %s WITH compression = {'sstable_compression': 'LZ4Compressor', 'crc_check_chance': 0.01}");
+        //Now let's change via JMX
+        cfs.setCrcCheckChance(0.01);
 
-        Assert.assertEquals( 0.01, cfs.metadata.params.compression.getCrcCheckChance());
-        Assert.assertEquals( 0.01, cfs.getLiveSSTables().iterator().next().getCompressionMetadata().parameters.getCrcCheckChance());
-        Assert.assertEquals( 0.01, indexCfs.metadata.params.compression.getCrcCheckChance());
-        Assert.assertEquals( 0.01, indexCfs.getLiveSSTables().iterator().next().getCompressionMetadata().parameters.getCrcCheckChance());
+        Assert.assertEquals(0.01, cfs.getCrcCheckChance());
+        Assert.assertEquals(0.01, cfs.getLiveSSTables().iterator().next().getCrcCheckChance());
+        Assert.assertEquals(0.01, indexCfs.getCrcCheckChance());
+        Assert.assertEquals(0.01, indexCfs.getLiveSSTables().iterator().next().getCrcCheckChance());
 
         assertRows(execute("SELECT * FROM %s WHERE p=?", "p1"),
-                row("p1", "k1", "sv1", "v1"),
-                row("p1", "k2", "sv1", "v2")
+                   row("p1", "k1", "sv1", "v1"),
+                   row("p1", "k2", "sv1", "v2")
         );
 
         assertRows(execute("SELECT * FROM %s WHERE v=?", "v1"),
-                row("p1", "k1", "sv1", "v1")
+                   row("p1", "k1", "sv1", "v1")
         );
 
+        //Alter again via schema
+        if (newFormat)
+            alterTable("ALTER TABLE %s WITH crc_check_chance = 0.5");
+        else
+            alterTable("ALTER TABLE %s WITH compression = {'sstable_compression': 'LZ4Compressor', 'crc_check_chance': 0.5}");
+
+        //We should be able to get the new value by accessing directly the schema metadata
+        Assert.assertEquals(0.5, cfs.metadata.params.crcCheckChance);
+
+        //but previous JMX-set value will persist until next restart
+        Assert.assertEquals(0.01, cfs.getLiveSSTables().iterator().next().getCrcCheckChance());
+        Assert.assertEquals(0.01, indexCfs.getCrcCheckChance());
+        Assert.assertEquals(0.01, indexCfs.getLiveSSTables().iterator().next().getCrcCheckChance());
 
         //Verify the call used by JMX still works
         cfs.setCrcCheckChance(0.03);
-        Assert.assertEquals( 0.03, cfs.metadata.params.compression.getCrcCheckChance());
-        Assert.assertEquals( 0.03, cfs.getLiveSSTables().iterator().next().getCompressionMetadata().parameters.getCrcCheckChance());
-        Assert.assertEquals( 0.03, indexCfs.metadata.params.compression.getCrcCheckChance());
-        Assert.assertEquals( 0.03, indexCfs.getLiveSSTables().iterator().next().getCompressionMetadata().parameters.getCrcCheckChance());
-
+        Assert.assertEquals(0.03, cfs.getCrcCheckChance());
+        Assert.assertEquals(0.03, cfs.getLiveSSTables().iterator().next().getCrcCheckChance());
+        Assert.assertEquals(0.03, indexCfs.getCrcCheckChance());
+        Assert.assertEquals(0.03, indexCfs.getLiveSSTables().iterator().next().getCrcCheckChance());
     }
 
 

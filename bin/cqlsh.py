@@ -1184,7 +1184,7 @@ class Shell(cmd.Cmd):
             return self.get_table_meta(ks, name)
         except ColumnFamilyNotFound:
             try:
-               return self.get_view_meta(ks, name)
+                return self.get_view_meta(ks, name)
             except MaterializedViewNotFound:
                 raise ObjectNotFound("%r not found in keyspace %r" % (name, ks))
 

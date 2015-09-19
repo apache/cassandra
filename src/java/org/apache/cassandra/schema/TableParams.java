@@ -46,7 +46,8 @@ public final class TableParams
         MEMTABLE_FLUSH_PERIOD_IN_MS,
         MIN_INDEX_INTERVAL,
         READ_REPAIR_CHANCE,
-        SPECULATIVE_RETRY;
+        SPECULATIVE_RETRY,
+        CRC_CHECK_CHANCE;
 
         @Override
         public String toString()
@@ -63,11 +64,13 @@ public final class TableParams
     public static final int DEFAULT_MEMTABLE_FLUSH_PERIOD_IN_MS = 0;
     public static final int DEFAULT_MIN_INDEX_INTERVAL = 128;
     public static final int DEFAULT_MAX_INDEX_INTERVAL = 2048;
+    public static final double DEFAULT_CRC_CHECK_CHANCE = 1.0;
 
     public final String comment;
     public final double readRepairChance;
     public final double dcLocalReadRepairChance;
     public final double bloomFilterFpChance;
+    public final double crcCheckChance;
     public final int gcGraceSeconds;
     public final int defaultTimeToLive;
     public final int memtableFlushPeriodInMs;
@@ -87,6 +90,7 @@ public final class TableParams
         bloomFilterFpChance = builder.bloomFilterFpChance == null
                             ? builder.compaction.defaultBloomFilterFbChance()
                             : builder.bloomFilterFpChance;
+        crcCheckChance = builder.crcCheckChance;
         gcGraceSeconds = builder.gcGraceSeconds;
         defaultTimeToLive = builder.defaultTimeToLive;
         memtableFlushPeriodInMs = builder.memtableFlushPeriodInMs;
@@ -112,6 +116,7 @@ public final class TableParams
                             .compaction(params.compaction)
                             .compression(params.compression)
                             .dcLocalReadRepairChance(params.dcLocalReadRepairChance)
+                            .crcCheckChance(params.crcCheckChance)
                             .defaultTimeToLive(params.defaultTimeToLive)
                             .gcGraceSeconds(params.gcGraceSeconds)
                             .maxIndexInterval(params.maxIndexInterval)
@@ -146,6 +151,13 @@ public final class TableParams
             fail("%s must be larger than or equal to 0 and smaller than or equal to 1.0 (got %s)",
                  Option.READ_REPAIR_CHANCE,
                  readRepairChance);
+        }
+
+        if (crcCheckChance < 0 || crcCheckChance > 1.0)
+        {
+            fail("%s must be larger than or equal to 0 and smaller than or equal to 1.0 (got %s)",
+                 Option.CRC_CHECK_CHANCE,
+                 crcCheckChance);
         }
 
         if (defaultTimeToLive < 0)
@@ -190,6 +202,7 @@ public final class TableParams
             && readRepairChance == p.readRepairChance
             && dcLocalReadRepairChance == p.dcLocalReadRepairChance
             && bloomFilterFpChance == p.bloomFilterFpChance
+            && crcCheckChance == p.crcCheckChance
             && gcGraceSeconds == p.gcGraceSeconds
             && defaultTimeToLive == p.defaultTimeToLive
             && memtableFlushPeriodInMs == p.memtableFlushPeriodInMs
@@ -209,6 +222,7 @@ public final class TableParams
                                 readRepairChance,
                                 dcLocalReadRepairChance,
                                 bloomFilterFpChance,
+                                crcCheckChance,
                                 gcGraceSeconds,
                                 defaultTimeToLive,
                                 memtableFlushPeriodInMs,
@@ -229,6 +243,7 @@ public final class TableParams
                           .add(Option.READ_REPAIR_CHANCE.toString(), readRepairChance)
                           .add(Option.DCLOCAL_READ_REPAIR_CHANCE.toString(), dcLocalReadRepairChance)
                           .add(Option.BLOOM_FILTER_FP_CHANCE.toString(), bloomFilterFpChance)
+                          .add(Option.CRC_CHECK_CHANCE.toString(), crcCheckChance)
                           .add(Option.GC_GRACE_SECONDS.toString(), gcGraceSeconds)
                           .add(Option.DEFAULT_TIME_TO_LIVE.toString(), defaultTimeToLive)
                           .add(Option.MEMTABLE_FLUSH_PERIOD_IN_MS.toString(), memtableFlushPeriodInMs)
@@ -248,6 +263,7 @@ public final class TableParams
         private double readRepairChance = DEFAULT_READ_REPAIR_CHANCE;
         private double dcLocalReadRepairChance = DEFAULT_DCLOCAL_READ_REPAIR_CHANCE;
         private Double bloomFilterFpChance;
+        public Double crcCheckChance = DEFAULT_CRC_CHECK_CHANCE;
         private int gcGraceSeconds = DEFAULT_GC_GRACE_SECONDS;
         private int defaultTimeToLive = DEFAULT_DEFAULT_TIME_TO_LIVE;
         private int memtableFlushPeriodInMs = DEFAULT_MEMTABLE_FLUSH_PERIOD_IN_MS;
@@ -289,6 +305,12 @@ public final class TableParams
         public Builder bloomFilterFpChance(double val)
         {
             bloomFilterFpChance = val;
+            return this;
+        }
+
+        public Builder crcCheckChance(double val)
+        {
+            crcCheckChance = val;
             return this;
         }
 

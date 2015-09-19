@@ -98,6 +98,7 @@ public final class SchemaKeyspace
                 + "comment text,"
                 + "compaction frozen<map<text, text>>,"
                 + "compression frozen<map<text, text>>,"
+                + "crc_check_chance double,"
                 + "dclocal_read_repair_chance double,"
                 + "default_time_to_live int,"
                 + "extensions frozen<map<text, blob>>,"
@@ -159,6 +160,7 @@ public final class SchemaKeyspace
                 + "comment text,"
                 + "compaction frozen<map<text, text>>,"
                 + "compression frozen<map<text, text>>,"
+                + "crc_check_chance double,"
                 + "dclocal_read_repair_chance double,"
                 + "default_time_to_live int,"
                 + "extensions frozen<map<text, blob>>,"
@@ -908,6 +910,7 @@ public final class SchemaKeyspace
              .add("min_index_interval", params.minIndexInterval)
              .add("read_repair_chance", params.readRepairChance)
              .add("speculative_retry", params.speculativeRetry.toString())
+             .add("crc_check_chance", params.crcCheckChance)
              .frozenMap("caching", params.caching.asMap())
              .frozenMap("compaction", params.compaction.asMap())
              .frozenMap("compression", params.compression.asMap())
@@ -1149,6 +1152,7 @@ public final class SchemaKeyspace
                .memtableFlushPeriodInMs(row.getInt("memtable_flush_period_in_ms"))
                .minIndexInterval(row.getInt("min_index_interval"))
                .readRepairChance(row.getDouble("read_repair_chance"))
+               .crcCheckChance(row.getDouble("crc_check_chance"))
                .speculativeRetry(SpeculativeRetryParam.fromString(row.getString("speculative_retry")));
 
         if (row.has("extensions"))

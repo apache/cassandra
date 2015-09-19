@@ -361,7 +361,13 @@ public final class LegacySchemaMigrator
         if (row.has("speculative_retry"))
             params.speculativeRetry(SpeculativeRetryParam.fromString(row.getString("speculative_retry")));
 
-        params.compression(CompressionParams.fromMap(fromJsonMap(row.getString("compression_parameters"))));
+        Map<String, String> compressionParameters = fromJsonMap(row.getString("compression_parameters"));
+        String crcCheckChance = compressionParameters.remove("crc_check_chance");
+        //crc_check_chance was promoted from a compression property to a top-level property
+        if (crcCheckChance != null)
+            params.crcCheckChance(Double.parseDouble(crcCheckChance));
+
+        params.compression(CompressionParams.fromMap(compressionParameters));
 
         params.compaction(compactionFromRow(row));
 

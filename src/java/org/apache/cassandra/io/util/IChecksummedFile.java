@@ -15,14 +15,13 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
+
 package org.apache.cassandra.io.util;
 
-import org.apache.cassandra.io.compress.CompressionMetadata;
+import java.util.function.Supplier;
 
-public interface ICompressedFile extends IChecksummedFile
+public interface IChecksummedFile
 {
-    ChannelProxy channel();
-    CompressionMetadata getMetadata();
-    MmappedRegions regions();
-
+    public Supplier<Double> getCrcCheckChanceSupplier();
+    public void setCrcCheckChanceSupplier(Supplier<Double> crcCheckChanceSupplier);
 }

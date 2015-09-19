@@ -3,6 +3,7 @@
 
 
 3.0.0-rc1
+ * Move crc_check_chance out of compression options (CASSANDRA-9839)
  * Fix descending iteration past end of BTreeSearchIterator (CASSANDRA-10301)
  * Transfer hints to a different node on decommission (CASSANDRA-10198)
  * Check partition keys for CAS operations during stmt validation (CASSANDRA-10338)

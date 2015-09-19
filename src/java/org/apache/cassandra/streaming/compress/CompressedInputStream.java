@@ -24,6 +24,7 @@ import java.util.Iterator;
 import java.util.concurrent.ArrayBlockingQueue;
 import java.util.concurrent.BlockingQueue;
 import java.util.concurrent.ThreadLocalRandom;
+import java.util.function.Supplier;
 import java.util.zip.Checksum;
 
 import com.google.common.collect.Iterators;
@@ -41,6 +42,7 @@ public class CompressedInputStream extends InputStream
     private final CompressionInfo info;
     // chunk buffer
     private final BlockingQueue<byte[]> dataBuffer;
+    private final Supplier<Double> crcCheckChanceSupplier;
 
     // uncompressed bytes
     private byte[] buffer;
@@ -65,13 +67,14 @@ public class CompressedInputStream extends InputStream
      * @param source Input source to read compressed data from
      * @param info Compression info
      */
-    public CompressedInputStream(InputStream source, CompressionInfo info, ChecksumType checksumType)
+    public CompressedInputStream(InputStream source, CompressionInfo info, ChecksumType checksumType, Supplier<Double> crcCheckChanceSupplier)
     {
         this.info = info;
         this.checksum =  checksumType.newInstance();
         this.buffer = new byte[info.parameters.chunkLength()];
         // buffer is limited to store up to 1024 chunks
         this.dataBuffer = new ArrayBlockingQueue<byte[]>(Math.min(info.chunks.length, 1024));
+        this.crcCheckChanceSupplier = crcCheckChanceSupplier;
 
         new Thread(new Reader(source, info, dataBuffer)).start();
     }
@@ -111,7 +114,7 @@ public class CompressedInputStream extends InputStream
         totalCompressedBytesRead += compressed.length;
 
         // validate crc randomly
-        if (info.parameters.getCrcCheckChance() > ThreadLocalRandom.current().nextDouble())
+        if (this.crcCheckChanceSupplier.get() > ThreadLocalRandom.current().nextDouble())
         {
             checksum.update(compressed, 0, compressed.length - checksumBytes.length);
 
