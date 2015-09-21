@@ -406,6 +406,7 @@
           <dependency groupId="org.mindrot" artifactId="jbcrypt" version="0.3m" />
           <dependency groupId="io.airlift" artifactId="airline" version="0.6" />
           <dependency groupId="io.netty" artifactId="netty-all" version="4.0.23.Final" />
+          <dependency groupId="org.jgrapht" artifactId="jgrapht-core" version="0.9.1" />
           <dependency groupId="com.google.code.findbugs" artifactId="jsr305" version="2.0.2" />
           <dependency groupId="com.clearspring.analytics" artifactId="stream" version="2.5.2" />
           <!-- TODO CASSANDRA-9543
@@ -561,16 +562,14 @@
 
         <!-- don't need jna to run, but nice to have -->
         <dependency groupId="net.java.dev.jna" artifactId="jna"/>
-        
+
         <!-- don't need jamm unless running a server in which case it needs to be a -javagent to be used anyway -->
         <dependency groupId="com.github.jbellis" artifactId="jamm"/>
 
         <dependency groupId="io.netty" artifactId="netty-all"/>
-      	
-      	<dependency groupId="joda-time" artifactId="joda-time"/>
-
+        <dependency groupId="org.jgrapht" artifactId="jgrapht-core"/>
+        <dependency groupId="joda-time" artifactId="joda-time"/>
         <dependency groupId="org.fusesource" artifactId="sigar"/>
-      	
         <dependency groupId="org.eclipse.jdt.core.compiler" artifactId="ecj" />
       </artifact:pom>
       <artifact:pom id="thrift-pom"

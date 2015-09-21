@@ -74,10 +74,6 @@ class MigrationTask extends WrappedRunnable
                 {
                     SchemaKeyspace.mergeSchemaAndAnnounceVersion(message.payload);
                 }
-                catch (IOException e)
-                {
-                    logger.error("IOException merging remote schema", e);
-                }
                 catch (ConfigurationException e)
                 {
                     logger.error("Configuration exception merging remote schema", e);

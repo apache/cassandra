@@ -30,7 +30,9 @@ import org.apache.cassandra.cql3.*;
 import org.apache.cassandra.db.*;
 import org.apache.cassandra.db.marshal.*;
 import org.apache.cassandra.exceptions.*;
+import org.apache.cassandra.schema.KeyspaceMetadata;
 import org.apache.cassandra.schema.TableParams;
+import org.apache.cassandra.schema.Types;
 import org.apache.cassandra.service.ClientState;
 import org.apache.cassandra.service.MigrationManager;
 import org.apache.cassandra.service.QueryState;
@@ -193,6 +195,14 @@ public class CreateTableStatement extends SchemaAlteringStatement
          */
         public ParsedStatement.Prepared prepare() throws RequestValidationException
         {
+            KeyspaceMetadata ksm = Schema.instance.getKSMetaData(keyspace());
+            if (ksm == null)
+                throw new ConfigurationException(String.format("Keyspace %s doesn't exist", keyspace()));
+            return prepare(ksm.types);
+        }
+
+        public ParsedStatement.Prepared prepare(Types udts) throws RequestValidationException
+        {
             // Column family name
             if (!columnFamily().matches("\\w+"))
                 throw new InvalidRequestException(String.format("\"%s\" is not a valid table name (must be alphanumeric character or underscore only: [a-zA-Z_0-9]+)", columnFamily()));
@@ -212,7 +222,7 @@ public class CreateTableStatement extends SchemaAlteringStatement
             for (Map.Entry<ColumnIdentifier, CQL3Type.Raw> entry : definitions.entrySet())
             {
                 ColumnIdentifier id = entry.getKey();
-                CQL3Type pt = entry.getValue().prepare(keyspace());
+                CQL3Type pt = entry.getValue().prepare(keyspace(), udts);
                 if (pt.isCollection() && ((CollectionType)pt.getType()).isMultiCell())
                     stmt.collections.put(id.bytes, (CollectionType)pt.getType());
                 if (entry.getValue().isCounter())

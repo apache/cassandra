@@ -401,7 +401,7 @@ public final class CFMetaData
     {
         CFStatement parsed = (CFStatement)QueryProcessor.parseStatement(cql);
         parsed.prepareKeyspace(keyspace);
-        CreateTableStatement statement = (CreateTableStatement) parsed.prepare().statement;
+        CreateTableStatement statement = (CreateTableStatement) ((CreateTableStatement.RawStatement) parsed).prepare(Types.none()).statement;
 
         return statement.metadataBuilder()
                         .withId(generateLegacyCfId(keyspace, statement.columnFamily()))
@@ -718,16 +718,6 @@ public final class CFMetaData
             .append(triggers)
             .append(indexes)
             .toHashCode();
-    }
-
-    /**
-     * Updates this object in place to match the definition in the system schema tables.
-     * @return true if any columns were added, removed, or altered; otherwise, false is returned
-     */
-    public boolean reload()
-    {
-        return apply(isView ? SchemaKeyspace.createViewFromName(ksName, cfName).metadata
-                            : SchemaKeyspace.createTableFromName(ksName, cfName));
     }
 
     /**

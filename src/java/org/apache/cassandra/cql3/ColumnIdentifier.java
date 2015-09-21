@@ -328,7 +328,7 @@ public class ColumnIdentifier extends org.apache.cassandra.cql3.selection.Select
         }
     }
 
-    private static String maybeQuote(String text)
+    static String maybeQuote(String text)
     {
         if (UNQUOTED_IDENTIFIER.matcher(text).matches())
             return text;

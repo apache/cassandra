@@ -63,8 +63,7 @@ public class LegacySchemaMigratorTest
     {
         CQLTester.cleanupAndLeaveDirs();
 
-        List<KeyspaceMetadata> expected = keyspaceToMigrate();
-        expected.sort((k1, k2) -> k1.name.compareTo(k2.name));
+        Keyspaces expected = keyspacesToMigrate();
 
         // write the keyspaces into the legacy tables
         expected.forEach(LegacySchemaMigratorTest::legacySerializeKeyspace);
@@ -73,8 +72,7 @@ public class LegacySchemaMigratorTest
         LegacySchemaMigrator.migrate();
 
         // read back all the metadata from the new schema tables
-        List<KeyspaceMetadata> actual = SchemaKeyspace.readSchemaFromSystemTables();
-        actual.sort((k1, k2) -> k1.name.compareTo(k2.name));
+        Keyspaces actual = SchemaKeyspace.fetchNonSystemKeyspaces();
 
         // need to load back CFMetaData of those tables (CFS instances will still be loaded)
         loadLegacySchemaTables();
@@ -104,9 +102,9 @@ public class LegacySchemaMigratorTest
         Schema.instance.setKeyspaceMetadata(systemKeyspace.withSwapped(systemTables));
     }
 
-    private static List<KeyspaceMetadata> keyspaceToMigrate()
+    private static Keyspaces keyspacesToMigrate()
     {
-        List<KeyspaceMetadata> keyspaces = new ArrayList<>();
+        Keyspaces.Builder keyspaces = Keyspaces.builder();
 
         // A whole bucket of shorthand
         String ks1 = KEYSPACE_PREFIX + "Keyspace1";
@@ -255,7 +253,7 @@ public class LegacySchemaMigratorTest
         keyspaces.add(keyspaceWithUDAs());
         keyspaces.add(keyspaceWithUDAsAndUDTs());
 
-        return keyspaces;
+        return keyspaces.build();
     }
 
     private static KeyspaceMetadata keyspaceWithDroppedCollections()
