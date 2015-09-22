@@ -72,7 +72,7 @@ public class LeveledCompactionStrategy extends AbstractCompactionStrategy
         maxSSTableSizeInMB = configuredMaxSSTableSize;
 
         manifest = new LeveledManifest(cfs, this.maxSSTableSizeInMB, localOptions);
-        logger.debug("Created {}", manifest);
+        logger.trace("Created {}", manifest);
     }
 
     public int getLevelSize(int i)
@@ -102,7 +102,7 @@ public class LeveledCompactionStrategy extends AbstractCompactionStrategy
                 SSTableReader sstable = findDroppableSSTable(gcBefore);
                 if (sstable == null)
                 {
-                    logger.debug("No compaction necessary for {}", this);
+                    logger.trace("No compaction necessary for {}", this);
                     return null;
                 }
                 candidate = new LeveledManifest.CompactionCandidate(Collections.singleton(sstable),

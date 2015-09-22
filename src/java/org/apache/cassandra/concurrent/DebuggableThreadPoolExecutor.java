@@ -266,7 +266,7 @@ public class DebuggableThreadPoolExecutor extends ThreadPoolExecutor implements 
             }
             catch (CancellationException e)
             {
-                logger.debug("Task cancelled", e);
+                logger.trace("Task cancelled", e);
             }
             catch (ExecutionException e)
             {

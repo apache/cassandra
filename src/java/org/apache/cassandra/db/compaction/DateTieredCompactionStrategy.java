@@ -53,10 +53,10 @@ public class DateTieredCompactionStrategy extends AbstractCompactionStrategy
         if (!options.containsKey(AbstractCompactionStrategy.TOMBSTONE_COMPACTION_INTERVAL_OPTION) && !options.containsKey(AbstractCompactionStrategy.TOMBSTONE_THRESHOLD_OPTION))
         {
             disableTombstoneCompactions = true;
-            logger.debug("Disabling tombstone compactions for DTCS");
+            logger.trace("Disabling tombstone compactions for DTCS");
         }
         else
-            logger.debug("Enabling tombstone compactions for DTCS");
+            logger.trace("Enabling tombstone compactions for DTCS");
 
     }
 
@@ -102,7 +102,7 @@ public class DateTieredCompactionStrategy extends AbstractCompactionStrategy
         List<SSTableReader> compactionCandidates = new ArrayList<>(getNextNonExpiredSSTables(Sets.difference(candidates, expired), gcBefore));
         if (!expired.isEmpty())
         {
-            logger.debug("Including expired sstables: {}", expired);
+            logger.trace("Including expired sstables: {}", expired);
             compactionCandidates.addAll(expired);
         }
         return compactionCandidates;
@@ -137,7 +137,7 @@ public class DateTieredCompactionStrategy extends AbstractCompactionStrategy
         Iterable<SSTableReader> candidates = filterOldSSTables(Lists.newArrayList(candidateSSTables), options.maxSSTableAge, now);
 
         List<List<SSTableReader>> buckets = getBuckets(createSSTableAndMinTimestampPairs(candidates), options.baseTime, base, now);
-        logger.debug("Compaction buckets are {}", buckets);
+        logger.trace("Compaction buckets are {}", buckets);
         updateEstimatedCompactionsByTasks(buckets);
         List<SSTableReader> mostInteresting = newestBucket(buckets,
                                                            cfs.getMinimumCompactionThreshold(),
@@ -392,7 +392,7 @@ public class DateTieredCompactionStrategy extends AbstractCompactionStrategy
         LifecycleTransaction modifier = cfs.getTracker().tryModify(sstables, OperationType.COMPACTION);
         if (modifier == null)
         {
-            logger.debug("Unable to mark {} for compaction; probably a background compaction got to it first.  You can disable background compactions temporarily if this is a problem", sstables);
+            logger.trace("Unable to mark {} for compaction; probably a background compaction got to it first.  You can disable background compactions temporarily if this is a problem", sstables);
             return null;
         }
 

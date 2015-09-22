@@ -137,7 +137,7 @@ public class PermissionsCache implements PermissionsCacheMBean
                                            }
                                            catch (Exception e)
                                            {
-                                               logger.debug("Error performing async refresh of user permissions", e);
+                                               logger.trace("Error performing async refresh of user permissions", e);
                                                throw e;
                                            }
                                        }

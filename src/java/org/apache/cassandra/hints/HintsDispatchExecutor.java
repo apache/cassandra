@@ -234,7 +234,7 @@ final class HintsDispatchExecutor
          */
         private boolean dispatch(HintsDescriptor descriptor)
         {
-            logger.debug("Dispatching hints file {}", descriptor.fileName());
+            logger.trace("Dispatching hints file {}", descriptor.fileName());
 
             File file = new File(hintsDirectory, descriptor.fileName());
             Long offset = store.getDispatchOffset(descriptor).orElse(null);

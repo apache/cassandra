@@ -158,10 +158,10 @@ public class CqlRecordReader extends RecordReader<Long, Row>
 
         if (StringUtils.isEmpty(cqlQuery))
             cqlQuery = buildQuery();
-        logger.debug("cqlQuery {}", cqlQuery);
+        logger.trace("cqlQuery {}", cqlQuery);
 
         rowIterator = new RowIterator();
-        logger.debug("created {}", rowIterator);
+        logger.trace("created {}", rowIterator);
     }
 
     public void close()
@@ -196,7 +196,7 @@ public class CqlRecordReader extends RecordReader<Long, Row>
     {
         if (!rowIterator.hasNext())
         {
-            logger.debug("Finished scanning {} rows (estimate was: {})", rowIterator.totalRead, totalRowCount);
+            logger.trace("Finished scanning {} rows (estimate was: {})", rowIterator.totalRead, totalRowCount);
             return false;
         }
 

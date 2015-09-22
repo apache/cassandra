@@ -462,8 +462,8 @@ public class ThriftValidation
         }
         catch (MarshalException me)
         {
-            if (logger.isDebugEnabled())
-                logger.debug("rejecting invalid value {}", ByteBufferUtil.bytesToHex(summarize(column.value)));
+            if (logger.isTraceEnabled())
+                logger.trace("rejecting invalid value {}", ByteBufferUtil.bytesToHex(summarize(column.value)));
 
             throw new org.apache.cassandra.exceptions.InvalidRequestException(String.format("(%s) [%s][%s][%s] failed validation",
                                                                       me.getMessage(),

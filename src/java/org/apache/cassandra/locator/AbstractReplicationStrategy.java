@@ -84,7 +84,7 @@ public abstract class AbstractReplicationStrategy
             {
                 if (lastVersion > lastInvalidatedVersion)
                 {
-                    logger.debug("clearing cached endpoints");
+                    logger.trace("clearing cached endpoints");
                     cachedEndpoints.clear();
                     lastInvalidatedVersion = lastVersion;
                 }

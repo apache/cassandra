@@ -90,7 +90,7 @@ public class SerializingCache<K, V> implements ICache<K, V>
         }
         catch (IOException e)
         {
-            logger.debug("Cannot fetch in memory data, we will fallback to read from disk ", e);
+            logger.trace("Cannot fetch in memory data, we will fallback to read from disk ", e);
             return null;
         }
     }

@@ -85,7 +85,7 @@ public class SplittingSizeTieredCompactionWriter extends CompactionAwareWriter
         long currentPartitionsToWrite = Math.round(estimatedTotalKeys * ratios[currentRatioIndex]);
         currentBytesToWrite = Math.round(totalSize * ratios[currentRatioIndex]);
         switchCompactionLocation(getWriteDirectory(currentBytesToWrite));
-        logger.debug("Ratios={}, expectedKeys = {}, totalSize = {}, currentPartitionsToWrite = {}, currentBytesToWrite = {}", ratios, estimatedTotalKeys, totalSize, currentPartitionsToWrite, currentBytesToWrite);
+        logger.trace("Ratios={}, expectedKeys = {}, totalSize = {}, currentPartitionsToWrite = {}, currentBytesToWrite = {}", ratios, estimatedTotalKeys, totalSize, currentPartitionsToWrite, currentBytesToWrite);
     }
 
     @Override
@@ -112,7 +112,7 @@ public class SplittingSizeTieredCompactionWriter extends CompactionAwareWriter
                                                     new MetadataCollector(allSSTables, cfs.metadata.comparator, 0),
                                                     SerializationHeader.make(cfs.metadata, nonExpiredSSTables),
                                                     txn);
-        logger.debug("Switching writer, currentPartitionsToWrite = {}", currentPartitionsToWrite);
+        logger.trace("Switching writer, currentPartitionsToWrite = {}", currentPartitionsToWrite);
         sstableWriter.switchWriter(writer);
 
     }

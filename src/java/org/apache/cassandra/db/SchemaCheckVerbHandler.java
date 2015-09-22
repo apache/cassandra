@@ -35,7 +35,7 @@ public class SchemaCheckVerbHandler implements IVerbHandler
 
     public void doVerb(MessageIn message, int id)
     {
-        logger.debug("Received schema check request.");
+        logger.trace("Received schema check request.");
         MessageOut<UUID> response = new MessageOut<UUID>(MessagingService.Verb.INTERNAL_RESPONSE, Schema.instance.getVersion(), UUIDSerializer.serializer);
         MessagingService.instance().sendReply(response, id, message.from);
     }

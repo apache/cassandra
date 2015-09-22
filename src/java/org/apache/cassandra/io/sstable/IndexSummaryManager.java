@@ -278,7 +278,7 @@ public class IndexSummaryManager implements IndexSummaryManagerMBean
         for (SSTableReader sstable : Iterables.concat(compacting, redistribute))
             total += sstable.getIndexSummaryOffHeapSize();
 
-        logger.debug("Beginning redistribution of index summaries for {} sstables with memory pool size {} MB; current spaced used is {} MB",
+        logger.trace("Beginning redistribution of index summaries for {} sstables with memory pool size {} MB; current spaced used is {} MB",
                      redistribute.size(), memoryPoolBytes / 1024L / 1024L, total / 1024.0 / 1024.0);
 
         final Map<SSTableReader, Double> readRates = new HashMap<>(redistribute.size());
@@ -312,7 +312,7 @@ public class IndexSummaryManager implements IndexSummaryManagerMBean
         total = 0;
         for (SSTableReader sstable : Iterables.concat(compacting, oldFormatSSTables, newSSTables))
             total += sstable.getIndexSummaryOffHeapSize();
-        logger.debug("Completed resizing of index summaries; current approximate memory used: {} MB",
+        logger.trace("Completed resizing of index summaries; current approximate memory used: {} MB",
                      total / 1024.0 / 1024.0);
 
         return newSSTables;
@@ -370,7 +370,7 @@ public class IndexSummaryManager implements IndexSummaryManagerMBean
             if (effectiveIndexInterval < minIndexInterval)
             {
                 // The min_index_interval was changed; re-sample to match it.
-                logger.debug("Forcing resample of {} because the current index interval ({}) is below min_index_interval ({})",
+                logger.trace("Forcing resample of {} because the current index interval ({}) is below min_index_interval ({})",
                         sstable, effectiveIndexInterval, minIndexInterval);
                 long spaceUsed = (long) Math.ceil(avgEntrySize * numEntriesAtNewSamplingLevel);
                 forceResample.add(new ResampleEntry(sstable, spaceUsed, newSamplingLevel));
@@ -379,7 +379,7 @@ public class IndexSummaryManager implements IndexSummaryManagerMBean
             else if (effectiveIndexInterval > maxIndexInterval)
             {
                 // The max_index_interval was lowered; force an upsample to the effective minimum sampling level
-                logger.debug("Forcing upsample of {} because the current index interval ({}) is above max_index_interval ({})",
+                logger.trace("Forcing upsample of {} because the current index interval ({}) is above max_index_interval ({})",
                         sstable, effectiveIndexInterval, maxIndexInterval);
                 newSamplingLevel = Math.max(1, (BASE_SAMPLING_LEVEL * minIndexInterval) / maxIndexInterval);
                 numEntriesAtNewSamplingLevel = IndexSummaryBuilder.entriesAtSamplingLevel(newSamplingLevel, sstable.getMaxIndexSummarySize());
@@ -426,7 +426,7 @@ public class IndexSummaryManager implements IndexSummaryManagerMBean
         for (ResampleEntry entry : toDownsample)
         {
             SSTableReader sstable = entry.sstable;
-            logger.debug("Re-sampling index summary for {} from {}/{} to {}/{} of the original number of entries",
+            logger.trace("Re-sampling index summary for {} from {}/{} to {}/{} of the original number of entries",
                          sstable, sstable.getIndexSummarySamplingLevel(), Downsampling.BASE_SAMPLING_LEVEL,
                          entry.newSamplingLevel, Downsampling.BASE_SAMPLING_LEVEL);
             ColumnFamilyStore cfs = Keyspace.open(sstable.metadata.ksName).getColumnFamilyStore(sstable.metadata.cfId);

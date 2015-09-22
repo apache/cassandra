@@ -175,8 +175,8 @@ public class FileUtils
     public static void renameWithConfirm(File from, File to)
     {
         assert from.exists();
-        if (logger.isDebugEnabled())
-            logger.debug((String.format("Renaming %s to %s", from.getPath(), to.getPath())));
+        if (logger.isTraceEnabled())
+            logger.trace((String.format("Renaming %s to %s", from.getPath(), to.getPath())));
         // this is not FSWE because usually when we see it it's because we didn't close the file before renaming it,
         // and Windows is picky about that.
         try
@@ -203,7 +203,7 @@ public class FileUtils
         }
         catch (AtomicMoveNotSupportedException e)
         {
-            logger.debug("Could not do an atomic move", e);
+            logger.trace("Could not do an atomic move", e);
             Files.move(from, to, StandardCopyOption.REPLACE_EXISTING);
         }
 
@@ -454,7 +454,7 @@ public class FileUtils
                 deleteRecursiveOnExit(new File(dir, child));
         }
 
-        logger.debug("Scheduling deferred deletion of file: " + dir);
+        logger.trace("Scheduling deferred deletion of file: " + dir);
         dir.deleteOnExit();
     }
 

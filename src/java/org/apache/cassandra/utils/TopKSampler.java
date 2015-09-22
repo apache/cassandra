@@ -110,7 +110,7 @@ public class TopKSampler<T>
                                 hll.offerHashed(hash);
                             } catch (Exception e)
                             {
-                                logger.debug("Failure to offer sample", e);
+                                logger.trace("Failure to offer sample", e);
                             }
                         }
                     }

@@ -71,7 +71,7 @@ public class NetworkTopologyStrategy extends AbstractReplicationStrategy
         }
 
         datacenters = Collections.unmodifiableMap(newDatacenters);
-        logger.debug("Configured datacenter replicas are {}", FBUtilities.toString(datacenters));
+        logger.trace("Configured datacenter replicas are {}", FBUtilities.toString(datacenters));
     }
 
     /**

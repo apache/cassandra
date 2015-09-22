@@ -222,7 +222,7 @@ final class JavaBasedUDFunction extends UDFunction
 
         String javaSource = javaSourceBuilder.toString();
 
-        logger.debug("Compiling Java source UDF '{}' as class '{}' using source:\n{}", name, targetClassName, javaSource);
+        logger.trace("Compiling Java source UDF '{}' as class '{}' using source:\n{}", name, targetClassName, javaSource);
 
         try
         {
@@ -395,7 +395,7 @@ final class JavaBasedUDFunction extends UDFunction
             if (i > 0)
                 code.append(",\n");
 
-            if (logger.isDebugEnabled())
+            if (logger.isTraceEnabled())
                 code.append("            /* parameter '").append(argNames.get(i)).append("' */\n");
 
             code

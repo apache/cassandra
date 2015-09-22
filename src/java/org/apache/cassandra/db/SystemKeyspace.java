@@ -1308,7 +1308,7 @@ public final class SystemKeyspace
             {
                 if (dataDirectory.getName().equals("Versions") && dataDirectory.listFiles().length > 0)
                 {
-                    logger.debug("Found unreadable versions info in pre 1.2 system.Versions table");
+                    logger.trace("Found unreadable versions info in pre 1.2 system.Versions table");
                     return UNREADABLE_VERSION.toString();
                 }
             }
@@ -1329,7 +1329,7 @@ public final class SystemKeyspace
         Iterable<String> dirs = Arrays.asList(DatabaseDescriptor.getAllDataFileLocations());
         for (String dataDir : dirs)
         {
-            logger.debug("Checking directory {} for old files", dataDir);
+            logger.trace("Checking directory {} for old files", dataDir);
             File dir = new File(dataDir);
             assert dir.exists() : dir + " should have been created by startup checks";
 

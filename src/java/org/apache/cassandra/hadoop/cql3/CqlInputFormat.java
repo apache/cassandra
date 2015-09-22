@@ -119,7 +119,7 @@ public class CqlInputFormat extends org.apache.hadoop.mapreduce.InputFormat<Long
         keyspace = ConfigHelper.getInputKeyspace(conf);
         cfName = ConfigHelper.getInputColumnFamily(conf);
         partitioner = ConfigHelper.getInputPartitioner(conf);
-        logger.debug("partitioner is {}", partitioner);
+        logger.trace("partitioner is {}", partitioner);
 
         // canonical ranges and nodes holding replicas
         Map<TokenRange, Set<Host>> masterRangeNodes = getRangeMap(conf, keyspace);
@@ -325,7 +325,7 @@ public class CqlInputFormat extends org.apache.hadoop.mapreduce.InputFormat<Long
                                     subSplits.get(subSplit),
                                     endpoints);
 
-                    logger.debug("adding {}", split);
+                    logger.trace("adding {}", split);
                     splits.add(split);
                 }
             }

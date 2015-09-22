@@ -122,18 +122,22 @@ Changed Defaults
    - commitlog_total_space_in_mb will use the smaller of 8192, and 1/4
      of the total space of the commitlog volume. (Before: always used
      8192)
+   - The following INFO logs were reduced to DEBUG level and will now show
+     on debug.log instead of system.log:
+      - Memtable flushing actions
+      - Commit log replayed files
+      - Compacted sstables
+      - SStable opening (SSTableReader)
 
 New features
 ------------
    - Custom QueryHandlers can retrieve the column specifications for the bound
      variables from QueryOptions by using the hasColumnSpecifications()
      and getColumnSpecifications() methods.
-
-New features
-------------
-   - Custom QueryHandlers can retrieve the column specifications for the bound
-     variables from QueryOptions by using the hasColumnSpecifications()
-     and getColumnSpecifications() methods.
+   - A new default assynchronous log appender debug.log was created in addition
+     to  the system.log appender in order to provide more detailed log debugging.
+     In order to disable debug logging, you must comment-out the ASYNCDEBUGLOG
+     appender on conf/logback.xml. See CASSANDRA-10241 for more information.
 
 
 2.2.1

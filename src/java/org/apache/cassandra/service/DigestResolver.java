@@ -66,8 +66,8 @@ public class DigestResolver extends ResponseResolver
         if (responses.size() == 1)
             return getData();
 
-        if (logger.isDebugEnabled())
-            logger.debug("resolving {} responses", responses.size());
+        if (logger.isTraceEnabled())
+            logger.trace("resolving {} responses", responses.size());
 
         long start = System.nanoTime();
 
@@ -85,8 +85,8 @@ public class DigestResolver extends ResponseResolver
                 throw new DigestMismatchException(((SinglePartitionReadCommand)command).partitionKey(), digest, newDigest);
         }
 
-        if (logger.isDebugEnabled())
-            logger.debug("resolve: {} ms.", TimeUnit.NANOSECONDS.toMillis(System.nanoTime() - start));
+        if (logger.isTraceEnabled())
+            logger.trace("resolve: {} ms.", TimeUnit.NANOSECONDS.toMillis(System.nanoTime() - start));
 
         return UnfilteredPartitionIterators.filter(dataResponse.makeIterator(command.metadata(), command), command.nowInSec());
     }

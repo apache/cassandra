@@ -295,8 +295,8 @@ public class OutboundTcpConnection extends Thread
             disconnect();
             if (e instanceof IOException || e.getCause() instanceof IOException)
             {
-                if (logger.isDebugEnabled())
-                    logger.debug("error writing to {}", poolReference.endPoint(), e);
+                if (logger.isTraceEnabled())
+                    logger.trace("error writing to {}", poolReference.endPoint(), e);
 
                 // if the message was important, such as a repair acknowledgement, put it back on the queue
                 // to retry after re-connecting.  See CASSANDRA-5393
@@ -371,8 +371,8 @@ public class OutboundTcpConnection extends Thread
     @SuppressWarnings("resource")
     private boolean connect()
     {
-        if (logger.isDebugEnabled())
-            logger.debug("attempting to connect to {}", poolReference.endPoint());
+        if (logger.isTraceEnabled())
+            logger.trace("attempting to connect to {}", poolReference.endPoint());
 
         long start = System.nanoTime();
         long timeout = TimeUnit.MILLISECONDS.toNanos(DatabaseDescriptor.getRpcTimeout());
@@ -418,7 +418,7 @@ public class OutboundTcpConnection extends Thread
                     // no version is returned, so disconnect an try again: we will either get
                     // a different target version (targetVersion < MessagingService.VERSION_12)
                     // or if the same version the handshake will finally succeed
-                    logger.debug("Target max version is {}; no version information yet, will retry", maxTargetVersion);
+                    logger.trace("Target max version is {}; no version information yet, will retry", maxTargetVersion);
                     if (DatabaseDescriptor.getSeeds().contains(poolReference.endPoint()))
                         logger.warn("Seed gossip version is {}; will not connect with that version", maxTargetVersion);
                     disconnect();
@@ -431,7 +431,7 @@ public class OutboundTcpConnection extends Thread
 
                 if (targetVersion > maxTargetVersion)
                 {
-                    logger.debug("Target max version is {}; will reconnect with that version", maxTargetVersion);
+                    logger.trace("Target max version is {}; will reconnect with that version", maxTargetVersion);
                     disconnect();
                     return false;
                 }
