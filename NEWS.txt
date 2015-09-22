@@ -44,6 +44,9 @@ New features
 
 Upgrading
 ---------
+   - The LIMIT clause applies now only to the number of rows returned to the user,
+     not to the number of row queried. By consequence, queries using aggregates will not
+     be impacted by the LIMIT clause anymore.
    - The native protocol versions 1 and 2 are not supported anymore.
    - Max mutation size is now configurable via max_mutation_size_in_kb setting in
      cassandra.yaml; the default is half the size commitlog_segment_size_in_mb * 1024.
