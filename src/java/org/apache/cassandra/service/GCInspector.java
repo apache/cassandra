@@ -282,8 +282,8 @@ public class GCInspector implements NotificationListener, GCInspectorMXBean
                 logger.warn(st);
             else if (duration > MIN_LOG_DURATION)
                 logger.info(st);
-            else if (logger.isDebugEnabled())
-                logger.debug(st);
+            else if (logger.isTraceEnabled())
+                logger.trace(st);
 
             if (duration > STAT_THRESHOLD)
                 StatusLogger.log();

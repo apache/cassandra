@@ -53,7 +53,7 @@ public final class HintVerbHandler implements IVerbHandler<HintMessage>
         // is schema agreement between the sender and the receiver.
         if (hint == null)
         {
-            logger.debug("Failed to decode and apply a hint for {} - table with id {} is unknown",
+            logger.trace("Failed to decode and apply a hint for {} - table with id {} is unknown",
                          hostId,
                          message.payload.unknownTableID);
             reply(id, message.from);

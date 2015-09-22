@@ -35,7 +35,7 @@ public class CounterMutationVerbHandler implements IVerbHandler<CounterMutation>
     public void doVerb(final MessageIn<CounterMutation> message, final int id)
     {
         final CounterMutation cm = message.payload;
-        logger.debug("Applying forwarded {}", cm);
+        logger.trace("Applying forwarded {}", cm);
 
         String localDataCenter = DatabaseDescriptor.getEndpointSnitch().getDatacenter(FBUtilities.getBroadcastAddress());
         // We should not wait for the result of the write in this thread,

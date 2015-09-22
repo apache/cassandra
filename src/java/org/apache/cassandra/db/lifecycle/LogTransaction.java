@@ -132,8 +132,8 @@ class LogTransaction extends Transactional.AbstractTransactional implements Tran
         this.data = new LogFile(opType, folder, folderDescriptor, UUIDGen.getTimeUUID());
         this.selfRef = new Ref<>(this, new TransactionTidier(data, folderDescriptor));
 
-        if (logger.isDebugEnabled())
-            logger.debug("Created transaction logs with id {}", data.id);
+        if (logger.isTraceEnabled())
+            logger.trace("Created transaction logs with id {}", data.id);
     }
 
     /**
@@ -199,8 +199,8 @@ class LogTransaction extends Transactional.AbstractTransactional implements Tran
     {
         try
         {
-            if (logger.isDebugEnabled())
-                logger.debug("Deleting {}", file);
+            if (logger.isTraceEnabled())
+                logger.trace("Deleting {}", file);
 
             Files.delete(file.toPath());
         }
@@ -244,8 +244,8 @@ class LogTransaction extends Transactional.AbstractTransactional implements Tran
 
         public void run()
         {
-            if (logger.isDebugEnabled())
-                logger.debug("Removing files for transaction {}", name());
+            if (logger.isTraceEnabled())
+                logger.trace("Removing files for transaction {}", name());
 
             assert data.completed() : "Expected a completed transaction: " + data;
 
@@ -258,8 +258,8 @@ class LogTransaction extends Transactional.AbstractTransactional implements Tran
             }
             else
             {
-                if (logger.isDebugEnabled())
-                    logger.debug("Closing file transaction {}", name());
+                if (logger.isTraceEnabled())
+                    logger.trace("Closing file transaction {}", name());
                 CLibrary.tryCloseFD(folderDescriptor);
             }
         }

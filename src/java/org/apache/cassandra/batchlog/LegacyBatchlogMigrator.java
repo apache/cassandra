@@ -90,7 +90,7 @@ public final class LegacyBatchlogMigrator
     public static void handleLegacyMutation(Mutation mutation)
     {
         PartitionUpdate update = mutation.getPartitionUpdate(SystemKeyspace.LegacyBatchlog.cfId);
-        logger.debug("Applying legacy batchlog mutation {}", update);
+        logger.trace("Applying legacy batchlog mutation {}", update);
         update.forEach(row -> apply(UntypedResultSet.Row.fromInternalRow(update.metadata(), update.partitionKey(), row), -1));
     }
 
@@ -103,7 +103,7 @@ public final class LegacyBatchlogMigrator
         if (id.version() != 1)
             id = UUIDGen.getTimeUUID(timestamp, counter);
 
-        logger.debug("Converting mutation at {}", timestamp);
+        logger.trace("Converting mutation at {}", timestamp);
 
         try (DataInputBuffer in = new DataInputBuffer(row.getBytes("data"), false))
         {
@@ -127,7 +127,7 @@ public final class LegacyBatchlogMigrator
     {
         for (InetAddress target : endpoints)
         {
-            logger.debug("Sending legacy batchlog store request {} to {} for {} mutations", batch.id, target, batch.size());
+            logger.trace("Sending legacy batchlog store request {} to {} for {} mutations", batch.id, target, batch.size());
 
             int targetVersion = MessagingService.instance().getVersion(target);
             MessagingService.instance().sendRR(getStoreMutation(batch, targetVersion).createMessage(MessagingService.Verb.MUTATION),
@@ -149,7 +149,7 @@ public final class LegacyBatchlogMigrator
 
         for (InetAddress target : endpoints)
         {
-            logger.debug("Sending legacy batchlog remove request {} to {}", uuid, target);
+            logger.trace("Sending legacy batchlog remove request {} to {}", uuid, target);
             MessagingService.instance().sendRR(mutation.createMessage(MessagingService.Verb.MUTATION), target, handler, false);
         }
     }

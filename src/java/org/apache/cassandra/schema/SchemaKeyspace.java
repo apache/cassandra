@@ -1591,7 +1591,7 @@ public final class SchemaKeyspace
                 udf.body().equals(body) &&
                 udf.isCalledOnNullInput() == calledOnNullInput)
             {
-                logger.debug("Skipping duplicate compilation of already existing UDF {}", name);
+                logger.trace("Skipping duplicate compilation of already existing UDF {}", name);
                 return udf;
             }
         }

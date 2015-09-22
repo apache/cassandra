@@ -258,8 +258,8 @@ public class AutoSavingCache<K extends CacheKey, V> extends InstrumentingCache<K
                 FileUtils.closeQuietly(in);
             }
         }
-        if (logger.isDebugEnabled())
-            logger.debug("completed reading ({} ms; {} keys) saved cache {}",
+        if (logger.isTraceEnabled())
+            logger.trace("completed reading ({} ms; {} keys) saved cache {}",
                     TimeUnit.NANOSECONDS.toMillis(System.nanoTime() - start), count, dataPath);
         return count;
     }
@@ -322,12 +322,12 @@ public class AutoSavingCache<K extends CacheKey, V> extends InstrumentingCache<K
 
         public void saveCache()
         {
-            logger.debug("Deleting old {} files.", cacheType);
+            logger.trace("Deleting old {} files.", cacheType);
             deleteOldCacheFiles();
 
             if (!keyIterator.hasNext())
             {
-                logger.debug("Skipping {} save, cache is empty.", cacheType);
+                logger.trace("Skipping {} save, cache is empty.", cacheType);
                 return;
             }
 

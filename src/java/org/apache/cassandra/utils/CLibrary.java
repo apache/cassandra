@@ -71,7 +71,7 @@ public final class CLibrary
         catch (UnsatisfiedLinkError e)
         {
             logger.warn("JNA link failure, one or more native method will be unavailable.");
-            logger.debug("JNA link failure details: {}", e.getMessage());
+            logger.trace("JNA link failure details: {}", e.getMessage());
         }
         catch (NoSuchMethodError e)
         {

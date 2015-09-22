@@ -137,8 +137,8 @@ public class ReadCallback implements IAsyncCallbackWithFailure<ReadResponse>
         awaitResults();
 
         PartitionIterator result = blockfor == 1 ? resolver.getData() : resolver.resolve();
-        if (logger.isDebugEnabled())
-            logger.debug("Read: {} ms.", TimeUnit.NANOSECONDS.toMillis(System.nanoTime() - start));
+        if (logger.isTraceEnabled())
+            logger.trace("Read: {} ms.", TimeUnit.NANOSECONDS.toMillis(System.nanoTime() - start));
         return result;
     }
 

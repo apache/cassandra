@@ -626,7 +626,7 @@ public class CqlNativeStorage extends LoadFunc implements StoreFuncInterface, Lo
 
         if (wc != null)
         {
-            logger.debug("where clause: {}", wc);
+            logger.trace("where clause: {}", wc);
             CqlConfigHelper.setInputWhereClauses(conf, wc);
         }
         if (System.getenv(StorageHelper.PIG_INPUT_SPLIT_SIZE) != null)

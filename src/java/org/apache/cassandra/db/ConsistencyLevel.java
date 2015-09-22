@@ -260,7 +260,7 @@ public enum ConsistencyLevel
                 int localLive = countLocalEndpoints(liveEndpoints);
                 if (localLive < blockFor)
                 {
-                    if (logger.isDebugEnabled())
+                    if (logger.isTraceEnabled())
                     {
                         StringBuilder builder = new StringBuilder("Local replicas [");
                         for (InetAddress endpoint : liveEndpoints)
@@ -269,7 +269,7 @@ public enum ConsistencyLevel
                                 builder.append(endpoint).append(",");
                         }
                         builder.append("] are insufficient to satisfy LOCAL_QUORUM requirement of ").append(blockFor).append(" live nodes in '").append(DatabaseDescriptor.getLocalDataCenter()).append("'");
-                        logger.debug(builder.toString());
+                        logger.trace(builder.toString());
                     }
                     throw new UnavailableException(this, blockFor, localLive);
                 }
@@ -291,7 +291,7 @@ public enum ConsistencyLevel
                 int live = Iterables.size(liveEndpoints);
                 if (live < blockFor)
                 {
-                    logger.debug("Live nodes {} do not satisfy ConsistencyLevel ({} required)", Iterables.toString(liveEndpoints), blockFor);
+                    logger.trace("Live nodes {} do not satisfy ConsistencyLevel ({} required)", Iterables.toString(liveEndpoints), blockFor);
                     throw new UnavailableException(this, blockFor, live);
                 }
                 break;

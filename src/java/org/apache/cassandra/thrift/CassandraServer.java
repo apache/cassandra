@@ -288,7 +288,7 @@ public class CassandraServer implements Cassandra.Iface
         }
         else
         {
-            logger.debug("get_slice");
+            logger.trace("get_slice");
         }
 
         try
@@ -337,7 +337,7 @@ public class CassandraServer implements Cassandra.Iface
         }
         else
         {
-            logger.debug("multiget_slice");
+            logger.trace("multiget_slice");
         }
 
         try
@@ -578,7 +578,7 @@ public class CassandraServer implements Cassandra.Iface
         }
         else
         {
-            logger.debug("get");
+            logger.trace("get");
         }
 
         try
@@ -669,7 +669,7 @@ public class CassandraServer implements Cassandra.Iface
         }
         else
         {
-            logger.debug("get_count");
+            logger.trace("get_count");
         }
 
         try
@@ -691,7 +691,7 @@ public class CassandraServer implements Cassandra.Iface
                 int averageColumnSize = (int) (cfs.metric.meanPartitionSize.getValue() / cfs.getMeanColumns());
                 pageSize = Math.min(COUNT_PAGE_SIZE, 4 * 1024 * 1024 / averageColumnSize);
                 pageSize = Math.max(2, pageSize);
-                logger.debug("average row column size is {}; using pageSize of {}", averageColumnSize, pageSize);
+                logger.trace("average row column size is {}; using pageSize of {}", averageColumnSize, pageSize);
             }
             else
             {
@@ -768,7 +768,7 @@ public class CassandraServer implements Cassandra.Iface
         }
         else
         {
-            logger.debug("multiget_count");
+            logger.trace("multiget_count");
         }
 
         try
@@ -861,7 +861,7 @@ public class CassandraServer implements Cassandra.Iface
         }
         else
         {
-            logger.debug("insert");
+            logger.trace("insert");
         }
 
         try
@@ -901,7 +901,7 @@ public class CassandraServer implements Cassandra.Iface
         }
         else
         {
-            logger.debug("cas");
+            logger.trace("cas");
         }
 
         try
@@ -1268,7 +1268,7 @@ public class CassandraServer implements Cassandra.Iface
         }
         else
         {
-            logger.debug("batch_mutate");
+            logger.trace("batch_mutate");
         }
 
         try
@@ -1301,7 +1301,7 @@ public class CassandraServer implements Cassandra.Iface
         }
         else
         {
-            logger.debug("atomic_batch_mutate");
+            logger.trace("atomic_batch_mutate");
         }
 
         try
@@ -1383,7 +1383,7 @@ public class CassandraServer implements Cassandra.Iface
         }
         else
         {
-            logger.debug("remove");
+            logger.trace("remove");
         }
 
         try
@@ -1470,7 +1470,7 @@ public class CassandraServer implements Cassandra.Iface
         }
         else
         {
-            logger.debug("range_slice");
+            logger.trace("range_slice");
         }
 
         try
@@ -1558,7 +1558,7 @@ public class CassandraServer implements Cassandra.Iface
         }
         else
         {
-            logger.debug("get_paged_slice");
+            logger.trace("get_paged_slice");
         }
 
         try
@@ -1673,7 +1673,7 @@ public class CassandraServer implements Cassandra.Iface
         }
         else
         {
-            logger.debug("scan");
+            logger.trace("scan");
         }
 
         try
@@ -1868,7 +1868,7 @@ public class CassandraServer implements Cassandra.Iface
 
     public String system_add_column_family(CfDef cf_def) throws TException
     {
-        logger.debug("add_column_family");
+        logger.trace("add_column_family");
 
         try
         {
@@ -1894,7 +1894,7 @@ public class CassandraServer implements Cassandra.Iface
     public String system_drop_column_family(String column_family)
     throws InvalidRequestException, SchemaDisagreementException, TException
     {
-        logger.debug("drop_column_family");
+        logger.trace("drop_column_family");
 
         ThriftClientState cState = state();
 
@@ -1919,7 +1919,7 @@ public class CassandraServer implements Cassandra.Iface
     public String system_add_keyspace(KsDef ks_def)
     throws InvalidRequestException, SchemaDisagreementException, TException
     {
-        logger.debug("add_keyspace");
+        logger.trace("add_keyspace");
 
         try
         {
@@ -1959,7 +1959,7 @@ public class CassandraServer implements Cassandra.Iface
     public String system_drop_keyspace(String keyspace)
     throws InvalidRequestException, SchemaDisagreementException, TException
     {
-        logger.debug("drop_keyspace");
+        logger.trace("drop_keyspace");
 
         try
         {
@@ -1981,7 +1981,7 @@ public class CassandraServer implements Cassandra.Iface
     public String system_update_keyspace(KsDef ks_def)
     throws InvalidRequestException, SchemaDisagreementException, TException
     {
-        logger.debug("update_keyspace");
+        logger.trace("update_keyspace");
 
         try
         {
@@ -2003,7 +2003,7 @@ public class CassandraServer implements Cassandra.Iface
     public String system_update_column_family(CfDef cf_def)
     throws InvalidRequestException, SchemaDisagreementException, TException
     {
-        logger.debug("update_column_family");
+        logger.trace("update_column_family");
 
         try
         {
@@ -2057,7 +2057,7 @@ public class CassandraServer implements Cassandra.Iface
             }
             else
             {
-                logger.debug("truncating {}.{}", cState.getKeyspace(), cfname);
+                logger.trace("truncating {}.{}", cState.getKeyspace(), cfname);
             }
 
             schedule(DatabaseDescriptor.getTruncateRpcTimeout());
@@ -2106,7 +2106,7 @@ public class CassandraServer implements Cassandra.Iface
 
     public Map<String, List<String>> describe_schema_versions() throws TException, InvalidRequestException
     {
-        logger.debug("checking schema agreement");
+        logger.trace("checking schema agreement");
         return StorageProxy.describeSchemaVersions();
     }
 
@@ -2124,7 +2124,7 @@ public class CassandraServer implements Cassandra.Iface
         }
         else
         {
-            logger.debug("add");
+            logger.trace("add");
         }
 
         try
@@ -2188,7 +2188,7 @@ public class CassandraServer implements Cassandra.Iface
         }
         else
         {
-            logger.debug("remove_counter");
+            logger.trace("remove_counter");
         }
 
         try
@@ -2281,7 +2281,7 @@ public class CassandraServer implements Cassandra.Iface
             }
             else
             {
-                logger.debug("execute_cql3_query");
+                logger.trace("execute_cql3_query");
             }
 
             ThriftClientState cState = state();
@@ -2312,7 +2312,7 @@ public class CassandraServer implements Cassandra.Iface
 
     public CqlPreparedResult prepare_cql3_query(ByteBuffer query, Compression compression) throws TException
     {
-        logger.debug("prepare_cql3_query");
+        logger.trace("prepare_cql3_query");
 
         String queryString = uncompress(query, compression);
         ThriftClientState cState = state();
@@ -2342,7 +2342,7 @@ public class CassandraServer implements Cassandra.Iface
         }
         else
         {
-            logger.debug("execute_prepared_cql3_query");
+            logger.trace("execute_prepared_cql3_query");
         }
 
         try
@@ -2391,7 +2391,7 @@ public class CassandraServer implements Cassandra.Iface
         }
         else
         {
-            logger.debug("get_multi_slice");
+            logger.trace("get_multi_slice");
         }
         try 
         {

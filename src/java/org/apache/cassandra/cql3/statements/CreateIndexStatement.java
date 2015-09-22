@@ -233,7 +233,7 @@ public class CreateIndexStatement extends SchemaAlteringStatement
                                                             index.name,
                                                             existingIndex.get().name));
 
-        logger.debug("Updating index definition for {}", indexName);
+        logger.trace("Updating index definition for {}", indexName);
         cfm.indexes(cfm.getIndexes().with(index));
 
         MigrationManager.announceColumnFamilyUpdate(cfm, false, isLocalOnly);

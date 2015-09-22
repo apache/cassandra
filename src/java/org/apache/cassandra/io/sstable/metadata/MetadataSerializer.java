@@ -79,11 +79,11 @@ public class MetadataSerializer implements IMetadataSerializer
     public Map<MetadataType, MetadataComponent> deserialize( Descriptor descriptor, EnumSet<MetadataType> types) throws IOException
     {
         Map<MetadataType, MetadataComponent> components;
-        logger.debug("Load metadata for {}", descriptor);
+        logger.trace("Load metadata for {}", descriptor);
         File statsFile = new File(descriptor.filenameFor(Component.STATS));
         if (!statsFile.exists())
         {
-            logger.debug("No sstable stats for {}", descriptor);
+            logger.trace("No sstable stats for {}", descriptor);
             components = Maps.newHashMap();
             components.put(MetadataType.STATS, MetadataCollector.defaultStatsMetadata());
         }
@@ -129,7 +129,7 @@ public class MetadataSerializer implements IMetadataSerializer
 
     public void mutateLevel(Descriptor descriptor, int newLevel) throws IOException
     {
-        logger.debug("Mutating {} to level {}", descriptor.filenameFor(Component.STATS), newLevel);
+        logger.trace("Mutating {} to level {}", descriptor.filenameFor(Component.STATS), newLevel);
         Map<MetadataType, MetadataComponent> currentComponents = deserialize(descriptor, EnumSet.allOf(MetadataType.class));
         StatsMetadata stats = (StatsMetadata) currentComponents.remove(MetadataType.STATS);
         // mutate level
@@ -139,7 +139,7 @@ public class MetadataSerializer implements IMetadataSerializer
 
     public void mutateRepairedAt(Descriptor descriptor, long newRepairedAt) throws IOException
     {
-        logger.debug("Mutating {} to repairedAt time {}", descriptor.filenameFor(Component.STATS), newRepairedAt);
+        logger.trace("Mutating {} to repairedAt time {}", descriptor.filenameFor(Component.STATS), newRepairedAt);
         Map<MetadataType, MetadataComponent> currentComponents = deserialize(descriptor, EnumSet.allOf(MetadataType.class));
         StatsMetadata stats = (StatsMetadata) currentComponents.remove(MetadataType.STATS);
         // mutate level

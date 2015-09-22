@@ -461,7 +461,7 @@ public final class MessagingService implements MessagingServiceMBean
      */
     public void convict(InetAddress ep)
     {
-        logger.debug("Resetting pool for {}", ep);
+        logger.trace("Resetting pool for {}", ep);
         getConnectionPool(ep).reset();
     }
 
@@ -556,7 +556,7 @@ public final class MessagingService implements MessagingServiceMBean
         }
         catch (InterruptedException ie)
         {
-            logger.debug("await interrupted");
+            logger.trace("await interrupted");
         }
     }
 
@@ -856,7 +856,7 @@ public final class MessagingService implements MessagingServiceMBean
      */
     public int setVersion(InetAddress endpoint, int version)
     {
-        logger.debug("Setting version {} for {}", version, endpoint);
+        logger.trace("Setting version {} for {}", version, endpoint);
 
         if (version < VERSION_22)
             allNodesAtLeast22 = false;
@@ -874,7 +874,7 @@ public final class MessagingService implements MessagingServiceMBean
 
     public void resetVersion(InetAddress endpoint)
     {
-        logger.debug("Resetting version for {}", endpoint);
+        logger.trace("Resetting version for {}", endpoint);
         Integer removed = versions.remove(endpoint);
         if (removed != null && removed <= VERSION_30)
             refreshAllNodeMinVersions();
@@ -1007,7 +1007,7 @@ public final class MessagingService implements MessagingServiceMBean
                     socket = server.accept();
                     if (!authenticate(socket))
                     {
-                        logger.debug("remote failed to authenticate");
+                        logger.trace("remote failed to authenticate");
                         socket.close();
                         continue;
                     }
@@ -1020,7 +1020,7 @@ public final class MessagingService implements MessagingServiceMBean
                     int header = in.readInt();
                     boolean isStream = MessagingService.getBits(header, 3, 1) == 1;
                     int version = MessagingService.getBits(header, 15, 8);
-                    logger.debug("Connection version {} from {}", version, socket.getInetAddress());
+                    logger.trace("Connection version {} from {}", version, socket.getInetAddress());
                     socket.setSoTimeout(0);
 
                     Thread thread = isStream
@@ -1032,17 +1032,17 @@ public final class MessagingService implements MessagingServiceMBean
                 catch (AsynchronousCloseException e)
                 {
                     // this happens when another thread calls close().
-                    logger.debug("Asynchronous close seen by server thread");
+                    logger.trace("Asynchronous close seen by server thread");
                     break;
                 }
                 catch (ClosedChannelException e)
                 {
-                    logger.debug("MessagingService server thread already closed");
+                    logger.trace("MessagingService server thread already closed");
                     break;
                 }
                 catch (IOException e)
                 {
-                    logger.debug("Error reading the socket " + socket, e);
+                    logger.trace("Error reading the socket " + socket, e);
                     FileUtils.closeQuietly(socket);
                 }
             }
@@ -1051,7 +1051,7 @@ public final class MessagingService implements MessagingServiceMBean
 
         void close() throws IOException
         {
-            logger.debug("Closing accept() thread");
+            logger.trace("Closing accept() thread");
 
             try
             {

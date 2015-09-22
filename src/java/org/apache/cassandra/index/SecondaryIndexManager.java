@@ -597,7 +597,7 @@ public class SecondaryIndexManager implements IndexRegistry
 
         if (searchableIndexes.isEmpty())
         {
-            logger.debug("No applicable indexes found");
+            logger.trace("No applicable indexes found");
             Tracing.trace("No applicable indexes found");
             return null;
         }
@@ -643,13 +643,13 @@ public class SecondaryIndexManager implements IndexRegistry
     public void registerIndex(Index index)
     {
         indexes.put(index.getIndexMetadata().name, index);
-        logger.debug("Registered index {}", index.getIndexMetadata().name);
+        logger.trace("Registered index {}", index.getIndexMetadata().name);
     }
 
     public void unregisterIndex(Index index)
     {
         Index removed = indexes.remove(index.getIndexMetadata().name);
-        logger.debug(removed == null ? "Index {} was not registered" : "Removed index {} from registry",
+        logger.trace(removed == null ? "Index {} was not registered" : "Removed index {} from registry",
                      index.getIndexMetadata().name);
     }
 

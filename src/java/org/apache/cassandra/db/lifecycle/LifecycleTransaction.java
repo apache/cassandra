@@ -222,7 +222,7 @@ public class LifecycleTransaction extends Transactional.AbstractTransactional
     public Throwable doCommit(Throwable accumulate)
     {
         assert staged.isEmpty() : "must be no actions introduced between prepareToCommit and a commit";
-        logger.debug("Committing update:{}, obsolete:{}", staged.update, staged.obsolete);
+        logger.trace("Committing update:{}, obsolete:{}", staged.update, staged.obsolete);
 
         // accumulate must be null if we have been used correctly, so fail immediately if it is not
         maybeFail(accumulate);
@@ -247,8 +247,8 @@ public class LifecycleTransaction extends Transactional.AbstractTransactional
      */
     public Throwable doAbort(Throwable accumulate)
     {
-        if (logger.isDebugEnabled())
-            logger.debug("Aborting transaction over {}, with ({},{}) logged and ({},{}) staged", originals, logged.update, logged.obsolete, staged.update, staged.obsolete);
+        if (logger.isTraceEnabled())
+            logger.trace("Aborting transaction over {}, with ({},{}) logged and ({},{}) staged", originals, logged.update, logged.obsolete, staged.update, staged.obsolete);
 
         accumulate = abortObsoletion(obsoletions, accumulate);
 
@@ -257,7 +257,7 @@ public class LifecycleTransaction extends Transactional.AbstractTransactional
 
         // mark obsolete all readers that are not versions of those present in the original set
         Iterable<SSTableReader> obsolete = filterOut(concatUniq(staged.update, logged.update), originals);
-        logger.debug("Obsoleting {}", obsolete);
+        logger.trace("Obsoleting {}", obsolete);
 
         accumulate = prepareForObsoletion(obsolete, log, obsoletions = new ArrayList<>(), accumulate);
         // it's safe to abort even if committed, see maybeFail in doCommit() above, in this case it will just report
@@ -307,8 +307,8 @@ public class LifecycleTransaction extends Transactional.AbstractTransactional
     }
     private Throwable checkpoint(Throwable accumulate)
     {
-        if (logger.isDebugEnabled())
-            logger.debug("Checkpointing update:{}, obsolete:{}", staged.update, staged.obsolete);
+        if (logger.isTraceEnabled())
+            logger.trace("Checkpointing update:{}, obsolete:{}", staged.update, staged.obsolete);
 
         if (staged.isEmpty())
             return accumulate;
@@ -369,7 +369,7 @@ public class LifecycleTransaction extends Transactional.AbstractTransactional
      */
     public void obsolete(SSTableReader reader)
     {
-        logger.debug("Staging for obsolescence {}", reader);
+        logger.trace("Staging for obsolescence {}", reader);
         // check this is: a reader guarded by the transaction, an instance we have already worked with
         // and that we haven't already obsoleted it, nor do we have other changes staged for it
         assert identities.contains(reader.instanceId) : "only reader instances that have previously been provided may be obsoleted: " + reader;
@@ -385,7 +385,7 @@ public class LifecycleTransaction extends Transactional.AbstractTransactional
      */
     public void obsoleteOriginals()
     {
-        logger.debug("Staging for obsolescence {}", originals);
+        logger.trace("Staging for obsolescence {}", originals);
         // if we're obsoleting, we should have no staged updates for the original files
         assert Iterables.isEmpty(filterIn(staged.update, originals)) : staged.update;
 
@@ -467,7 +467,7 @@ public class LifecycleTransaction extends Transactional.AbstractTransactional
      */
     public void cancel(SSTableReader cancel)
     {
-        logger.debug("Cancelling {} from transaction", cancel);
+        logger.trace("Cancelling {} from transaction", cancel);
         assert originals.contains(cancel) : "may only cancel a reader in the 'original' set: " + cancel + " vs " + originals;
         assert !(staged.contains(cancel) || logged.contains(cancel)) : "may only cancel a reader that has not been updated or obsoleted in this transaction: " + cancel;
         originals.remove(cancel);
@@ -491,7 +491,7 @@ public class LifecycleTransaction extends Transactional.AbstractTransactional
      */
     public LifecycleTransaction split(Collection<SSTableReader> readers)
     {
-        logger.debug("Splitting {} into new transaction", readers);
+        logger.trace("Splitting {} into new transaction", readers);
         checkUnused();
         for (SSTableReader reader : readers)
             assert identities.contains(reader.instanceId) : "may only split the same reader instance the transaction was opened with: " + reader;

@@ -281,7 +281,7 @@ public abstract class UDFunction extends AbstractFunction implements ScalarFunct
         }
         catch (Throwable t)
         {
-            logger.debug("Invocation of user-defined function '{}' failed", this, t);
+            logger.trace("Invocation of user-defined function '{}' failed", this, t);
             if (t instanceof VirtualMachineError)
                 throw (VirtualMachineError) t;
             throw FunctionExecutionException.create(this, t);

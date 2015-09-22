@@ -70,7 +70,7 @@ public class CompactionStrategyManager implements INotificationConsumer
     public CompactionStrategyManager(ColumnFamilyStore cfs)
     {
         cfs.getTracker().subscribe(this);
-        logger.debug("{} subscribed to the data tracker.", this);
+        logger.trace("{} subscribed to the data tracker.", this);
         this.cfs = cfs;
         reload(cfs.metadata);
         params = cfs.metadata.params.compaction;

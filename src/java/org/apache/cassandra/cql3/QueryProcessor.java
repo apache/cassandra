@@ -626,20 +626,20 @@ public class QueryProcessor implements QueryHandler
 
         public void onUpdateColumnFamily(String ksName, String cfName, boolean columnsDidChange)
         {
-            logger.debug("Column definitions for {}.{} changed, invalidating related prepared statements", ksName, cfName);
+            logger.trace("Column definitions for {}.{} changed, invalidating related prepared statements", ksName, cfName);
             if (columnsDidChange)
                 removeInvalidPreparedStatements(ksName, cfName);
         }
 
         public void onDropKeyspace(String ksName)
         {
-            logger.debug("Keyspace {} was dropped, invalidating related prepared statements", ksName);
+            logger.trace("Keyspace {} was dropped, invalidating related prepared statements", ksName);
             removeInvalidPreparedStatements(ksName, null);
         }
 
         public void onDropColumnFamily(String ksName, String cfName)
         {
-            logger.debug("Table {}.{} was dropped, invalidating related prepared statements", ksName, cfName);
+            logger.trace("Table {}.{} was dropped, invalidating related prepared statements", ksName, cfName);
             removeInvalidPreparedStatements(ksName, cfName);
         }
 

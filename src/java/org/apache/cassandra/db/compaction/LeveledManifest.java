@@ -115,7 +115,7 @@ public class LeveledManifest
         if (canAddSSTable(reader))
         {
             // adding the sstable does not cause overlap in the level
-            logger.debug("Adding {} to L{}", reader, level);
+            logger.trace("Adding {} to L{}", reader, level);
             generations[level].add(reader);
         }
         else
@@ -146,8 +146,8 @@ public class LeveledManifest
     {
         assert !removed.isEmpty(); // use add() instead of promote when adding new sstables
         logDistribution();
-        if (logger.isDebugEnabled())
-            logger.debug("Replacing [{}]", toString(removed));
+        if (logger.isTraceEnabled())
+            logger.trace("Replacing [{}]", toString(removed));
 
         // the level for the added sstables is the max of the removed ones,
         // plus one if the removed were all on the same level
@@ -163,8 +163,8 @@ public class LeveledManifest
         if (added.isEmpty())
             return;
 
-        if (logger.isDebugEnabled())
-            logger.debug("Adding [{}]", toString(added));
+        if (logger.isTraceEnabled())
+            logger.trace("Adding [{}]", toString(added));
 
         for (SSTableReader ssTableReader : added)
             add(ssTableReader);
@@ -317,7 +317,7 @@ public class LeveledManifest
             Set<SSTableReader> sstablesInLevel = Sets.newHashSet(sstables);
             Set<SSTableReader> remaining = Sets.difference(sstablesInLevel, cfs.getTracker().getCompacting());
             double score = (double) SSTableReader.getTotalBytes(remaining) / (double)maxBytesForLevel(i, maxSSTableSizeInBytes);
-            logger.debug("Compaction score for level {} is {}", i, score);
+            logger.trace("Compaction score for level {} is {}", i, score);
 
             if (score > 1.001)
             {
@@ -327,7 +327,7 @@ public class LeveledManifest
                     List<SSTableReader> mostInteresting = getSSTablesForSTCS(getLevel(0));
                     if (!mostInteresting.isEmpty())
                     {
-                        logger.debug("L0 is too far behind, performing size-tiering there first");
+                        logger.trace("L0 is too far behind, performing size-tiering there first");
                         return new CompactionCandidate(mostInteresting, 0, Long.MAX_VALUE);
                     }
                 }
@@ -338,13 +338,13 @@ public class LeveledManifest
                 {
                     int nextLevel = getNextLevel(candidates);
                     candidates = getOverlappingStarvedSSTables(nextLevel, candidates);
-                    if (logger.isDebugEnabled())
-                        logger.debug("Compaction candidates for L{} are {}", i, toString(candidates));
+                    if (logger.isTraceEnabled())
+                        logger.trace("Compaction candidates for L{} are {}", i, toString(candidates));
                     return new CompactionCandidate(candidates, nextLevel, cfs.getCompactionStrategyManager().getMaxSSTableBytes());
                 }
                 else
                 {
-                    logger.debug("No compaction candidates for L{}", i);
+                    logger.trace("No compaction candidates for L{}", i);
                 }
             }
         }
@@ -387,10 +387,10 @@ public class LeveledManifest
         for (int i = generations.length - 1; i > 0; i--)
             compactionCounter[i]++;
         compactionCounter[targetLevel] = 0;
-        if (logger.isDebugEnabled())
+        if (logger.isTraceEnabled())
         {
             for (int j = 0; j < compactionCounter.length; j++)
-                logger.debug("CompactionCounter: {}: {}", j, compactionCounter[j]);
+                logger.trace("CompactionCounter: {}: {}", j, compactionCounter[j]);
         }
 
         for (int i = generations.length - 1; i > 0; i--)
@@ -451,13 +451,13 @@ public class LeveledManifest
 
     private void logDistribution()
     {
-        if (logger.isDebugEnabled())
+        if (logger.isTraceEnabled())
         {
             for (int i = 0; i < generations.length; i++)
             {
                 if (!getLevel(i).isEmpty())
                 {
-                    logger.debug("L{} contains {} SSTables ({} bytes) in {}",
+                    logger.trace("L{} contains {} SSTables ({} bytes) in {}",
                                  i, getLevel(i).size(), SSTableReader.getTotalBytes(getLevel(i)), this);
                 }
             }
@@ -539,7 +539,7 @@ public class LeveledManifest
     private Collection<SSTableReader> getCandidatesFor(int level)
     {
         assert !getLevel(level).isEmpty();
-        logger.debug("Choosing candidates for L{}", level);
+        logger.trace("Choosing candidates for L{}", level);
 
         final Set<SSTableReader> compacting = cfs.getTracker().getCompacting();
 
@@ -703,7 +703,7 @@ public class LeveledManifest
             tasks += estimated[i];
         }
 
-        logger.debug("Estimating {} compactions to do for {}.{}",
+        logger.trace("Estimating {} compactions to do for {}.{}",
                      Arrays.toString(estimated), cfs.keyspace.getName(), cfs.name);
         return Ints.checkedCast(tasks);
     }

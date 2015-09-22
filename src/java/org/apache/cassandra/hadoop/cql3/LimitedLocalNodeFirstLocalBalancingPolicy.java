@@ -71,7 +71,7 @@ class LimitedLocalNodeFirstLocalBalancingPolicy implements LoadBalancingPolicy
                 logger.warn("Invalid replica host name: {}, skipping it", replica);
             }
         }
-        logger.debug("Created instance with the following replicas: {}", Arrays.asList(replicas));
+        logger.trace("Created instance with the following replicas: {}", Arrays.asList(replicas));
     }
 
     @Override
@@ -86,7 +86,7 @@ class LimitedLocalNodeFirstLocalBalancingPolicy implements LoadBalancingPolicy
             }
         }
         liveReplicaHosts.addAll(replicaHosts);
-        logger.debug("Initialized with replica hosts: {}", replicaHosts);
+        logger.trace("Initialized with replica hosts: {}", replicaHosts);
     }
 
     @Override
@@ -127,7 +127,7 @@ class LimitedLocalNodeFirstLocalBalancingPolicy implements LoadBalancingPolicy
 
         Collections.shuffle(remote);
 
-        logger.debug("Using the following hosts order for the new query plan: {} | {}", local, remote);
+        logger.trace("Using the following hosts order for the new query plan: {} | {}", local, remote);
 
         return Iterators.concat(local.iterator(), remote.iterator());
     }
@@ -138,7 +138,7 @@ class LimitedLocalNodeFirstLocalBalancingPolicy implements LoadBalancingPolicy
         if (replicaAddresses.contains(host.getAddress()))
         {
             liveReplicaHosts.add(host);
-            logger.debug("Added a new host {}", host);
+            logger.trace("Added a new host {}", host);
         }
     }
 
@@ -148,7 +148,7 @@ class LimitedLocalNodeFirstLocalBalancingPolicy implements LoadBalancingPolicy
         if (replicaAddresses.contains(host.getAddress()))
         {
             liveReplicaHosts.add(host);
-            logger.debug("The host {} is now up", host);
+            logger.trace("The host {} is now up", host);
         }
     }
 
@@ -157,7 +157,7 @@ class LimitedLocalNodeFirstLocalBalancingPolicy implements LoadBalancingPolicy
     {
         if (liveReplicaHosts.remove(host))
         {
-            logger.debug("The host {} is now down", host);
+            logger.trace("The host {} is now down", host);
         }
     }
 
@@ -167,7 +167,7 @@ class LimitedLocalNodeFirstLocalBalancingPolicy implements LoadBalancingPolicy
     {
         if (liveReplicaHosts.remove(host))
         {
-            logger.debug("Removed the host {}", host);
+            logger.trace("Removed the host {}", host);
         }
     }
 

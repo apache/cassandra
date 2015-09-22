@@ -439,7 +439,7 @@ public class CassandraAuthorizer implements IAuthorizer
         {
             logger.info("Unable to complete conversion of legacy permissions data (perhaps not enough nodes are upgraded yet). " +
                         "Conversion should not be considered complete");
-            logger.debug("Conversion error", e);
+            logger.trace("Conversion error", e);
         }
     }
 

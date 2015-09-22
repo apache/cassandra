@@ -852,7 +852,7 @@ public class StorageProxy implements StorageProxyMBean
 
         for (InetAddress target : endpoints)
         {
-            logger.debug("Sending batchlog store request {} to {} for {} mutations", batch.id, target, batch.size());
+            logger.trace("Sending batchlog store request {} to {} for {} mutations", batch.id, target, batch.size());
 
             if (canDoLocalRequest(target))
                 performLocally(Stage.MUTATION, () -> BatchlogManager.store(batch), handler);
@@ -875,8 +875,8 @@ public class StorageProxy implements StorageProxyMBean
         MessageOut<UUID> message = new MessageOut<>(MessagingService.Verb.BATCH_REMOVE, uuid, UUIDSerializer.serializer);
         for (InetAddress target : endpoints)
         {
-            if (logger.isDebugEnabled())
-                logger.debug("Sending batchlog remove request {} to {}", uuid, target);
+            if (logger.isTraceEnabled())
+                logger.trace("Sending batchlog remove request {} to {}", uuid, target);
 
             if (canDoLocalRequest(target))
                 performLocally(Stage.MUTATION, () -> BatchlogManager.remove(uuid));
@@ -1636,7 +1636,7 @@ public class StorageProxy implements StorageProxyMBean
                 if (Tracing.isTracing())
                     Tracing.trace("Timed out waiting on digest mismatch repair requests");
                 else
-                    logger.debug("Timed out waiting on digest mismatch repair requests");
+                    logger.trace("Timed out waiting on digest mismatch repair requests");
                 // the caught exception here will have CL.ALL from the repair command,
                 // not whatever CL the initial command was at (CASSANDRA-7947)
                 int blockFor = consistency.blockFor(Keyspace.open(command.metadata().ksName));
@@ -1936,7 +1936,7 @@ public class StorageProxy implements StorageProxyMBean
             int remainingRows = command.limits().count() - liveReturned;
             float rowsPerRange = (float)liveReturned / (float)rangesQueried;
             concurrencyFactor = Math.max(1, Math.min(totalRangeCount - rangesQueried, Math.round(remainingRows / rowsPerRange)));
-            logger.debug("Didn't get enough response rows; actual rows per range: {}; remaining rows: {}, new concurrent requests: {}",
+            logger.trace("Didn't get enough response rows; actual rows per range: {}; remaining rows: {}, new concurrent requests: {}",
                          rowsPerRange, (int) remainingRows, concurrencyFactor);
         }
 
@@ -2018,7 +2018,7 @@ public class StorageProxy implements StorageProxyMBean
         int concurrencyFactor = resultsPerRange == 0.0
                               ? 1
                               : Math.max(1, Math.min(ranges.rangeCount(), (int) Math.ceil(command.limits().count() / resultsPerRange)));
-        logger.debug("Estimated result rows per range: {}; requested rows: {}, ranges.size(): {}; concurrent range requests: {}",
+        logger.trace("Estimated result rows per range: {}; requested rows: {}, ranges.size(): {}; concurrent range requests: {}",
                      resultsPerRange, command.limits().count(), ranges.rangeCount(), concurrencyFactor);
         Tracing.trace("Submitting range requests on {} ranges with a concurrency of {} ({} rows per range expected)", ranges.rangeCount(), concurrencyFactor, resultsPerRange);
 
@@ -2455,7 +2455,7 @@ public class StorageProxy implements StorageProxyMBean
         {
             public void runMayThrow()
             {
-                logger.debug("Adding hints for {}", targets);
+                logger.trace("Adding hints for {}", targets);
                 HintsService.instance.write(Iterables.transform(targets, StorageService.instance::getHostIdForEndpoint),
                                             Hint.create(mutation, System.currentTimeMillis()));
                 targets.forEach(HintsService.instance.metrics::incrCreatedHints);
