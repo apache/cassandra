@@ -59,8 +59,8 @@ public class RowDataResolver extends AbstractRowResolver
     public Row resolve() throws DigestMismatchException
     {
         int replyCount = replies.size();
-        if (logger.isDebugEnabled())
-            logger.debug("resolving {} responses", replyCount);
+        if (logger.isTraceEnabled())
+            logger.trace("resolving {} responses", replyCount);
         long start = System.nanoTime();
 
         ColumnFamily resolved;
@@ -84,8 +84,8 @@ public class RowDataResolver extends AbstractRowResolver
             }
 
             resolved = resolveSuperset(versions, timestamp);
-            if (logger.isDebugEnabled())
-                logger.debug("versions merged");
+            if (logger.isTraceEnabled())
+                logger.trace("versions merged");
 
             // send updates to any replica that was missing part of the full row
             // (resolved can be null even if versions doesn't have all nulls because of the call to removeDeleted in resolveSuperSet)
@@ -97,8 +97,8 @@ public class RowDataResolver extends AbstractRowResolver
             resolved = replies.get(0).payload.row().cf;
         }
 
-        if (logger.isDebugEnabled())
-            logger.debug("resolve: {} ms.", TimeUnit.NANOSECONDS.toMillis(System.nanoTime() - start));
+        if (logger.isTraceEnabled())
+            logger.trace("resolve: {} ms.", TimeUnit.NANOSECONDS.toMillis(System.nanoTime() - start));
 
         return new Row(key, resolved);
     }

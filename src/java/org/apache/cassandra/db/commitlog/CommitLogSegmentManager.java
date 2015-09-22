@@ -117,7 +117,7 @@ public class CommitLogSegmentManager
                             // if we have no more work to do, check if we should create a new segment
                             if (availableSegments.isEmpty() && (activeSegments.isEmpty() || createReserveSegments))
                             {
-                                logger.debug("No segments in reserve; creating a fresh one");
+                                logger.trace("No segments in reserve; creating a fresh one");
                                 // TODO : some error handling in case we fail to create a new segment
                                 availableSegments.add(CommitLogSegment.createSegment(commitLog));
                                 hasAvailableSegments.signalAll();
@@ -354,7 +354,7 @@ public class CommitLogSegmentManager
     void recycleSegment(final File file)
     {
         // (don't decrease managed size, since this was never a "live" segment)
-        logger.debug("(Unopened) segment {} is no longer needed and will be deleted now", file);
+        logger.trace("(Unopened) segment {} is no longer needed and will be deleted now", file);
         FileUtils.deleteWithConfirm(file);
     }
 
@@ -365,7 +365,7 @@ public class CommitLogSegmentManager
      */
     private void discardSegment(final CommitLogSegment segment, final boolean deleteFile)
     {
-        logger.debug("Segment {} is no longer active and will be deleted {}", segment, deleteFile ? "now" : "by the archive script");
+        logger.trace("Segment {} is no longer active and will be deleted {}", segment, deleteFile ? "now" : "by the archive script");
 
         segmentManagementTasks.add(new Runnable()
         {
@@ -397,7 +397,7 @@ public class CommitLogSegmentManager
     {
         long total = DatabaseDescriptor.getTotalCommitlogSpaceInMB() * 1024 * 1024;
         long currentSize = size.get();
-        logger.debug("Total active commitlog segment space used is {} out of {}", currentSize, total);
+        logger.trace("Total active commitlog segment space used is {} out of {}", currentSize, total);
         return total - currentSize;
     }
 
@@ -446,7 +446,7 @@ public class CommitLogSegmentManager
                 {
                     // even though we remove the schema entry before a final flush when dropping a CF,
                     // it's still possible for a writer to race and finish his append after the flush.
-                    logger.debug("Marking clean CF {} that doesn't exist anymore", dirtyCFId);
+                    logger.trace("Marking clean CF {} that doesn't exist anymore", dirtyCFId);
                     segment.markClean(dirtyCFId, segment.getContext());
                 }
                 else if (!flushes.containsKey(dirtyCFId))
@@ -469,7 +469,7 @@ public class CommitLogSegmentManager
      */
     public void stopUnsafe(boolean deleteSegments)
     {
-        logger.debug("CLSM closing and clearing existing commit log segments...");
+        logger.trace("CLSM closing and clearing existing commit log segments...");
         createReserveSegments = false;
 
         awaitManagementTasksCompletion();
@@ -498,7 +498,7 @@ public class CommitLogSegmentManager
 
         size.set(0L);
 
-        logger.debug("CLSM done with closing and clearing existing commit log segments.");
+        logger.trace("CLSM done with closing and clearing existing commit log segments.");
     }
 
     // Used by tests only.

@@ -63,7 +63,7 @@ public class ColumnFamilyInputFormat extends AbstractColumnFamilyInputFormat<Byt
     @SuppressWarnings("resource")
     public static Cassandra.Client createAuthenticatedClient(String location, int port, Configuration conf) throws Exception
     {
-        logger.debug("Creating authenticated client for CF input format");
+        logger.trace("Creating authenticated client for CF input format");
         TTransport transport;
         try
         {
@@ -86,7 +86,7 @@ public class ColumnFamilyInputFormat extends AbstractColumnFamilyInputFormat<Byt
             AuthenticationRequest authRequest = new AuthenticationRequest(creds);
             client.login(authRequest);
         }
-        logger.debug("Authenticated client for CF input format created successfully");
+        logger.trace("Authenticated client for CF input format created successfully");
         return client;
     }
 

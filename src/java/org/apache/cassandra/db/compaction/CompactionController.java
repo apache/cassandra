@@ -110,7 +110,7 @@ public class CompactionController implements AutoCloseable
      */
     public static Set<SSTableReader> getFullyExpiredSSTables(ColumnFamilyStore cfStore, Iterable<SSTableReader> compacting, Iterable<SSTableReader> overlapping, int gcBefore)
     {
-        logger.debug("Checking droppable sstables in {}", cfStore);
+        logger.trace("Checking droppable sstables in {}", cfStore);
 
         if (compacting == null)
             return Collections.<SSTableReader>emptySet();
@@ -150,7 +150,7 @@ public class CompactionController implements AutoCloseable
             }
             else
             {
-               logger.debug("Dropping expired SSTable {} (maxLocalDeletionTime={}, gcBefore={})",
+               logger.trace("Dropping expired SSTable {} (maxLocalDeletionTime={}, gcBefore={})",
                         candidate, candidate.getSSTableMetadata().maxLocalDeletionTime, gcBefore);
             }
         }

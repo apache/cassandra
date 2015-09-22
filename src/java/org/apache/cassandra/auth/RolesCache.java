@@ -135,7 +135,7 @@ public class RolesCache implements RolesCacheMBean
                                     return roleManager.getRoles(primaryRole, true);
                                 } catch (Exception e)
                                 {
-                                    logger.debug("Error performing async refresh of user roles", e);
+                                    logger.trace("Error performing async refresh of user roles", e);
                                     throw e;
                                 }
                             }

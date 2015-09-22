@@ -137,8 +137,8 @@ public class Tracker
         long add = 0;
         for (SSTableReader sstable : newSSTables)
         {
-            if (logger.isDebugEnabled())
-                logger.debug("adding {} to list of files tracked for {}.{}", sstable.descriptor, cfstore.keyspace.getName(), cfstore.name);
+            if (logger.isTraceEnabled())
+                logger.trace("adding {} to list of files tracked for {}.{}", sstable.descriptor, cfstore.keyspace.getName(), cfstore.name);
             try
             {
                 add += sstable.bytesOnDisk();
@@ -151,8 +151,8 @@ public class Tracker
         long subtract = 0;
         for (SSTableReader sstable : oldSSTables)
         {
-            if (logger.isDebugEnabled())
-                logger.debug("removing {} from list of files tracked for {}.{}", sstable.descriptor, cfstore.keyspace.getName(), cfstore.name);
+            if (logger.isTraceEnabled())
+                logger.trace("removing {} from list of files tracked for {}.{}", sstable.descriptor, cfstore.keyspace.getName(), cfstore.name);
             try
             {
                 subtract += sstable.bytesOnDisk();

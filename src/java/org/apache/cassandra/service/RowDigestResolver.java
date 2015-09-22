@@ -63,8 +63,8 @@ public class RowDigestResolver extends AbstractRowResolver
      */
     public Row resolve() throws DigestMismatchException
     {
-        if (logger.isDebugEnabled())
-            logger.debug("resolving {} responses", replies.size());
+        if (logger.isTraceEnabled())
+            logger.trace("resolving {} responses", replies.size());
 
         long start = System.nanoTime();
 
@@ -98,8 +98,8 @@ public class RowDigestResolver extends AbstractRowResolver
                 throw new DigestMismatchException(key, digest, newDigest);
         }
 
-        if (logger.isDebugEnabled())
-            logger.debug("resolve: {} ms.", TimeUnit.NANOSECONDS.toMillis(System.nanoTime() - start));
+        if (logger.isTraceEnabled())
+            logger.trace("resolve: {} ms.", TimeUnit.NANOSECONDS.toMillis(System.nanoTime() - start));
         return new Row(key, data);
     }
 

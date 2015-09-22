@@ -73,8 +73,8 @@ public class KeysSearcher extends SecondaryIndexSearcher
         assert index.getIndexCfs() != null;
         final DecoratedKey indexKey = index.getIndexKeyFor(primary.value);
 
-        if (logger.isDebugEnabled())
-            logger.debug("Most-selective indexed predicate is {}",
+        if (logger.isTraceEnabled())
+            logger.trace("Most-selective indexed predicate is {}",
                          ((AbstractSimplePerColumnSecondaryIndex) index).expressionString(primary));
 
         /*

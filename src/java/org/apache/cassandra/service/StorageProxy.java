@@ -984,7 +984,7 @@ public class StorageProxy implements StorageProxyMBean
                 int ttl = HintedHandOffManager.calculateHintTTL(mutation);
                 if (ttl > 0)
                 {
-                    logger.debug("Adding hint for {}", target);
+                    logger.trace("Adding hint for {}", target);
                     writeHintForMutation(mutation, System.currentTimeMillis(), ttl, target);
                     // Notify the handler only for CL == ANY
                     if (responseHandler != null && responseHandler.consistencyLevel == ConsistencyLevel.ANY)
@@ -1390,8 +1390,8 @@ public class StorageProxy implements StorageProxyMBean
                         rows.add(row);
                     }
 
-                    if (logger.isDebugEnabled())
-                        logger.debug("Read: {} ms.", TimeUnit.NANOSECONDS.toMillis(System.nanoTime() - exec.handler.start));
+                    if (logger.isTraceEnabled())
+                        logger.trace("Read: {} ms.", TimeUnit.NANOSECONDS.toMillis(System.nanoTime() - exec.handler.start));
                 }
                 catch (ReadTimeoutException|ReadFailureException ex)
                 {
@@ -1469,7 +1469,7 @@ public class StorageProxy implements StorageProxyMBean
                         if (Tracing.isTracing())
                             Tracing.trace("Timed out waiting on digest mismatch repair requests");
                         else
-                            logger.debug("Timed out waiting on digest mismatch repair requests");
+                            logger.trace("Timed out waiting on digest mismatch repair requests");
                         // the caught exception here will have CL.ALL from the repair command,
                         // not whatever CL the initial command was at (CASSANDRA-7947)
                         int blockFor = consistencyLevel.blockFor(Keyspace.open(command.getKeyspace()));
@@ -1488,7 +1488,7 @@ public class StorageProxy implements StorageProxyMBean
                         if (Tracing.isTracing())
                             Tracing.trace("Timed out waiting on digest mismatch repair acknowledgements");
                         else
-                            logger.debug("Timed out waiting on digest mismatch repair acknowledgements");
+                            logger.trace("Timed out waiting on digest mismatch repair acknowledgements");
                         int blockFor = consistencyLevel.blockFor(Keyspace.open(command.getKeyspace()));
                         throw new ReadTimeoutException(consistencyLevel, blockFor-1, blockFor, true);
                     }
@@ -1710,7 +1710,7 @@ public class StorageProxy implements StorageProxyMBean
                                   ? 1
                                   : Math.max(1, Math.min(ranges.size(), (int) Math.ceil(command.limit() / resultRowsPerRange)));
 
-                logger.debug("Estimated result rows per range: {}; requested rows: {}, ranges.size(): {}; concurrent range requests: {}",
+                logger.trace("Estimated result rows per range: {}; requested rows: {}, ranges.size(): {}; concurrent range requests: {}",
                              resultRowsPerRange,
                              command.limit(),
                              ranges.size(),
@@ -1896,7 +1896,7 @@ public class StorageProxy implements StorageProxyMBean
                         actualRowsPerRange = fetchedRows / i;
                         concurrencyFactor = Math.max(1, Math.min(ranges.size() - i, Math.round(remainingRows / actualRowsPerRange)));
                     }
-                    logger.debug("Didn't get enough response rows; actual rows per range: {}; remaining rows: {}, new concurrent requests: {}",
+                    logger.trace("Didn't get enough response rows; actual rows per range: {}; remaining rows: {}, new concurrent requests: {}",
                                  actualRowsPerRange, (int) remainingRows, concurrencyFactor);
                 }
             }

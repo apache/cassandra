@@ -303,7 +303,7 @@ public class CommitLog implements CommitLogMBean
      */
     public void discardCompletedSegments(final UUID cfId, final ReplayPosition context)
     {
-        logger.debug("discard completed log segments for {}, table {}", context, cfId);
+        logger.trace("discard completed log segments for {}, table {}", context, cfId);
 
         // Go thru the active segment files, which are ordered oldest to newest, marking the
         // flushed CF as clean, until we reach the segment file containing the ReplayPosition passed
@@ -316,12 +316,12 @@ public class CommitLog implements CommitLogMBean
 
             if (segment.isUnused())
             {
-                logger.debug("Commit log segment {} is unused", segment);
+                logger.trace("Commit log segment {} is unused", segment);
                 allocator.recycleSegment(segment);
             }
             else
             {
-                logger.debug("Not safe to delete{} commit log segment {}; dirty is {}",
+                logger.trace("Not safe to delete{} commit log segment {}; dirty is {}",
                         (iter.hasNext() ? "" : " active"), segment, segment.dirtyString());
             }
 

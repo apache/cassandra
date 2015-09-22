@@ -266,7 +266,7 @@ public class Keyspace
         this.metric = new KeyspaceMetrics(this);
         for (CFMetaData cfm : new ArrayList<>(metadata.cfMetaData().values()))
         {
-            logger.debug("Initializing {}.{}", getName(), cfm.cfName);
+            logger.trace("Initializing {}.{}", getName(), cfm.cfName);
             initCf(cfm.cfId, cfm.cfName, loadSSTables);
         }
     }
@@ -420,8 +420,8 @@ public class Keyspace
      */
     public static void indexRow(DecoratedKey key, ColumnFamilyStore cfs, Set<String> idxNames)
     {
-        if (logger.isDebugEnabled())
-            logger.debug("Indexing row {} ", cfs.metadata.getKeyValidator().getString(key.getKey()));
+        if (logger.isTraceEnabled())
+            logger.trace("Indexing row {} ", cfs.metadata.getKeyValidator().getString(key.getKey()));
 
         try (OpOrder.Group opGroup = cfs.keyspace.writeOrder.start())
         {

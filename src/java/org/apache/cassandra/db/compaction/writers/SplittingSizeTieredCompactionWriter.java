@@ -93,7 +93,7 @@ public class SplittingSizeTieredCompactionWriter extends CompactionAwareWriter
                                                                             new MetadataCollector(allSSTables, cfs.metadata.comparator, 0));
 
         sstableWriter.switchWriter(writer);
-        logger.debug("Ratios={}, expectedKeys = {}, totalSize = {}, currentPartitionsToWrite = {}, currentBytesToWrite = {}", ratios, estimatedTotalKeys, totalSize, currentPartitionsToWrite, currentBytesToWrite);
+        logger.trace("Ratios={}, expectedKeys = {}, totalSize = {}, currentPartitionsToWrite = {}, currentBytesToWrite = {}", ratios, estimatedTotalKeys, totalSize, currentPartitionsToWrite, currentBytesToWrite);
     }
 
     @Override
@@ -114,7 +114,7 @@ public class SplittingSizeTieredCompactionWriter extends CompactionAwareWriter
                                                                                 cfs.partitioner,
                                                                                 new MetadataCollector(allSSTables, cfs.metadata.comparator, 0));
             sstableWriter.switchWriter(writer);
-            logger.debug("Switching writer, currentPartitionsToWrite = {}", currentPartitionsToWrite);
+            logger.trace("Switching writer, currentPartitionsToWrite = {}", currentPartitionsToWrite);
         }
         return rie != null;
     }

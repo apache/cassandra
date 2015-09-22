@@ -99,7 +99,7 @@ public class PropertyFileSnitch extends AbstractNetworkTopologySnitch
         String[] value = endpointMap.get(endpoint);
         if (value == null)
         {
-            logger.debug("Could not find end point information for {}, will use default", endpoint);
+            logger.trace("Could not find end point information for {}, will use default", endpoint);
             return defaultDCRack;
         }
         return value;
@@ -182,12 +182,12 @@ public class PropertyFileSnitch extends AbstractNetworkTopologySnitch
             throw new ConfigurationException(String.format("Snitch definitions at %s do not define a location for this node's broadcast address %s, nor does it provides a default",
                                                            SNITCH_PROPERTIES_FILENAME, FBUtilities.getBroadcastAddress()));
 
-        if (logger.isDebugEnabled())
+        if (logger.isTraceEnabled())
         {
             StringBuilder sb = new StringBuilder();
             for (Map.Entry<InetAddress, String[]> entry : reloadedMap.entrySet())
                 sb.append(entry.getKey()).append(":").append(Arrays.toString(entry.getValue())).append(", ");
-            logger.debug("Loaded network topology from property file: {}", StringUtils.removeEnd(sb.toString(), ", "));
+            logger.trace("Loaded network topology from property file: {}", StringUtils.removeEnd(sb.toString(), ", "));
         }
 
         endpointMap = reloadedMap;

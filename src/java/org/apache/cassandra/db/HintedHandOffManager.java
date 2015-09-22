@@ -175,7 +175,7 @@ public class HintedHandOffManager implements HintedHandOffManagerMBean
         {
             throw new RuntimeException(e);
         }
-        logger.debug("Created HHOM instance, registered MBean.");
+        logger.trace("Created HHOM instance, registered MBean.");
 
         Runnable runnable = new Runnable()
         {
@@ -317,7 +317,7 @@ public class HintedHandOffManager implements HintedHandOffManagerMBean
         }
         if (gossiper.getEndpointStateForEndpoint(endpoint) == null)
             throw new TimeoutException("Node " + endpoint + " vanished while waiting for agreement");
-        logger.debug("schema for {} matches local schema", endpoint);
+        logger.trace("schema for {} matches local schema", endpoint);
         return waited;
     }
 
@@ -329,11 +329,11 @@ public class HintedHandOffManager implements HintedHandOffManagerMBean
         // check if hints delivery has been paused
         if (hintedHandOffPaused)
         {
-            logger.debug("Hints delivery process is paused, aborting");
+            logger.trace("Hints delivery process is paused, aborting");
             return;
         }
 
-        logger.debug("Checking remote({}) schema before delivering hints", endpoint);
+        logger.trace("Checking remote({}) schema before delivering hints", endpoint);
         try
         {
             waitForSchemaAgreement(endpoint);
@@ -345,7 +345,7 @@ public class HintedHandOffManager implements HintedHandOffManagerMBean
 
         if (!FailureDetector.instance.isAlive(endpoint))
         {
-            logger.debug("Endpoint {} died before hint delivery, aborting", endpoint);
+            logger.trace("Endpoint {} died before hint delivery, aborting", endpoint);
             return;
         }
 
@@ -370,7 +370,7 @@ public class HintedHandOffManager implements HintedHandOffManagerMBean
         Composite startColumn = Composites.EMPTY;
 
         int pageSize = calculatePageSize();
-        logger.debug("Using pageSize of {}", pageSize);
+        logger.trace("Using pageSize of {}", pageSize);
 
         // rate limit is in bytes per second. Uses Double.MAX_VALUE if disabled (set to 0 in cassandra.yaml).
         // max rate is scaled by the number of nodes in the cluster (CASSANDRA-5272).
@@ -411,7 +411,7 @@ public class HintedHandOffManager implements HintedHandOffManagerMBean
                 // check if hints delivery has been paused during the process
                 if (hintedHandOffPaused)
                 {
-                    logger.debug("Hints delivery process is paused, aborting");
+                    logger.trace("Hints delivery process is paused, aborting");
                     break delivery;
                 }
 
@@ -434,7 +434,7 @@ public class HintedHandOffManager implements HintedHandOffManagerMBean
                 }
                 catch (UnknownColumnFamilyException e)
                 {
-                    logger.debug("Skipping delivery of hint for deleted table", e);
+                    logger.trace("Skipping delivery of hint for deleted table", e);
                     deleteHint(hostIdBytes, hint.name(), hint.timestamp());
                     continue;
                 }
@@ -447,7 +447,7 @@ public class HintedHandOffManager implements HintedHandOffManagerMBean
                 {
                     if (hint.timestamp() <= SystemKeyspace.getTruncatedAt(cfId))
                     {
-                        logger.debug("Skipping delivery of hint for truncated table {}", cfId);
+                        logger.trace("Skipping delivery of hint for truncated table {}", cfId);
                         mutation = mutation.without(cfId);
                     }
                 }
@@ -513,7 +513,7 @@ public class HintedHandOffManager implements HintedHandOffManagerMBean
      */
     private void scheduleAllDeliveries()
     {
-        logger.debug("Started scheduleAllDeliveries");
+        logger.trace("Started scheduleAllDeliveries");
 
         // Force a major compaction to get rid of the tombstones and expired hints. Do it once, before we schedule any
         // individual replay, to avoid N - 1 redundant individual compactions (when N is the number of nodes with hints
@@ -534,7 +534,7 @@ public class HintedHandOffManager implements HintedHandOffManagerMBean
                 scheduleHintDelivery(target, false);
         }
 
-        logger.debug("Finished scheduleAllDeliveries");
+        logger.trace("Finished scheduleAllDeliveries");
     }
 
     /*
@@ -548,7 +548,7 @@ public class HintedHandOffManager implements HintedHandOffManagerMBean
         if (!queuedDeliveries.add(to))
             return;
 
-        logger.debug("Scheduling delivery of Hints to {}", to);
+        logger.trace("Scheduling delivery of Hints to {}", to);
 
         hintDeliveryExecutor.execute(new Runnable()
         {

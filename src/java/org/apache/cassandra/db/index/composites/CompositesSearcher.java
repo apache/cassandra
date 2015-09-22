@@ -98,8 +98,8 @@ public class CompositesSearcher extends SecondaryIndexSearcher
         assert index.getIndexCfs() != null;
         final DecoratedKey indexKey = index.getIndexKeyFor(primary.value);
 
-        if (logger.isDebugEnabled())
-            logger.debug("Most-selective indexed predicate is {}", index.expressionString(primary));
+        if (logger.isTraceEnabled())
+            logger.trace("Most-selective indexed predicate is {}", index.expressionString(primary));
 
         /*
          * XXX: If the range requested is a token range, we'll have to start at the beginning (and stop at the end) of
@@ -240,7 +240,7 @@ public class CompositesSearcher extends SecondaryIndexSearcher
                             }
                             else
                             {
-                                logger.debug("Skipping entry {} before assigned scan range", dk.getToken());
+                                logger.trace("Skipping entry {} before assigned scan range", dk.getToken());
                                 continue;
                             }
                         }

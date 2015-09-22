@@ -164,7 +164,7 @@ public class CreateIndexStatement extends SchemaAlteringStatement
     {
         CFMetaData cfm = Schema.instance.getCFMetaData(keyspace(), columnFamily()).copy();
         IndexTarget target = rawTarget.prepare(cfm);
-        logger.debug("Updating column {} definition for index {}", target.column, indexName);
+        logger.trace("Updating column {} definition for index {}", target.column, indexName);
         ColumnDefinition cd = cfm.getColumnDefinition(target.column);
 
         if (cd.getIndexType() != null && ifNotExists)

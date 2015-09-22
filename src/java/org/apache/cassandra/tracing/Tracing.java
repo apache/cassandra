@@ -152,7 +152,7 @@ public class Tracing
         TraceState state = this.state.get();
         if (state == null) // inline isTracing to avoid implicit two calls to state.get()
         {
-            logger.debug("request complete");
+            logger.trace("request complete");
         }
         else
         {

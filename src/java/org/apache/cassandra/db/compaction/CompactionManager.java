@@ -153,19 +153,19 @@ public class CompactionManager implements CompactionManagerMBean
     {
         if (cfs.isAutoCompactionDisabled())
         {
-            logger.debug("Autocompaction is disabled");
+            logger.trace("Autocompaction is disabled");
             return Collections.emptyList();
         }
 
         int count = compactingCF.count(cfs);
         if (count > 0 && executor.getActiveCount() >= executor.getMaximumPoolSize())
         {
-            logger.debug("Background compaction is still running for {}.{} ({} remaining). Skipping",
+            logger.trace("Background compaction is still running for {}.{} ({} remaining). Skipping",
                          cfs.keyspace.getName(), cfs.name, count);
             return Collections.emptyList();
         }
 
-        logger.debug("Scheduling a background task check for {}.{} with {}",
+        logger.trace("Scheduling a background task check for {}.{} with {}",
                      cfs.keyspace.getName(),
                      cfs.name,
                      cfs.getCompactionStrategy().getName());
@@ -211,10 +211,10 @@ public class CompactionManager implements CompactionManagerMBean
         {
             try
             {
-                logger.debug("Checking {}.{}", cfs.keyspace.getName(), cfs.name);
+                logger.trace("Checking {}.{}", cfs.keyspace.getName(), cfs.name);
                 if (!cfs.isValid())
                 {
-                    logger.debug("Aborting compaction for dropped CF");
+                    logger.trace("Aborting compaction for dropped CF");
                     return;
                 }
 
@@ -222,7 +222,7 @@ public class CompactionManager implements CompactionManagerMBean
                 AbstractCompactionTask task = strategy.getNextBackgroundTask(getDefaultGcBefore(cfs));
                 if (task == null)
                 {
-                    logger.debug("No tasks available");
+                    logger.trace("No tasks available");
                     return;
                 }
                 task.execute(metrics);
@@ -461,7 +461,7 @@ public class CompactionManager implements CompactionManagerMBean
                                       long repairedAt) throws InterruptedException, IOException
     {
         logger.info("Starting anticompaction for {}.{} on {}/{} sstables", cfs.keyspace.getName(), cfs.getColumnFamilyName(), validatedForRepair.size(), cfs.getSSTables().size());
-        logger.debug("Starting anticompaction for ranges {}", ranges);
+        logger.trace("Starting anticompaction for ranges {}", ranges);
         Set<SSTableReader> sstables = new HashSet<>(validatedForRepair);
         Set<SSTableReader> mutatedRepairStatuses = new HashSet<>();
         Set<SSTableReader> nonAnticompacting = new HashSet<>();
@@ -780,7 +780,7 @@ public class CompactionManager implements CompactionManagerMBean
         }
         if (!needsCleanup(sstable, ranges))
         {
-            logger.debug("Skipping {} for cleanup; all rows should be kept", sstable);
+            logger.trace("Skipping {} for cleanup; all rows should be kept", sstable);
             return;
         }
 
@@ -790,8 +790,8 @@ public class CompactionManager implements CompactionManagerMBean
 
         long expectedBloomFilterSize = Math.max(cfs.metadata.getMinIndexInterval(),
                                                SSTableReader.getApproximateKeyCount(txn.originals()));
-        if (logger.isDebugEnabled())
-            logger.debug("Expected bloom filter size : {}", expectedBloomFilterSize);
+        if (logger.isTraceEnabled())
+            logger.trace("Expected bloom filter size : {}", expectedBloomFilterSize);
 
         logger.info("Cleaning up {}", sstable);
 
@@ -1110,11 +1110,11 @@ public class CompactionManager implements CompactionManagerMBean
                 }
             }
 
-            if (logger.isDebugEnabled())
+            if (logger.isTraceEnabled())
             {
                 // MT serialize may take time
                 long duration = TimeUnit.NANOSECONDS.toMillis(System.nanoTime() - start);
-                logger.debug("Validation finished in {} msec, depth {} for {} keys, serialized size {} bytes for {}",
+                logger.trace("Validation finished in {} msec, depth {} for {} keys, serialized size {} bytes for {}",
                              duration,
                              depth,
                              numPartitions,
@@ -1243,7 +1243,7 @@ public class CompactionManager implements CompactionManagerMBean
             repairedSSTableWriter.commit();
             unRepairedSSTableWriter.commit();
 
-            logger.debug("Repaired {} keys out of {} for {}/{} in {}", repairedKeyCount,
+            logger.trace("Repaired {} keys out of {} for {}/{} in {}", repairedKeyCount,
                                                                        repairedKeyCount + unrepairedKeyCount,
                                                                        cfs.keyspace.getName(),
                                                                        cfs.getColumnFamilyName(),
@@ -1295,7 +1295,7 @@ public class CompactionManager implements CompactionManagerMBean
             {
                 if (!AutoSavingCache.flushInProgress.add(writer.cacheType()))
                 {
-                    logger.debug("Cache flushing was already in progress: skipping {}", writer.getCompactionInfo());
+                    logger.trace("Cache flushing was already in progress: skipping {}", writer.getCompactionInfo());
                     return;
                 }
                 try
@@ -1417,7 +1417,7 @@ public class CompactionManager implements CompactionManagerMBean
                     if (t.getSuppressed() != null && t.getSuppressed().length > 0)
                         logger.warn("Interruption of compaction encountered exceptions:", t);
                     else
-                        logger.debug("Full interruption stack trace:", t);
+                        logger.trace("Full interruption stack trace:", t);
                 }
                 else
                 {

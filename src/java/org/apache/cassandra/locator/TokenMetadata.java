@@ -737,8 +737,8 @@ public class TokenMetadata
 
             if (bootstrapTokens.isEmpty() && leavingEndpoints.isEmpty() && movingEndpoints.isEmpty())
             {
-                if (logger.isDebugEnabled())
-                    logger.debug("No bootstrapping, leaving or moving nodes -> empty pending ranges for {}", keyspaceName);
+                if (logger.isTraceEnabled())
+                    logger.trace("No bootstrapping, leaving or moving nodes -> empty pending ranges for {}", keyspaceName);
 
                 pendingRanges.put(keyspaceName, newPendingRanges);
                 return;
@@ -802,8 +802,8 @@ public class TokenMetadata
 
             pendingRanges.put(keyspaceName, newPendingRanges);
 
-            if (logger.isDebugEnabled())
-                logger.debug("Pending ranges:\n{}", (pendingRanges.isEmpty() ? "<empty>" : printPendingRanges()));
+            if (logger.isTraceEnabled())
+                logger.trace("Pending ranges:\n{}", (pendingRanges.isEmpty() ? "<empty>" : printPendingRanges()));
         }
         finally
         {

@@ -1028,7 +1028,7 @@ public class CassandraStorage extends LoadFunc implements StoreFuncInterface, Lo
                 ColumnDef cDef = new ColumnDef();
                 String columnName = def.name.toString();
                 String type = def.type.toString();
-                logger.debug("name: {}, type: {} ", columnName, type);
+                logger.trace("name: {}, type: {} ", columnName, type);
                 cDef.name = ByteBufferUtil.bytes(columnName);
                 cDef.validation_class = type;
                 columnDefs.add(cDef);

@@ -124,7 +124,7 @@ public class MmappedSegmentedFile extends SegmentedFile
                         continue;
                     FileUtils.clean(segment.right);
                 }
-                logger.debug("All segments have been unmapped successfully");
+                logger.trace("All segments have been unmapped successfully");
             }
             catch (Exception e)
             {

@@ -31,12 +31,22 @@ Changed Defaults
      providing the '-full' parameter to nodetool repair.
    - Parallel repairs are the default since 2.2.0, run sequential repairs
      by providing the '-seq' parameter to nodetool repair.
+   - The following INFO logs were reduced to DEBUG level and will now show
+     on debug.log instead of system.log:
+      - Memtable flushing actions
+      - Commit log replayed files
+      - Compacted sstables
+      - SStable opening (SSTableReader)
 
 New features
 ------------
    - Custom QueryHandlers can retrieve the column specifications for the bound
      variables from QueryOptions by using the hasColumnSpecifications()
      and getColumnSpecifications() methods.
+   - A new default assynchronous log appender debug.log was created in addition
+     to  the system.log appender in order to provide more detailed log debugging.
+     In order to disable debug logging, you must comment-out the ASYNCDEBUGLOG
+     appender on conf/logback.xml. See CASSANDRA-10241 for more information.
 
 
 2.2.1

@@ -109,8 +109,8 @@ public class ReadCallback<TMessage, TResolved> implements IAsyncCallbackWithFail
             // Same as for writes, see AbstractWriteResponseHandler
             ReadTimeoutException ex = new ReadTimeoutException(consistencyLevel, received, blockfor, resolver.isDataPresent());
             Tracing.trace("Read timeout: {}", ex.toString());
-            if (logger.isDebugEnabled())
-                logger.debug("Read timeout: {}", ex.toString());
+            if (logger.isTraceEnabled())
+                logger.trace("Read timeout: {}", ex.toString());
             throw ex;
         }
 
@@ -118,8 +118,8 @@ public class ReadCallback<TMessage, TResolved> implements IAsyncCallbackWithFail
         {
             ReadFailureException ex = new ReadFailureException(consistencyLevel, received, failures, blockfor, resolver.isDataPresent());
 
-            if (logger.isDebugEnabled())
-                logger.debug("Read failure: {}", ex.toString());
+            if (logger.isTraceEnabled())
+                logger.trace("Read failure: {}", ex.toString());
             throw ex;
         }
 
@@ -210,8 +210,8 @@ public class ReadCallback<TMessage, TResolved> implements IAsyncCallbackWithFail
 
                 if (traceState != null)
                     traceState.trace("Digest mismatch: {}", e.toString());
-                if (logger.isDebugEnabled())
-                    logger.debug("Digest mismatch:", e);
+                if (logger.isTraceEnabled())
+                    logger.trace("Digest mismatch:", e);
                 
                 ReadRepairMetrics.repairedBackground.mark();
                 

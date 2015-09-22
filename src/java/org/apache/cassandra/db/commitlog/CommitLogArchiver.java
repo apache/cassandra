@@ -83,7 +83,7 @@ public class CommitLogArchiver
         {
             if (stream == null)
             {
-                logger.debug("No commitlog_archiving properties found; archive + pitr will be disabled");
+                logger.trace("No commitlog_archiving properties found; archive + pitr will be disabled");
                 return disabled();
             }
             else
@@ -237,7 +237,7 @@ public class CommitLogArchiver
                 File toFile = new File(DatabaseDescriptor.getCommitLogLocation(), descriptor.fileName());
                 if (toFile.exists())
                 {
-                    logger.debug("Skipping restore of archive {} as the segment already exists in the restore location {}",
+                    logger.trace("Skipping restore of archive {} as the segment already exists in the restore location {}",
                                  fromFile.getPath(), toFile.getPath());
                     continue;
                 }

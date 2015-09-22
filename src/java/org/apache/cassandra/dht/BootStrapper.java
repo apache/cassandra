@@ -65,7 +65,7 @@ public class BootStrapper extends ProgressEventNotifierSupport
 
     public ListenableFuture<StreamState> bootstrap(StreamStateStore stateStore, boolean useStrictConsistency)
     {
-        logger.debug("Beginning bootstrap process");
+        logger.trace("Beginning bootstrap process");
 
         RangeStreamer streamer = new RangeStreamer(tokenMetadata,
                                                    tokens,
@@ -159,7 +159,7 @@ public class BootStrapper extends ProgressEventNotifierSupport
         // if user specified tokens, use those
         if (initialTokens.size() > 0)
         {
-            logger.debug("tokens manually specified as {}",  initialTokens);
+            logger.trace("tokens manually specified as {}",  initialTokens);
             List<Token> tokens = new ArrayList<>(initialTokens.size());
             for (String tokenString : initialTokens)
             {

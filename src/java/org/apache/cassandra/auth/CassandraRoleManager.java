@@ -376,7 +376,7 @@ public class CassandraRoleManager implements IRoleManager
                 // will be finished by then.
                 if (!MessagingService.instance().areAllNodesAtLeast22())
                 {
-                    logger.debug("Not all nodes are upgraded to a version that supports Roles yet, rescheduling setup task");
+                    logger.trace("Not all nodes are upgraded to a version that supports Roles yet, rescheduling setup task");
                     scheduleSetupTask(setupTask);
                     return;
                 }
@@ -442,7 +442,7 @@ public class CassandraRoleManager implements IRoleManager
         {
             logger.info("Unable to complete conversion of legacy auth data (perhaps not enough nodes are upgraded yet). " +
                         "Conversion should not be considered complete");
-            logger.debug("Conversion error", e);
+            logger.trace("Conversion error", e);
             throw e;
         }
     }

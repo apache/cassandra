@@ -57,11 +57,11 @@ public class SizeEstimatesRecorder extends MigrationListener implements Runnable
     {
         if (StorageService.instance.isStarting())
         {
-            logger.debug("Node has not yet joined; not recording size estimates");
+            logger.trace("Node has not yet joined; not recording size estimates");
             return;
         }
 
-        logger.debug("Recording size estimates");
+        logger.trace("Recording size estimates");
 
         // find primary token ranges for the local node.
         Collection<Token> localTokens = StorageService.instance.getLocalTokens();
@@ -74,7 +74,7 @@ public class SizeEstimatesRecorder extends MigrationListener implements Runnable
                 long start = System.nanoTime();
                 recordSizeEstimates(table, localRanges);
                 long passed = System.nanoTime() - start;
-                logger.debug("Spent {} milliseconds on estimating {}.{} size",
+                logger.trace("Spent {} milliseconds on estimating {}.{} size",
                              TimeUnit.NANOSECONDS.toMillis(passed),
                              table.metadata.ksName,
                              table.metadata.cfName);

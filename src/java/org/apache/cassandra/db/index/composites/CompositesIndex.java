@@ -142,8 +142,8 @@ public abstract class CompositesIndex extends AbstractSimplePerColumnSecondaryIn
         ColumnFamily cfi = ArrayBackedSortedColumns.factory.create(indexCfs.metadata);
         cfi.addTombstone(entry.indexEntry, localDeletionTime, entry.timestamp);
         indexCfs.apply(entry.indexValue, cfi, SecondaryIndexManager.nullUpdater, opGroup, null);
-        if (logger.isDebugEnabled())
-            logger.debug("removed index entry for cleaned-up value {}:{}", entry.indexValue, cfi);
+        if (logger.isTraceEnabled())
+            logger.trace("removed index entry for cleaned-up value {}:{}", entry.indexValue, cfi);
     }
 
     protected AbstractType<?> getExpressionComparator()

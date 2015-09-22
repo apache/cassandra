@@ -1110,7 +1110,7 @@ public final class SystemKeyspace
             {
                 if (dataDirectory.getName().equals("Versions") && dataDirectory.listFiles().length > 0)
                 {
-                    logger.debug("Found unreadable versions info in pre 1.2 system.Versions table");
+                    logger.trace("Found unreadable versions info in pre 1.2 system.Versions table");
                     return UNREADABLE_VERSION.toString();
                 }
             }

@@ -147,8 +147,8 @@ public class FileCacheService
     public void put(CacheKey cacheKey, RandomAccessReader instance)
     {
         int memoryUsed = memoryUsage.get();
-        if (logger.isDebugEnabled())
-            logger.debug("Estimated memory usage is {} compared to actual usage {}", memoryUsed, sizeInBytes());
+        if (logger.isTraceEnabled())
+            logger.trace("Estimated memory usage is {} compared to actual usage {}", memoryUsed, sizeInBytes());
 
         CacheBucket bucket = cache.getIfPresent(cacheKey);
         if (memoryUsed >= MEMORY_USAGE_THRESHOLD || bucket == null)

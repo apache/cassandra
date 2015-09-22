@@ -45,7 +45,7 @@ public class DefaultCompactionWriter extends CompactionAwareWriter
     public DefaultCompactionWriter(ColumnFamilyStore cfs, LifecycleTransaction txn, Set<SSTableReader> nonExpiredSSTables, boolean offline, OperationType compactionType)
     {
         super(cfs, txn, nonExpiredSSTables, offline);
-        logger.debug("Expected bloom filter size : {}", estimatedTotalKeys);
+        logger.trace("Expected bloom filter size : {}", estimatedTotalKeys);
         long expectedWriteSize = cfs.getExpectedCompactedFileSize(nonExpiredSSTables, compactionType);
         File sstableDirectory = cfs.directories.getLocationForDisk(getWriteDirectory(expectedWriteSize));
         @SuppressWarnings("resource")

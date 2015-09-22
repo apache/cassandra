@@ -261,7 +261,7 @@ public abstract class ExtendedFilter
             {
                 if (data.getColumn(data.getComparator().cellFromByteBuffer(expr.column)) == null)
                 {
-                    logger.debug("adding extraFilter to cover additional expressions");
+                    logger.trace("adding extraFilter to cover additional expressions");
                     return true;
                 }
             }

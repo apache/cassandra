@@ -296,7 +296,7 @@ public abstract class SSTableReader extends SSTable implements SelfRefCounted<SS
                 if (cardinality != null)
                     cardinalities.add(cardinality);
                 else
-                    logger.debug("Got a null cardinality estimator in: {}", sstable.getFilename());
+                    logger.trace("Got a null cardinality estimator in: {}", sstable.getFilename());
             }
             catch (IOException e)
             {
@@ -312,7 +312,7 @@ public abstract class SSTableReader extends SSTable implements SelfRefCounted<SS
             return 1;
 
         long totalKeyCountAfter = mergeCardinalities(cardinalities).cardinality();
-        logger.debug("Estimated compaction gain: {}/{}={}", totalKeyCountAfter, totalKeyCountBefore, ((double)totalKeyCountAfter)/totalKeyCountBefore);
+        logger.trace("Estimated compaction gain: {}/{}={}", totalKeyCountAfter, totalKeyCountBefore, ((double)totalKeyCountAfter)/totalKeyCountBefore);
         return ((double)totalKeyCountAfter)/totalKeyCountBefore;
     }
 
@@ -399,7 +399,7 @@ public abstract class SSTableReader extends SSTable implements SelfRefCounted<SS
             System.exit(1);
         }
 
-        logger.info("Opening {} ({} bytes)", descriptor, new File(descriptor.filenameFor(Component.DATA)).length());
+        logger.debug("Opening {} ({} bytes)", descriptor, new File(descriptor.filenameFor(Component.DATA)).length());
         SSTableReader sstable = internalOpen(descriptor, components, metadata, partitioner, System.currentTimeMillis(),
                 statsMetadata, OpenReason.NORMAL);
 
@@ -446,7 +446,7 @@ public abstract class SSTableReader extends SSTable implements SelfRefCounted<SS
             System.exit(1);
         }
 
-        logger.info("Opening {} ({} bytes)", descriptor, new File(descriptor.filenameFor(Component.DATA)).length());
+        logger.debug("Opening {} ({} bytes)", descriptor, new File(descriptor.filenameFor(Component.DATA)).length());
         SSTableReader sstable = internalOpen(descriptor, components, metadata, partitioner, System.currentTimeMillis(),
                                              statsMetadata, OpenReason.NORMAL);
         try
@@ -454,14 +454,14 @@ public abstract class SSTableReader extends SSTable implements SelfRefCounted<SS
             // load index and filter
             long start = System.nanoTime();
             sstable.load(validationMetadata);
-            logger.debug("INDEX LOAD TIME for {}: {} ms.", descriptor, TimeUnit.NANOSECONDS.toMillis(System.nanoTime() - start));
+            logger.trace("INDEX LOAD TIME for {}: {} ms.", descriptor, TimeUnit.NANOSECONDS.toMillis(System.nanoTime() - start));
 
             sstable.setup(trackHotness);
             if (validate)
                 sstable.validate();
 
             if (sstable.getKeyCache() != null)
-                logger.debug("key cache contains {}/{} keys", sstable.getKeyCache().size(), sstable.getKeyCache().getCapacity());
+                logger.trace("key cache contains {}/{} keys", sstable.getKeyCache().size(), sstable.getKeyCache().getCapacity());
 
             return sstable;
         }
@@ -843,7 +843,7 @@ public abstract class SSTableReader extends SSTable implements SelfRefCounted<SS
         {
             if (indexSummary != null)
                 indexSummary.close();
-            logger.debug("Cannot deserialize SSTable Summary File {}: {}", summariesFile.getPath(), e.getMessage());
+            logger.trace("Cannot deserialize SSTable Summary File {}: {}", summariesFile.getPath(), e.getMessage());
             // corrupted; delete it and fall back to creating a new summary
             FileUtils.closeQuietly(iStream);
             // delete it and fall back to creating a new summary
@@ -945,7 +945,7 @@ public abstract class SSTableReader extends SSTable implements SelfRefCounted<SS
         }
         catch (IOException e)
         {
-            logger.debug("Cannot save SSTable Summary: ", e);
+            logger.trace("Cannot save SSTable Summary: ", e);
 
             // corrupted hence delete it and let it load it now.
             if (summariesFile.exists())
@@ -1633,8 +1633,8 @@ public abstract class SSTableReader extends SSTable implements SelfRefCounted<SS
      */
     public boolean markObsolete(Tracker tracker)
     {
-        if (logger.isDebugEnabled())
-            logger.debug("Marking {} compacted", getFilename());
+        if (logger.isTraceEnabled())
+            logger.trace("Marking {} compacted", getFilename());
 
         synchronized (tidy.global)
         {
@@ -1655,8 +1655,8 @@ public abstract class SSTableReader extends SSTable implements SelfRefCounted<SS
 
     public void markSuspect()
     {
-        if (logger.isDebugEnabled())
-            logger.debug("Marking {} as a suspect for blacklisting.", getFilename());
+        if (logger.isTraceEnabled())
+            logger.trace("Marking {} as a suspect for blacklisting.", getFilename());
 
         isSuspect.getAndSet(true);
     }

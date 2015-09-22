@@ -163,7 +163,7 @@ public class BatchlogManager implements BatchlogManagerMBean
 
     private void replayAllFailedBatches() throws ExecutionException, InterruptedException
     {
-        logger.debug("Started replayAllFailedBatches");
+        logger.trace("Started replayAllFailedBatches");
 
         // rate limit is in bytes per second. Uses Double.MAX_VALUE if disabled (set to 0 in cassandra.yaml).
         // max rate is scaled by the number of nodes in the cluster (same as for HHOM - see CASSANDRA-5272).
@@ -191,7 +191,7 @@ public class BatchlogManager implements BatchlogManagerMBean
 
         cleanup();
 
-        logger.debug("Finished replayAllFailedBatches");
+        logger.trace("Finished replayAllFailedBatches");
     }
 
     private void deleteBatch(UUID id)
@@ -274,7 +274,7 @@ public class BatchlogManager implements BatchlogManagerMBean
 
         public int replay(RateLimiter rateLimiter) throws IOException
         {
-            logger.debug("Replaying batch {}", id);
+            logger.trace("Replaying batch {}", id);
 
             List<Mutation> mutations = replayingMutations();
 
@@ -303,8 +303,8 @@ public class BatchlogManager implements BatchlogManagerMBean
                 }
                 catch (WriteTimeoutException|WriteFailureException e)
                 {
-                    logger.debug("Failed replaying a batched mutation to a node, will write a hint");
-                    logger.debug("Failure was : {}", e.getMessage());
+                    logger.trace("Failed replaying a batched mutation to a node, will write a hint");
+                    logger.trace("Failure was : {}", e.getMessage());
                     // writing hints for the rest to hints, starting from i
                     writeHintsForUndeliveredEndpoints(i);
                     return;

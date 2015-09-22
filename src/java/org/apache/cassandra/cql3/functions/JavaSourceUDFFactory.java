@@ -170,7 +170,7 @@ public final class JavaSourceUDFFactory
 
         String javaSource = javaSourceBuilder.toString();
 
-        logger.debug("Compiling Java source UDF '{}' as class '{}' using source:\n{}", name, targetClassName, javaSource);
+        logger.trace("Compiling Java source UDF '{}' as class '{}' using source:\n{}", name, targetClassName, javaSource);
 
         try
         {
@@ -303,7 +303,7 @@ public final class JavaSourceUDFFactory
             if (i > 0)
                 code.append(",\n");
 
-            if (logger.isDebugEnabled())
+            if (logger.isTraceEnabled())
                 code.append("                /* parameter '").append(argNames.get(i)).append("' */\n");
 
             code

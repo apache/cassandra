@@ -170,14 +170,14 @@ public class ColumnFamilyRecordReader extends RecordReader<ByteBuffer, SortedMap
         }
 
         iter = widerows ? new WideRowIterator() : new StaticRowIterator();
-        logger.debug("created {}", iter);
+        logger.trace("created {}", iter);
     }
 
     public boolean nextKeyValue() throws IOException
     {
         if (!iter.hasNext())
         {
-            logger.debug("Finished scanning {} rows (estimate was: {})", iter.rowsRead(), totalRowCount);
+            logger.trace("Finished scanning {} rows (estimate was: {})", iter.rowsRead(), totalRowCount);
             return false;
         }
 
@@ -443,7 +443,7 @@ public class ColumnFamilyRecordReader extends RecordReader<ByteBuffer, SortedMap
             else
             {
                 KeySlice lastRow = Iterables.getLast(rows);
-                logger.debug("Starting with last-seen row {}", lastRow.key);
+                logger.trace("Starting with last-seen row {}", lastRow.key);
                 keyRange = new KeyRange(batchSize)
                           .setStart_key(lastRow.key)
                           .setEnd_token(split.getEndToken())
@@ -456,7 +456,7 @@ public class ColumnFamilyRecordReader extends RecordReader<ByteBuffer, SortedMap
                 int n = 0;
                 for (KeySlice row : rows)
                     n += row.columns.size();
-                logger.debug("read {} columns in {} rows for {} starting with {}",
+                logger.trace("read {} columns in {} rows for {} starting with {}",
                              new Object[]{ n, rows.size(), keyRange, lastColumn });
 
                 wideColumns = Iterators.peekingIterator(new WideColumnIterator(rows));

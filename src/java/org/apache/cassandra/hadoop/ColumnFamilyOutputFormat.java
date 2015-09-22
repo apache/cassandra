@@ -117,7 +117,7 @@ public class ColumnFamilyOutputFormat extends OutputFormat<ByteBuffer,List<Mutat
     @SuppressWarnings("resource")
     public static Cassandra.Client createAuthenticatedClient(String host, int port, Configuration conf) throws Exception
     {
-        logger.debug("Creating authenticated client for CF output format");
+        logger.trace("Creating authenticated client for CF output format");
         TTransport transport = ConfigHelper.getClientTransportFactory(conf).openTransport(host, port);
         TProtocol binaryProtocol = new TBinaryProtocol(transport, true, true);
         Cassandra.Client client = new Cassandra.Client(binaryProtocol);
@@ -127,7 +127,7 @@ public class ColumnFamilyOutputFormat extends OutputFormat<ByteBuffer,List<Mutat
         if ((user != null) && (password != null))
             login(user, password, client);
 
-        logger.debug("Authenticated client for CF output format created successfully");
+        logger.trace("Authenticated client for CF output format created successfully");
         return client;
     }
 

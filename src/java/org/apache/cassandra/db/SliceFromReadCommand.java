@@ -65,7 +65,7 @@ public class SliceFromReadCommand extends ReadCommand
         // reads in order to guarantee that the static columns are fetched.  See CASSANDRA-8502 for more details.
         if (filter.reversed && filter.hasStaticSlice(cfm))
         {
-            logger.debug("Splitting reversed slice with static columns into two reads");
+            logger.trace("Splitting reversed slice with static columns into two reads");
             Pair<SliceQueryFilter, SliceQueryFilter> newFilters = filter.splitOutStaticSlice(cfm);
 
             Row normalResults =  keyspace.getRow(new QueryFilter(dk, cfName, newFilters.right, timestamp));

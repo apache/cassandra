@@ -101,8 +101,8 @@ public abstract class AbstractSimplePerColumnSecondaryIndex extends PerColumnSec
         ColumnFamily cfi = ArrayBackedSortedColumns.factory.create(indexCfs.metadata, false, 1);
         cfi.addTombstone(makeIndexColumnName(rowKey, cell), localDeletionTime, cell.timestamp());
         indexCfs.apply(valueKey, cfi, SecondaryIndexManager.nullUpdater, opGroup, null);
-        if (logger.isDebugEnabled())
-            logger.debug("removed index entry for cleaned-up value {}:{}", valueKey, cfi);
+        if (logger.isTraceEnabled())
+            logger.trace("removed index entry for cleaned-up value {}:{}", valueKey, cfi);
     }
 
     public void insert(ByteBuffer rowKey, Cell cell, OpOrder.Group opGroup)
@@ -119,8 +119,8 @@ public abstract class AbstractSimplePerColumnSecondaryIndex extends PerColumnSec
         {
             cfi.addColumn(new BufferCell(name, ByteBufferUtil.EMPTY_BYTE_BUFFER, cell.timestamp()));
         }
-        if (logger.isDebugEnabled())
-            logger.debug("applying index row {} in {}", indexCfs.metadata.getKeyValidator().getString(valueKey.getKey()), cfi);
+        if (logger.isTraceEnabled())
+            logger.trace("applying index row {} in {}", indexCfs.metadata.getKeyValidator().getString(valueKey.getKey()), cfi);
 
         indexCfs.apply(valueKey, cfi, SecondaryIndexManager.nullUpdater, opGroup, null);
     }
