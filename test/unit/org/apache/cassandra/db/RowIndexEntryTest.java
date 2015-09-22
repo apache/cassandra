@@ -60,7 +60,7 @@ public class RowIndexEntryTest extends CQLTester
 
         DeletionTime deletionInfo = new DeletionTime(FBUtilities.timestampMicros(), FBUtilities.nowInSeconds());
 
-        SerializationHeader header = new SerializationHeader(cfMeta, cfMeta.partitionColumns(), EncodingStats.NO_STATS);
+        SerializationHeader header = new SerializationHeader(true, cfMeta, cfMeta.partitionColumns(), EncodingStats.NO_STATS);
         IndexHelper.IndexInfo.Serializer indexSerializer = new IndexHelper.IndexInfo.Serializer(cfMeta, BigFormat.latestVersion, header);
 
         DataOutputBuffer dob = new DataOutputBuffer();
@@ -119,7 +119,7 @@ public class RowIndexEntryTest extends CQLTester
         final RowIndexEntry simple = new RowIndexEntry(123);
 
         DataOutputBuffer buffer = new DataOutputBuffer();
-        SerializationHeader header = new SerializationHeader(cfs.metadata, cfs.metadata.partitionColumns(), EncodingStats.NO_STATS);
+        SerializationHeader header = new SerializationHeader(true, cfs.metadata, cfs.metadata.partitionColumns(), EncodingStats.NO_STATS);
         RowIndexEntry.Serializer serializer = new RowIndexEntry.Serializer(cfs.metadata, BigFormat.latestVersion, header);
 
         serializer.serialize(simple, buffer);

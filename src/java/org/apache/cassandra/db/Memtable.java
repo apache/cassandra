@@ -430,7 +430,7 @@ public class Memtable implements Comparable<Memtable>
                                                                      (long)partitions.size(),
                                                                      ActiveRepairService.UNREPAIRED_SSTABLE,
                                                                      sstableMetadataCollector,
-                                                                     new SerializationHeader(cfs.metadata, columns, stats),
+                                                                     new SerializationHeader(true, cfs.metadata, columns, stats),
                                                                      txn));
         }
     }

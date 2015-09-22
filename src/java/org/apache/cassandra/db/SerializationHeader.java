@@ -45,6 +45,8 @@ public class SerializationHeader
 {
     public static final Serializer serializer = new Serializer();
 
+    private final boolean isForSSTable;
+
     private final AbstractType<?> keyType;
     private final List<AbstractType<?>> clusteringTypes;
 
@@ -53,12 +55,14 @@ public class SerializationHeader
 
     private final Map<ByteBuffer, AbstractType<?>> typeMap;
 
-    private SerializationHeader(AbstractType<?> keyType,
+    private SerializationHeader(boolean isForSSTable,
+                                AbstractType<?> keyType,
                                 List<AbstractType<?>> clusteringTypes,
                                 PartitionColumns columns,
                                 EncodingStats stats,
                                 Map<ByteBuffer, AbstractType<?>> typeMap)
     {
+        this.isForSSTable = isForSSTable;
         this.keyType = keyType;
         this.clusteringTypes = clusteringTypes;
         this.columns = columns;
@@ -77,7 +81,8 @@ public class SerializationHeader
         List<AbstractType<?>> clusteringTypes = new ArrayList<>(size);
         for (int i = 0; i < size; i++)
             clusteringTypes.add(BytesType.instance);
-        return new SerializationHeader(BytesType.instance,
+        return new SerializationHeader(false,
+                                       BytesType.instance,
                                        clusteringTypes,
                                        PartitionColumns.NONE,
                                        EncodingStats.NO_STATS,
@@ -108,14 +113,16 @@ public class SerializationHeader
             else
                 columns.addAll(sstable.header.columns());
         }
-        return new SerializationHeader(metadata, columns.build(), stats.get());
+        return new SerializationHeader(true, metadata, columns.build(), stats.get());
     }
 
-    public SerializationHeader(CFMetaData metadata,
+    public SerializationHeader(boolean isForSSTable,
+                               CFMetaData metadata,
                                PartitionColumns columns,
                                EncodingStats stats)
     {
-        this(metadata.getKeyValidator(),
+        this(isForSSTable,
+             metadata.getKeyValidator(),
              typesOf(metadata.clusteringColumns()),
              columns,
              stats,
@@ -135,6 +142,11 @@ public class SerializationHeader
     public boolean hasStatic()
     {
         return !columns.statics.isEmpty();
+    }
+
+    public boolean isForSSTable()
+    {
+        return isForSSTable;
     }
 
     public EncodingStats stats()
@@ -320,7 +332,7 @@ public class SerializationHeader
                 }
                 builder.add(column);
             }
-            return new SerializationHeader(keyType, clusteringTypes, builder.build(), stats, typeMap);
+            return new SerializationHeader(true, keyType, clusteringTypes, builder.build(), stats, typeMap);
         }
 
         @Override
@@ -390,7 +402,7 @@ public class SerializationHeader
                 regulars = Columns.serializer.deserializeSubset(selection.fetchedColumns().regulars, in);
             }
 
-            return new SerializationHeader(keyType, clusteringTypes, new PartitionColumns(statics, regulars), stats, null);
+            return new SerializationHeader(false, keyType, clusteringTypes, new PartitionColumns(statics, regulars), stats, null);
         }
 
         public long serializedSizeForMessaging(SerializationHeader header, ColumnFilter selection, boolean hasStatic)

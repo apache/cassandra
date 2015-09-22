@@ -65,7 +65,7 @@ abstract class AbstractSSTableSimpleWriter implements Closeable
                                        0,
                                        ActiveRepairService.UNREPAIRED_SSTABLE,
                                        0,
-                                       new SerializationHeader(metadata, columns, EncodingStats.NO_STATS));
+                                       new SerializationHeader(true, metadata, columns, EncodingStats.NO_STATS));
     }
 
     private static Descriptor createDescriptor(File directory, final String keyspace, final String columnFamily, final SSTableFormat.Type fmt)

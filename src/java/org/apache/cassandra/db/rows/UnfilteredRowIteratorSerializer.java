@@ -80,7 +80,8 @@ public class UnfilteredRowIteratorSerializer
     // Should only be used for the on-wire format.
     public void serialize(UnfilteredRowIterator iterator, ColumnFilter selection, DataOutputPlus out, int version, int rowEstimate) throws IOException
     {
-        SerializationHeader header = new SerializationHeader(iterator.metadata(),
+        SerializationHeader header = new SerializationHeader(false,
+                                                             iterator.metadata(),
                                                              iterator.columns(),
                                                              iterator.stats());
         serialize(iterator, header, selection, out, version, rowEstimate);
@@ -89,6 +90,8 @@ public class UnfilteredRowIteratorSerializer
     // Should only be used for the on-wire format.
     public void serialize(UnfilteredRowIterator iterator, SerializationHeader header, ColumnFilter selection, DataOutputPlus out, int version, int rowEstimate) throws IOException
     {
+        assert !header.isForSSTable();
+
         ByteBufferUtil.writeWithVIntLength(iterator.partitionKey().getKey(), out);
 
         int flags = 0;
@@ -134,7 +137,8 @@ public class UnfilteredRowIteratorSerializer
     // recreate an iterator for both serialize and serializedSize, which is mostly only PartitionUpdate/ArrayBackedCachedPartition.
     public long serializedSize(UnfilteredRowIterator iterator, ColumnFilter selection, int version, int rowEstimate)
     {
-        SerializationHeader header = new SerializationHeader(iterator.metadata(),
+        SerializationHeader header = new SerializationHeader(false,
+                                                             iterator.metadata(),
                                                              iterator.columns(),
                                                              iterator.stats());
 
@@ -175,7 +179,7 @@ public class UnfilteredRowIteratorSerializer
         boolean isReversed = (flags & IS_REVERSED) != 0;
         if ((flags & IS_EMPTY) != 0)
         {
-            SerializationHeader sh = new SerializationHeader(metadata, PartitionColumns.NONE, EncodingStats.NO_STATS);
+            SerializationHeader sh = new SerializationHeader(false, metadata, PartitionColumns.NONE, EncodingStats.NO_STATS);
             return new Header(sh, key, isReversed, true, null, null, 0);
         }
 

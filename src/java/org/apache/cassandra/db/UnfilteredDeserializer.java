@@ -147,7 +147,7 @@ public abstract class UnfilteredDeserializer
                 return;
             }
 
-            nextExtendedFlags = UnfilteredSerializer.isExtended(nextFlags) ? in.readUnsignedByte() : 0;
+            nextExtendedFlags = UnfilteredSerializer.readExtendedFlags(in, nextFlags);
 
             clusteringDeserializer.prepare(nextFlags, nextExtendedFlags);
             isReady = true;
@@ -195,14 +195,14 @@ public abstract class UnfilteredDeserializer
         public void skipNext() throws IOException
         {
             isReady = false;
-            ClusteringPrefix.Kind kind = clusteringDeserializer.skipNext();
+            clusteringDeserializer.skipNext();
             if (UnfilteredSerializer.kind(nextFlags) == Unfiltered.Kind.RANGE_TOMBSTONE_MARKER)
             {
-                UnfilteredSerializer.serializer.skipMarkerBody(in, header, kind.isBoundary());
+                UnfilteredSerializer.serializer.skipMarkerBody(in);
             }
             else
             {
-                UnfilteredSerializer.serializer.skipRowBody(in, header, nextFlags, nextExtendedFlags);
+                UnfilteredSerializer.serializer.skipRowBody(in);
             }
         }
 

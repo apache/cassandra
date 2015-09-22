@@ -325,7 +325,8 @@ public class ScrubTest
                                                                    keys.size(),
                                                                    0L,
                                                                    0,
-                                                                   new SerializationHeader(cfs.metadata,
+                                                                   new SerializationHeader(true,
+                                                                                           cfs.metadata,
                                                                                            cfs.metadata.partitionColumns(),
                                                                                            EncodingStats.NO_STATS)))
             {
