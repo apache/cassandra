@@ -1226,7 +1226,7 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
         return String.format("%.2f/%.2f", onHeap, offHeap);
     }
 
-    public void maybeUpdateRowCache(DecoratedKey key)
+    public void maybeInvalidateCachedRow(DecoratedKey key)
     {
         if (!isRowCacheEnabled())
             return;
@@ -1247,7 +1247,7 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
         long start = System.nanoTime();
         Memtable mt = data.getMemtableFor(opGroup, replayPosition);
         final long timeDelta = mt.put(key, columnFamily, indexer, opGroup);
-        maybeUpdateRowCache(key);
+        maybeInvalidateCachedRow(key);
         metric.samplers.get(Sampler.WRITES).addSample(key.getKey(), key.hashCode(), 1);
         metric.writeLatency.addNano(System.nanoTime() - start);
         if(timeDelta < Long.MAX_VALUE)
@@ -2047,7 +2047,7 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
             RowCacheKey key = keyIter.next();
             DecoratedKey dk = partitioner.decorateKey(ByteBuffer.wrap(key.key));
             if (key.ksAndCFName.equals(metadata.ksAndCFName) && !Range.isInRanges(dk.getToken(), ranges))
-                invalidateCachedRow(dk);
+                maybeInvalidateCachedRow(dk);
         }
 
         if (metadata.isCounter())
@@ -2530,15 +2530,6 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
     public void invalidateCachedRow(RowCacheKey key)
     {
         CacheService.instance.rowCache.remove(key);
-    }
-
-    public void invalidateCachedRow(DecoratedKey key)
-    {
-        UUID cfId = Schema.instance.getId(keyspace.getName(), this.name);
-        if (cfId == null)
-            return; // secondary index
-
-        invalidateCachedRow(new RowCacheKey(metadata.ksAndCFName, key));
     }
 
     public ClockAndCount getCachedCounter(ByteBuffer partitionKey, CellName cellName)

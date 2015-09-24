@@ -24,8 +24,6 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import org.apache.cassandra.db.ColumnFamilyStore;
-import org.apache.cassandra.db.lifecycle.SSTableIntervalTree;
-import org.apache.cassandra.db.lifecycle.Tracker;
 import org.apache.cassandra.db.DecoratedKey;
 import org.apache.cassandra.db.RowPosition;
 import org.apache.cassandra.utils.AlwaysPresentFilter;
@@ -191,7 +189,7 @@ public class CompactionController implements AutoCloseable
 
     public void invalidateCachedRow(DecoratedKey key)
     {
-        cfs.invalidateCachedRow(key);
+        cfs.maybeInvalidateCachedRow(key);
     }
 
     public void close()

@@ -171,6 +171,6 @@ public class StreamReader
     {
         DecoratedKey key = StorageService.getPartitioner().decorateKey(ByteBufferUtil.readWithShortLength(in));
         writer.appendFromStream(key, cfs.metadata, in, inputVersion);
-        cfs.invalidateCachedRow(key);
+        cfs.maybeInvalidateCachedRow(key);
     }
 }
