@@ -967,7 +967,7 @@ createUserStatement returns [CreateRoleStatement stmt]
         boolean ifNotExists = false;
         RoleName name = new RoleName();
     }
-    : K_CREATE K_USER (K_IF K_NOT K_EXISTS { ifNotExists = true; })? u=username { name.setName($u.text, false); }
+    : K_CREATE K_USER (K_IF K_NOT K_EXISTS { ifNotExists = true; })? u=username { name.setName($u.text, true); }
       ( K_WITH userPassword[opts] )?
       ( K_SUPERUSER { superuser = true; } | K_NOSUPERUSER { superuser = false; } )?
       { opts.setOption(IRoleManager.Option.SUPERUSER, superuser);
@@ -1162,7 +1162,7 @@ idxName[IndexName name]
 
 roleName[RoleName name]
     : t=IDENT              { $name.setName($t.text, false); }
-    | s=STRING_LITERAL     { $name.setName($s.text, false); }
+    | s=STRING_LITERAL     { $name.setName($s.text, true); }
     | t=QUOTED_NAME        { $name.setName($t.text, true); }
     | k=unreserved_keyword { $name.setName(k, false); }
     | QMARK {addRecognitionError("Bind variables cannot be used for role names");}
