@@ -797,6 +797,7 @@ class CQL3HelpTopics(CQLHelpTopics):
 
           SELECT name1, name2, name3 FROM ...
           SELECT COUNT(*) FROM ...
+          SELECT MIN(name1), MAX(name2), SUM(name3), AVG(name4) FROM ...
 
         The SELECT expression determines which columns will appear in the
         results and takes the form of a comma separated list of names.
@@ -810,7 +811,14 @@ class CQL3HelpTopics(CQLHelpTopics):
         single row will be returned, with a single column named "count" whose
         value is the number of rows from the pre-aggregation resultset.
 
-        Currently, COUNT is the only function supported by CQL.
+        The MAX and MIN functions can be used to compute the maximum and the
+        minimum value returned by a query for a given column.
+
+        The SUM function can be used to sum up all the values returned by
+        a query for a given column.
+
+        The AVG function can be used to compute the average of all the
+        values returned by a query for a given column.
         """
 
     def help_alter_drop(self):
