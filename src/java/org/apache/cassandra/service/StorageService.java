@@ -1576,11 +1576,19 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
         return getTokenMetadata().getHostId(FBUtilities.getBroadcastAddress());
     }
 
-    public Map<String, String> getHostIdMap()
+    public Map<String, String> getEndpointToHostId()
     {
         Map<String, String> mapOut = new HashMap<>();
         for (Map.Entry<InetAddress, UUID> entry : getTokenMetadata().getEndpointToHostIdMapForReading().entrySet())
             mapOut.put(entry.getKey().getHostAddress(), entry.getValue().toString());
+        return mapOut;
+    }
+
+    public Map<String, String> getHostIdToEndpoint()
+    {
+        Map<String, String> mapOut = new HashMap<>();
+        for (Map.Entry<InetAddress, UUID> entry : getTokenMetadata().getEndpointToHostIdMapForReading().entrySet())
+            mapOut.put(entry.getValue().toString(), entry.getKey().getHostAddress());
         return mapOut;
     }
 
