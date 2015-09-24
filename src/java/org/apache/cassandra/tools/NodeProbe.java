@@ -476,7 +476,7 @@ public class NodeProbe implements AutoCloseable
 
     public Map<String, String> getHostIdMap()
     {
-        return ssProxy.getHostIdMap();
+        return ssProxy.getEndpointToHostId();
     }
 
     public String getLoadString()
@@ -770,7 +770,7 @@ public class NodeProbe implements AutoCloseable
 
     public String getEndpoint()
     {
-        Map<String, String> hostIdToEndpoint = ssProxy.getHostIdMap();
+        Map<String, String> hostIdToEndpoint = ssProxy.getHostIdToEndpoint();
         return hostIdToEndpoint.get(ssProxy.getLocalHostId());
     }
 

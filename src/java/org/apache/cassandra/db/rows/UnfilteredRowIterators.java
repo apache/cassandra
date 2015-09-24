@@ -99,8 +99,8 @@ public abstract class UnfilteredRowIterators
      */
     public static UnfilteredRowIterator noRowsIterator(final CFMetaData cfm, final DecoratedKey partitionKey, final Row staticRow, final DeletionTime partitionDeletion, final boolean isReverseOrder)
     {
-        PartitionColumns columns = staticRow == null ? PartitionColumns.NONE
-                                                     : new PartitionColumns(Columns.from(staticRow.columns()), Columns.NONE);
+        PartitionColumns columns = staticRow == Rows.EMPTY_STATIC_ROW ? PartitionColumns.NONE
+                                                                      : new PartitionColumns(Columns.from(staticRow.columns()), Columns.NONE);
         return new UnfilteredRowIterator()
         {
             public CFMetaData metadata()
