@@ -67,7 +67,7 @@ public abstract class TimeFcts
             if (bb == null)
                 return null;
 
-            return ByteBuffer.wrap(UUIDGen.decompose(UUIDGen.minTimeUUID(TimestampType.instance.compose(bb).getTime())));
+            return UUIDGen.toByteBuffer(UUIDGen.minTimeUUID(TimestampType.instance.compose(bb).getTime()));
         }
     };
 
@@ -79,7 +79,7 @@ public abstract class TimeFcts
             if (bb == null)
                 return null;
 
-            return ByteBuffer.wrap(UUIDGen.decompose(UUIDGen.maxTimeUUID(TimestampType.instance.compose(bb).getTime())));
+            return UUIDGen.toByteBuffer(UUIDGen.maxTimeUUID(TimestampType.instance.compose(bb).getTime()));
         }
     };
 

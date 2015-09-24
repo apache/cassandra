@@ -38,6 +38,7 @@ import org.apache.commons.lang3.builder.ToStringBuilder;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import org.apache.cassandra.auth.DataResource;
 import org.apache.cassandra.cql3.ColumnIdentifier;
 import org.apache.cassandra.cql3.QueryProcessor;
 import org.apache.cassandra.cql3.statements.CFStatement;
@@ -117,6 +118,8 @@ public final class CFMetaData
     // that as convenience to access that column more easily (but we could replace calls by partitionColumns().iterator().next()
     // for those tables in practice).
     private volatile ColumnDefinition compactValueColumn;
+
+    public final DataResource resource;
 
     /*
      * All of these methods will go away once CFMetaData becomes completely immutable.
@@ -288,6 +291,7 @@ public final class CFMetaData
         this.partitionColumns = partitionColumns;
 
         this.serializers = new Serializers(this);
+        this.resource = DataResource.table(ksName, cfName);
         rebuild();
     }
 

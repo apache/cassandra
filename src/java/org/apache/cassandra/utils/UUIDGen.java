@@ -106,6 +106,15 @@ public class UUIDGen
         return new UUID(raw.getLong(raw.position()), raw.getLong(raw.position() + 8));
     }
 
+    public static ByteBuffer toByteBuffer(UUID uuid)
+    {
+        ByteBuffer buffer = ByteBuffer.allocate(16);
+        buffer.putLong(uuid.getMostSignificantBits());
+        buffer.putLong(uuid.getLeastSignificantBits());
+        buffer.flip();
+        return buffer;
+    }
+
     /** decomposes a uuid into raw bytes. */
     public static byte[] decompose(UUID uuid)
     {

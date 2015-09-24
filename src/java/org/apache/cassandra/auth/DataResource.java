@@ -54,31 +54,22 @@ public class DataResource implements IResource
                                                                                             Permission.MODIFY,
                                                                                             Permission.AUTHORIZE);
     private static final String ROOT_NAME = "data";
-    private static final DataResource ROOT_RESOURCE = new DataResource();
+    private static final DataResource ROOT_RESOURCE = new DataResource(Level.ROOT, null, null);
 
     private final Level level;
     private final String keyspace;
     private final String table;
 
-    private DataResource()
-    {
-        level = Level.ROOT;
-        keyspace = null;
-        table = null;
-    }
+    // memoized hashcode since DataRessource is immutable and used in hashmaps often
+    private final transient int hash;
 
-    private DataResource(String keyspace)
+    private DataResource(Level level, String keyspace, String table)
     {
-        level = Level.KEYSPACE;
-        this.keyspace = keyspace;
-        table = null;
-    }
-
-    private DataResource(String keyspace, String table)
-    {
-        level = Level.TABLE;
+        this.level = level;
         this.keyspace = keyspace;
         this.table = table;
+
+        this.hash = Objects.hashCode(level, keyspace, table);
     }
 
     /**
@@ -97,7 +88,7 @@ public class DataResource implements IResource
      */
     public static DataResource keyspace(String keyspace)
     {
-        return new DataResource(keyspace);
+        return new DataResource(Level.KEYSPACE, keyspace, null);
     }
 
     /**
@@ -109,7 +100,7 @@ public class DataResource implements IResource
      */
     public static DataResource table(String keyspace, String table)
     {
-        return new DataResource(keyspace, table);
+        return new DataResource(Level.TABLE, keyspace, table);
     }
 
     /**
@@ -272,6 +263,6 @@ public class DataResource implements IResource
     @Override
     public int hashCode()
     {
-        return Objects.hashCode(level, keyspace, table);
+        return hash;
     }
 }

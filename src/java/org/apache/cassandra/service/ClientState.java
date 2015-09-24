@@ -29,6 +29,7 @@ import org.slf4j.LoggerFactory;
 
 import org.apache.cassandra.auth.*;
 import org.apache.cassandra.config.Config;
+import org.apache.cassandra.config.CFMetaData;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.config.Schema;
 import org.apache.cassandra.cql3.QueryHandler;
@@ -247,6 +248,12 @@ public class ClientState
     {
         ThriftValidation.validateColumnFamily(keyspace, columnFamily);
         hasAccess(keyspace, perm, DataResource.table(keyspace, columnFamily));
+    }
+
+    public void hasColumnFamilyAccess(CFMetaData cfm, Permission perm)
+    throws UnauthorizedException, InvalidRequestException
+    {
+        hasAccess(cfm.ksName, perm, cfm.resource);
     }
 
     private void hasAccess(String keyspace, Permission perm, DataResource resource)

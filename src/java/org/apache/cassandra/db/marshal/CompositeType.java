@@ -391,7 +391,9 @@ public class CompositeType extends AbstractCompositeType
         for (ByteBuffer bb : buffers)
         {
             ByteBufferUtil.writeShortLength(out, bb.remaining());
-            out.put(bb.duplicate());
+            int toCopy = bb.remaining();
+            ByteBufferUtil.arrayCopy(bb, bb.position(), out, out.position(), toCopy);
+            out.position(out.position() + toCopy);
             out.put((byte) 0);
         }
         out.flip();

@@ -140,7 +140,7 @@ public class UUIDType extends AbstractType<UUID>
         {
             try
             {
-                return ByteBuffer.wrap(UUIDGen.decompose(UUID.fromString(source)));
+                return UUIDGen.toByteBuffer(UUID.fromString(source));
             }
             catch (IllegalArgumentException e)
             {

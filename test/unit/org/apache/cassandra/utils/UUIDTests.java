@@ -48,13 +48,21 @@ public class UUIDTests
         assert one.timestamp() < two.timestamp();
     }
 
-
     @Test
     public void testDecomposeAndRaw()
     {
         UUID a = UUIDGen.getTimeUUID();
         byte[] decomposed = UUIDGen.decompose(a);
         UUID b = UUIDGen.getUUID(ByteBuffer.wrap(decomposed));
+        assert a.equals(b);
+    }
+
+    @Test
+    public void testToFromByteBuffer()
+    {
+        UUID a = UUIDGen.getTimeUUID();
+        ByteBuffer bb = UUIDGen.toByteBuffer(a);
+        UUID b = UUIDGen.getUUID(bb);
         assert a.equals(b);
     }
 
