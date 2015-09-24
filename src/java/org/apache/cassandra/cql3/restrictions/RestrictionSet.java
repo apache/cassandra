@@ -96,13 +96,13 @@ final class RestrictionSet implements Restrictions, Iterable<Restriction>
     @Override
     public final boolean isEmpty()
     {
-        return getColumnDefs().isEmpty();
+        return restrictions.isEmpty();
     }
 
     @Override
     public final int size()
     {
-        return getColumnDefs().size();
+        return restrictions.size();
     }
 
     /**

@@ -639,6 +639,6 @@ public class BTreeSet<V> implements NavigableSet<V>, List<V>
 
     public static <V> BTreeSet<V> of(Comparator<? super V> comparator, V value)
     {
-        return new BTreeSet<>(BTree.build(ImmutableList.of(value), UpdateFunction.<V>noOp()), comparator);
+        return new BTreeSet<>(BTree.singleton(value), comparator);
     }
 }

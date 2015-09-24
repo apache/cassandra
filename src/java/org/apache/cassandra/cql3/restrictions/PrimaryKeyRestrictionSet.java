@@ -175,10 +175,24 @@ final class PrimaryKeyRestrictionSet extends AbstractPrimaryKeyRestrictions
         return new PrimaryKeyRestrictionSet(this, restriction);
     }
 
+    // Whether any of the underlying restriction is an IN
+    private boolean hasIN()
+    {
+        if (isIN())
+            return true;
+
+        for (Restriction restriction : restrictions)
+        {
+            if (restriction.isIN())
+                return true;
+        }
+        return false;
+    }
+
     @Override
     public NavigableSet<Clustering> valuesAsClustering(QueryOptions options) throws InvalidRequestException
     {
-        return appendTo(MultiCBuilder.create(comparator), options).build();
+        return appendTo(MultiCBuilder.create(comparator, hasIN()), options).build();
     }
 
     @Override
@@ -202,7 +216,7 @@ final class PrimaryKeyRestrictionSet extends AbstractPrimaryKeyRestrictions
     @Override
     public NavigableSet<Slice.Bound> boundsAsClustering(Bound bound, QueryOptions options) throws InvalidRequestException
     {
-        MultiCBuilder builder = MultiCBuilder.create(comparator);
+        MultiCBuilder builder = MultiCBuilder.create(comparator, hasIN());
         int keyPosition = 0;
         for (Restriction r : restrictions)
         {
