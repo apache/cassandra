@@ -1,3 +1,7 @@
+2.2.3
+ * Make Hadoop CF splits more polite to custom orderered partitioners (CASSANDRA-10400)
+
+
 2.2.2
  * cqlsh prompt includes name of keyspace after failed `use` statement (CASSANDRA-10369)
  * Configurable page size in cqlsh (CASSANDRA-9855)

@@ -203,8 +203,6 @@ public abstract class AbstractColumnFamilyInputFormat<K, Y> extends InputFormat<
             for (Host endpoint : hosts)
                 endpoints[endpointIndex++] = endpoint.getAddress().getHostName();
 
-            boolean partitionerIsOpp = partitioner instanceof OrderPreservingPartitioner || partitioner instanceof ByteOrderedPartitioner;
-
             for (TokenRange subSplit : subSplits.keySet())
             {
                 List<TokenRange> ranges = subSplit.unwrap();
@@ -212,9 +210,9 @@ public abstract class AbstractColumnFamilyInputFormat<K, Y> extends InputFormat<
                 {
                     ColumnFamilySplit split =
                             new ColumnFamilySplit(
-                                    partitionerIsOpp ?
+                                    partitioner.preservesOrder() ?
                                             subrange.getStart().toString().substring(2) : subrange.getStart().toString(),
-                                    partitionerIsOpp ?
+                                    partitioner.preservesOrder() ?
                                             subrange.getEnd().toString().substring(2) : subrange.getStart().toString(),
                                     subSplits.get(subSplit),
                                     endpoints);
