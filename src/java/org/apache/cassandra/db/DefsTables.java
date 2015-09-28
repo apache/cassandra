@@ -461,7 +461,7 @@ public class DefsTables
 
             if (!StorageService.instance.isClientMode())
             {
-                if (DatabaseDescriptor.isAutoSnapshot())
+                if (cfs.metadata.isAllowAutoSnapshot() && DatabaseDescriptor.isAutoSnapshot())
                     cfs.snapshot(snapshotName);
                 Keyspace.open(ksm.name).dropCf(cfm.cfId);
             }
@@ -501,7 +501,7 @@ public class DefsTables
 
         if (!StorageService.instance.isClientMode())
         {
-            if (DatabaseDescriptor.isAutoSnapshot())
+            if (cfs.metadata.isAllowAutoSnapshot() && DatabaseDescriptor.isAutoSnapshot())
                 cfs.snapshot(Keyspace.getTimestampedSnapshotName(cfs.name));
             Keyspace.open(ksm.name).dropCf(cfm.cfId);
             MigrationManager.instance.notifyDropColumnFamily(cfm);

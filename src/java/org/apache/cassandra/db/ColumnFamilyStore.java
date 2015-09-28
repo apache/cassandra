@@ -2615,7 +2615,7 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
         // position in the System keyspace.
         logger.debug("truncating {}", name);
 
-        if (keyspace.getMetadata().durableWrites || DatabaseDescriptor.isAutoSnapshot())
+        if (keyspace.getMetadata().durableWrites || (metadata.isAllowAutoSnapshot() && DatabaseDescriptor.isAutoSnapshot()))
         {
             // flush the CF being truncated before forcing the new segment
             forceBlockingFlush();
@@ -2644,7 +2644,7 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
                 final long truncatedAt = System.currentTimeMillis();
                 data.notifyTruncated(truncatedAt);
 
-                if (DatabaseDescriptor.isAutoSnapshot())
+                if (metadata.isAllowAutoSnapshot() && DatabaseDescriptor.isAutoSnapshot())
                     snapshot(Keyspace.getTimestampedSnapshotName(name));
 
                 ReplayPosition replayAfter = discardSSTables(truncatedAt);
