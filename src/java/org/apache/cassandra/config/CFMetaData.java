@@ -83,6 +83,7 @@ public final class CFMetaData
     public final static SpeculativeRetry DEFAULT_SPECULATIVE_RETRY = new SpeculativeRetry(SpeculativeRetry.RetryType.PERCENTILE, 0.99);
     public final static int DEFAULT_MIN_INDEX_INTERVAL = 128;
     public final static int DEFAULT_MAX_INDEX_INTERVAL = 2048;
+    public final static boolean DEFAULT_ALLOW_AUTO_SNAPSHOT = true;
 
     // Note that this is the default only for user created tables
     public final static String DEFAULT_COMPRESSOR = LZ4Compressor.class.getCanonicalName();
@@ -139,6 +140,7 @@ public final class CFMetaData
                                                                     + "index_interval int,"
                                                                     + "min_index_interval int,"
                                                                     + "max_index_interval int,"
+                                                                    + "allow_auto_snapshot boolean,"
                                                                     + "dropped_columns map<text, bigint>,"
                                                                     + "PRIMARY KEY (keyspace_name, columnfamily_name)"
                                                                     + ") WITH COMMENT='ColumnFamily definitions' AND gc_grace_seconds=604800");
@@ -404,6 +406,7 @@ public final class CFMetaData
     private volatile CachingOptions caching = DEFAULT_CACHING_STRATEGY;
     private volatile int minIndexInterval = DEFAULT_MIN_INDEX_INTERVAL;
     private volatile int maxIndexInterval = DEFAULT_MAX_INDEX_INTERVAL;
+    private volatile boolean allowAutoSnapshot = DEFAULT_ALLOW_AUTO_SNAPSHOT;
     private volatile int memtableFlushPeriod = 0;
     private volatile int defaultTimeToLive = DEFAULT_DEFAULT_TIME_TO_LIVE;
     private volatile SpeculativeRetry speculativeRetry = DEFAULT_SPECULATIVE_RETRY;
@@ -454,6 +457,7 @@ public final class CFMetaData
     public CFMetaData caching(CachingOptions prop) {caching = prop; return this;}
     public CFMetaData minIndexInterval(int prop) {minIndexInterval = prop; return this;}
     public CFMetaData maxIndexInterval(int prop) {maxIndexInterval = prop; return this;}
+    public CFMetaData allowAutoSnapshot(boolean prop) {allowAutoSnapshot = prop; return this;}
     public CFMetaData memtableFlushPeriod(int prop) {memtableFlushPeriod = prop; return this;}
     public CFMetaData defaultTimeToLive(int prop) {defaultTimeToLive = prop; return this;}
     public CFMetaData speculativeRetry(SpeculativeRetry prop) {speculativeRetry = prop; return this;}
@@ -630,6 +634,7 @@ public final class CFMetaData
                       .keyValidator(oldCFMD.keyValidator)
                       .minCompactionThreshold(oldCFMD.minCompactionThreshold)
                       .maxCompactionThreshold(oldCFMD.maxCompactionThreshold)
+                      .allowAutoSnapshot(oldCFMD.allowAutoSnapshot)
                       .compactionStrategyClass(oldCFMD.compactionStrategyClass)
                       .compactionStrategyOptions(new HashMap<>(oldCFMD.compactionStrategyOptions))
                       .compressionParameters(oldCFMD.compressionParameters.copy())
@@ -856,6 +861,11 @@ public final class CFMetaData
         return maxIndexInterval;
     }
 
+    public boolean isAllowAutoSnapshot()
+    {
+        return allowAutoSnapshot;
+    }
+
     public SpeculativeRetry getSpeculativeRetry()
     {
         return speculativeRetry;
@@ -915,6 +925,7 @@ public final class CFMetaData
             && Objects.equal(defaultTimeToLive, other.defaultTimeToLive)
             && Objects.equal(minIndexInterval, other.minIndexInterval)
             && Objects.equal(maxIndexInterval, other.maxIndexInterval)
+            && Objects.equal(allowAutoSnapshot, other.allowAutoSnapshot)
             && Objects.equal(speculativeRetry, other.speculativeRetry)
             && Objects.equal(droppedColumns, other.droppedColumns)
             && Objects.equal(triggers, other.triggers)
@@ -948,6 +959,7 @@ public final class CFMetaData
             .append(defaultTimeToLive)
             .append(minIndexInterval)
             .append(maxIndexInterval)
+            .append(allowAutoSnapshot)
             .append(speculativeRetry)
             .append(droppedColumns)
             .append(triggers)
@@ -999,6 +1011,10 @@ public final class CFMetaData
         {
             // ensure the max is at least as large as the min
             cf_def.setMax_index_interval(Math.max(cf_def.min_index_interval, CFMetaData.DEFAULT_MAX_INDEX_INTERVAL));
+        }
+        if (!cf_def.isSetAllow_auto_snapshot())
+        {
+            cf_def.setAllow_auto_snapshot(CFMetaData.DEFAULT_ALLOW_AUTO_SNAPSHOT);
         }
     }
 
@@ -1092,6 +1108,8 @@ public final class CFMetaData
                 newCFMD.minIndexInterval(cf_def.min_index_interval);
             if (cf_def.isSetMax_index_interval())
                 newCFMD.maxIndexInterval(cf_def.max_index_interval);
+            if (cf_def.isAllow_auto_snapshot())
+                newCFMD.allowAutoSnapshot(cf_def.allow_auto_snapshot);
             if (cf_def.isSetSpeculative_retry())
                 newCFMD.speculativeRetry(SpeculativeRetry.fromString(cf_def.speculative_retry));
             if (cf_def.isSetTriggers())
@@ -1190,6 +1208,7 @@ public final class CFMetaData
         caching = cfm.caching;
         minIndexInterval = cfm.minIndexInterval;
         maxIndexInterval = cfm.maxIndexInterval;
+        allowAutoSnapshot = cfm.allowAutoSnapshot;
         memtableFlushPeriod = cfm.memtableFlushPeriod;
         defaultTimeToLive = cfm.defaultTimeToLive;
         speculativeRetry = cfm.speculativeRetry;
@@ -1349,6 +1368,7 @@ public final class CFMetaData
             def.setBloom_filter_fp_chance(bloomFilterFpChance);
         def.setMin_index_interval(minIndexInterval);
         def.setMax_index_interval(maxIndexInterval);
+        def.setAllow_auto_snapshot(allowAutoSnapshot);
         def.setMemtable_flush_period_in_ms(memtableFlushPeriod);
         def.setCaching(caching.toThriftCaching());
         def.setCells_per_row_to_cache(caching.toThriftCellsPerRow());
@@ -1738,6 +1758,7 @@ public final class CFMetaData
         adder.add("min_index_interval", minIndexInterval);
         adder.add("max_index_interval", maxIndexInterval);
         adder.add("index_interval", null);
+        adder.add("allow_auto_snapshot", allowAutoSnapshot);
         adder.add("speculative_retry", speculativeRetry.toString());
 
         for (Map.Entry<ColumnIdentifier, Long> entry : droppedColumns.entrySet())
@@ -1806,6 +1827,7 @@ public final class CFMetaData
             cfm.compactionStrategyClass(createCompactionStrategy(result.getString("compaction_strategy_class")));
             cfm.compressionParameters(CompressionParameters.create(fromJsonMap(result.getString("compression_parameters"))));
             cfm.compactionStrategyOptions(fromJsonMap(result.getString("compaction_strategy_options")));
+            cfm.allowAutoSnapshot(result.getBoolean("allow_auto_snapshot"));
 
             // migrate old index_interval values to min_index_interval, if present
             if (result.has("min_index_interval"))
@@ -2291,6 +2313,7 @@ public final class CFMetaData
             .append("defaultTimeToLive", defaultTimeToLive)
             .append("minIndexInterval", minIndexInterval)
             .append("maxIndexInterval", maxIndexInterval)
+            .append("allowAutoSnapshot", allowAutoSnapshot)
             .append("speculativeRetry", speculativeRetry)
             .append("droppedColumns", droppedColumns)
             .append("triggers", triggers.values())

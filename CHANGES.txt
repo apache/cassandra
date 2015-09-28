@@ -1,4 +1,5 @@
 2.1.10
+ * Disable auto snapshot on selected tables (CASSANDRA-10383)
  * Fix potential ClassCastException during paging (CASSANDRA-10352)
  * Prevent ALTER TYPE from creating circular references (CASSANDRA-10339)
  * Fix cache handling of 2i and base tables (CASSANDRA-10155, 10359)
