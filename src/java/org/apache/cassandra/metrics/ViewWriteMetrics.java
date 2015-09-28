@@ -18,19 +18,31 @@
 
 package org.apache.cassandra.metrics;
 
-import com.codahale.metrics.Counter;
-
 import static org.apache.cassandra.metrics.CassandraMetricsRegistry.Metrics;
+
+import com.codahale.metrics.Counter;
+import com.codahale.metrics.Timer;
+import com.codahale.metrics.Gauge;
 
 public class ViewWriteMetrics extends ClientRequestMetrics
 {
     public final Counter viewReplicasAttempted;
     public final Counter viewReplicasSuccess;
+    // time between when mutation is applied to local memtable to when CL.ONE is achieved on MV
+    public final Timer viewWriteLatency;
 
     public ViewWriteMetrics(String scope) {
         super(scope);
         viewReplicasAttempted = Metrics.counter(factory.createMetricName("ViewReplicasAttempted"));
         viewReplicasSuccess = Metrics.counter(factory.createMetricName("ViewReplicasSuccess"));
+        viewWriteLatency = Metrics.timer(factory.createMetricName("ViewWriteLatency"));
+        Metrics.register(factory.createMetricName("ViewPendingMutations"), new Gauge<Long>()
+                {
+                    public Long getValue()
+                    {
+                        return viewReplicasAttempted.getCount() - viewReplicasSuccess.getCount();
+                    }
+                });
     }
 
     public void release()
@@ -38,5 +50,7 @@ public class ViewWriteMetrics extends ClientRequestMetrics
         super.release();
         Metrics.remove(factory.createMetricName("ViewReplicasAttempted"));
         Metrics.remove(factory.createMetricName("ViewReplicasSuccess"));
+        Metrics.remove(factory.createMetricName("ViewWriteLatency"));
+        Metrics.remove(factory.createMetricName("ViewPendingMutations"));
     }
 }

@@ -19,6 +19,7 @@ package org.apache.cassandra.db.view;
 
 import java.nio.ByteBuffer;
 import java.util.*;
+import java.util.concurrent.TimeUnit;
 import java.util.stream.Collectors;
 
 import javax.annotation.Nullable;
@@ -527,6 +528,7 @@ public class View
      */
     private void readLocalRows(TemporalRow.Set rowSet)
     {
+        long start = System.currentTimeMillis();
         SinglePartitionSliceBuilder builder = new SinglePartitionSliceBuilder(baseCfs, rowSet.dk);
 
         for (TemporalRow temporalRow : rowSet)
@@ -551,6 +553,7 @@ public class View
                 }
             }
         }
+        baseCfs.metric.viewReadTime.update(System.currentTimeMillis() - start, TimeUnit.MILLISECONDS);
     }
 
     /**
