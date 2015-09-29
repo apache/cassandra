@@ -357,7 +357,7 @@ cqlsh_extra_syntax_rules = r'''
 <expandCommand> ::= "EXPAND" ( switch=( "ON" | "OFF" ) )?
                    ;
 
-<pagingCommand> ::= "PAGING" ( switch=( "ON" | "OFF" ) )?
+<pagingCommand> ::= "PAGING" ( switch=( "ON" | "OFF" | /[0-9]+/) )?
                   ;
 
 <loginCommand> ::= "LOGIN" username=<username> (password=<stringLiteral>)?
@@ -642,6 +642,7 @@ class Shell(cmd.Cmd):
         self.keyspace = keyspace
         self.ssl = ssl
         self.tracing_enabled = tracing_enabled
+        self.page_size = self.default_page_size
         self.expand_enabled = expand_enabled
         if use_conn:
             self.conn = use_conn
@@ -1153,7 +1154,7 @@ class Shell(cmd.Cmd):
         self.tracing_enabled = tracing_was_enabled
 
     def perform_statement(self, statement):
-        stmt = SimpleStatement(statement, consistency_level=self.consistency_level, serial_consistency_level=self.serial_consistency_level, fetch_size=self.default_page_size if self.use_paging else None)
+        stmt = SimpleStatement(statement, consistency_level=self.consistency_level, serial_consistency_level=self.serial_consistency_level, fetch_size=self.page_size if self.use_paging else None)
         result, future = self.perform_simple_statement(stmt)
 
         if future:
@@ -2317,7 +2318,14 @@ class Shell(cmd.Cmd):
 
           PAGING with no arguments shows the current query paging status.
         """
-        self.use_paging = SwitchCommand("PAGING", "Query paging").execute(self.use_paging, parsed, self.printerr)
+        (self.use_paging, requested_page_size) = SwitchCommandWithValue(
+            "PAGING", "Query paging", value_type=int).execute(self.use_paging, parsed, self.printerr)
+        if self.use_paging and requested_page_size is not None:
+            self.page_size = requested_page_size
+        if self.use_paging:
+            print("Page size: {}".format(self.page_size))
+        else:
+            self.page_size = self.default_page_size
 
     def applycolor(self, text, color=None):
         if not color or not self.color:
@@ -2545,6 +2553,29 @@ class SwitchCommand(object):
             print 'Disabled %s.' % (self.description,)
             return False
 
+class SwitchCommandWithValue(SwitchCommand):
+    """The same as SwitchCommand except it also accepts a value in place of ON.
+    
+    This returns a tuple of the form: (SWITCH_VALUE, PASSED_VALUE)
+    eg: PAGING 50 returns (True, 50)
+        PAGING OFF returns (False, None)
+        PAGING ON returns (True, None)
+
+    The value_type must match for the PASSED_VALUE, otherwise it will return None.
+    """
+    def __init__(self, command, desc, value_type=int):
+        SwitchCommand.__init__(self, command, desc)
+        self.value_type = value_type
+        
+    def execute(self, state, parsed, printerr):
+        binary_switch_value = SwitchCommand.execute(self, state, parsed, printerr)
+        switch = parsed.get_binding('switch')
+        try:
+            value = self.value_type(switch)
+            binary_switch_value = True
+        except (ValueError, TypeError):
+            value = None
+        return (binary_switch_value, value)
 
 def option_with_default(cparser_getter, section, option, default=None):
     try:
