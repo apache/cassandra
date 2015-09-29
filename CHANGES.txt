@@ -1,4 +1,5 @@
 2.2.2
+ * Configurable page size in cqlsh (CASSANDRA-9855)
  * Defer default role manager setup until all nodes are on 2.2+ (CASSANDRA-9761)
  * Cancel transaction for sstables we wont redistribute index summary
    for (CASSANDRA-10270)
