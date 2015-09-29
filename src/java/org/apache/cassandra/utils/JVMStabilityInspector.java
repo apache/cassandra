@@ -48,6 +48,7 @@ public final class JVMStabilityInspector
 
     /**
      * Certain Throwables and Exceptions represent "Die" conditions for the server.
+     * This recursively checks the input Throwable's cause hierarchy until null.
      * @param t
      *      The Throwable to check for server-stop conditions
      */
@@ -68,6 +69,9 @@ public final class JVMStabilityInspector
 
         if (isUnstable)
             killer.killCurrentJVM(t);
+
+        if (t.getCause() != null)
+            inspectThrowable(t.getCause());
     }
 
     public static void inspectCommitLogThrowable(Throwable t)

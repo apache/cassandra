@@ -59,6 +59,15 @@ public class JVMStabilityInspectorTest
             killerForTests.reset();
             JVMStabilityInspector.inspectCommitLogThrowable(new Throwable());
             assertTrue(killerForTests.wasKilled());
+
+            killerForTests.reset();
+            JVMStabilityInspector.inspectThrowable(new Exception(new IOException()));
+            assertFalse(killerForTests.wasKilled());
+
+            killerForTests.reset();
+            JVMStabilityInspector.inspectThrowable(new Exception(new OutOfMemoryError()));
+            assertTrue(killerForTests.wasKilled());
+
         }
         finally
         {
