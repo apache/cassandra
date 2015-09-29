@@ -1138,7 +1138,8 @@ class Shell(cmd.Cmd):
 
     def do_use(self, parsed):
         ksname = parsed.get_binding('ksname')
-        if self.perform_simple_statement(SimpleStatement(parsed.extract_orig())):
+        result, future = self.perform_simple_statement(SimpleStatement(parsed.extract_orig()))
+        if result:
             if ksname[0] == '"' and ksname[-1] == '"':
                 self.current_keyspace = self.cql_unprotect_name(ksname)
             else:

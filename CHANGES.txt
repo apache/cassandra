@@ -1,3 +1,8 @@
+3.0
+Merged from 2.2:
+ * cqlsh prompt includes name of keyspace after failed `use` statement (CASSANDRA-10369)
+
+
 3.0.0-rc1
  * Fix mixed version read request compatibility for compact static tables
    (CASSANDRA-10373)
