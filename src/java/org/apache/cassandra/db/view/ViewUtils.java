@@ -94,7 +94,7 @@ public final class ViewUtils
 
             if (StorageService.instance.getTokenMetadata().pendingEndpointsFor(viewToken, keyspaceName).size() > 0)
             {
-                //Since there are pending endpoints we are going to store hints this in the batchlog regardless.
+                //Since there are pending endpoints we are going to write to the batchlog regardless.
                 //So we can pretend we are the views endpoint.
 
                 return FBUtilities.getBroadcastAddress();

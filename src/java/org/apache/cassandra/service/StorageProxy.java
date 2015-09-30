@@ -660,55 +660,64 @@ public class StorageProxy implements StorageProxyMBean
         final String localDataCenter = DatabaseDescriptor.getEndpointSnitch().getDatacenter(FBUtilities.getBroadcastAddress());
 
         long startTime = System.nanoTime();
-        List<WriteResponseHandlerWrapper> wrappers = new ArrayList<>(mutations.size());
+
 
         try
         {
-            Token baseToken = StorageService.instance.getTokenMetadata().partitioner.getToken(dataKey);
-
-            ConsistencyLevel consistencyLevel = ConsistencyLevel.ONE;
-
-            //Since the base -> view replication is 1:1 we only need to store the BL locally
-            final Collection<InetAddress> batchlogEndpoints = Collections.singleton(FBUtilities.getBroadcastAddress());
+            // if we haven't joined the ring, write everything to batchlog because paired replicas may be stale
             final UUID batchUUID = UUIDGen.getTimeUUID();
-            BatchlogResponseHandler.BatchlogCleanup cleanup = new BatchlogResponseHandler.BatchlogCleanup(mutations.size(),
-                                                                                                          () -> asyncRemoveFromBatchlog(batchlogEndpoints, batchUUID));
 
-            // add a handler for each mutation - includes checking availability, but doesn't initiate any writes, yet
-            for (Mutation mutation : mutations)
+            if (!Gossiper.instance.isEnabled())
             {
-                String keyspaceName = mutation.getKeyspaceName();
-                Token tk = mutation.key().getToken();
-                InetAddress pairedEndpoint = ViewUtils.getViewNaturalEndpoint(keyspaceName, baseToken, tk);
-                List<InetAddress> naturalEndpoints = Lists.newArrayList(pairedEndpoint);
-
-                WriteResponseHandlerWrapper wrapper = wrapViewBatchResponseHandler(mutation,
-                                                                                   consistencyLevel,
-                                                                                   consistencyLevel,
-                                                                                   naturalEndpoints,
-                                                                                   baseComplete,
-                                                                                   WriteType.BATCH,
-                                                                                   cleanup);
-
-                // When local node is the endpoint and there are no pending nodes we can
-                // Just apply the mutation locally.
-                if (pairedEndpoint.equals(FBUtilities.getBroadcastAddress()) && wrapper.handler.pendingEndpoints.isEmpty())
-                {
-                    mutation.apply(writeCommitLog);
-                    viewWriteMetrics.viewReplicasSuccess.inc();
-                }
-                else
-                    wrappers.add(wrapper);
-            }
-
-            if (!wrappers.isEmpty())
-            {
-                // Apply to local batchlog memtable in this thread
-                BatchlogManager.store(Batch.createLocal(batchUUID, FBUtilities.timestampMicros(), Lists.transform(wrappers, w -> w.mutation)),
+                BatchlogManager.store(Batch.createLocal(batchUUID, FBUtilities.timestampMicros(),
+                                                        mutations),
                                       writeCommitLog);
+            }
+            else
+            {
+                List<WriteResponseHandlerWrapper> wrappers = new ArrayList<>(mutations.size());
+                Token baseToken = StorageService.instance.getTokenMetadata().partitioner.getToken(dataKey);
 
-                // now actually perform the writes and wait for them to complete
-                asyncWriteBatchedMutations(wrappers, localDataCenter, Stage.VIEW_MUTATION);
+                ConsistencyLevel consistencyLevel = ConsistencyLevel.ONE;
+
+                //Since the base -> view replication is 1:1 we only need to store the BL locally
+                final Collection<InetAddress> batchlogEndpoints = Collections.singleton(FBUtilities.getBroadcastAddress());
+                BatchlogResponseHandler.BatchlogCleanup cleanup = new BatchlogResponseHandler.BatchlogCleanup(mutations.size(),
+                                                                                                              () -> asyncRemoveFromBatchlog(batchlogEndpoints, batchUUID));
+
+                // add a handler for each mutation - includes checking availability, but doesn't initiate any writes, yet
+                for (Mutation mutation : mutations)
+                {
+                    String keyspaceName = mutation.getKeyspaceName();
+                    Token tk = mutation.key().getToken();
+                    InetAddress pairedEndpoint = ViewUtils.getViewNaturalEndpoint(keyspaceName, baseToken, tk);
+                    List<InetAddress> naturalEndpoints = Lists.newArrayList(pairedEndpoint);
+
+                    WriteResponseHandlerWrapper wrapper = wrapViewBatchResponseHandler(mutation,
+                                                                                       consistencyLevel,
+                                                                                       consistencyLevel,
+                                                                                       naturalEndpoints,
+                                                                                       baseComplete,
+                                                                                       WriteType.BATCH,
+                                                                                       cleanup);
+
+                    // When local node is the endpoint and there are no pending nodes we can
+                    // Just apply the mutation locally.
+                    if (pairedEndpoint.equals(FBUtilities.getBroadcastAddress()) && wrapper.handler.pendingEndpoints.isEmpty() && StorageService.instance.isJoined())
+                        mutation.apply(writeCommitLog);
+                    else
+                        wrappers.add(wrapper);
+                }
+
+                if (!wrappers.isEmpty())
+                {
+                    // Apply to local batchlog memtable in this thread
+                    BatchlogManager.store(Batch.createLocal(batchUUID, FBUtilities.timestampMicros(), Lists.transform(wrappers, w -> w.mutation)),
+                                          writeCommitLog);
+
+                    // now actually perform the writes and wait for them to complete
+                    asyncWriteBatchedMutations(wrappers, localDataCenter, Stage.VIEW_MUTATION);
+                }
             }
         }
         finally
@@ -1081,7 +1090,7 @@ public class StorageProxy implements StorageProxyMBean
      * | off            |       ANY      | --> DO NOT fire hints. And DO NOT wait for them to complete.
      * }
      * </pre>
-     * 
+     *
      * @throws OverloadedException if the hints cannot be written/enqueued
      */
     public static void sendToHintedEndpoints(final Mutation mutation,
@@ -2250,7 +2259,7 @@ public class StorageProxy implements StorageProxyMBean
         }
 
         Set<InetAddress> allEndpoints = Gossiper.instance.getLiveTokenOwners();
-        
+
         int blockFor = allEndpoints.size();
         final TruncateResponseHandler responseHandler = new TruncateResponseHandler(blockFor);
 
