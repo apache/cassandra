@@ -1,3 +1,6 @@
+2.1.11
+ * Update internal python driver used by cqlsh (CASSANDRA-10161)
+
 2.1.10
  * Bulk Loader API could not tolerate even node failure (CASSANDRA-10347)
  * Avoid misleading pushed notifications when multiple nodes
