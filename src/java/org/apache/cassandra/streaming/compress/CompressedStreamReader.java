@@ -18,7 +18,6 @@
 package org.apache.cassandra.streaming.compress;
 
 import java.io.DataInputStream;
-
 import java.io.IOException;
 import java.nio.channels.Channels;
 import java.nio.channels.ReadableByteChannel;
@@ -61,7 +60,7 @@ public class CompressedStreamReader extends StreamReader
      * @throws java.io.IOException if reading the remote sstable fails. Will throw an RTE if local write fails.
      */
     @Override
-    @SuppressWarnings("resource")
+    @SuppressWarnings("resource") // channel needs to remain open, streams on top of it can't be closed
     public SSTableMultiWriter read(ReadableByteChannel channel) throws IOException
     {
         logger.debug("reading file from {}, repairedAt = {}", session.peer, repairedAt);

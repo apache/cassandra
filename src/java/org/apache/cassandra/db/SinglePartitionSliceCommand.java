@@ -128,6 +128,7 @@ public class SinglePartitionSliceCommand extends SinglePartitionReadCommand<Clus
         return oldestUnrepairedTombstone;
     }
 
+    @SuppressWarnings("resource") //  Iterators added to iterators list which is closed on exception or with the closing of the result of the method.
     protected UnfilteredRowIterator queryMemtableAndDiskInternal(ColumnFamilyStore cfs, boolean copyOnHeap)
     {
         Tracing.trace("Acquiring sstable references");
@@ -144,9 +145,7 @@ public class SinglePartitionSliceCommand extends SinglePartitionReadCommand<Clus
                 if (partition == null)
                     continue;
 
-                @SuppressWarnings("resource") // 'iter' is added to iterators which is closed on exception, or through the closing of the final merged iterator
                 UnfilteredRowIterator iter = filter.getUnfilteredRowIterator(columnFilter(), partition);
-                @SuppressWarnings("resource") // same as above
                 UnfilteredRowIterator maybeCopied = copyOnHeap ? UnfilteredRowIterators.cloningIterator(iter, HeapAllocator.instance) : iter;
                 oldestUnrepairedTombstone = Math.min(oldestUnrepairedTombstone, partition.stats().minLocalDeletionTime);
                 iterators.add(isForThrift() ? ThriftResultsMerger.maybeWrap(maybeCopied, nowInSec()) : maybeCopied);
@@ -192,7 +191,6 @@ public class SinglePartitionSliceCommand extends SinglePartitionReadCommand<Clus
                 }
 
                 sstable.incrementReadCount();
-                @SuppressWarnings("resource") // 'iter' is added to iterators which is closed on exception, or through the closing of the final merged iterator
                 UnfilteredRowIterator iter = filter.filter(sstable.iterator(partitionKey(), columnFilter(), filter.isReversed(), isForThrift()));
                 if (!sstable.isRepaired())
                     oldestUnrepairedTombstone = Math.min(oldestUnrepairedTombstone, sstable.getMinLocalDeletionTime());
@@ -212,7 +210,7 @@ public class SinglePartitionSliceCommand extends SinglePartitionReadCommand<Clus
                         continue;
 
                     sstable.incrementReadCount();
-                    @SuppressWarnings("resource") // 'iter' is either closed right away, or added to iterators which is close on exception, or through the closing of the final merged iterator
+
                     UnfilteredRowIterator iter = filter.filter(sstable.iterator(partitionKey(), columnFilter(), filter.isReversed(), isForThrift()));
                     if (iter.partitionLevelDeletion().markedForDeleteAt() > minTimestamp)
                     {
@@ -239,7 +237,6 @@ public class SinglePartitionSliceCommand extends SinglePartitionReadCommand<Clus
 
             Tracing.trace("Merging data from memtables and {} sstables", sstablesIterated);
 
-            @SuppressWarnings("resource") //  Closed through the closing of the result of that method.
             UnfilteredRowIterator merged = UnfilteredRowIterators.merge(iterators, nowInSec());
             if (!merged.isEmpty())
             {

@@ -33,6 +33,7 @@ public class RetryMessage extends StreamMessage
 {
     public static Serializer<RetryMessage> serializer = new Serializer<RetryMessage>()
     {
+        @SuppressWarnings("resource") // Not closing constructed DataInputPlus's as the channel needs to remain open.
         public RetryMessage deserialize(ReadableByteChannel in, int version, StreamSession session) throws IOException
         {
             DataInputPlus input = new DataInputStreamPlus(Channels.newInputStream(in));

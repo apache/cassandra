@@ -26,6 +26,7 @@ import java.util.concurrent.ConcurrentMap;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.zip.CRC32;
 
+import org.apache.cassandra.io.util.DataOutputBuffer;
 import org.apache.cassandra.io.util.DataOutputBufferFixed;
 import org.apache.cassandra.io.util.DataOutputPlus;
 import org.apache.cassandra.io.util.FileUtils;
@@ -142,6 +143,7 @@ final class HintsBuffer
         };
     }
 
+    @SuppressWarnings("resource")
     Allocation allocate(int hintSize)
     {
         int totalSize = hintSize + ENTRY_OVERHEAD_SIZE;
@@ -153,7 +155,6 @@ final class HintsBuffer
                                                              slab.capacity() / 2));
         }
 
-        @SuppressWarnings("resource")
         OpOrder.Group opGroup = appendOrder.start(); // will eventually be closed by the receiver of the allocation
         try
         {
@@ -239,10 +240,9 @@ final class HintsBuffer
         private void write(Hint hint)
         {
             ByteBuffer buffer = (ByteBuffer) slab.duplicate().position(offset).limit(offset + totalSize);
-            DataOutputPlus dop = new DataOutputBufferFixed(buffer);
             CRC32 crc = new CRC32();
             int hintSize = totalSize - ENTRY_OVERHEAD_SIZE;
-            try
+            try (DataOutputBuffer dop = new DataOutputBufferFixed(buffer))
             {
                 dop.writeInt(hintSize);
                 updateChecksumInt(crc, hintSize);

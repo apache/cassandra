@@ -17,7 +17,6 @@
  */
 package org.apache.cassandra.service.pager;
 
-import java.io.DataInputStream;
 import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.util.*;
@@ -58,9 +57,8 @@ public class PagingState
         if (bytes == null)
             return null;
 
-        try
+        try (DataInputBuffer in = new DataInputBuffer(bytes, true))
         {
-            DataInputBuffer in = new DataInputBuffer(bytes, true);
             ByteBuffer pk;
             RowMark mark;
             int remaining, remainingInPartition;

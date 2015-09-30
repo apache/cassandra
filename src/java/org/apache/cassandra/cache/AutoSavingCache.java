@@ -333,56 +333,42 @@ public class AutoSavingCache<K extends CacheKey, V> extends InstrumentingCache<K
 
             long start = System.nanoTime();
 
-            WrappedDataOutputStreamPlus writer = null;
             Pair<File, File> cacheFilePaths = tempCacheFiles();
-            try
+            try (WrappedDataOutputStreamPlus writer = new WrappedDataOutputStreamPlus(streamFactory.getOutputStream(cacheFilePaths.left, cacheFilePaths.right)))
             {
-                try
+
+                //Need to be able to check schema version because CF names are ambiguous
+                UUID schemaVersion = Schema.instance.getVersion();
+                if (schemaVersion == null)
                 {
-                    writer = new WrappedDataOutputStreamPlus(streamFactory.getOutputStream(cacheFilePaths.left, cacheFilePaths.right));
+                    Schema.instance.updateVersion();
+                    schemaVersion = Schema.instance.getVersion();
                 }
-                catch (FileNotFoundException e)
+                writer.writeLong(schemaVersion.getMostSignificantBits());
+                writer.writeLong(schemaVersion.getLeastSignificantBits());
+
+                while (keyIterator.hasNext())
                 {
-                    throw new RuntimeException(e);
+                    K key = keyIterator.next();
+
+                    ColumnFamilyStore cfs = Schema.instance.getColumnFamilyStoreIncludingIndexes(key.ksAndCFName);
+                    if (cfs == null)
+                        continue; // the table or 2i has been dropped.
+
+                    cacheLoader.serialize(key, writer, cfs);
+
+                    keysWritten++;
+                    if (keysWritten >= keysEstimate)
+                        break;
                 }
-
-                try
-                {
-                    //Need to be able to check schema version because CF names are ambiguous
-                    UUID schemaVersion = Schema.instance.getVersion();
-                    if (schemaVersion == null)
-                    {
-                        Schema.instance.updateVersion();
-                        schemaVersion = Schema.instance.getVersion();
-                    }
-                    writer.writeLong(schemaVersion.getMostSignificantBits());
-                    writer.writeLong(schemaVersion.getLeastSignificantBits());
-
-                    while (keyIterator.hasNext())
-                    {
-                        K key = keyIterator.next();
-
-                        ColumnFamilyStore cfs = Schema.instance.getColumnFamilyStoreIncludingIndexes(key.ksAndCFName);
-                        if (cfs == null)
-                            continue; // the table or 2i has been dropped.
-
-                        cacheLoader.serialize(key, writer, cfs);
-
-                        keysWritten++;
-                        if (keysWritten >= keysEstimate)
-                            break;
-                    }
-                }
-                catch (IOException e)
-                {
-                    throw new FSWriteError(e, cacheFilePaths.left);
-                }
-
             }
-            finally
+            catch (FileNotFoundException e)
             {
-                if (writer != null)
-                    FileUtils.closeQuietly(writer);
+                throw new RuntimeException(e);
+            }
+            catch (IOException e)
+            {
+                throw new FSWriteError(e, cacheFilePaths.left);
             }
 
             File cacheFile = getCacheDataPath(CURRENT_VERSION);

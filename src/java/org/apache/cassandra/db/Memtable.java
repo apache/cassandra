@@ -25,6 +25,7 @@ import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.AtomicReference;
 
 import com.google.common.annotations.VisibleForTesting;
+
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -415,6 +416,7 @@ public class Memtable implements Comparable<Memtable>
             }
         }
 
+        @SuppressWarnings("resource") // log and writer closed by SSTableTxnWriter
         public SSTableTxnWriter createFlushWriter(String filename,
                                                PartitionColumns columns,
                                                EncodingStats stats)

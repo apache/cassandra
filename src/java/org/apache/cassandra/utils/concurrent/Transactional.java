@@ -221,4 +221,7 @@ public interface Transactional extends AutoCloseable
     Throwable abort(Throwable accumulate);
 
     void prepareToCommit();
+
+    // close() does not throw
+    public void close();
 }

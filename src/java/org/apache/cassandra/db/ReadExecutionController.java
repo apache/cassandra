@@ -61,6 +61,7 @@ public class ReadExecutionController implements AutoCloseable
         return new ReadExecutionController(readOp, null, null);
     }
 
+    @SuppressWarnings("resource") // ops closed during controller close
     public static ReadExecutionController forCommand(ReadCommand command)
     {
         ColumnFamilyStore baseCfs = Keyspace.openAndGetStore(command.metadata());
@@ -72,7 +73,7 @@ public class ReadExecutionController implements AutoCloseable
         }
         else
         {
-            OpOrder.Group baseOp = null, indexOp = null, writeOp;
+            OpOrder.Group baseOp = null, indexOp = null, writeOp = null;
             // OpOrder.start() shouldn't fail, but better safe than sorry.
             try
             {
@@ -80,12 +81,13 @@ public class ReadExecutionController implements AutoCloseable
                 indexOp = indexCfs.readOrdering.start();
                 // TODO: this should perhaps not open and maintain a writeOp for the full duration, but instead only *try* to delete stale entries, without blocking if there's no room
                 // as it stands, we open a writeOp and keep it open for the duration to ensure that should this CF get flushed to make room we don't block the reclamation of any room being made
-                writeOp = baseCfs.keyspace.writeOrder.start();
+                writeOp = Keyspace.writeOrder.start();
                 return new ReadExecutionController(baseOp, indexOp, writeOp);
             }
             catch (RuntimeException e)
             {
                 // Note that must have writeOp == null since ReadOrderGroup ctor can't fail
+                assert writeOp == null;
                 try
                 {
                     if (baseOp != null)

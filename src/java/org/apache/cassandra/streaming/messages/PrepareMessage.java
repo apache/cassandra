@@ -34,6 +34,7 @@ public class PrepareMessage extends StreamMessage
 {
     public static Serializer<PrepareMessage> serializer = new Serializer<PrepareMessage>()
     {
+        @SuppressWarnings("resource") // Not closing constructed DataInputPlus's as the channel needs to remain open.
         public PrepareMessage deserialize(ReadableByteChannel in, int version, StreamSession session) throws IOException
         {
             DataInputPlus input = new DataInputStreamPlus(Channels.newInputStream(in));

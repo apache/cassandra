@@ -68,7 +68,7 @@ final class HintsWriteExecutor
     /**
      * Flush the provided buffer, recycle it and offer it back to the pool.
      */
-    Future flushBuffer(HintsBuffer buffer, HintsBufferPool bufferPool)
+    Future<?> flushBuffer(HintsBuffer buffer, HintsBufferPool bufferPool)
     {
         return executor.submit(new FlushBufferTask(buffer, bufferPool));
     }
@@ -76,7 +76,7 @@ final class HintsWriteExecutor
     /**
      * Flush the current buffer, but without clearing/recycling it.
      */
-    Future flushBufferPool(HintsBufferPool bufferPool)
+    Future<?> flushBufferPool(HintsBufferPool bufferPool)
     {
         return executor.submit(new FlushBufferPoolTask(bufferPool));
     }
@@ -84,7 +84,7 @@ final class HintsWriteExecutor
     /**
      * Flush the current buffer just for the specified hints stores. Without clearing/recycling it.
      */
-    Future flushBufferPool(HintsBufferPool bufferPool, Iterable<HintsStore> stores)
+    Future<?> flushBufferPool(HintsBufferPool bufferPool, Iterable<HintsStore> stores)
     {
         return executor.submit(new PartiallyFlushBufferPoolTask(bufferPool, stores));
     }
@@ -101,12 +101,12 @@ final class HintsWriteExecutor
         }
     }
 
-    Future closeWriter(HintsStore store)
+    Future<?> closeWriter(HintsStore store)
     {
         return executor.submit(store::closeWriter);
     }
 
-    Future closeAllWriters()
+    Future<?> closeAllWriters()
     {
         return executor.submit(() -> catalog.stores().forEach(HintsStore::closeWriter));
     }
@@ -211,11 +211,11 @@ final class HintsWriteExecutor
         }
     }
 
+    @SuppressWarnings("resource")   // writer not closed here
     private void flushInternal(Iterator<ByteBuffer> iterator, HintsStore store)
     {
         long maxHintsFileSize = DatabaseDescriptor.getMaxHintsFileSize();
 
-        @SuppressWarnings("resource")
         HintsWriter writer = store.getOrOpenWriter();
 
         try (HintsWriter.Session session = writer.newSession(writeBuffer))

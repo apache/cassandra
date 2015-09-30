@@ -180,6 +180,7 @@ public abstract class SegmentedFile extends SharedCloseableImpl implements IChec
          */
         protected abstract SegmentedFile complete(ChannelProxy channel, int bufferSize, long overrideLength);
 
+        @SuppressWarnings("resource") // SegmentedFile owns channel
         private SegmentedFile complete(String path, int bufferSize, long overrideLength)
         {
             ChannelProxy channelCopy = getChannel(path);
