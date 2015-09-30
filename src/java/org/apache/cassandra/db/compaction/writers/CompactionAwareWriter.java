@@ -19,7 +19,6 @@
 package org.apache.cassandra.db.compaction.writers;
 
 import java.util.Collection;
-import java.util.List;
 import java.util.Set;
 
 import org.apache.cassandra.db.ColumnFamilyStore;
@@ -28,7 +27,6 @@ import org.apache.cassandra.db.Directories;
 import org.apache.cassandra.db.rows.UnfilteredRowIterator;
 import org.apache.cassandra.db.compaction.CompactionTask;
 import org.apache.cassandra.db.lifecycle.LifecycleTransaction;
-import org.apache.cassandra.io.sstable.SSTableMultiWriter;
 import org.apache.cassandra.io.sstable.SSTableRewriter;
 import org.apache.cassandra.io.sstable.format.SSTableReader;
 import org.apache.cassandra.utils.concurrent.Transactional;
@@ -65,7 +63,7 @@ public abstract class CompactionAwareWriter extends Transactional.AbstractTransa
         this.maxAge = CompactionTask.getMaxDataAge(nonExpiredSSTables);
         this.minRepairedAt = CompactionTask.getMinRepairedAt(nonExpiredSSTables);
         this.txn = txn;
-        this.sstableWriter = new SSTableRewriter(cfs, txn, maxAge, offline).keepOriginals(keepOriginals);
+        this.sstableWriter = SSTableRewriter.constructKeepingOriginals(txn, keepOriginals, maxAge, offline);
 
     }
 
@@ -110,6 +108,13 @@ public abstract class CompactionAwareWriter extends Transactional.AbstractTransa
     {
         maybeSwitchWriter(partition.partitionKey());
         return realAppend(partition);
+    }
+
+    @Override
+    protected Throwable doPostCleanup(Throwable accumulate)
+    {
+        sstableWriter.close();
+        return super.doPostCleanup(accumulate);
     }
 
     protected abstract boolean realAppend(UnfilteredRowIterator partition);

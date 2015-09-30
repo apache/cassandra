@@ -78,6 +78,14 @@ public class SSTableTxnWriter extends Transactional.AbstractTransactional implem
         txn.prepareToCommit();
     }
 
+    @Override
+    protected Throwable doPostCleanup(Throwable accumulate)
+    {
+        txn.close();
+        writer.close();
+        return super.doPostCleanup(accumulate);
+    }
+
     public Collection<SSTableReader> finish(boolean openResult)
     {
         writer.setOpenResult(openResult);
@@ -85,6 +93,7 @@ public class SSTableTxnWriter extends Transactional.AbstractTransactional implem
         return writer.finished();
     }
 
+    @SuppressWarnings("resource") // log and writer closed during postCleanup
     public static SSTableTxnWriter create(ColumnFamilyStore cfs, Descriptor descriptor, long keyCount, long repairedAt, int sstableLevel, SerializationHeader header)
     {
         LifecycleTransaction txn = LifecycleTransaction.offline(OperationType.WRITE, descriptor.directory);
@@ -92,6 +101,7 @@ public class SSTableTxnWriter extends Transactional.AbstractTransactional implem
         return new SSTableTxnWriter(txn, writer);
     }
 
+    @SuppressWarnings("resource") // log and writer closed during postCleanup
     public static SSTableTxnWriter create(CFMetaData cfm, Descriptor descriptor, long keyCount, long repairedAt, int sstableLevel, SerializationHeader header)
     {
         if (Keyspace.open(cfm.ksName).hasColumnFamilyStore(cfm.cfId))

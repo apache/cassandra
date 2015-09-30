@@ -61,6 +61,7 @@ public abstract class PurgingPartitionIterator extends WrappingUnfilteredPartiti
     }
 
     @Override
+    @SuppressWarnings("resource") // 'purged' closes wrapped 'iterator'
     public boolean hasNext()
     {
         while (next == null && super.hasNext())
@@ -76,6 +77,7 @@ public abstract class PurgingPartitionIterator extends WrappingUnfilteredPartiti
             }
 
             onEmptyPartitionPostPurge(purged.partitionKey());
+            purged.close();
         }
         return next != null;
     }

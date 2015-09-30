@@ -140,6 +140,7 @@ public class LifecycleTransaction extends Transactional.AbstractTransactional
     /**
      * construct an empty Transaction with no existing readers
      */
+    @SuppressWarnings("resource") // log closed during postCleanup
     public static LifecycleTransaction offline(OperationType operationType, CFMetaData metadata)
     {
         Tracker dummy = new Tracker(null, false);
@@ -149,12 +150,14 @@ public class LifecycleTransaction extends Transactional.AbstractTransactional
     /**
      * construct an empty Transaction with no existing readers
      */
+    @SuppressWarnings("resource") // log closed during postCleanup
     public static LifecycleTransaction offline(OperationType operationType, File operationFolder)
     {
         Tracker dummy = new Tracker(null, false);
         return new LifecycleTransaction(dummy, new LogTransaction(operationType, operationFolder, dummy), Collections.emptyList());
     }
 
+    @SuppressWarnings("resource") // log closed during postCleanup
     LifecycleTransaction(Tracker tracker, OperationType operationType, Iterable<SSTableReader> readers)
     {
         this(tracker, new LogTransaction(operationType, getMetadata(tracker, readers), tracker), readers);
@@ -283,6 +286,7 @@ public class LifecycleTransaction extends Transactional.AbstractTransactional
     @Override
     protected Throwable doPostCleanup(Throwable accumulate)
     {
+        log.close();
         return unmarkCompacting(marked, accumulate);
     }
 

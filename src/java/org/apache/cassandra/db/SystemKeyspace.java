@@ -674,9 +674,8 @@ public final class SystemKeyspace
 
     private static Pair<ReplayPosition, Long> truncationRecordFromBlob(ByteBuffer bytes)
     {
-        try
+        try (RebufferingInputStream in = new DataInputBuffer(bytes, true))
         {
-            RebufferingInputStream in = new DataInputBuffer(bytes, true);
             return Pair.create(ReplayPosition.serializer.deserialize(in), in.available() > 0 ? in.readLong() : Long.MIN_VALUE);
         }
         catch (IOException e)

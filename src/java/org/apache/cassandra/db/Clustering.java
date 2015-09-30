@@ -24,10 +24,7 @@ import java.util.*;
 import org.apache.cassandra.config.CFMetaData;
 import org.apache.cassandra.config.ColumnDefinition;
 import org.apache.cassandra.db.marshal.AbstractType;
-import org.apache.cassandra.io.util.DataInputBuffer;
-import org.apache.cassandra.io.util.DataInputPlus;
-import org.apache.cassandra.io.util.DataOutputBuffer;
-import org.apache.cassandra.io.util.DataOutputPlus;
+import org.apache.cassandra.io.util.*;
 import org.apache.cassandra.utils.memory.AbstractAllocator;
 
 /**
@@ -142,9 +139,8 @@ public class Clustering extends AbstractClusteringPrefix
 
         public ByteBuffer serialize(Clustering clustering, int version, List<AbstractType<?>> types)
         {
-            try
+            try (DataOutputBuffer buffer = new DataOutputBuffer((int)serializedSize(clustering, version, types)))
             {
-                DataOutputBuffer buffer = new DataOutputBuffer((int)serializedSize(clustering, version, types));
                 serialize(clustering, buffer, version, types);
                 return buffer.buffer();
             }
@@ -170,9 +166,8 @@ public class Clustering extends AbstractClusteringPrefix
 
         public Clustering deserialize(ByteBuffer in, int version, List<AbstractType<?>> types)
         {
-            try
+            try (DataInputBuffer buffer = new DataInputBuffer(in, true))
             {
-                DataInputBuffer buffer = new DataInputBuffer(in, true);
                 return deserialize(buffer, version, types);
             }
             catch (IOException e)

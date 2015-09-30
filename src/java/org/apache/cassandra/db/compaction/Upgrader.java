@@ -23,7 +23,6 @@ import java.util.*;
 import com.google.common.base.Throwables;
 import com.google.common.collect.Sets;
 
-import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.db.ColumnFamilyStore;
 import org.apache.cassandra.db.DecoratedKey;
 import org.apache.cassandra.db.lifecycle.LifecycleTransaction;
@@ -83,7 +82,7 @@ public class Upgrader
     {
         outputHandler.output("Upgrading " + sstable);
         int nowInSec = FBUtilities.nowInSeconds();
-        try (SSTableRewriter writer = new SSTableRewriter(cfs, transaction, CompactionTask.getMaxDataAge(transaction.originals()), true).keepOriginals(keepOriginals);
+        try (SSTableRewriter writer = SSTableRewriter.constructKeepingOriginals(transaction, keepOriginals, CompactionTask.getMaxDataAge(transaction.originals()), true);
              AbstractCompactionStrategy.ScannerList scanners = strategyManager.getScanners(transaction.originals());
              CompactionIterator iter = new CompactionIterator(transaction.opType(), scanners.scanners, controller, nowInSec, UUIDGen.getTimeUUID()))
         {

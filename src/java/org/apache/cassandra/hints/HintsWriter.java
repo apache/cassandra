@@ -62,6 +62,7 @@ final class HintsWriter implements AutoCloseable
         this.globalCRC = globalCRC;
     }
 
+    @SuppressWarnings("resource") // HintsWriter owns channel
     static HintsWriter create(File directory, HintsDescriptor descriptor) throws IOException
     {
         File file = new File(directory, descriptor.fileName());
@@ -71,10 +72,9 @@ final class HintsWriter implements AutoCloseable
 
         CRC32 crc = new CRC32();
 
-        try
+        try (DataOutputBuffer dob = new DataOutputBuffer())
         {
             // write the descriptor
-            DataOutputBuffer dob = new DataOutputBuffer();
             descriptor.serialize(dob);
             ByteBuffer descriptorBytes = dob.buffer();
             updateChecksum(crc, descriptorBytes);

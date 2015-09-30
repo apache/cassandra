@@ -151,7 +151,7 @@ public class RealTransactionsTest extends SchemaLoader
         int nowInSec = FBUtilities.nowInSeconds();
         try (CompactionController controller = new CompactionController(cfs, txn.originals(), cfs.gcBefore(FBUtilities.nowInSeconds())))
         {
-            try (SSTableRewriter rewriter = new SSTableRewriter(cfs, txn, 1000, false);
+            try (SSTableRewriter rewriter = new SSTableRewriter(txn, 1000, false);
                  AbstractCompactionStrategy.ScannerList scanners = cfs.getCompactionStrategyManager().getScanners(txn.originals());
                  CompactionIterator ci = new CompactionIterator(txn.opType(), scanners.scanners, controller, nowInSec, txn.opId())
             )

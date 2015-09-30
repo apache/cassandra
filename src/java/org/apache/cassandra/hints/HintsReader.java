@@ -71,6 +71,7 @@ final class HintsReader implements AutoCloseable, Iterable<HintsReader.Page>
         this.rateLimiter = rateLimiter;
     }
 
+    @SuppressWarnings("resource") // HintsReader owns input
     static HintsReader open(File file, RateLimiter rateLimiter)
     {
         ChecksummedDataInput reader = ChecksummedDataInput.open(file);
@@ -81,7 +82,7 @@ final class HintsReader implements AutoCloseable, Iterable<HintsReader.Page>
         }
         catch (IOException e)
         {
-            FileUtils.closeQuietly(reader);
+            reader.close();
             throw new FSReadError(e, file);
         }
     }
@@ -93,7 +94,7 @@ final class HintsReader implements AutoCloseable, Iterable<HintsReader.Page>
 
     public void close()
     {
-        FileUtils.closeQuietly(input);
+        input.close();
     }
 
     public HintsDescriptor descriptor()

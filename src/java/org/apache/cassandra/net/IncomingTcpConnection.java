@@ -130,6 +130,7 @@ public class IncomingTcpConnection extends Thread implements Closeable
         }
     }
 
+    @SuppressWarnings("resource") // Not closing constructed DataInputPlus's as the stream needs to remain open.
     private void receiveMessages() throws IOException
     {
         // handshake (true) endpoint versions

@@ -57,6 +57,7 @@ public final class ChecksummedDataInput extends RandomAccessReader.RandomAccessR
         resetLimit();
     }
 
+    @SuppressWarnings("resource")   // channel owned by RandomAccessReaderWithOwnChannel
     public static ChecksummedDataInput open(File file)
     {
         return new Builder(new ChannelProxy(file)).build();

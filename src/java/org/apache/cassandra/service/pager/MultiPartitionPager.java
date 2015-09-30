@@ -120,7 +120,7 @@ public class MultiPartitionPager implements QueryPager
         throw new AssertionError("Shouldn't be called on an exhausted pager");
     }
 
-    @SuppressWarnings("resource")
+    @SuppressWarnings("resource") // iter closed via countingIter
     public PartitionIterator fetchPage(int pageSize, ConsistencyLevel consistency, ClientState clientState) throws RequestValidationException, RequestExecutionException
     {
         int toQuery = Math.min(remaining, pageSize);
@@ -130,6 +130,7 @@ public class MultiPartitionPager implements QueryPager
         return countingIter;
     }
 
+    @SuppressWarnings("resource") // iter closed via countingIter
     public PartitionIterator fetchPageInternal(int pageSize, ReadOrderGroup orderGroup) throws RequestValidationException, RequestExecutionException
     {
         int toQuery = Math.min(remaining, pageSize);

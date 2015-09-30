@@ -254,9 +254,9 @@ public abstract class SinglePartitionReadCommand<F extends ClusteringIndexFilter
         metric.readLatency.addNano(latencyNanos);
     }
 
+    @SuppressWarnings("resource") // we close the created iterator through closing the result of this method (and SingletonUnfilteredPartitionIterator ctor cannot fail)
     protected UnfilteredPartitionIterator queryStorage(final ColumnFamilyStore cfs, ReadOrderGroup orderGroup)
     {
-        @SuppressWarnings("resource") // we close the created iterator through closing the result of this method (and SingletonUnfilteredPartitionIterator ctor cannot fail)
         UnfilteredRowIterator partition = cfs.isRowCacheEnabled()
                                         ? getThroughCache(cfs, orderGroup.baseReadOpOrderGroup())
                                         : queryMemtableAndDisk(cfs, orderGroup.baseReadOpOrderGroup());

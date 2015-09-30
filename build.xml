@@ -2029,7 +2029,6 @@
   <target name="eclipse-warnings" depends="build" description="Run eclipse compiler code analysis">        
         <property name="ecj.log.dir" value="${build.dir}/ecj" />
         <property name="ecj.warnings.file" value="${ecj.log.dir}/eclipse_compiler_checks.txt"/>
-        <delete dir="${ecj.log.dir}" />
         <mkdir  dir="${ecj.log.dir}" />
 
         <property name="ecj.properties" value="${basedir}/eclipse_compiler.properties" />                

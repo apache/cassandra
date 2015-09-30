@@ -186,9 +186,8 @@ public abstract class ReadResponse
 
         public UnfilteredPartitionIterator makeIterator(CFMetaData metadata, ReadCommand command)
         {
-            try
+            try (DataInputBuffer in = new DataInputBuffer(data, true))
             {
-                DataInputPlus in = new DataInputBuffer(data, true);
                 return UnfilteredPartitionIterators.serializerForIntraNode().deserialize(in,
                                                                                          MessagingService.current_version,
                                                                                          metadata,
@@ -368,17 +367,12 @@ public abstract class ReadResponse
 
                 // ReadResponses from older versions are always single-partition (ranges are handled by RangeSliceReply)
                 ByteBuffer key = ByteBufferUtil.readWithShortLength(in);
-                UnfilteredRowIterator rowIterator = LegacyLayout.deserializeLegacyPartition(in, version, SerializationHelper.Flag.FROM_REMOTE, key);
-                if (rowIterator == null)
-                    return new LegacyRemoteDataResponse(Collections.emptyList());
+                try (UnfilteredRowIterator rowIterator = LegacyLayout.deserializeLegacyPartition(in, version, SerializationHelper.Flag.FROM_REMOTE, key))
+                {
+                    if (rowIterator == null)
+                        return new LegacyRemoteDataResponse(Collections.emptyList());
 
-                try
-                {
                     return new LegacyRemoteDataResponse(Collections.singletonList(ImmutableBTreePartition.create(rowIterator)));
-                }
-                finally
-                {
-                    rowIterator.close();
                 }
             }
 

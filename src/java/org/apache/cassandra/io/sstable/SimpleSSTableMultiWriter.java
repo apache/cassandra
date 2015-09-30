@@ -42,7 +42,7 @@ public class SimpleSSTableMultiWriter implements SSTableMultiWriter
 
     public boolean append(UnfilteredRowIterator partition)
     {
-        RowIndexEntry indexEntry = writer.append(partition);
+        RowIndexEntry<?> indexEntry = writer.append(partition);
         return indexEntry != null;
     }
 
@@ -97,11 +97,12 @@ public class SimpleSSTableMultiWriter implements SSTableMultiWriter
         writer.prepareToCommit();
     }
 
-    public void close() throws Exception
+    public void close()
     {
         writer.close();
     }
 
+    @SuppressWarnings("resource") // SimpleSSTableMultiWriter closes writer
     public static SSTableMultiWriter create(Descriptor descriptor,
                                             long keyCount,
                                             long repairedAt,

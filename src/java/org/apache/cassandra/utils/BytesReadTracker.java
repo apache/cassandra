@@ -30,7 +30,7 @@ public class BytesReadTracker implements DataInputPlus
 {
 
     private long bytesRead;
-    private final DataInput source;
+    final DataInput source;
 
     public BytesReadTracker(DataInput source)
     {

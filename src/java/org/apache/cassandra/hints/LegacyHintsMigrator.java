@@ -204,9 +204,9 @@ public final class LegacyHintsMigrator
 
     private static Mutation deserializeLegacyMutation(UntypedResultSet.Row row)
     {
-        try
+        try (DataInputBuffer dib = new DataInputBuffer(row.getBlob("mutation"), true))
         {
-            Mutation mutation = Mutation.serializer.deserialize(new DataInputBuffer(row.getBlob("mutation"), true),
+            Mutation mutation = Mutation.serializer.deserialize(dib,
                                                                 row.getInt("message_version"));
             mutation.getPartitionUpdates().forEach(PartitionUpdate::validate);
             return mutation;

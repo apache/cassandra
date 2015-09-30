@@ -175,8 +175,7 @@ public class OHCProvider implements CacheProvider<RowCacheKey, IRowCacheEntry>
         public void serialize(IRowCacheEntry entry, ByteBuffer buf)
         {
             assert entry != null; // unlike CFS we don't support nulls, since there is no need for that in the cache
-            DataOutputBufferFixed out = new DataOutputBufferFixed(buf);
-            try
+            try (DataOutputBufferFixed out = new DataOutputBufferFixed(buf))
             {
                 boolean isSentinel = entry instanceof RowCacheSentinel;
                 out.writeBoolean(isSentinel);
