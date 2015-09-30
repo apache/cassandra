@@ -11,6 +11,8 @@
  * Fall back to 1/4 commitlog volume for commitlog_total_space on small disks
    (CASSANDRA-10199)
 Merged from 2.1:
+ * Avoid misleading pushed notifications when multiple nodes
+   share an rpc_address (CASSANDRA-10052)
  * Fix dropping undroppable when message queue is full (CASSANDRA-10113)
  * Fix potential ClassCastException during paging (CASSANDRA-10352)
  * Prevent ALTER TYPE from creating circular references (CASSANDRA-10339)
