@@ -26,6 +26,7 @@ import org.apache.cassandra.db.*;
 import org.apache.cassandra.db.marshal.AbstractType;
 import org.apache.cassandra.dht.IPartitioner;
 import org.apache.cassandra.io.FSError;
+import org.apache.cassandra.io.sstable.format.SSTableReader;
 import org.apache.cassandra.io.sstable.format.SSTableWriter;
 
 /**
@@ -71,6 +72,13 @@ public class SSTableSimpleWriter extends AbstractSSTableSimpleWriter
         writer = getWriter();
     }
 
+    SSTableReader closeAndOpenReader()
+    {
+        if (currentKey != null)
+            writeRow(currentKey, columnFamily);
+        return writer.finish(true);
+    }
+
     public void close()
     {
         try
@@ -93,5 +101,10 @@ public class SSTableSimpleWriter extends AbstractSSTableSimpleWriter
     protected ColumnFamily getColumnFamily()
     {
         return ArrayBackedSortedColumns.factory.create(metadata);
+    }
+
+    public Descriptor getCurrentDescriptor()
+    {
+        return writer.descriptor;
     }
 }

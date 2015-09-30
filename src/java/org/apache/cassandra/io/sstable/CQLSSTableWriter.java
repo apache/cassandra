@@ -273,6 +273,16 @@ public class CQLSSTableWriter implements Closeable
         writer.close();
     }
 
+    public Descriptor getCurrentDescriptor()
+    {
+        return writer.getCurrentDescriptor();
+    }
+
+    public CFMetaData getCFMetaData()
+    {
+        return writer.metadata;
+    }
+
     /**
      * A Builder for a CQLSSTableWriter object.
      */
@@ -368,6 +378,11 @@ public class CQLSSTableWriter implements Closeable
             {
                 throw new IllegalArgumentException(e.getMessage(), e);
             }
+        }
+
+        CFMetaData metadata()
+        {
+            return schema;
         }
 
         /**

@@ -51,6 +51,7 @@ import org.apache.cassandra.db.index.SecondaryIndex;
 import org.apache.cassandra.db.lifecycle.Tracker;
 import org.apache.cassandra.dht.*;
 import org.apache.cassandra.io.FSError;
+import org.apache.cassandra.io.FSReadError;
 import org.apache.cassandra.io.compress.CompressionMetadata;
 import org.apache.cassandra.io.sstable.*;
 import org.apache.cassandra.io.sstable.metadata.*;
@@ -131,6 +132,7 @@ import static org.apache.cassandra.db.Directories.SECONDARY_INDEX_NAME_SEPARATOR
 public abstract class SSTableReader extends SSTable implements SelfRefCounted<SSTableReader>
 {
     private static final Logger logger = LoggerFactory.getLogger(SSTableReader.class);
+    private static final int ACCURATE_BOUNDARIES_MAGIC_NUMBER = 248923458;
 
     private static final ScheduledThreadPoolExecutor syncExecutor = new ScheduledThreadPoolExecutor(1);
     static
@@ -838,6 +840,19 @@ public abstract class SSTableReader extends SSTable implements SelfRefCounted<SS
             last = partitioner.decorateKey(ByteBufferUtil.readWithLength(iStream));
             ibuilder.deserializeBounds(iStream);
             dbuilder.deserializeBounds(iStream);
+
+            boolean checkForRepair = true;
+            try
+            {
+                int v = iStream.readInt();
+                // check for our magic number, indicating this summary has been sampled correctly
+                checkForRepair = v != ACCURATE_BOUNDARIES_MAGIC_NUMBER;
+            }
+            catch (Throwable t) {}
+
+            // fix CASSANDRA-10357 on-the-fly
+            if (checkForRepair && MmappedSegmentedFile.maybeRepair(metadata, descriptor, indexSummary, ibuilder, dbuilder))
+                saveSummary(ibuilder, dbuilder);
         }
         catch (IOException e)
         {
@@ -942,6 +957,8 @@ public abstract class SSTableReader extends SSTable implements SelfRefCounted<SS
             ByteBufferUtil.writeWithLength(last.getKey(), oStream);
             ibuilder.serializeBounds(oStream);
             dbuilder.serializeBounds(oStream);
+            // write a magic number, to indicate this summary has been sampled correctly
+            oStream.writeInt(ACCURATE_BOUNDARIES_MAGIC_NUMBER);
         }
         catch (IOException e)
         {
