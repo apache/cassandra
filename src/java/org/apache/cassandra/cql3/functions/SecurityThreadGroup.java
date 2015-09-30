@@ -26,15 +26,28 @@ import java.util.Set;
 public final class SecurityThreadGroup extends ThreadGroup
 {
     private final Set<String> allowedPackages;
+    private final ThreadInitializer threadInitializer;
 
-    public SecurityThreadGroup(String name, Set<String> allowedPackages)
+    public SecurityThreadGroup(String name, Set<String> allowedPackages, ThreadInitializer threadInitializer)
     {
         super(name);
         this.allowedPackages = allowedPackages;
+        this.threadInitializer = threadInitializer;
     }
 
-    public Set<String> getAllowedPackages()
+    public void initializeThread()
     {
-        return allowedPackages;
+        threadInitializer.initializeThread();
+    }
+
+    public boolean isPackageAllowed(String pkg)
+    {
+        return allowedPackages == null || allowedPackages.contains(pkg);
+    }
+
+    @FunctionalInterface
+    interface ThreadInitializer
+    {
+        void initializeThread();
     }
 }

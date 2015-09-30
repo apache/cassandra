@@ -28,9 +28,6 @@ import java.security.Policy;
 import java.security.ProtectionDomain;
 import java.util.Collections;
 import java.util.Enumeration;
-import java.util.Set;
-
-import sun.security.util.SecurityConstants;
 
 /**
  * Custom {@link SecurityManager} and {@link Policy} implementation that only performs access checks
@@ -60,6 +57,10 @@ public final class ThreadAwareSecurityManager extends SecurityManager
             return Collections.emptyEnumeration();
         }
     };
+
+    private static final RuntimePermission CHECK_MEMBER_ACCESS_PERMISSION = new RuntimePermission("accessDeclaredMembers");
+    private static final RuntimePermission MODIFY_THREAD_PERMISSION = new RuntimePermission("modifyThread");
+    private static final RuntimePermission MODIFY_THREADGROUP_PERMISSION = new RuntimePermission("modifyThreadGroup");
 
     private static volatile boolean installed;
 
@@ -131,37 +132,59 @@ public final class ThreadAwareSecurityManager extends SecurityManager
         });
     }
 
+    private static final ThreadLocal<Boolean> initializedThread = new ThreadLocal<>();
+
     private ThreadAwareSecurityManager()
     {
     }
 
     private static boolean isSecuredThread()
     {
-        return Thread.currentThread().getThreadGroup() instanceof SecurityThreadGroup;
+        ThreadGroup tg = Thread.currentThread().getThreadGroup();
+        if (!(tg instanceof SecurityThreadGroup))
+            return false;
+        Boolean threadInitialized = initializedThread.get();
+        if (threadInitialized == null)
+        {
+            initializedThread.set(false);
+            ((SecurityThreadGroup) tg).initializeThread();
+            initializedThread.set(true);
+            threadInitialized = true;
+        }
+        return threadInitialized;
     }
 
     public void checkAccess(Thread t)
     {
-        // need to override since the default implementation is kind of ...
+        // need to override since the default implementation only checks the permission if the current thread's
+        // in the root-thread-group
 
         if (isSecuredThread())
-            throw new AccessControlException("access denied: " + SecurityConstants.MODIFY_THREAD_PERMISSION, SecurityConstants.MODIFY_THREAD_PERMISSION);
+            throw new AccessControlException("access denied: " + MODIFY_THREAD_PERMISSION, MODIFY_THREAD_PERMISSION);
         super.checkAccess(t);
     }
 
     public void checkAccess(ThreadGroup g)
     {
-        // need to override since the default implementation is kind of ...
+        // need to override since the default implementation only checks the permission if the current thread's
+        // in the root-thread-group
 
         if (isSecuredThread())
-            throw new AccessControlException("access denied: " + SecurityConstants.MODIFY_THREADGROUP_PERMISSION, SecurityConstants.MODIFY_THREADGROUP_PERMISSION);
+            throw new AccessControlException("access denied: " + MODIFY_THREADGROUP_PERMISSION, MODIFY_THREADGROUP_PERMISSION);
         super.checkAccess(g);
     }
 
     public void checkPermission(Permission perm)
     {
-        if (isSecuredThread())
-            super.checkPermission(perm);
+        if (!isSecuredThread())
+            return;
+
+        // required by JavaDriver 2.2.0-rc3 and 3.0.0-a2 or newer
+        // code in com.datastax.driver.core.CodecUtils uses Guava stuff, which in turns requires this permission
+        if (CHECK_MEMBER_ACCESS_PERMISSION.equals(perm))
+            return;
+
+        super.checkPermission(perm);
     }
 
     public void checkPermission(Permission perm, Object context)
@@ -172,13 +195,15 @@ public final class ThreadAwareSecurityManager extends SecurityManager
 
     public void checkPackageAccess(String pkg)
     {
-        ThreadGroup threadGroup = Thread.currentThread().getThreadGroup();
-        if (threadGroup instanceof SecurityThreadGroup)
+        if (!isSecuredThread())
+            return;
+
+        if (!((SecurityThreadGroup) Thread.currentThread().getThreadGroup()).isPackageAllowed(pkg))
         {
-            Set<String> allowedPackages = ((SecurityThreadGroup) threadGroup).getAllowedPackages();
-            if (allowedPackages != null && !allowedPackages.contains(pkg))
-                throw new AccessControlException("access denied: " + new RuntimePermission("accessClassInPackage." + pkg), new RuntimePermission("accessClassInPackage." + pkg));
-            super.checkPackageAccess(pkg);
+            RuntimePermission perm = new RuntimePermission("accessClassInPackage." + pkg);
+            throw new AccessControlException("access denied: " + perm, perm);
         }
+
+        super.checkPackageAccess(pkg);
     }
 }

@@ -86,7 +86,9 @@ final class ScriptBasedUDFunction extends UDFunction
         new UDFExecutorService(new NamedThreadFactory("UserDefinedScriptFunctions",
                                                       Thread.MIN_PRIORITY,
                                                       udfClassLoader,
-                                                      new SecurityThreadGroup("UserDefinedScriptFunctions", Collections.unmodifiableSet(new HashSet<>(Arrays.asList(allowedPackagesArray))))),
+                                                      new SecurityThreadGroup("UserDefinedScriptFunctions",
+                                                                              Collections.unmodifiableSet(new HashSet<>(Arrays.asList(allowedPackagesArray))),
+                                                                              UDFunction::initializeThread)),
                                "userscripts");
 
     static
