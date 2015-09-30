@@ -273,6 +273,20 @@ public class AlterTest extends CQLTester
                                            "ALTER TABLE %s WITH compression = { 'class' : 'SnappyCompressor', 'chunk_length_kb' : 32 , 'chunk_length_in_kb' : 32 };");
     }
 
+    @Test
+    public void testAlterType() throws Throwable
+    {
+        createTable("CREATE TABLE %s (id text PRIMARY KEY, content text);");
+        alterTable("ALTER TABLE %s ALTER content TYPE blob");
+
+        createTable("CREATE TABLE %s (pk int, ck text, value blob, PRIMARY KEY (pk, ck)) WITH CLUSTERING ORDER BY (ck DESC)");
+        alterTable("ALTER TABLE %s ALTER ck TYPE blob");
+
+        createTable("CREATE TABLE %s (pk int, ck int, value blob, PRIMARY KEY (pk, ck))");
+        assertThrowsConfigurationException("Cannot change value from type blob to type text: types are incompatible.",
+                                           "ALTER TABLE %s ALTER value TYPE TEXT;");
+    }
+
     private void assertThrowsConfigurationException(String errorMsg, String alterStmt) throws Throwable
     {
         try

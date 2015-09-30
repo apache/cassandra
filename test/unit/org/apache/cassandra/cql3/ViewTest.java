@@ -1456,4 +1456,80 @@ public class ViewTest extends CQLTester
         ResultSet mvRows = executeNet(protocolVersion, "SELECT a, b FROM mv1");
         assertRowsNet(protocolVersion, mvRows, row(1, 1));
     }
+
+    @Test
+    public void testAlterTable() throws Throwable
+    {
+        createTable("CREATE TABLE %s (" +
+                    "a int," +
+                    "b text," +
+                    "PRIMARY KEY (a, b))");
+
+        executeNet(protocolVersion, "USE " + keyspace());
+
+        createView("mv1", "CREATE MATERIALIZED VIEW %s AS SELECT * FROM %%s WHERE a IS NOT NULL AND b IS NOT NULL PRIMARY KEY (b, a)");
+
+        alterTable("ALTER TABLE %s ALTER b TYPE blob");
+    }
+
+    @Test
+    public void testAlterReversedTypeBaseTable() throws Throwable
+    {
+        createTable("CREATE TABLE %s (" +
+                    "a int," +
+                    "b text," +
+                    "PRIMARY KEY (a, b))" +
+                    "WITH CLUSTERING ORDER BY (b DESC)");
+
+        executeNet(protocolVersion, "USE " + keyspace());
+
+        createView("mv1", "CREATE MATERIALIZED VIEW %s AS SELECT * FROM %%s WHERE a IS NOT NULL AND b IS NOT NULL PRIMARY KEY (a, b) WITH CLUSTERING ORDER BY (b ASC)");
+
+        alterTable("ALTER TABLE %s ALTER b TYPE blob");
+    }
+
+    @Test
+    public void testAlterReversedTypeViewTable() throws Throwable
+    {
+        createTable("CREATE TABLE %s (" +
+                    "a int," +
+                    "b text," +
+                    "PRIMARY KEY (a, b))");
+
+        executeNet(protocolVersion, "USE " + keyspace());
+
+        createView("mv1", "CREATE MATERIALIZED VIEW %s AS SELECT * FROM %%s WHERE a IS NOT NULL AND b IS NOT NULL PRIMARY KEY (a, b) WITH CLUSTERING ORDER BY (b DESC)");
+
+        alterTable("ALTER TABLE %s ALTER b TYPE blob");
+    }
+
+    @Test
+    public void testAlterClusteringViewTable() throws Throwable
+    {
+        createTable("CREATE TABLE %s (" +
+                    "a int," +
+                    "b text," +
+                    "PRIMARY KEY (a))");
+
+        executeNet(protocolVersion, "USE " + keyspace());
+
+        createView("mv1", "CREATE MATERIALIZED VIEW %s AS SELECT * FROM %%s WHERE a IS NOT NULL AND b IS NOT NULL PRIMARY KEY (a, b) WITH CLUSTERING ORDER BY (b DESC)");
+
+        alterTable("ALTER TABLE %s ALTER b TYPE blob");
+    }
+
+    @Test
+    public void testAlterViewTableValue() throws Throwable
+    {
+        createTable("CREATE TABLE %s (" +
+                    "a int," +
+                    "b int," +
+                    "PRIMARY KEY (a))");
+
+        executeNet(protocolVersion, "USE " + keyspace());
+
+        createView("mv1", "CREATE MATERIALIZED VIEW %s AS SELECT * FROM %%s WHERE a IS NOT NULL AND b IS NOT NULL PRIMARY KEY (a, b) WITH CLUSTERING ORDER BY (b DESC)");
+
+        assertInvalid("ALTER TABLE %s ALTER b TYPE blob");
+    }
 }
