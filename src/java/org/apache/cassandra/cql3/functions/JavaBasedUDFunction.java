@@ -70,7 +70,7 @@ final class JavaBasedUDFunction extends UDFunction
         new UDFExecutorService(new NamedThreadFactory("UserDefinedFunctions",
                                                       Thread.MIN_PRIORITY,
                                                       udfClassLoader,
-                                                      new SecurityThreadGroup("UserDefinedFunctions", null)),
+                                                      new SecurityThreadGroup("UserDefinedFunctions", null, UDFunction::initializeThread)),
                                "userfunction");
 
     private static final EcjTargetClassLoader targetClassLoader = new EcjTargetClassLoader();

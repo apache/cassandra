@@ -296,6 +296,14 @@ public abstract class UDFunction extends AbstractFunction implements ScalarFunct
             throw new InvalidRequestException("Scripted user-defined functions are disabled in cassandra.yaml - set enable_scripted_user_defined_functions=true to enable if you are aware of the security risks");
     }
 
+    static void initializeThread()
+    {
+        // Get the TypeCodec stuff in Java Driver initialized.
+        // This is to get the classes loaded outside of the restricted sandbox's security context of a UDF.
+        UDHelper.codecRegistry.codecFor(DataType.inet()).format(InetAddress.getLoopbackAddress());
+        UDHelper.codecRegistry.codecFor(DataType.ascii()).format("");
+    }
+
     private static final class ThreadIdAndCpuTime extends CompletableFuture<Object>
     {
         long threadId;
@@ -309,10 +317,6 @@ public abstract class UDFunction extends AbstractFunction implements ScalarFunct
             // because class loading would be deferred until setup() is executed - but setup() is called with
             // limited privileges.
             threadMXBean.getCurrentThreadCpuTime();
-            //
-            // Get the TypeCodec stuff in Java Driver initialized.
-            UDHelper.codecRegistry.codecFor(DataType.inet()).format(InetAddress.getLoopbackAddress());
-            UDHelper.codecRegistry.codecFor(DataType.ascii()).format("");
         }
 
         void setup()
