@@ -1,4 +1,6 @@
 2.1.10
+ * Avoid misleading pushed notifications when multiple nodes
+   share an rpc_address (CASSANDRA-10052)
  * Fix dropping undroppable when message queue is full (CASSANDRA-10113)
  * Fix potential ClassCastException during paging (CASSANDRA-10352)
  * Prevent ALTER TYPE from creating circular references (CASSANDRA-10339)

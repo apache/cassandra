@@ -55,6 +55,7 @@ import io.netty.channel.*;
 import io.netty.channel.group.ChannelGroup;
 import io.netty.channel.group.DefaultChannelGroup;
 import io.netty.handler.ssl.SslHandler;
+import org.apache.cassandra.utils.FBUtilities;
 
 public class Server implements CassandraDaemon.Server
 {
@@ -381,78 +382,97 @@ public class Server implements CassandraDaemon.Server
             }
         }
 
+        private void send(InetAddress endpoint, Event.NodeEvent event)
+        {
+            // If the endpoint is not the local node, extract the node address
+            // and if it is the same as our own RPC broadcast address (which defaults to the rcp address)
+            // then don't send the notification. This covers the case of rpc_address set to "localhost",
+            // which is not useful to any driver and in fact may cauase serious problems to some drivers,
+            // see CASSANDRA-10052
+            if (!endpoint.equals(FBUtilities.getBroadcastAddress()) &&
+                event.nodeAddress().equals(DatabaseDescriptor.getBroadcastRpcAddress()))
+                return;
+
+            send(event);
+        }
+
+        private void send(Event event)
+        {
+            server.connectionTracker.send(event);
+        }
+
         public void onJoinCluster(InetAddress endpoint)
         {
-            server.connectionTracker.send(Event.TopologyChange.newNode(getRpcAddress(endpoint), server.socket.getPort()));
+            send(endpoint, Event.TopologyChange.newNode(getRpcAddress(endpoint), server.socket.getPort()));
         }
 
         public void onLeaveCluster(InetAddress endpoint)
         {
-            server.connectionTracker.send(Event.TopologyChange.removedNode(getRpcAddress(endpoint), server.socket.getPort()));
+            send(endpoint, Event.TopologyChange.removedNode(getRpcAddress(endpoint), server.socket.getPort()));
         }
 
         public void onMove(InetAddress endpoint)
         {
-            server.connectionTracker.send(Event.TopologyChange.movedNode(getRpcAddress(endpoint), server.socket.getPort()));
+            send(endpoint, Event.TopologyChange.movedNode(getRpcAddress(endpoint), server.socket.getPort()));
         }
 
         public void onUp(InetAddress endpoint)
         {
             Event.StatusChange.Status prev = lastStatusChange.put(endpoint, Event.StatusChange.Status.UP);
             if (prev == null || prev != Event.StatusChange.Status.UP)
-                server.connectionTracker.send(Event.StatusChange.nodeUp(getRpcAddress(endpoint), server.socket.getPort()));
+                send(endpoint, Event.StatusChange.nodeUp(getRpcAddress(endpoint), server.socket.getPort()));
         }
 
         public void onDown(InetAddress endpoint)
         {
             Event.StatusChange.Status prev = lastStatusChange.put(endpoint, Event.StatusChange.Status.DOWN);
             if (prev == null || prev != Event.StatusChange.Status.DOWN)
-                server.connectionTracker.send(Event.StatusChange.nodeDown(getRpcAddress(endpoint), server.socket.getPort()));
+                send(endpoint, Event.StatusChange.nodeDown(getRpcAddress(endpoint), server.socket.getPort()));
         }
 
         public void onCreateKeyspace(String ksName)
         {
-            server.connectionTracker.send(new Event.SchemaChange(Event.SchemaChange.Change.CREATED, ksName));
+            send(new Event.SchemaChange(Event.SchemaChange.Change.CREATED, ksName));
         }
 
         public void onCreateColumnFamily(String ksName, String cfName)
         {
-            server.connectionTracker.send(new Event.SchemaChange(Event.SchemaChange.Change.CREATED, Event.SchemaChange.Target.TABLE, ksName, cfName));
+            send(new Event.SchemaChange(Event.SchemaChange.Change.CREATED, Event.SchemaChange.Target.TABLE, ksName, cfName));
         }
 
         public void onCreateUserType(String ksName, String typeName)
         {
-            server.connectionTracker.send(new Event.SchemaChange(Event.SchemaChange.Change.CREATED, Event.SchemaChange.Target.TYPE, ksName, typeName));
+            send(new Event.SchemaChange(Event.SchemaChange.Change.CREATED, Event.SchemaChange.Target.TYPE, ksName, typeName));
         }
 
         public void onUpdateKeyspace(String ksName)
         {
-            server.connectionTracker.send(new Event.SchemaChange(Event.SchemaChange.Change.UPDATED, ksName));
+            send(new Event.SchemaChange(Event.SchemaChange.Change.UPDATED, ksName));
         }
 
         public void onUpdateColumnFamily(String ksName, String cfName, boolean columnsDidChange)
         {
-            server.connectionTracker.send(new Event.SchemaChange(Event.SchemaChange.Change.UPDATED, Event.SchemaChange.Target.TABLE, ksName, cfName));
+            send(new Event.SchemaChange(Event.SchemaChange.Change.UPDATED, Event.SchemaChange.Target.TABLE, ksName, cfName));
         }
 
         public void onUpdateUserType(String ksName, String typeName)
         {
-            server.connectionTracker.send(new Event.SchemaChange(Event.SchemaChange.Change.UPDATED, Event.SchemaChange.Target.TYPE, ksName, typeName));
+            send(new Event.SchemaChange(Event.SchemaChange.Change.UPDATED, Event.SchemaChange.Target.TYPE, ksName, typeName));
         }
 
         public void onDropKeyspace(String ksName)
         {
-            server.connectionTracker.send(new Event.SchemaChange(Event.SchemaChange.Change.DROPPED, ksName));
+            send(new Event.SchemaChange(Event.SchemaChange.Change.DROPPED, ksName));
         }
 
         public void onDropColumnFamily(String ksName, String cfName)
         {
-            server.connectionTracker.send(new Event.SchemaChange(Event.SchemaChange.Change.DROPPED, Event.SchemaChange.Target.TABLE, ksName, cfName));
+            send(new Event.SchemaChange(Event.SchemaChange.Change.DROPPED, Event.SchemaChange.Target.TABLE, ksName, cfName));
         }
 
         public void onDropUserType(String ksName, String typeName)
         {
-            server.connectionTracker.send(new Event.SchemaChange(Event.SchemaChange.Change.DROPPED, Event.SchemaChange.Target.TYPE, ksName, typeName));
+            send(new Event.SchemaChange(Event.SchemaChange.Change.DROPPED, Event.SchemaChange.Target.TYPE, ksName, typeName));
         }
     }
 }
