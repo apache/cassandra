@@ -35,6 +35,7 @@ Merged from 2.2:
  * Defer default role manager setup until all nodes are on 2.2+ (CASSANDRA-9761)
  * Handle missing RoleManager in config after upgrade to 2.2 (CASSANDRA-10209)
 Merged from 2.1:
+ * Bulk Loader API could not tolerate even node failure (CASSANDRA-10347)
  * Avoid misleading pushed notifications when multiple nodes
    share an rpc_address (CASSANDRA-10052)
  * Fix dropping undroppable when message queue is full (CASSANDRA-10113)
