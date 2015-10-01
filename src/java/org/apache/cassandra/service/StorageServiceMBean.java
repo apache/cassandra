@@ -158,6 +158,10 @@ public interface StorageServiceMBean extends NotificationEmitter
     /** Retrieve this hosts unique ID */
     public String getLocalHostId();
 
+    /** {@link StorageServiceMBean#getEndpointToHostId} */
+    @Deprecated
+    public Map<String, String> getHostIdMap();
+
     /** Retrieve the mapping of endpoint to host ID */
     public Map<String, String> getEndpointToHostId();
 

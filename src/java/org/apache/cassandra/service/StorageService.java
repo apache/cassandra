@@ -1555,6 +1555,11 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
         return getTokenMetadata().getHostId(FBUtilities.getBroadcastAddress()).toString();
     }
 
+    public Map<String, String> getHostIdMap()
+    {
+        return getEndpointToHostId();
+    }
+
     public Map<String, String> getEndpointToHostId()
     {
         Map<String, String> mapOut = new HashMap<>();
