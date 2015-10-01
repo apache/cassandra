@@ -20,6 +20,7 @@ package org.apache.cassandra.hadoop.cql3;
 
 import java.io.IOException;
 import java.nio.ByteBuffer;
+import java.util.Collection;
 import java.util.List;
 
 import org.apache.cassandra.hadoop.ConfigHelper;
@@ -155,6 +156,37 @@ public class CqlBulkOutputFormat extends OutputFormat<Object, List<ByteBuffer>>
     public static String getTableForAlias(Configuration conf, String alias)
     {
         return conf.get(TABLE_ALIAS_PREFIX + alias);
+    }
+
+    /**
+     * Set the hosts to ignore as comma delimited values.
+     * Data will not be bulk loaded onto the ignored nodes.
+     * @param conf job configuration
+     * @param ignoreNodesCsv a comma delimited list of nodes to ignore
+     */
+    public static void setIgnoreHosts(Configuration conf, String ignoreNodesCsv)
+    {
+        conf.set(CqlBulkRecordWriter.IGNORE_HOSTS, ignoreNodesCsv);
+    }
+
+    /**
+     * Set the hosts to ignore. Data will not be bulk loaded onto the ignored nodes.
+     * @param conf job configuration
+     * @param ignoreNodes the nodes to ignore
+     */
+    public static void setIgnoreHosts(Configuration conf, String... ignoreNodes)
+    {
+        conf.setStrings(CqlBulkRecordWriter.IGNORE_HOSTS, ignoreNodes);
+    }
+
+    /**
+     * Get the hosts to ignore as a collection of strings
+     * @param conf job configuration
+     * @return the nodes to ignore as a collection of stirngs
+     */
+    public static Collection<String> getIgnoreHosts(Configuration conf)
+    {
+        return conf.getStringCollection(CqlBulkRecordWriter.IGNORE_HOSTS);
     }
 
     public static class NullOutputCommitter extends OutputCommitter
