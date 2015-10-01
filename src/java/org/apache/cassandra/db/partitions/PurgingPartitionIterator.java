@@ -141,6 +141,14 @@ public abstract class PurgingPartitionIterator extends WrappingUnfilteredPartiti
                     return purger.shouldPurge(((RangeTombstoneBoundMarker)marker).deletionTime()) ? null : marker;
                 }
             }
+
+            @Override
+            public Unfiltered next()
+            {
+                Unfiltered next = super.next();
+                updateProgress();
+                return next;
+            }
         };
     }
 };
