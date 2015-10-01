@@ -19,6 +19,7 @@ package org.apache.cassandra.hadoop;
 
 
 import java.io.IOException;
+import java.util.Collection;
 
 import org.apache.hadoop.conf.Configuration;
 import org.apache.hadoop.mapreduce.*;
@@ -69,5 +70,36 @@ public abstract class AbstractBulkOutputFormat<K, V> extends OutputFormat<K, V>
         public void setupJob(JobContext jobContext) { }
 
         public void setupTask(TaskAttemptContext taskContext) { }
+    }
+
+    /**
+     * Set the hosts to ignore as comma delimited values.
+     * Data will not be bulk loaded onto the ignored nodes.
+     * @param conf job configuration
+     * @param ignoreNodesCsv a comma delimited list of nodes to ignore
+     */
+    public static void setIgnoreHosts(Configuration conf, String ignoreNodesCsv)
+    {
+        conf.set(AbstractBulkRecordWriter.IGNORE_HOSTS, ignoreNodesCsv);
+    }
+
+    /**
+     * Set the hosts to ignore. Data will not be bulk loaded onto the ignored nodes.
+     * @param conf job configuration
+     * @param ignoreNodes the nodes to ignore
+     */
+    public static void setIgnoreHosts(Configuration conf, String... ignoreNodes)
+    {
+        conf.setStrings(AbstractBulkRecordWriter.IGNORE_HOSTS, ignoreNodes);
+    }
+
+    /**
+     * Get the hosts to ignore as a collection of strings
+     * @param conf job configuration
+     * @return the nodes to ignore as a collection of stirngs
+     */
+    public static Collection<String> getIgnoreHosts(Configuration conf)
+    {
+        return conf.getStringCollection(AbstractBulkRecordWriter.IGNORE_HOSTS);
     }
 }

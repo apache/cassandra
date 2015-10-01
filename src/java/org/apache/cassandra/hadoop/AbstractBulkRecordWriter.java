@@ -21,6 +21,7 @@ import java.io.Closeable;
 import java.io.IOException;
 import java.net.InetAddress;
 import java.net.UnknownHostException;
+import java.util.Collection;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.Iterator;
@@ -60,12 +61,14 @@ implements org.apache.hadoop.mapred.RecordWriter<K, V>
     public final static String BUFFER_SIZE_IN_MB = "mapreduce.output.bulkoutputformat.buffersize";
     public final static String STREAM_THROTTLE_MBITS = "mapreduce.output.bulkoutputformat.streamthrottlembits";
     public final static String MAX_FAILED_HOSTS = "mapreduce.output.bulkoutputformat.maxfailedhosts";
+    public static final String IGNORE_HOSTS = "mapreduce.output.bulkoutputformat.ignorehosts";
     
     private final Logger logger = LoggerFactory.getLogger(AbstractBulkRecordWriter.class);
     
     protected final Configuration conf;
     protected final int maxFailures;
-    protected final int bufferSize; 
+    protected final int bufferSize;
+    protected final Set<InetAddress> ignores = new HashSet<>();
     protected Closeable writer;
     protected SSTableLoader loader;
     protected Progressable progress;
@@ -91,6 +94,15 @@ implements org.apache.hadoop.mapred.RecordWriter<K, V>
         DatabaseDescriptor.setStreamThroughputOutboundMegabitsPerSec(Integer.parseInt(conf.get(STREAM_THROTTLE_MBITS, "0")));
         maxFailures = Integer.parseInt(conf.get(MAX_FAILED_HOSTS, "0"));
         bufferSize = Integer.parseInt(conf.get(BUFFER_SIZE_IN_MB, "64"));
+        try
+        {
+            for (String hostToIgnore : AbstractBulkOutputFormat.getIgnoreHosts(conf))
+                ignores.add(InetAddress.getByName(hostToIgnore));
+        }
+        catch (UnknownHostException e)
+        {
+            throw new RuntimeException(("Unknown host: " + e.getMessage()));
+        }
     }
 
     protected String getOutputLocation() throws IOException
@@ -119,7 +131,7 @@ implements org.apache.hadoop.mapred.RecordWriter<K, V>
         if (writer != null)
         {
             writer.close();
-            Future<StreamState> future = loader.stream();
+            Future<StreamState> future = loader.stream(ignores);
             while (true)
             {
                 try
