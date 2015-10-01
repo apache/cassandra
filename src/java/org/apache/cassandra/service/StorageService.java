@@ -405,7 +405,7 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
         {
             throw new IllegalStateException("No configured daemon");
         }
-        
+
         try
         {
             daemon.startNativeTransport();
@@ -1574,6 +1574,11 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
     public UUID getLocalHostUUID()
     {
         return getTokenMetadata().getHostId(FBUtilities.getBroadcastAddress());
+    }
+
+    public Map<String, String> getHostIdMap()
+    {
+        return getEndpointToHostId();
     }
 
     public Map<String, String> getEndpointToHostId()
