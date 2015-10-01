@@ -47,7 +47,7 @@ public class DefinitionsUpdateVerbHandler implements IVerbHandler<Collection<Mut
         {
             public void runMayThrow() throws Exception
             {
-                SchemaKeyspace.mergeSchema(message.payload);
+                SchemaKeyspace.mergeSchemaAndAnnounceVersion(message.payload);
             }
         });
     }

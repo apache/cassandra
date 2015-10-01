@@ -101,6 +101,9 @@
     <!-- default for cql tests. Can be override by -Dcassandra.test.use_prepared=false -->
     <property name="cassandra.test.use_prepared" value="true" />
 
+    <!-- skip flushing schema tables during tests -->
+    <property name="cassandra.test.flush_local_schema_changes" value="false" />
+
     <!-- http://cobertura.sourceforge.net/ -->
     <property name="cobertura.version" value="2.0.3"/>
     <property name="cobertura.build.dir" value="${build.dir}/cobertura"/>
