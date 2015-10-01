@@ -68,6 +68,7 @@ public class CqlBulkRecordWriter extends RecordWriter<Object, List<ByteBuffer>>
     public final static String BUFFER_SIZE_IN_MB = "mapreduce.output.bulkoutputformat.buffersize";
     public final static String STREAM_THROTTLE_MBITS = "mapreduce.output.bulkoutputformat.streamthrottlembits";
     public final static String MAX_FAILED_HOSTS = "mapreduce.output.bulkoutputformat.maxfailedhosts";
+    public final static String IGNORE_HOSTS = "mapreduce.output.bulkoutputformat.ignorehosts";
 
     private final Logger logger = LoggerFactory.getLogger(CqlBulkRecordWriter.class);
 
@@ -78,6 +79,7 @@ public class CqlBulkRecordWriter extends RecordWriter<Object, List<ByteBuffer>>
     protected SSTableLoader loader;
     protected Progressable progress;
     protected TaskAttemptContext context;
+    protected final Set<InetAddress> ignores = new HashSet<>();
 
     private String keyspace;
     private String table;
@@ -133,6 +135,15 @@ public class CqlBulkRecordWriter extends RecordWriter<Object, List<ByteBuffer>>
         catch (Exception e)
         {
             partitioner = Murmur3Partitioner.instance;
+        }
+        try
+        {
+            for (String hostToIgnore : CqlBulkOutputFormat.getIgnoreHosts(conf))
+                ignores.add(InetAddress.getByName(hostToIgnore));
+        }
+        catch (UnknownHostException e)
+        {
+            throw new RuntimeException(("Unknown host: " + e.getMessage()));
         }
     }
 
@@ -238,7 +249,7 @@ public class CqlBulkRecordWriter extends RecordWriter<Object, List<ByteBuffer>>
         if (writer != null)
         {
             writer.close();
-            Future<StreamState> future = loader.stream();
+            Future<StreamState> future = loader.stream(ignores);
             while (true)
             {
                 try
