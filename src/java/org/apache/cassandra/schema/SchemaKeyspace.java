@@ -62,6 +62,8 @@ public final class SchemaKeyspace
 
     private static final Logger logger = LoggerFactory.getLogger(SchemaKeyspace.class);
 
+    private static final boolean FLUSH_SCHEMA_TABLES = Boolean.valueOf(System.getProperty("cassandra.test.flush_local_schema_changes", "true"));
+
     public static final String NAME = "system_schema";
 
     public static final String KEYSPACES = "keyspaces";
@@ -476,13 +478,13 @@ public final class SchemaKeyspace
      * @throws ConfigurationException If one of metadata attributes has invalid value
      * @throws IOException If data was corrupted during transportation or failed to apply fs operations
      */
-    public static synchronized void mergeSchema(Collection<Mutation> mutations) throws ConfigurationException, IOException
+    public static synchronized void mergeSchemaAndAnnounceVersion(Collection<Mutation> mutations) throws ConfigurationException, IOException
     {
-        mergeSchema(mutations, true);
+        mergeSchema(mutations);
         Schema.instance.updateVersionAndAnnounce();
     }
 
-    public static synchronized void mergeSchema(Collection<Mutation> mutations, boolean doFlush) throws IOException
+    public static synchronized void mergeSchema(Collection<Mutation> mutations) throws IOException
     {
         // compare before/after schemas of the affected keyspaces only
         Set<String> keyspaces = new HashSet<>(mutations.size());
@@ -499,7 +501,7 @@ public final class SchemaKeyspace
 
         mutations.forEach(Mutation::apply);
 
-        if (doFlush)
+        if (FLUSH_SCHEMA_TABLES)
             flush();
 
         // with new data applied

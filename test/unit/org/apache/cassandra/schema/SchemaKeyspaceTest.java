@@ -162,7 +162,7 @@ public class SchemaKeyspaceTest
     {
         KeyspaceMetadata ksm = Schema.instance.getKeyspaceInstance(keyspace).getMetadata();
         Mutation mutation = SchemaKeyspace.makeUpdateTableMutation(ksm, oldTable, newTable, FBUtilities.timestampMicros(), false);
-        SchemaKeyspace.mergeSchema(Collections.singleton(mutation), true);
+        SchemaKeyspace.mergeSchema(Collections.singleton(mutation));
     }
 
     private static void createTable(String keyspace, String cql) throws IOException
@@ -171,7 +171,7 @@ public class SchemaKeyspaceTest
 
         KeyspaceMetadata ksm = KeyspaceMetadata.create(keyspace, KeyspaceParams.simple(1), Tables.of(table));
         Mutation mutation = SchemaKeyspace.makeCreateTableMutation(ksm, table, FBUtilities.timestampMicros());
-        SchemaKeyspace.mergeSchema(Collections.singleton(mutation), true);
+        SchemaKeyspace.mergeSchema(Collections.singleton(mutation));
     }
 
     private static void checkInverses(CFMetaData cfm) throws Exception

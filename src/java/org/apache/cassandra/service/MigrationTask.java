@@ -72,7 +72,7 @@ class MigrationTask extends WrappedRunnable
             {
                 try
                 {
-                    SchemaKeyspace.mergeSchema(message.payload);
+                    SchemaKeyspace.mergeSchemaAndAnnounceVersion(message.payload);
                 }
                 catch (IOException e)
                 {

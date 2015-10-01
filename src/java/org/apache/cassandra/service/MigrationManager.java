@@ -471,7 +471,7 @@ public class MigrationManager
         {
             try
             {
-                SchemaKeyspace.mergeSchema(Collections.singletonList(schema), false);
+                SchemaKeyspace.mergeSchema(Collections.singletonList(schema));
             }
             catch (IOException e)
             {
@@ -499,7 +499,7 @@ public class MigrationManager
         {
             protected void runMayThrow() throws IOException, ConfigurationException
             {
-                SchemaKeyspace.mergeSchema(schema);
+                SchemaKeyspace.mergeSchemaAndAnnounceVersion(schema);
             }
         });
 

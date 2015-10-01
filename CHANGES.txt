@@ -1,4 +1,5 @@
 3.0
+ * Flush system schema tables after local schema changes (CASSANDRA-10429)
 Merged from 2.2:
  * cqlsh prompt includes name of keyspace after failed `use` statement (CASSANDRA-10369)
 
