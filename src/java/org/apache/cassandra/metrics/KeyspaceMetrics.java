@@ -21,6 +21,7 @@ import java.util.Set;
 
 import com.codahale.metrics.Gauge;
 import com.codahale.metrics.Histogram;
+import com.codahale.metrics.Timer;
 import org.apache.cassandra.db.ColumnFamilyStore;
 import org.apache.cassandra.db.Keyspace;
 
@@ -28,7 +29,6 @@ import com.google.common.collect.Lists;
 import com.google.common.collect.Sets;
 
 import static org.apache.cassandra.metrics.CassandraMetricsRegistry.Metrics;
-
 
 /**
  * Metrics for {@link ColumnFamilyStore}.
@@ -81,6 +81,10 @@ public class KeyspaceMetrics
     public final Histogram liveScannedHistogram;
     /** Column update time delta on this Keyspace */
     public final Histogram colUpdateTimeDeltaHistogram;
+    /** time taken acquiring the partition lock for materialized view updates on this keyspace */
+    public final Timer viewLockAcquireTime;
+    /** time taken during the local read of a materialized view update */
+    public final Timer viewReadTime;
     /** CAS Prepare metric */
     public final LatencyMetrics casPrepare;
     /** CAS Propose metrics */
@@ -224,6 +228,8 @@ public class KeyspaceMetrics
         tombstoneScannedHistogram = Metrics.histogram(factory.createMetricName("TombstoneScannedHistogram"));
         liveScannedHistogram = Metrics.histogram(factory.createMetricName("LiveScannedHistogram"));
         colUpdateTimeDeltaHistogram = Metrics.histogram(factory.createMetricName("ColUpdateTimeDeltaHistogram"));
+        viewLockAcquireTime =  Metrics.timer(factory.createMetricName("ViewLockAcquireTime"));
+        viewReadTime = Metrics.timer(factory.createMetricName("ViewReadTime"));
         // add manually since histograms do not use createKeyspaceGauge method
         allMetrics.addAll(Lists.newArrayList("SSTablesPerReadHistogram", "TombstoneScannedHistogram", "LiveScannedHistogram"));
 

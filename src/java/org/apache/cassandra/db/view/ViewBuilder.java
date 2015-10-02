@@ -21,6 +21,7 @@ package org.apache.cassandra.db.view;
 import java.util.Collection;
 import java.util.UUID;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicLong;
 import javax.annotation.Nullable;
 
 import com.google.common.base.Function;
@@ -70,6 +71,7 @@ public class ViewBuilder extends CompactionInfo.Holder
 
     private void buildKey(DecoratedKey key)
     {
+        AtomicLong noBase = new AtomicLong(Long.MAX_VALUE);
         ReadQuery selectQuery = view.getReadQuery();
         if (!selectQuery.selectsKey(key))
             return;
@@ -92,7 +94,7 @@ public class ViewBuilder extends CompactionInfo.Holder
                    Collection<Mutation> mutations = view.createMutations(partition, temporalRows, true);
 
                    if (mutations != null)
-                       StorageProxy.mutateMV(key.getKey(), mutations, true);
+                       StorageProxy.mutateMV(key.getKey(), mutations, true, noBase);
                }
            }
         }

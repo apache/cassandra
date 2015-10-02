@@ -20,9 +20,8 @@ package org.apache.cassandra.db;
 import java.io.File;
 import java.io.IOException;
 import java.util.*;
-import java.util.concurrent.ConcurrentHashMap;
-import java.util.concurrent.ConcurrentMap;
-import java.util.concurrent.Future;
+import java.util.concurrent.*;
+import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.locks.Lock;
 
 import com.google.common.base.Function;
@@ -30,10 +29,7 @@ import com.google.common.collect.Iterables;
 
 import org.apache.cassandra.concurrent.Stage;
 import org.apache.cassandra.concurrent.StageManager;
-import org.apache.cassandra.config.CFMetaData;
-import org.apache.cassandra.config.Config;
-import org.apache.cassandra.config.DatabaseDescriptor;
-import org.apache.cassandra.config.Schema;
+import org.apache.cassandra.config.*;
 import org.apache.cassandra.db.commitlog.CommitLog;
 import org.apache.cassandra.db.commitlog.ReplayPosition;
 import org.apache.cassandra.db.compaction.CompactionManager;
@@ -420,6 +416,7 @@ public class Keyspace
 
         if (requiresViewUpdate)
         {
+            mutation.viewLockAcquireStart.compareAndSet(0L, System.currentTimeMillis());
             lock = ViewManager.acquireLockFor(mutation.key().getKey());
 
             if (lock == null)
@@ -444,6 +441,17 @@ public class Keyspace
                     return;
                 }
             }
+            else
+            {
+                long acquireTime = System.currentTimeMillis() - mutation.viewLockAcquireStart.get();
+                if (!isClReplay)
+                {
+                    for(UUID cfid : mutation.getColumnFamilyIds())
+                    {
+                        columnFamilyStores.get(cfid).metric.viewLockAcquireTime.update(acquireTime, TimeUnit.MILLISECONDS);
+                    }
+                }
+            }
         }
         int nowInSec = FBUtilities.nowInSeconds();
         try (OpOrder.Group opGroup = writeOrder.start())
@@ -464,13 +472,14 @@ public class Keyspace
                     logger.error("Attempting to mutate non-existant table {} ({}.{})", upd.metadata().cfId, upd.metadata().ksName, upd.metadata().cfName);
                     continue;
                 }
+                AtomicLong baseComplete = new AtomicLong(Long.MAX_VALUE);
 
                 if (requiresViewUpdate)
                 {
                     try
                     {
                         Tracing.trace("Creating materialized view mutations from base table replica");
-                        viewManager.pushViewReplicaUpdates(upd, !isClReplay);
+                        viewManager.pushViewReplicaUpdates(upd, !isClReplay, baseComplete);
                     }
                     catch (Throwable t)
                     {
@@ -486,6 +495,8 @@ public class Keyspace
                                                      ? cfs.indexManager.newUpdateTransaction(upd, opGroup, nowInSec)
                                                      : UpdateTransaction.NO_OP;
                 cfs.apply(upd, indexTransaction, opGroup, replayPosition);
+                if (requiresViewUpdate)
+                    baseComplete.set(System.currentTimeMillis());
             }
         }
         finally
