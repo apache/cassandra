@@ -776,15 +776,15 @@ public class SecondaryIndexManager implements IndexRegistry
         {
             final Row.Builder toRemove = BTreeRow.sortedBuilder();
             toRemove.newRow(existing.clustering());
+            toRemove.addPrimaryKeyLivenessInfo(existing.primaryKeyLivenessInfo());
             final Row.Builder toInsert = BTreeRow.sortedBuilder();
             toInsert.newRow(updated.clustering());
+            toInsert.addPrimaryKeyLivenessInfo(updated.primaryKeyLivenessInfo());
             // diff listener collates the columns to be added & removed from the indexes
             RowDiffListener diffListener = new RowDiffListener()
             {
                 public void onPrimaryKeyLivenessInfo(int i, Clustering clustering, LivenessInfo merged, LivenessInfo original)
                 {
-                    if (merged != null && merged != original)
-                        toInsert.addPrimaryKeyLivenessInfo(merged);
                 }
 
                 public void onDeletion(int i, Clustering clustering, Row.Deletion merged, Row.Deletion original)
@@ -797,7 +797,7 @@ public class SecondaryIndexManager implements IndexRegistry
 
                 public void onCell(int i, Clustering clustering, Cell merged, Cell original)
                 {
-                    if (merged != null && merged != original)
+                    if (merged != null && !merged.equals(original))
                         toInsert.addCell(merged);
 
                     if (merged == null || (original != null && shouldCleanupOldValue(original, merged)))

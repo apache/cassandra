@@ -30,16 +30,19 @@ import org.apache.cassandra.cql3.ColumnIdentifier;
 import org.apache.cassandra.cql3.statements.IndexTarget;
 import org.apache.cassandra.db.ColumnFamilyStore;
 import org.apache.cassandra.db.marshal.AbstractType;
+import org.apache.cassandra.db.rows.Cell;
 import org.apache.cassandra.db.rows.Row;
 import org.apache.cassandra.exceptions.ConfigurationException;
 import org.apache.cassandra.exceptions.SyntaxException;
 import org.apache.cassandra.index.SecondaryIndexManager;
 import org.apache.cassandra.index.StubIndex;
 import org.apache.cassandra.schema.IndexMetadata;
+import org.apache.cassandra.utils.ByteBufferUtil;
 
 import static org.apache.cassandra.Util.throwAssert;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
+import static org.junit.Assert.assertNotNull;
 import static org.junit.Assert.assertTrue;
 import static org.junit.Assert.fail;
 
@@ -707,6 +710,83 @@ public class SecondaryIndexTest extends CQLTester
         assertEquals(1, index2.rowsUpdated.size());
         assertColumnValue(0, "c", index2.rowsUpdated.get(0).left, cfm);
         assertColumnValue(1, "c", index2.rowsUpdated.get(0).right, cfm);
+    }
+
+    @Test
+    public void testUpdatesToMemtableData() throws Throwable
+    {
+        // verify the contract specified by Index.Indexer::updateRow(oldRowData, newRowData),
+        // when a row in the memtable is updated, the indexer should be informed of:
+        // * new columns
+        // * removed columns
+        // * columns whose value, timestamp or ttl have been modified.
+        // Any columns which are unchanged by the update are not passed to the Indexer
+        // Note that for simplicity this test resets the index between each scenario
+        createTable("CREATE TABLE %s (k int, c int, v1 int, v2 int, PRIMARY KEY (k,c))");
+        createIndex(String.format("CREATE CUSTOM INDEX test_index ON %%s() USING '%s'", StubIndex.class.getName()));
+        execute("INSERT INTO %s (k, c, v1, v2) VALUES (0, 0, 0, 0) USING TIMESTAMP 0");
+
+        ColumnDefinition v1 = getCurrentColumnFamilyStore().metadata.getColumnDefinition(new ColumnIdentifier("v1", true));
+        ColumnDefinition v2 = getCurrentColumnFamilyStore().metadata.getColumnDefinition(new ColumnIdentifier("v2", true));
+
+        StubIndex index = (StubIndex)getCurrentColumnFamilyStore().indexManager.getIndexByName("test_index");
+        assertEquals(1, index.rowsInserted.size());
+
+        // Overwrite a single value, leaving the other untouched
+        execute("UPDATE %s USING TIMESTAMP 1 SET v1=1 WHERE k=0 AND c=0");
+        assertEquals(1, index.rowsUpdated.size());
+        Row oldRow = index.rowsUpdated.get(0).left;
+        assertEquals(1, oldRow.size());
+        validateCell(oldRow.getCell(v1), v1, ByteBufferUtil.bytes(0), 0);
+        Row newRow = index.rowsUpdated.get(0).right;
+        assertEquals(1, newRow.size());
+        validateCell(newRow.getCell(v1), v1, ByteBufferUtil.bytes(1), 1);
+        index.reset();
+
+        // Overwrite both values
+        execute("UPDATE %s USING TIMESTAMP 2 SET v1=2, v2=2 WHERE k=0 AND c=0");
+        assertEquals(1, index.rowsUpdated.size());
+        oldRow = index.rowsUpdated.get(0).left;
+        assertEquals(2, oldRow.size());
+        validateCell(oldRow.getCell(v1), v1, ByteBufferUtil.bytes(1), 1);
+        validateCell(oldRow.getCell(v2), v2, ByteBufferUtil.bytes(0), 0);
+        newRow = index.rowsUpdated.get(0).right;
+        assertEquals(2, newRow.size());
+        validateCell(newRow.getCell(v1), v1, ByteBufferUtil.bytes(2), 2);
+        validateCell(newRow.getCell(v2), v2, ByteBufferUtil.bytes(2), 2);
+        index.reset();
+
+        // Delete one value
+        execute("DELETE v1 FROM %s USING TIMESTAMP 3 WHERE k=0 AND c=0");
+        assertEquals(1, index.rowsUpdated.size());
+        oldRow = index.rowsUpdated.get(0).left;
+        assertEquals(1, oldRow.size());
+        validateCell(oldRow.getCell(v1), v1, ByteBufferUtil.bytes(2), 2);
+        newRow = index.rowsUpdated.get(0).right;
+        assertEquals(1, newRow.size());
+        Cell newCell = newRow.getCell(v1);
+        assertTrue(newCell.isTombstone());
+        assertEquals(3, newCell.timestamp());
+        index.reset();
+
+        // Modify the liveness of the primary key, the delta rows should contain
+        // no cell data as only the pk was altered, but it should illustrate the
+        // change to the liveness info
+        execute("INSERT INTO %s(k, c) VALUES (0, 0) USING TIMESTAMP 4");
+        assertEquals(1, index.rowsUpdated.size());
+        oldRow = index.rowsUpdated.get(0).left;
+        assertEquals(0, oldRow.size());
+        assertEquals(0, oldRow.primaryKeyLivenessInfo().timestamp());
+        newRow = index.rowsUpdated.get(0).right;
+        assertEquals(0, newRow.size());
+        assertEquals(4, newRow.primaryKeyLivenessInfo().timestamp());
+    }
+
+    private void validateCell(Cell cell, ColumnDefinition def, ByteBuffer val, long timestamp)
+    {
+        assertNotNull(cell);
+        assertEquals(0, def.type.compare(cell.value(), val));
+        assertEquals(timestamp, cell.timestamp());
     }
 
     private static void assertColumnValue(int expected, String name, Row row, CFMetaData cfm)
