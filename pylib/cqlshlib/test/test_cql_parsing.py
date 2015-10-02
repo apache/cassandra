@@ -64,8 +64,8 @@ class TestCqlParsing(TestCase):
         [parsed] = CqlRuleSet.cql_parse('INSERT INTO ks.test')
         self.assertSequenceEqual(parsed.matched, [])
         self.assertSequenceEqual(tokens_with_types(parsed.remainder),
-                                 [('INSERT', 'K_INSERT'),
-                                  ('INTO', 'K_INTO'),
+                                 [('INSERT', 'identifier'),
+                                  ('INTO', 'identifier'),
                                   ('ks', 'identifier'),
                                   ('.', 'op'),
                                   ('test', 'identifier')])
@@ -73,8 +73,8 @@ class TestCqlParsing(TestCase):
     def test_parse_select(self):
         parsed = parse_cqlsh_statements('SELECT FROM ks.tab;')
         self.assertSequenceEqual(tokens_with_types(parsed),
-                                 [('SELECT', 'K_SELECT'),
-                                  ('FROM', 'K_FROM'),
+                                 [('SELECT', 'identifier'),
+                                  ('FROM', 'identifier'),
                                   ('ks', 'identifier'),
                                   ('.', 'op'),
                                   ('tab', 'identifier'),
@@ -82,18 +82,18 @@ class TestCqlParsing(TestCase):
 
         parsed = parse_cqlsh_statements('SELECT FROM "MyTable";')
         self.assertSequenceEqual(tokens_with_types(parsed),
-                                 [('SELECT', 'K_SELECT'),
-                                  ('FROM', 'K_FROM'),
+                                 [('SELECT', 'identifier'),
+                                  ('FROM', 'identifier'),
                                   ('"MyTable"', 'quotedName'),
                                   (';', 'endtoken')])
 
         parsed = parse_cqlsh_statements(
             'SELECT FROM tab WHERE foo = 3;')
         self.assertSequenceEqual(tokens_with_types(parsed),
-                                 [('SELECT', 'K_SELECT'),
-                                  ('FROM', 'K_FROM'),
+                                 [('SELECT', 'identifier'),
+                                  ('FROM', 'identifier'),
                                   ('tab', 'identifier'),
-                                  ('WHERE', 'K_WHERE'),
+                                  ('WHERE', 'identifier'),
                                   ('foo', 'identifier'),
                                   ('=', 'op'),
                                   ('3', 'wholenumber'),
@@ -102,28 +102,28 @@ class TestCqlParsing(TestCase):
         parsed = parse_cqlsh_statements(
             'SELECT FROM tab ORDER BY event_id DESC LIMIT 1000')
         self.assertSequenceEqual(tokens_with_types(parsed),
-                                 [('SELECT', 'K_SELECT'),
-                                  ('FROM', 'K_FROM'),
+                                 [('SELECT', 'identifier'),
+                                  ('FROM', 'identifier'),
                                   ('tab', 'identifier'),
-                                  ('ORDER', 'K_ORDER'),
-                                  ('BY', 'K_BY'),
+                                  ('ORDER', 'identifier'),
+                                  ('BY', 'identifier'),
                                   ('event_id', 'identifier'),
-                                  ('DESC', 'K_DESC'),
-                                  ('LIMIT', 'K_LIMIT'),
+                                  ('DESC', 'identifier'),
+                                  ('LIMIT', 'identifier'),
                                   ('1000', 'wholenumber')])
 
         parsed = parse_cqlsh_statements(
             'SELECT FROM tab WHERE clustering_column > 200 '
             'AND clustering_column < 400 ALLOW FILTERING')
         self.assertSequenceEqual(tokens_with_types(parsed),
-                                 [('SELECT', 'K_SELECT'),
-                                  ('FROM', 'K_FROM'),
+                                 [('SELECT', 'identifier'),
+                                  ('FROM', 'identifier'),
                                   ('tab', 'identifier'),
-                                  ('WHERE', 'K_WHERE'),
+                                  ('WHERE', 'identifier'),
                                   ('clustering_column', 'identifier'),
                                   ('>', 'cmp'),
                                   ('200', 'wholenumber'),
-                                  ('AND', 'K_AND'),
+                                  ('AND', 'identifier'),
                                   ('clustering_column', 'identifier'),
                                   ('<', 'cmp'),
                                   ('400', 'wholenumber'),
@@ -134,13 +134,13 @@ class TestCqlParsing(TestCase):
     def test_parse_insert(self):
         parsed = parse_cqlsh_statements('INSERT INTO mytable (x) VALUES (2);')
         self.assertSequenceEqual(tokens_with_types(parsed),
-                                 [('INSERT', 'K_INSERT'),
-                                  ('INTO', 'K_INTO'),
+                                 [('INSERT', 'identifier'),
+                                  ('INTO', 'identifier'),
                                   ('mytable', 'identifier'),
                                   ('(', 'op'),
                                   ('x', 'identifier'),
                                   (')', 'op'),
-                                  ('VALUES', 'K_VALUES'),
+                                  ('VALUES', 'identifier'),
                                   ('(', 'op'),
                                   ('2', 'wholenumber'),
                                   (')', 'op'),
@@ -149,15 +149,15 @@ class TestCqlParsing(TestCase):
         parsed = parse_cqlsh_statements(
             "INSERT INTO mytable (x, y) VALUES (2, 'eggs');")
         self.assertSequenceEqual(tokens_with_types(parsed),
-                                 [('INSERT', 'K_INSERT'),
-                                  ('INTO', 'K_INTO'),
+                                 [('INSERT', 'identifier'),
+                                  ('INTO', 'identifier'),
                                   ('mytable', 'identifier'),
                                   ('(', 'op'),
                                   ('x', 'identifier'),
                                   (',', 'op'),
                                   ('y', 'identifier'),
                                   (')', 'op'),
-                                  ('VALUES', 'K_VALUES'),
+                                  ('VALUES', 'identifier'),
                                   ('(', 'op'),
                                   ('2', 'wholenumber'),
                                   (',', 'op'),
@@ -168,15 +168,15 @@ class TestCqlParsing(TestCase):
         parsed = parse_cqlsh_statements(
             "INSERT INTO mytable (x, y) VALUES (2, 'eggs');")
         self.assertSequenceEqual(tokens_with_types(parsed),
-                                 [('INSERT', 'K_INSERT'),
-                                  ('INTO', 'K_INTO'),
+                                 [('INSERT', 'identifier'),
+                                  ('INTO', 'identifier'),
                                   ('mytable', 'identifier'),
                                   ('(', 'op'),
                                   ('x', 'identifier'),
                                   (',', 'op'),
                                   ('y', 'identifier'),
                                   (')', 'op'),
-                                  ('VALUES', 'K_VALUES'),
+                                  ('VALUES', 'identifier'),
                                   ('(', 'op'),
                                   ('2', 'wholenumber'),
                                   (',', 'op'),
@@ -189,18 +189,18 @@ class TestCqlParsing(TestCase):
             "(7ee251da-af52-49a4-97f4-3f07e406c7a7) "
             "USING TTL 86400;")
         self.assertSequenceEqual(tokens_with_types(parsed),
-                                 [('INSERT', 'K_INSERT'),
-                                  ('INTO', 'K_INTO'),
+                                 [('INSERT', 'identifier'),
+                                  ('INTO', 'identifier'),
                                   ('mytable', 'identifier'),
                                   ('(', 'op'),
                                   ('ids', 'identifier'),
                                   (')', 'op'),
-                                  ('VALUES', 'K_VALUES'),
+                                  ('VALUES', 'identifier'),
                                   ('(', 'op'),
                                   ('7ee251da-af52-49a4-97f4-3f07e406c7a7', 'uuid'),
                                   (')', 'op'),
-                                  ('USING', 'K_USING'),
-                                  ('TTL', 'K_TTL'),
+                                  ('USING', 'identifier'),
+                                  ('TTL', 'identifier'),
                                   ('86400', 'wholenumber'),
                                   (';', 'endtoken')])
 
@@ -208,21 +208,21 @@ class TestCqlParsing(TestCase):
             "INSERT INTO test_table (username) VALUES ('Albert') "
             "USING TIMESTAMP 1240003134 AND TTL 600;")
         self.assertSequenceEqual(tokens_with_types(parsed),
-                                 [('INSERT', 'K_INSERT'),
-                                  ('INTO', 'K_INTO'),
+                                 [('INSERT', 'identifier'),
+                                  ('INTO', 'identifier'),
                                   ('test_table', 'identifier'),
                                   ('(', 'op'),
                                   ('username', 'identifier'),
                                   (')', 'op'),
-                                  ('VALUES', 'K_VALUES'),
+                                  ('VALUES', 'identifier'),
                                   ('(', 'op'),
                                   ("'Albert'", 'quotedStringLiteral'),
                                   (')', 'op'),
-                                  ('USING', 'K_USING'),
-                                  ('TIMESTAMP', 'K_TIMESTAMP'),
+                                  ('USING', 'identifier'),
+                                  ('TIMESTAMP', 'identifier'),
                                   ('1240003134', 'wholenumber'),
-                                  ('AND', 'K_AND'),
-                                  ('TTL', 'K_TTL'),
+                                  ('AND', 'identifier'),
+                                  ('TTL', 'identifier'),
                                   ('600', 'wholenumber'),
                                   (';', 'endtoken')])
 
@@ -230,13 +230,13 @@ class TestCqlParsing(TestCase):
         parsed = parse_cqlsh_statements(
             "UPDATE tab SET x = 15 WHERE y = 'eggs';")
         self.assertSequenceEqual(tokens_with_types(parsed),
-                                 [('UPDATE', 'K_UPDATE'),
+                                 [('UPDATE', 'identifier'),
                                   ('tab', 'identifier'),
-                                  ('SET', 'K_SET'),
+                                  ('SET', 'identifier'),
                                   ('x', 'identifier'),
                                   ('=', 'op'),
                                   ('15', 'wholenumber'),
-                                  ('WHERE', 'K_WHERE'),
+                                  ('WHERE', 'identifier'),
                                   ('y', 'identifier'),
                                   ('=', 'op'),
                                   ("'eggs'", 'quotedStringLiteral'),
@@ -245,16 +245,16 @@ class TestCqlParsing(TestCase):
         parsed = parse_cqlsh_statements(
             "UPDATE tab USING TTL 432000 SET x = 15 WHERE y = 'eggs';")
         self.assertSequenceEqual(tokens_with_types(parsed),
-                                 [('UPDATE', 'K_UPDATE'),
+                                 [('UPDATE', 'identifier'),
                                   ('tab', 'identifier'),
-                                  ('USING', 'K_USING'),
-                                  ('TTL', 'K_TTL'),
+                                  ('USING', 'identifier'),
+                                  ('TTL', 'identifier'),
                                   ('432000', 'wholenumber'),
-                                  ('SET', 'K_SET'),
+                                  ('SET', 'identifier'),
                                   ('x', 'identifier'),
                                   ('=', 'op'),
                                   ('15', 'wholenumber'),
-                                  ('WHERE', 'K_WHERE'),
+                                  ('WHERE', 'identifier'),
                                   ('y', 'identifier'),
                                   ('=', 'op'),
                                   ("'eggs'", 'quotedStringLiteral'),
@@ -264,9 +264,9 @@ class TestCqlParsing(TestCase):
             "UPDATE tab SET x = 15, y = 'sausage' "
             "WHERE y = 'eggs';")
         self.assertSequenceEqual(tokens_with_types(parsed),
-                                 [('UPDATE', 'K_UPDATE'),
+                                 [('UPDATE', 'identifier'),
                                   ('tab', 'identifier'),
-                                  ('SET', 'K_SET'),
+                                  ('SET', 'identifier'),
                                   ('x', 'identifier'),
                                   ('=', 'op'),
                                   ('15', 'wholenumber'),
@@ -274,7 +274,7 @@ class TestCqlParsing(TestCase):
                                   ('y', 'identifier'),
                                   ('=', 'op'),
                                   ("'sausage'", 'quotedStringLiteral'),
-                                  ('WHERE', 'K_WHERE'),
+                                  ('WHERE', 'identifier'),
                                   ('y', 'identifier'),
                                   ('=', 'op'),
                                   ("'eggs'", 'quotedStringLiteral'),
@@ -284,15 +284,15 @@ class TestCqlParsing(TestCase):
             "UPDATE tab SET x = 15 "
             "WHERE y IN ('eggs', 'sausage', 'spam');")
         self.assertSequenceEqual(tokens_with_types(parsed),
-                                 [('UPDATE', 'K_UPDATE'),
+                                 [('UPDATE', 'identifier'),
                                   ('tab', 'identifier'),
-                                  ('SET', 'K_SET'),
+                                  ('SET', 'identifier'),
                                   ('x', 'identifier'),
                                   ('=', 'op'),
                                   ('15', 'wholenumber'),
-                                  ('WHERE', 'K_WHERE'),
+                                  ('WHERE', 'identifier'),
                                   ('y', 'identifier'),
-                                  ('IN', 'K_IN'),
+                                  ('IN', 'identifier'),
                                   ('(', 'op'),
                                   ("'eggs'", 'quotedStringLiteral'),
                                   (',', 'op'),
@@ -306,17 +306,17 @@ class TestCqlParsing(TestCase):
             "UPDATE tab SET x = 15 "
             "WHERE y = 'spam' if z = 'sausage';")
         self.assertSequenceEqual(tokens_with_types(parsed),
-                                 [('UPDATE', 'K_UPDATE'),
+                                 [('UPDATE', 'identifier'),
                                   ('tab', 'identifier'),
-                                  ('SET', 'K_SET'),
+                                  ('SET', 'identifier'),
                                   ('x', 'identifier'),
                                   ('=', 'op'),
                                   ('15', 'wholenumber'),
-                                  ('WHERE', 'K_WHERE'),
+                                  ('WHERE', 'identifier'),
                                   ('y', 'identifier'),
                                   ('=', 'op'),
                                   ("'spam'", 'quotedStringLiteral'),
-                                  ('if', 'K_IF'),
+                                  ('if', 'identifier'),
                                   ('z', 'identifier'),
                                   ('=', 'op'),
                                   ("'sausage'", 'quotedStringLiteral'),
@@ -326,21 +326,21 @@ class TestCqlParsing(TestCase):
             "UPDATE tab SET x = 15 WHERE y = 'spam' "
             "if z = 'sausage' AND w = 'spam';")
         self.assertSequenceEqual(tokens_with_types(parsed),
-                                 [('UPDATE', 'K_UPDATE'),
+                                 [('UPDATE', 'identifier'),
                                   ('tab', 'identifier'),
-                                  ('SET', 'K_SET'),
+                                  ('SET', 'identifier'),
                                   ('x', 'identifier'),
                                   ('=', 'op'),
                                   ('15', 'wholenumber'),
-                                  ('WHERE', 'K_WHERE'),
+                                  ('WHERE', 'identifier'),
                                   ('y', 'identifier'),
                                   ('=', 'op'),
                                   ("'spam'", 'quotedStringLiteral'),
-                                  ('if', 'K_IF'),
+                                  ('if', 'identifier'),
                                   ('z', 'identifier'),
                                   ('=', 'op'),
                                   ("'sausage'", 'quotedStringLiteral'),
-                                  ('AND', 'K_AND'),
+                                  ('AND', 'identifier'),
                                   ('w', 'identifier'),
                                   ('=', 'op'),
                                   ("'spam'", 'quotedStringLiteral'),
@@ -349,27 +349,27 @@ class TestCqlParsing(TestCase):
         parsed = parse_cqlsh_statements(
             "UPDATE tab SET x = 15 WHERE y = 'spam' IF EXISTS")
         self.assertSequenceEqual(tokens_with_types(parsed),
-                                 [('UPDATE', 'K_UPDATE'),
+                                 [('UPDATE', 'identifier'),
                                   ('tab', 'identifier'),
-                                  ('SET', 'K_SET'),
+                                  ('SET', 'identifier'),
                                   ('x', 'identifier'),
                                   ('=', 'op'),
                                   ('15', 'wholenumber'),
-                                  ('WHERE', 'K_WHERE'),
+                                  ('WHERE', 'identifier'),
                                   ('y', 'identifier'),
                                   ('=', 'op'),
                                   ("'spam'", 'quotedStringLiteral'),
-                                  ('IF', 'K_IF'),
+                                  ('IF', 'identifier'),
                                   ('EXISTS', 'identifier')])
 
     def test_parse_delete(self):
         parsed = parse_cqlsh_statements(
             "DELETE FROM songs WHERE songid = 444;")
         self.assertSequenceEqual(tokens_with_types(parsed),
-                                 [('DELETE', 'K_DELETE'),
-                                  ('FROM', 'K_FROM'),
+                                 [('DELETE', 'identifier'),
+                                  ('FROM', 'identifier'),
                                   ('songs', 'identifier'),
-                                  ('WHERE', 'K_WHERE'),
+                                  ('WHERE', 'identifier'),
                                   ('songid', 'identifier'),
                                   ('=', 'op'),
                                   ('444', 'wholenumber'),
@@ -379,12 +379,12 @@ class TestCqlParsing(TestCase):
             "DELETE FROM songs WHERE name IN "
             "('Yellow Submarine', 'Eleanor Rigby');")
         self.assertSequenceEqual(tokens_with_types(parsed),
-                                 [('DELETE', 'K_DELETE'),
-                                  ('FROM', 'K_FROM'),
+                                 [('DELETE', 'identifier'),
+                                  ('FROM', 'identifier'),
                                   ('songs', 'identifier'),
-                                  ('WHERE', 'K_WHERE'),
+                                  ('WHERE', 'identifier'),
                                   ('name', 'identifier'),
-                                  ('IN', 'K_IN'),
+                                  ('IN', 'identifier'),
                                   ('(', 'op'),
                                   ("'Yellow Submarine'", 'quotedStringLiteral'),
                                   (',', 'op'),
@@ -395,14 +395,14 @@ class TestCqlParsing(TestCase):
         parsed = parse_cqlsh_statements(
             "DELETE task_map ['2014-12-25'] from tasks where user_id = 'Santa';")
         self.assertSequenceEqual(tokens_with_types(parsed),
-                                 [('DELETE', 'K_DELETE'),
+                                 [('DELETE', 'identifier'),
                                   ('task_map', 'identifier'),
                                   ('[', 'brackets'),
                                   ("'2014-12-25'", 'quotedStringLiteral'),
                                   (']', 'brackets'),
-                                  ('from', 'K_FROM'),
+                                  ('from', 'identifier'),
                                   ('tasks', 'identifier'),
-                                  ('where', 'K_WHERE'),
+                                  ('where', 'identifier'),
                                   ('user_id', 'identifier'),
                                   ('=', 'op'),
                                   ("'Santa'", 'quotedStringLiteral'),
@@ -411,14 +411,14 @@ class TestCqlParsing(TestCase):
         parsed = parse_cqlsh_statements(
             "DELETE my_list[0] from lists where user_id = 'Jim';")
         self.assertSequenceEqual(tokens_with_types(parsed),
-                                 [('DELETE', 'K_DELETE'),
+                                 [('DELETE', 'identifier'),
                                   ('my_list', 'identifier'),
                                   ('[', 'brackets'),
                                   ('0', 'wholenumber'),
                                   (']', 'brackets'),
-                                  ('from', 'K_FROM'),
+                                  ('from', 'identifier'),
                                   ('lists', 'identifier'),
-                                  ('where', 'K_WHERE'),
+                                  ('where', 'identifier'),
                                   ('user_id', 'identifier'),
                                   ('=', 'op'),
                                   ("'Jim'", 'quotedStringLiteral'),
@@ -432,10 +432,10 @@ class TestCqlParsing(TestCase):
             "CREATE KEYSPACE ks WITH REPLICATION = "
             "{'class': 'SimpleStrategy', 'replication_factor': 1};")
         self.assertSequenceEqual(tokens_with_types(parsed),
-                                 [('CREATE', 'K_CREATE'),
-                                  ('KEYSPACE', 'K_KEYSPACE'),
+                                 [('CREATE', 'identifier'),
+                                  ('KEYSPACE', 'identifier'),
                                   ('ks', 'identifier'),
-                                  ('WITH', 'K_WITH'),
+                                  ('WITH', 'identifier'),
                                   ('REPLICATION', 'identifier'),
                                   ('=', 'op'),
                                   ('{', 'brackets'),
@@ -453,10 +453,10 @@ class TestCqlParsing(TestCase):
             'CREATE KEYSPACE "Cql_test_KS" WITH REPLICATION = '
             "{'class': 'NetworkTopologyStrategy', 'dc1' : 3, 'dc2': 2};")
         self.assertSequenceEqual(tokens_with_types(parsed),
-                                 [('CREATE', 'K_CREATE'),
-                                  ('KEYSPACE', 'K_KEYSPACE'),
+                                 [('CREATE', 'identifier'),
+                                  ('KEYSPACE', 'identifier'),
                                   ('"Cql_test_KS"', 'quotedName'),
-                                  ('WITH', 'K_WITH'),
+                                  ('WITH', 'identifier'),
                                   ('REPLICATION', 'identifier'),
                                   ('=', 'op'),
                                   ('{', 'brackets'),
@@ -480,10 +480,10 @@ class TestCqlParsing(TestCase):
             "{'class': 'NetworkTopologyStrategy', 'dc1': 3} AND "
             "DURABLE_WRITES = false;")
         self.assertSequenceEqual(tokens_with_types(parsed),
-                                 [('CREATE', 'K_CREATE'),
-                                  ('KEYSPACE', 'K_KEYSPACE'),
+                                 [('CREATE', 'identifier'),
+                                  ('KEYSPACE', 'identifier'),
                                   ('ks', 'identifier'),
-                                  ('WITH', 'K_WITH'),
+                                  ('WITH', 'identifier'),
                                   ('REPLICATION', 'identifier'),
                                   ('=', 'op'),
                                   ('{', 'brackets'),
@@ -496,7 +496,7 @@ class TestCqlParsing(TestCase):
                                   (':', 'colon'),
                                   ('3', 'wholenumber'),
                                   ('}', 'brackets'),
-                                  ('AND', 'K_AND'),
+                                  ('AND', 'identifier'),
                                   # 'DURABLE_WRITES' is not a keyword
                                   ('DURABLE_WRITES', 'identifier'),
                                   ('=', 'op'),
@@ -507,25 +507,25 @@ class TestCqlParsing(TestCase):
         parsed = parse_cqlsh_statements(
             'DROP KEYSPACE ks;')
         self.assertSequenceEqual(tokens_with_types(parsed),
-                                 [('DROP', 'K_DROP'),
-                                  ('KEYSPACE', 'K_KEYSPACE'),
+                                 [('DROP', 'identifier'),
+                                  ('KEYSPACE', 'identifier'),
                                   ('ks', 'identifier'),
                                   (';', 'endtoken')])
 
         parsed = parse_cqlsh_statements(
             'DROP SCHEMA ks;')
         self.assertSequenceEqual(tokens_with_types(parsed),
-                                 [('DROP', 'K_DROP'),
-                                  ('SCHEMA', 'K_SCHEMA'),
+                                 [('DROP', 'identifier'),
+                                  ('SCHEMA', 'identifier'),
                                   ('ks', 'identifier'),
                                   (';', 'endtoken')])
 
         parsed = parse_cqlsh_statements(
             'DROP KEYSPACE IF EXISTS "My_ks";')
         self.assertSequenceEqual(tokens_with_types(parsed),
-                                 [('DROP', 'K_DROP'),
-                                  ('KEYSPACE', 'K_KEYSPACE'),
-                                  ('IF', 'K_IF'),
+                                 [('DROP', 'identifier'),
+                                  ('KEYSPACE', 'identifier'),
+                                  ('IF', 'identifier'),
                                   ('EXISTS', 'identifier'),
                                   ('"My_ks"', 'quotedName'),
                                   (';', 'endtoken')])
@@ -549,43 +549,43 @@ class TestCqlParsing(TestCase):
         parsed = parse_cqlsh_statements(
             'CREATE INDEX idx ON ks.tab (i);')
         self.assertSequenceEqual(tokens_with_types(parsed),
-                                 [('CREATE', 'K_CREATE'),
-                                  ('INDEX', 'K_INDEX'),
+                                 (('CREATE', 'identifier'),
+                                  ('INDEX', 'identifier'),
                                   ('idx', 'identifier'),
-                                  ('ON', 'K_ON'),
+                                  ('ON', 'identifier'),
                                   ('ks', 'identifier'),
                                   ('.', 'op'),
                                   ('tab', 'identifier'),
                                   ('(', 'op'),
                                   ('i', 'identifier'),
                                   (')', 'op'),
-                                  (';', 'endtoken')])
+                                  (';', 'endtoken')))
 
         parsed = parse_cqlsh_statements(
             'CREATE INDEX idx ON ks.tab (i) IF NOT EXISTS;')
         self.assertSequenceEqual(tokens_with_types(parsed),
-                                 [('CREATE', 'K_CREATE'),
-                                  ('INDEX', 'K_INDEX'),
+                                 (('CREATE', 'identifier'),
+                                  ('INDEX', 'identifier'),
                                   ('idx', 'identifier'),
-                                  ('ON', 'K_ON'),
+                                  ('ON', 'identifier'),
                                   ('ks', 'identifier'),
                                   ('.', 'op'),
                                   ('tab', 'identifier'),
                                   ('(', 'op'),
                                   ('i', 'identifier'),
                                   (')', 'op'),
-                                  ('IF', 'K_IF'),
-                                  ('NOT', 'K_NOT'),
+                                  ('IF', 'identifier'),
+                                  ('NOT', 'identifier'),
                                   ('EXISTS', 'identifier'),
-                                  (';', 'endtoken')])
+                                  (';', 'endtoken')))
 
         parsed = parse_cqlsh_statements(
             'CREATE INDEX idx ON tab (KEYS(i));')
         self.assertSequenceEqual(tokens_with_types(parsed),
-                                 [('CREATE', 'K_CREATE'),
-                                  ('INDEX', 'K_INDEX'),
+                                 (('CREATE', 'identifier'),
+                                  ('INDEX', 'identifier'),
                                   ('idx', 'identifier'),
-                                  ('ON', 'K_ON'),
+                                  ('ON', 'identifier'),
                                   ('tab', 'identifier'),
                                   ('(', 'op'),
                                   ('KEYS', 'identifier'),
@@ -593,15 +593,15 @@ class TestCqlParsing(TestCase):
                                   ('i', 'identifier'),
                                   (')', 'op'),
                                   (')', 'op'),
-                                  (';', 'endtoken')])
+                                  (';', 'endtoken')))
 
         parsed = parse_cqlsh_statements(
             'CREATE INDEX idx ON ks.tab FULL(i);')
         self.assertSequenceEqual(tokens_with_types(parsed),
-                                 [('CREATE', 'K_CREATE'),
-                                  ('INDEX', 'K_INDEX'),
+                                 [('CREATE', 'identifier'),
+                                  ('INDEX', 'identifier'),
                                   ('idx', 'identifier'),
-                                  ('ON', 'K_ON'),
+                                  ('ON', 'identifier'),
                                   ('ks', 'identifier'),
                                   ('.', 'op'),
                                   ('tab', 'identifier'),
@@ -614,11 +614,11 @@ class TestCqlParsing(TestCase):
         parsed = parse_cqlsh_statements(
             'CREATE CUSTOM INDEX idx ON ks.tab (i);')
         self.assertSequenceEqual(tokens_with_types(parsed),
-                                 [('CREATE', 'K_CREATE'),
-                                  ('CUSTOM', 'K_CUSTOM'),
-                                  ('INDEX', 'K_INDEX'),
+                                 [('CREATE', 'identifier'),
+                                  ('CUSTOM', 'identifier'),
+                                  ('INDEX', 'identifier'),
                                   ('idx', 'identifier'),
-                                  ('ON', 'K_ON'),
+                                  ('ON', 'identifier'),
                                   ('ks', 'identifier'),
                                   ('.', 'op'),
                                   ('tab', 'identifier'),
@@ -631,17 +631,17 @@ class TestCqlParsing(TestCase):
             "CREATE INDEX idx ON ks.tab (i) USING "
             "'org.custom.index.MyIndexClass';")
         self.assertSequenceEqual(tokens_with_types(parsed),
-                                 [('CREATE', 'K_CREATE'),
-                                  ('INDEX', 'K_INDEX'),
+                                 [('CREATE', 'identifier'),
+                                  ('INDEX', 'identifier'),
                                   ('idx', 'identifier'),
-                                  ('ON', 'K_ON'),
+                                  ('ON', 'identifier'),
                                   ('ks', 'identifier'),
                                   ('.', 'op'),
                                   ('tab', 'identifier'),
                                   ('(', 'op'),
                                   ('i', 'identifier'),
                                   (')', 'op'),
-                                  ('USING', 'K_USING'),
+                                  ('USING', 'identifier'),
                                   ("'org.custom.index.MyIndexClass'",
                                    'quotedStringLiteral'),
                                   (';', 'endtoken')])
@@ -650,17 +650,17 @@ class TestCqlParsing(TestCase):
             "CREATE INDEX idx ON ks.tab (i) WITH OPTIONS = "
             "{'storage': '/mnt/ssd/indexes/'};")
         self.assertSequenceEqual(tokens_with_types(parsed),
-                                 [('CREATE', 'K_CREATE'),
-                                  ('INDEX', 'K_INDEX'),
+                                 [('CREATE', 'identifier'),
+                                  ('INDEX', 'identifier'),
                                   ('idx', 'identifier'),
-                                  ('ON', 'K_ON'),
+                                  ('ON', 'identifier'),
                                   ('ks', 'identifier'),
                                   ('.', 'op'),
                                   ('tab', 'identifier'),
                                   ('(', 'op'),
                                   ('i', 'identifier'),
                                   (')', 'op'),
-                                  ('WITH', 'K_WITH'),
+                                  ('WITH', 'identifier'),
                                   ('OPTIONS', 'identifier'),
                                   ('=', 'op'),
                                   ('{', 'brackets'),

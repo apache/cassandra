@@ -28,7 +28,7 @@ INSERT INTO has_all_types (num, intcol, asciicol, bigintcol, blobcol, booleancol
                            decimalcol, doublecol, floatcol, smallintcol, textcol,
                            timestampcol, tinyintcol, uuidcol, varcharcol, varintcol)
 VALUES (1, 2147483647, '__!''$#@!~"', 9223372036854775807, 0xffffffffffffffffff, true,
-        0.00000000000001, 9999999.999, 99999.99, 32767, '∭Ƕ⑮ฑ➳❏''',
+        0.00000000000001, 9999999.999, 99999.999, 32767, '∭Ƕ⑮ฑ➳❏''',
         '1950-01-01+0000', 127, ffffffff-ffff-ffff-ffff-ffffffffffff, 'newline->
 <-', 9);
 
