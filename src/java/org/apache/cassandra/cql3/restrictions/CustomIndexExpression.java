@@ -21,7 +21,7 @@ package org.apache.cassandra.cql3.restrictions;
 import org.apache.cassandra.config.CFMetaData;
 import org.apache.cassandra.cql3.*;
 import org.apache.cassandra.db.filter.RowFilter;
-import org.apache.cassandra.db.marshal.UTF8Type;
+import org.apache.cassandra.db.marshal.AbstractType;
 
 public class CustomIndexExpression
 {
@@ -38,9 +38,9 @@ public class CustomIndexExpression
         this.valueRaw = value;
     }
 
-    public void prepareValue(CFMetaData cfm, VariableSpecifications boundNames)
+    public void prepareValue(CFMetaData cfm, AbstractType<?> expressionType, VariableSpecifications boundNames)
     {
-        ColumnSpecification spec = new ColumnSpecification(cfm.ksName, cfm.ksName, valueColId, UTF8Type.instance);
+        ColumnSpecification spec = new ColumnSpecification(cfm.ksName, cfm.ksName, valueColId, expressionType);
         value = valueRaw.prepare(cfm.ksName, spec);
         value.collectMarkerSpecification(boundNames);
     }

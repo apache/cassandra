@@ -111,7 +111,9 @@ Upgrading
    - SizeTieredCompactionStrategy parameter cold_reads_to_omit has been removed.
    - The secondary index API has been comprehensively reworked. This will be a breaking
      change for any custom index implementations, which should now look to implement
-     the new org.apache.cassandra.index.Index interface.
+     the new org.apache.cassandra.index.Index interface. New syntax has been added to create
+     and query row-based indexes, which are not explicitly linked to a single column in the
+     base table.
 
 
 2.2.2

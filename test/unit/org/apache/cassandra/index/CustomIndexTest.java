@@ -17,6 +17,8 @@ import org.apache.cassandra.cql3.statements.SelectStatement;
 import org.apache.cassandra.db.ColumnFamilyStore;
 import org.apache.cassandra.db.ReadCommand;
 import org.apache.cassandra.db.marshal.AbstractType;
+import org.apache.cassandra.db.marshal.Int32Type;
+import org.apache.cassandra.db.marshal.UTF8Type;
 import org.apache.cassandra.exceptions.InvalidRequestException;
 import org.apache.cassandra.schema.IndexMetadata;
 import org.apache.cassandra.schema.Indexes;
@@ -403,6 +405,53 @@ public class CustomIndexTest extends CQLTester
         assertEquals(1, lessSelective.searchersProvided);
     }
 
+    @Test
+    public void customExpressionForcesIndexSelection() throws Throwable
+    {
+        createTable("CREATE TABLE %s(a int, b int, c int, PRIMARY KEY (a))");
+        createIndex(String.format("CREATE CUSTOM INDEX more_selective ON %%s(b) USING '%s'",
+                                  SettableSelectivityIndex.class.getName()));
+        createIndex(String.format("CREATE CUSTOM INDEX less_selective ON %%s(c) USING '%s'",
+                                  SettableSelectivityIndex.class.getName()));
+        SettableSelectivityIndex moreSelective =
+            (SettableSelectivityIndex)getCurrentColumnFamilyStore().indexManager.getIndexByName("more_selective");
+        SettableSelectivityIndex lessSelective =
+            (SettableSelectivityIndex)getCurrentColumnFamilyStore().indexManager.getIndexByName("less_selective");
+        assertEquals(0, moreSelective.searchersProvided);
+        assertEquals(0, lessSelective.searchersProvided);
+
+        // without a custom expression, the more selective index should be chosen
+        moreSelective.setEstimatedResultRows(1);
+        lessSelective.setEstimatedResultRows(1000);
+        execute("SELECT * FROM %s WHERE b=0 AND c=0 ALLOW FILTERING");
+        assertEquals(1, moreSelective.searchersProvided);
+        assertEquals(0, lessSelective.searchersProvided);
+
+        // when a custom expression is present, its target index should be preferred
+        execute("SELECT * FROM %s WHERE b=0 AND expr(less_selective, 'expression') ALLOW FILTERING");
+        assertEquals(1, moreSelective.searchersProvided);
+        assertEquals(1, lessSelective.searchersProvided);
+    }
+
+    @Test
+    public void testCustomExpressionValueType() throws Throwable
+    {
+        // verify that the type of the expression value is determined by Index::customExpressionValueType
+        createTable("CREATE TABLE %s (k int, v1 uuid, v2 blob, PRIMARY KEY(k))");
+        createIndex(String.format("CREATE CUSTOM INDEX int_index ON %%s() USING '%s'",
+                                  Int32ExpressionIndex.class.getName()));
+        createIndex(String.format("CREATE CUSTOM INDEX text_index ON %%s() USING '%s'",
+                                  UTF8ExpressionIndex.class.getName()));
+
+        execute("SELECT * FROM %s WHERE expr(text_index, 'foo')");
+        assertInvalidMessage("Invalid INTEGER constant (99) for \"custom index expression\" of type text",
+                             "SELECT * FROM %s WHERE expr(text_index, 99)");
+
+        execute("SELECT * FROM %s WHERE expr(int_index, 99)");
+        assertInvalidMessage("Invalid STRING constant (foo) for \"custom index expression\" of type int",
+                             "SELECT * FROM %s WHERE expr(int_index, 'foo')");
+    }
+
     private void testCreateIndex(String indexName, String... targetColumnNames) throws Throwable
     {
         createIndex(String.format("CREATE CUSTOM INDEX %s ON %%s(%s) USING '%s'",
@@ -456,6 +505,32 @@ public class CustomIndexTest extends CQLTester
         public boolean shouldBuildBlocking()
         {
             return true;
+        }
+    }
+
+    public static final class UTF8ExpressionIndex extends StubIndex
+    {
+        public UTF8ExpressionIndex(ColumnFamilyStore baseCfs, IndexMetadata metadata)
+        {
+            super(baseCfs, metadata);
+        }
+
+        public AbstractType<?> customExpressionValueType()
+        {
+            return UTF8Type.instance;
+        }
+    }
+
+    public static final class Int32ExpressionIndex extends StubIndex
+    {
+        public Int32ExpressionIndex(ColumnFamilyStore baseCfs, IndexMetadata metadata)
+        {
+            super(baseCfs, metadata);
+        }
+
+        public AbstractType<?> customExpressionValueType()
+        {
+            return Int32Type.instance;
         }
     }
 
