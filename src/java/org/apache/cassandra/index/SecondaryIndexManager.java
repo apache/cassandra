@@ -585,8 +585,12 @@ public class SecondaryIndexManager implements IndexRegistry
         {
             if (expression.isCustom())
             {
+                // Only a single custom expression is allowed per query and, if present,
+                // we want to always favour the index specified in such an expression
                 RowFilter.CustomExpression customExpression = (RowFilter.CustomExpression)expression;
-                searchableIndexes.add(indexes.get(customExpression.getTargetIndex().name));
+                logger.trace("Command contains a custom index expression, using target index {}", customExpression.getTargetIndex().name);
+                Tracing.trace("Command contains a custom index expression, using target index {}", customExpression.getTargetIndex().name);
+                return indexes.get(customExpression.getTargetIndex().name);
             }
             else
             {

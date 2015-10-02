@@ -31,6 +31,7 @@ import org.apache.cassandra.cql3.statements.Bound;
 import org.apache.cassandra.cql3.statements.StatementType;
 import org.apache.cassandra.db.*;
 import org.apache.cassandra.db.filter.RowFilter;
+import org.apache.cassandra.db.marshal.AbstractType;
 import org.apache.cassandra.dht.*;
 import org.apache.cassandra.exceptions.InvalidRequestException;
 import org.apache.cassandra.index.Index;
@@ -503,7 +504,6 @@ public final class StatementRestrictions
             throw new InvalidRequestException(IndexRestrictions.MULTIPLE_EXPRESSIONS);
 
         CustomIndexExpression expression = expressions.get(0);
-        expression.prepareValue(cfm, boundNames);
 
         CFName cfName = expression.targetIndex.getCfName();
         if (cfName.hasKeyspace()
@@ -521,8 +521,11 @@ public final class StatementRestrictions
         if (!index.getIndexMetadata().isCustom())
             throw IndexRestrictions.nonCustomIndexInExpression(expression.targetIndex);
 
-        if (index.customExpressionValueType() == null)
+        AbstractType<?> expressionType = index.customExpressionValueType();
+        if (expressionType == null)
             throw IndexRestrictions.customExpressionNotSupported(expression.targetIndex);
+
+        expression.prepareValue(cfm, expressionType, boundNames);
 
         indexRestrictions.add(expression);
     }
