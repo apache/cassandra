@@ -1583,7 +1583,11 @@ public abstract class ReadCommand implements ReadQuery
         {
             SortedSet<Clustering> requestedRows = filter.requestedRows();
             Slices slices;
-            if (requestedRows.isEmpty() || requestedRows.size() == 1 && requestedRows.first().size() == 0)
+            if (requestedRows.isEmpty())
+            {
+                slices = Slices.NONE;
+            }
+            else if (requestedRows.size() == 1 && requestedRows.first().size() == 0)
             {
                 slices = Slices.ALL;
             }
