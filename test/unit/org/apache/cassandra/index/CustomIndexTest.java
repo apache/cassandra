@@ -374,6 +374,35 @@ public class CustomIndexTest extends CQLTester
                              "UPDATE %s SET d=0 WHERE expr(custom_index, 'foo bar baz ')");
     }
 
+    @Test
+    public void indexSelectionPrefersMostSelectiveIndex() throws Throwable
+    {
+        createTable("CREATE TABLE %s(a int, b int, c int, PRIMARY KEY (a))");
+        createIndex(String.format("CREATE CUSTOM INDEX more_selective ON %%s(b) USING '%s'",
+                                  SettableSelectivityIndex.class.getName()));
+        createIndex(String.format("CREATE CUSTOM INDEX less_selective ON %%s(c) USING '%s'",
+                                  SettableSelectivityIndex.class.getName()));
+        SettableSelectivityIndex moreSelective =
+            (SettableSelectivityIndex)getCurrentColumnFamilyStore().indexManager.getIndexByName("more_selective");
+        SettableSelectivityIndex lessSelective =
+            (SettableSelectivityIndex)getCurrentColumnFamilyStore().indexManager.getIndexByName("less_selective");
+        assertEquals(0, moreSelective.searchersProvided);
+        assertEquals(0, lessSelective.searchersProvided);
+
+        // the more selective index should be chosen
+        moreSelective.setEstimatedResultRows(1);
+        lessSelective.setEstimatedResultRows(1000);
+        execute("SELECT * FROM %s WHERE b=0 AND c=0 ALLOW FILTERING");
+        assertEquals(1, moreSelective.searchersProvided);
+        assertEquals(0, lessSelective.searchersProvided);
+
+        // and adjusting the selectivity should have an observable effect
+        moreSelective.setEstimatedResultRows(10000);
+        execute("SELECT * FROM %s WHERE b=0 AND c=0 ALLOW FILTERING");
+        assertEquals(1, moreSelective.searchersProvided);
+        assertEquals(1, lessSelective.searchersProvided);
+    }
+
     private void testCreateIndex(String indexName, String... targetColumnNames) throws Throwable
     {
         createIndex(String.format("CREATE CUSTOM INDEX %s ON %%s(%s) USING '%s'",
@@ -427,6 +456,33 @@ public class CustomIndexTest extends CQLTester
         public boolean shouldBuildBlocking()
         {
             return true;
+        }
+    }
+
+    public static final class SettableSelectivityIndex extends StubIndex
+    {
+        private int searchersProvided = 0;
+        private long estimatedResultRows = 0;
+
+        public SettableSelectivityIndex(ColumnFamilyStore baseCfs, IndexMetadata metadata)
+        {
+            super(baseCfs, metadata);
+        }
+
+        public void setEstimatedResultRows(long estimate)
+        {
+            estimatedResultRows = estimate;
+        }
+
+        public long getEstimatedResultRows()
+        {
+            return estimatedResultRows;
+        }
+
+        public Searcher searcherFor(ReadCommand command)
+        {
+                searchersProvided++;
+                return super.searcherFor(command);
         }
     }
 
