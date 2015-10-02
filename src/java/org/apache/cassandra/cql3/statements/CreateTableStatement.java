@@ -268,7 +268,7 @@ public class CreateTableStatement extends SchemaAlteringStatement
             {
                 stmt.keyAliases.add(alias.bytes);
                 AbstractType<?> t = getTypeAndRemove(stmt.columns, alias);
-                if (t instanceof CounterColumnType)
+                if (t.asCQL3Type().getType() instanceof CounterColumnType)
                     throw new InvalidRequestException(String.format("counter type is not supported for PRIMARY KEY part %s", alias));
                 if (staticColumns.contains(alias))
                     throw new InvalidRequestException(String.format("Static column %s cannot be part of the PRIMARY KEY", alias));
@@ -316,7 +316,7 @@ public class CreateTableStatement extends SchemaAlteringStatement
 
                     stmt.columnAliases.add(alias.bytes);
                     AbstractType<?> at = getTypeAndRemove(stmt.columns, alias);
-                    if (at instanceof CounterColumnType)
+                    if (at.asCQL3Type().getType() instanceof CounterColumnType)
                         throw new InvalidRequestException(String.format("counter type is not supported for PRIMARY KEY part %s", stmt.columnAliases.get(0)));
                     stmt.comparator = new SimpleDenseCellNameType(at);
                 }
@@ -328,7 +328,7 @@ public class CreateTableStatement extends SchemaAlteringStatement
                         stmt.columnAliases.add(t.bytes);
 
                         AbstractType<?> type = getTypeAndRemove(stmt.columns, t);
-                        if (type instanceof CounterColumnType)
+                        if (type.asCQL3Type().getType() instanceof CounterColumnType)
                             throw new InvalidRequestException(String.format("counter type is not supported for PRIMARY KEY part %s", t));
                         if (staticColumns.contains(t))
                             throw new InvalidRequestException(String.format("Static column %s cannot be part of the PRIMARY KEY", t));
