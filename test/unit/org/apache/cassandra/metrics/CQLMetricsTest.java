@@ -44,7 +44,6 @@ public class CQLMetricsTest extends SchemaLoader
 
     private static Cluster cluster;
     private static Session session;
-    private static PreparedStatement metricsStatement;
 
     @BeforeClass()
     public static void setup() throws ConfigurationException, IOException
@@ -64,15 +63,16 @@ public class CQLMetricsTest extends SchemaLoader
     @Test
     public void testPreparedStatementsCount()
     {
-        assertEquals(0, (int) QueryProcessor.metrics.preparedStatementsCount.getValue());
-        metricsStatement = session.prepare("INSERT INTO junit.metricstest (id, val) VALUES (?, ?)");
-        assertEquals(1, (int) QueryProcessor.metrics.preparedStatementsCount.getValue());
+        int n = (int) QueryProcessor.metrics.preparedStatementsCount.getValue();
+        session.prepare("SELECT * FROM junit.metricstest WHERE id = ?");
+        assertEquals(n+1, (int) QueryProcessor.metrics.preparedStatementsCount.getValue());
     }
 
     @Test
     public void testRegularStatementsExecuted()
     {
         clearMetrics();
+        PreparedStatement metricsStatement = session.prepare("INSERT INTO junit.metricstest (id, val) VALUES (?, ?)");
 
         assertEquals(0, QueryProcessor.metrics.preparedStatementsExecuted.getCount());
         assertEquals(0, QueryProcessor.metrics.regularStatementsExecuted.getCount());
@@ -88,6 +88,7 @@ public class CQLMetricsTest extends SchemaLoader
     public void testPreparedStatementsExecuted()
     {
         clearMetrics();
+        PreparedStatement metricsStatement = session.prepare("INSERT INTO junit.metricstest (id, val) VALUES (?, ?)");
 
         assertEquals(0, QueryProcessor.metrics.preparedStatementsExecuted.getCount());
         assertEquals(0, QueryProcessor.metrics.regularStatementsExecuted.getCount());
@@ -103,6 +104,7 @@ public class CQLMetricsTest extends SchemaLoader
     public void testPreparedStatementsRatio()
     {
         clearMetrics();
+        PreparedStatement metricsStatement = session.prepare("INSERT INTO junit.metricstest (id, val) VALUES (?, ?)");
 
         assertEquals(Double.NaN, QueryProcessor.metrics.preparedStatementsRatio.getValue());
 
