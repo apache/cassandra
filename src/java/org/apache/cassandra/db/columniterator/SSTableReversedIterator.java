@@ -155,17 +155,23 @@ public class SSTableReversedIterator extends AbstractSSTableIterator
             buffer.reset();
 
             boolean isFirst = true;
+            boolean isDone = false;
 
             // If the start might be in this block, skip everything that comes before it.
             if (start != null)
             {
-                while (deserializer.hasNext() && deserializer.compareNextTo(start) <= 0 && !stopReadingDisk())
+                while (!isDone && deserializer.hasNext() && deserializer.compareNextTo(start) <= 0)
                 {
                     isFirst = false;
                     if (deserializer.nextIsRow())
                         deserializer.skipNext();
                     else
                         updateOpenMarker((RangeTombstoneMarker)deserializer.readNext());
+
+                    // Note that because 'deserializer.hasNext()' may advance our file pointer, we need to always check stopReadingDisk() before any call to it,
+                    // i.e. just after we've called readNext/skipNext
+                    if (stopReadingDisk())
+                        isDone = true;
                 }
             }
 
@@ -177,13 +183,16 @@ public class SSTableReversedIterator extends AbstractSSTableIterator
             }
 
             // Now deserialize everything until we reach our requested end (if we have one)
-            while (deserializer.hasNext()
-                   && (end == null || deserializer.compareNextTo(end) <= 0)
-                   && !stopReadingDisk())
+            while (!isDone
+                   && deserializer.hasNext()
+                   && (end == null || deserializer.compareNextTo(end) <= 0))
             {
                 Unfiltered unfiltered = deserializer.readNext();
                 if (!isFirst || includeFirst)
                     buffer.add(unfiltered);
+
+                if (stopReadingDisk())
+                    isDone = true;
 
                 isFirst = false;
 
@@ -317,6 +326,7 @@ public class SSTableReversedIterator extends AbstractSSTableIterator
                 ClusteringPrefix firstOfCurrent = indexState.index(currentBlock).firstName;
                 includeFirst = metadata().comparator.compare(lastOfPrevious, firstOfCurrent) != 0;
             }
+
             loadFromDisk(canIncludeSliceStart ? slice.start() : null, canIncludeSliceEnd ? slice.end() : null, includeFirst);
         }
 
