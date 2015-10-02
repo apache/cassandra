@@ -126,7 +126,7 @@ class ProcRunner:
             stderr = subprocess.STDOUT
         cqlshlog.info("Spawning %r subprocess with args: %r and env: %r"
                       % (self.exe_path, self.args, self.env))
-        self.proc = subprocess.Popen((self.exe_path,) + tuple(self.args),
+        self.proc = subprocess.Popen(('python', self.exe_path,) + tuple(self.args),
                                      env=self.env, preexec_fn=preexec,
                                      stdin=stdin, stdout=stdout, stderr=stderr,
                                      close_fds=False)

@@ -31,7 +31,7 @@ except ImportError:
     import unittest
 
 rundir = dirname(__file__)
-path_to_cqlsh = normpath(join(rundir, '..', '..', '..', 'bin', 'cqlsh'))
+path_to_cqlsh = normpath(join(rundir, '..', '..', '..', 'bin', 'cqlsh.py'))
 
 # symlink a ".py" file to cqlsh main script, so we can load it as a module
 modulepath = join(rundir, 'cqlsh.py')
