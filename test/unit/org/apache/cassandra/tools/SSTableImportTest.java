@@ -51,6 +51,15 @@ import org.apache.cassandra.io.sstable.SSTableReader;
 
 public class SSTableImportTest extends SchemaLoader
 {
+    @Test(expected = IllegalArgumentException.class)
+    public void testImportUnknownCf() throws IOException, URISyntaxException
+    {
+        // Import JSON to temp SSTable file
+        String jsonUrl = resourcePath("SimpleCF.json");
+        File tempSS = tempSSTableFile("Keyspace1", "Standard1");
+        new SSTableImport(true).importJson(jsonUrl, "UnknownKeyspace", "UnknownCF", tempSS.getPath());
+    }
+
     @Test
     public void testImportSimpleCf() throws IOException, URISyntaxException
     {
