@@ -2554,9 +2554,10 @@ class SwitchCommand(object):
             print 'Disabled %s.' % (self.description,)
             return False
 
+
 class SwitchCommandWithValue(SwitchCommand):
     """The same as SwitchCommand except it also accepts a value in place of ON.
-    
+
     This returns a tuple of the form: (SWITCH_VALUE, PASSED_VALUE)
     eg: PAGING 50 returns (True, 50)
         PAGING OFF returns (False, None)
@@ -2567,7 +2568,7 @@ class SwitchCommandWithValue(SwitchCommand):
     def __init__(self, command, desc, value_type=int):
         SwitchCommand.__init__(self, command, desc)
         self.value_type = value_type
-        
+
     def execute(self, state, parsed, printerr):
         binary_switch_value = SwitchCommand.execute(self, state, parsed, printerr)
         switch = parsed.get_binding('switch')
@@ -2577,6 +2578,7 @@ class SwitchCommandWithValue(SwitchCommand):
         except (ValueError, TypeError):
             value = None
         return (binary_switch_value, value)
+
 
 def option_with_default(cparser_getter, section, option, default=None):
     try:
