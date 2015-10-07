@@ -24,7 +24,6 @@ import java.util.HashSet;
 import java.util.Map;
 import java.util.Set;
 
-import com.google.common.base.Throwables;
 import com.google.common.collect.ArrayListMultimap;
 import com.google.common.collect.Multimap;
 
@@ -56,6 +55,9 @@ public class SSTableExpiredBlockers
             out.println("Usage: sstableexpiredblockers <keyspace> <table>");
             System.exit(1);
         }
+
+        Util.initDatabaseDescriptor();
+
         String keyspace = args[args.length - 2];
         String columnfamily = args[args.length - 1];
         Schema.instance.loadFromDisk(false);

@@ -63,6 +63,8 @@ public class SSTableRepairedAtSetter
             System.exit(1);
         }
 
+        Util.initDatabaseDescriptor();
+
         boolean setIsRepaired = args[1].equals("--is-repaired");
 
         List<String> fileNames;

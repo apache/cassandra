@@ -1,4 +1,5 @@
 2.2.3
+ * Avoid NoClassDefFoundError during DataDescriptor initialization on windows (CASSANDRA-10412)
  * Preserve case of quoted Role & User names (CASSANDRA-10394)
  * cqlsh pg-style-strings broken (CASSANDRA-10484)
  * Make Hadoop CF splits more polite to custom orderered partitioners (CASSANDRA-10400)

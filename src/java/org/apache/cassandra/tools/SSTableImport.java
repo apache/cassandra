@@ -511,6 +511,8 @@ public class SSTableImport
             isSorted = true;
         }
 
+        Util.initDatabaseDescriptor();
+
         Schema.instance.loadFromDisk(false);
         if (Schema.instance.getNonSystemKeyspaces().size() < 1)
         {

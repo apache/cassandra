@@ -480,17 +480,18 @@ public class CassandraDaemon
      */
     public void activate()
     {
-        String pidFile = System.getProperty("cassandra-pidfile");
-
-        if (FBUtilities.isWindows())
-        {
-            // We need to adjust the system timer on windows from the default 15ms down to the minimum of 1ms as this
-            // impacts timer intervals, thread scheduling, driver interrupts, etc.
-            WindowsTimer.startTimerPeriod(DatabaseDescriptor.getWindowsTimerInterval());
-        }
-
+        // Do not put any references to DatabaseDescriptor above the forceStaticInitialization call.
         try
         {
+            try
+            {
+                DatabaseDescriptor.forceStaticInitialization();
+            }
+            catch (ExceptionInInitializerError e)
+            {
+                throw e.getCause();
+            }
+
             try
             {
                 MBeanServer mbs = ManagementFactory.getPlatformMBeanServer();
@@ -502,13 +503,16 @@ public class CassandraDaemon
                 //Allow the server to start even if the bean can't be registered
             }
 
-            try {
-                DatabaseDescriptor.forceStaticInitialization();
-            } catch (ExceptionInInitializerError e) {
-                throw e.getCause();
+            if (FBUtilities.isWindows())
+            {
+                // We need to adjust the system timer on windows from the default 15ms down to the minimum of 1ms as this
+                // impacts timer intervals, thread scheduling, driver interrupts, etc.
+                WindowsTimer.startTimerPeriod(DatabaseDescriptor.getWindowsTimerInterval());
             }
 
             setup();
+
+            String pidFile = System.getProperty("cassandra-pidfile");
 
             if (pidFile != null)
             {

@@ -43,6 +43,8 @@ public class SSTableMetadataViewer
             System.exit(1);
         }
 
+        Util.initDatabaseDescriptor();
+
         for (String fname : args)
         {
             if (new File(fname).exists())

@@ -405,6 +405,7 @@ public class SSTableExport
             System.exit(1);
         }
 
+        Util.initDatabaseDescriptor();
 
         String[] keys = cmd.getOptionValues(KEY_OPTION);
         String[] excludes = cmd.getOptionValues(EXCLUDEKEY_OPTION);
