@@ -33,7 +33,7 @@ num_tokens: 256
 # vnodes.
 #
 # Only supported with the Murmur3Partitioner.
-# allocate_tokens_keyspace: KEYSPACE
+# allocate_tokens_for_keyspace: KEYSPACE
 
 # initial_token allows you to specify tokens manually.  While you can use # it with
 # vnodes (num_tokens > 1, above) -- in which case you should provide a 

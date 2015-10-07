@@ -156,7 +156,7 @@ public class BootStrapper extends ProgressEventNotifierSupport
      */
     public static Collection<Token> getBootstrapTokens(final TokenMetadata metadata, InetAddress address) throws ConfigurationException
     {
-        String allocationKeyspace = DatabaseDescriptor.getAllocateTokensKeyspace();
+        String allocationKeyspace = DatabaseDescriptor.getAllocateTokensForKeyspace();
         Collection<String> initialTokens = DatabaseDescriptor.getInitialTokens();
         if (initialTokens.size() > 0 && allocationKeyspace != null)
             logger.warn("manually specified tokens override automatic allocation");
