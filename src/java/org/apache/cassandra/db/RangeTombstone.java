@@ -24,6 +24,7 @@ import java.security.MessageDigest;
 import java.util.*;
 
 import org.apache.cassandra.config.CFMetaData;
+import org.apache.cassandra.db.OnDiskAtom.Serializer;
 import org.apache.cassandra.db.composites.CType;
 import org.apache.cassandra.db.composites.Composite;
 import org.apache.cassandra.io.ISSTableSerializer;
@@ -122,7 +123,12 @@ public class RangeTombstone extends Interval<Composite, DeletionTime> implements
         // never have to test the RTs start since it's always assumed to be less than what we have.
         // Also note that this will store expired RTs (#7810). Those will be of type ExpiredRangeTombstone and
         // will be ignored by writeOpenedMarker.
-        private final List<RangeTombstone> openedTombstones = new LinkedList<RangeTombstone>();
+        private final List<RangeTombstone> openedTombstones = new LinkedList<>();
+
+        // Holds tombstones that are processed but not yet written out. Delaying the write allows us to remove
+        // duplicate / completely covered tombstones.
+        // Sorted in open order (to be written in that order).
+        private final Set<RangeTombstone> unwrittenTombstones = new LinkedHashSet<>();
 
         // Total number of atoms written by writeOpenedMarker().
         private int atomCount;
@@ -146,54 +152,49 @@ public class RangeTombstone extends Interval<Composite, DeletionTime> implements
          * @return the total serialized size of said tombstones and write them to
          * {@code out} it if isn't null.
          */
-        public long writeOpenedMarker(OnDiskAtom firstColumn, DataOutputPlus out, OnDiskAtom.Serializer atomSerializer) throws IOException
+        public long writeOpenedMarkers(Composite startPos, DataOutputPlus out, OnDiskAtom.Serializer atomSerializer) throws IOException
         {
             long size = 0;
-            if (openedTombstones.isEmpty())
-                return size;
 
-            /*
-             * Compute the markers that needs to be written at the beginning of
-             * this block. We need to write one if it is the more recent
-             * (opened) tombstone for at least some part of its range.
-             */
-            List<RangeTombstone> toWrite = new LinkedList<RangeTombstone>();
-            outer:
-            for (RangeTombstone tombstone : openedTombstones)
+            for (RangeTombstone rt : openedTombstones)
             {
-                // If the first column is outside the range, skip it (in case update() hasn't been called yet)
-                if (comparator.compare(firstColumn.name(), tombstone.max) > 0)
+                if (rt instanceof ExpiredRangeTombstone || comparator.compare(rt.max, startPos) < 0)
                     continue;
 
-                if (tombstone instanceof ExpiredRangeTombstone)
-                    continue;
-
-                RangeTombstone updated = new RangeTombstone(firstColumn.name(), tombstone.max, tombstone.data);
-
-                Iterator<RangeTombstone> iter = toWrite.iterator();
-                while (iter.hasNext())
-                {
-                    RangeTombstone other = iter.next();
-                    if (other.supersedes(updated, comparator))
-                        break outer;
-                    if (updated.supersedes(other, comparator))
-                        iter.remove();
-                }
-                toWrite.add(tombstone);
-            }
-
-            for (RangeTombstone tombstone : toWrite)
-            {
-                size += atomSerializer.serializedSizeForSSTable(tombstone);
-                atomCount++;
-                if (out != null)
-                    atomSerializer.serializeForSSTable(tombstone, out);
+                size += writeTombstone(rt, out, atomSerializer);
             }
             return size;
         }
 
         /**
-         * The total number of atoms written by calls to the method {@link #writeOpenedMarker}.
+         * Writes out all tombstones that have been accepted after the previous call of this method.
+         * Tombstones are not written immediately to permit redundant ones to be skipped.
+         *
+         * @return the serialized size of written tombstones
+         */
+        public long writeUnwrittenTombstones(DataOutputPlus out, OnDiskAtom.Serializer atomSerializer) throws IOException
+        {
+            long size = 0;
+            for (RangeTombstone rt : unwrittenTombstones)
+            {
+                size += writeTombstone(rt, out, atomSerializer);
+            }
+            unwrittenTombstones.clear();
+            return size;
+        }
+
+        private long writeTombstone(RangeTombstone rt, DataOutputPlus out, OnDiskAtom.Serializer atomSerializer)
+                throws IOException
+        {
+            long size = atomSerializer.serializedSizeForSSTable(rt);
+            atomCount++;
+            if (out != null)
+                atomSerializer.serializeForSSTable(rt, out);
+            return size;
+        }
+
+        /**
+         * The total number of atoms written by calls to the above methods.
          */
         public int writtenAtom()
         {
@@ -210,7 +211,7 @@ public class RangeTombstone extends Interval<Composite, DeletionTime> implements
          * Note that this method should be called on *every* atom of a partition for
          * the tracker to work as efficiently as possible (#9486).
          */
-        public void update(OnDiskAtom atom, boolean isExpired)
+        public boolean update(OnDiskAtom atom, boolean isExpired)
         {
             // Get rid of now useless RTs
             ListIterator<RangeTombstone> iterator = openedTombstones.listIterator();
@@ -223,6 +224,8 @@ public class RangeTombstone extends Interval<Composite, DeletionTime> implements
                 if (comparator.compare(atom.name(), t.max) > 0)
                 {
                     iterator.remove();
+                    // The iterator may still be in the unwrittenTombstones list. That's ok, it still needs to be written
+                    // but it can't influence anything else.
                 }
                 else
                 {
@@ -237,8 +240,6 @@ public class RangeTombstone extends Interval<Composite, DeletionTime> implements
             if (atom instanceof RangeTombstone)
             {
                 RangeTombstone toAdd = (RangeTombstone)atom;
-                if (isExpired)
-                    toAdd = new ExpiredRangeTombstone(toAdd);
 
                 // We want to maintain openedTombstones in end bounds order so we find where to insert the new element
                 // and add it. While doing so, we also check if that new tombstone fully shadow or is fully shadowed
@@ -252,41 +253,51 @@ public class RangeTombstone extends Interval<Composite, DeletionTime> implements
                     {
                         // the new one covers more than the existing one. If the new one happens to also supersedes
                         // the existing one, remove the existing one. In any case, we're not done yet.
-                        if (toAdd.data.supersedes(existing.data))
+                        if (!existing.data.supersedes(toAdd.data))
+                        {
                             iterator.remove();
+                            // If the existing one starts at the same position as the new, it does not need to be written
+                            // (it won't have been yet).
+                            if (comparator.compare(toAdd.min, existing.min) == 0)
+                                unwrittenTombstones.remove(existing);
+                        }
                     }
                     else
                     {
                         // the new one is included in the existing one. If the new one supersedes the existing one,
                         // then we add the new one (and if the new one ends like the existing one, we can actually remove
                         // the existing one), otherwise we can actually ignore it. In any case, we're done.
-                        if (toAdd.data.supersedes(existing.data))
+                        if (!toAdd.data.supersedes(existing.data))
+                            return false;
+
+                        if (cmp == 0)
                         {
-                            if (cmp == 0)
-                                iterator.set(toAdd);
-                            else
-                                insertBefore(toAdd, iterator);
+                            iterator.remove();
+                            // If the existing one starts at the same position as the new, it does not need to be written
+                            // (it won't have been yet).
+                            if (comparator.compare(toAdd.min, existing.min) == 0)
+                                unwrittenTombstones.remove(existing);
                         }
-                        return;
+                        else
+                        {
+                            iterator.previous();
+                        }
+                        // Found the insert position for the new tombstone
+                        break;
                     }
                 }
-                // If we reach here, either we had no tombstones and the new one ends after all existing ones.
-                iterator.add(toAdd);
-            }
-        }
 
-        /**
-         * Adds the provided {@code tombstone} _before_ the last element returned by {@code iterator.next()}.
-         * <p>
-         * This method assumes that {@code iterator.next()} has been called prior to this method call, i.e. that
-         * {@code iterator.hasPrevious() == true}.
-         */
-        private static void insertBefore(RangeTombstone tombstone, ListIterator<RangeTombstone> iterator)
-        {
-            assert iterator.hasPrevious();
-            iterator.previous();
-            iterator.add(tombstone);
-            iterator.next();
+                if (isExpired)
+                    iterator.add(new ExpiredRangeTombstone(toAdd));
+                else
+                {
+                    iterator.add(toAdd);
+                    unwrittenTombstones.add(toAdd);
+                }
+                return false;
+            }
+            // Caller should write cell.
+            return true;
         }
 
         /**
