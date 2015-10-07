@@ -44,6 +44,8 @@ New features
 
 Upgrading
 ---------
+   - The 'memtable_allocation_type: offheap_objects' option has been removed. It should
+     be re-introduced in a future release and you can follow CASSANDRA-9472 to know more.
    - The LIMIT clause applies now only to the number of rows returned to the user,
      not to the number of row queried. By consequence, queries using aggregates will not
      be impacted by the LIMIT clause anymore.
