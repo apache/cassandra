@@ -4,6 +4,7 @@
 
 
 3.0
+ * Do not load keyspace when creating sstable writer (CASSANDRA-10443)
  * If node is not yet gossiping write all MV updates to batchlog only (CASSANDRA-10413)
  * Re-populate token metadata after commit log recovery (CASSANDRA-10293)
  * Provide additional metrics for materialized views (CASSANDRA-10323)

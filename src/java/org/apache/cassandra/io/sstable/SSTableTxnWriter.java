@@ -104,12 +104,6 @@ public class SSTableTxnWriter extends Transactional.AbstractTransactional implem
     @SuppressWarnings("resource") // log and writer closed during postCleanup
     public static SSTableTxnWriter create(CFMetaData cfm, Descriptor descriptor, long keyCount, long repairedAt, int sstableLevel, SerializationHeader header)
     {
-        if (Keyspace.open(cfm.ksName).hasColumnFamilyStore(cfm.cfId))
-        {
-            ColumnFamilyStore cfs = Keyspace.open(cfm.ksName).getColumnFamilyStore(cfm.cfId);
-            return create(cfs, descriptor, keyCount, repairedAt, sstableLevel, header);
-        }
-
         // if the column family store does not exist, we create a new default SSTableMultiWriter to use:
         LifecycleTransaction txn = LifecycleTransaction.offline(OperationType.WRITE, descriptor.directory);
         MetadataCollector collector = new MetadataCollector(cfm.comparator).sstableLevel(sstableLevel);
