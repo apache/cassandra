@@ -1,6 +1,7 @@
 2.2.3
  * Make Hadoop CF splits more polite to custom orderered partitioners (CASSANDRA-10400)
-
+Merged from 2.1:
+ * Update internal python driver used by cqlsh (CASSANDRA-10161)
 
 2.2.2
  * cqlsh prompt includes name of keyspace after failed `use` statement (CASSANDRA-10369)
