@@ -222,6 +222,7 @@ public class CassandraDaemon
          */
         LegacySchemaMigrator.migrate();
 
+        // Populate token metadata before flushing, for token-aware sstable partitioning (#6696)
         StorageService.instance.populateTokenMetadata();
 
         // load schema from disk
@@ -284,6 +285,9 @@ public class CassandraDaemon
         {
             throw new RuntimeException(e);
         }
+
+        // Re-populate token metadata after commit log recover (new peers might be loaded onto system keyspace #10293)
+        StorageService.instance.populateTokenMetadata();
 
         // migrate any legacy (pre-3.0) hints from system.hints table into the new store
         new LegacyHintsMigrator(DatabaseDescriptor.getHintsDirectory(), DatabaseDescriptor.getMaxHintsFileSize()).migrate();
