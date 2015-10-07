@@ -45,7 +45,7 @@ public class CQLSSTableWriterClientTest
     public void setUp()
     {
         this.testDirectory = Files.createTempDir();
-        Keyspace.setInitialized();
+        Config.setClientMode(true);
     }
 
     @After
