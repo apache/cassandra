@@ -778,8 +778,8 @@ public final class SchemaKeyspace
         Types types = createTypesFromPartition(serializedTypes);
 
         Collection<UDFunction> udfs = createFunctionsFromFunctionsPartition(serializedFunctions);
-        Collection<UDAggregate> udas = createAggregatesFromAggregatesPartition(serializedAggregates);
-        Functions functions = org.apache.cassandra.schema.Functions.builder().add(udfs).add(udas).build();
+        Functions functions = org.apache.cassandra.schema.Functions.builder().add(udfs).build();
+        functions = createAggregatesFromAggregatesPartition(functions, serializedAggregates);
 
         return KeyspaceMetadata.create(name, params, tables, views, types, functions);
     }
@@ -1637,16 +1637,20 @@ public final class SchemaKeyspace
              .build();
     }
 
-    private static Collection<UDAggregate> createAggregatesFromAggregatesPartition(RowIterator partition)
+    private static Functions createAggregatesFromAggregatesPartition(Functions functions, RowIterator partition)
     {
-        List<UDAggregate> aggregates = new ArrayList<>();
         String query = String.format("SELECT * FROM %s.%s", NAME, AGGREGATES);
         for (UntypedResultSet.Row row : QueryProcessor.resultify(query, partition))
-            aggregates.add(createAggregateFromAggregateRow(row));
-        return aggregates;
+            functions = functions.with(createAggregateFromAggregateRow(functions, row));
+        return functions;
     }
 
     private static UDAggregate createAggregateFromAggregateRow(UntypedResultSet.Row row)
+    {
+        return createAggregateFromAggregateRow(Schema.instance.getKSMetaData(row.getString("keyspace_name")).functions, row);
+    }
+
+    private static UDAggregate createAggregateFromAggregateRow(Functions functions, UntypedResultSet.Row row)
     {
         String ksName = row.getString("keyspace_name");
         String functionName = row.getString("aggregate_name");
@@ -1675,7 +1679,7 @@ public final class SchemaKeyspace
 
         try
         {
-            return UDAggregate.create(name, argTypes, returnType, stateFunc, finalFunc, stateType, initcond);
+            return UDAggregate.create(functions, name, argTypes, returnType, stateFunc, finalFunc, stateType, initcond);
         }
         catch (InvalidRequestException reason)
         {
