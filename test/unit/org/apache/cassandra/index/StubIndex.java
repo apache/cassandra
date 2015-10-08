@@ -58,6 +58,7 @@ public class StubIndex implements Index
     {
         rowsInserted.clear();
         rowsDeleted.clear();
+        rowsUpdated.clear();
         partitionDeletions.clear();
         rangeTombstones.clear();
     }
