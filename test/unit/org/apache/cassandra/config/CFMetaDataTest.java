@@ -18,13 +18,12 @@
  */
 package org.apache.cassandra.config;
 
-import java.util.ArrayList;
-import java.util.List;
-import java.util.HashSet;
+import java.util.*;
 
 import org.apache.cassandra.SchemaLoader;
 import org.apache.cassandra.db.*;
 import org.apache.cassandra.db.marshal.AsciiType;
+import org.apache.cassandra.db.marshal.Int32Type;
 import org.apache.cassandra.db.marshal.UTF8Type;
 import org.apache.cassandra.db.rows.UnfilteredRowIterators;
 import org.apache.cassandra.db.partitions.PartitionUpdate;
@@ -62,6 +61,14 @@ public class CFMetaDataTest
         columnDefs.add(new ColumnDef(ByteBufferUtil.bytes("col2"), UTF8Type.class.getCanonicalName())
                                     .setIndex_name("col2Index")
                                     .setIndex_type(IndexType.KEYS));
+
+        Map<String, String> customIndexOptions = new HashMap<>();
+        customIndexOptions.put("option1", "value1");
+        customIndexOptions.put("option2", "value2");
+        columnDefs.add(new ColumnDef(ByteBufferUtil.bytes("col3"), Int32Type.class.getCanonicalName())
+                                    .setIndex_name("col3Index")
+                                    .setIndex_type(IndexType.CUSTOM)
+                                    .setIndex_options(customIndexOptions));
     }
 
     @BeforeClass
@@ -97,7 +104,9 @@ public class CFMetaDataTest
             c.name = ByteBufferUtil.clone(columnDef.name);
             c.validation_class = columnDef.getValidation_class();
             c.index_name = columnDef.getIndex_name();
-            c.index_type = IndexType.KEYS;
+            c.index_type = columnDef.getIndex_type();
+            if (columnDef.isSetIndex_options())
+                c.setIndex_options(columnDef.getIndex_options());
             thriftCfDef.column_metadata.add(c);
         }
 
