@@ -690,10 +690,7 @@ public final class SystemKeyspace
     public static synchronized void updateTokens(InetAddress ep, Collection<Token> tokens)
     {
         if (ep.equals(FBUtilities.getBroadcastAddress()))
-        {
-            removeEndpoint(ep);
             return;
-        }
 
         String req = "INSERT INTO system.%s (peer, tokens) VALUES (?, ?)";
         executeInternal(String.format(req, PEERS), ep, tokensAsSet(tokens));
@@ -755,6 +752,7 @@ public final class SystemKeyspace
     {
         String req = "DELETE FROM system.%s WHERE peer = ?";
         executeInternal(String.format(req, PEERS), ep);
+        forceBlockingFlush(PEERS);
     }
 
     /**
