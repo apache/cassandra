@@ -1,4 +1,5 @@
 2.1.11
+ * Fix mmap file segment seeking to EOF (CASSANDRA-10478)
  * Allow LOCAL_JMX to be easily overridden (CASSANDRA-10275)
  * Mark nodes as dead even if they've already left (CASSANDRA-10205)
  * Update internal python driver used by cqlsh (CASSANDRA-10161)
