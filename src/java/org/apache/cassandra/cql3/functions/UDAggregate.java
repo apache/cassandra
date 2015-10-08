@@ -25,7 +25,6 @@ import com.google.common.collect.ImmutableSet;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import org.apache.cassandra.config.Schema;
 import org.apache.cassandra.db.marshal.AbstractType;
 import org.apache.cassandra.exceptions.InvalidRequestException;
 import org.apache.cassandra.schema.Functions;
@@ -57,7 +56,8 @@ public class UDAggregate extends AbstractFunction implements AggregateFunction
         this.initcond = initcond;
     }
 
-    public static UDAggregate create(FunctionName name,
+    public static UDAggregate create(Functions functions,
+                                     FunctionName name,
                                      List<AbstractType<?>> argTypes,
                                      AbstractType<?> returnType,
                                      FunctionName stateFunc,
@@ -73,8 +73,8 @@ public class UDAggregate extends AbstractFunction implements AggregateFunction
         return new UDAggregate(name,
                                argTypes,
                                returnType,
-                               resolveScalar(name, stateFunc, stateTypes),
-                               finalFunc != null ? resolveScalar(name, finalFunc, finalTypes) : null,
+                               resolveScalar(functions, name, stateFunc, stateTypes),
+                               finalFunc != null ? resolveScalar(functions, name, finalFunc, finalTypes) : null,
                                initcond);
     }
 
@@ -194,9 +194,9 @@ public class UDAggregate extends AbstractFunction implements AggregateFunction
         };
     }
 
-    private static ScalarFunction resolveScalar(FunctionName aName, FunctionName fName, List<AbstractType<?>> argTypes) throws InvalidRequestException
+    private static ScalarFunction resolveScalar(Functions functions, FunctionName aName, FunctionName fName, List<AbstractType<?>> argTypes) throws InvalidRequestException
     {
-        Optional<Function> fun = Schema.instance.findFunction(fName, argTypes);
+        Optional<Function> fun = functions.find(fName, argTypes);
         if (!fun.isPresent())
             throw new InvalidRequestException(String.format("Referenced state function '%s %s' for aggregate '%s' does not exist",
                                                             fName,

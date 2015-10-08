@@ -163,7 +163,9 @@ public final class LegacySchemaMigrator
         Collection<Table> tables = readTables(keyspaceName);
         Collection<Type> types = readTypes(keyspaceName);
         Collection<Function> functions = readFunctions(keyspaceName);
-        Collection<Aggregate> aggregates = readAggregates(keyspaceName);
+        Functions.Builder functionsBuilder = Functions.builder();
+        functions.forEach(udf -> functionsBuilder.add(udf.metadata));
+        Collection<Aggregate> aggregates = readAggregates(functionsBuilder.build(), keyspaceName);
 
         return new Keyspace(timestamp, keyspaceName, params, tables, types, functions, aggregates);
     }
@@ -811,7 +813,7 @@ public final class LegacySchemaMigrator
      * Reading UDAs
      */
 
-    private static Collection<Aggregate> readAggregates(String keyspaceName)
+    private static Collection<Aggregate> readAggregates(Functions functions, String keyspaceName)
     {
         String query = format("SELECT aggregate_name, signature FROM %s.%s WHERE keyspace_name = ?",
                               SystemKeyspace.NAME,
@@ -820,14 +822,14 @@ public final class LegacySchemaMigrator
         query(query, keyspaceName).forEach(row -> aggregateSignatures.put(row.getString("aggregate_name"), row.getList("signature", UTF8Type.instance)));
 
         Collection<Aggregate> aggregates = new ArrayList<>();
-        aggregateSignatures.entries().forEach(pair -> aggregates.add(readAggregate(keyspaceName, pair.getKey(), pair.getValue())));
+        aggregateSignatures.entries().forEach(pair -> aggregates.add(readAggregate(functions, keyspaceName, pair.getKey(), pair.getValue())));
         return aggregates;
     }
 
-    private static Aggregate readAggregate(String keyspaceName, String aggregateName, List<String> signature)
+    private static Aggregate readAggregate(Functions functions, String keyspaceName, String aggregateName, List<String> signature)
     {
         long timestamp = readAggregateTimestamp(keyspaceName, aggregateName, signature);
-        UDAggregate metadata = readAggregateMetadata(keyspaceName, aggregateName, signature);
+        UDAggregate metadata = readAggregateMetadata(functions, keyspaceName, aggregateName, signature);
         return new Aggregate(timestamp, metadata);
     }
 
@@ -841,9 +843,9 @@ public final class LegacySchemaMigrator
         return query(query, keyspaceName, aggregateName, signature).one().getLong("timestamp");
     }
 
-    private static UDAggregate readAggregateMetadata(String keyspaceName, String functionName, List<String> signature)
+    private static UDAggregate readAggregateMetadata(Functions functions, String keyspaceName, String functionName, List<String> signature)
     {
-        String query = format("SELECT * FROM %s.%s WHERE keyspace_name = ? AND function_name = ? AND signature = ?",
+        String query = format("SELECT * FROM %s.%s WHERE keyspace_name = ? AND aggregate_name = ? AND signature = ?",
                               SystemKeyspace.NAME,
                               SystemKeyspace.LEGACY_AGGREGATES);
         UntypedResultSet.Row row = query(query, keyspaceName, functionName, signature).one();
@@ -863,13 +865,13 @@ public final class LegacySchemaMigrator
         AbstractType<?> returnType = parseType(row.getString("return_type"));
 
         FunctionName stateFunc = new FunctionName(keyspaceName, row.getString("state_func"));
+        AbstractType<?> stateType = parseType(row.getString("state_type"));
         FunctionName finalFunc = row.has("final_func") ? new FunctionName(keyspaceName, row.getString("final_func")) : null;
-        AbstractType<?> stateType = row.has("state_type") ? parseType(row.getString("state_type")) : null;
         ByteBuffer initcond = row.has("initcond") ? row.getBytes("initcond") : null;
 
         try
         {
-            return UDAggregate.create(name, argTypes, returnType, stateFunc, finalFunc, stateType, initcond);
+            return UDAggregate.create(functions, name, argTypes, returnType, stateFunc, finalFunc, stateType, initcond);
         }
         catch (InvalidRequestException reason)
         {

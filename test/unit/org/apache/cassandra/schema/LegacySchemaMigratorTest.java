@@ -251,7 +251,9 @@ public class LegacySchemaMigratorTest
         keyspaces.add(keyspaceWithTriggers());
         keyspaces.add(keyspaceWithUDTs());
         keyspaces.add(keyspaceWithUDFs());
+        keyspaces.add(keyspaceWithUDFsAndUDTs());
         keyspaces.add(keyspaceWithUDAs());
+        keyspaces.add(keyspaceWithUDAsAndUDTs());
 
         return keyspaces;
     }
@@ -326,7 +328,6 @@ public class LegacySchemaMigratorTest
     {
         String keyspace = KEYSPACE_PREFIX + "UDFs";
 
-
         UDFunction udf1 = UDFunction.create(new FunctionName(keyspace, "udf"),
                                             ImmutableList.of(new ColumnIdentifier("col1", false), new ColumnIdentifier("col2", false)),
                                             ImmutableList.of(BytesType.instance, Int32Type.instance),
@@ -360,17 +361,173 @@ public class LegacySchemaMigratorTest
                                        Functions.of(udf1, udf2, udf3));
     }
 
-    // TODO: add representative UDAs set
     private static KeyspaceMetadata keyspaceWithUDAs()
     {
         String keyspace = KEYSPACE_PREFIX + "UDAs";
+
+        UDFunction udf1 = UDFunction.create(new FunctionName(keyspace, "udf1"),
+                                            ImmutableList.of(new ColumnIdentifier("col1", false), new ColumnIdentifier("col2", false)),
+                                            ImmutableList.of(Int32Type.instance, Int32Type.instance),
+                                            Int32Type.instance,
+                                            false,
+                                            "java",
+                                            "return 42;");
+
+        UDFunction udf2 = UDFunction.create(new FunctionName(keyspace, "udf2"),
+                                            ImmutableList.of(new ColumnIdentifier("col1", false), new ColumnIdentifier("col2", false)),
+                                            ImmutableList.of(LongType.instance, Int32Type.instance),
+                                            LongType.instance,
+                                            false,
+                                            "java",
+                                            "return 42L;");
+
+        UDFunction udf3 = UDFunction.create(new FunctionName(keyspace, "udf3"),
+                                            ImmutableList.of(new ColumnIdentifier("col1", false)),
+                                            ImmutableList.of(LongType.instance),
+                                            DoubleType.instance,
+                                            false,
+                                            "java",
+                                            "return 42d;");
+
+        Functions udfs = Functions.builder().add(udf1).add(udf2).add(udf3).build();
+
+        UDAggregate uda1 = UDAggregate.create(udfs, new FunctionName(keyspace, "uda1"),
+                                              ImmutableList.of(udf1.argTypes().get(1)),
+                                              udf1.returnType(),
+                                              udf1.name(),
+                                              null,
+                                              udf1.argTypes().get(0),
+                                              null
+        );
+
+        UDAggregate uda2 = UDAggregate.create(udfs, new FunctionName(keyspace, "uda2"),
+                                              ImmutableList.of(udf2.argTypes().get(1)),
+                                              udf3.returnType(),
+                                              udf2.name(),
+                                              udf3.name(),
+                                              udf2.argTypes().get(0),
+                                              LongType.instance.decompose(0L)
+        );
 
         return KeyspaceMetadata.create(keyspace,
                                        KeyspaceParams.simple(1),
                                        Tables.none(),
                                        Views.none(),
                                        Types.none(),
-                                       Functions.of());
+                                       Functions.of(udf1, udf2, udf3, uda1, uda2));
+    }
+
+    private static KeyspaceMetadata keyspaceWithUDFsAndUDTs()
+    {
+        String keyspace = KEYSPACE_PREFIX + "UDFUDTs";
+
+        UserType udt1 = new UserType(keyspace,
+                                     bytes("udt1"),
+                                     new ArrayList<ByteBuffer>() {{ add(bytes("col1")); add(bytes("col2")); }},
+                                     new ArrayList<AbstractType<?>>() {{ add(UTF8Type.instance); add(Int32Type.instance); }});
+
+        UserType udt2 = new UserType(keyspace,
+                                     bytes("udt2"),
+                                     new ArrayList<ByteBuffer>() {{ add(bytes("col1")); add(bytes("col2")); }},
+                                     new ArrayList<AbstractType<?>>() {{ add(ListType.getInstance(udt1, false)); add(Int32Type.instance); }});
+
+        UDFunction udf1 = UDFunction.create(new FunctionName(keyspace, "udf"),
+                                            ImmutableList.of(new ColumnIdentifier("col1", false), new ColumnIdentifier("col2", false)),
+                                            ImmutableList.of(udt1, udt2),
+                                            LongType.instance,
+                                            false,
+                                            "java",
+                                            "return 42L;");
+
+        // an overload with the same name, not a typo
+        UDFunction udf2 = UDFunction.create(new FunctionName(keyspace, "udf"),
+                                            ImmutableList.of(new ColumnIdentifier("col3", false), new ColumnIdentifier("col4", false)),
+                                            ImmutableList.of(AsciiType.instance, LongType.instance),
+                                            Int32Type.instance,
+                                            true,
+                                            "java",
+                                            "return 42;");
+
+        UDFunction udf3 = UDFunction.create(new FunctionName(keyspace, "udf3"),
+                                            ImmutableList.of(new ColumnIdentifier("col4", false)),
+                                            ImmutableList.of(new TupleType(Arrays.asList(udt1, udt2))),
+                                            BooleanType.instance,
+                                            false,
+                                            "java",
+                                            "return true;");
+
+        return KeyspaceMetadata.create(keyspace,
+                                       KeyspaceParams.simple(1),
+                                       Tables.none(),
+                                       Views.none(),
+                                       Types.of(udt1, udt2),
+                                       Functions.of(udf1, udf2, udf3));
+    }
+
+    private static KeyspaceMetadata keyspaceWithUDAsAndUDTs()
+    {
+        String keyspace = KEYSPACE_PREFIX + "UDAUDTs";
+
+        UserType udt1 = new UserType(keyspace,
+                                     bytes("udt1"),
+                                     new ArrayList<ByteBuffer>() {{ add(bytes("col1")); add(bytes("col2")); }},
+                                     new ArrayList<AbstractType<?>>() {{ add(UTF8Type.instance); add(Int32Type.instance); }});
+
+        UserType udt2 = new UserType(keyspace,
+                                     bytes("udt2"),
+                                     new ArrayList<ByteBuffer>() {{ add(bytes("col1")); add(bytes("col2")); }},
+                                     new ArrayList<AbstractType<?>>() {{ add(ListType.getInstance(udt1, false)); add(Int32Type.instance); }});
+
+        UDFunction udf1 = UDFunction.create(new FunctionName(keyspace, "udf1"),
+                                            ImmutableList.of(new ColumnIdentifier("col1", false), new ColumnIdentifier("col2", false)),
+                                            ImmutableList.of(udt1, udt2),
+                                            udt1,
+                                            false,
+                                            "java",
+                                            "return null;");
+
+        UDFunction udf2 = UDFunction.create(new FunctionName(keyspace, "udf2"),
+                                            ImmutableList.of(new ColumnIdentifier("col1", false), new ColumnIdentifier("col2", false)),
+                                            ImmutableList.of(udt2, udt1),
+                                            udt2,
+                                            false,
+                                            "java",
+                                            "return null;");
+
+        UDFunction udf3 = UDFunction.create(new FunctionName(keyspace, "udf3"),
+                                            ImmutableList.of(new ColumnIdentifier("col1", false)),
+                                            ImmutableList.of(udt2),
+                                            DoubleType.instance,
+                                            false,
+                                            "java",
+                                            "return 42d;");
+
+        Functions udfs = Functions.builder().add(udf1).add(udf2).add(udf3).build();
+
+        UDAggregate uda1 = UDAggregate.create(udfs, new FunctionName(keyspace, "uda1"),
+                                              ImmutableList.of(udf1.argTypes().get(1)),
+                                              udf1.returnType(),
+                                              udf1.name(),
+                                              null,
+                                              udf1.argTypes().get(0),
+                                              null
+        );
+
+        UDAggregate uda2 = UDAggregate.create(udfs, new FunctionName(keyspace, "uda2"),
+                                              ImmutableList.of(udf2.argTypes().get(1)),
+                                              udf3.returnType(),
+                                              udf2.name(),
+                                              udf3.name(),
+                                              udf2.argTypes().get(0),
+                                              LongType.instance.decompose(0L)
+        );
+
+        return KeyspaceMetadata.create(keyspace,
+                                       KeyspaceParams.simple(1),
+                                       Tables.none(),
+                                       Views.none(),
+                                       Types.of(udt1, udt2),
+                                       Functions.of(udf1, udf2, udf3, uda1, uda2));
     }
 
     /*
