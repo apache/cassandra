@@ -332,16 +332,19 @@ public class Gossiper implements IFailureDetectionEventListener, GossiperMBean
         EndpointState epState = endpointStateMap.get(endpoint);
         if (epState == null)
             return;
-        if (isShutdown(endpoint) && epState.isAlive())
+
+        logger.debug("Convicting {} with status {} - alive {}", endpoint, getGossipStatus(epState), epState.isAlive());
+        if (!epState.isAlive())
+            return;
+
+        if (isShutdown(endpoint))
         {
             markAsShutdown(endpoint);
         }
-        else if (epState.isAlive() && !isDeadState(epState))
+        else
         {
             markDead(endpoint, epState);
         }
-        else
-            epState.markDead();
     }
 
     /**
