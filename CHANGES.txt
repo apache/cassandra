@@ -8,6 +8,9 @@
 Merged from 2.2:
  * cqlsh pg-style-strings broken (CASSANDRA-10484)
  * cqlsh prompt includes name of keyspace after failed `use` statement (CASSANDRA-10369)
+Merged from 2.1:
+ * Allow LOCAL_JMX to be easily overridden (CASSANDRA-10275)
+ * Mark nodes as dead even if they've already left (CASSANDRA-10205)
 
 
 3.0.0-rc1
@@ -38,7 +41,6 @@ Merged from 2.2:
  * Defer default role manager setup until all nodes are on 2.2+ (CASSANDRA-9761)
  * Handle missing RoleManager in config after upgrade to 2.2 (CASSANDRA-10209)
 Merged from 2.1:
- * Mark nodes as dead even if they've already left (CASSANDRA-10205)
  * Bulk Loader API could not tolerate even node failure (CASSANDRA-10347)
  * Avoid misleading pushed notifications when multiple nodes
    share an rpc_address (CASSANDRA-10052)
