@@ -2,6 +2,8 @@
  * cqlsh pg-style-strings broken (CASSANDRA-10484)
  * Make Hadoop CF splits more polite to custom orderered partitioners (CASSANDRA-10400)
 Merged from 2.1:
+ * Allow LOCAL_JMX to be easily overridden (CASSANDRA-10275)
+ * Mark nodes as dead even if they've already left (CASSANDRA-10205)
  * Update internal python driver used by cqlsh (CASSANDRA-10161)
 
 2.2.2
@@ -17,7 +19,6 @@ Merged from 2.1:
  * Fall back to 1/4 commitlog volume for commitlog_total_space on small disks
    (CASSANDRA-10199)
 Merged from 2.1:
- * Mark nodes as dead even if they've already left (CASSANDRA-10205)
  * Bulk Loader API could not tolerate even node failure (CASSANDRA-10347)
  * Avoid misleading pushed notifications when multiple nodes
    share an rpc_address (CASSANDRA-10052)
