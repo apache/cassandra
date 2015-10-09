@@ -31,6 +31,41 @@ class TestCqlParsing(TestCase):
         self.assertSequenceEqual(tokens_with_types(CqlRuleSet.lex("'eggs'")),
                                  [("'eggs'", 'quotedStringLiteral')])
 
+        tokens = CqlRuleSet.lex("'spam\nspam\n\tsausage'")
+        tokens = CqlRuleSet.cql_massage_tokens(tokens)
+        self.assertEqual(tokens[0][0], "quotedStringLiteral")
+
+        tokens = CqlRuleSet.lex("'spam\nspam\n")
+        tokens = CqlRuleSet.cql_massage_tokens(tokens)
+        self.assertEqual(tokens[0][0], "unclosedString")
+
+        tokens = CqlRuleSet.lex("'foo bar' 'spam\nspam\n")
+        tokens = CqlRuleSet.cql_massage_tokens(tokens)
+        self.assertEqual(tokens[1][0], "unclosedString")
+
+    def test_parse_pgstring_literals(self):
+        for n in ["$$eggs$$", "$$Sausage 1$$", "$$spam\nspam\n\tsausage$$", "$$$$"]:
+            self.assertSequenceEqual(tokens_with_types(CqlRuleSet.lex(n)),
+                                     [(n, 'pgStringLiteral')])
+        self.assertSequenceEqual(tokens_with_types(CqlRuleSet.lex("$$eggs$$")),
+                                 [("$$eggs$$", 'pgStringLiteral')])
+
+        tokens = CqlRuleSet.lex("$$spam\nspam\n\tsausage$$")
+        tokens = CqlRuleSet.cql_massage_tokens(tokens)
+        # [('pgStringLiteral', '$$spam\nspam\n\tsausage$$', (0, 22))]
+        self.assertEqual(tokens[0][0], "pgStringLiteral")
+
+        tokens = CqlRuleSet.lex("$$spam\nspam\n")
+        tokens = CqlRuleSet.cql_massage_tokens(tokens)
+        # [('unclosedPgString', '$$', (0, 2)), ('identifier', 'spam', (2, 6)), ('identifier', 'spam', (7, 11))]
+        self.assertEqual(tokens[0][0], "unclosedPgString")
+
+        tokens = CqlRuleSet.lex("$$foo bar$$ $$spam\nspam\n")
+        tokens = CqlRuleSet.cql_massage_tokens(tokens)
+        # [('pgStringLiteral', '$$foo bar$$', (0, 11)), ('unclosedPgString', '$$', (12, 14)), ('identifier', 'spam', (14, 18)), ('identifier', 'spam', (19, 23))]
+        self.assertEqual(tokens[0][0], "pgStringLiteral")
+        self.assertEqual(tokens[1][0], "unclosedPgString")
+
     def test_parse_numbers(self):
         for n in ['6', '398', '18018']:
             self.assertSequenceEqual(tokens_with_types(CqlRuleSet.lex(n)),

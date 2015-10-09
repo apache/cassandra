@@ -6,6 +6,7 @@
  * Provide additional metrics for materialized views (CASSANDRA-10323)
  * Flush system schema tables after local schema changes (CASSANDRA-10429)
 Merged from 2.2:
+ * cqlsh pg-style-strings broken (CASSANDRA-10484)
  * cqlsh prompt includes name of keyspace after failed `use` statement (CASSANDRA-10369)
 
 

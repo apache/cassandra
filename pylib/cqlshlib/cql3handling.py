@@ -135,7 +135,7 @@ JUNK ::= /([ \t\r\f\v]+|(--|[/][/])[^\n\r]*([\n\r]|$)|[/][*].*?[*][/])/ ;
 <stringLiteral> ::= <quotedStringLiteral>
                   | <pgStringLiteral> ;
 <quotedStringLiteral> ::= /'([^']|'')*'/ ;
-<pgStringLiteral> ::= /\$\$.*\$\$/;
+<pgStringLiteral> ::= /\$\$(?:(?!\$\$)|[^$])*\$\$/;
 <quotedName> ::=    /"([^"]|"")*"/ ;
 <float> ::=         /-?[0-9]+\.[0-9]+/ ;
 <uuid> ::=          /[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}/ ;
@@ -154,6 +154,7 @@ JUNK ::= /([ \t\r\f\v]+|(--|[/][/])[^\n\r]*([\n\r]|$)|[/][*].*?[*][/])/ ;
             | "false"
             ;
 
+<unclosedPgString>::= /\$\$(?:(?!\$\$)|[^$])*/ ;
 <unclosedString>  ::= /'([^']|'')*/ ;
 <unclosedName>    ::= /"([^"]|"")*/ ;
 <unclosedComment> ::= /[/][*].*$/ ;
