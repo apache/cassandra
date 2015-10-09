@@ -76,6 +76,7 @@ public class ColumnIndex
         private long startPosition = -1;
 
         private int written;
+        private long previousRowStart;
 
         private ClusteringPrefix firstClustering;
         private ClusteringPrefix lastClustering;
@@ -99,7 +100,7 @@ public class ColumnIndex
             ByteBufferUtil.writeWithShortLength(iterator.partitionKey().getKey(), writer);
             DeletionTime.serializer.serialize(iterator.partitionLevelDeletion(), writer);
             if (header.hasStatic())
-                UnfilteredSerializer.serializer.serialize(iterator.staticRow(), header, writer, version);
+                UnfilteredSerializer.serializer.serializeStaticRow(iterator.staticRow(), header, writer, version);
         }
 
         public ColumnIndex build() throws IOException
@@ -131,15 +132,18 @@ public class ColumnIndex
 
         private void add(Unfiltered unfiltered) throws IOException
         {
+            long pos = currentPosition();
+
             if (firstClustering == null)
             {
                 // Beginning of an index block. Remember the start and position
                 firstClustering = unfiltered.clustering();
-                startPosition = currentPosition();
+                startPosition = pos;
             }
 
-            UnfilteredSerializer.serializer.serialize(unfiltered, header, writer, version);
+            UnfilteredSerializer.serializer.serialize(unfiltered, header, writer, pos - previousRowStart, version);
             lastClustering = unfiltered.clustering();
+            previousRowStart = pos;
             ++written;
 
             if (unfiltered.kind() == Unfiltered.Kind.RANGE_TOMBSTONE_MARKER)
