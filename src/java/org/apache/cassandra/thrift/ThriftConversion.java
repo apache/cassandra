@@ -611,7 +611,7 @@ public class ThriftConversion
                                                                   s -> !IndexTarget.TARGET_OPTION_NAME.equals(s));
             cd.setIndex_options(filteredOptions.isEmpty()
                                 ? null
-                                : Maps.newHashMap(matchedIndex.options));
+                                : Maps.newHashMap(filteredOptions));
         }
 
         return cd;
