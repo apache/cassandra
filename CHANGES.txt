@@ -1,4 +1,5 @@
 2.2.3
+ * cqlsh pg-style-strings broken (CASSANDRA-10484)
  * Make Hadoop CF splits more polite to custom orderered partitioners (CASSANDRA-10400)
 Merged from 2.1:
  * Update internal python driver used by cqlsh (CASSANDRA-10161)
