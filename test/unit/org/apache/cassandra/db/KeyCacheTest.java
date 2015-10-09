@@ -17,12 +17,14 @@
  */
 package org.apache.cassandra.db;
 
+import java.util.Collection;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.TimeUnit;
 
+import com.google.common.collect.ImmutableList;
 import com.google.common.util.concurrent.Uninterruptibles;
 import org.junit.AfterClass;
 import org.junit.Test;
@@ -31,6 +33,7 @@ import org.apache.cassandra.SchemaLoader;
 import org.apache.cassandra.Util;
 import org.apache.cassandra.cache.KeyCacheKey;
 import org.apache.cassandra.concurrent.ScheduledExecutors;
+import org.apache.cassandra.db.compaction.OperationType;
 import org.apache.cassandra.db.composites.*;
 import org.apache.cassandra.db.compaction.CompactionManager;
 import org.apache.cassandra.db.filter.QueryFilter;
@@ -46,6 +49,8 @@ public class KeyCacheTest extends SchemaLoader
     private static final String KEYSPACE1 = "KeyCacheSpace";
     private static final String COLUMN_FAMILY1 = "Standard1";
     private static final String COLUMN_FAMILY2 = "Standard2";
+    private static final String COLUMN_FAMILY3 = "Standard3";
+
 
     @AfterClass
     public static void cleanup()
@@ -101,6 +106,56 @@ public class KeyCacheTest extends SchemaLoader
                 assertEquals(expected.deletionTime(), actual.deletionTime());
             }
         }
+    }
+
+    @Test
+    public void testKeyCacheLoadWithLostTable() throws Exception
+    {
+        CompactionManager.instance.disableAutoCompaction();
+
+        ColumnFamilyStore store = Keyspace.open(KEYSPACE1).getColumnFamilyStore(COLUMN_FAMILY3);
+
+        // empty the cache
+        CacheService.instance.invalidateKeyCache();
+        assertKeyCacheSize(0, KEYSPACE1, COLUMN_FAMILY3);
+
+        // insert data and force to disk
+        insertData(KEYSPACE1, COLUMN_FAMILY3, 0, 100);
+        store.forceBlockingFlush();
+
+        Collection<SSTableReader> firstFlushTables = ImmutableList.copyOf(store.getSSTables());
+
+        // populate the cache
+        readData(KEYSPACE1, COLUMN_FAMILY3, 0, 100);
+        assertKeyCacheSize(100, KEYSPACE1, COLUMN_FAMILY3);
+
+        // insert some new data and force to disk
+        insertData(KEYSPACE1, COLUMN_FAMILY3, 100, 50);
+        store.forceBlockingFlush();
+
+        // check that it's fine
+        readData(KEYSPACE1, COLUMN_FAMILY3, 100, 50);
+        assertKeyCacheSize(150, KEYSPACE1, COLUMN_FAMILY3);
+
+        // force the cache to disk
+        CacheService.instance.keyCache.submitWrite(Integer.MAX_VALUE).get();
+
+        CacheService.instance.invalidateKeyCache();
+        assertKeyCacheSize(0, KEYSPACE1, COLUMN_FAMILY3);
+
+        // check that the content is written correctly
+        CacheService.instance.keyCache.loadSaved();
+        assertKeyCacheSize(150, KEYSPACE1, COLUMN_FAMILY3);
+
+        CacheService.instance.invalidateKeyCache();
+        assertKeyCacheSize(0, KEYSPACE1, COLUMN_FAMILY3);
+
+        // now remove the first sstable from the store to simulate losing the file
+        store.markObsolete(firstFlushTables, OperationType.UNKNOWN);
+
+        // check that reading now correctly skips over lost table and reads the rest (CASSANDRA-10219)
+        CacheService.instance.keyCache.loadSaved();
+        assertKeyCacheSize(50, KEYSPACE1, COLUMN_FAMILY3);
     }
 
     @Test
