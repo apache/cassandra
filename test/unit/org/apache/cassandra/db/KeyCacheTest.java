@@ -66,7 +66,8 @@ public class KeyCacheTest
                                     SimpleStrategy.class,
                                     KSMetaData.optsWithRF(1),
                                     SchemaLoader.standardCFMD(KEYSPACE1, COLUMN_FAMILY1),
-                                    SchemaLoader.standardCFMD(KEYSPACE1, COLUMN_FAMILY2));
+                                    SchemaLoader.standardCFMD(KEYSPACE1, COLUMN_FAMILY2),
+                                    SchemaLoader.standardCFMD(KEYSPACE1, COLUMN_FAMILY3));
     }
 
     @AfterClass
@@ -139,21 +140,21 @@ public class KeyCacheTest
         assertKeyCacheSize(0, KEYSPACE1, COLUMN_FAMILY3);
 
         // insert data and force to disk
-        insertData(KEYSPACE1, COLUMN_FAMILY3, 0, 100);
+        SchemaLoader.insertData(KEYSPACE1, COLUMN_FAMILY3, 0, 100);
         store.forceBlockingFlush();
 
         Collection<SSTableReader> firstFlushTables = ImmutableList.copyOf(store.getSSTables());
 
         // populate the cache
-        readData(KEYSPACE1, COLUMN_FAMILY3, 0, 100);
+        SchemaLoader.readData(KEYSPACE1, COLUMN_FAMILY3, 0, 100);
         assertKeyCacheSize(100, KEYSPACE1, COLUMN_FAMILY3);
 
         // insert some new data and force to disk
-        insertData(KEYSPACE1, COLUMN_FAMILY3, 100, 50);
+        SchemaLoader.insertData(KEYSPACE1, COLUMN_FAMILY3, 100, 50);
         store.forceBlockingFlush();
 
         // check that it's fine
-        readData(KEYSPACE1, COLUMN_FAMILY3, 100, 50);
+        SchemaLoader.readData(KEYSPACE1, COLUMN_FAMILY3, 100, 50);
         assertKeyCacheSize(150, KEYSPACE1, COLUMN_FAMILY3);
 
         // force the cache to disk
