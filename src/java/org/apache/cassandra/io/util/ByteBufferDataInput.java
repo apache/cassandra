@@ -43,16 +43,10 @@ public class ByteBufferDataInput extends AbstractDataInput implements FileDataIn
     public void seek(long pos) throws IOException
     {
         long inSegmentPos = pos - segmentOffset;
-        if (!contains(pos))
+        if (inSegmentPos < 0 || inSegmentPos > buffer.capacity())
             throw new IOException(String.format("Seek position %d is not within mmap segment (seg offs: %d, length: %d)", pos, segmentOffset, buffer.capacity()));
 
         position = (int) inSegmentPos;
-    }
-
-    public boolean contains(long pos)
-    {
-        long inSegmentPos = pos - segmentOffset;
-        return inSegmentPos >= 0 && inSegmentPos < buffer.capacity();
     }
 
     public long getFilePointer()
