@@ -192,6 +192,10 @@ public class View
     public boolean updateAffectsView(AbstractBTreePartition partition)
     {
         ReadQuery selectQuery = getReadQuery();
+
+        if (!partition.metadata().cfId.equals(definition.baseTableId))
+            return false;
+
         if (!selectQuery.selectsKey(partition.partitionKey()))
             return false;
 
@@ -582,7 +586,7 @@ public class View
     public TemporalRow.Set getTemporalRowSet(AbstractBTreePartition partition, TemporalRow.Set existing, boolean isBuilding)
     {
         if (!updateAffectsView(partition))
-            return null;
+            return existing;
 
         Set<ColumnIdentifier> columns = new HashSet<>(this.columns.primaryKeyDefs.size());
         for (ColumnDefinition def : this.columns.primaryKeyDefs)

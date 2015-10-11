@@ -125,14 +125,19 @@ public class ViewManager
         TemporalRow.Set temporalRows = null;
         for (Map.Entry<String, View> view : viewsByName.entrySet())
         {
-            temporalRows = view.getValue().getTemporalRowSet(update, temporalRows, false);
-
-            Collection<Mutation> viewMutations = view.getValue().createMutations(update, temporalRows, false);
-            if (viewMutations != null && !viewMutations.isEmpty())
+            // Make sure that we only get mutations from views which are affected since the set includes all views for a
+            // keyspace. This will prevent calling getTemporalRowSet for the wrong base table.
+            if (view.getValue().updateAffectsView(update))
             {
-                if (mutations == null)
-                    mutations = Lists.newLinkedList();
-                mutations.addAll(viewMutations);
+                temporalRows = view.getValue().getTemporalRowSet(update, temporalRows, false);
+
+                Collection<Mutation> viewMutations = view.getValue().createMutations(update, temporalRows, false);
+                if (viewMutations != null && !viewMutations.isEmpty())
+                {
+                    if (mutations == null)
+                        mutations = Lists.newLinkedList();
+                    mutations.addAll(viewMutations);
+                }
             }
         }
 
@@ -156,9 +161,6 @@ public class ViewManager
 
                 for (View view : allViews())
                 {
-                    if (!cf.metadata().cfId.equals(view.getDefinition().baseTableId))
-                        continue;
-
                     if (view.updateAffectsView(cf))
                         return true;
                 }

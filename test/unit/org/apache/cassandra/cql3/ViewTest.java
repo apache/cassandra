@@ -811,6 +811,41 @@ public class ViewTest extends CQLTester
     }
 
     @Test
+    public void testTwoTablesOneView() throws Throwable
+    {
+        execute("USE " + keyspace());
+        executeNet(protocolVersion, "USE " + keyspace());
+
+        createTable("CREATE TABLE " + keyspace() + ".dummy_table (" +
+                "j int, " +
+                "intval int, " +
+                "PRIMARY KEY (j))");
+
+        createTable("CREATE TABLE " + keyspace() + ".real_base (" +
+                "k int, " +
+                "intval int, " +
+                "PRIMARY KEY (k))");
+
+        createView("mv", "CREATE MATERIALIZED VIEW %s AS SELECT * FROM " + keyspace() + ".real_base WHERE k IS NOT NULL AND intval IS NOT NULL PRIMARY KEY (intval, k)");
+        createView("mv2", "CREATE MATERIALIZED VIEW %s AS SELECT * FROM " + keyspace() + ".dummy_table WHERE j IS NOT NULL AND intval IS NOT NULL PRIMARY KEY (intval, j)");
+
+        updateView("INSERT INTO " + keyspace() + ".real_base (k, intval) VALUES (?, ?)", 0, 0);
+        assertRows(execute("SELECT k, intval FROM " + keyspace() + ".real_base WHERE k = ?", 0), row(0, 0));
+        assertRows(execute("SELECT k, intval from mv WHERE intval = ?", 0), row(0, 0));
+
+        updateView("INSERT INTO " + keyspace() + ".real_base (k, intval) VALUES (?, ?)", 0, 1);
+        assertRows(execute("SELECT k, intval FROM " + keyspace() + ".real_base WHERE k = ?", 0), row(0, 1));
+        assertRows(execute("SELECT k, intval from mv WHERE intval = ?", 1), row(0, 1));
+
+        assertRows(execute("SELECT k, intval FROM " + keyspace() + ".real_base WHERE k = ?", 0), row(0, 1));
+        assertRows(execute("SELECT k, intval from mv WHERE intval = ?", 1), row(0, 1));
+
+        updateView("INSERT INTO " + keyspace() +".dummy_table (j, intval) VALUES(?, ?)", 0, 1);
+        assertRows(execute("SELECT j, intval FROM " + keyspace() + ".dummy_table WHERE j = ?", 0), row(0, 1));
+        assertRows(execute("SELECT k, intval from mv WHERE intval = ?", 1), row(0, 1));
+    }
+
+    @Test
     public void testDecimalUpdate() throws Throwable
     {
         createTable("CREATE TABLE %s (" +
