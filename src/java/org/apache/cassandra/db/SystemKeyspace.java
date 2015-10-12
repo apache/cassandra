@@ -608,24 +608,45 @@ public class SystemKeyspace
         }
         ColumnFamilyStore cfs = keyspace.getColumnFamilyStore(LOCAL_CF);
 
-        String req = "SELECT cluster_name FROM system.%s WHERE key='%s'";
-        UntypedResultSet result = executeInternal(String.format(req, LOCAL_CF, LOCAL_KEY));
-
-        if (result.isEmpty() || !result.one().has("cluster_name"))
         {
-            // this is a brand new node
-            if (!cfs.getSSTables().isEmpty())
-                throw new ConfigurationException("Found system keyspace files, but they couldn't be loaded!");
+            String req = "SELECT cluster_name FROM system.%s WHERE key='%s'";
+            UntypedResultSet result = executeInternal(String.format(req, LOCAL_CF, LOCAL_KEY));
 
-            // no system files.  this is a new node.
-            req = "INSERT INTO system.%s (key, cluster_name) VALUES ('%s', ?)";
-            executeInternal(String.format(req, LOCAL_CF, LOCAL_KEY), DatabaseDescriptor.getClusterName());
-            return;
+            if (result.isEmpty() || !result.one().has("cluster_name"))
+            {
+                // this is a brand new node
+                if (!cfs.getSSTables().isEmpty())
+                    throw new ConfigurationException("Found system keyspace files, but they couldn't be loaded!");
+
+                // no system files.  this is a new node.
+                req = "INSERT INTO system.%s (key, cluster_name) VALUES ('%s', ?)";
+                executeInternal(String.format(req, LOCAL_CF, LOCAL_KEY), DatabaseDescriptor.getClusterName());
+            }
+            else
+            {
+                String savedClusterName = result.one().getString("cluster_name");
+                if (!DatabaseDescriptor.getClusterName().equals(savedClusterName))
+                    throw new ConfigurationException("Saved cluster name " + savedClusterName + " != configured name " + DatabaseDescriptor.getClusterName());
+            }
         }
 
-        String savedClusterName = result.one().getString("cluster_name");
-        if (!DatabaseDescriptor.getClusterName().equals(savedClusterName))
-            throw new ConfigurationException("Saved cluster name " + savedClusterName + " != configured name " + DatabaseDescriptor.getClusterName());
+        if (!Boolean.getBoolean("cassandra.ignore_rack"))
+        {
+            String req = "SELECT rack FROM system.%s WHERE key='%s'";
+            UntypedResultSet result = executeInternal(String.format(req, LOCAL_CF, LOCAL_KEY));
+
+            // Look up the Rack (return it if found)
+            if (!result.isEmpty() && result.one().has("rack"))
+            {
+                String storedRack = result.one().getString("rack");
+                String currentRack = DatabaseDescriptor.getEndpointSnitch().getRack(FBUtilities.getBroadcastAddress());
+                if (!storedRack.equals(currentRack))
+                {
+                    throw new ConfigurationException("Cannot start node if snitch's rack (" + currentRack + ") differs from previous rack (" + storedRack + "). " +
+                                                     "Please fix the snitch or wipe and rebootstrap this node.");
+                }
+            }
+        }
     }
 
     public static Collection<Token> getSavedTokens()
