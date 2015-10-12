@@ -75,6 +75,9 @@ New features
 
 New features
 ------------
+   - The LIMIT clause applies now only to the number of rows returned to the user,
+     not to the number of row queried. By consequence, queries using aggregates will not
+     be impacted by the LIMIT clause anymore.
    - Very large batches will now be rejected (defaults to 50kb). This
      can be customized by modifying batch_size_fail_threshold_in_kb.
    - Selecting columns,scalar functions, UDT fields, writetime or ttl together

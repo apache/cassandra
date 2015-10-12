@@ -536,6 +536,10 @@ public class SelectStatement implements CQLStatement
 
     private int updateLimitForQuery(int limit)
     {
+        // If the query is for an aggregate, we do not want to limit the number of rows retrieved. The LIMIT
+        // clause apply to the number of rows returned to the user and not to the number of rows retrieved.
+        if (selection.isAggregate())
+            return Integer.MAX_VALUE;
         // Internally, we don't support exclusive bounds for slices. Instead, we query one more element if necessary
         // and exclude it later (in processColumnFamily)
         return restrictions.isNonCompositeSliceWithExclusiveBounds() && limit != Integer.MAX_VALUE
