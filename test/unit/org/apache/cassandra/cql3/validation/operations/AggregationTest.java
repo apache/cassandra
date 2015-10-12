@@ -93,6 +93,8 @@ public class AggregationTest extends CQLTester
         assertRows(execute("SELECT COUNT(b), count(c), count(e), count(f) FROM %s"), row(4L, 3L, 3L, 3L));
         // Makes sure that LIMIT does not affect the result of aggregates
         assertRows(execute("SELECT COUNT(b), count(c), count(e), count(f) FROM %s LIMIT 2"), row(4L, 3L, 3L, 3L));
+        assertRows(execute("SELECT COUNT(b), count(c), count(e), count(f) FROM %s WHERE a = 1 LIMIT 2"),
+                   row(4L, 3L, 3L, 3L));
     }
 
     @Test
@@ -134,6 +136,7 @@ public class AggregationTest extends CQLTester
         assertRows(execute("SELECT max(b), COUNT(1), b FROM %s"), row(5, 4L, 1));
         // Makes sure that LIMIT does not affect the result of aggregates
         assertRows(execute("SELECT max(b), COUNT(1), b FROM %s LIMIT 2"), row(5, 4L, 1));
+        assertRows(execute("SELECT max(b), COUNT(1), b FROM %s WHERE a = 1 LIMIT 2"), row(5, 4L, 1));
     }
 
     @Test

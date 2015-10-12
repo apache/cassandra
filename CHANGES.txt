@@ -6,6 +6,7 @@
  * Provide additional metrics for materialized views (CASSANDRA-10323)
  * Flush system schema tables after local schema changes (CASSANDRA-10429)
 Merged from 2.2:
+ * Fix the regression when using LIMIT with aggregates (CASSANDRA-10487)
  * Avoid NoClassDefFoundError during DataDescriptor initialization on windows (CASSANDRA-10412)
  * Preserve case of quoted Role & User names (CASSANDRA-10394)
  * cqlsh pg-style-strings broken (CASSANDRA-10484)
