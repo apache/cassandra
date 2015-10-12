@@ -80,6 +80,9 @@ public class SSTableOfflineRelevel
             out.println("Usage: sstableofflinerelevel [--dry-run] <keyspace> <columnfamily>");
             System.exit(1);
         }
+
+        Util.initDatabaseDescriptor();
+
         boolean dryRun = args[0].equals("--dry-run");
         String keyspace = args[args.length - 2];
         String columnfamily = args[args.length - 1];

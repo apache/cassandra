@@ -57,6 +57,8 @@ public class SSTableLevelResetter
             System.exit(1);
         }
 
+        Util.initDatabaseDescriptor();
+
         // TODO several daemon threads will run from here.
         // So we have to explicitly call System.exit.
         try
