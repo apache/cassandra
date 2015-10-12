@@ -76,4 +76,18 @@ public class TeeingAppender<E> extends UnsynchronizedAppenderBase<E> implements 
         return aai.iteratorForAppenders();
     }
 
+    @Override
+    public void stop()
+    {
+        try
+        {
+            if (started)
+                detachAndStopAllAppenders();
+        }
+        finally
+        {
+            super.stop();
+        }
+    }
+
 }
