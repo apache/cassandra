@@ -289,7 +289,12 @@ public class ColumnFilter
         public ColumnFilter build()
         {
             boolean isFetchAll = metadata != null;
-            assert isFetchAll || selection != null;
+
+            PartitionColumns selectedColumns = selection == null ? null : selection.build();
+            // It's only ok to have selection == null in ColumnFilter if isFetchAll. So deal with the case of a "selection" builder
+            // with nothing selected (we can at least happen on some backward compatible queries - CASSANDRA-10471).
+            if (!isFetchAll && selectedColumns == null)
+                selectedColumns = PartitionColumns.NONE;
 
             SortedSetMultimap<ColumnIdentifier, ColumnSubselection> s = null;
             if (subSelections != null)
@@ -299,7 +304,7 @@ public class ColumnFilter
                     s.put(subSelection.column().name, subSelection);
             }
 
-            return new ColumnFilter(isFetchAll, metadata, selection == null ? null : selection.build(), s);
+            return new ColumnFilter(isFetchAll, metadata, selectedColumns, s);
         }
     }
 
