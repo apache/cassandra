@@ -1,15 +1,16 @@
-2.2.4
- * Fix the regression when using LIMIT with aggregates (CASSANDRA-10487)
 2.2.3
  * Avoid NoClassDefFoundError during DataDescriptor initialization on windows (CASSANDRA-10412)
  * Preserve case of quoted Role & User names (CASSANDRA-10394)
  * cqlsh pg-style-strings broken (CASSANDRA-10484)
  * Make Hadoop CF splits more polite to custom orderered partitioners (CASSANDRA-10400)
+ * Fix the regression when using LIMIT with aggregates (CASSANDRA-10487)
 Merged from 2.1:
  * Fix mmap file segment seeking to EOF (CASSANDRA-10478)
  * Allow LOCAL_JMX to be easily overridden (CASSANDRA-10275)
  * Mark nodes as dead even if they've already left (CASSANDRA-10205)
- * Update internal python driver used by cqlsh (CASSANDRA-10161)
+ * Update internal python driver used by cqlsh (CASSANDRA-10161, CASSANDRA-10507)
+
+
 2.2.2
  * cqlsh prompt includes name of keyspace after failed `use` statement (CASSANDRA-10369)
  * Configurable page size in cqlsh (CASSANDRA-9855)

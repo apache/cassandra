@@ -2397,15 +2397,10 @@ class ImportProcess(multiprocessing.Process):
                     fetch_size=None, paging_state=None, timestamp=insert_timestamp)
 
                 request_id = conn.get_request_id()
-                binary_message = query_message.to_binary(
-                    stream_id=request_id, protocol_version=DEFAULT_PROTOCOL_VERSION, compression=None)
+                conn.send_msg(query_message, request_id=request_id, cb=partial(callback, current_record))
 
-                # add the message directly to the connection's queue
                 with conn.lock:
                     conn.in_flight += 1
-
-                conn._callbacks[request_id] = partial(callback, current_record)
-                conn.deque.append(binary_message)
 
                 # every 50 records, clear the pending writes queue and read
                 # any responses we have
@@ -2490,9 +2485,10 @@ class SwitchCommand(object):
             print 'Disabled %s.' % (self.description,)
             return False
 
+
 class SwitchCommandWithValue(SwitchCommand):
     """The same as SwitchCommand except it also accepts a value in place of ON.
-    
+
     This returns a tuple of the form: (SWITCH_VALUE, PASSED_VALUE)
     eg: PAGING 50 returns (True, 50)
         PAGING OFF returns (False, None)
@@ -2503,7 +2499,7 @@ class SwitchCommandWithValue(SwitchCommand):
     def __init__(self, command, desc, value_type=int):
         SwitchCommand.__init__(self, command, desc)
         self.value_type = value_type
-        
+
     def execute(self, state, parsed, printerr):
         binary_switch_value = SwitchCommand.execute(self, state, parsed, printerr)
         switch = parsed.get_binding('switch')
@@ -2513,6 +2509,7 @@ class SwitchCommandWithValue(SwitchCommand):
         except (ValueError, TypeError):
             value = None
         return (binary_switch_value, value)
+
 
 def option_with_default(cparser_getter, section, option, default=None):
     try:
