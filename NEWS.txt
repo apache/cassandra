@@ -54,9 +54,6 @@ Upgrading
      cassandra.yaml; the default is half the size commitlog_segment_size_in_mb * 1024.
    - 3.0 requires Java 8u40 or later.
    - The default JVM GC has been changed to G1GC.
-   - The default JVM flag -XX:+PerfDisableSharedMem will cause the following tools JVM
-     to stop working: jps, jstack, jinfo, jmc, jcmd as well as 3rd party tools like Jolokia.
-     If you wish to use these tools you can comment this flag out in cassandra-env.{sh,ps1}
    - New transaction log files have been introduced to replace the compactions_in_progress
      system table, temporary file markers (tmp and tmplink) and sstable ancerstors.
      Therefore, compaction metadata no longer contains ancestors. Transaction log files
@@ -244,6 +241,9 @@ New features
    - The toTimestamp(date) and toUnixTimestamp(date) functions have been added to allow
      to convert from date into timestamp type and bigint raw value.
    - SizeTieredCompactionStrategy parameter cold_reads_to_omit has been removed.
+   - The default JVM flag -XX:+PerfDisableSharedMem will cause the following tools JVM
+     to stop working: jps, jstack, jinfo, jmc, jcmd as well as 3rd party tools like Jolokia.
+     If you wish to use these tools you can comment this flag out in cassandra-env.{sh,ps1}
 
 
 2.1.10
