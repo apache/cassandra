@@ -162,6 +162,9 @@ New features
    - The toTimestamp(date) and toUnixTimestamp(date) functions have been added to allow
      to convert from date into timestamp type and bigint raw value.
    - SizeTieredCompactionStrategy parameter cold_reads_to_omit has been removed.
+   - The default JVM flag -XX:+PerfDisableSharedMem will cause the following tools JVM
+     to stop working: jps, jstack, jinfo, jmc, jcmd as well as 3rd party tools like Jolokia.
+     If you wish to use these tools you can comment this flag out in cassandra-env.{sh,ps1}
 
 
 2.1.10
