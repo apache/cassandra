@@ -269,7 +269,7 @@ public class MmappedSegmentedFile extends SegmentedFile
             private static long[] ensureCapacity(long[] boundaries, int fixedCount)
             {
                 if (fixedCount + 1 >= boundaries.length)
-                    return Arrays.copyOf(boundaries, boundaries.length * 2);
+                    return Arrays.copyOf(boundaries, Math.max(fixedCount + 2, boundaries.length * 2));
                 return boundaries;
             }
 
