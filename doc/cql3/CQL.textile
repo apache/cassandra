@@ -1561,10 +1561,12 @@ bc(syntax)..
                 | float
                 | inet
                 | int
+                | smallint
                 | text
                 | time
                 | timestamp
                 | timeuuid
+                | tinyint
                 | uuid
                 | varchar
                 | varint
@@ -1589,10 +1591,12 @@ p. The following table gives additional informations on the native data types, a
 |@float@    |   integers, floats   |32-bit IEEE-754 floating point|
 |@inet@     |   strings            |An IP address. It can be either 4 bytes long (IPv4) or 16 bytes long (IPv6). There is no @inet@ constant, IP address should be inputed as strings|
 |@int@      |   integers           |32-bit signed int|
+|@smallint@ |   integers           |16-bit signed int|
 |@text@     |   strings            |UTF8 encoded string|
 |@time@     |   integers, strings  |A time with nanosecond precision.  See "Working with time":#usingtime below for more information.|
 |@timestamp@|   integers, strings  |A timestamp. Strings constant are allow to input timestamps as dates, see "Working with timestamps":#usingtimestamps below for more information.|
 |@timeuuid@ |   uuids              |Type 1 UUID. This is generally used as a "conflict-free" timestamp. Also see the "functions on Timeuuid":#timeuuidFun|
+|@tinyint@  |   integers           |8-bit signed int|
 |@uuid@     |   uuids              |Type 1 or type 4 UUID|
 |@varchar@  |   strings            |UTF8 encoded string|
 |@varint@   |   integers           |Arbitrary-precision integer|
@@ -2032,11 +2036,13 @@ The following table describes the encodings that Cassandra will accept in @INSER
 |@int@      |integer, string       |integer          |String must be valid 32 bit integer|
 |@list@     |list, string          |list             |Uses JSON's native list representation|
 |@map@      |map, string           |map              |Uses JSON's native map representation|
+|@smallint@ |integer, string       |integer          |String must be valid 16 bit integer|
 |@set@      |list, string          |list             |Uses JSON's native list representation|
 |@text@     |string                |string           |Uses JSON's @\u@ character escape|
 |@time@     |string                |string           |Time of day in format @HH-MM-SS[.fffffffff]@|
 |@timestamp@|integer, string       |string           |A timestamp. Strings constant are allow to input timestamps as dates, see "Working with dates":#usingdates below for more information.  Datestamps with format @YYYY-MM-DD HH:MM:SS.SSS@ are returned.|
 |@timeuuid@ |string                |string           |Type 1 UUID. See "Constants":#constants for the UUID format|
+|@tinyint@  |integer, string       |integer          |String must be valid 8 bit integer|
 |@tuple@    |list, string          |list             |Uses JSON's native list representation|
 |@UDT@      |map, string           |map              |Uses JSON's native map representation with field names as keys|
 |@uuid@     |string                |string           |See "Constants":#constants for the UUID format|
@@ -2212,6 +2218,7 @@ h3. 3.3.0
 * Introduces Roles to supercede user based authentication and access control
 * "@Date@":#usingdates and "@Time@":usingtime data types have been added
 * "@JSON@":#json support has been added
+* @Tinyint@ and @Smallint@ data types have been added
 * Adds new time conversion functions and deprecate @dateOf@ and @unixTimestampOf@. See "@Time conversion functions@":#timeFun
 
 h3. 3.2.0
