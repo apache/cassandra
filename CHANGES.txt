@@ -1,4 +1,5 @@
 3.0-rc2
+ * Fix potential ClassCastException while upgrading (CASSANDRA-10468)
  * Fix NPE in MVs on update (CASSANDRA-10503)
  * Only include modified cell data in indexing deltas (CASSANDRA-10438)
  * Do not load keyspace when creating sstable writer (CASSANDRA-10443)
