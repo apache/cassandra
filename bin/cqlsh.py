@@ -1167,6 +1167,9 @@ class Shell(cmd.Cmd):
                     trace = future.get_query_trace(self.max_trace_wait)
                     if trace:
                         print_trace(self, trace)
+                    elif stmt.trace_id:
+                        self.writeresult("This statement trace may be incomplete", color=RED)
+                        self.show_session(stmt.trace_id)
                     else:
                         msg = "Statement trace did not complete within %d seconds" % (self.session.max_trace_wait)
                         self.writeresult(msg, color=RED)
