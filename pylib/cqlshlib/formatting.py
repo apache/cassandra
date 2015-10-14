@@ -156,7 +156,7 @@ def format_floating_point_type(val, colormap, float_precision, **_):
     if math.isnan(val):
         bval = 'NaN'
     elif math.isinf(val):
-        bval = 'Infinity'
+        bval = 'Infinity' if val > 0 else '-Infinity'
     else:
         exponent = int(math.log10(abs(val))) if abs(val) > sys.float_info.epsilon else -sys.maxint - 1
         if -4 <= exponent < float_precision:
