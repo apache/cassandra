@@ -27,6 +27,7 @@ usage: cassandra.ps1 [-f] [-h] [-p pidfile] [-H dumpfile] [-D arg] [-E errorfile
     -E              change JVM ErrorFile
     -v              Print cassandra version and exit
     -s              Show detailed jvm environment information during launch
+    -a              Aggressive startup. Ignore ports that are TIME_WAIT for VerifyPorts check.
     -help           print this message
 
     NOTE: installing cassandra as a service requires Commons Daemon Service Runner
@@ -307,6 +308,10 @@ Function VerifyPortsAreAvailable
     {
         if ($line -match "TCP" -and $line -match $portRegex)
         {
+            if ($a -and $line -match "TIME_WAIT")
+            {
+               continue
+            }
             Write-Error "Found a port already in use. Aborting startup"
             Write-Error $line
             Exit
@@ -352,12 +357,15 @@ for ($i = 0; $i -lt $args.count; $i++)
         "-install"          { $install = $True }
         "-uninstall"        { $uninstall = $True }
         "-help"             { PrintUsage }
+        "-?"                { PrintUsage }
+        "--help"            { PrintUsage }
         "-v"                { $v = $True }
         "-f"                { $f = $True }
         "-s"                { $s = $True }
         "-p"                { $p = $args[++$i]; CheckEmptyParam($p) }
         "-H"                { $H = $args[++$i]; CheckEmptyParam($H) }
         "-E"                { $E = $args[++$i]; CheckEmptyParam($E) }
+        "-a"                { $a = $True }
         default
         {
             "Invalid argument: " + $args[$i];
