@@ -422,7 +422,7 @@ def complete_copy_column_names(ctxt, cqlsh):
     return set(colnames[1:]) - set(existcols)
 
 
-COPY_OPTIONS = ('DELIMITER', 'QUOTE', 'ESCAPE', 'HEADER', 'ENCODING', 'NULL')
+COPY_OPTIONS = ('DELIMITER', 'QUOTE', 'ESCAPE', 'HEADER', 'ENCODING', 'TIMEFORMAT', 'NULL')
 
 
 @cqlsh_syntax_completer('copyOption', 'optnames')
@@ -432,6 +432,7 @@ def complete_copy_options(ctxt, cqlsh):
     opts = set(COPY_OPTIONS) - set(optnames)
     if direction == 'FROM':
         opts -= ('ENCODING',)
+        opts -= ('TIMEFORMAT',)
     return opts
 
 
@@ -1744,12 +1745,14 @@ class Shell(cmd.Cmd):
 
         Available options and defaults:
 
-          DELIMITER=','    - character that appears between records
-          QUOTE='"'        - quoting character to be used to quote fields
-          ESCAPE='\'       - character to appear before the QUOTE char when quoted
-          HEADER=false     - whether to ignore the first line
-          NULL=''          - string that represents a null value
-          ENCODING='utf8'  - encoding for CSV output (COPY TO only)
+          DELIMITER=','           - character that appears between records
+          QUOTE='"'               - quoting character to be used to quote fields
+          ESCAPE='\'              - character to appear before the QUOTE char when quoted
+          HEADER=false            - whether to ignore the first line
+          NULL=''                 - string that represents a null value
+          ENCODING='utf8'         - encoding for CSV output (COPY TO only)
+          TIME_FORMAT=            - timestamp strftime format (COPY TO only)
+            '%Y-%m-%d %H:%M:%S%z'   defaults to time_format value in cqlshrc
 
         When entering CSV data on STDIN, you can use the sequence "\."
         on a line by itself to end the data input.
@@ -1923,6 +1926,7 @@ class Shell(cmd.Cmd):
 
     def perform_csv_export(self, ks, cf, columns, fname, opts):
         dialect_options = self.csv_dialect_defaults.copy()
+
         if 'quote' in opts:
             dialect_options['quotechar'] = opts.pop('quote')
         if 'escape' in opts:
@@ -1932,6 +1936,7 @@ class Shell(cmd.Cmd):
         encoding = opts.pop('encoding', 'utf8')
         nullval = opts.pop('null', '')
         header = bool(opts.pop('header', '').lower() == 'true')
+        timestamp_format = opts.pop('time_format', self.display_timestamp_format)
         if dialect_options['quotechar'] == dialect_options['escapechar']:
             dialect_options['doublequote'] = True
             del dialect_options['escapechar']
@@ -1954,7 +1959,7 @@ class Shell(cmd.Cmd):
 
         meter = RateMeter(10000)
         try:
-            dtformats = DateTimeFormat(self.display_timestamp_format, self.display_date_format, self.display_nanotime_format)
+            dtformats = DateTimeFormat(timestamp_format, self.display_date_format, self.display_nanotime_format)
             dump = self.prep_export_dump(ks, cf, columns)
             writer = csv.writer(csvdest, **dialect_options)
             if header:
