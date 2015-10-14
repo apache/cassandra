@@ -15,6 +15,7 @@ Merged from 2.2:
  * cqlsh pg-style-strings broken (CASSANDRA-10484)
  * cqlsh prompt includes name of keyspace after failed `use` statement (CASSANDRA-10369)
 Merged from 2.1:
+ * (cqlsh) allow custom time_format for COPY TO (CASSANDRA-8970)
  * Don't allow startup if the node's rack has changed (CASSANDRA-10242)
  * (cqlsh) show partial trace if incomplete after max_trace_wait (CASSANDRA-7645)
  * Allow LOCAL_JMX to be easily overridden (CASSANDRA-10275)
