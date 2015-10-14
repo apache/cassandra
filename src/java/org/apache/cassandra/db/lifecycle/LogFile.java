@@ -43,7 +43,8 @@ final class LogFile
     static LogFile make(File logFile, int folderDescriptor)
     {
         Matcher matcher = LogFile.FILE_REGEX.matcher(logFile.getName());
-        assert matcher.matches() && matcher.groupCount() == 3;
+        boolean matched = matcher.matches();
+        assert matched && matcher.groupCount() == 3;
 
         // For now we don't need this but it is there in case we need to change
         // file format later on, the version is the sstable version as defined in BigFormat
