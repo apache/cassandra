@@ -4,6 +4,8 @@
 
 
 3.0-rc2
+ * Revert CASSANDRA-7486, make CMS default GC, move GC config to
+   conf/jvm.options (CASSANDRA-10403)
  * Fix TeeingAppender causing some logs to be truncated/empty (CASSANDRA-10447)
  * Allow EACH_QUORUM for reads (CASSANDRA-9602)
  * Fix potential ClassCastException while upgrading (CASSANDRA-10468)

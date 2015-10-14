@@ -54,7 +54,7 @@ Upgrading
    - Max mutation size is now configurable via max_mutation_size_in_kb setting in
      cassandra.yaml; the default is half the size commitlog_segment_size_in_mb * 1024.
    - 3.0 requires Java 8u40 or later.
-   - The default JVM GC has been changed to G1GC.
+   - Garbage collection options were moved from cassandra-env to jvm.options file.
    - New transaction log files have been introduced to replace the compactions_in_progress
      system table, temporary file markers (tmp and tmplink) and sstable ancerstors.
      Therefore, compaction metadata no longer contains ancestors. Transaction log files

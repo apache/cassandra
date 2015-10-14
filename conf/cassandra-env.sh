@@ -71,6 +71,19 @@ calculate_heap_sizes()
         max_heap_size_in_mb="$quarter_system_memory_in_mb"
     fi
     MAX_HEAP_SIZE="${max_heap_size_in_mb}M"
+
+    # Young gen: min(max_sensible_per_modern_cpu_core * num_cores, 1/4 * heap size)
+    max_sensible_yg_per_core_in_mb="100"
+    max_sensible_yg_in_mb=`expr $max_sensible_yg_per_core_in_mb "*" $system_cpu_cores`
+
+    desired_yg_in_mb=`expr $max_heap_size_in_mb / 4`
+
+    if [ "$desired_yg_in_mb" -gt "$max_sensible_yg_in_mb" ]
+    then
+        HEAP_NEWSIZE="${max_sensible_yg_in_mb}M"
+    else
+        HEAP_NEWSIZE="${desired_yg_in_mb}M"
+    fi
 }
 
 # Determine the sort of JVM we'll be running on.
@@ -89,19 +102,54 @@ if [ "$JVM_VERSION" \< "1.8" ] && [ "$JVM_PATCH_VERSION" \< "40" ] ; then
     exit 1;
 fi
 
+jvm=`echo "$java_ver_output" | grep -A 1 'java version' | awk 'NR==2 {print $1}'`
+case "$jvm" in
+    OpenJDK)
+        JVM_VENDOR=OpenJDK
+        # this will be "64-Bit" or "32-Bit"
+        JVM_ARCH=`echo "$java_ver_output" | awk 'NR==3 {print $2}'`
+        ;;
+    "Java(TM)")
+        JVM_VENDOR=Oracle
+        # this will be "64-Bit" or "32-Bit"
+        JVM_ARCH=`echo "$java_ver_output" | awk 'NR==3 {print $3}'`
+        ;;
+    *)
+        # Help fill in other JVM values
+        JVM_VENDOR=other
+        JVM_ARCH=unknown
+        ;;
+esac
+
 # Override these to set the amount of memory to allocate to the JVM at
 # start-up. For production use you may wish to adjust this for your
 # environment. MAX_HEAP_SIZE is the total amount of memory dedicated
-# to the Java heap.
+# to the Java heap. HEAP_NEWSIZE refers to the size of the young
+# generation. Both MAX_HEAP_SIZE and HEAP_NEWSIZE should be either set
+# or not (if you set one, set the other).
+#
+# The main trade-off for the young generation is that the larger it
+# is, the longer GC pause times will be. The shorter it is, the more
+# expensive GC will be (usually).
+#
+# The example HEAP_NEWSIZE assumes a modern 8-core+ machine for decent pause
+# times. If in doubt, and if you do not particularly want to tweak, go with
+# 100 MB per physical CPU core.
 
 #MAX_HEAP_SIZE="4G"
+#HEAP_NEWSIZE="800M"
 
 # Set this to control the amount of arenas per-thread in glibc
 #export MALLOC_ARENA_MAX=4
 
 # only calculate the size if it's not set manually
-if [ "x$MAX_HEAP_SIZE" = "x" ] ; then
+if [ "x$MAX_HEAP_SIZE" = "x" ] && [ "x$HEAP_NEWSIZE" = "x" ]; then
     calculate_heap_sizes
+else
+    if [ "x$MAX_HEAP_SIZE" = "x" ] ||  [ "x$HEAP_NEWSIZE" = "x" ]; then
+        echo "please set or unset MAX_HEAP_SIZE and HEAP_NEWSIZE in pairs (see cassandra-env.sh)"
+        exit 1
+    fi
 fi
 
 if [ "x$MALLOC_ARENA_MAX" = "x" ] ; then
@@ -158,40 +206,53 @@ esac
 # Here we create the arguments that will get passed to the jvm when
 # starting cassandra.
 
+# Read user-defined JVM options from jvm.options file
+JVM_OPTS_FILE=$CASSANDRA_CONF/jvm.options
+for opt in `grep "^-" $JVM_OPTS_FILE`
+do
+  JVM_OPTS="$JVM_OPTS $opt"
+done
+
+# Check what parameters were defined on jvm.options file to avoid conflicts
+echo $JVM_OPTS | grep -q Xmn
+DEFINED_XMN=$?
+echo $JVM_OPTS | grep -q Xmx
+DEFINED_XMX=$?
+echo $JVM_OPTS | grep -q Xms
+DEFINED_XMS=$?
+echo $JVM_OPTS | grep -q UseConcMarkSweepGC
+USING_CMS=$?
+
+# We only set -Xms and -Xmx if they were not defined on jvm.options file
+# If defined, both Xmx and Xms should be defined together.
+if [ $DEFINED_XMX -ne 0 ] && [ $DEFINED_XMS -ne 0 ]; then
+     JVM_OPTS="$JVM_OPTS -Xms${MAX_HEAP_SIZE}"
+     JVM_OPTS="$JVM_OPTS -Xmx${MAX_HEAP_SIZE}"
+elif [ $DEFINED_XMX -ne 0 ] || [ $DEFINED_XMS -ne 0 ]; then
+     echo "Please set or unset -Xmx and -Xms flags in pairs on jvm.options file."
+     exit 1
+fi
+
+# We only set -Xmn flag if it was not defined in jvm.options file
+# and if the CMS GC is being used
+# If defined, both Xmn and Xmx should be defined together.
+if [ $DEFINED_XMN -eq 0 ] && [ $DEFINED_XMX -ne 0 ]; then
+    echo "Please set or unset -Xmx and -Xmn flags in pairs on jvm.options file."
+    exit 1
+elif [ $DEFINED_XMN -ne 0 ] && [ $USING_CMS -eq 0 ]; then
+    JVM_OPTS="$JVM_OPTS -Xmn${HEAP_NEWSIZE}"
+fi
+
+if [ "$JVM_ARCH" = "64-Bit" ] && [ $USING_CMS -eq 0 ]; then
+    JVM_OPTS="$JVM_OPTS -XX:+UseCondCardMark"
+fi
+
 # enable assertions.  disabling this in production will give a modest
 # performance benefit (around 5%).
 JVM_OPTS="$JVM_OPTS -ea"
 
-# min and max heap sizes should be set to the same value to avoid
-# stop-the-world GC pauses during resize, and so that we can lock the
-# heap in memory on startup to prevent any of it from being swapped
-# out.
-JVM_OPTS="$JVM_OPTS -Xms${MAX_HEAP_SIZE}"
-JVM_OPTS="$JVM_OPTS -Xmx${MAX_HEAP_SIZE}"
-
 # Per-thread stack size.
 JVM_OPTS="$JVM_OPTS -Xss256k"
-
-# Use the Hotspot garbage-first collector.
-JVM_OPTS="$JVM_OPTS -XX:+UseG1GC"
-
-# Have the JVM do less remembered set work during STW, instead
-# preferring concurrent GC. Reduces p99.9 latency.
-JVM_OPTS="$JVM_OPTS -XX:G1RSetUpdatingPauseTimePercent=5"
-
-# The JVM maximum is 8 PGC threads and 1/4 of that for ConcGC.
-# Machines with > 10 cores may need additional threads. Increase to <= full cores.
-#JVM_OPTS="$JVM_OPTS -XX:ParallelGCThreads=16"
-#JVM_OPTS="$JVM_OPTS -XX:ConcGCThreads=16"
-
-# Main G1GC tunable: lowering the pause target will lower throughput and vise versa.
-# 200ms is the JVM default and lowest viable setting
-# 1000ms increases throughput. Keep it smaller than the timeouts in cassandra.yaml.
-JVM_OPTS="$JVM_OPTS -XX:MaxGCPauseMillis=500"
-
-# Save CPU time on large (>= 16GB) heaps by delaying region scanning
-# until the heap is 70% full. The default in Hotspot 8u40 is 40%.
-#JVM_OPTS="$JVM_OPTS -XX:InitiatingHeapOccupancyPercent=70"
 
 # Make sure all memory is faulted and zeroed on startup.
 # This helps prevent soft faults in containers and makes
@@ -229,19 +290,6 @@ JVM_OPTS="$JVM_OPTS -XX:+HeapDumpOnOutOfMemoryError"
 if [ "x$CASSANDRA_HEAPDUMP_DIR" != "x" ]; then
     JVM_OPTS="$JVM_OPTS -XX:HeapDumpPath=$CASSANDRA_HEAPDUMP_DIR/cassandra-`date +%s`-pid$$.hprof"
 fi
-
-# GC logging options -- uncomment to enable
-# JVM_OPTS="$JVM_OPTS -XX:+PrintGCDetails"
-# JVM_OPTS="$JVM_OPTS -XX:+PrintGCDateStamps"
-# JVM_OPTS="$JVM_OPTS -XX:+PrintHeapAtGC"
-# JVM_OPTS="$JVM_OPTS -XX:+PrintTenuringDistribution"
-# JVM_OPTS="$JVM_OPTS -XX:+PrintGCApplicationStoppedTime"
-# JVM_OPTS="$JVM_OPTS -XX:+PrintPromotionFailure"
-# JVM_OPTS="$JVM_OPTS -XX:PrintFLSStatistics=1"
-# JVM_OPTS="$JVM_OPTS -Xloggc:/var/log/cassandra/gc.log"
-# JVM_OPTS="$JVM_OPTS -XX:+UseGCLogFileRotation"
-# JVM_OPTS="$JVM_OPTS -XX:NumberOfGCLogFiles=10"
-# JVM_OPTS="$JVM_OPTS -XX:GCLogFileSize=10M"
 
 # Configure the following for JEMallocAllocator and if jemalloc is not available in the system 
 # library path (Example: /usr/local/lib/). Usually "make install" will do the right thing. 
