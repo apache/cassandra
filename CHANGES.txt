@@ -1,5 +1,6 @@
 2.2.4
 Merged from 2.1:
+ * (cqlsh) Distinguish negative and positive infinity in output (CASSANDRA-10523)
  * (cqlsh) allow custom time_format for COPY TO (CASSANDRA-8970)
  * Don't allow startup if the node's rack has changed (CASSANDRA-10242)
  * (cqlsh) show partial trace if incomplete after max_trace_wait (CASSANDRA-7645)
