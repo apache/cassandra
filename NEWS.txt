@@ -18,6 +18,7 @@ using the provided 'sstableupgrade' tool.
 
 New features
 ------------
+   - EACH_QUORUM is now a supported consistency level for read requests.
    - Support for IN restrictions on any partition key component or clustering key
      as well as support for EQ and IN multicolumn restrictions has been added to
      UPDATE and DELETE statement.
