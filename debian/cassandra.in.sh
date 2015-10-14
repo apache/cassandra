@@ -4,6 +4,10 @@ CASSANDRA_CONF=/etc/cassandra
 
 CASSANDRA_HOME=/usr/share/cassandra
 
+# the default location for commitlogs, sstables, and saved caches
+# if not set in cassandra.yaml
+cassandra_storagedir=/var/lib/cassandra
+
 # The java classpath (required)
 if [ -n "$CLASSPATH" ]; then
     CLASSPATH=$CLASSPATH:$CASSANDRA_CONF
