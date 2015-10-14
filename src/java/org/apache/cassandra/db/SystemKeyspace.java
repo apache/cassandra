@@ -1069,6 +1069,20 @@ public final class SystemKeyspace
         return hostId;
     }
 
+    /**
+     * Gets the stored rack for the local node, or null if none have been set yet.
+     */
+    public static String getRack()
+    {
+        String req = "SELECT rack FROM system.%s WHERE key='%s'";
+        UntypedResultSet result = executeInternal(String.format(req, LOCAL, LOCAL));
+
+        // Look up the Rack (return it if found)
+        if (!result.isEmpty() && result.one().has("rack"))
+            return result.one().getString("rack");
+
+        return null;
+    }
 
     public static PaxosState loadPaxosState(DecoratedKey key, CFMetaData metadata)
     {
