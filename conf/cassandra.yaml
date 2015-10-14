@@ -700,6 +700,9 @@ cross_node_timeout: false
 # YOU MUST RUN A FULL REPAIR, SINCE THE SNITCH AFFECTS WHERE REPLICAS
 # ARE PLACED.
 #
+# IF THE RACK A REPLICA IS PLACED IN CHANGES AFTER THE REPLICA HAS BEEN
+# ADDED TO A RING, THE NODE MUST BE WIPED AND REBOOTSTRAPPED.
+#
 # Out of the box, Cassandra provides
 #  - SimpleSnitch:
 #    Treats Strategy order as proximity. This can improve cache
