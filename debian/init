@@ -21,6 +21,7 @@ SCRIPTNAME=/etc/init.d/$NAME
 CONFDIR=/etc/cassandra
 WAIT_FOR_START=10
 CASSANDRA_HOME=/usr/share/cassandra
+CASSANDRA_CONF=$CONFDIR
 FD_LIMIT=100000
 
 [ -e /usr/share/cassandra/apache-cassandra.jar ] || exit 0
