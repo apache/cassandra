@@ -221,7 +221,7 @@ public class FileMessageHeader
             List<Pair<Long, Long>> sections = new ArrayList<>(count);
             for (int k = 0; k < count; k++)
                 sections.add(Pair.create(in.readLong(), in.readLong()));
-            CompressionInfo compressionInfo = CompressionInfo.serializer.deserialize(in, MessagingService.current_version);
+            CompressionInfo compressionInfo = CompressionInfo.serializer.deserialize(in, version);
             long repairedAt = in.readLong();
             int sstableLevel = in.readInt();
             SerializationHeader.Component header =  SerializationHeader.serializer.deserialize(sstableVersion, in);
@@ -246,8 +246,7 @@ public class FileMessageHeader
             size += CompressionInfo.serializer.serializedSize(header.compressionInfo, version);
             size += TypeSizes.sizeof(header.sstableLevel);
 
-            if (version >= StreamMessage.VERSION_30)
-                size += SerializationHeader.serializer.serializedSize(header.version, header.header);
+            size += SerializationHeader.serializer.serializedSize(header.version, header.header);
 
             return size;
         }

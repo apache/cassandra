@@ -1,4 +1,5 @@
 4.0
+ * Adds the ability to use uncompressed chunks in compressed files (CASSANDRA-10520)
  * Don't flush sstables when streaming for incremental repair (CASSANDRA-13226)
  * Remove unused method (CASSANDRA-13227)
  * Fix minor bugs related to #9143 (CASSANDRA-13217)

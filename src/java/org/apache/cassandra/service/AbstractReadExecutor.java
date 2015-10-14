@@ -148,12 +148,16 @@ public abstract class AbstractReadExecutor
 
     private static ReadRepairDecision newReadRepairDecision(TableMetadata metadata)
     {
-        double chance = ThreadLocalRandom.current().nextDouble();
-        if (metadata.params.readRepairChance > chance)
-            return ReadRepairDecision.GLOBAL;
+        if (metadata.params.readRepairChance > 0d ||
+            metadata.params.dcLocalReadRepairChance > 0)
+        {
+            double chance = ThreadLocalRandom.current().nextDouble();
+            if (metadata.params.readRepairChance > chance)
+                return ReadRepairDecision.GLOBAL;
 
-        if (metadata.params.dcLocalReadRepairChance > chance)
-            return ReadRepairDecision.DC_LOCAL;
+            if (metadata.params.dcLocalReadRepairChance > chance)
+                return ReadRepairDecision.DC_LOCAL;
+        }
 
         return ReadRepairDecision.NONE;
     }

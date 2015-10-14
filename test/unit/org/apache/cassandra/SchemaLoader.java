@@ -726,7 +726,7 @@ public static TableMetadata.Builder clusteringSASICFMD(String ksName, String cfN
     public static CompressionParams getCompressionParameters(Integer chunkSize)
     {
         if (Boolean.parseBoolean(System.getProperty("cassandra.test.compression", "false")))
-            return CompressionParams.snappy(chunkSize);
+            return chunkSize != null ? CompressionParams.snappy(chunkSize) : CompressionParams.snappy();
 
         return CompressionParams.noCompression();
     }

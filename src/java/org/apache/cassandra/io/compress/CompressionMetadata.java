@@ -84,12 +84,22 @@ public class CompressionMetadata
      */
     public static CompressionMetadata create(String dataFilePath)
     {
-        Descriptor desc = Descriptor.fromFilename(dataFilePath);
-        return new CompressionMetadata(desc.filenameFor(Component.COMPRESSION_INFO), new File(dataFilePath).length());
+        return createWithLength(dataFilePath, new File(dataFilePath).length());
+    }
+
+    public static CompressionMetadata createWithLength(String dataFilePath, long compressedLength)
+    {
+        return new CompressionMetadata(Descriptor.fromFilename(dataFilePath), compressedLength);
     }
 
     @VisibleForTesting
-    public CompressionMetadata(String indexFilePath, long compressedLength)
+    public CompressionMetadata(Descriptor desc, long compressedLength)
+    {
+        this(desc.filenameFor(Component.COMPRESSION_INFO), compressedLength, desc.version.hasMaxCompressedLength());
+    }
+
+    @VisibleForTesting
+    public CompressionMetadata(String indexFilePath, long compressedLength, boolean hasMaxCompressedSize)
     {
         this.indexFilePath = indexFilePath;
 
@@ -105,9 +115,12 @@ public class CompressionMetadata
                 options.put(key, value);
             }
             int chunkLength = stream.readInt();
+            int maxCompressedSize = Integer.MAX_VALUE;
+            if (hasMaxCompressedSize)
+                maxCompressedSize = stream.readInt();
             try
             {
-                parameters = new CompressionParams(compressorName, chunkLength, options);
+                parameters = new CompressionParams(compressorName, chunkLength, maxCompressedSize, options);
             }
             catch (ConfigurationException e)
             {
@@ -148,6 +161,11 @@ public class CompressionMetadata
     public int chunkLength()
     {
         return parameters.chunkLength();
+    }
+
+    public int maxCompressedLength()
+    {
+        return parameters.maxCompressedLength();
     }
 
     /**
@@ -350,6 +368,7 @@ public class CompressionMetadata
 
                 // store the length of the chunk
                 out.writeInt(parameters.chunkLength());
+                out.writeInt(parameters.maxCompressedLength());
                 // store position and reserve a place for uncompressed data length and chunks count
                 out.writeLong(dataLength);
                 out.writeInt(chunks);
