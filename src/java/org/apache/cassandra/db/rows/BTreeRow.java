@@ -464,7 +464,7 @@ public class BTreeRow extends AbstractRow
 
         private int getComplexIdx()
         {
-            return reversed ? data.length - simpleIdx - 1 : simpleIdx;
+            return reversed ? data.length - complexIdx - 1 : complexIdx;
         }
 
         private int getComplexIdxAndIncrement()
