@@ -4,6 +4,7 @@
 
 
 3.0-rc2
+ * Fix TeeingAppender causing some logs to be truncated/empty (CASSANDRA-10447)
  * Allow EACH_QUORUM for reads (CASSANDRA-9602)
  * Fix potential ClassCastException while upgrading (CASSANDRA-10468)
  * Fix NPE in MVs on update (CASSANDRA-10503)
