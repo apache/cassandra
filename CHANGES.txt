@@ -1,3 +1,8 @@
+2.2.4
+Merged from 2.1:
+ * (cqlsh) show partial trace if incomplete after max_trace_wait (CASSANDRA-7645)
+
+
 2.2.3
  * Avoid NoClassDefFoundError during DataDescriptor initialization on windows (CASSANDRA-10412)
  * Preserve case of quoted Role & User names (CASSANDRA-10394)
