@@ -180,14 +180,24 @@ public class ColumnIndex
                 firstColumn = column;
                 startPosition = endPosition;
                 // TODO: have that use the firstColumn as min + make sure we optimize that on read
-                endPosition += tombstoneTracker.writeOpenedMarker(firstColumn, output, atomSerializer);
+                endPosition += tombstoneTracker.writeOpenedMarkers(firstColumn.name(), output, atomSerializer);
                 blockSize = 0; // We don't count repeated tombstone marker in the block size, to avoid a situation
                                // where we wouldn't make any progress because a block is filled by said marker
+
+                maybeWriteRowHeader();
             }
 
-            long size = atomSerializer.serializedSizeForSSTable(column);
-            endPosition += size;
-            blockSize += size;
+            if (tombstoneTracker.update(column, false))
+            {
+                long size = tombstoneTracker.writeUnwrittenTombstones(output, atomSerializer);
+                size += atomSerializer.serializedSizeForSSTable(column);
+                endPosition += size;
+                blockSize += size;
+
+                atomSerializer.serializeForSSTable(column, output);
+            }
+
+            lastColumn = column;
 
             // if we hit the column index size that we have to index after, go ahead and index it.
             if (blockSize >= DatabaseDescriptor.getColumnIndexSize())
@@ -197,14 +207,6 @@ public class ColumnIndex
                 firstColumn = null;
                 lastBlockClosing = column;
             }
-
-            maybeWriteRowHeader();
-            atomSerializer.serializeForSSTable(column, output);
-
-            // TODO: Should deal with removing unneeded tombstones
-            tombstoneTracker.update(column, false);
-
-            lastColumn = column;
         }
 
         private void maybeWriteRowHeader() throws IOException
@@ -216,11 +218,15 @@ public class ColumnIndex
             }
         }
 
-        public ColumnIndex build()
+        public ColumnIndex build() throws IOException
         {
             // all columns were GC'd after all
             if (lastColumn == null)
                 return ColumnIndex.EMPTY;
+
+            long size = tombstoneTracker.writeUnwrittenTombstones(output, atomSerializer);
+            endPosition += size;
+            blockSize += size;
 
             // the last column may have fallen on an index boundary already.  if not, index it explicitly.
             if (result.columnsIndex.isEmpty() || lastBlockClosing != lastColumn)
