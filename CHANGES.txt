@@ -1,4 +1,5 @@
 2.2.4
+ * Reduce contention getting instances of CompositeType (CASSANDRA-10433)
 Merged from 2.1:
  * (cqlsh) Distinguish negative and positive infinity in output (CASSANDRA-10523)
  * (cqlsh) allow custom time_format for COPY TO (CASSANDRA-8970)
