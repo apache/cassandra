@@ -367,29 +367,29 @@ public abstract class LegacyLayout
         for (LegacyLayout.LegacyCell cell : legacyPartition.cells)
         {
             ByteBufferUtil.writeWithShortLength(cell.name.encode(partition.metadata()), out);
-            if (cell.kind == LegacyLayout.LegacyCell.Kind.EXPIRING)
+            out.writeByte(cell.serializationFlags());
+            if (cell.isExpiring())
             {
-                out.writeByte(LegacyLayout.EXPIRATION_MASK);  // serialization flags
                 out.writeInt(cell.ttl);
                 out.writeInt(cell.localDeletionTime);
             }
-            else if (cell.kind == LegacyLayout.LegacyCell.Kind.DELETED)
+            else if (cell.isTombstone())
             {
-                out.writeByte(LegacyLayout.DELETION_MASK);  // serialization flags
                 out.writeLong(cell.timestamp);
                 out.writeInt(TypeSizes.sizeof(cell.localDeletionTime));
                 out.writeInt(cell.localDeletionTime);
                 continue;
             }
-            else if (cell.kind == LegacyLayout.LegacyCell.Kind.COUNTER)
+            else if (cell.isCounterUpdate())
             {
-                out.writeByte(LegacyLayout.COUNTER_MASK);  // serialization flags
-                out.writeLong(Long.MIN_VALUE);  // timestampOfLastDelete (not used, and MIN_VALUE is the default)
+                out.writeLong(cell.timestamp);
+                long count = CounterContext.instance().getLocalCount(cell.value);
+                ByteBufferUtil.writeWithLength(ByteBufferUtil.bytes(count), out);
+                continue;
             }
-            else
+            else if (cell.isCounter())
             {
-                // normal cell
-                out.writeByte(0);  // serialization flags
+                out.writeLong(Long.MIN_VALUE);  // timestampOfLastDelete (not used, and MIN_VALUE is the default)
             }
 
             out.writeLong(cell.timestamp);
@@ -1401,9 +1401,17 @@ public abstract class LegacyLayout
                 return EXPIRATION_MASK;
             if (isTombstone())
                 return DELETION_MASK;
+            if (isCounterUpdate())
+                return COUNTER_UPDATE_MASK;
             if (isCounter())
                 return COUNTER_MASK;
             return 0;
+        }
+
+        private boolean isCounterUpdate()
+        {
+            // See UpdateParameters.addCounter() for more details on this
+            return isCounter() && CounterContext.instance().isLocal(value);
         }
 
         public ClusteringPrefix clustering()
