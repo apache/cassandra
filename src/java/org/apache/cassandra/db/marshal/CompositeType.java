@@ -19,18 +19,18 @@ package org.apache.cassandra.db.marshal;
 
 import java.io.IOException;
 import java.nio.ByteBuffer;
-import java.util.Arrays;
 import java.util.ArrayList;
-import java.util.HashMap;
+import java.util.Arrays;
 import java.util.List;
-import java.util.Map;
+import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.ConcurrentMap;
 
 import com.google.common.collect.ImmutableList;
 
-import org.apache.cassandra.exceptions.ConfigurationException;
-import org.apache.cassandra.exceptions.SyntaxException;
 import org.apache.cassandra.cql3.ColumnIdentifier;
 import org.apache.cassandra.cql3.Operator;
+import org.apache.cassandra.exceptions.ConfigurationException;
+import org.apache.cassandra.exceptions.SyntaxException;
 import org.apache.cassandra.io.util.DataOutputBuffer;
 import org.apache.cassandra.io.util.DataOutputBufferFixed;
 import org.apache.cassandra.serializers.MarshalException;
@@ -68,7 +68,7 @@ public class CompositeType extends AbstractCompositeType
     public final List<AbstractType<?>> types;
 
     // interning instances
-    private static final Map<List<AbstractType<?>>, CompositeType> instances = new HashMap<List<AbstractType<?>>, CompositeType>();
+    private static final ConcurrentMap<List<AbstractType<?>>, CompositeType> instances = new ConcurrentHashMap<List<AbstractType<?>>, CompositeType>();
 
     public static CompositeType getInstance(TypeParser parser) throws ConfigurationException, SyntaxException
     {
@@ -98,7 +98,7 @@ public class CompositeType extends AbstractCompositeType
         return true;
     }
 
-    public static synchronized CompositeType getInstance(List<AbstractType<?>> types)
+    public static CompositeType getInstance(List<AbstractType<?>> types)
     {
         assert types != null && !types.isEmpty();
 
@@ -106,7 +106,11 @@ public class CompositeType extends AbstractCompositeType
         if (ct == null)
         {
             ct = new CompositeType(types);
-            instances.put(types, ct);
+            CompositeType previous = instances.putIfAbsent(types, ct);
+            if (previous != null)
+            {
+                ct = previous;
+            }
         }
         return ct;
     }
