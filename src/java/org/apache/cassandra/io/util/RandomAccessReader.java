@@ -430,9 +430,6 @@ public class RandomAccessReader extends RebufferingInputStream implements FileDa
 
         public Builder overrideLength(long overrideLength)
         {
-            if (overrideLength > channel.size())
-                throw new IllegalArgumentException("overrideLength cannot be more than the file size");
-
             this.overrideLength = overrideLength;
             return this;
         }
