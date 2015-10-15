@@ -84,12 +84,17 @@ import static org.apache.cassandra.utils.Throwables.maybeFail;
 
 public class ColumnFamilyStore implements ColumnFamilyStoreMBean
 {
-    // the directories used to load sstables on cfs instantiation
+    // The directories which will be searched for sstables on cfs instantiation.
     private static volatile Directories.DataDirectory[] initialDirectories = Directories.dataDirectories;
 
     /**
-     * a hook to add additional directories to initialDirectories.
+     * A hook to add additional directories to initialDirectories.
      * Any additional directories should be added prior to ColumnFamilyStore instantiation on startup
+     *
+     * Since the directories used by a given table are determined by the compaction strategy,
+     * it's possible for sstables to be written to directories specified outside of cassandra.yaml.
+     * By adding additional directories to initialDirectories, sstables in these extra locations are
+     * made discoverable on sstable instantiation.
      */
     public static synchronized void addInitialDirectories(Directories.DataDirectory[] newDirectories)
     {
@@ -363,7 +368,6 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
 
         this.keyspace = keyspace;
         this.metadata = metadata;
-        this.directories = directories;
         name = columnFamilyName;
         minCompactionThreshold = new DefaultValue<>(metadata.params.compaction.minCompactionThreshold());
         maxCompactionThreshold = new DefaultValue<>(metadata.params.compaction.maxCompactionThreshold());
@@ -388,7 +392,7 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
 
         // compaction strategy should be created after the CFS has been prepared
         compactionStrategyManager = new CompactionStrategyManager(this);
-        this.directories = this.compactionStrategyManager.getDirectories();
+        this.directories = compactionStrategyManager.getDirectories();
 
         if (maxCompactionThreshold.value() <= 0 || minCompactionThreshold.value() <=0)
         {
