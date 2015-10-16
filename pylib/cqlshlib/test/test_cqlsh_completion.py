@@ -403,7 +403,7 @@ class TestCqlshCompletion(CqlshCompletionCase):
                                      'utf8_with_special_chars',
                                      'system_traces.', 'songs',
                                      'system_auth.', 'system_distributed.',
-                                     'system_schema.','system_traces.',
+                                     'system_traces.',
                                      '"' + self.cqlsh.keyspace + '".'],
                             other_choices_ok=True)
         self.trycompletions('DELETE FROM twenty_rows_composite_table ',
@@ -520,7 +520,7 @@ class TestCqlshCompletion(CqlshCompletionCase):
         self.trycompletions('DROP ',
                             choices=['AGGREGATE', 'COLUMNFAMILY', 'FUNCTION',
                                      'INDEX', 'KEYSPACE', 'ROLE', 'TABLE',
-                                     'TRIGGER', 'TYPE', 'USER', 'MATERIALIZED'])
+                                     'TRIGGER', 'TYPE', 'USER'])
 
     def test_complete_in_drop_keyspace(self):
         self.trycompletions('DROP K', immediate='EYSPACE ')
@@ -634,8 +634,7 @@ class TestCqlshCompletion(CqlshCompletionCase):
                                      'min_sstable_size', 'min_threshold',
                                      'tombstone_compaction_interval',
                                      'tombstone_threshold',
-                                     'unchecked_tombstone_compaction',
-                                     'only_purge_repaired_tombstones'])
+                                     'unchecked_tombstone_compaction'])
         self.trycompletions(prefix + " new_table (col_a int PRIMARY KEY) WITH compaction = "
                             + "{'class': 'SizeTieredCompactionStrategy'}",
                             choices=[';', 'AND'])
@@ -655,8 +654,7 @@ class TestCqlshCompletion(CqlshCompletionCase):
                             choices=['base_time_seconds', 'max_sstable_age_days',
                                     'timestamp_resolution', 'min_threshold', 'class', 'max_threshold',
                                     'tombstone_compaction_interval', 'tombstone_threshold',
-                                    'enabled', 'unchecked_tombstone_compaction',
-                                    'only_purge_repaired_tombstones'])
+                                    'enabled', 'unchecked_tombstone_compaction'])
 
     def test_complete_in_create_columnfamily(self):
         self.trycompletions('CREATE C', choices=['COLUMNFAMILY', 'CUSTOM'])

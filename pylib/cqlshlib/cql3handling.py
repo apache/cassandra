@@ -166,9 +166,13 @@ JUNK ::= /([ \t\r\f\v]+|(--|[/][/])[^\n\r]*([\n\r]|$)|[/][*].*?[*][/])/ ;
          | <boolean>
          | <blobLiteral>
          | <collectionLiteral>
-         | <functionName> <functionArguments>
+         | <functionLiteral> <functionArguments>
          | "NULL"
          ;
+
+<functionLiteral> ::= (<identifier> ( "." <identifier> )?)
+                 | "TOKEN"
+                 ;
 
 <functionArguments> ::= "(" ( <term> ( "," <term> )* )? ")"
                  ;
@@ -1400,7 +1404,7 @@ def rolename_completer(ctxt, cass):
         return "'%s'" % name
 
     # disable completion for CREATE ROLE.
-    if ctxt.matched[0][0] == 'K_CREATE':
+    if ctxt.matched[0][1].upper() == 'CREATE':
         return [Hint('<rolename>')]
 
     session = cass.session
