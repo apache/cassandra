@@ -78,6 +78,8 @@ public abstract class AbstractCompactionStrategy
     protected boolean uncheckedTombstoneCompaction;
     protected boolean disableTombstoneCompactions = false;
 
+    private final Directories directories;
+
     /**
      * pause/resume/getNextBackgroundTask must synchronize.  This guarantees that after pause completes,
      * no new tasks will be generated; or put another way, pause can't run until in-progress tasks are
@@ -117,11 +119,13 @@ public abstract class AbstractCompactionStrategy
             tombstoneCompactionInterval = DEFAULT_TOMBSTONE_COMPACTION_INTERVAL;
             uncheckedTombstoneCompaction = DEFAULT_UNCHECKED_TOMBSTONE_COMPACTION_OPTION;
         }
+
+        directories = new Directories(cfs.metadata, Directories.dataDirectories);
     }
 
     public Directories getDirectories()
     {
-        return cfs.getDirectories();
+        return directories;
     }
 
     /**
