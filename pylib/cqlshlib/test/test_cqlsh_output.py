@@ -609,7 +609,7 @@ class TestCqlshOutput(BaseTestCase):
             ) WITH bloom_filter_fp_chance = 0.01
                 AND caching = '{"keys":"ALL", "rows_per_partition":"NONE"}'
                 AND comment = ''
-                AND compaction = {'min_threshold': '4', 'class': 'org.apache.cassandra.db.compaction.SizeTieredCompactionStrategy', 'max_threshold': '32'}
+                AND compaction = {'class': 'org.apache.cassandra.db.compaction.SizeTieredCompactionStrategy'}
                 AND compression = {'sstable_compression': 'org.apache.cassandra.io.compress.LZ4Compressor'}
                 AND dclocal_read_repair_chance = 0.1
                 AND default_time_to_live = 0
@@ -627,7 +627,7 @@ class TestCqlshOutput(BaseTestCase):
                 for semicolon in (';', ''):
                     output = c.cmd_and_response('%s has_all_types%s' % (cmdword, semicolon))
                     self.assertNoHasColors(output)
-                    self.assertEqual(output, table_desc3)
+                    self.assertSequenceEqual(output.split('\n'), table_desc3.split('\n'))
 
     def test_describe_columnfamilies_output(self):
         output_re = r'''

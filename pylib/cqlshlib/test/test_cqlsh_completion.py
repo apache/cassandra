@@ -142,8 +142,8 @@ class TestCqlshCompletion(CqlshCompletionCase):
     def test_complete_on_empty_string(self):
         self.trycompletions('', choices=('?', 'ALTER', 'BEGIN', 'CAPTURE', 'CONSISTENCY',
                                          'COPY', 'CREATE', 'DEBUG', 'DELETE', 'DESC', 'DESCRIBE',
-                                         'DROP', 'GRANT', 'HELP', 'INSERT', 'LIST', 'PAGING', 'REVOKE',
-                                         'SELECT', 'SHOW', 'SOURCE', 'TRACING', 'EXPAND', 'TRUNCATE',
+                                         'DROP', 'GRANT', 'HELP', 'INSERT', 'LIST', 'LOGIN', 'PAGING', 'REVOKE',
+                                         'SELECT', 'SERIAL', 'SHOW', 'SOURCE', 'TRACING', 'EXPAND', 'TRUNCATE',
                                          'UPDATE', 'USE', 'exit', 'quit'))
 
     def test_complete_command_words(self):
@@ -228,8 +228,8 @@ class TestCqlshCompletion(CqlshCompletionCase):
              "VALUES ( 'eggs', 'sausage', 'spam');"),
             choices=['?', 'ALTER', 'BEGIN', 'CAPTURE', 'CONSISTENCY', 'COPY',
                      'CREATE', 'DEBUG', 'DELETE', 'DESC', 'DESCRIBE', 'DROP',
-                     'EXPAND', 'GRANT', 'HELP', 'INSERT', 'LIST', 'PAGING',
-                     'REVOKE', 'SELECT', 'SHOW', 'SOURCE', 'TRACING',
+                     'EXPAND', 'GRANT', 'HELP', 'INSERT', 'LIST', 'LOGIN', 'PAGING',
+                     'REVOKE', 'SELECT', 'SERIAL', 'SHOW', 'SOURCE', 'TRACING',
                      'TRUNCATE', 'UPDATE', 'USE', 'exit', 'quit'])
 
         self.trycompletions(
@@ -422,9 +422,6 @@ class TestCqlshCompletion(CqlshCompletionCase):
     def test_complete_in_string_literals(self):
         # would be great if we could get a space after this sort of completion,
         # but readline really wants to make things difficult for us
-        self.trycompletions('insert into system."Index', 'Info"')
-        self.trycompletions('USE "', choices=('system', self.cqlsh.keyspace),
-                            other_choices_ok=True)
         self.trycompletions("create keyspace blah with replication = {'class': 'Sim",
                             "pleStrategy'")
 
