@@ -1060,7 +1060,7 @@ public abstract class ReadCommand implements ReadQuery
             // is what 3.0 does.
             DataRange dataRange = new DataRange(keyRange, filter);
             Slices slices = filter.requestedSlices();
-            if (startBound != LegacyLayout.LegacyBound.BOTTOM && !startBound.bound.equals(slices.get(0).start()))
+            if (!isDistinct && startBound != LegacyLayout.LegacyBound.BOTTOM && !startBound.bound.equals(slices.get(0).start()))
             {
                 // pre-3.0 nodes normally expect pages to include the last cell from the previous page, but they handle it
                 // missing without any problems, so we can safely always set "inclusive" to false in the data range

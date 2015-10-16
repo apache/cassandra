@@ -1,4 +1,5 @@
 3.0-rc2
+ * Fix SELECT DISTINCT queries between 2.2.2 nodes and 3.0 nodes (CASSANDRA-10473)
  * Remove circular references in SegmentedFile (CASSANDRA-10543)
  * Ensure validation of indexed values only occurs once per-partition (CASSANDRA-10536)
  * Fix handling of static columns for range tombstones in thrift (CASSANDRA-10174)
