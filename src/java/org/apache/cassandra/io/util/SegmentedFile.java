@@ -49,7 +49,7 @@ import static org.apache.cassandra.utils.Throwables.maybeFail;
  * would need to be longer than 2GB, that segment will not be mmap'd, and a new RandomAccessFile will be created for
  * each access to that segment.
  */
-public abstract class SegmentedFile extends SharedCloseableImpl implements IChecksummedFile
+public abstract class SegmentedFile extends SharedCloseableImpl
 {
     public final ChannelProxy channel;
     public final int bufferSize;
@@ -58,8 +58,6 @@ public abstract class SegmentedFile extends SharedCloseableImpl implements IChec
     // This differs from length for compressed files (but we still need length for
     // SegmentIterator because offsets in the file are relative to the uncompressed size)
     public final long onDiskLength;
-    private Supplier<Double> crcCheckChanceSupplier = () -> 1.0;
-
 
     /**
      * Use getBuilder to get a Builder to construct a SegmentedFile.
@@ -135,16 +133,6 @@ public abstract class SegmentedFile extends SharedCloseableImpl implements IChec
         RandomAccessReader reader = createReader();
         reader.seek(position);
         return reader;
-    }
-
-    public Supplier<Double> getCrcCheckChanceSupplier()
-    {
-        return crcCheckChanceSupplier;
-    }
-
-    public void setCrcCheckChanceSupplier(Supplier<Double> crcCheckChanceSupplier)
-    {
-        this.crcCheckChanceSupplier = crcCheckChanceSupplier;
     }
 
     public void dropPageCache(long before)

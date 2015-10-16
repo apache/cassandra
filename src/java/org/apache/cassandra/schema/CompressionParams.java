@@ -71,6 +71,8 @@ public final class CompressionParams
     private final Integer chunkLength;
     private final ImmutableMap<String, String> otherOptions; // Unrecognized options, can be used by the compressor
 
+    private volatile double crcCheckChance = 1.0;
+
     public static CompressionParams fromMap(Map<String, String> opts)
     {
         Map<String, String> options = copyOptions(opts);
@@ -453,6 +455,16 @@ public final class CompressionParams
     public String chunkLengthInKB()
     {
         return String.valueOf(chunkLength() / 1024);
+    }
+
+    public void setCrcCheckChance(double crcCheckChance)
+    {
+        this.crcCheckChance = crcCheckChance;
+    }
+
+    public double getCrcCheckChance()
+    {
+        return crcCheckChance;
     }
 
     @Override

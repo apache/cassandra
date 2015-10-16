@@ -217,6 +217,8 @@ public abstract class SSTableReader extends SSTable implements SelfRefCounted<SS
 
     private RestorableMeter readMeter;
 
+    private volatile double crcCheckChance;
+
     /**
      * Calculate approximate key count.
      * If cardinality estimator is available on all given sstables, then this method use them to estimate
@@ -657,10 +659,7 @@ public abstract class SSTableReader extends SSTable implements SelfRefCounted<SS
         keyCache = CacheService.instance.keyCache;
         final ColumnFamilyStore cfs = Schema.instance.getColumnFamilyStoreInstance(metadata.cfId);
         if (cfs != null)
-        {
-            ifile.setCrcCheckChanceSupplier(cfs::getCrcCheckChance);
-            dfile.setCrcCheckChanceSupplier(cfs::getCrcCheckChance);
-        }
+            setCrcCheckChance(cfs.getCrcCheckChance());
     }
 
     public boolean isKeyCacheSetup()
@@ -1644,7 +1643,21 @@ public abstract class SSTableReader extends SSTable implements SelfRefCounted<SS
     @VisibleForTesting
     public double getCrcCheckChance()
     {
-        return dfile.getCrcCheckChanceSupplier().get();
+        return crcCheckChance;
+    }
+
+    /**
+     * Set the value of CRC check chance. The argument supplied is obtained
+     * from the the property of the owning CFS. Called when either the SSTR
+     * is initialized, or the CFS's property is updated via JMX
+     * @param crcCheckChance
+     */
+    public void setCrcCheckChance(double crcCheckChance)
+    {
+        this.crcCheckChance = crcCheckChance;
+        if (compression)
+            ((CompressedSegmentedFile)dfile).metadata.parameters.setCrcCheckChance(crcCheckChance);
+
     }
 
     /**

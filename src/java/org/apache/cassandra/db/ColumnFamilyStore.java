@@ -2046,7 +2046,11 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
         {
             TableParams.builder().crcCheckChance(crcCheckChance).build().validate();
             for (ColumnFamilyStore cfs : concatWithIndexes())
+            {
                 cfs.crcCheckChance.set(crcCheckChance);
+                for (SSTableReader sstable : cfs.getSSTables(SSTableSet.LIVE))
+                    sstable.setCrcCheckChance(crcCheckChance);
+            }
         }
         catch (ConfigurationException e)
         {
