@@ -103,8 +103,6 @@ public class UpdateStatement extends ModificationStatement
                 op.execute(update.partitionKey(), params);
             update.add(params.buildRow());
         }
-
-        params.validateIndexedColumns(update);
     }
 
     @Override

@@ -606,6 +606,8 @@ public abstract class ModificationStatement implements CQLStatement
     {
         UpdatesCollector collector = new UpdatesCollector(updatedColumns, 1);
         addUpdates(collector, options, local, now);
+        collector.validateIndexedColumns();
+
         return collector.toMutations();
     }
 
@@ -708,7 +710,7 @@ public abstract class ModificationStatement implements CQLStatement
     {
         // Some lists operation requires reading
         Map<DecoratedKey, Partition> lists = readRequiredLists(keys, filter, limits, local, options.getConsistency());
-        return new UpdateParameters(cfm, updatedColumns(), options, getTimestamp(now, options), getTimeToLive(options), lists, true);
+        return new UpdateParameters(cfm, updatedColumns(), options, getTimestamp(now, options), getTimeToLive(options), lists);
     }
 
     private Slices toSlices(SortedSet<Slice.Bound> startBounds, SortedSet<Slice.Bound> endBounds)

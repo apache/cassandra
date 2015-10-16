@@ -25,6 +25,7 @@ import org.junit.Test;
 
 import org.apache.cassandra.config.CFMetaData;
 import org.apache.cassandra.config.ColumnDefinition;
+import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.cql3.CQLTester;
 import org.apache.cassandra.cql3.ColumnIdentifier;
 import org.apache.cassandra.cql3.statements.IndexTarget;
@@ -555,12 +556,23 @@ public class SecondaryIndexTest extends CQLTester
 
     // CASSANDRA-8280/8081
     // reject updates with indexed values where value > 64k
+    // make sure we check conditional and unconditional statements,
+    // both singly and in batches (CASSANDRA-10536)
     @Test
     public void testIndexOnCompositeValueOver64k() throws Throwable
     {
         createTable("CREATE TABLE %s(a int, b int, c blob, PRIMARY KEY (a))");
         createIndex("CREATE INDEX ON %s(c)");
         failInsert("INSERT INTO %s (a, b, c) VALUES (0, 0, ?)", ByteBuffer.allocate(TOO_BIG));
+        failInsert("INSERT INTO %s (a, b, c) VALUES (0, 0, ?) IF NOT EXISTS", ByteBuffer.allocate(TOO_BIG));
+        failInsert("BEGIN BATCH\n" +
+                   "INSERT INTO %s (a, b, c) VALUES (0, 0, ?);\n" +
+                   "APPLY BATCH",
+                   ByteBuffer.allocate(TOO_BIG));
+        failInsert("BEGIN BATCH\n" +
+                   "INSERT INTO %s (a, b, c) VALUES (0, 0, ?) IF NOT EXISTS;\n" +
+                   "APPLY BATCH",
+                   ByteBuffer.allocate(TOO_BIG));
     }
 
     @Test
@@ -569,6 +581,15 @@ public class SecondaryIndexTest extends CQLTester
         createTable("CREATE TABLE %s(a int, b blob, PRIMARY KEY (a)) WITH COMPACT STORAGE");
         createIndex("CREATE INDEX ON %s(b)");
         failInsert("INSERT INTO %s (a, b) VALUES (0, ?)", ByteBuffer.allocate(TOO_BIG));
+        failInsert("INSERT INTO %s (a, b) VALUES (0, ?) IF NOT EXISTS", ByteBuffer.allocate(TOO_BIG));
+        failInsert("BEGIN BATCH\n" +
+                   "INSERT INTO %s (a, b) VALUES (0, ?);\n" +
+                   "APPLY BATCH",
+                   ByteBuffer.allocate(TOO_BIG));
+        failInsert("BEGIN BATCH\n" +
+                   "INSERT INTO %s (a, b) VALUES (0, ?) IF NOT EXISTS;\n" +
+                   "APPLY BATCH",
+                   ByteBuffer.allocate(TOO_BIG));
     }
 
     @Test
@@ -576,7 +597,29 @@ public class SecondaryIndexTest extends CQLTester
     {
         createTable("CREATE TABLE %s(a int, b int, c blob, PRIMARY KEY ((a, b)))");
         createIndex("CREATE INDEX ON %s(a)");
+        succeedInsert("INSERT INTO %s (a, b, c) VALUES (0, 0, ?) IF NOT EXISTS", ByteBuffer.allocate(TOO_BIG));
         succeedInsert("INSERT INTO %s (a, b, c) VALUES (0, 0, ?)", ByteBuffer.allocate(TOO_BIG));
+        succeedInsert("BEGIN BATCH\n" +
+                      "INSERT INTO %s (a, b, c) VALUES (0, 0, ?);\n" +
+                      "APPLY BATCH", ByteBuffer.allocate(TOO_BIG));
+
+        // the indexed value passes validation, but the batch size will
+        // exceed the default failure threshold, so temporarily raise it
+        // (the non-conditional batch doesn't hit this because
+        // BatchStatement::executeInternal skips the size check but CAS
+        // path does not)
+        long batchSizeThreshold = DatabaseDescriptor.getBatchSizeFailThreshold();
+        try
+        {
+            DatabaseDescriptor.setBatchSizeFailThresholdInKB( (TOO_BIG / 1024) * 2);
+            succeedInsert("BEGIN BATCH\n" +
+                          "INSERT INTO %s (a, b, c) VALUES (1, 1, ?) IF NOT EXISTS;\n" +
+                          "APPLY BATCH", ByteBuffer.allocate(TOO_BIG));
+        }
+        finally
+        {
+            DatabaseDescriptor.setBatchSizeFailThresholdInKB((int) (batchSizeThreshold / 1024));
+        }
     }
 
     @Test
@@ -584,7 +627,29 @@ public class SecondaryIndexTest extends CQLTester
     {
         createTable("CREATE TABLE %s(a int, b int, c blob, PRIMARY KEY (a, b))");
         createIndex("CREATE INDEX ON %s(b)");
+        succeedInsert("INSERT INTO %s (a, b, c) VALUES (0, 0, ?) IF NOT EXISTS", ByteBuffer.allocate(TOO_BIG));
         succeedInsert("INSERT INTO %s (a, b, c) VALUES (0, 0, ?)", ByteBuffer.allocate(TOO_BIG));
+        succeedInsert("BEGIN BATCH\n" +
+                      "INSERT INTO %s (a, b, c) VALUES (0, 0, ?);\n" +
+                      "APPLY BATCH", ByteBuffer.allocate(TOO_BIG));
+
+        // the indexed value passes validation, but the batch size will
+        // exceed the default failure threshold, so temporarily raise it
+        // (the non-conditional batch doesn't hit this because
+        // BatchStatement::executeInternal skips the size check but CAS
+        // path does not)
+        long batchSizeThreshold = DatabaseDescriptor.getBatchSizeFailThreshold();
+        try
+        {
+            DatabaseDescriptor.setBatchSizeFailThresholdInKB( (TOO_BIG / 1024) * 2);
+            succeedInsert("BEGIN BATCH\n" +
+                          "INSERT INTO %s (a, b, c) VALUES (1, 1, ?) IF NOT EXISTS;\n" +
+                          "APPLY BATCH", ByteBuffer.allocate(TOO_BIG));
+        }
+        finally
+        {
+            DatabaseDescriptor.setBatchSizeFailThresholdInKB((int)(batchSizeThreshold / 1024));
+        }
     }
 
     @Test
@@ -595,6 +660,13 @@ public class SecondaryIndexTest extends CQLTester
         Map<Integer, ByteBuffer> map = new HashMap();
         map.put(0, ByteBuffer.allocate(1024 * 65));
         failInsert("INSERT INTO %s (a, b) VALUES (0, ?)", map);
+        failInsert("INSERT INTO %s (a, b) VALUES (0, ?) IF NOT EXISTS", map);
+        failInsert("BEGIN BATCH\n" +
+                   "INSERT INTO %s (a, b) VALUES (0, ?);\n" +
+                   "APPLY BATCH", map);
+        failInsert("BEGIN BATCH\n" +
+                   "INSERT INTO %s (a, b) VALUES (0, ?) IF NOT EXISTS;\n" +
+                   "APPLY BATCH", map);
     }
 
     public void failInsert(String insertCQL, Object...args) throws Throwable

@@ -413,6 +413,61 @@ public class CassandraIndexTest extends CQLTester
         assertIndexRowTtl(indexCfs, indexedVal, updatedTtl);
     }
 
+    @Test
+    public void indexBatchStatements() throws Throwable
+    {
+        // see CASSANDRA-10536
+        createTable("CREATE TABLE %s (a int, b int, c int, PRIMARY KEY (a, b))");
+        createIndex("CREATE INDEX ON %s(c)");
+
+        // Multi partition batch
+        execute("BEGIN BATCH\n" +
+                "UPDATE %1$s SET c = 0 WHERE a = 0 AND b = 0;\n" +
+                "UPDATE %1$s SET c = 1 WHERE a = 1 AND b = 1;\n" +
+                "APPLY BATCH");
+        assertRows(execute("SELECT * FROM %s WHERE c = 0"), row(0, 0, 0));
+        assertRows(execute("SELECT * FROM %s WHERE c = 1"), row(1, 1, 1));
+
+        // Single Partition batch
+        execute("BEGIN BATCH\n" +
+                "UPDATE %1$s SET c = 2 WHERE a = 2 AND b = 0;\n" +
+                "UPDATE %1$s SET c = 3 WHERE a = 2 AND b = 1;\n" +
+                "APPLY BATCH");
+        assertRows(execute("SELECT * FROM %s WHERE c = 2"), row(2, 0, 2));
+        assertRows(execute("SELECT * FROM %s WHERE c = 3"), row(2, 1, 3));
+    }
+
+    @Test
+    public void indexStatementsWithConditions() throws Throwable
+    {
+        // see CASSANDRA-10536
+        createTable("CREATE TABLE %s (a int, b int, c int, PRIMARY KEY (a, b))");
+        createIndex("CREATE INDEX ON %s(c)");
+
+        execute("INSERT INTO %s (a, b, c) VALUES (0, 0, 0) IF NOT EXISTS");
+        assertRows(execute("SELECT * FROM %s WHERE c = 0"), row(0, 0, 0));
+
+        execute("INSERT INTO %s (a, b, c) VALUES (0, 0, 1) IF NOT EXISTS");
+        assertEmpty(execute("SELECT * FROM %s WHERE c = 1"));
+
+        execute("UPDATE %s SET c = 1 WHERE a = 0 AND b =0 IF c = 0");
+        assertRows(execute("SELECT * FROM %s WHERE c = 1"), row(0, 0, 1));
+        assertEmpty(execute("SELECT * FROM %s WHERE c = 0"));
+
+        execute("DELETE FROM %s WHERE a = 0 AND b = 0 IF c = 0");
+        assertRows(execute("SELECT * FROM %s WHERE c = 1"), row(0, 0, 1));
+
+        execute("DELETE FROM %s WHERE a = 0 AND b = 0 IF c = 1");
+        assertEmpty(execute("SELECT * FROM %s WHERE c = 1"));
+
+        execute("BEGIN BATCH\n" +
+                "INSERT INTO %1$s (a, b, c) VALUES (2, 2, 2) IF NOT EXISTS;\n" +
+                "INSERT INTO %1$s (a, b, c) VALUES (2, 3, 3)\n" +
+                "APPLY BATCH");
+        assertRows(execute("SELECT * FROM %s WHERE c = 2"), row(2, 2, 2));
+        assertRows(execute("SELECT * FROM %s WHERE c = 3"), row(2, 3, 3));
+    }
+
     // this is slightly annoying, but we cannot read rows from the methods in Util as
     // ReadCommand#executeInternal uses metadata retrieved via the cfId, which the index
     // CFS inherits from the base CFS. This has the 'wrong' partitioner (the index table
