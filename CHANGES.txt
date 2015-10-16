@@ -4,6 +4,7 @@
 
 
 3.0-rc2
+ * Support empty ColumnFilter for backward compatility on empty IN (CASSANDRA-10471)
  * Remove Pig support (CASSANDRA-10542)
  * Fix LogFile throws Exception when assertion is disabled (CASSANDRA-10522)
  * Revert CASSANDRA-7486, make CMS default GC, move GC config to
