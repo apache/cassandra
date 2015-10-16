@@ -61,7 +61,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.yaml.snakeyaml.external.biz.base64Coder.Base64Coder;
 
-
+@Deprecated
 public class CqlNativeStorage extends LoadFunc implements StoreFuncInterface, LoadMetadata
 {
     protected String DEFAULT_INPUT_FORMAT;

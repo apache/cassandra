@@ -119,6 +119,11 @@ Upgrading
 2.2.4
 =====
 
+Deprecation
+-----------
+    - Pig support has been deprecated, and will be removed in 3.0.
+      Please see CASSANDRA-10542 for more details.
+
 Operations
 ----------
     - Switching racks is no longer an allowed operation on a node which has
