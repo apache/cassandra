@@ -284,6 +284,11 @@ public class ResultSet
             return names == null ? columnCount : names.size();
         }
 
+        /**
+         * Adds the specified column which will not be serialized.
+         *
+         * @param name the column
+         */
         public void addNonSerializedColumn(ColumnSpecification name)
         {
             // See comment above. Because columnCount doesn't account the newly added name, it

@@ -55,4 +55,14 @@ public class ColumnSpecification
     {
         return Objects.hashCode(ksName, cfName, name, type);
     }
+
+    @Override
+    public String toString()
+    {
+        return Objects.toStringHelper(this)
+                      .add("name", name)
+                      .add("type", type)
+                      .toString();
+    }
+
 }

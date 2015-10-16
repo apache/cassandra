@@ -20,7 +20,6 @@ package org.apache.cassandra.cql3.statements;
 import java.nio.ByteBuffer;
 import java.util.*;
 
-import com.google.common.collect.Iterators;
 import com.google.common.collect.Lists;
 
 import org.apache.cassandra.cql3.ColumnSpecification;
@@ -103,6 +102,29 @@ public abstract class Selection
         columns.add(c);
         metadata.addNonSerializedColumn(c);
         return columns.size() - 1;
+    }
+
+    /**
+     * Returns the index of the specified column within the resultset
+     * @param c the column
+     * @return the index of the specified column within the resultset or -1
+     */
+    public int getResultSetIndex(ColumnDefinition c)
+    {
+        return getColumnIndex(c);
+    }
+
+    /**
+     * Returns the index of the specified column
+     * @param c the column
+     * @return the index of the specified column or -1
+     */
+    protected final int getColumnIndex(ColumnDefinition c)
+    {
+        for (int i = 0, m = columns.size(); i < m; i++)
+            if (columns.get(i).name.equals(c.name))
+                return i;
+        return -1;
     }
 
     private static boolean requiresProcessing(List<RawSelector> rawSelectors)
@@ -507,11 +529,30 @@ public abstract class Selection
         }
 
         @Override
+        public int getResultSetIndex(ColumnDefinition c)
+        {
+            int index = getColumnIndex(c);
+
+            if (index < 0)
+                return -1;
+
+            for (int i = 0, m = selectors.size(); i < m; i++)
+            {
+                Selector selector = selectors.get(i);
+                if (selector instanceof SimpleSelector && ((SimpleSelector) selector).idx == index)
+                {
+                    return i;
+                }
+            }
+            return -1;
+        }
+
+        @Override
         public int addColumnForOrdering(ColumnDefinition c)
         {
             int index = super.addColumnForOrdering(c);
             selectors.add(new SimpleSelector(c.name.toString(), index, c.type));
-            return index;
+            return selectors.size() - 1;
         }
     }
 

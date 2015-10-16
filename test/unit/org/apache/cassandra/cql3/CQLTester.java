@@ -416,8 +416,7 @@ public abstract class CQLTester
             for (int j = 0; j < meta.size(); j++)
             {
                 ColumnSpecification column = meta.get(j);
-                Object expectedValue = expected[j];
-                ByteBuffer expectedByteValue = makeByteBuffer(expected[j], (AbstractType)column.type);
+                ByteBuffer expectedByteValue = makeByteBuffer(expected[j], column.type);
                 ByteBuffer actualValue = actual.getBytes(column.name.toString());
 
                 if (!Objects.equal(expectedByteValue, actualValue))

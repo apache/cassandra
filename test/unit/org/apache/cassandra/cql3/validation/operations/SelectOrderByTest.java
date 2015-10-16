@@ -316,7 +316,7 @@ public class SelectOrderByTest extends CQLTester
     }
 
     /**
-     * Check that order-by works with IN (#4327)
+     * Check that order-by works with IN (#4327, #10363)
      * migrated from cql_tests.py:TestCQL.order_by_with_in_test()
      */
     @Test
@@ -337,6 +337,58 @@ public class SelectOrderByTest extends CQLTester
 
         assertRows(execute("SELECT my_id, col1 FROM %s WHERE my_id in('key1', 'key2', 'key3') ORDER BY col1"),
                    row("key1", 1), row("key3", 2), row("key2", 3));
+
+        createTable("CREATE TABLE %s (pk1 int, pk2 int, c int, v text, PRIMARY KEY ((pk1, pk2), c) )");
+        execute("INSERT INTO %s (pk1, pk2, c, v) VALUES (?, ?, ?, ?)", 1, 1, 2, "A");
+        execute("INSERT INTO %s (pk1, pk2, c, v) VALUES (?, ?, ?, ?)", 1, 2, 1, "B");
+        execute("INSERT INTO %s (pk1, pk2, c, v) VALUES (?, ?, ?, ?)", 1, 3, 3, "C");
+        execute("INSERT INTO %s (pk1, pk2, c, v) VALUES (?, ?, ?, ?)", 1, 1, 4, "D");
+
+        assertRows(execute("SELECT v, ttl(v), c FROM %s where pk1 = ? AND pk2 IN (?, ?) ORDER BY c; ", 1, 1, 2),
+                   row("B", null, 1),
+                   row("A", null, 2),
+                   row("D", null, 4));
+
+        assertRows(execute("SELECT v, ttl(v), c as name_1 FROM %s where pk1 = ? AND pk2 IN (?, ?) ORDER BY c; ", 1, 1, 2),
+                   row("B", null, 1),
+                   row("A", null, 2),
+                   row("D", null, 4));
+
+        assertRows(execute("SELECT v FROM %s where pk1 = ? AND pk2 IN (?, ?) ORDER BY c; ", 1, 1, 2),
+                   row("B"),
+                   row("A"),
+                   row("D"));
+
+        assertRows(execute("SELECT v as c FROM %s where pk1 = ? AND pk2 IN (?, ?) ORDER BY c; ", 1, 1, 2),
+                   row("B"),
+                   row("A"),
+                   row("D"));
+
+        createTable("CREATE TABLE %s (pk1 int, pk2 int, c1 int, c2 int, v text, PRIMARY KEY ((pk1, pk2), c1, c2) )");
+        execute("INSERT INTO %s (pk1, pk2, c1, c2, v) VALUES (?, ?, ?, ?, ?)", 1, 1, 4, 4, "A");
+        execute("INSERT INTO %s (pk1, pk2, c1, c2, v) VALUES (?, ?, ?, ?, ?)", 1, 2, 1, 2, "B");
+        execute("INSERT INTO %s (pk1, pk2, c1, c2, v) VALUES (?, ?, ?, ?, ?)", 1, 3, 3, 3, "C");
+        execute("INSERT INTO %s (pk1, pk2, c1, c2, v) VALUES (?, ?, ?, ?, ?)", 1, 1, 4, 1, "D");
+
+        assertRows(execute("SELECT v, ttl(v), c1, c2 FROM %s where pk1 = ? AND pk2 IN (?, ?) ORDER BY c1, c2; ", 1, 1, 2),
+                   row("B", null, 1, 2),
+                   row("D", null, 4, 1),
+                   row("A", null, 4, 4));
+
+        assertRows(execute("SELECT v, ttl(v), c1 as name_1, c2 as name_2 FROM %s where pk1 = ? AND pk2 IN (?, ?) ORDER BY c1, c2; ", 1, 1, 2),
+                   row("B", null, 1, 2),
+                   row("D", null, 4, 1),
+                   row("A", null, 4, 4));
+
+        assertRows(execute("SELECT v FROM %s where pk1 = ? AND pk2 IN (?, ?) ORDER BY c1, c2; ", 1, 1, 2),
+                   row("B"),
+                   row("D"),
+                   row("A"));
+
+        assertRows(execute("SELECT v as c2 FROM %s where pk1 = ? AND pk2 IN (?, ?) ORDER BY c1, c2; ", 1, 1, 2),
+                   row("B"),
+                   row("D"),
+                   row("A"));
     }
 
     /**

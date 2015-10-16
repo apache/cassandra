@@ -2207,7 +2207,7 @@ public class SelectStatement implements CQLStatement
                     if (def == null)
                         handleUnrecognizedOrderingColumn(column);
 
-                    int index = indexOf(def, stmt.selection);
+                    int index = stmt.selection.getResultSetIndex(def);
                     if (index < 0)
                         index = stmt.selection.addColumnForOrdering(def);
                     stmt.orderingIndexes.put(def.name, index);
@@ -2324,22 +2324,6 @@ public class SelectStatement implements CQLStatement
             }
 
             return needFiltering;
-        }
-
-        private int indexOf(ColumnDefinition def, Selection selection)
-        {
-            return indexOf(def, selection.getColumns().iterator());
-        }
-
-        private int indexOf(final ColumnDefinition def, Iterator<ColumnDefinition> defs)
-        {
-            return Iterators.indexOf(defs, new Predicate<ColumnDefinition>()
-                                           {
-                                               public boolean apply(ColumnDefinition n)
-                                               {
-                                                   return def.name.equals(n.name);
-                                               }
-                                           });
         }
 
         private SingleColumnRelation findInclusiveClusteringRelationForCompact(CFMetaData cfm)
