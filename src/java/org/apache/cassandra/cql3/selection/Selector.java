@@ -104,6 +104,18 @@ public abstract class Selector implements AssignmentTestable
         }
 
         /**
+         * Checks if this factory creates <code>Selector</code>s that simply return the specified column.
+         *
+         * @param index the column index
+         * @return <code>true</code> if this factory creates <code>Selector</code>s that simply return
+         * the specified column, <code>false</code> otherwise.
+         */
+        public boolean isSimpleSelectorFactory(int index)
+        {
+            return false;
+        }
+
+        /**
          * Returns the name of the column corresponding to the output value of the selector instances created by
          * this factory.
          *

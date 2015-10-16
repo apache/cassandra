@@ -944,7 +944,7 @@ public class SelectStatement implements CQLStatement
                 final ColumnDefinition def = cfm.getColumnDefinition(column);
                 if (def == null)
                     handleUnrecognizedOrderingColumn(column);
-                int index = selection.indexOf(def);
+                int index = selection.getResultSetIndex(def);
                 if (index < 0)
                     index = selection.addColumnForOrdering(def);
                 orderingIndexes.put(def.name, index);

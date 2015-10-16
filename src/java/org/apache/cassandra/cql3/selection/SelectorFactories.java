@@ -99,6 +99,17 @@ final class SelectorFactories implements Iterable<Selector.Factory>
     }
 
     /**
+     * Returns the factory with the specified index.
+     *
+     * @param i the factory index
+     * @return the factory with the specified index
+     */
+    public Selector.Factory get(int i)
+    {
+        return factories.get(i);
+    }
+
+    /**
      * Adds a new <code>Selector.Factory</code> for a column that is needed only for ORDER BY purposes.
      * @param def the column that is needed for ordering
      * @param index the index of the column definition in the Selection's list of columns
@@ -190,5 +201,14 @@ final class SelectorFactories implements Iterable<Selector.Factory>
                 return factory.getReturnType();
             }
         });
+    }
+
+    /**
+     * Returns the number of factories.
+     * @return the number of factories
+     */
+    public int size()
+    {
+        return factories.size();
     }
 }

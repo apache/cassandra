@@ -59,6 +59,12 @@ public final class SimpleSelector extends Selector
             {
                 return new SimpleSelector(def.name.toString(), idx, def.type);
             }
+
+            @Override
+            public boolean isSimpleSelectorFactory(int index)
+            {
+                return index == idx;
+            }
         };
     }
 
