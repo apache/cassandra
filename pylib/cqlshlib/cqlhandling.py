@@ -18,6 +18,7 @@
 # i.e., stuff that's not necessarily cqlsh-specific
 
 import traceback
+from cassandra.metadata import cql_keywords_reserved
 from . import pylexotron, util
 
 Hint = pylexotron.Hint
@@ -55,6 +56,15 @@ class CqlParsingRuleSet(pylexotron.ParsingRuleSet):
 
         # note: commands_end_with_newline may be extended by callers.
         self.commands_end_with_newline = set()
+        self.set_reserved_keywords(cql_keywords_reserved)
+
+    def set_reserved_keywords(self, keywords):
+        """
+        We cannot let resreved cql keywords be simple 'identifier' since this caused
+        problems with completion, see CASSANDRA-10415
+        """
+        syntax = '<reserved_identifier> ::= /(' + '|'.join(r'\b{}\b'.format(k) for k in keywords) + ')/ ;'
+        self.append_rules(syntax)
 
     def completer_for(self, rulename, symname):
         def registrator(f):
