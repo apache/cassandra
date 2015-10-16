@@ -125,23 +125,6 @@ public abstract class Selection
         return false;
     }
 
-    /**
-     * Returns the index of the specified column.
-     *
-     * @param def the column definition
-     * @return the index of the specified column
-     */
-    public int indexOf(final ColumnDefinition def)
-    {
-        return Iterators.indexOf(getColumns().iterator(), new Predicate<ColumnDefinition>()
-           {
-               public boolean apply(ColumnDefinition n)
-               {
-                   return def.name.equals(n.name);
-               }
-           });
-    }
-
     public ResultSet.ResultMetadata getResultMetadata(boolean isJson)
     {
         if (!isJson)
@@ -197,6 +180,29 @@ public abstract class Selection
         return (processesSelection(rawSelectors) || rawSelectors.size() != defs.size())
                ? new SelectionWithProcessing(cfm, defs, mapping, factories)
                : new SimpleSelection(cfm, defs, mapping, false);
+    }
+
+    /**
+     * Returns the index of the specified column within the resultset
+     * @param c the column
+     * @return the index of the specified column within the resultset or -1
+     */
+    public int getResultSetIndex(ColumnDefinition c)
+    {
+        return getColumnIndex(c);
+    }
+
+    /**
+     * Returns the index of the specified column
+     * @param c the column
+     * @return the index of the specified column or -1
+     */
+    protected final int getColumnIndex(ColumnDefinition c)
+    {
+        for (int i = 0, m = columns.size(); i < m; i++)
+            if (columns.get(i).name.equals(c.name))
+                return i;
+        return -1;
     }
 
     private static SelectionColumnMapping collectColumnMappings(CFMetaData cfm,
@@ -498,11 +504,26 @@ public abstract class Selection
         }
 
         @Override
+        public int getResultSetIndex(ColumnDefinition c)
+        {
+            int index = getColumnIndex(c);
+
+            if (index < 0)
+                return -1;
+
+            for (int i = 0, m = factories.size(); i < m; i++)
+                if (factories.get(i).isSimpleSelectorFactory(index))
+                    return i;
+
+            return -1;
+        }
+
+        @Override
         public int addColumnForOrdering(ColumnDefinition c)
         {
             int index = super.addColumnForOrdering(c);
             factories.addSelectorForOrdering(c, index);
-            return index;
+            return factories.size() - 1;
         }
 
         public boolean isAggregate()

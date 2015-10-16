@@ -82,7 +82,7 @@ public abstract class UntypedResultSet implements Iterable<UntypedResultSet.Row>
         {
             if (cqlRows.size() != 1)
                 throw new IllegalStateException("One row required, " + cqlRows.size() + " found");
-            return new Row(cqlRows.metadata.names, cqlRows.rows.get(0));
+            return new Row(cqlRows.metadata.requestNames(), cqlRows.rows.get(0));
         }
 
         public Iterator<Row> iterator()
@@ -95,7 +95,7 @@ public abstract class UntypedResultSet implements Iterable<UntypedResultSet.Row>
                 {
                     if (!iter.hasNext())
                         return endOfData();
-                    return new Row(cqlRows.metadata.names, iter.next());
+                    return new Row(cqlRows.metadata.requestNames(), iter.next());
                 }
             };
         }
@@ -160,7 +160,7 @@ public abstract class UntypedResultSet implements Iterable<UntypedResultSet.Row>
             this.select = select;
             this.pager = pager;
             this.pageSize = pageSize;
-            this.metadata = select.getResultMetadata().names;
+            this.metadata = select.getResultMetadata().requestNames();
         }
 
         public int size()
