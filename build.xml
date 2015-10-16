@@ -63,7 +63,6 @@
     <property name="test.long.src" value="${test.dir}/long"/>
     <property name="test.burn.src" value="${test.dir}/burn"/>
     <property name="test.microbench.src" value="${test.dir}/microbench"/>
-    <property name="test.pig.src" value="${test.dir}/pig"/>
     <property name="dist.dir" value="${build.dir}/dist"/>
     <property name="tmp.dir" value="${java.io.tmpdir}"/>
 	
@@ -386,17 +385,12 @@
           <dependency groupId="org.apache.hadoop" artifactId="hadoop-minicluster" version="1.0.3">
 		    <exclusion groupId="asm" artifactId="asm"/> <!-- this is the outdated version 3.1 -->
           </dependency>
-          <dependency groupId="org.apache.pig" artifactId="pig" version="0.12.1">
-          	<exclusion groupId="org.mortbay.jetty" artifactId="jetty"/>
-            <exclusion groupId="hsqldb" artifactId="hsqldb"/> <!-- outdated version -->
-            <exclusion groupId="antlr" artifactId="antlr"/> <!-- outdated version -->
-          </dependency>
           <dependency groupId="net.java.dev.jna" artifactId="jna" version="4.0.0"/>
 
           <dependency groupId="net.sourceforge.cobertura" artifactId="cobertura" version="${cobertura.version}">
             <exclusion groupId="xerces" artifactId="xercesImpl"/>
-          	<exclusion groupId="org.mortbay.jetty" artifactId="jetty"/> <!-- older version, also via hadoop-core + pig -->
-          	<exclusion groupId="org.mortbay.jetty" artifactId="jetty-util"/> <!-- older version, also via hadoop-core + pig -->
+          	<exclusion groupId="org.mortbay.jetty" artifactId="jetty"/> <!-- older version, also via hadoop-core -->
+          	<exclusion groupId="org.mortbay.jetty" artifactId="jetty-util"/> <!-- older version, also via hadoop-core -->
             <exclusion groupId="org.apache.ant" artifactId="ant"/> <!-- older version 1.8.3 -->
           </dependency>
           <dependency groupId="org.jacoco" artifactId="org.jacoco.agent" version="${jacoco.version}"/>
@@ -467,7 +461,6 @@
         <dependency groupId="org.apache.rat" artifactId="apache-rat"/>
         <dependency groupId="org.apache.hadoop" artifactId="hadoop-core"/>
       	<dependency groupId="org.apache.hadoop" artifactId="hadoop-minicluster"/>
-        <dependency groupId="org.apache.pig" artifactId="pig"/>
       	<dependency groupId="com.google.code.findbugs" artifactId="jsr305"/>
         <dependency groupId="org.antlr" artifactId="antlr"/>
         <!-- TODO CASSANDRA-9543
@@ -489,15 +482,6 @@
                 artifactId="cassandra-parent"
                 version="${version}"/>
         <dependency groupId="junit" artifactId="junit"/>
-        <dependency groupId="org.apache.pig" artifactId="pig">
-          <exclusion groupId="xmlenc" artifactId="xmlenc"/>
-          <exclusion groupId="tomcat" artifactId="jasper-runtime"/>
-          <exclusion groupId="tomcat" artifactId="jasper-compiler"/>
-          <exclusion groupId="org.eclipse.jdt" artifactId="core"/>
-          <exclusion groupId="net.sf.kosmosfs" artifactId="kfs"/>
-          <exclusion groupId="hsqldb" artifactId="hsqldb"/>
-          <exclusion groupId="antlr" artifactId="antlr"/>
-        </dependency>
         <!-- TODO CASSANDRA-9543
         <dependency groupId="com.datastax.cassandra" artifactId="cassandra-driver-core" classifier="shaded"/>
         -->
@@ -524,7 +508,6 @@
         <parent groupId="org.apache.cassandra"
                 artifactId="cassandra-parent"
                 version="${version}"/>
-        <!-- do NOT remove this, it breaks pig-test -->
         <dependency groupId="joda-time" artifactId="joda-time"/>
       </artifact:pom>
 
@@ -572,7 +555,6 @@
         <!-- don't need hadoop classes to run, but if you use the hadoop stuff -->
         <dependency groupId="org.apache.hadoop" artifactId="hadoop-core" optional="true"/>
         <dependency groupId="org.apache.hadoop" artifactId="hadoop-minicluster" optional="true"/>
-        <dependency groupId="org.apache.pig" artifactId="pig" optional="true"/>
         <!-- TODO CASSANDRA-9543
         <dependency groupId="com.datastax.cassandra" artifactId="cassandra-driver-core" classifier="shaded" optional="true"/>
         -->
@@ -689,26 +671,6 @@
         <mapper type="flatten"/>
       </copy>
       <copy todir="${test.lib}/sources">
-        <fileset refid="test-dependency-sources"/>
-        <mapper type="flatten"/>
-      </copy>
-    </target>
-
-    <target name="maven-ant-tasks-retrieve-pig-test" depends="maven-ant-tasks-init">
-      <artifact:dependencies pomRefId="test-deps-pom"
-                             filesetId="test-dependency-jars"
-                             sourcesFilesetId="test-dependency-sources"
-                             cacheDependencyRefs="true"
-                             dependencyRefsBuildFile="${build.dir}/test-dependencies.xml">
-        <remoteRepository refid="apache"/>
-        <remoteRepository refid="central"/>
-        <remoteRepository refid="java.net2"/>
-      </artifact:dependencies>
-      <copy todir="${build.dir.lib}/jars">
-        <fileset refid="test-dependency-jars"/>
-        <mapper type="flatten"/>
-      </copy>
-      <copy todir="${build.dir.lib}/sources">
         <fileset refid="test-dependency-sources"/>
         <mapper type="flatten"/>
       </copy>
@@ -1167,7 +1129,6 @@
      <src path="${test.unit.src}"/>
      <src path="${test.long.src}"/>
      <src path="${test.burn.src}"/>
-     <src path="${test.pig.src}"/>
      <src path="${test.microbench.src}"/>
     </javac>
 
@@ -1282,7 +1243,7 @@
   </target>
 
   <target name="testold" depends="build-test" description="Execute unit tests">
-    <testmacro inputdir="${test.unit.src}" exclude="**/pig/*.java" timeout="${test.timeout}">
+    <testmacro inputdir="${test.unit.src}" timeout="${test.timeout}">
       <jvmarg value="-Dlegacy-sstable-root=${test.data}/legacy-sstables"/>
       <jvmarg value="-Dinvalid-legacy-sstable-root=${test.data}/invalid-legacy-sstables"/>
       <jvmarg value="-Dmigration-sstable-root=${test.data}/migration-sstables"/>
@@ -1291,9 +1252,7 @@
       <jvmarg value="-Djava.io.tmpdir=${tmp.dir}"/>
       <jvmarg value="-Dcassandra.skip_sync=true" />
     </testmacro>
-    <fileset dir="${test.unit.src}">
-        <exclude name="**/pig/*.java" />
-    </fileset>
+    <fileset dir="${test.unit.src}" />
   </target>
   
   <!-- Will not generate a junit report or fail on error since it is called in parallel for test-compression
@@ -1337,7 +1296,7 @@
   </macrodef>
 
   <!--
-    Run named ant task with jacoco, such as "ant jacoco-run -Dtaskname=pig-test"
+    Run named ant task with jacoco, such as "ant jacoco-run -Dtaskname=test"
     the target run must enable the jacoco agent if usejacoco is 'yes' -->
   <target name="jacoco-run" description="run named task with jacoco instrumentation">
     <condition property="runtask" value="${taskname}" else="test">
@@ -1352,7 +1311,7 @@
     ant testsome -Dtest.name=org.apache.cassandra.service.StorageServiceServerTest -Dtest.methods=testRegularMode,testGetAllRangesEmpty
   -->
   <target name="testsome" depends="build-test" description="Execute specific unit tests" >
-    <testmacro inputdir="${test.unit.src}" exclude="**/pig/*.java" timeout="${test.timeout}">
+    <testmacro inputdir="${test.unit.src}" timeout="${test.timeout}">
       <test name="${test.name}" methods="${test.methods}"/>
       <jvmarg value="-Dlegacy-sstable-root=${test.data}/legacy-sstables"/>
       <jvmarg value="-Dinvalid-legacy-sstable-root=${test.data}/invalid-legacy-sstables"/>
@@ -1370,7 +1329,7 @@
       <fileset file="${test.conf}/commitlog_compression.yaml"/>
     </concat>
     <path id="all-test-classes-path">
-      <fileset dir="${test.unit.src}" excludes="**/pig/*.java" includes="**/${test.name}.java" />
+      <fileset dir="${test.unit.src}" includes="**/${test.name}.java" />
     </path>
     <property name="all-test-classes" refid="all-test-classes-path"/>
     <testparallel testdelegate="testlist-compression" />
@@ -1489,14 +1448,8 @@
     </sequential>
   </target>
 
-  <target name="pig-test" depends="build-test,maven-ant-tasks-retrieve-pig-test" description="Excute Pig tests">
-    <testmacro inputdir="${test.pig.src}"
-               timeout="1200000">
-    </testmacro>
-  </target>
-
   <target name="test-all" 
-          depends="eclipse-warnings,test,long-test,test-compression,pig-test,test-clientutil-jar" 
+          depends="eclipse-warnings,test,long-test,test-compression,test-clientutil-jar" 
           description="Run all tests except for those under test-burn" />
   
   <!-- Use JaCoCo ant extension without needing externally saved lib -->
@@ -1716,7 +1669,7 @@
 
   <target name="test" depends="build-test" description="Parallel Test Runner">
     <path id="all-test-classes-path">
-      <fileset dir="${test.unit.src}" excludes="**/pig/*.java" includes="**/${test.name}.java" />
+      <fileset dir="${test.unit.src}" includes="**/${test.name}.java" />
     </path>
     <property name="all-test-classes" refid="all-test-classes-path"/>
     <testparallel testdelegate="testlist"/>
@@ -1756,7 +1709,6 @@
       <sourceFolder url="file://$MODULE_DIR$/tools/stress/src" isTestSource="false" />
       <sourceFolder url="file://$MODULE_DIR$/test/unit" isTestSource="true" />
       <sourceFolder url="file://$MODULE_DIR$/test/long" isTestSource="true" />
-      <sourceFolder url="file://$MODULE_DIR$/test/pig" isTestSource="true" />
       <sourceFolder url="file://$MODULE_DIR$/test/microbench" isTestSource="true" />
       <sourceFolder url="file://$MODULE_DIR$/test/resources" type="java-test-resource" />
       <excludeFolder url="file://$MODULE_DIR$/.idea" />
@@ -1964,7 +1916,6 @@
   <classpathentry kind="src" path="interface/thrift/gen-java"/>
   <classpathentry kind="src" output="build/test/classes" path="test/unit"/>
   <classpathentry kind="src" output="build/test/classes" path="test/long"/>
-  <classpathentry kind="src" output="build/test/classes" path="test/pig"/>
   <classpathentry kind="src" output="build/test/classes" path="test/resources" />
   <classpathentry kind="src" path="tools/stress/src"/>
   <classpathentry kind="con" path="org.eclipse.jdt.launching.JRE_CONTAINER"/>
