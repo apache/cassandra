@@ -16,6 +16,7 @@ import org.apache.pig.data.DataByteArray;
 import org.apache.pig.data.DataType;
 import org.apache.pig.data.Tuple;
 
+@Deprecated
 public class StorageHelper
 {
     // system environment variables that can be set to configure connection info:
