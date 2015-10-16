@@ -93,8 +93,6 @@ public class DeleteStatement extends ModificationStatement
                 update.add(params.buildRow());
             }
         }
-
-        params.validateIndexedColumns(update);
     }
 
     @Override
