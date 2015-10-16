@@ -19,7 +19,7 @@ package org.apache.cassandra.io.util;
 
 import org.apache.cassandra.io.compress.CompressionMetadata;
 
-public interface ICompressedFile extends IChecksummedFile
+public interface ICompressedFile
 {
     ChannelProxy channel();
     CompressionMetadata getMetadata();

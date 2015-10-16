@@ -30,6 +30,8 @@ import org.apache.cassandra.db.ColumnFamilyStore;
 import org.apache.cassandra.db.Keyspace;
 import org.apache.cassandra.db.compaction.CompactionInterruptedException;
 import org.apache.cassandra.db.compaction.CompactionManager;
+import org.apache.cassandra.io.compress.CompressedRandomAccessReader;
+import org.apache.cassandra.io.sstable.format.SSTableReader;
 import org.apache.cassandra.utils.FBUtilities;
 
 
@@ -70,6 +72,7 @@ public class CrcCheckChanceTest extends CQLTester
 
         Assert.assertEquals(0.99, cfs.getCrcCheckChance());
         Assert.assertEquals(0.99, cfs.getLiveSSTables().iterator().next().getCrcCheckChance());
+
         Assert.assertEquals(0.99, indexCfs.getCrcCheckChance());
         Assert.assertEquals(0.99, indexCfs.getLiveSSTables().iterator().next().getCrcCheckChance());
 
@@ -145,8 +148,22 @@ public class CrcCheckChanceTest extends CQLTester
         Assert.assertEquals(0.03, cfs.getLiveSSTables().iterator().next().getCrcCheckChance());
         Assert.assertEquals(0.03, indexCfs.getCrcCheckChance());
         Assert.assertEquals(0.03, indexCfs.getLiveSSTables().iterator().next().getCrcCheckChance());
-    }
 
+        // Also check that any open readers also use the updated value
+        // note: only compressed files currently perform crc checks, so only the dfile reader is relevant here
+        SSTableReader baseSSTable = cfs.getLiveSSTables().iterator().next();
+        SSTableReader idxSSTable = indexCfs.getLiveSSTables().iterator().next();
+        try (CompressedRandomAccessReader baseDataReader = (CompressedRandomAccessReader)baseSSTable.openDataReader();
+             CompressedRandomAccessReader idxDataReader = (CompressedRandomAccessReader)idxSSTable.openDataReader())
+        {
+            Assert.assertEquals(0.03, baseDataReader.getCrcCheckChance());
+            Assert.assertEquals(0.03, idxDataReader.getCrcCheckChance());
+
+            cfs.setCrcCheckChance(0.31);
+            Assert.assertEquals(0.31, baseDataReader.getCrcCheckChance());
+            Assert.assertEquals(0.31, idxDataReader.getCrcCheckChance());
+        }
+    }
 
     @Test
     public void testDropDuringCompaction() throws Throwable

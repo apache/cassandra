@@ -23,6 +23,7 @@ import java.util.concurrent.ThreadLocalRandom;
 import java.util.zip.Checksum;
 import java.util.function.Supplier;
 
+import com.google.common.annotations.VisibleForTesting;
 import com.google.common.primitives.Ints;
 
 import org.apache.cassandra.io.FSReadError;
@@ -46,14 +47,18 @@ public class CompressedRandomAccessReader extends RandomAccessReader
 
     // raw checksum bytes
     private ByteBuffer checksumBytes;
-    private final Supplier<Double> crcCheckChanceSupplier;
+
+    @VisibleForTesting
+    public double getCrcCheckChance()
+    {
+        return metadata.parameters.getCrcCheckChance();
+    }
 
     protected CompressedRandomAccessReader(Builder builder)
     {
         super(builder);
         this.metadata = builder.metadata;
         this.checksum = metadata.checksumType.newInstance();
-        crcCheckChanceSupplier = builder.crcCheckChanceSupplier;
 
         if (regions == null)
         {
@@ -124,7 +129,7 @@ public class CompressedRandomAccessReader extends RandomAccessReader
                 buffer.flip();
             }
 
-            if (crcCheckChanceSupplier.get() > ThreadLocalRandom.current().nextDouble())
+            if (getCrcCheckChance() > ThreadLocalRandom.current().nextDouble())
             {
                 compressed.rewind();
                 metadata.checksumType.update( checksum, (compressed));
@@ -186,7 +191,7 @@ public class CompressedRandomAccessReader extends RandomAccessReader
                 buffer.flip();
             }
 
-            if (crcCheckChanceSupplier.get() > ThreadLocalRandom.current().nextDouble())
+            if (getCrcCheckChance() > ThreadLocalRandom.current().nextDouble())
             {
                 compressedChunk.position(chunkOffset).limit(chunkOffset + chunk.length);
 
@@ -239,21 +244,18 @@ public class CompressedRandomAccessReader extends RandomAccessReader
     public final static class Builder extends RandomAccessReader.Builder
     {
         private final CompressionMetadata metadata;
-        private final Supplier<Double> crcCheckChanceSupplier;
 
         public Builder(ICompressedFile file)
         {
             super(file.channel());
             this.metadata = applyMetadata(file.getMetadata());
             this.regions = file.regions();
-            this.crcCheckChanceSupplier = file.getCrcCheckChanceSupplier();
         }
 
         public Builder(ChannelProxy channel, CompressionMetadata metadata)
         {
             super(channel);
             this.metadata = applyMetadata(metadata);
-            this.crcCheckChanceSupplier = (() -> 1.0); //100% crc_check_chance
         }
 
         private CompressionMetadata applyMetadata(CompressionMetadata metadata)
