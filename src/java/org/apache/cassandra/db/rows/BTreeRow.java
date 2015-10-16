@@ -428,7 +428,7 @@ public class BTreeRow extends AbstractRow
 
     private class CellInLegacyOrderIterator extends AbstractIterator<Cell>
     {
-        private final AbstractType<?> comparator;
+        private final Comparator<ByteBuffer> comparator;
         private final boolean reversed;
         private final int firstComplexIdx;
         private int simpleIdx;
@@ -438,7 +438,8 @@ public class BTreeRow extends AbstractRow
 
         private CellInLegacyOrderIterator(CFMetaData metadata, boolean reversed)
         {
-            this.comparator = metadata.getColumnDefinitionNameComparator(isStatic() ? ColumnDefinition.Kind.STATIC : ColumnDefinition.Kind.REGULAR);
+            AbstractType<?> nameComparator = metadata.getColumnDefinitionNameComparator(isStatic() ? ColumnDefinition.Kind.STATIC : ColumnDefinition.Kind.REGULAR);
+            this.comparator = reversed ? Collections.reverseOrder(nameComparator) : nameComparator;
             this.reversed = reversed;
 
             // copy btree into array for simple separate iteration of simple and complex columns
@@ -464,7 +465,7 @@ public class BTreeRow extends AbstractRow
 
         private int getComplexIdx()
         {
-            return reversed ? data.length - complexIdx - 1 : complexIdx;
+            return reversed ? data.length + firstComplexIdx - complexIdx - 1 : complexIdx;
         }
 
         private int getComplexIdxAndIncrement()
