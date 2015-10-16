@@ -84,7 +84,7 @@ Upgrading
      (schema versions outputted by `nodetool describecluster` are all the same).
    - Schema metadata is now stored in the new `system_schema` keyspace, and
      legacy `system.schema_*` tables are now gone; see CASSANDRA-6717 for details.
-   - Pig's CassandraStorage has been removed. Use CqlNativeStorage instead.
+   - Pig's support has been removed.
    - Hadoop BulkOutputFormat and BulkRecordWriter have been removed; use
      CqlBulkOutputFormat and CqlBulkRecordWriter instead.
    - Hadoop ColumnFamilyInputFormat and ColumnFamilyOutputFormat have been removed;
@@ -118,6 +118,11 @@ Upgrading
 
 2.2.4
 =====
+
+Deprecation
+-----------
+    - Pig support has been deprecated, and will be removed in 3.0.
+      Please see CASSANDRA-10542 for more details.
 
 Operations
 ----------
