@@ -338,9 +338,15 @@ public class CommitLogSegmentManager
     void recycleSegment(final CommitLogSegment segment)
     {
         boolean archiveSuccess = commitLog.archiver.maybeWaitForArchiving(segment.getName());
-        activeSegments.remove(segment);
-        // if archiving (command) was not successful then leave the file alone. don't delete or recycle.
-        discardSegment(segment, archiveSuccess);
+        if (activeSegments.remove(segment))
+        {
+            // if archiving (command) was not successful then leave the file alone. don't delete or recycle.
+            discardSegment(segment, archiveSuccess);
+        }
+        else
+        {
+            logger.warn("segment {} not found in activeSegments queue", segment);
+        }
     }
 
     /**
