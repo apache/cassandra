@@ -3,6 +3,11 @@
  * Add transparent data encryption core classes (CASSANDRA-9945)
 
 
+3.0
+Merged from 2.1:
+ * AssertionError: attempted to delete non-existing file CommitLog (CASSANDRA-10377)
+
+
 3.0-rc2
  * Fix SELECT DISTINCT queries between 2.2.2 nodes and 3.0 nodes (CASSANDRA-10473)
  * Remove circular references in SegmentedFile (CASSANDRA-10543)
