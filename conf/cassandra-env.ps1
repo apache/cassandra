@@ -128,6 +128,11 @@ Function CalculateHeapSizes
     }
 
     # Validate that we need to run this function and that our config is good
+    if ($env:MAX_HEAP_SIZE -and $env:HEAP_NEWSIZE)
+    {
+        return
+    }
+
     if (($env:MAX_HEAP_SIZE -and !$env:HEAP_NEWSIZE) -or (!$env:MAX_HEAP_SIZE -and $env:HEAP_NEWSIZE))
     {
         echo "Please set or unset MAX_HEAP_SIZE and HEAP_NEWSIZE in pairs.  Aborting startup."
