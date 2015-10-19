@@ -27,7 +27,7 @@ usage: cassandra.ps1 [-f] [-h] [-p pidfile] [-H dumpfile] [-D arg] [-E errorfile
     -E              change JVM ErrorFile
     -v              Print cassandra version and exit
     -s              Show detailed jvm environment information during launch
-    -a              Aggressive startup. Ignore ports that are TIME_WAIT for VerifyPorts check.
+    -a              Aggressive startup. Skip VerifyPorts check. For use in dev environments.
     -help           print this message
 
     NOTE: installing cassandra as a service requires Commons Daemon Service Runner
@@ -281,6 +281,10 @@ WARNING! Failed to write pidfile to $pidfile.  stop-server.bat and
 #-----------------------------------------------------------------------------
 Function VerifyPortsAreAvailable
 {
+    if ($a)
+    {
+        return
+    }
     # Need to confirm 5 different ports are available or die if any are currently bound
     # From cassandra.yaml:
     #   storage_port
@@ -308,10 +312,6 @@ Function VerifyPortsAreAvailable
     {
         if ($line -match "TCP" -and $line -match $portRegex)
         {
-            if ($a -and $line -match "TIME_WAIT")
-            {
-               continue
-            }
             Write-Error "Found a port already in use. Aborting startup"
             Write-Error $line
             Exit
