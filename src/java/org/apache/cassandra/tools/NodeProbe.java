@@ -527,7 +527,7 @@ public class NodeProbe implements AutoCloseable
 
     /**
      * Take a snapshot of all column family from different keyspaces.
-     * 
+     *
      * @param snapshotName
      *            the name of the snapshot.
      * @param tableList
@@ -1302,6 +1302,18 @@ public class NodeProbe implements AutoCloseable
         catch (Exception e)
         {
             throw new IOException(e);
+        }
+    }
+
+    public TabularData getFailureDetectorPhilValues()
+    {
+        try
+        {
+            return fdProxy.getPhiValues();
+        }
+        catch (OpenDataException e)
+        {
+            throw new RuntimeException(e);
         }
     }
 }
