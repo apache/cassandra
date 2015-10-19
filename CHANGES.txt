@@ -1,4 +1,5 @@
 2.1.12
+ * Fix potential NPE from handling result of SIM.highestSelectivityIndex (CASSANDRA-10550)
  * Fix paging issues with partitions containing only static columns data
    (CASSANDRA-10381)
  * Fix conditions on static columns (CASSANDRA-10264)

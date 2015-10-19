@@ -1571,7 +1571,7 @@ public class StorageProxy implements StorageProxyMBean
                 {
                     // use our own mean column count as our estimate for how many matching rows each node will have
                     SecondaryIndex highestSelectivityIndex = searcher.highestSelectivityIndex(command.rowFilter);
-                    resultRowsPerRange = Math.min(resultRowsPerRange, highestSelectivityIndex.estimateResultRows());
+                    resultRowsPerRange = highestSelectivityIndex == null ? resultRowsPerRange : Math.min(resultRowsPerRange, highestSelectivityIndex.estimateResultRows());
                 }
             }
         }
