@@ -761,7 +761,15 @@ public final class MessagingService implements MessagingServiceMBean
         try
         {
             for (SocketThread th : socketThreads)
-                th.close();
+                try
+                {
+                    th.close();
+                }
+                catch (IOException e)
+                {
+                    // see https://issues.apache.org/jira/browse/CASSANDRA-10545
+                    handleIOException(e);
+                }
         }
         catch (IOException e)
         {
@@ -1024,13 +1032,9 @@ public final class MessagingService implements MessagingServiceMBean
             }
             catch (IOException e)
             {
-                // dirty hack for clean shutdown on OSX w/ Java >= 1.8.0_20
                 // see https://issues.apache.org/jira/browse/CASSANDRA-8220
-                // see https://bugs.openjdk.java.net/browse/JDK-8050499
-                if (!"Unknown error: 316".equals(e.getMessage()) || !"Mac OS X".equals(System.getProperty("os.name")))
-                    throw e;
+                handleIOException(e);
             }
-
             for (Closeable connection : connections)
             {
                 connection.close();
@@ -1041,6 +1045,14 @@ public final class MessagingService implements MessagingServiceMBean
         {
             return DatabaseDescriptor.getInternodeAuthenticator().authenticate(socket.getInetAddress(), socket.getPort());
         }
+    }
+
+    private static void handleIOException(IOException e) throws IOException
+    {
+        // dirty hack for clean shutdown on OSX w/ Java >= 1.8.0_20
+        // see https://bugs.openjdk.java.net/browse/JDK-8050499
+        if (!"Unknown error: 316".equals(e.getMessage()) || !"Mac OS X".equals(System.getProperty("os.name")))
+            throw e;
     }
 
     public Map<String, Integer> getLargeMessagePendingTasks()
