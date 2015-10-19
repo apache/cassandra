@@ -81,7 +81,9 @@ public class RangeNamesQueryPager extends AbstractQueryPager
     protected boolean containsPreviousLast(Row first)
     {
         // When querying the next page, we create a bound that exclude the lastReturnedKey
-        return false;
+        // but unfortunately ExcludingBounds is serialized as Bounds, which includes both endpoints,
+        // so we may still get a live row with the same key as lastReturnedKey, see CASSANDRA-10509
+        return lastReturnedKey != null && lastReturnedKey.equals(first.key);
     }
 
     protected boolean recordLast(Row last)
@@ -103,11 +105,11 @@ public class RangeNamesQueryPager extends AbstractQueryPager
         AbstractBounds<RowPosition> bounds = command.keyRange;
         if (bounds instanceof Range || bounds instanceof Bounds)
         {
-            return new Range<RowPosition>(lastReturnedKey, bounds.right);
+            return new Range<>(lastReturnedKey, bounds.right);
         }
         else
         {
-            return new ExcludingBounds<RowPosition>(lastReturnedKey, bounds.right);
+            return new ExcludingBounds<>(lastReturnedKey, bounds.right);
         }
     }
 }

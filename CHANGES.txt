@@ -1,4 +1,5 @@
 2.2.4
+ * Fix RangeNamesQueryPager (CASSANDRA-10509)
  * Deprecate Pig support (CASSANDRA-10542)
  * Reduce contention getting instances of CompositeType (CASSANDRA-10433)
 Merged from 2.1:
