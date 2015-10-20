@@ -75,7 +75,7 @@ public class RangeSliceQueryPager extends AbstractQueryPager
         else
         {
             // We want to include the last returned key only if we haven't achieved our per-partition limit, otherwise, don't bother.
-            boolean includeLastKey = remainingInPartition() > 0;
+            boolean includeLastKey = remainingInPartition() > 0 && lastReturnedRow != null;
             AbstractBounds<PartitionPosition> bounds = makeKeyBounds(lastReturnedKey, includeLastKey);
             if (includeLastKey)
             {
@@ -99,7 +99,8 @@ public class RangeSliceQueryPager extends AbstractQueryPager
         if (last != null)
         {
             lastReturnedKey = key;
-            lastReturnedRow = PagingState.RowMark.create(command.metadata(), last, protocolVersion);
+            if (last.clustering() != Clustering.STATIC_CLUSTERING)
+                lastReturnedRow = PagingState.RowMark.create(command.metadata(), last, protocolVersion);
         }
     }
 

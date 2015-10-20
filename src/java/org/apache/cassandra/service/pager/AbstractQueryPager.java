@@ -19,7 +19,6 @@ package org.apache.cassandra.service.pager;
 
 import java.util.NoSuchElementException;
 
-import org.apache.cassandra.config.CFMetaData;
 import org.apache.cassandra.db.*;
 import org.apache.cassandra.db.rows.*;
 import org.apache.cassandra.db.partitions.*;
@@ -147,7 +146,16 @@ abstract class AbstractQueryPager implements QueryPager
 
             int counted = counter.counted();
             remaining -= counted;
-            remainingInPartition -= counter.countedInCurrentPartition();
+            // If the clustering of the last row returned is a static one, it means that the partition was only
+            // containing data within the static columns. Therefore, there are not data remaining within the partition.
+            if (lastRow != null && lastRow.clustering() == Clustering.STATIC_CLUSTERING)
+            {
+                remainingInPartition = 0;
+            }
+            else
+            {
+                remainingInPartition -= counter.countedInCurrentPartition();
+            }
             exhausted = counted < pageLimits.count();
         }
 
@@ -156,6 +164,15 @@ abstract class AbstractQueryPager implements QueryPager
             RowPagerIterator(RowIterator iter)
             {
                 super(iter);
+            }
+
+            @Override
+            public Row staticRow()
+            {
+                Row staticRow = super.staticRow();
+                if (!staticRow.isEmpty())
+                    lastRow = staticRow;
+                return staticRow;
             }
 
             @Override
