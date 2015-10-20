@@ -734,14 +734,21 @@ public abstract class ModificationStatement implements CQLStatement
 
     public static abstract class Parsed extends CFStatement
     {
+        protected final StatementType type;
         private final Attributes.Raw attrs;
         private final List<Pair<ColumnIdentifier.Raw, ColumnCondition.Raw>> conditions;
         private final boolean ifNotExists;
         private final boolean ifExists;
 
-        protected Parsed(CFName name, Attributes.Raw attrs, List<Pair<ColumnIdentifier.Raw, ColumnCondition.Raw>> conditions, boolean ifNotExists, boolean ifExists)
+        protected Parsed(CFName name,
+                         StatementType type,
+                         Attributes.Raw attrs,
+                         List<Pair<ColumnIdentifier.Raw, ColumnCondition.Raw>> conditions,
+                         boolean ifNotExists,
+                         boolean ifExists)
         {
             super(name);
+            this.type = type;
             this.attrs = attrs;
             this.conditions = conditions == null ? Collections.<Pair<ColumnIdentifier.Raw, ColumnCondition.Raw>>emptyList() : conditions;
             this.ifNotExists = ifNotExists;
@@ -838,7 +845,6 @@ public abstract class ModificationStatement implements CQLStatement
         /**
          * Creates the restrictions.
          *
-         * @param type the statement type
          * @param cfm the column family meta data
          * @param boundNames the bound names
          * @param operations the column operations
@@ -846,12 +852,11 @@ public abstract class ModificationStatement implements CQLStatement
          * @param conditions the conditions
          * @return the restrictions
          */
-        protected static StatementRestrictions newRestrictions(StatementType type,
-                                                               CFMetaData cfm,
-                                                               VariableSpecifications boundNames,
-                                                               Operations operations,
-                                                               WhereClause where,
-                                                               Conditions conditions)
+        protected StatementRestrictions newRestrictions(CFMetaData cfm,
+                                                        VariableSpecifications boundNames,
+                                                        Operations operations,
+                                                        WhereClause where,
+                                                        Conditions conditions)
         {
             if (where.containsCustomExpressions())
                 throw new InvalidRequestException(CUSTOM_EXPRESSIONS_NOT_ALLOWED);
