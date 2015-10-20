@@ -38,8 +38,8 @@ import org.apache.cassandra.transport.Server;
 public final class UDHelper
 {
     // TODO make these c'tors and methods public in Java-Driver - see https://datastax-oss.atlassian.net/browse/JAVA-502
-    static final MethodHandle methodParseOne;
-    static final CodecRegistry codecRegistry;
+    private static final MethodHandle methodParseOne;
+    private static final CodecRegistry codecRegistry;
     static
     {
         try
@@ -54,6 +54,11 @@ public final class UDHelper
         {
             throw new RuntimeException(e);
         }
+    }
+
+    static TypeCodec<Object> codecFor(DataType dataType)
+    {
+        return codecRegistry.codecFor(dataType);
     }
 
     /**
@@ -132,12 +137,12 @@ public final class UDHelper
 
     public static Object deserialize(DataType dataType, int protocolVersion, ByteBuffer value)
     {
-        return codecRegistry.codecFor(dataType).deserialize(value, ProtocolVersion.fromInt(protocolVersion));
+        return codecFor(dataType).deserialize(value, ProtocolVersion.fromInt(protocolVersion));
     }
 
     public static ByteBuffer serialize(DataType dataType, int protocolVersion, Object value)
     {
-        TypeCodec<Object> codec = codecRegistry.codecFor(dataType);
+        TypeCodec<Object> codec = codecFor(dataType);
         if (! codec.getJavaType().getRawType().isAssignableFrom(value.getClass()))
             throw new InvalidTypeException("Invalid value for CQL type " + dataType.getName().toString());
 
@@ -146,7 +151,7 @@ public final class UDHelper
 
     public static Class<?> asJavaClass(DataType dataType)
     {
-        return codecRegistry.codecFor(dataType).getJavaType().getRawType();
+        return codecFor(dataType).getJavaType().getRawType();
     }
 
     public static boolean isNullOrEmpty(AbstractType<?> type, ByteBuffer bb)
