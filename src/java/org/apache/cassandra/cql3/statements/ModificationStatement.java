@@ -29,7 +29,6 @@ import org.apache.cassandra.config.ColumnDefinition;
 import org.apache.cassandra.config.Schema;
 import org.apache.cassandra.cql3.*;
 import org.apache.cassandra.db.*;
-import org.apache.cassandra.db.composites.AbstractCellNameType;
 import org.apache.cassandra.db.composites.CBuilder;
 import org.apache.cassandra.db.composites.Composite;
 import org.apache.cassandra.db.filter.ColumnSlice;
@@ -339,7 +338,7 @@ public abstract class ModificationStatement implements CQLStatement
         //   UPDATE t SET s = 3 WHERE k = 0 AND v = 1
         //   DELETE v FROM t WHERE k = 0 AND v = 1
         // sounds like you don't really understand what your are doing.
-        if (setsStaticColumns && !setsRegularColumns)
+        if (appliesOnlyToStaticColumns())
         {
             // If we set no non-static columns, then it's fine not to have clustering columns
             if (hasNoClusteringColumns)
@@ -359,6 +358,27 @@ public abstract class ModificationStatement implements CQLStatement
         }
 
         return createClusteringPrefixBuilderInternal(options);
+    }
+
+    /**
+     * Checks that the modification only apply to static columns.
+     * @return <code>true</code> if the modification only apply to static columns, <code>false</code> otherwise.
+     */
+    private boolean appliesOnlyToStaticColumns()
+    {
+        return setsStaticColumns && !appliesToRegularColumns();
+    }
+
+    /**
+     * Checks that the modification apply to regular columns.
+     * @return <code>true</code> if the modification apply to regular columns, <code>false</code> otherwise.
+     */
+    private boolean appliesToRegularColumns()
+    {
+        // If we have regular operations, this applies to regular columns.
+        // Otherwise, if the statement is a DELETE and columnOperations is empty, this means we have no operations,
+        // which for a DELETE means a full row deletion. Which means the operation applies to all columns and regular ones in particular.
+        return setsRegularColumns || (type == StatementType.DELETE && columnOperations.isEmpty());
     }
 
     private Composite createClusteringPrefixBuilderInternal(QueryOptions options)

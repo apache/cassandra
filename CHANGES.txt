@@ -1,4 +1,5 @@
 2.1.12
+ * Fix conditions on static columns (CASSANDRA-10264)
  * AssertionError: attempted to delete non-existing file CommitLog (CASSANDRA-10377)
  * Merge range tombstones during compaction (CASSANDRA-7953)
  * (cqlsh) Distinguish negative and positive infinity in output (CASSANDRA-10523)
