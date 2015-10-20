@@ -1,4 +1,6 @@
 2.1.12
+ * Fix paging issues with partitions containing only static columns data
+   (CASSANDRA-10381)
  * Fix conditions on static columns (CASSANDRA-10264)
  * AssertionError: attempted to delete non-existing file CommitLog (CASSANDRA-10377)
  * Merge range tombstones during compaction (CASSANDRA-7953)
