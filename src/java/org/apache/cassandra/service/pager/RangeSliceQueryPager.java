@@ -98,10 +98,14 @@ public class RangeSliceQueryPager extends AbstractQueryPager
 
         // Same as SliceQueryPager, we ignore a deleted column
         Cell firstCell = isReversed() ? lastCell(first.cf) : firstNonStaticCell(first.cf);
+        // If the row was containing only static columns it has already been returned and we can skip it.
+        if (firstCell == null)
+            return true;
+
         CFMetaData metadata = Schema.instance.getCFMetaData(command.keyspace, command.columnFamily);
         return !first.cf.deletionInfo().isDeleted(firstCell)
-            && firstCell.isLive(timestamp())
-            && firstCell.name().isSameCQL3RowAs(metadata.comparator, lastReturnedName);
+                && firstCell.isLive(timestamp())
+                && firstCell.name().isSameCQL3RowAs(metadata.comparator, lastReturnedName);
     }
 
     protected boolean recordLast(Row last)

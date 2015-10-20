@@ -345,7 +345,11 @@ abstract class AbstractQueryPager implements QueryPager
                     copy.addColumn(iter.next());
             }
         }
-        return Math.min(counter.live(), toDiscard);
+        int live = counter.live();
+        // We want to take into account the row even if it was containing only static columns
+        if (live == 0 && !staticCells.isEmpty())
+            live = 1;
+        return Math.min(live, toDiscard);
     }
 
     private int discardTail(ColumnFamily cf, int toDiscard, ColumnFamily copy, Iterator<Cell> iter, DeletionInfo.InOrderTester tester)

@@ -102,12 +102,17 @@ public class SliceQueryPager extends AbstractQueryPager implements SinglePartiti
             return false;
 
         Cell firstCell = isReversed() ? lastCell(first.cf) : firstNonStaticCell(first.cf);
+        // If the row was containing only static columns it has already been returned and we can skip it.
+        if (firstCell == null)
+            return true;
+
         CFMetaData metadata = Schema.instance.getCFMetaData(command.getKeyspace(), command.getColumnFamilyName());
         // Note: we only return true if the column is the lastReturned *and* it is live. If it is deleted, it is ignored by the
         // rest of the paging code (it hasn't been counted as live in particular) and we want to act as if it wasn't there.
+
         return !first.cf.deletionInfo().isDeleted(firstCell)
-            && firstCell.isLive(timestamp())
-            && firstCell.name().isSameCQL3RowAs(metadata.comparator, lastReturned);
+                && firstCell.isLive(timestamp())
+                && firstCell.name().isSameCQL3RowAs(metadata.comparator, lastReturned);
     }
 
     protected boolean recordLast(Row last)
