@@ -75,13 +75,12 @@ public class SinglePartitionPager extends AbstractQueryPager
 
     protected void recordLast(DecoratedKey key, Row last)
     {
-        if (last != null)
+        if (last != null && last.clustering() != Clustering.STATIC_CLUSTERING)
             lastReturned = PagingState.RowMark.create(command.metadata(), last, protocolVersion);
     }
 
     protected boolean isPreviouslyReturnedPartition(DecoratedKey key)
     {
-        // We're querying a single partition, so if it's not the first page, it is the previously returned one.
         return lastReturned != null;
     }
 }

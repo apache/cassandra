@@ -8,6 +8,7 @@ Merged from 2.2:
  * Expose phi values from failure detector via JMX and tweak debug
    and trace logging (CASSANDRA-9526)
 Merged from 2.1:
+ * Fix paging issues with partitions containing only static columns data (CASSANDRA-10381)
  * Fix conditions on static columns (CASSANDRA-10264)
  * AssertionError: attempted to delete non-existing file CommitLog (CASSANDRA-10377)
 
