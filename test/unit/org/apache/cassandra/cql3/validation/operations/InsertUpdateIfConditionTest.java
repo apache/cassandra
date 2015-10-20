@@ -207,6 +207,17 @@ public class InsertUpdateIfConditionTest extends CQLTester
                              "DELETE FROM %s WHERE k = 'k' AND i IN (0, 1) IF v = 'foo'");
         assertInvalidMessage("IN on the clustering key columns is not supported with conditional deletions",
                              "DELETE FROM %s WHERE k = 'k' AND i IN (0, 1) IF EXISTS");
+
+        createTable("CREATE TABLE %s(k int, s int static, i int, v text, PRIMARY KEY(k, i))");
+        execute("INSERT INTO %s (k, s, i, v) VALUES ( 1, 1, 2, '1')");
+        assertRows(execute("DELETE v FROM %s WHERE k = 1 AND i = 2 IF s != 1"), row(false, 1));
+        assertRows(execute("DELETE v FROM %s WHERE k = 1 AND i = 2 IF s = 1"), row(true));
+        assertRows(execute("SELECT * FROM %s WHERE k = 1 AND i = 2"), row(1, 2, 1, null));
+
+        assertRows(execute("DELETE FROM %s WHERE  k = 1 AND i = 2 IF s != 1"), row(false, 1));
+        assertRows(execute("DELETE FROM %s WHERE k = 1 AND i = 2 IF s = 1"), row(true));
+        assertEmpty(execute("SELECT * FROM %s WHERE k = 1 AND i = 2"));
+        assertRows(execute("SELECT * FROM %s WHERE k = 1"), row(1, null, 1, null));
     }
 
     /**

@@ -131,7 +131,7 @@ public class UpdateStatement extends ModificationStatement
                             List<Term.Raw> columnValues,
                             boolean ifNotExists)
         {
-            super(name, attrs, null, ifNotExists, false);
+            super(name, StatementType.INSERT, attrs, null, ifNotExists, false);
             this.columnNames = columnNames;
             this.columnValues = columnValues;
         }
@@ -152,7 +152,7 @@ public class UpdateStatement extends ModificationStatement
             checkContainsNoDuplicates(columnNames, "The column names contains duplicates");
 
             WhereClause.Builder whereClause = new WhereClause.Builder();
-            Operations operations = new Operations();
+            Operations operations = new Operations(type);
             boolean hasClusteringColumnsSet = false;
 
             for (int i = 0; i < columnNames.size(); i++)
@@ -178,7 +178,7 @@ public class UpdateStatement extends ModificationStatement
 
             boolean applyOnlyToStaticColumns = appliesOnlyToStaticColumns(operations, conditions) && !hasClusteringColumnsSet;
 
-            StatementRestrictions restrictions = new StatementRestrictions(StatementType.INSERT,
+            StatementRestrictions restrictions = new StatementRestrictions(type,
                                                                            cfm,
                                                                            whereClause.build(),
                                                                            boundNames,
@@ -187,7 +187,7 @@ public class UpdateStatement extends ModificationStatement
                                                                            false,
                                                                            false);
 
-            return new UpdateStatement(StatementType.INSERT,
+            return new UpdateStatement(type,
                                        boundNames.size(),
                                        cfm,
                                        operations,
@@ -206,7 +206,7 @@ public class UpdateStatement extends ModificationStatement
 
         public ParsedInsertJson(CFName name, Attributes.Raw attrs, Json.Raw jsonValue, boolean ifNotExists)
         {
-            super(name, attrs, null, ifNotExists, false);
+            super(name, StatementType.INSERT, attrs, null, ifNotExists, false);
             this.jsonValue = jsonValue;
         }
 
@@ -222,7 +222,7 @@ public class UpdateStatement extends ModificationStatement
             Json.Prepared prepared = jsonValue.prepareAndCollectMarkers(cfm, defs, boundNames);
 
             WhereClause.Builder whereClause = new WhereClause.Builder();
-            Operations operations = new Operations();
+            Operations operations = new Operations(type);
             boolean hasClusteringColumnsSet = false;
 
             for (ColumnDefinition def : defs)
@@ -247,7 +247,7 @@ public class UpdateStatement extends ModificationStatement
 
             boolean applyOnlyToStaticColumns = appliesOnlyToStaticColumns(operations, conditions) && !hasClusteringColumnsSet;
 
-            StatementRestrictions restrictions = new StatementRestrictions(StatementType.INSERT,
+            StatementRestrictions restrictions = new StatementRestrictions(type,
                                                                            cfm,
                                                                            whereClause.build(),
                                                                            boundNames,
@@ -256,7 +256,7 @@ public class UpdateStatement extends ModificationStatement
                                                                            false,
                                                                            false);
 
-            return new UpdateStatement(StatementType.INSERT,
+            return new UpdateStatement(type,
                                        boundNames.size(),
                                        cfm,
                                        operations,
@@ -289,7 +289,7 @@ public class UpdateStatement extends ModificationStatement
                             List<Pair<ColumnIdentifier.Raw, ColumnCondition.Raw>> conditions,
                             boolean ifExists)
         {
-            super(name, attrs, conditions, false, ifExists);
+            super(name, StatementType.UPDATE, attrs, conditions, false, ifExists);
             this.updates = updates;
             this.whereClause = whereClause;
         }
@@ -300,7 +300,7 @@ public class UpdateStatement extends ModificationStatement
                                                         Conditions conditions,
                                                         Attributes attrs)
         {
-            Operations operations = new Operations();
+            Operations operations = new Operations(type);
 
             for (Pair<ColumnIdentifier.Raw, Operation.RawUpdate> entry : updates)
             {
@@ -313,14 +313,13 @@ public class UpdateStatement extends ModificationStatement
                 operations.add(operation);
             }
 
-            StatementRestrictions restrictions = newRestrictions(StatementType.UPDATE,
-                                                                 cfm,
+            StatementRestrictions restrictions = newRestrictions(cfm,
                                                                  boundNames,
                                                                  operations,
                                                                  whereClause,
                                                                  conditions);
 
-            return new UpdateStatement(StatementType.UPDATE,
+            return new UpdateStatement(type,
                                        boundNames.size(),
                                        cfm,
                                        operations,

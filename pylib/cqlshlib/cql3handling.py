@@ -146,7 +146,7 @@ JUNK ::= /([ \t\r\f\v]+|(--|[/][/])[^\n\r]*([\n\r]|$)|[/][*].*?[*][/])/ ;
 <star> ::=          "*" ;
 <endtoken> ::=      ";" ;
 <op> ::=            /[-+=,().]/ ;
-<cmp> ::=           /[<>]=?/ ;
+<cmp> ::=           /[<>!]=?/ ;
 <brackets> ::=      /[][{}]/ ;
 
 <integer> ::= "-"? <wholenumber> ;
@@ -894,7 +894,7 @@ syntax_rules += r'''
                ;
 <conditions> ::=  <condition> ( "AND" <condition> )*
                ;
-<condition> ::= <cident> ( "[" <term> "]" )? ( ( "=" | "<" | ">" | "<=" | ">=" | "!=" ) <term>
+<condition> ::= <cident> ( "[" <term> "]" )? (("=" | "<" | ">" | "<=" | ">=" | "!=") <term>
                                              | "IN" "(" <term> ( "," <term> )* ")")
               ;
 '''

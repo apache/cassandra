@@ -22,6 +22,7 @@ import java.util.Iterator;
 import java.util.List;
 
 import org.apache.cassandra.cql3.functions.Function;
+import org.apache.cassandra.cql3.statements.StatementType;
 
 import com.google.common.collect.Iterables;
 import com.google.common.collect.Iterators;
@@ -33,6 +34,11 @@ import com.google.common.collect.Iterators;
 public final class Operations implements Iterable<Operation>
 {
     /**
+     * The type of statement.
+     */
+    private final StatementType type;
+
+    /**
      * The operations on regular columns.
      */
     private final List<Operation> regularOperations = new ArrayList<>();
@@ -41,6 +47,11 @@ public final class Operations implements Iterable<Operation>
      * The operations on static columns.
      */
     private final List<Operation> staticOperations = new ArrayList<>();
+
+    public Operations(StatementType type)
+    {
+        this.type = type;
+    }
 
     /**
      * Checks if some of the operations apply to static columns.
@@ -59,7 +70,10 @@ public final class Operations implements Iterable<Operation>
      */
     public boolean appliesToRegularColumns()
     {
-        return !regularOperations.isEmpty();
+     // If we have regular operations, this applies to regular columns.
+        // Otherwise, if the statement is a DELETE and staticOperations is also empty, this means we have no operations,
+        // which for a DELETE means a full row deletion. Which means the operation applies to all columns and regular ones in particular.
+        return !regularOperations.isEmpty() || (type.isDelete() && staticOperations.isEmpty());
     }
 
     /**

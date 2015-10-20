@@ -119,7 +119,7 @@ public class DeleteStatement extends ModificationStatement
                       List<Pair<ColumnIdentifier.Raw, ColumnCondition.Raw>> conditions,
                       boolean ifExists)
         {
-            super(name, attrs, conditions, false, ifExists);
+            super(name, StatementType.DELETE, attrs, conditions, false, ifExists);
             this.deletions = deletions;
             this.whereClause = whereClause;
         }
@@ -131,7 +131,7 @@ public class DeleteStatement extends ModificationStatement
                                                         Conditions conditions,
                                                         Attributes attrs)
         {
-            Operations operations = new Operations();
+            Operations operations = new Operations(type);
 
             for (Operation.RawDeletion deletion : deletions)
             {
@@ -146,8 +146,7 @@ public class DeleteStatement extends ModificationStatement
                 operations.add(op);
             }
 
-            StatementRestrictions restrictions = newRestrictions(StatementType.DELETE,
-                                                                 cfm,
+            StatementRestrictions restrictions = newRestrictions(cfm,
                                                                  boundNames,
                                                                  operations,
                                                                  whereClause,
