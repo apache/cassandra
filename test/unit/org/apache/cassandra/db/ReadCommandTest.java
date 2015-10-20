@@ -90,6 +90,8 @@ public class ReadCommandTest
     {
         ColumnFamilyStore cfs = Keyspace.open(KEYSPACE).getColumnFamilyStore(CF2);
 
+        cfs.truncateBlocking();
+
         new RowUpdateBuilder(cfs.metadata, 0, ByteBufferUtil.bytes("key"))
                 .clustering("cc")
                 .add("a", ByteBufferUtil.bytes("abcd"))
@@ -119,6 +121,8 @@ public class ReadCommandTest
     {
         ColumnFamilyStore cfs = Keyspace.open(KEYSPACE).getColumnFamilyStore(CF2);
 
+        cfs.truncateBlocking();
+
         new RowUpdateBuilder(cfs.metadata, 0, ByteBufferUtil.bytes("key"))
                 .clustering("cc")
                 .add("a", ByteBufferUtil.bytes("abcd"))
@@ -128,7 +132,7 @@ public class ReadCommandTest
         cfs.forceBlockingFlush();
 
         new RowUpdateBuilder(cfs.metadata, 0, ByteBufferUtil.bytes("key"))
-                .clustering("cdd")
+                .clustering("dd")
                 .add("a", ByteBufferUtil.bytes("abcd"))
                 .build()
                 .apply();
