@@ -1,5 +1,5 @@
 2.1.12
- * Avoid repetition of JVM_OPTS in debian package (CASSANDRA-8821)
+ * Avoid repetition of JVM_OPTS in debian package (CASSANDRA-10251)
  * Fix potential NPE from handling result of SIM.highestSelectivityIndex (CASSANDRA-10550)
  * Fix paging issues with partitions containing only static columns data
    (CASSANDRA-10381)
