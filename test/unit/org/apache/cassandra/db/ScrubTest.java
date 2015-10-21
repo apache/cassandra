@@ -29,6 +29,7 @@ import org.junit.Test;
 import org.junit.runner.RunWith;
 
 import org.apache.cassandra.*;
+import org.apache.cassandra.config.CFMetaData;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.cql3.Operator;
 import org.apache.cassandra.cql3.QueryProcessor;
@@ -49,7 +50,11 @@ import org.apache.cassandra.exceptions.RequestExecutionException;
 import org.apache.cassandra.exceptions.WriteTimeoutException;
 import org.apache.cassandra.io.compress.CompressionMetadata;
 import org.apache.cassandra.io.sstable.*;
+import org.apache.cassandra.io.sstable.format.SSTableFormat;
 import org.apache.cassandra.io.sstable.format.SSTableReader;
+import org.apache.cassandra.io.sstable.format.SSTableWriter;
+import org.apache.cassandra.io.sstable.format.big.BigTableWriter;
+import org.apache.cassandra.io.sstable.metadata.MetadataCollector;
 import org.apache.cassandra.io.util.FileUtils;
 import org.apache.cassandra.schema.KeyspaceParams;
 import org.apache.cassandra.utils.ByteBufferUtil;
@@ -321,14 +326,8 @@ public class ScrubTest
             String filename = cfs.getSSTablePath(tempDataDir);
             Descriptor desc = Descriptor.fromFilename(filename);
 
-            try (SSTableTxnWriter writer = SSTableTxnWriter.create(cfs, desc,
-                                                                   keys.size(),
-                                                                   0L,
-                                                                   0,
-                                                                   new SerializationHeader(true,
-                                                                                           cfs.metadata,
-                                                                                           cfs.metadata.partitionColumns(),
-                                                                                           EncodingStats.NO_STATS)))
+            LifecycleTransaction txn = LifecycleTransaction.offline(OperationType.WRITE, desc.directory);
+            try (SSTableTxnWriter writer = new SSTableTxnWriter(txn, createTestWriter(desc, (long) keys.size(), cfs.metadata, txn)))
             {
 
                 for (String k : keys)
@@ -365,8 +364,8 @@ public class ScrubTest
             if (sstable.last.compareTo(sstable.first) < 0)
                 sstable.last = sstable.first;
 
-            try (LifecycleTransaction txn = LifecycleTransaction.offline(OperationType.SCRUB, sstable);
-                 Scrubber scrubber = new Scrubber(cfs, txn, false, true, true))
+            try (LifecycleTransaction scrubTxn = LifecycleTransaction.offline(OperationType.SCRUB, sstable);
+                 Scrubber scrubber = new Scrubber(cfs, scrubTxn, false, true, true))
             {
                 scrubber.scrub();
             }
@@ -628,5 +627,38 @@ public class ScrubTest
 
         // check index is still working
         assertOrdered(Util.cmd(cfs).filterOn(colName, Operator.EQ, 1L).build(), numRows / 2);
+    }
+
+    private static SSTableMultiWriter createTestWriter(Descriptor descriptor, long keyCount, CFMetaData metadata, LifecycleTransaction txn)
+    {
+        SerializationHeader header = new SerializationHeader(true, metadata, metadata.partitionColumns(), EncodingStats.NO_STATS);
+        MetadataCollector collector = new MetadataCollector(metadata.comparator).sstableLevel(0);
+        return new TestMultiWriter(new TestWriter(descriptor, keyCount, 0, metadata, collector, header, txn));
+    }
+
+    private static class TestMultiWriter extends SimpleSSTableMultiWriter
+    {
+        TestMultiWriter(SSTableWriter writer)
+        {
+            super(writer);
+        }
+    }
+
+    /**
+     * Test writer that allows to write out of order SSTable.
+     */
+    private static class TestWriter extends BigTableWriter
+    {
+        TestWriter(Descriptor descriptor, long keyCount, long repairedAt, CFMetaData metadata,
+                   MetadataCollector collector, SerializationHeader header, LifecycleTransaction txn)
+        {
+            super(descriptor, keyCount, repairedAt, metadata, collector, header, txn);
+        }
+
+        @Override
+        protected long beforeAppend(DecoratedKey decoratedKey)
+        {
+            return dataFile.position();
+        }
     }
 }
