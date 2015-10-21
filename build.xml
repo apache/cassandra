@@ -802,6 +802,9 @@
                 </path>
             </classpath>
         </javac>
+        <copy todir="${stress.build.classes}">
+            <fileset dir="${stress.build.src}/resources" />
+        </copy>
     </target>
 
 	<target name="_write-poms" depends="maven-declare-dependencies">

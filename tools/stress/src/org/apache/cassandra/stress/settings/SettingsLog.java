@@ -21,10 +21,9 @@ package org.apache.cassandra.stress.settings;
  */
 
 
-import java.io.File;
-import java.io.FileNotFoundException;
-import java.io.PrintStream;
-import java.io.Serializable;
+import org.apache.cassandra.stress.util.MultiPrintStream;
+
+import java.io.*;
 import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
@@ -62,9 +61,15 @@ public class SettingsLog implements Serializable
         level = Level.valueOf(options.level.value().toUpperCase());
     }
 
-    public PrintStream getOutput() throws FileNotFoundException
+    public MultiPrintStream getOutput() throws FileNotFoundException
     {
-        return file == null ? new PrintStream(System.out) : new PrintStream(file);
+        // Always print to stdout regardless of whether we're graphing or not
+        MultiPrintStream stream = new MultiPrintStream(new PrintStream(System.out));
+
+        if (file != null)
+            stream.addStream(new PrintStream(file));
+
+        return stream;
     }
 
     // Option Declarations
