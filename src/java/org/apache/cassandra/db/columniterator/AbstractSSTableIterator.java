@@ -323,7 +323,6 @@ abstract class AbstractSSTableIterator implements SliceableUnfilteredRowIterator
             else
             {
                 file.seek(position);
-                deserializer.clearState();
             }
         }
 
@@ -438,7 +437,10 @@ abstract class AbstractSSTableIterator implements SliceableUnfilteredRowIterator
         public void setToBlock(int blockIdx) throws IOException
         {
             if (blockIdx >= 0 && blockIdx < indexes.size())
+            {
                 reader.seekToPosition(columnOffset(blockIdx));
+                reader.deserializer.clearState();
+            }
 
             currentIndexIdx = blockIdx;
             reader.openMarker = blockIdx > 0 ? indexes.get(blockIdx - 1).endOpenMarker : null;
