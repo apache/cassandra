@@ -5,6 +5,7 @@
  * Deprecate Pig support (CASSANDRA-10542)
  * Reduce contention getting instances of CompositeType (CASSANDRA-10433)
 Merged from 2.1:
+ * Fix potential NPE from handling result of SIM.highestSelectivityIndex (CASSANDRA-10550)
  * Fix paging issues with partitions containing only static columns data (CASSANDRA-10381)
  * Fix conditions on static columns (CASSANDRA-10264)
  * AssertionError: attempted to delete non-existing file CommitLog (CASSANDRA-10377)

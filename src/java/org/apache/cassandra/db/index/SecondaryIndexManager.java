@@ -849,11 +849,14 @@ public class SecondaryIndexManager
         for (SecondaryIndexSearcher searcher : indexSearchers)
         {
             SecondaryIndex highestSelectivityIndex = searcher.highestSelectivityIndex(clause);
-            long estimate = highestSelectivityIndex.estimateResultRows();
-            if (estimate <= bestEstimate)
+            if (highestSelectivityIndex != null)
             {
-                bestEstimate = estimate;
-                mostSelective = searcher;
+                long estimate = highestSelectivityIndex.estimateResultRows();
+                if (estimate <= bestEstimate)
+                {
+                    bestEstimate = estimate;
+                    mostSelective = searcher;
+                }
             }
         }
 
