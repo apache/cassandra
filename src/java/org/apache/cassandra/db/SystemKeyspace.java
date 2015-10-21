@@ -643,7 +643,7 @@ public class SystemKeyspace
                 if (!storedRack.equals(currentRack))
                 {
                     throw new ConfigurationException("Cannot start node if snitch's rack (" + currentRack + ") differs from previous rack (" + storedRack + "). " +
-                                                     "Please fix the snitch or wipe and rebootstrap this node.");
+                                                     "Please fix the snitch or decommission and rebootstrap this node.");
                 }
             }
         }

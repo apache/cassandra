@@ -19,8 +19,8 @@ using the provided 'sstableupgrade' tool.
 New features
 ------------
     - Switching racks is no longer an allowed operation on a node which has
-      data. Instead, the node will need to be wiped and bootstrapped. If
-      moving from the SimpleSnitch, make sure the rack containing all current
+      data. Instead, the node will need to be decommissioned and rebootstrapped.
+      If moving from the SimpleSnitch, make sure the rack containing all current
       nodes is named "rack1". To override this behavior when manually wiping
       the node and bootstrapping, use -Dcassandra.ignore_rack=true.
 
