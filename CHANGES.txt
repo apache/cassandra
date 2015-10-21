@@ -12,6 +12,7 @@ Merged from 2.1:
  * Fix paging issues with partitions containing only static columns data (CASSANDRA-10381)
  * Fix conditions on static columns (CASSANDRA-10264)
  * AssertionError: attempted to delete non-existing file CommitLog (CASSANDRA-10377)
+ * Fix sorting for queries with an IN condition on partition key columns (CASSANDRA-10363)
 
 
 3.0-rc2
