@@ -248,7 +248,7 @@ public class CassandraDaemon
             if (!storedRack.equals(currentRack))
             {
                 logger.error("Cannot start node if snitch's rack differs from previous rack. " +
-                             "Please fix the snitch or wipe and rebootstrap this node.");
+                             "Please fix the snitch or decommission and rebootstrap this node.");
                 System.exit(100);
             }
         }
