@@ -6,6 +6,7 @@ import java.util.Collections;
 import java.util.Iterator;
 
 import org.junit.Assert;
+import org.junit.Before;
 import org.junit.BeforeClass;
 import org.junit.Test;
 
@@ -64,6 +65,12 @@ public class SinglePartitionSliceCommandTest
         cfm = Schema.instance.getCFMetaData(KEYSPACE, TABLE);
         v = cfm.getColumnDefinition(new ColumnIdentifier("v", true));
         s = cfm.getColumnDefinition(new ColumnIdentifier("s", true));
+    }
+
+    @Before
+    public void truncate()
+    {
+        Keyspace.open(KEYSPACE).getColumnFamilyStore(TABLE).truncateBlocking();
     }
 
     @Test
