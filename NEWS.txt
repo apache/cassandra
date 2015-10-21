@@ -24,8 +24,8 @@ Deprecation
 Operations
 ----------
     - Switching racks is no longer an allowed operation on a node which has
-      data. Instead, the node will need to be wiped and bootstrapped. If
-      moving from the SimpleSnitch, make sure the rack containing all current
+      data. Instead, the node will need to be decommissioned and rebootstrapped.
+      If moving from the SimpleSnitch, make sure the rack containing all current
       nodes is named "rack1".
 
 
