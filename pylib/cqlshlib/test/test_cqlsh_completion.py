@@ -76,7 +76,7 @@ class CqlshCompletionCase(BaseTestCase):
             # ensure the last line of the completion is the prompt
             prompt_regex = self.cqlsh.prompt.lstrip() + re.escape(inputstring)
             msg = ('Double-tab completion '
-                   'does not print prompt for input "{}"'.format(inputstring))
+                   'does not print prompt for input "%s"' % (inputstring, ))
             self.assertRegexpMatches(choice_lines[-1], prompt_regex, msg=msg)
 
         choice_lines = [line.strip() for line in choice_lines[:-1]]

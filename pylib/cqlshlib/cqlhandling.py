@@ -63,7 +63,7 @@ class CqlParsingRuleSet(pylexotron.ParsingRuleSet):
         We cannot let resreved cql keywords be simple 'identifier' since this caused
         problems with completion, see CASSANDRA-10415
         """
-        syntax = '<reserved_identifier> ::= /(' + '|'.join(r'\b{}\b'.format(k) for k in keywords) + ')/ ;'
+        syntax = '<reserved_identifier> ::= /(' + '|'.join(r'\b%s\b' % (k,) for k in keywords) + ')/ ;'
         self.append_rules(syntax)
 
     def completer_for(self, rulename, symname):
