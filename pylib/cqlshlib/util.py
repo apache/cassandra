@@ -14,9 +14,14 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+
+import cProfile
 import codecs
+import pstats
+
 from itertools import izip
 from datetime import timedelta, tzinfo
+from StringIO import StringIO
 
 ZERO = timedelta(0)
 
@@ -122,3 +127,17 @@ def get_file_encoding_bomsize(filename):
         file_encoding, size = "utf-8", 0
 
     return (file_encoding, size)
+
+
+def profile_on():
+    pr = cProfile.Profile()
+    pr.enable()
+    return pr
+
+
+def profile_off(pr):
+    pr.disable()
+    s = StringIO()
+    ps = pstats.Stats(pr, stream=s).sort_stats('cumulative')
+    ps.print_stats()
+    print s.getvalue()

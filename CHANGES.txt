@@ -1,12 +1,10 @@
 2.1.13
-<<<<<<< HEAD
+ * (cqlsh) further optimise COPY FROM (CASSANDRA-9302)
  * Allow CREATE TABLE WITH ID (CASSANDRA-9179)
  * Make Stress compiles within eclipse (CASSANDRA-10807)
  * Cassandra Daemon should print JVM arguments (CASSANDRA-10764)
  * Allow cancellation of index summary redistribution (CASSANDRA-8805)
-=======
  * sstableloader will fail if there are collections in the schema tables (CASSANDRA-10700)
->>>>>>> 5377183... stableloader will fail if there are collections in the schema tables
  * Disable reloading of GossipingPropertyFileSnitch (CASSANDRA-9474)
  * Fix Stress profile parsing on Windows (CASSANDRA-10808)
 
