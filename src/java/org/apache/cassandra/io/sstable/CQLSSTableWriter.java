@@ -453,6 +453,8 @@ public class CQLSSTableWriter implements Closeable
             this.boundNames = p.right;
             if (this.insert.hasConditions())
                 throw new IllegalArgumentException("Conditional statements are not supported");
+            if (this.insert.isCounter())
+                throw new IllegalArgumentException("Counter update statements are not supported");
             if (this.boundNames.isEmpty())
                 throw new IllegalArgumentException("Provided insert statement has no bind variables");
             return this;
