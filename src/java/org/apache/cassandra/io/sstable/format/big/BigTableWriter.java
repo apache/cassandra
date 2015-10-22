@@ -52,7 +52,7 @@ public class BigTableWriter extends SSTableWriter
 
     private final IndexWriter iwriter;
     private final SegmentedFile.Builder dbuilder;
-    private final SequentialWriter dataFile;
+    protected final SequentialWriter dataFile;
     private DecoratedKey lastWrittenKey;
     private FileMark dataMark;
 
@@ -98,7 +98,7 @@ public class BigTableWriter extends SSTableWriter
     /**
      * Perform sanity checks on @param decoratedKey and @return the position in the data file before any data is written
      */
-    private long beforeAppend(DecoratedKey decoratedKey)
+    protected long beforeAppend(DecoratedKey decoratedKey)
     {
         assert decoratedKey != null : "Keys must not be null"; // empty keys ARE allowed b/c of indexed column values
         if (lastWrittenKey != null && lastWrittenKey.compareTo(decoratedKey) >= 0)

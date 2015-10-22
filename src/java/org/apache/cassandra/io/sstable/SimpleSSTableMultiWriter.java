@@ -35,7 +35,7 @@ public class SimpleSSTableMultiWriter implements SSTableMultiWriter
 {
     private final SSTableWriter writer;
 
-    private SimpleSSTableMultiWriter(SSTableWriter writer)
+    protected SimpleSSTableMultiWriter(SSTableWriter writer)
     {
         this.writer = writer;
     }
