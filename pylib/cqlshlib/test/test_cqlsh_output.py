@@ -522,26 +522,26 @@ class TestCqlshOutput(BaseTestCase):
 
     def test_prompt(self):
         with testrun_cqlsh(tty=True, keyspace=None, cqlver=cqlsh.DEFAULT_CQLVER) as c:
-            self.assertEqual(c.output_header.splitlines()[-1], 'cqlsh> ')
+            self.assertTrue(c.output_header.splitlines()[-1].endswith('cqlsh> '))
 
             c.send('\n')
             output = c.read_to_next_prompt().replace('\r\n', '\n')
-            self.assertEqual(output, '\ncqlsh> ')
+            self.assertTrue(output.endswith('cqlsh> '))
 
             cmd = "USE \"%s\";\n" % get_test_keyspace().replace('"', '""')
             c.send(cmd)
             output = c.read_to_next_prompt().replace('\r\n', '\n')
-            self.assertEqual(output, '%scqlsh:%s> ' % (cmd, get_test_keyspace()))
+            self.assertTrue(output.endswith('cqlsh:%s> ' % (get_test_keyspace())))
 
             c.send('use system;\n')
             output = c.read_to_next_prompt().replace('\r\n', '\n')
-            self.assertEqual(output, 'use system;\ncqlsh:system> ')
+            self.assertTrue(output.endswith('cqlsh:system> '))
 
             c.send('use NONEXISTENTKEYSPACE;\n')
             outputlines = c.read_to_next_prompt().splitlines()
 
             self.assertEqual(outputlines[0], 'use NONEXISTENTKEYSPACE;')
-            self.assertEqual(outputlines[2], 'cqlsh:system> ')
+            self.assertTrue(outputlines[2].endswith('cqlsh:system> '))
             midline = ColoredText(outputlines[1])
             self.assertEqual(midline.plain(),
                              'InvalidRequest: code=2200 [Invalid query] message="Keyspace \'nonexistentkeyspace\' does not exist"')
