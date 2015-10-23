@@ -92,17 +92,17 @@ class LogTransaction extends Transactional.AbstractTransactional implements Tran
      */
     public static final class CorruptTransactionLogException extends RuntimeException
     {
-        public final LogFile file;
+        public final LogFile txnFile;
 
-        public CorruptTransactionLogException(String message, LogFile file)
+        public CorruptTransactionLogException(String message, LogFile txnFile)
         {
             super(message);
-            this.file = file;
+            this.txnFile = txnFile;
         }
     }
 
     private final Tracker tracker;
-    private final LogFile data;
+    private final LogFile txnFile;
     private final Ref<LogTransaction> selfRef;
     // Deleting sstables is tricky because the mmapping might not have been finalized yet,
     // and delete will fail (on Windows) until it is (we only force the unmapping on SUN VMs).
@@ -110,30 +110,19 @@ class LogTransaction extends Transactional.AbstractTransactional implements Tran
     // will be recognized as GCable.
     private static final Queue<Runnable> failedDeletions = new ConcurrentLinkedQueue<>();
 
-    LogTransaction(OperationType opType, CFMetaData metadata)
+    LogTransaction(OperationType opType)
     {
-        this(opType, metadata, null);
+        this(opType, null);
     }
 
-    LogTransaction(OperationType opType, CFMetaData metadata, Tracker tracker)
-    {
-        this(opType, new Directories(metadata), tracker);
-    }
-
-    LogTransaction(OperationType opType, Directories directories, Tracker tracker)
-    {
-        this(opType, directories.getDirectoryForNewSSTables(), tracker);
-    }
-
-    LogTransaction(OperationType opType, File folder, Tracker tracker)
+    LogTransaction(OperationType opType, Tracker tracker)
     {
         this.tracker = tracker;
-        int folderDescriptor = CLibrary.tryOpenDirectory(folder.getPath());
-        this.data = new LogFile(opType, folder, folderDescriptor, UUIDGen.getTimeUUID());
-        this.selfRef = new Ref<>(this, new TransactionTidier(data, folderDescriptor));
+        this.txnFile = new LogFile(opType, UUIDGen.getTimeUUID());
+        this.selfRef = new Ref<>(this, new TransactionTidier(txnFile));
 
         if (logger.isTraceEnabled())
-            logger.trace("Created transaction logs with id {}", data.id);
+            logger.trace("Created transaction logs with id {}", txnFile.id());
     }
 
     /**
@@ -141,7 +130,7 @@ class LogTransaction extends Transactional.AbstractTransactional implements Tran
      **/
     void trackNew(SSTable table)
     {
-        data.add(Type.ADD, table);
+        txnFile.add(Type.ADD, table);
     }
 
     /**
@@ -149,7 +138,7 @@ class LogTransaction extends Transactional.AbstractTransactional implements Tran
      */
     void untrackNew(SSTable table)
     {
-        data.remove(Type.ADD, table);
+        txnFile.remove(Type.ADD, table);
     }
 
     /**
@@ -157,15 +146,15 @@ class LogTransaction extends Transactional.AbstractTransactional implements Tran
      */
     SSTableTidier obsoleted(SSTableReader reader)
     {
-        if (data.contains(Type.ADD, reader))
+        if (txnFile.contains(Type.ADD, reader))
         {
-            if (data.contains(Type.REMOVE, reader))
+            if (txnFile.contains(Type.REMOVE, reader))
                 throw new IllegalArgumentException();
 
             return new SSTableTidier(reader, true, this);
         }
 
-        data.add(Type.REMOVE, reader);
+        txnFile.add(Type.REMOVE, reader);
 
         if (tracker != null)
             tracker.notifyDeleting(reader);
@@ -173,26 +162,32 @@ class LogTransaction extends Transactional.AbstractTransactional implements Tran
         return new SSTableTidier(reader, false, this);
     }
 
-    OperationType getType()
+    OperationType type()
     {
-        return data.getType();
+        return txnFile.type();
     }
 
-    UUID getId()
+    UUID id()
     {
-        return data.getId();
-    }
-
-    @VisibleForTesting
-    String getDataFolder()
-    {
-        return data.folder.getPath();
+        return txnFile.id();
     }
 
     @VisibleForTesting
-    LogFile getLogFile()
+    LogFile txnFile()
     {
-        return data;
+        return txnFile;
+    }
+
+    @VisibleForTesting
+    List<File> logFiles()
+    {
+        return txnFile.getFiles();
+    }
+
+    @VisibleForTesting
+    List<String> logFilePaths()
+    {
+        return txnFile.getFilePaths();
     }
 
     static void delete(File file)
@@ -224,12 +219,10 @@ class LogTransaction extends Transactional.AbstractTransactional implements Tran
     private static class TransactionTidier implements RefCounted.Tidy, Runnable
     {
         private final LogFile data;
-        private final int folderDescriptor;
 
-        TransactionTidier(LogFile data, int folderDescriptor)
+        TransactionTidier(LogFile data)
         {
             this.data = data;
-            this.folderDescriptor = folderDescriptor;
         }
 
         public void tidy() throws Exception
@@ -247,7 +240,13 @@ class LogTransaction extends Transactional.AbstractTransactional implements Tran
             if (logger.isTraceEnabled())
                 logger.trace("Removing files for transaction {}", name());
 
-            assert data.completed() : "Expected a completed transaction: " + data;
+            if (!data.completed())
+            { // this happens if we forget to close a txn and the garbage collector closes it for us
+                logger.error("{} was not completed, trying to abort it now", data);
+                Throwable err = Throwables.perform((Throwable)null, data::abort);
+                if (err != null)
+                    logger.error("Failed to abort {}", data, err);
+            }
 
             Throwable err = data.removeUnfinishedLeftovers(null);
 
@@ -260,7 +259,8 @@ class LogTransaction extends Transactional.AbstractTransactional implements Tran
             {
                 if (logger.isTraceEnabled())
                     logger.trace("Closing file transaction {}", name());
-                CLibrary.tryCloseFD(folderDescriptor);
+
+                data.close();
             }
         }
     }
@@ -360,20 +360,20 @@ class LogTransaction extends Transactional.AbstractTransactional implements Tran
         }
         catch (Throwable t)
         {
-            logger.error("Failed to complete file transaction {}", getId(), t);
+            logger.error("Failed to complete file transaction {}", id(), t);
             return Throwables.merge(accumulate, t);
         }
     }
 
     protected Throwable doCommit(Throwable accumulate)
     {
-        data.commit();
+        txnFile.commit();
         return complete(accumulate);
     }
 
     protected Throwable doAbort(Throwable accumulate)
     {
-        data.abort();
+        txnFile.abort();
         return complete(accumulate);
     }
 
@@ -387,32 +387,62 @@ class LogTransaction extends Transactional.AbstractTransactional implements Tran
      */
     static void removeUnfinishedLeftovers(CFMetaData metadata)
     {
-        for (File dir : new Directories(metadata).getCFDirectories())
+        removeUnfinishedLeftovers(new Directories(metadata).getCFDirectories());
+    }
+
+    @VisibleForTesting
+    static void removeUnfinishedLeftovers(List<File> folders)
+    {
+        LogFilesByName logFiles = new LogFilesByName();
+        folders.forEach(logFiles::list);
+        logFiles.removeUnfinishedLeftovers();
+    }
+
+    private static final class LogFilesByName
+    {
+        Map<String, List<File>> files = new HashMap<>();
+
+        void list(File folder)
         {
-            int folderDescriptor = CLibrary.tryOpenDirectory(dir.getPath());
+            Arrays.stream(folder.listFiles(LogFile::isLogFile)).forEach(this::add);
+        }
+
+        void add(File file)
+        {
+            List<File> filesByName = files.get(file.getName());
+            if (filesByName == null)
+            {
+                filesByName = new ArrayList<>();
+                files.put(file.getName(), filesByName);
+            }
+
+            filesByName.add(file);
+        }
+
+        void removeUnfinishedLeftovers()
+        {
+            files.forEach(LogFilesByName::removeUnfinishedLeftovers);
+        }
+
+        static void removeUnfinishedLeftovers(String name, List<File> logFiles)
+        {
+            LogFile txn = LogFile.make(name, logFiles);
             try
             {
-                File[] logs = dir.listFiles(LogFile::isLogFile);
-
-                for (File log : logs)
+                if (txn.verify())
                 {
-                    LogFile data = LogFile.make(log, folderDescriptor);
-                    data.readRecords();
-                    if (data.verify())
-                    {
-                        Throwable failure = data.removeUnfinishedLeftovers(null);
-                        if (failure != null)
-                            logger.error("Failed to remove unfinished transaction leftovers for log {}", log, failure);
-                    }
-                    else
-                    {
-                        logger.error("Unexpected disk state: failed to read transaction log {}", log);
-                    }
+                    Throwable failure = txn.removeUnfinishedLeftovers(null);
+                    if (failure != null)
+                        logger.error("Failed to remove unfinished transaction leftovers for txn {}", txn, failure);
+                }
+                else
+                {
+                    logger.error("Unexpected disk state: failed to read transaction txn {}", txn);
                 }
             }
             finally
             {
-                CLibrary.tryCloseFD(folderDescriptor);
+                txn.close();
             }
         }
     }

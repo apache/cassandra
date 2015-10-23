@@ -87,6 +87,11 @@ public final class Throwables
             throw (E) fail;
     }
 
+    public static Throwable perform(Throwable accumulate, DiscreteAction<?> ... actions)
+    {
+        return perform(accumulate, Arrays.stream(actions));
+    }
+
     public static Throwable perform(Throwable accumulate, Stream<? extends DiscreteAction<?>> actions)
     {
         return perform(accumulate, actions.iterator());

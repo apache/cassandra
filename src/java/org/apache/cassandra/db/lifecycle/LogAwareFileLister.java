@@ -98,7 +98,7 @@ final class LogAwareFileLister
      */
     void classifyFiles(File txnFile)
     {
-        LogFile txn = LogFile.make(txnFile, -1);
+        LogFile txn = LogFile.make(txnFile);
         readTxnLog(txn);
         classifyFiles(txn);
         files.put(txnFile, FileType.TXN_LOG);
@@ -106,7 +106,6 @@ final class LogAwareFileLister
 
     void readTxnLog(LogFile txn)
     {
-        txn.readRecords();
         if (!txn.verify() && onTxnErr == OnTxnErr.THROW)
             throw new LogTransaction.CorruptTransactionLogException("Some records failed verification. See earlier in log for details.", txn);
     }

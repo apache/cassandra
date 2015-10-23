@@ -159,7 +159,7 @@ public class HelpersTest
     public void testMarkObsolete()
     {
         ColumnFamilyStore cfs = MockSchema.newCFS();
-        LogTransaction txnLogs = new LogTransaction(OperationType.UNKNOWN, cfs.metadata);
+        LogTransaction txnLogs = new LogTransaction(OperationType.UNKNOWN);
         Iterable<SSTableReader> readers = Lists.newArrayList(MockSchema.sstable(1, cfs), MockSchema.sstable(2, cfs));
 
         List<LogTransaction.Obsoletion> obsoletions = new ArrayList<>();

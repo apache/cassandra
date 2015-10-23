@@ -326,7 +326,7 @@ public class ScrubTest
             String filename = cfs.getSSTablePath(tempDataDir);
             Descriptor desc = Descriptor.fromFilename(filename);
 
-            LifecycleTransaction txn = LifecycleTransaction.offline(OperationType.WRITE, desc.directory);
+            LifecycleTransaction txn = LifecycleTransaction.offline(OperationType.WRITE);
             try (SSTableTxnWriter writer = new SSTableTxnWriter(txn, createTestWriter(desc, (long) keys.size(), cfs.metadata, txn)))
             {
 
