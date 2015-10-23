@@ -5,6 +5,7 @@
 
 
 3.0
+ * Support encrypted and plain traffic on the same port (CASSANDRA-10559)
  * Fix handling of range tombstones when reading old format sstables (CASSANDRA-10360)
  * Aggregate with Initial Condition fails with C* 3.0 (CASSANDRA-10367)
 Merged from 2.2:
