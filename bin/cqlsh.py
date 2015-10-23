@@ -51,6 +51,9 @@ from glob import glob
 from StringIO import StringIO
 from uuid import UUID
 
+if sys.version_info[0] != 2 or sys.version_info[1] != 7:
+    sys.exit("\nCQL Shell supports only Python 2.7\n")
+
 description = "CQL Shell for Apache Cassandra"
 version = "5.0.1"
 
