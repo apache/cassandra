@@ -27,7 +27,7 @@ import math
 from time import time
 from . import basecase
 
-DEFAULT_CQLSH_PROMPT = '\ncqlsh(:\S+)?> '
+DEFAULT_CQLSH_PROMPT = os.linesep + '(\S+@)?cqlsh(:\S+)?> '
 DEFAULT_CQLSH_TERM = 'xterm'
 
 cqlshlog = basecase.cqlshlog
