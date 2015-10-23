@@ -85,7 +85,7 @@ public class CassandraServer implements Cassandra.Iface
         return ThriftSessionManager.instance.currentSession();
     }
 
-    protected PartitionIterator read(List<SinglePartitionReadCommand<?>> commands, org.apache.cassandra.db.ConsistencyLevel consistency_level, ClientState cState)
+    protected PartitionIterator read(List<SinglePartitionReadCommand> commands, org.apache.cassandra.db.ConsistencyLevel consistency_level, ClientState cState)
     throws org.apache.cassandra.exceptions.InvalidRequestException, UnavailableException, TimedOutException
     {
         try
@@ -257,7 +257,7 @@ public class CassandraServer implements Cassandra.Iface
              : result;
     }
 
-    private Map<ByteBuffer, List<ColumnOrSuperColumn>> getSlice(List<SinglePartitionReadCommand<?>> commands, boolean subColumnsOnly, int cellLimit, org.apache.cassandra.db.ConsistencyLevel consistency_level, ClientState cState)
+    private Map<ByteBuffer, List<ColumnOrSuperColumn>> getSlice(List<SinglePartitionReadCommand> commands, boolean subColumnsOnly, int cellLimit, org.apache.cassandra.db.ConsistencyLevel consistency_level, ClientState cState)
     throws org.apache.cassandra.exceptions.InvalidRequestException, UnavailableException, TimedOutException
     {
         try (PartitionIterator results = read(commands, consistency_level, cState))
@@ -551,7 +551,7 @@ public class CassandraServer implements Cassandra.Iface
         org.apache.cassandra.db.ConsistencyLevel consistencyLevel = ThriftConversion.fromThrift(consistency_level);
         consistencyLevel.validateForRead(keyspace);
 
-        List<SinglePartitionReadCommand<?>> commands = new ArrayList<>(keys.size());
+        List<SinglePartitionReadCommand> commands = new ArrayList<>(keys.size());
         ColumnFilter columnFilter = makeColumnFilter(metadata, column_parent, predicate);
         ClusteringIndexFilter filter = toInternalFilter(metadata, column_parent, predicate);
         DataLimits limits = getLimits(1, metadata.isSuper() && !column_parent.isSetSuper_column(), predicate);
@@ -641,7 +641,7 @@ public class CassandraServer implements Cassandra.Iface
             }
 
             DecoratedKey dk = metadata.decorateKey(key);
-            SinglePartitionReadCommand<?> command = SinglePartitionReadCommand.create(true, metadata, FBUtilities.nowInSeconds(), columns, RowFilter.NONE, DataLimits.NONE, dk, filter);
+            SinglePartitionReadCommand command = SinglePartitionReadCommand.create(true, metadata, FBUtilities.nowInSeconds(), columns, RowFilter.NONE, DataLimits.NONE, dk, filter);
 
             try (RowIterator result = PartitionIterators.getOnlyElement(read(Arrays.asList(command), consistencyLevel, cState), command))
             {
@@ -2437,8 +2437,8 @@ public class CassandraServer implements Cassandra.Iface
 
             ThriftValidation.validateKey(metadata, request.key);
             DecoratedKey dk = metadata.decorateKey(request.key);
-            SinglePartitionReadCommand<?> cmd = SinglePartitionReadCommand.create(true, metadata, FBUtilities.nowInSeconds(), columns, RowFilter.NONE, limits, dk, filter);
-            return getSlice(Collections.<SinglePartitionReadCommand<?>>singletonList(cmd),
+            SinglePartitionReadCommand cmd = SinglePartitionReadCommand.create(true, metadata, FBUtilities.nowInSeconds(), columns, RowFilter.NONE, limits, dk, filter);
+            return getSlice(Collections.<SinglePartitionReadCommand>singletonList(cmd),
                             false,
                             limits.perPartitionCount(),
                             consistencyLevel,
@@ -2525,7 +2525,7 @@ public class CassandraServer implements Cassandra.Iface
                 // We want to know if the partition exists, so just fetch a single cell.
                 ClusteringIndexSliceFilter filter = new ClusteringIndexSliceFilter(Slices.ALL, false);
                 DataLimits limits = DataLimits.thriftLimits(1, 1);
-                return new SinglePartitionSliceCommand(false, 0, true, metadata, nowInSec, ColumnFilter.all(metadata), RowFilter.NONE, limits, key, filter);
+                return new SinglePartitionReadCommand(false, 0, true, metadata, nowInSec, ColumnFilter.all(metadata), RowFilter.NONE, limits, key, filter);
             }
 
             // Gather the clustering for the expected values and query those.

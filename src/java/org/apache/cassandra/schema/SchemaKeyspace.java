@@ -457,8 +457,8 @@ public final class SchemaKeyspace
         Slices slices = Slices.with(comparator, Slice.make(comparator, tableName));
         int nowInSec = FBUtilities.nowInSeconds();
         try (OpOrder.Group op = store.readOrdering.start();
-             RowIterator partition =  UnfilteredRowIterators.filter(SinglePartitionSliceCommand.create(store.metadata, nowInSec, getSchemaKSKey(keyspaceName), slices)
-                                                                                               .queryMemtableAndDisk(store, op), nowInSec))
+             RowIterator partition =  UnfilteredRowIterators.filter(SinglePartitionReadCommand.create(store.metadata, nowInSec, getSchemaKSKey(keyspaceName), slices)
+                                                                                              .queryMemtableAndDisk(store, op), nowInSec))
         {
             return fct.apply(partition);
         }

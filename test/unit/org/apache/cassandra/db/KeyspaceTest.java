@@ -133,7 +133,7 @@ public class KeyspaceTest extends CQLTester
         Clustering endClustering = new Clustering(ByteBufferUtil.bytes(sliceEnd));
         Slices slices = Slices.with(cfs.getComparator(), Slice.make(startClustering, endClustering));
         ClusteringIndexSliceFilter filter = new ClusteringIndexSliceFilter(slices, reversed);
-        SinglePartitionSliceCommand command = singlePartitionSlice(cfs, key, filter, limit);
+        SinglePartitionReadCommand command = singlePartitionSlice(cfs, key, filter, limit);
 
         try (ReadOrderGroup orderGroup = command.startOrderGroup(); PartitionIterator iterator = command.executeInternal(orderGroup))
         {
@@ -207,7 +207,7 @@ public class KeyspaceTest extends CQLTester
 
             PartitionColumns columns = PartitionColumns.of(cfs.metadata.getColumnDefinition(new ColumnIdentifier("c", false)));
             ClusteringIndexSliceFilter filter = new ClusteringIndexSliceFilter(Slices.ALL, false);
-            SinglePartitionSliceCommand command = singlePartitionSlice(cfs, "0", filter, null);
+            SinglePartitionReadCommand command = singlePartitionSlice(cfs, "0", filter, null);
             try (ReadOrderGroup orderGroup = command.startOrderGroup(); PartitionIterator iterator = command.executeInternal(orderGroup))
             {
                 try (RowIterator rowIterator = iterator.next())
@@ -258,12 +258,12 @@ public class KeyspaceTest extends CQLTester
         return new ClusteringIndexSliceFilter(slices, reversed);
     }
 
-    private static SinglePartitionSliceCommand singlePartitionSlice(ColumnFamilyStore cfs, String key, ClusteringIndexSliceFilter filter, Integer rowLimit)
+    private static SinglePartitionReadCommand singlePartitionSlice(ColumnFamilyStore cfs, String key, ClusteringIndexSliceFilter filter, Integer rowLimit)
     {
         DataLimits limit = rowLimit == null
                          ? DataLimits.NONE
                          : DataLimits.cqlLimits(rowLimit);
-        return new SinglePartitionSliceCommand(
+        return SinglePartitionReadCommand.create(
                 cfs.metadata, FBUtilities.nowInSeconds(), ColumnFilter.all(cfs.metadata), RowFilter.NONE, limit, Util.dk(key), filter);
     }
 
@@ -287,7 +287,7 @@ public class KeyspaceTest extends CQLTester
         {
 
             ClusteringIndexSliceFilter filter = slices(cfs, 5, null, false);
-            SinglePartitionSliceCommand command = singlePartitionSlice(cfs, "0", filter, 2);
+            SinglePartitionReadCommand command = singlePartitionSlice(cfs, "0", filter, 2);
             assertRowsInResult(cfs, command, 5, 7);
 
             command = singlePartitionSlice(cfs, "0", slices(cfs, 4, null, false), 2);
@@ -329,7 +329,7 @@ public class KeyspaceTest extends CQLTester
 
         for (int round = 0; round < 2; round++)
         {
-            SinglePartitionSliceCommand command = singlePartitionSlice(cfs, "0", slices(cfs, null, null, false), 2);
+            SinglePartitionReadCommand command = singlePartitionSlice(cfs, "0", slices(cfs, null, null, false), 2);
             assertRowsInResult(cfs, command, 0, 1);
 
             command = singlePartitionSlice(cfs, "0", slices(cfs, 1, null, false), 1);
@@ -358,7 +358,7 @@ public class KeyspaceTest extends CQLTester
 
         for (int round = 0; round < 2; round++)
         {
-            SinglePartitionSliceCommand command = singlePartitionSlice(cfs, "0", slices(cfs, 2, null, false), 3);
+            SinglePartitionReadCommand command = singlePartitionSlice(cfs, "0", slices(cfs, 2, null, false), 3);
             assertRowsInResult(cfs, command, -1, -1, 4);
 
             if (round == 0)
@@ -409,7 +409,7 @@ public class KeyspaceTest extends CQLTester
 
         ((ClearableHistogram)cfs.metric.sstablesPerReadHistogram.cf).clear();
 
-        SinglePartitionSliceCommand command = singlePartitionSlice(cfs, "0", slices(cfs, null, 1499, false), 1000);
+        SinglePartitionReadCommand command = singlePartitionSlice(cfs, "0", slices(cfs, null, 1499, false), 1000);
         int[] expectedValues = new int[500];
         for (int i = 0; i < 500; i++)
             expectedValues[i] = i + 1000;
@@ -470,17 +470,17 @@ public class KeyspaceTest extends CQLTester
     private void validateSliceLarge(ColumnFamilyStore cfs)
     {
         ClusteringIndexSliceFilter filter = slices(cfs, 1000, null, false);
-        SinglePartitionSliceCommand command = new SinglePartitionSliceCommand(
+        SinglePartitionReadCommand command = SinglePartitionReadCommand.create(
                 cfs.metadata, FBUtilities.nowInSeconds(), ColumnFilter.all(cfs.metadata), RowFilter.NONE, DataLimits.cqlLimits(3), Util.dk("0"), filter);
         assertRowsInResult(cfs, command, 1000, 1001, 1002);
 
         filter = slices(cfs, 1195, null, false);
-        command = new SinglePartitionSliceCommand(
+        command = SinglePartitionReadCommand.create(
                 cfs.metadata, FBUtilities.nowInSeconds(), ColumnFilter.all(cfs.metadata), RowFilter.NONE, DataLimits.cqlLimits(3), Util.dk("0"), filter);
         assertRowsInResult(cfs, command, 1195, 1196, 1197);
 
         filter = slices(cfs, null, 1996, true);
-        command = new SinglePartitionSliceCommand(
+        command = SinglePartitionReadCommand.create(
                 cfs.metadata, FBUtilities.nowInSeconds(), ColumnFilter.all(cfs.metadata), RowFilter.NONE, DataLimits.cqlLimits(1000), Util.dk("0"), filter);
         int[] expectedValues = new int[997];
         for (int i = 0, v = 1996; v >= 1000; i++, v--)
@@ -488,22 +488,22 @@ public class KeyspaceTest extends CQLTester
         assertRowsInResult(cfs, command, expectedValues);
 
         filter = slices(cfs, 1990, null, false);
-        command = new SinglePartitionSliceCommand(
+        command = SinglePartitionReadCommand.create(
                 cfs.metadata, FBUtilities.nowInSeconds(), ColumnFilter.all(cfs.metadata), RowFilter.NONE, DataLimits.cqlLimits(3), Util.dk("0"), filter);
         assertRowsInResult(cfs, command, 1990, 1991, 1992);
 
         filter = slices(cfs, null, null, true);
-        command = new SinglePartitionSliceCommand(
+        command = SinglePartitionReadCommand.create(
                 cfs.metadata, FBUtilities.nowInSeconds(), ColumnFilter.all(cfs.metadata), RowFilter.NONE, DataLimits.cqlLimits(3), Util.dk("0"), filter);
         assertRowsInResult(cfs, command, 1999, 1998, 1997);
 
         filter = slices(cfs, null, 9000, true);
-        command = new SinglePartitionSliceCommand(
+        command = SinglePartitionReadCommand.create(
                 cfs.metadata, FBUtilities.nowInSeconds(), ColumnFilter.all(cfs.metadata), RowFilter.NONE, DataLimits.cqlLimits(3), Util.dk("0"), filter);
         assertRowsInResult(cfs, command, 1999, 1998, 1997);
 
         filter = slices(cfs, 9000, null, false);
-        command = new SinglePartitionSliceCommand(
+        command = SinglePartitionReadCommand.create(
                 cfs.metadata, FBUtilities.nowInSeconds(), ColumnFilter.all(cfs.metadata), RowFilter.NONE, DataLimits.cqlLimits(3), Util.dk("0"), filter);
         assertRowsInResult(cfs, command);
     }

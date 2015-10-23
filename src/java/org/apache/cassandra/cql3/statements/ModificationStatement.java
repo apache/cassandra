@@ -345,7 +345,7 @@ public abstract class ModificationStatement implements CQLStatement
             throw new InvalidRequestException(String.format("Write operation require a read but consistency %s is not supported on reads", cl));
         }
 
-        List<SinglePartitionReadCommand<?>> commands = new ArrayList<>(partitionKeys.size());
+        List<SinglePartitionReadCommand> commands = new ArrayList<>(partitionKeys.size());
         int nowInSec = FBUtilities.nowInSeconds();
         for (ByteBuffer key : partitionKeys)
             commands.add(SinglePartitionReadCommand.create(cfm,
@@ -573,7 +573,7 @@ public abstract class ModificationStatement implements CQLStatement
     {
         UUID ballot = UUIDGen.getTimeUUIDFromMicros(state.getTimestamp());
 
-        SinglePartitionReadCommand<?> readCommand = request.readCommand(FBUtilities.nowInSeconds());
+        SinglePartitionReadCommand readCommand = request.readCommand(FBUtilities.nowInSeconds());
         FilteredPartition current;
         try (ReadOrderGroup orderGroup = readCommand.startOrderGroup(); PartitionIterator iter = readCommand.executeInternal(orderGroup))
         {

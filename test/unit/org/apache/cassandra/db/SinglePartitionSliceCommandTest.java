@@ -96,7 +96,7 @@ public class SinglePartitionSliceCommandTest
         ByteBuffer zero = ByteBufferUtil.bytes(0);
         Slices slices = Slices.with(cfm.comparator, Slice.make(Slice.Bound.inclusiveStartOf(zero), Slice.Bound.inclusiveEndOf(zero)));
         ClusteringIndexSliceFilter sliceFilter = new ClusteringIndexSliceFilter(slices, false);
-        ReadCommand cmd = new SinglePartitionSliceCommand(false, MessagingService.VERSION_30, true, cfm,
+        ReadCommand cmd = new SinglePartitionReadCommand(false, MessagingService.VERSION_30, true, cfm,
                                                           FBUtilities.nowInSeconds(),
                                                           columnFilter,
                                                           RowFilter.NONE,
@@ -146,13 +146,13 @@ public class SinglePartitionSliceCommandTest
 
         ColumnFilter columnFilter = ColumnFilter.selection(PartitionColumns.of(s));
         ClusteringIndexSliceFilter sliceFilter = new ClusteringIndexSliceFilter(Slices.NONE, false);
-        ReadCommand cmd = new SinglePartitionSliceCommand(false, MessagingService.VERSION_30, true, cfm,
-                                                          FBUtilities.nowInSeconds(),
-                                                          columnFilter,
-                                                          RowFilter.NONE,
-                                                          DataLimits.NONE,
-                                                          key,
-                                                          sliceFilter);
+        ReadCommand cmd = new SinglePartitionReadCommand(false, MessagingService.VERSION_30, true, cfm,
+                                                         FBUtilities.nowInSeconds(),
+                                                         columnFilter,
+                                                         RowFilter.NONE,
+                                                         DataLimits.NONE,
+                                                         key,
+                                                         sliceFilter);
 
         // check raw iterator for static cell
         try (ReadOrderGroup orderGroup = cmd.startOrderGroup(); UnfilteredPartitionIterator pi = cmd.executeLocally(orderGroup))

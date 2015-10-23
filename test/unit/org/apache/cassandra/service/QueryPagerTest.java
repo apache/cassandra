@@ -146,12 +146,12 @@ public class QueryPagerTest
         return builder.withPagingLimit(100).build();
     }
 
-    private static SinglePartitionSliceCommand sliceQuery(String key, String start, String end, int count)
+    private static SinglePartitionReadCommand sliceQuery(String key, String start, String end, int count)
     {
         return sliceQuery(key, start, end, false, count);
     }
 
-    private static SinglePartitionSliceCommand sliceQuery(String key, String start, String end, boolean reversed, int count)
+    private static SinglePartitionReadCommand sliceQuery(String key, String start, String end, boolean reversed, int count)
     {
         ClusteringComparator cmp = cfs().getComparator();
         CFMetaData metadata = cfs().metadata;
@@ -159,9 +159,7 @@ public class QueryPagerTest
         Slice slice = Slice.make(cmp.make(start), cmp.make(end));
         ClusteringIndexSliceFilter filter = new ClusteringIndexSliceFilter(Slices.with(cmp, slice), reversed);
 
-        SinglePartitionSliceCommand command = new SinglePartitionSliceCommand(cfs().metadata, FBUtilities.nowInSeconds(), ColumnFilter.all(metadata), RowFilter.NONE, DataLimits.NONE, Util.dk(key), filter);
-
-        return command;
+        return SinglePartitionReadCommand.create(cfs().metadata, FBUtilities.nowInSeconds(), ColumnFilter.all(metadata), RowFilter.NONE, DataLimits.NONE, Util.dk(key), filter);
     }
 
     private static ReadCommand rangeNamesQuery(String keyStart, String keyEnd, int count, String... names)
@@ -305,7 +303,7 @@ public class QueryPagerTest
 
     public void multiQueryTest(boolean testPagingState, int protocolVersion) throws Exception
     {
-        ReadQuery command = new SinglePartitionReadCommand.Group(new ArrayList<SinglePartitionReadCommand<?>>()
+        ReadQuery command = new SinglePartitionReadCommand.Group(new ArrayList<SinglePartitionReadCommand>()
         {{
             add(sliceQuery("k1", "c2", "c6", 10));
             add(sliceQuery("k4", "c3", "c5", 10));
@@ -427,7 +425,7 @@ public class QueryPagerTest
         for (int i = 0; i < 5; i++)
             executeInternal(String.format("INSERT INTO %s.%s (k, c, v) VALUES ('k%d', 'c%d', null)", keyspace, table, 0, i));
 
-        ReadCommand command = SinglePartitionSliceCommand.create(cfs.metadata, FBUtilities.nowInSeconds(), Util.dk("k0"), Slice.ALL);
+        ReadCommand command = SinglePartitionReadCommand.create(cfs.metadata, FBUtilities.nowInSeconds(), Util.dk("k0"), Slice.ALL);
 
         QueryPager pager = command.getPager(null, Server.CURRENT_VERSION);
 
