@@ -86,7 +86,9 @@ public class RealTransactionsTest extends SchemaLoader
         SSTableReader newSSTable = replaceSSTable(cfs, txn, false);
         LogTransaction.waitForDeletions();
 
-        assertFiles(txn.log().getDataFolder(), new HashSet<>(newSSTable.getAllFilePaths()));
+        // both sstables are in the same folder
+        assertFiles(oldSSTable.descriptor.directory.getPath(), new HashSet<>(newSSTable.getAllFilePaths()));
+        assertFiles(newSSTable.descriptor.directory.getPath(), new HashSet<>(newSSTable.getAllFilePaths()));
     }
 
     @Test
@@ -101,7 +103,7 @@ public class RealTransactionsTest extends SchemaLoader
         replaceSSTable(cfs, txn, true);
         LogTransaction.waitForDeletions();
 
-        assertFiles(txn.log().getDataFolder(), new HashSet<>(oldSSTable.getAllFilePaths()));
+        assertFiles(oldSSTable.descriptor.directory.getPath(), new HashSet<>(oldSSTable.getAllFilePaths()));
     }
 
     @Test

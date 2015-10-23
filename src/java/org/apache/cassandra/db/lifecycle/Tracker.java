@@ -224,7 +224,7 @@ public class Tracker
      */
     public Throwable dropSSTables(final Predicate<SSTableReader> remove, OperationType operationType, Throwable accumulate)
     {
-        try (LogTransaction txnLogs = new LogTransaction(operationType, cfstore.metadata, this))
+        try (LogTransaction txnLogs = new LogTransaction(operationType, this))
         {
             Pair<View, View> result = apply(view -> {
                 Set<SSTableReader> toremove = copyOf(filter(view.sstables, and(remove, notIn(view.compacting))));
@@ -247,7 +247,7 @@ public class Tracker
                     accumulate = updateSizeTracking(removed, emptySet(), accumulate);
                     accumulate = release(selfRefs(removed), accumulate);
                     // notifySSTablesChanged -> LeveledManifest.promote doesn't like a no-op "promotion"
-                    accumulate = notifySSTablesChanged(removed, Collections.<SSTableReader>emptySet(), txnLogs.getType(), accumulate);
+                    accumulate = notifySSTablesChanged(removed, Collections.<SSTableReader>emptySet(), txnLogs.type(), accumulate);
                 }
             }
             catch (Throwable t)

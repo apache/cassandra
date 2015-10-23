@@ -575,24 +575,32 @@ public class FileUtils
     public static void append(File file, String ... lines)
     {
         if (file.exists())
-            write(file, StandardOpenOption.APPEND, lines);
+            write(file, Arrays.asList(lines), StandardOpenOption.APPEND);
         else
-            write(file, StandardOpenOption.CREATE, lines);
+            write(file, Arrays.asList(lines), StandardOpenOption.CREATE);
+    }
+
+    public static void appendAndSync(File file, String ... lines)
+    {
+        if (file.exists())
+            write(file, Arrays.asList(lines), StandardOpenOption.APPEND, StandardOpenOption.SYNC);
+        else
+            write(file, Arrays.asList(lines), StandardOpenOption.CREATE, StandardOpenOption.SYNC);
     }
 
     public static void replace(File file, String ... lines)
     {
-        write(file, StandardOpenOption.TRUNCATE_EXISTING, lines);
+        write(file, Arrays.asList(lines), StandardOpenOption.TRUNCATE_EXISTING);
     }
 
-    public static void write(File file, StandardOpenOption op, String ... lines)
+    public static void write(File file, List<String> lines, StandardOpenOption ... options)
     {
         try
         {
             Files.write(file.toPath(),
-                        Arrays.asList(lines),
+                        lines,
                         CHARSET,
-                        op);
+                        options);
         }
         catch (IOException ex)
         {
