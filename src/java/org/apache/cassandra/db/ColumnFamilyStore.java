@@ -646,6 +646,11 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
         Set<Integer> completedAncestors = new HashSet<>();
         for (Map.Entry<Descriptor, Set<Component>> sstableFiles : directories.sstableLister().skipTemporary(true).list().entrySet())
         {
+            // we rename the Data component last - if it does not exist as a final file, we should ignore this sstable and
+            // it will be removed during startup
+            if (!sstableFiles.getValue().contains(Component.DATA))
+                continue;
+
             Descriptor desc = sstableFiles.getKey();
 
             Set<Integer> ancestors;
