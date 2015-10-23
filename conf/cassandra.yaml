@@ -884,6 +884,8 @@ server_encryption_options:
 # enable or disable client/server encryption.
 client_encryption_options:
     enabled: false
+    # If enabled and optional is set to true encrypted and unencrypted connections are handled.
+    optional: false
     keystore: conf/.keystore
     keystore_password: cassandra
     # require_client_auth: false

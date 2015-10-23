@@ -123,6 +123,24 @@ public class NativeTransportServiceTest
     {
         // default ssl settings: client encryption enabled and default native transport port used for ssl only
         DatabaseDescriptor.getClientEncryptionOptions().enabled = true;
+        DatabaseDescriptor.getClientEncryptionOptions().optional = false;
+
+        withService((NativeTransportService service) ->
+                    {
+                        service.initialize();
+                        assertEquals(1, service.getServers().size());
+                        Server server = service.getServers().iterator().next();
+                        assertTrue(server.useSSL);
+                        assertEquals(server.socket.getPort(), DatabaseDescriptor.getNativeTransportPort());
+                    }, false, 1);
+    }
+
+    @Test
+    public void testSSLOptional()
+    {
+        // default ssl settings: client encryption enabled and default native transport port used for optional ssl
+        DatabaseDescriptor.getClientEncryptionOptions().enabled = true;
+        DatabaseDescriptor.getClientEncryptionOptions().optional = true;
 
         withService((NativeTransportService service) ->
                     {
