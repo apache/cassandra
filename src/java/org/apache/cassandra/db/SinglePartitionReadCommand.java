@@ -527,7 +527,7 @@ public class SinglePartitionReadCommand extends ReadCommand
                 if (sstable.getMaxTimestamp() < mostRecentPartitionTombstone)
                     break;
 
-                if (!filter.shouldInclude(sstable))
+                if (!shouldInclude(sstable))
                 {
                     nonIntersectingSSTables++;
                     // sstable contains no tombstone if maxLocalDeletionTime == Integer.MAX_VALUE, so we can safely skip those entirely
@@ -612,6 +612,17 @@ public class SinglePartitionReadCommand extends ReadCommand
         }
     }
 
+    private boolean shouldInclude(SSTableReader sstable)
+    {
+        // If some static columns are queried, we should always include the sstable: the clustering values stats of the sstable
+        // don't tell us if the sstable contains static values in particular.
+        // TODO: we could record if a sstable contains any static value at all.
+        if (!columnFilter().fetchedColumns().statics.isEmpty())
+            return true;
+
+        return clusteringIndexFilter().shouldInclude(sstable);
+    }
+
     private boolean queryNeitherCountersNorCollections()
     {
         for (ColumnDefinition column : columnFilter().fetchedColumns())
@@ -674,6 +685,28 @@ public class SinglePartitionReadCommand extends ReadCommand
             filter = reduceFilter(filter, result, currentMaxTs);
             if (filter == null)
                 break;
+
+            if (!shouldInclude(sstable))
+            {
+                // This mean that nothing queried by the filter can be in the sstable. One exception is the top-level partition deletion
+                // however: if it is set, it impacts everything and must be included. Getting that top-level partition deletion costs us
+                // some seek in general however (unless the partition is indexed and is in the key cache), so we first check if the sstable
+                // has any tombstone at all as a shortcut.
+                if (sstable.getSSTableMetadata().maxLocalDeletionTime == Integer.MAX_VALUE)
+                    continue; // Means no tombstone at all, we can skip that sstable
+
+                // We need to get the partition deletion and include it if it's live. In any case though, we're done with that sstable.
+                sstable.incrementReadCount();
+                try (UnfilteredRowIterator iter = sstable.iterator(partitionKey(), columnFilter(), filter.isReversed(), isForThrift()))
+                {
+                    if (iter.partitionLevelDeletion().isLive())
+                    {
+                        sstablesIterated++;
+                        result = add(UnfilteredRowIterators.noRowsIterator(iter.metadata(), iter.partitionKey(), Rows.EMPTY_STATIC_ROW, iter.partitionLevelDeletion(), filter.isReversed()), result, filter, sstable.isRepaired());
+                    }
+                }
+                continue;
+            }
 
             Tracing.trace("Merging data from sstable {}", sstable.descriptor.generation);
             sstable.incrementReadCount();
