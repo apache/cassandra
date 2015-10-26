@@ -105,7 +105,7 @@ public class RolesCache implements RolesCacheMBean
 
     private LoadingCache<RoleResource, Set<RoleResource>> initCache(LoadingCache<RoleResource, Set<RoleResource>> existing)
     {
-        if (DatabaseDescriptor.getAuthenticator() instanceof AllowAllAuthenticator)
+        if (!DatabaseDescriptor.getAuthenticator().requireAuthentication())
             return null;
 
         if (DatabaseDescriptor.getRolesValidity() <= 0)

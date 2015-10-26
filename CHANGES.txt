@@ -5,6 +5,7 @@
 
 
 3.0
+ * RolesCache should not be created for any authenticator that does not requireAuthentication (CASSANDRA-10562)
  * Fix LogTransaction checking only a single directory for files (CASSANDRA-10421)
  * Support encrypted and plain traffic on the same port (CASSANDRA-10559)
  * Fix handling of range tombstones when reading old format sstables (CASSANDRA-10360)
