@@ -105,12 +105,6 @@ public class CustomCassandraIndex implements Index
         return metadata;
     }
 
-    public String getIndexName()
-    {
-        // should return metadata.name, see CASSANDRA-10127
-        return indexCfs.name;
-    }
-
     public Optional<ColumnFamilyStore> getBackingTable()
     {
         return indexCfs == null ? Optional.empty() : Optional.of(indexCfs);
@@ -564,7 +558,7 @@ public class CustomCassandraIndex implements Index
             throw new InvalidRequestException(String.format(
                                                            "Cannot index value of size %d for index %s on %s.%s(%s) (maximum allowed size=%d)",
                                                            value.remaining(),
-                                                           getIndexName(),
+                                                           metadata.name,
                                                            baseCfs.metadata.ksName,
                                                            baseCfs.metadata.cfName,
                                                            indexedColumn.name.toString(),
@@ -615,17 +609,17 @@ public class CustomCassandraIndex implements Index
 
     private boolean isBuilt()
     {
-        return SystemKeyspace.isIndexBuilt(baseCfs.keyspace.getName(), getIndexName());
+        return SystemKeyspace.isIndexBuilt(baseCfs.keyspace.getName(), metadata.name);
     }
 
     private void markBuilt()
     {
-        SystemKeyspace.setIndexBuilt(baseCfs.keyspace.getName(), getIndexName());
+        SystemKeyspace.setIndexBuilt(baseCfs.keyspace.getName(), metadata.name);
     }
 
     private void markRemoved()
     {
-        SystemKeyspace.setIndexRemoved(baseCfs.keyspace.getName(), getIndexName());
+        SystemKeyspace.setIndexRemoved(baseCfs.keyspace.getName(), metadata.name);
     }
 
     private boolean isPrimaryKeyIndex()
@@ -653,13 +647,13 @@ public class CustomCassandraIndex implements Index
                 logger.info("No SSTable data for {}.{} to build index {} from, marking empty index as built",
                             baseCfs.metadata.ksName,
                             baseCfs.metadata.cfName,
-                            getIndexName());
+                            metadata.name);
                 markBuilt();
                 return;
             }
 
             logger.info("Submitting index build of {} for data in {}",
-                        getIndexName(),
+                        metadata.name,
                         getSSTableNames(sstables));
 
             SecondaryIndexBuilder builder = new SecondaryIndexBuilder(baseCfs,
@@ -670,7 +664,7 @@ public class CustomCassandraIndex implements Index
             indexCfs.forceBlockingFlush();
             markBuilt();
         }
-        logger.info("Index build of {} complete", getIndexName());
+        logger.info("Index build of {} complete", metadata.name);
     }
 
     private static String getSSTableNames(Collection<SSTableReader> sstables)
