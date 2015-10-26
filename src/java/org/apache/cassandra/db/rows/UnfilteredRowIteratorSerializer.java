@@ -202,7 +202,7 @@ public class UnfilteredRowIteratorSerializer
     public UnfilteredRowIterator deserialize(DataInputPlus in, int version, CFMetaData metadata, SerializationHelper.Flag flag, Header header) throws IOException
     {
         if (header.isEmpty)
-            return UnfilteredRowIterators.emptyIterator(metadata, header.key, header.isReversed);
+            return EmptyIterators.unfilteredRow(metadata, header.key, header.isReversed);
 
         final SerializationHelper helper = new SerializationHelper(metadata, version, flag);
         final SerializationHeader sHeader = header.sHeader;

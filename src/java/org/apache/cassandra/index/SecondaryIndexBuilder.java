@@ -71,14 +71,7 @@ public class SecondaryIndexBuilder extends CompactionInfo.Holder
         }
         finally
         {
-            try
-            {
-                iter.close();
-            }
-            catch (IOException e)
-            {
-                throw new RuntimeException(e);
-            }
+            iter.close();
         }
     }
 }

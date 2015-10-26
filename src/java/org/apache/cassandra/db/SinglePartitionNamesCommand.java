@@ -153,7 +153,7 @@ public class SinglePartitionNamesCommand extends SinglePartitionReadCommand<Clus
         cfs.metric.updateSSTableIterated(sstablesIterated);
 
         if (result == null || result.isEmpty())
-            return UnfilteredRowIterators.emptyIterator(metadata(), partitionKey(), false);
+            return EmptyIterators.unfilteredRow(metadata(), partitionKey(), false);
 
         DecoratedKey key = result.partitionKey();
         cfs.metric.samplers.get(TableMetrics.Sampler.READS).addSample(key.getKey(), key.hashCode(), 1);

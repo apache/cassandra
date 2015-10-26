@@ -25,10 +25,11 @@ import org.slf4j.LoggerFactory;
 
 import org.apache.cassandra.config.CFMetaData;
 import org.apache.cassandra.db.*;
-import org.apache.cassandra.db.partitions.PurgingPartitionIterator;
+import org.apache.cassandra.db.partitions.PurgeFunction;
 import org.apache.cassandra.db.partitions.UnfilteredPartitionIterator;
 import org.apache.cassandra.db.partitions.UnfilteredPartitionIterators;
 import org.apache.cassandra.db.rows.*;
+import org.apache.cassandra.db.transform.Transformation;
 import org.apache.cassandra.index.transactions.CompactionTransaction;
 import org.apache.cassandra.io.sstable.ISSTableScanner;
 import org.apache.cassandra.metrics.CompactionMetrics;
@@ -98,9 +99,11 @@ public class CompactionIterator extends CompactionInfo.Holder implements Unfilte
         if (metrics != null)
             metrics.beginCompaction(this);
 
-        this.compacted = scanners.isEmpty()
-                       ? UnfilteredPartitionIterators.empty(controller.cfs.metadata)
-                       : new PurgeIterator(UnfilteredPartitionIterators.merge(scanners, nowInSec, listener()), controller);
+        UnfilteredPartitionIterator merged = scanners.isEmpty()
+                                             ? EmptyIterators.unfilteredPartition(controller.cfs.metadata, false)
+                                             : UnfilteredPartitionIterators.merge(scanners, nowInSec, listener());
+        boolean isForThrift = merged.isForThrift(); // to stop capture of iterator in Purger, which is confusing for debug
+        this.compacted = Transformation.apply(merged, new Purger(isForThrift, controller));
     }
 
     public boolean isForThrift()
@@ -251,7 +254,7 @@ public class CompactionIterator extends CompactionInfo.Holder implements Unfilte
         return this.getCompactionInfo().toString();
     }
 
-    private class PurgeIterator extends PurgingPartitionIterator
+    private class Purger extends PurgeFunction
     {
         private final CompactionController controller;
 
@@ -261,9 +264,9 @@ public class CompactionIterator extends CompactionInfo.Holder implements Unfilte
 
         private long compactedUnfiltered;
 
-        private PurgeIterator(UnfilteredPartitionIterator toPurge, CompactionController controller)
+        private Purger(boolean isForThrift, CompactionController controller)
         {
-            super(toPurge, controller.gcBefore, controller.compactingRepaired() ? Integer.MIN_VALUE : Integer.MAX_VALUE, controller.cfs.getCompactionStrategyManager().onlyPurgeRepairedTombstones());
+            super(isForThrift, controller.gcBefore, controller.compactingRepaired() ? Integer.MIN_VALUE : Integer.MAX_VALUE, controller.cfs.getCompactionStrategyManager().onlyPurgeRepairedTombstones());
             this.controller = controller;
         }
 

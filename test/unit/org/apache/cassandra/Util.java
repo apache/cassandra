@@ -103,9 +103,9 @@ public class Util
         return row.getCell(column);
     }
 
-    public static ClusteringPrefix clustering(ClusteringComparator comparator, Object... o)
+    public static Clustering clustering(ClusteringComparator comparator, Object... o)
     {
-        return comparator.make(o).clustering();
+        return comparator.make(o);
     }
 
     public static Token token(String key)

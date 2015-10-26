@@ -21,6 +21,7 @@ import java.util.Collections;
 import java.util.Iterator;
 import java.util.NoSuchElementException;
 
+import org.apache.cassandra.db.transform.Transformation;
 import org.apache.cassandra.utils.AbstractIterator;
 import com.google.common.collect.Iterators;
 import com.google.common.collect.PeekingIterator;
@@ -59,13 +60,12 @@ import org.apache.cassandra.db.partitions.*;
  *                 "c5": { value : 4 }
  *                 "c7": { value : 1 }
  */
-public class ThriftResultsMerger extends WrappingUnfilteredPartitionIterator
+public class ThriftResultsMerger extends Transformation<UnfilteredRowIterator>
 {
     private final int nowInSec;
 
-    private ThriftResultsMerger(UnfilteredPartitionIterator wrapped, int nowInSec)
+    private ThriftResultsMerger(int nowInSec)
     {
-        super(wrapped);
         this.nowInSec = nowInSec;
     }
 
@@ -74,7 +74,7 @@ public class ThriftResultsMerger extends WrappingUnfilteredPartitionIterator
         if (!metadata.isStaticCompactTable() && !metadata.isSuper())
             return iterator;
 
-        return new ThriftResultsMerger(iterator, nowInSec);
+        return Transformation.apply(iterator, new ThriftResultsMerger(nowInSec));
     }
 
     public static UnfilteredRowIterator maybeWrap(UnfilteredRowIterator iterator, int nowInSec)
@@ -83,14 +83,15 @@ public class ThriftResultsMerger extends WrappingUnfilteredPartitionIterator
             return iterator;
 
         return iterator.metadata().isSuper()
-             ? new SuperColumnsPartitionMerger(iterator, nowInSec)
+             ? Transformation.apply(iterator, new SuperColumnsPartitionMerger(iterator, nowInSec))
              : new PartitionMerger(iterator, nowInSec);
     }
 
-    protected UnfilteredRowIterator computeNext(UnfilteredRowIterator iter)
+    @Override
+    public UnfilteredRowIterator applyToPartition(UnfilteredRowIterator iter)
     {
         return iter.metadata().isSuper()
-             ? new SuperColumnsPartitionMerger(iter, nowInSec)
+             ? Transformation.apply(iter, new SuperColumnsPartitionMerger(iter, nowInSec))
              : new PartitionMerger(iter, nowInSec);
     }
 
@@ -204,20 +205,19 @@ public class ThriftResultsMerger extends WrappingUnfilteredPartitionIterator
         }
     }
 
-    private static class SuperColumnsPartitionMerger extends AlteringUnfilteredRowIterator
+    private static class SuperColumnsPartitionMerger extends Transformation
     {
         private final int nowInSec;
         private final Row.Builder builder;
         private final ColumnDefinition superColumnMapColumn;
         private final AbstractType<?> columnComparator;
 
-        private SuperColumnsPartitionMerger(UnfilteredRowIterator results, int nowInSec)
+        private SuperColumnsPartitionMerger(UnfilteredRowIterator applyTo, int nowInSec)
         {
-            super(results);
-            assert results.metadata().isSuper();
+            assert applyTo.metadata().isSuper();
             this.nowInSec = nowInSec;
 
-            this.superColumnMapColumn = results.metadata().compactValueColumn();
+            this.superColumnMapColumn = applyTo.metadata().compactValueColumn();
             assert superColumnMapColumn != null && superColumnMapColumn.type instanceof MapType;
 
             this.builder = BTreeRow.sortedBuilder();
@@ -225,7 +225,7 @@ public class ThriftResultsMerger extends WrappingUnfilteredPartitionIterator
         }
 
         @Override
-        protected Row computeNext(Row row)
+        public Row applyToRow(Row row)
         {
             PeekingIterator<Cell> staticCells = Iterators.peekingIterator(simpleCellsIterator(row));
             if (!staticCells.hasNext())

@@ -1914,7 +1914,8 @@ public class StorageProxy implements StorageProxyMBean
         private final ConsistencyLevel consistency;
 
         private final long startTime;
-        private CountingPartitionIterator sentQueryIterator;
+        private DataLimits.Counter counter;
+        private PartitionIterator sentQueryIterator;
 
         private int concurrencyFactor;
         // The two following "metric" are maintained to improve the concurrencyFactor
@@ -1944,7 +1945,7 @@ public class StorageProxy implements StorageProxyMBean
                 // else, sends the next batch of concurrent queries (after having close the previous iterator)
                 if (sentQueryIterator != null)
                 {
-                    liveReturned += sentQueryIterator.counter().counted();
+                    liveReturned += counter.counted();
                     sentQueryIterator.close();
 
                     // It's not the first batch of queries and we're not done, so we we can use what has been
@@ -2005,7 +2006,7 @@ public class StorageProxy implements StorageProxyMBean
             return new SingleRangeResponse(handler);
         }
 
-        private CountingPartitionIterator sendNextRequests()
+        private PartitionIterator sendNextRequests()
         {
             List<PartitionIterator> concurrentQueries = new ArrayList<>(concurrencyFactor);
             for (int i = 0; i < concurrencyFactor && ranges.hasNext(); i++)
@@ -2017,7 +2018,8 @@ public class StorageProxy implements StorageProxyMBean
             Tracing.trace("Submitted {} concurrent range requests", concurrentQueries.size());
             // We want to count the results for the sake of updating the concurrency factor (see updateConcurrencyFactor) but we don't want to
             // enforce any particular limit at this point (this could break code than rely on postReconciliationProcessing), hence the DataLimits.NONE.
-            return new CountingPartitionIterator(PartitionIterators.concat(concurrentQueries), DataLimits.NONE, command.nowInSec());
+            counter = DataLimits.NONE.newCounter(command.nowInSec(), true);
+            return counter.applyTo(PartitionIterators.concat(concurrentQueries));
         }
 
         public void close()

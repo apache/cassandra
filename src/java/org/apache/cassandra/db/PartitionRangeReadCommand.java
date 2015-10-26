@@ -30,7 +30,8 @@ import org.apache.cassandra.db.filter.*;
 import org.apache.cassandra.db.lifecycle.SSTableSet;
 import org.apache.cassandra.db.lifecycle.View;
 import org.apache.cassandra.db.partitions.*;
-import org.apache.cassandra.db.rows.UnfilteredRowIterator;
+import org.apache.cassandra.db.rows.BaseRowIterator;
+import org.apache.cassandra.db.transform.Transformation;
 import org.apache.cassandra.dht.AbstractBounds;
 import org.apache.cassandra.exceptions.RequestExecutionException;
 import org.apache.cassandra.index.Index;
@@ -226,10 +227,10 @@ public class PartitionRangeReadCommand extends ReadCommand
 
     private UnfilteredPartitionIterator checkCacheFilter(UnfilteredPartitionIterator iter, final ColumnFamilyStore cfs)
     {
-        return new WrappingUnfilteredPartitionIterator(iter)
+        class CacheFilter extends Transformation
         {
             @Override
-            public UnfilteredRowIterator computeNext(UnfilteredRowIterator iter)
+            public BaseRowIterator applyToPartition(BaseRowIterator iter)
             {
                 // Note that we rely on the fact that until we actually advance 'iter', no really costly operation is actually done
                 // (except for reading the partition key from the index file) due to the call to mergeLazily in queryStorage.
@@ -249,7 +250,8 @@ public class PartitionRangeReadCommand extends ReadCommand
 
                 return iter;
             }
-        };
+        }
+        return Transformation.apply(iter, new CacheFilter());
     }
 
     public MessageOut<ReadCommand> createMessage(int version)

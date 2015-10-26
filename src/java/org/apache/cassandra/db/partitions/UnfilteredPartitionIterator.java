@@ -17,8 +17,6 @@
  */
 package org.apache.cassandra.db.partitions;
 
-import java.util.Iterator;
-
 import org.apache.cassandra.config.CFMetaData;
 import org.apache.cassandra.db.rows.UnfilteredRowIterator;
 
@@ -30,7 +28,7 @@ import org.apache.cassandra.db.rows.UnfilteredRowIterator;
  * reference on the returned objects for longer than the iteration, it must
  * make a copy of it explicitely.
  */
-public interface UnfilteredPartitionIterator extends Iterator<UnfilteredRowIterator>, AutoCloseable
+public interface UnfilteredPartitionIterator extends BasePartitionIterator<UnfilteredRowIterator>
 {
     /**
      * Whether that partition iterator is for a thrift queries.
@@ -44,6 +42,4 @@ public interface UnfilteredPartitionIterator extends Iterator<UnfilteredRowItera
     public boolean isForThrift();
 
     public CFMetaData metadata();
-
-    public void close();
 }

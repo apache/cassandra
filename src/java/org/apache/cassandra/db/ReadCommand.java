@@ -31,6 +31,8 @@ import org.apache.cassandra.db.filter.*;
 import org.apache.cassandra.db.monitoring.MonitorableImpl;
 import org.apache.cassandra.db.partitions.*;
 import org.apache.cassandra.db.rows.*;
+import org.apache.cassandra.db.transform.StoppingTransformation;
+import org.apache.cassandra.db.transform.Transformation;
 import org.apache.cassandra.dht.AbstractBounds;
 import org.apache.cassandra.index.Index;
 import org.apache.cassandra.io.IVersionedSerializer;
@@ -386,7 +388,7 @@ public abstract class ReadCommand extends MonitorableImpl implements ReadQuery
      */
     private UnfilteredPartitionIterator withMetricsRecording(UnfilteredPartitionIterator iter, final TableMetrics metric, final long startTimeNanos)
     {
-        return new WrappingUnfilteredPartitionIterator(iter)
+        class MetricRecording extends Transformation<UnfilteredRowIterator>
         {
             private final int failureThreshold = DatabaseDescriptor.getTombstoneFailureThreshold();
             private final int warningThreshold = DatabaseDescriptor.getTombstoneWarnThreshold();
@@ -399,114 +401,105 @@ public abstract class ReadCommand extends MonitorableImpl implements ReadQuery
             private DecoratedKey currentKey;
 
             @Override
-            public UnfilteredRowIterator computeNext(UnfilteredRowIterator iter)
+            public UnfilteredRowIterator applyToPartition(UnfilteredRowIterator iter)
             {
                 currentKey = iter.partitionKey();
-
-                return new AlteringUnfilteredRowIterator(iter)
-                {
-                    @Override
-                    protected Row computeNextStatic(Row row)
-                    {
-                        return computeNext(row);
-                    }
-
-                    @Override
-                    protected Row computeNext(Row row)
-                    {
-                        if (row.hasLiveData(ReadCommand.this.nowInSec()))
-                            ++liveRows;
-
-                        for (Cell cell : row.cells())
-                        {
-                            if (!cell.isLive(ReadCommand.this.nowInSec()))
-                                countTombstone(row.clustering());
-                        }
-                        return row;
-                    }
-
-                    @Override
-                    protected RangeTombstoneMarker computeNext(RangeTombstoneMarker marker)
-                    {
-                        countTombstone(marker.clustering());
-                        return marker;
-                    }
-
-                    private void countTombstone(ClusteringPrefix clustering)
-                    {
-                        ++tombstones;
-                        if (tombstones > failureThreshold && respectTombstoneThresholds)
-                        {
-                            String query = ReadCommand.this.toCQLString();
-                            Tracing.trace("Scanned over {} tombstones for query {}; query aborted (see tombstone_failure_threshold)", failureThreshold, query);
-                            throw new TombstoneOverwhelmingException(tombstones, query, ReadCommand.this.metadata(), currentKey, clustering);
-                        }
-                    }
-                };
+                return Transformation.apply(iter, this);
             }
 
             @Override
-            public void close()
+            public Row applyToStatic(Row row)
             {
-                try
+                return applyToRow(row);
+            }
+
+            @Override
+            public Row applyToRow(Row row)
+            {
+                if (row.hasLiveData(ReadCommand.this.nowInSec()))
+                    ++liveRows;
+
+                for (Cell cell : row.cells())
                 {
-                    super.close();
+                    if (!cell.isLive(ReadCommand.this.nowInSec()))
+                        countTombstone(row.clustering());
                 }
-                finally
+                return row;
+            }
+
+            @Override
+            public RangeTombstoneMarker applyToMarker(RangeTombstoneMarker marker)
+            {
+                countTombstone(marker.clustering());
+                return marker;
+            }
+
+            private void countTombstone(ClusteringPrefix clustering)
+            {
+                ++tombstones;
+                if (tombstones > failureThreshold && respectTombstoneThresholds)
                 {
-                    recordLatency(metric, System.nanoTime() - startTimeNanos);
-
-                    metric.tombstoneScannedHistogram.update(tombstones);
-                    metric.liveScannedHistogram.update(liveRows);
-
-                    boolean warnTombstones = tombstones > warningThreshold && respectTombstoneThresholds;
-                    if (warnTombstones)
-                    {
-                        String msg = String.format("Read %d live rows and %d tombstone cells for query %1.512s (see tombstone_warn_threshold)", liveRows, tombstones, ReadCommand.this.toCQLString());
-                        ClientWarn.warn(msg);
-                        logger.warn(msg);
-                    }
-
-                    Tracing.trace("Read {} live and {} tombstone cells{}", liveRows, tombstones, (warnTombstones ? " (see tombstone_warn_threshold)" : ""));
+                    String query = ReadCommand.this.toCQLString();
+                    Tracing.trace("Scanned over {} tombstones for query {}; query aborted (see tombstone_failure_threshold)", failureThreshold, query);
+                    throw new TombstoneOverwhelmingException(tombstones, query, ReadCommand.this.metadata(), currentKey, clustering);
                 }
             }
+
+            @Override
+            public void onClose()
+            {
+                recordLatency(metric, System.nanoTime() - startTimeNanos);
+
+                metric.tombstoneScannedHistogram.update(tombstones);
+                metric.liveScannedHistogram.update(liveRows);
+
+                boolean warnTombstones = tombstones > warningThreshold && respectTombstoneThresholds;
+                if (warnTombstones)
+                {
+                    String msg = String.format("Read %d live rows and %d tombstone cells for query %1.512s (see tombstone_warn_threshold)", liveRows, tombstones, ReadCommand.this.toCQLString());
+                    ClientWarn.warn(msg);
+                    logger.warn(msg);
+                }
+
+                Tracing.trace("Read {} live and {} tombstone cells{}", liveRows, tombstones, (warnTombstones ? " (see tombstone_warn_threshold)" : ""));
+            }
         };
+
+        return Transformation.apply(iter, new MetricRecording());
+    }
+
+    protected class CheckForAbort extends StoppingTransformation<BaseRowIterator<?>>
+    {
+        protected BaseRowIterator<?> applyToPartition(BaseRowIterator partition)
+        {
+            maybeAbort();
+            return partition;
+        }
+
+        protected Row applyToRow(Row row)
+        {
+            maybeAbort();
+            return row;
+        }
+
+        private void maybeAbort()
+        {
+            if (isAborted())
+                stop();
+
+            if (TEST_ITERATION_DELAY_MILLIS > 0)
+                maybeDelayForTesting();
+        }
     }
 
     protected UnfilteredPartitionIterator withStateTracking(UnfilteredPartitionIterator iter)
     {
-        return new WrappingUnfilteredPartitionIterator(iter)
-        {
-            @Override
-            public UnfilteredRowIterator computeNext(UnfilteredRowIterator iter)
-            {
-                if (isAborted())
-                    return null;
-
-                if (TEST_ITERATION_DELAY_MILLIS > 0)
-                    maybeDelayForTesting();
-
-                return iter;
-            }
-        };
+        return Transformation.apply(iter, new CheckForAbort());
     }
 
     protected UnfilteredRowIterator withStateTracking(UnfilteredRowIterator iter)
     {
-        return new WrappingUnfilteredRowIterator(iter)
-        {
-            @Override
-            public boolean hasNext()
-            {
-                if (isAborted())
-                    return false;
-
-                if (TEST_ITERATION_DELAY_MILLIS > 0)
-                    maybeDelayForTesting();
-
-                return super.hasNext();
-            }
-        };
+        return Transformation.apply(iter, new CheckForAbort());
     }
 
     private void maybeDelayForTesting()
@@ -527,13 +520,20 @@ public abstract class ReadCommand extends MonitorableImpl implements ReadQuery
     // are to some extend an artefact of compaction lagging behind and hence counting them is somewhat unintuitive).
     protected UnfilteredPartitionIterator withoutPurgeableTombstones(UnfilteredPartitionIterator iterator, ColumnFamilyStore cfs)
     {
-        return new PurgingPartitionIterator(iterator, cfs.gcBefore(nowInSec()), oldestUnrepairedTombstone(), cfs.getCompactionStrategyManager().onlyPurgeRepairedTombstones())
+        final boolean isForThrift = iterator.isForThrift();
+        class WithoutPurgeableTombstones extends PurgeFunction
         {
+            public WithoutPurgeableTombstones()
+            {
+                super(isForThrift, cfs.gcBefore(nowInSec()), oldestUnrepairedTombstone(), cfs.getCompactionStrategyManager().onlyPurgeRepairedTombstones());
+            }
+
             protected long getMaxPurgeableTimestamp()
             {
                 return Long.MAX_VALUE;
             }
-        };
+        }
+        return Transformation.apply(iterator, new WithoutPurgeableTombstones());
     }
 
     /**

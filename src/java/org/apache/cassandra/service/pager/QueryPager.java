@@ -19,8 +19,8 @@ package org.apache.cassandra.service.pager;
 
 import org.apache.cassandra.db.ConsistencyLevel;
 import org.apache.cassandra.db.ReadExecutionController;
+import org.apache.cassandra.db.EmptyIterators;
 import org.apache.cassandra.db.partitions.PartitionIterator;
-import org.apache.cassandra.db.partitions.PartitionIterators;
 import org.apache.cassandra.exceptions.RequestExecutionException;
 import org.apache.cassandra.exceptions.RequestValidationException;
 import org.apache.cassandra.service.ClientState;
@@ -55,12 +55,12 @@ public interface QueryPager
 
         public PartitionIterator fetchPage(int pageSize, ConsistencyLevel consistency, ClientState clientState) throws RequestValidationException, RequestExecutionException
         {
-            return PartitionIterators.EMPTY;
+            return EmptyIterators.partition();
         }
 
         public PartitionIterator fetchPageInternal(int pageSize, ReadExecutionController executionController) throws RequestValidationException, RequestExecutionException
         {
-            return PartitionIterators.EMPTY;
+            return EmptyIterators.partition();
         }
 
         public boolean isExhausted()
