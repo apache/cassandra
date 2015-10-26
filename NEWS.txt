@@ -45,6 +45,7 @@ New features
 
 Upgrading
 ---------
+   - token-generator tool has been removed.
    - Upgrade to 3.0 is supported from Cassandra 2.1 versions greater or equal to 2.1.9,
      or Cassandra 2.2 versions greater or equal to 2.2.2. Upgrade from Cassandra 2.0 and
      older versions is not supported.
