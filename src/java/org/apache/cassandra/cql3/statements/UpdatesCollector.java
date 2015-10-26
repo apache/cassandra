@@ -34,9 +34,9 @@ import org.apache.cassandra.db.partitions.PartitionUpdate;
 final class UpdatesCollector
 {
     /**
-     * The columns that will be updated.
+     * The columns that will be updated for each table (keyed by the table ID).
      */
-    private final PartitionColumns updatedColumns;
+    private final Map<UUID, PartitionColumns> updatedColumns;
 
     /**
      * The estimated number of updated row.
@@ -48,7 +48,7 @@ final class UpdatesCollector
      */
     private final Map<String, Map<ByteBuffer, IMutation>> mutations = new HashMap<>();
 
-    public UpdatesCollector(PartitionColumns updatedColumns, int updatedRows)
+    public UpdatesCollector(Map<UUID, PartitionColumns> updatedColumns, int updatedRows)
     {
         super();
         this.updatedColumns = updatedColumns;
@@ -70,7 +70,9 @@ final class UpdatesCollector
         PartitionUpdate upd = mut.get(cfm);
         if (upd == null)
         {
-            upd = new PartitionUpdate(cfm, dk, updatedColumns, updatedRows);
+            PartitionColumns columns = updatedColumns.get(cfm.cfId);
+            assert columns != null;
+            upd = new PartitionUpdate(cfm, dk, columns, updatedRows);
             mut.add(upd);
         }
         return upd;

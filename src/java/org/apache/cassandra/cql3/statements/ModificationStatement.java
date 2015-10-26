@@ -602,7 +602,7 @@ public abstract class ModificationStatement implements CQLStatement
      */
     private Collection<? extends IMutation> getMutations(QueryOptions options, boolean local, long now)
     {
-        UpdatesCollector collector = new UpdatesCollector(updatedColumns, 1);
+        UpdatesCollector collector = new UpdatesCollector(Collections.singletonMap(cfm.cfId, updatedColumns), 1);
         addUpdates(collector, options, local, now);
         collector.validateIndexedColumns();
 
