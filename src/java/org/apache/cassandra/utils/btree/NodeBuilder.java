@@ -185,9 +185,8 @@ final class NodeBuilder
                 }
                 else
                 {
-                    // if not found, we need to apply updateFunction still
-                    key = updateFunction.apply(key);
-                    addNewKey(key); // handles splitting parent if necessary via ensureRoom
+                    // if not found, we need to apply updateFunction still, which is handled in addNewKey
+                    addNewKey(key);
                 }
 
                 // done, so return null
@@ -315,7 +314,9 @@ final class NodeBuilder
         copyFromKeyPosition++;
     }
 
-    // puts the provided key in the builder, with no impact on treatment of data from copyf
+    // applies the updateFunction
+    // puts the resulting key into the builder
+    // splits the parent if necessary via ensureRoom
     void addNewKey(Object key)
     {
         ensureRoom(buildKeyPosition + 1);
