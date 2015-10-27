@@ -17,6 +17,7 @@
  */
 package org.apache.cassandra.auth;
 
+import java.net.InetAddress;
 import java.util.Map;
 import java.util.Set;
 
@@ -56,10 +57,12 @@ public interface IAuthenticator
      * Provide a SASL handler to perform authentication for an single connection. SASL
      * is a stateful protocol, so a new instance must be used for each authentication
      * attempt.
+     * @param clientAddress the IP address of the client whom we wish to authenticate, or null
+     *                      if an internal client (one not connected over the remote transport).
      * @return org.apache.cassandra.auth.IAuthenticator.SaslNegotiator implementation
      * (see {@link org.apache.cassandra.auth.PasswordAuthenticator.PlainTextSaslAuthenticator})
      */
-    SaslNegotiator newSaslNegotiator();
+    SaslNegotiator newSaslNegotiator(InetAddress clientAddress);
 
     /**
      * For implementations which support the Thrift login method that accepts arbitrary

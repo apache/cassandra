@@ -110,10 +110,10 @@ public class ServerConnection extends Connection
         }
     }
 
-    public IAuthenticator.SaslNegotiator getSaslNegotiator()
+    public IAuthenticator.SaslNegotiator getSaslNegotiator(QueryState queryState)
     {
         if (saslNegotiator == null)
-            saslNegotiator = DatabaseDescriptor.getAuthenticator().newSaslNegotiator();
+            saslNegotiator = DatabaseDescriptor.getAuthenticator().newSaslNegotiator(queryState.getClientAddress());
         return saslNegotiator;
     }
 }

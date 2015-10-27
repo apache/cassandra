@@ -17,6 +17,7 @@
  */
 package org.apache.cassandra.auth;
 
+import java.net.InetAddress;
 import java.nio.charset.StandardCharsets;
 import java.util.Arrays;
 import java.util.Map;
@@ -132,7 +133,7 @@ public class PasswordAuthenticator implements IAuthenticator
         return authenticate(username, password);
     }
 
-    public SaslNegotiator newSaslNegotiator()
+    public SaslNegotiator newSaslNegotiator(InetAddress clientAddress)
     {
         return new PlainTextSaslAuthenticator();
     }

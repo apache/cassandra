@@ -1,4 +1,5 @@
 3.0
+ * Add client address argument to IAuthenticator::newSaslNegotiator (CASSANDRA-8068)
  * Fix implementation of LegacyLayout.LegacyBoundComparator (CASSANDRA-10602)
  * Don't use 'names query' read path for counters (CASSANDRA-10572)
  * Fix backward compatibility for counters (CASSANDRA-10470)
