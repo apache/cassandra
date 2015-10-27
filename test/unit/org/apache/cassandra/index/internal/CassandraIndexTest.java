@@ -468,6 +468,26 @@ public class CassandraIndexTest extends CQLTester
         assertRows(execute("SELECT * FROM %s WHERE c = 3"), row(2, 3, 3));
     }
 
+    @Test
+    public void indexCorrectlyMarkedAsBuildAndRemoved() throws Throwable
+    {
+        String indexName = "build_remove_test_idx";
+        String tableName = createTable("CREATE TABLE %s (a int, b int, c int, PRIMARY KEY (a, b))");
+        createIndex(String.format("CREATE INDEX %s ON %%s(c)", indexName));
+        waitForIndex(KEYSPACE, tableName, indexName);
+        // check that there are no other rows in the built indexes table
+        assertRows(execute(String.format("SELECT * FROM %s.\"%s\"", SystemKeyspace.NAME, SystemKeyspace.BUILT_INDEXES)),
+                   row(KEYSPACE, indexName));
+
+        // rebuild the index and verify the built status table
+        getCurrentColumnFamilyStore().rebuildSecondaryIndex(indexName);
+        waitForIndex(KEYSPACE, tableName, indexName);
+
+        // check that there are no other rows in the built indexes table
+        assertRows(execute(String.format("SELECT * FROM %s.\"%s\"", SystemKeyspace.NAME, SystemKeyspace.BUILT_INDEXES)),
+                   row(KEYSPACE, indexName));
+    }
+
     // this is slightly annoying, but we cannot read rows from the methods in Util as
     // ReadCommand#executeInternal uses metadata retrieved via the cfId, which the index
     // CFS inherits from the base CFS. This has the 'wrong' partitioner (the index table
