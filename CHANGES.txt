@@ -1,4 +1,5 @@
 3.0
+ * Fix implementation of LegacyLayout.LegacyBoundComparator (CASSANDRA-10602)
  * Don't use 'names query' read path for counters (CASSANDRA-10572)
  * Fix backward compatibility for counters (CASSANDRA-10470)
  * Remove memory_allocator paramter from cassandra.yaml (CASSANDRA-10581)
