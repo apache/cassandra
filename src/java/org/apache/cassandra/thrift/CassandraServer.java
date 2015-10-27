@@ -623,8 +623,21 @@ public class CassandraServer implements Cassandra.Iface
             else
             {
                 LegacyLayout.LegacyCellName cellname = LegacyLayout.decodeCellName(metadata, column_path.super_column, column_path.column);
-                columns = ColumnFilter.selection(PartitionColumns.of(cellname.column));
-                filter = new ClusteringIndexNamesFilter(FBUtilities.singleton(cellname.clustering, metadata.comparator), false);
+                if (cellname.clustering == Clustering.STATIC_CLUSTERING)
+                {
+                    // Same as above: even if we're querying a static column, we still query the equivalent dynamic column and value as some
+                    // values might have been created post creation of the column (ThriftResultMerger then ensures we get only one result).
+                    ColumnFilter.Builder builder = ColumnFilter.selectionBuilder();
+                    builder.add(cellname.column);
+                    builder.add(metadata.compactValueColumn());
+                    columns = builder.build();
+                    filter = new ClusteringIndexNamesFilter(FBUtilities.singleton(new Clustering(column_path.column), metadata.comparator), false);
+                }
+                else
+                {
+                    columns = ColumnFilter.selection(PartitionColumns.of(cellname.column));
+                    filter = new ClusteringIndexNamesFilter(FBUtilities.singleton(cellname.clustering, metadata.comparator), false);
+                }
             }
 
             DecoratedKey dk = metadata.decorateKey(key);
