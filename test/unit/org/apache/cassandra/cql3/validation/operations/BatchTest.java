@@ -174,4 +174,29 @@ public class BatchTest extends CQLTester
     {
         assertEmpty(execute("BEGIN BATCH APPLY BATCH;"));
     }
+
+    @Test
+    public void testBatchMultipleTable() throws Throwable
+    {
+        String tbl1 = KEYSPACE + "." + createTableName();
+        String tbl2 = KEYSPACE + "." + createTableName();
+
+        schemaChange(String.format("CREATE TABLE %s (k1 int PRIMARY KEY, v11 int, v12 int)", tbl1));
+        schemaChange(String.format("CREATE TABLE %s (k2 int PRIMARY KEY, v21 int, v22 int)", tbl2));
+
+        execute("BEGIN BATCH " +
+                String.format("UPDATE %s SET v11 = 1 WHERE k1 = 0;", tbl1) +
+                String.format("UPDATE %s SET v12 = 2 WHERE k1 = 0;", tbl1) +
+                String.format("UPDATE %s SET v21 = 3 WHERE k2 = 0;", tbl2) +
+                String.format("UPDATE %s SET v22 = 4 WHERE k2 = 0;", tbl2) +
+                "APPLY BATCH;");
+
+        assertRows(execute(String.format("SELECT * FROM %s", tbl1)), row(0, 1, 2));
+        assertRows(execute(String.format("SELECT * FROM %s", tbl2)), row(0, 3, 4));
+
+        flush();
+
+        assertRows(execute(String.format("SELECT * FROM %s", tbl1)), row(0, 1, 2));
+        assertRows(execute(String.format("SELECT * FROM %s", tbl2)), row(0, 3, 4));
+    }
 }

@@ -5,6 +5,7 @@
 
 
 3.0
+ * Fix batches on multiple tables (CASSANDRA-10554)
  * Ensure compaction options are validated when updating KeyspaceMetadata (CASSANDRA-10569)
  * Flatten Iterator Transformation Hierarchy (CASSANDRA-9975)
  * Remove token generator (CASSANDRA-5261)

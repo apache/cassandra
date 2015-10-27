@@ -27,6 +27,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.slf4j.helpers.MessageFormatter;
 
+import org.apache.cassandra.config.CFMetaData;
 import org.apache.cassandra.config.ColumnDefinition;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.cql3.*;
@@ -55,8 +56,12 @@ public class BatchStatement implements CQLStatement
     private final int boundTerms;
     public final Type type;
     private final List<ModificationStatement> statements;
-    private final PartitionColumns updatedColumns;
+
+    // Columns modified for each table (keyed by the table ID)
+    private final Map<UUID, PartitionColumns> updatedColumns;
+    // Columns on which there is conditions. Note that if there is any, then the batch can only be on a single partition (and thus table).
     private final PartitionColumns conditionColumns;
+
     private final boolean updatesRegularRows;
     private final boolean updatesStaticRow;
     private final Attributes attrs;
@@ -89,14 +94,14 @@ public class BatchStatement implements CQLStatement
         this.attrs = attrs;
 
         boolean hasConditions = false;
-        PartitionColumns.Builder regularBuilder = PartitionColumns.builder();
+        MultiTableColumnsBuilder regularBuilder = new MultiTableColumnsBuilder();
         PartitionColumns.Builder conditionBuilder = PartitionColumns.builder();
         boolean updateRegular = false;
         boolean updateStatic = false;
 
         for (ModificationStatement stmt : statements)
         {
-            regularBuilder.addAll(stmt.updatedColumns());
+            regularBuilder.addAll(stmt.cfm, stmt.updatedColumns());
             updateRegular |= stmt.updatesRegularRows();
             if (stmt.hasConditions())
             {
@@ -521,6 +526,30 @@ public class BatchStatement implements CQLStatement
                                                               : boundNames.getPartitionKeyBindIndexes(batchStatement.statements.get(0).cfm);
 
             return new ParsedStatement.Prepared(batchStatement, boundNames, partitionKeyBindIndexes);
+        }
+    }
+
+    private static class MultiTableColumnsBuilder
+    {
+        private final Map<UUID, PartitionColumns.Builder> perTableBuilders = new HashMap<>();
+
+        public void addAll(CFMetaData table, PartitionColumns columns)
+        {
+            PartitionColumns.Builder builder = perTableBuilders.get(table.cfId);
+            if (builder == null)
+            {
+                builder = PartitionColumns.builder();
+                perTableBuilders.put(table.cfId, builder);
+            }
+            builder.addAll(columns);
+        }
+
+        public Map<UUID, PartitionColumns> build()
+        {
+            Map<UUID, PartitionColumns> m = new HashMap<>();
+            for (Map.Entry<UUID, PartitionColumns.Builder> p : perTableBuilders.entrySet())
+                m.put(p.getKey(), p.getValue().build());
+            return m;
         }
     }
 }
