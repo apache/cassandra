@@ -171,6 +171,7 @@ public final class KeyspaceMetadata
                                                            + "or contain non-alphanumeric-underscore characters (got \"%s\")",
                                                            Schema.NAME_LENGTH,
                                                            name));
+        params.validate(name);
         tablesAndViews().forEach(CFMetaData::validate);
     }
 }
