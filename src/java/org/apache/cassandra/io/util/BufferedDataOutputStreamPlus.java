@@ -118,7 +118,7 @@ public class BufferedDataOutputStreamPlus extends DataOutputStreamPlus
             }
             else
             {
-                doFlush();
+                doFlush(len - copied);
             }
         }
     }
@@ -142,11 +142,12 @@ public class BufferedDataOutputStreamPlus extends DataOutputStreamPlus
         else
         {
             assert toWrite.isDirect();
-            if (toWrite.remaining() > buffer.remaining())
+            int toWriteRemaining = toWrite.remaining();
+            if (toWriteRemaining > buffer.remaining())
             {
-                doFlush();
+                doFlush(toWriteRemaining);
                 MemoryUtil.duplicateDirectByteBuffer(toWrite, hollowBuffer);
-                if (toWrite.remaining() > buffer.remaining())
+                if (toWriteRemaining > buffer.remaining())
                 {
                     while (hollowBuffer.hasRemaining())
                         channel.write(hollowBuffer);
@@ -254,7 +255,10 @@ public class BufferedDataOutputStreamPlus extends DataOutputStreamPlus
             write(buffer);
     }
 
-    protected void doFlush() throws IOException
+    /*
+     * Count is the number of bytes remaining to write ignoring already remaining capacity
+     */
+    protected void doFlush(int count) throws IOException
     {
         buffer.flip();
 
@@ -267,13 +271,13 @@ public class BufferedDataOutputStreamPlus extends DataOutputStreamPlus
     @Override
     public void flush() throws IOException
     {
-        doFlush();
+        doFlush(0);
     }
 
     @Override
     public void close() throws IOException
     {
-        doFlush();
+        doFlush(0);
         channel.close();
         FileUtils.clean(buffer);
         buffer = null;
@@ -282,7 +286,7 @@ public class BufferedDataOutputStreamPlus extends DataOutputStreamPlus
     protected void ensureRemaining(int minimum) throws IOException
     {
         if (buffer.remaining() < minimum)
-            doFlush();
+            doFlush(minimum);
     }
 
     @Override
