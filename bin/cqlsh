@@ -327,10 +327,11 @@ cqlsh_extra_syntax_rules = r'''
                          ( "WITH" <copyOption> ( "AND" <copyOption> )* )?
                 ;
 
-<copyOption> ::= [optnames]=<identifier> "=" [optvals]=<copyOptionVal>
+<copyOption> ::= [optnames]=(<identifier>|<reserved_identifier>) "=" [optvals]=<copyOptionVal>
                ;
 
 <copyOptionVal> ::= <identifier>
+                  | <reserved_identifier>
                   | <stringLiteral>
                   ;
 
