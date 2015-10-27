@@ -19,7 +19,7 @@ public class CipherFactoryTest
     // http://www.gutenberg.org/files/4300/4300-h/4300-h.htm
     static final String ULYSSEUS = "Stately, plump Buck Mulligan came from the stairhead, bearing a bowl of lather on which a mirror and a razor lay crossed. " +
                                    "A yellow dressinggown, ungirdled, was sustained gently behind him on the mild morning air. He held the bowl aloft and intoned: " +
-                                   "—Introibo ad altare Dei.";
+                                   "-Introibo ad altare Dei.";
     TransparentDataEncryptionOptions encryptionOptions;
     CipherFactory cipherFactory;
     SecureRandom secureRandom;
