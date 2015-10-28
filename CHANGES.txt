@@ -5,6 +5,7 @@
  * Deprecate Pig support (CASSANDRA-10542)
  * Reduce contention getting instances of CompositeType (CASSANDRA-10433)
 Merged from 2.1:
+ * Do STCS in DTCS windows (CASSANDRA-10276)
  * Don't try to get ancestors from half-renamed sstables (CASSANDRA-10501)
  * Avoid repetition of JVM_OPTS in debian package (CASSANDRA-10251)
  * Fix potential NPE from handling result of SIM.highestSelectivityIndex (CASSANDRA-10550)
