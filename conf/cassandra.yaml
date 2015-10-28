@@ -274,19 +274,6 @@ counter_cache_save_period: 7200
 # Disabled by default, meaning all keys are going to be saved
 # counter_cache_keys_to_save: 100
 
-# The off-heap memory allocator.  Affects storage engine metadata as
-# well as caches.  Experiments show that JEMAlloc saves some memory
-# than the native GCC allocator (i.e., JEMalloc is more
-# fragmentation-resistant).
-# 
-# Supported values are: NativeAllocator, JEMallocAllocator
-#
-# If you intend to use JEMallocAllocator you have to install JEMalloc as library and
-# modify cassandra-env.sh as directed in the file.
-#
-# Defaults to NativeAllocator
-# memory_allocator: NativeAllocator
-
 # saved caches
 # If not set, the default directory is $CASSANDRA_HOME/data/saved_caches.
 # saved_caches_directory: /var/lib/cassandra/saved_caches
