@@ -142,17 +142,11 @@ public class SecondaryIndexManager implements IndexRegistry
 
     private Future<?> reloadIndex(IndexMetadata indexDef)
     {
-        // if the index metadata has changed, reload the index
-        IndexMetadata registered = indexes.get(indexDef.name).getIndexMetadata();
-        if (!registered.equals(indexDef))
-        {
-            Index index = indexes.remove(registered.name);
-            index.register(this);
-            return blockingExecutor.submit(index.getMetadataReloadTask(indexDef));
-        }
-
-        // otherwise, nothing to do
-        return Futures.immediateFuture(null);
+        Index index = indexes.get(indexDef.name);
+        Callable<?> reloadTask = index.getMetadataReloadTask(indexDef);
+        return reloadTask == null
+               ? Futures.immediateFuture(null)
+               : blockingExecutor.submit(index.getMetadataReloadTask(indexDef));
     }
 
     private Future<?> createIndex(IndexMetadata indexDef)

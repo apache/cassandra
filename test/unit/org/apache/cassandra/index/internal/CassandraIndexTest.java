@@ -639,9 +639,18 @@ public class CassandraIndexTest extends CQLTester
             assertRows(execute(selectFirstRowCql), firstRow);
             assertEmpty(execute(selectSecondRowCql));
 
+            // reload the base cfs and verify queries still work as expected
+            getCurrentColumnFamilyStore().reload();
+            assertRows(execute(selectFirstRowCql), firstRow);
+            assertEmpty(execute(selectSecondRowCql));
+
             // drop the index and assert we can no longer query using it
             execute(dropIndexCql);
             assertInvalidThrowMessage(missingIndexMessage, InvalidRequestException.class, selectFirstRowCql);
+            // reload the base cfs and verify again
+            getCurrentColumnFamilyStore().reload();
+            assertInvalidThrowMessage(missingIndexMessage, InvalidRequestException.class, selectFirstRowCql);
+
             flush();
             compact();
 

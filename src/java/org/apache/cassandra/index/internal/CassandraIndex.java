@@ -183,7 +183,6 @@ public abstract class CassandraIndex implements Index
 
     public Callable<?> getMetadataReloadTask(IndexMetadata indexDef)
     {
-        setMetadata(indexDef);
         return () -> {
             indexCfs.metadata.reloadIndexMetadataProperties(baseCfs.metadata);
             indexCfs.reload();
