@@ -132,6 +132,11 @@ Operations
       If moving from the SimpleSnitch, make sure the rack containing all current
       nodes is named "rack1".
 
+New features
+------------
+    - Native protocol server now allows both SSL and non-SSL connections on
+      the same port.
+
 
 2.2.3
 =====
