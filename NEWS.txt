@@ -25,6 +25,8 @@ New features
       If moving from the SimpleSnitch, make sure the rack containing all current
       nodes is named "rack1". To override this behavior when manually wiping
       the node and bootstrapping, use -Dcassandra.ignore_rack=true.
+    - a new validate(key, cf) method is added to PerRowSecondaryIndex. A default
+      implementation is provided, so no changes are required to custom implementations.
 
 
 2.1.11

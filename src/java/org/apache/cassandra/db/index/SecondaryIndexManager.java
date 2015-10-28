@@ -683,6 +683,14 @@ public class SecondaryIndexManager
         return null;
     }
 
+    public void validateRowLevelIndexes(ByteBuffer key, ColumnFamily cf) throws InvalidRequestException
+    {
+        for (SecondaryIndex index : rowLevelIndexMap.values())
+        {
+            ((PerRowSecondaryIndex) index).validate(key, cf);
+        }
+    }
+
     static boolean shouldCleanupOldValue(Cell oldCell, Cell newCell)
     {
         // If any one of name/value/timestamp are different, then we

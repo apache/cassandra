@@ -1,4 +1,5 @@
 2.1.12
+ * Add validation method to PerRowSecondaryIndex (CASSANDRA-10092)
  * Support encrypted and plain traffic on the same port (CASSANDRA-10559)
  * Do STCS in DTCS windows (CASSANDRA-10276)
  * Don't try to get ancestors from half-renamed sstables (CASSANDRA-10501)

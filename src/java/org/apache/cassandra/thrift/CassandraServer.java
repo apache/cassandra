@@ -684,6 +684,10 @@ public class CassandraServer implements Cassandra.Iface
 
             ColumnFamily cf = ArrayBackedSortedColumns.factory.create(cState.getKeyspace(), column_parent.column_family);
             cf.addColumn(name, column.value, column.timestamp, column.ttl);
+
+            // Validate row level indexes. See CASSANDRA-10092 for more details.
+            Keyspace.open(metadata.ksName).getColumnFamilyStore(metadata.cfName).indexManager.validateRowLevelIndexes(key, cf);
+
             mutation = new org.apache.cassandra.db.Mutation(cState.getKeyspace(), key, cf);
         }
         catch (MarshalException e)
@@ -777,6 +781,9 @@ public class CassandraServer implements Cassandra.Iface
             ColumnFamily cfUpdates = ArrayBackedSortedColumns.factory.create(cfm);
             for (Column column : updates)
                 cfUpdates.addColumn(cfm.comparator.cellFromByteBuffer(column.name), column.value, column.timestamp);
+
+            // Validate row level indexes. See CASSANDRA-10092 for more details.
+            Keyspace.open(metadata.ksName).getColumnFamilyStore(metadata.cfName).indexManager.validateRowLevelIndexes(key, cfUpdates);
 
             ColumnFamily cfExpected;
             if (expected.isEmpty())
@@ -874,6 +881,10 @@ public class CassandraServer implements Cassandra.Iface
                         addColumnOrSuperColumn(mutation, metadata, m.column_or_supercolumn);
                     }
                 }
+
+                // Validate row level indexes. See CASSANDRA-10092 for more details.
+                ColumnFamily cf = mutation.addOrGet(metadata);
+                Keyspace.open(metadata.ksName).getColumnFamilyStore(metadata.cfName).indexManager.validateRowLevelIndexes(key, cf);
             }
             if (standardMutation != null && !standardMutation.isEmpty())
                 mutations.add(standardMutation);
