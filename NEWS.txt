@@ -18,6 +18,8 @@ using the provided 'sstableupgrade' tool.
 
 New features
 ------------
+    - Native protocol server now allows both SSL and non-SSL connections on
+      the same port.
     - Switching racks is no longer an allowed operation on a node which has
       data. Instead, the node will need to be decommissioned and rebootstrapped.
       If moving from the SimpleSnitch, make sure the rack containing all current
