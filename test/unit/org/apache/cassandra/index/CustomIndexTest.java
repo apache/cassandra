@@ -1,6 +1,8 @@
 package org.apache.cassandra.index;
 
 import java.util.*;
+import java.util.concurrent.Callable;
+import java.util.concurrent.atomic.AtomicInteger;
 import java.util.stream.Collectors;
 
 import com.google.common.collect.ImmutableList;
@@ -452,6 +454,23 @@ public class CustomIndexTest extends CQLTester
                              "SELECT * FROM %s WHERE expr(int_index, 'foo')");
     }
 
+    @Test
+    public void reloadIndexMetadataOnBaseCfsReload() throws Throwable
+    {
+        // verify that whenever the base table CFMetadata is reloaded, a reload of the index
+        // metadata is performed
+        createTable("CREATE TABLE %s (k int, v1 int, PRIMARY KEY(k))");
+        createIndex(String.format("CREATE CUSTOM INDEX reload_counter ON %%s() USING '%s'",
+                                  CountMetadataReloadsIndex.class.getName()));
+        ColumnFamilyStore cfs = getCurrentColumnFamilyStore();
+        CountMetadataReloadsIndex index = (CountMetadataReloadsIndex)cfs.indexManager.getIndexByName("reload_counter");
+        assertEquals(0, index.reloads.get());
+
+        // reloading the CFS, even without any metadata changes invokes the index's metadata reload task
+        cfs.reload();
+        assertEquals(1, index.reloads.get());
+    }
+
     private void testCreateIndex(String indexName, String... targetColumnNames) throws Throwable
     {
         createIndex(String.format("CREATE CUSTOM INDEX %s ON %%s(%s) USING '%s'",
@@ -493,6 +512,27 @@ public class CustomIndexTest extends CQLTester
     private static IndexTarget indexTarget(String name, IndexTarget.Type type)
     {
         return new IndexTarget(ColumnIdentifier.getInterned(name, true), type);
+    }
+
+    public static final class CountMetadataReloadsIndex extends StubIndex
+    {
+        private final AtomicInteger reloads = new AtomicInteger(0);
+
+        public CountMetadataReloadsIndex(ColumnFamilyStore baseCfs, IndexMetadata metadata)
+        {
+            super(baseCfs, metadata);
+        }
+
+        public void reset()
+        {
+            super.reset();
+            reloads.set(0);
+        }
+
+        public Callable<?> getMetadataReloadTask(IndexMetadata indexMetadata)
+        {
+            return reloads::incrementAndGet;
+        }
     }
 
     public static final class IndexIncludedInBuild extends StubIndex
