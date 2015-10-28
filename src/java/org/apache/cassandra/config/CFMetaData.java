@@ -1210,13 +1210,17 @@ public final class CFMetaData
         return this;
     }
 
-    private static Set<String> existingIndexNames(String cfToExclude)
+    private Set<String> existingIndexNames(String cfToExclude)
     {
         Set<String> indexNames = new HashSet<String>();
-        for (ColumnFamilyStore cfs : ColumnFamilyStore.all())
+        KSMetaData ksm = Schema.instance.getKSMetaData(ksName);
+        if(ksm == null)
+            return indexNames;
+
+        for (Map.Entry<String, CFMetaData> entry : ksm.cfMetaData().entrySet())
         {
-            if (cfToExclude == null || !cfs.getColumnFamilyName().equals(cfToExclude))
-                for (ColumnDefinition cd : cfs.metadata.getColumn_metadata().values())
+            if (cfToExclude == null || !cfToExclude.equals(entry.getKey()))
+                for (ColumnDefinition cd : entry.getValue().getColumn_metadata().values())
                     indexNames.add(cd.getIndexName());
         }
         return indexNames;
