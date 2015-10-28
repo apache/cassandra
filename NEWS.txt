@@ -51,6 +51,7 @@ Upgrading
      older versions is not supported.
    - The 'memtable_allocation_type: offheap_objects' option has been removed. It should
      be re-introduced in a future release and you can follow CASSANDRA-9472 to know more.
+   - Configuration parameter memory_allocator in cassandra.yaml has been removed.
    - The native protocol versions 1 and 2 are not supported anymore.
    - Max mutation size is now configurable via max_mutation_size_in_kb setting in
      cassandra.yaml; the default is half the size commitlog_segment_size_in_mb * 1024.
@@ -124,6 +125,9 @@ Deprecation
 -----------
     - Pig support has been deprecated, and will be removed in 3.0.
       Please see CASSANDRA-10542 for more details.
+    - Configuration parameter memory_allocator in cassandra.yaml has been deprecated
+      and will be removed in 3.0.0. As mentioned below for 2.2.0, jemalloc is
+      automatically preloaded on Unix platforms.
 
 Operations
 ----------

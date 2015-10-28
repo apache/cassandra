@@ -185,20 +185,22 @@ case "`uname -s`" in
             dirs=`echo $dirs | tr " " ":"`
             CASSANDRA_LIBJEMALLOC=$(find_library '.*/libjemalloc\.so\(\.1\)*' $dirs)
         fi
-        if [ ! -z $CASSANDRA_LIBJEMALLOC ] ; then
-            if [ "-" != "$CASSANDRA_LIBJEMALLOC" ] ; then
-                export LD_PRELOAD=$CASSANDRA_LIBJEMALLOC
-            fi
+        if [ ! -z $CASSANDRA_LIBJEMALLOC ] && [ "-" != "$CASSANDRA_LIBJEMALLOC" ] ; then
+            echo "INFO preloading $CASSANDRA_LIBJEMALLOC"
+            export LD_PRELOAD=$CASSANDRA_LIBJEMALLOC
+        else
+            echo "WARNING could not find libjemalloc.dylib, please install for better performance - search path: $dirs"
         fi
     ;;
     Darwin)
         if [ -z $CASSANDRA_LIBJEMALLOC ] ; then
             CASSANDRA_LIBJEMALLOC=$(find_library '.*/libjemalloc\.dylib' $DYLD_LIBRARY_PATH:${DYLD_FALLBACK_LIBRARY_PATH-$HOME/lib:/usr/local/lib:/lib:/usr/lib})
         fi
-        if [ ! -z $CASSANDRA_LIBJEMALLOC ] ; then
-            if [ "-" != "$CASSANDRA_LIBJEMALLOC" ] ; then
-                export DYLD_INSERT_LIBRARIES=$CASSANDRA_LIBJEMALLOC
-            fi
+        if [ ! -z $CASSANDRA_LIBJEMALLOC ] && [ "-" != "$CASSANDRA_LIBJEMALLOC" ] ; then
+            echo "INFO preloading $CASSANDRA_LIBJEMALLOC"
+            export DYLD_INSERT_LIBRARIES=$CASSANDRA_LIBJEMALLOC
+        else
+            echo "WARNING could not find libjemalloc.dylib, please install for better performance - search path: $DYLD_LIBRARY_PATH:${DYLD_FALLBACK_LIBRARY_PATH-$HOME/lib:/usr/local/lib:/lib:/usr/lib}"
         fi
     ;;
 esac
@@ -290,11 +292,6 @@ JVM_OPTS="$JVM_OPTS -XX:+HeapDumpOnOutOfMemoryError"
 if [ "x$CASSANDRA_HEAPDUMP_DIR" != "x" ]; then
     JVM_OPTS="$JVM_OPTS -XX:HeapDumpPath=$CASSANDRA_HEAPDUMP_DIR/cassandra-`date +%s`-pid$$.hprof"
 fi
-
-# Configure the following for JEMallocAllocator and if jemalloc is not available in the system 
-# library path (Example: /usr/local/lib/). Usually "make install" will do the right thing. 
-# export LD_LIBRARY_PATH=<JEMALLOC_HOME>/lib/
-# JVM_OPTS="$JVM_OPTS -Djava.library.path=<JEMALLOC_HOME>/lib/"
 
 # uncomment to have Cassandra JVM listen for remote debuggers/profilers on port 1414
 # JVM_OPTS="$JVM_OPTS -agentlib:jdwp=transport=dt_socket,server=y,suspend=n,address=1414"

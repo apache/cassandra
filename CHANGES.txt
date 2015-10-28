@@ -1,4 +1,5 @@
 3.0
+ * Remove memory_allocator paramter from cassandra.yaml (CASSANDRA-10581)
  * Execute the metadata reload task of all registered indexes on CFS::reload (CASSANDRA-10604)
  * Fix thrift cas operations with defined columns (CASSANDRA-10576)
  * Fix PartitionUpdate.operationCount()for updates with static column operations (CASSANDRA-10606)
