@@ -144,12 +144,6 @@ public interface Index
     public void register(IndexRegistry registry);
 
     /**
-     * Return an identifier for the index. This should be unique across all indexes on a given base table
-     * @return the name of the index
-     */
-    public String getIndexName();
-
-    /**
      * If the index implementation uses a local table to store its index data this method should return a
      * handle to it. If not, an empty Optional should be returned. Typically, this is useful for the built-in
      * Index implementations.

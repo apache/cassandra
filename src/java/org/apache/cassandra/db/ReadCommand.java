@@ -340,7 +340,7 @@ public abstract class ReadCommand extends MonitorableImpl implements ReadQuery
         Index.Searcher searcher = index == null ? null : index.searcherFor(this);
 
         if (index != null)
-            Tracing.trace("Executing read on {}.{} using index {}", cfs.metadata.ksName, cfs.metadata.cfName, index.getIndexName());
+            Tracing.trace("Executing read on {}.{} using index {}", cfs.metadata.ksName, cfs.metadata.cfName, index.getIndexMetadata().name);
 
         UnfilteredPartitionIterator resultIterator = searcher == null
                                          ? queryStorage(cfs, executionController)

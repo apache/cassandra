@@ -151,11 +151,6 @@ public class StubIndex implements Index
         return indexMetadata;
     }
 
-    public String getIndexName()
-    {
-        return indexMetadata != null ? indexMetadata.name : "default_test_index_name";
-    }
-
     public void register(IndexRegistry registry){
         registry.registerIndex(this);
     }
