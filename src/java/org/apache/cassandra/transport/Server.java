@@ -22,8 +22,8 @@ import java.net.InetAddress;
 import java.net.InetSocketAddress;
 import java.net.UnknownHostException;
 import java.util.EnumMap;
-import java.util.Map;
 import java.util.List;
+import java.util.Map;
 import java.util.concurrent.Callable;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.atomic.AtomicBoolean;
@@ -34,6 +34,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import io.netty.bootstrap.ServerBootstrap;
+import io.netty.buffer.ByteBuf;
 import io.netty.channel.*;
 import io.netty.channel.epoll.Epoll;
 import io.netty.channel.epoll.EpollEventLoopGroup;
@@ -42,6 +43,7 @@ import io.netty.channel.group.ChannelGroup;
 import io.netty.channel.group.DefaultChannelGroup;
 import io.netty.channel.nio.NioEventLoopGroup;
 import io.netty.channel.socket.nio.NioServerSocketChannel;
+import io.netty.handler.codec.ByteToMessageDecoder;
 import io.netty.handler.ssl.SslHandler;
 import io.netty.util.Version;
 import io.netty.util.concurrent.EventExecutor;
@@ -162,8 +164,16 @@ public class Server implements CassandraDaemon.Server
         final EncryptionOptions.ClientEncryptionOptions clientEnc = DatabaseDescriptor.getClientEncryptionOptions();
         if (clientEnc.enabled)
         {
-            logger.info("Enabling encrypted CQL connections between client and server");
-            bootstrap.childHandler(new SecureInitializer(this, clientEnc));
+            if (clientEnc.optional)
+            {
+                logger.info("Enabling optionally encrypted CQL connections between client and server");
+                bootstrap.childHandler(new OptionalSecureInitializer(this, clientEnc));
+            }
+            else
+            {
+                logger.info("Enabling encrypted CQL connections between client and server");
+                bootstrap.childHandler(new SecureInitializer(this, clientEnc));
+            }
         }
         else
         {
@@ -299,12 +309,12 @@ public class Server implements CassandraDaemon.Server
         }
     }
 
-    private static class SecureInitializer extends Initializer
+    protected abstract static class AbstractSecureIntializer extends Initializer
     {
         private final SSLContext sslContext;
         private final EncryptionOptions encryptionOptions;
 
-        public SecureInitializer(Server server, EncryptionOptions encryptionOptions)
+        protected AbstractSecureIntializer(Server server, EncryptionOptions encryptionOptions)
         {
             super(server);
             this.encryptionOptions = encryptionOptions;
@@ -318,14 +328,65 @@ public class Server implements CassandraDaemon.Server
             }
         }
 
-        protected void initChannel(Channel channel) throws Exception
-        {
+        protected final SslHandler createSslHandler() {
             SSLEngine sslEngine = sslContext.createSSLEngine();
             sslEngine.setUseClientMode(false);
             sslEngine.setEnabledCipherSuites(encryptionOptions.cipher_suites);
             sslEngine.setNeedClientAuth(encryptionOptions.require_client_auth);
             sslEngine.setEnabledProtocols(SSLFactory.ACCEPTED_PROTOCOLS);
-            SslHandler sslHandler = new SslHandler(sslEngine);
+            return new SslHandler(sslEngine);
+        }
+    }
+
+    private static class OptionalSecureInitializer extends AbstractSecureIntializer
+    {
+        public OptionalSecureInitializer(Server server, EncryptionOptions encryptionOptions)
+        {
+            super(server, encryptionOptions);
+        }
+
+        protected void initChannel(final Channel channel) throws Exception
+        {
+            super.initChannel(channel);
+            channel.pipeline().addFirst("sslDetectionHandler", new ByteToMessageDecoder()
+            {
+                @Override
+                protected void decode(ChannelHandlerContext channelHandlerContext, ByteBuf byteBuf, List<Object> list) throws Exception
+                {
+                    if (byteBuf.readableBytes() < 5)
+                    {
+                        // To detect if SSL must be used we need to have at least 5 bytes, so return here and try again
+                        // once more bytes a ready.
+                        return;
+                    }
+                    if (SslHandler.isEncrypted(byteBuf))
+                    {
+                        // Connection uses SSL/TLS, replace the detection handler with a SslHandler and so use
+                        // encryption.
+                        SslHandler sslHandler = createSslHandler();
+                        channelHandlerContext.pipeline().replace(this, "ssl", sslHandler);
+                    }
+                    else
+                    {
+                        // Connection use no TLS/SSL encryption, just remove the detection handler and continue without
+                        // SslHandler in the pipeline.
+                        channelHandlerContext.pipeline().remove(this);
+                    }
+                }
+            });
+        }
+    }
+
+    private static class SecureInitializer extends AbstractSecureIntializer
+    {
+        public SecureInitializer(Server server, EncryptionOptions encryptionOptions)
+        {
+            super(server, encryptionOptions);
+        }
+
+        protected void initChannel(Channel channel) throws Exception
+        {
+            SslHandler sslHandler = createSslHandler();
             super.initChannel(channel);
             channel.pipeline().addFirst("ssl", sslHandler);
         }
