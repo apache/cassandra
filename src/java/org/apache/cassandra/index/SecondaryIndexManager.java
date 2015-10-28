@@ -185,8 +185,8 @@ public class SecondaryIndexManager implements IndexRegistry
         Index index = indexes.remove(indexName);
         if (null != index)
         {
+            markIndexRemoved(indexName);
             executeBlocking(index.getInvalidateTask());
-            unregisterIndex(index);
         }
     }
 
@@ -355,14 +355,14 @@ public class SecondaryIndexManager implements IndexRegistry
                     indexes.stream().map(i -> i.getIndexMetadata().name).collect(Collectors.joining(",")));
     }
 
-    private void markIndexBuilt(String indexName)
+    public void markIndexBuilt(String indexName)
     {
-        SystemKeyspace.setIndexBuilt(baseCfs.name, indexName);
+        SystemKeyspace.setIndexBuilt(baseCfs.keyspace.getName(), indexName);
     }
 
-    private void markIndexRemoved(String indexName)
+    public void markIndexRemoved(String indexName)
     {
-        SystemKeyspace.setIndexRemoved(baseCfs.name, indexName);
+        SystemKeyspace.setIndexRemoved(baseCfs.keyspace.getName(), indexName);
     }
 
 
@@ -410,6 +410,7 @@ public class SecondaryIndexManager implements IndexRegistry
      */
     public void invalidateAllIndexesBlocking()
     {
+        markAllIndexesRemoved();
         executeAllBlocking(indexes.values().stream(), Index::getInvalidateTask);
     }
 

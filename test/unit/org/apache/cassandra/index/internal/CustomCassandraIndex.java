@@ -121,7 +121,6 @@ public class CustomCassandraIndex implements Index
     public Callable<?> getInvalidateTask()
     {
         return () -> {
-            markRemoved();
             invalidate();
             return null;
         };
@@ -217,29 +216,6 @@ public class CustomCassandraIndex implements Index
     public Index.Searcher searcherFor(ReadCommand command)
     {
         return null;
-        /*
-        Optional<RowFilter.Expression> target = getTargetExpression(command.rowFilter().getExpressions());
-
-        if (target.isPresent())
-        {
-            target.get().validateForIndexing();
-            switch (getIndexMetadata().indexType)
-            {
-                case COMPOSITES:
-                    return new CompositesSearcher(command, target.get(), this);
-                case KEYS:
-                    return new KeysSearcher(command, target.get(), this);
-                default:
-                    throw new IllegalStateException(String.format("Unsupported index type %s for index %s on %s",
-                                                                  metadata.indexType,
-                                                                  metadata.name,
-                                                                  indexedColumn.name.toString()));
-            }
-        }
-
-        return null;
-
-        */
     }
 
     public void validate(PartitionUpdate update) throws InvalidRequestException
@@ -612,16 +588,6 @@ public class CustomCassandraIndex implements Index
         return SystemKeyspace.isIndexBuilt(baseCfs.keyspace.getName(), metadata.name);
     }
 
-    private void markBuilt()
-    {
-        SystemKeyspace.setIndexBuilt(baseCfs.keyspace.getName(), metadata.name);
-    }
-
-    private void markRemoved()
-    {
-        SystemKeyspace.setIndexRemoved(baseCfs.keyspace.getName(), metadata.name);
-    }
-
     private boolean isPrimaryKeyIndex()
     {
         return indexedColumn.isPrimaryKeyColumn();
@@ -648,7 +614,7 @@ public class CustomCassandraIndex implements Index
                             baseCfs.metadata.ksName,
                             baseCfs.metadata.cfName,
                             metadata.name);
-                markBuilt();
+                baseCfs.indexManager.markIndexBuilt(metadata.name);
                 return;
             }
 
@@ -662,7 +628,7 @@ public class CustomCassandraIndex implements Index
             Future<?> future = CompactionManager.instance.submitIndexBuild(builder);
             FBUtilities.waitOnFuture(future);
             indexCfs.forceBlockingFlush();
-            markBuilt();
+            baseCfs.indexManager.markIndexBuilt(metadata.name);
         }
         logger.info("Index build of {} complete", metadata.name);
     }
