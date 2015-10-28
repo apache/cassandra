@@ -334,6 +334,7 @@ public class PartitionUpdate extends AbstractBTreePartition
     public int operationCount()
     {
         return rowCount()
+             + (staticRow().isEmpty() ? 0 : 1)
              + deletionInfo.rangeCount()
              + (deletionInfo.getPartitionDeletion().isLive() ? 0 : 1);
     }
