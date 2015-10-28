@@ -29,6 +29,7 @@ import org.slf4j.LoggerFactory;
 import org.apache.cassandra.config.CFMetaData;
 import org.apache.cassandra.db.rows.*;
 import org.apache.cassandra.io.util.DataInputPlus;
+import org.apache.cassandra.io.util.FileDataInput;
 import org.apache.cassandra.net.MessagingService;
 
 /**
@@ -106,6 +107,20 @@ public abstract class UnfilteredDeserializer
      * Skips the next atom.
      */
     public abstract void skipNext() throws IOException;
+
+
+    /**
+     * For the legacy layout deserializer, we have to deal with the fact that a row can span multiple index blocks and that
+     * the call to hasNext() reads the next element upfront. We must take that into account when we check in AbstractSSTableIterator if
+     * we're past the end of an index block boundary as that check expect to account for only consumed data (that is, if hasNext has
+     * been called and made us cross an index boundary but neither readNext() or skipNext() as yet been called, we shouldn't consider
+     * the index block boundary crossed yet).
+     *
+     * TODO: we don't care about this for the current file format because a row can never span multiple index blocks (further, hasNext()
+     * only just basically read 2 bytes from disk in that case). So once we drop backward compatibility with pre-3.0 sstable, we should
+     * remove this.
+     */
+    public abstract long bytesReadForUnconsumedData();
 
     private static class CurrentDeserializer extends UnfilteredDeserializer
     {
@@ -216,6 +231,13 @@ public abstract class UnfilteredDeserializer
             isReady = false;
             isDone = false;
         }
+
+        public long bytesReadForUnconsumedData()
+        {
+            // In theory, hasNext() does consume 2-3 bytes, but we don't care about this for the current file format so returning
+            // 0 to mean "do nothing".
+            return 0;
+        }
     }
 
     public static class OldFormatDeserializer extends UnfilteredDeserializer
@@ -233,8 +255,8 @@ public abstract class UnfilteredDeserializer
         // The Unfiltered as read from the old format input
         private final UnfilteredIterator iterator;
 
-        // Tracks which tombstone are opened at any given point of the deserialization. Note that this
-        // is directly populated by UnfilteredIterator.
+        // The position in the input after the last data consumption (readNext/skipNext).
+        private long lastConsumedPosition;
 
         private OldFormatDeserializer(CFMetaData metadata,
                                       DataInputPlus in,
@@ -245,6 +267,7 @@ public abstract class UnfilteredDeserializer
             super(metadata, in, helper);
             this.iterator = new UnfilteredIterator(partitionDeletion);
             this.readAllAsDynamic = readAllAsDynamic;
+            this.lastConsumedPosition = currentPosition();
         }
 
         public void setSkipStatic()
@@ -322,12 +345,20 @@ public abstract class UnfilteredDeserializer
             return nextIsRow() && ((Row)next).isStatic();
         }
 
+        private long currentPosition()
+        {
+            // We return a bogus value if the input is not file based, but check we never rely
+            // on that value in that case in bytesReadForUnconsumedData
+            return in instanceof FileDataInput ? ((FileDataInput)in).getFilePointer() : 0;
+        }
+
         public Unfiltered readNext() throws IOException
         {
             if (!hasNext())
                 throw new IllegalStateException();
             Unfiltered toReturn = next;
             next = null;
+            lastConsumedPosition = currentPosition();
             return toReturn;
         }
 
@@ -336,6 +367,15 @@ public abstract class UnfilteredDeserializer
             if (!hasNext())
                 throw new UnsupportedOperationException();
             next = null;
+            lastConsumedPosition = currentPosition();
+        }
+
+        public long bytesReadForUnconsumedData()
+        {
+            if (!(in instanceof FileDataInput))
+                throw new AssertionError();
+
+            return currentPosition() - lastConsumedPosition;
         }
 
         public void clearState()
@@ -343,6 +383,7 @@ public abstract class UnfilteredDeserializer
             next = null;
             saved = null;
             iterator.clearState();
+            lastConsumedPosition = currentPosition();
         }
 
         // Groups atoms from the input into proper Unfiltered.
