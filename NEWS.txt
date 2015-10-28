@@ -20,6 +20,9 @@ Deprecation
 -----------
     - Pig support has been deprecated, and will be removed in 3.0.
       Please see CASSANDRA-10542 for more details.
+    - Configuration parameter memory_allocator in cassandra.yaml has been deprecated
+      and will be removed in 3.0.0. As mentioned below for 2.2.0, jemalloc is
+      automatically preloaded on Unix platforms.
 
 Operations
 ----------
