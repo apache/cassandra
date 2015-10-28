@@ -33,6 +33,7 @@ import org.apache.cassandra.db.ColumnFamilyStore;
 import org.apache.cassandra.db.DecoratedKey;
 import org.apache.cassandra.db.Keyspace;
 import org.apache.cassandra.db.RowUpdateBuilder;
+import org.apache.cassandra.db.lifecycle.SSTableSet;
 import org.apache.cassandra.exceptions.ConfigurationException;
 import org.apache.cassandra.io.sstable.format.SSTableReader;
 import org.apache.cassandra.schema.KeyspaceParams;
@@ -40,7 +41,6 @@ import org.apache.cassandra.utils.Pair;
 
 import static org.apache.cassandra.db.compaction.DateTieredCompactionStrategy.getBuckets;
 import static org.apache.cassandra.db.compaction.DateTieredCompactionStrategy.newestBucket;
-import static org.apache.cassandra.db.compaction.DateTieredCompactionStrategy.trimToThreshold;
 import static org.apache.cassandra.db.compaction.DateTieredCompactionStrategy.filterOldSSTables;
 import static org.apache.cassandra.db.compaction.DateTieredCompactionStrategy.validateOptions;
 
@@ -55,8 +55,8 @@ public class DateTieredCompactionStrategyTest extends SchemaLoader
     {
         SchemaLoader.prepareServer();
         SchemaLoader.createKeyspace(KEYSPACE1,
-                                    KeyspaceParams.simple(1),
-                                    SchemaLoader.standardCFMD(KEYSPACE1, CF_STANDARD1));
+                KeyspaceParams.simple(1),
+                SchemaLoader.standardCFMD(KEYSPACE1, CF_STANDARD1));
     }
 
     @Test
@@ -137,10 +137,10 @@ public class DateTieredCompactionStrategyTest extends SchemaLoader
     public void testGetBuckets()
     {
         List<Pair<String, Long>> pairs = Lists.newArrayList(
-                                                           Pair.create("a", 199L),
-                                                           Pair.create("b", 299L),
-                                                           Pair.create("a", 1L),
-                                                           Pair.create("b", 201L)
+                Pair.create("a", 199L),
+                Pair.create("b", 299L),
+                Pair.create("a", 1L),
+                Pair.create("b", 201L)
         );
         List<List<String>> buckets = getBuckets(pairs, 100L, 2, 200L);
         assertEquals(2, buckets.size());
@@ -223,27 +223,15 @@ public class DateTieredCompactionStrategyTest extends SchemaLoader
 
         List<SSTableReader> sstrs = new ArrayList<>(cfs.getLiveSSTables());
 
-        List<SSTableReader> newBucket = newestBucket(Collections.singletonList(sstrs.subList(0, 2)), 4, 32, 9, 10);
+        List<SSTableReader> newBucket = newestBucket(Collections.singletonList(sstrs.subList(0, 2)), 4, 32, 9, 10, new SizeTieredCompactionStrategyOptions());
         assertTrue("incoming bucket should not be accepted when it has below the min threshold SSTables", newBucket.isEmpty());
 
-        newBucket = newestBucket(Collections.singletonList(sstrs.subList(0, 2)), 4, 32, 10, 10);
+        newBucket = newestBucket(Collections.singletonList(sstrs.subList(0, 2)), 4, 32, 10, 10, new SizeTieredCompactionStrategyOptions());
         assertFalse("non-incoming bucket should be accepted when it has at least 2 SSTables", newBucket.isEmpty());
 
         assertEquals("an sstable with a single value should have equal min/max timestamps", sstrs.get(0).getMinTimestamp(), sstrs.get(0).getMaxTimestamp());
         assertEquals("an sstable with a single value should have equal min/max timestamps", sstrs.get(1).getMinTimestamp(), sstrs.get(1).getMaxTimestamp());
         assertEquals("an sstable with a single value should have equal min/max timestamps", sstrs.get(2).getMinTimestamp(), sstrs.get(2).getMaxTimestamp());
-
-        // if we have more than the max threshold, the oldest should be dropped
-        Collections.sort(sstrs, Collections.reverseOrder(new Comparator<SSTableReader>() {
-            public int compare(SSTableReader o1, SSTableReader o2) {
-                return Long.compare(o1.getMinTimestamp(), o2.getMinTimestamp()) ;
-            }
-        }));
-
-        List<SSTableReader> bucket = trimToThreshold(sstrs, 2);
-        assertEquals("one bucket should have been dropped", 2, bucket.size());
-        for (SSTableReader sstr : bucket)
-            assertFalse("the oldest sstable should be dropped", sstr.getMinTimestamp() == 0);
     }
 
     @Test
@@ -332,6 +320,49 @@ public class DateTieredCompactionStrategyTest extends SchemaLoader
         SSTableReader sstable = t.transaction.originals().iterator().next();
         assertEquals(sstable, expiredSSTable);
         t.transaction.abort();
+    }
+
+    @Test
+    public void testSTCSBigWindow()
+    {
+        Keyspace keyspace = Keyspace.open(KEYSPACE1);
+        ColumnFamilyStore cfs = keyspace.getColumnFamilyStore(CF_STANDARD1);
+        cfs.truncateBlocking();
+        cfs.disableAutoCompaction();
+        ByteBuffer bigValue = ByteBuffer.wrap(new byte[10000]);
+        ByteBuffer value = ByteBuffer.wrap(new byte[100]);
+        int numSSTables = 40;
+        // create big sstabels out of half:
+        long timestamp = System.currentTimeMillis();
+        for (int r = 0; r < numSSTables / 2; r++)
+        {
+            for (int i = 0; i < 10; i++)
+            {
+                DecoratedKey key = Util.dk(String.valueOf(r));
+                new RowUpdateBuilder(cfs.metadata, timestamp, key.getKey())
+                    .clustering("column")
+                    .add("val", bigValue).build().applyUnsafe();
+            }
+            cfs.forceBlockingFlush();
+        }
+        // and small ones:
+        for (int r = 0; r < numSSTables / 2; r++)
+        {
+            DecoratedKey key = Util.dk(String.valueOf(r));
+            new RowUpdateBuilder(cfs.metadata, timestamp, key.getKey())
+                .clustering("column")
+                .add("val", value).build().applyUnsafe();
+            cfs.forceBlockingFlush();
+        }
+        Map<String, String> options = new HashMap<>();
+        options.put(SizeTieredCompactionStrategyOptions.MIN_SSTABLE_SIZE_KEY, "1");
+        DateTieredCompactionStrategy dtcs = new DateTieredCompactionStrategy(cfs, options);
+        for (SSTableReader sstable : cfs.getSSTables(SSTableSet.CANONICAL))
+            dtcs.addSSTable(sstable);
+        AbstractCompactionTask task = dtcs.getNextBackgroundTask(0);
+        assertEquals(20, task.transaction.originals().size());
+        task.transaction.abort();
+
     }
 
 }
