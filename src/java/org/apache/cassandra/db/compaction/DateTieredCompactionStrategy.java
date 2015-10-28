@@ -18,7 +18,6 @@
 package org.apache.cassandra.db.compaction;
 
 import java.util.*;
-import java.util.concurrent.TimeUnit;
 
 import com.google.common.annotations.VisibleForTesting;
 import com.google.common.base.Predicate;
@@ -44,6 +43,7 @@ public class DateTieredCompactionStrategy extends AbstractCompactionStrategy
     protected volatile int estimatedRemainingTasks;
     private final Set<SSTableReader> sstables = new HashSet<>();
     private long lastExpiredCheck;
+    private final SizeTieredCompactionStrategyOptions stcsOptions;
 
     public DateTieredCompactionStrategy(ColumnFamilyStore cfs, Map<String, String> options)
     {
@@ -58,6 +58,7 @@ public class DateTieredCompactionStrategy extends AbstractCompactionStrategy
         else
             logger.trace("Enabling tombstone compactions for DTCS");
 
+        this.stcsOptions = new SizeTieredCompactionStrategyOptions(options);
     }
 
     @Override
@@ -143,7 +144,8 @@ public class DateTieredCompactionStrategy extends AbstractCompactionStrategy
                                                            cfs.getMinimumCompactionThreshold(),
                                                            cfs.getMaximumCompactionThreshold(),
                                                            now,
-                                                           options.baseTime);
+                                                           options.baseTime,
+                                                           stcsOptions);
         if (!mostInteresting.isEmpty())
             return mostInteresting;
         return null;
@@ -332,7 +334,7 @@ public class DateTieredCompactionStrategy extends AbstractCompactionStrategy
         for (List<SSTableReader> bucket : tasks)
         {
             if (bucket.size() >= cfs.getMinimumCompactionThreshold())
-                n += Math.ceil((double)bucket.size() / cfs.getMaximumCompactionThreshold());
+                n += getSTCSBuckets(bucket, stcsOptions).size();
         }
         estimatedRemainingTasks = n;
     }
@@ -345,7 +347,7 @@ public class DateTieredCompactionStrategy extends AbstractCompactionStrategy
      * @return a bucket (list) of sstables to compact.
      */
     @VisibleForTesting
-    static List<SSTableReader> newestBucket(List<List<SSTableReader>> buckets, int minThreshold, int maxThreshold, long now, long baseTime)
+    static List<SSTableReader> newestBucket(List<List<SSTableReader>> buckets, int minThreshold, int maxThreshold, long now, long baseTime, SizeTieredCompactionStrategyOptions stcsOptions)
     {
         // If the "incoming window" has at least minThreshold SSTables, choose that one.
         // For any other bucket, at least 2 SSTables is enough.
@@ -353,23 +355,31 @@ public class DateTieredCompactionStrategy extends AbstractCompactionStrategy
         Target incomingWindow = getInitialTarget(now, baseTime);
         for (List<SSTableReader> bucket : buckets)
         {
-            if (bucket.size() >= minThreshold ||
-                    (bucket.size() >= 2 && !incomingWindow.onTarget(bucket.get(0).getMinTimestamp())))
-                return trimToThreshold(bucket, maxThreshold);
+            boolean inFirstWindow = incomingWindow.onTarget(bucket.get(0).getMinTimestamp());
+            if (bucket.size() >= minThreshold || (bucket.size() >= 2 && !inFirstWindow))
+            {
+                List<SSTableReader> stcsSSTables = getSSTablesForSTCS(bucket, inFirstWindow ? minThreshold : 2, maxThreshold, stcsOptions);
+                if (!stcsSSTables.isEmpty())
+                    return stcsSSTables;
+            }
         }
         return Collections.emptyList();
     }
 
-    /**
-     * @param bucket list of sstables, ordered from newest to oldest by getMinTimestamp().
-     * @param maxThreshold maximum number of sstables in a single compaction task.
-     * @return A bucket trimmed to the <code>maxThreshold</code> newest sstables.
-     */
-    @VisibleForTesting
-    static List<SSTableReader> trimToThreshold(List<SSTableReader> bucket, int maxThreshold)
+    private static List<SSTableReader> getSSTablesForSTCS(Collection<SSTableReader> sstables, int minThreshold, int maxThreshold, SizeTieredCompactionStrategyOptions stcsOptions)
     {
-        // Trim the oldest sstables off the end to meet the maxThreshold
-        return bucket.subList(0, Math.min(bucket.size(), maxThreshold));
+        List<SSTableReader> s = SizeTieredCompactionStrategy.mostInterestingBucket(getSTCSBuckets(sstables, stcsOptions), minThreshold, maxThreshold);
+        logger.debug("Got sstables {} for STCS from {}", s, sstables);
+        return s;
+    }
+
+    private static List<List<SSTableReader>> getSTCSBuckets(Collection<SSTableReader> sstables, SizeTieredCompactionStrategyOptions stcsOptions)
+    {
+        List<Pair<SSTableReader,Long>> pairs = SizeTieredCompactionStrategy.createSSTableAndLengthPairs(AbstractCompactionStrategy.filterSuspectSSTables(sstables));
+        return SizeTieredCompactionStrategy.getBuckets(pairs,
+                                                       stcsOptions.bucketHigh,
+                                                       stcsOptions.bucketLow,
+                                                       stcsOptions.minSSTableSize);
     }
 
     @Override
@@ -380,7 +390,7 @@ public class DateTieredCompactionStrategy extends AbstractCompactionStrategy
         if (modifier == null)
             return null;
 
-        return Arrays.<AbstractCompactionTask>asList(new CompactionTask(cfs, modifier, gcBefore));
+        return Collections.<AbstractCompactionTask>singleton(new CompactionTask(cfs, modifier, gcBefore));
     }
 
     @Override
@@ -430,6 +440,8 @@ public class DateTieredCompactionStrategy extends AbstractCompactionStrategy
 
         uncheckedOptions.remove(CompactionParams.Option.MIN_THRESHOLD.toString());
         uncheckedOptions.remove(CompactionParams.Option.MAX_THRESHOLD.toString());
+
+        uncheckedOptions = SizeTieredCompactionStrategyOptions.validateOptions(options, uncheckedOptions);
 
         return uncheckedOptions;
     }
