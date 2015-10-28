@@ -5,6 +5,7 @@
 
 
 3.0
+ * Fix thrift get() queries with defined columns (CASSANDRA-10586)
  * Fix marking of indexes as built and removed (CASSANDRA-10601)
  * Skip initialization of non-registered 2i instances, remove Index::getIndexName (CASSANDRA-10595)
  * Fix batches on multiple tables (CASSANDRA-10554)
