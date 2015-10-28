@@ -243,6 +243,16 @@ public class TemporalRow
                     row.addColumnValue(column, path, newCell.timestamp, newCell.ttl,
                                        newCell.localDeletionTime, newCell.value, newCell.isNew);
             }
+
+            @Override
+            public String toString()
+            {
+                return MoreObjects.toStringHelper(this)
+                        .add("numSet", numSet)
+                        .add("existingCell", existingCell)
+                        .add("newCell", newCell)
+                        .toString();
+            }
         }
     }
 
@@ -283,6 +293,22 @@ public class TemporalRow
 
             addColumnValue(cdef.name, null, NO_TIMESTAMP, NO_TTL, NO_DELETION_TIME, row.clustering().get(i), isNew);
         }
+    }
+
+    @Override
+    public String toString()
+    {
+        return MoreObjects.toStringHelper(this)
+                .add("table", baseCfs.keyspace.getName() + "." + baseCfs.getTableName())
+                .add("basePartitionKey", ByteBufferUtil.bytesToHex(basePartitionKey))
+                .add("startRow", startRow.toString(baseCfs.metadata))
+                .add("startIsNew", startIsNew)
+                .add("nowInSec", nowInSec)
+                .add("viewClusteringTtl", viewClusteringTtl)
+                .add("viewClusteringTimestamp", viewClusteringTimestamp)
+                .add("viewClusteringLocalDeletionTime", viewClusteringLocalDeletionTime)
+                .add("columnValues", columnValues)
+                .toString();
     }
 
     @Override
@@ -457,6 +483,11 @@ public class TemporalRow
             builder = builder.add(byteBuffer);
 
         return builder;
+    }
+
+    public Clustering baseClustering()
+    {
+        return startRow.clustering();
     }
 
     static class Set implements Iterable<TemporalRow>

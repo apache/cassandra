@@ -38,6 +38,7 @@ import org.apache.cassandra.concurrent.StageManager;
 import org.apache.cassandra.config.CFMetaData;
 import org.apache.cassandra.config.ColumnDefinition;
 import org.apache.cassandra.config.Schema;
+import org.apache.cassandra.db.ColumnFamilyStore;
 import org.apache.cassandra.db.Keyspace;
 import org.apache.cassandra.db.SystemKeyspace;
 import org.apache.cassandra.serializers.SimpleDateSerializer;
@@ -808,6 +809,47 @@ public class ViewTest extends CQLTester
         updateView("INSERT INTO %s (k, intval) VALUES (?, ?)", 0, 1);
         assertRows(execute("SELECT k, intval FROM %s WHERE k = ?", 0), row(0, 1));
         assertRows(execute("SELECT k, intval from mv WHERE intval = ?", 1), row(0, 1));
+    }
+
+    @Test
+    public void testIgnoreUpdate() throws Throwable
+    {
+        // regression test for CASSANDRA-10614
+
+        createTable("CREATE TABLE %s (" +
+                    "a int, " +
+                    "b int, " +
+                    "c int, " +
+                    "d int, " +
+                    "PRIMARY KEY (a, b))");
+
+        execute("USE " + keyspace());
+        executeNet(protocolVersion, "USE " + keyspace());
+
+        createView("mv", "CREATE MATERIALIZED VIEW %s AS SELECT a, b, c FROM %%s WHERE a IS NOT NULL AND b IS NOT NULL PRIMARY KEY (b, a)");
+
+        updateView("INSERT INTO %s (a, b, c) VALUES (?, ?, ?)", 0, 0, 0);
+        assertRows(execute("SELECT a, b, c from mv WHERE b = ?", 0), row(0, 0, 0));
+
+        updateView("UPDATE %s SET d = ? WHERE a = ? AND b = ?", 0, 0, 0);
+        assertRows(execute("SELECT a, b, c from mv WHERE b = ?", 0), row(0, 0, 0));
+
+        // Note: errors here may result in the test hanging when the memtables are flushed as part of the table drop,
+        // because empty rows in the memtable will cause the flush to fail.  This will result in a test timeout that
+        // should not be ignored.
+        String table = KEYSPACE + "." + currentTable();
+        updateView("BEGIN BATCH " +
+                "INSERT INTO " + table + " (a, b, c, d) VALUES (?, ?, ?, ?); " + // should be accepted
+                "UPDATE " + table + " SET d = ? WHERE a = ? AND b = ?; " +  // should be ignored
+                "APPLY BATCH",
+                0, 0, 0, 0,
+                1, 0, 1);
+        assertRows(execute("SELECT a, b, c from mv WHERE b = ?", 0), row(0, 0, 0));
+        assertEmpty(execute("SELECT a, b, c from mv WHERE b = ?", 1));
+
+        ColumnFamilyStore cfs = Keyspace.open(keyspace()).getColumnFamilyStore("mv");
+        cfs.forceBlockingFlush();
+        Assert.assertEquals(1, cfs.getLiveSSTables().size());
     }
 
     @Test

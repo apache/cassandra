@@ -1,4 +1,6 @@
 3.0
+ * Fix AssertionError while flushing memtable due to materialized views
+   incorrectly inserting empty rows (CASSANDRA-10614)
  * Store UDA initcond as CQL literal in the schema table, instead of a blob (CASSANDRA-10650)
  * Don't use -1 for the position of partition key in schema (CASSANDRA-10491)
  * Fix distinct queries in mixed version cluster (CASSANDRA-10573)
