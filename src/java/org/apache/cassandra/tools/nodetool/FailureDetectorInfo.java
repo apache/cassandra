@@ -34,12 +34,12 @@ public class FailureDetectorInfo extends NodeToolCmd
     public void execute(NodeProbe probe)
     {
         TabularData data = probe.getFailureDetectorPhilValues();
-        System.out.printf("%10s,%16s\n", "Endpoint", "Phi");
+        System.out.printf("%10s,%16s%n", "Endpoint", "Phi");
         for (Object o : data.keySet())
         {
             @SuppressWarnings({ "rawtypes", "unchecked" })
             CompositeData datum = data.get(((List) o).toArray(new Object[((List) o).size()]));
-            System.out.printf("%10s,%16.8f\n",datum.get("Endpoint"), datum.get("PHI"));
+            System.out.printf("%10s,%16.8f%n",datum.get("Endpoint"), datum.get("PHI"));
         }
     }
 }
