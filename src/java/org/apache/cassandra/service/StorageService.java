@@ -2830,6 +2830,9 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
 
     public int forceRepairRangeAsync(String beginToken, String endToken, String keyspaceName, boolean isSequential, boolean isLocal, boolean fullRepair, String... columnFamilies)
     {
+        if (!fullRepair)
+            throw new IllegalArgumentException("Incremental repair can't be requested with subrange repair because " +
+                                               "each subrange repair would generate an anti-compacted table");
         Collection<Range<Token>> repairingRange = createRepairRangeFrom(beginToken, endToken);
 
         logger.info("starting user-requested repair of range {} for keyspace {} and column families {}",

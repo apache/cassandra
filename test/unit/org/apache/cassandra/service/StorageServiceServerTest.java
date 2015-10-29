@@ -508,4 +508,10 @@ public class StorageServiceServerTest
         repairRangeFrom = StorageService.instance.createRepairRangeFrom("2000", "2000");
         assert repairRangeFrom.size() == 0;
     }
+
+    @Test(expected=IllegalArgumentException.class)
+    public void testIncrementalRepairWithSubrangesThrows() throws Exception
+    {
+        StorageService.instance.forceRepairRangeAsync("",  "", "", true,  true, false, "");
+    }
 }
