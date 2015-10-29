@@ -143,6 +143,7 @@ public class UpdateStatement extends ModificationStatement
                                                        cfm.cfName));
                 }
             }
+            indexManager.validateRowLevelIndexes(key, cf);
         }
     }
 

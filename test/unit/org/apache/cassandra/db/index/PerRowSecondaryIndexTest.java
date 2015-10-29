@@ -18,11 +18,17 @@
 package org.apache.cassandra.db.index;
 
 
+import java.io.IOException;
+import java.net.InetSocketAddress;
 import java.nio.ByteBuffer;
 import java.util.Arrays;
+import java.util.Collections;
 import java.util.List;
 import java.util.Set;
 
+import org.apache.cassandra.service.EmbeddedCassandraService;
+import org.apache.cassandra.thrift.*;
+import org.apache.thrift.TException;
 import org.junit.Before;
 import org.junit.BeforeClass;
 import org.junit.Test;
@@ -67,15 +73,22 @@ public class PerRowSecondaryIndexTest
 
     private static final String KEYSPACE1 = "PerRowSecondaryIndexTest";
     private static final String CF_INDEXED = "Indexed1";
+    private static final String INDEXED_COLUMN = "indexed";
+
+    private static CassandraServer server;
 
     @BeforeClass
-    public static void defineSchema() throws ConfigurationException
+    public static void defineSchema() throws ConfigurationException, IOException, TException
     {
         SchemaLoader.prepareServer();
+        new EmbeddedCassandraService().start();
+        ThriftSessionManager.instance.setCurrentSocket(new InetSocketAddress(9160));
         SchemaLoader.createKeyspace(KEYSPACE1,
-                                    SimpleStrategy.class,
-                                    KSMetaData.optsWithRF(1),
-                                    SchemaLoader.perRowIndexedCFMD(KEYSPACE1, CF_INDEXED));
+                SimpleStrategy.class,
+                KSMetaData.optsWithRF(1),
+                SchemaLoader.perRowIndexedCFMD(KEYSPACE1, CF_INDEXED));
+        server = new CassandraServer();
+        server.set_keyspace(KEYSPACE1);
     }
 
     @Before
@@ -164,6 +177,147 @@ public class PerRowSecondaryIndexTest
         catch (Exception e)
         {
             assertTrue(e instanceof InvalidRequestException || (e.getCause() != null && (e.getCause() instanceof InvalidRequestException)));
+        }
+    }
+
+    @Test
+    public void testInvalidCqlInsert()
+    {
+        // test we can insert if the index validates the expression:
+        QueryProcessor.executeInternal(String.format("INSERT INTO \"%s\".\"Indexed1\" (key, indexed) VALUES ('valid','valid')", KEYSPACE1));
+
+        // test we can't insert if the index doesn't validate the key:
+        try
+        {
+            QueryProcessor.executeInternal(String.format("INSERT INTO \"%s\".\"Indexed1\" (key, indexed) VALUES ('invalid','valid')", KEYSPACE1));
+            fail("Query should have been invalid!");
+        }
+        catch (Exception e)
+        {
+            assertTrue(e instanceof InvalidRequestException);
+        }
+
+        // test we can't insert if the index doesn't validate the columns:
+        try
+        {
+            QueryProcessor.executeInternal(String.format("INSERT INTO \"%s\".\"Indexed1\" (key, indexed) VALUES ('valid','invalid')", KEYSPACE1));
+            fail("Query should have been invalid!");
+        }
+        catch (Exception e)
+        {
+            assertTrue(e instanceof InvalidRequestException);
+        }
+    }
+
+    @Test
+    public void testInvalidThriftInsert() throws IOException, TException
+    {
+
+        long timestamp = System.currentTimeMillis();
+        ColumnPath cp = new ColumnPath(CF_INDEXED);
+        ColumnParent par = new ColumnParent(CF_INDEXED);
+        cp.column = ByteBufferUtil.bytes(INDEXED_COLUMN);
+
+        // test we can insert if the index validates the expression:
+        ByteBuffer key = ByteBufferUtil.bytes("valid");
+        server.insert(key, par, new Column(key).setValue(ByteBufferUtil.bytes("valid")).setTimestamp(timestamp), ConsistencyLevel.ONE);
+
+        // test we can't insert if the index doesn't validate the key:
+        try
+        {
+            key = ByteBufferUtil.bytes("invalid");
+            server.insert(key, par, new Column(key).setValue(ByteBufferUtil.bytes("valid")).setTimestamp(timestamp), ConsistencyLevel.ONE);
+            fail("Query should have been invalid!");
+        }
+        catch (Exception e)
+        {
+            assertTrue(e instanceof org.apache.cassandra.thrift.InvalidRequestException);
+        }
+
+        // test we can't insert if the index doesn't validate the columns:
+        try
+        {
+            key = ByteBufferUtil.bytes("valid");
+            server.insert(key, par, new Column(key).setValue(ByteBufferUtil.bytes("invalid")).setTimestamp(timestamp), ConsistencyLevel.ONE);
+            fail("Query should have been invalid!");
+        }
+        catch (Exception e)
+        {
+            assertTrue(e instanceof org.apache.cassandra.thrift.InvalidRequestException);
+        }
+    }
+
+    @Test
+    public void testInvalidThriftCas() throws IOException, TException
+    {
+        // test we can insert if the index validates the expression:
+        ByteBuffer key = ByteBufferUtil.bytes("valid");
+        Column column = new Column(key).setValue(ByteBufferUtil.bytes("valid")).setTimestamp(System.currentTimeMillis());
+        server.cas(key, CF_INDEXED, Collections.<Column>emptyList(), Collections.singletonList(column), ConsistencyLevel.LOCAL_SERIAL, ConsistencyLevel.ONE);
+
+        // test we can't insert if the index doesn't validate the key:
+        try
+        {
+            key = ByteBufferUtil.bytes("invalid");
+            server.cas(key, CF_INDEXED, Collections.<Column>emptyList(), Collections.singletonList(column), ConsistencyLevel.LOCAL_SERIAL, ConsistencyLevel.ONE);
+            fail("Query should have been invalid!");
+        }
+        catch (Exception e)
+        {
+            assertTrue(e instanceof org.apache.cassandra.thrift.InvalidRequestException);
+        }
+
+        // test we can't insert if the index doesn't validate the columns:
+        try
+        {
+            key = ByteBufferUtil.bytes("valid");
+            column.setValue(ByteBufferUtil.bytes("invalid"));
+            server.cas(key, CF_INDEXED, Collections.<Column>emptyList(), Collections.singletonList(column), ConsistencyLevel.LOCAL_SERIAL, ConsistencyLevel.ONE);
+            fail("Query should have been invalid!");
+        }
+        catch (Exception e)
+        {
+            assertTrue(e instanceof org.apache.cassandra.thrift.InvalidRequestException);
+        }
+    }
+
+    @Test
+    public void testInvalidThriftBatchMutate() throws IOException, TException
+    {
+        ByteBuffer key = ByteBufferUtil.bytes("valid");
+        long timestamp = System.currentTimeMillis();
+
+        org.apache.cassandra.thrift.Mutation mutation = new org.apache.cassandra.thrift.Mutation();
+        Column column = new Column(key).setValue(ByteBufferUtil.bytes("valid")).setTimestamp(System.currentTimeMillis());
+        ColumnOrSuperColumn cosc = new ColumnOrSuperColumn();
+        cosc.setColumn(column);
+        mutation.setColumn_or_supercolumn(cosc);
+
+        server.batch_mutate(Collections.singletonMap(key, Collections.singletonMap(CF_INDEXED, Collections.singletonList(mutation))), ConsistencyLevel.ONE);
+
+        // test we can't insert if the index doesn't validate the key:
+        try
+        {
+            key = ByteBufferUtil.bytes("invalid");
+            server.batch_mutate(Collections.singletonMap(key, Collections.singletonMap(CF_INDEXED, Collections.singletonList(mutation))), ConsistencyLevel.ONE);
+            fail("Query should have been invalid!");
+        }
+        catch (Exception e)
+        {
+            assertTrue(e instanceof org.apache.cassandra.thrift.InvalidRequestException);
+        }
+
+        // test we can't insert if the index doesn't validate the columns:
+        try
+        {
+            key = ByteBufferUtil.bytes("valid");
+            cosc.setColumn(new Column(key).setValue(ByteBufferUtil.bytes("invalid")).setTimestamp(timestamp));
+            server.batch_mutate(Collections.singletonMap(key, Collections.singletonMap(CF_INDEXED, Collections.singletonList(mutation))), ConsistencyLevel.ONE);
+            fail("Query should have been invalid!");
+        }
+        catch (Exception e)
+        {
+            assertTrue(e instanceof org.apache.cassandra.thrift.InvalidRequestException);
         }
     }
 
@@ -279,6 +433,22 @@ public class PerRowSecondaryIndexTest
         @Override
         public long estimateResultRows() {
             return 0;
+        }
+
+        @Override
+        public void validate(ByteBuffer key, ColumnFamily cf) throws InvalidRequestException
+        {
+            if (key.equals(ByteBufferUtil.bytes("invalid")))
+            {
+                throw new InvalidRequestException("Invalid key!");
+            }
+            for (Cell cell : cf)
+            {
+                if (cell.value().equals(ByteBufferUtil.bytes("invalid")))
+                {
+                    throw new InvalidRequestException("Invalid column!");
+                }
+            }
         }
     }
 }
