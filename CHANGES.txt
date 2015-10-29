@@ -18,6 +18,7 @@ Merged from 2.2:
  * Expose phi values from failure detector via JMX and tweak debug
    and trace logging (CASSANDRA-9526)
 Merged from 2.1:
+ * Add validation method to PerRowSecondaryIndex (CASSANDRA-10092)
  * Support encrypted and plain traffic on the same port (CASSANDRA-10559)
  * Do STCS in DTCS windows (CASSANDRA-10276)
  * Avoid repetition of JVM_OPTS in debian package (CASSANDRA-10251)
