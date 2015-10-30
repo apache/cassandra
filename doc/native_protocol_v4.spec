@@ -412,7 +412,11 @@ Table of Contents
               will still override this timestamp. This is entirely optional.
         0x40: With names for values. If set, then all values for all <query_i> must be
               preceded by a [string] <name_i> that have the same meaning as in QUERY
-              requests.
+              requests [IMPORTANT NOTE: this feature does not work and should not be
+              used. It is specified in a way that makes it impossible for the server
+              to implement. This will be fixed in a future version of the native
+              protocol. See https://issues.apache.org/jira/browse/CASSANDRA-10246 for
+              more details].
     - <n> is a [short] indicating the number of following queries.
     - <query_1>...<query_n> are the queries to execute. A <query_i> must be of the
       form:
