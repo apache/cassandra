@@ -394,7 +394,11 @@ Table of Contents
               will still override this timestamp. This is entirely optional.
         0x40: With names for values. If set, then all values for all <query_i> must be
               preceded by a [string] <name_i> that have the same meaning as in QUERY
-              requests.
+              requests [IMPORTANT NOTE: this feature does not work and should not be
+              used. It is specified in a way that makes it impossible for the server
+              to implement. This will be fixed in a future version of the native
+              protocol. See https://issues.apache.org/jira/browse/CASSANDRA-10246 for
+              more details].
     - <n> is a [short] indicating the number of following queries.
     - <query_1>...<query_n> are the queries to execute. A <query_i> must be of the
       form:
@@ -1026,9 +1030,10 @@ Table of Contents
   * QUERY, EXECUTE and BATCH messages can now optionally provide the default timestamp for the query.
     As this feature is optionally enabled by clients, implementing it is at the discretion of the
     client.
-  * QUERY, EXECUTE and BATCH messages can now optionally provide the names for the values of the
+  * QUERY and EXECUTE messages can now optionally provide the names for the values of the
     query. As this feature is optionally enabled by clients, implementing it is at the discretion of the
-    client.
+    client (Note that while the BATCH message has a flag for this, it actually doesn't work for BATCH,
+    see Section 4.1.7 for details).
   * The format of "Schema_change" results (Section 4.2.5.5) and "SCHEMA_CHANGE" events (Section 4.2.6)
     has been modified, and now includes changes related to user types.
 
