@@ -674,6 +674,22 @@ public class CounterContext
     }
 
     /**
+     * Returns the count associated with the local counter id, or 0 if no such shard is present.
+     */
+    public long getLocalCount(ByteBuffer context)
+    {
+        return getLocalClockAndCount(context).count;
+    }
+
+    /**
+     * Checks if a context is local
+     */
+    public boolean isLocal(ByteBuffer context)
+    {
+        return ContextState.wrap(context).isLocal();
+    }
+
+    /**
      * Returns the clock and the count associated with the given counter id, or (0, 0) if no such shard is present.
      */
     @VisibleForTesting
