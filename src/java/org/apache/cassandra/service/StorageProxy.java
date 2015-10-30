@@ -667,7 +667,7 @@ public class StorageProxy implements StorageProxyMBean
             // if we haven't joined the ring, write everything to batchlog because paired replicas may be stale
             final UUID batchUUID = UUIDGen.getTimeUUID();
 
-            if (!Gossiper.instance.isEnabled())
+            if (StorageService.instance.isStarting() || StorageService.instance.isJoining() || StorageService.instance.isMoving())
             {
                 BatchlogManager.store(Batch.createLocal(batchUUID, FBUtilities.timestampMicros(),
                                                         mutations),
