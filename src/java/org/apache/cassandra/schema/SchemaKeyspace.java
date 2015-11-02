@@ -629,7 +629,7 @@ public final class SchemaKeyspace
 
         adder.add("column_name_bytes", column.name.bytes)
              .add("kind", column.kind.toString().toLowerCase())
-             .add("position", column.isOnAllComponents() ? ColumnDefinition.NO_POSITION : column.position())
+             .add("position", column.position())
              .add("clustering_order", column.clusteringOrder().toString().toLowerCase())
              .add("type", type.asCQL3Type().toString())
              .build();

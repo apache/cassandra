@@ -1266,8 +1266,7 @@ public final class CFMetaData
             for (int i = 0; i < partitionKeys.size(); i++)
             {
                 Pair<ColumnIdentifier, AbstractType> p = partitionKeys.get(i);
-                int position = partitionKeys.size() == 1 ? ColumnDefinition.NO_POSITION : i;
-                partitions.add(new ColumnDefinition(keyspace, table, p.left, p.right, position, ColumnDefinition.Kind.PARTITION_KEY));
+                partitions.add(new ColumnDefinition(keyspace, table, p.left, p.right, i, ColumnDefinition.Kind.PARTITION_KEY));
             }
 
             for (int i = 0; i < clusteringColumns.size(); i++)

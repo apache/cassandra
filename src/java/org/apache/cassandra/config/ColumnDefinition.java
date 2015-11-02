@@ -69,9 +69,11 @@ public class ColumnDefinition extends ColumnSpecification implements Comparable<
     public final Kind kind;
 
     /*
-     * If the column comparator is a composite type, indicates to which
-     * component this definition refers to. If NO_POSITION (-1), the definition refers to
-     * the full column name.
+     * If the column is a partition key or clustering column, its position relative to
+     * other columns of the same kind. Otherwise,  NO_POSITION (-1).
+     *
+     * Note that partition key and clustering columns are numbered separately so
+     * the first clustering column is 0.
      */
     private final int position;
 
@@ -150,14 +152,14 @@ public class ColumnDefinition extends ColumnSpecification implements Comparable<
         super(ksName, cfName, name, type);
         assert name != null && type != null && kind != null;
         assert name.isInterned();
-        assert position == NO_POSITION || kind.isPrimaryKeyKind(); // The position really only make sense for partition and clustering columns,
-                                                                   // so make sure we don't sneak it for something else since it'd breaks equals()
+        assert (position == NO_POSITION) == !kind.isPrimaryKeyKind(); // The position really only make sense for partition and clustering columns (and those must have one),
+                                                                      // so make sure we don't sneak it for something else since it'd breaks equals()
         this.kind = kind;
         this.position = position;
         this.cellPathComparator = makeCellPathComparator(kind, type);
         this.cellComparator = cellPathComparator == null ? ColumnData.comparator : (a, b) -> cellPathComparator.compare(a.path(), b.path());
         this.asymmetricCellPathComparator = cellPathComparator == null ? null : (a, b) -> cellPathComparator.compare(((Cell)a).path(), (CellPath) b);
-        this.comparisonOrder = comparisonOrder(kind, isComplex(), position(), name);
+        this.comparisonOrder = comparisonOrder(kind, isComplex(), Math.max(0, position), name);
     }
 
     private static Comparator<CellPath> makeCellPathComparator(Kind kind, AbstractType<?> type)
@@ -202,11 +204,6 @@ public class ColumnDefinition extends ColumnSpecification implements Comparable<
         return new ColumnDefinition(ksName, cfName, name, newType, position, kind);
     }
 
-    public boolean isOnAllComponents()
-    {
-        return position == NO_POSITION;
-    }
-
     public boolean isPartitionKey()
     {
         return kind == Kind.PARTITION_KEY;
@@ -235,13 +232,9 @@ public class ColumnDefinition extends ColumnSpecification implements Comparable<
         return type.isReversed() ? ClusteringOrder.DESC : ClusteringOrder.ASC;
     }
 
-    /**
-     * For convenience sake, if position == NO_POSITION, this method will return 0. The callers should first check
-     * isOnAllComponents() to distinguish between proper 0 position and NO_POSITION.
-     */
     public int position()
     {
-        return Math.max(0, position);
+        return position;
     }
 
     @Override

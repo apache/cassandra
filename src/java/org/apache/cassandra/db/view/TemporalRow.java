@@ -380,13 +380,15 @@ public class TemporalRow
 
         if (baseDefinition.isPartitionKey())
         {
-            if (baseDefinition.isOnAllComponents())
-                return basePartitionKey;
-            else
+            if (baseCfs.metadata.getKeyValidator() instanceof CompositeType)
             {
                 CompositeType keyComparator = (CompositeType) baseCfs.metadata.getKeyValidator();
                 ByteBuffer[] components = keyComparator.split(basePartitionKey);
                 return components[baseDefinition.position()];
+            }
+            else
+            {
+                return basePartitionKey;
             }
         }
         else

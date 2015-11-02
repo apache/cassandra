@@ -381,7 +381,7 @@ public class ColumnsTest
     private static void addPartition(List<String> names, List<ColumnDefinition> results)
     {
         for (String name : names)
-            results.add(ColumnDefinition.partitionKeyDef(cfMetaData, bytes(name), UTF8Type.instance, ColumnDefinition.NO_POSITION));
+            results.add(ColumnDefinition.partitionKeyDef(cfMetaData, bytes(name), UTF8Type.instance, 0));
     }
 
     private static void addClustering(List<String> names, List<ColumnDefinition> results)
