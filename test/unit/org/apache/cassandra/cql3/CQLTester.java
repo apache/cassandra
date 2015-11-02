@@ -78,6 +78,7 @@ public abstract class CQLTester
     public static final String KEYSPACE = "cql_test_keyspace";
     public static final String KEYSPACE_PER_TEST = "cql_test_keyspace_alt";
     protected static final boolean USE_PREPARED_VALUES = Boolean.valueOf(System.getProperty("cassandra.test.use_prepared", "true"));
+    protected static final boolean REUSE_PREPARED = Boolean.valueOf(System.getProperty("cassandra.test.reuse_prepared", "true"));
     protected static final long ROW_CACHE_SIZE_IN_MB = Integer.valueOf(System.getProperty("cassandra.test.row_cache_size_in_mb", "0"));
     private static final AtomicInteger seqNumber = new AtomicInteger();
 
@@ -137,6 +138,7 @@ public abstract class CQLTester
     // We don't use USE_PREPARED_VALUES in the code below so some test can foce value preparation (if the result
     // is not expected to be the same without preparation)
     private boolean usePrepared = USE_PREPARED_VALUES;
+    private static boolean reusePrepared = REUSE_PREPARED;
 
     public static void prepareServer()
     {
@@ -236,6 +238,11 @@ public abstract class CQLTester
 
         if (server != null)
             server.stop();
+
+        // We use queryInternal for CQLTester so prepared statement will populate our internal cache (if reusePrepared is used; otherwise prepared
+        // statements are not cached but re-prepared every time). So we clear the cache between test files to avoid accumulating too much.
+        if (reusePrepared)
+            QueryProcessor.clearInternalStatementsCache();
     }
 
     @Before
@@ -252,6 +259,7 @@ public abstract class CQLTester
 
         // Restore standard behavior in case it was changed
         usePrepared = USE_PREPARED_VALUES;
+        reusePrepared = REUSE_PREPARED;
 
         final List<String> tablesToDrop = copy(tables);
         final List<String> typesToDrop = copy(types);
@@ -445,6 +453,11 @@ public abstract class CQLTester
     protected void stopForcingPreparedValues()
     {
         this.usePrepared = USE_PREPARED_VALUES;
+    }
+
+    protected void disablePreparedReuseForTest()
+    {
+        this.reusePrepared = false;
     }
 
     protected String createType(String query)
@@ -655,7 +668,21 @@ public abstract class CQLTester
         {
             if (logger.isDebugEnabled())
                 logger.debug("Executing: {} with values {}", query, formatAllValues(values));
-            rs = QueryProcessor.executeOnceInternal(query, transformValues(values));
+            if (reusePrepared)
+            {
+                rs = QueryProcessor.executeInternal(query, transformValues(values));
+
+                // If a test uses a "USE ...", then presumably its statements use relative table. In that case, a USE
+                // change the meaning of the current keyspace, so we don't want a following statement to reuse a previously
+                // prepared statement at this wouldn't use the right keyspace. To avoid that, we drop the previously
+                // prepared statement.
+                if (query.startsWith("USE"))
+                    QueryProcessor.clearInternalStatementsCache();
+            }
+            else
+            {
+                rs = QueryProcessor.executeOnceInternal(query, transformValues(values));
+            }
         }
         else
         {

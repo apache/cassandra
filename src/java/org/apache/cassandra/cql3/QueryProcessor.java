@@ -24,6 +24,7 @@ import java.util.concurrent.ConcurrentMap;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
 
+import com.google.common.annotations.VisibleForTesting;
 import com.google.common.base.Predicate;
 import com.google.common.collect.Iterables;
 import com.google.common.collect.Iterators;
@@ -533,6 +534,15 @@ public class QueryProcessor implements QueryHandler
         return meter.measureDeep(key);
     }
 
+    /**
+     * Clear our internal statmeent cache for test purposes.
+     */
+    @VisibleForTesting
+    public static void clearInternalStatementsCache()
+    {
+        internalStatements.clear();
+    }
+
     private static class MigrationSubscriber extends MigrationListener
     {
         private void removeInvalidPreparedStatements(String ksName, String cfName)
@@ -601,10 +611,7 @@ public class QueryProcessor implements QueryHandler
             // in case there are other overloads, we have to remove all overloads since argument type
             // matching may change (due to type casting)
             if (Schema.instance.getKSMetaData(ksName).functions.get(new FunctionName(ksName, functionName)).size() > 1)
-            {
-                removeInvalidPreparedStatementsForFunction(preparedStatements.values().iterator(), ksName, functionName);
-                removeInvalidPreparedStatementsForFunction(thriftPreparedStatements.values().iterator(), ksName, functionName);
-            }
+                removeAllInvalidPreparedStatementsForFunction(ksName, functionName);
         }
 
         public void onUpdateColumnFamily(String ksName, String cfName, boolean columnsDidChange)
@@ -612,6 +619,24 @@ public class QueryProcessor implements QueryHandler
             logger.trace("Column definitions for {}.{} changed, invalidating related prepared statements", ksName, cfName);
             if (columnsDidChange)
                 removeInvalidPreparedStatements(ksName, cfName);
+        }
+
+        public void onUpdateFunction(String ksName, String functionName, List<AbstractType<?>> argTypes)
+        {
+            // Updating a function may imply we've changed the body of the function, so we need to invalid statements so that
+            // the new definition is picked (the function is resolved at preparation time).
+            // TODO: if the function has multiple overload, we could invalidate only the statement refering to the overload
+            // that was updated. This requires a few changes however and probably doesn't matter much in practice.
+            removeAllInvalidPreparedStatementsForFunction(ksName, functionName);
+        }
+
+        public void onUpdateAggregate(String ksName, String aggregateName, List<AbstractType<?>> argTypes)
+        {
+            // Updating a function may imply we've changed the body of the function, so we need to invalid statements so that
+            // the new definition is picked (the function is resolved at preparation time).
+            // TODO: if the function has multiple overload, we could invalidate only the statement refering to the overload
+            // that was updated. This requires a few changes however and probably doesn't matter much in practice.
+            removeAllInvalidPreparedStatementsForFunction(ksName, aggregateName);
         }
 
         public void onDropKeyspace(String ksName)
@@ -628,16 +653,17 @@ public class QueryProcessor implements QueryHandler
 
         public void onDropFunction(String ksName, String functionName, List<AbstractType<?>> argTypes)
         {
-            onDropFunctionInternal(ksName, functionName, argTypes);
+            removeAllInvalidPreparedStatementsForFunction(ksName, functionName);
         }
 
         public void onDropAggregate(String ksName, String aggregateName, List<AbstractType<?>> argTypes)
         {
-            onDropFunctionInternal(ksName, aggregateName, argTypes);
+            removeAllInvalidPreparedStatementsForFunction(ksName, aggregateName);
         }
 
-        private static void onDropFunctionInternal(String ksName, String functionName, List<AbstractType<?>> argTypes)
+        private static void removeAllInvalidPreparedStatementsForFunction(String ksName, String functionName)
         {
+            removeInvalidPreparedStatementsForFunction(internalStatements.values().iterator(), ksName, functionName);
             removeInvalidPreparedStatementsForFunction(preparedStatements.values().iterator(), ksName, functionName);
             removeInvalidPreparedStatementsForFunction(thriftPreparedStatements.values().iterator(), ksName, functionName);
         }

@@ -36,9 +36,6 @@ public class DropIndexStatement extends SchemaAlteringStatement
     public final String indexName;
     public final boolean ifExists;
 
-    // initialized in announceMigration()
-    private CFMetaData indexedTable;
-
     public DropIndexStatement(IndexName indexName, boolean ifExists)
     {
         super(indexName.getCfName());
@@ -48,11 +45,8 @@ public class DropIndexStatement extends SchemaAlteringStatement
 
     public String columnFamily()
     {
-        if (indexedTable != null)
-            return indexedTable.cfName;
-
-        indexedTable = lookupIndexedTable();
-        return indexedTable == null ? null : indexedTable.cfName;
+        CFMetaData cfm = lookupIndexedTable();
+        return cfm == null ? null : cfm.cfName;
     }
 
     public void checkAccess(ClientState state) throws UnauthorizedException, InvalidRequestException
@@ -69,36 +63,39 @@ public class DropIndexStatement extends SchemaAlteringStatement
         // validated in lookupIndexedTable()
     }
 
-    public Event.SchemaChange changeEvent()
-    {
-        // Dropping an index is akin to updating the CF
-        return new Event.SchemaChange(Event.SchemaChange.Change.UPDATED, Event.SchemaChange.Target.TABLE, keyspace(), columnFamily());
-    }
-
     @Override
     public ResultMessage execute(QueryState state, QueryOptions options) throws RequestValidationException
     {
-        return announceMigration(false) ? new ResultMessage.SchemaChange(changeEvent()) : null;
+        Event.SchemaChange ce = announceMigration(false);
+        return ce == null ? null : new ResultMessage.SchemaChange(ce);
     }
 
-    public boolean announceMigration(boolean isLocalOnly) throws InvalidRequestException, ConfigurationException
+    public Event.SchemaChange announceMigration(boolean isLocalOnly) throws InvalidRequestException, ConfigurationException
     {
         CFMetaData cfm = lookupIndexedTable();
         if (cfm == null)
-            return false;
+            return null;
 
-        indexedTable = cfm;
         CFMetaData updatedCfm = cfm.copy();
         updatedCfm.indexes(updatedCfm.getIndexes().without(indexName));
         MigrationManager.announceColumnFamilyUpdate(updatedCfm, false, isLocalOnly);
-        return true;
+        // Dropping an index is akin to updating the CF
+        // Note that we shouldn't call columnFamily() at this point because the index has been dropped and the call to lookupIndexedTable()
+        // in that method would now throw.
+        return new Event.SchemaChange(Event.SchemaChange.Change.UPDATED, Event.SchemaChange.Target.TABLE, cfm.ksName, cfm.cfName);
     }
 
+    /**
+     * The table for which the index should be dropped, or null if the index doesn't exist
+     *
+     * @return the metadata for the table containing the dropped index, or {@code null}
+     * if the index to drop cannot be found but "IF EXISTS" is set on the statement.
+     *
+     * @throws InvalidRequestException if the index cannot be found and "IF EXISTS" is not
+     * set on the statement.
+     */
     private CFMetaData lookupIndexedTable()
     {
-        if (indexedTable != null)
-            return indexedTable;
-
         KeyspaceMetadata ksm = Schema.instance.getKSMetaData(keyspace());
         if (ksm == null)
             throw new KeyspaceNotDefinedException("Keyspace " + keyspace() + " does not exist");

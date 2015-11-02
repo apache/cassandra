@@ -58,7 +58,7 @@ public class DropTableStatement extends SchemaAlteringStatement
         // validated in announceMigration()
     }
 
-    public boolean announceMigration(boolean isLocalOnly) throws ConfigurationException
+    public Event.SchemaChange announceMigration(boolean isLocalOnly) throws ConfigurationException
     {
         try
         {
@@ -89,18 +89,13 @@ public class DropTableStatement extends SchemaAlteringStatement
                 }
             }
             MigrationManager.announceColumnFamilyDrop(keyspace(), columnFamily(), isLocalOnly);
-            return true;
+            return new Event.SchemaChange(Event.SchemaChange.Change.DROPPED, Event.SchemaChange.Target.TABLE, keyspace(), columnFamily());
         }
         catch (ConfigurationException e)
         {
             if (ifExists)
-                return false;
+                return null;
             throw e;
         }
-    }
-
-    public Event.SchemaChange changeEvent()
-    {
-        return new Event.SchemaChange(Event.SchemaChange.Change.DROPPED, Event.SchemaChange.Target.TABLE, keyspace(), columnFamily());
     }
 }

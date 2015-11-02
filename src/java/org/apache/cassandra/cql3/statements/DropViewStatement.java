@@ -53,12 +53,7 @@ public class DropViewStatement extends SchemaAlteringStatement
         // validated in findIndexedCf()
     }
 
-    public Event.SchemaChange changeEvent()
-    {
-        return new Event.SchemaChange(Event.SchemaChange.Change.DROPPED, Event.SchemaChange.Target.TABLE, keyspace(), columnFamily());
-    }
-
-    public boolean announceMigration(boolean isLocalOnly) throws InvalidRequestException, ConfigurationException
+    public Event.SchemaChange announceMigration(boolean isLocalOnly) throws InvalidRequestException, ConfigurationException
     {
         try
         {
@@ -81,12 +76,12 @@ public class DropViewStatement extends SchemaAlteringStatement
 //            }
 
             MigrationManager.announceViewDrop(keyspace(), columnFamily(), isLocalOnly);
-            return true;
+            return new Event.SchemaChange(Event.SchemaChange.Change.DROPPED, Event.SchemaChange.Target.TABLE, keyspace(), columnFamily());
         }
         catch (ConfigurationException e)
         {
             if (ifExists)
-                return false;
+                return null;
             throw e;
         }
     }

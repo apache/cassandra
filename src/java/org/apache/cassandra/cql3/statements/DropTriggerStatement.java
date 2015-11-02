@@ -58,7 +58,7 @@ public class DropTriggerStatement extends SchemaAlteringStatement
         ThriftValidation.validateColumnFamily(keyspace(), columnFamily());
     }
 
-    public boolean announceMigration(boolean isLocalOnly) throws ConfigurationException, InvalidRequestException
+    public Event.SchemaChange announceMigration(boolean isLocalOnly) throws ConfigurationException, InvalidRequestException
     {
         CFMetaData cfm = Schema.instance.getCFMetaData(keyspace(), columnFamily()).copy();
         Triggers triggers = cfm.getTriggers();
@@ -66,7 +66,7 @@ public class DropTriggerStatement extends SchemaAlteringStatement
         if (!triggers.get(triggerName).isPresent())
         {
             if (ifExists)
-                return false;
+                return null;
             else
                 throw new InvalidRequestException(String.format("Trigger %s was not found", triggerName));
         }
@@ -74,11 +74,6 @@ public class DropTriggerStatement extends SchemaAlteringStatement
         logger.info("Dropping trigger with name {}", triggerName);
         cfm.triggers(triggers.without(triggerName));
         MigrationManager.announceColumnFamilyUpdate(cfm, false, isLocalOnly);
-        return true;
-    }
-
-    public Event.SchemaChange changeEvent()
-    {
         return new Event.SchemaChange(Event.SchemaChange.Change.UPDATED, Event.SchemaChange.Target.TABLE, keyspace(), columnFamily());
     }
 }

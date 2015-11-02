@@ -111,7 +111,7 @@ public class CreateViewStatement extends SchemaAlteringStatement
         }
     }
 
-    public boolean announceMigration(boolean isLocalOnly) throws RequestValidationException
+    public Event.SchemaChange announceMigration(boolean isLocalOnly) throws RequestValidationException
     {
         // We need to make sure that:
         //  - primary key includes all columns in base table's primary key
@@ -292,15 +292,14 @@ public class CreateViewStatement extends SchemaAlteringStatement
         try
         {
             MigrationManager.announceNewView(definition, isLocalOnly);
+            return new Event.SchemaChange(Event.SchemaChange.Change.CREATED, Event.SchemaChange.Target.TABLE, keyspace(), columnFamily());
         }
         catch (AlreadyExistsException e)
         {
             if (ifNotExists)
-                return false;
+                return null;
             throw e;
         }
-
-        return true;
     }
 
     private static boolean getColumnIdentifier(CFMetaData cfm,
@@ -326,10 +325,5 @@ public class CreateViewStatement extends SchemaAlteringStatement
 
         columns.add(identifier);
         return !isPk;
-    }
-
-    public Event.SchemaChange changeEvent()
-    {
-        return new Event.SchemaChange(Event.SchemaChange.Change.CREATED, Event.SchemaChange.Target.TABLE, keyspace(), columnFamily());
     }
 }
