@@ -1698,9 +1698,25 @@ public abstract class LegacyLayout
 
         public int compare(LegacyBound a, LegacyBound b)
         {
+            // In the legacy sorting, BOTTOM comes before anything else
+            if (a == LegacyBound.BOTTOM)
+                return b == LegacyBound.BOTTOM ? 0 : -1;
+            if (b == LegacyBound.BOTTOM)
+                return 1;
+
+            // Excluding BOTTOM, statics are always before anything else.
+            if (a.isStatic != b.isStatic)
+                return a.isStatic ? -1 : 1;
+
             int result = this.clusteringComparator.compare(a.bound, b.bound);
             if (result != 0)
                 return result;
+
+            // If both have equal "bound" but one is a collection tombstone and not the other, then the other comes before as it points to the beginning of the row.
+            if (a.collectionName == null)
+                return b.collectionName == null ? 0 : 1;
+            if (b.collectionName == null)
+                return -1;
 
             return UTF8Type.instance.compare(a.collectionName.name.bytes, b.collectionName.name.bytes);
         }
