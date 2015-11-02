@@ -26,6 +26,7 @@ import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.db.Keyspace;
 import org.apache.cassandra.dht.Token;
 import org.apache.cassandra.locator.AbstractReplicationStrategy;
+import org.apache.cassandra.locator.NetworkTopologyStrategy;
 import org.apache.cassandra.service.StorageService;
 import org.apache.cassandra.utils.FBUtilities;
 
@@ -38,9 +39,10 @@ public final class ViewUtils
     /**
      * Calculate the natural endpoint for the view.
      *
-     * The view natural endpoint is the endpint which has the same cardinality as this node in the replication factor.
+     * The view natural endpoint is the endpoint which has the same cardinality as this node in the replication factor.
      * The cardinality is the number at which this node would store a piece of data, given the change in replication
-     * factor.
+     * factor. If the keyspace's replication strategy is a NetworkTopologyStrategy, we filter the ring to contain only
+     * nodes in the local datacenter when calculating cardinality.
      *
      * For example, if we have the following ring:
      *   A, T1 -> B, T2 -> C, T3 -> A
@@ -61,12 +63,14 @@ public final class ViewUtils
         AbstractReplicationStrategy replicationStrategy = Keyspace.open(keyspaceName).getReplicationStrategy();
 
         String localDataCenter = DatabaseDescriptor.getEndpointSnitch().getDatacenter(FBUtilities.getBroadcastAddress());
-        List<InetAddress> localBaseEndpoints = new ArrayList<>();
-        List<InetAddress> localViewEndpoints = new ArrayList<>();
+        List<InetAddress> baseEndpoints = new ArrayList<>();
+        List<InetAddress> viewEndpoints = new ArrayList<>();
         for (InetAddress baseEndpoint : replicationStrategy.getNaturalEndpoints(baseToken))
         {
-            if (DatabaseDescriptor.getEndpointSnitch().getDatacenter(baseEndpoint).equals(localDataCenter))
-                localBaseEndpoints.add(baseEndpoint);
+            // An endpoint is local if we're not using Net
+            if (!(replicationStrategy instanceof NetworkTopologyStrategy) ||
+                DatabaseDescriptor.getEndpointSnitch().getDatacenter(baseEndpoint).equals(localDataCenter))
+                baseEndpoints.add(baseEndpoint);
         }
 
         for (InetAddress viewEndpoint : replicationStrategy.getNaturalEndpoints(viewToken))
@@ -77,17 +81,18 @@ public final class ViewUtils
 
             // We have to remove any endpoint which is shared between the base and the view, as it will select itself
             // and throw off the counts otherwise.
-            if (localBaseEndpoints.contains(viewEndpoint))
-                localBaseEndpoints.remove(viewEndpoint);
-            else if (DatabaseDescriptor.getEndpointSnitch().getDatacenter(viewEndpoint).equals(localDataCenter))
-                localViewEndpoints.add(viewEndpoint);
+            if (baseEndpoints.contains(viewEndpoint))
+                baseEndpoints.remove(viewEndpoint);
+            else if (!(replicationStrategy instanceof NetworkTopologyStrategy) ||
+                     DatabaseDescriptor.getEndpointSnitch().getDatacenter(viewEndpoint).equals(localDataCenter))
+                viewEndpoints.add(viewEndpoint);
         }
 
         // The replication strategy will be the same for the base and the view, as they must belong to the same keyspace.
         // Since the same replication strategy is used, the same placement should be used and we should get the same
         // number of replicas for all of the tokens in the ring.
-        assert localBaseEndpoints.size() == localViewEndpoints.size() : "Replication strategy should have the same number of endpoints for the base and the view";
-        int baseIdx = localBaseEndpoints.indexOf(FBUtilities.getBroadcastAddress());
+        assert baseEndpoints.size() == viewEndpoints.size() : "Replication strategy should have the same number of endpoints for the base and the view";
+        int baseIdx = baseEndpoints.indexOf(FBUtilities.getBroadcastAddress());
 
         if (baseIdx < 0)
         {
@@ -104,6 +109,6 @@ public final class ViewUtils
         }
 
 
-        return localViewEndpoints.get(baseIdx);
+        return viewEndpoints.get(baseIdx);
     }
 }
