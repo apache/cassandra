@@ -709,7 +709,7 @@ public final class LegacySchemaMigrator
         Slices slices = Slices.with(comparator, Slice.make(comparator, typeName));
         int nowInSec = FBUtilities.nowInSeconds();
         DecoratedKey key = store.metadata.decorateKey(AsciiType.instance.fromString(keyspaceName));
-        SinglePartitionReadCommand command = SinglePartitionSliceCommand.create(store.metadata, nowInSec, key, slices);
+        SinglePartitionReadCommand command = SinglePartitionReadCommand.create(store.metadata, nowInSec, key, slices);
 
         try (OpOrder.Group op = store.readOrdering.start();
              RowIterator partition = UnfilteredRowIterators.filter(command.queryMemtableAndDisk(store, op), nowInSec))

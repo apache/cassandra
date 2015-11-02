@@ -362,18 +362,18 @@ public class DataResolver extends ResponseResolver
                 DataLimits retryLimits = command.limits().forShortReadRetry(toQuery);
                 ClusteringIndexFilter filter = command.clusteringIndexFilter(partitionKey);
                 ClusteringIndexFilter retryFilter = lastClustering == null ? filter : filter.forPaging(metadata.comparator, lastClustering, false);
-                SinglePartitionReadCommand<?> cmd = SinglePartitionReadCommand.create(command.metadata(),
-                                                                                      command.nowInSec(),
-                                                                                      command.columnFilter(),
-                                                                                      command.rowFilter(),
-                                                                                      retryLimits,
-                                                                                      partitionKey,
-                                                                                      retryFilter);
+                SinglePartitionReadCommand cmd = SinglePartitionReadCommand.create(command.metadata(),
+                                                                                   command.nowInSec(),
+                                                                                   command.columnFilter(),
+                                                                                   command.rowFilter(),
+                                                                                   retryLimits,
+                                                                                   partitionKey,
+                                                                                   retryFilter);
 
                 return doShortReadRetry(cmd);
             }
 
-            private UnfilteredRowIterator doShortReadRetry(SinglePartitionReadCommand<?> retryCommand)
+            private UnfilteredRowIterator doShortReadRetry(SinglePartitionReadCommand retryCommand)
             {
                 DataResolver resolver = new DataResolver(keyspace, retryCommand, ConsistencyLevel.ONE, 1);
                 ReadCallback handler = new ReadCallback(resolver, ConsistencyLevel.ONE, retryCommand, Collections.singletonList(source));

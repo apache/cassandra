@@ -5,6 +5,7 @@
 
 
 3.0
+ * Don't use 'names query' read path for counters (CASSANDRA-10572)
  * Fix backward compatibility for counters (CASSANDRA-10470)
  * Remove memory_allocator paramter from cassandra.yaml (CASSANDRA-10581)
  * Execute the metadata reload task of all registered indexes on CFS::reload (CASSANDRA-10604)

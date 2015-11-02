@@ -133,7 +133,7 @@ public class CQL3CasRequest implements CASRequest
         return conditionColumns;
     }
 
-    public SinglePartitionReadCommand<?> readCommand(int nowInSec)
+    public SinglePartitionReadCommand readCommand(int nowInSec)
     {
         assert !conditions.isEmpty();
         Slices.Builder builder = new Slices.Builder(cfm.comparator, conditions.size());

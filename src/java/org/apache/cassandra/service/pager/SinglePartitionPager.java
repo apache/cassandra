@@ -35,11 +35,11 @@ public class SinglePartitionPager extends AbstractQueryPager
 {
     private static final Logger logger = LoggerFactory.getLogger(SinglePartitionPager.class);
 
-    private final SinglePartitionReadCommand<?> command;
+    private final SinglePartitionReadCommand command;
 
     private volatile PagingState.RowMark lastReturned;
 
-    public SinglePartitionPager(SinglePartitionReadCommand<?> command, PagingState state, int protocolVersion)
+    public SinglePartitionPager(SinglePartitionReadCommand command, PagingState state, int protocolVersion)
     {
         super(command, protocolVersion);
         this.command = command;

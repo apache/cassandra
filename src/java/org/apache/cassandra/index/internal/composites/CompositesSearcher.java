@@ -134,13 +134,13 @@ public class CompositesSearcher extends CassandraIndexSearcher
 
                 // Query the gathered index hits. We still need to filter stale hits from the resulting query.
                 ClusteringIndexNamesFilter filter = new ClusteringIndexNamesFilter(clusterings.build(), false);
-                SinglePartitionReadCommand dataCmd = new SinglePartitionNamesCommand(index.baseCfs.metadata,
-                                                                                     command.nowInSec(),
-                                                                                     command.columnFilter(),
-                                                                                     command.rowFilter(),
-                                                                                     DataLimits.NONE,
-                                                                                     partitionKey,
-                                                                                     filter);
+                SinglePartitionReadCommand dataCmd = SinglePartitionReadCommand.create(index.baseCfs.metadata,
+                                                                                       command.nowInSec(),
+                                                                                       command.columnFilter(),
+                                                                                       command.rowFilter(),
+                                                                                       DataLimits.NONE,
+                                                                                       partitionKey,
+                                                                                       filter);
                 @SuppressWarnings("resource") // We close right away if empty, and if it's assign to next it will be called either
                                               // by the next caller of next, or through closing this iterator is this come before.
                 UnfilteredRowIterator dataIter = filterStaleEntries(dataCmd.queryMemtableAndDisk(index.baseCfs,
