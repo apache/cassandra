@@ -85,8 +85,37 @@ public class NativeCellTest
                               new Name(simpleSparse(new ColumnIdentifier("a", true)), new SimpleSparseCellNameType(UTF8Type.instance)),
                               new Name(compositeDense(bytes("a"), bytes("b")), new CompoundDenseCellNameType(Arrays.<AbstractType<?>>asList(UTF8Type.instance, UTF8Type.instance))),
                               new Name(compositeSparse(bytess("b", "c"), new ColumnIdentifier("a", true), false), new CompoundSparseCellNameType(Arrays.<AbstractType<?>>asList(UTF8Type.instance, UTF8Type.instance))),
-                              new Name(compositeSparse(bytess("b", "c"), new ColumnIdentifier("a", true), true), new CompoundSparseCellNameType(Arrays.<AbstractType<?>>asList(UTF8Type.instance, UTF8Type.instance)))
+                              new Name(compositeSparse(bytess("b", "c"), new ColumnIdentifier("a", true), true), new CompoundSparseCellNameType(Arrays.<AbstractType<?>>asList(UTF8Type.instance, UTF8Type.instance))),
+                              new Name(simpleDense(huge('a', 40000)), new SimpleDenseCellNameType(UTF8Type.instance)),
+                              new Name(simpleSparse(new ColumnIdentifier(hugestr('a', 40000), true)), new SimpleSparseCellNameType(UTF8Type.instance)),
+                              new Name(compositeDense(huge('a', 20000), huge('b', 20000)), new CompoundDenseCellNameType(Arrays.<AbstractType<?>>asList(UTF8Type.instance, UTF8Type.instance))),
+                              new Name(compositeSparse(huges(40000, 'b', 'c'), new ColumnIdentifier(hugestr('a', 10000), true), false), new CompoundSparseCellNameType(Arrays.<AbstractType<?>>asList(UTF8Type.instance, UTF8Type.instance))),
+                              new Name(compositeSparse(huges(40000, 'b', 'c'), new ColumnIdentifier(hugestr('a', 10000), true), true), new CompoundSparseCellNameType(Arrays.<AbstractType<?>>asList(UTF8Type.instance, UTF8Type.instance)))
                           };
+
+    private static ByteBuffer huge(char ch, int count)
+    {
+        return bytes(hugestr(ch, count));
+    }
+
+    private static ByteBuffer[] huges(int count, char ... chs)
+    {
+        ByteBuffer[] r = new ByteBuffer[chs.length];
+        for (int i = 0 ; i < chs.length ; i++)
+            r[i] = huge(chs[i], count / chs.length);
+        return r;
+    }
+
+    private static String hugestr(char ch, int count)
+    {
+        ThreadLocalRandom random = ThreadLocalRandom.current();
+        byte[] bytes = new byte[count];
+        random.nextBytes(bytes);
+        bytes[0] = (byte) ch;
+        for (int i = 0 ; i < bytes.length ; i++)
+            bytes[i] &= 0x7f;
+        return new String(bytes);
+    }
 
     private static final CFMetaData metadata = new CFMetaData("", "", ColumnFamilyType.Standard, null);
     static
