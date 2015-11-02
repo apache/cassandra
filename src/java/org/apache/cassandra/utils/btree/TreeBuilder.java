@@ -108,7 +108,7 @@ final class TreeBuilder
 
         current.reset(EMPTY_LEAF, POSITIVE_INFINITY, updateF, null);
         for (K key : source)
-            current.addNewKey(updateF.apply(key));
+            current.addNewKey(key);
 
         current = current.ascendToRoot();
 
