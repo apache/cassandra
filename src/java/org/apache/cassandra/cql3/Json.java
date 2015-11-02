@@ -156,8 +156,6 @@ public class Json
         private final int bindIndex;
         private final Collection<ColumnDefinition> columns;
 
-        private Map<ColumnIdentifier, Term> columnMap;
-
         public PreparedMarker(String keyspace, int bindIndex, Collection<ColumnDefinition> columns)
         {
             super(keyspace);
@@ -168,24 +166,6 @@ public class Json
         protected DelayedColumnValue getRawTermForColumn(ColumnDefinition def)
         {
             return new DelayedColumnValue(this, def);
-        }
-
-        public void bind(QueryOptions options) throws InvalidRequestException
-        {
-            // this will be called once per column, so avoid duplicating work
-            if (columnMap != null)
-                return;
-
-            ByteBuffer value = options.getValues().get(bindIndex);
-            if (value == null)
-                throw new InvalidRequestException("Got null for INSERT JSON values");
-
-            columnMap = parseJson(UTF8Type.instance.getSerializer().deserialize(value), columns);
-        }
-
-        public Term getValue(ColumnDefinition def)
-        {
-            return columnMap.get(def.name);
         }
     }
 
@@ -260,8 +240,7 @@ public class Json
         @Override
         public Terminal bind(QueryOptions options) throws InvalidRequestException
         {
-            marker.bind(options);
-            Term term = marker.getValue(column);
+            Term term = options.getJsonColumnValue(marker.bindIndex, column.name, marker.columns);
             return term == null ? null : term.bind(options);
         }
 
@@ -275,7 +254,7 @@ public class Json
     /**
      * Given a JSON string, return a map of columns to their values for the insert.
      */
-    private static Map<ColumnIdentifier, Term> parseJson(String jsonString, Collection<ColumnDefinition> expectedReceivers)
+    public static Map<ColumnIdentifier, Term> parseJson(String jsonString, Collection<ColumnDefinition> expectedReceivers)
     {
         try
         {

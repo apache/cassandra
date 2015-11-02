@@ -136,6 +136,7 @@ public abstract class CQLTester
     // We don't use USE_PREPARED_VALUES in the code below so some test can foce value preparation (if the result
     // is not expected to be the same without preparation)
     private boolean usePrepared = USE_PREPARED_VALUES;
+    private static final boolean reusePrepared = Boolean.valueOf(System.getProperty("cassandra.test.reuse_prepared", "true"));
 
     @BeforeClass
     public static void setUpClass()
@@ -158,6 +159,11 @@ public abstract class CQLTester
 
         if (server != null)
             server.stop();
+
+        // We use queryInternal for CQLTester so prepared statement will populate our internal cache (if reusePrepared is used; otherwise prepared
+        // statements are not cached but re-prepared every time). So we clear the cache between test files to avoid accumulating too much.
+        if (reusePrepared)
+            QueryProcessor.clearInternalStatementsCache();
     }
 
     @Before
@@ -571,7 +577,21 @@ public abstract class CQLTester
         if (usePrepared)
         {
             logger.info("Executing: {} with values {}", query, formatAllValues(values));
-            rs = QueryProcessor.executeOnceInternal(query, transformValues(values));
+            if (reusePrepared)
+            {
+                rs = QueryProcessor.executeInternal(query, transformValues(values));
+
+                // If a test uses a "USE ...", then presumably its statements use relative table. In that case, a USE
+                // change the meaning of the current keyspace, so we don't want a following statement to reuse a previously
+                // prepared statement at this wouldn't use the right keyspace. To avoid that, we drop the previously
+                // prepared statement.
+                if (query.startsWith("USE"))
+                    QueryProcessor.clearInternalStatementsCache();
+            }
+            else
+            {
+                rs = QueryProcessor.executeOnceInternal(query, transformValues(values));
+            }
         }
         else
         {
