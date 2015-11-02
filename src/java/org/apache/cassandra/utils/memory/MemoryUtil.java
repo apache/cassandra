@@ -133,7 +133,7 @@ public abstract class MemoryUtil
 
     public static int getShort(long address)
     {
-        return UNALIGNED ? unsafe.getShort(address) : getShortByByte(address);
+        return UNALIGNED ? unsafe.getShort(address) & 0xffff : getShortByByte(address);
     }
 
     public static int getInt(long address)
