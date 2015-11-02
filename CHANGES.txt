@@ -1,4 +1,5 @@
 3.4
+ * Extract LoaderOptions to be able to be used from outside (CASSANDRA-10637)
  * fix OnDiskIndexTest to properly treat empty ranges (CASSANDRA-11205)
  * fix TrackerTest to handle new notifications (CASSANDRA-11178)
  * add SASI validation for partitioner and complex columns (CASSANDRA-11169)
