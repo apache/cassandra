@@ -1507,7 +1507,7 @@ class Shell(cmd.Cmd):
           HEADER=false            - whether to ignore the first line
           NULL=''                 - string that represents a null value
           ENCODING='utf8'         - encoding for CSV output (COPY TO only)
-          TIME_FORMAT=            - timestamp strftime format (COPY TO only)
+          TIMEFORMAT=             - timestamp strftime format (COPY TO only)
             '%Y-%m-%d %H:%M:%S%z'   defaults to time_format value in cqlshrc
 
         When entering CSV data on STDIN, you can use the sequence "\."
@@ -1816,7 +1816,7 @@ class Shell(cmd.Cmd):
         encoding = opts.pop('encoding', 'utf8')
         nullval = opts.pop('null', '')
         header = bool(opts.pop('header', '').lower() == 'true')
-        timestamp_format = opts.pop('time_format', self.display_timestamp_format)
+        time_format = opts.pop('timeformat', self.display_time_format)
         if dialect_options['quotechar'] == dialect_options['escapechar']:
             dialect_options['doublequote'] = True
             del dialect_options['escapechar']
@@ -1839,7 +1839,6 @@ class Shell(cmd.Cmd):
 
         meter = RateMeter(10000)
         try:
-            dtformats = DateTimeFormat(timestamp_format, self.display_date_format, self.display_nanotime_format)
             dump = self.prep_export_dump(ks, cf, columns)
             writer = csv.writer(csvdest, **dialect_options)
             if header:
@@ -1847,7 +1846,7 @@ class Shell(cmd.Cmd):
             for row in dump:
                 fmt = lambda v: \
                     format_value(v, output_encoding=encoding, nullval=nullval,
-                                 time_format=dtformats,
+                                 time_format=time_format,
                                  float_precision=self.display_float_precision).strval
                 writer.writerow(map(fmt, row.values()))
                 meter.increment()
