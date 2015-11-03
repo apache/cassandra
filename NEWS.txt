@@ -45,6 +45,9 @@ New features
 
 Upgrading
 ---------
+   - A new argument of type InetAdress has been added to IAuthenticator::newSaslNegotiator,
+     representing the IP address of the client attempting authentication. It will be a breaking
+     change for any custom implementations.
    - token-generator tool has been removed.
    - Upgrade to 3.0 is supported from Cassandra 2.1 versions greater or equal to 2.1.9,
      or Cassandra 2.2 versions greater or equal to 2.2.2. Upgrade from Cassandra 2.0 and
