@@ -6,6 +6,7 @@
  * Deprecate Pig support (CASSANDRA-10542)
  * Reduce contention getting instances of CompositeType (CASSANDRA-10433)
 Merged from 2.1:
+ * Fix streaming to catch exception so retry not fail (CASSANDRA-10557)
  * Add validation method to PerRowSecondaryIndex (CASSANDRA-10092)
  * Support encrypted and plain traffic on the same port (CASSANDRA-10559)
  * Do STCS in DTCS windows (CASSANDRA-10276)

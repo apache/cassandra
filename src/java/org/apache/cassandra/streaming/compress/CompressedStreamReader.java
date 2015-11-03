@@ -75,12 +75,12 @@ public class CompressedStreamReader extends StreamReader
         }
         ColumnFamilyStore cfs = Keyspace.open(kscf.left).getColumnFamilyStore(kscf.right);
 
-        SSTableWriter writer = createWriter(cfs, totalSize, repairedAt, format);
-
         CompressedInputStream cis = new CompressedInputStream(Channels.newInputStream(channel), compressionInfo);
         BytesReadTracker in = new BytesReadTracker(new DataInputStream(cis));
+        SSTableWriter writer = null;
         try
         {
+            writer = createWriter(cfs, totalSize, repairedAt, format);
             for (Pair<Long, Long> section : sections)
             {
                 assert cis.getTotalCompressedBytesRead() <= totalSize;
@@ -102,7 +102,18 @@ public class CompressedStreamReader extends StreamReader
         }
         catch (Throwable e)
         {
-            writer.abort();
+            if (writer != null)
+            {
+                try
+                {
+                    writer.abort();
+                }
+                catch (Throwable e2)
+                {
+                    // add abort error to original and continue so we can drain unread stream
+                    e.addSuppressed(e2);
+                }
+            }
             drain(cis, in.getBytesRead());
             if (e instanceof IOException)
                 throw (IOException) e;
