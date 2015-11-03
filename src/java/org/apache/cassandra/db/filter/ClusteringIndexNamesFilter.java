@@ -18,7 +18,6 @@
 package org.apache.cassandra.db.filter;
 
 import java.io.IOException;
-import java.nio.ByteBuffer;
 import java.util.*;
 
 import org.apache.cassandra.config.CFMetaData;
@@ -202,17 +201,8 @@ public class ClusteringIndexNamesFilter extends AbstractClusteringIndexFilter
 
     public boolean shouldInclude(SSTableReader sstable)
     {
-        ClusteringComparator comparator = sstable.metadata.comparator;
-        List<ByteBuffer> minClusteringValues = sstable.getSSTableMetadata().minClusteringValues;
-        List<ByteBuffer> maxClusteringValues = sstable.getSSTableMetadata().maxClusteringValues;
-
-        // If any of the requested clustering is within the bounds covered by the sstable, we need to include the sstable
-        for (Clustering clustering : clusterings)
-        {
-            if (Slice.make(clustering).intersects(comparator, minClusteringValues, maxClusteringValues))
-                return true;
-        }
-        return false;
+        // TODO: we could actually exclude some sstables
+        return true;
     }
 
     public String toString(CFMetaData metadata)
