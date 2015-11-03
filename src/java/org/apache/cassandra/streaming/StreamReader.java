@@ -97,13 +97,13 @@ public class StreamReader
         }
         ColumnFamilyStore cfs = Keyspace.open(kscf.left).getColumnFamilyStore(kscf.right);
 
-        SSTableMultiWriter writer = createWriter(cfs, totalSize, repairedAt, format);
-
         DataInputStream dis = new DataInputStream(new LZFInputStream(Channels.newInputStream(channel)));
         BytesReadTracker in = new BytesReadTracker(dis);
         StreamDeserializer deserializer = new StreamDeserializer(cfs.metadata, in, inputVersion, header.toHeader(cfs.metadata));
+        SSTableMultiWriter writer = null;
         try
         {
+            writer = createWriter(cfs, totalSize, repairedAt, format);
             while (in.getBytesRead() < totalSize)
             {
                 writePartition(deserializer, writer, cfs);
@@ -114,8 +114,12 @@ public class StreamReader
         }
         catch (Throwable e)
         {
-            SSTableMultiWriter.abortOrDie(writer);
-
+            if (writer != null)
+            {
+                Throwable e2 = writer.abort(null);
+                // add abort error to original and continue so we can drain unread stream
+                e.addSuppressed(e2);
+            }
             drain(dis, in.getBytesRead());
             if (e instanceof IOException)
                 throw (IOException) e;
