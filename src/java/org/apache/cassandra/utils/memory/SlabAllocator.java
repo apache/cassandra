@@ -59,13 +59,20 @@ public class SlabAllocator extends MemtableBufferAllocator
 
     // this queue is used to keep references to off-heap allocated regions so that we can free them when we are discarded
     private final ConcurrentLinkedQueue<Region> offHeapRegions = new ConcurrentLinkedQueue<>();
-    private AtomicLong unslabbedSize = new AtomicLong(0);
+    private final AtomicLong unslabbedSize = new AtomicLong(0);
     private final boolean allocateOnHeapOnly;
+    private final EnsureOnHeap ensureOnHeap;
 
     SlabAllocator(SubAllocator onHeap, SubAllocator offHeap, boolean allocateOnHeapOnly)
     {
         super(onHeap, offHeap);
         this.allocateOnHeapOnly = allocateOnHeapOnly;
+        this.ensureOnHeap = allocateOnHeapOnly ? new EnsureOnHeap.NoOp() : new EnsureOnHeap.CloneToHeap();
+    }
+
+    public EnsureOnHeap ensureOnHeap()
+    {
+        return ensureOnHeap;
     }
 
     public ByteBuffer allocate(int size)
@@ -168,18 +175,18 @@ public class SlabAllocator extends MemtableBufferAllocator
         /**
          * Actual underlying data
          */
-        private ByteBuffer data;
+        private final ByteBuffer data;
 
         /**
          * Offset for the next allocation, or the sentinel value -1
          * which implies that the region is still uninitialized.
          */
-        private AtomicInteger nextFreeOffset = new AtomicInteger(0);
+        private final AtomicInteger nextFreeOffset = new AtomicInteger(0);
 
         /**
          * Total number of allocations satisfied from this buffer
          */
-        private AtomicInteger allocCount = new AtomicInteger();
+        private final AtomicInteger allocCount = new AtomicInteger();
 
         /**
          * Create an uninitialized region. Note that memory is not allocated yet, so

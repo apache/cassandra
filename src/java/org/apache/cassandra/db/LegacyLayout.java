@@ -103,7 +103,7 @@ public abstract class LegacyLayout
         if (metadata.isSuper())
         {
             assert superColumnName != null;
-            return decodeForSuperColumn(metadata, new Clustering(superColumnName), cellname);
+            return decodeForSuperColumn(metadata, Clustering.make(superColumnName), cellname);
         }
 
         assert superColumnName == null;
@@ -161,7 +161,7 @@ public abstract class LegacyLayout
         {
             // If it's a compact table, it means the column is in fact a "dynamic" one
             if (metadata.isCompactTable())
-                return new LegacyCellName(new Clustering(column), metadata.compactValueColumn(), null);
+                return new LegacyCellName(Clustering.make(column), metadata.compactValueColumn(), null);
 
             if (def == null)
                 throw new UnknownColumnException(metadata, column);
@@ -298,7 +298,7 @@ public abstract class LegacyLayout
                                     ? CompositeType.splitName(value)
                                     : Collections.singletonList(value);
 
-        return new Clustering(components.subList(0, Math.min(csize, components.size())).toArray(new ByteBuffer[csize]));
+        return Clustering.make(components.subList(0, Math.min(csize, components.size())).toArray(new ByteBuffer[csize]));
     }
 
     public static ByteBuffer encodeClustering(CFMetaData metadata, ClusteringPrefix clustering)
@@ -1308,7 +1308,7 @@ public abstract class LegacyLayout
             ByteBuffer[] values = new ByteBuffer[bound.size()];
             for (int i = 0; i < bound.size(); i++)
                 values[i] = bound.get(i);
-            return new Clustering(values);
+            return Clustering.make(values);
         }
 
         @Override

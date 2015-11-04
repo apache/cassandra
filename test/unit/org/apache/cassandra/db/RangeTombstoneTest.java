@@ -112,17 +112,17 @@ public class RangeTombstoneTest
         int nowInSec = FBUtilities.nowInSeconds();
 
         for (int i : live)
-            assertTrue("Row " + i + " should be live", partition.getRow(new Clustering(bb(i))).hasLiveData(nowInSec));
+            assertTrue("Row " + i + " should be live", partition.getRow(Clustering.make(bb(i))).hasLiveData(nowInSec));
         for (int i : dead)
-            assertFalse("Row " + i + " shouldn't be live", partition.getRow(new Clustering(bb(i))).hasLiveData(nowInSec));
+            assertFalse("Row " + i + " shouldn't be live", partition.getRow(Clustering.make(bb(i))).hasLiveData(nowInSec));
 
         // Queries by slices
         partition = Util.getOnlyPartitionUnfiltered(Util.cmd(cfs, key).fromIncl(7).toIncl(30).build());
 
         for (int i : new int[]{ 7, 8, 9, 11, 13, 15, 17, 28, 29, 30 })
-            assertTrue("Row " + i + " should be live", partition.getRow(new Clustering(bb(i))).hasLiveData(nowInSec));
+            assertTrue("Row " + i + " should be live", partition.getRow(Clustering.make(bb(i))).hasLiveData(nowInSec));
         for (int i : new int[]{ 10, 12, 14, 16, 18, 19, 20, 21, 22, 23, 24, 25, 26, 27 })
-            assertFalse("Row " + i + " shouldn't be live", partition.getRow(new Clustering(bb(i))).hasLiveData(nowInSec));
+            assertFalse("Row " + i + " shouldn't be live", partition.getRow(Clustering.make(bb(i))).hasLiveData(nowInSec));
     }
 
     @Test
@@ -408,22 +408,22 @@ public class RangeTombstoneTest
         int nowInSec = FBUtilities.nowInSeconds();
 
         for (int i = 0; i < 5; i++)
-            assertTrue("Row " + i + " should be live", partition.getRow(new Clustering(bb(i))).hasLiveData(nowInSec));
+            assertTrue("Row " + i + " should be live", partition.getRow(Clustering.make(bb(i))).hasLiveData(nowInSec));
         for (int i = 16; i < 20; i++)
-            assertTrue("Row " + i + " should be live", partition.getRow(new Clustering(bb(i))).hasLiveData(nowInSec));
+            assertTrue("Row " + i + " should be live", partition.getRow(Clustering.make(bb(i))).hasLiveData(nowInSec));
         for (int i = 5; i <= 15; i++)
-            assertFalse("Row " + i + " shouldn't be live", partition.getRow(new Clustering(bb(i))).hasLiveData(nowInSec));
+            assertFalse("Row " + i + " shouldn't be live", partition.getRow(Clustering.make(bb(i))).hasLiveData(nowInSec));
 
         // Compact everything and re-test
         CompactionManager.instance.performMaximal(cfs, false);
         partition = Util.getOnlyPartitionUnfiltered(Util.cmd(cfs, key).build());
 
         for (int i = 0; i < 5; i++)
-            assertTrue("Row " + i + " should be live", partition.getRow(new Clustering(bb(i))).hasLiveData(FBUtilities.nowInSeconds()));
+            assertTrue("Row " + i + " should be live", partition.getRow(Clustering.make(bb(i))).hasLiveData(FBUtilities.nowInSeconds()));
         for (int i = 16; i < 20; i++)
-            assertTrue("Row " + i + " should be live", partition.getRow(new Clustering(bb(i))).hasLiveData(FBUtilities.nowInSeconds()));
+            assertTrue("Row " + i + " should be live", partition.getRow(Clustering.make(bb(i))).hasLiveData(FBUtilities.nowInSeconds()));
         for (int i = 5; i <= 15; i++)
-            assertFalse("Row " + i + " shouldn't be live", partition.getRow(new Clustering(bb(i))).hasLiveData(nowInSec));
+            assertFalse("Row " + i + " shouldn't be live", partition.getRow(Clustering.make(bb(i))).hasLiveData(nowInSec));
     }
 
     @Test

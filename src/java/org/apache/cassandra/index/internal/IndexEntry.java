@@ -3,6 +3,7 @@ package org.apache.cassandra.index.internal;
 import java.nio.ByteBuffer;
 
 import org.apache.cassandra.db.Clustering;
+import org.apache.cassandra.db.Clustering;
 import org.apache.cassandra.db.DecoratedKey;
 
 /**

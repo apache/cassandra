@@ -364,7 +364,7 @@ public class UnfilteredRowIteratorsMergeTest
 
     private static Clustering clusteringFor(int i)
     {
-        return new Clustering(Int32Type.instance.decompose(i));
+        return Clustering.make(Int32Type.instance.decompose(i));
     }
 
     static Row emptyRowAt(int pos, Function<Integer, Integer> timeGenerator)

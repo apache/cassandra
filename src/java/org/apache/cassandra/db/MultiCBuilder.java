@@ -239,7 +239,7 @@ public abstract class MultiCBuilder
             if (hasMissingElements)
                 return BTreeSet.empty(comparator);
 
-            return BTreeSet.of(comparator, size == 0 ? Clustering.EMPTY : new Clustering(elements));
+            return BTreeSet.of(comparator, size == 0 ? Clustering.EMPTY : Clustering.make(elements));
         }
 
         public NavigableSet<Slice.Bound> buildBound(boolean isStart, boolean isInclusive)

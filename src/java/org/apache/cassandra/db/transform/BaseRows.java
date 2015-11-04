@@ -13,11 +13,13 @@ implements BaseRowIterator<R>
 {
 
     private Row staticRow;
+    private DecoratedKey partitionKey;
 
     public BaseRows(I input)
     {
         super(input);
         staticRow = input.staticRow();
+        partitionKey = input.partitionKey();
     }
 
     // swap parameter order to avoid casting errors
@@ -25,6 +27,7 @@ implements BaseRowIterator<R>
     {
         super(copyFrom);
         staticRow = copyFrom.staticRow;
+        partitionKey = copyFrom.partitionKey();
     }
 
     public CFMetaData metadata()
@@ -84,6 +87,7 @@ implements BaseRowIterator<R>
         // transform any existing data
         staticRow = transformation.applyToStatic(staticRow);
         next = applyOne(next, transformation);
+        partitionKey = transformation.applyToPartitionKey(partitionKey);
     }
 
     @Override

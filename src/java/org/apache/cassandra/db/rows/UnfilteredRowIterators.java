@@ -36,7 +36,6 @@ import org.apache.cassandra.net.MessagingService;
 import org.apache.cassandra.utils.FBUtilities;
 import org.apache.cassandra.utils.IMergeIterator;
 import org.apache.cassandra.utils.MergeIterator;
-import org.apache.cassandra.utils.memory.AbstractAllocator;
 
 /**
  * Static methods to work with atom iterators.
@@ -173,32 +172,6 @@ public abstract class UnfilteredRowIterators
         }
 
         return MoreRows.extend(iter1, new Extend());
-    }
-
-    public static UnfilteredRowIterator cloningIterator(UnfilteredRowIterator iterator, final AbstractAllocator allocator)
-    {
-        class Cloner extends Transformation
-        {
-            private final Row.Builder builder = allocator.cloningBTreeRowBuilder();
-
-            public Row applyToStatic(Row row)
-            {
-                return Rows.copy(row, builder).build();
-            }
-
-            @Override
-            public Row applyToRow(Row row)
-            {
-                return Rows.copy(row, builder).build();
-            }
-
-            @Override
-            public RangeTombstoneMarker applyToMarker(RangeTombstoneMarker marker)
-            {
-                return marker.copy(allocator);
-            }
-        }
-        return Transformation.apply(iterator, new Cloner());
     }
 
     /**

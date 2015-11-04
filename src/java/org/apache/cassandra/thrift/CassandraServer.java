@@ -360,7 +360,7 @@ public class CassandraServer implements Cassandra.Iface
     private ClusteringIndexFilter toInternalFilter(CFMetaData metadata, ColumnParent parent, SliceRange range)
     {
         if (metadata.isSuper() && parent.isSetSuper_column())
-            return new ClusteringIndexNamesFilter(FBUtilities.singleton(new Clustering(parent.bufferForSuper_column()), metadata.comparator), range.reversed);
+            return new ClusteringIndexNamesFilter(FBUtilities.singleton(Clustering.make(parent.bufferForSuper_column()), metadata.comparator), range.reversed);
         else
             return new ClusteringIndexSliceFilter(makeSlices(metadata, range), range.reversed);
     }
@@ -384,13 +384,13 @@ public class CassandraServer implements Cassandra.Iface
                 {
                     if (parent.isSetSuper_column())
                     {
-                        return new ClusteringIndexNamesFilter(FBUtilities.singleton(new Clustering(parent.bufferForSuper_column()), metadata.comparator), false);
+                        return new ClusteringIndexNamesFilter(FBUtilities.singleton(Clustering.make(parent.bufferForSuper_column()), metadata.comparator), false);
                     }
                     else
                     {
                         NavigableSet<Clustering> clusterings = new TreeSet<>(metadata.comparator);
                         for (ByteBuffer bb : predicate.column_names)
-                            clusterings.add(new Clustering(bb));
+                            clusterings.add(Clustering.make(bb));
                         return new ClusteringIndexNamesFilter(clusterings, false);
                     }
                 }
@@ -460,7 +460,7 @@ public class CassandraServer implements Cassandra.Iface
             // We only want to include the static columns that are selected by the slices
             for (ColumnDefinition def : columns.statics)
             {
-                if (slices.selects(new Clustering(def.name.bytes)))
+                if (slices.selects(Clustering.make(def.name.bytes)))
                     builder.add(def);
             }
             columns = builder.build();
@@ -617,7 +617,7 @@ public class CassandraServer implements Cassandra.Iface
                     builder.select(dynamicDef, CellPath.create(column_path.column));
                     columns = builder.build();
                 }
-                filter = new ClusteringIndexNamesFilter(FBUtilities.singleton(new Clustering(column_path.super_column), metadata.comparator),
+                filter = new ClusteringIndexNamesFilter(FBUtilities.singleton(Clustering.make(column_path.super_column), metadata.comparator),
                                                   false);
             }
             else
@@ -631,7 +631,7 @@ public class CassandraServer implements Cassandra.Iface
                     builder.add(cellname.column);
                     builder.add(metadata.compactValueColumn());
                     columns = builder.build();
-                    filter = new ClusteringIndexNamesFilter(FBUtilities.singleton(new Clustering(column_path.column), metadata.comparator), false);
+                    filter = new ClusteringIndexNamesFilter(FBUtilities.singleton(Clustering.make(column_path.column), metadata.comparator), false);
                 }
                 else
                 {
@@ -1353,7 +1353,7 @@ public class CassandraServer implements Cassandra.Iface
         }
         else if (column_path.super_column != null && column_path.column == null)
         {
-            Row row = BTreeRow.emptyDeletedRow(new Clustering(column_path.super_column), Row.Deletion.regular(new DeletionTime(timestamp, nowInSec)));
+            Row row = BTreeRow.emptyDeletedRow(Clustering.make(column_path.super_column), Row.Deletion.regular(new DeletionTime(timestamp, nowInSec)));
             update = PartitionUpdate.singleRowUpdate(metadata, dk, row);
         }
         else
@@ -1611,7 +1611,7 @@ public class CassandraServer implements Cassandra.Iface
                 ClusteringIndexFilter filter = new ClusteringIndexSliceFilter(Slices.ALL, false);
                 DataLimits limits = getLimits(range.count, true, Integer.MAX_VALUE);
                 Clustering pageFrom = metadata.isSuper()
-                                    ? new Clustering(start_column)
+                                    ? Clustering.make(start_column)
                                     : LegacyLayout.decodeCellName(metadata, start_column).clustering;
                 PartitionRangeReadCommand cmd = new PartitionRangeReadCommand(false,
                                                                               0,

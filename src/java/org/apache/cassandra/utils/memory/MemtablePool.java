@@ -56,7 +56,6 @@ public abstract class MemtablePool
         return cleaner == null ? null : new MemtableCleanerThread<>(this, cleaner);
     }
 
-    public abstract boolean needToCopyOnHeap();
     public abstract MemtableAllocator newAllocator();
 
     /**

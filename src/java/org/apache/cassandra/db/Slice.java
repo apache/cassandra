@@ -343,7 +343,7 @@ public class Slice
      * <p>
      * This can be either a start or an end bound, and this can be either inclusive or exclusive.
      */
-    public static class Bound extends AbstractClusteringPrefix
+    public static class Bound extends AbstractBufferClusteringPrefix
     {
         public static final Serializer serializer = new Serializer();
 

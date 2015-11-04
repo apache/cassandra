@@ -18,7 +18,6 @@
 package org.apache.cassandra.db.rows;
 
 import java.nio.ByteBuffer;
-import java.util.*;
 import java.security.MessageDigest;
 
 import org.junit.Test;
@@ -28,7 +27,6 @@ import org.apache.cassandra.config.CFMetaData;
 import org.apache.cassandra.config.ColumnDefinition;
 import org.apache.cassandra.cql3.CQLTester;
 import org.apache.cassandra.db.*;
-import org.apache.cassandra.db.filter.*;
 import org.apache.cassandra.db.partitions.*;
 import org.apache.cassandra.db.context.CounterContext;
 import org.apache.cassandra.net.MessagingService;

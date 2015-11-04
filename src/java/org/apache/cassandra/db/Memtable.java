@@ -40,6 +40,7 @@ import org.apache.cassandra.db.lifecycle.LifecycleTransaction;
 import org.apache.cassandra.db.partitions.*;
 import org.apache.cassandra.db.rows.EncodingStats;
 import org.apache.cassandra.db.rows.UnfilteredRowIterator;
+import org.apache.cassandra.db.rows.UnfilteredRowIterators;
 import org.apache.cassandra.dht.*;
 import org.apache.cassandra.dht.Murmur3Partitioner.LongToken;
 import org.apache.cassandra.index.transactions.UpdateTransaction;
@@ -53,6 +54,7 @@ import org.apache.cassandra.utils.FBUtilities;
 import org.apache.cassandra.utils.ObjectSizes;
 import org.apache.cassandra.service.StorageService;
 import org.apache.cassandra.utils.concurrent.OpOrder;
+import org.apache.cassandra.utils.memory.HeapAllocator;
 import org.apache.cassandra.utils.memory.MemtableAllocator;
 import org.apache.cassandra.utils.memory.MemtablePool;
 
@@ -60,7 +62,7 @@ public class Memtable implements Comparable<Memtable>
 {
     private static final Logger logger = LoggerFactory.getLogger(Memtable.class);
 
-    static final MemtablePool MEMORY_POOL = DatabaseDescriptor.getMemtableAllocatorPool();
+    public static final MemtablePool MEMORY_POOL = DatabaseDescriptor.getMemtableAllocatorPool();
     private static final int ROW_OVERHEAD_HEAP_SIZE = estimateRowOverhead(Integer.parseInt(System.getProperty("cassandra.memtable_row_overhead_computation_step", "100000")));
 
     private final MemtableAllocator allocator;
@@ -526,6 +528,7 @@ public class Memtable implements Comparable<Memtable>
             assert entry.getKey() instanceof DecoratedKey;
             DecoratedKey key = (DecoratedKey)entry.getKey();
             ClusteringIndexFilter filter = dataRange.clusteringIndexFilter(key);
+
             return filter.getUnfilteredRowIterator(columnFilter, entry.getValue());
         }
     }

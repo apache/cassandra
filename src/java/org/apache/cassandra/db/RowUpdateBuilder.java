@@ -18,7 +18,6 @@
 package org.apache.cassandra.db;
 
 import java.nio.ByteBuffer;
-import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -27,7 +26,6 @@ import org.apache.cassandra.cql3.ColumnIdentifier;
 import org.apache.cassandra.config.CFMetaData;
 import org.apache.cassandra.config.ColumnDefinition;
 import org.apache.cassandra.db.marshal.SetType;
-import org.apache.cassandra.db.marshal.UTF8Type;
 import org.apache.cassandra.db.rows.*;
 import org.apache.cassandra.db.context.CounterContext;
 import org.apache.cassandra.db.partitions.*;

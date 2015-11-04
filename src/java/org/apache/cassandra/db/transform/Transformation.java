@@ -1,5 +1,6 @@
 package org.apache.cassandra.db.transform;
 
+import org.apache.cassandra.db.DecoratedKey;
 import org.apache.cassandra.db.DeletionTime;
 import org.apache.cassandra.db.partitions.PartitionIterator;
 import org.apache.cassandra.db.partitions.UnfilteredPartitionIterator;
@@ -60,6 +61,11 @@ public abstract class Transformation<I extends BaseRowIterator<?>>
     {
         return marker;
     }
+
+    /**
+     * Applied to the partition key of any rows/unfiltered iterator we are applied to
+     */
+    protected DecoratedKey applyToPartitionKey(DecoratedKey key) { return key; }
 
     /**
      * Applied to the static row of any rows iterator.

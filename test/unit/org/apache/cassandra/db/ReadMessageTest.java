@@ -219,7 +219,7 @@ public class ReadMessageTest
         {
             for (PartitionUpdate upd : mutation.getPartitionUpdates())
             {
-                Row r = upd.getRow(new Clustering(ByteBufferUtil.bytes("c")));
+                Row r = upd.getRow(Clustering.make(ByteBufferUtil.bytes("c")));
                 if (r != null)
                 {
                     if (r.getCell(withCommit) != null)

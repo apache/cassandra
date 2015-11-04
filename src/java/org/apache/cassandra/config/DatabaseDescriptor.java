@@ -1847,8 +1847,7 @@ public class DatabaseDescriptor
                 }
                 return new SlabPool(heapLimit, offHeapLimit, conf.memtable_cleanup_threshold, new ColumnFamilyStore.FlushLargestColumnFamily());
             case offheap_objects:
-                throw new ConfigurationException("offheap_objects are not available in 3.0. They should be re-introduced in a future release, see https://issues.apache.org/jira/browse/CASSANDRA-9472 for details");
-                // return new NativePool(heapLimit, offHeapLimit, conf.memtable_cleanup_threshold, new ColumnFamilyStore.FlushLargestColumnFamily());
+                return new NativePool(heapLimit, offHeapLimit, conf.memtable_cleanup_threshold, new ColumnFamilyStore.FlushLargestColumnFamily());
             default:
                 throw new AssertionError();
         }

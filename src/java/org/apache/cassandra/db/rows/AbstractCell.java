@@ -17,15 +17,19 @@
  */
 package org.apache.cassandra.db.rows;
 
+import java.nio.ByteBuffer;
 import java.security.MessageDigest;
 import java.util.Objects;
 
 import org.apache.cassandra.config.ColumnDefinition;
+import org.apache.cassandra.db.DeletionPurger;
+import org.apache.cassandra.db.TypeSizes;
 import org.apache.cassandra.db.context.CounterContext;
 import org.apache.cassandra.db.marshal.AbstractType;
 import org.apache.cassandra.db.marshal.CollectionType;
 import org.apache.cassandra.serializers.MarshalException;
 import org.apache.cassandra.utils.FBUtilities;
+import org.apache.cassandra.utils.memory.AbstractAllocator;
 
 /**
  * Base abstract class for {@code Cell} implementations.
@@ -38,6 +42,81 @@ public abstract class AbstractCell extends Cell
     protected AbstractCell(ColumnDefinition column)
     {
         super(column);
+    }
+
+    public boolean isCounterCell()
+    {
+        return !isTombstone() && column.cellValueType().isCounter();
+    }
+
+    public boolean isLive(int nowInSec)
+    {
+        return localDeletionTime() == NO_DELETION_TIME || (ttl() != NO_TTL && nowInSec < localDeletionTime());
+    }
+
+    public boolean isTombstone()
+    {
+        return localDeletionTime() != NO_DELETION_TIME && ttl() == NO_TTL;
+    }
+
+    public boolean isExpiring()
+    {
+        return ttl() != NO_TTL;
+    }
+
+    public Cell markCounterLocalToBeCleared()
+    {
+        if (!isCounterCell())
+            return this;
+
+        ByteBuffer value = value();
+        ByteBuffer marked = CounterContext.instance().markLocalToBeCleared(value);
+        return marked == value ? this : new BufferCell(column, timestamp(), ttl(), localDeletionTime(), marked, path());
+    }
+
+    public Cell purge(DeletionPurger purger, int nowInSec)
+    {
+        if (!isLive(nowInSec))
+        {
+            if (purger.shouldPurge(timestamp(), localDeletionTime()))
+                return null;
+
+            // We slightly hijack purging to convert expired but not purgeable columns to tombstones. The reason we do that is
+            // that once a column has expired it is equivalent to a tombstone but actually using a tombstone is more compact since
+            // we don't keep the column value. The reason we do it here is that 1) it's somewhat related to dealing with tombstones
+            // so hopefully not too surprising and 2) we want to this and purging at the same places, so it's simpler/more efficient
+            // to do both here.
+            if (isExpiring())
+            {
+                // Note that as long as the expiring column and the tombstone put together live longer than GC grace seconds,
+                // we'll fulfil our responsibility to repair. See discussion at
+                // http://cassandra-user-incubator-apache-org.3065146.n2.nabble.com/repair-compaction-and-tombstone-rows-td7583481.html
+                return BufferCell.tombstone(column, timestamp(), localDeletionTime() - ttl());
+            }
+        }
+        return this;
+    }
+
+    public Cell copy(AbstractAllocator allocator)
+    {
+        CellPath path = path();
+        return new BufferCell(column, timestamp(), ttl(), localDeletionTime(), allocator.clone(value()), path == null ? null : path.copy(allocator));
+    }
+
+    // note: while the cell returned may be different, the value is the same, so if the value is offheap it must be referenced inside a guarded context (or copied)
+    public Cell updateAllTimestamp(long newTimestamp)
+    {
+        return new BufferCell(column, isTombstone() ? newTimestamp - 1 : newTimestamp, ttl(), localDeletionTime(), value(), path());
+    }
+
+    public int dataSize()
+    {
+        CellPath path = path();
+        return TypeSizes.sizeof(timestamp())
+               + TypeSizes.sizeof(ttl())
+               + TypeSizes.sizeof(localDeletionTime())
+               + value().remaining()
+               + (path == null ? 0 : path.dataSize());
     }
 
     public void digest(MessageDigest digest)

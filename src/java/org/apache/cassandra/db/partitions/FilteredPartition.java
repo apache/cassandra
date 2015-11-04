@@ -65,7 +65,7 @@ public class FilteredPartition extends ImmutableBTreePartition
 
             public DecoratedKey partitionKey()
             {
-                return partitionKey;
+                return FilteredPartition.this.partitionKey();
             }
 
             public Row staticRow()

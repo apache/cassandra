@@ -29,8 +29,6 @@ import org.apache.cassandra.io.util.DataOutputPlus;
 import org.apache.cassandra.io.sstable.format.Version;
 import org.apache.cassandra.utils.ByteBufferUtil;
 
-import static org.apache.cassandra.io.sstable.IndexHelper.IndexInfo;
-
 /**
  * Holds references on serializers that depend on the table definition.
  */
@@ -70,7 +68,7 @@ public class Serializers
                         return Clustering.EMPTY;
 
                     if (!metadata.isCompound())
-                        return new Clustering(bb);
+                        return Clustering.make(bb);
 
                     List<ByteBuffer> components = CompositeType.splitName(bb);
                     byte eoc = CompositeType.lastEOC(bb);
@@ -81,7 +79,7 @@ public class Serializers
                         if (components.size() > clusteringSize)
                             components = components.subList(0, clusteringSize);
 
-                        return new Clustering(components.toArray(new ByteBuffer[clusteringSize]));
+                        return Clustering.make(components.toArray(new ByteBuffer[clusteringSize]));
                     }
                     else
                     {

@@ -199,7 +199,7 @@ public class ThriftResultsMerger extends Transformation<UnfilteredRowIterator>
             Cell cell = staticCells.next();
 
             // Given a static cell, the equivalent row uses the column name as clustering and the value as unique cell value.
-            builder.newRow(new Clustering(cell.column().name.bytes));
+            builder.newRow(Clustering.make(cell.column().name.bytes));
             builder.addCell(new BufferCell(metadata().compactValueColumn(), cell.timestamp(), cell.ttl(), cell.localDeletionTime(), cell.value(), cell.path()));
             nextToMerge = builder.build();
         }

@@ -460,8 +460,7 @@ public class SinglePartitionReadCommand extends ReadCommand
     {
         Tracing.trace("Executing single-partition query on {}", cfs.name);
 
-        boolean copyOnHeap = Memtable.MEMORY_POOL.needToCopyOnHeap();
-        return queryMemtableAndDiskInternal(cfs, copyOnHeap);
+        return queryMemtableAndDiskInternal(cfs);
     }
 
     @Override
@@ -470,7 +469,7 @@ public class SinglePartitionReadCommand extends ReadCommand
         return oldestUnrepairedTombstone;
     }
 
-    private UnfilteredRowIterator queryMemtableAndDiskInternal(ColumnFamilyStore cfs, boolean copyOnHeap)
+    private UnfilteredRowIterator queryMemtableAndDiskInternal(ColumnFamilyStore cfs)
     {
         /*
          * We have 2 main strategies:
@@ -484,7 +483,7 @@ public class SinglePartitionReadCommand extends ReadCommand
          *      of shards so have the same problem).
          */
         if (clusteringIndexFilter() instanceof ClusteringIndexNamesFilter && queryNeitherCountersNorCollections())
-            return queryMemtableAndSSTablesInTimestampOrder(cfs, copyOnHeap, (ClusteringIndexNamesFilter)clusteringIndexFilter());
+            return queryMemtableAndSSTablesInTimestampOrder(cfs, (ClusteringIndexNamesFilter)clusteringIndexFilter());
 
         Tracing.trace("Acquiring sstable references");
         ColumnFamilyStore.ViewFragment view = cfs.select(View.select(SSTableSet.LIVE, partitionKey()));
@@ -502,10 +501,8 @@ public class SinglePartitionReadCommand extends ReadCommand
 
                 @SuppressWarnings("resource") // 'iter' is added to iterators which is closed on exception, or through the closing of the final merged iterator
                 UnfilteredRowIterator iter = filter.getUnfilteredRowIterator(columnFilter(), partition);
-                @SuppressWarnings("resource") // same as above
-                UnfilteredRowIterator maybeCopied = copyOnHeap ? UnfilteredRowIterators.cloningIterator(iter, HeapAllocator.instance) : iter;
                 oldestUnrepairedTombstone = Math.min(oldestUnrepairedTombstone, partition.stats().minLocalDeletionTime);
-                iterators.add(isForThrift() ? ThriftResultsMerger.maybeWrap(maybeCopied, nowInSec()) : maybeCopied);
+                iterators.add(isForThrift() ? ThriftResultsMerger.maybeWrap(iter, nowInSec()) : iter);
             }
             /*
              * We can't eliminate full sstables based on the timestamp of what we've already read like
@@ -649,7 +646,7 @@ public class SinglePartitionReadCommand extends ReadCommand
      * no collection or counters are included).
      * This method assumes the filter is a {@code ClusteringIndexNamesFilter}.
      */
-    private UnfilteredRowIterator queryMemtableAndSSTablesInTimestampOrder(ColumnFamilyStore cfs, boolean copyOnHeap, ClusteringIndexNamesFilter filter)
+    private UnfilteredRowIterator queryMemtableAndSSTablesInTimestampOrder(ColumnFamilyStore cfs, ClusteringIndexNamesFilter filter)
     {
         Tracing.trace("Acquiring sstable references");
         ColumnFamilyStore.ViewFragment view = cfs.select(View.select(SSTableSet.LIVE, partitionKey()));
@@ -668,10 +665,7 @@ public class SinglePartitionReadCommand extends ReadCommand
                 if (iter.isEmpty())
                     continue;
 
-                UnfilteredRowIterator clonedFilter = copyOnHeap
-                                                   ? UnfilteredRowIterators.cloningIterator(iter, HeapAllocator.instance)
-                                                   : iter;
-                result = add(isForThrift() ? ThriftResultsMerger.maybeWrap(clonedFilter, nowInSec()) : clonedFilter, result, filter, false);
+                result = add(isForThrift() ? ThriftResultsMerger.maybeWrap(iter, nowInSec()) : iter, result, filter, false);
             }
         }
 

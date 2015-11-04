@@ -398,6 +398,7 @@ concurrent_materialized_view_writes: 32
 # Options are:
 #   heap_buffers:    on heap nio buffers
 #   offheap_buffers: off heap (direct) nio buffers
+#   offheap_objects: off heap objects
 memtable_allocation_type: heap_buffers
 
 # Total space to use for commit logs on disk.

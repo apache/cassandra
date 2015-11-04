@@ -49,7 +49,7 @@ public class PagingStateTest
         ByteBuffer pk = ByteBufferUtil.bytes("someKey");
 
         ColumnDefinition def = metadata.getColumnDefinition(new ColumnIdentifier("myCol", false));
-        Clustering c = new Clustering(ByteBufferUtil.bytes("c1"), ByteBufferUtil.bytes(42));
+        Clustering c = Clustering.make(ByteBufferUtil.bytes("c1"), ByteBufferUtil.bytes(42));
         Row row = BTreeRow.singleCellRow(c, BufferCell.live(metadata, def, 0, ByteBufferUtil.EMPTY_BYTE_BUFFER));
         PagingState.RowMark mark = PagingState.RowMark.create(metadata, row, protocolVersion);
         return new PagingState(pk, mark, 10, 0);

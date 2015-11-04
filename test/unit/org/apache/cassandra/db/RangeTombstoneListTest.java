@@ -605,7 +605,7 @@ public class RangeTombstoneListTest
 
     private static Clustering clustering(int i)
     {
-        return new Clustering(bb(i));
+        return Clustering.make(bb(i));
     }
 
     private static ByteBuffer bb(int i)

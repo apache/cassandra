@@ -32,11 +32,6 @@ public class HeapPool extends MemtablePool
         super(maxOnHeapMemory, 0, cleanupThreshold, cleaner);
     }
 
-    public boolean needToCopyOnHeap()
-    {
-        return false;
-    }
-
     public MemtableAllocator newAllocator()
     {
         // TODO
