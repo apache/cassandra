@@ -67,7 +67,8 @@ public class StartupChecks
     // The default set of pre-flight checks to run. Order is somewhat significant in that we probably
     // always want the system keyspace check run last, as this actually loads the schema for that
     // keyspace. All other checks should not require any schema initialization.
-    private final List<StartupCheck> DEFAULT_TESTS = ImmutableList.of(checkValidLaunchDate,
+    private final List<StartupCheck> DEFAULT_TESTS = ImmutableList.of(checkJemalloc,
+                                                                      checkValidLaunchDate,
                                                                       checkJMXPorts,
                                                                       inspectJvmOptions,
                                                                       checkJnaInitialization,
@@ -102,6 +103,22 @@ public class StartupChecks
         for (StartupCheck test : preFlightChecks)
             test.execute();
     }
+
+    public static final StartupCheck checkJemalloc = new StartupCheck()
+    {
+        public void execute() throws StartupException
+        {
+            if (FBUtilities.isWindows())
+                return;
+            String jemalloc = System.getProperty("cassandra.libjemalloc");
+            if (jemalloc == null)
+                logger.warn("jemalloc shared library could not be preloaded to speed up memory allocations");
+            else if ("-".equals(jemalloc))
+                logger.info("jemalloc preload explicitly disabled");
+            else
+                logger.info("jemalloc seems to be preloaded from {}", jemalloc);
+        }
+    };
 
     public static final StartupCheck checkValidLaunchDate = new StartupCheck()
     {

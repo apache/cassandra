@@ -1,5 +1,5 @@
 2.2.4
- * Deprecate memory_allocator in cassandra.yaml (CASSANDRA-10581)
+ * Deprecate memory_allocator in cassandra.yaml (CASSANDRA-10581,10628)
  * Expose phi values from failure detector via JMX and tweak debug
    and trace logging (CASSANDRA-9526)
  * Fix RangeNamesQueryPager (CASSANDRA-10509)
