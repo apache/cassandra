@@ -213,7 +213,11 @@ public class HintedHandOffManager implements HintedHandOffManagerMBean
     {
         if (!StorageService.instance.getTokenMetadata().isMember(endpoint))
             return;
+
         UUID hostId = StorageService.instance.getTokenMetadata().getHostId(endpoint);
+        if (hostId == null)
+            return;
+
         ByteBuffer hostIdBytes = ByteBuffer.wrap(UUIDGen.decompose(hostId));
         final Mutation mutation = new Mutation(Keyspace.SYSTEM_KS, hostIdBytes);
         mutation.delete(SystemKeyspace.HINTS_CF, System.currentTimeMillis());

@@ -1858,8 +1858,16 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
     private void handleStateLeft(InetAddress endpoint, String[] pieces)
     {
         assert pieces.length >= 2;
-        Collection<Token> tokens;
-        tokens = getTokensFor(endpoint);
+        Collection<Token> tokens = null;
+        try
+        {
+            tokens = getTokensFor(endpoint);
+        }
+        catch (Throwable th)
+        {
+            JVMStabilityInspector.inspectThrowable(th);
+            logger.warn("Unable to calculate tokens for {}.", endpoint);
+        }
 
         if (logger.isDebugEnabled())
             logger.debug("Node {} state left, tokens {}", endpoint, tokens);
@@ -1948,7 +1956,8 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
         HintedHandOffManager.instance.deleteHintsForEndpoint(endpoint);
         removeEndpoint(endpoint);
         tokenMetadata.removeEndpoint(endpoint);
-        tokenMetadata.removeBootstrapTokens(tokens);
+        if (tokens != null)
+            tokenMetadata.removeBootstrapTokens(tokens);
 
         if (!isClientMode)
         {
