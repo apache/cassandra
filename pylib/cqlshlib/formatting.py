@@ -270,6 +270,7 @@ def format_value_set(val, encoding, colormap, date_time_format, float_precision,
                                     date_time_format, float_precision, nullval)
 formatter_for('frozenset')(format_value_set)
 formatter_for('sortedset')(format_value_set)
+formatter_for('SortedSet')(format_value_set)
 
 
 @formatter_for('dict')
