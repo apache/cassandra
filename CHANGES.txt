@@ -1,4 +1,6 @@
 2.1.12
+ * Fix logback-tools.xml incorrectly configured for outputing to System.err
+   (CASSANDRA-9937)
  * Fix streaming to catch exception so retry not fail (CASSANDRA-10557)
  * Add validation method to PerRowSecondaryIndex (CASSANDRA-10092)
  * Support encrypted and plain traffic on the same port (CASSANDRA-10559)
