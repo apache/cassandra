@@ -18,7 +18,8 @@
 -->
 
 <configuration>
-  <appender name="STDERR" target="System.err" class="ch.qos.logback.core.ConsoleAppender">
+  <appender name="STDERR" class="ch.qos.logback.core.ConsoleAppender">
+    <target>System.err</target>
     <encoder>
       <pattern>%-5level %date{HH:mm:ss,SSS} %msg%n</pattern>
     </encoder>
