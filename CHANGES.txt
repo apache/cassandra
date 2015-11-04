@@ -5,6 +5,7 @@
 
 
 3.0
+ * Guard batchlog replay against integer division by zero (CASSANDRA-9223)
  * Fix bug when adding a column to thrift with the same name than a primary key (CASSANDRA-10608)
  * Add client address argument to IAuthenticator::newSaslNegotiator (CASSANDRA-8068)
  * Fix implementation of LegacyLayout.LegacyBoundComparator (CASSANDRA-10602)

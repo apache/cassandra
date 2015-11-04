@@ -24,6 +24,7 @@ import java.util.concurrent.ExecutionException;
 import java.util.concurrent.TimeUnit;
 
 import com.google.common.collect.Lists;
+
 import org.junit.*;
 
 import org.apache.cassandra.SchemaLoader;
@@ -456,5 +457,44 @@ public class BatchlogManagerTest
         UntypedResultSet result = executeInternal(query);
         assertNotNull(result);
         assertEquals(0L, result.one().getLong("count"));
+    }
+
+    // CASSANRDA-9223
+    @Test
+    public void testReplayWithNoPeers() throws Exception
+    {
+        StorageService.instance.getTokenMetadata().removeEndpoint(InetAddress.getByName("127.0.0.1"));
+
+        long initialAllBatches = BatchlogManager.instance.countAllBatches();
+        long initialReplayedBatches = BatchlogManager.instance.getTotalBatchesReplayed();
+
+        CFMetaData cfm = Keyspace.open(KEYSPACE1).getColumnFamilyStore(CF_STANDARD1).metadata;
+
+        long timestamp = (System.currentTimeMillis() - DatabaseDescriptor.getWriteRpcTimeout() * 2) * 1000;
+        UUID uuid = UUIDGen.getTimeUUID();
+
+        // Add a batch with 10 mutations
+        List<Mutation> mutations = new ArrayList<>(10);
+        for (int j = 0; j < 10; j++)
+        {
+            mutations.add(new RowUpdateBuilder(cfm, FBUtilities.timestampMicros(), ByteBufferUtil.bytes(j))
+                          .clustering("name" + j)
+                          .add("val", "val" + j)
+                          .build());
+        }
+        BatchlogManager.store(Batch.createLocal(uuid, timestamp, mutations));
+        assertEquals(1, BatchlogManager.instance.countAllBatches() - initialAllBatches);
+
+        // Flush the batchlog to disk (see CASSANDRA-6822).
+        Keyspace.open(SystemKeyspace.NAME).getColumnFamilyStore(SystemKeyspace.BATCHES).forceBlockingFlush();
+
+        assertEquals(1, BatchlogManager.instance.countAllBatches() - initialAllBatches);
+        assertEquals(0, BatchlogManager.instance.getTotalBatchesReplayed() - initialReplayedBatches);
+
+        // Force batchlog replay and wait for it to complete.
+        BatchlogManager.instance.startBatchlogReplay().get();
+
+        // Replay should be cancelled as there are no peers in the ring.
+        assertEquals(1, BatchlogManager.instance.countAllBatches() - initialAllBatches);
     }
 }
