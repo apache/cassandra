@@ -122,7 +122,7 @@ public class Schema
      */
     public Schema loadFromDisk(boolean updateVersion)
     {
-        load(SchemaKeyspace.readSchemaFromSystemTables());
+        load(SchemaKeyspace.fetchNonSystemKeyspaces());
         if (updateVersion)
             updateVersion();
         return this;
@@ -135,7 +135,7 @@ public class Schema
      *
      * @return self to support chaining calls
      */
-    public Schema load(Collection<KeyspaceMetadata> keyspaceDefs)
+    public Schema load(Iterable<KeyspaceMetadata> keyspaceDefs)
     {
         keyspaceDefs.forEach(this::load);
         return this;
@@ -352,6 +352,16 @@ public class Schema
     public Set<String> getKeyspaces()
     {
         return keyspaces.keySet();
+    }
+
+    public Keyspaces getKeyspaces(Set<String> includedKeyspaceNames)
+    {
+        Keyspaces.Builder builder = Keyspaces.builder();
+        keyspaces.values()
+                 .stream()
+                 .filter(k -> includedKeyspaceNames.contains(k.name))
+                 .forEach(builder::add);
+        return builder.build();
     }
 
     /**
@@ -611,15 +621,15 @@ public class Schema
         MigrationManager.instance.notifyCreateColumnFamily(cfm);
     }
 
-    public void updateTable(String ksName, String tableName)
+    public void updateTable(CFMetaData table)
     {
-        CFMetaData cfm = getCFMetaData(ksName, tableName);
-        assert cfm != null;
-        boolean columnsDidChange = cfm.reload();
+        CFMetaData current = getCFMetaData(table.ksName, table.cfName);
+        assert current != null;
+        boolean columnsDidChange = current.apply(table);
 
-        Keyspace keyspace = Keyspace.open(cfm.ksName);
-        keyspace.getColumnFamilyStore(cfm.cfName).reload();
-        MigrationManager.instance.notifyUpdateColumnFamily(cfm, columnsDidChange);
+        Keyspace keyspace = Keyspace.open(current.ksName);
+        keyspace.getColumnFamilyStore(current.cfName).reload();
+        MigrationManager.instance.notifyUpdateColumnFamily(current, columnsDidChange);
     }
 
     public void dropTable(String ksName, String tableName)
@@ -669,17 +679,15 @@ public class Schema
         MigrationManager.instance.notifyCreateView(view);
     }
 
-    public void updateView(String ksName, String viewName)
+    public void updateView(ViewDefinition view)
     {
-        Optional<ViewDefinition> optView = getKSMetaData(ksName).views.get(viewName);
-        assert optView.isPresent();
-        ViewDefinition view = optView.get();
-        boolean columnsDidChange = view.metadata.reload();
+        ViewDefinition current = getKSMetaData(view.ksName).views.get(view.viewName).get();
+        boolean columnsDidChange = current.metadata.apply(view.metadata);
 
-        Keyspace keyspace = Keyspace.open(view.ksName);
-        keyspace.getColumnFamilyStore(view.viewName).reload();
-        Keyspace.open(view.ksName).viewManager.update(view.viewName);
-        MigrationManager.instance.notifyUpdateView(view, columnsDidChange);
+        Keyspace keyspace = Keyspace.open(current.ksName);
+        keyspace.getColumnFamilyStore(current.viewName).reload();
+        Keyspace.open(current.ksName).viewManager.update(current.viewName);
+        MigrationManager.instance.notifyUpdateView(current, columnsDidChange);
     }
 
     public void dropView(String ksName, String viewName)

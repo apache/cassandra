@@ -468,20 +468,9 @@ public class MigrationManager
     private static void announce(Mutation schema, boolean announceLocally)
     {
         if (announceLocally)
-        {
-            try
-            {
-                SchemaKeyspace.mergeSchema(Collections.singletonList(schema));
-            }
-            catch (IOException e)
-            {
-                throw new RuntimeException(e);
-            }
-        }
+            SchemaKeyspace.mergeSchema(Collections.singletonList(schema));
         else
-        {
             FBUtilities.waitOnFuture(announce(Collections.singletonList(schema)));
-        }
     }
 
     private static void pushSchemaMutation(InetAddress endpoint, Collection<Mutation> schema)
@@ -497,7 +486,7 @@ public class MigrationManager
     {
         Future<?> f = StageManager.getStage(Stage.MIGRATION).submit(new WrappedRunnable()
         {
-            protected void runMayThrow() throws IOException, ConfigurationException
+            protected void runMayThrow() throws ConfigurationException
             {
                 SchemaKeyspace.mergeSchemaAndAnnounceVersion(schema);
             }

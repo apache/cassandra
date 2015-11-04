@@ -377,7 +377,6 @@ public class Keyspace
             // re-initializing an existing CF.  This will happen if you cleared the schema
             // on this node and it's getting repopulated from the rest of the cluster.
             assert cfs.name.equals(cfName);
-            cfs.metadata.reload();
             cfs.reload();
         }
     }

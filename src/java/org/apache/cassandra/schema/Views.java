@@ -26,6 +26,8 @@ import javax.annotation.Nullable;
 
 import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.Iterables;
+import com.google.common.collect.MapDifference;
+import com.google.common.collect.Maps;
 
 import org.apache.cassandra.config.CFMetaData;
 import org.apache.cassandra.config.ViewDefinition;
@@ -122,6 +124,11 @@ public final class Views implements Iterable<ViewDefinition>
     public Views replace(ViewDefinition view, CFMetaData cfm)
     {
         return without(view.viewName).with(view);
+    }
+
+    MapDifference<String, ViewDefinition> diff(Views other)
+    {
+        return Maps.difference(views, other.views);
     }
 
     @Override

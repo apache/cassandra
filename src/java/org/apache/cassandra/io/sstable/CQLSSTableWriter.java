@@ -25,6 +25,7 @@ import java.util.*;
 
 import org.apache.cassandra.config.*;
 import org.apache.cassandra.cql3.*;
+import org.apache.cassandra.cql3.statements.CFStatement;
 import org.apache.cassandra.cql3.statements.CreateTableStatement;
 import org.apache.cassandra.cql3.statements.ParsedStatement;
 import org.apache.cassandra.cql3.statements.UpdateStatement;
@@ -40,6 +41,7 @@ import org.apache.cassandra.io.sstable.format.SSTableFormat;
 import org.apache.cassandra.schema.KeyspaceMetadata;
 import org.apache.cassandra.schema.KeyspaceParams;
 import org.apache.cassandra.schema.Tables;
+import org.apache.cassandra.schema.Types;
 import org.apache.cassandra.service.ClientState;
 import org.apache.cassandra.utils.Pair;
 
@@ -348,7 +350,7 @@ public class CQLSSTableWriter implements Closeable
             {
                 synchronized (CQLSSTableWriter.class)
                 {
-                    this.schema = getStatement(schema, CreateTableStatement.class, "CREATE TABLE").left.getCFMetaData();
+                    this.schema = getTableMetadata(schema);
 
                     // We need to register the keyspace/table metadata through Schema, otherwise we won't be able to properly
                     // build the insert statement in using().
@@ -480,6 +482,16 @@ public class CQLSSTableWriter implements Closeable
         {
             this.sorted = true;
             return this;
+        }
+
+        private static CFMetaData getTableMetadata(String schema)
+        {
+            CFStatement parsed = (CFStatement)QueryProcessor.parseStatement(schema);
+            // tables with UDTs are currently not supported by CQLSSTableWrite, so we just use Types.none(), for now
+            // see CASSANDRA-10624 for more details
+            CreateTableStatement statement = (CreateTableStatement) ((CreateTableStatement.RawStatement) parsed).prepare(Types.none()).statement;
+            statement.validate(ClientState.forInternalCalls());
+            return statement.getCFMetaData();
         }
 
         private static <T extends CQLStatement> Pair<T, List<ColumnSpecification>> getStatement(String query, Class<T> klass, String type)

@@ -23,6 +23,8 @@ import java.util.Optional;
 import javax.annotation.Nullable;
 
 import com.google.common.collect.ImmutableMap;
+import com.google.common.collect.MapDifference;
+import com.google.common.collect.Maps;
 
 import org.apache.cassandra.config.CFMetaData;
 
@@ -113,6 +115,11 @@ public final class Tables implements Iterable<CFMetaData>
             get(name).orElseThrow(() -> new IllegalStateException(String.format("Table %s doesn't exists", name)));
 
         return builder().add(filter(this, t -> t != table)).build();
+    }
+
+    MapDifference<String, CFMetaData> diff(Tables other)
+    {
+        return Maps.difference(tables, other.tables);
     }
 
     @Override
