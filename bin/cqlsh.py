@@ -1228,12 +1228,12 @@ class Shell(cmd.Cmd):
                 return False, None
 
         if statement.query_string[:6].lower() == 'select':
-            self.print_result(result, self.parse_for_table_meta(statement.query_string))
+            self.print_result(result, self.parse_for_select_meta(statement.query_string))
         elif statement.query_string.lower().startswith("list users") or statement.query_string.lower().startswith("list roles"):
             self.print_result(result, self.get_table_meta('system_auth', 'roles'))
         elif statement.query_string.lower().startswith("list"):
             self.print_result(result, self.get_table_meta('system_auth', 'role_permissions'))
-        elif rows:
+        elif result:
             # CAS INSERT/UPDATE
             self.writeresult("")
             self.print_static_result(list(result), self.parse_for_update_meta(statement.query_string))
@@ -1254,8 +1254,8 @@ class Shell(cmd.Cmd):
                 if result.has_more_pages:
                     raw_input("---MORE---")
                     result.fetch_next_page()
-               else:
-                   break
+                else:
+                    break
         else:
             rows = list(result)
             num_rows = len(rows)
@@ -2397,7 +2397,7 @@ class ImportProcess(multiprocessing.Process):
         cqltypes = [table_meta.columns[name].typestring for name in self.columns]
         pk_indexes = [self.columns.index(col.name) for col in table_meta.primary_key]
         query = 'INSERT INTO %s.%s (%s) VALUES (%%s)' % (
-            protect_name(table_meta.keyspace.name),
+            protect_name(table_meta.keyspace_name),
             protect_name(table_meta.name),
             ', '.join(protect_names(self.columns)))
 
