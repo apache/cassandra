@@ -2165,7 +2165,8 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
 
         removeEndpoint(endpoint);
         tokenMetadata.removeEndpoint(endpoint);
-        tokenMetadata.removeBootstrapTokens(tokens);
+        if (tokens != null)
+            tokenMetadata.removeBootstrapTokens(tokens);
         notifyLeft(endpoint);
         PendingRangeCalculatorService.instance.update();
     }
