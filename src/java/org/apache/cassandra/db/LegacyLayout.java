@@ -157,13 +157,16 @@ public abstract class LegacyLayout
             return new LegacyCellName(clustering, null, null);
 
         ColumnDefinition def = metadata.getColumnDefinition(column);
-        if (def == null)
+        if ((def == null) || def.isPrimaryKeyColumn())
         {
             // If it's a compact table, it means the column is in fact a "dynamic" one
             if (metadata.isCompactTable())
                 return new LegacyCellName(new Clustering(column), metadata.compactValueColumn(), null);
 
-            throw new UnknownColumnException(metadata, column);
+            if (def == null)
+                throw new UnknownColumnException(metadata, column);
+            else
+                throw new IllegalArgumentException("Cannot add primary key column to partition update");
         }
 
         ByteBuffer collectionElement = metadata.isCompound() ? CompositeType.extractComponent(cellname, metadata.comparator.size() + 1) : null;

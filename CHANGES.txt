@@ -5,6 +5,7 @@
 
 
 3.0
+ * Fix bug when adding a column to thrift with the same name than a primary key (CASSANDRA-10608)
  * Add client address argument to IAuthenticator::newSaslNegotiator (CASSANDRA-8068)
  * Fix implementation of LegacyLayout.LegacyBoundComparator (CASSANDRA-10602)
  * Don't use 'names query' read path for counters (CASSANDRA-10572)
