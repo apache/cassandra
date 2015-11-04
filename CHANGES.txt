@@ -6,6 +6,7 @@
  * Deprecate Pig support (CASSANDRA-10542)
  * Reduce contention getting instances of CompositeType (CASSANDRA-10433)
 Merged from 2.1:
+ * Improve handling of dead nodes in gossip (CASSANDRA-10298)
  * Fix logback-tools.xml incorrectly configured for outputing to System.err
    (CASSANDRA-9937)
  * Fix streaming to catch exception so retry not fail (CASSANDRA-10557)
