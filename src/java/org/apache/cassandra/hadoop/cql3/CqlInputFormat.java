@@ -246,19 +246,29 @@ public class CqlInputFormat extends org.apache.hadoop.mapreduce.InputFormat<Long
         ResultSet resultSet = session.execute(query, keyspace, table, tokenRange.getStart().toString(), tokenRange.getEnd().toString());
 
         Row row = resultSet.one();
-        // If we have no data on this split, return the full split i.e., do not sub-split
+
+        long meanPartitionSize = 0;
+        long partitionCount = 0;
+        int splitCount = 0;
+
+        if (row != null)
+        {
+            meanPartitionSize = row.getLong("mean_partition_size");
+            partitionCount = row.getLong("partitions_count");
+
+            splitCount = (int)((meanPartitionSize * partitionCount) / splitSize);
+        }
+
+        // If we have no data on this split or the size estimate is 0,
+        // return the full split i.e., do not sub-split
         // Assume smallest granularity of partition count available from CASSANDRA-7688
-        if (row == null)
+        if (splitCount == 0)
         {
             Map<TokenRange, Long> wrappedTokenRange = new HashMap<>();
             wrappedTokenRange.put(tokenRange, (long) 128);
             return wrappedTokenRange;
         }
 
-        long meanPartitionSize = row.getLong("mean_partition_size");
-        long partitionCount = row.getLong("partitions_count");
-
-        int splitCount = (int)((meanPartitionSize * partitionCount) / splitSize);
         List<TokenRange> splitRanges = tokenRange.splitEvenly(splitCount);
         Map<TokenRange, Long> rangesWithLength = new HashMap<>();
         for (TokenRange range : splitRanges)
