@@ -5,6 +5,7 @@
 
 
 3.0
+ * Fix bootstrapping with MVs (CASSANDRA-10621)
  * Make sure EACH_QUORUM reads are using NTS (CASSANDRA-10584)
  * Fix MV replica filtering for non-NetworkTopologyStrategy (CASSANDRA-10634)
  * (Hadoop) fix CIF describeSplits() not handling 0 size estimates (CASSANDRA-10600)
