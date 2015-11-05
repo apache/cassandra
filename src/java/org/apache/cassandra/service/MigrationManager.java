@@ -277,12 +277,32 @@ public class MigrationManager
 
     public static void announceNewColumnFamily(CFMetaData cfm, boolean announceLocally) throws ConfigurationException
     {
+        announceNewColumnFamily(cfm, announceLocally, true);
+    }
+
+    /**
+     * Announces the table even if the definition is already know locally.
+     * This should generally be avoided but is used internally when we want to force the most up to date version of
+     * a system table schema (Note that we don't know if the schema we force _is_ the most recent version or not, we
+     * just rely on idempotency to basically ignore that announce if it's not. That's why we can't use announceUpdateColumnFamily,
+     * it would for instance delete new columns if this is not called with the most up-to-date version)
+     *
+     * Note that this is only safe for system tables where we know the cfId is fixed and will be the same whatever version
+     * of the definition is used.
+     */
+    public static void forceAnnounceNewColumnFamily(CFMetaData cfm) throws ConfigurationException
+    {
+        announceNewColumnFamily(cfm, false, false);
+    }
+
+    private static void announceNewColumnFamily(CFMetaData cfm, boolean announceLocally, boolean throwOnDuplicate) throws ConfigurationException
+    {
         cfm.validate();
 
         KSMetaData ksm = Schema.instance.getKSMetaData(cfm.ksName);
         if (ksm == null)
             throw new ConfigurationException(String.format("Cannot add table '%s' to non existing keyspace '%s'.", cfm.cfName, cfm.ksName));
-        else if (ksm.cfMetaData().containsKey(cfm.cfName))
+        else if (throwOnDuplicate && ksm.cfMetaData().containsKey(cfm.cfName))
             throw new AlreadyExistsException(cfm.ksName, cfm.cfName);
 
         logger.info(String.format("Create new table: %s", cfm));
