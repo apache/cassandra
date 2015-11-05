@@ -5,6 +5,7 @@
 
 
 3.0
+ * Fix reading of legacy sstables (CASSANDRA-10590)
  * Use CQL type names in schema metadata tables (CASSANDRA-10365)
  * Guard batchlog replay against integer division by zero (CASSANDRA-9223)
  * Fix bug when adding a column to thrift with the same name than a primary key (CASSANDRA-10608)

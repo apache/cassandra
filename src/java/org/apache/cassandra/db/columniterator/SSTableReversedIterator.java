@@ -155,23 +155,17 @@ public class SSTableReversedIterator extends AbstractSSTableIterator
             buffer.reset();
 
             boolean isFirst = true;
-            boolean isDone = false;
 
             // If the start might be in this block, skip everything that comes before it.
             if (start != null)
             {
-                while (!isDone && deserializer.hasNext() && deserializer.compareNextTo(start) <= 0)
+                while (deserializer.hasNext() && deserializer.compareNextTo(start) <= 0 && !stopReadingDisk())
                 {
                     isFirst = false;
                     if (deserializer.nextIsRow())
                         deserializer.skipNext();
                     else
                         updateOpenMarker((RangeTombstoneMarker)deserializer.readNext());
-
-                    // Note that because 'deserializer.hasNext()' may advance our file pointer, we need to always check stopReadingDisk() before any call to it,
-                    // i.e. just after we've called readNext/skipNext
-                    if (stopReadingDisk())
-                        isDone = true;
                 }
             }
 
@@ -183,16 +177,13 @@ public class SSTableReversedIterator extends AbstractSSTableIterator
             }
 
             // Now deserialize everything until we reach our requested end (if we have one)
-            while (!isDone
-                   && deserializer.hasNext()
-                   && (end == null || deserializer.compareNextTo(end) <= 0))
+            while (deserializer.hasNext()
+                   && (end == null || deserializer.compareNextTo(end) <= 0)
+                   && !stopReadingDisk())
             {
                 Unfiltered unfiltered = deserializer.readNext();
                 if (!isFirst || includeFirst)
                     buffer.add(unfiltered);
-
-                if (stopReadingDisk())
-                    isDone = true;
 
                 isFirst = false;
 
