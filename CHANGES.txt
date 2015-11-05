@@ -5,6 +5,7 @@
 
 
 3.0
+ * Fix MV replica filtering for non-NetworkTopologyStrategy (CASSANDRA-10634)
  * (Hadoop) fix CIF describeSplits() not handling 0 size estimates (CASSANDRA-10600)
  * Fix reading of legacy sstables (CASSANDRA-10590)
  * Use CQL type names in schema metadata tables (CASSANDRA-10365)
