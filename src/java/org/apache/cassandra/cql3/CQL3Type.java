@@ -17,10 +17,8 @@
  */
 package org.apache.cassandra.cql3;
 
-import java.nio.ByteBuffer;
 import java.util.ArrayList;
 import java.util.List;
-import java.util.Set;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -355,6 +353,11 @@ public interface CQL3Type
 
         public abstract CQL3Type prepare(String keyspace, Types udts) throws InvalidRequestException;
 
+        public CQL3Type prepareInternal(String keyspace, Types udts) throws InvalidRequestException
+        {
+            return prepare(keyspace, udts);
+        }
+
         public boolean referencesUserType(String name)
         {
             return false;
@@ -461,11 +464,24 @@ public interface CQL3Type
 
             public CQL3Type prepare(String keyspace, Types udts) throws InvalidRequestException
             {
+                return prepare(keyspace, udts, false);
+            }
+
+            public CQL3Type prepareInternal(String keyspace, Types udts)
+            {
+                return prepare(keyspace, udts, true);
+            }
+
+            public CQL3Type prepare(String keyspace, Types udts, boolean isInternal) throws InvalidRequestException
+            {
                 assert values != null : "Got null values type for a collection";
 
                 if (!frozen && values.supportsFreezing() && !values.frozen)
                     throw new InvalidRequestException("Non-frozen collections are not allowed inside collections: " + this);
-                if (values.isCounter())
+
+                // we represent Thrift supercolumns as maps, internally, and we do allow counters in supercolumns. Thus,
+                // for internal type parsing (think schema) we have to make an exception and allow counters as (map) values
+                if (values.isCounter() && !isInternal)
                     throw new InvalidRequestException("Counters are not allowed inside collections: " + this);
 
                 if (keys != null)
