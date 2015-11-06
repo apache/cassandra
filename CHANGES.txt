@@ -7,6 +7,7 @@
  * Deprecate Pig support (CASSANDRA-10542)
  * Reduce contention getting instances of CompositeType (CASSANDRA-10433)
 Merged from 2.1:
+ * (cqlsh) fix COPY using wrong variable name for time_format (CASSANDRA-10633)
  * Do not run SizeEstimatesRecorder if a node is not a member of the ring (CASSANDRA-9912)
  * Improve handling of dead nodes in gossip (CASSANDRA-10298)
  * Fix logback-tools.xml incorrectly configured for outputing to System.err

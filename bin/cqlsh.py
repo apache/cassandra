@@ -1679,7 +1679,7 @@ class Shell(cmd.Cmd):
           HEADER=false            - whether to ignore the first line
           NULL=''                 - string that represents a null value
           ENCODING='utf8'         - encoding for CSV output (COPY TO only)
-          TIME_FORMAT=            - timestamp strftime format (COPY TO only)
+          TIMEFORMAT=             - timestamp strftime format (COPY TO only)
             '%Y-%m-%d %H:%M:%S%z'   defaults to time_format value in cqlshrc
 
         When entering CSV data on STDIN, you can use the sequence "\."
@@ -1864,7 +1864,7 @@ class Shell(cmd.Cmd):
         encoding = opts.pop('encoding', 'utf8')
         nullval = opts.pop('null', '')
         header = bool(opts.pop('header', '').lower() == 'true')
-        timestamp_format = opts.pop('time_format', self.display_timestamp_format)
+        timestamp_format = opts.pop('timeformat', self.display_timestamp_format)
         if dialect_options['quotechar'] == dialect_options['escapechar']:
             dialect_options['doublequote'] = True
             del dialect_options['escapechar']
