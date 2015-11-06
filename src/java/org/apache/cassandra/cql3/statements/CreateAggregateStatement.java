@@ -113,8 +113,7 @@ public final class CreateAggregateStatement extends SchemaAlteringStatement
 
         if (ival != null)
         {
-            ColumnSpecification receiver = new ColumnSpecification(functionName.keyspace, "--dummy--", new ColumnIdentifier("(aggregate_initcond)", true), stateType);
-            initcond = ival.prepare(functionName.keyspace, receiver).bindAndGet(QueryOptions.DEFAULT);
+            initcond = Terms.asBytes(functionName.keyspace, ival.toString(), stateType);
             if (Constants.NULL_LITERAL != ival && UDHelper.isNullOrEmpty(stateType, initcond))
                 throw new InvalidRequestException("INITCOND must not be empty for all types except TEXT, ASCII, BLOB");
         }

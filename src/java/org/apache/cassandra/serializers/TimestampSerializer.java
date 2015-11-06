@@ -23,6 +23,7 @@ import java.nio.ByteBuffer;
 import java.text.SimpleDateFormat;
 import java.text.ParseException;
 import java.util.Date;
+import java.util.TimeZone;
 import java.util.regex.Pattern;
 
 import org.apache.commons.lang3.time.DateUtils;
@@ -73,7 +74,7 @@ public class TimestampSerializer implements TypeSerializer<Date>
             "yyyy-MM-dd'T'HH:mm:ss.SSS z",
             "yyyy-MM-dd'T'HH:mm:ss.SSS zz",
             "yyyy-MM-dd'T'HH:mm:ss.SSS zzz",
-            "yyyy-MM-dd'T'HH:mm:ss.SSSX",
+            "yyyy-MM-dd'T'HH:mm:ss.SSSX",  // UTC_FORMAT
             "yyyy-MM-dd'T'HH:mm:ss.SSSXX",
             "yyyy-MM-dd'T'HH:mm:ss.SSSXXX",
             "yyyy-MM-dd",
@@ -93,6 +94,17 @@ public class TimestampSerializer implements TypeSerializer<Date>
         protected SimpleDateFormat initialValue()
         {
             return new SimpleDateFormat(DEFAULT_FORMAT);
+        }
+    };
+
+    private static final String UTC_FORMAT = dateStringPatterns[40];
+    private static final ThreadLocal<SimpleDateFormat> FORMATTER_UTC = new ThreadLocal<SimpleDateFormat>()
+    {
+        protected SimpleDateFormat initialValue()
+        {
+            SimpleDateFormat sdf = new SimpleDateFormat(UTC_FORMAT);
+            sdf.setTimeZone(TimeZone.getTimeZone("UTC"));
+            return sdf;
         }
     };
 
@@ -150,8 +162,26 @@ public class TimestampSerializer implements TypeSerializer<Date>
         return value == null ? "" : FORMATTER.get().format(value);
     }
 
+    public String toStringUTC(Date value)
+    {
+        return value == null ? "" : FORMATTER_UTC.get().format(value);
+    }
+
     public Class<Date> getType()
     {
         return Date.class;
+    }
+
+    /**
+     * Builds CQL literal for a timestamp using time zone UTC and fixed date format.
+     * @see #FORMATTER_UTC
+     */
+    @Override
+    public void toCQLLiteral(ByteBuffer buffer, StringBuilder target)
+    {
+        if (buffer == null || !buffer.hasRemaining())
+            target.append("null");
+        else
+            target.append(FORMATTER_UTC.get().format(deserialize(buffer)));
     }
 }

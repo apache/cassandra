@@ -1,4 +1,5 @@
 3.0
+ * Store UDA initcond as CQL literal in the schema table, instead of a blob (CASSANDRA-10650)
  * Don't use -1 for the position of partition key in schema (CASSANDRA-10491)
  * Fix distinct queries in mixed version cluster (CASSANDRA-10573)
  * Skip sstable on clustering in names query (CASSANDRA-10571)

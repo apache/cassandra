@@ -18,11 +18,10 @@
 package org.apache.cassandra.cql3;
 
 import java.nio.ByteBuffer;
-import java.nio.ByteOrder;
 import java.util.List;
 import java.util.Locale;
-import java.nio.ByteBuffer;
 import java.util.concurrent.ConcurrentMap;
+import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
 import com.google.common.collect.MapMaker;
@@ -36,7 +35,6 @@ import org.apache.cassandra.cql3.selection.SimpleSelector;
 import org.apache.cassandra.db.marshal.AbstractType;
 import org.apache.cassandra.exceptions.InvalidRequestException;
 import org.apache.cassandra.db.marshal.UTF8Type;
-import org.apache.cassandra.exceptions.InvalidRequestException;
 import org.apache.cassandra.utils.ByteBufferUtil;
 import org.apache.cassandra.utils.ObjectSizes;
 import org.apache.cassandra.utils.memory.AbstractAllocator;
@@ -45,8 +43,10 @@ import org.apache.cassandra.utils.memory.AbstractAllocator;
  * Represents an identifer for a CQL column definition.
  * TODO : should support light-weight mode without text representation for when not interned
  */
-public class ColumnIdentifier extends org.apache.cassandra.cql3.selection.Selectable implements IMeasurableMemory, Comparable<ColumnIdentifier>
+public class ColumnIdentifier extends Selectable implements IMeasurableMemory, Comparable<ColumnIdentifier>
 {
+    private static final Pattern PATTERN_DOUBLE_QUOTE = Pattern.compile("\"", Pattern.LITERAL);
+
     public final ByteBuffer bytes;
     private final String text;
     /**
@@ -332,6 +332,6 @@ public class ColumnIdentifier extends org.apache.cassandra.cql3.selection.Select
     {
         if (UNQUOTED_IDENTIFIER.matcher(text).matches())
             return text;
-        return "\"" + text.replace("\"", "\"\"") + "\"";
+        return '"' + PATTERN_DOUBLE_QUOTE.matcher(text).replaceAll(Matcher.quoteReplacement("\"\"")) + '"';
     }
 }

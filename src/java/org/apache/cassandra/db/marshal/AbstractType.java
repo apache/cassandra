@@ -119,7 +119,7 @@ public abstract class AbstractType<T> implements Comparator<ByteBuffer>
         return getSerializer().serialize(value);
     }
 
-    /** get a string representation of the bytes suitable for log messages */
+    /** get a string representation of the bytes used for various identifier (NOT just for log messages) */
     public String getString(ByteBuffer bytes)
     {
         if (bytes == null)

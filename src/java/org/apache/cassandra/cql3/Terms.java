@@ -17,11 +17,13 @@
  */
 package org.apache.cassandra.cql3;
 
+import java.nio.ByteBuffer;
 import java.util.Collections;
 
 import com.google.common.collect.Iterables;
 
 import org.apache.cassandra.cql3.functions.Function;
+import org.apache.cassandra.db.marshal.AbstractType;
 
 public class Terms
 {
@@ -41,5 +43,12 @@ public class Terms
             return Collections.emptySet();
 
         return Iterables.concat(Iterables.transform(terms, TO_FUNCTION_ITERABLE));
+    }
+
+    public static ByteBuffer asBytes(String keyspace, String term, AbstractType type)
+    {
+        ColumnSpecification receiver = new ColumnSpecification(keyspace, "--dummy--", new ColumnIdentifier("(dummy)", true), type);
+        Term.Raw rawTerm = CQLFragmentParser.parseAny(CqlParser::term, term, "CQL term");
+        return rawTerm.prepare(keyspace, receiver).bindAndGet(QueryOptions.DEFAULT);
     }
 }
