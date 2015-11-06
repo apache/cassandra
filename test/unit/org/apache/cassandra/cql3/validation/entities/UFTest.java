@@ -2346,52 +2346,63 @@ public class UFTest extends CQLTester
 
         long udfWarnTimeout = DatabaseDescriptor.getUserDefinedFunctionWarnTimeout();
         long udfFailTimeout = DatabaseDescriptor.getUserDefinedFunctionFailTimeout();
-        try
+        int maxTries = 5;
+        for (int i = 1; i <= maxTries; i++)
         {
-            // short timeout
-            DatabaseDescriptor.setUserDefinedFunctionWarnTimeout(1);
-            DatabaseDescriptor.setUserDefinedFunctionFailTimeout(100);
-            // don't kill the unit test... - default policy is "die"
-            DatabaseDescriptor.setUserFunctionTimeoutPolicy(Config.UserFunctionTimeoutPolicy.ignore);
+            try
+            {
+                // short timeout
+                DatabaseDescriptor.setUserDefinedFunctionWarnTimeout(10);
+                DatabaseDescriptor.setUserDefinedFunctionFailTimeout(250);
+                // don't kill the unit test... - default policy is "die"
+                DatabaseDescriptor.setUserFunctionTimeoutPolicy(Config.UserFunctionTimeoutPolicy.ignore);
 
-            ClientWarn.captureWarnings();
-            String fName = createFunction(KEYSPACE_PER_TEST, "double",
-                                          "CREATE OR REPLACE FUNCTION %s(val double) " +
-                                          "RETURNS NULL ON NULL INPUT " +
-                                          "RETURNS double " +
-                                          "LANGUAGE JAVA\n" +
-                                          "AS 'long t=System.currentTimeMillis()+20; while (t>System.currentTimeMillis()) { }; return 0d;'");
-            execute("SELECT " + fName + "(dval) FROM %s WHERE key=1");
-            List<String> warnings = ClientWarn.getWarnings();
-            Assert.assertNotNull(warnings);
-            Assert.assertFalse(warnings.isEmpty());
-            ClientWarn.resetWarnings();
+                ClientWarn.captureWarnings();
+                String fName = createFunction(KEYSPACE_PER_TEST, "double",
+                                              "CREATE OR REPLACE FUNCTION %s(val double) " +
+                                              "RETURNS NULL ON NULL INPUT " +
+                                              "RETURNS double " +
+                                              "LANGUAGE JAVA\n" +
+                                              "AS 'long t=System.currentTimeMillis()+110; while (t>System.currentTimeMillis()) { }; return 0d;'");
+                execute("SELECT " + fName + "(dval) FROM %s WHERE key=1");
+                List<String> warnings = ClientWarn.getWarnings();
+                Assert.assertNotNull(warnings);
+                Assert.assertFalse(warnings.isEmpty());
+                ClientWarn.resetWarnings();
 
-            // Java UDF
+                // Java UDF
 
-            fName = createFunction(KEYSPACE_PER_TEST, "double",
-                                   "CREATE OR REPLACE FUNCTION %s(val double) " +
-                                   "RETURNS NULL ON NULL INPUT " +
-                                   "RETURNS double " +
-                                   "LANGUAGE JAVA\n" +
-                                   "AS 'long t=System.currentTimeMillis()+300; while (t>System.currentTimeMillis()) { }; return 0d;';");
-            assertInvalidMessage("ran longer than 100ms", "SELECT " + fName + "(dval) FROM %s WHERE key=1");
+                fName = createFunction(KEYSPACE_PER_TEST, "double",
+                                       "CREATE OR REPLACE FUNCTION %s(val double) " +
+                                       "RETURNS NULL ON NULL INPUT " +
+                                       "RETURNS double " +
+                                       "LANGUAGE JAVA\n" +
+                                       "AS 'long t=System.currentTimeMillis()+500; while (t>System.currentTimeMillis()) { }; return 0d;';");
+                assertInvalidMessage("ran longer than 250ms", "SELECT " + fName + "(dval) FROM %s WHERE key=1");
 
-            // Javascript UDF
+                // Javascript UDF
 
-            fName = createFunction(KEYSPACE_PER_TEST, "double",
-                                   "CREATE OR REPLACE FUNCTION %s(val double) " +
-                                   "RETURNS NULL ON NULL INPUT " +
-                                   "RETURNS double " +
-                                   "LANGUAGE JAVASCRIPT\n" +
-                                   "AS 'var t=java.lang.System.currentTimeMillis()+300; while (t>java.lang.System.currentTimeMillis()) { }; 0;';");
-            assertInvalidMessage("ran longer than 100ms", "SELECT " + fName + "(dval) FROM %s WHERE key=1");
-        }
-        finally
-        {
-            // reset to defaults
-            DatabaseDescriptor.setUserDefinedFunctionWarnTimeout(udfWarnTimeout);
-            DatabaseDescriptor.setUserDefinedFunctionFailTimeout(udfFailTimeout);
+                fName = createFunction(KEYSPACE_PER_TEST, "double",
+                                       "CREATE OR REPLACE FUNCTION %s(val double) " +
+                                       "RETURNS NULL ON NULL INPUT " +
+                                       "RETURNS double " +
+                                       "LANGUAGE JAVASCRIPT\n" +
+                                       "AS 'var t=java.lang.System.currentTimeMillis()+500; while (t>java.lang.System.currentTimeMillis()) { }; 0;';");
+                assertInvalidMessage("ran longer than 250ms", "SELECT " + fName + "(dval) FROM %s WHERE key=1");
+
+                return;
+            }
+            catch (Error | RuntimeException e)
+            {
+                if (i == maxTries)
+                    throw e;
+            }
+            finally
+            {
+                // reset to defaults
+                DatabaseDescriptor.setUserDefinedFunctionWarnTimeout(udfWarnTimeout);
+                DatabaseDescriptor.setUserDefinedFunctionFailTimeout(udfFailTimeout);
+            }
         }
     }
 }
