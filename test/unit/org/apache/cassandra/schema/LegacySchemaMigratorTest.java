@@ -639,7 +639,7 @@ public class LegacySchemaMigratorTest
 
         adder.add("validator", column.type.toString())
              .add("type", serializeKind(column.kind, table.isDense()))
-             .add("component_index", column.isOnAllComponents() ? null : column.position());
+             .add("component_index", column.position());
 
         Optional<IndexMetadata> index = findIndexForColumn(table.getIndexes(), table, column);
         if (index.isPresent())

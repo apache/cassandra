@@ -114,7 +114,7 @@ public class CreateIndexStatement extends SchemaAlteringStatement
             if (!cfm.isCompactTable() && cd.isStatic())
                 throw new InvalidRequestException("Secondary indexes are not allowed on static columns");
 
-            if (cd.kind == ColumnDefinition.Kind.PARTITION_KEY && cd.isOnAllComponents())
+            if (cd.kind == ColumnDefinition.Kind.PARTITION_KEY && cfm.getKeyValidatorAsClusteringComparator().size() == 1)
                 throw new InvalidRequestException(String.format("Cannot create secondary index on partition key column %s", target.column));
 
             boolean isMap = cd.type instanceof MapType;

@@ -222,6 +222,8 @@ public abstract class RowFilter implements Iterable<RowFilter.Expression>
             if (expressions.isEmpty())
                 return iter;
 
+            final CFMetaData metadata = iter.metadata();
+
             class IsSatisfiedFilter extends Transformation<UnfilteredRowIterator>
             {
                 DecoratedKey pk;
@@ -238,7 +240,7 @@ public abstract class RowFilter implements Iterable<RowFilter.Expression>
                         return null;
 
                     for (Expression e : expressions)
-                        if (!e.isSatisfiedBy(pk, purged))
+                        if (!e.isSatisfiedBy(metadata, pk, purged))
                             return null;
                     return row;
                 }
@@ -282,7 +284,7 @@ public abstract class RowFilter implements Iterable<RowFilter.Expression>
                     {
                         assert expr instanceof ThriftExpression;
                         Row row = result.getRow(makeCompactClustering(iter.metadata(), expr.column().name.bytes));
-                        if (row == null || !expr.isSatisfiedBy(iter.partitionKey(), row))
+                        if (row == null || !expr.isSatisfiedBy(iter.metadata(), iter.partitionKey(), row))
                             return null;
                     }
                     // If we get there, it means all expressions where satisfied, so return the original result
@@ -378,16 +380,16 @@ public abstract class RowFilter implements Iterable<RowFilter.Expression>
          * (i.e. it should come from a RowIterator).
          * @return whether the row is satisfied by this expression.
          */
-        public abstract boolean isSatisfiedBy(DecoratedKey partitionKey, Row row);
+        public abstract boolean isSatisfiedBy(CFMetaData metadata, DecoratedKey partitionKey, Row row);
 
-        protected ByteBuffer getValue(DecoratedKey partitionKey, Row row)
+        protected ByteBuffer getValue(CFMetaData metadata, DecoratedKey partitionKey, Row row)
         {
             switch (column.kind)
             {
                 case PARTITION_KEY:
-                    return column.isOnAllComponents()
-                         ? partitionKey.getKey()
-                         : CompositeType.extractComponent(partitionKey.getKey(), column.position());
+                    return metadata.getKeyValidator() instanceof CompositeType
+                         ? CompositeType.extractComponent(partitionKey.getKey(), column.position())
+                         : partitionKey.getKey();
                 case CLUSTERING:
                     return row.clustering().get(column.position());
                 default:
@@ -572,7 +574,7 @@ public abstract class RowFilter implements Iterable<RowFilter.Expression>
             super(column, operator, value);
         }
 
-        public boolean isSatisfiedBy(DecoratedKey partitionKey, Row row)
+        public boolean isSatisfiedBy(CFMetaData metadata, DecoratedKey partitionKey, Row row)
         {
             // We support null conditions for LWT (in ColumnCondition) but not for RowFilter.
             // TODO: we should try to merge both code someday.
@@ -591,7 +593,7 @@ public abstract class RowFilter implements Iterable<RowFilter.Expression>
                 case NEQ:
                     {
                         assert !column.isComplex() : "Only CONTAINS and CONTAINS_KEY are supported for 'complex' types";
-                        ByteBuffer foundValue = getValue(partitionKey, row);
+                        ByteBuffer foundValue = getValue(metadata, partitionKey, row);
                         // Note that CQL expression are always of the form 'x < 4', i.e. the tested value is on the left.
                         return foundValue != null && operator.isSatisfiedBy(column.type, foundValue, value);
                     }
@@ -618,7 +620,7 @@ public abstract class RowFilter implements Iterable<RowFilter.Expression>
                     }
                     else
                     {
-                        ByteBuffer foundValue = getValue(partitionKey, row);
+                        ByteBuffer foundValue = getValue(metadata, partitionKey, row);
                         if (foundValue == null)
                             return false;
 
@@ -645,7 +647,7 @@ public abstract class RowFilter implements Iterable<RowFilter.Expression>
                     }
                     else
                     {
-                        ByteBuffer foundValue = getValue(partitionKey, row);
+                        ByteBuffer foundValue = getValue(metadata, partitionKey, row);
                         return foundValue != null && mapType.getSerializer().getSerializedValue(foundValue, value, mapType.getKeysType()) != null;
                     }
 
@@ -717,7 +719,7 @@ public abstract class RowFilter implements Iterable<RowFilter.Expression>
             return CompositeType.build(key, value);
         }
 
-        public boolean isSatisfiedBy(DecoratedKey partitionKey, Row row)
+        public boolean isSatisfiedBy(CFMetaData metadata, DecoratedKey partitionKey, Row row)
         {
             assert key != null;
             // We support null conditions for LWT (in ColumnCondition) but not for RowFilter.
@@ -735,7 +737,7 @@ public abstract class RowFilter implements Iterable<RowFilter.Expression>
             }
             else
             {
-                ByteBuffer serializedMap = getValue(partitionKey, row);
+                ByteBuffer serializedMap = getValue(metadata, partitionKey, row);
                 if (serializedMap == null)
                     return false;
 
@@ -807,7 +809,7 @@ public abstract class RowFilter implements Iterable<RowFilter.Expression>
             return ColumnDefinition.regularDef(metadata, name, metadata.compactValueColumn().type);
         }
 
-        public boolean isSatisfiedBy(DecoratedKey partitionKey, Row row)
+        public boolean isSatisfiedBy(CFMetaData metadata, DecoratedKey partitionKey, Row row)
         {
             assert value != null;
 
@@ -882,7 +884,7 @@ public abstract class RowFilter implements Iterable<RowFilter.Expression>
         }
 
         // Filtering by custom expressions isn't supported yet, so just accept any row
-        public boolean isSatisfiedBy(DecoratedKey partitionKey, Row row)
+        public boolean isSatisfiedBy(CFMetaData metadata, DecoratedKey partitionKey, Row row)
         {
             return true;
         }
