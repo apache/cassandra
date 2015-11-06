@@ -38,6 +38,7 @@
  * Fix handling of range tombstones when reading old format sstables (CASSANDRA-10360)
  * Aggregate with Initial Condition fails with C* 3.0 (CASSANDRA-10367)
 Merged from 2.2:
+ * (cqlsh) show partial trace if incomplete after max_trace_wait (CASSANDRA-7645)
  * Use most up-to-date version of schema for system tables (CASSANDRA-10652)
  * Deprecate memory_allocator in cassandra.yaml (CASSANDRA-10581,10628)
  * Expose phi values from failure detector via JMX and tweak debug
