@@ -19,7 +19,6 @@
  * (cqlsh) Distinguish negative and positive infinity in output (CASSANDRA-10523)
  * (cqlsh) allow custom time_format for COPY TO (CASSANDRA-8970)
  * Don't allow startup if the node's rack has changed (CASSANDRA-10242)
- * (cqlsh) show partial trace if incomplete after max_trace_wait (CASSANDRA-7645)
  * Fix sorting for queries with an IN condition on partition key columns (CASSANDRA-10363)
 
 
@@ -28,7 +27,6 @@
  * Allow LOCAL_JMX to be easily overridden (CASSANDRA-10275)
  * Mark nodes as dead even if they've already left (CASSANDRA-10205)
  * Update internal python driver used by cqlsh (CASSANDRA-10161, CASSANDRA-10507)
-
 
 2.1.10
  * Bulk Loader API could not tolerate even node failure (CASSANDRA-10347)
