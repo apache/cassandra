@@ -809,6 +809,9 @@ public class AggregationTest extends CQLTester
                                    "FINALFUNC " + shortFunctionName(fFinal) + " " +
                                    "INITCOND 42");
 
+        assertRows(execute("SELECT initcond FROM system_schema.aggregates WHERE keyspace_name=? AND aggregate_name=?", KEYSPACE, shortFunctionName(a)),
+                   row("42"));
+
         // 42 + 1 + 2 + 3 = 48
         assertRows(execute("SELECT " + a + "(b) FROM %s"), row("48"));
 
@@ -895,6 +898,9 @@ public class AggregationTest extends CQLTester
                                    "STYPE tuple<bigint, int> "+
                                    "FINALFUNC " + shortFunctionName(fFinal) + " " +
                                    "INITCOND (0, 0)");
+
+        assertRows(execute("SELECT initcond FROM system_schema.aggregates WHERE keyspace_name=? AND aggregate_name=?", KEYSPACE, shortFunctionName(a)),
+                   row("(0, 0)"));
 
         // 1 + 2 + 3 = 6 / 3 = 2
         assertRows(execute("SELECT " + a + "(b) FROM %s"), row(2d));
@@ -1364,6 +1370,9 @@ public class AggregationTest extends CQLTester
                                              "FINALFUNC " + parseFunctionName(fFinal).name + ' ' +
                                              "INITCOND null");
 
+        assertRows(execute("SELECT initcond FROM system_schema.aggregates WHERE keyspace_name=? AND aggregate_name=?", KEYSPACE, shortFunctionName(aggregation)),
+                   row(null));
+
         assertRows(execute("SELECT " + aggregation + "(b) FROM %s"),
                    row(set(7, 8, 9)));
 
@@ -1600,6 +1609,9 @@ public class AggregationTest extends CQLTester
                                       "FINALFUNC " + shortFunctionName(fCONf) + ' ' +
                                       "INITCOND ''");
 
+        assertRows(execute("SELECT initcond FROM system_schema.aggregates WHERE keyspace_name=? AND aggregate_name=?", KEYSPACE, shortFunctionName(aCON)),
+                   row("''"));
+
         String fRNON = createFunction(KEYSPACE,
                                       "text, text",
                                       "CREATE FUNCTION %s(a text, b text) " +
@@ -1654,6 +1666,9 @@ public class AggregationTest extends CQLTester
                                        "SFUNC " + shortFunctionName(f) + ' ' +
                                        "STYPE list<text> " +
                                        "INITCOND [  ]");
+
+        assertRows(execute("SELECT initcond FROM system_schema.aggregates WHERE keyspace_name=? AND aggregate_name=?", KEYSPACE, shortFunctionName(a)),
+                   row("[]"));
 
         createTable("CREATE TABLE %s (a int primary key, b int)");
         execute("INSERT INTO %s (a, b) VALUES (1, 1)");

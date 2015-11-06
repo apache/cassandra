@@ -151,22 +151,9 @@ public class ViewDefinition
 
     private static List<Relation> whereClauseToRelations(String whereClause)
     {
-        ErrorCollector errorCollector = new ErrorCollector(whereClause);
-        CharStream stream = new ANTLRStringStream(whereClause);
-        CqlLexer lexer = new CqlLexer(stream);
-        lexer.addErrorListener(errorCollector);
-
-        TokenStream tokenStream = new CommonTokenStream(lexer);
-        CqlParser parser = new CqlParser(tokenStream);
-        parser.addErrorListener(errorCollector);
-
         try
         {
-            List<Relation> relations = parser.whereClause().build().relations;
-
-            // The errorCollector has queued up any errors that the lexer and parser may have encountered
-            // along the way, if necessary, we turn the last error into exceptions here.
-            errorCollector.throwFirstSyntaxError();
+            List<Relation> relations = CQLFragmentParser.parseAnyUnhandled(CqlParser::whereClause, whereClause).build().relations;
 
             return relations;
         }

@@ -40,5 +40,13 @@ public interface TypeSerializer<T>
     public String toString(T value);
 
     public Class<T> getType();
+
+    public default void toCQLLiteral(ByteBuffer buffer, StringBuilder target)
+    {
+        if (buffer == null || !buffer.hasRemaining())
+            target.append("null");
+        else
+            target.append(toString(deserialize(buffer)));
+    }
 }
 

@@ -43,6 +43,7 @@ import org.apache.cassandra.db.rows.*;
 import org.apache.cassandra.db.view.View;
 import org.apache.cassandra.exceptions.ConfigurationException;
 import org.apache.cassandra.exceptions.InvalidRequestException;
+import org.apache.cassandra.transport.Server;
 import org.apache.cassandra.utils.ByteBufferUtil;
 import org.apache.cassandra.utils.FBUtilities;
 import org.apache.cassandra.utils.Pair;
@@ -223,7 +224,7 @@ public final class SchemaKeyspace
                 + "aggregate_name text,"
                 + "argument_types frozen<list<text>>,"
                 + "final_func text,"
-                + "initcond blob,"
+                + "initcond text,"
                 + "return_type text,"
                 + "state_func text,"
                 + "state_type text,"
@@ -834,11 +835,12 @@ public final class SchemaKeyspace
         RowUpdateBuilder adder =
             new RowUpdateBuilder(Aggregates, timestamp, mutation) .clustering(aggregate.name().name, functionArgumentsList(aggregate));
 
+        CQL3Type stateCqlType = aggregate.stateType().asCQL3Type();
         adder.add("return_type", aggregate.returnType().asCQL3Type().toString())
              .add("state_func", aggregate.stateFunction().name().name)
-             .add("state_type", aggregate.stateType() != null ? aggregate.stateType().asCQL3Type().toString() : null)
+             .add("state_type", aggregate.stateType() != null ? stateCqlType.toString() : null)
              .add("final_func", aggregate.finalFunction() != null ? aggregate.finalFunction().name().name : null)
-             .add("initcond", aggregate.initialCondition())
+             .add("initcond", aggregate.initialCondition() != null ? stateCqlType.asCQLLiteral(aggregate.initialCondition(), Server.CURRENT_VERSION) : null)
              .build();
     }
 
@@ -1220,7 +1222,7 @@ public final class SchemaKeyspace
         FunctionName stateFunc = new FunctionName(ksName, (row.getString("state_func")));
         FunctionName finalFunc = row.has("final_func") ? new FunctionName(ksName, row.getString("final_func")) : null;
         AbstractType<?> stateType = row.has("state_type") ? parse(ksName, row.getString("state_type"), types) : null;
-        ByteBuffer initcond = row.has("initcond") ? row.getBytes("initcond") : null;
+        ByteBuffer initcond = row.has("initcond") ? Terms.asBytes(ksName, row.getString("initcond"), stateType) : null;
 
         try
         {

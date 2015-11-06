@@ -17,6 +17,7 @@
  */
 package org.apache.cassandra.cql3;
 
+import java.nio.ByteBuffer;
 import java.util.ArrayList;
 import java.util.List;
 
@@ -30,6 +31,9 @@ import org.apache.cassandra.exceptions.ConfigurationException;
 import org.apache.cassandra.exceptions.SyntaxException;
 import org.apache.cassandra.schema.KeyspaceMetadata;
 import org.apache.cassandra.schema.Types;
+import org.apache.cassandra.serializers.CollectionSerializer;
+import org.apache.cassandra.serializers.MarshalException;
+import org.apache.cassandra.utils.ByteBufferUtil;
 
 public interface CQL3Type
 {
@@ -37,6 +41,23 @@ public interface CQL3Type
 
     public boolean isCollection();
     public AbstractType<?> getType();
+
+    /**
+     * Generate CQL literal from this type's serialized representation using the specified protocol version.
+     * Convinience method for {@link #toCQLLiteral(ByteBuffer, int, StringBuilder)} that just returns a {@code String}.
+     */
+    public default String asCQLLiteral(ByteBuffer buffer, int version)
+    {
+        StringBuilder sb = new StringBuilder();
+        toCQLLiteral(buffer, version, sb);
+        return sb.toString();
+    }
+
+    /**
+     * Generate CQL literal from this type's serialized representation using the specified protocol version.
+     * Some work is delegated to {@link org.apache.cassandra.serializers.TypeSerializer#toCQLLiteral(ByteBuffer, StringBuilder)}.
+     */
+    public void toCQLLiteral(ByteBuffer buffer, int version, StringBuilder target);
 
     public enum Native implements CQL3Type
     {
@@ -79,6 +100,18 @@ public interface CQL3Type
             return type;
         }
 
+        /**
+         * Delegate to
+         * {@link org.apache.cassandra.serializers.TypeSerializer#toCQLLiteral(ByteBuffer, StringBuilder)}
+         * for native types as most CQL literal representations work fine with the default
+         * {@link org.apache.cassandra.serializers.TypeSerializer#toString(Object)}
+         * {@link org.apache.cassandra.serializers.TypeSerializer#deserialize(ByteBuffer)} implementations.
+         */
+        public void toCQLLiteral(ByteBuffer buffer, int version, StringBuilder target)
+        {
+            type.getSerializer().toCQLLiteral(buffer, target);
+        }
+
         @Override
         public String toString()
         {
@@ -110,6 +143,14 @@ public interface CQL3Type
             return type;
         }
 
+        public void toCQLLiteral(ByteBuffer buffer, int version, StringBuilder target)
+        {
+            if (buffer == null)
+                target.append("null");
+            else
+                target.append(type.getString(buffer));
+        }
+
         @Override
         public final boolean equals(Object o)
         {
@@ -129,7 +170,7 @@ public interface CQL3Type
         @Override
         public String toString()
         {
-            return "'" + type + "'";
+            return "'" + type + '\'';
         }
     }
 
@@ -150,6 +191,88 @@ public interface CQL3Type
         public boolean isCollection()
         {
             return true;
+        }
+
+        public void toCQLLiteral(ByteBuffer buffer, int version, StringBuilder target)
+        {
+            // Not sure whether the !buffer.hasRemaining() check is correct here or whether an empty
+            // BB should be returned as "[]" resp "{}" or whether it is not valid at all.
+            //
+            // Currently, all empty collections return '[]' or '{}'. Except frozen collections with
+            // a null BB return 'null'.
+            //
+            if (buffer == null || !buffer.hasRemaining())
+            {
+                if (buffer == null && type.isFrozenCollection())
+                {
+                    target.append("null");
+                }
+                else
+                {
+                    switch (type.kind)
+                    {
+                        case LIST:
+                            target.append("[]");
+                            break;
+                        case SET:
+                        case MAP:
+                            target.append("{}");
+                            break;
+                    }
+                }
+            }
+            else
+            {
+                int size = CollectionSerializer.readCollectionSize(buffer, version);
+
+                switch (type.kind)
+                {
+                    case LIST:
+                        CQL3Type elements = ((ListType) type).getElementsType().asCQL3Type();
+                        target.append('[');
+                        generateSetOrListCQLLiteral(buffer, version, target, size, elements);
+                        target.append(']');
+                        break;
+                    case SET:
+                        elements = ((SetType) type).getElementsType().asCQL3Type();
+                        target.append('{');
+                        generateSetOrListCQLLiteral(buffer, version, target, size, elements);
+                        target.append('}');
+                        break;
+                    case MAP:
+                        target.append('{');
+                        generateMapCQLLiteral(buffer, version, target, size);
+                        target.append('}');
+                        break;
+                }
+            }
+        }
+
+        private void generateMapCQLLiteral(ByteBuffer buffer, int version, StringBuilder target, int size)
+        {
+            CQL3Type keys = ((MapType) type).getKeysType().asCQL3Type();
+            CQL3Type values = ((MapType) type).getValuesType().asCQL3Type();
+            for (int i = 0; i < size; i++)
+            {
+                if (i > 0)
+                    target.append(", ");
+                ByteBuffer element = CollectionSerializer.readValue(buffer, version);
+                keys.toCQLLiteral(element, version, target);
+                target.append(": ");
+                element = CollectionSerializer.readValue(buffer, version);
+                values.toCQLLiteral(element, version, target);
+            }
+        }
+
+        private static void generateSetOrListCQLLiteral(ByteBuffer buffer, int version, StringBuilder target, int size, CQL3Type elements)
+        {
+            for (int i = 0; i < size; i++)
+            {
+                if (i > 0)
+                    target.append(", ");
+                ByteBuffer element = CollectionSerializer.readValue(buffer, version);
+                elements.toCQLLiteral(element, version, target);
+            }
         }
 
         @Override
@@ -191,9 +314,9 @@ public interface CQL3Type
                 default:
                     throw new AssertionError();
             }
-            sb.append(">");
+            sb.append('>');
             if (isFrozen)
-                sb.append(">");
+                sb.append('>');
             return sb.toString();
         }
     }
@@ -223,6 +346,49 @@ public interface CQL3Type
         public AbstractType<?> getType()
         {
             return type;
+        }
+
+        public void toCQLLiteral(ByteBuffer buffer, int version, StringBuilder target)
+        {
+            if (buffer == null)
+            {
+                target.append("null");
+            }
+            else
+            {
+                target.append('{');
+                for (int i = 0; i < type.size(); i++)
+                {
+                    // we allow the input to have less fields than declared so as to support field addition.
+                    if (!buffer.hasRemaining())
+                        break;
+
+                    if (buffer.remaining() < 4)
+                        throw new MarshalException(String.format("Not enough bytes to read size of %dth field %s", i, type.fieldName(i)));
+
+                    int size = buffer.getInt();
+
+                    if (i > 0)
+                        target.append(", ");
+
+                    target.append(ColumnIdentifier.maybeQuote(type.fieldNameAsString(i)));
+                    target.append(": ");
+
+                    // size < 0 means null value
+                    if (size < 0)
+                    {
+                        target.append("null");
+                        continue;
+                    }
+
+                    if (buffer.remaining() < size)
+                        throw new MarshalException(String.format("Not enough bytes to read %dth field %s", i, type.fieldName(i)));
+
+                    ByteBuffer field = ByteBufferUtil.readBytes(buffer, size);
+                    type.fieldType(i).asCQL3Type().toCQLLiteral(field, version, target);
+                }
+                target.append('}');
+            }
         }
 
         @Override
@@ -270,6 +436,49 @@ public interface CQL3Type
         public AbstractType<?> getType()
         {
             return type;
+        }
+
+        public void toCQLLiteral(ByteBuffer buffer, int version, StringBuilder target)
+        {
+            if (buffer == null)
+            {
+                target.append("null");
+            }
+            else
+            {
+                target.append('(');
+                boolean first = true;
+                for (int i = 0; i < type.size(); i++)
+                {
+                    // we allow the input to have less fields than declared so as to support field addition.
+                    if (!buffer.hasRemaining())
+                        break;
+
+                    if (buffer.remaining() < 4)
+                        throw new MarshalException(String.format("Not enough bytes to read size of %dth component", i));
+
+                    int size = buffer.getInt();
+
+                    if (first)
+                        first = false;
+                    else
+                        target.append(", ");
+
+                    // size < 0 means null value
+                    if (size < 0)
+                    {
+                        target.append("null");
+                        continue;
+                    }
+
+                    if (buffer.remaining() < size)
+                        throw new MarshalException(String.format("Not enough bytes to read %dth component", i));
+
+                    ByteBuffer field = ByteBufferUtil.readBytes(buffer, size);
+                    type.type(i).asCQL3Type().toCQLLiteral(field, version, target);
+                }
+                target.append(')');
+            }
         }
 
         @Override
@@ -515,9 +724,9 @@ public interface CQL3Type
                 String end = frozen ? ">" : "";
                 switch (kind)
                 {
-                    case LIST: return start + "list<" + values + ">" + end;
-                    case SET:  return start + "set<" + values + ">" + end;
-                    case MAP:  return start + "map<" + keys + ", " + values + ">" + end;
+                    case LIST: return start + "list<" + values + '>' + end;
+                    case SET:  return start + "set<" + values + '>' + end;
+                    case MAP:  return start + "map<" + keys + ", " + values + '>' + end;
                 }
                 throw new AssertionError();
             }
@@ -650,7 +859,7 @@ public interface CQL3Type
                         sb.append(", ");
                     sb.append(types.get(i));
                 }
-                sb.append(">");
+                sb.append('>');
                 return sb.toString();
             }
         }

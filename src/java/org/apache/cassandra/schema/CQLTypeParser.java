@@ -19,11 +19,9 @@ package org.apache.cassandra.schema;
 
 import com.google.common.collect.ImmutableSet;
 
-import org.antlr.runtime.*;
 import org.apache.cassandra.cql3.*;
 import org.apache.cassandra.db.marshal.AbstractType;
 import org.apache.cassandra.db.marshal.UserType;
-import org.apache.cassandra.exceptions.SyntaxException;
 
 import static org.apache.cassandra.utils.ByteBufferUtil.bytes;
 
@@ -57,37 +55,6 @@ public final class CQLTypeParser
 
     static CQL3Type.Raw parseRaw(String type)
     {
-        try
-        {
-            // Lexer and parser
-            ErrorCollector errorCollector = new ErrorCollector(type);
-            CharStream stream = new ANTLRStringStream(type);
-            CqlLexer lexer = new CqlLexer(stream);
-            lexer.addErrorListener(errorCollector);
-
-            TokenStream tokenStream = new CommonTokenStream(lexer);
-            CqlParser parser = new CqlParser(tokenStream);
-            parser.addErrorListener(errorCollector);
-
-            // Parse the query string to a statement instance
-            CQL3Type.Raw rawType = parser.comparatorType();
-
-            // The errorCollector has queue up any errors that the lexer and parser may have encountered
-            // along the way, if necessary, we turn the last error into exceptions here.
-            errorCollector.throwFirstSyntaxError();
-
-            return rawType;
-        }
-        catch (RuntimeException re)
-        {
-            throw new SyntaxException(String.format("Failed parsing statement: [%s] reason: %s %s",
-                                                    type,
-                                                    re.getClass().getSimpleName(),
-                                                    re.getMessage()));
-        }
-        catch (RecognitionException e)
-        {
-            throw new SyntaxException("Invalid or malformed CQL type: " + e.getMessage());
-        }
+        return CQLFragmentParser.parseAny(CqlParser::comparatorType, type, "CQL type");
     }
 }

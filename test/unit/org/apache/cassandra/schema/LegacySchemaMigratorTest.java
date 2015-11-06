@@ -511,13 +511,17 @@ public class LegacySchemaMigratorTest
                                               null
         );
 
+        ByteBuffer twoNullEntries = ByteBuffer.allocate(8);
+        twoNullEntries.putInt(-1);
+        twoNullEntries.putInt(-1);
+        twoNullEntries.flip();
         UDAggregate uda2 = UDAggregate.create(udfs, new FunctionName(keyspace, "uda2"),
                                               ImmutableList.of(udf2.argTypes().get(1)),
                                               udf3.returnType(),
                                               udf2.name(),
                                               udf3.name(),
                                               udf2.argTypes().get(0),
-                                              LongType.instance.decompose(0L)
+                                              twoNullEntries
         );
 
         return KeyspaceMetadata.create(keyspace,
