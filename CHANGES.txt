@@ -5,6 +5,7 @@
 
 
 3.0
+ * Fix distinct queries in mixed version cluster (CASSANDRA-10573)
  * Skip sstable on clustering in names query (CASSANDRA-10571)
  * Remove value skipping as it breaks read-repair (CASSANDRA-10655)
  * Fix bootstrapping with MVs (CASSANDRA-10621)
