@@ -783,8 +783,8 @@ class Shell(cmd.Cmd):
         vers['cql'] = self.cql_version
         print "[cqlsh %(shver)s | Cassandra %(build)s | CQL spec %(cql)s | Native protocol v%(protocol)s]" % vers
 
-    def show_session(self, sessionid):
-        print_trace_session(self, self.session, sessionid)
+    def show_session(self, sessionid, partial_session=False):
+        print_trace_session(self, self.session, sessionid, partial_session)
 
     def get_connection_versions(self):
         result, = self.session.execute("select * from system.local where key = 'local'")
@@ -1176,7 +1176,7 @@ class Shell(cmd.Cmd):
                     msg = "Statement trace did not complete within %d seconds; trace data may be incomplete." % (self.session.max_trace_wait,)
                     self.writeresult(msg, color=RED)
                     for trace_id in future.get_query_trace_ids():
-                        self.show_session(trace_id)
+                        self.show_session(trace_id, partial_session=True)
                 except Exception, err:
                     self.printerr("Unable to fetch query trace: %s" % (str(err),))
 
