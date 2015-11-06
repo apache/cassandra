@@ -85,7 +85,7 @@ public class DropTypeStatement extends SchemaAlteringStatement
 
         for (UserType ut : ksm.types)
             if (!ut.name.equals(name.getUserTypeName()) && isUsedBy(ut))
-                throw new InvalidRequestException(String.format("Cannot drop user type %s as it is still used by user type %s", name, ut.asCQL3Type()));
+                throw new InvalidRequestException(String.format("Cannot drop user type %s as it is still used by user type %s", name, ut.getNameAsString()));
 
         for (CFMetaData cfm : ksm.tablesAndViews())
             for (ColumnDefinition def : cfm.allColumns())
