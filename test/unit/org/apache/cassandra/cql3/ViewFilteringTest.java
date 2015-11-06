@@ -1078,6 +1078,20 @@ public class ViewFilteringTest extends CQLTester
                     row(0, 1, 1, 0)
             );
 
+            // insert a partition with one matching and one non-matching row using a batch (CASSANDRA-10614)
+            String tableName = KEYSPACE + "." + currentTable();
+            execute("BEGIN BATCH " +
+                    "INSERT INTO " + tableName + " (a, b, c, d) VALUES (?, ?, ?, ?); " +
+                    "INSERT INTO " + tableName + " (a, b, c, d) VALUES (?, ?, ?, ?); " +
+                    "APPLY BATCH",
+                    4, 4, 0, 0,
+                    4, 4, 1, 1);
+            assertRowsIgnoringOrder(execute("SELECT a, b, c, d FROM mv_test" + i),
+                    row(0, 0, 1, 0),
+                    row(0, 1, 1, 0),
+                    row(4, 4, 1, 1)
+            );
+
             dropView("mv_test" + i);
             dropTable("DROP TABLE %s");
         }

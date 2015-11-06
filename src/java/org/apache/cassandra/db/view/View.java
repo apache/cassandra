@@ -85,7 +85,7 @@ public class View
 
     private Columns columns;
 
-    private final boolean viewHasAllPrimaryKeys;
+    private final boolean viewPKIncludesOnlyBasePKColumns;
     private final boolean includeAllColumns;
     private ViewBuilder builder;
 
@@ -104,7 +104,7 @@ public class View
         name = definition.viewName;
         includeAllColumns = definition.includeAllColumns;
 
-        viewHasAllPrimaryKeys = updateDefinition(definition);
+        viewPKIncludesOnlyBasePKColumns = updateDefinition(definition);
         this.rawSelect = definition.select;
     }
 
@@ -210,7 +210,7 @@ public class View
             if (!selectQuery.selectsClustering(partition.partitionKey(), row.clustering()))
                 continue;
 
-            if (includeAllColumns || viewHasAllPrimaryKeys || !row.deletion().isLive())
+            if (includeAllColumns || !row.deletion().isLive())
                 return true;
 
             if (row.primaryKeyLivenessInfo().isLive(FBUtilities.nowInSeconds()))
@@ -313,7 +313,7 @@ public class View
     private PartitionUpdate createRangeTombstoneForRow(TemporalRow temporalRow)
     {
         // Primary Key and Clustering columns do not generate tombstones
-        if (viewHasAllPrimaryKeys)
+        if (viewPKIncludesOnlyBasePKColumns)
             return null;
 
         boolean hasUpdate = false;
@@ -375,7 +375,14 @@ public class View
             }
         }
 
-        return PartitionUpdate.singleRowUpdate(viewCfm, partitionKey, regularBuilder.build());
+        Row row = regularBuilder.build();
+
+        // although we check for empty rows in updateAppliesToView(), if there are any good rows in the PartitionUpdate,
+        // all rows in the partition will be processed, and we need to handle empty/non-live rows here (CASSANDRA-10614)
+        if (row.isEmpty())
+            return null;
+
+        return PartitionUpdate.singleRowUpdate(viewCfm, partitionKey, row);
     }
 
     /**
@@ -650,9 +657,16 @@ public class View
         if (!updateAffectsView(partition))
             return null;
 
+        ReadQuery selectQuery = getReadQuery();
         Collection<Mutation> mutations = null;
         for (TemporalRow temporalRow : rowSet)
         {
+            // In updateAffectsView, we check the partition to see if there is at least one row that matches the
+            // filters and is live.  If there is more than one row in the partition, we need to re-check each one
+            // invididually.
+            if (partition.rowCount() != 1 && !selectQuery.selectsClustering(partition.partitionKey(), temporalRow.baseClustering()))
+                continue;
+
             // If we are building, there is no need to check for partition tombstones; those values will not be present
             // in the partition data
             if (!isBuilding)
