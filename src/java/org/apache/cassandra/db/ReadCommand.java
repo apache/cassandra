@@ -922,8 +922,10 @@ public abstract class ReadCommand implements ReadQuery
         static ColumnFilter getColumnSelectionForSlice(boolean selectsStatics, int compositesToGroup, CFMetaData metadata)
         {
             // A value of -2 indicates this is a DISTINCT query that doesn't select static columns, only partition keys.
+            // In that case, we'll basically be querying the first row of the partition, but we must make sure we include
+            // all columns so we get at least one cell if there is a live row as it would confuse pre-3.0 nodes otherwise.
             if (compositesToGroup == -2)
-                return ColumnFilter.selection(PartitionColumns.NONE);
+                return ColumnFilter.all(metadata);
 
             // if a slice query from a pre-3.0 node doesn't cover statics, we shouldn't select them at all
             PartitionColumns columns = selectsStatics
