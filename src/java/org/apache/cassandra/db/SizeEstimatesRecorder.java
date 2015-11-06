@@ -31,6 +31,7 @@ import org.apache.cassandra.io.sstable.format.SSTableReader;
 import org.apache.cassandra.service.MigrationListener;
 import org.apache.cassandra.service.MigrationManager;
 import org.apache.cassandra.service.StorageService;
+import org.apache.cassandra.utils.FBUtilities;
 import org.apache.cassandra.utils.Pair;
 import org.apache.cassandra.utils.concurrent.Refs;
 
@@ -57,9 +58,9 @@ public class SizeEstimatesRecorder extends MigrationListener implements Runnable
 
     public void run()
     {
-        if (StorageService.instance.isStarting())
+        if (!StorageService.instance.getTokenMetadata().isMember(FBUtilities.getBroadcastAddress()))
         {
-            logger.trace("Node has not yet joined; not recording size estimates");
+            logger.debug("Node is not part of the ring; not recording size estimates");
             return;
         }
 
