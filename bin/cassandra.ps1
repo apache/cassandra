@@ -17,7 +17,7 @@
 Function PrintUsage
 {
     echo @"
-usage: cassandra.ps1 [-f] [-h] [-p pidfile] [-H dumpfile] [-D arg] [-E errorfile] [-install | -uninstall] [-help]
+usage: cassandra.ps1 [-f] [-h] [-q] [-a] [-p pidfile] [-H dumpfile] [-D arg] [-E errorfile] [-install | -uninstall] [-help]
     -f              Run cassandra in foreground
     -install        install cassandra as a service
     -uninstall      remove cassandra service
@@ -28,6 +28,7 @@ usage: cassandra.ps1 [-f] [-h] [-p pidfile] [-H dumpfile] [-D arg] [-E errorfile
     -v              Print cassandra version and exit
     -s              Show detailed jvm environment information during launch
     -a              Aggressive startup. Skip VerifyPorts check. For use in dev environments.
+    -q              Quiet output. Does not print stdout/stderr to console (when run without -f)
     -help           print this message
 
     NOTE: installing cassandra as a service requires Commons Daemon Service Runner
@@ -253,7 +254,14 @@ $env:JAVA_BIN
     }
     else
     {
-        $proc = Start-Process -FilePath "$cmd" -ArgumentList $arg1,$arg2,$arg3,$arg4 -PassThru -WindowStyle Hidden
+        if ($q)
+        {
+            $proc = Start-Process -FilePath "$cmd" -ArgumentList $arg1,$arg2,$arg3,$arg4 -PassThru -WindowStyle Hidden
+        }
+        else
+        {
+            $proc = Start-Process -FilePath "$cmd" -ArgumentList $arg1,$arg2,$arg3,$arg4 -PassThru -NoNewWindow
+        }
 
         $exitCode = $?
 
@@ -366,6 +374,7 @@ for ($i = 0; $i -lt $args.count; $i++)
         "-H"                { $H = $args[++$i]; CheckEmptyParam($H) }
         "-E"                { $E = $args[++$i]; CheckEmptyParam($E) }
         "-a"                { $a = $True }
+        "-q"                { $q = $True }
         default
         {
             "Invalid argument: " + $args[$i];
