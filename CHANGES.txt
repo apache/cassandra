@@ -1,4 +1,5 @@
 2.2.4
+ * (cqlsh) show partial trace if incomplete after max_trace_wait (CASSANDRA-7645)
  * Use most up-to-date version of schema for system tables (CASSANDRA-10652)
  * Deprecate memory_allocator in cassandra.yaml (CASSANDRA-10581,10628)
  * Expose phi values from failure detector via JMX and tweak debug
@@ -25,7 +26,6 @@ Merged from 2.1:
  * (cqlsh) Distinguish negative and positive infinity in output (CASSANDRA-10523)
  * (cqlsh) allow custom time_format for COPY TO (CASSANDRA-8970)
  * Don't allow startup if the node's rack has changed (CASSANDRA-10242)
- * (cqlsh) show partial trace if incomplete after max_trace_wait (CASSANDRA-7645)
  * Fix sorting for queries with an IN condition on partition key columns (CASSANDRA-10363)
 
 
