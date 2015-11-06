@@ -282,6 +282,11 @@ public class SSTableImport
      */
     public int importJson(String jsonFile, String keyspace, String cf, String ssTablePath) throws IOException
     {
+        if (Schema.instance.getCFMetaData(keyspace, cf) == null)
+            throw new IllegalArgumentException(String.format("Unknown keyspace/table %s.%s",
+                                                             keyspace,
+                                                             cf));
+
         ColumnFamily columnFamily = ArrayBackedSortedColumns.factory.create(keyspace, cf);
         IPartitioner partitioner = DatabaseDescriptor.getPartitioner();
 
