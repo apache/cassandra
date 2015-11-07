@@ -652,7 +652,7 @@ public class ScrubTest
         TestWriter(Descriptor descriptor, long keyCount, long repairedAt, CFMetaData metadata,
                    MetadataCollector collector, SerializationHeader header, LifecycleTransaction txn)
         {
-            super(descriptor, keyCount, repairedAt, metadata, collector, header, txn);
+            super(descriptor, keyCount, repairedAt, metadata, collector, header, Collections.emptySet(), txn);
         }
 
         @Override

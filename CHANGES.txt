@@ -1,11 +1,11 @@
 3.2
+ * Add sstable flush observer (CASSANDRA-10678)
  * Improve NTS endpoints calculation (CASSANDRA-10200)
  * Improve performance of the folderSize function (CASSANDRA-10677)
  * Add support for type casting in selection clause (CASSANDRA-10310)
  * Added graphing option to cassandra-stress (CASSANDRA-7918)
  * Abort in-progress queries that time out (CASSANDRA-7392)
  * Add transparent data encryption core classes (CASSANDRA-9945)
-
 
 3.1
 Merged from 3.0:

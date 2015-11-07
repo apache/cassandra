@@ -111,6 +111,7 @@ public class SplittingSizeTieredCompactionWriter extends CompactionAwareWriter
                                                     cfs.metadata,
                                                     new MetadataCollector(allSSTables, cfs.metadata.comparator, 0),
                                                     SerializationHeader.make(cfs.metadata, nonExpiredSSTables),
+                                                    cfs.indexManager.listIndexes(),
                                                     txn);
         logger.trace("Switching writer, currentPartitionsToWrite = {}", currentPartitionsToWrite);
         sstableWriter.switchWriter(writer);

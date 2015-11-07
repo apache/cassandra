@@ -106,6 +106,7 @@ public class MajorLeveledCompactionWriter extends CompactionAwareWriter
                                                     cfs.metadata,
                                                     new MetadataCollector(allSSTables, cfs.metadata.comparator, currentLevel),
                                                     SerializationHeader.make(cfs.metadata, nonExpiredSSTables),
+                                                    cfs.indexManager.listIndexes(),
                                                     txn);
         sstableWriter.switchWriter(writer);
     }

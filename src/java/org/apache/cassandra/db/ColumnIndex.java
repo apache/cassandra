@@ -25,6 +25,7 @@ import com.google.common.annotations.VisibleForTesting;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.db.rows.*;
 import org.apache.cassandra.io.sstable.IndexHelper;
+import org.apache.cassandra.io.sstable.format.SSTableFlushObserver;
 import org.apache.cassandra.io.sstable.format.Version;
 import org.apache.cassandra.io.util.SequentialWriter;
 import org.apache.cassandra.utils.ByteBufferUtil;
@@ -44,11 +45,15 @@ public class ColumnIndex
         this.columnsIndex = columnsIndex;
     }
 
-    public static ColumnIndex writeAndBuildIndex(UnfilteredRowIterator iterator, SequentialWriter output, SerializationHeader header, Version version) throws IOException
+    public static ColumnIndex writeAndBuildIndex(UnfilteredRowIterator iterator,
+                                                 SequentialWriter output,
+                                                 SerializationHeader header,
+                                                 Collection<SSTableFlushObserver> observers,
+                                                 Version version) throws IOException
     {
         assert !iterator.isEmpty() && version.storeRows();
 
-        Builder builder = new Builder(iterator, output, header, version.correspondingMessagingVersion());
+        Builder builder = new Builder(iterator, output, header, observers, version.correspondingMessagingVersion());
         return builder.build();
     }
 
@@ -83,15 +88,19 @@ public class ColumnIndex
 
         private DeletionTime openMarker;
 
+        private final Collection<SSTableFlushObserver> observers;
+
         public Builder(UnfilteredRowIterator iterator,
                        SequentialWriter writer,
                        SerializationHeader header,
+                       Collection<SSTableFlushObserver> observers,
                        int version)
         {
             this.iterator = iterator;
             this.writer = writer;
             this.header = header;
             this.version = version;
+            this.observers = observers == null ? Collections.emptyList() : observers;
             this.initialPosition = writer.position();
         }
 
@@ -142,6 +151,11 @@ public class ColumnIndex
             }
 
             UnfilteredSerializer.serializer.serialize(unfiltered, header, writer, pos - previousRowStart, version);
+
+            // notify observers about each new cell added to the row
+            if (!observers.isEmpty() && unfiltered.isRow())
+                ((Row) unfiltered).stream().forEach(cell -> observers.forEach((o) -> o.nextCell(cell)));
+
             lastClustering = unfiltered.clustering();
             previousRowStart = pos;
             ++written;

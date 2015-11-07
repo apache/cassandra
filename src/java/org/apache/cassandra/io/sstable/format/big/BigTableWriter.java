@@ -18,12 +18,14 @@
 package org.apache.cassandra.io.sstable.format.big;
 
 import java.io.*;
+import java.util.Collection;
 import java.util.Map;
 
 import org.apache.cassandra.db.*;
 import org.apache.cassandra.db.lifecycle.LifecycleTransaction;
 import org.apache.cassandra.db.transform.Transformation;
 import org.apache.cassandra.io.sstable.*;
+import org.apache.cassandra.io.sstable.format.SSTableFlushObserver;
 import org.apache.cassandra.io.sstable.format.SSTableReader;
 import org.apache.cassandra.io.sstable.format.SSTableWriter;
 
@@ -63,9 +65,10 @@ public class BigTableWriter extends SSTableWriter
                           CFMetaData metadata, 
                           MetadataCollector metadataCollector, 
                           SerializationHeader header,
+                          Collection<SSTableFlushObserver> observers,
                           LifecycleTransaction txn)
     {
-        super(descriptor, keyCount, repairedAt, metadata, metadataCollector, header);
+        super(descriptor, keyCount, repairedAt, metadata, metadataCollector, header, observers);
         txn.trackNew(this); // must track before any files are created
 
         if (compression)
@@ -143,10 +146,11 @@ public class BigTableWriter extends SSTableWriter
             return null;
 
         long startPosition = beforeAppend(key);
+        observers.forEach((o) -> o.startPartition(key, iwriter.indexFile.position()));
 
         try (UnfilteredRowIterator collecting = Transformation.apply(iterator, new StatsCollector(metadataCollector)))
         {
-            ColumnIndex index = ColumnIndex.writeAndBuildIndex(collecting, dataFile, header, descriptor.version);
+            ColumnIndex index = ColumnIndex.writeAndBuildIndex(collecting, dataFile, header, observers, descriptor.version);
 
             RowIndexEntry entry = RowIndexEntry.create(startPosition, collecting.partitionLevelDeletion(), index);
 

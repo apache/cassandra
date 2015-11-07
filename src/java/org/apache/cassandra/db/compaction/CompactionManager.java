@@ -963,6 +963,7 @@ public class CompactionManager implements CompactionManagerMBean
                                     repairedAt,
                                     sstable.getSSTableLevel(),
                                     sstable.header,
+                                    cfs.indexManager.listIndexes(),
                                     txn);
     }
 
@@ -995,6 +996,7 @@ public class CompactionManager implements CompactionManagerMBean
                                     cfs.metadata,
                                     new MetadataCollector(sstables, cfs.metadata.comparator, minLevel),
                                     SerializationHeader.make(cfs.metadata, sstables),
+                                    cfs.indexManager.listIndexes(),
                                     txn);
     }
 
