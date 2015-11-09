@@ -1,3 +1,8 @@
+3.0.1
+Merged from 2.1:
+ * Remove superfluous COUNTER_MUTATION stage mapping (CASSANDRA-10605)
+
+
 3.0
  * Fix AssertionError while flushing memtable due to materialized views
    incorrectly inserting empty rows (CASSANDRA-10614)
