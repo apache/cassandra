@@ -25,6 +25,7 @@ import java.lang.invoke.MethodHandle;
 import java.lang.invoke.MethodHandles;
 import java.lang.invoke.MethodType;
 import java.lang.reflect.InvocationTargetException;
+import java.lang.reflect.Method;
 import java.net.*;
 import java.nio.ByteBuffer;
 import java.security.*;
@@ -298,7 +299,17 @@ final class JavaBasedUDFunction extends UDFunction
 
                 Class cls = Class.forName(targetClassName, false, targetClassLoader);
 
-                if (cls.getDeclaredMethods().length != 2 || cls.getDeclaredConstructors().length != 1)
+                // Count only non-synthetic methods, so code coverage instrumentation doesn't cause a miscount
+                int nonSyntheticMethodCount = 0;
+                for (Method m : cls.getDeclaredMethods())
+                {
+                    if (!m.isSynthetic())
+                    {
+                        nonSyntheticMethodCount += 1;
+                    }
+                }
+
+                if (nonSyntheticMethodCount != 2 || cls.getDeclaredConstructors().length != 1)
                     throw new InvalidRequestException("Check your source to not define additional Java methods or constructors");
                 MethodType methodType = MethodType.methodType(void.class)
                                                   .appendParameterTypes(DataType.class, DataType[].class);
