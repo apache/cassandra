@@ -4,6 +4,11 @@
  * Add transparent data encryption core classes (CASSANDRA-9945)
 
 
+3.0.1
+Merged from 2.1:
+ * Remove superfluous COUNTER_MUTATION stage mapping (CASSANDRA-10605)
+
+
 3.0
  * Fix AssertionError while flushing memtable due to materialized views
    incorrectly inserting empty rows (CASSANDRA-10614)
@@ -46,6 +51,7 @@ Merged from 2.2:
  * Expose phi values from failure detector via JMX and tweak debug
    and trace logging (CASSANDRA-9526)
 Merged from 2.1:
+ * Remove superfluous COUNTER_MUTATION stage mapping (CASSANDRA-10605)
  * (cqlsh) fix COPY using wrong variable name for time_format (CASSANDRA-10633)
  * Do not run SizeEstimatesRecorder if a node is not a member of the ring (CASSANDRA-9912)
  * Improve handling of dead nodes in gossip (CASSANDRA-10298)
