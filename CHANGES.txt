@@ -1,4 +1,5 @@
 3.0.1
+ * Keep the file open in trySkipCache (CASSANDRA-10669)
  * Updated trigger example (CASSANDRA-10257)
 Merged from 2.2:
  * (Hadoop) fix splits calculation (CASSANDRA-10640)
