@@ -133,7 +133,7 @@ public class RowCacheTest
         int keysLeft = 109;
         for (int i = 109; i >= 10; i--)
         {
-            cachedStore.maybeInvalidateCachedRow(Util.dk("key" + i));
+            cachedStore.invalidateCachedRow(Util.dk("key" + i));
             assert CacheService.instance.rowCache.size() == keysLeft;
             keysLeft--;
         }

@@ -20,6 +20,7 @@ package org.apache.cassandra.io.sstable;
 import java.util.*;
 
 import com.google.common.annotations.VisibleForTesting;
+import com.google.common.util.concurrent.Runnables;
 
 import org.apache.cassandra.cache.InstrumentingCache;
 import org.apache.cassandra.cache.KeyCacheKey;
@@ -118,7 +119,7 @@ public class SSTableRewriter extends Transactional.AbstractTransactional impleme
         {
             if (index == null)
             {
-                cfs.maybeInvalidateCachedRow(row.key);
+                cfs.invalidateCachedRow(row.key);
             }
             else
             {

@@ -127,7 +127,7 @@ public class CompactionsPurgeTest
 
         // major compact and test that all columns but the resurrected one is completely gone
         FBUtilities.waitOnFutures(CompactionManager.instance.submitMaximal(cfs, Integer.MAX_VALUE, false));
-        cfs.maybeInvalidateCachedRow(key);
+        cfs.invalidateCachedRow(key);
         ColumnFamily cf = cfs.getColumnFamily(QueryFilter.getIdentityFilter(key, cfName, System.currentTimeMillis()));
         assertColumns(cf, "5");
         assertNotNull(cf.getColumn(cellname(String.valueOf(5))));

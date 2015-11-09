@@ -934,7 +934,7 @@ public class CompactionManager implements CompactionManagerMBean
                 if (Range.isInRanges(row.getKey().getToken(), ranges))
                     return row;
 
-                cfs.maybeInvalidateCachedRow(row.getKey());
+                cfs.invalidateCachedRow(row.getKey());
 
                 if (indexedColumnsInRow != null)
                     indexedColumnsInRow.clear();
