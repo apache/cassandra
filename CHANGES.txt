@@ -1,4 +1,6 @@
 3.0.1
+Merged from 2.2:
+ * (Hadoop) ensure that Cluster instances are always closed (CASSANDRA-10058)
 Merged from 2.1:
  * Reject counter writes in CQLSSTableWriter (CASSANDRA-10258)
  * Remove superfluous COUNTER_MUTATION stage mapping (CASSANDRA-10605)

@@ -112,27 +112,25 @@ class CqlRecordWriter extends RecordWriter<Map<String, ByteBuffer>, List<ByteBuf
         batchThreshold = conf.getLong(CqlOutputFormat.BATCH_THRESHOLD, 32);
         this.clients = new HashMap<>();
 
-        try
+        try (Cluster cluster = CqlConfigHelper.getOutputCluster(ConfigHelper.getOutputInitialAddress(conf), conf))
         {
             String keyspace = ConfigHelper.getOutputKeyspace(conf);
-            try (Session client = CqlConfigHelper.getOutputCluster(ConfigHelper.getOutputInitialAddress(conf), conf).connect(keyspace))
+            Session client = cluster.connect(keyspace);
+            ringCache = new NativeRingCache(conf);
+            if (client != null)
             {
-                ringCache = new NativeRingCache(conf);
-                if (client != null)
-                {
-                    TableMetadata tableMetadata = client.getCluster().getMetadata().getKeyspace(client.getLoggedKeyspace()).getTable(ConfigHelper.getOutputColumnFamily(conf));
-                    clusterColumns = tableMetadata.getClusteringColumns();
-                    partitionKeyColumns = tableMetadata.getPartitionKey();
+                TableMetadata tableMetadata = client.getCluster().getMetadata().getKeyspace(client.getLoggedKeyspace()).getTable(ConfigHelper.getOutputColumnFamily(conf));
+                clusterColumns = tableMetadata.getClusteringColumns();
+                partitionKeyColumns = tableMetadata.getPartitionKey();
 
-                    String cqlQuery = CqlConfigHelper.getOutputCql(conf).trim();
-                    if (cqlQuery.toLowerCase().startsWith("insert"))
-                        throw new UnsupportedOperationException("INSERT with CqlRecordWriter is not supported, please use UPDATE/DELETE statement");
-                    cql = appendKeyWhereClauses(cqlQuery);
-                }
-                else
-                {
-                    throw new IllegalArgumentException("Invalid configuration specified " + conf);
-                }
+                String cqlQuery = CqlConfigHelper.getOutputCql(conf).trim();
+                if (cqlQuery.toLowerCase().startsWith("insert"))
+                    throw new UnsupportedOperationException("INSERT with CqlRecordWriter is not supported, please use UPDATE/DELETE statement");
+                cql = appendKeyWhereClauses(cqlQuery);
+            }
+            else
+            {
+                throw new IllegalArgumentException("Invalid configuration specified " + conf);
             }
         }
         catch (Exception e)
@@ -234,7 +232,7 @@ class CqlRecordWriter extends RecordWriter<Map<String, ByteBuffer>, List<ByteBuf
     {
         // The list of endpoints for this range
         protected final List<InetAddress> endpoints;
-        protected Session client;
+        protected Cluster cluster = null;
         // A bounded queue of incoming mutations for this range
         protected final BlockingQueue<List<ByteBuffer>> queue = new ArrayBlockingQueue<List<ByteBuffer>>(queueSize);
 
@@ -280,6 +278,7 @@ class CqlRecordWriter extends RecordWriter<Map<String, ByteBuffer>, List<ByteBuf
          */
         public void run()
         {
+            Session session = null;
             outer:
             while (run || !queue.isEmpty())
             {
@@ -298,33 +297,36 @@ class CqlRecordWriter extends RecordWriter<Map<String, ByteBuffer>, List<ByteBuf
                 while (true)
                 {
                     // send the mutation to the last-used endpoint.  first time through, this will NPE harmlessly.
-                    try
+                    if (session != null)
                     {
-                        int i = 0;
-                        PreparedStatement statement = preparedStatement(client);
-                        while (bindVariables != null)
+                        try
                         {
-                            BoundStatement boundStatement = new BoundStatement(statement);
-                            for (int columnPosition = 0; columnPosition < bindVariables.size(); columnPosition++)
+                            int i = 0;
+                            PreparedStatement statement = preparedStatement(session);
+                            while (bindVariables != null)
                             {
-                                boundStatement.setBytesUnsafe(columnPosition, bindVariables.get(columnPosition));
-                            }
-                            client.execute(boundStatement);
-                            i++;
+                                BoundStatement boundStatement = new BoundStatement(statement);
+                                for (int columnPosition = 0; columnPosition < bindVariables.size(); columnPosition++)
+                                {
+                                    boundStatement.setBytesUnsafe(columnPosition, bindVariables.get(columnPosition));
+                                }
+                                session.execute(boundStatement);
+                                i++;
 
-                            if (i >= batchThreshold)
-                                break;
-                            bindVariables = queue.poll();
+                                if (i >= batchThreshold)
+                                    break;
+                                bindVariables = queue.poll();
+                            }
+                            break;
                         }
-                        break;
-                    }
-                    catch (Exception e)
-                    {
-                        closeInternal();
-                        if (!iter.hasNext())
+                        catch (Exception e)
                         {
-                            lastException = new IOException(e);
-                            break outer;
+                            closeInternal();
+                            if (!iter.hasNext())
+                            {
+                                lastException = new IOException(e);
+                                break outer;
+                            }
                         }
                     }
 
@@ -333,7 +335,8 @@ class CqlRecordWriter extends RecordWriter<Map<String, ByteBuffer>, List<ByteBuf
                     {
                         InetAddress address = iter.next();
                         String host = address.getHostName();
-                        client = CqlConfigHelper.getOutputCluster(host, conf).connect();
+                        cluster = CqlConfigHelper.getOutputCluster(host, conf);
+                        session = cluster.connect();
                     }
                     catch (Exception e)
                     {
@@ -403,9 +406,9 @@ class CqlRecordWriter extends RecordWriter<Map<String, ByteBuffer>, List<ByteBuf
 
         protected void closeInternal()
         {
-            if (client != null)
+            if (cluster != null)
             {
-                client.close();
+                cluster.close();
             }
         }
 
@@ -485,15 +488,14 @@ class CqlRecordWriter extends RecordWriter<Map<String, ByteBuffer>, List<ByteBuf
         private void refreshEndpointMap()
         {
             String keyspace = ConfigHelper.getOutputKeyspace(conf);
-            try (Session session = CqlConfigHelper.getOutputCluster(ConfigHelper.getOutputInitialAddress(conf), conf).connect(keyspace))
+            try (Cluster cluster = CqlConfigHelper.getOutputCluster(ConfigHelper.getOutputInitialAddress(conf), conf))
             {
+                Session session = cluster.connect(keyspace);
                 rangeMap = new HashMap<>();
                 metadata = session.getCluster().getMetadata();
                 Set<TokenRange> ranges = metadata.getTokenRanges();
                 for (TokenRange range : ranges)
-                {
                     rangeMap.put(range, metadata.getReplicas(keyspace, range));
-                }
             }
         }
 
