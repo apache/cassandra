@@ -37,6 +37,8 @@ import org.apache.cassandra.io.sstable.Descriptor;
 import org.apache.cassandra.io.sstable.metadata.MetadataCollector;
 import org.apache.cassandra.utils.Pair;
 
+import static org.junit.Assert.assertEquals;
+
 /**
  */
 public class CompressedInputStreamTest
@@ -86,6 +88,11 @@ public class CompressedInputStreamTest
             sections.add(Pair.create(position, position + 8));
         }
         CompressionMetadata.Chunk[] chunks = comp.getChunksForSections(sections);
+        long totalSize = comp.getTotalSizeForSections(sections);
+        long expectedSize = 0;
+        for (CompressionMetadata.Chunk c : chunks)
+            expectedSize += c.length + 4;
+        assertEquals(expectedSize, totalSize);
 
         // buffer up only relevant parts of file
         int size = 0;

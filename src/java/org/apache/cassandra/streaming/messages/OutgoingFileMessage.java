@@ -63,18 +63,12 @@ public class OutgoingFileMessage extends StreamMessage
 
         SSTableReader sstable = ref.get();
         filename = sstable.getFilename();
-        CompressionInfo compressionInfo = null;
-        if (sstable.compression)
-        {
-            CompressionMetadata meta = sstable.getCompressionMetadata();
-            compressionInfo = new CompressionInfo(meta.getChunksForSections(sections), meta.parameters);
-        }
         this.header = new FileMessageHeader(sstable.metadata.cfId,
                                             sequenceNumber,
                                             sstable.descriptor.version.toString(),
                                             estimatedKeys,
                                             sections,
-                                            compressionInfo,
+                                            sstable.compression ? sstable.getCompressionMetadata() : null,
                                             repairedAt);
     }
 
@@ -85,13 +79,12 @@ public class OutgoingFileMessage extends StreamMessage
             return;
         }
 
-        FileMessageHeader.serializer.serialize(header, out, version);
+        CompressionInfo compressionInfo = FileMessageHeader.serializer.serialize(header, out, version);
 
         final SSTableReader reader = ref.get();
-        StreamWriter writer = header.compressionInfo == null ?
+        StreamWriter writer = compressionInfo == null ?
                                       new StreamWriter(reader, header.sections, session) :
-                                      new CompressedStreamWriter(reader, header.sections,
-                                                                 header.compressionInfo, session);
+                                      new CompressedStreamWriter(reader, header.sections, compressionInfo, session);
         writer.write(out.getChannel());
     }
 

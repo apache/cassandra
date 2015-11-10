@@ -1,4 +1,5 @@
 2.1.12
+ * Create compression chunk for sending file only (CASSANDRA-10680)
  * Make buffered read size configurable (CASSANDRA-10249)
  * Forbid compact clustering column type changes in ALTER TABLE (CASSANDRA-8879)
  * Reject incremental repair with subrange repair (CASSANDRA-10422)
