@@ -331,7 +331,7 @@ public class CqlInputFormat extends org.apache.hadoop.mapreduce.InputFormat<Long
                                     partitionerIsOpp ?
                                             subrange.getStart().toString().substring(2) : subrange.getStart().toString(),
                                     partitionerIsOpp ?
-                                            subrange.getEnd().toString().substring(2) : subrange.getStart().toString(),
+                                            subrange.getEnd().toString().substring(2) : subrange.getEnd().toString(),
                                     subSplits.get(subSplit),
                                     endpoints);
 
