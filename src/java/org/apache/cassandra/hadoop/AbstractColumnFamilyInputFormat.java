@@ -24,6 +24,7 @@ import java.util.concurrent.*;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import com.datastax.driver.core.Cluster;
 import com.datastax.driver.core.Host;
 import com.datastax.driver.core.Metadata;
 import com.datastax.driver.core.ResultSet;
@@ -58,7 +59,6 @@ public abstract class AbstractColumnFamilyInputFormat<K, Y> extends InputFormat<
     private String keyspace;
     private String cfName;
     private IPartitioner partitioner;
-    private Session session;
 
     protected void validateConfiguration(Configuration conf)
     {
@@ -90,36 +90,36 @@ public abstract class AbstractColumnFamilyInputFormat<K, Y> extends InputFormat<
         ExecutorService executor = new ThreadPoolExecutor(0, 128, 60L, TimeUnit.SECONDS, new LinkedBlockingQueue<Runnable>());
         List<InputSplit> splits = new ArrayList<>();
 
-        try
+        List<Future<List<InputSplit>>> splitfutures = new ArrayList<>();
+        KeyRange jobKeyRange = ConfigHelper.getInputKeyRange(conf);
+        Range<Token> jobRange = null;
+        if (jobKeyRange != null)
         {
-            List<Future<List<InputSplit>>> splitfutures = new ArrayList<>();
-            KeyRange jobKeyRange = ConfigHelper.getInputKeyRange(conf);
-            Range<Token> jobRange = null;
-            if (jobKeyRange != null)
+            if (jobKeyRange.start_key != null)
             {
-                if (jobKeyRange.start_key != null)
-                {
-                    if (!partitioner.preservesOrder())
-                        throw new UnsupportedOperationException("KeyRange based on keys can only be used with a order preserving partitioner");
-                    if (jobKeyRange.start_token != null)
-                        throw new IllegalArgumentException("only start_key supported");
-                    if (jobKeyRange.end_token != null)
-                        throw new IllegalArgumentException("only start_key supported");
-                    jobRange = new Range<>(partitioner.getToken(jobKeyRange.start_key),
-                                           partitioner.getToken(jobKeyRange.end_key));
-                }
-                else if (jobKeyRange.start_token != null)
-                {
-                    jobRange = new Range<>(partitioner.getTokenFactory().fromString(jobKeyRange.start_token),
-                                           partitioner.getTokenFactory().fromString(jobKeyRange.end_token));
-                }
-                else
-                {
-                    logger.warn("ignoring jobKeyRange specified without start_key or start_token");
-                }
+                if (!partitioner.preservesOrder())
+                    throw new UnsupportedOperationException("KeyRange based on keys can only be used with a order preserving partitioner");
+                if (jobKeyRange.start_token != null)
+                    throw new IllegalArgumentException("only start_key supported");
+                if (jobKeyRange.end_token != null)
+                    throw new IllegalArgumentException("only start_key supported");
+                jobRange = new Range<>(partitioner.getToken(jobKeyRange.start_key),
+                                       partitioner.getToken(jobKeyRange.end_key));
             }
+            else if (jobKeyRange.start_token != null)
+            {
+                jobRange = new Range<>(partitioner.getTokenFactory().fromString(jobKeyRange.start_token),
+                                       partitioner.getTokenFactory().fromString(jobKeyRange.end_token));
+            }
+            else
+            {
+                logger.warn("ignoring jobKeyRange specified without start_key or start_token");
+            }
+        }
 
-            session = CqlConfigHelper.getInputCluster(ConfigHelper.getInputInitialAddress(conf).split(","), conf).connect();
+        try (Cluster cluster = CqlConfigHelper.getInputCluster(ConfigHelper.getInputInitialAddress(conf).split(","), conf))
+        {
+            Session session = cluster.connect();
             Metadata metadata = session.getCluster().getMetadata();
 
             for (TokenRange range : masterRangeNodes.keySet())
@@ -127,7 +127,7 @@ public abstract class AbstractColumnFamilyInputFormat<K, Y> extends InputFormat<
                 if (jobRange == null)
                 {
                     // for each tokenRange, pick a live owner and ask it to compute bite-sized splits
-                    splitfutures.add(executor.submit(new SplitCallable(range, masterRangeNodes.get(range), conf)));
+                    splitfutures.add(executor.submit(new SplitCallable(range, masterRangeNodes.get(range), conf, session)));
                 }
                 else
                 {
@@ -137,7 +137,7 @@ public abstract class AbstractColumnFamilyInputFormat<K, Y> extends InputFormat<
                         for (TokenRange intersection: range.intersectWith(jobTokenRange))
                         {
                             // for each tokenRange, pick a live owner and ask it to compute bite-sized splits
-                            splitfutures.add(executor.submit(new SplitCallable(intersection,  masterRangeNodes.get(range), conf)));
+                            splitfutures.add(executor.submit(new SplitCallable(intersection,  masterRangeNodes.get(range), conf, session)));
                         }
                     }
                 }
@@ -182,19 +182,21 @@ public abstract class AbstractColumnFamilyInputFormat<K, Y> extends InputFormat<
         private final TokenRange tokenRange;
         private final Set<Host> hosts;
         private final Configuration conf;
+        private final Session session;
 
-        public SplitCallable(TokenRange tr, Set<Host> hosts, Configuration conf)
+        public SplitCallable(TokenRange tr, Set<Host> hosts, Configuration conf, Session session)
         {
             this.tokenRange = tr;
             this.hosts = hosts;
             this.conf = conf;
+            this.session = session;
         }
 
         public List<InputSplit> call() throws Exception
         {
             ArrayList<InputSplit> splits = new ArrayList<>();
             Map<TokenRange, Long> subSplits;
-            subSplits = getSubSplits(keyspace, cfName, tokenRange, conf);
+            subSplits = getSubSplits(keyspace, cfName, tokenRange, conf, session);
             // turn the sub-ranges into InputSplits
             String[] endpoints = new String[hosts.size()];
 
@@ -225,12 +227,12 @@ public abstract class AbstractColumnFamilyInputFormat<K, Y> extends InputFormat<
         }
     }
 
-    private Map<TokenRange, Long> getSubSplits(String keyspace, String cfName, TokenRange range, Configuration conf) throws IOException
+    private Map<TokenRange, Long> getSubSplits(String keyspace, String cfName, TokenRange range, Configuration conf, Session session) throws IOException
     {
         int splitSize = ConfigHelper.getInputSplitSize(conf);
         try
         {
-            return describeSplits(keyspace, cfName, range, splitSize);
+            return describeSplits(keyspace, cfName, range, splitSize, session);
         }
         catch (Exception e)
         {
@@ -240,17 +242,17 @@ public abstract class AbstractColumnFamilyInputFormat<K, Y> extends InputFormat<
 
     private Map<TokenRange, Set<Host>> getRangeMap(Configuration conf, String keyspace)
     {
-        try (Session session = CqlConfigHelper.getInputCluster(ConfigHelper.getInputInitialAddress(conf).split(","), conf).connect())
+        try (Cluster cluster = CqlConfigHelper.getInputCluster(ConfigHelper.getInputInitialAddress(conf).split(","), conf))
         {
             Map<TokenRange, Set<Host>> map = new HashMap<>();
-            Metadata metadata = session.getCluster().getMetadata();
+            Metadata metadata = cluster.connect().getCluster().getMetadata();
             for (TokenRange tokenRange : metadata.getTokenRanges())
                 map.put(tokenRange, metadata.getReplicas('"' + keyspace + '"', tokenRange));
             return map;
         }
     }
 
-    private Map<TokenRange, Long> describeSplits(String keyspace, String table, TokenRange tokenRange, int splitSize)
+    private Map<TokenRange, Long> describeSplits(String keyspace, String table, TokenRange tokenRange, int splitSize, Session session)
     {
         String query = String.format("SELECT mean_partition_size, partitions_count " +
                                      "FROM %s.%s " +

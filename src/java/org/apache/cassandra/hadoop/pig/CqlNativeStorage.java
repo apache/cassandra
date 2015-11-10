@@ -28,6 +28,7 @@ import java.net.URLDecoder;
 import java.nio.ByteBuffer;
 import java.util.*;
 
+import com.datastax.driver.core.Cluster;
 import com.datastax.driver.core.ColumnMetadata;
 import com.datastax.driver.core.Metadata;
 import com.datastax.driver.core.Row;
@@ -723,8 +724,9 @@ public class CqlNativeStorage extends LoadFunc implements StoreFuncInterface, Lo
         // Only get the schema if we haven't already gotten it
         if (!properties.containsKey(signature))
         {
-            try (Session client = CqlConfigHelper.getInputCluster(ConfigHelper.getInputInitialAddress(conf), conf).connect())
+            try (Cluster cluster = CqlConfigHelper.getInputCluster(ConfigHelper.getInputInitialAddress(conf), conf))
             {
+                Session client = cluster.connect();
                 client.execute("USE " + keyspace);
 
                 // compose the CfDef for the columfamily

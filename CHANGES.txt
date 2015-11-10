@@ -1,4 +1,5 @@
 2.2.4
+ * (Hadoop) ensure that Cluster instances are always closed (CASSANDRA-10058)
  * (cqlsh) show partial trace if incomplete after max_trace_wait (CASSANDRA-7645)
  * Use most up-to-date version of schema for system tables (CASSANDRA-10652)
  * Deprecate memory_allocator in cassandra.yaml (CASSANDRA-10581,10628)
