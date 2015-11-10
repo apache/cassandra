@@ -1,4 +1,5 @@
 2.2.4
+ * Don't do anticompaction after subrange repair (CASSANDRA-10422)
  * Fix SimpleDateType type compatibility (CASSANDRA-10027)
  * (Hadoop) fix splits calculation (CASSANDRA-10640)
  * (Hadoop) ensure that Cluster instances are always closed (CASSANDRA-10058)

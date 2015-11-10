@@ -96,10 +96,14 @@ public class RepairOptionTest
         assertEquals(expectedHosts, option.getHosts());
     }
 
-    @Test(expected=IllegalArgumentException.class)
-    public void testIncrementalRepairWithSubrangesThrows() throws Exception
+    @Test
+    public void testIncrementalRepairWithSubrangesIsNotGlobal() throws Exception
     {
-        RepairOption.parse(ImmutableMap.of(RepairOption.INCREMENTAL_KEY, "true", RepairOption.RANGES_KEY, ""),
+        RepairOption ro = RepairOption.parse(ImmutableMap.of(RepairOption.INCREMENTAL_KEY, "true", RepairOption.RANGES_KEY, "42:42"),
                            Murmur3Partitioner.instance);
+        assertFalse(ro.isGlobal());
+        ro = RepairOption.parse(ImmutableMap.of(RepairOption.INCREMENTAL_KEY, "true", RepairOption.RANGES_KEY, ""),
+                Murmur3Partitioner.instance);
+        assertTrue(ro.isGlobal());
     }
 }

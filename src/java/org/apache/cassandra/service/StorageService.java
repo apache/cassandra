@@ -2882,7 +2882,7 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
             parallelism = RepairParallelism.PARALLEL;
         }
 
-        RepairOption options = new RepairOption(parallelism, primaryRange, !fullRepair, false, 1, Collections.<Range<Token>>emptyList());
+        RepairOption options = new RepairOption(parallelism, primaryRange, !fullRepair, false, 1, Collections.<Range<Token>>emptyList(), false);
         if (dataCenters != null)
         {
             options.getDataCenters().addAll(dataCenters);
@@ -2966,11 +2966,12 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
         }
 
         if (!fullRepair)
-            throw new IllegalArgumentException("Incremental repair can't be requested with subrange repair " +
-                                               "because each subrange repair would generate an anti-compacted table");
+            logger.warn("Incremental repair can't be requested with subrange repair " +
+                        "because each subrange repair would generate an anti-compacted table. " +
+                        "The repair will occur but without anti-compaction.");
         Collection<Range<Token>> repairingRange = createRepairRangeFrom(beginToken, endToken);
 
-        RepairOption options = new RepairOption(parallelism, false, !fullRepair, false, 1, repairingRange);
+        RepairOption options = new RepairOption(parallelism, false, !fullRepair, false, 1, repairingRange, true);
         options.getDataCenters().addAll(dataCenters);
         if (hosts != null)
         {
