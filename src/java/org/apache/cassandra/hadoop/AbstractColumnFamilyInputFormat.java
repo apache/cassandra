@@ -215,7 +215,7 @@ public abstract class AbstractColumnFamilyInputFormat<K, Y> extends InputFormat<
                                     partitioner.preservesOrder() ?
                                             subrange.getStart().toString().substring(2) : subrange.getStart().toString(),
                                     partitioner.preservesOrder() ?
-                                            subrange.getEnd().toString().substring(2) : subrange.getStart().toString(),
+                                            subrange.getEnd().toString().substring(2) : subrange.getEnd().toString(),
                                     subSplits.get(subSplit),
                                     endpoints);
 
