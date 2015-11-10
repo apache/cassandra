@@ -138,6 +138,28 @@ public class CQLSSTableWriterTest
         assertEquals(12, row.getInt("v2"));
     }
 
+    @Test(expected = IllegalArgumentException.class)
+    public void testForbidCounterUpdates() throws Exception
+    {
+        String KS = "cql_keyspace";
+        String TABLE = "counter1";
+
+        File tempdir = Files.createTempDir();
+        File dataDir = new File(tempdir.getAbsolutePath() + File.separator + KS + File.separator + TABLE);
+        assert dataDir.mkdirs();
+
+        String schema = "CREATE TABLE cql_keyspace.counter1 (" +
+                        "  my_id int, " +
+                        "  my_counter counter, " +
+                        "  PRIMARY KEY (my_id)" +
+                        ")";
+        String insert = String.format("UPDATE cql_keyspace.counter1 SET my_counter = my_counter - ? WHERE my_id = ?");
+        CQLSSTableWriter.builder().inDirectory(dataDir)
+                        .forTable(schema)
+                        .withPartitioner(StorageService.instance.getPartitioner())
+                        .using(insert).build();
+    }
+
     @Test
     public void testSyncWithinPartition() throws Exception
     {

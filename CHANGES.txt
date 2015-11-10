@@ -8,6 +8,7 @@
  * Deprecate Pig support (CASSANDRA-10542)
  * Reduce contention getting instances of CompositeType (CASSANDRA-10433)
 Merged from 2.1:
+ * Reject counter writes in CQLSSTableWriter (CASSANDRA-10258)
  * Remove superfluous COUNTER_MUTATION stage mapping (CASSANDRA-10605)
  * Improve json2sstable error reporting on nonexistent columns (CASSANDRA-10401)
  * (cqlsh) fix COPY using wrong variable name for time_format (CASSANDRA-10633)
