@@ -158,7 +158,7 @@ public class CQLSSTableWriterTest
         String insert = String.format("UPDATE cql_keyspace.counter1 SET my_counter = my_counter - ? WHERE my_id = ?");
         CQLSSTableWriter.builder().inDirectory(dataDir)
                         .forTable(schema)
-                        .withPartitioner(StorageService.instance.getPartitioner())
+                        .withPartitioner(Murmur3Partitioner.instance)
                         .using(insert).build();
     }
 
