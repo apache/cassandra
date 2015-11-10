@@ -151,6 +151,7 @@ public class NodeTool
                 ProxyHistograms.class,
                 Rebuild.class,
                 Refresh.class,
+                RefreshSizeEstimates.class,
                 RemoveToken.class,
                 RemoveNode.class,
                 Repair.class,
@@ -1804,6 +1805,16 @@ public class NodeTool
         {
             checkArgument(args.size() == 2, "refresh requires ks and cf args");
             probe.loadNewSSTables(args.get(0), args.get(1));
+        }
+    }
+
+    @Command(name = "refreshsizeestimates", description = "Refresh system.size_estimates")
+    public static class RefreshSizeEstimates extends NodeToolCmd
+    {
+        @Override
+        public void execute(NodeProbe probe)
+        {
+            probe.refreshSizeEstimates();
         }
     }
 

@@ -1,4 +1,5 @@
 2.1.12
+ * Add a nodetool command to refresh size_estimates (CASSANDRA-9579)
  * Shutdown compaction in drain to prevent leak (CASSANDRA-10079)
  * Invalidate cache after stream receive task is completed (CASSANDRA-10341)
  * Reject counter writes in CQLSSTableWriter (CASSANDRA-10258)
@@ -32,6 +33,7 @@
  * Allow LOCAL_JMX to be easily overridden (CASSANDRA-10275)
  * Mark nodes as dead even if they've already left (CASSANDRA-10205)
  * Update internal python driver used by cqlsh (CASSANDRA-10161, CASSANDRA-10507)
+
 
 2.1.10
  * Bulk Loader API could not tolerate even node failure (CASSANDRA-10347)

@@ -901,6 +901,18 @@ public class NodeProbe implements AutoCloseable
         }
     }
 
+    public void refreshSizeEstimates()
+    {
+        try
+        {
+            ssProxy.refreshSizeEstimates();
+        }
+        catch (ExecutionException e)
+        {
+            throw new RuntimeException("Error while refreshing system.size_estimates", e);
+        }
+    }
+
     public void stopNativeTransport()
     {
         ssProxy.stopNativeTransport();
