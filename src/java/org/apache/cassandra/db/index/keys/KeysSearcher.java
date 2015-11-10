@@ -98,9 +98,8 @@ public class KeysSearcher extends SecondaryIndexSearcher
 
             protected Row computeNext()
             {
-                int meanColumns = Math.max(index.getIndexCfs().getMeanColumns(), 1);
                 // We shouldn't fetch only 1 row as this provides buggy paging in case the first row doesn't satisfy all clauses
-                int rowsPerQuery = Math.max(Math.min(filter.maxRows(), filter.maxColumns() / meanColumns), 2);
+                int rowsPerQuery = Math.max(Math.min(filter.maxRows(), filter.maxColumns()), 2);
                 while (true)
                 {
                     if (indexColumns == null || !indexColumns.hasNext())
