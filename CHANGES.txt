@@ -1,5 +1,6 @@
 3.1
 Merged from 2.1:
+ * Reject counter writes in CQLSSTableWriter (CASSANDRA-10258)
  * Remove superfluous COUNTER_MUTATION stage mapping (CASSANDRA-10605)
 
 
@@ -45,7 +46,6 @@ Merged from 2.2:
  * Expose phi values from failure detector via JMX and tweak debug
    and trace logging (CASSANDRA-9526)
 Merged from 2.1:
- * Remove superfluous COUNTER_MUTATION stage mapping (CASSANDRA-10605)
  * (cqlsh) fix COPY using wrong variable name for time_format (CASSANDRA-10633)
  * Do not run SizeEstimatesRecorder if a node is not a member of the ring (CASSANDRA-9912)
  * Improve handling of dead nodes in gossip (CASSANDRA-10298)
