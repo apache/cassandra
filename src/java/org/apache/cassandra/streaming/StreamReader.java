@@ -106,7 +106,7 @@ public class StreamReader
             writer = createWriter(cfs, totalSize, repairedAt, format);
             while (in.getBytesRead() < totalSize)
             {
-                writePartition(deserializer, writer, cfs);
+                writePartition(deserializer, writer);
                 // TODO move this to BytesReadTracker
                 session.progress(desc, ProgressInfo.Direction.IN, in.getBytesRead(), totalSize);
             }
@@ -167,12 +167,10 @@ public class StreamReader
         return size;
     }
 
-    protected void writePartition(StreamDeserializer deserializer, SSTableMultiWriter writer, ColumnFamilyStore cfs) throws IOException
+    protected void writePartition(StreamDeserializer deserializer, SSTableMultiWriter writer) throws IOException
     {
-        DecoratedKey key = deserializer.newPartition();
-        writer.append(deserializer);
+        writer.append(deserializer.newPartition());
         deserializer.checkForExceptions();
-        cfs.invalidateCachedPartition(key);
     }
 
     public static class StreamDeserializer extends UnmodifiableIterator<Unfiltered> implements UnfilteredRowIterator
@@ -197,13 +195,13 @@ public class StreamReader
             this.header = header;
         }
 
-        public DecoratedKey newPartition() throws IOException
+        public StreamDeserializer newPartition() throws IOException
         {
             key = metadata.decorateKey(ByteBufferUtil.readWithShortLength(in));
             partitionLevelDeletion = DeletionTime.serializer.deserialize(in);
             iterator = SSTableSimpleIterator.create(metadata, in, header, helper, partitionLevelDeletion);
             staticRow = iterator.readStaticRow();
-            return key;
+            return this;
         }
 
         public CFMetaData metadata()

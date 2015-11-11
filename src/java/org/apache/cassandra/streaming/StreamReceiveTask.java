@@ -17,7 +17,14 @@
  */
 package org.apache.cassandra.streaming;
 
-import java.util.*;
+import java.io.File;
+import java.io.IOError;
+import java.io.IOException;
+import java.util.ArrayList;
+import java.util.Collection;
+import java.util.List;
+import java.util.Set;
+import java.util.UUID;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 
@@ -35,6 +42,8 @@ import org.apache.cassandra.db.lifecycle.LifecycleTransaction;
 import org.apache.cassandra.db.partitions.PartitionUpdate;
 import org.apache.cassandra.db.rows.UnfilteredRowIterator;
 import org.apache.cassandra.db.view.View;
+import org.apache.cassandra.dht.Bounds;
+import org.apache.cassandra.dht.Token;
 import org.apache.cassandra.io.sstable.ISSTableScanner;
 import org.apache.cassandra.io.sstable.SSTableMultiWriter;
 import org.apache.cassandra.io.sstable.format.SSTableReader;
@@ -172,6 +181,32 @@ public class StreamReceiveTask extends StreamTask
                         // add sstables and build secondary indexes
                         cfs.addSSTables(readers);
                         cfs.indexManager.buildAllIndexesBlocking(readers);
+
+                        //invalidate row and counter cache
+                        if (cfs.isRowCacheEnabled() || cfs.metadata.isCounter())
+                        {
+                            List<Bounds<Token>> boundsToInvalidate = new ArrayList<>(readers.size());
+                            readers.forEach(sstable -> boundsToInvalidate.add(new Bounds<Token>(sstable.first.getToken(), sstable.last.getToken())));
+                            Set<Bounds<Token>> nonOverlappingBounds = Bounds.getNonOverlappingBounds(boundsToInvalidate);
+
+                            if (cfs.isRowCacheEnabled())
+                            {
+                                int invalidatedKeys = cfs.invalidateRowCache(nonOverlappingBounds);
+                                if (invalidatedKeys > 0)
+                                    logger.debug("[Stream #{}] Invalidated {} row cache entries on table {}.{} after stream " +
+                                                 "receive task completed.", task.session.planId(), invalidatedKeys,
+                                                 cfs.keyspace.getName(), cfs.getTableName());
+                            }
+
+                            if (cfs.metadata.isCounter())
+                            {
+                                int invalidatedKeys = cfs.invalidateCounterCache(nonOverlappingBounds);
+                                if (invalidatedKeys > 0)
+                                    logger.debug("[Stream #{}] Invalidated {} counter cache entries on table {}.{} after stream " +
+                                                 "receive task completed.", task.session.planId(), invalidatedKeys,
+                                                 cfs.keyspace.getName(), cfs.getTableName());
+                            }
+                        }
                     }
                 }
                 catch (Throwable t)
