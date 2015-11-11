@@ -59,7 +59,6 @@ public class SSTableRewriter extends Transactional.AbstractTransactional impleme
     // the set of final readers we will expose on commit
     private final LifecycleTransaction transaction; // the readers we are rewriting (updated as they are replaced)
     private final List<SSTableReader> preparedForCommit = new ArrayList<>();
-    private final Map<Descriptor, Integer> fileDescriptors = new HashMap<>(); // the file descriptors for each reader descriptor we are rewriting
 
     private long currentlyOpenedEarlyAt; // the position (in MB) in the target file we last (re)opened at
 
@@ -87,8 +86,6 @@ public class SSTableRewriter extends Transactional.AbstractTransactional impleme
     public SSTableRewriter(LifecycleTransaction transaction, long maxAge, boolean isOffline, long preemptiveOpenInterval, boolean keepOriginals)
     {
         this.transaction = transaction;
-        for (SSTableReader sstable : this.transaction.originals())
-            fileDescriptors.put(sstable.descriptor, CLibrary.getfd(sstable.getFilename()));
         this.maxAge = maxAge;
         this.isOffline = isOffline;
         this.keepOriginals = keepOriginals;
@@ -160,7 +157,7 @@ public class SSTableRewriter extends Transactional.AbstractTransactional impleme
                 for (SSTableReader reader : transaction.originals())
                 {
                     RowIndexEntry index = reader.getPosition(key, SSTableReader.Operator.GE);
-                    CLibrary.trySkipCache(fileDescriptors.get(reader.descriptor), 0, index == null ? 0 : index.position, reader.getFilename());
+                    CLibrary.trySkipCache(reader.getFilename(), 0, index == null ? 0 : index.position);
                 }
             }
             else
