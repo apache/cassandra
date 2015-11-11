@@ -189,11 +189,6 @@ public class CompactionController implements AutoCloseable
         return min;
     }
 
-    public void invalidateCachedRow(DecoratedKey key)
-    {
-        cfs.invalidateCachedRow(key);
-    }
-
     public void close()
     {
         overlappingSSTables.release();
