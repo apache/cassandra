@@ -17,10 +17,13 @@
  */
 package org.apache.cassandra.db;
 
+import java.util.Collections;
 import java.util.concurrent.ExecutionException;
 
 import org.apache.cassandra.config.CFMetaData;
 import org.apache.cassandra.config.ColumnDefinition;
+import org.apache.cassandra.dht.Bounds;
+import org.apache.cassandra.dht.Token;
 import org.apache.cassandra.schema.KeyspaceParams;
 import org.apache.cassandra.utils.ByteBufferUtil;
 import org.junit.AfterClass;
@@ -92,6 +95,51 @@ public class CounterCacheTest
         assertEquals(ClockAndCount.create(1L, 2L), cfs.getCachedCounter(bytes(1), c2, cd, null));
         assertEquals(ClockAndCount.create(2L, 1L), cfs.getCachedCounter(bytes(2), c1, cd, null));
         assertEquals(ClockAndCount.create(2L, 2L), cfs.getCachedCounter(bytes(2), c2, cd, null));
+    }
+
+    @Test
+    public void testCounterCacheInvalidate()
+    {
+        ColumnFamilyStore cfs = Keyspace.open(KEYSPACE1).getColumnFamilyStore(COUNTER1);
+        cfs.truncateBlocking();
+        CacheService.instance.invalidateCounterCache();
+
+        Clustering c1 = CBuilder.create(cfs.metadata.comparator).add(ByteBufferUtil.bytes(1)).build();
+        Clustering c2 = CBuilder.create(cfs.metadata.comparator).add(ByteBufferUtil.bytes(2)).build();
+        ColumnDefinition cd = cfs.metadata.getColumnDefinition(ByteBufferUtil.bytes("c"));
+
+        assertEquals(0, CacheService.instance.counterCache.size());
+        assertNull(cfs.getCachedCounter(bytes(1), c1, cd, null));
+        assertNull(cfs.getCachedCounter(bytes(1), c2, cd, null));
+        assertNull(cfs.getCachedCounter(bytes(2), c1, cd, null));
+        assertNull(cfs.getCachedCounter(bytes(2), c2, cd, null));
+        assertNull(cfs.getCachedCounter(bytes(3), c1, cd, null));
+        assertNull(cfs.getCachedCounter(bytes(3), c2, cd, null));
+
+        cfs.putCachedCounter(bytes(1), c1, cd, null, ClockAndCount.create(1L, 1L));
+        cfs.putCachedCounter(bytes(1), c2, cd, null, ClockAndCount.create(1L, 2L));
+        cfs.putCachedCounter(bytes(2), c1, cd, null, ClockAndCount.create(2L, 1L));
+        cfs.putCachedCounter(bytes(2), c2, cd, null, ClockAndCount.create(2L, 2L));
+        cfs.putCachedCounter(bytes(3), c1, cd, null, ClockAndCount.create(3L, 1L));
+        cfs.putCachedCounter(bytes(3), c2, cd, null, ClockAndCount.create(3L, 2L));
+
+        assertEquals(ClockAndCount.create(1L, 1L), cfs.getCachedCounter(bytes(1), c1, cd, null));
+        assertEquals(ClockAndCount.create(1L, 2L), cfs.getCachedCounter(bytes(1), c2, cd, null));
+        assertEquals(ClockAndCount.create(2L, 1L), cfs.getCachedCounter(bytes(2), c1, cd, null));
+        assertEquals(ClockAndCount.create(2L, 2L), cfs.getCachedCounter(bytes(2), c2, cd, null));
+        assertEquals(ClockAndCount.create(3L, 1L), cfs.getCachedCounter(bytes(3), c1, cd, null));
+        assertEquals(ClockAndCount.create(3L, 2L), cfs.getCachedCounter(bytes(3), c2, cd, null));
+
+        cfs.invalidateCounterCache(Collections.singleton(new Bounds<Token>(cfs.decorateKey(bytes(1)).getToken(),
+                                                                           cfs.decorateKey(bytes(2)).getToken())));
+
+        assertEquals(2, CacheService.instance.counterCache.size());
+        assertNull(cfs.getCachedCounter(bytes(1), c1, cd, null));
+        assertNull(cfs.getCachedCounter(bytes(1), c2, cd, null));
+        assertNull(cfs.getCachedCounter(bytes(2), c1, cd, null));
+        assertNull(cfs.getCachedCounter(bytes(2), c2, cd, null));
+        assertEquals(ClockAndCount.create(3L, 1L), cfs.getCachedCounter(bytes(3), c1, cd, null));
+        assertEquals(ClockAndCount.create(3L, 2L), cfs.getCachedCounter(bytes(3), c2, cd, null));
     }
 
     @Test
