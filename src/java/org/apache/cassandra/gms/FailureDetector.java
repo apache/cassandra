@@ -192,15 +192,16 @@ public class FailureDetector implements IFailureDetector, FailureDetectorMBean
     {
         sb.append("  generation:").append(endpointState.getHeartBeatState().getGeneration()).append("\n");
         sb.append("  heartbeat:").append(endpointState.getHeartBeatState().getHeartBeatVersion()).append("\n");
-        for (Map.Entry<ApplicationState, VersionedValue> state : endpointState.applicationState.entrySet())
+        for (Map.Entry<ApplicationState, VersionedValue> state : endpointState.states())
         {
             if (state.getKey() == ApplicationState.TOKENS)
                 continue;
             sb.append("  ").append(state.getKey()).append(":").append(state.getValue().version).append(":").append(state.getValue().value).append("\n");
         }
-        if (endpointState.applicationState.containsKey(ApplicationState.TOKENS))
+        VersionedValue tokens = endpointState.getApplicationState(ApplicationState.TOKENS);
+        if (tokens != null)
         {
-            sb.append("  TOKENS:").append(endpointState.applicationState.get(ApplicationState.TOKENS).version).append(":<hidden>\n");
+            sb.append("  TOKENS:").append(tokens.version).append(":<hidden>\n");
         }
         else
         {

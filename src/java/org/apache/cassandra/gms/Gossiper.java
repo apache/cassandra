@@ -224,7 +224,8 @@ public class Gossiper implements IFailureDetectionEventListener, GossiperMBean
                 return true;
             try
             {
-                if (entry.getValue().getApplicationStateMap().containsKey(ApplicationState.INTERNAL_IP) && seeds.contains(InetAddress.getByName(entry.getValue().getApplicationState(ApplicationState.INTERNAL_IP).value)))
+                VersionedValue internalIp = entry.getValue().getApplicationState(ApplicationState.INTERNAL_IP);
+                if (internalIp != null && seeds.contains(InetAddress.getByName(internalIp.value)))
                     return true;
             }
             catch (UnknownHostException e)
@@ -371,8 +372,8 @@ public class Gossiper implements IFailureDetectionEventListener, GossiperMBean
     int getMaxEndpointStateVersion(EndpointState epState)
     {
         int maxVersion = epState.getHeartBeatState().getHeartBeatVersion();
-        for (VersionedValue value : epState.getApplicationStateMap().values())
-            maxVersion = Math.max(maxVersion, value.version);
+        for (Map.Entry<ApplicationState, VersionedValue> state : epState.states())
+            maxVersion = Math.max(maxVersion, state.getValue().version);
         return maxVersion;
     }
 
@@ -525,8 +526,10 @@ public class Gossiper implements IFailureDetectionEventListener, GossiperMBean
         logger.info("Advertising removal for {}", endpoint);
         epState.updateTimestamp(); // make sure we don't evict it too soon
         epState.getHeartBeatState().forceNewerGenerationUnsafe();
-        epState.addApplicationState(ApplicationState.STATUS, StorageService.instance.valueFactory.removingNonlocal(hostId));
-        epState.addApplicationState(ApplicationState.REMOVAL_COORDINATOR, StorageService.instance.valueFactory.removalCoordinator(localHostId));
+        Map<ApplicationState, VersionedValue> states = new EnumMap<>(ApplicationState.class);
+        states.put(ApplicationState.STATUS, StorageService.instance.valueFactory.removingNonlocal(hostId));
+        states.put(ApplicationState.REMOVAL_COORDINATOR, StorageService.instance.valueFactory.removalCoordinator(localHostId));
+        epState.addApplicationStates(states);
         endpointStateMap.put(endpoint, epState);
     }
 
@@ -867,7 +870,8 @@ public class Gossiper implements IFailureDetectionEventListener, GossiperMBean
                     logger.trace("local heartbeat version {} greater than {} for {}", localHbVersion, version, forEndpoint);
             }
             /* Accumulate all application states whose versions are greater than "version" variable */
-            for (Entry<ApplicationState, VersionedValue> entry : epState.getApplicationStateMap().entrySet())
+            Map<ApplicationState, VersionedValue> states = new EnumMap<>(ApplicationState.class);
+            for (Entry<ApplicationState, VersionedValue> entry : epState.states())
             {
                 VersionedValue value = entry.getValue();
                 if (value.version > version)
@@ -879,9 +883,11 @@ public class Gossiper implements IFailureDetectionEventListener, GossiperMBean
                     final ApplicationState key = entry.getKey();
                     if (logger.isTraceEnabled())
                         logger.trace("Adding state {}: {}" , key, value.value);
-                    reqdEndpointState.addApplicationState(key, value);
+
+                    states.put(key, value);
                 }
             }
+            reqdEndpointState.addApplicationStates(states);
         }
         return reqdEndpointState;
     }
@@ -1161,19 +1167,13 @@ public class Gossiper implements IFailureDetectionEventListener, GossiperMBean
         localState.setHeartBeatState(remoteState.getHeartBeatState());
         if (logger.isTraceEnabled())
             logger.trace("Updating heartbeat state version to {} from {} for {} ...", localState.getHeartBeatState().getHeartBeatVersion(), oldVersion, addr);
-        // we need to make two loops here, one to apply, then another to notify, this way all states in an update are present and current when the notifications are received
-        for (Entry<ApplicationState, VersionedValue> remoteEntry : remoteState.getApplicationStateMap().entrySet())
-        {
-            ApplicationState remoteKey = remoteEntry.getKey();
-            VersionedValue remoteValue = remoteEntry.getValue();
 
-            assert remoteState.getHeartBeatState().getGeneration() == localState.getHeartBeatState().getGeneration();
-            localState.addApplicationState(remoteKey, remoteValue);
-        }
-        for (Entry<ApplicationState, VersionedValue> remoteEntry : remoteState.getApplicationStateMap().entrySet())
-        {
+        Set<Entry<ApplicationState, VersionedValue>> remoteStates = remoteState.states();
+        assert remoteState.getHeartBeatState().getGeneration() == localState.getHeartBeatState().getGeneration();
+        localState.addApplicationStates(remoteStates);
+
+        for (Entry<ApplicationState, VersionedValue> remoteEntry : remoteStates)
             doOnChangeNotifications(addr, remoteEntry.getKey(), remoteEntry.getValue());
-        }
     }
     
     // notify that a local application state is going to change (doesn't get triggered for remote changes)
@@ -1287,7 +1287,7 @@ public class Gossiper implements IFailureDetectionEventListener, GossiperMBean
 
     public void start(int generationNumber)
     {
-        start(generationNumber, new HashMap<ApplicationState, VersionedValue>());
+        start(generationNumber, new EnumMap<ApplicationState, VersionedValue>(ApplicationState.class));
     }
 
     /**
@@ -1299,8 +1299,7 @@ public class Gossiper implements IFailureDetectionEventListener, GossiperMBean
         /* initialize the heartbeat state for this localEndpoint */
         maybeInitializeLocalState(generationNbr);
         EndpointState localState = endpointStateMap.get(FBUtilities.getBroadcastAddress());
-        for (Map.Entry<ApplicationState, VersionedValue> entry : preloadLocalStates.entrySet())
-            localState.addApplicationState(entry.getKey(), entry.getValue());
+        localState.addApplicationStates(preloadLocalStates);
 
         //notify snitches that Gossiper is about to start
         DatabaseDescriptor.getEndpointSnitch().gossiperStarting();
@@ -1489,8 +1488,10 @@ public class Gossiper implements IFailureDetectionEventListener, GossiperMBean
         EndpointState localState = oldState == null ? newState : oldState;
 
         // always add the version state
-        localState.addApplicationState(ApplicationState.NET_VERSION, StorageService.instance.valueFactory.networkVersion());
-        localState.addApplicationState(ApplicationState.HOST_ID, StorageService.instance.valueFactory.hostId(uuid));
+        Map<ApplicationState, VersionedValue> states = new EnumMap<>(ApplicationState.class);
+        states.put(ApplicationState.NET_VERSION, StorageService.instance.valueFactory.networkVersion());
+        states.put(ApplicationState.HOST_ID, StorageService.instance.valueFactory.hostId(uuid));
+        localState.addApplicationStates(states);
     }
 
     @VisibleForTesting
