@@ -93,7 +93,7 @@ public class CompressedStreamReader extends StreamReader
 
                 while (in.getBytesRead() < sectionLength)
                 {
-                    writePartition(deserializer, writer, cfs);
+                    writePartition(deserializer, writer);
                     // when compressed, report total bytes of compressed chunks read since remoteFile.size is the sum of chunks transferred
                     session.progress(desc, ProgressInfo.Direction.IN, cis.getTotalCompressedBytesRead(), totalSize);
                 }
