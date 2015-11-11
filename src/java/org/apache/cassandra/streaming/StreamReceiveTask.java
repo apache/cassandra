@@ -23,14 +23,20 @@ import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.List;
+import java.util.Set;
 import java.util.UUID;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
+
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 import org.apache.cassandra.concurrent.NamedThreadFactory;
 import org.apache.cassandra.config.Schema;
 import org.apache.cassandra.db.ColumnFamilyStore;
 import org.apache.cassandra.db.Keyspace;
+import org.apache.cassandra.dht.Bounds;
+import org.apache.cassandra.dht.Token;
 import org.apache.cassandra.io.sstable.format.SSTableReader;
 import org.apache.cassandra.io.sstable.format.SSTableWriter;
 import org.apache.cassandra.utils.Pair;
@@ -43,6 +49,7 @@ import org.apache.cassandra.utils.concurrent.Refs;
 public class StreamReceiveTask extends StreamTask
 {
     private static final ExecutorService executor = Executors.newCachedThreadPool(new NamedThreadFactory("StreamReceiveTask"));
+    private static final Logger logger = LoggerFactory.getLogger(StreamReceiveTask.class);
 
     // number of files to receive
     private final int totalFiles;
@@ -76,6 +83,7 @@ public class StreamReceiveTask extends StreamTask
         assert cfId.equals(sstable.metadata.cfId);
 
         sstables.add(sstable);
+
         if (sstables.size() == totalFiles)
         {
             done = true;
@@ -131,6 +139,33 @@ public class StreamReceiveTask extends StreamTask
                 // add sstables and build secondary indexes
                 cfs.addSSTables(readers);
                 cfs.indexManager.maybeBuildSecondaryIndexes(readers, cfs.indexManager.allIndexesNames());
+
+                //invalidate row and counter cache
+                if (cfs.isRowCacheEnabled() || cfs.metadata.isCounter())
+                {
+                    List<Bounds<Token>> boundsToInvalidate = new ArrayList<>(readers.size());
+                    for (SSTableReader sstable : readers)
+                        boundsToInvalidate.add(new Bounds<Token>(sstable.first.getToken(), sstable.last.getToken()));
+                    Set<Bounds<Token>> nonOverlappingBounds = Bounds.getNonOverlappingBounds(boundsToInvalidate);
+
+                    if (cfs.isRowCacheEnabled())
+                    {
+                        int invalidatedKeys = cfs.invalidateRowCache(nonOverlappingBounds);
+                        if (invalidatedKeys > 0)
+                            logger.debug("[Stream #{}] Invalidated {} row cache entries on table {}.{} after stream " +
+                                         "receive task completed.", task.session.planId(), invalidatedKeys,
+                                         cfs.keyspace.getName(), cfs.getColumnFamilyName());
+                    }
+
+                    if (cfs.metadata.isCounter())
+                    {
+                        int invalidatedKeys = cfs.invalidateCounterCache(nonOverlappingBounds);
+                        if (invalidatedKeys > 0)
+                            logger.debug("[Stream #{}] Invalidated {} counter cache entries on table {}.{} after stream " +
+                                         "receive task completed.", task.session.planId(), invalidatedKeys,
+                                         cfs.keyspace.getName(), cfs.getColumnFamilyName());
+                    }
+                }
             }
 
             task.session.taskCompleted(task);

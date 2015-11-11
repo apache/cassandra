@@ -20,8 +20,12 @@ package org.apache.cassandra.db;
 
 import java.net.InetAddress;
 import java.nio.ByteBuffer;
+import java.util.ArrayList;
 import java.util.Collection;
+import java.util.Iterator;
+import java.util.TreeSet;
 
+import com.google.common.collect.Lists;
 import org.junit.AfterClass;
 import org.junit.BeforeClass;
 import org.junit.Test;
@@ -36,6 +40,8 @@ import org.apache.cassandra.db.composites.*;
 import org.apache.cassandra.db.compaction.CompactionManager;
 import org.apache.cassandra.db.filter.QueryFilter;
 import org.apache.cassandra.db.marshal.IntegerType;
+import org.apache.cassandra.dht.Bounds;
+import org.apache.cassandra.dht.Token;
 import org.apache.cassandra.exceptions.ConfigurationException;
 import org.apache.cassandra.dht.ByteOrderedPartitioner.BytesToken;
 import org.apache.cassandra.locator.TokenMetadata;
@@ -169,6 +175,51 @@ public class RowCacheTest
         store.cleanupCache();
         assertEquals(50, CacheService.instance.rowCache.size());
         CacheService.instance.setRowCacheCapacityInMB(0);
+    }
+
+    @Test
+    public void testInvalidateRowCache() throws Exception
+    {
+        StorageService.instance.initServer(0);
+        CacheService.instance.setRowCacheCapacityInMB(1);
+        rowCacheLoad(100, Integer.MAX_VALUE, 1000);
+
+        ColumnFamilyStore store = Keyspace.open(KEYSPACE_CACHED).getColumnFamilyStore(CF_CACHED);
+        assertEquals(CacheService.instance.rowCache.size(), 100);
+
+        //construct 5 ranges of 20 elements each
+        ArrayList<Bounds<Token>> subranges = getBounds(20);
+
+        //invalidate 3 of the 5 ranges
+        ArrayList<Bounds<Token>> boundsToInvalidate = Lists.newArrayList(subranges.get(0), subranges.get(2), subranges.get(4));
+        int invalidatedKeys = store.invalidateRowCache(boundsToInvalidate);
+        assertEquals(60, invalidatedKeys);
+
+        //now there should be only 40 cached entries left
+        assertEquals(CacheService.instance.rowCache.size(), 40);
+        CacheService.instance.setRowCacheCapacityInMB(0);
+    }
+
+    private ArrayList<Bounds<Token>> getBounds(int nElements)
+    {
+        ColumnFamilyStore store = Keyspace.open(KEYSPACE_CACHED).getColumnFamilyStore(CF_CACHED);
+        TreeSet<DecoratedKey> orderedKeys = new TreeSet<>();
+
+        for(Iterator<RowCacheKey> it = CacheService.instance.rowCache.keyIterator();it.hasNext();)
+            orderedKeys.add(store.partitioner.decorateKey(ByteBuffer.wrap(it.next().key)));
+
+        ArrayList<Bounds<Token>> boundsToInvalidate = new ArrayList<>();
+        Iterator<DecoratedKey> iterator = orderedKeys.iterator();
+
+        while (iterator.hasNext())
+        {
+            Token startRange = iterator.next().getToken();
+            for (int i = 0; i < nElements-2; i++)
+                iterator.next();
+            Token endRange = iterator.next().getToken();
+            boundsToInvalidate.add(new Bounds<>(startRange, endRange));
+        }
+        return boundsToInvalidate;
     }
 
     @Test
