@@ -82,6 +82,7 @@ import org.apache.cassandra.db.MutationVerbHandler;
 import org.apache.cassandra.db.ReadRepairVerbHandler;
 import org.apache.cassandra.db.ReadVerbHandler;
 import org.apache.cassandra.db.SchemaCheckVerbHandler;
+import org.apache.cassandra.db.SizeEstimatesRecorder;
 import org.apache.cassandra.db.SnapshotDetailsTabularData;
 import org.apache.cassandra.db.SystemKeyspace;
 import org.apache.cassandra.db.TruncateVerbHandler;
@@ -2789,6 +2790,11 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
         }
 
         return total;
+    }
+
+    public void refreshSizeEstimates() throws ExecutionException
+    {
+        FBUtilities.waitOnFuture(ScheduledExecutors.optionalTasks.submit(SizeEstimatesRecorder.instance));
     }
 
     /**

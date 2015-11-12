@@ -10,6 +10,7 @@
  * Deprecate Pig support (CASSANDRA-10542)
  * Reduce contention getting instances of CompositeType (CASSANDRA-10433)
 Merged from 2.1:
+ * Add a nodetool command to refresh size_estimates (CASSANDRA-9579)
  * Shutdown compaction in drain to prevent leak (CASSANDRA-10079)
  * Invalidate cache after stream receive task is completed (CASSANDRA-10341)
  * Reject counter writes in CQLSSTableWriter (CASSANDRA-10258)
