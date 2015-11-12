@@ -1,4 +1,5 @@
 2.1.12
+ * Shutdown compaction in drain to prevent leak (CASSANDRA-10079)
  * Invalidate cache after stream receive task is completed (CASSANDRA-10341)
  * Reject counter writes in CQLSSTableWriter (CASSANDRA-10258)
  * Remove superfluous COUNTER_MUTATION stage mapping (CASSANDRA-10605)
