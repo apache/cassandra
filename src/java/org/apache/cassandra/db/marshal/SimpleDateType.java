@@ -69,7 +69,7 @@ public class SimpleDateType extends AbstractType<Integer>
     @Override
     public boolean isValueCompatibleWithInternal(AbstractType<?> otherType)
     {
-        return this == otherType || otherType == IntegerType.instance;
+        return this == otherType || otherType == Int32Type.instance;
     }
 
     public Term fromJSONObject(Object parsed) throws MarshalException

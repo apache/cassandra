@@ -200,4 +200,21 @@ public class AlterTest extends CQLTester
             assertInvalidSyntaxMessage("no viable alternative at input 'WITH'", stmt);
         }
     }
+
+    /**
+     * tests CASSANDRA-10027
+     */
+    @Test
+    public void testAlterColumnTypeToDate() throws Throwable
+    {
+        createTable("CREATE TABLE %s (key int PRIMARY KEY, c1 int);");
+        execute("INSERT INTO %s (key, c1) VALUES (1,1);");
+        execute("ALTER TABLE %s ALTER c1 TYPE date;");
+        assertRows(execute("SELECT * FROM %s"), row(1, 1));
+
+        createTable("CREATE TABLE %s (key int PRIMARY KEY, c1 varint);");
+        execute("INSERT INTO %s (key, c1) VALUES (1,1);");
+        assertInvalidMessage("Cannot change c1 from type varint to type date: types are incompatible.",
+                             "ALTER TABLE %s ALTER c1 TYPE date;");
+    }
 }
