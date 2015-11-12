@@ -9,6 +9,7 @@ Merged from 3.0:
  * Keep the file open in trySkipCache (CASSANDRA-10669)
  * Updated trigger example (CASSANDRA-10257)
 Merged from 2.2:
+ * Fix SimpleDateType type compatibility (CASSANDRA-10027)
  * (Hadoop) fix splits calculation (CASSANDRA-10640)
  * (Hadoop) ensure that Cluster instances are always closed (CASSANDRA-10058)
 Merged from 2.1:
