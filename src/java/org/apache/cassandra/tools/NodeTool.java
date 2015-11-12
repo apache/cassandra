@@ -133,7 +133,8 @@ public class NodeTool
                 GetLoggingLevels.class,
                 DisableHintsForDC.class,
                 EnableHintsForDC.class,
-                FailureDetectorInfo.class
+                FailureDetectorInfo.class,
+                RefreshSizeEstimates.class
         );
 
         Cli.CliBuilder<Runnable> builder = Cli.builder("nodetool");

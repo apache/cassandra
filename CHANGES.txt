@@ -6,6 +6,7 @@ Merged from 2.2:
  * (Hadoop) fix splits calculation (CASSANDRA-10640)
  * (Hadoop) ensure that Cluster instances are always closed (CASSANDRA-10058)
 Merged from 2.1:
+ * Add a nodetool command to refresh size_estimates (CASSANDRA-9579)
  * Invalidate cache after stream receive task is completed (CASSANDRA-10341)
  * Reject counter writes in CQLSSTableWriter (CASSANDRA-10258)
  * Remove superfluous COUNTER_MUTATION stage mapping (CASSANDRA-10605)
