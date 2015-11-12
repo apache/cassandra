@@ -123,6 +123,21 @@ public final class WrappingCompactionStrategy extends AbstractCompactionStrategy
     }
 
     @Override
+    public AbstractCompactionTask getCompactionTask(Collection<SSTableReader> sstables, final int gcBefore, long maxSSTableBytes)
+    {
+        assert sstables.size() > 0;
+        boolean repairedSSTables = sstables.iterator().next().isRepaired();
+        for (SSTableReader sstable : sstables)
+            if (repairedSSTables != sstable.isRepaired())
+                throw new RuntimeException("Can't mix repaired and unrepaired sstables in a compaction");
+
+        if (repairedSSTables)
+            return repaired.getCompactionTask(sstables, gcBefore, maxSSTableBytes);
+        else
+            return unrepaired.getCompactionTask(sstables, gcBefore, maxSSTableBytes);
+    }
+
+    @Override
     public synchronized AbstractCompactionTask getUserDefinedTask(Collection<SSTableReader> sstables, int gcBefore)
     {
         assert !sstables.isEmpty();
