@@ -2494,10 +2494,22 @@ public class StorageProxy implements StorageProxyMBean
         {
             public void runMayThrow()
             {
-                logger.trace("Adding hints for {}", targets);
-                HintsService.instance.write(Iterables.transform(targets, StorageService.instance::getHostIdForEndpoint),
-                                            Hint.create(mutation, System.currentTimeMillis()));
-                targets.forEach(HintsService.instance.metrics::incrCreatedHints);
+                Set<InetAddress> validTargets = new HashSet<>(targets.size());
+                Set<UUID> hostIds = new HashSet<>(targets.size());
+                for (InetAddress target : targets)
+                {
+                    UUID hostId = StorageService.instance.getHostIdForEndpoint(target);
+                    if (hostId != null)
+                    {
+                        hostIds.add(hostId);
+                        validTargets.add(target);
+                    }
+                    else
+                        logger.debug("Discarding hint for endpoint not part of ring: {}", target);
+                }
+                logger.trace("Adding hints for {}", validTargets);
+                HintsService.instance.write(hostIds, Hint.create(mutation, System.currentTimeMillis()));
+                validTargets.forEach(HintsService.instance.metrics::incrCreatedHints);
                 // Notify the handler only for CL == ANY
                 if (responseHandler != null && responseHandler.consistencyLevel == ConsistencyLevel.ANY)
                     responseHandler.response(null);
