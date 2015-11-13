@@ -1,4 +1,5 @@
 3.0.1
+ * Notify indexers of partition delete during cleanup (CASSANDRA-10685)
  * Keep the file open in trySkipCache (CASSANDRA-10669)
  * Updated trigger example (CASSANDRA-10257)
 Merged from 2.2:
