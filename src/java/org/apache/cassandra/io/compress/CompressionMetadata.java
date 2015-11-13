@@ -401,14 +401,19 @@ public class CompressionMetadata
 
         public void close(long dataLength, int chunks) throws IOException
         {
+            FileOutputStream fos = null;
             DataOutputStream out = null;
             try
             {
-            	out = new DataOutputStream(new BufferedOutputStream(new FileOutputStream(filePath)));
-	            assert chunks == count;
-	            writeHeader(out, dataLength, chunks);
+                fos = new FileOutputStream(filePath);
+                out = new DataOutputStream(new BufferedOutputStream(fos));
+                assert chunks == count;
+                writeHeader(out, dataLength, chunks);
                 for (int i = 0 ; i < count ; i++)
                     out.writeLong(offsets.getLong(i * 8L));
+
+                out.flush();
+                fos.getFD().sync();
             }
             finally
             {
