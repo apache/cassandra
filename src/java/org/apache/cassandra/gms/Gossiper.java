@@ -887,7 +887,8 @@ public class Gossiper implements IFailureDetectionEventListener, GossiperMBean
                     states.put(key, value);
                 }
             }
-            reqdEndpointState.addApplicationStates(states);
+            if (reqdEndpointState != null)
+                reqdEndpointState.addApplicationStates(states);
         }
         return reqdEndpointState;
     }
