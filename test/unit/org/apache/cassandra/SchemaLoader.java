@@ -63,7 +63,7 @@ public class SchemaLoader
 
     public static void prepareServer()
     {
-       CQLTester.prepareServer(false);
+       CQLTester.prepareServer();
     }
 
     public static void startGossiper()
