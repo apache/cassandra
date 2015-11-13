@@ -367,14 +367,12 @@ class LogTransaction extends Transactional.AbstractTransactional implements Tran
 
     protected Throwable doCommit(Throwable accumulate)
     {
-        txnFile.commit();
-        return complete(accumulate);
+        return complete(Throwables.perform(accumulate, txnFile::commit));
     }
 
     protected Throwable doAbort(Throwable accumulate)
     {
-        txnFile.abort();
-        return complete(accumulate);
+        return complete(Throwables.perform(accumulate, txnFile::abort));
     }
 
     protected void doPrepare() { }

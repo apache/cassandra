@@ -274,11 +274,12 @@ final class LogFile
 
     private boolean addRecord(LogRecord record)
     {
-        if (!records.add(record))
+        if (records.contains(record))
             return false;
 
         replicas.append(record);
-        return true;
+
+        return records.add(record);
     }
 
     void remove(Type type, SSTable table)
@@ -286,8 +287,8 @@ final class LogFile
         LogRecord record = makeRecord(type, table);
         assert records.contains(record) : String.format("[%s] is not tracked by %s", record, id);
 
-        records.remove(record);
         deleteRecordFiles(record);
+        records.remove(record);
     }
 
     boolean contains(Type type, SSTable table)
