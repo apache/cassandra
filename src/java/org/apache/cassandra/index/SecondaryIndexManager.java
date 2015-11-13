@@ -530,7 +530,7 @@ public class SecondaryIndexManager implements IndexRegistry
                                                                     partition.columns(),
                                                                     nowInSec);
         indexTransaction.start();
-        indexTransaction.onPartitionDeletion(partition.partitionLevelDeletion());
+        indexTransaction.onPartitionDeletion(new DeletionTime(FBUtilities.timestampMicros(), nowInSec));
         indexTransaction.commit();
 
         while (partition.hasNext())
@@ -978,8 +978,13 @@ public class SecondaryIndexManager implements IndexRegistry
                 {
                     Index.Indexer indexer = index.indexerFor(key, nowInSec, opGroup, Type.CLEANUP);
                     indexer.begin();
+
+                    if (partitionDelete != null)
+                        indexer.partitionDelete(partitionDelete);
+
                     if (row != null)
                         indexer.removeRow(row);
+
                     indexer.finish();
                 }
             }

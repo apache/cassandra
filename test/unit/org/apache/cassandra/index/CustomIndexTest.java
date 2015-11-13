@@ -9,6 +9,7 @@ import com.google.common.collect.ImmutableList;
 import com.google.common.collect.ImmutableMap;
 import org.junit.Test;
 
+import org.apache.cassandra.Util;
 import org.apache.cassandra.config.CFMetaData;
 import org.apache.cassandra.cql3.CQLTester;
 import org.apache.cassandra.cql3.ColumnIdentifier;
@@ -18,12 +19,15 @@ import org.apache.cassandra.cql3.statements.ModificationStatement;
 import org.apache.cassandra.cql3.statements.SelectStatement;
 import org.apache.cassandra.db.ColumnFamilyStore;
 import org.apache.cassandra.db.ReadCommand;
+import org.apache.cassandra.db.ReadOrderGroup;
 import org.apache.cassandra.db.marshal.AbstractType;
 import org.apache.cassandra.db.marshal.Int32Type;
 import org.apache.cassandra.db.marshal.UTF8Type;
+import org.apache.cassandra.db.partitions.UnfilteredPartitionIterator;
 import org.apache.cassandra.exceptions.InvalidRequestException;
 import org.apache.cassandra.schema.IndexMetadata;
 import org.apache.cassandra.schema.Indexes;
+import org.apache.cassandra.utils.FBUtilities;
 
 import static org.apache.cassandra.Util.throwAssert;
 import static org.apache.cassandra.cql3.statements.IndexTarget.CUSTOM_INDEX_OPTION_NAME;
@@ -469,6 +473,35 @@ public class CustomIndexTest extends CQLTester
         // reloading the CFS, even without any metadata changes invokes the index's metadata reload task
         cfs.reload();
         assertEquals(1, index.reloads.get());
+    }
+
+    @Test
+    public void notifyIndexersOfPartitionAndRowRemovalDuringCleanup() throws Throwable
+    {
+        createTable("CREATE TABLE %s (k int, c int, v int, PRIMARY KEY (k,c))");
+        createIndex(String.format("CREATE CUSTOM INDEX cleanup_index ON %%s() USING '%s'", StubIndex.class.getName()));
+        ColumnFamilyStore cfs = getCurrentColumnFamilyStore();
+        StubIndex index  = (StubIndex)cfs.indexManager.getIndexByName("cleanup_index");
+
+        execute("INSERT INTO %s (k, c, v) VALUES (?, ?, ?)", 0, 0, 0);
+        execute("INSERT INTO %s (k, c, v) VALUES (?, ?, ?)", 0, 1, 1);
+        execute("INSERT INTO %s (k, c, v) VALUES (?, ?, ?)", 0, 2, 2);
+        execute("INSERT INTO %s (k, c, v) VALUES (?, ?, ?)", 3, 3, 3);
+        assertEquals(4, index.rowsInserted.size());
+        assertEquals(0, index.partitionDeletions.size());
+
+        ReadCommand cmd = Util.cmd(cfs, 0).build();
+        try (ReadOrderGroup orderGroup = cmd.startOrderGroup();
+             UnfilteredPartitionIterator iterator = cmd.executeLocally(orderGroup))
+        {
+            assertTrue(iterator.hasNext());
+            cfs.indexManager.deletePartition(iterator.next(), FBUtilities.nowInSeconds());
+        }
+
+        assertEquals(1, index.partitionDeletions.size());
+        assertEquals(3, index.rowsDeleted.size());
+        for (int i = 0; i < 3; i++)
+            assertEquals(index.rowsDeleted.get(i).clustering(), index.rowsInserted.get(i).clustering());
     }
 
     private void testCreateIndex(String indexName, String... targetColumnNames) throws Throwable
