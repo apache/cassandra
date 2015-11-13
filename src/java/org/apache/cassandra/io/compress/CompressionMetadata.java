@@ -345,11 +345,15 @@ public class CompressionMetadata
             }
 
             // flush the data to disk
-            try (DataOutputStream out = new DataOutputStream(new BufferedOutputStream(new FileOutputStream(filePath))))
+            try (FileOutputStream fos = new FileOutputStream(filePath);
+                 DataOutputStream out = new DataOutputStream(new BufferedOutputStream(fos)))
             {
                 writeHeader(out, dataLength, count);
-                for (int i = 0 ; i < count ; i++)
+                for (int i = 0; i < count; i++)
                     out.writeLong(offsets.getLong(i * 8L));
+
+                out.flush();
+                fos.getFD().sync();
             }
             catch (IOException e)
             {
