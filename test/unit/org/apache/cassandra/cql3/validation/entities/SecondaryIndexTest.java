@@ -20,6 +20,8 @@ package org.apache.cassandra.cql3.validation.entities;
 import java.nio.ByteBuffer;
 import java.util.*;
 
+import org.apache.cassandra.db.DeletionTime;
+import org.apache.cassandra.utils.Pair;
 import org.apache.commons.lang3.StringUtils;
 import org.junit.Test;
 
@@ -782,6 +784,59 @@ public class SecondaryIndexTest extends CQLTester
         assertEquals(1, index2.rowsUpdated.size());
         assertColumnValue(0, "c", index2.rowsUpdated.get(0).left, cfm);
         assertColumnValue(1, "c", index2.rowsUpdated.get(0).right, cfm);
+    }
+
+    @Test
+    public void testDeletions() throws Throwable
+    {
+        // Test for bugs like CASSANDRA-10694.  These may not be readily visible with the built-in secondary index
+        // implementation because of the stale entry handling.
+
+        String indexClassName = StubIndex.class.getName();
+        createTable("CREATE TABLE %s (a int, b int, c int, PRIMARY KEY ((a), b))");
+        createIndex(String.format("CREATE CUSTOM INDEX c_idx ON %%s(c) USING '%s'", indexClassName));
+
+        ColumnFamilyStore cfs = getCurrentColumnFamilyStore();
+        CFMetaData cfm = cfs.metadata;
+        StubIndex index1 = (StubIndex) cfs.indexManager.getIndex(cfm.getIndexes()
+                .get("c_idx")
+                .orElseThrow(throwAssert("index not found")));
+
+        execute("INSERT INTO %s (a, b, c) VALUES (?, ?, ?) USING TIMESTAMP 1", 0, 0, 0);
+        assertEquals(1, index1.rowsInserted.size());
+
+        execute("DELETE FROM %s USING TIMESTAMP 2 WHERE a = ? AND b = ?", 0, 0);
+        assertEquals(1, index1.rowsUpdated.size());
+        Pair<Row, Row> update = index1.rowsUpdated.get(0);
+        Row existingRow = update.left;
+        Row newRow = update.right;
+
+        // check the existing row from the update call
+        assertTrue(existingRow.deletion().isLive());
+        assertEquals(DeletionTime.LIVE, existingRow.deletion().time());
+        assertEquals(1L, existingRow.primaryKeyLivenessInfo().timestamp());
+
+        // check the new row from the update call
+        assertFalse(newRow.deletion().isLive());
+        assertEquals(2L, newRow.deletion().time().markedForDeleteAt());
+        assertFalse(newRow.cells().iterator().hasNext());
+
+        // delete the same row again
+        execute("DELETE FROM %s USING TIMESTAMP 3 WHERE a = ? AND b = ?", 0, 0);
+        assertEquals(2, index1.rowsUpdated.size());
+        update = index1.rowsUpdated.get(1);
+        existingRow = update.left;
+        newRow = update.right;
+
+        // check the new row from the update call
+        assertFalse(existingRow.deletion().isLive());
+        assertEquals(2L, existingRow.deletion().time().markedForDeleteAt());
+        assertFalse(existingRow.cells().iterator().hasNext());
+
+        // check the new row from the update call
+        assertFalse(newRow.deletion().isLive());
+        assertEquals(3L, newRow.deletion().time().markedForDeleteAt());
+        assertFalse(newRow.cells().iterator().hasNext());
     }
 
     @Test

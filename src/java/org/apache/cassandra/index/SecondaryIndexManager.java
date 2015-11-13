@@ -273,7 +273,7 @@ public class SecondaryIndexManager implements IndexRegistry
     /**
      * Checks if the specified {@link ColumnFamilyStore} is the one secondary index.
      *
-     * @param cfs the name of the <code>ColumnFamilyStore</code> to check.
+     * @param cfName the name of the <code>ColumnFamilyStore</code> to check.
      * @return <code>true</code> if the specified <code>ColumnFamilyStore</code> is a secondary index,
      * <code>false</code> otherwise.
      */
@@ -309,7 +309,7 @@ public class SecondaryIndexManager implements IndexRegistry
     /**
      * Returns the index name
      *
-     * @param cfName the <code>ColumnFamilyStore</code> name
+     * @param cfs the <code>ColumnFamilyStore</code>
      * @return the index name
      */
     public static String getIndexName(ColumnFamilyStore cfs)
@@ -775,9 +775,11 @@ public class SecondaryIndexManager implements IndexRegistry
             final Row.Builder toRemove = BTreeRow.sortedBuilder();
             toRemove.newRow(existing.clustering());
             toRemove.addPrimaryKeyLivenessInfo(existing.primaryKeyLivenessInfo());
+            toRemove.addRowDeletion(existing.deletion());
             final Row.Builder toInsert = BTreeRow.sortedBuilder();
             toInsert.newRow(updated.clustering());
             toInsert.addPrimaryKeyLivenessInfo(updated.primaryKeyLivenessInfo());
+            toInsert.addRowDeletion(updated.deletion());
             // diff listener collates the columns to be added & removed from the indexes
             RowDiffListener diffListener = new RowDiffListener()
             {
