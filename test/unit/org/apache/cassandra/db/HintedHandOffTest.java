@@ -35,6 +35,7 @@ import org.apache.cassandra.db.compaction.SizeTieredCompactionStrategy;
 import org.apache.cassandra.db.marshal.Int32Type;
 import org.apache.cassandra.db.marshal.UUIDType;
 import org.apache.cassandra.utils.ByteBufferUtil;
+import org.apache.cassandra.utils.Pair;
 
 import static org.junit.Assert.assertEquals;
 import static org.apache.cassandra.cql3.QueryProcessor.executeInternal;
@@ -65,7 +66,7 @@ public class HintedHandOffTest extends SchemaLoader
         HintedHandOffManager.instance.hintFor(rm,
                                               System.currentTimeMillis(),
                                               HintedHandOffManager.calculateHintTTL(rm),
-                                              UUID.randomUUID())
+                                              Pair.create(InetAddress.getByName("127.0.0.1"), UUID.randomUUID()))
                                      .apply();
 
         // flush data to disk
@@ -106,7 +107,7 @@ public class HintedHandOffTest extends SchemaLoader
         HintedHandOffManager.instance.hintFor(rm,
                                               System.currentTimeMillis(),
                                               HintedHandOffManager.calculateHintTTL(rm),
-                                              UUID.randomUUID())
+                                              Pair.create(InetAddress.getByName("127.0.0.1"), UUID.randomUUID()))
                                      .apply();
 
         assert getNoOfHints() == 1;
