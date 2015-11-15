@@ -1,4 +1,5 @@
 3.4
+ * Support user-defined compaction through nodetool (CASSANDRA-10660)
  * Stripe view locks by key and table ID to reduce contention (CASSANDRA-10981)
  * Add nodetool gettimeout and settimeout commands (CASSANDRA-10953)
  * Add 3.0 metadata to sstablemetadata output (CASSANDRA-10838)
