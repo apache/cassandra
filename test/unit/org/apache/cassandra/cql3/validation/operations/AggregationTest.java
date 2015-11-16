@@ -1371,7 +1371,7 @@ public class AggregationTest extends CQLTester
                                              "INITCOND null");
 
         assertRows(execute("SELECT initcond FROM system_schema.aggregates WHERE keyspace_name=? AND aggregate_name=?", KEYSPACE, shortFunctionName(aggregation)),
-                   row(null));
+                   row((Object) null));
 
         assertRows(execute("SELECT " + aggregation + "(b) FROM %s"),
                    row(set(7, 8, 9)));
