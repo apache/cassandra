@@ -87,7 +87,7 @@ public abstract class TimeFcts
      * Function that convert a value of <code>TIMEUUID</code> into a value of type <code>TIMESTAMP</code>.
      * @deprecated Replaced by the {@link #timeUuidToTimestamp} function
      */
-    public static final Function dateOfFct = new NativeScalarFunction("dateof", TimestampType.instance, TimeUUIDType.instance)
+    public static final NativeScalarFunction dateOfFct = new NativeScalarFunction("dateof", TimestampType.instance, TimeUUIDType.instance)
     {
         private volatile boolean hasLoggedDeprecationWarning;
 
@@ -113,7 +113,7 @@ public abstract class TimeFcts
      * Function that convert a value of type <code>TIMEUUID</code> into an UNIX timestamp.
      * @deprecated Replaced by the {@link #timeUuidToUnixTimestamp} function
      */
-    public static final Function unixTimestampOfFct = new NativeScalarFunction("unixtimestampof", LongType.instance, TimeUUIDType.instance)
+    public static final NativeScalarFunction unixTimestampOfFct = new NativeScalarFunction("unixtimestampof", LongType.instance, TimeUUIDType.instance)
     {
         private volatile boolean hasLoggedDeprecationWarning;
 
@@ -137,7 +137,7 @@ public abstract class TimeFcts
     /**
      * Function that convert a value of <code>TIMEUUID</code> into a value of type <code>DATE</code>.
      */
-    public static final Function timeUuidtoDate = new NativeScalarFunction("todate", SimpleDateType.instance, TimeUUIDType.instance)
+    public static final NativeScalarFunction timeUuidtoDate = new NativeScalarFunction("todate", SimpleDateType.instance, TimeUUIDType.instance)
     {
         public ByteBuffer execute(int protocolVersion, List<ByteBuffer> parameters)
         {
@@ -153,7 +153,7 @@ public abstract class TimeFcts
     /**
      * Function that convert a value of type <code>TIMEUUID</code> into a value of type <code>TIMESTAMP</code>.
      */
-    public static final Function timeUuidToTimestamp = new NativeScalarFunction("totimestamp", TimestampType.instance, TimeUUIDType.instance)
+    public static final NativeScalarFunction timeUuidToTimestamp = new NativeScalarFunction("totimestamp", TimestampType.instance, TimeUUIDType.instance)
     {
         public ByteBuffer execute(int protocolVersion, List<ByteBuffer> parameters)
         {
@@ -169,7 +169,7 @@ public abstract class TimeFcts
     /**
      * Function that convert a value of type <code>TIMEUUID</code> into an UNIX timestamp.
      */
-    public static final Function timeUuidToUnixTimestamp = new NativeScalarFunction("tounixtimestamp", LongType.instance, TimeUUIDType.instance)
+    public static final NativeScalarFunction timeUuidToUnixTimestamp = new NativeScalarFunction("tounixtimestamp", LongType.instance, TimeUUIDType.instance)
     {
         public ByteBuffer execute(int protocolVersion, List<ByteBuffer> parameters)
         {
@@ -184,7 +184,7 @@ public abstract class TimeFcts
     /**
      * Function that convert a value of type <code>TIMESTAMP</code> into an UNIX timestamp.
      */
-    public static final Function timestampToUnixTimestamp = new NativeScalarFunction("tounixtimestamp", LongType.instance, TimestampType.instance)
+    public static final NativeScalarFunction timestampToUnixTimestamp = new NativeScalarFunction("tounixtimestamp", LongType.instance, TimestampType.instance)
     {
         public ByteBuffer execute(int protocolVersion, List<ByteBuffer> parameters)
         {
@@ -200,7 +200,7 @@ public abstract class TimeFcts
    /**
     * Function that convert a value of type <code>TIMESTAMP</code> into a <code>DATE</code>.
     */
-   public static final Function timestampToDate = new NativeScalarFunction("todate", SimpleDateType.instance, TimestampType.instance)
+   public static final NativeScalarFunction timestampToDate = new NativeScalarFunction("todate", SimpleDateType.instance, TimestampType.instance)
    {
        public ByteBuffer execute(int protocolVersion, List<ByteBuffer> parameters)
        {
@@ -216,7 +216,7 @@ public abstract class TimeFcts
    /**
     * Function that convert a value of type <code>TIMESTAMP</code> into a <code>DATE</code>.
     */
-   public static final Function dateToTimestamp = new NativeScalarFunction("totimestamp", TimestampType.instance, SimpleDateType.instance)
+   public static final NativeScalarFunction dateToTimestamp = new NativeScalarFunction("totimestamp", TimestampType.instance, SimpleDateType.instance)
    {
        public ByteBuffer execute(int protocolVersion, List<ByteBuffer> parameters)
        {
@@ -232,7 +232,7 @@ public abstract class TimeFcts
    /**
     * Function that convert a value of type <code>DATE</code> into an UNIX timestamp.
     */
-   public static final Function dateToUnixTimestamp = new NativeScalarFunction("tounixtimestamp", LongType.instance, SimpleDateType.instance)
+   public static final NativeScalarFunction dateToUnixTimestamp = new NativeScalarFunction("tounixtimestamp", LongType.instance, SimpleDateType.instance)
    {
        public ByteBuffer execute(int protocolVersion, List<ByteBuffer> parameters)
        {

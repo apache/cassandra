@@ -19,12 +19,13 @@
 package org.apache.cassandra.cql3.selection;
 
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.List;
 
 import org.apache.commons.lang3.text.StrBuilder;
-
 import org.apache.cassandra.config.CFMetaData;
 import org.apache.cassandra.config.ColumnDefinition;
+import org.apache.cassandra.cql3.CQL3Type;
 import org.apache.cassandra.cql3.ColumnIdentifier;
 import org.apache.cassandra.cql3.functions.*;
 import org.apache.cassandra.db.marshal.AbstractType;
@@ -33,8 +34,7 @@ import org.apache.cassandra.exceptions.InvalidRequestException;
 
 public abstract class Selectable
 {
-    public abstract Selector.Factory newSelectorFactory(CFMetaData cfm, List<ColumnDefinition> defs)
-            throws InvalidRequestException;
+    public abstract Selector.Factory newSelectorFactory(CFMetaData cfm, List<ColumnDefinition> defs);
 
     protected static int addAndGetIndex(ColumnDefinition def, List<ColumnDefinition> l)
     {
@@ -75,7 +75,7 @@ public abstract class Selectable
         }
 
         public Selector.Factory newSelectorFactory(CFMetaData cfm,
-                                                   List<ColumnDefinition> defs) throws InvalidRequestException
+                                                   List<ColumnDefinition> defs)
         {
             ColumnDefinition def = cfm.getColumnDefinition(id);
             if (def == null)
@@ -136,8 +136,7 @@ public abstract class Selectable
                                    .toString();
         }
 
-        public Selector.Factory newSelectorFactory(CFMetaData cfm,
-                                                   List<ColumnDefinition> defs) throws InvalidRequestException
+        public Selector.Factory newSelectorFactory(CFMetaData cfm, List<ColumnDefinition> defs)
         {
             SelectorFactories factories  =
                     SelectorFactories.createFactoriesAndCollectColumnDefinitions(args, cfm, defs);
@@ -152,6 +151,7 @@ public abstract class Selectable
 
             if (fun == null)
                 throw new InvalidRequestException(String.format("Unknown function '%s'", functionName));
+
             if (fun.returnType() == null)
                 throw new InvalidRequestException(String.format("Unknown function %s called in selection clause",
                                                                 functionName));
@@ -170,12 +170,83 @@ public abstract class Selectable
                 this.args = args;
             }
 
+            public static Raw newCountRowsFunction()
+            {
+                return new Raw(AggregateFcts.countRowsFunction.name(),
+                               Collections.emptyList());
+            }
+
             public WithFunction prepare(CFMetaData cfm)
             {
                 List<Selectable> preparedArgs = new ArrayList<>(args.size());
                 for (Selectable.Raw arg : args)
                     preparedArgs.add(arg.prepare(cfm));
                 return new WithFunction(functionName, preparedArgs);
+            }
+
+            public boolean processesSelection()
+            {
+                return true;
+            }
+        }
+    }
+
+    public static class WithCast extends Selectable
+    {
+        private final CQL3Type type;
+        private final Selectable arg;
+
+        public WithCast(Selectable arg, CQL3Type type)
+        {
+            this.arg = arg;
+            this.type = type;
+        }
+
+        @Override
+        public String toString()
+        {
+            return String.format("cast(%s as %s)", arg, type.toString().toLowerCase());
+        }
+
+        public Selector.Factory newSelectorFactory(CFMetaData cfm, List<ColumnDefinition> defs)
+        {
+            SelectorFactories factories  =
+                    SelectorFactories.createFactoriesAndCollectColumnDefinitions(Collections.singletonList(arg), cfm, defs);
+
+            Selector.Factory factory = factories.get(0);
+
+            // If the user is trying to cast a type on its own type we simply ignore it.
+            if (type.getType().equals(factory.getReturnType()))
+            {
+                return factory;
+            }
+
+            FunctionName name = FunctionName.nativeFunction(CastFcts.getFunctionName(type));
+            Function fun = FunctionResolver.get(cfm.ksName, name, factories.newInstances(), cfm.ksName, cfm.cfName, null);
+
+            if (fun == null)
+            {
+                    throw new InvalidRequestException(String.format("%s cannot be cast to %s",
+                                                                    defs.get(0).name,
+                                                                    type));
+            }
+            return AbstractFunctionSelector.newFactory(fun, factories);
+        }
+
+        public static class Raw implements Selectable.Raw
+        {
+            private final CQL3Type type;
+            private final Selectable.Raw arg;
+
+            public Raw(Selectable.Raw arg, CQL3Type type)
+            {
+                this.arg = arg;
+                this.type = type;
+            }
+
+            public WithCast prepare(CFMetaData cfm)
+            {
+                return new WithCast(arg.prepare(cfm), type);
             }
 
             public boolean processesSelection()
@@ -202,8 +273,7 @@ public abstract class Selectable
             return String.format("%s.%s", selected, field);
         }
 
-        public Selector.Factory newSelectorFactory(CFMetaData cfm,
-                                                   List<ColumnDefinition> defs) throws InvalidRequestException
+        public Selector.Factory newSelectorFactory(CFMetaData cfm, List<ColumnDefinition> defs)
         {
             Selector.Factory factory = selected.newSelectorFactory(cfm, defs);
             AbstractType<?> type = factory.newInstance().getType();

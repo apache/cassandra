@@ -1,6 +1,6 @@
 <link rel="StyleSheet" href="CQL.css" type="text/css" media="screen">
 
-h1. Cassandra Query Language (CQL) v3.3.1
+h1. Cassandra Query Language (CQL) v3.3.2
 
 
 
@@ -1028,6 +1028,7 @@ bc(syntax)..
 <selector> ::= <identifier>
              | WRITETIME '(' <identifier> ')'
              | TTL '(' <identifier> ')'
+             | CAST '(' <selector> AS <type> ')'
              | <function> '(' (<selector> (',' <selector>)*)? ')'
 
 <where-clause> ::= <relation> ( AND <relation> )*
@@ -1069,7 +1070,7 @@ h4(#selectSelection). @<select-clause>@
 
 The @<select-clause>@ determines which columns needs to be queried and returned in the result-set. It consists of either the comma-separated list of <selector> or the wildcard character (@*@) to select all the columns defined for the table.
 
-A @<selector>@ is either a column name to retrieve or a @<function>@ of one or more @<term>@s. The function allowed are the same as for @<term>@ and are described in the "function section":#functions. In addition to these generic functions, the @WRITETIME@ (resp. @TTL@) function allows to select the timestamp of when the column was inserted (resp. the time to live (in seconds) for the column (or null if the column has no expiration set)).
+A @<selector>@ is either a column name to retrieve or a @<function>@ of one or more @<term>@s. The function allowed are the same as for @<term>@ and are described in the "function section":#functions. In addition to these generic functions, the @WRITETIME@ (resp. @TTL@) function allows to select the timestamp of when the column was inserted (resp. the time to live (in seconds) for the column (or null if the column has no expiration set)) and the "@CAST@":#castFun function can be used to convert one data type to another.
 
 Any @<selector>@ can be aliased using @AS@ keyword (see examples). Please note that @<where-clause>@ and @<order-by>@ clause should refer to the columns by their original names and not by their aliases.
 
@@ -1852,6 +1853,37 @@ h2(#functions). Functions
 
 CQL3 distinguishes between built-in functions (so called 'native functions') and "user-defined functions":#udfs.  CQL3 includes several native functions, described below:
 
+h3(#castFun). Cast
+
+The @cast@ function can be used to converts one native datatype to another.
+
+The following table describes the conversions supported by the @cast@ function. Cassandra will silently ignore any cast converting a datatype into its own datatype.
+
+|_. from    |_. to   |
+|@ascii@   |@text@, @varchar@                                                                                    |
+|@bigint@   |@tinyint@, @smallint@, @int@, @float@, @double@, @decimal@, @varint@, @text@, @varchar@             |
+|@boolean@  |@text@, @varchar@                                                                                   |
+|@counter@  |@tinyint@, @smallint@, @int@, @bigint@, @float@, @double@, @decimal@, @varint@, @text@, @varchar@   |
+|@date@      |@timestamp@                                                                                        |
+|@decimal@  |@tinyint@, @smallint@, @int@, @bigint@, @float@, @double@, @varint@, @text@, @varchar@              |
+|@double@   |@tinyint@, @smallint@, @int@, @bigint@, @float@, @decimal@, @varint@, @text@, @varchar@             |
+|@float@     |@tinyint@, @smallint@, @int@, @bigint@, @double@, @decimal@, @varint@, @text@, @varchar@           |
+|@inet@      |@text@, @varchar@                                                                                  |
+|@int@       |@tinyint@, @smallint@, @bigint@, @float@, @double@, @decimal@, @varint@, @text@, @varchar@         |
+|@smallint@ |@tinyint@, @int@, @bigint@, @float@, @double@, @decimal@, @varint@, @text@, @varchar@               |
+|@time@      |@text@, @varchar@                                                                                  |
+|@timestamp@|@date@, @text@, @varchar@                                                                           |
+|@timeuuid@ |@timestamp@, @date@, @text@, @varchar@                                                              |
+|@tinyint@  |@tinyint@, @smallint@, @int@, @bigint@, @float@, @double@, @decimal@, @varint@, @text@, @varchar@   |
+|@uuid@      |@text@, @varchar@                                                                                  |
+|@varint@   |@tinyint@, @smallint@, @int@, @bigint@, @float@, @double@, @decimal@, @text@, @varchar@             |
+
+
+The conversions rely strictly on Java's semantics. For example, the double value 1 will be converted to the text value '1.0'.
+
+bc(sample). 
+SELECT avg(cast(count as double)) FROM myTable
+
 h3(#tokenFun). Token
 
 The @token@ function allows to compute the token for a given partition key. The exact signature of the token function depends on the table concerned and of the partitioner used by the cluster.
@@ -2267,6 +2299,9 @@ h2(#changes). Changes
 
 The following describes the changes in each version of CQL.
 
+h3. 3.3.2
+
+* Adds @CAST@ functions. See "@Cast@":#castFun.
 
 h3. 3.3.1
 

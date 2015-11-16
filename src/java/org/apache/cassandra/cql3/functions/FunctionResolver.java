@@ -126,9 +126,11 @@ public final class FunctionResolver
             }
         }
 
-        if (compatibles == null || compatibles.isEmpty())
+        if (compatibles == null)
+        {
             throw new InvalidRequestException(String.format("Invalid call to function %s, none of its type signatures match (known type signatures: %s)",
                                                             name, format(candidates)));
+        }
 
         if (compatibles.size() > 1)
             throw new InvalidRequestException(String.format("Ambiguous call to function %s (can be matched by following signatures: %s): use type casts to disambiguate",

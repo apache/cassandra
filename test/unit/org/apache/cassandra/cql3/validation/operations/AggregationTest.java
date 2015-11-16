@@ -96,6 +96,7 @@ public class AggregationTest extends CQLTester
         assertRows(execute("SELECT COUNT(b), count(c), count(e), count(f) FROM %s LIMIT 2"), row(4L, 3L, 3L, 3L));
         assertRows(execute("SELECT COUNT(b), count(c), count(e), count(f) FROM %s WHERE a = 1 LIMIT 2"),
                    row(4L, 3L, 3L, 3L));
+        assertRows(execute("SELECT AVG(CAST(b AS double)) FROM %s"), row(11.0/4));
     }
 
     @Test
@@ -1371,7 +1372,7 @@ public class AggregationTest extends CQLTester
                                              "INITCOND null");
 
         assertRows(execute("SELECT initcond FROM system_schema.aggregates WHERE keyspace_name=? AND aggregate_name=?", KEYSPACE, shortFunctionName(aggregation)),
-                   row(null));
+                   row((Object) null));
 
         assertRows(execute("SELECT " + aggregation + "(b) FROM %s"),
                    row(set(7, 8, 9)));

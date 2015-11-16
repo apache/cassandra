@@ -328,9 +328,10 @@ selector returns [RawSelector s]
 unaliasedSelector returns [Selectable.Raw s]
     @init { Selectable.Raw tmp = null; }
     :  ( c=cident                                  { tmp = c; }
-       | K_COUNT '(' countArgument ')'             { tmp = new Selectable.WithFunction.Raw(FunctionName.nativeFunction("countRows"), Collections.<Selectable.Raw>emptyList());}
+       | K_COUNT '(' countArgument ')'             { tmp = Selectable.WithFunction.Raw.newCountRowsFunction();}
        | K_WRITETIME '(' c=cident ')'              { tmp = new Selectable.WritetimeOrTTL.Raw(c, true); }
        | K_TTL       '(' c=cident ')'              { tmp = new Selectable.WritetimeOrTTL.Raw(c, false); }
+       | K_CAST      '(' sn=unaliasedSelector K_AS t=native_type ')' {tmp = new Selectable.WithCast.Raw(sn, t);}
        | f=functionName args=selectionFunctionArgs { tmp = new Selectable.WithFunction.Raw(f, args); }
        ) ( '.' fi=cident { tmp = new Selectable.WithFieldSelection.Raw(tmp, fi); } )* { $s = tmp; }
     ;
@@ -1574,7 +1575,7 @@ non_type_ident returns [ColumnIdentifier id]
 
 unreserved_keyword returns [String str]
     : u=unreserved_function_keyword     { $str = u; }
-    | k=(K_TTL | K_COUNT | K_WRITETIME | K_KEY) { $str = $k.text; }
+    | k=(K_TTL | K_COUNT | K_WRITETIME | K_KEY | K_CAST) { $str = $k.text; }
     ;
 
 unreserved_function_keyword returns [String str]
@@ -1674,6 +1675,7 @@ K_INTO:        I N T O;
 K_VALUES:      V A L U E S;
 K_TIMESTAMP:   T I M E S T A M P;
 K_TTL:         T T L;
+K_CAST:        C A S T;
 K_ALTER:       A L T E R;
 K_RENAME:      R E N A M E;
 K_ADD:         A D D;

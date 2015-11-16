@@ -25,6 +25,7 @@ import com.google.common.collect.ImmutableSet;
 import org.apache.cassandra.cql3.AssignmentTestable;
 import org.apache.cassandra.cql3.ColumnSpecification;
 import org.apache.cassandra.db.marshal.AbstractType;
+import org.apache.commons.lang3.text.StrBuilder;
 
 /**
  * Base class for our native/hardcoded functions.
@@ -115,5 +116,14 @@ public abstract class AbstractFunction implements Function
         }
         sb.append(") -> ").append(returnType.asCQL3Type());
         return sb.toString();
+    }
+
+    @Override
+    public String columnName(List<String> columnNames)
+    {
+        return new StrBuilder(name().toString()).append('(')
+                                                .appendWithSeparators(columnNames, ", ")
+                                                .append(')')
+                                                .toString();
     }
 }

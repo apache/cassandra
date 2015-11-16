@@ -13,6 +13,15 @@ restore snapshots created with the previous major version using the
 'sstableloader' tool. You can upgrade the file format of your snapshots
 using the provided 'sstableupgrade' tool.
 
+3.2
+===
+
+New features
+------------
+
+   - Support for type casting has been added to the selection clause.
+   
+   
 3.0
 ===
 

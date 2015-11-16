@@ -73,17 +73,6 @@ public abstract class AggregateFcts
     }
 
     /**
-     * Checks if the specified function is the count rows (e.g. COUNT(*) or COUNT(1)) function.
-     *
-     * @param function the function to check
-     * @return <code>true</code> if the specified function is the count rows one, <code>false</code> otherwise.
-     */
-    public static boolean isCountRows(Function function)
-    {
-        return function == countRowsFunction;
-    }
-
-    /**
      * The function used to count the number of rows of a result set. This function is called when COUNT(*) or COUNT(1)
      * is specified.
      */
@@ -111,6 +100,12 @@ public abstract class AggregateFcts
                             count++;
                         }
                     };
+                }
+
+                @Override
+                public String columnName(List<String> columnNames)
+                {
+                    return "count";
                 }
             };
 
