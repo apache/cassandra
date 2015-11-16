@@ -83,7 +83,3 @@ BSD 3-clause
 ASM
 (http://asm.ow2.org/)
 Copyright (c) 2000-2011 INRIA, France Telecom
-
-JGraphT
-(http://jgrapht.org)
-Copyright 2003-2015, by Barak Naveh and Contributors.
