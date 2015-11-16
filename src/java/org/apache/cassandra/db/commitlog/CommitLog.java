@@ -370,6 +370,7 @@ public class CommitLog implements CommitLogMBean
      */
     public void resetUnsafe()
     {
+        sync(true);
         allocator.resetUnsafe();
     }
 
