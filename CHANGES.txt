@@ -10,6 +10,7 @@ Merged from 2.2:
  * (Hadoop) fix splits calculation (CASSANDRA-10640)
  * (Hadoop) ensure that Cluster instances are always closed (CASSANDRA-10058)
 Merged from 2.1:
+ * Forbid compact clustering column type changes in ALTER TABLE (CASSANDRA-8879)
  * Reject incremental repair with subrange repair (CASSANDRA-10422)
  * Add a nodetool command to refresh size_estimates (CASSANDRA-9579)
  * Invalidate cache after stream receive task is completed (CASSANDRA-10341)
