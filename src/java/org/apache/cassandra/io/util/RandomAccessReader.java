@@ -30,6 +30,7 @@ public class RandomAccessReader extends AbstractDataInput implements FileDataInp
 {
     // default buffer size, 64Kb
     public static final int DEFAULT_BUFFER_SIZE = 65536;
+    public static final int BUFFER_SIZE = Integer.getInteger("cassandra.rar_buffer_size", DEFAULT_BUFFER_SIZE);
 
     // buffer which will cache file blocks
     protected ByteBuffer buffer;
@@ -70,7 +71,7 @@ public class RandomAccessReader extends AbstractDataInput implements FileDataInp
 
     public static RandomAccessReader open(ChannelProxy channel, long overrideSize, PoolingSegmentedFile owner)
     {
-        return open(channel, DEFAULT_BUFFER_SIZE, overrideSize, owner);
+        return open(channel, BUFFER_SIZE, overrideSize, owner);
     }
 
     public static RandomAccessReader open(File file)
@@ -88,7 +89,7 @@ public class RandomAccessReader extends AbstractDataInput implements FileDataInp
 
     public static RandomAccessReader open(ChannelProxy channel, long overrideSize)
     {
-        return open(channel, DEFAULT_BUFFER_SIZE, overrideSize, null);
+        return open(channel, BUFFER_SIZE, overrideSize, null);
     }
 
     @VisibleForTesting
@@ -107,7 +108,7 @@ public class RandomAccessReader extends AbstractDataInput implements FileDataInp
     {
         try (ChannelProxy channel = new ChannelProxy(writer.getPath()))
         {
-            return open(channel, DEFAULT_BUFFER_SIZE, null);
+            return open(channel, BUFFER_SIZE, null);
         }
     }
 
