@@ -23,6 +23,7 @@ import java.nio.channels.FileChannel;
 import java.nio.charset.Charset;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.*;
+import java.nio.file.attribute.BasicFileAttributes;
 import java.text.DecimalFormat;
 import java.util.Arrays;
 import java.util.Collections;
@@ -518,24 +519,33 @@ public class FileUtils
                 break;
         }
     }
+
     /**
      * Get the size of a directory in bytes
-     * @param directory The directory for which we need size.
+     * @param folder The directory for which we need size.
      * @return The size of the directory
      */
-    public static long folderSize(File directory)
+    public static long folderSize(File folder)
     {
-        long length = 0;
-        for (File file : directory.listFiles())
+        final long [] sizeArr = {0L};
+        try
         {
-            if (file.isFile())
-                length += file.length();
-            else
-                length += folderSize(file);
+            Files.walkFileTree(folder.toPath(), new SimpleFileVisitor<Path>()
+            {
+                @Override
+                public FileVisitResult visitFile(Path file, BasicFileAttributes attrs)
+                {
+                    sizeArr[0] += attrs.size();
+                    return FileVisitResult.CONTINUE;
+                }
+            });
         }
-        return length;
+        catch (IOException e)
+        {
+            logger.error("Error while getting {} folder size. {}", folder, e);
+        }
+        return sizeArr[0];
     }
-
 
     public static void copyTo(DataInput in, OutputStream out, int length) throws IOException
     {
