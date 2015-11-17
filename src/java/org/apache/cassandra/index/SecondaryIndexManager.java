@@ -524,9 +524,11 @@ public class SecondaryIndexManager implements IndexRegistry
             DecoratedKey key = partition.partitionKey();
             Set<Index.Indexer> indexers = indexes.stream()
                                                  .map(index -> index.indexerFor(key,
+                                                                                partition.columns(),
                                                                                 nowInSec,
                                                                                 opGroup,
                                                                                 IndexTransaction.Type.UPDATE))
+                                                 .filter(Objects::nonNull)
                                                  .collect(Collectors.toSet());
 
             indexers.forEach(Index.Indexer::begin);
@@ -666,10 +668,8 @@ public class SecondaryIndexManager implements IndexRegistry
      */
     public void validate(PartitionUpdate update) throws InvalidRequestException
     {
-        indexes.values()
-               .stream()
-               .filter(i -> i.indexes(update.columns()))
-               .forEach(i -> i.validate(update));
+        for (Index index : indexes.values())
+            index.validate(update);
     }
 
     /**
@@ -720,15 +720,13 @@ public class SecondaryIndexManager implements IndexRegistry
         if (!hasIndexes())
             return UpdateTransaction.NO_OP;
 
-        // todo : optimize lookup, we can probably cache quite a bit of stuff, rather than doing
-        // a linear scan every time. Holding off that though until CASSANDRA-7771 to figure out
-        // exactly how indexes are to be identified & associated with a given partition update
         Index.Indexer[] indexers = indexes.values().stream()
-                                          .filter(i -> i.indexes(update.columns()))
                                           .map(i -> i.indexerFor(update.partitionKey(),
+                                                                 update.columns(),
                                                                  nowInSec,
                                                                  opGroup,
                                                                  IndexTransaction.Type.UPDATE))
+                                          .filter(Objects::nonNull)
                                           .toArray(Index.Indexer[]::new);
 
         return indexers.length == 0 ? UpdateTransaction.NO_OP : new WriteTimeTransaction(indexers);
@@ -743,14 +741,7 @@ public class SecondaryIndexManager implements IndexRegistry
                                                           int nowInSec)
     {
         // the check for whether there are any registered indexes is already done in CompactionIterator
-
-        Index[] interestedIndexes = indexes.values().stream()
-                                           .filter(i -> i.indexes(partitionColumns))
-                                           .toArray(Index[]::new);
-
-        return interestedIndexes.length == 0
-               ? CompactionTransaction.NO_OP
-               : new IndexGCTransaction(key, versions, nowInSec, interestedIndexes);
+        return new IndexGCTransaction(key, partitionColumns, versions, nowInSec, listIndexes());
     }
 
     /**
@@ -760,17 +751,10 @@ public class SecondaryIndexManager implements IndexRegistry
                                                     PartitionColumns partitionColumns,
                                                     int nowInSec)
     {
-        //
         if (!hasIndexes())
             return CleanupTransaction.NO_OP;
 
-        Index[] interestedIndexes = indexes.values().stream()
-                                           .filter(i -> i.indexes(partitionColumns))
-                                           .toArray(Index[]::new);
-
-        return interestedIndexes.length == 0
-               ? CleanupTransaction.NO_OP
-               : new CleanupGCTransaction(key, nowInSec, interestedIndexes);
+        return new CleanupGCTransaction(key, partitionColumns, nowInSec, listIndexes());
     }
 
     /**
@@ -807,7 +791,8 @@ public class SecondaryIndexManager implements IndexRegistry
 
         public void onInserted(Row row)
         {
-            Arrays.stream(indexers).forEach(h -> h.insertRow(row));
+            for (Index.Indexer indexer : indexers)
+                indexer.insertRow(row);
         }
 
         public void onUpdated(Row existing, Row updated)
@@ -882,21 +867,21 @@ public class SecondaryIndexManager implements IndexRegistry
     private static final class IndexGCTransaction implements CompactionTransaction
     {
         private final DecoratedKey key;
+        private final PartitionColumns columns;
         private final int versions;
         private final int nowInSec;
-        private final Index[] indexes;
+        private final Collection<Index> indexes;
 
         private Row[] rows;
 
         private IndexGCTransaction(DecoratedKey key,
+                                   PartitionColumns columns,
                                    int versions,
                                    int nowInSec,
-                                   Index...indexes)
+                                   Collection<Index> indexes)
         {
-            // don't allow null indexers, if we don't have any, use a noop transaction
-            for (Index index : indexes) assert index != null;
-
             this.key = key;
+            this.columns = columns;
             this.versions = versions;
             this.indexes = indexes;
             this.nowInSec = nowInSec;
@@ -957,7 +942,10 @@ public class SecondaryIndexManager implements IndexRegistry
             {
                 for (Index index : indexes)
                 {
-                    Index.Indexer indexer = index.indexerFor(key, nowInSec, opGroup, Type.COMPACTION);
+                    Index.Indexer indexer = index.indexerFor(key, columns, nowInSec, opGroup, Type.COMPACTION);
+                    if (indexer == null)
+                        continue;
+
                     indexer.begin();
                     for (Row row : rows)
                         if (row != null)
@@ -977,20 +965,20 @@ public class SecondaryIndexManager implements IndexRegistry
     private static final class CleanupGCTransaction implements CleanupTransaction
     {
         private final DecoratedKey key;
+        private final PartitionColumns columns;
         private final int nowInSec;
-        private final Index[] indexes;
+        private final Collection<Index> indexes;
 
         private Row row;
         private DeletionTime partitionDelete;
 
         private CleanupGCTransaction(DecoratedKey key,
+                                     PartitionColumns columns,
                                      int nowInSec,
-                                     Index...indexes)
+                                     Collection<Index> indexes)
         {
-            // don't allow null indexers, if we don't have any, use a noop transaction
-            for (Index index : indexes) assert index != null;
-
             this.key = key;
+            this.columns = columns;
             this.indexes = indexes;
             this.nowInSec = nowInSec;
         }
@@ -1018,7 +1006,10 @@ public class SecondaryIndexManager implements IndexRegistry
             {
                 for (Index index : indexes)
                 {
-                    Index.Indexer indexer = index.indexerFor(key, nowInSec, opGroup, Type.CLEANUP);
+                    Index.Indexer indexer = index.indexerFor(key, columns, nowInSec, opGroup, Type.CLEANUP);
+                    if (indexer == null)
+                        continue;
+
                     indexer.begin();
 
                     if (partitionDelete != null)
