@@ -1,6 +1,6 @@
 package org.apache.cassandra.stress.settings;
 /*
- * 
+ *
  * Licensed to the Apache Software Foundation (ASF) under one
  * or more contributor license agreements.  See the NOTICE file
  * distributed with this work for additional information
@@ -8,16 +8,16 @@ package org.apache.cassandra.stress.settings;
  * to you under the Apache License, Version 2.0 (the
  * "License"); you may not use this file except in compliance
  * with the License.  You may obtain a copy of the License at
- * 
+ *
  *   http://www.apache.org/licenses/LICENSE-2.0
- * 
+ *
  * Unless required by applicable law or agreed to in writing,
  * software distributed under the License is distributed on an
  * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
  * KIND, either express or implied.  See the License for the
  * specific language governing permissions and limitations
  * under the License.
- * 
+ *
  */
 
 
@@ -42,6 +42,9 @@ public class SettingsMode implements Serializable
     public final String authProviderClassname;
     public final AuthProvider authProvider;
 
+    public final Integer maxPendingPerConnection;
+    public final Integer connectionsPerHost;
+
     private final String compression;
 
     public SettingsMode(GroupedOptions options)
@@ -55,6 +58,8 @@ public class SettingsMode implements Serializable
             compression = ProtocolOptions.Compression.valueOf(opts.useCompression.value().toUpperCase()).name();
             username = opts.user.value();
             password = opts.password.value();
+            maxPendingPerConnection = opts.maxPendingPerConnection.value().isEmpty() ? null : Integer.valueOf(opts.maxPendingPerConnection.value());
+            connectionsPerHost = opts.connectionsPerHost.value().isEmpty() ? null : Integer.valueOf(opts.connectionsPerHost.value());
             authProviderClassname = opts.authProvider.value();
             if (authProviderClassname != null)
             {
@@ -94,6 +99,8 @@ public class SettingsMode implements Serializable
             password = null;
             authProvider = null;
             authProviderClassname = null;
+            maxPendingPerConnection = null;
+            connectionsPerHost = null;
         }
         else if (options instanceof ThriftOptions)
         {
@@ -106,6 +113,8 @@ public class SettingsMode implements Serializable
             password = opts.password.value();
             authProviderClassname = null;
             authProvider = null;
+            maxPendingPerConnection = null;
+            connectionsPerHost = null;
         }
         else
             throw new IllegalStateException();
@@ -145,12 +154,15 @@ public class SettingsMode implements Serializable
         final OptionSimple user = new OptionSimple("user=", ".+", null, "username", false);
         final OptionSimple password = new OptionSimple("password=", ".+", null, "password", false);
         final OptionSimple authProvider = new OptionSimple("auth-provider=", ".*", null, "Fully qualified implementation of com.datastax.driver.core.AuthProvider", false);
+        final OptionSimple maxPendingPerConnection = new OptionSimple("maxPending=", "[0-9]+", "", "Maximum pending requests per connection", false);
+        final OptionSimple connectionsPerHost = new OptionSimple("connectionsPerHost=", "[0-9]+", "", "Number of connections per host", false);
 
         abstract OptionSimple mode();
         @Override
         public List<? extends Option> options()
         {
-            return Arrays.asList(mode(), useUnPrepared, api, useCompression, port, user, password, authProvider);
+            return Arrays.asList(mode(), useUnPrepared, api, useCompression, port, user, password, authProvider,
+                                 maxPendingPerConnection, connectionsPerHost);
         }
     }
 
