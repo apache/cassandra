@@ -25,6 +25,7 @@ import org.apache.cassandra.db.Mutation;
 import org.apache.cassandra.io.IVersionedSerializer;
 import org.apache.cassandra.service.StorageProxy;
 import org.apache.cassandra.service.paxos.Commit;
+import org.apache.cassandra.utils.FBUtilities;
 
 public class WriteCallbackInfo extends CallbackInfo
 {
@@ -44,6 +45,8 @@ public class WriteCallbackInfo extends CallbackInfo
         this.sentMessage = message;
         this.consistencyLevel = consistencyLevel;
         this.allowHints = allowHints;
+        //Local writes shouldn't go through messaging service (https://issues.apache.org/jira/browse/CASSANDRA-10477)
+        assert (!target.equals(FBUtilities.getBroadcastAddress()));
     }
 
     Mutation mutation()
