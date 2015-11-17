@@ -2964,6 +2964,10 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
             logger.warn("Snapshot-based repair is not yet supported on Windows.  Reverting to parallel repair.");
             parallelism = RepairParallelism.PARALLEL;
         }
+
+        if (!fullRepair)
+            throw new IllegalArgumentException("Incremental repair can't be requested with subrange repair " +
+                                               "because each subrange repair would generate an anti-compacted table");
         Collection<Range<Token>> repairingRange = createRepairRangeFrom(beginToken, endToken);
 
         RepairOption options = new RepairOption(parallelism, false, !fullRepair, false, 1, repairingRange);

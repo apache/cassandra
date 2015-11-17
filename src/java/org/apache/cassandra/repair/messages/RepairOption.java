@@ -144,6 +144,9 @@ public class RepairOption
         Set<Range<Token>> ranges = new HashSet<>();
         if (rangesStr != null)
         {
+            if (incremental)
+                throw new IllegalArgumentException("Incremental repair can't be requested with subrange repair " +
+                                                   "because each subrange repair would generate an anti-compacted table");
             StringTokenizer tokenizer = new StringTokenizer(rangesStr, ",");
             while (tokenizer.hasMoreTokens())
             {
