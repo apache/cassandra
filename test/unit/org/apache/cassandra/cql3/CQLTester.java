@@ -109,7 +109,7 @@ public abstract class CQLTester
         PROTOCOL_VERSIONS = builder.build();
 
         // Once per-JVM is enough
-        prepareServer(true);
+        prepareServer();
 
         nativeAddr = InetAddress.getLoopbackAddress();
 
@@ -138,9 +138,9 @@ public abstract class CQLTester
     // is not expected to be the same without preparation)
     private boolean usePrepared = USE_PREPARED_VALUES;
 
-    public static void prepareServer(boolean checkInit)
+    public static void prepareServer()
     {
-        if (checkInit && isServerPrepared)
+        if (isServerPrepared)
             return;
 
         // Cleanup first
