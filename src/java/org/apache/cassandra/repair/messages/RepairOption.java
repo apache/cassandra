@@ -144,6 +144,10 @@ public class RepairOption
         Set<Range<Token>> ranges = new HashSet<>();
         if (rangesStr != null)
         {
+            if (incremental)
+                logger.warn("Incremental repair can't be requested with subrange repair " +
+                            "because each subrange repair would generate an anti-compacted table. " +
+                            "The repair will occur but without anti-compaction.");
             StringTokenizer tokenizer = new StringTokenizer(rangesStr, ",");
             while (tokenizer.hasMoreTokens())
             {
@@ -158,7 +162,7 @@ public class RepairOption
             }
         }
 
-        RepairOption option = new RepairOption(parallelism, primaryRange, incremental, trace, jobThreads, ranges);
+        RepairOption option = new RepairOption(parallelism, primaryRange, incremental, trace, jobThreads, ranges, !ranges.isEmpty());
 
         // data centers
         String dataCentersStr = options.get(DATACENTERS_KEY);
@@ -217,13 +221,14 @@ public class RepairOption
     private final boolean incremental;
     private final boolean trace;
     private final int jobThreads;
+    private final boolean isSubrangeRepair;
 
     private final Collection<String> columnFamilies = new HashSet<>();
     private final Collection<String> dataCenters = new HashSet<>();
     private final Collection<String> hosts = new HashSet<>();
     private final Collection<Range<Token>> ranges = new HashSet<>();
 
-    public RepairOption(RepairParallelism parallelism, boolean primaryRange, boolean incremental, boolean trace, int jobThreads, Collection<Range<Token>> ranges)
+    public RepairOption(RepairParallelism parallelism, boolean primaryRange, boolean incremental, boolean trace, int jobThreads, Collection<Range<Token>> ranges, boolean isSubrangeRepair)
     {
         if (FBUtilities.isWindows() &&
             (DatabaseDescriptor.getDiskAccessMode() != Config.DiskAccessMode.standard || DatabaseDescriptor.getIndexAccessMode() != Config.DiskAccessMode.standard) &&
@@ -240,6 +245,7 @@ public class RepairOption
         this.trace = trace;
         this.jobThreads = jobThreads;
         this.ranges.addAll(ranges);
+        this.isSubrangeRepair = isSubrangeRepair;
     }
 
     public RepairParallelism getParallelism()
@@ -289,8 +295,14 @@ public class RepairOption
 
     public boolean isGlobal()
     {
-        return dataCenters.isEmpty() && hosts.isEmpty();
+        return dataCenters.isEmpty() && hosts.isEmpty() && !isSubrangeRepair();
     }
+
+    public boolean isSubrangeRepair()
+    {
+        return isSubrangeRepair;
+    }
+
     @Override
     public String toString()
     {

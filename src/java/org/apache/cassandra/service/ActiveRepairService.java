@@ -351,6 +351,8 @@ public class ActiveRepairService
     {
         assert parentRepairSession != null;
         ParentRepairSession prs = getParentRepairSession(parentRepairSession);
+        //A repair will be marked as not global if it is a subrange repair to avoid many small anti-compactions
+        //in addition to other scenarios such as repairs not involving all DCs or hosts
         if (!prs.isGlobal)
         {
             logger.info("Not a global repair, will not do anticompaction");
