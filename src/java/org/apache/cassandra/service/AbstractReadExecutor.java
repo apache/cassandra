@@ -76,7 +76,7 @@ public abstract class AbstractReadExecutor
 
     private static boolean isLocalRequest(InetAddress replica)
     {
-        return replica.equals(FBUtilities.getBroadcastAddress()) && StorageProxy.OPTIMIZE_LOCAL_REQUESTS;
+        return replica.equals(FBUtilities.getBroadcastAddress());
     }
 
     protected void makeDataRequests(Iterable<InetAddress> endpoints)

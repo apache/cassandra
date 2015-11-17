@@ -59,6 +59,7 @@ import org.apache.cassandra.locator.IEndpointSnitch;
 import org.apache.cassandra.locator.LocalStrategy;
 import org.apache.cassandra.locator.TokenMetadata;
 import org.apache.cassandra.net.*;
+import org.apache.cassandra.net.MessagingService.Verb;
 import org.apache.cassandra.service.paxos.*;
 import org.apache.cassandra.sink.SinkManager;
 import org.apache.cassandra.tracing.Tracing;
@@ -69,7 +70,6 @@ public class StorageProxy implements StorageProxyMBean
 {
     public static final String MBEAN_NAME = "org.apache.cassandra.db:type=StorageProxy";
     private static final Logger logger = LoggerFactory.getLogger(StorageProxy.class);
-    static final boolean OPTIMIZE_LOCAL_REQUESTS = true; // set to false to test messagingservice path on single node
 
     public static final String UNREACHABLE = "UNREACHABLE";
 
@@ -493,12 +493,20 @@ public class StorageProxy implements StorageProxyMBean
         MessageOut<Commit> message = new MessageOut<Commit>(MessagingService.Verb.PAXOS_COMMIT, proposal, Commit.serializer);
         for (InetAddress destination : Iterables.concat(naturalEndpoints, pendingEndpoints))
         {
+
             if (FailureDetector.instance.isAlive(destination))
             {
                 if (shouldBlock)
-                    MessagingService.instance().sendRR(message, destination, responseHandler, shouldHint);
+                {
+                    if (destination.equals(FBUtilities.getBroadcastAddress()))
+                        commitPaxosLocal(message, responseHandler);
+                    else
+                        MessagingService.instance().sendRR(message, destination, responseHandler, shouldHint);
+                }
                 else
+                {
                     MessagingService.instance().sendOneWay(message, destination);
+                }
             }
             else if (shouldHint)
             {
@@ -508,6 +516,30 @@ public class StorageProxy implements StorageProxyMBean
 
         if (shouldBlock)
             responseHandler.get();
+    }
+
+    /**
+     * Commit a PAXOS task locally, and if the task times out rather then submitting a real hint
+     * submit a fake one that executes immediately on the mutation stage, but generates the necessary backpressure
+     * signal for hints
+     */
+    private static void commitPaxosLocal(final MessageOut<Commit> message, final AbstractWriteResponseHandler responseHandler)
+    {
+        StageManager.getStage(MessagingService.verbStages.get(MessagingService.Verb.PAXOS_COMMIT)).maybeExecuteImmediately(new LocalMutationRunnable()
+        {
+            public void runMayThrow()
+            {
+                PaxosState.commit(message.payload);
+                if (responseHandler != null)
+                    responseHandler.response(null);
+            }
+
+            @Override
+            protected Verb verb()
+            {
+                return MessagingService.Verb.PAXOS_COMMIT;
+            }
+        });
     }
 
     /**
@@ -692,7 +724,7 @@ public class StorageProxy implements StorageProxyMBean
         for (InetAddress target : endpoints)
         {
             int targetVersion = MessagingService.instance().getVersion(target);
-            if (target.equals(FBUtilities.getBroadcastAddress()) && OPTIMIZE_LOCAL_REQUESTS)
+            if (target.equals(FBUtilities.getBroadcastAddress()))
             {
                 insertLocal(message.payload, handler);
             }
@@ -726,7 +758,7 @@ public class StorageProxy implements StorageProxyMBean
         MessageOut<Mutation> message = mutation.createMessage();
         for (InetAddress target : endpoints)
         {
-            if (target.equals(FBUtilities.getBroadcastAddress()) && OPTIMIZE_LOCAL_REQUESTS)
+            if (target.equals(FBUtilities.getBroadcastAddress()))
                 insertLocal(message.payload, handler);
             else
                 MessagingService.instance().sendRR(message, target, handler, false);
@@ -865,20 +897,11 @@ public class StorageProxy implements StorageProxyMBean
 
         for (InetAddress destination : targets)
         {
-            // avoid OOMing due to excess hints.  we need to do this check even for "live" nodes, since we can
-            // still generate hints for those if it's overloaded or simply dead but not yet known-to-be-dead.
-            // The idea is that if we have over maxHintsInProgress hints in flight, this is probably due to
-            // a small number of nodes causing problems, so we should avoid shutting down writes completely to
-            // healthy nodes.  Any node with no hintsInProgress is considered healthy.
-            if (StorageMetrics.totalHintsInProgress.count() > maxHintsInProgress
-                    && (getHintsInProgressFor(destination).get() > 0 && shouldHint(destination)))
-            {
-                throw new OverloadedException("Too many in flight hints: " + StorageMetrics.totalHintsInProgress.count());
-            }
+            checkHintOverload(destination);
 
             if (FailureDetector.instance.isAlive(destination))
             {
-                if (destination.equals(FBUtilities.getBroadcastAddress()) && OPTIMIZE_LOCAL_REQUESTS)
+                if (destination.equals(FBUtilities.getBroadcastAddress()))
                 {
                     insertLocal = true;
                 } else
@@ -926,6 +949,22 @@ public class StorageProxy implements StorageProxyMBean
 
             for (Collection<InetAddress> dcTargets : dcGroups.values())
                 sendMessagesToNonlocalDC(message, dcTargets, responseHandler);
+        }
+    }
+
+    private static void checkHintOverload(InetAddress destination) throws OverloadedException
+    {
+        // avoid OOMing due to excess hints.  we need to do this check even for "live" nodes, since we can
+        // still generate hints for those if it's overloaded or simply dead but not yet known-to-be-dead.
+        // The idea is that if we have over maxHintsInProgress hints in flight, this is probably due to
+        // a small number of nodes causing problems, so we should avoid shutting down writes completely to
+        // healthy nodes.  Any node with no hintsInProgress is considered healthy.
+        if (StorageMetrics.totalHintsInProgress.count() > maxHintsInProgress
+                && (getHintsInProgressFor(destination).get() > 0 && shouldHint(destination)))
+        {
+            throw new OverloadedException("Too many in flight hints: " + StorageMetrics.totalHintsInProgress.count() +
+                                          " destination: " + destination +
+                                          " destination hints: " + getHintsInProgressFor(destination).get());
         }
     }
 
@@ -1042,6 +1081,12 @@ public class StorageProxy implements StorageProxyMBean
                     ((Mutation) processed).apply();
                     responseHandler.response(null);
                 }
+            }
+
+            @Override
+            protected Verb verb()
+            {
+                return MessagingService.Verb.MUTATION;
             }
         });
     }
@@ -1730,8 +1775,7 @@ public class StorageProxy implements StorageProxyMBean
                     handler.assureSufficientLiveNodes();
                     resolver.setSources(filteredEndpoints);
                     if (filteredEndpoints.size() == 1
-                        && filteredEndpoints.get(0).equals(FBUtilities.getBroadcastAddress())
-                        && OPTIMIZE_LOCAL_REQUESTS)
+                        && filteredEndpoints.get(0).equals(FBUtilities.getBroadcastAddress()))
                     {
                         StageManager.getStage(Stage.READ).execute(new LocalRangeSliceRunnable(nodeCmd, handler), Tracing.instance.get());
                     }
@@ -2161,7 +2205,7 @@ public class StorageProxy implements StorageProxyMBean
     {
         return !Gossiper.instance.getUnreachableTokenOwners().isEmpty();
     }
-    
+
     public interface WritePerformer
     {
         public void apply(IMutation mutation,
@@ -2214,9 +2258,11 @@ public class StorageProxy implements StorageProxyMBean
 
         public final void run()
         {
-            if (System.currentTimeMillis() > constructionTime + DatabaseDescriptor.getTimeout(MessagingService.Verb.MUTATION))
+            final MessagingService.Verb verb = verb();
+            if (System.currentTimeMillis() > constructionTime + DatabaseDescriptor.getTimeout(verb))
             {
-                MessagingService.instance().incrementDroppedMessages(MessagingService.Verb.MUTATION);
+                if (MessagingService.DROPPABLE_VERBS.contains(verb()))
+                    MessagingService.instance().incrementDroppedMessages(verb);
                 HintRunnable runnable = new HintRunnable(FBUtilities.getBroadcastAddress())
                 {
                     protected void runMayThrow() throws Exception
@@ -2238,6 +2284,7 @@ public class StorageProxy implements StorageProxyMBean
             }
         }
 
+        abstract protected MessagingService.Verb verb();
         abstract protected void runMayThrow() throws Exception;
     }
 
@@ -2332,11 +2379,11 @@ public class StorageProxy implements StorageProxyMBean
     public long getReadRepairAttempted() {
         return ReadRepairMetrics.attempted.count();
     }
-    
+
     public long getReadRepairRepairedBlocking() {
         return ReadRepairMetrics.repairedBlocking.count();
     }
-    
+
     public long getReadRepairRepairedBackground() {
         return ReadRepairMetrics.repairedBackground.count();
     }
