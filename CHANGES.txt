@@ -12,6 +12,7 @@
  * Deprecate Pig support (CASSANDRA-10542)
  * Reduce contention getting instances of CompositeType (CASSANDRA-10433)
 Merged from 2.1:
+ * Forbid compact clustering column type changes in ALTER TABLE (CASSANDRA-8879)
  * Reject incremental repair with subrange repair (CASSANDRA-10422)
  * Add a nodetool command to refresh size_estimates (CASSANDRA-9579)
  * Shutdown compaction in drain to prevent leak (CASSANDRA-10079)

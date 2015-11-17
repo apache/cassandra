@@ -21,6 +21,7 @@ import org.apache.cassandra.cql3.CQLTester;
 import org.apache.cassandra.db.ColumnFamilyStore;
 import org.apache.cassandra.db.Keyspace;
 import org.apache.cassandra.exceptions.ConfigurationException;
+import org.apache.cassandra.exceptions.InvalidRequestException;
 import org.apache.cassandra.exceptions.SyntaxException;
 
 import org.junit.Test;
@@ -216,5 +217,12 @@ public class AlterTest extends CQLTester
         execute("INSERT INTO %s (key, c1) VALUES (1,1);");
         assertInvalidMessage("Cannot change c1 from type varint to type date: types are incompatible.",
                              "ALTER TABLE %s ALTER c1 TYPE date;");
+    }
+
+    @Test // tests CASSANDRA-8879
+    public void testAlterClusteringColumnTypeInCompactTable() throws Throwable
+    {
+        createTable("CREATE TABLE %s (key blob, column1 blob, value blob, PRIMARY KEY ((key), column1)) WITH COMPACT STORAGE");
+        assertInvalidThrow(InvalidRequestException.class, "ALTER TABLE %s ALTER column1 TYPE ascii");
     }
 }
