@@ -25,6 +25,8 @@ import java.util.Set;
 
 import org.junit.Test;
 
+import com.google.common.collect.ImmutableMap;
+
 import org.apache.cassandra.config.Config;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.dht.IPartitioner;
@@ -61,7 +63,7 @@ public class RepairOptionTest
         Map<String, String> options = new HashMap<>();
         options.put(RepairOption.PARALLELISM_KEY, "parallel");
         options.put(RepairOption.PRIMARY_RANGE_KEY, "false");
-        options.put(RepairOption.INCREMENTAL_KEY, "true");
+        options.put(RepairOption.INCREMENTAL_KEY, "false");
         options.put(RepairOption.RANGES_KEY, "0:10,11:20,21:30");
         options.put(RepairOption.COLUMNFAMILIES_KEY, "cf1,cf2,cf3");
         options.put(RepairOption.DATACENTERS_KEY, "dc1,dc2,dc3");
@@ -70,7 +72,7 @@ public class RepairOptionTest
         option = RepairOption.parse(options, partitioner);
         assertTrue(option.getParallelism() == RepairParallelism.PARALLEL);
         assertFalse(option.isPrimaryRange());
-        assertTrue(option.isIncremental());
+        assertFalse(option.isIncremental());
 
         Set<Range<Token>> expectedRanges = new HashSet<>(3);
         expectedRanges.add(new Range<>(tokenFactory.fromString("0"), tokenFactory.fromString("10")));
@@ -95,5 +97,16 @@ public class RepairOptionTest
         expectedHosts.add("127.0.0.2");
         expectedHosts.add("127.0.0.3");
         assertEquals(expectedHosts, option.getHosts());
+    }
+
+    @Test
+    public void testIncrementalRepairWithSubrangesIsNotGlobal() throws Exception
+    {
+        RepairOption ro = RepairOption.parse(ImmutableMap.of(RepairOption.INCREMENTAL_KEY, "true", RepairOption.RANGES_KEY, "42:42"),
+                           Murmur3Partitioner.instance);
+        assertFalse(ro.isGlobal());
+        ro = RepairOption.parse(ImmutableMap.of(RepairOption.INCREMENTAL_KEY, "true", RepairOption.RANGES_KEY, ""),
+                Murmur3Partitioner.instance);
+        assertTrue(ro.isGlobal());
     }
 }
