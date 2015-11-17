@@ -31,6 +31,7 @@ public class RandomAccessReader extends RandomAccessFile implements FileDataInpu
 
     // default buffer size, 64Kb
     public static final int DEFAULT_BUFFER_SIZE = 65536;
+    public static final int BUFFER_SIZE = Integer.getInteger("cassandra.rar_buffer_size", DEFAULT_BUFFER_SIZE);
 
     // absolute filesystem path to the file
     private final String filePath;
@@ -94,7 +95,7 @@ public class RandomAccessReader extends RandomAccessFile implements FileDataInpu
 
     public static RandomAccessReader open(File file, long overrideSize, PoolingSegmentedFile owner)
     {
-        return open(file, DEFAULT_BUFFER_SIZE, overrideSize, owner);
+        return open(file, BUFFER_SIZE, overrideSize, owner);
     }
 
     public static RandomAccessReader open(File file)
@@ -104,7 +105,7 @@ public class RandomAccessReader extends RandomAccessFile implements FileDataInpu
 
     public static RandomAccessReader open(File file, long overrideSize)
     {
-        return open(file, DEFAULT_BUFFER_SIZE, overrideSize, null);
+        return open(file, BUFFER_SIZE, overrideSize, null);
     }
 
     @VisibleForTesting
@@ -128,7 +129,7 @@ public class RandomAccessReader extends RandomAccessFile implements FileDataInpu
     @VisibleForTesting
     static RandomAccessReader open(SequentialWriter writer)
     {
-        return open(new File(writer.getPath()), DEFAULT_BUFFER_SIZE, null);
+        return open(new File(writer.getPath()), BUFFER_SIZE, null);
     }
 
     /**
