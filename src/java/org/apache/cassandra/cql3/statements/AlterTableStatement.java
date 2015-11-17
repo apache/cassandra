@@ -348,6 +348,9 @@ public class AlterTableStatement extends SchemaAlteringStatement
                                                                    validatorType.asCQL3Type()));
                 break;
             case CLUSTERING:
+                if (!cfm.isCQLTable())
+                    throw new InvalidRequestException(String.format("Cannot alter clustering column %s in a non-CQL3 table", def.name));
+
                 AbstractType<?> oldType = cfm.comparator.subtype(def.position());
                 // Note that CFMetaData.validateCompatibility already validate the change we're about to do. However, the error message it
                 // sends is a bit cryptic for a CQL3 user, so validating here for a sake of returning a better error message

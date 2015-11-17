@@ -21,6 +21,7 @@ import org.apache.cassandra.cql3.CQLTester;
 import org.apache.cassandra.db.ColumnFamilyStore;
 import org.apache.cassandra.db.Keyspace;
 import org.apache.cassandra.exceptions.ConfigurationException;
+import org.apache.cassandra.exceptions.InvalidRequestException;
 import org.apache.cassandra.exceptions.SyntaxException;
 import org.apache.cassandra.schema.SchemaKeyspace;
 
@@ -315,5 +316,12 @@ public class AlterTest extends CQLTester
         {
             assertEquals(errorMsg, e.getMessage());
         }
+    }
+
+    @Test // tests CASSANDRA-8879
+    public void testAlterClusteringColumnTypeInCompactTable() throws Throwable
+    {
+        createTable("CREATE TABLE %s (key blob, column1 blob, value blob, PRIMARY KEY ((key), column1)) WITH COMPACT STORAGE");
+        assertInvalidThrow(InvalidRequestException.class, "ALTER TABLE %s ALTER column1 TYPE ascii");
     }
 }
