@@ -25,7 +25,7 @@ public class CorruptSSTableException extends RuntimeException
 
     public CorruptSSTableException(Exception cause, File path)
     {
-        super(cause);
+        super("Corrupted: " + path, cause);
         this.path = path;
     }
 
