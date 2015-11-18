@@ -32,6 +32,7 @@ import org.slf4j.LoggerFactory;
 
 import org.apache.cassandra.config.CFMetaData;
 import org.apache.cassandra.db.ColumnFamilyStore;
+import org.apache.cassandra.db.lifecycle.LifecycleTransaction;
 import org.apache.cassandra.dht.Range;
 import org.apache.cassandra.dht.Token;
 import org.apache.cassandra.io.sstable.format.SSTableReader;
@@ -120,6 +121,21 @@ public final class WrappingCompactionStrategy extends AbstractCompactionStrategy
                 }
             }
         }, false);
+    }
+
+    @Override
+    public AbstractCompactionTask getCompactionTask(LifecycleTransaction txn, final int gcBefore, long maxSSTableBytes)
+    {
+        assert txn.originals().size() > 0;
+        boolean repairedSSTables = txn.originals().iterator().next().isRepaired();
+        for (SSTableReader sstable : txn.originals())
+            if (repairedSSTables != sstable.isRepaired())
+                throw new RuntimeException("Can't mix repaired and unrepaired sstables in a compaction");
+
+        if (repairedSSTables)
+            return repaired.getCompactionTask(txn, gcBefore, maxSSTableBytes);
+        else
+            return unrepaired.getCompactionTask(txn, gcBefore, maxSSTableBytes);
     }
 
     @Override

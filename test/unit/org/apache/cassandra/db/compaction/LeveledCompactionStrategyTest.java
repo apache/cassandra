@@ -26,6 +26,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Random;
 import java.util.UUID;
+import java.util.concurrent.ExecutionException;
 
 import org.apache.cassandra.io.sstable.format.SSTableReader;
 import junit.framework.Assert;
@@ -364,5 +365,39 @@ public class LeveledCompactionStrategyTest
         strategy.handleNotification(new SSTableAddedNotification(sstable2), this);
         assertTrue(unrepaired.manifest.getLevel(1).contains(sstable2));
         assertFalse(repaired.manifest.getLevel(1).contains(sstable2));
+    }
+
+    @Test
+    public void testDontRemoveLevelInfoUpgradeSSTables() throws InterruptedException, ExecutionException
+    {
+        byte [] b = new byte[100 * 1024];
+        new Random().nextBytes(b);
+        ByteBuffer value = ByteBuffer.wrap(b); // 100 KB value, make it easy to have multiple files
+
+        // Enough data to have a level 1 and 2
+        int rows = 20;
+        int columns = 10;
+
+        // Adds enough data to trigger multiple sstable per level
+        for (int r = 0; r < rows; r++)
+        {
+            DecoratedKey key = Util.dk(String.valueOf(r));
+            Mutation rm = new Mutation(KEYSPACE1, key.getKey());
+            for (int c = 0; c < columns; c++)
+            {
+                rm.add(CF_STANDARDDLEVELED, Util.cellname("column" + c), value, 0);
+            }
+            rm.apply();
+            cfs.forceBlockingFlush();
+        }
+        waitForLeveling(cfs);
+        cfs.forceBlockingFlush();
+        LeveledCompactionStrategy strategy = (LeveledCompactionStrategy) ((WrappingCompactionStrategy) cfs.getCompactionStrategy()).getWrappedStrategies().get(1);
+        assertTrue(strategy.getAllLevelSize()[1] > 0);
+
+        cfs.disableAutoCompaction();
+        cfs.sstablesRewrite(false);
+        assertTrue(strategy.getAllLevelSize()[1] > 0);
+
     }
 }
