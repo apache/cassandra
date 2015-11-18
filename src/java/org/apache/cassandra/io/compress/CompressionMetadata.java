@@ -241,6 +241,36 @@ public class CompressionMetadata
     }
 
     /**
+     * @param sections Collection of sections in uncompressed file. Should not contain sections that overlap each other.
+     * @return Total chunk size in bytes for given sections including checksum.
+     */
+    public long getTotalSizeForSections(Collection<Pair<Long, Long>> sections)
+    {
+        long size = 0;
+        long lastOffset = -1;
+        for (Pair<Long, Long> section : sections)
+        {
+            int startIndex = (int) (section.left / parameters.chunkLength());
+            int endIndex = (int) (section.right / parameters.chunkLength());
+            endIndex = section.right % parameters.chunkLength() == 0 ? endIndex - 1 : endIndex;
+            for (int i = startIndex; i <= endIndex; i++)
+            {
+                long offset = i * 8L;
+                long chunkOffset = chunkOffsets.getLong(offset);
+                if (chunkOffset > lastOffset)
+                {
+                    lastOffset = chunkOffset;
+                    long nextChunkOffset = offset + 8 == chunkOffsetsSize
+                                                   ? compressedFileLength
+                                                   : chunkOffsets.getLong(offset + 8);
+                    size += (nextChunkOffset - chunkOffset);
+                }
+            }
+        }
+        return size;
+    }
+
+    /**
      * @param sections Collection of sections in uncompressed file
      * @return Array of chunks which corresponds to given sections of uncompressed file, sorted by chunk offset
      */
