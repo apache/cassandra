@@ -3301,6 +3301,14 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
     }
 
     /**
+     * Returns the endpoints currently responsible for storing the token plus pending ones
+     */
+    public Iterable<InetAddress> getNaturalAndPendingEndpoints(String keyspaceName, Token token)
+    {
+        return Iterables.concat(getNaturalEndpoints(keyspaceName, token), tokenMetadata.pendingEndpointsFor(token, keyspaceName));
+    }
+
+    /**
      * This method attempts to return N endpoints that are responsible for storing the
      * specified key i.e for replication.
      *

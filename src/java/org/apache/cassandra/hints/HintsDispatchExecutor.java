@@ -18,6 +18,7 @@
 package org.apache.cassandra.hints;
 
 import java.io.File;
+import java.net.InetAddress;
 import java.util.Map;
 import java.util.UUID;
 import java.util.concurrent.*;
@@ -236,10 +237,21 @@ final class HintsDispatchExecutor
         {
             logger.trace("Dispatching hints file {}", descriptor.fileName());
 
+            InetAddress address = StorageService.instance.getEndpointForHostId(hostId);
+            if (address != null)
+                return deliver(descriptor, address);
+
+            // address == null means the target no longer exist; find new home for each hint entry.
+            convert(descriptor);
+            return true;
+        }
+
+        private boolean deliver(HintsDescriptor descriptor, InetAddress address)
+        {
             File file = new File(hintsDirectory, descriptor.fileName());
             Long offset = store.getDispatchOffset(descriptor).orElse(null);
 
-            try (HintsDispatcher dispatcher = HintsDispatcher.create(file, rateLimiter, hostId, descriptor.hostId, isPaused))
+            try (HintsDispatcher dispatcher = HintsDispatcher.create(file, rateLimiter, address, descriptor.hostId, isPaused))
             {
                 if (offset != null)
                     dispatcher.seek(offset);
@@ -258,6 +270,20 @@ final class HintsDispatchExecutor
                     logger.info("Finished hinted handoff of file {} to endpoint {}, partially", descriptor.fileName(), hostId);
                     return false;
                 }
+            }
+        }
+
+        // for each hint in the hints file for a node that isn't part of the ring anymore, write RF hints for each replica
+        private void convert(HintsDescriptor descriptor)
+        {
+            File file = new File(hintsDirectory, descriptor.fileName());
+
+            try (HintsReader reader = HintsReader.open(file, rateLimiter))
+            {
+                reader.forEach(page -> page.hintsIterator().forEachRemaining(HintsService.instance::writeForAllReplicas));
+                store.delete(descriptor);
+                store.cleanUp(descriptor);
+                logger.info("Finished converting hints file {}", descriptor.fileName());
             }
         }
     }

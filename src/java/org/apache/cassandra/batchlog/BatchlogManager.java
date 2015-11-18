@@ -420,8 +420,7 @@ public class BatchlogManager implements BatchlogManagerMBean
             String ks = mutation.getKeyspaceName();
             Token tk = mutation.key().getToken();
 
-            for (InetAddress endpoint : Iterables.concat(StorageService.instance.getNaturalEndpoints(ks, tk),
-                                                         StorageService.instance.getTokenMetadata().pendingEndpointsFor(tk, ks)))
+            for (InetAddress endpoint : StorageService.instance.getNaturalAndPendingEndpoints(ks, tk))
             {
                 if (endpoint.equals(FBUtilities.getBroadcastAddress()))
                 {

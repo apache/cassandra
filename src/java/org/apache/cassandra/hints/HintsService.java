@@ -22,7 +22,6 @@ import java.lang.management.ManagementFactory;
 import java.net.InetAddress;
 import java.net.UnknownHostException;
 import java.util.Collections;
-import java.util.Map;
 import java.util.UUID;
 import java.util.concurrent.*;
 import java.util.concurrent.atomic.AtomicBoolean;
@@ -40,9 +39,11 @@ import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.config.ParameterizedClass;
 import org.apache.cassandra.metrics.HintedHandoffMetrics;
 import org.apache.cassandra.metrics.StorageMetrics;
-import org.apache.cassandra.schema.CompressionParams;
+import org.apache.cassandra.dht.Token;
+import org.apache.cassandra.service.StorageProxy;
 import org.apache.cassandra.service.StorageService;
 
+import static com.google.common.collect.Iterables.filter;
 import static com.google.common.collect.Iterables.transform;
 import static com.google.common.collect.Iterables.size;
 
@@ -164,6 +165,21 @@ public final class HintsService implements HintsServiceMBean
     public void write(UUID hostId, Hint hint)
     {
         write(Collections.singleton(hostId), hint);
+    }
+
+    /**
+     * Write a hint for all replicas. Used to re-dispatch hints whose destination is either missing or no longer correct.
+     */
+    void writeForAllReplicas(Hint hint)
+    {
+        String keyspaceName = hint.mutation.getKeyspaceName();
+        Token token = hint.mutation.key().getToken();
+
+        Iterable<UUID> hostIds =
+        transform(filter(StorageService.instance.getNaturalAndPendingEndpoints(keyspaceName, token), StorageProxy::shouldHint),
+                  StorageService.instance::getHostIdForEndpoint);
+
+        write(hostIds, hint);
     }
 
     /**
