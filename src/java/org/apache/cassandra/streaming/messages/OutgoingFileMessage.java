@@ -62,19 +62,13 @@ public class OutgoingFileMessage extends StreamMessage
 
         SSTableReader sstable = ref.get();
         filename = sstable.getFilename();
-        CompressionInfo compressionInfo = null;
-        if (sstable.compression)
-        {
-            CompressionMetadata meta = sstable.getCompressionMetadata();
-            compressionInfo = new CompressionInfo(meta.getChunksForSections(sections), meta.parameters);
-        }
         this.header = new FileMessageHeader(sstable.metadata.cfId,
                                             sequenceNumber,
                                             sstable.descriptor.version,
                                             sstable.descriptor.formatType,
                                             estimatedKeys,
                                             sections,
-                                            compressionInfo,
+                                            sstable.compression ? sstable.getCompressionMetadata() : null,
                                             repairedAt,
                                             keepSSTableLevel ? sstable.getSSTableLevel() : 0,
                                             sstable.header == null ? null : sstable.header.toComponent());
@@ -87,13 +81,13 @@ public class OutgoingFileMessage extends StreamMessage
             return;
         }
 
-        FileMessageHeader.serializer.serialize(header, out, version);
+        CompressionInfo compressionInfo = FileMessageHeader.serializer.serialize(header, out, version);
 
         final SSTableReader reader = ref.get();
-        StreamWriter writer = header.compressionInfo == null ?
+        StreamWriter writer = compressionInfo == null ?
                                       new StreamWriter(reader, header.sections, session) :
                                       new CompressedStreamWriter(reader, header.sections,
-                                                                 header.compressionInfo, session);
+                                                                 compressionInfo, session);
         writer.write(out);
     }
 
