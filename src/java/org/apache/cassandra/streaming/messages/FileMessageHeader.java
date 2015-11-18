@@ -41,7 +41,7 @@ import org.apache.cassandra.utils.UUIDSerializer;
  */
 public class FileMessageHeader
 {
-    public static IVersionedSerializer<FileMessageHeader> serializer = new FileMessageHeaderSerializer();
+    public static FileMessageHeaderSerializer serializer = new FileMessageHeaderSerializer();
 
     public final UUID cfId;
     public final int sequenceNumber;
@@ -52,7 +52,13 @@ public class FileMessageHeader
     public final SSTableFormat.Type format;
     public final long estimatedKeys;
     public final List<Pair<Long, Long>> sections;
+    /**
+     * Compression info for SSTable to send. Can be null if SSTable is not compressed.
+     * On sender, this field is always null to avoid holding large number of Chunks.
+     * Use compressionMetadata instead.
+     */
     public final CompressionInfo compressionInfo;
+    private final CompressionMetadata compressionMetadata;
     public final long repairedAt;
     public final int sstableLevel;
     public final SerializationHeader.Component header;
@@ -75,9 +81,39 @@ public class FileMessageHeader
         this.estimatedKeys = estimatedKeys;
         this.sections = sections;
         this.compressionInfo = compressionInfo;
+        this.compressionMetadata = null;
         this.repairedAt = repairedAt;
         this.sstableLevel = sstableLevel;
         this.header = header;
+    }
+
+    public FileMessageHeader(UUID cfId,
+                             int sequenceNumber,
+                             Version version,
+                             SSTableFormat.Type format,
+                             long estimatedKeys,
+                             List<Pair<Long, Long>> sections,
+                             CompressionMetadata compressionMetadata,
+                             long repairedAt,
+                             int sstableLevel,
+                             SerializationHeader.Component header)
+    {
+        this.cfId = cfId;
+        this.sequenceNumber = sequenceNumber;
+        this.version = version;
+        this.format = format;
+        this.estimatedKeys = estimatedKeys;
+        this.sections = sections;
+        this.compressionInfo = null;
+        this.compressionMetadata = compressionMetadata;
+        this.repairedAt = repairedAt;
+        this.sstableLevel = sstableLevel;
+        this.header = header;
+    }
+
+    public boolean isCompressed()
+    {
+        return compressionInfo != null || compressionMetadata != null;
     }
 
     /**
@@ -91,6 +127,10 @@ public class FileMessageHeader
             // calculate total length of transferring chunks
             for (CompressionMetadata.Chunk chunk : compressionInfo.chunks)
                 size += chunk.length + 4; // 4 bytes for CRC
+        }
+        else if (compressionMetadata != null)
+        {
+            size = compressionMetadata.getTotalSizeForSections(sections);
         }
         else
         {
@@ -110,7 +150,7 @@ public class FileMessageHeader
         sb.append(", format: ").append(format);
         sb.append(", estimated keys: ").append(estimatedKeys);
         sb.append(", transfer size: ").append(size());
-        sb.append(", compressed?: ").append(compressionInfo != null);
+        sb.append(", compressed?: ").append(isCompressed());
         sb.append(", repairedAt: ").append(repairedAt);
         sb.append(", level: ").append(sstableLevel);
         sb.append(')');
@@ -134,9 +174,9 @@ public class FileMessageHeader
         return result;
     }
 
-    static class FileMessageHeaderSerializer implements IVersionedSerializer<FileMessageHeader>
+    static class FileMessageHeaderSerializer
     {
-        public void serialize(FileMessageHeader header, DataOutputPlus out, int version) throws IOException
+        public CompressionInfo serialize(FileMessageHeader header, DataOutputPlus out, int version) throws IOException
         {
             UUIDSerializer.serializer.serialize(header.cfId, out, version);
             out.writeInt(header.sequenceNumber);
@@ -156,12 +196,17 @@ public class FileMessageHeader
                 out.writeLong(section.left);
                 out.writeLong(section.right);
             }
-            CompressionInfo.serializer.serialize(header.compressionInfo, out, version);
+            // construct CompressionInfo here to avoid holding large number of Chunks on heap.
+            CompressionInfo compressionInfo = null;
+            if (header.compressionMetadata != null)
+                compressionInfo = new CompressionInfo(header.compressionMetadata.getChunksForSections(header.sections), header.compressionMetadata.parameters);
+            CompressionInfo.serializer.serialize(compressionInfo, out, version);
             out.writeLong(header.repairedAt);
             out.writeInt(header.sstableLevel);
 
             if (version >= StreamMessage.VERSION_30)
                 SerializationHeader.serializer.serialize(header.version, header.header, out);
+            return compressionInfo;
         }
 
         public FileMessageHeader deserialize(DataInputPlus in, int version) throws IOException
