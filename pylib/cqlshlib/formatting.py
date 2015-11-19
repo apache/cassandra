@@ -14,13 +14,14 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import binascii
 import sys
 import re
 import calendar
 import math
 from collections import defaultdict
 from . import wcwidth
-from .displaying import colorme, FormattedValue, DEFAULT_VALUE_COLORS
+from .displaying import colorme, get_str, FormattedValue, DEFAULT_VALUE_COLORS, NO_COLOR_MAP
 from cassandra.cqltypes import EMPTY
 from cassandra.util import datetime_from_timestamp
 from util import UTC
@@ -83,7 +84,6 @@ def color_text(bval, colormap, displaywidth=None):
     # adding the smarts to handle that in to FormattedValue, we just
     # make an explicit check to see if a null colormap is being used or
     # not.
-
     if displaywidth is None:
         displaywidth = len(bval)
     tbr = _make_turn_bits_red_f(colormap['blob'], colormap['text'])
@@ -97,7 +97,7 @@ def format_value_default(val, colormap, **_):
     val = str(val)
     escapedval = val.replace('\\', '\\\\')
     bval = controlchars_re.sub(_show_control_chars, escapedval)
-    return color_text(bval, colormap)
+    return bval if colormap is NO_COLOR_MAP else color_text(bval, colormap)
 
 # Mapping cql type base names ("int", "map", etc) to formatter functions,
 # making format_value a generic function
@@ -111,6 +111,10 @@ def format_value(type, val, **kwargs):
     return formatter(val, **kwargs)
 
 
+def get_formatter(type):
+    return _formatters.get(type.__name__, format_value_default)
+
+
 def formatter_for(typname):
     def registrator(f):
         _formatters[typname] = f
@@ -120,7 +124,7 @@ def formatter_for(typname):
 
 @formatter_for('bytearray')
 def format_value_blob(val, colormap, **_):
-    bval = '0x' + ''.join('%02x' % c for c in val)
+    bval = '0x' + binascii.hexlify(val)
     return colorme(bval, colormap, 'blob')
 formatter_for('buffer')(format_value_blob)
 
@@ -204,8 +208,8 @@ def format_value_text(val, encoding, colormap, quote=False, **_):
     bval = escapedval.encode(encoding, 'backslashreplace')
     if quote:
         bval = "'%s'" % bval
-    displaywidth = wcwidth.wcswidth(bval.decode(encoding))
-    return color_text(bval, colormap, displaywidth)
+
+    return bval if colormap is NO_COLOR_MAP else color_text(bval, colormap, wcwidth.wcswidth(bval.decode(encoding)))
 
 # name alias
 formatter_for('unicode')(format_value_text)
@@ -217,7 +221,10 @@ def format_simple_collection(val, lbracket, rbracket, encoding,
                          time_format=time_format, float_precision=float_precision,
                          nullval=nullval, quote=True)
             for sval in val]
-    bval = lbracket + ', '.join(sval.strval for sval in subs) + rbracket
+    bval = lbracket + ', '.join(get_str(sval) for sval in subs) + rbracket
+    if colormap is NO_COLOR_MAP:
+        return bval
+
     lb, sep, rb = [colormap['collection'] + s + colormap['reset']
                    for s in (lbracket, ', ', rbracket)]
     coloredval = lb + sep.join(sval.coloredval for sval in subs) + rb
@@ -242,6 +249,9 @@ def format_value_set(val, encoding, colormap, time_format, float_precision, null
     return format_simple_collection(sorted(val), '{', '}', encoding, colormap,
                                     time_format, float_precision, nullval)
 formatter_for('frozenset')(format_value_set)
+# This code is used by cqlsh (bundled driver version 2.7.2 using sortedset),
+# and the dtests, which use whichever driver on the machine, i.e. 3.0.0 (SortedSet)
+formatter_for('SortedSet')(format_value_set)
 formatter_for('sortedset')(format_value_set)
 
 
@@ -253,7 +263,10 @@ def format_value_map(val, encoding, colormap, time_format, float_precision, null
                             nullval=nullval, quote=True)
 
     subs = [(subformat(k), subformat(v)) for (k, v) in sorted(val.items())]
-    bval = '{' + ', '.join(k.strval + ': ' + v.strval for (k, v) in subs) + '}'
+    bval = '{' + ', '.join(get_str(k) + ': ' + get_str(v) for (k, v) in subs) + '}'
+    if colormap is NO_COLOR_MAP:
+        return bval
+
     lb, comma, colon, rb = [colormap['collection'] + s + colormap['reset']
                             for s in ('{', ', ', ': ', '}')]
     coloredval = lb \
@@ -278,7 +291,10 @@ def format_value_utype(val, encoding, colormap, time_format, float_precision, nu
         return format_value_text(name, encoding=encoding, colormap=colormap, quote=False)
 
     subs = [(format_field_name(k), format_field_value(v)) for (k, v) in val._asdict().items()]
-    bval = '{' + ', '.join(k.strval + ': ' + v.strval for (k, v) in subs) + '}'
+    bval = '{' + ', '.join(get_str(k) + ': ' + get_str(v) for (k, v) in subs) + '}'
+    if colormap is NO_COLOR_MAP:
+        return bval
+
     lb, comma, colon, rb = [colormap['collection'] + s + colormap['reset']
                             for s in ('{', ', ', ': ', '}')]
     coloredval = lb \
