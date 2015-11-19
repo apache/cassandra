@@ -328,7 +328,7 @@ concurrent_counter_writes: 32
 # memtable_offheap_space_in_mb: 2048
 
 # Ratio of occupied non-flushing memtable size to total permitted size
-# that will trigger a flush of the largest memtable.  Lager mct will
+# that will trigger a flush of the largest memtable. Larger mct will
 # mean larger flushes and hence less compaction, but also less concurrent
 # flush activity which can make it difficult to keep your disks fed
 # under heavy write load.
