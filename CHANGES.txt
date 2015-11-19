@@ -12,6 +12,7 @@
  * Deprecate Pig support (CASSANDRA-10542)
  * Reduce contention getting instances of CompositeType (CASSANDRA-10433)
 Merged from 2.1:
+ * * (cqlsh) Improve COPY TO performance and error handling (CASSANDRA-9304)
  * Don't remove level info when running upgradesstables (CASSANDRA-10692)
  * Create compression chunk for sending file only (CASSANDRA-10680)
  * Make buffered read size configurable (CASSANDRA-10249)
