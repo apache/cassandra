@@ -460,7 +460,7 @@ def complete_copy_column_names(ctxt, cqlsh):
 
 COPY_COMMON_OPTIONS = ['DELIMITER', 'QUOTE', 'ESCAPE', 'HEADER', 'NULL',
                        'MAXATTEMPTS', 'REPORTFREQUENCY']
-COPY_FROM_OPTIONS = ['CHUNKSIZE', 'INGESTRATE', 'MAXBATCHSIZE', 'MINBATCHSIZE']
+COPY_FROM_OPTIONS = ['CHUNKSIZE', 'INGESTRATE', 'MAXBATCHSIZE', 'MINBATCHSIZE', 'TTL']
 COPY_TO_OPTIONS = ['ENCODING', 'TIMEFORMAT', 'PAGESIZE', 'PAGETIMEOUT', 'MAXREQUESTS']
 
 
@@ -1812,6 +1812,7 @@ class Shell(cmd.Cmd):
           MAXBATCHSIZE=20         - the maximum size of an import batch (COPY FROM)
           MINBATCHSIZE=2          - the minimum size of an import batch (COPY FROM)
           REPORTFREQUENCY=0.25    - the frequency with which we display status updates in seconds
+          TTL=3600                - the time to live in seconds, by default data will not expire (COPY FROM)
 
         When entering CSV data on STDIN, you can use the sequence "\."
         on a line by itself to end the data input.
