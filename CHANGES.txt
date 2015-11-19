@@ -20,6 +20,7 @@ Merged from 2.2:
  * (Hadoop) fix splits calculation (CASSANDRA-10640)
  * (Hadoop) ensure that Cluster instances are always closed (CASSANDRA-10058)
 Merged from 2.1:
+ * (cqlsh) Improve COPY TO performance and error handling (CASSANDRA-9304)
  * Create compression chunk for sending file only (CASSANDRA-10680)
  * Forbid compact clustering column type changes in ALTER TABLE (CASSANDRA-8879)
  * Reject incremental repair with subrange repair (CASSANDRA-10422)
