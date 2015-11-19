@@ -71,10 +71,12 @@ public final class StreamResultFuture extends AbstractFuture<StreamState>
 
     private StreamResultFuture(UUID planId, String description, boolean keepSSTableLevels, boolean isIncremental)
     {
-        this(planId, description, new StreamCoordinator(0, keepSSTableLevels, isIncremental, new DefaultConnectionFactory()));
+        this(planId, description, new StreamCoordinator(0, keepSSTableLevels, isIncremental,
+                                                        new DefaultConnectionFactory(), false));
     }
 
-    static StreamResultFuture init(UUID planId, String description, Collection<StreamEventHandler> listeners, StreamCoordinator coordinator)
+    static StreamResultFuture init(UUID planId, String description, Collection<StreamEventHandler> listeners,
+                                   StreamCoordinator coordinator)
     {
         StreamResultFuture future = createAndRegister(planId, description, coordinator);
         if (listeners != null)
@@ -90,7 +92,8 @@ public final class StreamResultFuture extends AbstractFuture<StreamState>
         {
             session.init(future);
         }
-        coordinator.connectAllStreamSessions();
+
+        coordinator.connect(future);
 
         return future;
     }

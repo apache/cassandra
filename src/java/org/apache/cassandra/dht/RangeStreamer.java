@@ -117,13 +117,14 @@ public class RangeStreamer
                          String description,
                          boolean useStrictConsistency,
                          IEndpointSnitch snitch,
-                         StreamStateStore stateStore)
+                         StreamStateStore stateStore,
+                         boolean connectSequentially)
     {
         this.metadata = metadata;
         this.tokens = tokens;
         this.address = address;
         this.description = description;
-        this.streamPlan = new StreamPlan(description, true);
+        this.streamPlan = new StreamPlan(description, true, connectSequentially);
         this.useStrictConsistency = useStrictConsistency;
         this.snitch = snitch;
         this.stateStore = stateStore;

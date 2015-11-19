@@ -41,19 +41,23 @@ public class StreamCoordinator
     // streaming is handled directly by the ConnectionHandler's incoming and outgoing threads.
     private static final DebuggableThreadPoolExecutor streamExecutor = DebuggableThreadPoolExecutor.createWithFixedPoolSize("StreamConnectionEstablisher",
                                                                                                                             FBUtilities.getAvailableProcessors());
+    private final boolean connectSequentially;
 
     private Map<InetAddress, HostStreamingData> peerSessions = new HashMap<>();
     private final int connectionsPerHost;
     private StreamConnectionFactory factory;
     private final boolean keepSSTableLevel;
     private final boolean isIncremental;
+    private Iterator<StreamSession> sessionsToConnect = null;
 
-    public StreamCoordinator(int connectionsPerHost, boolean keepSSTableLevel, boolean isIncremental, StreamConnectionFactory factory)
+    public StreamCoordinator(int connectionsPerHost, boolean keepSSTableLevel, boolean isIncremental,
+                             StreamConnectionFactory factory, boolean connectSequentially)
     {
         this.connectionsPerHost = connectionsPerHost;
         this.factory = factory;
         this.keepSSTableLevel = keepSSTableLevel;
         this.isIncremental = isIncremental;
+        this.connectSequentially = connectSequentially;
     }
 
     public void setConnectionFactory(StreamConnectionFactory factory)
@@ -89,10 +93,59 @@ public class StreamCoordinator
         return connectionsPerHost == 0;
     }
 
-    public void connectAllStreamSessions()
+    public void connect(StreamResultFuture future)
+    {
+        if (this.connectSequentially)
+            connectSequentially(future);
+        else
+            connectAllStreamSessions();
+    }
+
+    private void connectAllStreamSessions()
     {
         for (HostStreamingData data : peerSessions.values())
             data.connectAllStreamSessions();
+    }
+
+    private void connectSequentially(StreamResultFuture future)
+    {
+        sessionsToConnect = getAllStreamSessions().iterator();
+        future.addEventListener(new StreamEventHandler()
+        {
+            public void handleStreamEvent(StreamEvent event)
+            {
+                if (event.eventType == StreamEvent.Type.STREAM_PREPARED)
+                {
+                    connectNext();
+                }
+            }
+
+            public void onSuccess(StreamState result)
+            {
+
+            }
+
+            public void onFailure(Throwable t)
+            {
+
+            }
+        });
+        connectNext();
+    }
+
+    private void connectNext()
+    {
+        if (sessionsToConnect == null)
+            return;
+
+        if (sessionsToConnect.hasNext())
+        {
+            StreamSession next = sessionsToConnect.next();
+            logger.debug("Connecting next session {} with {}.", next.planId(), next.peer.getHostAddress());
+            streamExecutor.execute(new StreamSessionConnector(next));
+        }
+        else
+            logger.debug("Finished connecting all sessions");
     }
 
     public synchronized Set<InetAddress> getPeers()
