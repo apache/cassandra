@@ -51,7 +51,6 @@ import org.apache.cassandra.db.rows.*;
 import org.apache.cassandra.exceptions.InvalidRequestException;
 import org.apache.cassandra.index.internal.CassandraIndex;
 import org.apache.cassandra.index.transactions.*;
-import org.apache.cassandra.io.sstable.ReducingKeyIterator;
 import org.apache.cassandra.io.sstable.format.SSTableReader;
 import org.apache.cassandra.schema.IndexMetadata;
 import org.apache.cassandra.schema.Indexes;
@@ -338,11 +337,20 @@ public class SecondaryIndexManager implements IndexRegistry
                     indexes.stream().map(i -> i.getIndexMetadata().name).collect(Collectors.joining(",")),
                     sstables.stream().map(SSTableReader::toString).collect(Collectors.joining(",")));
 
-        SecondaryIndexBuilder builder = new SecondaryIndexBuilder(baseCfs,
-                                                                  indexes,
-                                                                  new ReducingKeyIterator(sstables));
-        Future<?> future = CompactionManager.instance.submitIndexBuild(builder);
-        FBUtilities.waitOnFuture(future);
+        Map<Index.IndexBuildingSupport, Set<Index>> byType = new HashMap<>();
+        for (Index index : indexes)
+        {
+            Set<Index> stored = byType.computeIfAbsent(index.getBuildTaskSupport(), i -> new HashSet<>());
+            stored.add(index);
+        }
+
+        List<Future<?>> futures = byType.entrySet()
+                                        .stream()
+                                        .map((e) -> e.getKey().getIndexBuildTask(baseCfs, e.getValue(), sstables))
+                                        .map(CompactionManager.instance::submitIndexBuild)
+                                        .collect(Collectors.toList());
+
+        FBUtilities.waitOnFutures(futures);
 
         flushIndexesBlocking(indexes);
         logger.info("Index build of {} complete",

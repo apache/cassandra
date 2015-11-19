@@ -622,9 +622,9 @@ public class CustomCassandraIndex implements Index
                         metadata.name,
                         getSSTableNames(sstables));
 
-            SecondaryIndexBuilder builder = new SecondaryIndexBuilder(baseCfs,
-                                                                      Collections.singleton(this),
-                                                                      new ReducingKeyIterator(sstables));
+            SecondaryIndexBuilder builder = new CollatedViewIndexBuilder(baseCfs,
+                                                                         Collections.singleton(this),
+                                                                         new ReducingKeyIterator(sstables));
             Future<?> future = CompactionManager.instance.submitIndexBuild(builder);
             FBUtilities.waitOnFuture(future);
             indexCfs.forceBlockingFlush();
