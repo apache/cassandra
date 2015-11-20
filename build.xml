@@ -103,13 +103,6 @@
 
     <!-- skip flushing schema tables during tests -->
     <property name="cassandra.test.flush_local_schema_changes" value="false" />
-
-    <!-- http://cobertura.sourceforge.net/ -->
-    <property name="cobertura.version" value="2.0.3"/>
-    <property name="cobertura.build.dir" value="${build.dir}/cobertura"/>
-    <property name="cobertura.report.dir" value="${cobertura.build.dir}/report"/>
-    <property name="cobertura.classes.dir" value="${cobertura.build.dir}/classes"/>
-    <property name="cobertura.datafile" value="${cobertura.build.dir}/cobertura.ser"/>
     
     <!-- http://www.eclemma.org/jacoco/ -->
     <property name="jacoco.export.dir" value="${build.dir}/jacoco/" />
@@ -155,7 +148,6 @@
     -->
     <path id="maven-ant-tasks.classpath" path="${build.dir}/maven-ant-tasks-${maven-ant-tasks.version}.jar" />
     <path id="cassandra.classpath">
-        <pathelement location="${cobertura.classes.dir}"/>
         <pathelement location="${build.classes.main}" />
         <pathelement location="${build.classes.thrift}" />
         <fileset dir="${build.lib}">
@@ -167,10 +159,6 @@
           <exclude name="**/*-sources.jar"/>
         </fileset>
     </path>
-
-	<path id="cobertura.classpath">
-		<pathelement location="${cobertura.classes.dir}"/>
-	</path>
 
   <macrodef name="create-javadoc">
     <attribute name="destdir"/>
@@ -205,7 +193,6 @@
     <target name="clean" description="Remove all locally created artifacts">
         <delete dir="${build.test.dir}" />
         <delete dir="${build.classes}" />
-        <delete dir="${cobertura.classes.dir}" />
         <delete dir="${build.src.gen-java}" />
         <delete dir="${version.properties.dir}" />
         <delete dir="${jacoco.export.dir}" />
@@ -392,12 +379,6 @@
           </dependency>
           <dependency groupId="net.java.dev.jna" artifactId="jna" version="4.0.0"/>
 
-          <dependency groupId="net.sourceforge.cobertura" artifactId="cobertura" version="${cobertura.version}">
-            <exclusion groupId="xerces" artifactId="xercesImpl"/>
-          	<exclusion groupId="org.mortbay.jetty" artifactId="jetty"/> <!-- older version, also via hadoop-core -->
-          	<exclusion groupId="org.mortbay.jetty" artifactId="jetty-util"/> <!-- older version, also via hadoop-core -->
-            <exclusion groupId="org.apache.ant" artifactId="ant"/> <!-- older version 1.8.3 -->
-          </dependency>
           <dependency groupId="org.jacoco" artifactId="org.jacoco.agent" version="${jacoco.version}"/>
           <dependency groupId="org.jacoco" artifactId="org.jacoco.ant" version="${jacoco.version}"/>
 
@@ -504,7 +485,6 @@
         <parent groupId="org.apache.cassandra"
                 artifactId="cassandra-parent"
                 version="${version}"/>
-        <dependency groupId="net.sourceforge.cobertura" artifactId="cobertura"/>
         <dependency groupId="org.jacoco" artifactId="org.jacoco.agent"/>
         <dependency groupId="org.jacoco" artifactId="org.jacoco.ant"/>
       </artifact:pom>
@@ -643,8 +623,7 @@
       </copy>
       <!-- code coverage tools -->
       <artifact:dependencies pomRefId="coverage-deps-pom"
-                             filesetId="coverage-dependency-jars"
-                             pathId="cobertura.classpath">
+                             filesetId="coverage-dependency-jars">
           <remoteRepository refid="central"/>
       </artifact:dependencies>
       <copy todir="${build.dir.lib}/jars">
@@ -1172,7 +1151,6 @@
       <mkdir dir="${build.test.dir}/output"/>
       <mkdir dir="${build.test.dir}/output/@{testtag}"/>
       <junit fork="on" forkmode="@{forkmode}" failureproperty="testfailed" maxmemory="1024m" timeout="@{timeout}">
-        <sysproperty key="net.sourceforge.cobertura.datafile" file="${cobertura.datafile}"/>
         <formatter classname="org.apache.cassandra.CassandraXMLJUnitResultFormatter" extension=".xml" usefile="true"/>
         <formatter classname="org.apache.cassandra.CassandraBriefJUnitResultFormatter" usefile="false"/>
         <jvmarg value="-Dstorage-config=${test.conf}"/>
@@ -1194,7 +1172,6 @@
         <classpath>
           <path refid="cassandra.classpath" />
           <pathelement location="${test.classes}"/>
-          <path refid="cobertura.classpath"/>
           <pathelement location="${test.conf}"/>
           <fileset dir="${test.lib}">
             <include name="**/*.jar" />
@@ -1400,7 +1377,6 @@
         <classpath>
           <path refid="cassandra.classpath" />
           <pathelement location="${test.classes}"/>
-          <path refid="cobertura.classpath"/>
           <pathelement location="${test.conf}"/>
           <fileset dir="${test.lib}">
             <include name="**/*.jar" />
@@ -1431,7 +1407,6 @@
       <mkdir dir="${build.test.dir}/cassandra"/>
       <mkdir dir="${build.test.dir}/output"/>
       <junit fork="on" forkmode="once" failureproperty="testfailed" maxmemory="1024m" timeout="${test.timeout}">
-        <sysproperty key="net.sourceforge.cobertura.datafile" file="${cobertura.datafile}"/>
         <formatter type="brief" usefile="false"/>
         <jvmarg value="-Dstorage-config=${test.conf}"/>
         <jvmarg value="-Djava.awt.headless=true"/>
@@ -1444,7 +1419,6 @@
         <classpath>
           <path refid="cassandra.classpath" />
           <pathelement location="${test.classes}"/>
-          <path refid="cobertura.classpath"/>
           <pathelement location="${test.conf}"/>
           <fileset dir="${test.lib}">
             <include name="**/*.jar" />
@@ -1501,41 +1475,6 @@
   <target name="jacoco-cleanup" description="Destroy JaCoCo exec data and reports">
     <delete file="${jacoco.partialexecfile}"/>
     <delete dir="${jacoco.export.dir}"/>
-  </target>
-
-  <!-- instruments the classes to later create code coverage reports -->
-  <target name="cobertura-instrument" depends="build,build-test">
-    <taskdef resource="tasks.properties">
-      <classpath refid="cobertura.classpath"/>
-      <classpath refid="cassandra.classpath"/>
-    </taskdef>
-
-    <delete file="${cobertura.datafile}"/>
-
-    <cobertura-instrument todir="${cobertura.classes.dir}" datafile="${cobertura.datafile}">
-      <ignore regex="ch.qos.logback.*"/>
-
-      <fileset dir="${build.classes.main}">
-        <include name="**/*.class"/>
-        <exclude name="**/*Test.class"/>
-        <exclude name="**/*TestCase.class"/>
-        <exclude name="**/test/*.class"/>
-        <!-- cobertura modifies the serialVersionUID of classes. Some of our unit tests rely on backward
-        wire compatability of these classes.  It was easier to exlude them from instrumentation than to
-        force their serialVersionUIDs. -->
-        <exclude name="**/*Token.class"/>
-        <exclude name="${cobertura.excludes}"/>
-      </fileset>
-
-    </cobertura-instrument>
-  </target>
-
-  <!-- create both html and xml code coverage reports -->
-  <target name="cobertura-report">
-    <cobertura-report format="html" destdir="${cobertura.report.dir}" srcdir="${build.src.java}"
-      datafile="${cobertura.datafile}"/>
-    <cobertura-report format="xml" destdir="${cobertura.report.dir}" srcdir="${build.src.java}"
-      datafile="${cobertura.datafile}"/>
   </target>
 
   <!--
@@ -1707,7 +1646,6 @@
           <classpath>
               <path refid="cassandra.classpath" />
               <pathelement location="${test.classes}"/>
-              <path refid="cobertura.classpath"/>
               <pathelement location="${test.conf}"/>
               <fileset dir="${test.lib}">
                   <include name="**/*.jar" />
