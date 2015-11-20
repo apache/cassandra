@@ -9,6 +9,7 @@
 
 3.1
 Merged from 3.0:
+ * Fix backward incompatibiliy in CqlInputFormat (CASSANDRA-10717)
  * Correctly preserve deletion info on updated rows when notifying indexers
    of single-row deletions (CASSANDRA-10694)
  * Notify indexers of partition delete during cleanup (CASSANDRA-10685)
