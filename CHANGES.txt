@@ -12,6 +12,7 @@
  * Deprecate Pig support (CASSANDRA-10542)
  * Reduce contention getting instances of CompositeType (CASSANDRA-10433)
 Merged from 2.1:
+ * (cqlsh) Support counters in COPY commands (CASSANDRA-9043)
  * Try next replica if not possible to connect to primary replica on
    ColumnFamilyRecordReader (CASSANDRA-2388)
  * Limit window size in DTCS (CASSANDRA-10280)
