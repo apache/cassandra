@@ -20,6 +20,7 @@ Merged from 2.2:
  * (Hadoop) fix splits calculation (CASSANDRA-10640)
  * (Hadoop) ensure that Cluster instances are always closed (CASSANDRA-10058)
 Merged from 2.1:
+ * (cqlsh) Support counters in COPY commands (CASSANDRA-9043)
  * Try next replica if not possible to connect to primary replica on
    ColumnFamilyRecordReader (CASSANDRA-2388)
  * Limit window size in DTCS (CASSANDRA-10280)

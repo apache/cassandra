@@ -2330,10 +2330,17 @@ class ImportProcess(mp.Process):
         pk_cols = [col.name for col in table_meta.primary_key]
         cqltypes = [table_meta.columns[name].cql_type for name in self.columns]
         pk_indexes = [self.columns.index(col.name) for col in table_meta.primary_key]
-        query = 'INSERT INTO %s.%s (%s) VALUES (%%s)' % (
-            protect_name(self.ks),
-            protect_name(self.cf),
-            ', '.join(protect_names(self.columns)))
+        is_counter_table = ("counter" in cqltypes)
+
+        if is_counter_table:
+            query = 'UPDATE %s.%s SET %%s WHERE %%s' % (
+                protect_name(table_meta.keyspace_name),
+                protect_name(table_meta.name))
+        else:
+            query = 'INSERT INTO %s.%s (%s) VALUES (%%s)' % (
+                protect_name(table_meta.keyspace_name),
+                protect_name(table_meta.name),
+                ', '.join(protect_names(self.columns)))
 
         # we need to handle some types specially
         should_escape = [t in ('ascii', 'text', 'timestamp', 'date', 'time', 'inet') for t in cqltypes]
@@ -2398,8 +2405,17 @@ class ImportProcess(mp.Process):
                         return
                     else:
                         row[i] = 'null'
-
-                full_query = query % (','.join(row),)
+                if is_counter_table:
+                    where_clause = []
+                    set_clause = []
+                    for i, value in enumerate(row):
+                        if i in pk_indexes:
+                            where_clause.append("%s=%s" % (self.columns[i], value))
+                        else:
+                            set_clause.append("%s=%s+%s" % (self.columns[i], self.columns[i], value))
+                    full_query = query % (','.join(set_clause), ' AND '.join(where_clause))
+                else:
+                    full_query = query % (','.join(row),)
                 query_message = QueryMessage(
                     full_query, self.consistency_level, serial_consistency_level=None,
                     fetch_size=None, paging_state=None, timestamp=insert_timestamp)
