@@ -12,6 +12,7 @@
  * Deprecate Pig support (CASSANDRA-10542)
  * Reduce contention getting instances of CompositeType (CASSANDRA-10433)
 Merged from 2.1:
+ * Limit window size in DTCS (CASSANDRA-10280)
  * sstableloader does not use MAX_HEAP_SIZE env parameter (CASSANDRA-10188)
  * (cqlsh) Improve COPY TO performance and error handling (CASSANDRA-9304)
  * Don't remove level info when running upgradesstables (CASSANDRA-10692)
