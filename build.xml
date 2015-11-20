@@ -56,6 +56,7 @@
     <property name="test.conf" value="${test.dir}/conf"/>
     <property name="test.data" value="${test.dir}/data"/>
     <property name="test.name" value="*Test"/>
+    <property name="test.classlistfile" value="testlist.txt"/>
     <property name="benchmark.name" value=""/>
     <property name="test.methods" value=""/>
     <property name="test.runners" value="1"/>
@@ -110,8 +111,10 @@
     
     <!-- http://www.eclemma.org/jacoco/ -->
     <property name="jacoco.export.dir" value="${build.dir}/jacoco/" />
-    <property name="jacoco.execfile" value="${jacoco.export.dir}/jacoco.exec" />
-    <property name="jacoco.version" value="0.7.1.201405082137"/>
+    <property name="jacoco.partials.dir" value="${jacoco.export.dir}/partials" />
+    <property name="jacoco.partialexecfile" value="${jacoco.partials.dir}/partial.exec" />
+    <property name="jacoco.finalexecfile" value="${jacoco.export.dir}/jacoco.exec" />
+    <property name="jacoco.version" value="0.7.5.201505241946"/>
 
     <property name="ecj.version" value="4.4.2"/>
 
@@ -180,6 +183,7 @@
         <mkdir dir="${build.src.gen-java}"/>
         <mkdir dir="${build.dir.lib}"/>
         <mkdir dir="${jacoco.export.dir}"/>
+        <mkdir dir="${jacoco.partials.dir}"/>
     </target>
 
     <target name="clean" description="Remove all locally created artifacts">
@@ -189,6 +193,7 @@
         <delete dir="${build.src.gen-java}" />
         <delete dir="${version.properties.dir}" />
         <delete dir="${jacoco.export.dir}" />
+        <delete dir="${jacoco.partials.dir}"/>
     </target>
     <target depends="clean" name="cleanall"/>
 
@@ -1176,7 +1181,7 @@
     <attribute name="usejacoco" default="no"/>
     <sequential>
       <condition property="additionalagent"
-                 value="-javaagent:${build.dir.lib}/jars/jacocoagent.jar=destfile=${jacoco.execfile}"
+                 value="-javaagent:${build.dir.lib}/jars/jacocoagent.jar=destfile=${jacoco.partialexecfile}"
                  else="">
         <istrue value="${usejacoco}"/>
       </condition>
@@ -1490,10 +1495,16 @@
     <typedef uri="antlib:org.jacoco.ant" classpathref="jacocoant.classpath"/>
   </target>
 
-  <target name="jacoco-report" depends="jacoco-init">
+  <target name="jacoco-merge" depends="jacoco-init">
+    <jacoco:merge destfile="${jacoco.finalexecfile}" xmlns:jacoco="antlib:org.jacoco.ant">
+        <fileset dir="${jacoco.export.dir}" includes="*.exec,**/*.exec"/>
+    </jacoco:merge>
+  </target>
+
+  <target name="jacoco-report" depends="jacoco-merge">
     <jacoco:report xmlns:jacoco="antlib:org.jacoco.ant">
       <executiondata>
-        <file file="${jacoco.execfile}" />
+        <file file="${jacoco.finalexecfile}" />
       </executiondata>
       <structure name="JaCoCo Cassandara Coverage Report">
         <classfiles>
@@ -1516,7 +1527,7 @@
   </target>
 
   <target name="jacoco-cleanup" description="Destroy JaCoCo exec data and reports">
-    <delete file="${jacoco.execfile}"/>
+    <delete file="${jacoco.partialexecfile}"/>
     <delete dir="${jacoco.export.dir}"/>
   </target>
 
@@ -1700,6 +1711,17 @@
   <target name="test" depends="build-test" description="Parallel Test Runner">
     <path id="all-test-classes-path">
       <fileset dir="${test.unit.src}" excludes="**/pig/*.java" includes="**/${test.name}.java" />
+    </path>
+    <property name="all-test-classes" refid="all-test-classes-path"/>
+    <testparallel testdelegate="testlist"/>
+  </target>
+
+  <!-- run a list of tests as provided in -Dtest.classlistfile (or default of 'testnames.txt')
+  The class list file should be one test class per line, with the path starting after test/unit
+  e.g. org/apache/cassandra/hints/HintMessageTest.java -->
+  <target name="testclasslist" depends="build-test" description="Parallel-run tests given in file -Dtest.classlistfile (one-class-per-line, e.g. org/apache/cassandra/db/SomeTest.java)">
+    <path id="all-test-classes-path">
+      <fileset dir="${test.unit.src}" includesfile="${test.classlistfile}"/>
     </path>
     <property name="all-test-classes" refid="all-test-classes-path"/>
     <testparallel testdelegate="testlist"/>
