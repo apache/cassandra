@@ -18,6 +18,10 @@ using the provided 'sstableupgrade' tool.
 
 New features
 ------------
+    - Time windows in DTCS are now limited to 1 day by default to be able to
+      handle bootstrap and repair in a better way. To get the old behaviour,
+      increase max_window_size_seconds.
+    - DTCS option max_sstable_age_days is now deprecated and defaults to 1000 days.
     - Native protocol server now allows both SSL and non-SSL connections on
       the same port.
     - Switching racks is no longer an allowed operation on a node which has
