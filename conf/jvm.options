@@ -85,9 +85,12 @@
 # until the heap is 70% full. The default in Hotspot 8u40 is 40%.
 #-XX:InitiatingHeapOccupancyPercent=70
 
-# The JVM maximum is 8 PGC threads and 1/4 of that for ConcGC.
-# Machines with > 10 cores may need additional threads. Increase to <= full cores.
+# For systems with > 8 cores, the default ParallelGCThreads is 5/8 the number of logical cores.
+# Otherwise equal to the number of cores when 8 or less.
+# Machines with > 10 cores should try setting these to <= full cores.
 #-XX:ParallelGCThreads=16
+# By default, ConcGCThreads is 1/4 of ParallelGCThreads.
+# Setting both to the same value can reduce STW durations.
 #-XX:ConcGCThreads=16
 
 ### GC logging options -- uncomment to enable
