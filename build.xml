@@ -1657,95 +1657,12 @@
 
   <!-- Generate IDEA project description files -->
   <target name="generate-idea-files" depends="build-test" description="Generate IDEA files">
-    <echo file="${eclipse.project.name}.iml"><![CDATA[<?xml version="1.0" encoding="UTF-8"?>
-<module type="JAVA_MODULE" version="4">
-  <component name="NewModuleRootManager" LANGUAGE_LEVEL="JDK_1_8" inherit-compiler-output="false">
-    <output url="file://$MODULE_DIR$/.idea/out/main" />
-    <output-test url="file://$MODULE_DIR$/.idea/out/test" />
-    <exclude-output />
-    <content url="file://$MODULE_DIR$">
-      <sourceFolder url="file://$MODULE_DIR$/src/java" isTestSource="false" />
-      <sourceFolder url="file://$MODULE_DIR$/src/gen-java" isTestSource="false" />
-      <sourceFolder url="file://$MODULE_DIR$/src/resources" type="java-resource" />
-      <sourceFolder url="file://$MODULE_DIR$/interface/thrift/gen-java" isTestSource="false" />
-      <sourceFolder url="file://$MODULE_DIR$/tools/stress/src" isTestSource="false" />
-      <sourceFolder url="file://$MODULE_DIR$/test/unit" isTestSource="true" />
-      <sourceFolder url="file://$MODULE_DIR$/test/long" isTestSource="true" />
-      <sourceFolder url="file://$MODULE_DIR$/test/microbench" isTestSource="true" />
-      <sourceFolder url="file://$MODULE_DIR$/test/resources" type="java-test-resource" />
-      <excludeFolder url="file://$MODULE_DIR$/.idea" />
-      <excludeFolder url="file://$MODULE_DIR$/.settings" />
-      <excludeFolder url="file://$MODULE_DIR$/build" />
-      <excludeFolder url="file://$MODULE_DIR$/data"/>
-      <excludeFolder url="file://$MODULE_DIR$/logs"/>
-    </content>
-    <orderEntry type="inheritedJdk" />
-    <orderEntry type="sourceFolder" forTests="false" />]]>
-    </echo>
-
-  	<path id="idea-project-libs-path">
-  	 <fileset dir="lib">
-  	    <include name="**/*.jar" />
-	 </fileset>
- 	 <fileset dir="build/lib/jars">
-  	    <include name="**/*.jar" />
-  	 </fileset>
-  	</path>
     <mkdir dir=".idea"/>
     <mkdir dir=".idea/libraries"/>
     <copy todir=".idea">
         <fileset dir="ide/idea"/>
     </copy>
-  	<property name="idea-project-libs" refid="idea-project-libs-path"/>
-  	<script language="javascript" classpathref="cassandra.classpath"> <![CDATA[
-  		var File = java.io.File;
-  		var FilenameUtils = Packages.org.apache.commons.io.FilenameUtils;
-  		var basedir = project.getProperty("basedir");
-  		jars = project.getProperty("idea-project-libs").split(project.getProperty("path.separator"));
-
-  		cp = "\n";
-  	    for (i=0; i< jars.length; i++) {
-  	       basename = FilenameUtils.getBaseName(jars[i]);
-  	       srcjar = basename + '-sources.jar';
-  		   srcdir = FilenameUtils.concat(project.getProperty("build.dir.lib"), 'sources');
-  		   srcfile = new File(FilenameUtils.concat(srcdir, srcjar));
-
-  		   cp += '    <orderEntry type="library" name="' + basename + '" level="project" />\n';
-
-  		   lib = '';
-           lib += '<component name="libraryTable">\n';
-           lib += '  <library name="' + basename + '">\n';
-           lib += '    <CLASSES>\n';
-           lib += '      <root url="jar://' + jars[i].replace(basedir,"$PROJECT_DIR$") + '!/" />\n';
-           lib += '    </CLASSES>\n';
-           lib += '    <JAVADOC />\n';
-  		   if (srcfile.exists()) {
-               lib += '    <SOURCES>\n';
-               lib += '      <root url="jar://' + srcfile.getAbsolutePath().replace(basedir,"$PROJECT_DIR$") + '!/" />\n';
-               lib += '    </SOURCES>\n';
-           } else {
-               lib += '    <SOURCES />\n';
-           }
-           lib += '  </library>\n';
-           lib += '</component>';
-
-           echo = project.createTask("echo");
-           echo.setMessage(lib);
-           echo.setFile(new File(".idea/libraries/" + basename.replace('-','_').replace('.','_') + ".xml"));
-           echo.setAppend(false);
-           echo.perform();
-  		}
-
-  		echo = project.createTask("echo");
-  	    echo.setMessage(cp);
-  		echo.setFile(new File(project.getProperty("eclipse.project.name") + ".iml"));
-  		echo.setAppend(true);
-  	    echo.perform();
-  	]]> </script>
-    <echo file="${eclipse.project.name}.iml" append="true"><![CDATA[
-    </component>
-</module>]]>
-    </echo>
+    <copy tofile="${eclipse.project.name}.iml" file="ide/idea-iml-file.xml"/>
     <echo file=".idea/.name">Apache Cassandra ${eclipse.project.name}</echo>
     <echo file=".idea/modules.xml"><![CDATA[<?xml version="1.0" encoding="UTF-8"?>
 <project version="4">
@@ -1755,101 +1672,6 @@
     </modules>
   </component>
 </project>]]></echo>
-    <echo file=".idea/misc.xml"><![CDATA[<?xml version="1.0" encoding="UTF-8"?>
-<project version="4">
-<component name="ProjectRootManager" version="2" languageLevel="JDK_1_8" default="false" assert-keyword="true" jdk-15="true" project-jdk-name="1.8" project-jdk-type="JavaSDK" />
-</project>]]></echo>
-    <echo file=".idea/vcs.xml"><![CDATA[<?xml version="1.0" encoding="UTF-8"?>
-<project version="4">
-  <component name="VcsDirectoryMappings">
-    <mapping directory="$PROJECT_DIR$" vcs="Git" />
-  </component>
-</project>]]></echo>
-    <echo file=".idea/workspace.xml"><![CDATA[<?xml version="1.0" encoding="UTF-8"?>
-<project version="4">
-    <component name="RunManager" selected="Application.Cassandra">
-        <configuration default="true" type="Application" factoryName="Application">
-          <extension name="coverage" enabled="false" merge="false" sample_coverage="true" runner="idea" />
-          <option name="MAIN_CLASS_NAME" value="" />
-          <option name="VM_PARAMETERS" value="-Dcassandra.config=file://$PROJECT_DIR$/conf/cassandra.yaml -Dcassandra.storagedir=$PROJECT_DIR$/data -Dlogback.configurationFile=file://$PROJECT_DIR$/conf/logback.xml -Dcassandra.logdir=$PROJECT_DIR$/data/logs -ea" />
-          <option name="PROGRAM_PARAMETERS" value="" />
-          <option name="WORKING_DIRECTORY" value="" />
-          <option name="ALTERNATIVE_JRE_PATH_ENABLED" value="false" />
-          <option name="ALTERNATIVE_JRE_PATH" value="" />
-          <option name="ENABLE_SWING_INSPECTOR" value="false" />
-          <option name="ENV_VARIABLES" />
-          <option name="PASS_PARENT_ENVS" value="true" />
-          <module name="" />
-          <envs />
-          <method>
-            <option name="AntTarget" enabled="true" antfile="file://$PROJECT_DIR$/build.xml" target="gen-cql3-grammar" />
-            <option name="AntTarget" enabled="true" antfile="file://$PROJECT_DIR$/build.xml" target="gen-thrift-java" />
-            <option name="Make" enabled="true" />
-          </method>
-        </configuration>
-        <configuration default="true" type="JUnit" factoryName="JUnit">
-          <extension name="coverage" enabled="false" merge="false" sample_coverage="true" runner="idea" />
-          <module name="" />
-          <option name="ALTERNATIVE_JRE_PATH_ENABLED" value="false" />
-          <option name="ALTERNATIVE_JRE_PATH" value="" />
-          <option name="PACKAGE_NAME" />
-          <option name="MAIN_CLASS_NAME" value="" />
-          <option name="METHOD_NAME" value="" />
-          <option name="TEST_OBJECT" value="class" />
-          <option name="VM_PARAMETERS" value="-Dcassandra.debugrefcount=true -Dcassandra.config=file://$PROJECT_DIR$/test/conf/cassandra.yaml -Dlogback.configurationFile=file://$PROJECT_DIR$/test/conf/logback-test.xml -Dcassandra.logdir=$PROJECT_DIR$/build/test/logs -Dcorrupt-sstable-root=$PROJECT_DIR$/test/data/corrupt-sstables -Dmigration-sstable-root=${test.data}/migration-sstables -ea" />
-          <option name="PARAMETERS" value="" />
-          <option name="WORKING_DIRECTORY" value="" />
-          <option name="ENV_VARIABLES" />
-          <option name="PASS_PARENT_ENVS" value="true" />
-          <option name="TEST_SEARCH_SCOPE">
-            <value defaultName="singleModule" />
-          </option>
-          <envs />
-          <patterns />
-          <method>
-            <option name="AntTarget" enabled="true" antfile="file://$PROJECT_DIR$/build.xml" target="gen-cql3-grammar" />
-            <option name="AntTarget" enabled="true" antfile="file://$PROJECT_DIR$/build.xml" target="gen-thrift-java" />
-            <option name="Make" enabled="true" />
-          </method>
-        </configuration>
-        <configuration default="false" name="Cassandra" type="Application" factoryName="Application">
-          <extension name="coverage" enabled="false" merge="false" sample_coverage="true" runner="idea" />
-          <option name="MAIN_CLASS_NAME" value="org.apache.cassandra.service.CassandraDaemon" />
-          <option name="VM_PARAMETERS" value="-Dcassandra-foreground=yes -Dcassandra.config=file://$PROJECT_DIR$/conf/cassandra.yaml -Dcassandra.storagedir=$PROJECT_DIR$/data -Dlogback.configurationFile=file://$PROJECT_DIR$/conf/logback.xml -Dcassandra.logdir=$PROJECT_DIR$/data/logs -Dcom.sun.management.jmxremote -Dcom.sun.management.jmxremote.port=7199 -Dcom.sun.management.jmxremote.local.only=false -Dcom.sun.management.jmxremote.authenticate=false -Dcom.sun.management.jmxremote.ssl=false -ea -Xmx1G" />
-          <option name="PROGRAM_PARAMETERS" value="" />
-          <option name="WORKING_DIRECTORY" value="file://$PROJECT_DIR$" />
-          <option name="ALTERNATIVE_JRE_PATH_ENABLED" value="false" />
-          <option name="ALTERNATIVE_JRE_PATH" value="" />
-          <option name="ENABLE_SWING_INSPECTOR" value="false" />
-          <option name="ENV_VARIABLES" />
-          <option name="PASS_PARENT_ENVS" value="true" />
-          <module name="]]>${eclipse.project.name}<![CDATA[" />
-          <envs />
-          <RunnerSettings RunnerId="Debug">
-            <option name="DEBUG_PORT" value="" />
-            <option name="TRANSPORT" value="0" />
-            <option name="LOCAL" value="true" />
-          </RunnerSettings>
-          <RunnerSettings RunnerId="Run" />
-          <ConfigurationWrapper RunnerId="Debug" />
-          <ConfigurationWrapper RunnerId="Run" />
-          <method>
-            <option name="AntTarget" enabled="true" antfile="file://$PROJECT_DIR$/build.xml" target="gen-cql3-grammar" />
-            <option name="AntTarget" enabled="true" antfile="file://$PROJECT_DIR$/build.xml" target="gen-thrift-java" />
-            <option name="Make" enabled="true" />
-          </method>
-        </configuration>
-    </component>
-    <component name="antWorkspaceConfiguration">
-        <option name="IS_AUTOSCROLL_TO_SOURCE" value="false" />
-        <option name="FILTER_TARGETS" value="false" />
-        <buildFile url="file://$PROJECT_DIR$/build.xml">
-            <expanded value="true" />
-        </buildFile>
-  </component>
-</project>
-    ]]>
-    </echo>
   </target>
 
   <!-- Generate Eclipse project description files -->
