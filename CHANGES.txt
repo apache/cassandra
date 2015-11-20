@@ -12,6 +12,8 @@
  * Deprecate Pig support (CASSANDRA-10542)
  * Reduce contention getting instances of CompositeType (CASSANDRA-10433)
 Merged from 2.1:
+ * Try next replica if not possible to connect to primary replica on
+   ColumnFamilyRecordReader (CASSANDRA-2388)
  * Limit window size in DTCS (CASSANDRA-10280)
  * sstableloader does not use MAX_HEAP_SIZE env parameter (CASSANDRA-10188)
  * (cqlsh) Improve COPY TO performance and error handling (CASSANDRA-9304)

@@ -152,22 +152,25 @@ public class ColumnFamilyRecordReader extends RecordReader<ByteBuffer, SortedMap
         if (batchSize < 2)
             throw new IllegalArgumentException("Minimum batchSize is 2.  Suggested batchSize is 100 or more");
 
-        try
+        String[] locations = getLocations();
+        int port = ConfigHelper.getInputRpcPort(conf);
+
+        Exception lastException = null;
+        for (String location : locations)
         {
-            if (client != null)
-                return;
-
-            // create connection using thrift
-            String location = getLocation();
-
-            int port = ConfigHelper.getInputRpcPort(conf);
-            client = ColumnFamilyInputFormat.createAuthenticatedClient(location, port, conf);
-
+            try
+            {
+                client = ColumnFamilyInputFormat.createAuthenticatedClient(location, port, conf);
+                break;
+            }
+            catch (Exception e)
+            {
+                lastException = e;
+                logger.warn("Failed to create authenticated client to {}:{}", location , port);
+            }
         }
-        catch (Exception e)
-        {
-            throw new RuntimeException(e);
-        }
+        if (client == null && lastException != null)
+            throw new RuntimeException(lastException);
 
         iter = widerows ? new WideRowIterator() : new StaticRowIterator();
         logger.trace("created {}", iter);
@@ -187,7 +190,7 @@ public class ColumnFamilyRecordReader extends RecordReader<ByteBuffer, SortedMap
 
     // we don't use endpointsnitch since we are trying to support hadoop nodes that are
     // not necessarily on Cassandra machines, too.  This should be adequate for single-DC clusters, at least.
-    private String getLocation()
+    private String[] getLocations()
     {
         Collection<InetAddress> localAddresses = FBUtilities.getAllLocalAddresses();
 
@@ -206,11 +209,11 @@ public class ColumnFamilyRecordReader extends RecordReader<ByteBuffer, SortedMap
                 }
                 if (address.equals(locationAddress))
                 {
-                    return location;
+                    return new String[]{location};
                 }
             }
         }
-        return split.getLocations()[0];
+        return split.getLocations();
     }
 
     private abstract class RowIterator extends AbstractIterator<Pair<ByteBuffer, SortedMap<ByteBuffer, Column>>>
