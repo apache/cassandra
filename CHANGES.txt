@@ -1,4 +1,5 @@
 2.1.13
+ * Match cassandra-loader options in COPY FROM (CASSANDRA-9303)
  * Fix binding to any address in CqlBulkRecordWriter (CASSANDRA-9309)
  * Fix the way we replace sstables after anticompaction (CASSANDRA-10831)
  * cqlsh fails to decode utf-8 characters for text typed columns (CASSANDRA-10875)
