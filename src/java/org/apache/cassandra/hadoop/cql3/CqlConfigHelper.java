@@ -501,11 +501,26 @@ public class CqlConfigHelper
         return new LimitedLocalNodeFirstLocalBalancingPolicy(stickHosts);
     }
 
+    private static Optional<AuthProvider> getDefaultAuthProvider(Configuration conf)
+    {
+        Optional<String> username = getStringSetting(USERNAME, conf);
+        Optional<String> password = getStringSetting(PASSWORD, conf);
+
+        if (username.isPresent() && password.isPresent())
+        {
+            return Optional.of(new PlainTextAuthProvider(username.get(), password.get()));
+        }
+        else
+        {
+            return Optional.absent();
+        }
+    }
+
     private static Optional<AuthProvider> getAuthProvider(Configuration conf)
     {
         Optional<String> authProvider = getInputNativeAuthProvider(conf);
         if (!authProvider.isPresent())
-            return Optional.absent();
+            return getDefaultAuthProvider(conf);
 
         return Optional.of(getClientAuthProvider(authProvider.get(), conf));
     }
