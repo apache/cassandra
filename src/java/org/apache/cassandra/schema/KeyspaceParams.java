@@ -69,6 +69,11 @@ public final class KeyspaceParams
         return new KeyspaceParams(false, ReplicationParams.simple(replicationFactor));
     }
 
+    public static KeyspaceParams nts(Object... args)
+    {
+        return new KeyspaceParams(true, ReplicationParams.nts(args));
+    }
+
     public void validate(String name)
     {
         replication.validate(name);
