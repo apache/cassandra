@@ -36,6 +36,7 @@ import com.datastax.driver.core.*;
 import com.datastax.driver.core.exceptions.InvalidQueryException;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.config.Schema;
+import org.apache.cassandra.cql3.CQL3Type;
 import org.apache.cassandra.cql3.CQLTester;
 import org.apache.cassandra.cql3.QueryProcessor;
 import org.apache.cassandra.cql3.UntypedResultSet;
@@ -2159,7 +2160,7 @@ public class UFTest extends CQLTester
                                          "LANGUAGE JAVA\n" +
                                          "AS 'return val;'");
 
-        String fNameICN = createFunction(KEYSPACE_PER_TEST, "blob",
+        String fNameICN = createFunction(KEYSPACE_PER_TEST, "int",
                                          "CREATE OR REPLACE FUNCTION %s(val int) " +
                                          "RETURNS NULL ON NULL INPUT " +
                                          "RETURNS int " +
@@ -2182,6 +2183,45 @@ public class UFTest extends CQLTester
         assertRows(execute("SELECT " + fNameIRN + "(empty_int) FROM %s"), row(new Object[]{ null }));
         assertRows(execute("SELECT " + fNameICC + "(empty_int) FROM %s"), row(0));
         assertRows(execute("SELECT " + fNameICN + "(empty_int) FROM %s"), row(new Object[]{ null }));
+    }
+
+    @Test
+    public void testAllNativeTypes() throws Throwable
+    {
+        StringBuilder sig = new StringBuilder();
+        StringBuilder args = new StringBuilder();
+        for (CQL3Type.Native type : CQL3Type.Native.values())
+        {
+            if (type == CQL3Type.Native.EMPTY)
+                continue;
+
+            if (sig.length() > 0)
+                sig.append(',');
+            sig.append(type.toString());
+
+            if (args.length() > 0)
+                args.append(',');
+            args.append("arg").append(type.toString()).append(' ').append(type.toString());
+        }
+        createFunction(KEYSPACE, sig.toString(),
+                       "CREATE OR REPLACE FUNCTION %s(" + args + ") " +
+                       "RETURNS NULL ON NULL INPUT " +
+                       "RETURNS int " +
+                       "LANGUAGE JAVA\n" +
+                       "AS 'return 0;'");
+
+        for (CQL3Type.Native type : CQL3Type.Native.values())
+        {
+            if (type == CQL3Type.Native.EMPTY)
+                continue;
+
+            createFunction(KEYSPACE_PER_TEST, type.toString(),
+                           "CREATE OR REPLACE FUNCTION %s(val " + type.toString() + ") " +
+                           "RETURNS NULL ON NULL INPUT " +
+                           "RETURNS int " +
+                           "LANGUAGE JAVA\n" +
+                           "AS 'return 0;'");
+        }
     }
 
     @Test

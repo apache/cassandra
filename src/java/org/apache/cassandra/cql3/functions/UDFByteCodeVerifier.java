@@ -20,6 +20,7 @@ package org.apache.cassandra.cql3.functions;
 
 import java.util.ArrayList;
 import java.util.Collection;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
 import java.util.TreeSet;
@@ -48,6 +49,7 @@ public final class UDFByteCodeVerifier
     public static final String OBJECT_NAME = Object.class.getName().replace('.', '/');
     public static final String CTOR_SIG = "(Lcom/datastax/driver/core/DataType;[Lcom/datastax/driver/core/DataType;)V";
 
+    private final Set<String> disallowedClasses = new HashSet<>();
     private final Multimap<String, String> disallowedMethodCalls = HashMultimap.create();
     private final List<String> disallowedPackages = new ArrayList<>();
 
@@ -58,6 +60,12 @@ public final class UDFByteCodeVerifier
         addDisallowedMethodCall(OBJECT_NAME, "notify");
         addDisallowedMethodCall(OBJECT_NAME, "notifyAll");
         addDisallowedMethodCall(OBJECT_NAME, "wait");
+    }
+
+    public UDFByteCodeVerifier addDisallowedClass(String clazz)
+    {
+        disallowedClasses.add(clazz);
+        return this;
     }
 
     public UDFByteCodeVerifier addDisallowedMethodCall(String clazz, String method)
@@ -149,20 +157,29 @@ public final class UDFByteCodeVerifier
 
         public void visitMethodInsn(int opcode, String owner, String name, String desc, boolean itf)
         {
+            if (disallowedClasses.contains(owner))
+            {
+                errorDisallowed(owner, name);
+            }
             Collection<String> disallowed = disallowedMethodCalls.get(owner);
             if (disallowed != null && disallowed.contains(name))
             {
-                errors.add("call to " + name + "()");
+                errorDisallowed(owner, name);
             }
             if (!JAVA_UDF_NAME.equals(owner))
             {
                 for (String pkg : disallowedPackages)
                 {
                     if (owner.startsWith(pkg))
-                        errors.add("call to " + owner + '.' + name + "()");
+                        errorDisallowed(owner, name);
                 }
             }
             super.visitMethodInsn(opcode, owner, name, desc, itf);
+        }
+
+        private void errorDisallowed(String owner, String name)
+        {
+            errors.add("call to " + owner.replace('/', '.') + '.' + name + "()");
         }
 
         public void visitInsn(int opcode)
