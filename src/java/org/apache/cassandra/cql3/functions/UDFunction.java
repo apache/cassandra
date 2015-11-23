@@ -95,6 +95,12 @@ public abstract class UDFunction extends AbstractFunction implements ScalarFunct
     "java/io/Serializable.class",
     "java/lang/",
     "java/math/",
+    "java/net/InetAddress.class",
+    "java/net/Inet4Address.class",
+    "java/net/Inet6Address.class",
+    "java/net/UnknownHostException.class", // req'd by InetAddress
+    "java/net/NetworkInterface.class", // req'd by InetAddress
+    "java/net/SocketException.class", // req'd by InetAddress
     "java/nio/Buffer.class",
     "java/nio/ByteBuffer.class",
     "java/text/",

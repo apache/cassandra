@@ -110,6 +110,21 @@ final class JavaBasedUDFunction extends UDFunction
         udfByteCodeVerifier.addDisallowedMethodCall("java/lang/ClassLoader", "setDefaultAssertionStatus");
         udfByteCodeVerifier.addDisallowedMethodCall("java/lang/ClassLoader", "setPackageAssertionStatus");
         udfByteCodeVerifier.addDisallowedMethodCall("java/nio/ByteBuffer", "allocateDirect");
+        for (String ia : new String[]{"java/net/InetAddress", "java/net/Inet4Address", "java/net/Inet6Address"})
+        {
+            // static method, probably performing DNS lookups (despite SecurityManager)
+            udfByteCodeVerifier.addDisallowedMethodCall(ia, "getByAddress");
+            udfByteCodeVerifier.addDisallowedMethodCall(ia, "getAllByName");
+            udfByteCodeVerifier.addDisallowedMethodCall(ia, "getByName");
+            udfByteCodeVerifier.addDisallowedMethodCall(ia, "getLocalHost");
+            // instance methods, probably performing DNS lookups (despite SecurityManager)
+            udfByteCodeVerifier.addDisallowedMethodCall(ia, "getHostName");
+            udfByteCodeVerifier.addDisallowedMethodCall(ia, "getCanonicalHostName");
+            // ICMP PING
+            udfByteCodeVerifier.addDisallowedMethodCall(ia, "isReachable");
+        }
+        udfByteCodeVerifier.addDisallowedClass("java/net/NetworkInterface");
+        udfByteCodeVerifier.addDisallowedClass("java/net/SocketException");
 
         Map<String, String> settings = new HashMap<>();
         settings.put(CompilerOptions.OPTION_LineNumberAttribute,
