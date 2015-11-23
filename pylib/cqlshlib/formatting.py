@@ -19,9 +19,9 @@ import sys
 import re
 import calendar
 import math
+import wcwidth
 from collections import defaultdict
-from . import wcwidth
-from .displaying import colorme, get_str, FormattedValue, DEFAULT_VALUE_COLORS, NO_COLOR_MAP
+from displaying import colorme, get_str, FormattedValue, DEFAULT_VALUE_COLORS, NO_COLOR_MAP
 from cassandra.cqltypes import EMPTY
 from cassandra.util import datetime_from_timestamp
 from util import UTC
