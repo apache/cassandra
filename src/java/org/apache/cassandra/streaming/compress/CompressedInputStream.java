@@ -45,7 +45,7 @@ public class CompressedInputStream extends InputStream
     private final BlockingQueue<byte[]> dataBuffer;
 
     // uncompressed bytes
-    private byte[] buffer;
+    private final byte[] buffer;
 
     // offset from the beginning of the buffer
     protected long bufferOffset = 0;
@@ -64,6 +64,8 @@ public class CompressedInputStream extends InputStream
     private long totalCompressedBytesRead;
     private final boolean hasPostCompressionAdlerChecksums;
 
+    private Thread readerThread;
+
     /**
      * @param source Input source to read compressed data from
      * @param info Compression info
@@ -75,9 +77,10 @@ public class CompressedInputStream extends InputStream
         this.hasPostCompressionAdlerChecksums = hasPostCompressionAdlerChecksums;
         this.buffer = new byte[info.parameters.chunkLength()];
         // buffer is limited to store up to 1024 chunks
-        this.dataBuffer = new ArrayBlockingQueue<byte[]>(Math.min(info.chunks.length, 1024));
+        this.dataBuffer = new ArrayBlockingQueue<>(Math.min(info.chunks.length, 1024));
 
-        new Thread(new Reader(source, info, dataBuffer)).start();
+        readerThread = new Thread(new Reader(source, info, dataBuffer));
+        readerThread.start();
     }
 
     public int read() throws IOException
@@ -143,7 +146,7 @@ public class CompressedInputStream extends InputStream
         return totalCompressedBytesRead;
     }
 
-    static class Reader extends WrappedRunnable
+    class Reader extends WrappedRunnable
     {
         private final InputStream source;
         private final Iterator<CompressionMetadata.Chunk> chunks;
@@ -159,7 +162,7 @@ public class CompressedInputStream extends InputStream
         protected void runMayThrow() throws Exception
         {
             byte[] compressedWithCRC;
-            while (chunks.hasNext())
+            while (!Thread.currentThread().isInterrupted() && chunks.hasNext())
             {
                 CompressionMetadata.Chunk chunk = chunks.next();
 
@@ -169,16 +172,43 @@ public class CompressedInputStream extends InputStream
                 int bufferRead = 0;
                 while (bufferRead < readLength)
                 {
-                    int r = source.read(compressedWithCRC, bufferRead, readLength - bufferRead);
-                    if (r < 0)
+                    int r;
+                    try
+                    {
+                        r = source.read(compressedWithCRC, bufferRead, readLength - bufferRead);
+                        if (r < 0)
+                        {
+                            dataBuffer.put(POISON_PILL);
+                            return; // throw exception where we consume dataBuffer
+                        }
+                    }
+                    catch (IOException e)
                     {
                         dataBuffer.put(POISON_PILL);
-                        return; // throw exception where we consume dataBuffer
+                        throw e;
                     }
                     bufferRead += r;
                 }
                 dataBuffer.put(compressedWithCRC);
             }
+            synchronized(CompressedInputStream.this)
+            {
+                readerThread = null;
+            }
         }
     }
+
+    @Override
+    public void close() throws IOException
+    {
+        synchronized(this)
+        {
+            if (readerThread != null)
+            {
+                readerThread.interrupt();
+                readerThread = null;
+            }
+        }
+    }
+
 }
