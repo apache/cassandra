@@ -19,6 +19,8 @@ package org.apache.cassandra.streaming.compression;
 
 import java.io.*;
 import java.util.*;
+import java.util.concurrent.SynchronousQueue;
+import java.util.concurrent.TimeUnit;
 
 import org.junit.Test;
 import org.apache.cassandra.db.ClusteringComparator;
@@ -55,6 +57,53 @@ public class CompressedInputStreamTest
     {
         testCompressedReadWith(new long[]{1L, 122L, 123L, 124L, 456L}, true);
     }
+
+    /**
+     * Test CompressedInputStream not hang when closed while reading
+     * @throws IOException
+     */
+    @Test(expected = EOFException.class)
+    public void testClose() throws IOException
+    {
+        CompressionParams param = CompressionParams.snappy(32);
+        CompressionMetadata.Chunk[] chunks = {new CompressionMetadata.Chunk(0, 100)};
+        final SynchronousQueue<Integer> blocker = new SynchronousQueue<>();
+        InputStream blockingInput = new InputStream()
+        {
+            @Override
+            public int read() throws IOException
+            {
+                try
+                {
+                    // 10 second cut off not to stop other test in case
+                    return Objects.requireNonNull(blocker.poll(10, TimeUnit.SECONDS));
+                }
+                catch (InterruptedException e)
+                {
+                    throw new IOException("Interrupted as expected", e);
+                }
+            }
+        };
+        CompressionInfo info = new CompressionInfo(chunks, param);
+        try (CompressedInputStream cis = new CompressedInputStream(blockingInput, info, ChecksumType.CRC32, () -> 1.0))
+        {
+            new Thread(new Runnable()
+            {
+                @Override
+                public void run()
+                {
+                    try
+                    {
+                        cis.close();
+                    }
+                    catch (Exception ignore) {}
+                }
+            }).start();
+            // block here
+            cis.read();
+        }
+    }
+
     /**
      * @param valuesToCheck array of longs of range(0-999)
      * @throws Exception
@@ -68,17 +117,19 @@ public class CompressedInputStreamTest
         Descriptor desc = Descriptor.fromFilename(tmp.getAbsolutePath());
         MetadataCollector collector = new MetadataCollector(new ClusteringComparator(BytesType.instance));
         CompressionParams param = CompressionParams.snappy(32);
-        CompressedSequentialWriter writer = new CompressedSequentialWriter(tmp, desc.filenameFor(Component.COMPRESSION_INFO), param, collector);
         Map<Long, Long> index = new HashMap<Long, Long>();
-        for (long l = 0L; l < 1000; l++)
+        try (CompressedSequentialWriter writer = new CompressedSequentialWriter(tmp, desc.filenameFor(Component.COMPRESSION_INFO), param, collector))
         {
-            index.put(l, writer.position());
-            writer.writeLong(l);
+            for (long l = 0L; l < 1000; l++)
+            {
+                index.put(l, writer.position());
+                writer.writeLong(l);
+            }
+            writer.finish();
         }
-        writer.finish();
 
         CompressionMetadata comp = CompressionMetadata.create(tmp.getAbsolutePath());
-        List<Pair<Long, Long>> sections = new ArrayList<Pair<Long, Long>>();
+        List<Pair<Long, Long>> sections = new ArrayList<>();
         for (long l : valuesToCheck)
         {
             long position = index.get(l);
@@ -97,14 +148,15 @@ public class CompressedInputStreamTest
             size += (c.length + 4); // 4bytes CRC
         byte[] toRead = new byte[size];
 
-        RandomAccessFile f = new RandomAccessFile(tmp, "r");
-        int pos = 0;
-        for (CompressionMetadata.Chunk c : chunks)
+        try (RandomAccessFile f = new RandomAccessFile(tmp, "r"))
         {
-            f.seek(c.offset);
-            pos += f.read(toRead, pos, c.length + 4);
+            int pos = 0;
+            for (CompressionMetadata.Chunk c : chunks)
+            {
+                f.seek(c.offset);
+                pos += f.read(toRead, pos, c.length + 4);
+            }
         }
-        f.close();
 
         if (testTruncate)
         {
@@ -117,13 +169,15 @@ public class CompressedInputStreamTest
         CompressionInfo info = new CompressionInfo(chunks, param);
         CompressedInputStream input = new CompressedInputStream(new ByteArrayInputStream(toRead), info,
                                                                 ChecksumType.CRC32, () -> 1.0);
-        DataInputStream in = new DataInputStream(input);
 
-        for (int i = 0; i < sections.size(); i++)
+        try (DataInputStream in = new DataInputStream(input))
         {
-            input.position(sections.get(i).left);
-            long readValue = in.readLong();
-            assert readValue == valuesToCheck[i] : "expected " + valuesToCheck[i] + " but was " + readValue;
+            for (int i = 0; i < sections.size(); i++)
+            {
+                input.position(sections.get(i).left);
+                long readValue = in.readLong();
+                assertEquals("expected " + valuesToCheck[i] + " but was " + readValue, valuesToCheck[i], readValue);
+            }
         }
     }
 }
