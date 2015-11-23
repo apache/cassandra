@@ -107,63 +107,63 @@ public class UFVerifierTest extends CQLTester
     @Test
     public void testUseOfSynchronizedWithNotify()
     {
-        assertEquals(new HashSet<>(Arrays.asList("use of synchronized", "call to notify()")),
+        assertEquals(new HashSet<>(Arrays.asList("use of synchronized", "call to java.lang.Object.notify()")),
                      new UDFByteCodeVerifier().verify(readClass(UseOfSynchronizedWithNotify.class)));
     }
 
     @Test
     public void testUseOfSynchronizedWithNotifyAll()
     {
-        assertEquals(new HashSet<>(Arrays.asList("use of synchronized", "call to notifyAll()")),
+        assertEquals(new HashSet<>(Arrays.asList("use of synchronized", "call to java.lang.Object.notifyAll()")),
                      new UDFByteCodeVerifier().verify(readClass(UseOfSynchronizedWithNotifyAll.class)));
     }
 
     @Test
     public void testUseOfSynchronizedWithWait()
     {
-        assertEquals(new HashSet<>(Arrays.asList("use of synchronized", "call to wait()")),
+        assertEquals(new HashSet<>(Arrays.asList("use of synchronized", "call to java.lang.Object.wait()")),
                      new UDFByteCodeVerifier().verify(readClass(UseOfSynchronizedWithWait.class)));
     }
 
     @Test
     public void testUseOfSynchronizedWithWaitL()
     {
-        assertEquals(new HashSet<>(Arrays.asList("use of synchronized", "call to wait()")),
+        assertEquals(new HashSet<>(Arrays.asList("use of synchronized", "call to java.lang.Object.wait()")),
                      new UDFByteCodeVerifier().verify(readClass(UseOfSynchronizedWithWaitL.class)));
     }
 
     @Test
     public void testUseOfSynchronizedWithWaitI()
     {
-        assertEquals(new HashSet<>(Arrays.asList("use of synchronized", "call to wait()")),
+        assertEquals(new HashSet<>(Arrays.asList("use of synchronized", "call to java.lang.Object.wait()")),
                      new UDFByteCodeVerifier().verify(readClass(UseOfSynchronizedWithWaitLI.class)));
     }
 
     @Test
     public void testCallClone()
     {
-        assertEquals(new HashSet<>(Collections.singletonList("call to clone()")),
+        assertEquals(new HashSet<>(Collections.singletonList("call to java.lang.Object.clone()")),
                      new UDFByteCodeVerifier().verify(readClass(CallClone.class)));
     }
 
     @Test
     public void testCallFinalize()
     {
-        assertEquals(new HashSet<>(Collections.singletonList("call to finalize()")),
+        assertEquals(new HashSet<>(Collections.singletonList("call to java.lang.Object.finalize()")),
                      new UDFByteCodeVerifier().verify(readClass(CallFinalize.class)));
     }
 
     @Test
     public void testCallComDatastax()
     {
-        assertEquals(new HashSet<>(Collections.singletonList("call to com/datastax/driver/core/DataType.cint()")),
+        assertEquals(new HashSet<>(Collections.singletonList("call to com.datastax.driver.core.DataType.cint()")),
                      new UDFByteCodeVerifier().addDisallowedPackage("com/").verify(readClass(CallComDatastax.class)));
     }
 
     @Test
     public void testCallOrgApache()
     {
-        assertEquals(new HashSet<>(Collections.singletonList("call to org/apache/cassandra/config/DatabaseDescriptor.getClusterName()")),
+        assertEquals(new HashSet<>(Collections.singletonList("call to org.apache.cassandra.config.DatabaseDescriptor.getClusterName()")),
                      new UDFByteCodeVerifier().addDisallowedPackage("org/").verify(readClass(CallOrgApache.class)));
     }
 
@@ -197,7 +197,7 @@ public class UFVerifierTest extends CQLTester
                               "{\n" +
                               "    throw new RuntimeException(e);\n" +
                               "}\n" +
-                              "return 0d;", "Java UDF validation failed: [call to clone()]");
+                              "return 0d;", "Java UDF validation failed: [call to java.lang.Object.clone()]");
         assertInvalidByteCode("try\n" +
                               "{\n" +
                               "    finalize();\n" +
@@ -206,7 +206,7 @@ public class UFVerifierTest extends CQLTester
                               "{\n" +
                               "    throw new RuntimeException(e);\n" +
                               "}\n" +
-                              "return 0d;", "Java UDF validation failed: [call to finalize()]");
+                              "return 0d;", "Java UDF validation failed: [call to java.lang.Object.finalize()]");
         assertInvalidByteCode('\n' +
                               "return 0d;\n" +
                               "    }\n" +
@@ -252,12 +252,12 @@ public class UFVerifierTest extends CQLTester
                               "{\n" +
                               "    notify();\n" +
                               "}\n" +
-                              "return 0d;", "Java UDF validation failed: [call to notify(), use of synchronized]");
+                              "return 0d;", "Java UDF validation failed: [call to java.lang.Object.notify(), use of synchronized]");
         assertInvalidByteCode("synchronized (this)\n" +
                               "{\n" +
                               "    notifyAll();\n" +
                               "}\n" +
-                              "return 0d;", "Java UDF validation failed: [call to notifyAll(), use of synchronized]");
+                              "return 0d;", "Java UDF validation failed: [call to java.lang.Object.notifyAll(), use of synchronized]");
         assertInvalidByteCode("synchronized (this)\n" +
                               "{\n" +
                               "    try\n" +
@@ -269,7 +269,7 @@ public class UFVerifierTest extends CQLTester
                               "        throw new RuntimeException(e);\n" +
                               "    }\n" +
                               "}\n" +
-                              "return 0d;", "Java UDF validation failed: [call to wait(), use of synchronized]");
+                              "return 0d;", "Java UDF validation failed: [call to java.lang.Object.wait(), use of synchronized]");
         assertInvalidByteCode("synchronized (this)\n" +
                               "{\n" +
                               "    try\n" +
@@ -281,7 +281,7 @@ public class UFVerifierTest extends CQLTester
                               "        throw new RuntimeException(e);\n" +
                               "    }\n" +
                               "}\n" +
-                              "return 0d;", "Java UDF validation failed: [call to wait(), use of synchronized]");
+                              "return 0d;", "Java UDF validation failed: [call to java.lang.Object.wait(), use of synchronized]");
         assertInvalidByteCode("synchronized (this)\n" +
                               "{\n" +
                               "    try\n" +
@@ -293,7 +293,37 @@ public class UFVerifierTest extends CQLTester
                               "        throw new RuntimeException(e);\n" +
                               "    }\n" +
                               "}\n" +
-                              "return 0d;", "Java UDF validation failed: [call to wait(), use of synchronized]");
+                              "return 0d;", "Java UDF validation failed: [call to java.lang.Object.wait(), use of synchronized]");
+        assertInvalidByteCode("try {" +
+                              "     java.nio.ByteBuffer.allocateDirect(123); return 0d;" +
+                              "} catch (Exception t) {" +
+                              "     throw new RuntimeException(t);" +
+                              '}', "Java UDF validation failed: [call to java.nio.ByteBuffer.allocateDirect()]");
+        assertInvalidByteCode("try {" +
+                              "     java.net.InetAddress.getLocalHost(); return 0d;" +
+                              "} catch (Exception t) {" +
+                              "     throw new RuntimeException(t);" +
+                              '}', "Java UDF validation failed: [call to java.net.InetAddress.getLocalHost()]");
+        assertInvalidByteCode("try {" +
+                              "     java.net.InetAddress.getAllByName(\"localhost\"); return 0d;" +
+                              "} catch (Exception t) {" +
+                              "     throw new RuntimeException(t);" +
+                              '}', "Java UDF validation failed: [call to java.net.InetAddress.getAllByName()]");
+        assertInvalidByteCode("try {" +
+                              "     java.net.Inet4Address.getByName(\"127.0.0.1\"); return 0d;" +
+                              "} catch (Exception t) {" +
+                              "     throw new RuntimeException(t);" +
+                              '}', "Java UDF validation failed: [call to java.net.Inet4Address.getByName()]");
+        assertInvalidByteCode("try {" +
+                              "     java.net.Inet6Address.getByAddress(new byte[]{127,0,0,1}); return 0d;" +
+                              "} catch (Exception t) {" +
+                              "     throw new RuntimeException(t);" +
+                              '}', "Java UDF validation failed: [call to java.net.Inet6Address.getByAddress()]");
+        assertInvalidByteCode("try {" +
+                              "     java.net.NetworkInterface.getNetworkInterfaces(); return 0d;" +
+                              "} catch (Exception t) {" +
+                              "     throw new RuntimeException(t);" +
+                              '}', "Java UDF validation failed: [call to java.net.NetworkInterface.getNetworkInterfaces()]");
     }
 
     private void assertInvalidByteCode(String body, String error) throws Throwable
