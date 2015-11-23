@@ -51,6 +51,21 @@ public final class ReplicationParams
         return new ReplicationParams(SimpleStrategy.class, ImmutableMap.of("replication_factor", Integer.toString(replicationFactor)));
     }
 
+    static ReplicationParams nts(Object... args)
+    {
+        assert args.length % 2 == 0;
+
+        Map<String, String> options = new HashMap<>();
+        for (int i = 0; i < args.length; i += 2)
+        {
+            String dc = (String) args[i];
+            Integer rf = (Integer) args[i + 1];
+            options.put(dc, rf.toString());
+        }
+
+        return new ReplicationParams(NetworkTopologyStrategy.class, options);
+    }
+
     public void validate(String name)
     {
         // Attempt to instantiate the ARS, which will throw a ConfigurationException if the options aren't valid.

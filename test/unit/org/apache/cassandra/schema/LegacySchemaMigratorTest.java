@@ -245,6 +245,9 @@ public class LegacySchemaMigratorTest
                                                                            + "PRIMARY KEY((bar, baz), qux, quz) ) "
                                                                            + "WITH COMPACT STORAGE", ks_cql))));
 
+        // NTS keyspace
+        keyspaces.add(KeyspaceMetadata.create("nts", KeyspaceParams.nts("dc1", 1, "dc2", 2)));
+
         keyspaces.add(keyspaceWithDroppedCollections());
         keyspaces.add(keyspaceWithTriggers());
         keyspaces.add(keyspaceWithUDTs());
