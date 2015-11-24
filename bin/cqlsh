@@ -1396,7 +1396,7 @@ class Shell(cmd.Cmd):
         (DESC may be used as a shorthand.)
 
           Outputs information about the connected Cassandra cluster, or about
-          the data stored on it. Use in one of the following ways:
+          the data objects stored in the cluster. Use in one of the following ways:
 
         DESCRIBE KEYSPACES
 
@@ -1404,20 +1404,20 @@ class Shell(cmd.Cmd):
 
         DESCRIBE KEYSPACE [<keyspacename>]
 
-          Output CQL commands that could be used to recreate the given
-          keyspace, and the tables in it. In some cases, as the CQL interface
-          matures, there will be some metadata about a keyspace that is not
-          representable with CQL. That metadata will not be shown.
+          Output CQL commands that could be used to recreate the given keyspace,
+          and the objects in it (such as tables, types, etc.).
+          In some cases, as the CQL interface matures, there will be some metadata
+          about a keyspace that is not representable with CQL. That metadata will not be shown.
 
-          The '<keyspacename>' argument may be omitted when using a non-system
-          keyspace; in that case, the current keyspace will be described.
+          The '<keyspacename>' argument may be omitted, in which case the current
+          keyspace will be described.
 
         DESCRIBE TABLES
 
           Output the names of all tables in the current keyspace, or in all
           keyspaces if there is no current keyspace.
 
-        DESCRIBE TABLE <tablename>
+        DESCRIBE TABLE [<keyspace>.]<tablename>
 
           Output CQL commands that could be used to recreate the given table.
           In some cases, as above, there may be table metadata which is not
@@ -1425,7 +1425,7 @@ class Shell(cmd.Cmd):
 
         DESCRIBE INDEX <indexname>
 
-          Output CQL commands that could be used to recreate the given index.
+          Output the CQL command that could be used to recreate the given index.
           In some cases, there may be index metadata which is not representable
           and which will not be shown.
 
@@ -1441,6 +1441,15 @@ class Shell(cmd.Cmd):
           Output CQL commands that could be used to recreate the entire (non-system) schema.
           Works as though "DESCRIBE KEYSPACE k" was invoked for each non-system keyspace
           k. Use DESCRIBE FULL SCHEMA to include the system keyspaces.
+
+        DESCRIBE TYPES
+
+          Output the names of all user-defined-types in the current keyspace, or in all
+          keyspaces if there is no current keyspace.
+
+        DESCRIBE TYPE [<keyspace>.]<type>
+
+          Output the CQL command that could be used to recreate the given user-defined-type.
 
         DESCRIBE <objname>
 
