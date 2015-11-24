@@ -18,7 +18,8 @@ using the provided 'sstableupgrade' tool.
 
 New features
 ------------
-
+   - bound maximum in-flight commit log replay mutation bytes to 64 megabytes
+     tunable via cassandra.commitlog_max_outstanding_replay_bytes
    - Support for type casting has been added to the selection clause.
 
 Upgrading
