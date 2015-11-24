@@ -284,9 +284,9 @@ cqlsh_extra_syntax_rules = r'''
                    ;
 
 <describeCommand> ::= ( "DESCRIBE" | "DESC" )
-                                  ( "FUNCTIONS" ksname=<keyspaceName>?
+                                  ( "FUNCTIONS"
                                   | "FUNCTION" udf=<anyFunctionName>
-                                  | "AGGREGATES" ksname=<keyspaceName>?
+                                  | "AGGREGATES"
                                   | "AGGREGATE" uda=<userAggregateName>
                                   | "KEYSPACES"
                                   | "KEYSPACE" ksname=<keyspaceName>?
@@ -1486,7 +1486,7 @@ class Shell(cmd.Cmd):
             cmd.Cmd.columnize(self, protect_names(self.get_columnfamily_names(ksname)))
             print
 
-    def describe_functions(self, ksname=None):
+    def describe_functions(self, ksname):
         print
         if ksname is None:
             for ksmeta in self.get_keyspaces():
@@ -1513,7 +1513,7 @@ class Shell(cmd.Cmd):
         print "\n\n".join(func.as_cql_query(formatted=True) for func in functions)
         print
 
-    def describe_aggregates(self, ksname=None):
+    def describe_aggregates(self, ksname):
         print
         if ksname is None:
             for ksmeta in self.get_keyspaces():
@@ -1596,7 +1596,7 @@ class Shell(cmd.Cmd):
         (DESC may be used as a shorthand.)
 
           Outputs information about the connected Cassandra cluster, or about
-          the data stored on it. Use in one of the following ways:
+          the data objects stored in the cluster. Use in one of the following ways:
 
         DESCRIBE KEYSPACES
 
@@ -1604,20 +1604,20 @@ class Shell(cmd.Cmd):
 
         DESCRIBE KEYSPACE [<keyspacename>]
 
-          Output CQL commands that could be used to recreate the given
-          keyspace, and the tables in it. In some cases, as the CQL interface
-          matures, there will be some metadata about a keyspace that is not
-          representable with CQL. That metadata will not be shown.
+          Output CQL commands that could be used to recreate the given keyspace,
+          and the objects in it (such as tables, types, functions, etc.).
+          In some cases, as the CQL interface matures, there will be some metadata
+          about a keyspace that is not representable with CQL. That metadata will not be shown.
 
-          The '<keyspacename>' argument may be omitted when using a non-system
-          keyspace; in that case, the current keyspace will be described.
+          The '<keyspacename>' argument may be omitted, in which case the current
+          keyspace will be described.
 
         DESCRIBE TABLES
 
           Output the names of all tables in the current keyspace, or in all
           keyspaces if there is no current keyspace.
 
-        DESCRIBE TABLE <tablename>
+        DESCRIBE TABLE [<keyspace>.]<tablename>
 
           Output CQL commands that could be used to recreate the given table.
           In some cases, as above, there may be table metadata which is not
@@ -1625,13 +1625,13 @@ class Shell(cmd.Cmd):
 
         DESCRIBE INDEX <indexname>
 
-          Output CQL commands that could be used to recreate the given index.
+          Output the CQL command that could be used to recreate the given index.
           In some cases, there may be index metadata which is not representable
           and which will not be shown.
 
         DESCRIBE MATERIALIZED VIEW <viewname>
 
-          Output CQL commands that could be used to recreate the given materialized view.
+          Output the CQL command that could be used to recreate the given materialized view.
           In some cases, there may be materialized view metadata which is not representable
           and which will not be shown.
 
@@ -1648,21 +1648,32 @@ class Shell(cmd.Cmd):
           Works as though "DESCRIBE KEYSPACE k" was invoked for each non-system keyspace
           k. Use DESCRIBE FULL SCHEMA to include the system keyspaces.
 
-        DESCRIBE FUNCTIONS <keyspace>
+        DESCRIBE TYPES
 
-          Output the names of all user defined functions in the given keyspace.
+          Output the names of all user-defined-types in the current keyspace, or in all
+          keyspaces if there is no current keyspace.
+
+        DESCRIBE TYPE [<keyspace>.]<type>
+
+          Output the CQL command that could be used to recreate the given user-defined-type.
+
+        DESCRIBE FUNCTIONS
+
+          Output the names of all user-defined-functions in the current keyspace, or in all
+          keyspaces if there is no current keyspace.
 
         DESCRIBE FUNCTION [<keyspace>.]<function>
 
-          Describe the given user defined function.
+          Output the CQL command that could be used to recreate the given user-defined-function.
 
-        DESCRIBE AGGREGATES <keyspace>
+        DESCRIBE AGGREGATES
 
-          Output the names of all user defined aggregates in the given keyspace.
+          Output the names of all user-defined-aggregates in the current keyspace, or in all
+          keyspaces if there is no current keyspace.
 
         DESCRIBE AGGREGATE [<keyspace>.]<aggregate>
 
-          Describe the given user defined aggregate.
+          Output the CQL command that could be used to recreate the given user-defined-aggregate.
 
         DESCRIBE <objname>
 
@@ -1672,15 +1683,13 @@ class Shell(cmd.Cmd):
   """
         what = parsed.matched[1][1].lower()
         if what == 'functions':
-            ksname = self.cql_unprotect_name(parsed.get_binding('ksname', None))
-            self.describe_functions(ksname)
+            self.describe_functions(self.current_keyspace)
         elif what == 'function':
             ksname = self.cql_unprotect_name(parsed.get_binding('ksname', None))
             functionname = self.cql_unprotect_name(parsed.get_binding('udfname'))
             self.describe_function(ksname, functionname)
         elif what == 'aggregates':
-            ksname = self.cql_unprotect_name(parsed.get_binding('ksname', None))
-            self.describe_aggregates(ksname)
+            self.describe_aggregates(self.current_keyspace)
         elif what == 'aggregate':
             ksname = self.cql_unprotect_name(parsed.get_binding('ksname', None))
             aggregatename = self.cql_unprotect_name(parsed.get_binding('udaname'))
