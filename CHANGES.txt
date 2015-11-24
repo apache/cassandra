@@ -1,5 +1,6 @@
 3.1
 Merged from 3.0:
+ * Wait for migration responses to complete before bootstrapping (CASSANDRA-10731)
  * Unable to create a function with argument of type Inet (CASSANDRA-10741)
  * Fix backward incompatibiliy in CqlInputFormat (CASSANDRA-10717)
  * Correctly preserve deletion info on updated rows when notifying indexers
