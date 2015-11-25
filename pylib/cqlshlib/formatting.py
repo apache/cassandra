@@ -20,10 +20,10 @@ import math
 import re
 import sys
 import platform
-from collections import defaultdict
+import wcwidth
 
-from . import wcwidth
-from .displaying import colorme, get_str, FormattedValue, DEFAULT_VALUE_COLORS, NO_COLOR_MAP
+from collections import defaultdict
+from displaying import colorme, get_str, FormattedValue, DEFAULT_VALUE_COLORS, NO_COLOR_MAP
 from cassandra.cqltypes import EMPTY
 from cassandra.util import datetime_from_timestamp
 from util import UTC
