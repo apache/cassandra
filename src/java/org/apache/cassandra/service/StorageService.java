@@ -1026,18 +1026,6 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
         MigrationManager.instance.register(new AuthMigrationListener());
     }
 
-    private void maybeAddTable(CFMetaData cfm)
-    {
-        try
-        {
-            MigrationManager.announceNewColumnFamily(cfm);
-        }
-        catch (AlreadyExistsException e)
-        {
-            logger.debug("Attempted to create new table {}, but it already exists", cfm.cfName);
-        }
-    }
-
     private void maybeAddKeyspace(KSMetaData ksm)
     {
         try
@@ -1064,14 +1052,17 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
         // version of the schema, the one the node will be expecting.
 
         KSMetaData defined = Schema.instance.getKSMetaData(expected.name);
+        // If the keyspace doesn't exist, create it
         if (defined == null)
         {
-            // The keyspace doesn't exist, create it
             maybeAddKeyspace(expected);
-            return;
+            defined = Schema.instance.getKSMetaData(expected.name);
         }
 
         // While the keyspace exists, it might miss table or have outdated one
+        // There is also the potential for a race, as schema migrations add the bare
+        // keyspace into Schema.instance before adding its tables, so double check that
+        // all the expected tables are present
         for (CFMetaData expectedTable : expected.cfMetaData().values())
         {
             CFMetaData definedTable = defined.cfMetaData().get(expectedTable.cfName);

@@ -525,8 +525,10 @@ public class Schema
         // since we're going to call initCf on the new one manually
         Keyspace.open(cfm.ksName);
 
+        // init the new CF before switching the KSM to the new one
+        // to avoid races as in CASSANDRA-10761
+        Keyspace.open(cfm.ksName).initCf(cfm, true);
         setKeyspaceDefinition(ksm);
-        Keyspace.open(ksm.name).initCf(cfm.cfId, cfm.cfName, true);
         MigrationManager.instance.notifyCreateColumnFamily(cfm);
     }
 

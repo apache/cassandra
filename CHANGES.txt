@@ -1,3 +1,7 @@
+2.2.5
+ * Verify tables in pseudo-system keyspaces at startup (CASSANDRA-10761)
+
+
 2.2.4
  * Show CQL help in cqlsh in web browser (CASSANDRA-7225)
  * Serialize on disk the proper SSTable compression ratio (CASSANDRA-10775)
