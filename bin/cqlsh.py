@@ -1789,6 +1789,8 @@ class Shell(cmd.Cmd):
         cleancopyoptvals = [optval.decode('string-escape') for optval in copyoptvals]
         opts = dict(zip(copyoptnames, cleancopyoptvals))
 
+        print "\nStarting copy of %s.%s with columns %s." % (ks, cf, columns)
+
         timestart = time.time()
 
         direction = parsed.get_binding('dir').upper()
