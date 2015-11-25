@@ -22,9 +22,11 @@ import java.io.IOException;
 import java.net.InetAddress;
 import java.net.UnknownHostException;
 import java.nio.ByteBuffer;
+import java.util.AbstractMap;
 import java.util.Arrays;
 import java.util.LinkedList;
 import java.util.List;
+import java.util.Map;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.TimeUnit;
 
@@ -40,6 +42,7 @@ import org.apache.cassandra.db.index.SecondaryIndex;
 import org.apache.cassandra.dht.BytesToken;
 import org.apache.cassandra.dht.Range;
 import org.apache.cassandra.io.sstable.SSTableReader;
+import org.apache.cassandra.dht.Token;
 import org.apache.cassandra.locator.TokenMetadata;
 import org.apache.cassandra.service.StorageService;
 import org.apache.cassandra.utils.ByteBufferUtil;
@@ -166,6 +169,78 @@ public class CleanupTest extends SchemaLoader
 
         rows = Util.getRangeSlice(cfs);
         assertEquals(0, rows.size());
+    }
+
+    @Test
+    public void testNeedsCleanup() throws Exception
+    {
+        // setup
+        StorageService.instance.getTokenMetadata().clearUnsafe();
+        Keyspace keyspace = Keyspace.open(KEYSPACE1);
+        ColumnFamilyStore cfs = keyspace.getColumnFamilyStore(CF1);
+        fillCF(cfs, LOOPS);
+
+        // prepare SSTable and some useful tokens
+        SSTableReader ssTable = cfs.getSSTables().iterator().next();
+        final Token ssTableMin = ssTable.first.getToken();
+        final Token ssTableMax = ssTable.last.getToken();
+
+        final Token min = token((byte) 0);
+        final Token before1 = token((byte) 2);
+        final Token before2 = token((byte) 5);
+        final Token before3 = token((byte) 10);
+        final Token before4 = token((byte) 47);
+        final Token insideSsTable1 = token((byte) 50);
+        final Token insideSsTable2 = token((byte) 55);
+        final Token max = token((byte) 127, (byte) 127, (byte) 127, (byte) 127);
+
+        // test sanity check
+        assert (min.compareTo(ssTableMin) < 0);
+        assert (before1.compareTo(ssTableMin) < 0);
+        assert (before2.compareTo(ssTableMin) < 0);
+        assert (before3.compareTo(ssTableMin) < 0);
+        assert (before4.compareTo(ssTableMin) < 0);
+        assert (ssTableMin.compareTo(insideSsTable1) < 0);
+        assert (insideSsTable1.compareTo(ssTableMax) < 0);
+        assert (ssTableMin.compareTo(insideSsTable2) < 0);
+        assert (insideSsTable2.compareTo(ssTableMax) < 0);
+        assert (ssTableMax.compareTo(max) < 0);
+
+        // test cases
+        // key: needs cleanup?
+        // value: owned ranges
+        List<Map.Entry<Boolean, List<Range<Token>>>> testCases = new LinkedList<Map.Entry<Boolean, List<Range<Token>>>>()
+        {
+            {
+                add(entry(false, Arrays.asList(range(min, max)))); // SSTable owned as a whole
+                add(entry(true, Arrays.asList(range(min, insideSsTable1)))); // SSTable owned only partially
+                add(entry(true, Arrays.asList(range(insideSsTable1, max)))); // SSTable owned only partially
+                add(entry(true, Arrays.asList(range(min, ssTableMin)))); // SSTable not owned at all
+                add(entry(true, Arrays.asList(range(ssTableMax, max)))); // only last token of SSTable is owned
+                add(entry(true, Arrays.asList(range(min, insideSsTable1), range(insideSsTable2, max)))); // SSTable partially owned by two ranges
+                add(entry(true, Arrays.asList(range(ssTableMin, ssTableMax)))); // first token of SSTable is not owned
+                add(entry(false, Arrays.asList(range(before4, max)))); // first token of SSTable is not owned
+                add(entry(false, Arrays.asList(range(min, before1), range(before2, before3), range(before4, max)))); // SSTable owned by the last range
+            }
+        };
+
+        // check all test cases
+        for (Map.Entry<Boolean, List<Range<Token>>> testCase : testCases)
+        {
+            assertEquals(testCase.getKey(), CompactionManager.needsCleanup(ssTable, testCase.getValue()));
+        }
+    }
+    private static BytesToken token(byte ... value)
+    {
+        return new BytesToken(value);
+    }
+    private static <K, V> Map.Entry<K, V> entry(K k, V v)
+    {
+       return new AbstractMap.SimpleEntry<K, V>(k, v);
+    }
+    private static Range<Token> range(Token from, Token to)
+    {
+        return new Range<>(from, to);
     }
 
     protected void fillCF(ColumnFamilyStore cfs, int rowsPerSSTable)
