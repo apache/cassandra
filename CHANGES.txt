@@ -26,6 +26,7 @@ Merged from 2.2:
  * (Hadoop) fix splits calculation (CASSANDRA-10640)
  * (Hadoop) ensure that Cluster instances are always closed (CASSANDRA-10058)
 Merged from 2.1:
+ * (cqlsh) Print column names before COPY operation (CASSANDRA-8935)
  * Fix CompressedInputStream for proper cleanup (CASSANDRA-10012)
  * (cqlsh) Support counters in COPY commands (CASSANDRA-9043)
  * Try next replica if not possible to connect to primary replica on
