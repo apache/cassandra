@@ -1115,11 +1115,11 @@ public class CompactionManager implements CompactionManagerMBean
                 metrics.beginCompaction(ci);
                 try
                 {
+                    Range.OrderedRangeContainmentChecker containmentChecker = new Range.OrderedRangeContainmentChecker(ranges);
                     while (iter.hasNext())
                     {
                         AbstractCompactedRow row = iter.next();
-                        // if current range from sstable is repaired, save it into the new repaired sstable
-                        if (Range.isInRanges(row.key.getToken(), ranges))
+                        if (containmentChecker.contains(row.key.getToken()))
                         {
                             repairedSSTableWriter.append(row);
                             repairedKeyCount++;

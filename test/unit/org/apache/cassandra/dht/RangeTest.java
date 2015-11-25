@@ -19,9 +19,15 @@
 package org.apache.cassandra.dht;
 
 import java.nio.ByteBuffer;
+import java.util.ArrayList;
+import java.util.Collections;
 import java.util.HashSet;
 import java.util.List;
+import java.util.Random;
 import java.util.Set;
+
+import com.google.common.base.Joiner;
+
 import static java.util.Arrays.asList;
 
 import org.apache.commons.lang3.StringUtils;
@@ -29,6 +35,7 @@ import org.junit.Test;
 
 import org.apache.cassandra.db.RowPosition;
 import static org.apache.cassandra.Util.range;
+import static org.junit.Assert.*;
 
 
 public class RangeTest
@@ -535,5 +542,65 @@ public class RangeTest
         input = asList(range ("", "1"), range("1", "4"), range("4", "5"), range("5", ""));
         expected = asList(range("", ""));
         assertNormalize(input, expected);
+    }
+
+    @Test
+    public void testRandomOrderedRangeContainmentChecker()
+    {
+        Random r = new Random();
+        for (int j = 0; j < 1000; j++)
+        {
+            int numTokens = r.nextInt(300) + 1;
+            List<Range<Token>> ranges = new ArrayList<>(numTokens);
+            List<Token> tokens = new ArrayList<>(2 * numTokens);
+            for (int i = 0; i < 2 * numTokens; i++)
+                tokens.add(t(r.nextLong()));
+
+            Collections.sort(tokens);
+
+            for (int i = 0; i < tokens.size(); i++)
+            {
+                ranges.add(new Range<>(tokens.get(i), tokens.get(i + 1)));
+                i++;
+            }
+
+            List<Token> tokensToTest = new ArrayList<>();
+            for (int i = 0; i < 10000; i++)
+                tokensToTest.add(t(r.nextLong()));
+
+            tokensToTest.add(t(Long.MAX_VALUE));
+            tokensToTest.add(t(Long.MIN_VALUE));
+            tokensToTest.add(t(Long.MAX_VALUE - 1));
+            tokensToTest.add(t(Long.MIN_VALUE + 1));
+            Collections.sort(tokensToTest);
+
+            Range.OrderedRangeContainmentChecker checker = new Range.OrderedRangeContainmentChecker(ranges);
+            for (Token t : tokensToTest)
+            {
+                if (checker.contains(t) != Range.isInRanges(t, ranges)) // avoid running Joiner.on(..) every iteration
+                    fail(String.format("This should never flap! If it does, it is a bug (ranges = %s, token = %s)", Joiner.on(",").join(ranges), t));
+            }
+        }
+    }
+
+    @Test
+    public void testBoundariesORCC()
+    {
+        List<Range<Token>> ranges = asList(r(Long.MIN_VALUE, Long.MIN_VALUE + 1), r(Long.MAX_VALUE - 1, Long.MAX_VALUE));
+        Range.OrderedRangeContainmentChecker checker = new Range.OrderedRangeContainmentChecker(ranges);
+        assertFalse(checker.contains(t(Long.MIN_VALUE)));
+        assertTrue(checker.contains(t(Long.MIN_VALUE + 1)));
+        assertFalse(checker.contains(t(0)));
+        assertFalse(checker.contains(t(Long.MAX_VALUE - 1)));
+        assertTrue(checker.contains(t(Long.MAX_VALUE)));
+    }
+
+    private static Range<Token> r(long left, long right)
+    {
+        return new Range<>(t(left), t(right));
+    }
+    private static Token t(long t)
+    {
+        return new LongToken(t);
     }
 }
