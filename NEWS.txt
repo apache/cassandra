@@ -20,8 +20,11 @@ New features
 ------------
 
    - Support for type casting has been added to the selection clause.
-   
-   
+
+Upgrading
+---------
+   - The compression ratio metrics computation has been modified to be more accurate.
+
 3.0
 ===
 

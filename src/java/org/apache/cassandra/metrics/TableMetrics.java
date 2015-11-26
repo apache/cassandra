@@ -24,13 +24,14 @@ import java.util.concurrent.TimeUnit;
 
 import com.codahale.metrics.*;
 import com.codahale.metrics.Timer;
+import com.google.common.collect.Iterables;
 import com.google.common.collect.Maps;
 import org.apache.cassandra.db.ColumnFamilyStore;
 import org.apache.cassandra.db.Keyspace;
 import org.apache.cassandra.db.Memtable;
 import org.apache.cassandra.db.lifecycle.SSTableSet;
+import org.apache.cassandra.io.compress.CompressionMetadata;
 import org.apache.cassandra.io.sstable.format.SSTableReader;
-import org.apache.cassandra.io.sstable.metadata.MetadataCollector;
 import org.apache.cassandra.utils.EstimatedHistogram;
 import org.apache.cassandra.utils.TopKSampler;
 
@@ -41,7 +42,6 @@ import static org.apache.cassandra.metrics.CassandraMetricsRegistry.Metrics;
  */
 public class TableMetrics
 {
-
     /** Total amount of data stored in the memtable that resides on-heap, including column related overhead and partitions overwritten. */
     public final Gauge<Long> memtableOnHeapSize;
     /** Total amount of data stored in the memtable that resides off-heap, including column related overhead and partitions overwritten. */
@@ -323,36 +323,14 @@ public class TableMetrics
         {
             public Double getValue()
             {
-                double sum = 0;
-                int total = 0;
-                for (SSTableReader sstable : cfs.getSSTables(SSTableSet.CANONICAL))
-                {
-                    if (sstable.getCompressionRatio() != MetadataCollector.NO_COMPRESSION_RATIO)
-                    {
-                        sum += sstable.getCompressionRatio();
-                        total++;
-                    }
-                }
-                return total != 0 ? sum / total : 0;
+                return computeCompressionRatio(cfs.getSSTables(SSTableSet.CANONICAL));
             }
         }, new Gauge<Double>() // global gauge
         {
             public Double getValue()
             {
-                double sum = 0;
-                int total = 0;
-                for (Keyspace keyspace : Keyspace.all())
-                {
-                    for (SSTableReader sstable : keyspace.getAllSSTables(SSTableSet.CANONICAL))
-                    {
-                        if (sstable.getCompressionRatio() != MetadataCollector.NO_COMPRESSION_RATIO)
-                        {
-                            sum += sstable.getCompressionRatio();
-                            total++;
-                        }
-                    }
-                }
-                return total != 0 ? sum / total : 0;
+                return computeCompressionRatio(Iterables.concat(Iterables.transform(Keyspace.all(),
+                                                                                    p -> p.getAllSSTables(SSTableSet.CANONICAL))));
             }
         });
         readLatency = new LatencyMetrics(factory, "Read", cfs.keyspace.metric.readLatency, globalReadLatency);
@@ -745,6 +723,32 @@ public class TableMetrics
             });
         }
         return cfCounter;
+    }
+
+    /**
+     * Computes the compression ratio for the specified SSTables
+     *
+     * @param sstables the SSTables
+     * @return the compression ratio for the specified SSTables
+     */
+    private static Double computeCompressionRatio(Iterable<SSTableReader> sstables)
+    {
+        double compressedLengthSum = 0;
+        double dataLengthSum = 0;
+        for (SSTableReader sstable : sstables)
+        {
+            if (sstable.compression)
+            {
+                // We should not have any sstable which are in an open early mode as the sstable were selected
+                // using SSTableSet.CANONICAL.
+                assert sstable.openReason != SSTableReader.OpenReason.EARLY;
+
+                CompressionMetadata compressionMetadata = sstable.getCompressionMetadata();
+                compressedLengthSum += compressionMetadata.compressedFileLength;
+                dataLengthSum += compressionMetadata.dataLength;
+            }
+        }
+        return dataLengthSum != 0 ? compressedLengthSum / dataLengthSum : 0;
     }
 
     /**
