@@ -112,6 +112,7 @@ public class Config
     public String listen_interface;
     public Boolean listen_interface_prefer_ipv6 = false;
     public String broadcast_address;
+    public Boolean listen_on_broadcast_address = false;
     public String internode_authenticator;
 
     /* intentionally left set to true, despite being set to false in stock 2.2 cassandra.yaml

@@ -447,21 +447,31 @@ public final class MessagingService implements MessagingServiceMBean
         getConnectionPool(ep).reset();
     }
 
+    public void listen()
+    {
+        callbacks.reset(); // hack to allow tests to stop/restart MS
+        listen(FBUtilities.getLocalAddress());
+        if (DatabaseDescriptor.shouldListenOnBroadcastAddress()
+            && !FBUtilities.getLocalAddress().equals(FBUtilities.getBroadcastAddress()))
+        {
+            listen(FBUtilities.getBroadcastAddress());
+        }
+        listenGate.signalAll();
+    }
+
     /**
      * Listen on the specified port.
      *
      * @param localEp InetAddress whose port to listen on.
      */
-    public void listen(InetAddress localEp) throws ConfigurationException
+    private void listen(InetAddress localEp) throws ConfigurationException
     {
-        callbacks.reset(); // hack to allow tests to stop/restart MS
         for (ServerSocket ss : getServerSockets(localEp))
         {
             SocketThread th = new SocketThread(ss, "ACCEPT-" + localEp);
             th.start();
             socketThreads.add(th);
         }
-        listenGate.signalAll();
     }
 
     @SuppressWarnings("resource")
@@ -524,7 +534,9 @@ public final class MessagingService implements MessagingServiceMBean
                 FileUtils.closeQuietly(socket);
                 throw new RuntimeException(e);
             }
-            logger.info("Starting Messaging Service on port {}", DatabaseDescriptor.getStoragePort());
+            String nic = FBUtilities.getNetworkInterface(localEp);
+            logger.info("Starting Messaging Service on {}:{}{}", localEp, DatabaseDescriptor.getStoragePort(),
+                        nic == null? "" : String.format(" (%s)", nic));
             ss.add(socket);
         }
         return ss;

@@ -78,7 +78,7 @@ public class RemoveTest
         // create a ring of 5 nodes
         Util.createInitialRing(ss, partitioner, endpointTokens, keyTokens, hosts, hostIds, 6);
 
-        MessagingService.instance().listen(FBUtilities.getBroadcastAddress());
+        MessagingService.instance().listen();
         Gossiper.instance.start(1);
         removalhost = hosts.get(5);
         hosts.remove(removalhost);

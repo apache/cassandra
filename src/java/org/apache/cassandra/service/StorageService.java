@@ -509,7 +509,7 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
     {
         logger.info("Gathering node replacement information for {}", DatabaseDescriptor.getReplaceAddress());
         if (!MessagingService.instance().isListening())
-            MessagingService.instance().listen(FBUtilities.getLocalAddress());
+            MessagingService.instance().listen();
 
         // make magic happen
         Gossiper.instance.doShadowRound();
@@ -540,7 +540,7 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
     {
         logger.debug("Starting shadow gossip round to check for endpoint collision");
         if (!MessagingService.instance().isListening())
-            MessagingService.instance().listen(FBUtilities.getLocalAddress());
+            MessagingService.instance().listen();
         Gossiper.instance.doShadowRound();
         if (!Gossiper.instance.isSafeForBootstrap(FBUtilities.getBroadcastAddress()))
         {
@@ -573,7 +573,7 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
         Gossiper.instance.start((int) (System.currentTimeMillis() / 1000)); // needed for node-ring gathering.
         Gossiper.instance.addLocalApplicationState(ApplicationState.NET_VERSION, valueFactory.networkVersion());
         if (!MessagingService.instance().isListening())
-            MessagingService.instance().listen(FBUtilities.getLocalAddress());
+            MessagingService.instance().listen();
     }
 
     public synchronized void initServer() throws ConfigurationException
@@ -781,7 +781,7 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
             Schema.instance.updateVersionAndAnnounce(); // Ensure we know our own actual Schema UUID in preparation for updates
 
             if (!MessagingService.instance().isListening())
-                MessagingService.instance().listen(FBUtilities.getLocalAddress());
+                MessagingService.instance().listen();
             LoadBroadcaster.instance.startBroadcasting();
 
             HintedHandOffManager.instance.start();
