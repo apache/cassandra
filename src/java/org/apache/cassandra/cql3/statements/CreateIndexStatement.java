@@ -188,7 +188,7 @@ public class CreateIndexStatement extends SchemaAlteringStatement
                 throw new InvalidRequestException("Duplicate column " + target.column + " in index target list");
     }
 
-    public boolean announceMigration(boolean isLocalOnly) throws RequestValidationException
+    public Event.SchemaChange announceMigration(boolean isLocalOnly) throws RequestValidationException
     {
         CFMetaData cfm = Schema.instance.getCFMetaData(keyspace(), columnFamily()).copy();
         List<IndexTarget> targets = new ArrayList<>(rawTargets.size());
@@ -206,7 +206,7 @@ public class CreateIndexStatement extends SchemaAlteringStatement
         if (Schema.instance.getKSMetaData(keyspace()).existingIndexNames(null).contains(acceptedName))
         {
             if (ifNotExists)
-                return false;
+                return null;
             else
                 throw new InvalidRequestException(String.format("Index %s already exists", acceptedName));
         }
@@ -237,11 +237,7 @@ public class CreateIndexStatement extends SchemaAlteringStatement
         cfm.indexes(cfm.getIndexes().with(index));
 
         MigrationManager.announceColumnFamilyUpdate(cfm, false, isLocalOnly);
-        return true;
-    }
 
-    public Event.SchemaChange changeEvent()
-    {
         // Creating an index is akin to updating the CF
         return new Event.SchemaChange(Event.SchemaChange.Change.UPDATED, Event.SchemaChange.Target.TABLE, keyspace(), columnFamily());
     }

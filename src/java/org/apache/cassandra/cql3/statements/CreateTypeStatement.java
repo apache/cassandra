@@ -93,11 +93,6 @@ public class CreateTypeStatement extends SchemaAlteringStatement
         }
     }
 
-    public Event.SchemaChange changeEvent()
-    {
-        return new Event.SchemaChange(Event.SchemaChange.Change.CREATED, Event.SchemaChange.Target.TYPE, keyspace(), name.getStringTypeName());
-    }
-
     @Override
     public String keyspace()
     {
@@ -117,18 +112,18 @@ public class CreateTypeStatement extends SchemaAlteringStatement
         return new UserType(name.getKeyspace(), name.getUserTypeName(), names, types);
     }
 
-    public boolean announceMigration(boolean isLocalOnly) throws InvalidRequestException, ConfigurationException
+    public Event.SchemaChange announceMigration(boolean isLocalOnly) throws InvalidRequestException, ConfigurationException
     {
         KeyspaceMetadata ksm = Schema.instance.getKSMetaData(name.getKeyspace());
         assert ksm != null; // should haven't validate otherwise
 
         // Can happen with ifNotExists
         if (ksm.types.get(name.getUserTypeName()).isPresent())
-            return false;
+            return null;
 
         UserType type = createType();
         checkForDuplicateNames(type);
         MigrationManager.announceNewType(type, isLocalOnly);
-        return true;
+        return new Event.SchemaChange(Event.SchemaChange.Change.CREATED, Event.SchemaChange.Target.TYPE, keyspace(), name.getStringTypeName());
     }
 }

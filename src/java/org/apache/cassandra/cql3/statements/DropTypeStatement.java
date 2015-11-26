@@ -124,18 +124,13 @@ public class DropTypeStatement extends SchemaAlteringStatement
         return false;
     }
 
-    public Event.SchemaChange changeEvent()
-    {
-        return new Event.SchemaChange(Event.SchemaChange.Change.DROPPED, Event.SchemaChange.Target.TYPE, keyspace(), name.getStringTypeName());
-    }
-
     @Override
     public String keyspace()
     {
         return name.getKeyspace();
     }
 
-    public boolean announceMigration(boolean isLocalOnly) throws InvalidRequestException, ConfigurationException
+    public Event.SchemaChange announceMigration(boolean isLocalOnly) throws InvalidRequestException, ConfigurationException
     {
         KeyspaceMetadata ksm = Schema.instance.getKSMetaData(name.getKeyspace());
         assert ksm != null;
@@ -143,9 +138,9 @@ public class DropTypeStatement extends SchemaAlteringStatement
         UserType toDrop = ksm.types.getNullable(name.getUserTypeName());
         // Can be null with ifExists
         if (toDrop == null)
-            return false;
+            return null;
 
         MigrationManager.announceTypeDrop(toDrop, isLocalOnly);
-        return true;
+        return new Event.SchemaChange(Event.SchemaChange.Change.DROPPED, Event.SchemaChange.Target.TYPE, keyspace(), name.getStringTypeName());
     }
 }

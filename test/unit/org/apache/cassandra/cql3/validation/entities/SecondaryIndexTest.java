@@ -23,6 +23,7 @@ import java.util.*;
 import org.apache.cassandra.db.DeletionTime;
 import org.apache.cassandra.utils.Pair;
 import org.apache.commons.lang3.StringUtils;
+import org.junit.Before;
 import org.junit.Test;
 
 import org.apache.cassandra.config.CFMetaData;
@@ -52,6 +53,14 @@ import static org.junit.Assert.fail;
 public class SecondaryIndexTest extends CQLTester
 {
     private static final int TOO_BIG = 1024 * 65;
+
+    @Before
+    public void disablePreparedReuse() throws Throwable
+    {
+        // TODO: this shouldn't be needed but is due to #10758. As such, this should be removed on that
+        // ticket is fixed.
+        disablePreparedReuseForTest();
+    }
 
     @Test
     public void testCreateAndDropIndex() throws Throwable

@@ -78,18 +78,13 @@ public abstract class AlterTypeStatement extends SchemaAlteringStatement
         // It doesn't really change anything anyway.
     }
 
-    public Event.SchemaChange changeEvent()
-    {
-        return new Event.SchemaChange(Event.SchemaChange.Change.UPDATED, Event.SchemaChange.Target.TYPE, keyspace(), name.getStringTypeName());
-    }
-
     @Override
     public String keyspace()
     {
         return name.getKeyspace();
     }
 
-    public boolean announceMigration(boolean isLocalOnly) throws InvalidRequestException, ConfigurationException
+    public Event.SchemaChange announceMigration(boolean isLocalOnly) throws InvalidRequestException, ConfigurationException
     {
         KeyspaceMetadata ksm = Schema.instance.getKSMetaData(name.getKeyspace());
         if (ksm == null)
@@ -140,7 +135,7 @@ public abstract class AlterTypeStatement extends SchemaAlteringStatement
             if (upd != null)
                 MigrationManager.announceTypeUpdate((UserType) upd, isLocalOnly);
         }
-        return true;
+        return new Event.SchemaChange(Event.SchemaChange.Change.UPDATED, Event.SchemaChange.Target.TYPE, keyspace(), name.getStringTypeName());
     }
 
     private static int getIdxOfField(UserType type, ColumnIdentifier field)

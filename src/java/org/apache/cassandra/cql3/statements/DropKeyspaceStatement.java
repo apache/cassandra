@@ -55,23 +55,18 @@ public class DropKeyspaceStatement extends SchemaAlteringStatement
         return keyspace;
     }
 
-    public boolean announceMigration(boolean isLocalOnly) throws ConfigurationException
+    public Event.SchemaChange announceMigration(boolean isLocalOnly) throws ConfigurationException
     {
         try
         {
             MigrationManager.announceKeyspaceDrop(keyspace, isLocalOnly);
-            return true;
+            return new Event.SchemaChange(Event.SchemaChange.Change.DROPPED, keyspace());
         }
         catch(ConfigurationException e)
         {
             if (ifExists)
-                return false;
+                return null;
             throw e;
         }
-    }
-
-    public Event.SchemaChange changeEvent()
-    {
-        return new Event.SchemaChange(Event.SchemaChange.Change.DROPPED, keyspace());
     }
 }

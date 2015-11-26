@@ -55,7 +55,7 @@ public class AlterViewStatement extends SchemaAlteringStatement
         // validated in announceMigration()
     }
 
-    public boolean announceMigration(boolean isLocalOnly) throws RequestValidationException
+    public Event.SchemaChange announceMigration(boolean isLocalOnly) throws RequestValidationException
     {
         CFMetaData meta = validateColumnFamily(keyspace(), columnFamily());
         if (!meta.isView())
@@ -78,16 +78,11 @@ public class AlterViewStatement extends SchemaAlteringStatement
         viewCopy.metadata.params(params);
 
         MigrationManager.announceViewUpdate(viewCopy, isLocalOnly);
-        return true;
+        return new Event.SchemaChange(Event.SchemaChange.Change.UPDATED, Event.SchemaChange.Target.TABLE, keyspace(), columnFamily());
     }
 
     public String toString()
     {
         return String.format("AlterViewStatement(name=%s)", cfName);
-    }
-
-    public Event.SchemaChange changeEvent()
-    {
-        return new Event.SchemaChange(Event.SchemaChange.Change.UPDATED, Event.SchemaChange.Target.TABLE, keyspace(), columnFamily());
     }
 }

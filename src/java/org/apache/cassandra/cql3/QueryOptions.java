@@ -18,15 +18,15 @@
 package org.apache.cassandra.cql3;
 
 import java.nio.ByteBuffer;
-import java.util.ArrayList;
-import java.util.Collections;
-import java.util.EnumSet;
-import java.util.List;
+import java.util.*;
 
 import com.google.common.collect.ImmutableList;
-
 import io.netty.buffer.ByteBuf;
+
+import org.apache.cassandra.config.ColumnDefinition;
 import org.apache.cassandra.db.ConsistencyLevel;
+import org.apache.cassandra.db.marshal.UTF8Type;
+import org.apache.cassandra.exceptions.InvalidRequestException;
 import org.apache.cassandra.service.QueryState;
 import org.apache.cassandra.service.pager.PagingState;
 import org.apache.cassandra.transport.CBCodec;
@@ -47,6 +47,9 @@ public abstract class QueryOptions
                                                                        Server.CURRENT_VERSION);
 
     public static final CBCodec<QueryOptions> codec = new Codec();
+
+    // A cache of bind values parsed as JSON, see getJsonColumnValue for details.
+    private List<Map<ColumnIdentifier, Term>> jsonValuesCache;
 
     public static QueryOptions fromThrift(ConsistencyLevel consistency, List<ByteBuffer> values)
     {
@@ -81,6 +84,45 @@ public abstract class QueryOptions
     public abstract ConsistencyLevel getConsistency();
     public abstract List<ByteBuffer> getValues();
     public abstract boolean skipMetadata();
+
+    /**
+     * Returns the term corresponding to column {@code columnName} in the JSON value of bind index {@code bindIndex}.
+     *
+     * This is functionally equivalent to:
+     *   {@code Json.parseJson(UTF8Type.instance.getSerializer().deserialize(getValues().get(bindIndex)), expectedReceivers).get(columnName)}
+     * but this cache the result of parsing the JSON so that while this might be called for multiple columns on the same {@code bindIndex}
+     * value, the underlying JSON value is only parsed/processed once.
+     *
+     * Note: this is a bit more involved in CQL specifics than this class generally is but we as we need to cache this per-query and in an object
+     * that is available when we bind values, this is the easier place to have this.
+     *
+     * @param bindIndex the index of the bind value that should be interpreted as a JSON value.
+     * @param columnName the name of the column we want the value of.
+     * @param expectedReceivers the columns expected in the JSON value at index {@code bindIndex}. This is only used when parsing the
+     * json initially and no check is done afterwards. So in practice, any call of this method on the same QueryOptions object and with the same
+     * {@code bindIndx} values should use the same value for this parameter, but this isn't validated in any way.
+     *
+     * @return the value correspong to column {@code columnName} in the (JSON) bind value at index {@code bindIndex}. This may return null if the
+     * JSON value has no value for this column.
+     */
+    public Term getJsonColumnValue(int bindIndex, ColumnIdentifier columnName, Collection<ColumnDefinition> expectedReceivers) throws InvalidRequestException
+    {
+        if (jsonValuesCache == null)
+            jsonValuesCache = new ArrayList<>(Collections.<Map<ColumnIdentifier, Term>>nCopies(getValues().size(), null));
+
+        Map<ColumnIdentifier, Term> jsonValue = jsonValuesCache.get(bindIndex);
+        if (jsonValue == null)
+        {
+            ByteBuffer value = getValues().get(bindIndex);
+            if (value == null)
+                throw new InvalidRequestException("Got null for INSERT JSON values");
+
+            jsonValue = Json.parseJson(UTF8Type.instance.getSerializer().deserialize(value), expectedReceivers);
+            jsonValuesCache.set(bindIndex, jsonValue);
+        }
+
+        return jsonValue.get(columnName);
+    }
 
     /**
      * Tells whether or not this <code>QueryOptions</code> contains the column specifications for the bound variables.

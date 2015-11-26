@@ -48,7 +48,6 @@ public final class DropFunctionStatement extends SchemaAlteringStatement
     private final List<CQL3Type.Raw> argRawTypes;
     private final boolean argsPresent;
 
-    private Function old;
     private List<AbstractType<?>> argTypes;
 
     public DropFunctionStatement(FunctionName functionName,
@@ -93,7 +92,6 @@ public final class DropFunctionStatement extends SchemaAlteringStatement
         ThriftValidation.validateKeyspaceNotSystem(functionName.keyspace);
     }
 
-    @Override
     public void checkAccess(ClientState state) throws UnauthorizedException, InvalidRequestException
     {
         Function function = findFunction();
@@ -113,7 +111,6 @@ public final class DropFunctionStatement extends SchemaAlteringStatement
         }
     }
 
-    @Override
     public void validate(ClientState state)
     {
         Collection<Function> olds = Schema.instance.getFunctions(functionName);
@@ -126,21 +123,13 @@ public final class DropFunctionStatement extends SchemaAlteringStatement
                                                             functionName, functionName, functionName));
     }
 
-    @Override
-    public Event.SchemaChange changeEvent()
+    public Event.SchemaChange announceMigration(boolean isLocalOnly) throws RequestValidationException
     {
-        return new Event.SchemaChange(Event.SchemaChange.Change.DROPPED, Event.SchemaChange.Target.FUNCTION,
-                                      old.name().keyspace, old.name().name, AbstractType.asCQLTypeStringList(old.argTypes()));
-    }
-
-    @Override
-    public boolean announceMigration(boolean isLocalOnly) throws RequestValidationException
-    {
-        old = findFunction();
+        Function old = findFunction();
         if (old == null)
         {
             if (ifExists)
-                return false;
+                return null;
             else
                 throw new InvalidRequestException(getMissingFunctionError());
         }
@@ -152,7 +141,8 @@ public final class DropFunctionStatement extends SchemaAlteringStatement
 
         MigrationManager.announceFunctionDrop((UDFunction) old, isLocalOnly);
 
-        return true;
+        return new Event.SchemaChange(Event.SchemaChange.Change.DROPPED, Event.SchemaChange.Target.FUNCTION,
+                                      old.name().keyspace, old.name().name, AbstractType.asCQLTypeStringList(old.argTypes()));
     }
 
     private String getMissingFunctionError()
