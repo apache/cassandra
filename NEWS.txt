@@ -25,6 +25,16 @@ Upgrading
 ---------
    - The compression ratio metrics computation has been modified to be more accurate.
 
+
+3.0.1
+=====
+
+Upgrading
+---------
+   - The return value of SelectStatement::getLimit as been changed from DataLimits
+     to int.
+
+
 3.0
 ===
 

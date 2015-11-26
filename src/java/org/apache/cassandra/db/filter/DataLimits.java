@@ -41,7 +41,9 @@ public abstract class DataLimits
 {
     public static final Serializer serializer = new Serializer();
 
-    public static final DataLimits NONE = new CQLLimits(Integer.MAX_VALUE)
+    public static final int NO_LIMIT = Integer.MAX_VALUE;
+
+    public static final DataLimits NONE = new CQLLimits(NO_LIMIT)
     {
         @Override
         public boolean hasEnoughLiveData(CachedPartition cached, int nowInSec)
@@ -64,7 +66,7 @@ public abstract class DataLimits
 
     // We currently deal with distinct queries by querying full partitions but limiting the result at 1 row per
     // partition (see SelectStatement.makeFilter). So an "unbounded" distinct is still actually doing some filtering.
-    public static final DataLimits DISTINCT_NONE = new CQLLimits(Integer.MAX_VALUE, 1, true);
+    public static final DataLimits DISTINCT_NONE = new CQLLimits(NO_LIMIT, 1, true);
 
     public enum Kind { CQL_LIMIT, CQL_PAGING_LIMIT, THRIFT_LIMIT, SUPER_COLUMN_COUNTING_LIMIT }
 
@@ -236,7 +238,7 @@ public abstract class DataLimits
 
         private CQLLimits(int rowLimit)
         {
-            this(rowLimit, Integer.MAX_VALUE);
+            this(rowLimit, NO_LIMIT);
         }
 
         private CQLLimits(int rowLimit, int perPartitionLimit)
@@ -263,7 +265,7 @@ public abstract class DataLimits
 
         public boolean isUnlimited()
         {
-            return rowLimit == Integer.MAX_VALUE && perPartitionLimit == Integer.MAX_VALUE;
+            return rowLimit == NO_LIMIT && perPartitionLimit == NO_LIMIT;
         }
 
         public DataLimits forPaging(int pageSize)
@@ -281,7 +283,7 @@ public abstract class DataLimits
             // When we do a short read retry, we're only ever querying the single partition on which we have a short read. So
             // we use toFetch as the row limit and use no perPartitionLimit (it would be equivalent in practice to use toFetch
             // for both argument or just for perPartitionLimit with no limit on rowLimit).
-            return new CQLLimits(toFetch, Integer.MAX_VALUE, isDistinct);
+            return new CQLLimits(toFetch, NO_LIMIT, isDistinct);
         }
 
         public boolean hasEnoughLiveData(CachedPartition cached, int nowInSec)
@@ -410,14 +412,14 @@ public abstract class DataLimits
         {
             StringBuilder sb = new StringBuilder();
 
-            if (rowLimit != Integer.MAX_VALUE)
+            if (rowLimit != NO_LIMIT)
             {
                 sb.append("LIMIT ").append(rowLimit);
-                if (perPartitionLimit != Integer.MAX_VALUE)
+                if (perPartitionLimit != NO_LIMIT)
                     sb.append(' ');
             }
 
-            if (perPartitionLimit != Integer.MAX_VALUE)
+            if (perPartitionLimit != NO_LIMIT)
                 sb.append("PER PARTITION LIMIT ").append(perPartitionLimit);
 
             return sb.toString();
@@ -508,7 +510,7 @@ public abstract class DataLimits
 
         public boolean isUnlimited()
         {
-            return partitionLimit == Integer.MAX_VALUE && cellPerPartitionLimit == Integer.MAX_VALUE;
+            return partitionLimit == NO_LIMIT && cellPerPartitionLimit == NO_LIMIT;
         }
 
         public DataLimits forPaging(int pageSize)
