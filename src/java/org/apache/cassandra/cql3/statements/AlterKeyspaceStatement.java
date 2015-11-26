@@ -75,7 +75,7 @@ public class AlterKeyspaceStatement extends SchemaAlteringStatement
         }
     }
 
-    public boolean announceMigration(boolean isLocalOnly) throws RequestValidationException
+    public Event.SchemaChange announceMigration(boolean isLocalOnly) throws RequestValidationException
     {
         KeyspaceMetadata oldKsm = Schema.instance.getKSMetaData(name);
         // In the (very) unlikely case the keyspace was dropped since validate()
@@ -84,11 +84,6 @@ public class AlterKeyspaceStatement extends SchemaAlteringStatement
 
         KeyspaceMetadata newKsm = oldKsm.withSwapped(attrs.asAlteredKeyspaceParams(oldKsm.params));
         MigrationManager.announceKeyspaceUpdate(newKsm, isLocalOnly);
-        return true;
-    }
-
-    public Event.SchemaChange changeEvent()
-    {
         return new Event.SchemaChange(Event.SchemaChange.Change.UPDATED, keyspace());
     }
 }

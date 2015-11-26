@@ -85,7 +85,7 @@ public class AlterTableStatement extends SchemaAlteringStatement
         // validated in announceMigration()
     }
 
-    public boolean announceMigration(boolean isLocalOnly) throws RequestValidationException
+    public Event.SchemaChange announceMigration(boolean isLocalOnly) throws RequestValidationException
     {
         CFMetaData meta = validateColumnFamily(keyspace(), columnFamily());
         if (meta.isView())
@@ -329,7 +329,7 @@ public class AlterTableStatement extends SchemaAlteringStatement
             for (ViewDefinition viewUpdate : viewUpdates)
                 MigrationManager.announceViewUpdate(viewUpdate, isLocalOnly);
         }
-        return true;
+        return new Event.SchemaChange(Event.SchemaChange.Change.UPDATED, Event.SchemaChange.Target.TABLE, keyspace(), columnFamily());
     }
 
     private static void validateAlter(CFMetaData cfm, ColumnDefinition def, AbstractType<?> validatorType)
@@ -386,10 +386,5 @@ public class AlterTableStatement extends SchemaAlteringStatement
                              oType,
                              rawColumnName,
                              validator);
-    }
-
-    public Event.SchemaChange changeEvent()
-    {
-        return new Event.SchemaChange(Event.SchemaChange.Change.UPDATED, Event.SchemaChange.Target.TABLE, keyspace(), columnFamily());
     }
 }

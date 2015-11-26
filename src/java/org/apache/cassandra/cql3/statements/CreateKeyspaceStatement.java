@@ -92,25 +92,20 @@ public class CreateKeyspaceStatement extends SchemaAlteringStatement
             throw new ConfigurationException("Unable to use given strategy class: LocalStrategy is reserved for internal use.");
     }
 
-    public boolean announceMigration(boolean isLocalOnly) throws RequestValidationException
+    public Event.SchemaChange announceMigration(boolean isLocalOnly) throws RequestValidationException
     {
         KeyspaceMetadata ksm = KeyspaceMetadata.create(name, attrs.asNewKeyspaceParams());
         try
         {
             MigrationManager.announceNewKeyspace(ksm, isLocalOnly);
-            return true;
+            return new Event.SchemaChange(Event.SchemaChange.Change.CREATED, keyspace());
         }
         catch (AlreadyExistsException e)
         {
             if (ifNotExists)
-                return false;
+                return null;
             throw e;
         }
-    }
-
-    public Event.SchemaChange changeEvent()
-    {
-        return new Event.SchemaChange(Event.SchemaChange.Change.CREATED, keyspace());
     }
 
     protected void grantPermissionsToCreator(QueryState state)

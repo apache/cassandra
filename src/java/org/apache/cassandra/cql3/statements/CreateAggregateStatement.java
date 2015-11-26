@@ -50,9 +50,6 @@ public final class CreateAggregateStatement extends SchemaAlteringStatement
     private final List<CQL3Type.Raw> argRawTypes;
     private final Term.Raw ival;
 
-    private UDAggregate udAggregate;
-    private boolean replaced;
-
     private List<AbstractType<?>> argTypes;
     private AbstractType<?> returnType;
     private ScalarFunction stateFunction;
@@ -192,20 +189,14 @@ public final class CreateAggregateStatement extends SchemaAlteringStatement
             throw new InvalidRequestException(String.format("Cannot add aggregate '%s' to non existing keyspace '%s'.", functionName.name, functionName.keyspace));
     }
 
-    public Event.SchemaChange changeEvent()
-    {
-        return new Event.SchemaChange(replaced ? Event.SchemaChange.Change.UPDATED : Event.SchemaChange.Change.CREATED,
-                                      Event.SchemaChange.Target.AGGREGATE,
-                                      udAggregate.name().keyspace, udAggregate.name().name, AbstractType.asCQLTypeStringList(udAggregate.argTypes()));
-    }
-
-    public boolean announceMigration(boolean isLocalOnly) throws RequestValidationException
+    public Event.SchemaChange announceMigration(boolean isLocalOnly) throws RequestValidationException
     {
         Function old = Schema.instance.findFunction(functionName, argTypes).orElse(null);
-        if (old != null)
+        boolean replaced = old != null;
+        if (replaced)
         {
             if (ifNotExists)
-                return false;
+                return null;
             if (!orReplace)
                 throw new InvalidRequestException(String.format("Function %s already exists", old));
             if (!(old instanceof AggregateFunction))
@@ -223,15 +214,13 @@ public final class CreateAggregateStatement extends SchemaAlteringStatement
         if (!stateFunction.isCalledOnNullInput() && initcond == null)
             throw new InvalidRequestException(String.format("Cannot create aggregate %s without INITCOND because state function %s does not accept 'null' arguments", functionName, stateFunc));
 
-        udAggregate = new UDAggregate(functionName, argTypes, returnType,
-                                                  stateFunction,
-                                                  finalFunction,
-                                                  initcond);
-        replaced = old != null;
+        UDAggregate udAggregate = new UDAggregate(functionName, argTypes, returnType, stateFunction, finalFunction, initcond);
 
         MigrationManager.announceNewAggregate(udAggregate, isLocalOnly);
 
-        return true;
+        return new Event.SchemaChange(replaced ? Event.SchemaChange.Change.UPDATED : Event.SchemaChange.Change.CREATED,
+                                      Event.SchemaChange.Target.AGGREGATE,
+                                      udAggregate.name().keyspace, udAggregate.name().name, AbstractType.asCQLTypeStringList(udAggregate.argTypes()));
     }
 
     private static String stateFuncSig(FunctionName stateFuncName, CQL3Type.Raw stateTypeRaw, List<CQL3Type.Raw> argRawTypes)
