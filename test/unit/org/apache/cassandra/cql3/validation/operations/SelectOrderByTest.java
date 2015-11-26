@@ -333,6 +333,12 @@ public class SelectOrderByTest extends CQLTester
         assertRows(execute("SELECT col1 FROM %s WHERE my_id in('key1', 'key2', 'key3') ORDER BY col1"),
                    row(1), row(2), row(3));
 
+        assertRows(execute("SELECT col1 FROM %s WHERE my_id in('key1', 'key2', 'key3') ORDER BY col1 LIMIT 2"),
+                   row(1), row(2));
+
+        assertRows(execute("SELECT col1 FROM %s WHERE my_id in('key1', 'key2', 'key3') ORDER BY col1 LIMIT 10"),
+                   row(1), row(2), row(3));
+
         assertRows(execute("SELECT col1, my_id FROM %s WHERE my_id in('key1', 'key2', 'key3') ORDER BY col1"),
                    row(1, "key1"), row(2, "key3"), row(3, "key2"));
 
@@ -356,6 +362,15 @@ public class SelectOrderByTest extends CQLTester
                    row("D", null, 4));
 
         assertRows(execute("SELECT v FROM %s where pk1 = ? AND pk2 IN (?, ?) ORDER BY c; ", 1, 1, 2),
+                   row("B"),
+                   row("A"),
+                   row("D"));
+
+        assertRows(execute("SELECT v FROM %s where pk1 = ? AND pk2 IN (?, ?) ORDER BY c LIMIT 2; ", 1, 1, 2),
+                   row("B"),
+                   row("A"));
+
+        assertRows(execute("SELECT v FROM %s where pk1 = ? AND pk2 IN (?, ?) ORDER BY c LIMIT 10; ", 1, 1, 2),
                    row("B"),
                    row("A"),
                    row("D"));
@@ -390,6 +405,32 @@ public class SelectOrderByTest extends CQLTester
                    row("B"),
                    row("D"),
                    row("A"));
+
+        assertRows(execute("SELECT v as c2 FROM %s where pk1 = ? AND pk2 IN (?, ?) ORDER BY c1, c2 LIMIT 2; ", 1, 1, 2),
+                   row("B"),
+                   row("D"));
+
+        assertRows(execute("SELECT v as c2 FROM %s where pk1 = ? AND pk2 IN (?, ?) ORDER BY c1, c2 LIMIT 10; ", 1, 1, 2),
+                   row("B"),
+                   row("D"),
+                   row("A"));
+
+        assertRows(execute("SELECT v as c2 FROM %s where pk1 = ? AND pk2 IN (?, ?) ORDER BY c1 DESC , c2 DESC; ", 1, 1, 2),
+                   row("A"),
+                   row("D"),
+                   row("B"));
+
+        assertRows(execute("SELECT v as c2 FROM %s where pk1 = ? AND pk2 IN (?, ?) ORDER BY c1 DESC , c2 DESC LIMIT 2; ", 1, 1, 2),
+                   row("A"),
+                   row("D"));
+
+        assertRows(execute("SELECT v as c2 FROM %s where pk1 = ? AND pk2 IN (?, ?) ORDER BY c1 DESC , c2 DESC LIMIT 10; ", 1, 1, 2),
+                   row("A"),
+                   row("D"),
+                   row("B"));
+
+        assertInvalidMessage("LIMIT must be strictly positive",
+                             "SELECT v as c2 FROM %s where pk1 = ? AND pk2 IN (?, ?) ORDER BY c1 DESC , c2 DESC LIMIT 0; ", 1, 1, 2);
     }
 
     /**

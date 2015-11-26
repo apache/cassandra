@@ -1,4 +1,6 @@
 3.0.1
+ * Fix SELECT statement with IN restrictions on partition key,
+   ORDER BY and LIMIT (CASSANDRA-10729)
  * Improve stress performance over 1k threads (CASSANDRA-7217)
  * Wait for migration responses to complete before bootstrapping (CASSANDRA-10731)
  * Unable to create a function with argument of type Inet (CASSANDRA-10741)
