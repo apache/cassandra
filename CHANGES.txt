@@ -16,6 +16,7 @@ Merged from 2.2:
  * (Hadoop) fix splits calculation (CASSANDRA-10640)
  * (Hadoop) ensure that Cluster instances are always closed (CASSANDRA-10058)
 Merged from 2.1:
+ * Force encoding when computing statement ids (CASSANDRA-10755)
  * Properly reject counters as map keys (CASSANDRA-10760)
  * Fix the sstable-needs-cleanup check (CASSANDRA-10740)
  * (cqlsh) Print column names before COPY operation (CASSANDRA-8935)
