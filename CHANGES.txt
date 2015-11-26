@@ -13,6 +13,7 @@
  * Deprecate Pig support (CASSANDRA-10542)
  * Reduce contention getting instances of CompositeType (CASSANDRA-10433)
 Merged from 2.1:
+ * Properly reject counters as map keys (CASSANDRA-10760)
  * Fix the sstable-needs-cleanup check (CASSANDRA-10740)
  * (cqlsh) Print column names before COPY operation (CASSANDRA-8935)
  * Make paging logic consistent between searcher impls (CASSANDRA-10683)
