@@ -202,15 +202,16 @@ public class SelectStatement implements CQLStatement
         cl.validateForRead(keyspace());
 
         int nowInSec = FBUtilities.nowInSeconds();
-        ReadQuery query = getQuery(options, nowInSec);
+        int userLimit = getLimit(options);
+        ReadQuery query = getQuery(options, nowInSec, userLimit);
 
         int pageSize = getPageSize(options);
 
         if (pageSize <= 0 || query.limits().count() <= pageSize)
-            return execute(query, options, state, nowInSec);
+            return execute(query, options, state, nowInSec, userLimit);
 
         QueryPager pager = query.getPager(options.getPagingState(), options.getProtocolVersion());
-        return execute(Pager.forDistributedQuery(pager, cl, state.getClientState()), options, pageSize, nowInSec);
+        return execute(Pager.forDistributedQuery(pager, cl, state.getClientState()), options, pageSize, nowInSec, userLimit);
     }
 
     private int getPageSize(QueryOptions options)
@@ -228,18 +229,27 @@ public class SelectStatement implements CQLStatement
 
     public ReadQuery getQuery(QueryOptions options, int nowInSec) throws RequestValidationException
     {
-        DataLimits limit = getLimit(options);
+        return getQuery(options, nowInSec, getLimit(options));
+    }
+
+    public ReadQuery getQuery(QueryOptions options, int nowInSec, int userLimit) throws RequestValidationException
+    {
+        DataLimits limit = getDataLimits(userLimit);
         if (restrictions.isKeyRange() || restrictions.usesSecondaryIndexing())
             return getRangeCommand(options, limit, nowInSec);
 
         return getSliceCommands(options, limit, nowInSec);
     }
 
-    private ResultMessage.Rows execute(ReadQuery query, QueryOptions options, QueryState state, int nowInSec) throws RequestValidationException, RequestExecutionException
+    private ResultMessage.Rows execute(ReadQuery query,
+                                       QueryOptions options,
+                                       QueryState state,
+                                       int nowInSec,
+                                       int userLimit) throws RequestValidationException, RequestExecutionException
     {
         try (PartitionIterator data = query.execute(options.getConsistency(), state.getClientState()))
         {
-            return processResults(data, options, nowInSec);
+            return processResults(data, options, nowInSec, userLimit);
         }
     }
 
@@ -310,8 +320,11 @@ public class SelectStatement implements CQLStatement
         }
     }
 
-    private ResultMessage.Rows execute(Pager pager, QueryOptions options, int pageSize, int nowInSec)
-    throws RequestValidationException, RequestExecutionException
+    private ResultMessage.Rows execute(Pager pager,
+                                       QueryOptions options,
+                                       int pageSize,
+                                       int nowInSec,
+                                       int userLimit) throws RequestValidationException, RequestExecutionException
     {
         if (selection.isAggregate())
             return pageAggregateQuery(pager, options, pageSize, nowInSec);
@@ -324,7 +337,7 @@ public class SelectStatement implements CQLStatement
         ResultMessage.Rows msg;
         try (PartitionIterator page = pager.fetchPage(pageSize))
         {
-            msg = processResults(page, options, nowInSec);
+            msg = processResults(page, options, nowInSec, userLimit);
         }
 
         // Please note that the isExhausted state of the pager only gets updated when we've closed the page, so this
@@ -366,16 +379,20 @@ public class SelectStatement implements CQLStatement
         return new ResultMessage.Rows(result.build(options.getProtocolVersion()));
     }
 
-    private ResultMessage.Rows processResults(PartitionIterator partitions, QueryOptions options, int nowInSec) throws RequestValidationException
+    private ResultMessage.Rows processResults(PartitionIterator partitions,
+                                              QueryOptions options,
+                                              int nowInSec,
+                                              int userLimit) throws RequestValidationException
     {
-        ResultSet rset = process(partitions, options, nowInSec);
+        ResultSet rset = process(partitions, options, nowInSec, userLimit);
         return new ResultMessage.Rows(rset);
     }
 
     public ResultMessage.Rows executeInternal(QueryState state, QueryOptions options) throws RequestExecutionException, RequestValidationException
     {
         int nowInSec = FBUtilities.nowInSeconds();
-        ReadQuery query = getQuery(options, nowInSec);
+        int userLimit = getLimit(options);
+        ReadQuery query = getQuery(options, nowInSec, userLimit);
         int pageSize = getPageSize(options);
 
         try (ReadOrderGroup orderGroup = query.startOrderGroup())
@@ -384,20 +401,20 @@ public class SelectStatement implements CQLStatement
             {
                 try (PartitionIterator data = query.executeInternal(orderGroup))
                 {
-                    return processResults(data, options, nowInSec);
+                    return processResults(data, options, nowInSec, userLimit);
                 }
             }
             else
             {
                 QueryPager pager = query.getPager(options.getPagingState(), options.getProtocolVersion());
-                return execute(Pager.forInternalQuery(pager, orderGroup), options, pageSize, nowInSec);
+                return execute(Pager.forInternalQuery(pager, orderGroup), options, pageSize, nowInSec, userLimit);
             }
         }
     }
 
     public ResultSet process(PartitionIterator partitions, int nowInSec) throws InvalidRequestException
     {
-        return process(partitions, QueryOptions.DEFAULT, nowInSec);
+        return process(partitions, QueryOptions.DEFAULT, nowInSec, getLimit(QueryOptions.DEFAULT));
     }
 
     public String keyspace()
@@ -549,18 +566,37 @@ public class SelectStatement implements CQLStatement
         return builder.build();
     }
 
-    /**
-     * May be used by custom QueryHandler implementations
-     */
-    public DataLimits getLimit(QueryOptions options) throws InvalidRequestException
+    private DataLimits getDataLimits(int userLimit)
     {
-        int userLimit = -1;
+        int cqlRowLimit = DataLimits.NO_LIMIT;
+
         // If we aggregate, the limit really apply to the number of rows returned to the user, not to what is queried, and
         // since in practice we currently only aggregate at top level (we have no GROUP BY support yet), we'll only ever
         // return 1 result and can therefore basically ignore the user LIMIT in this case.
         // Whenever we support GROUP BY, we'll have to add a new DataLimits kind that knows how things are grouped and is thus
         // able to apply the user limit properly.
-        if (limit != null && !selection.isAggregate())
+        // If we do post ordering we need to get all the results sorted before we can trim them.
+        if (!selection.isAggregate() && !needsPostQueryOrdering())
+            cqlRowLimit = userLimit;
+
+        if (parameters.isDistinct)
+            return cqlRowLimit == DataLimits.NO_LIMIT ? DataLimits.DISTINCT_NONE : DataLimits.distinctLimits(cqlRowLimit);
+
+        return cqlRowLimit == DataLimits.NO_LIMIT ? DataLimits.NONE : DataLimits.cqlLimits(cqlRowLimit);
+    }
+
+    /**
+     * Returns the limit specified by the user.
+     * May be used by custom QueryHandler implementations
+     *
+     * @return the limit specified by the user or <code>DataLimits.NO_LIMIT</code> if no value 
+     * as been specified.
+     */
+    public int getLimit(QueryOptions options)
+    {
+        int userLimit = DataLimits.NO_LIMIT;
+
+        if (limit != null)
         {
             ByteBuffer b = checkNotNull(limit.bindAndGet(options), "Invalid null value of limit");
             // treat UNSET limit value as 'unlimited'
@@ -578,11 +614,7 @@ public class SelectStatement implements CQLStatement
                 }
             }
         }
-
-        if (parameters.isDistinct)
-            return userLimit < 0 ? DataLimits.DISTINCT_NONE : DataLimits.distinctLimits(userLimit);
-
-        return userLimit < 0 ? DataLimits.NONE : DataLimits.cqlLimits(userLimit);
+        return userLimit;
     }
 
     private NavigableSet<Clustering> getRequestedRows(QueryOptions options) throws InvalidRequestException
@@ -604,7 +636,10 @@ public class SelectStatement implements CQLStatement
         return filter;
     }
 
-    private ResultSet process(PartitionIterator partitions, QueryOptions options, int nowInSec) throws InvalidRequestException
+    private ResultSet process(PartitionIterator partitions,
+                              QueryOptions options,
+                              int nowInSec,
+                              int userLimit) throws InvalidRequestException
     {
         Selection.ResultSetBuilder result = selection.resultSetBuilder(parameters.isJson);
         while (partitions.hasNext())
@@ -618,6 +653,8 @@ public class SelectStatement implements CQLStatement
         ResultSet cqlRows = result.build(options.getProtocolVersion());
 
         orderResults(cqlRows);
+
+        cqlRows.trim(userLimit);
 
         return cqlRows;
     }
