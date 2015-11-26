@@ -695,6 +695,8 @@ public interface CQL3Type
 
                 if (keys != null)
                 {
+                    if (keys.isCounter())
+                        throw new InvalidRequestException("Counters are not allowed inside collections: " + this);
                     if (!frozen && keys.supportsFreezing() && !keys.frozen)
                         throw new InvalidRequestException("Non-frozen collections are not allowed inside collections: " + this);
                 }
