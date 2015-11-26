@@ -156,13 +156,18 @@ public class NoSpamLogger
 
     public static boolean log(Logger logger, Level level, long minInterval, TimeUnit unit, String message, Object... objects)
     {
-        return log(logger, level, minInterval, unit, CLOCK.nanoTime(), message, objects);
+        return log(logger, level, message, minInterval, unit, CLOCK.nanoTime(), message, objects);
     }
 
-    public static boolean log(Logger logger, Level level, long minInterval, TimeUnit unit, long nowNanos, String message, Object... objects)
+    public static boolean log(Logger logger, Level level, String key, long minInterval, TimeUnit unit, String message, Object... objects)
+    {
+        return log(logger, level, key, minInterval, unit, CLOCK.nanoTime(), message, objects);
+    }
+
+    public static boolean log(Logger logger, Level level, String key, long minInterval, TimeUnit unit, long nowNanos, String message, Object... objects)
     {
         NoSpamLogger wrapped = getLogger(logger, minInterval, unit);
-        NoSpamLogStatement statement = wrapped.getStatement(message);
+        NoSpamLogStatement statement = wrapped.getStatement(key, message);
         return statement.log(level, nowNanos, objects);
     }
 
@@ -221,17 +226,27 @@ public class NoSpamLogger
         return NoSpamLogger.this.getStatement(s, minIntervalNanos);
     }
 
+    public NoSpamLogStatement getStatement(String key, String s)
+    {
+        return NoSpamLogger.this.getStatement(key, s, minIntervalNanos);
+    }
+
     public NoSpamLogStatement getStatement(String s, long minInterval, TimeUnit unit) {
         return NoSpamLogger.this.getStatement(s, unit.toNanos(minInterval));
     }
 
     public NoSpamLogStatement getStatement(String s, long minIntervalNanos)
     {
-        NoSpamLogStatement statement = lastMessage.get(s);
+        return getStatement(s, s, minIntervalNanos);
+    }
+
+    public NoSpamLogStatement getStatement(String key, String s, long minIntervalNanos)
+    {
+        NoSpamLogStatement statement = lastMessage.get(key);
         if (statement == null)
         {
             statement = new NoSpamLogStatement(s, minIntervalNanos);
-            NoSpamLogStatement temp = lastMessage.putIfAbsent(s, statement);
+            NoSpamLogStatement temp = lastMessage.putIfAbsent(key, statement);
             if (temp != null)
                 statement = temp;
         }
