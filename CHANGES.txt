@@ -1,4 +1,5 @@
 2.1.12
+ * Properly reject counters as map keys (CASSANDRA-10760)
  * Fix the sstable-needs-cleanup check (CASSANDRA-10740)
  * (cqlsh) Print column names before COPY operation (CASSANDRA-8935)
  * Add Native-Transport-Requests back to tpstats (CASSANDRA-10044)
