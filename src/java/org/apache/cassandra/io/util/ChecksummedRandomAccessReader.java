@@ -48,15 +48,36 @@ public class ChecksummedRandomAccessReader extends RandomAccessReader
         this.file = file;
     }
 
+    @SuppressWarnings("resource")
     public static ChecksummedRandomAccessReader open(File file, File crcFile) throws IOException
     {
         try (ChannelProxy channel = new ChannelProxy(file))
         {
             RandomAccessReader crcReader = RandomAccessReader.open(crcFile);
-            @SuppressWarnings("resource")
-            DataIntegrityMetadata.ChecksumValidator validator =
-                new DataIntegrityMetadata.ChecksumValidator(new Adler32(), crcReader, file.getPath());
-            return new ChecksummedRandomAccessReader(file, channel, validator);
+            boolean closeCrcReader = true;
+            try
+            {
+                DataIntegrityMetadata.ChecksumValidator validator =
+                        new DataIntegrityMetadata.ChecksumValidator(new Adler32(), crcReader, file.getPath());
+                closeCrcReader = false;
+                boolean closeValidator = true;
+                try
+                {
+                    ChecksummedRandomAccessReader retval = new ChecksummedRandomAccessReader(file, channel, validator);
+                    closeValidator = false;
+                    return retval;
+                }
+                finally
+                {
+                    if (closeValidator)
+                        validator.close();
+                }
+            }
+            finally
+            {
+                if (closeCrcReader)
+                    crcReader.close();
+            }
         }
     }
 

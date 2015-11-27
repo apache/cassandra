@@ -52,32 +52,33 @@ public class WindowsFailedSnapshotTracker
         {
             try
             {
-                BufferedReader reader = new BufferedReader(new FileReader(TODELETEFILE));
-                String snapshotDirectory;
-                while ((snapshotDirectory = reader.readLine()) != null)
+                try (BufferedReader reader = new BufferedReader(new FileReader(TODELETEFILE)))
                 {
-                    File f = new File(snapshotDirectory);
-
-                    // Skip folders that aren't a subset of temp or a data folder. We don't want people to accidentally
-                    // delete something important by virtue of adding something invalid to the .toDelete file.
-                    boolean validFolder = FileUtils.isSubDirectory(new File(System.getenv("TEMP")), f);
-                    for (String s : DatabaseDescriptor.getAllDataFileLocations())
-                        validFolder |= FileUtils.isSubDirectory(new File(s), f);
-
-                    if (!validFolder)
+                    String snapshotDirectory;
+                    while ((snapshotDirectory = reader.readLine()) != null)
                     {
-                        logger.warn("Skipping invalid directory found in .toDelete: {}. Only %TEMP% or data file subdirectories are valid.", f);
-                        continue;
-                    }
+                        File f = new File(snapshotDirectory);
 
-                    // Could be a non-existent directory if deletion worked on previous JVM shutdown.
-                    if (f.exists())
-                    {
-                        logger.warn("Discovered obsolete snapshot. Deleting directory [{}]", snapshotDirectory);
-                        FileUtils.deleteRecursive(new File(snapshotDirectory));
+                        // Skip folders that aren't a subset of temp or a data folder. We don't want people to accidentally
+                        // delete something important by virtue of adding something invalid to the .toDelete file.
+                        boolean validFolder = FileUtils.isSubDirectory(new File(System.getenv("TEMP")), f);
+                        for (String s : DatabaseDescriptor.getAllDataFileLocations())
+                            validFolder |= FileUtils.isSubDirectory(new File(s), f);
+
+                        if (!validFolder)
+                        {
+                            logger.warn("Skipping invalid directory found in .toDelete: {}. Only %TEMP% or data file subdirectories are valid.", f);
+                            continue;
+                        }
+
+                        // Could be a non-existent directory if deletion worked on previous JVM shutdown.
+                        if (f.exists())
+                        {
+                            logger.warn("Discovered obsolete snapshot. Deleting directory [{}]", snapshotDirectory);
+                            FileUtils.deleteRecursive(new File(snapshotDirectory));
+                        }
                     }
                 }
-                reader.close();
 
                 // Only delete the old .toDelete file if we succeed in deleting all our known bad snapshots.
                 Files.delete(Paths.get(TODELETEFILE));

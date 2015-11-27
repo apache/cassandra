@@ -197,7 +197,7 @@ public class CommitLogReplayer
         }
         return end;
     }
-    
+
     abstract static class ReplayFilter
     {
         public abstract Iterable<ColumnFamily> filter(Mutation mutation);
@@ -273,6 +273,7 @@ public class CommitLogReplayer
         }
     }
 
+    @SuppressWarnings("resource")
     public void recover(File file, boolean tolerateTruncation) throws IOException
     {
         CommitLogDescriptor desc = CommitLogDescriptor.fromFileName(file.getName());

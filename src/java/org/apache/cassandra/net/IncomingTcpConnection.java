@@ -108,7 +108,7 @@ public class IncomingTcpConnection extends Thread implements Closeable
             close();
         }
     }
-    
+
     @Override
     public void close()
     {
@@ -164,6 +164,7 @@ public class IncomingTcpConnection extends Thread implements Closeable
         }
         else
         {
+            @SuppressWarnings("resource")
             ReadableByteChannel channel = socket.getChannel();
             in = new NIODataInputStream(channel != null ? channel : Channels.newChannel(socket.getInputStream()), BUFFER_SIZE);
         }

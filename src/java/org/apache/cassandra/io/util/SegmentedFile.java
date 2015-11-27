@@ -179,6 +179,7 @@ public abstract class SegmentedFile extends SharedCloseableImpl
             return complete(path, -1L);
         }
 
+        @SuppressWarnings("resource")
         public SegmentedFile complete(String path, long overrideLength)
         {
             ChannelProxy channelCopy = getChannel(path);

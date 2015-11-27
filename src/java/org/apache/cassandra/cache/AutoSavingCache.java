@@ -318,6 +318,7 @@ public class AutoSavingCache<K extends CacheKey, V> extends InstrumentingCache<K
             return info.forProgress(keysWritten, Math.max(keysWritten, keysEstimate));
         }
 
+        @SuppressWarnings("resource")
         public void saveCache()
         {
             logger.trace("Deleting old {} files.", cacheType);

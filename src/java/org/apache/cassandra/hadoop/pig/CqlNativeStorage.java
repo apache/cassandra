@@ -690,7 +690,7 @@ public class CqlNativeStorage extends LoadFunc implements StoreFuncInterface, Lo
             else
                 throw new IOException("bulk_insert_statement is missing in input url parameter");
             if (bulkTableAlias != null)
-                CqlBulkOutputFormat.setTableAlias(conf, bulkTableAlias, column_family); 
+                CqlBulkOutputFormat.setTableAlias(conf, bulkTableAlias, column_family);
             CqlBulkOutputFormat.setDeleteSourceOnSuccess(conf, bulkDeleteSourceOnSuccess);
             if (bulkOutputLocation != null)
                 conf.set(CqlBulkRecordWriter.OUTPUT_LOCATION, bulkOutputLocation);
@@ -724,9 +724,9 @@ public class CqlNativeStorage extends LoadFunc implements StoreFuncInterface, Lo
         // Only get the schema if we haven't already gotten it
         if (!properties.containsKey(signature))
         {
-            try (Cluster cluster = CqlConfigHelper.getInputCluster(ConfigHelper.getInputInitialAddress(conf), conf))
+            try (Cluster cluster = CqlConfigHelper.getInputCluster(ConfigHelper.getInputInitialAddress(conf), conf);
+                 Session client = cluster.connect())
             {
-                Session client = cluster.connect();
                 client.execute("USE " + keyspace);
 
                 // compose the CfDef for the columfamily
