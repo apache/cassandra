@@ -40,6 +40,12 @@ New features
     - Native protocol server now allows both SSL and non-SSL connections on
       the same port.
 
+Operations
+------------
+    - Changing rack or dc of live nodes is no longer possible for PropertyFileSnitch
+      and YamlFileNetworkTopologySnitch. Reloading the configuration file of
+      GossipingPropertyFileSnitch has been disabled, CASSANDRA-10243.
+
 
 2.2.3
 =====

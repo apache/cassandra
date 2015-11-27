@@ -232,15 +232,18 @@ public class CassandraDaemon
 
         Keyspace.setInitialized();
 
-        String storedRack = SystemKeyspace.getRack();
-        if (storedRack != null)
+        if (!Boolean.getBoolean("cassandra.ignore_rack"))
         {
-            String currentRack = DatabaseDescriptor.getEndpointSnitch().getRack(FBUtilities.getBroadcastAddress());
-            if (!storedRack.equals(currentRack))
+            String storedRack = SystemKeyspace.getRack();
+            if (storedRack != null)
             {
-                logger.error("Cannot start node if snitch's rack differs from previous rack. " +
-                             "Please fix the snitch or decommission and rebootstrap this node.");
-                System.exit(100);
+                String currentRack = DatabaseDescriptor.getEndpointSnitch().getRack(FBUtilities.getBroadcastAddress());
+                if (!storedRack.equals(currentRack))
+                {
+                    logger.error("Cannot start node if snitch's rack differs from previous rack. " +
+                                 "Please fix the snitch or decommission and rebootstrap this node.");
+                    System.exit(100);
+                }
             }
         }
 
