@@ -17,14 +17,22 @@
  */
 package org.apache.cassandra.cql3.validation.entities;
 
-import java.nio.ByteBuffer;
-import java.util.*;
-
-import org.apache.cassandra.db.DeletionTime;
-import org.apache.cassandra.utils.Pair;
-import org.apache.commons.lang3.StringUtils;
 import org.junit.Before;
 import org.junit.Test;
+import static org.apache.cassandra.Util.throwAssert;
+import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertFalse;
+import static org.junit.Assert.assertNotNull;
+import static org.junit.Assert.assertTrue;
+import static org.junit.Assert.fail;
+
+import java.nio.ByteBuffer;
+import java.util.HashMap;
+import java.util.Locale;
+import java.util.Map;
+import java.util.UUID;
+import java.util.concurrent.Callable;
+import java.util.concurrent.CountDownLatch;
 
 import org.apache.cassandra.config.CFMetaData;
 import org.apache.cassandra.config.ColumnDefinition;
@@ -33,22 +41,20 @@ import org.apache.cassandra.cql3.CQLTester;
 import org.apache.cassandra.cql3.ColumnIdentifier;
 import org.apache.cassandra.cql3.statements.IndexTarget;
 import org.apache.cassandra.db.ColumnFamilyStore;
+import org.apache.cassandra.db.DeletionTime;
 import org.apache.cassandra.db.marshal.AbstractType;
 import org.apache.cassandra.db.rows.Cell;
 import org.apache.cassandra.db.rows.Row;
 import org.apache.cassandra.exceptions.ConfigurationException;
 import org.apache.cassandra.exceptions.SyntaxException;
+import org.apache.cassandra.index.IndexNotAvailableException;
 import org.apache.cassandra.index.SecondaryIndexManager;
 import org.apache.cassandra.index.StubIndex;
+import org.apache.cassandra.index.internal.CustomCassandraIndex;
 import org.apache.cassandra.schema.IndexMetadata;
 import org.apache.cassandra.utils.ByteBufferUtil;
-
-import static org.apache.cassandra.Util.throwAssert;
-import static org.junit.Assert.assertEquals;
-import static org.junit.Assert.assertFalse;
-import static org.junit.Assert.assertNotNull;
-import static org.junit.Assert.assertTrue;
-import static org.junit.Assert.fail;
+import org.apache.cassandra.utils.Pair;
+import org.apache.commons.lang3.StringUtils;
 
 public class SecondaryIndexTest extends CQLTester
 {
@@ -668,7 +674,7 @@ public class SecondaryIndexTest extends CQLTester
     {
         createTable("CREATE TABLE %s(a int, b frozen<map<int, blob>>, PRIMARY KEY (a))");
         createIndex("CREATE INDEX ON %s(full(b))");
-        Map<Integer, ByteBuffer> map = new HashMap();
+        Map<Integer, ByteBuffer> map = new HashMap<>();
         map.put(0, ByteBuffer.allocate(1024 * 65));
         failInsert("INSERT INTO %s (a, b) VALUES (0, ?)", map);
         failInsert("INSERT INTO %s (a, b) VALUES (0, ?) IF NOT EXISTS", map);
@@ -918,6 +924,31 @@ public class SecondaryIndexTest extends CQLTester
         assertEquals(4, newRow.primaryKeyLivenessInfo().timestamp());
     }
 
+    @Test
+    public void testIndexQueriesWithIndexNotReady() throws Throwable
+    {
+        createTable("CREATE TABLE %s (pk int, ck int, value int, PRIMARY KEY (pk, ck))");
+
+        for (int i = 0; i < 10; i++)
+            for (int j = 0; j < 10; j++)
+                execute("INSERT INTO %s (pk, ck, value) VALUES (?, ?, ?)", i, j, i + j);
+
+        createIndex("CREATE CUSTOM INDEX testIndex ON %s (value) USING '" + IndexBlockingOnInitialization.class.getName() + "'");
+        try
+        {
+            execute("SELECT value FROM %s WHERE value = 2");
+            fail();
+        }
+        catch (IndexNotAvailableException e)
+        {
+            assertTrue(true);
+        }
+        finally
+        {
+            execute("DROP index " + KEYSPACE + ".testIndex");
+        }
+    }
+
     private void validateCell(Cell cell, ColumnDefinition def, ByteBuffer val, long timestamp)
     {
         assertNotNull(cell);
@@ -930,5 +961,34 @@ public class SecondaryIndexTest extends CQLTester
         ColumnDefinition col = cfm.getColumnDefinition(new ColumnIdentifier(name, true));
         AbstractType<?> type = col.type;
         assertEquals(expected, type.compose(row.getCell(col).value()));
+    }
+
+    /**
+     * <code>CassandraIndex</code> that blocks during the initialization.
+     */
+    public static class IndexBlockingOnInitialization extends CustomCassandraIndex
+    {
+        private final CountDownLatch latch = new CountDownLatch(1);
+
+        public IndexBlockingOnInitialization(ColumnFamilyStore baseCfs, IndexMetadata indexDef)
+        {
+            super(baseCfs, indexDef);
+        }
+
+        @Override
+        public Callable<?> getInitializationTask()
+        {
+            return () -> {
+                latch.await();
+                return null;
+            };
+        }
+
+        @Override
+        public Callable<?> getInvalidateTask()
+        {
+            latch.countDown();
+            return super.getInvalidateTask();
+        }
     }
 }
