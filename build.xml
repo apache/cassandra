@@ -736,7 +736,7 @@
         depends="maven-ant-tasks-retrieve-build,build-project" description="Compile Cassandra classes"/>
     <target name="codecoverage" depends="jacoco-run,jacoco-report" description="Create code coverage report"/>
 
-    <target depends="init,gen-cql3-grammar"
+    <target depends="init,gen-cql3-grammar,generate-cql-html"
             name="build-project">
         <echo message="${ant.project.name}: ${ant.file}"/>
         <!-- Order matters! -->
@@ -975,6 +975,11 @@
       </copy>
       <copy todir="${dist.dir}/javadoc">
         <fileset dir="${javadoc.dir}"/>
+      </copy>
+      <copy todir="${dist.dir}/doc">
+        <fileset dir="doc">
+          <exclude name="cql3/CQL.textile"/>
+        </fileset>
       </copy>
       <copy todir="${dist.dir}/bin">
         <fileset dir="bin"/>

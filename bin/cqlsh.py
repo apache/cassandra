@@ -45,6 +45,7 @@ import sys
 import time
 import traceback
 import warnings
+import webbrowser
 from contextlib import contextmanager
 from functools import partial
 from glob import glob
@@ -70,6 +71,32 @@ except ImportError:
 CQL_LIB_PREFIX = 'cassandra-driver-internal-only-'
 
 CASSANDRA_PATH = os.path.join(os.path.dirname(os.path.realpath(__file__)), '..')
+
+# default location of local CQL.html
+if os.path.exists(CASSANDRA_PATH + '/doc/cql3/CQL.html'):
+    # default location of local CQL.html
+    CASSANDRA_CQL_HTML = 'file://' + CASSANDRA_PATH + '/doc/cql3/CQL.html'
+elif os.path.exists('/usr/share/doc/cassandra/CQL.html'):
+    # fallback to package file
+    CASSANDRA_CQL_HTML = 'file:///usr/share/doc/cassandra/CQL.html'
+else:
+    # fallback to online version
+    CASSANDRA_CQL_HTML = 'https://cassandra.apache.org/doc/cql3/CQL-3.0.html'
+
+# On Linux, the Python webbrowser module uses the 'xdg-open' executable
+# to open a file/URL. But that only works, if the current session has been
+# opened from _within_ a desktop environment. I.e. 'xdg-open' will fail,
+# if the session's been opened via ssh to a remote box.
+#
+# Use 'python' to get some information about the detected browsers.
+# >>> import webbrowser
+# >>> webbrowser._tryorder
+# >>> webbrowser._browser
+#
+if webbrowser._tryorder[0] == 'xdg-open' and os.environ.get('XDG_DATA_DIRS', '') == '':
+    # only on Linux (some OS with xdg-open)
+    webbrowser._tryorder.remove('xdg-open')
+    webbrowser._tryorder.append('xdg-open')
 
 # use bundled libs for python-cql and thrift, if available. if there
 # is a ../lib dir, use bundled libs there preferentially.
@@ -164,6 +191,9 @@ parser.add_option("-C", "--color", action='store_true', dest='color',
                   help='Always use color output')
 parser.add_option("--no-color", action='store_false', dest='color',
                   help='Never use color output')
+parser.add_option("--browser", dest='browser', help="""The browser to use to display CQL help, where BROWSER can be:
+                                                    - one of the supported browsers in https://docs.python.org/2/library/webbrowser.html.
+                                                    - browser path followed by %s, example: /usr/bin/google-chrome-stable %s""")
 parser.add_option('--ssl', action='store_true', help='Use SSL', default=False)
 parser.add_option("-u", "--username", help="Authenticate as user.")
 parser.add_option("-p", "--password", help="Authenticate using password.")
@@ -635,7 +665,7 @@ class Shell(cmd.Cmd):
 
     def __init__(self, hostname, port, color=False,
                  username=None, password=None, encoding=None, stdin=None, tty=True,
-                 completekey=DEFAULT_COMPLETEKEY, use_conn=None,
+                 completekey=DEFAULT_COMPLETEKEY, browser=None, use_conn=None,
                  cqlver=DEFAULT_CQLVER, keyspace=None,
                  tracing_enabled=False, expand_enabled=False,
                  display_nanotime_format=DEFAULT_NANOTIME_FORMAT,
@@ -679,6 +709,9 @@ class Shell(cmd.Cmd):
         else:
             self.session = self.conn.connect()
 
+        if browser == "":
+            browser = None
+        self.browser = browser
         self.color = color
 
         self.display_nanotime_format = display_nanotime_format
@@ -2247,9 +2280,32 @@ class Shell(cmd.Cmd):
                 doc = getattr(self, 'do_' + t.lower()).__doc__
                 self.stdout.write(doc + "\n")
             elif t.lower() in cqldocs.get_help_topics():
-                cqldocs.print_help_topic(t)
+                urlpart = cqldocs.get_help_topic(t)
+                if urlpart is not None:
+                    url = "%s#%s" % (CASSANDRA_CQL_HTML, urlpart)
+                    if self.browser is not None:
+                        webbrowser.get(self.browser).open_new_tab(url)
+                    else:
+                        webbrowser.open_new_tab(url)
             else:
                 self.printerr("*** No help on %s" % (t,))
+
+    def do_unicode(self, parsed):
+        """
+        Textual input/output
+
+        When control characters, or other characters which can't be encoded
+        in your current locale, are found in values of 'text' or 'ascii'
+        types, it will be shown as a backslash escape. If color is enabled,
+        any such backslash escapes will be shown in a different color from
+        the surrounding text.
+
+        Unicode code points in your data will be output intact, if the
+        encoding for your locale is capable of decoding them. If you prefer
+        that non-ascii characters be shown with Python-style "\\uABCD"
+        escape sequences, invoke cqlsh with an ASCII locale (for example,
+        by setting the $LANG environment variable to "C").
+        """
 
     def do_paging(self, parsed):
         """
@@ -2593,6 +2649,7 @@ def read_options(cmdlineargs, environment):
     optvalues.username = option_with_default(configs.get, 'authentication', 'username')
     optvalues.password = option_with_default(rawconfigs.get, 'authentication', 'password')
     optvalues.keyspace = option_with_default(configs.get, 'authentication', 'keyspace')
+    optvalues.browser = option_with_default(configs.get, 'ui', 'browser', None)
     optvalues.completekey = option_with_default(configs.get, 'ui', 'completekey',
                                                 DEFAULT_COMPLETEKEY)
     optvalues.color = option_with_default(configs.getboolean, 'ui', 'color')
@@ -2733,6 +2790,7 @@ def main(options, hostname, port):
                       stdin=stdin,
                       tty=options.tty,
                       completekey=options.completekey,
+                      browser=options.browser,
                       cqlver=options.cqlversion,
                       keyspace=options.keyspace,
                       display_timestamp_format=options.time_format,
