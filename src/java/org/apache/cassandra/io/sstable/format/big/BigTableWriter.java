@@ -304,13 +304,11 @@ public class BigTableWriter extends SSTableWriter
         // finalise our state on disk, including renaming
         protected void doPrepare()
         {
-            Map<MetadataType, MetadataComponent> metadataComponents = finalizeMetadata();
-
             iwriter.prepareToCommit();
 
             // write sstable statistics
             dataFile.setDescriptor(descriptor).prepareToCommit();
-            writeMetadata(descriptor, metadataComponents);
+            writeMetadata(descriptor, finalizeMetadata());
 
             // save the table of components
             SSTable.appendTOC(descriptor, components);
