@@ -68,6 +68,20 @@ public class UFTest extends CQLTester
     }
 
     @Test
+    public void testNonExistingOnes() throws Throwable
+    {
+        assertInvalidMessage("Cannot drop non existing function", "DROP FUNCTION " + KEYSPACE + ".func_does_not_exist");
+        assertInvalidMessage("Cannot drop non existing function", "DROP FUNCTION " + KEYSPACE + ".func_does_not_exist(int,text)");
+        assertInvalidMessage("Cannot drop non existing function", "DROP FUNCTION keyspace_does_not_exist.func_does_not_exist");
+        assertInvalidMessage("Cannot drop non existing function", "DROP FUNCTION keyspace_does_not_exist.func_does_not_exist(int,text)");
+
+        execute("DROP FUNCTION IF EXISTS " + KEYSPACE + ".func_does_not_exist");
+        execute("DROP FUNCTION IF EXISTS " + KEYSPACE + ".func_does_not_exist(int,text)");
+        execute("DROP FUNCTION IF EXISTS keyspace_does_not_exist.func_does_not_exist");
+        execute("DROP FUNCTION IF EXISTS keyspace_does_not_exist.func_does_not_exist(int,text)");
+    }
+
+    @Test
     public void testSchemaChange() throws Throwable
     {
         String f = createFunction(KEYSPACE,

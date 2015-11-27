@@ -27,6 +27,16 @@ import static org.junit.Assert.fail;
 public class TypeTest extends CQLTester
 {
     @Test
+    public void testNonExistingOnes() throws Throwable
+    {
+        assertInvalidMessage("No user type named", "DROP TYPE " + KEYSPACE + ".type_does_not_exist");
+        assertInvalidMessage("Cannot drop type in unknown keyspace", "DROP TYPE keyspace_does_not_exist.type_does_not_exist");
+
+        execute("DROP TYPE IF EXISTS " + KEYSPACE + ".type_does_not_exist");
+        execute("DROP TYPE IF EXISTS keyspace_does_not_exist.type_does_not_exist");
+    }
+
+    @Test
     public void testNowToUUIDCompatibility() throws Throwable
     {
         createTable("CREATE TABLE %s (a int, b uuid, PRIMARY KEY (a, b))");
