@@ -1,4 +1,5 @@
 2.1.12
+ * Some DROP ... IF EXISTS incorrectly result in exceptions on non-existing KS (CASSANDRA-10658)
  * DeletionTime.compareTo wrong in rare cases (CASSANDRA-10749)
  * Force encoding when computing statement ids (CASSANDRA-10755)
  * Properly reject counters as map keys (CASSANDRA-10760)

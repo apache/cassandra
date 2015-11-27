@@ -54,7 +54,12 @@ public class DropTypeStatement extends SchemaAlteringStatement
     {
         KSMetaData ksm = Schema.instance.getKSMetaData(name.getKeyspace());
         if (ksm == null)
-            throw new InvalidRequestException(String.format("Cannot drop type in unknown keyspace %s", name.getKeyspace()));
+        {
+            if (ifExists)
+                return;
+            else
+                throw new InvalidRequestException(String.format("Cannot drop type in unknown keyspace %s", name.getKeyspace()));
+        }
 
         UserType old = ksm.userTypes.getType(name.getUserTypeName());
         if (old == null)
@@ -140,7 +145,8 @@ public class DropTypeStatement extends SchemaAlteringStatement
     public boolean announceMigration(boolean isLocalOnly) throws InvalidRequestException, ConfigurationException
     {
         KSMetaData ksm = Schema.instance.getKSMetaData(name.getKeyspace());
-        assert ksm != null;
+        if (ksm == null)
+            return false; // do not assert (otherwise IF EXISTS case fails)
 
         UserType toDrop = ksm.userTypes.getType(name.getUserTypeName());
         // Can be null with ifExists
