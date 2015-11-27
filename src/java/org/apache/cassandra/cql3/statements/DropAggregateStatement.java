@@ -88,14 +88,17 @@ public final class DropAggregateStatement extends SchemaAlteringStatement
                                                             "'DESCRIBE AGGREGATE %s' command to find all overloads",
                                                             functionName, functionName, functionName));
 
-        List<AbstractType<?>> argTypes = new ArrayList<>(argRawTypes.size());
-        for (CQL3Type.Raw rawType : argRawTypes)
-            argTypes.add(prepareType("arguments", rawType));
-
-        Function old;
+        Function old = null;
         if (argsPresent)
         {
-            old = Schema.instance.findFunction(functionName, argTypes).orElse(null);
+            if (Schema.instance.getKSMetaData(functionName.keyspace) != null)
+            {
+                List<AbstractType<?>> argTypes = new ArrayList<>(argRawTypes.size());
+                for (CQL3Type.Raw rawType : argRawTypes)
+                    argTypes.add(prepareType("arguments", rawType));
+
+                old = Schema.instance.findFunction(functionName, argTypes).orElse(null);
+            }
             if (old == null || !(old instanceof AggregateFunction))
             {
                 if (ifExists)

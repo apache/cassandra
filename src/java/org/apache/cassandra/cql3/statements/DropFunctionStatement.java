@@ -64,19 +64,23 @@ public final class DropFunctionStatement extends SchemaAlteringStatement
     @Override
     public Prepared prepare() throws InvalidRequestException
     {
-        argTypes = new ArrayList<>(argRawTypes.size());
-        for (CQL3Type.Raw rawType : argRawTypes)
+        if (Schema.instance.getKSMetaData(functionName.keyspace) != null)
         {
-            if (rawType.isFrozen())
-                throw new InvalidRequestException("The function arguments should not be frozen; remove the frozen<> modifier");
+            argTypes = new ArrayList<>(argRawTypes.size());
+            for (CQL3Type.Raw rawType : argRawTypes)
+            {
+                if (rawType.isFrozen())
+                    throw new InvalidRequestException("The function arguments should not be frozen; remove the frozen<> modifier");
 
-            // UDT are not supported non frozen but we do not allow the frozen keyword for argument. So for the moment we
-            // freeze them here
-            if (!rawType.canBeNonFrozen())
-                rawType.freeze();
+                // UDT are not supported non frozen but we do not allow the frozen keyword for argument. So for the moment we
+                // freeze them here
+                if (!rawType.canBeNonFrozen())
+                    rawType.freeze();
 
-            argTypes.add(rawType.prepare(functionName.keyspace).getType());
+                argTypes.add(rawType.prepare(functionName.keyspace).getType());
+            }
         }
+
         return super.prepare();
     }
 
@@ -161,6 +165,11 @@ public final class DropFunctionStatement extends SchemaAlteringStatement
         Function old;
         if (argsPresent)
         {
+            if (argTypes == null)
+            {
+                return null;
+            }
+
             old = Schema.instance.findFunction(functionName, argTypes).orElse(null);
             if (old == null || !(old instanceof ScalarFunction))
             {
