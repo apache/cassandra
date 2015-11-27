@@ -11,6 +11,7 @@
  * Keep the file open in trySkipCache (CASSANDRA-10669)
  * Updated trigger example (CASSANDRA-10257)
 Merged from 2.2:
+ * Show CQL help in cqlsh in web browser (CASSANDRA-7225)
  * Serialize on disk the proper SSTable compression ratio (CASSANDRA-10775)
  * Reject index queries while the index is building (CASSANDRA-8505)
  * CQL.textile syntax incorrectly includes optional keyspace for aggregate SFUNC and FINALFUNC (CASSANDRA-10747)
