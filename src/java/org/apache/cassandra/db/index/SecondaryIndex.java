@@ -89,6 +89,12 @@ public abstract class SecondaryIndex
      */
     protected ColumnFamilyStore baseCfs;
 
+    // We need to keep track if the index is queryable or not to be sure that we can safely use it. If the index
+    // is still being build, using it will return incomplete results.
+    /**
+     * Specify if the index is queryable or not.
+     */
+    private volatile boolean queryable;
 
     /**
      * The column definitions which this index is responsible for
@@ -150,8 +156,18 @@ public abstract class SecondaryIndex
         return SystemKeyspace.isIndexBuilt(baseCfs.keyspace.getName(), getNameForSystemKeyspace(columnName));
     }
 
+    /**
+     * Checks if the index is ready.
+     * @return <code>true</code> if the index is ready, <code>false</code> otherwise
+     */
+    public boolean isQueryable()
+    {
+        return queryable;
+    }
+
     public void setIndexBuilt()
     {
+        queryable = true;
         for (ColumnDefinition columnDef : columnDefs)
             SystemKeyspace.setIndexBuilt(baseCfs.keyspace.getName(), getNameForSystemKeyspace(columnDef.name.bytes));
     }
@@ -229,7 +245,7 @@ public abstract class SecondaryIndex
      *
      * @return A future object which the caller can block on (optional)
      */
-    public Future<?> buildIndexAsync()
+    public final Future<?> buildIndexAsync()
     {
         // if we're just linking in the index to indexedColumns on an already-built index post-restart, we're done
         boolean allAreBuilt = true;
@@ -243,7 +259,17 @@ public abstract class SecondaryIndex
         }
 
         if (allAreBuilt)
+        {
+            queryable = true;
             return null;
+        }
+
+        // If the base table is empty we can directly mark the index as built.
+        if (baseCfs.isEmpty())
+        {
+            setIndexBuilt();
+            return null;
+        }
 
         // build it asynchronously; addIndex gets called by CFS open and schema update, neither of which
         // we want to block for a long period.  (actual build is serialized on CompactionManager.)

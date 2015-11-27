@@ -40,6 +40,8 @@ import org.apache.cassandra.db.filter.ExtendedFilter;
 import org.apache.cassandra.db.filter.IDiskAtomFilter;
 import org.apache.cassandra.db.filter.QueryFilter;
 import org.apache.cassandra.db.filter.SliceQueryFilter;
+import org.apache.cassandra.db.index.IndexNotAvailableException;
+import org.apache.cassandra.db.index.SecondaryIndex;
 import org.apache.cassandra.db.index.SecondaryIndexManager;
 import org.apache.cassandra.db.index.SecondaryIndexSearcher;
 import org.apache.cassandra.dht.AbstractBounds;
@@ -60,12 +62,15 @@ public class CompositesSearcher extends SecondaryIndexSearcher
     {
         assert filter.getClause() != null && !filter.getClause().isEmpty();
         final IndexExpression primary = highestSelectivityPredicate(filter.getClause(), true);
-        final CompositesIndex index = (CompositesIndex)indexManager.getIndexForColumn(primary.column);
+        final SecondaryIndex index = indexManager.getIndexForColumn(primary.column);
+        if (!index.isQueryable())
+            throw new IndexNotAvailableException(index.getIndexName());
+
         // TODO: this should perhaps not open and maintain a writeOp for the full duration, but instead only *try* to delete stale entries, without blocking if there's no room
         // as it stands, we open a writeOp and keep it open for the duration to ensure that should this CF get flushed to make room we don't block the reclamation of any room being made
         try (OpOrder.Group writeOp = baseCfs.keyspace.writeOrder.start(); OpOrder.Group baseOp = baseCfs.readOrdering.start(); OpOrder.Group indexOp = index.getIndexCfs().readOrdering.start())
         {
-            return baseCfs.filter(getIndexedIterator(writeOp, filter, primary, index), filter);
+            return baseCfs.filter(getIndexedIterator(writeOp, filter, primary, (CompositesIndex) index), filter);
         }
     }
 

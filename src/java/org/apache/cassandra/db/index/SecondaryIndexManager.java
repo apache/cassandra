@@ -314,11 +314,7 @@ public class SecondaryIndexManager
         // Add to all indexes set:
         indexesByName.put(index.getIndexName(), index);
 
-        // if we're just linking in the index to indexedColumns on an
-        // already-built index post-restart, we're done
-        if (index.isIndexBuilt(cdef.name.bytes))
-            return null;
-
+        // We do not need to check if the index is already build as buildIndexAsync will do it for us
         return index.buildIndexAsync();
     }
 

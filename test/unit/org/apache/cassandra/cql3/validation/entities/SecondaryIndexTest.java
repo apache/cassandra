@@ -17,23 +17,35 @@
  */
 package org.apache.cassandra.cql3.validation.entities;
 
-import java.nio.ByteBuffer;
-import java.util.HashMap;
-import java.util.Locale;
-import java.util.Map;
-import java.util.UUID;
-
-import org.apache.commons.lang3.StringUtils;
-
-import org.junit.Test;
-
-import org.apache.cassandra.cql3.CQLTester;
-import org.apache.cassandra.exceptions.ConfigurationException;
-import org.apache.cassandra.exceptions.SyntaxException;
-import org.apache.cassandra.utils.FBUtilities;
-
 import static org.junit.Assert.assertTrue;
 import static org.junit.Assert.fail;
+
+import java.nio.ByteBuffer;
+import java.util.HashMap;
+import java.util.List;
+import java.util.Locale;
+import java.util.Map;
+import java.util.Set;
+import java.util.UUID;
+import java.util.concurrent.CountDownLatch;
+
+import org.apache.cassandra.cql3.CQLTester;
+import org.apache.cassandra.db.ColumnFamily;
+import org.apache.cassandra.db.ColumnFamilyStore;
+import org.apache.cassandra.db.DecoratedKey;
+import org.apache.cassandra.db.IndexExpression;
+import org.apache.cassandra.db.composites.CellName;
+import org.apache.cassandra.db.index.IndexNotAvailableException;
+import org.apache.cassandra.db.index.PerRowSecondaryIndex;
+import org.apache.cassandra.db.index.SecondaryIndexSearcher;
+import org.apache.cassandra.db.index.composites.CompositesSearcher;
+import org.apache.cassandra.exceptions.ConfigurationException;
+import org.apache.cassandra.exceptions.InvalidRequestException;
+import org.apache.cassandra.exceptions.SyntaxException;
+import org.apache.cassandra.utils.FBUtilities;
+import org.apache.cassandra.utils.concurrent.OpOrder.Group;
+import org.apache.commons.lang3.StringUtils;
+import org.junit.Test;
 
 public class SecondaryIndexTest extends CQLTester
 {
@@ -563,7 +575,7 @@ public class SecondaryIndexTest extends CQLTester
     {
         createTable("CREATE TABLE %s(a int, b frozen<map<int, blob>>, PRIMARY KEY (a))");
         createIndex("CREATE INDEX ON %s(full(b))");
-        Map<Integer, ByteBuffer> map = new HashMap();
+        Map<Integer, ByteBuffer> map = new HashMap<>();
         map.put(0, ByteBuffer.allocate(1024 * 65));
         failInsert("INSERT INTO %s (a, b) VALUES (0, ?)", map);
     }
@@ -642,4 +654,135 @@ public class SecondaryIndexTest extends CQLTester
         assertInvalid("CREATE INDEX ON %s (c)");
     }
 
+    @Test
+    public void testIndexQueriesWithIndexNotReady() throws Throwable
+    {
+        createTable("CREATE TABLE %s (pk int, ck int, value int, PRIMARY KEY (pk, ck))");
+
+        for (int i = 0; i < 10; i++)
+            for (int j = 0; j < 10; j++)
+                execute("INSERT INTO %s (pk, ck, value) VALUES (?, ?, ?)", i, j, i + j);
+
+        createIndex("CREATE CUSTOM INDEX testIndex ON %s (value) USING '" + IndexBlockingOnInitialization.class.getName()
+                + "'");
+        try
+        {
+            execute("SELECT value FROM %s WHERE value = 2");
+            fail();
+        }
+        catch (IndexNotAvailableException e)
+        {
+            assertTrue(true);
+        }
+        finally
+        {
+            execute("DROP index " + KEYSPACE + ".testIndex");
+        }
+    }
+
+    /**
+     * Custom index used to test the behavior of the system when the index is not ready.
+     * As Custom indices cannot by <code>PerColumnSecondaryIndex</code> we use a <code>PerRowSecondaryIndex</code>
+     * to avoid the check but return a <code>CompositesSearcher</code>.
+     */
+    public static class IndexBlockingOnInitialization extends PerRowSecondaryIndex
+    {
+        private volatile CountDownLatch latch = new CountDownLatch(1);
+
+        @Override
+        public void index(ByteBuffer rowKey, ColumnFamily cf)
+        {
+            try
+            {
+                latch.await();
+            }
+            catch (InterruptedException e)
+            {
+                Thread.interrupted();
+            }
+        }
+
+        @Override
+        public void delete(DecoratedKey key, Group opGroup)
+        {
+        }
+
+        @Override
+        public void init()
+        {
+        }
+
+        @Override
+        public void reload()
+        {
+        }
+
+        @Override
+        public void validateOptions() throws ConfigurationException
+        {
+        }
+
+        @Override
+        public String getIndexName()
+        {
+            return "testIndex";
+        }
+
+        @Override
+        protected SecondaryIndexSearcher createSecondaryIndexSearcher(Set<ByteBuffer> columns)
+        {
+            return new CompositesSearcher(baseCfs.indexManager, columns)
+            {
+                @Override
+                public boolean canHandleIndexClause(List<IndexExpression> clause)
+                {
+                    return true;
+                }
+
+                @Override
+                public void validate(IndexExpression indexExpression) throws InvalidRequestException
+                {
+                }
+            };
+        }
+
+        @Override
+        public void forceBlockingFlush()
+        {
+        }
+
+        @Override
+        public ColumnFamilyStore getIndexCfs()
+        {
+            return baseCfs;
+        }
+
+        @Override
+        public void removeIndex(ByteBuffer columnName)
+        {
+            latch.countDown();
+        }
+
+        @Override
+        public void invalidate()
+        {
+        }
+
+        @Override
+        public void truncateBlocking(long truncatedAt)
+        {
+        }
+
+        @Override
+        public boolean indexes(CellName name)
+        {
+            return false;
+        }
+
+        @Override
+        public long estimateResultRows()
+        {
+            return 0;
+        }
+    }
 }

@@ -1,4 +1,5 @@
 2.2.4
+ * Reject index queries while the index is building (CASSANDRA-8505)
  * CQL.textile syntax incorrectly includes optional keyspace for aggregate SFUNC and FINALFUNC (CASSANDRA-10747)
  * Fix JSON update with prepared statements (CASSANDRA-10631)
  * Don't do anticompaction after subrange repair (CASSANDRA-10422)
