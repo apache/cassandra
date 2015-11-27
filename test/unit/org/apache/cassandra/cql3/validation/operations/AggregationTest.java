@@ -50,6 +50,20 @@ import static org.junit.Assert.assertTrue;
 public class AggregationTest extends CQLTester
 {
     @Test
+    public void testNonExistingOnes() throws Throwable
+    {
+        assertInvalidThrowMessage("Cannot drop non existing aggregate", InvalidRequestException.class, "DROP AGGREGATE " + KEYSPACE + ".aggr_does_not_exist");
+        assertInvalidThrowMessage("Cannot drop non existing aggregate", InvalidRequestException.class, "DROP AGGREGATE " + KEYSPACE + ".aggr_does_not_exist(int,text)");
+        assertInvalidThrowMessage("Cannot drop non existing aggregate", InvalidRequestException.class, "DROP AGGREGATE keyspace_does_not_exist.aggr_does_not_exist");
+        assertInvalidThrowMessage("Cannot drop non existing aggregate", InvalidRequestException.class, "DROP AGGREGATE keyspace_does_not_exist.aggr_does_not_exist(int,text)");
+
+        execute("DROP AGGREGATE IF EXISTS " + KEYSPACE + ".aggr_does_not_exist");
+        execute("DROP AGGREGATE IF EXISTS " + KEYSPACE + ".aggr_does_not_exist(int,text)");
+        execute("DROP AGGREGATE IF EXISTS keyspace_does_not_exist.aggr_does_not_exist");
+        execute("DROP AGGREGATE IF EXISTS keyspace_does_not_exist.aggr_does_not_exist(int,text)");
+    }
+
+    @Test
     public void testFunctions() throws Throwable
     {
         createTable("CREATE TABLE %s (a int, b int, c double, d decimal, e smallint, f tinyint, primary key (a, b))");
