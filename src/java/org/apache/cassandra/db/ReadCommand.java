@@ -35,6 +35,7 @@ import org.apache.cassandra.db.transform.StoppingTransformation;
 import org.apache.cassandra.db.transform.Transformation;
 import org.apache.cassandra.dht.AbstractBounds;
 import org.apache.cassandra.index.Index;
+import org.apache.cassandra.index.IndexNotAvailableException;
 import org.apache.cassandra.io.IVersionedSerializer;
 import org.apache.cassandra.io.util.DataInputPlus;
 import org.apache.cassandra.io.util.DataOutputPlus;
@@ -337,10 +338,16 @@ public abstract class ReadCommand extends MonitorableImpl implements ReadQuery
 
         ColumnFamilyStore cfs = Keyspace.openAndGetStore(metadata());
         Index index = getIndex(cfs);
-        Index.Searcher searcher = index == null ? null : index.searcherFor(this);
 
+        Index.Searcher searcher = null;
         if (index != null)
+        {
+            if (!cfs.indexManager.isIndexQueryable(index))
+                throw new IndexNotAvailableException(index);
+
+            searcher = index.searcherFor(this);
             Tracing.trace("Executing read on {}.{} using index {}", cfs.metadata.ksName, cfs.metadata.cfName, index.getIndexMetadata().name);
+        }
 
         UnfilteredPartitionIterator resultIterator = searcher == null
                                          ? queryStorage(cfs, executionController)

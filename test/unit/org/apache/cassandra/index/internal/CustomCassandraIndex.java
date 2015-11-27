@@ -96,8 +96,8 @@ public class CustomCassandraIndex implements Index
     public Callable<?> getInitializationTask()
     {
         // if we're just linking in the index on an already-built index post-restart
-        // we've nothing to do. Otherwise, submit for building via SecondaryIndexBuilder
-        return isBuilt() ? null : getBuildIndexTask();
+        // or if the table is empty we've nothing to do. Otherwise, submit for building via SecondaryIndexBuilder
+        return isBuilt() || baseCfs.isEmpty() ? null : getBuildIndexTask();
     }
 
     public IndexMetadata getIndexMetadata()
