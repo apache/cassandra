@@ -20,6 +20,7 @@ Merged from 2.2:
  * (Hadoop) fix splits calculation (CASSANDRA-10640)
  * (Hadoop) ensure that Cluster instances are always closed (CASSANDRA-10058)
 Merged from 2.1:
+ * Warn or fail when changing cluster topology live (CASSANDRA-10243)
  * Status command in debian/ubuntu init script doesn't work (CASSANDRA-10213)
  * Some DROP ... IF EXISTS incorrectly result in exceptions on non-existing KS (CASSANDRA-10658)
  * DeletionTime.compareTo wrong in rare cases (CASSANDRA-10749)

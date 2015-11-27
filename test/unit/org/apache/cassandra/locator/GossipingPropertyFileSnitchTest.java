@@ -19,15 +19,13 @@
 package org.apache.cassandra.locator;
 
 import java.net.InetAddress;
-import java.nio.file.Files;
-import java.nio.file.Path;
-import java.nio.file.Paths;
 
 import com.google.common.net.InetAddresses;
-import org.junit.Assert;
 import org.junit.Test;
 
 import org.apache.cassandra.utils.FBUtilities;
+
+import static org.junit.Assert.*;
 
 /**
  * Unit tests for {@link GossipingPropertyFileSnitch}.
@@ -39,35 +37,14 @@ public class GossipingPropertyFileSnitchTest
                                      final String expectedRack)
     {
         final InetAddress endpoint = InetAddresses.forString(endpointString);
-        Assert.assertEquals(expectedDatacenter, snitch.getDatacenter(endpoint));
-        Assert.assertEquals(expectedRack, snitch.getRack(endpoint));
+        assertEquals(expectedDatacenter, snitch.getDatacenter(endpoint));
+        assertEquals(expectedRack, snitch.getRack(endpoint));
     }
 
     @Test
-    public void testAutoReloadConfig() throws Exception
+    public void testLoadConfig() throws Exception
     {
-        String confFile = FBUtilities.resourceToFile(SnitchProperties.RACKDC_PROPERTY_FILENAME);
-        
-        final GossipingPropertyFileSnitch snitch = new GossipingPropertyFileSnitch(/*refreshPeriodInSeconds*/1);
+        final GossipingPropertyFileSnitch snitch = new GossipingPropertyFileSnitch();
         checkEndpoint(snitch, FBUtilities.getBroadcastAddress().getHostAddress(), "DC1", "RAC1");
-
-        final Path effectiveFile = Paths.get(confFile);
-        final Path backupFile = Paths.get(confFile + ".bak");
-        final Path modifiedFile = Paths.get(confFile + ".mod");
-        
-        try
-        {
-            Files.copy(effectiveFile, backupFile);
-            Files.copy(modifiedFile, effectiveFile, java.nio.file.StandardCopyOption.REPLACE_EXISTING);
-            
-            Thread.sleep(1500);
-            
-            checkEndpoint(snitch, FBUtilities.getBroadcastAddress().getHostAddress(), "DC2", "RAC2");
-        }
-        finally
-        {
-            Files.copy(backupFile, effectiveFile, java.nio.file.StandardCopyOption.REPLACE_EXISTING);
-            Files.delete(backupFile);
-        }
     }
 }
