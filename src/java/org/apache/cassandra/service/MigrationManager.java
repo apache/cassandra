@@ -408,7 +408,7 @@ public class MigrationManager
             throw new ConfigurationException(String.format("Cannot update non existing table '%s' in keyspace '%s'.", cfm.cfName, cfm.ksName));
         KeyspaceMetadata ksm = Schema.instance.getKSMetaData(cfm.ksName);
 
-        oldCfm.validateCompatility(cfm);
+        oldCfm.validateCompatibility(cfm);
 
         logger.info(String.format("Update table '%s/%s' From %s To %s", cfm.ksName, cfm.cfName, oldCfm, cfm));
         announce(SchemaKeyspace.makeUpdateTableMutation(ksm, oldCfm, cfm, FBUtilities.timestampMicros(), fromThrift), announceLocally);
@@ -423,7 +423,7 @@ public class MigrationManager
             throw new ConfigurationException(String.format("Cannot update non existing materialized view '%s' in keyspace '%s'.", view.viewName, view.ksName));
         KeyspaceMetadata ksm = Schema.instance.getKSMetaData(view.ksName);
 
-        oldView.metadata.validateCompatility(view.metadata);
+        oldView.metadata.validateCompatibility(view.metadata);
 
         logger.info(String.format("Update view '%s/%s' From %s To %s", view.ksName, view.viewName, oldView, view));
         announce(SchemaKeyspace.makeUpdateViewMutation(ksm, oldView, view, FBUtilities.timestampMicros()), announceLocally);
