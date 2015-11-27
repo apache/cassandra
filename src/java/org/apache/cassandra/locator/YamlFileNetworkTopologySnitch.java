@@ -23,6 +23,7 @@ import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 
 import org.apache.cassandra.exceptions.ConfigurationException;
 import org.apache.cassandra.gms.ApplicationState;
@@ -40,7 +41,9 @@ import org.yaml.snakeyaml.TypeDescription;
 import org.yaml.snakeyaml.Yaml;
 import org.yaml.snakeyaml.constructor.Constructor;
 
+import com.google.common.annotations.VisibleForTesting;
 import com.google.common.base.Objects;
+import com.google.common.collect.Sets;
 import com.google.common.net.InetAddresses;
 
 /**
@@ -60,10 +63,10 @@ public class YamlFileNetworkTopologySnitch
     /**
      * How often to check the topology configuration file, in milliseconds; defaults to one minute.
      */
-    private static final int CHECK_PERIOD_IN_MS = 60 * 1000;
+    private static final int CHECK_PERIOD_IN_MS = 5 * 1000;
 
     /** Default name for the topology configuration file. */
-    private static final String DEFAULT_TOPOLOGY_CONFIG_FILENAME = "cassandra-topology.yaml";
+    static final String DEFAULT_TOPOLOGY_CONFIG_FILENAME = "cassandra-topology.yaml";
 
     /** Node data map, keyed by broadcast address. */
     private volatile Map<InetAddress, NodeData> nodeDataMap;
@@ -196,44 +199,29 @@ public class YamlFileNetworkTopologySnitch
         public String dc_local_address;
     }
 
-    /**
-     * Loads the topology configuration file.
-     *
-     * @throws ConfigurationException
-     *             on failure
-     */
-    private synchronized void loadTopologyConfiguration(boolean isUpdate)
-            throws ConfigurationException
+    public TopologyConfig readConfig() throws ConfigurationException
     {
-        logger.debug("Loading topology configuration from {}",
-                topologyConfigFilename);
+        final TypeDescription topologyConfigTypeDescription = new TypeDescription(TopologyConfig.class);
+        topologyConfigTypeDescription.putListPropertyType("topology", Datacenter.class);
 
-        final TypeDescription topologyConfigTypeDescription = new TypeDescription(
-                TopologyConfig.class);
-        topologyConfigTypeDescription.putListPropertyType("topology",
-                Datacenter.class);
-
-        final TypeDescription topologyTypeDescription = new TypeDescription(
-                Datacenter.class);
+        final TypeDescription topologyTypeDescription = new TypeDescription(Datacenter.class);
         topologyTypeDescription.putListPropertyType("racks", Rack.class);
 
-        final TypeDescription rackTypeDescription = new TypeDescription(
-                Rack.class);
+        final TypeDescription rackTypeDescription = new TypeDescription(Rack.class);
         rackTypeDescription.putListPropertyType("nodes", Node.class);
 
-        final Constructor configConstructor = new Constructor(
-                TopologyConfig.class);
+        final Constructor configConstructor = new Constructor(TopologyConfig.class);
         configConstructor.addTypeDescription(topologyConfigTypeDescription);
         configConstructor.addTypeDescription(topologyTypeDescription);
         configConstructor.addTypeDescription(rackTypeDescription);
 
         final InputStream configFileInputStream = getClass().getClassLoader()
-                .getResourceAsStream(topologyConfigFilename);
+                                                            .getResourceAsStream(topologyConfigFilename);
         if (configFileInputStream == null)
         {
             throw new ConfigurationException(
-                    "Could not read topology config file "
-                            + topologyConfigFilename);
+                                            "Could not read topology config file "
+                                            + topologyConfigFilename);
         }
         Yaml yaml;
         TopologyConfig topologyConfig;
@@ -246,7 +234,30 @@ public class YamlFileNetworkTopologySnitch
         {
             FileUtils.closeQuietly(configFileInputStream);
         }
-        final Map<InetAddress, NodeData> nodeDataMap = new HashMap<InetAddress, NodeData>();
+
+        return topologyConfig;
+    }
+
+    /**
+     * Loads the topology configuration file.
+     *
+     * @throws ConfigurationException
+     *             on failure
+     */
+    private synchronized void loadTopologyConfiguration(boolean isUpdate)
+            throws ConfigurationException
+    {
+        logger.debug("Loading topology configuration from {}",
+                     topologyConfigFilename);
+
+        loadTopologyConfiguration(isUpdate, readConfig());
+    }
+
+    @VisibleForTesting
+    synchronized void loadTopologyConfiguration(boolean isUpdate, TopologyConfig topologyConfig)
+            throws ConfigurationException
+    {
+        final Map<InetAddress, NodeData> nodeDataMap = new HashMap<>();
 
         if (topologyConfig.topology == null)
         {
@@ -336,6 +347,9 @@ public class YamlFileNetworkTopologySnitch
         defaultNodeData.datacenter = topologyConfig.default_dc_name;
         defaultNodeData.rack = topologyConfig.default_rack_name;
 
+        if (isUpdate && !livenessCheck(nodeDataMap, defaultNodeData))
+            return;
+
         // YAML configuration looks good; now make the changes
 
         this.nodeDataMap = nodeDataMap;
@@ -357,6 +371,41 @@ public class YamlFileNetworkTopologySnitch
 
         if (isUpdate && StorageService.instance != null)
             StorageService.instance.updateTopology();
+    }
+
+    /**
+     * We cannot update rack or data-center for a live node, see CASSANDRA-10243.
+     *
+     * @param reloadedMap - the new map of hosts to NodeData
+     * @param reloadedDefaultData - the default NodeData
+     * @return true if we can continue updating (no live host had dc or rack updated)
+     */
+    private boolean livenessCheck(Map<InetAddress, NodeData> reloadedMap, NodeData reloadedDefaultData)
+    {
+        // If the default has changed we must check all live hosts but hopefully we will find a live
+        // host quickly and interrupt the loop. Otherwise we only check the live hosts that were either
+        // in the old set or in the new set
+        Set<InetAddress> hosts = NodeData.isSameDcRack(defaultNodeData, reloadedDefaultData)
+                                 ? Sets.intersection(StorageService.instance.getLiveMembers(), // same default
+                                                     Sets.union(nodeDataMap.keySet(), reloadedMap.keySet()))
+                                 : StorageService.instance.getLiveMembers(); // default updated
+
+        for (InetAddress host : hosts)
+        {
+            NodeData origValue = nodeDataMap.containsKey(host) ? nodeDataMap.get(host) : defaultNodeData;
+            NodeData updateValue = reloadedMap.containsKey(host) ? reloadedMap.get(host) : reloadedDefaultData;
+
+            if (!NodeData.isSameDcRack(origValue, updateValue))
+            {
+                logger.error("Cannot update data center or rack from {} to {} for live host {}, property file NOT RELOADED",
+                             new String[] { origValue.datacenter, origValue.rack }, // same format as error in PropertyFileSnitch,
+                             new String[] { updateValue.datacenter, updateValue.rack },
+                             host);
+                return false;
+            }
+        }
+
+        return true;
     }
 
     /**
@@ -382,7 +431,7 @@ public class YamlFileNetworkTopologySnitch
     /**
      * Topology data for a node.
      */
-    private class NodeData
+    private static final class NodeData
     {
         /** Data center name. */
         public String datacenter;
@@ -401,6 +450,12 @@ public class YamlFileNetworkTopologySnitch
             return Objects.toStringHelper(this).add("datacenter", datacenter)
                     .add("rack", rack).add("dcLocalAddress", dcLocalAddress)
                     .toString();
+        }
+
+        public static boolean isSameDcRack(NodeData a, NodeData b)
+        {
+            return a == b ||
+                   (a != null && Objects.equal(a.datacenter, b.datacenter) && Objects.equal(a.rack, b.rack));
         }
     }
 

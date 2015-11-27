@@ -1528,6 +1528,7 @@
       <sourceFolder url="file://$MODULE_DIR$/test/long" isTestSource="true" />
       <sourceFolder url="file://$MODULE_DIR$/test/pig" isTestSource="true" />
       <sourceFolder url="file://$MODULE_DIR$/test/microbench" isTestSource="true" />
+      <sourceFolder url="file://$MODULE_DIR$/test/conf" type="java-test-resource" />
       <sourceFolder url="file://$MODULE_DIR$/test/resources" type="java-test-resource" />
       <excludeFolder url="file://$MODULE_DIR$/.idea" />
       <excludeFolder url="file://$MODULE_DIR$/.settings" />

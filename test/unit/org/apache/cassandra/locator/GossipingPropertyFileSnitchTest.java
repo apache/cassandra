@@ -17,12 +17,9 @@
  */
 package org.apache.cassandra.locator;
 
-import java.nio.file.Files;
-import java.nio.file.Path;
-import java.nio.file.Paths;
+import org.junit.Test;
 
 import org.apache.cassandra.utils.FBUtilities;
-import org.junit.Test;
 
 /**
  * Unit tests for {@link GossipingPropertyFileSnitch}.
@@ -30,30 +27,12 @@ import org.junit.Test;
 public class GossipingPropertyFileSnitchTest
 {
     @Test
-    public void testAutoReloadConfig() throws Exception
+    public void testLoadConfig() throws Exception
     {
-        String confFile = FBUtilities.resourceToFile(SnitchProperties.RACKDC_PROPERTY_FILENAME);
-        
-        final GossipingPropertyFileSnitch snitch = new GossipingPropertyFileSnitch(/*refreshPeriodInSeconds*/1);
-        YamlFileNetworkTopologySnitchTest.checkEndpoint(snitch, FBUtilities.getBroadcastAddress().getHostAddress(), "DC1", "RAC1");
-
-        final Path effectiveFile = Paths.get(confFile);
-        final Path backupFile = Paths.get(confFile + ".bak");
-        final Path modifiedFile = Paths.get(confFile + ".mod");
-        
-        try
-        {
-            Files.copy(effectiveFile, backupFile);
-            Files.copy(modifiedFile, effectiveFile, java.nio.file.StandardCopyOption.REPLACE_EXISTING);
-            
-            Thread.sleep(1500);
-            
-            YamlFileNetworkTopologySnitchTest.checkEndpoint(snitch, FBUtilities.getBroadcastAddress().getHostAddress(), "DC2", "RAC2");
-        }
-        finally
-        {
-            Files.copy(backupFile, effectiveFile, java.nio.file.StandardCopyOption.REPLACE_EXISTING);
-            Files.delete(backupFile);
-        }
+        final GossipingPropertyFileSnitch snitch = new GossipingPropertyFileSnitch();
+        YamlFileNetworkTopologySnitchTest.checkEndpoint(snitch,
+                                                        FBUtilities.getBroadcastAddress().getHostAddress(),
+                                                        "DC1",
+                                                        "RAC1");
     }
 }

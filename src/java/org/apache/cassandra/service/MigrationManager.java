@@ -395,7 +395,7 @@ public class MigrationManager
             }
         });
 
-        for (InetAddress endpoint : Gossiper.instance.getLiveMembers())
+        for (InetAddress endpoint : Gossiper.instance.getLiveEndpoints())
         {
             // only push schema to nodes with known and equal versions
             if (!endpoint.equals(FBUtilities.getBroadcastAddress()) &&
@@ -439,7 +439,7 @@ public class MigrationManager
 
         Schema.instance.clear();
 
-        Set<InetAddress> liveEndpoints = Gossiper.instance.getLiveMembers();
+        Set<InetAddress> liveEndpoints = Gossiper.instance.getLiveEndpoints();
         liveEndpoints.remove(FBUtilities.getBroadcastAddress());
 
         // force migration if there are nodes around

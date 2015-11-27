@@ -66,4 +66,9 @@ public class SnitchProperties
     {
         return properties.getProperty(propertyName, defaultValue);
     }
+
+    public boolean contains(String propertyName)
+    {
+        return properties.containsKey(propertyName);
+    }
 }

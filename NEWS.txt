@@ -32,6 +32,12 @@ New features
     - a new validate(key, cf) method is added to PerRowSecondaryIndex. A default
       implementation is provided, so no changes are required to custom implementations.
 
+Operations
+------------
+    - Changing rack or dc of live nodes is no longer possible for PropertyFileSnitch
+      and YamlFileNetworkTopologySnitch. Reloading the configuration file of
+      GossipingPropertyFileSnitch has been disabled, CASSANDRA-10243.
+
 
 2.1.11
 =====
