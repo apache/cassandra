@@ -103,7 +103,7 @@ public class DeletionTime implements Comparable<DeletionTime>, IMeasurableMemory
         else if (localDeletionTime < dt.localDeletionTime)
             return -1;
         else if (localDeletionTime > dt.localDeletionTime)
-            return -1;
+            return 1;
         else
             return 0;
     }
