@@ -1,4 +1,5 @@
 2.1.12
+ * DeletionTime.compareTo wrong in rare cases (CASSANDRA-10749)
  * Force encoding when computing statement ids (CASSANDRA-10755)
  * Properly reject counters as map keys (CASSANDRA-10760)
  * Fix the sstable-needs-cleanup check (CASSANDRA-10740)
