@@ -150,9 +150,9 @@ public abstract class CassandraIndex implements Index
 
     public Callable<?> getInitializationTask()
     {
-        // if we're just linking in the index on an already-built index post-restart
-        // we've nothing to do. Otherwise, submit for building via SecondaryIndexBuilder
-        return isBuilt() ? null : getBuildIndexTask();
+        // if we're just linking in the index on an already-built index post-restart or if the base
+        // table is empty we've nothing to do. Otherwise, submit for building via SecondaryIndexBuilder
+        return isBuilt() || baseCfs.isEmpty() ? null : getBuildIndexTask();
     }
 
     public IndexMetadata getIndexMetadata()

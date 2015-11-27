@@ -29,6 +29,7 @@ import com.google.common.base.Strings;
 import com.google.common.collect.ImmutableSet;
 import com.google.common.collect.Iterables;
 import com.google.common.collect.Maps;
+import com.google.common.collect.Sets;
 import com.google.common.primitives.Longs;
 import com.google.common.util.concurrent.Futures;
 import com.google.common.util.concurrent.MoreExecutors;
@@ -99,6 +100,11 @@ public class SecondaryIndexManager implements IndexRegistry
 
     private Map<String, Index> indexes = Maps.newConcurrentMap();
 
+    /**
+     * The indexes that are ready to server requests.
+     */
+    private Set<String> builtIndexes = Sets.newConcurrentHashSet();
+
     // executes tasks returned by Indexer#addIndexColumn which may require index(es) to be (re)built
     private static final ExecutorService asyncExecutor =
         new JMXEnabledThreadPoolExecutor(1,
@@ -146,20 +152,26 @@ public class SecondaryIndexManager implements IndexRegistry
         Callable<?> reloadTask = index.getMetadataReloadTask(indexDef);
         return reloadTask == null
                ? Futures.immediateFuture(null)
-               : blockingExecutor.submit(index.getMetadataReloadTask(indexDef));
+               : blockingExecutor.submit(reloadTask);
     }
 
     private Future<?> createIndex(IndexMetadata indexDef)
     {
         Index index = createInstance(indexDef);
         index.register(this);
+
         // if the index didn't register itself, we can probably assume that no initialization needs to happen
         final Callable<?> initialBuildTask = indexes.containsKey(indexDef.name)
                                            ? index.getInitializationTask()
                                            : null;
-        return initialBuildTask == null
-               ? Futures.immediateFuture(null)
-               : asyncExecutor.submit(initialBuildTask);
+        if (initialBuildTask == null)
+        {
+            // We need to make sure that the index is marked as built in the case where the initialBuildTask
+            // does not need to be run (if the index didn't register itself or if the base table was empty).
+            markIndexBuilt(indexDef.name);
+            return Futures.immediateFuture(null);
+        }
+        return asyncExecutor.submit(index.getInitializationTask());
     }
 
     /**
@@ -174,9 +186,20 @@ public class SecondaryIndexManager implements IndexRegistry
             return createIndex(indexDef);
     }
 
+    /**
+     * Checks if the specified index is queryable.
+     *
+     * @param index the index
+     * @return <code>true</code> if the specified index is queryable, <code>false</code> otherwise
+     */
+    public boolean isIndexQueryable(Index index)
+    {
+        return builtIndexes.contains(index.getIndexMetadata().name);
+    }
+
     public synchronized void removeIndex(String indexName)
     {
-        Index index = indexes.remove(indexName);
+        Index index = unregisterIndex(indexName);
         if (null != index)
         {
             markIndexRemoved(indexName);
@@ -197,7 +220,6 @@ public class SecondaryIndexManager implements IndexRegistry
 
         return dependentIndexes;
     }
-
 
     /**
      * Called when dropping a Table
@@ -349,16 +371,26 @@ public class SecondaryIndexManager implements IndexRegistry
                     indexes.stream().map(i -> i.getIndexMetadata().name).collect(Collectors.joining(",")));
     }
 
+    /**
+     * Marks the specified index as build.
+     * <p>This method is public as it need to be accessible from the {@link Index} implementations</p>
+     * @param indexName the index name
+     */
     public void markIndexBuilt(String indexName)
     {
+        builtIndexes.add(indexName);
         SystemKeyspace.setIndexBuilt(baseCfs.keyspace.getName(), indexName);
     }
 
+    /**
+     * Marks the specified index as removed.
+     * <p>This method is public as it need to be accessible from the {@link Index} implementations</p>
+     * @param indexName the index name
+     */
     public void markIndexRemoved(String indexName)
     {
         SystemKeyspace.setIndexRemoved(baseCfs.keyspace.getName(), indexName);
     }
-
 
     public Index getIndexByName(String indexName)
     {
@@ -376,7 +408,7 @@ public class SecondaryIndexManager implements IndexRegistry
             try
             {
                 Class<? extends Index> indexClass = FBUtilities.classForName(className, "Index");
-                Constructor ctor = indexClass.getConstructor(ColumnFamilyStore.class, IndexMetadata.class);
+                Constructor<? extends Index> ctor = indexClass.getConstructor(ColumnFamilyStore.class, IndexMetadata.class);
                 newIndex = (Index)ctor.newInstance(baseCfs, indexDef);
             }
             catch (Exception e)
@@ -645,15 +677,23 @@ public class SecondaryIndexManager implements IndexRegistry
      */
     public void registerIndex(Index index)
     {
-        indexes.put(index.getIndexMetadata().name, index);
-        logger.trace("Registered index {}", index.getIndexMetadata().name);
+        String name = index.getIndexMetadata().name;
+        indexes.put(name, index);
+        logger.trace("Registered index {}", name);
     }
 
     public void unregisterIndex(Index index)
     {
-        Index removed = indexes.remove(index.getIndexMetadata().name);
+        unregisterIndex(index.getIndexMetadata().name);
+    }
+
+    private Index unregisterIndex(String name)
+    {
+        Index removed = indexes.remove(name);
+        builtIndexes.remove(name);
         logger.trace(removed == null ? "Index {} was not registered" : "Removed index {} from registry",
-                     index.getIndexMetadata().name);
+                     name);
+        return removed;
     }
 
     public Index getIndex(IndexMetadata metadata)

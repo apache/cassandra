@@ -25,6 +25,7 @@ import org.slf4j.LoggerFactory;
 
 import org.apache.cassandra.db.filter.TombstoneOverwhelmingException;
 import org.apache.cassandra.gms.Gossiper;
+import org.apache.cassandra.index.IndexNotAvailableException;
 
 public class MessageDeliveryTask implements Runnable
 {
@@ -70,10 +71,10 @@ public class MessageDeliveryTask implements Runnable
             handleFailure(ioe);
             throw new RuntimeException(ioe);
         }
-        catch (TombstoneOverwhelmingException toe)
+        catch (TombstoneOverwhelmingException | IndexNotAvailableException e)
         {
-            handleFailure(toe);
-            logger.error(toe.getMessage());
+            handleFailure(e);
+            logger.error(e.getMessage());
         }
         catch (Throwable t)
         {
