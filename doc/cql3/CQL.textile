@@ -688,9 +688,9 @@ bc(syntax)..
                             AGGREGATE ( IF NOT EXISTS )?
                             ( <keyspace> '.' )? <aggregate-name>
                             '(' <arg-type> ( ',' <arg-type> )* ')'
-                            SFUNC ( <keyspace> '.' )? <state-functionname>
+                            SFUNC <state-functionname>
                             STYPE <state-type>
-                            ( FINALFUNC ( <keyspace> '.' )? <final-functionname> )?
+                            ( FINALFUNC <final-functionname> )?
                             ( INITCOND <init-cond> )?
 p. 
 __Sample:__
