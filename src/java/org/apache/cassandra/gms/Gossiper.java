@@ -256,24 +256,12 @@ public class Gossiper implements IFailureDetectionEventListener, GossiperMBean
         subscribers.remove(subscriber);
     }
 
-    public Set<InetAddress> getLiveMembers()
+    public Set<InetAddress> getLiveEndpoints()
     {
-        Set<InetAddress> liveMembers = new HashSet<InetAddress>(liveEndpoints);
-        if (!liveMembers.contains(FBUtilities.getBroadcastAddress()))
-            liveMembers.add(FBUtilities.getBroadcastAddress());
-        return liveMembers;
-    }
-
-    public Set<InetAddress> getLiveTokenOwners()
-    {
-        Set<InetAddress> tokenOwners = new HashSet<InetAddress>();
-        for (InetAddress member : getLiveMembers())
-        {
-            EndpointState epState = endpointStateMap.get(member);
-            if (epState != null && !isDeadState(epState) && StorageService.instance.getTokenMetadata().isMember(member))
-                tokenOwners.add(member);
-        }
-        return tokenOwners;
+        Set<InetAddress> liveEndpoints = new HashSet<InetAddress>(this.liveEndpoints);
+        if (!liveEndpoints.contains(FBUtilities.getBroadcastAddress()))
+            liveEndpoints.add(FBUtilities.getBroadcastAddress());
+        return liveEndpoints;
     }
 
     /**
@@ -981,7 +969,8 @@ public class Gossiper implements IFailureDetectionEventListener, GossiperMBean
         MessagingService.instance().sendRR(echoMessage, addr, echoHandler);
     }
 
-    private void realMarkAlive(final InetAddress addr, final EndpointState localState)
+    @VisibleForTesting
+    public void realMarkAlive(final InetAddress addr, final EndpointState localState)
     {
         if (logger.isTraceEnabled())
             logger.trace("marking as alive {}", addr);
@@ -998,7 +987,8 @@ public class Gossiper implements IFailureDetectionEventListener, GossiperMBean
             logger.trace("Notified {}", subscribers);
     }
 
-    private void markDead(InetAddress addr, EndpointState localState)
+    @VisibleForTesting
+    public void markDead(InetAddress addr, EndpointState localState)
     {
         if (logger.isTraceEnabled())
             logger.trace("marking as down {}", addr);
