@@ -28,6 +28,7 @@ build-stamp: patch-stamp
 	dh_testdir
 	printf "version=%s" $(VERSION) > build.properties
 
+	$(ANT) generate-cql-html
 	$(ANT) jar
 	cd pylib && python setup.py install --no-compile --install-layout deb \
 		--root $(CURDIR)/debian/cassandra
@@ -62,7 +63,7 @@ binary-indep: build install
 	dh_testroot
 	dh_installchangelogs
 	dh_installinit -u'start 50 2 3 4 5 . stop 50 0 1 6 .'
-	dh_installdocs README.asc CHANGES.txt NEWS.txt
+	dh_installdocs README.asc CHANGES.txt NEWS.txt doc/cql3/CQL.css doc/cql3/CQL.html
 	dh_installexamples tools/*.yaml
 	dh_bash-completion
 	dh_compress
