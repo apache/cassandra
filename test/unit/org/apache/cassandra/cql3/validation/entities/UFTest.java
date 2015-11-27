@@ -59,6 +59,20 @@ import org.apache.cassandra.utils.UUIDGen;
 public class UFTest extends CQLTester
 {
     @Test
+    public void testNonExistingOnes() throws Throwable
+    {
+        assertInvalidThrowMessage("Cannot drop non existing function", InvalidRequestException.class, "DROP FUNCTION " + KEYSPACE + ".func_does_not_exist");
+        assertInvalidThrowMessage("Cannot drop non existing function", InvalidRequestException.class, "DROP FUNCTION " + KEYSPACE + ".func_does_not_exist(int,text)");
+        assertInvalidThrowMessage("Cannot drop non existing function", InvalidRequestException.class, "DROP FUNCTION keyspace_does_not_exist.func_does_not_exist");
+        assertInvalidThrowMessage("Cannot drop non existing function", InvalidRequestException.class, "DROP FUNCTION keyspace_does_not_exist.func_does_not_exist(int,text)");
+
+        execute("DROP FUNCTION IF EXISTS " + KEYSPACE + ".func_does_not_exist");
+        execute("DROP FUNCTION IF EXISTS " + KEYSPACE + ".func_does_not_exist(int,text)");
+        execute("DROP FUNCTION IF EXISTS keyspace_does_not_exist.func_does_not_exist");
+        execute("DROP FUNCTION IF EXISTS keyspace_does_not_exist.func_does_not_exist(int,text)");
+    }
+
+    @Test
     public void testSchemaChange() throws Throwable
     {
         String f = createFunction(KEYSPACE,

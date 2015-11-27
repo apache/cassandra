@@ -63,6 +63,8 @@ public class DropTableStatement extends SchemaAlteringStatement
         try
         {
             KeyspaceMetadata ksm = Schema.instance.getKSMetaData(keyspace());
+            if (ksm == null)
+                throw new ConfigurationException(String.format("Cannot drop table in unknown keyspace '%s'", keyspace()));
             CFMetaData cfm = ksm.getTableOrViewNullable(columnFamily());
             if (cfm != null)
             {
