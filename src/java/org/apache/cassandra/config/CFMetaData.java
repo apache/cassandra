@@ -727,7 +727,9 @@ public final class CFMetaData
     /**
      * Updates CFMetaData in-place to match cfm
      *
-     * @return true if any columns were added, removed, or altered; otherwise, false is returned
+     * @return true if any change was made which impacts queries/updates on the table,
+     *         e.g. any columns or indexes were added, removed, or altered; otherwise, false is returned.
+     *         Used to determine whether prepared statements against this table need to be re-prepared.
      * @throws ConfigurationException if ks/cf names or cf ids didn't match
      */
     @VisibleForTesting
@@ -735,12 +737,12 @@ public final class CFMetaData
     {
         logger.debug("applying {} to {}", cfm, this);
 
-        validateCompatility(cfm);
+        validateCompatibility(cfm);
 
         partitionKeyColumns = cfm.partitionKeyColumns;
         clusteringColumns = cfm.clusteringColumns;
 
-        boolean hasColumnChange = !partitionColumns.equals(cfm.partitionColumns);
+        boolean changeAffectsStatements = !partitionColumns.equals(cfm.partitionColumns);
         partitionColumns = cfm.partitionColumns;
 
         rebuild();
@@ -756,14 +758,16 @@ public final class CFMetaData
             droppedColumns = cfm.droppedColumns;
 
         triggers = cfm.triggers;
+
+        changeAffectsStatements |= !indexes.equals(cfm.indexes);
         indexes = cfm.indexes;
 
         logger.debug("application result is {}", this);
 
-        return hasColumnChange;
+        return changeAffectsStatements;
     }
 
-    public void validateCompatility(CFMetaData cfm) throws ConfigurationException
+    public void validateCompatibility(CFMetaData cfm) throws ConfigurationException
     {
         // validate
         if (!cfm.ksName.equals(ksName))

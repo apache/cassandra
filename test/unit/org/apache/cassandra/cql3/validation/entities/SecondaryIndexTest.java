@@ -17,28 +17,20 @@
  */
 package org.apache.cassandra.cql3.validation.entities;
 
-import org.junit.Before;
-import org.junit.Test;
-import static org.apache.cassandra.Util.throwAssert;
-import static org.junit.Assert.assertEquals;
-import static org.junit.Assert.assertFalse;
-import static org.junit.Assert.assertNotNull;
-import static org.junit.Assert.assertTrue;
-import static org.junit.Assert.fail;
-
 import java.nio.ByteBuffer;
-import java.util.HashMap;
-import java.util.Locale;
-import java.util.Map;
-import java.util.UUID;
+import java.util.*;
 import java.util.concurrent.Callable;
 import java.util.concurrent.CountDownLatch;
+
+import org.apache.commons.lang3.StringUtils;
+import org.junit.Test;
 
 import org.apache.cassandra.config.CFMetaData;
 import org.apache.cassandra.config.ColumnDefinition;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.cql3.CQLTester;
 import org.apache.cassandra.cql3.ColumnIdentifier;
+import org.apache.cassandra.cql3.QueryProcessor;
 import org.apache.cassandra.cql3.statements.IndexTarget;
 import org.apache.cassandra.db.ColumnFamilyStore;
 import org.apache.cassandra.db.DeletionTime;
@@ -52,21 +44,23 @@ import org.apache.cassandra.index.SecondaryIndexManager;
 import org.apache.cassandra.index.StubIndex;
 import org.apache.cassandra.index.internal.CustomCassandraIndex;
 import org.apache.cassandra.schema.IndexMetadata;
+import org.apache.cassandra.service.ClientState;
+import org.apache.cassandra.transport.messages.ResultMessage;
 import org.apache.cassandra.utils.ByteBufferUtil;
+import org.apache.cassandra.utils.MD5Digest;
 import org.apache.cassandra.utils.Pair;
-import org.apache.commons.lang3.StringUtils;
+
+import static org.apache.cassandra.Util.throwAssert;
+import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertFalse;
+import static org.junit.Assert.assertNotNull;
+import static org.junit.Assert.assertNull;
+import static org.junit.Assert.assertTrue;
+import static org.junit.Assert.fail;
 
 public class SecondaryIndexTest extends CQLTester
 {
     private static final int TOO_BIG = 1024 * 65;
-
-    @Before
-    public void disablePreparedReuse() throws Throwable
-    {
-        // TODO: this shouldn't be needed but is due to #10758. As such, this should be removed on that
-        // ticket is fixed.
-        disablePreparedReuseForTest();
-    }
 
     @Test
     public void testCreateAndDropIndex() throws Throwable
@@ -947,6 +941,30 @@ public class SecondaryIndexTest extends CQLTester
         {
             execute("DROP index " + KEYSPACE + ".testIndex");
         }
+    }
+
+    @Test
+    public void droppingIndexInvalidatesPreparedStatements() throws Throwable
+    {
+        createTable("CREATE TABLE %s (a int, b int, c int, PRIMARY KEY ((a), b))");
+        createIndex("CREATE INDEX c_idx ON %s(c)");
+        MD5Digest cqlId = prepareStatement("SELECT * FROM %s.%s WHERE c=?", false).statementId;
+        Integer thriftId = prepareStatement("SELECT * FROM %s.%s WHERE c=?", true).toThriftPreparedResult().getItemId();
+
+        assertNotNull(QueryProcessor.instance.getPrepared(cqlId));
+        assertNotNull(QueryProcessor.instance.getPreparedForThrift(thriftId));
+
+        dropIndex("DROP INDEX %s.c_idx");
+
+        assertNull(QueryProcessor.instance.getPrepared(cqlId));
+        assertNull(QueryProcessor.instance.getPreparedForThrift(thriftId));
+    }
+
+    private ResultMessage.Prepared prepareStatement(String cql, boolean forThrift)
+    {
+        return QueryProcessor.prepare(String.format(cql, KEYSPACE, currentTable()),
+                                      ClientState.forInternalCalls(),
+                                      forThrift);
     }
 
     private void validateCell(Cell cell, ColumnDefinition def, ByteBuffer val, long timestamp)

@@ -625,11 +625,11 @@ public class Schema
     {
         CFMetaData current = getCFMetaData(table.ksName, table.cfName);
         assert current != null;
-        boolean columnsDidChange = current.apply(table);
+        boolean changeAffectsStatements = current.apply(table);
 
         Keyspace keyspace = Keyspace.open(current.ksName);
         keyspace.getColumnFamilyStore(current.cfName).reload();
-        MigrationManager.instance.notifyUpdateColumnFamily(current, columnsDidChange);
+        MigrationManager.instance.notifyUpdateColumnFamily(current, changeAffectsStatements);
     }
 
     public void dropTable(String ksName, String tableName)
@@ -682,12 +682,12 @@ public class Schema
     public void updateView(ViewDefinition view)
     {
         ViewDefinition current = getKSMetaData(view.ksName).views.get(view.viewName).get();
-        boolean columnsDidChange = current.metadata.apply(view.metadata);
+        boolean changeAffectsStatements = current.metadata.apply(view.metadata);
 
         Keyspace keyspace = Keyspace.open(current.ksName);
         keyspace.getColumnFamilyStore(current.viewName).reload();
         Keyspace.open(current.ksName).viewManager.update(current.viewName);
-        MigrationManager.instance.notifyUpdateView(current, columnsDidChange);
+        MigrationManager.instance.notifyUpdateView(current, changeAffectsStatements);
     }
 
     public void dropView(String ksName, String viewName)

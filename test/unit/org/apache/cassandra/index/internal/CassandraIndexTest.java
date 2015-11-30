@@ -56,14 +56,6 @@ import static org.junit.Assert.fail;
  */
 public class CassandraIndexTest extends CQLTester
 {
-    @Before
-    public void disablePreparedReuse() throws Throwable
-    {
-        // TODO: this shouldn't be needed but is due to #10758. As such, this should be removed on that
-        // ticket is fixed.
-        disablePreparedReuseForTest();
-    }
-
     @Test
     public void indexOnRegularColumn() throws Throwable
     {
