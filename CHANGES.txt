@@ -1,6 +1,6 @@
-
 3.1
 Merged from 3.0:
+ * Invalidate prepared statements on DROP INDEX (CASSANDRA-10758)
  * Fix SELECT statement with IN restrictions on partition key,
    ORDER BY and LIMIT (CASSANDRA-10729)
  * Improve stress performance over 1k threads (CASSANDRA-7217)

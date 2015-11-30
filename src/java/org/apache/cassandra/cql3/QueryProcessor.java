@@ -614,10 +614,10 @@ public class QueryProcessor implements QueryHandler
                 removeAllInvalidPreparedStatementsForFunction(ksName, functionName);
         }
 
-        public void onUpdateColumnFamily(String ksName, String cfName, boolean columnsDidChange)
+        public void onUpdateColumnFamily(String ksName, String cfName, boolean affectsStatements)
         {
             logger.trace("Column definitions for {}.{} changed, invalidating related prepared statements", ksName, cfName);
-            if (columnsDidChange)
+            if (affectsStatements)
                 removeInvalidPreparedStatements(ksName, cfName);
         }
 

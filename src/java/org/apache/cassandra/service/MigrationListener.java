@@ -52,7 +52,9 @@ public abstract class MigrationListener
     {
     }
 
-    public void onUpdateColumnFamily(String ksName, String cfName, boolean columnsDidChange)
+    // the boolean flag indicates whether the change that triggered this event may have a substantive
+    // impact on statements using the column family.
+    public void onUpdateColumnFamily(String ksName, String cfName, boolean affectsStatements)
     {
     }
 
