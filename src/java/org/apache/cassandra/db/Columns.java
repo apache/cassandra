@@ -38,6 +38,7 @@ import org.apache.cassandra.utils.ByteBufferUtil;
 import org.apache.cassandra.utils.SearchIterator;
 import org.apache.cassandra.utils.btree.BTree;
 import org.apache.cassandra.utils.btree.BTreeSearchIterator;
+import org.apache.cassandra.utils.btree.BTreeRemoval;
 import org.apache.cassandra.utils.btree.UpdateFunction;
 
 /**
@@ -343,7 +344,7 @@ public class Columns extends AbstractCollection<ColumnDefinition> implements Col
         if (!contains(column))
             return this;
 
-        Object[] newColumns = BTree.<ColumnDefinition>transformAndFilter(columns, (c) -> c.equals(column) ? null : c);
+        Object[] newColumns = BTreeRemoval.<ColumnDefinition>remove(columns, Comparator.naturalOrder(), column);
         return new Columns(newColumns);
     }
 

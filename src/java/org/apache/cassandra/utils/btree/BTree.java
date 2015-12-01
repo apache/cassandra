@@ -67,6 +67,8 @@ public class BTree
     // NB we encode Path indexes as Bytes, so this needs to be less than Byte.MAX_VALUE / 2
     static final int FAN_FACTOR = 1 << FAN_SHIFT;
 
+    static final int MINIMAL_NODE_SIZE = FAN_FACTOR >> 1;
+
     // An empty BTree Leaf - which is the same as an empty BTree
     static final Object[] EMPTY_LEAF = new Object[1];
 
@@ -292,6 +294,40 @@ public class BTree
             i = -1 - i;
             node = (Object[]) node[keyEnd + i];
         }
+    }
+
+    /**
+     * Modifies the provided btree directly. THIS SHOULD NOT BE USED WITHOUT EXTREME CARE as BTrees are meant to be immutable.
+     * Finds and replaces the item provided by index in the tree.
+     */
+    public static <V> void replaceInSitu(Object[] tree, int index, V replace)
+    {
+        // WARNING: if semantics change, see also InternalCursor.seekTo, which mirrors this implementation
+        if ((index < 0) | (index >= size(tree)))
+            throw new IndexOutOfBoundsException(index + " not in range [0.." + size(tree) + ")");
+
+        while (!isLeaf(tree))
+        {
+            final int[] sizeMap = getSizeMap(tree);
+            int boundary = Arrays.binarySearch(sizeMap, index);
+            if (boundary >= 0)
+            {
+                // exact match, in this branch node
+                assert boundary < sizeMap.length - 1;
+                tree[boundary] = replace;
+                return;
+            }
+
+            boundary = -1 -boundary;
+            if (boundary > 0)
+            {
+                assert boundary < sizeMap.length;
+                index -= (1 + sizeMap[boundary - 1]);
+            }
+            tree = (Object[]) tree[getChildStart(tree) + boundary];
+        }
+        assert index < getLeafKeyEnd(tree);
+        tree[index] = replace;
     }
 
     /**
@@ -1073,11 +1109,20 @@ public class BTree
             return node.length >= FAN_FACTOR / 2 && node.length <= FAN_FACTOR + 1;
         }
 
+        final int keyCount = getBranchKeyEnd(node);
+        if ((!isRoot && keyCount < FAN_FACTOR / 2) || keyCount > FAN_FACTOR + 1)
+            return false;
+
         int type = 0;
+        int size = -1;
+        int[] sizeMap = getSizeMap(node);
         // compare each child node with the branch element at the head of this node it corresponds with
         for (int i = getChildStart(node); i < getChildEnd(node) ; i++)
         {
             Object[] child = (Object[]) node[i];
+            size += size(child) + 1;
+            if (sizeMap[i - getChildStart(node)] != size)
+                return false;
             Object localmax = i < node.length - 2 ? node[i - getChildStart(node)] : max;
             if (!isWellFormed(cmp, child, false, min, localmax))
                 return false;
