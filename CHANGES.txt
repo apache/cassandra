@@ -1,5 +1,6 @@
 3.1
 Merged from 3.0:
+ * Fix error when saving cached key for old format sstable (CASSANDRA-10778)
  * Invalidate prepared statements on DROP INDEX (CASSANDRA-10758)
  * Fix SELECT statement with IN restrictions on partition key,
    ORDER BY and LIMIT (CASSANDRA-10729)
