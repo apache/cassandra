@@ -126,21 +126,23 @@ public class StreamReceiveTask extends StreamTask
 
         public void run()
         {
-            Pair<String, String> kscf = Schema.instance.getCF(task.cfId);
-            if (kscf == null)
-            {
-                // schema was dropped during streaming
-                task.sstables.forEach(SSTableMultiWriter::abortOrDie);
-
-                task.sstables.clear();
-                task.txn.abort();
-                return;
-            }
-            ColumnFamilyStore cfs = Keyspace.open(kscf.left).getColumnFamilyStore(kscf.right);
-            boolean hasViews = !Iterables.isEmpty(View.findAll(kscf.left, kscf.right));
-
+            boolean hasViews = false;
+            ColumnFamilyStore cfs = null;
             try
             {
+                Pair<String, String> kscf = Schema.instance.getCF(task.cfId);
+                if (kscf == null)
+                {
+                    // schema was dropped during streaming
+                    task.sstables.forEach(SSTableMultiWriter::abortOrDie);
+                    task.sstables.clear();
+                    task.txn.abort();
+                    task.session.taskCompleted(task);
+                    return;
+                }
+                cfs = Keyspace.open(kscf.left).getColumnFamilyStore(kscf.right);
+                hasViews = !Iterables.isEmpty(View.findAll(kscf.left, kscf.right));
+
                 List<SSTableReader> readers = new ArrayList<>();
                 for (SSTableMultiWriter writer : task.sstables)
                 {
@@ -207,28 +209,26 @@ public class StreamReceiveTask extends StreamTask
                                                  cfs.keyspace.getName(), cfs.getTableName());
                             }
                         }
-                    }
-                }
-                catch (Throwable t)
-                {
-                    logger.error("Error applying streamed sstable: ", t);
-
-                    JVMStabilityInspector.inspectThrowable(t);
-                }
-                finally
-                {
-                    //We don't keep the streamed sstables since we've applied them manually
-                    //So we abort the txn and delete the streamed sstables
-                    if (hasViews)
-                    {
-                        cfs.forceBlockingFlush();
-                        task.txn.abort();
+                        task.session.taskCompleted(task);
                     }
                 }
             }
+            catch (Throwable t)
+            {
+                logger.error("Error applying streamed data: ", t);
+                JVMStabilityInspector.inspectThrowable(t);
+                task.session.onError(t);
+            }
             finally
             {
-                task.session.taskCompleted(task);
+                //We don't keep the streamed sstables since we've applied them manually
+                //So we abort the txn and delete the streamed sstables
+                if (hasViews)
+                {
+                    if (cfs != null)
+                        cfs.forceBlockingFlush();
+                    task.txn.abort();
+                }
             }
         }
     }
