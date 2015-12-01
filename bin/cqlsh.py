@@ -2330,7 +2330,7 @@ class ImportProcess(mp.Process):
         table_meta = new_cluster.metadata.keyspaces[self.ks].tables[self.cf]
 
         pk_cols = [col.name for col in table_meta.primary_key]
-        cqltypes = [table_meta.columns[name].typestring for name in self.columns]
+        cqltypes = [table_meta.columns[name].cql_type for name in self.columns]
         pk_indexes = [self.columns.index(col.name) for col in table_meta.primary_key]
         is_counter_table = ("counter" in cqltypes)
 
