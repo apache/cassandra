@@ -126,7 +126,7 @@ public class StressProfile implements Serializable
             }
             catch (RuntimeException e)
             {
-                throw new IllegalArgumentException("There was a problem parsing the table cql: " + e.getCause().getMessage());
+                throw new IllegalArgumentException("There was a problem parsing the table cql: " + e.getMessage());
             }
         }
         else
