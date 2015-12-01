@@ -718,6 +718,8 @@ public class DeleteTest extends CQLTester
             // Test invalid queries
             assertInvalidMessage("Range deletions are not supported for specific columns",
                                  "DELETE value FROM %s WHERE partitionKey = ? AND clustering >= ?", 2, 1);
+            assertInvalidMessage("Range deletions are not supported for specific columns",
+                                 "DELETE value FROM %s WHERE partitionKey = ?", 2);
         }
     }
 
@@ -911,6 +913,12 @@ public class DeleteTest extends CQLTester
             // Test invalid queries
             assertInvalidMessage("Range deletions are not supported for specific columns",
                                  "DELETE value FROM %s WHERE partitionKey = ? AND (clustering_1, clustering_2) >= (?, ?)", 2, 3, 1);
+            assertInvalidMessage("Range deletions are not supported for specific columns",
+                                 "DELETE value FROM %s WHERE partitionKey = ? AND clustering_1 >= ?", 2, 3);
+            assertInvalidMessage("Range deletions are not supported for specific columns",
+                                 "DELETE value FROM %s WHERE partitionKey = ? AND clustering_1 = ?", 2, 3);
+            assertInvalidMessage("Range deletions are not supported for specific columns",
+                                 "DELETE value FROM %s WHERE partitionKey = ?", 2);
         }
     }
 
