@@ -14,7 +14,6 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from .cql3handling import simple_cql_types
 
 class CQL3HelpTopics(object):
     def get_help_topics(self):
@@ -71,8 +70,10 @@ class CQL3HelpTopics(object):
 
     def help_json(self):
         return 'json'
+
     def help_select_json(self):
         return 'selectJson'
+
     def help_insert_json(self):
         return 'insertJson'
 
@@ -83,21 +84,27 @@ class CQL3HelpTopics(object):
 
     def help_create_keyspace(self):
         return 'createKeyspaceStmt'
+
     def help_alter_keyspace(self):
         return 'alterKeyspaceStmt'
+
     def help_drop_keyspace(self):
         return 'dropKeyspaceStmt'
 
     def help_create_table(self):
         return 'createTableStmt'
     help_create_columnfamily = help_create_table
+
     def help_alter_table(self):
         return 'alterTableStmt'
+
     def help_drop_table(self):
         return 'dropTableStmt'
     help_drop_columnfamily = help_drop_table
+
     def help_create_index(self):
         return 'createIndexStmt'
+
     def help_drop_index(self):
         return 'dropIndexStmt'
 
@@ -106,34 +113,43 @@ class CQL3HelpTopics(object):
 
     def help_create_type(self):
         return 'createTypeStmt'
+
     def help_alter_type(self):
         return 'alterTypeStmt'
+
     def help_drop_type(self):
         return 'dropTypeStmt'
 
     def help_create_function(self):
         return 'createFunctionStmt'
+
     def help_drop_function(self):
         return 'dropFunctionStmt'
+
     def help_functions(self):
         return 'functions'
 
     def help_create_aggregate(self):
         return 'createAggregateStmt'
+
     def help_drop_aggregate(self):
         return 'dropAggregateStmt'
+
     def help_aggregates(self):
         return 'aggregates'
 
     def help_create_trigger(self):
         return 'createTriggerStmt'
+
     def help_drop_trigger(self):
         return 'dropTriggerStmt'
 
     def help_create_materialized_view(self):
         return 'createMVStmt'
+
     def help_alter_materialized_view(self):
         return 'alterMVStmt'
+
     def help_drop_materialized_view(self):
         return 'dropMVStmt'
 
@@ -142,26 +158,33 @@ class CQL3HelpTopics(object):
 
     def help_create_user(self):
         return 'createUserStmt'
+
     def help_alter_user(self):
         return 'alterUserStmt'
+
     def help_drop_user(self):
         return 'dropUserStmt'
+
     def help_list_users(self):
         return 'listUsersStmt'
 
     def help_create_role(self):
         return 'createRoleStmt'
+
     def help_drop_role(self):
         return 'dropRoleStmt'
+
     def help_list_roles(self):
         return 'listRolesStmt'
 
     def help_permissions(self):
         return 'permissions'
+
     def help_list_permissions(self):
         return 'listPermissionsStmt'
 
     def help_grant(self):
         return 'grantRoleStmt'
+
     def help_revoke(self):
         return 'revokeRoleStmt'
