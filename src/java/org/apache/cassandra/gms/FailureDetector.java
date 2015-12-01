@@ -246,7 +246,7 @@ public class FailureDetector implements IFailureDetector, FailureDetectorMBean
         // it's worth being defensive here so minor bugs don't cause disproportionate
         // badness.  (See CASSANDRA-1463 for an example).
         if (epState == null)
-            logger.error("unknown endpoint {}", ep);
+            logger.error("Unknown endpoint: " + ep, new IllegalArgumentException(""));
         return epState != null && epState.isAlive();
     }
 
