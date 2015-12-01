@@ -58,6 +58,7 @@ public class RowIndexEntryTest extends SchemaLoader
                 add(column);
             }
             while (size < DatabaseDescriptor.getColumnIndexSize() * 3);
+            finishAddingAtoms();
 
         }}.build();
 

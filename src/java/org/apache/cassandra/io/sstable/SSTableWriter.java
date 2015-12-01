@@ -28,6 +28,7 @@ import java.util.Map;
 import java.util.Set;
 
 import com.google.common.collect.Sets;
+
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -319,6 +320,7 @@ public class SSTableWriter extends SSTable
 
                 columnIndexer.add(atom); // This write the atom on disk too
             }
+            columnIndexer.finishAddingAtoms();
 
             columnIndexer.maybeWriteEmptyRowHeader();
             dataFile.stream.writeShort(END_OF_ROW);

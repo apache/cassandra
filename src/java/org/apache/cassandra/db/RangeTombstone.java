@@ -325,6 +325,11 @@ public class RangeTombstone extends Interval<Composite, DeletionTime> implements
             return false;
         }
 
+        public boolean hasUnwrittenTombstones()
+        {
+            return !unwrittenTombstones.isEmpty();
+        }
+
         /**
          * The tracker needs to track expired range tombstone but keep tracks that they are
          * expired, so this is what this class is used for.
