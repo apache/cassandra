@@ -341,18 +341,18 @@ class TestCqlshCompletion(CqlshCompletionCase):
         self.trycompletions("UPDATE empty_table SET lonelycol = 'eggs'",
                             choices=[',', 'WHERE'])
         self.trycompletions("UPDATE empty_table SET lonelycol = 'eggs' WHERE ",
-                            choices=['TOKEN(', '<identifier>', '<quotedName>'])
+                            choices=['TOKEN(', 'lonelykey'])
         self.trycompletions("UPDATE empty_table SET lonelycol = 'eggs' WHERE ",
-                            choices=['TOKEN(', '<identifier>', '<quotedName>'])
+                            choices=['TOKEN(', 'lonelykey'])
 
         self.trycompletions("UPDATE empty_table SET lonelycol = 'eggs' WHERE lonel",
-                            choices=['<quotedName>', '<identifier>'])
+                            immediate='ykey ')
         self.trycompletions("UPDATE empty_table SET lonelycol = 'eggs' WHERE lonelykey ",
                             choices=['=', '<=', '>=', '>', '<', 'CONTAINS', 'IN', '['])
         self.trycompletions("UPDATE empty_table SET lonelycol = 'eggs' WHERE lonelykey = 0.0 ",
                             choices=['AND', 'IF', ';'])
         self.trycompletions("UPDATE empty_table SET lonelycol = 'eggs' WHERE lonelykey = 0.0 AND ",
-                            choices=['TOKEN(', '<identifier>', '<quotedName>'])
+                            choices=['TOKEN(', 'lonelykey'])
 
         self.trycompletions("UPDATE empty_table SET lonelycol = 'eggs' WHERE TOKEN(lonelykey ",
                             choices=[',', ')'])
@@ -656,7 +656,7 @@ class TestCqlshCompletion(CqlshCompletionCase):
                                     'timestamp_resolution', 'min_threshold', 'class', 'max_threshold',
                                     'tombstone_compaction_interval', 'tombstone_threshold',
                                     'enabled', 'unchecked_tombstone_compaction',
-                                    'only_purge_repaired_tombstones'])
+                                    'max_window_size_seconds', 'only_purge_repaired_tombstones'])
 
     def test_complete_in_create_columnfamily(self):
         self.trycompletions('CREATE C', choices=['COLUMNFAMILY', 'CUSTOM'])
