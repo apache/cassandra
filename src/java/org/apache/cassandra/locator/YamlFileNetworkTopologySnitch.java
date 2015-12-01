@@ -386,9 +386,9 @@ public class YamlFileNetworkTopologySnitch
         // host quickly and interrupt the loop. Otherwise we only check the live hosts that were either
         // in the old set or in the new set
         Set<InetAddress> hosts = NodeData.isSameDcRack(defaultNodeData, reloadedDefaultData)
-                                 ? Sets.intersection(StorageService.instance.getLiveMembers(), // same default
+                                 ? Sets.intersection(StorageService.instance.getLiveRingMembers(), // same default
                                                      Sets.union(nodeDataMap.keySet(), reloadedMap.keySet()))
-                                 : StorageService.instance.getLiveMembers(); // default updated
+                                 : StorageService.instance.getLiveRingMembers(); // default updated
 
         for (InetAddress host : hosts)
         {

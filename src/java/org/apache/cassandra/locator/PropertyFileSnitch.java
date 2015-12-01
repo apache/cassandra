@@ -23,7 +23,6 @@ import java.net.UnknownHostException;
 import java.util.Arrays;
 import java.util.HashMap;
 import java.util.Map;
-import java.util.Objects;
 import java.util.Properties;
 import java.util.Set;
 
@@ -32,7 +31,6 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import org.apache.cassandra.exceptions.ConfigurationException;
-import org.apache.cassandra.gms.Gossiper;
 import org.apache.cassandra.io.util.FileUtils;
 import org.apache.cassandra.service.StorageService;
 import org.apache.cassandra.utils.FBUtilities;
@@ -238,9 +236,9 @@ public class PropertyFileSnitch extends AbstractNetworkTopologySnitch
         // host quickly and interrupt the loop. Otherwise we only check the live hosts that were either
         // in the old set or in the new set
         Set<InetAddress> hosts = Arrays.equals(defaultDCRack, reloadedDefaultDCRack)
-                                 ? Sets.intersection(StorageService.instance.getLiveMembers(), // same default
+                                 ? Sets.intersection(StorageService.instance.getLiveRingMembers(), // same default
                                                      Sets.union(endpointMap.keySet(), reloadedMap.keySet()))
-                                 : StorageService.instance.getLiveMembers(); // default updated
+                                 : StorageService.instance.getLiveRingMembers(); // default updated
 
         for (InetAddress host : hosts)
         {
