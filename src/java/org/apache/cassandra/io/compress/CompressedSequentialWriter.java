@@ -156,7 +156,7 @@ public class CompressedSequentialWriter extends SequentialWriter
     public FileMark mark()
     {
         if (!buffer.hasRemaining())
-            doFlush();
+            doFlush(0);
         return new CompressedFileWriterMark(chunkOffset, current(), buffer.position(), chunkCount + 1);
     }
 
