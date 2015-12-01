@@ -56,6 +56,7 @@ import org.apache.cassandra.io.sstable.format.SSTableReader;
 import org.apache.cassandra.io.sstable.format.Version;
 import org.apache.cassandra.io.sstable.format.big.BigFormat;
 import org.apache.cassandra.schema.KeyspaceParams;
+import org.apache.cassandra.service.CacheService;
 import org.apache.cassandra.service.StorageService;
 import org.apache.cassandra.streaming.StreamPlan;
 import org.apache.cassandra.streaming.StreamSession;
@@ -238,7 +239,7 @@ public class LegacySSTableTest
         loadLegacyTables();
     }
 
-    private static void loadLegacyTables() throws IOException
+    private static void loadLegacyTables() throws Exception
     {
         for (String legacyVersion : legacyVersions)
         {
@@ -251,6 +252,8 @@ public class LegacySSTableTest
             loadLegacyTable("legacy_%s_clust", legacyVersion);
             loadLegacyTable("legacy_%s_clust_counter", legacyVersion);
 
+            CacheService.instance.invalidateKeyCache();
+            long startCount = CacheService.instance.keyCache.size();
             for (int ck = 0; ck < 50; ck++)
             {
                 String ckValue = Integer.toString(ck) + longString;
@@ -286,6 +289,20 @@ public class LegacySSTableTest
                     Assert.assertEquals(1L, rs.one().getLong("val"));
                 }
             }
+
+            //For https://issues.apache.org/jira/browse/CASSANDRA-10778
+            //Validate whether the key cache successfully saves in the presence of old keys as
+            //well as loads the correct number of keys
+            long endCount = CacheService.instance.keyCache.size();
+            Assert.assertTrue(endCount > startCount);
+            CacheService.instance.keyCache.submitWrite(Integer.MAX_VALUE).get();
+            CacheService.instance.invalidateKeyCache();
+            Assert.assertEquals(startCount, CacheService.instance.keyCache.size());
+            CacheService.instance.keyCache.loadSaved();
+            if (BigFormat.instance.getVersion(legacyVersion).storeRows())
+                Assert.assertEquals(endCount, CacheService.instance.keyCache.size());
+            else
+                Assert.assertEquals(startCount, CacheService.instance.keyCache.size());
         }
     }
 
