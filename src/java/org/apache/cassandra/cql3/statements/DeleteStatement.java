@@ -78,6 +78,12 @@ public class DeleteStatement extends ModificationStatement
         {
             if (!regularDeletions.isEmpty())
             {
+                // if the clustering size is zero but there are some clustering columns, it means that it's a
+                // range deletion (the full partition) in which case we need to throw an error as range deletion
+                // do not support specific columns
+                checkFalse(clustering.size() == 0 && cfm.clusteringColumns().size() != 0,
+                           "Range deletions are not supported for specific columns");
+
                 params.newRow(clustering);
 
                 for (Operation op : regularDeletions)
