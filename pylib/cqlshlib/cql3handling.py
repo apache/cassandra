@@ -787,21 +787,20 @@ def relation_token_subject_completer(ctxt, cass):
 @completer_for('relation', 'rel_lhs')
 def select_relation_lhs_completer(ctxt, cass):
     layout = get_table_meta(ctxt, cass)
-    filterable = set((layout.partition_key[0].name, layout.clustering_key[0].name))
+    filterable = set()
     already_filtered_on = map(dequote_name, ctxt.get_binding('rel_lhs', ()))
-    for num in range(1, len(layout.partition_key)):
-        if layout.partition_key[num - 1].name in already_filtered_on:
+    for num in range(0, len(layout.partition_key)):
+        if num == 0 or layout.partition_key[num - 1].name in already_filtered_on:
             filterable.add(layout.partition_key[num].name)
         else:
             break
-    for num in range(1, len(layout.clustering_key)):
-        if layout.clustering_key[num - 1].name in already_filtered_on:
+    for num in range(0, len(layout.clustering_key)):
+        if num == 0 or layout.clustering_key[num - 1].name in already_filtered_on:
             filterable.add(layout.clustering_key[num].name)
         else:
             break
-    for cd in layout.columns.values():
-        if cd.index:
-            filterable.add(cd.name)
+    for idx in layout.indexes.itervalues():
+        filterable.add(idx.index_options["target"])
     return map(maybe_escape_name, filterable)
 
 explain_completion('selector', 'colname')
@@ -850,16 +849,16 @@ def insert_newval_completer(ctxt, cass):
     if len(valuesdone) >= len(insertcols):
         return []
     curcol = insertcols[len(valuesdone)]
-    cqltype = layout.columns[curcol].data_type
-    coltype = cqltype.typename
+    coltype = layout.columns[curcol].cql_type
     if coltype in ('map', 'set'):
         return ['{']
     if coltype == 'list':
         return ['[']
     if coltype == 'boolean':
         return ['true', 'false']
+
     return [Hint('<value for %s (%s)>' % (maybe_escape_name(curcol),
-                                          cqltype.cql_parameterized_type()))]
+                                          coltype))]
 
 
 @completer_for('insertStatement', 'valcomma')
@@ -919,29 +918,28 @@ def update_col_completer(ctxt, cass):
 def update_countername_completer(ctxt, cass):
     layout = get_table_meta(ctxt, cass)
     curcol = dequote_name(ctxt.get_binding('updatecol', ''))
-    cqltype = layout.columns[curcol].data_type
-    coltype = cqltype.typename
+    coltype = layout.columns[curcol].cql_type
     if coltype == 'counter':
         return [maybe_escape_name(curcol)]
     if coltype in ('map', 'set'):
         return ["{"]
     if coltype == 'list':
         return ["["]
-    return [Hint('<term (%s)>' % cqltype.cql_parameterized_type())]
+    return [Hint('<term (%s)>' % coltype)]
 
 
 @completer_for('assignment', 'counterop')
 def update_counterop_completer(ctxt, cass):
     layout = get_table_meta(ctxt, cass)
     curcol = dequote_name(ctxt.get_binding('updatecol', ''))
-    return ['+', '-'] if layout.columns[curcol].data_type.typename == 'counter' else []
+    return ['+', '-'] if layout.columns[curcol].cql_type == 'counter' else []
 
 
 @completer_for('assignment', 'inc')
 def update_counter_inc_completer(ctxt, cass):
     layout = get_table_meta(ctxt, cass)
     curcol = dequote_name(ctxt.get_binding('updatecol', ''))
-    if layout.columns[curcol].data_type.typename == 'counter':
+    if layout.columns[curcol].cql_type == 'counter':
         return [Hint('<wholenumber>')]
     return []
 
@@ -967,7 +965,7 @@ def update_listcol_completer(ctxt, cass):
 def update_indexbracket_completer(ctxt, cass):
     layout = get_table_meta(ctxt, cass)
     curcol = dequote_name(ctxt.get_binding('updatecol', ''))
-    coltype = layout.columns[curcol].data_type.typename
+    coltype = layout.columns[curcol].cql_type
     if coltype in ('map', 'list'):
         return ['[']
     return []
@@ -1199,8 +1197,10 @@ explain_completion('createUserTypeStatement', 'newcol', '<new_field_name>')
 
 @completer_for('createIndexStatement', 'col')
 def create_index_col_completer(ctxt, cass):
+    """ Return the columns for which an index doesn't exist yet. """
     layout = get_table_meta(ctxt, cass)
-    colnames = [cd.name for cd in layout.columns.values() if not cd.index]
+    idx_targets = [idx.index_options["target"] for idx in layout.indexes.itervalues()]
+    colnames = [cd.name for cd in layout.columns.values() if cd.name not in idx_targets]
     return map(maybe_escape_name, colnames)
 
 syntax_rules += r'''
