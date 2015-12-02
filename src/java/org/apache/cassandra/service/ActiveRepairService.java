@@ -267,12 +267,21 @@ public class ActiveRepairService
 
         for (InetAddress neighbour : endpoints)
         {
-            CassandraVersion peerVersion = SystemKeyspace.getReleaseVersion(neighbour);
-            boolean isGlobal = options.isGlobal() && peerVersion != null && peerVersion.compareTo(SUPPORTS_GLOBAL_PREPARE_FLAG_VERSION) >= 0;
-            logger.debug("Sending prepare message: options.isGlobal = {}, peerVersion = {}", options.isGlobal(), peerVersion);
-            PrepareMessage message = new PrepareMessage(parentRepairSession, cfIds, options.getRanges(), options.isIncremental(), isGlobal);
-            MessageOut<RepairMessage> msg = message.createMessage();
-            MessagingService.instance().sendRR(msg, neighbour, callback, TimeUnit.HOURS.toMillis(1), true);
+            if (FailureDetector.instance.isAlive(neighbour))
+            {
+                CassandraVersion peerVersion = SystemKeyspace.getReleaseVersion(neighbour);
+                boolean isGlobal = options.isGlobal() && peerVersion != null && peerVersion.compareTo(SUPPORTS_GLOBAL_PREPARE_FLAG_VERSION) >= 0;
+                logger.debug("Sending prepare message: options.isGlobal = {}, peerVersion = {}", options.isGlobal(), peerVersion);
+                PrepareMessage message = new PrepareMessage(parentRepairSession, cfIds, options.getRanges(), options.isIncremental(), isGlobal);
+                MessageOut<RepairMessage> msg = message.createMessage();
+                MessagingService.instance().sendRR(msg, neighbour, callback, TimeUnit.HOURS.toMillis(1), true);
+            }
+            else
+            {
+                status.set(false);
+                failedNodes.add(neighbour.getHostAddress());
+                prepareLatch.countDown();
+            }
         }
         try
         {

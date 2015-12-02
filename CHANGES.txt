@@ -18,6 +18,7 @@
  * Reduce contention getting instances of CompositeType (CASSANDRA-10433)
  * Fix IllegalArgumentException in DataOutputBuffer.reallocate for large buffers (CASSANDRA-10592)
 Merged from 2.1:
+ * Fix incremental repair hang when replica is down (CASSANDRA-10288)
  * Avoid writing range tombstones after END_OF_ROW marker (CASSANDRA-10791)
  * Optimize the way we check if a token is repaired in anticompaction (CASSANDRA-10768)
  * Add proper error handling to stream receiver (CASSANDRA-10774)
