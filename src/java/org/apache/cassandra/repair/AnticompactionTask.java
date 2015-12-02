@@ -17,6 +17,7 @@
  */
 package org.apache.cassandra.repair;
 
+import java.io.IOException;
 import java.net.InetAddress;
 import java.util.UUID;
 import java.util.concurrent.TimeUnit;
@@ -24,6 +25,7 @@ import java.util.concurrent.TimeUnit;
 import com.google.common.util.concurrent.AbstractFuture;
 
 import org.apache.cassandra.db.SystemKeyspace;
+import org.apache.cassandra.gms.FailureDetector;
 import org.apache.cassandra.net.IAsyncCallbackWithFailure;
 import org.apache.cassandra.net.MessageIn;
 import org.apache.cassandra.net.MessagingService;
@@ -52,25 +54,32 @@ public class AnticompactionTask extends AbstractFuture<InetAddress> implements R
 
     public void run()
     {
-        AnticompactionRequest acr = new AnticompactionRequest(parentSession);
-        SemanticVersion peerVersion = SystemKeyspace.getReleaseVersion(neighbor);
-        if (peerVersion != null && peerVersion.compareTo(VERSION_CHECKER) > 0)
+        if (FailureDetector.instance.isAlive(neighbor))
         {
-            if (doAnticompaction)
+            AnticompactionRequest acr = new AnticompactionRequest(parentSession);
+            SemanticVersion peerVersion = SystemKeyspace.getReleaseVersion(neighbor);
+            if (peerVersion != null && peerVersion.compareTo(VERSION_CHECKER) > 0)
             {
-                MessagingService.instance().sendRR(acr.createMessage(), neighbor, new AnticompactionCallback(this), TimeUnit.DAYS.toMillis(1), true);
+                if (doAnticompaction)
+                {
+                    MessagingService.instance().sendRR(acr.createMessage(), neighbor, new AnticompactionCallback(this), TimeUnit.DAYS.toMillis(1), true);
+                }
+                else
+                {
+                    // we need to clean up parent session
+                    MessagingService.instance().sendRR(new CleanupMessage(parentSession).createMessage(), neighbor, new AnticompactionCallback(this), TimeUnit.DAYS.toMillis(1), true);
+                }
             }
             else
             {
-                // we need to clean up parent session
-                MessagingService.instance().sendRR(new CleanupMessage(parentSession).createMessage(), neighbor, new AnticompactionCallback(this), TimeUnit.DAYS.toMillis(1), true);
+                MessagingService.instance().sendOneWay(acr.createMessage(), neighbor);
+                // immediately return after sending request
+                set(neighbor);
             }
         }
         else
         {
-            MessagingService.instance().sendOneWay(acr.createMessage(), neighbor);
-            // immediately return after sending request
-            set(neighbor);
+            setException(new IOException(neighbor + " is down"));
         }
     }
 
