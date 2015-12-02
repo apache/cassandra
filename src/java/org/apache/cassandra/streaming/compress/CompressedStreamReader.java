@@ -104,9 +104,7 @@ public class CompressedStreamReader extends StreamReader
         {
             if (writer != null)
             {
-                Throwable e2 = writer.abort(null);
-                // add abort error to original and continue so we can drain unread stream
-                e.addSuppressed(e2);
+                writer.abort(e);
             }
             drain(cis, in.getBytesRead());
             if (e instanceof IOException)
