@@ -153,6 +153,29 @@ public class SystemKeyspaceTest
     }
 
     @Test
+    public void testMigrateEmptyDataDirs() throws IOException
+    {
+        File dataDir = Paths.get(DatabaseDescriptor.getAllDataFileLocations()[0]).toFile();
+        if (new File(dataDir, "Emptykeyspace1").exists())
+            FileUtils.deleteDirectory(new File(dataDir, "Emptykeyspace1"));
+        assertTrue(new File(dataDir, "Emptykeyspace1").mkdirs());
+        assertEquals(0, numLegacyFiles());
+        SystemKeyspace.migrateDataDirs();
+        assertEquals(0, numLegacyFiles());
+
+        assertTrue(new File(dataDir, "Emptykeyspace1/table1").mkdirs());
+        assertEquals(0, numLegacyFiles());
+        SystemKeyspace.migrateDataDirs();
+        assertEquals(0, numLegacyFiles());
+
+        assertTrue(new File(dataDir, "Emptykeyspace1/wrong_file").createNewFile());
+        assertEquals(0, numLegacyFiles());
+        SystemKeyspace.migrateDataDirs();
+        assertEquals(0, numLegacyFiles());
+
+    }
+
+    @Test
     public void testMigrateDataDirs_2_1() throws IOException
     {
         testMigrateDataDirs("2.1");
@@ -185,9 +208,9 @@ public class SystemKeyspaceTest
         for (String dataDir : dirs)
         {
             File dir = new File(dataDir);
-            for (File ksdir : dir.listFiles((d, n) -> d.isDirectory()))
+            for (File ksdir : dir.listFiles((d, n) -> new File(d, n).isDirectory()))
             {
-                for (File cfdir : ksdir.listFiles((d, n) -> d.isDirectory()))
+                for (File cfdir : ksdir.listFiles((d, n) -> new File(d, n).isDirectory()))
                 {
                     if (Descriptor.isLegacyFile(cfdir))
                     {
