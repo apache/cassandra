@@ -1209,13 +1209,13 @@ public class CompactionManager implements CompactionManagerMBean
 
             repairedSSTableWriter.switchWriter(CompactionManager.createWriterForAntiCompaction(cfs, destination, expectedBloomFilterSize, repairedAt, sstableAsSet, anticompactionGroup));
             unRepairedSSTableWriter.switchWriter(CompactionManager.createWriterForAntiCompaction(cfs, destination, expectedBloomFilterSize, ActiveRepairService.UNREPAIRED_SSTABLE, sstableAsSet, anticompactionGroup));
-
+            Range.OrderedRangeContainmentChecker containmentChecker = new Range.OrderedRangeContainmentChecker(ranges);
             while (ci.hasNext())
             {
                 try (UnfilteredRowIterator partition = ci.next())
                 {
                     // if current range from sstable is repaired, save it into the new repaired sstable
-                    if (Range.isInRanges(partition.partitionKey().getToken(), ranges))
+                    if (containmentChecker.contains(partition.partitionKey().getToken()))
                     {
                         repairedSSTableWriter.append(partition);
                         repairedKeyCount++;
