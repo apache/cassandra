@@ -15,6 +15,7 @@ Merged from 3.0:
  * Keep the file open in trySkipCache (CASSANDRA-10669)
  * Updated trigger example (CASSANDRA-10257)
 Merged from 2.2:
+ * Fix IllegalArgumentException in DataOutputBuffer.reallocate for large buffers (CASSANDRA-10592)
  * Show CQL help in cqlsh in web browser (CASSANDRA-7225)
  * Serialize on disk the proper SSTable compression ratio (CASSANDRA-10775)
  * Reject index queries while the index is building (CASSANDRA-8505)
@@ -91,6 +92,7 @@ Merged from 2.2:
  * Deprecate memory_allocator in cassandra.yaml (CASSANDRA-10581,10628)
  * Expose phi values from failure detector via JMX and tweak debug
    and trace logging (CASSANDRA-9526)
+ * Fix IllegalArgumentException in DataOutputBuffer.reallocate for large buffers (CASSANDRA-10592)
 Merged from 2.1:
  * Shutdown compaction in drain to prevent leak (CASSANDRA-10079)
  * (cqlsh) fix COPY using wrong variable name for time_format (CASSANDRA-10633)

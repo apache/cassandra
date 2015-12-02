@@ -196,12 +196,12 @@ public class SequentialWriter extends BufferedDataOutputStreamPlus implements Tr
      */
     protected void syncInternal()
     {
-        doFlush();
+        doFlush(0);
         syncDataOnlyInternal();
     }
 
     @Override
-    protected void doFlush()
+    protected void doFlush(int count)
     {
         flushData();
 
