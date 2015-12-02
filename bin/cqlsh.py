@@ -1546,7 +1546,7 @@ class Shell(cmd.Cmd):
         functions = filter(lambda f: f.name == functionname, ksmeta.functions.values())
         if len(functions) == 0:
             raise FunctionNotFound("User defined function %r not found" % functionname)
-        print "\n\n".join(func.as_cql_query(formatted=True) for func in functions)
+        print "\n\n".join(func.export_as_string() for func in functions)
         print
 
     def describe_aggregates(self, ksname):
@@ -1573,7 +1573,7 @@ class Shell(cmd.Cmd):
         aggregates = filter(lambda f: f.name == aggregatename, ksmeta.aggregates.values())
         if len(aggregates) == 0:
             raise FunctionNotFound("User defined aggregate %r not found" % aggregatename)
-        print "\n\n".join(aggr.as_cql_query(formatted=True) for aggr in aggregates)
+        print "\n\n".join(aggr.export_as_string() for aggr in aggregates)
         print
 
     def describe_usertypes(self, ksname):
@@ -1601,7 +1601,7 @@ class Shell(cmd.Cmd):
             usertype = ksmeta.user_types[typename]
         except KeyError:
             raise UserTypeNotFound("User type %r not found" % typename)
-        print usertype.as_cql_query(formatted=True)
+        print usertype.export_as_string()
         print
 
     def describe_cluster(self):
