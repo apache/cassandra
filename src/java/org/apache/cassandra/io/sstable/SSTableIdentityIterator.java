@@ -20,10 +20,13 @@ package org.apache.cassandra.io.sstable;
 import java.io.*;
 import java.util.Iterator;
 
+import com.google.common.collect.AbstractIterator;
+
 import org.apache.cassandra.config.CFMetaData;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.db.*;
 import org.apache.cassandra.db.columniterator.OnDiskAtomIterator;
+import org.apache.cassandra.db.composites.CellNameType;
 import org.apache.cassandra.io.sstable.format.SSTableReader;
 import org.apache.cassandra.io.sstable.format.Version;
 import org.apache.cassandra.io.util.FileDataInput;
@@ -67,6 +70,35 @@ import org.apache.cassandra.serializers.MarshalException;
         this(sstable.metadata, file, file.getPath(), key, checkData, sstable, ColumnSerializer.Flag.LOCAL);
     }
 
+    /**
+     * Used only by scrubber to solve problems with data written after the END_OF_ROW marker. Iterates atoms for the given dataSize only and does not accept an END_OF_ROW marker.
+     */
+    public static SSTableIdentityIterator createFragmentIterator(SSTableReader sstable, final RandomAccessReader file, DecoratedKey key, long dataSize, boolean checkData)
+    {
+        final ColumnSerializer.Flag flag = ColumnSerializer.Flag.LOCAL;
+        final CellNameType type = sstable.metadata.comparator;
+        final int expireBefore = (int) (System.currentTimeMillis() / 1000);
+        final Version version = sstable.descriptor.version;
+        final long dataEnd = file.getFilePointer() + dataSize;
+        return new SSTableIdentityIterator(sstable.metadata, file, file.getPath(), key, checkData, sstable, flag, DeletionTime.LIVE,
+                                           new AbstractIterator<OnDiskAtom>()
+                                                   {
+                                                       protected OnDiskAtom computeNext()
+                                                       {
+                                                           if (file.getFilePointer() >= dataEnd)
+                                                               return endOfData();
+                                                           try
+                                                           {
+                                                               return type.onDiskAtomSerializer().deserializeFromSSTable(file, flag, expireBefore, version);
+                                                           }
+                                                           catch (IOException e)
+                                                           {
+                                                               throw new IOError(e);
+                                                           }
+                                                       }
+                                                   });
+    }
+
     // sstable may be null *if* checkData is false
     // If it is null, we assume the data is in the current file format
     private SSTableIdentityIterator(CFMetaData metadata,
@@ -77,22 +109,16 @@ import org.apache.cassandra.serializers.MarshalException;
                                     SSTableReader sstable,
                                     ColumnSerializer.Flag flag)
     {
-        assert !checkData || (sstable != null);
-        this.in = in;
-        this.filename = filename;
-        this.key = key;
-        this.flag = flag;
-        this.validateColumns = checkData;
-        this.sstable = sstable;
+        this(metadata, in, filename, key, checkData, sstable, flag, readDeletionTime(in, sstable, filename),
+             metadata.getOnDiskIterator(in, flag, (int) (System.currentTimeMillis() / 1000),
+                                        sstable == null ? DatabaseDescriptor.getSSTableFormat().info.getLatestVersion() : sstable.descriptor.version));
+    }
 
-        Version dataVersion = sstable == null ? DatabaseDescriptor.getSSTableFormat().info.getLatestVersion() : sstable.descriptor.version;
-        int expireBefore = (int) (System.currentTimeMillis() / 1000);
-        columnFamily = ArrayBackedSortedColumns.factory.create(metadata);
-
+    private static DeletionTime readDeletionTime(DataInput in, SSTableReader sstable, String filename)
+    {
         try
         {
-            columnFamily.delete(DeletionTime.serializer.deserialize(in));
-            atomIterator = columnFamily.metadata().getOnDiskIterator(in, flag, expireBefore, dataVersion);
+            return DeletionTime.serializer.deserialize(in);
         }
         catch (IOException e)
         {
@@ -100,6 +126,30 @@ import org.apache.cassandra.serializers.MarshalException;
                 sstable.markSuspect();
             throw new CorruptSSTableException(e, filename);
         }
+    }
+
+    // sstable may be null *if* checkData is false
+    // If it is null, we assume the data is in the current file format
+    private SSTableIdentityIterator(CFMetaData metadata,
+                                    DataInput in,
+                                    String filename,
+                                    DecoratedKey key,
+                                    boolean checkData,
+                                    SSTableReader sstable,
+                                    ColumnSerializer.Flag flag,
+                                    DeletionTime deletion,
+                                    Iterator<OnDiskAtom> atomIterator)
+    {
+        assert !checkData || (sstable != null);
+        this.in = in;
+        this.filename = filename;
+        this.key = key;
+        this.flag = flag;
+        this.validateColumns = checkData;
+        this.sstable = sstable;
+        columnFamily = ArrayBackedSortedColumns.factory.create(metadata);
+        columnFamily.delete(deletion);
+        this.atomIterator = atomIterator;
     }
 
     public DecoratedKey getKey()

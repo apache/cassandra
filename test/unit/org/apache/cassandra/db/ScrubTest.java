@@ -46,7 +46,9 @@ import org.apache.cassandra.io.sstable.format.SSTableFormat;
 import org.apache.cassandra.io.sstable.format.SSTableReader;
 import org.apache.cassandra.locator.SimpleStrategy;
 import org.apache.cassandra.utils.UUIDGen;
+
 import org.apache.commons.lang3.StringUtils;
+
 import org.junit.BeforeClass;
 import org.junit.Test;
 import org.junit.runner.RunWith;
@@ -56,6 +58,7 @@ import org.apache.cassandra.config.Schema;
 import org.apache.cassandra.cql3.Operator;
 import org.apache.cassandra.cql3.UntypedResultSet;
 import org.apache.cassandra.db.columniterator.IdentityQueryFilter;
+import org.apache.cassandra.db.columniterator.OnDiskAtomIterator;
 import org.apache.cassandra.db.compaction.CompactionManager;
 import org.apache.cassandra.db.compaction.Scrubber;
 import org.apache.cassandra.db.index.SecondaryIndex;
@@ -85,6 +88,7 @@ public class ScrubTest
     public static final String CF = "Standard1";
     public static final String CF2 = "Standard2";
     public static final String CF3 = "Standard3";
+    public static final String CFI1 = "StandardInteger1";
     public static final String COUNTER_CF = "Counter1";
     public static final String CF_UUID = "UUIDKeys";
     public static final String CF_INDEX1 = "Indexed1";
@@ -106,6 +110,7 @@ public class ScrubTest
                                     SchemaLoader.standardCFMD(KEYSPACE, CF),
                                     SchemaLoader.standardCFMD(KEYSPACE, CF2),
                                     SchemaLoader.standardCFMD(KEYSPACE, CF3),
+                                    SchemaLoader.standardCFMD(KEYSPACE, CFI1),
                                     SchemaLoader.standardCFMD(KEYSPACE, COUNTER_CF)
                                                 .defaultValidator(CounterColumnType.instance)
                                                 .compressionParameters(SchemaLoader.getCompressionParameters(COMPRESSION_CHUNK_LENGTH)),
@@ -420,6 +425,61 @@ public class ScrubTest
         List<Row> rows = cfs.getRangeSlice(Util.range("", ""), null, new IdentityQueryFilter(), 1000);
         assert isRowOrdered(rows) : "Scrub failed: " + rows;
         assert rows.size() == 6 : "Got " + rows.size();
+    }
+
+    @Test
+    public void testScrub10791() throws Exception
+    {
+        // Table is created by StreamingTransferTest.testTransferRangeTombstones with CASSANDRA-10791 fix disabled.
+        CompactionManager.instance.disableAutoCompaction();
+        Keyspace keyspace = Keyspace.open(KEYSPACE);
+        String columnFamily = CFI1;
+        ColumnFamilyStore cfs = keyspace.getColumnFamilyStore(columnFamily);
+        cfs.clearUnsafe();
+
+        String root = System.getProperty("corrupt-sstable-root");
+        assert root != null;
+        File rootDir = new File(root);
+        assert rootDir.isDirectory();
+        Descriptor desc = new Descriptor("ka", rootDir, KEYSPACE, columnFamily, 2, Descriptor.Type.FINAL, SSTableFormat.Type.LEGACY);
+
+        // open without validation for scrubbing
+        Set<Component> components = new HashSet<>();
+        components.add(Component.DATA);
+        components.add(Component.PRIMARY_INDEX);
+        components.add(Component.FILTER);
+        components.add(Component.STATS);
+        components.add(Component.SUMMARY);
+        components.add(Component.TOC);
+        SSTableReader sstable = SSTableReader.openNoValidation(desc, components, cfs);
+
+        try (LifecycleTransaction txn = LifecycleTransaction.offline(OperationType.SCRUB, sstable);
+             Scrubber scrubber = new Scrubber(cfs, txn, false, true, true);)
+        {
+            scrubber.scrub();
+        }
+
+        cfs.loadNewSSTables();
+        assertEquals(7, countCells(cfs));
+    }
+
+    private int countCells(ColumnFamilyStore cfs)
+    {
+        int cellCount = 0;
+        for (SSTableReader sstable : cfs.getSSTables())
+        {
+            Iterator<OnDiskAtomIterator> it = sstable.getScanner();
+            while (it.hasNext())
+            {
+                Iterator<OnDiskAtom> itr = it.next();
+                while (itr.hasNext())
+                {
+                    ++cellCount;
+                    itr.next();
+                }
+            }
+        }
+        return cellCount;
     }
 
     private void overrideWithGarbage(SSTableReader sstable, ByteBuffer key1, ByteBuffer key2) throws IOException

@@ -263,6 +263,7 @@ public class BigTableWriter extends SSTableWriter
 
                 columnIndexer.add(atom); // This write the atom on disk too
             }
+            columnIndexer.finishAddingAtoms();
 
             columnIndexer.maybeWriteEmptyRowHeader();
             dataFile.stream.writeShort(END_OF_ROW);
