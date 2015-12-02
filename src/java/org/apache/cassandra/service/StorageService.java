@@ -2475,18 +2475,18 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
 
     public List<String> getLiveNodes()
     {
-        return stringify(Gossiper.instance.getLiveEndpoints());
+        return stringify(Gossiper.instance.getLiveMembers());
     }
 
-    public Set<InetAddress> getLiveMembers()
+    public Set<InetAddress> getLiveRingMembers()
     {
-        return getLiveMembers(false);
+        return getLiveRingMembers(false);
     }
 
-    public Set<InetAddress> getLiveMembers(boolean excludeDeadStates)
+    public Set<InetAddress> getLiveRingMembers(boolean excludeDeadStates)
     {
         Set<InetAddress> ret = new HashSet<>();
-        for (InetAddress ep : Gossiper.instance.getLiveEndpoints())
+        for (InetAddress ep : Gossiper.instance.getLiveMembers())
         {
             if (excludeDeadStates)
             {
@@ -3795,7 +3795,7 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
         if (endpoint.equals(myAddress))
              throw new UnsupportedOperationException("Cannot remove self");
 
-        if (Gossiper.instance.getLiveEndpoints().contains(endpoint))
+        if (Gossiper.instance.getLiveMembers().contains(endpoint))
             throw new UnsupportedOperationException("Node " + endpoint + " is alive and owns this ID. Use decommission command to remove it from the ring");
 
         // A leaving endpoint that is dead is already being removed.
