@@ -580,17 +580,6 @@ public class Gossiper implements IFailureDetectionEventListener, GossiperMBean
         }
         else
         {
-            try
-            {
-                tokens = StorageService.instance.getTokenMetadata().getTokens(endpoint);
-            }
-            catch (Throwable th)
-            {
-                JVMStabilityInspector.inspectThrowable(th);
-                // TODO this is broken
-                logger.warn("Unable to calculate tokens for {}.  Will use a random one", address);
-                tokens = Collections.singletonList(StorageService.instance.getTokenMetadata().partitioner.getRandomToken());
-            }
             int generation = epState.getHeartBeatState().getGeneration();
             int heartbeat = epState.getHeartBeatState().getHeartBeatVersion();
             logger.info("Sleeping for {}ms to ensure {} does not change", StorageService.RING_DELAY, endpoint);
@@ -605,6 +594,18 @@ public class Gossiper implements IFailureDetectionEventListener, GossiperMBean
                 throw new RuntimeException("Endpoint still alive: " + endpoint + " heartbeat changed while trying to assassinate it");
             epState.updateTimestamp(); // make sure we don't evict it too soon
             epState.getHeartBeatState().forceNewerGenerationUnsafe();
+        }
+
+        try
+        {
+            tokens = StorageService.instance.getTokenMetadata().getTokens(endpoint);
+        }
+        catch (Throwable th)
+        {
+            JVMStabilityInspector.inspectThrowable(th);
+            // TODO this is broken
+            logger.warn("Unable to calculate tokens for {}.  Will use a random one", address);
+            tokens = Collections.singletonList(StorageService.instance.getTokenMetadata().partitioner.getRandomToken());
         }
 
         // do not pass go, do not collect 200 dollars, just gtfo
