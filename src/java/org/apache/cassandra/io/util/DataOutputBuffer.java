@@ -21,6 +21,10 @@ import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.nio.channels.WritableByteChannel;
 
+import org.apache.cassandra.config.Config;
+
+import com.google.common.annotations.VisibleForTesting;
+import com.google.common.base.Preconditions;
 
 /**
  * An implementation of the DataOutputStream interface using a FastByteArrayOutputStream and exposing
@@ -30,6 +34,11 @@ import java.nio.channels.WritableByteChannel;
  */
 public class DataOutputBuffer extends BufferedDataOutputStreamPlus
 {
+    /*
+     * Threshold at which resizing transitions from doubling to increasing by 50%
+     */
+    private static final long DOUBLING_THRESHOLD = Long.getLong(Config.PROPERTY_PREFIX + "DOB_DOUBLING_THRESHOLD_MB", 64);
+
     public DataOutputBuffer()
     {
         this(128);
@@ -51,16 +60,70 @@ public class DataOutputBuffer extends BufferedDataOutputStreamPlus
         throw new UnsupportedOperationException();
     }
 
-    @Override
-    protected void doFlush() throws IOException
+    //The actual value observed in Hotspot is only -2
+    //ByteArrayOutputStream uses -8
+    @VisibleForTesting
+    static final int MAX_ARRAY_SIZE = Integer.MAX_VALUE - 8;
+
+    @VisibleForTesting
+    static int saturatedArraySizeCast(long size)
     {
-        reallocate(buffer.capacity() * 2);
+        Preconditions.checkArgument(size >= 0);
+        return (int)Math.min(MAX_ARRAY_SIZE, size);
     }
 
-    protected void reallocate(long newSize)
+    @VisibleForTesting
+    static int checkedArraySizeCast(long size)
     {
-        assert newSize <= Integer.MAX_VALUE;
-        ByteBuffer newBuffer = ByteBuffer.allocate((int) newSize);
+        Preconditions.checkArgument(size >= 0);
+        Preconditions.checkArgument(size <= MAX_ARRAY_SIZE);
+        return (int)size;
+    }
+
+    @Override
+    protected void doFlush(int count) throws IOException
+    {
+        reallocate(count);
+    }
+
+    //Hack for test, make it possible to override checking the buffer capacity
+    @VisibleForTesting
+    long capacity()
+    {
+        return buffer.capacity();
+    }
+
+    @VisibleForTesting
+    long validateReallocation(long newSize)
+    {
+        int saturatedSize = saturatedArraySizeCast(newSize);
+        if (saturatedSize <= capacity())
+            throw new RuntimeException();
+        return saturatedSize;
+    }
+
+    @VisibleForTesting
+    long calculateNewSize(long count)
+    {
+        long capacity = capacity();
+        //Both sides of this max expression need to use long arithmetic to avoid integer overflow
+        //count and capacity are longs so that ensures it right now.
+        long newSize = capacity + count;
+
+        //For large buffers don't double, increase by 50%
+        if (capacity > 1024L * 1024L * DOUBLING_THRESHOLD)
+            newSize = Math.max((capacity * 3L) / 2L, newSize);
+        else
+            newSize = Math.max(capacity * 2L, newSize);
+
+        return validateReallocation(newSize);
+    }
+
+    protected void reallocate(long count)
+    {
+        if (count <= 0)
+            return;
+        ByteBuffer newBuffer = ByteBuffer.allocate(checkedArraySizeCast(calculateNewSize(count)));
         buffer.flip();
         newBuffer.put(buffer);
         buffer = newBuffer;
@@ -72,12 +135,13 @@ public class DataOutputBuffer extends BufferedDataOutputStreamPlus
         return new GrowingChannel();
     }
 
-    private final class GrowingChannel implements WritableByteChannel
+    @VisibleForTesting
+    final class GrowingChannel implements WritableByteChannel
     {
         public int write(ByteBuffer src) throws IOException
         {
             int count = src.remaining();
-            reallocate(Math.max((buffer.capacity() * 3) / 2, buffer.capacity() + count));
+            reallocate(count);
             buffer.put(src);
             return count;
         }
