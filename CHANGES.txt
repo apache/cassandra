@@ -14,6 +14,7 @@
 
 3.1
 Merged from 3.0:
+ * Fix NPE on stream read error (CASSANDRA-10771)
  * Normalize cqlsh DESC output (CASSANDRA-10431)
  * Rejects partition range deletions when columns are specified (CASSANDRA-10739)
  * Fix error when saving cached key for old format sstable (CASSANDRA-10778)
