@@ -17,6 +17,7 @@
  */
 package org.apache.cassandra.repair;
 
+import java.io.IOException;
 import java.net.InetAddress;
 import java.util.Collection;
 import java.util.UUID;
@@ -27,6 +28,7 @@ import com.google.common.util.concurrent.AbstractFuture;
 import org.apache.cassandra.db.SystemKeyspace;
 import org.apache.cassandra.dht.Range;
 import org.apache.cassandra.dht.Token;
+import org.apache.cassandra.gms.FailureDetector;
 import org.apache.cassandra.net.IAsyncCallbackWithFailure;
 import org.apache.cassandra.net.MessageIn;
 import org.apache.cassandra.net.MessagingService;
@@ -54,17 +56,24 @@ public class AnticompactionTask extends AbstractFuture<InetAddress> implements R
 
     public void run()
     {
-        AnticompactionRequest acr = new AnticompactionRequest(parentSession, successfulRanges);
-        CassandraVersion peerVersion = SystemKeyspace.getReleaseVersion(neighbor);
-        if (peerVersion != null && peerVersion.compareTo(VERSION_CHECKER) > 0)
+        if (FailureDetector.instance.isAlive(neighbor))
         {
-            MessagingService.instance().sendRR(acr.createMessage(), neighbor, new AnticompactionCallback(this), TimeUnit.DAYS.toMillis(1), true);
+            AnticompactionRequest acr = new AnticompactionRequest(parentSession, successfulRanges);
+            CassandraVersion peerVersion = SystemKeyspace.getReleaseVersion(neighbor);
+            if (peerVersion != null && peerVersion.compareTo(VERSION_CHECKER) > 0)
+            {
+                MessagingService.instance().sendRR(acr.createMessage(), neighbor, new AnticompactionCallback(this), TimeUnit.DAYS.toMillis(1), true);
+            }
+            else
+            {
+                MessagingService.instance().sendOneWay(acr.createMessage(), neighbor);
+                // immediately return after sending request
+                set(neighbor);
+            }
         }
         else
         {
-            MessagingService.instance().sendOneWay(acr.createMessage(), neighbor);
-            // immediately return after sending request
-            set(neighbor);
+            setException(new IOException(neighbor + " is down"));
         }
     }
 

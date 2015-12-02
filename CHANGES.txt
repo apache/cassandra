@@ -40,6 +40,7 @@ Merged from 2.2:
  * (Hadoop) fix splits calculation (CASSANDRA-10640)
  * (Hadoop) ensure that Cluster instances are always closed (CASSANDRA-10058)
 Merged from 2.1:
+ * Fix incremental repair hang when replica is down (CASSANDRA-10288)
  * Optimize the way we check if a token is repaired in anticompaction (CASSANDRA-10768)
  * Add proper error handling to stream receiver (CASSANDRA-10774)
  * Warn or fail when changing cluster topology live (CASSANDRA-10243)
