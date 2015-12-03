@@ -209,9 +209,9 @@ public class StreamReceiveTask extends StreamTask
                                                  cfs.keyspace.getName(), cfs.getTableName());
                             }
                         }
-                        task.session.taskCompleted(task);
                     }
                 }
+                task.session.taskCompleted(task);
             }
             catch (Throwable t)
             {
