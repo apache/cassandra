@@ -1,3 +1,7 @@
+2.1.13
+ * Fix Stress profile parsing on Windows (CASSANDRA-10808)
+
+
 2.1.12
  * Fix incremental repair hang when replica is down (CASSANDRA-10288)
  * Avoid writing range tombstones after END_OF_ROW marker (CASSANDRA-10791)
