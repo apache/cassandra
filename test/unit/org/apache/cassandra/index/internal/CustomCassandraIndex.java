@@ -162,12 +162,6 @@ public class CustomCassandraIndex implements Index
         return true;
     }
 
-    public boolean indexes(PartitionColumns columns)
-    {
-        // if we have indexes on the partition key or clustering columns, return true
-        return isPrimaryKeyIndex() || columns.contains(indexedColumn);
-    }
-
     public boolean dependsOn(ColumnDefinition column)
     {
         return column.equals(indexedColumn);
@@ -271,10 +265,14 @@ public class CustomCassandraIndex implements Index
     }
 
     public Indexer indexerFor(final DecoratedKey key,
+                              final PartitionColumns columns,
                               final int nowInSec,
                               final OpOrder.Group opGroup,
                               final IndexTransaction.Type transactionType)
     {
+        if (!isPrimaryKeyIndex() && !columns.contains(indexedColumn))
+            return null;
+
         return new Indexer()
         {
             public void begin()

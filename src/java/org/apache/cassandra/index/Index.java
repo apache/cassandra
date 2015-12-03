@@ -191,13 +191,6 @@ public interface Index
      */
 
     /**
-     * Called to determine whether this index should process a particular partition update.
-     * @param columns
-     * @return
-     */
-    public boolean indexes(PartitionColumns columns);
-
-    /**
      * Called to determine whether this index targets a specific column.
      * Used during schema operations such as when dropping or renaming a column, to check if
      * the index will be affected by the change. Typically, if an index answers that it does
@@ -275,19 +268,22 @@ public interface Index
      */
 
     /**
-     * Factory method for write time event handlers.
-     * Callers should check the indexes method first and only get a new
-     * handler when the index claims an interest in the specific update
-     * otherwise work may be done unnecessarily
+     * Creates an new {@code Indexer} object for updates to a given partition.
      *
      * @param key key of the partition being modified
+     * @param columns the regular and static columns the created indexer will have to deal with.
+     * This can be empty as an update might only contain partition, range and row deletions, but
+     * the indexer is guaranteed to not get any cells for a column that is not part of {@code columns}.
      * @param nowInSec current time of the update operation
      * @param opGroup operation group spanning the update operation
      * @param transactionType indicates what kind of update is being performed on the base data
      *                        i.e. a write time insert/update/delete or the result of compaction
-     * @return
+     * @return the newly created indexer or {@code null} if the index is not interested by the update
+     * (this could be because the index doesn't care about that particular partition, doesn't care about
+     * that type of transaction, ...).
      */
     public Indexer indexerFor(DecoratedKey key,
+                              PartitionColumns columns,
                               int nowInSec,
                               OpOrder.Group opGroup,
                               IndexTransaction.Type transactionType);
