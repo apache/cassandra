@@ -844,4 +844,9 @@ public class FBUtilities
             throw new RuntimeException(e);
         }
     }
+
+    public static long align(long val, int boundary)
+    {
+        return (val + boundary) & ~(boundary - 1);
+    }
 }

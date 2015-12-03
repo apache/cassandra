@@ -244,6 +244,15 @@
     </target>
 
     <!--
+        Generates Java sources for tokenization support from jflex
+        grammar files
+    -->
+    <target name="generate-jflex-java" description="Generate Java from jflex grammar">
+        <taskdef classname="jflex.anttask.JFlexTask" classpath="${build.lib}/jflex-1.6.0.jar" name="jflex" />
+        <jflex file="${build.src.java}/org/apache/cassandra/index/sasi/analyzer/StandardTokenizerImpl.jflex" destdir="${build.src.gen-java}/" />
+    </target>
+
+    <!--
        Fetch Maven Ant Tasks and Cassandra's dependencies
        These targets are intentionally free of dependencies so that they
        can be run stand-alone from a binary release artifact.
@@ -405,6 +414,11 @@
           	<exclusion groupId="log4j" artifactId="log4j"/>
           </dependency>
           <dependency groupId="joda-time" artifactId="joda-time" version="2.4" />
+          <dependency groupId="com.carrotsearch" artifactId="hppc" version="0.5.4" />
+          <dependency groupId="de.jflex" artifactId="jflex" version="1.6.0" />
+          <dependency groupId="net.mintern" artifactId="primitive" version="1.0" />
+          <dependency groupId="com.github.rholder" artifactId="snowball-stemmer" version="1.3.0.581.1" />
+          <dependency groupId="com.googlecode.concurrent-trees" artifactId="concurrent-trees" version="2.4.0" />
 
         </dependencyManagement>
         <developer id="alakshman" name="Avinash Lakshman"/>
@@ -568,6 +582,12 @@
         <dependency groupId="org.slf4j" artifactId="log4j-over-slf4j"/>
         <dependency groupId="org.slf4j" artifactId="jcl-over-slf4j"/>
         <dependency groupId="org.apache.thrift" artifactId="libthrift"/>
+        <dependency groupId="com.carrotsearch" artifactId="hppc" version="0.5.4" />
+        <dependency groupId="de.jflex" artifactId="jflex" version="1.6.0" />
+        <dependency groupId="net.mintern" artifactId="primitive" version="1.0" />
+        <dependency groupId="com.github.rholder" artifactId="snowball-stemmer" version="1.3.0.581.1" />
+        <dependency groupId="com.googlecode.concurrent-trees" artifactId="concurrent-trees" version="2.4.0" />
+
       </artifact:pom>
       <artifact:pom id="clientutil-pom"
                     artifactId="cassandra-clientutil"
@@ -734,7 +754,7 @@
         depends="maven-ant-tasks-retrieve-build,build-project" description="Compile Cassandra classes"/>
     <target name="codecoverage" depends="jacoco-run,jacoco-report" description="Create code coverage report"/>
 
-    <target depends="init,gen-cql3-grammar,generate-cql-html"
+    <target depends="init,gen-cql3-grammar,generate-cql-html,generate-jflex-java"
             name="build-project">
         <echo message="${ant.project.name}: ${ant.file}"/>
         <!-- Order matters! -->

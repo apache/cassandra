@@ -19,6 +19,7 @@ package org.apache.cassandra.io.sstable;
 
 import java.io.File;
 import java.util.EnumSet;
+import java.util.regex.Pattern;
 
 import com.google.common.base.Objects;
 
@@ -57,6 +58,8 @@ public class Component
         SUMMARY("Summary.db"),
         // table of contents, stores the list of all components for the sstable
         TOC("TOC.txt"),
+        // built-in secondary index (may be multiple per sstable)
+        SECONDARY_INDEX("SI_.*.db"),
         // custom component, used by e.g. custom compaction strategy
         CUSTOM(new String[] { null });
         
@@ -74,9 +77,12 @@ public class Component
         static Type fromRepresentation(String repr)
         {
             for (Type type : TYPES)
-                for (String representation : type.repr)
-                    if (repr.equals(representation))
-                        return type;
+            {
+                if (type.repr == null || type.repr.length == 0 || type.repr[0] == null)
+                    continue;
+                if (Pattern.matches(type.repr[0], repr))
+                    return type;
+            }
             return CUSTOM;
         }
     }
@@ -169,6 +175,7 @@ public class Component
             case CRC:               component = Component.CRC;                          break;
             case SUMMARY:           component = Component.SUMMARY;                      break;
             case TOC:               component = Component.TOC;                          break;
+            case SECONDARY_INDEX:   component = new Component(Type.SECONDARY_INDEX, path.right); break;
             case CUSTOM:            component = new Component(Type.CUSTOM, path.right); break;
             default:
                  throw new IllegalStateException();

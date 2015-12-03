@@ -1,0 +1,143 @@
+/*
+ * Licensed to the Apache Software Foundation (ASF) under one or more
+ * contributor license agreements.  See the NOTICE file distributed with
+ * this work for additional information regarding copyright ownership.
+ * The ASF licenses this file to You under the Apache License, Version 2.0
+ * (the "License"); you may not use this file except in compliance with
+ * the License.  You may obtain a copy of the License at
+ *
+ *     http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+// Generated using ICU4J 52.1.0.0
+// by org.apache.lucene.analysis.icu.GenerateJFlexSupplementaryMacros
+
+
+ALetterSupp = (
+	  ([\ud83b][\uDE00-\uDE03\uDE05-\uDE1F\uDE21\uDE22\uDE24\uDE27\uDE29-\uDE32\uDE34-\uDE37\uDE39\uDE3B\uDE42\uDE47\uDE49\uDE4B\uDE4D-\uDE4F\uDE51\uDE52\uDE54\uDE57\uDE59\uDE5B\uDE5D\uDE5F\uDE61\uDE62\uDE64\uDE67-\uDE6A\uDE6C-\uDE72\uDE74-\uDE77\uDE79-\uDE7C\uDE7E\uDE80-\uDE89\uDE8B-\uDE9B\uDEA1-\uDEA3\uDEA5-\uDEA9\uDEAB-\uDEBB])
+	| ([\ud81a][\uDC00-\uDE38])
+	| ([\ud81b][\uDF00-\uDF44\uDF50\uDF93-\uDF9F])
+	| ([\ud835][\uDC00-\uDC54\uDC56-\uDC9C\uDC9E\uDC9F\uDCA2\uDCA5\uDCA6\uDCA9-\uDCAC\uDCAE-\uDCB9\uDCBB\uDCBD-\uDCC3\uDCC5-\uDD05\uDD07-\uDD0A\uDD0D-\uDD14\uDD16-\uDD1C\uDD1E-\uDD39\uDD3B-\uDD3E\uDD40-\uDD44\uDD46\uDD4A-\uDD50\uDD52-\uDEA5\uDEA8-\uDEC0\uDEC2-\uDEDA\uDEDC-\uDEFA\uDEFC-\uDF14\uDF16-\uDF34\uDF36-\uDF4E\uDF50-\uDF6E\uDF70-\uDF88\uDF8A-\uDFA8\uDFAA-\uDFC2\uDFC4-\uDFCB])
+	| ([\ud80d][\uDC00-\uDC2E])
+	| ([\ud80c][\uDC00-\uDFFF])
+	| ([\ud809][\uDC00-\uDC62])
+	| ([\ud808][\uDC00-\uDF6E])
+	| ([\ud805][\uDE80-\uDEAA])
+	| ([\ud804][\uDC03-\uDC37\uDC83-\uDCAF\uDCD0-\uDCE8\uDD03-\uDD26\uDD83-\uDDB2\uDDC1-\uDDC4])
+	| ([\ud801][\uDC00-\uDC9D])
+	| ([\ud800][\uDC00-\uDC0B\uDC0D-\uDC26\uDC28-\uDC3A\uDC3C\uDC3D\uDC3F-\uDC4D\uDC50-\uDC5D\uDC80-\uDCFA\uDD40-\uDD74\uDE80-\uDE9C\uDEA0-\uDED0\uDF00-\uDF1E\uDF30-\uDF4A\uDF80-\uDF9D\uDFA0-\uDFC3\uDFC8-\uDFCF\uDFD1-\uDFD5])
+	| ([\ud803][\uDC00-\uDC48])
+	| ([\ud802][\uDC00-\uDC05\uDC08\uDC0A-\uDC35\uDC37\uDC38\uDC3C\uDC3F-\uDC55\uDD00-\uDD15\uDD20-\uDD39\uDD80-\uDDB7\uDDBE\uDDBF\uDE00\uDE10-\uDE13\uDE15-\uDE17\uDE19-\uDE33\uDE60-\uDE7C\uDF00-\uDF35\uDF40-\uDF55\uDF60-\uDF72])
+)
+FormatSupp = (
+	  ([\ud804][\uDCBD])
+	| ([\ud834][\uDD73-\uDD7A])
+	| ([\udb40][\uDC01\uDC20-\uDC7F])
+)
+NumericSupp = (
+	  ([\ud805][\uDEC0-\uDEC9])
+	| ([\ud804][\uDC66-\uDC6F\uDCF0-\uDCF9\uDD36-\uDD3F\uDDD0-\uDDD9])
+	| ([\ud835][\uDFCE-\uDFFF])
+	| ([\ud801][\uDCA0-\uDCA9])
+)
+ExtendSupp = (
+	  ([\ud81b][\uDF51-\uDF7E\uDF8F-\uDF92])
+	| ([\ud805][\uDEAB-\uDEB7])
+	| ([\ud804][\uDC00-\uDC02\uDC38-\uDC46\uDC80-\uDC82\uDCB0-\uDCBA\uDD00-\uDD02\uDD27-\uDD34\uDD80-\uDD82\uDDB3-\uDDC0])
+	| ([\ud834][\uDD65-\uDD69\uDD6D-\uDD72\uDD7B-\uDD82\uDD85-\uDD8B\uDDAA-\uDDAD\uDE42-\uDE44])
+	| ([\ud800][\uDDFD])
+	| ([\udb40][\uDD00-\uDDEF])
+	| ([\ud802][\uDE01-\uDE03\uDE05\uDE06\uDE0C-\uDE0F\uDE38-\uDE3A\uDE3F])
+)
+KatakanaSupp = (
+	  ([\ud82c][\uDC00])
+)
+MidLetterSupp = (
+	  []
+)
+MidNumSupp = (
+	  []
+)
+MidNumLetSupp = (
+	  []
+)
+ExtendNumLetSupp = (
+	  []
+)
+ExtendNumLetSupp = (
+	  []
+)
+ComplexContextSupp = (
+	  []
+)
+HanSupp = (
+	  ([\ud87e][\uDC00-\uDE1D])
+	| ([\ud86b][\uDC00-\uDFFF])
+	| ([\ud86a][\uDC00-\uDFFF])
+	| ([\ud869][\uDC00-\uDED6\uDF00-\uDFFF])
+	| ([\ud868][\uDC00-\uDFFF])
+	| ([\ud86e][\uDC00-\uDC1D])
+	| ([\ud86d][\uDC00-\uDF34\uDF40-\uDFFF])
+	| ([\ud86c][\uDC00-\uDFFF])
+	| ([\ud863][\uDC00-\uDFFF])
+	| ([\ud862][\uDC00-\uDFFF])
+	| ([\ud861][\uDC00-\uDFFF])
+	| ([\ud860][\uDC00-\uDFFF])
+	| ([\ud867][\uDC00-\uDFFF])
+	| ([\ud866][\uDC00-\uDFFF])
+	| ([\ud865][\uDC00-\uDFFF])
+	| ([\ud864][\uDC00-\uDFFF])
+	| ([\ud858][\uDC00-\uDFFF])
+	| ([\ud859][\uDC00-\uDFFF])
+	| ([\ud85a][\uDC00-\uDFFF])
+	| ([\ud85b][\uDC00-\uDFFF])
+	| ([\ud85c][\uDC00-\uDFFF])
+	| ([\ud85d][\uDC00-\uDFFF])
+	| ([\ud85e][\uDC00-\uDFFF])
+	| ([\ud85f][\uDC00-\uDFFF])
+	| ([\ud850][\uDC00-\uDFFF])
+	| ([\ud851][\uDC00-\uDFFF])
+	| ([\ud852][\uDC00-\uDFFF])
+	| ([\ud853][\uDC00-\uDFFF])
+	| ([\ud854][\uDC00-\uDFFF])
+	| ([\ud855][\uDC00-\uDFFF])
+	| ([\ud856][\uDC00-\uDFFF])
+	| ([\ud857][\uDC00-\uDFFF])
+	| ([\ud849][\uDC00-\uDFFF])
+	| ([\ud848][\uDC00-\uDFFF])
+	| ([\ud84b][\uDC00-\uDFFF])
+	| ([\ud84a][\uDC00-\uDFFF])
+	| ([\ud84d][\uDC00-\uDFFF])
+	| ([\ud84c][\uDC00-\uDFFF])
+	| ([\ud84f][\uDC00-\uDFFF])
+	| ([\ud84e][\uDC00-\uDFFF])
+	| ([\ud841][\uDC00-\uDFFF])
+	| ([\ud840][\uDC00-\uDFFF])
+	| ([\ud843][\uDC00-\uDFFF])
+	| ([\ud842][\uDC00-\uDFFF])
+	| ([\ud845][\uDC00-\uDFFF])
+	| ([\ud844][\uDC00-\uDFFF])
+	| ([\ud847][\uDC00-\uDFFF])
+	| ([\ud846][\uDC00-\uDFFF])
+)
+HiraganaSupp = (
+	  ([\ud83c][\uDE00])
+	| ([\ud82c][\uDC01])
+)
+SingleQuoteSupp = (
+	  []
+)
+DoubleQuoteSupp = (
+	  []
+)
+HebrewLetterSupp = (
+	  []
+)
+RegionalIndicatorSupp = (
+	  ([\ud83c][\uDDE6-\uDDFF])
+)

@@ -1964,5 +1964,10 @@ public class DatabaseDescriptor
     public static void setEncryptionContext(EncryptionContext ec)
     {
         encryptionContext = ec;
-    } 
+    }
+
+    public static int searchConcurrencyFactor()
+    {
+        return Integer.valueOf(System.getProperty("cassandra.search_concurrency_factor", "1"));
+    }
 }

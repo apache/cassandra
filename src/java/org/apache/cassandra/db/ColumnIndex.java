@@ -152,9 +152,9 @@ public class ColumnIndex
 
             UnfilteredSerializer.serializer.serialize(unfiltered, header, writer, pos - previousRowStart, version);
 
-            // notify observers about each new cell added to the row
-            if (!observers.isEmpty() && unfiltered.isRow())
-                ((Row) unfiltered).stream().forEach(cell -> observers.forEach((o) -> o.nextCell(cell)));
+            // notify observers about each new row
+            if (!observers.isEmpty())
+                observers.forEach((o) -> o.nextUnfilteredCluster(unfiltered));
 
             lastClustering = unfiltered.clustering();
             previousRowStart = pos;

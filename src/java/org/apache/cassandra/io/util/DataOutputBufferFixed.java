@@ -62,4 +62,9 @@ public class DataOutputBufferFixed extends DataOutputBuffer
     {
         throw new BufferOverflowException();
     }
+
+    public void clear()
+    {
+        buffer.clear();
+    }
 }

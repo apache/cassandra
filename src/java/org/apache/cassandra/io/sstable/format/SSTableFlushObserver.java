@@ -18,7 +18,7 @@
 package org.apache.cassandra.io.sstable.format;
 
 import org.apache.cassandra.db.DecoratedKey;
-import org.apache.cassandra.db.rows.ColumnData;
+import org.apache.cassandra.db.rows.Unfiltered;
 
 /**
  * Observer for events in the lifecycle of writing out an sstable.
@@ -32,7 +32,7 @@ public interface SSTableFlushObserver
 
     /**
      * Called when a new partition in being written to the sstable,
-     * but before any cells are processed (see {@link #nextCell(ColumnData)}).
+     * but before any cells are processed (see {@link #nextUnfilteredCluster(Unfiltered)}).
      *
      * @param key The key being appended to SSTable.
      * @param indexPosition The position of the key in the SSTable PRIMARY_INDEX file.
@@ -40,13 +40,13 @@ public interface SSTableFlushObserver
     void startPartition(DecoratedKey key, long indexPosition);
 
     /**
-     * Called after the cell is written to the sstable.
+     * Called after the unfiltered cluster is written to the sstable.
      * Will be preceded by a call to {@code startPartition(DecoratedKey, long)},
-     * and the cell should be assumed to belong to that row.
+     * and the cluster should be assumed to belong to that partition.
      *
-     * @param cell The cell being added to the row.
+     * @param unfilteredCluster The unfiltered cluster being added to SSTable.
      */
-    void nextCell(ColumnData cell);
+    void nextUnfilteredCluster(Unfiltered unfilteredCluster);
 
     /**
      * Called when all data is written to the file and it's ready to be finished up.

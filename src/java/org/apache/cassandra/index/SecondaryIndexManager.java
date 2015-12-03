@@ -665,6 +665,11 @@ public class SecondaryIndexManager implements IndexRegistry
         return selected;
     }
 
+    public Optional<Index> getBestIndexFor(RowFilter.Expression expression)
+    {
+        return indexes.values().stream().filter((i) -> i.supportsExpression(expression.column(), expression.operator())).findFirst();
+    }
+
     /**
      * Called at write time to ensure that values present in the update
      * are valid according to the rules of all registered indexes which
@@ -1040,6 +1045,12 @@ public class SecondaryIndexManager implements IndexRegistry
 
     private static void executeAllBlocking(Stream<Index> indexers, Function<Index, Callable<?>> function)
     {
+        if (function == null)
+        {
+            logger.error("failed to flush indexes: {} because flush task is missing.", indexers);
+            return;
+        }
+
         List<Future<?>> waitFor = new ArrayList<>();
         indexers.forEach(indexer -> {
             Callable<?> task = function.apply(indexer);

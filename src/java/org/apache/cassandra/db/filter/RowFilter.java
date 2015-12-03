@@ -171,6 +171,11 @@ public abstract class RowFilter implements Iterable<RowFilter.Expression>
         return withNewExpressions(newExpressions);
     }
 
+    public RowFilter withoutExpressions()
+    {
+        return withNewExpressions(Collections.emptyList());
+    }
+
     protected abstract RowFilter withNewExpressions(List<Expression> expressions);
 
     public boolean isEmpty()
@@ -312,7 +317,7 @@ public abstract class RowFilter implements Iterable<RowFilter.Expression>
         // Note: the order of this enum matter, it's used for serialization
         protected enum Kind { SIMPLE, MAP_EQUALITY, THRIFT_DYN_EXPR, CUSTOM }
 
-        abstract Kind kind();
+        protected abstract Kind kind();
         protected final ColumnDefinition column;
         protected final Operator operator;
         protected final ByteBuffer value;
@@ -689,7 +694,7 @@ public abstract class RowFilter implements Iterable<RowFilter.Expression>
         }
 
         @Override
-        Kind kind()
+        protected Kind kind()
         {
             return Kind.SIMPLE;
         }
@@ -782,7 +787,7 @@ public abstract class RowFilter implements Iterable<RowFilter.Expression>
         }
 
         @Override
-        Kind kind()
+        protected Kind kind()
         {
             return Kind.MAP_EQUALITY;
         }
@@ -833,7 +838,7 @@ public abstract class RowFilter implements Iterable<RowFilter.Expression>
         }
 
         @Override
-        Kind kind()
+        protected Kind kind()
         {
             return Kind.THRIFT_DYN_EXPR;
         }
@@ -883,7 +888,7 @@ public abstract class RowFilter implements Iterable<RowFilter.Expression>
                                          .customExpressionValueType());
         }
 
-        Kind kind()
+        protected Kind kind()
         {
             return Kind.CUSTOM;
         }

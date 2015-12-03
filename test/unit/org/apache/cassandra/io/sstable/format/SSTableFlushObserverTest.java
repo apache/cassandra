@@ -190,9 +190,10 @@ public class SSTableFlushObserverTest
         }
 
         @Override
-        public void nextCell(ColumnData cell)
+        public void nextUnfilteredCluster(Unfiltered row)
         {
-            rows.put(currentKey, (Cell) cell);
+            if (row.isRow())
+                ((Row) row).forEach((c) -> rows.put(currentKey, (Cell) c));
         }
 
         @Override

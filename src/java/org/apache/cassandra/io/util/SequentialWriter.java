@@ -169,6 +169,13 @@ public class SequentialWriter extends BufferedDataOutputStreamPlus implements Tr
         return this;
     }
 
+    public void skipBytes(int numBytes) throws IOException
+    {
+        flush();
+        fchannel.position(fchannel.position() + numBytes);
+        bufferOffset = fchannel.position();
+    }
+
     /**
      * Synchronize file contents with disk.
      */

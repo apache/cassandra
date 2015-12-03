@@ -84,6 +84,7 @@ public class KeyIterator extends AbstractIterator<DecoratedKey> implements Close
     private final In in;
     private final IPartitioner partitioner;
 
+    private long keyPosition;
 
     public KeyIterator(Descriptor desc, CFMetaData metadata)
     {
@@ -99,6 +100,7 @@ public class KeyIterator extends AbstractIterator<DecoratedKey> implements Close
             if (in.isEOF())
                 return endOfData();
 
+            keyPosition = in.getFilePointer();
             DecoratedKey key = partitioner.decorateKey(ByteBufferUtil.readWithShortLength(in.get()));
             RowIndexEntry.Serializer.skip(in.get(), desc.version); // skip remainder of the entry
             return key;
@@ -122,5 +124,10 @@ public class KeyIterator extends AbstractIterator<DecoratedKey> implements Close
     public long getTotalBytes()
     {
         return in.length();
+    }
+
+    public long getKeyPosition()
+    {
+        return keyPosition;
     }
 }

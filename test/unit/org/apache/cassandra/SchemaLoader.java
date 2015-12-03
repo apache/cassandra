@@ -21,6 +21,9 @@ import java.io.File;
 import java.io.IOException;
 import java.util.*;
 
+import org.apache.cassandra.dht.Murmur3Partitioner;
+import org.apache.cassandra.index.sasi.SASIIndex;
+import org.apache.cassandra.index.sasi.disk.OnDiskIndexBuilder;
 import org.junit.After;
 import org.junit.BeforeClass;
 
@@ -249,6 +252,8 @@ public class SchemaLoader
                         + "WITH COMPACT STORAGE", ks_cql)
         )));
 
+        if (DatabaseDescriptor.getPartitioner() instanceof Murmur3Partitioner)
+            schema.add(KeyspaceMetadata.create("sasi", KeyspaceParams.simpleTransient(1), Tables.of(sasiCFMD("sasi", "test_cf"), clusteringSASICFMD("sasi", "clustering_test_cf"))));
 
         if (Boolean.parseBoolean(System.getProperty("cassandra.test.compression", "false")))
             useCompression(schema);
@@ -473,6 +478,140 @@ public class SchemaLoader
         return CFMetaData.Builder.create(ksName, cfName).addPartitionKey("key", BytesType.instance)
                                                         .build()
                                                         .compression(getCompressionParameters());
+    }
+
+    public static CFMetaData sasiCFMD(String ksName, String cfName)
+    {
+        CFMetaData cfm = CFMetaData.Builder.create(ksName, cfName)
+                                           .addPartitionKey("id", UTF8Type.instance)
+                                           .addRegularColumn("first_name", UTF8Type.instance)
+                                           .addRegularColumn("last_name", UTF8Type.instance)
+                                           .addRegularColumn("age", Int32Type.instance)
+                                           .addRegularColumn("height", Int32Type.instance)
+                                           .addRegularColumn("timestamp", LongType.instance)
+                                           .addRegularColumn("address", UTF8Type.instance)
+                                           .addRegularColumn("score", DoubleType.instance)
+                                           .addRegularColumn("comment", UTF8Type.instance)
+                                           .addRegularColumn("comment_suffix_split", UTF8Type.instance)
+                                           .addRegularColumn("/output/full-name/", UTF8Type.instance)
+                                           .addRegularColumn("/data/output/id", UTF8Type.instance)
+                                           .addRegularColumn("first_name_prefix", UTF8Type.instance)
+                                           .build();
+
+        cfm.indexes(cfm.getIndexes()
+                        .with(IndexMetadata.fromSchemaMetadata("first_name", IndexMetadata.Kind.CUSTOM, new HashMap<String, String>()
+                        {{
+                            put(IndexTarget.CUSTOM_INDEX_OPTION_NAME, SASIIndex.class.getName());
+                            put(IndexTarget.TARGET_OPTION_NAME, "first_name");
+                            put("mode", OnDiskIndexBuilder.Mode.CONTAINS.toString());
+                        }}))
+                        .with(IndexMetadata.fromSchemaMetadata("last_name", IndexMetadata.Kind.CUSTOM, new HashMap<String, String>()
+                        {{
+                            put(IndexTarget.CUSTOM_INDEX_OPTION_NAME, SASIIndex.class.getName());
+                            put(IndexTarget.TARGET_OPTION_NAME, "last_name");
+                            put("mode", OnDiskIndexBuilder.Mode.CONTAINS.toString());
+                        }}))
+                        .with(IndexMetadata.fromSchemaMetadata("age", IndexMetadata.Kind.CUSTOM, new HashMap<String, String>()
+                        {{
+                            put(IndexTarget.CUSTOM_INDEX_OPTION_NAME, SASIIndex.class.getName());
+                            put(IndexTarget.TARGET_OPTION_NAME, "age");
+
+                        }}))
+                        .with(IndexMetadata.fromSchemaMetadata("timestamp", IndexMetadata.Kind.CUSTOM, new HashMap<String, String>()
+                        {{
+                            put(IndexTarget.CUSTOM_INDEX_OPTION_NAME, SASIIndex.class.getName());
+                            put(IndexTarget.TARGET_OPTION_NAME, "timestamp");
+                            put("mode", OnDiskIndexBuilder.Mode.SPARSE.toString());
+
+                        }}))
+                        .with(IndexMetadata.fromSchemaMetadata("address", IndexMetadata.Kind.CUSTOM, new HashMap<String, String>()
+                        {{
+                            put("analyzer_class", "org.apache.cassandra.index.sasi.analyzer.NonTokenizingAnalyzer");
+                            put(IndexTarget.CUSTOM_INDEX_OPTION_NAME, SASIIndex.class.getName());
+                            put(IndexTarget.TARGET_OPTION_NAME, "address");
+                            put("mode", OnDiskIndexBuilder.Mode.PREFIX.toString());
+                            put("case_sensitive", "false");
+                        }}))
+                        .with(IndexMetadata.fromSchemaMetadata("score", IndexMetadata.Kind.CUSTOM, new HashMap<String, String>()
+                        {{
+                            put(IndexTarget.CUSTOM_INDEX_OPTION_NAME, SASIIndex.class.getName());
+                            put(IndexTarget.TARGET_OPTION_NAME, "score");
+                        }}))
+                        .with(IndexMetadata.fromSchemaMetadata("comment", IndexMetadata.Kind.CUSTOM, new HashMap<String, String>()
+                        {{
+                            put(IndexTarget.CUSTOM_INDEX_OPTION_NAME, SASIIndex.class.getName());
+                            put(IndexTarget.TARGET_OPTION_NAME, "comment");
+                            put("analyzed", "true");
+                        }}))
+                        .with(IndexMetadata.fromSchemaMetadata("comment_suffix_split", IndexMetadata.Kind.CUSTOM, new HashMap<String, String>()
+                        {{
+                            put(IndexTarget.CUSTOM_INDEX_OPTION_NAME, SASIIndex.class.getName());
+                            put(IndexTarget.TARGET_OPTION_NAME, "comment_suffix_split");
+                            put("mode", OnDiskIndexBuilder.Mode.CONTAINS.toString());
+                            put("analyzed", "false");
+                        }}))
+                        .with(IndexMetadata.fromSchemaMetadata("output_full_name", IndexMetadata.Kind.CUSTOM, new HashMap<String, String>()
+                        {{
+                            put(IndexTarget.CUSTOM_INDEX_OPTION_NAME, SASIIndex.class.getName());
+                            put(IndexTarget.TARGET_OPTION_NAME, "/output/full-name/");
+                            put("analyzed", "true");
+                            put("analyzer_class", "org.apache.cassandra.index.sasi.analyzer.NonTokenizingAnalyzer");
+                            put("case_sensitive", "false");
+                        }}))
+                        .with(IndexMetadata.fromSchemaMetadata("data_output_id", IndexMetadata.Kind.CUSTOM, new HashMap<String, String>()
+                        {{
+                            put(IndexTarget.CUSTOM_INDEX_OPTION_NAME, SASIIndex.class.getName());
+                            put(IndexTarget.TARGET_OPTION_NAME, "/data/output/id");
+                            put("mode", OnDiskIndexBuilder.Mode.CONTAINS.toString());
+                        }}))
+                        .with(IndexMetadata.fromSchemaMetadata("first_name_prefix", IndexMetadata.Kind.CUSTOM, new HashMap<String, String>()
+                        {{
+                            put(IndexTarget.CUSTOM_INDEX_OPTION_NAME, SASIIndex.class.getName());
+                            put(IndexTarget.TARGET_OPTION_NAME, "first_name_prefix");
+                            put("analyzed", "true");
+                            put("tokenization_normalize_lowercase", "true");
+                        }})));
+
+        return cfm;
+    }
+
+    public static CFMetaData clusteringSASICFMD(String ksName, String cfName)
+    {
+        CFMetaData cfm = CFMetaData.Builder.create(ksName, cfName)
+                                           .addPartitionKey("name", UTF8Type.instance)
+                                           .addClusteringColumn("location", UTF8Type.instance)
+                                           .addClusteringColumn("age", Int32Type.instance)
+                                           .addRegularColumn("height", Int32Type.instance)
+                                           .addRegularColumn("score", DoubleType.instance)
+                                           .build();
+
+        cfm.indexes(cfm.getIndexes()
+                       .with(IndexMetadata.fromSchemaMetadata("location", IndexMetadata.Kind.CUSTOM, new HashMap<String, String>()
+                       {{
+                           put(IndexTarget.CUSTOM_INDEX_OPTION_NAME, SASIIndex.class.getName());
+                           put(IndexTarget.TARGET_OPTION_NAME, "location");
+                           put("mode", OnDiskIndexBuilder.Mode.PREFIX.toString());
+                       }}))
+                       .with(IndexMetadata.fromSchemaMetadata("age", IndexMetadata.Kind.CUSTOM, new HashMap<String, String>()
+                       {{
+                           put(IndexTarget.CUSTOM_INDEX_OPTION_NAME, SASIIndex.class.getName());
+                           put(IndexTarget.TARGET_OPTION_NAME, "age");
+                           put("mode", OnDiskIndexBuilder.Mode.PREFIX.toString());
+                       }}))
+                       .with(IndexMetadata.fromSchemaMetadata("height", IndexMetadata.Kind.CUSTOM, new HashMap<String, String>()
+                       {{
+                           put(IndexTarget.CUSTOM_INDEX_OPTION_NAME, SASIIndex.class.getName());
+                           put(IndexTarget.TARGET_OPTION_NAME, "height");
+                           put("mode", OnDiskIndexBuilder.Mode.PREFIX.toString());
+                       }}))
+                       .with(IndexMetadata.fromSchemaMetadata("score", IndexMetadata.Kind.CUSTOM, new HashMap<String, String>()
+                       {{
+                           put(IndexTarget.CUSTOM_INDEX_OPTION_NAME, SASIIndex.class.getName());
+                           put(IndexTarget.TARGET_OPTION_NAME, "score");
+                           put("mode", OnDiskIndexBuilder.Mode.PREFIX.toString());
+                       }})));
+
+        return cfm;
     }
 
     public static CompressionParams getCompressionParameters()
