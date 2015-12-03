@@ -617,6 +617,7 @@ public class StreamSession implements IEndpointStateChangeSubscriber
      */
     public synchronized void sessionFailed()
     {
+        logger.error("[Stream #{}] Remote peer {} failed stream session.", planId(), peer.getHostAddress());
         closeSession(State.FAILED);
     }
 
@@ -665,11 +666,13 @@ public class StreamSession implements IEndpointStateChangeSubscriber
 
     public void onRemove(InetAddress endpoint)
     {
+        logger.error("[Stream #{}] Session failed because remote peer {} has left.", planId(), peer.getHostAddress());
         closeSession(State.FAILED);
     }
 
     public void onRestart(InetAddress endpoint, EndpointState epState)
     {
+        logger.error("[Stream #{}] Session failed because remote peer {} was restarted.", planId(), peer.getHostAddress());
         closeSession(State.FAILED);
     }
 
