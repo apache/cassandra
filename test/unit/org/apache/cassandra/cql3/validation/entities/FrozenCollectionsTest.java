@@ -33,6 +33,7 @@ import org.apache.cassandra.exceptions.ConfigurationException;
 import org.apache.cassandra.exceptions.InvalidRequestException;
 import org.apache.cassandra.exceptions.SyntaxException;
 import org.apache.cassandra.service.StorageService;
+import org.apache.cassandra.utils.FBUtilities;
 
 import static org.junit.Assert.assertEquals;
 
@@ -1112,5 +1113,102 @@ public class FrozenCollectionsTest extends CQLTester
         types.add(SetType.getInstance(Int32Type.instance, true));
         TupleType tuple = new TupleType(types);
         assertEquals("TupleType(SetType(Int32Type))", clean(tuple.toString()));
+    }
+
+    @Test
+    public void testListWithElementsBiggerThan64K() throws Throwable
+    {
+        createTable("CREATE TABLE %s (k int PRIMARY KEY, l frozen<list<text>>)");
+
+        byte[] bytes = new byte[FBUtilities.MAX_UNSIGNED_SHORT + 10];
+        Arrays.fill(bytes, (byte) 1);
+        String largeText = new String(bytes);
+
+        execute("INSERT INTO %s(k, l) VALUES (0, ?)", list(largeText, "v2"));
+        flush();
+
+        assertRows(execute("SELECT l FROM %s WHERE k = 0"), row(list(largeText, "v2")));
+
+        // Full overwrite
+        execute("UPDATE %s SET l = ? WHERE k = 0", list("v1", largeText));
+        flush();
+
+        assertRows(execute("SELECT l FROM %s WHERE k = 0"), row(list("v1", largeText)));
+
+        execute("DELETE l FROM %s WHERE k = 0");
+
+        assertRows(execute("SELECT l FROM %s WHERE k = 0"), row((Object) null));
+
+        execute("INSERT INTO %s(k, l) VALUES (0, ['" + largeText + "', 'v2'])");
+        flush();
+
+        assertRows(execute("SELECT l FROM %s WHERE k = 0"), row(list(largeText, "v2")));
+    }
+
+    @Test
+    public void testMapsWithElementsBiggerThan64K() throws Throwable
+    {
+        byte[] bytes = new byte[FBUtilities.MAX_UNSIGNED_SHORT + 10];
+        Arrays.fill(bytes, (byte) 1);
+        String largeText = new String(bytes);
+
+        bytes = new byte[FBUtilities.MAX_UNSIGNED_SHORT + 10];
+        Arrays.fill(bytes, (byte) 2);
+        String largeText2 = new String(bytes);
+
+        createTable("CREATE TABLE %s (k int PRIMARY KEY, m frozen<map<text, text>>)");
+
+        execute("INSERT INTO %s(k, m) VALUES (0, ?)", map(largeText, "v1", "k2", largeText));
+        flush();
+
+        assertRows(execute("SELECT m FROM %s WHERE k = 0"),
+            row(map(largeText, "v1", "k2", largeText)));
+
+        // Full overwrite
+        execute("UPDATE %s SET m = ? WHERE k = 0", map("k5", largeText, largeText2, "v6"));
+        flush();
+
+        assertRows(execute("SELECT m FROM %s WHERE k = 0"),
+                   row(map("k5", largeText, largeText2, "v6")));
+
+        execute("DELETE m FROM %s WHERE k = 0");
+
+        assertRows(execute("SELECT m FROM %s WHERE k = 0"), row((Object) null));
+
+        execute("INSERT INTO %s(k, m) VALUES (0, {'" + largeText + "' : 'v1', 'k2' : '" + largeText + "'})");
+        flush();
+
+        assertRows(execute("SELECT m FROM %s WHERE k = 0"),
+                   row(map(largeText, "v1", "k2", largeText)));
+    }
+
+    @Test
+    public void testSetsWithElementsBiggerThan64K() throws Throwable
+    {
+        createTable("CREATE TABLE %s (k int PRIMARY KEY, s frozen<set<text>>)");
+
+        byte[] bytes = new byte[FBUtilities.MAX_UNSIGNED_SHORT + 10];
+        Arrays.fill(bytes, (byte) 1);
+        String largeText = new String(bytes);
+
+        execute("INSERT INTO %s(k, s) VALUES (0, ?)", set(largeText, "v1", "v2"));
+        flush();
+
+        assertRows(execute("SELECT s FROM %s WHERE k = 0"), row(set(largeText, "v1", "v2")));
+
+        // Full overwrite
+        execute("UPDATE %s SET s = ? WHERE k = 0", set(largeText, "v3"));
+        flush();
+
+        assertRows(execute("SELECT s FROM %s WHERE k = 0"), row(set(largeText, "v3")));
+
+        execute("DELETE s FROM %s WHERE k = 0");
+
+        assertRows(execute("SELECT s FROM %s WHERE k = 0"), row((Object) null));
+
+        execute("INSERT INTO %s(k, s) VALUES (0, {'" + largeText + "', 'v1', 'v2'})");
+        flush();
+
+        assertRows(execute("SELECT s FROM %s WHERE k = 0"), row(set(largeText, "v1", "v2")));
     }
 }

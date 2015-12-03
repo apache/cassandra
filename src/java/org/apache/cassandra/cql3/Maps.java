@@ -35,7 +35,6 @@ import org.apache.cassandra.serializers.CollectionSerializer;
 import org.apache.cassandra.serializers.MarshalException;
 import org.apache.cassandra.transport.Server;
 import org.apache.cassandra.utils.ByteBufferUtil;
-import org.apache.cassandra.utils.FBUtilities;
 import org.apache.cassandra.utils.Pair;
 
 /**
@@ -225,25 +224,17 @@ public abstract class Maps
             {
                 // We don't support values > 64K because the serialization format encode the length as an unsigned short.
                 ByteBuffer keyBytes = entry.getKey().bindAndGet(options);
+
                 if (keyBytes == null)
                     throw new InvalidRequestException("null is not supported inside collections");
                 if (keyBytes == ByteBufferUtil.UNSET_BYTE_BUFFER)
                     throw new InvalidRequestException("unset value is not supported for map keys");
-                if (keyBytes.remaining() > FBUtilities.MAX_UNSIGNED_SHORT)
-                    throw new InvalidRequestException(String.format("Map key is too long. Map keys are limited to %d bytes but %d bytes keys provided",
-                                                                    FBUtilities.MAX_UNSIGNED_SHORT,
-                                                                    keyBytes.remaining()));
 
                 ByteBuffer valueBytes = entry.getValue().bindAndGet(options);
                 if (valueBytes == null)
                     throw new InvalidRequestException("null is not supported inside collections");
                 if (valueBytes == ByteBufferUtil.UNSET_BYTE_BUFFER)
                     return UNSET_VALUE;
-
-                if (valueBytes.remaining() > FBUtilities.MAX_UNSIGNED_SHORT)
-                    throw new InvalidRequestException(String.format("Map value is too long. Map values are limited to %d bytes but %d bytes value provided",
-                                                                    FBUtilities.MAX_UNSIGNED_SHORT,
-                                                                    valueBytes.remaining()));
 
                 buffers.put(keyBytes, valueBytes);
             }
@@ -331,12 +322,6 @@ public abstract class Maps
             }
             else if (value != ByteBufferUtil.UNSET_BYTE_BUFFER)
             {
-                // We don't support value > 64K because the serialization format encode the length as an unsigned short.
-                if (value.remaining() > FBUtilities.MAX_UNSIGNED_SHORT)
-                    throw new InvalidRequestException(String.format("Map value is too long. Map values are limited to %d bytes but %d bytes value provided",
-                                                                    FBUtilities.MAX_UNSIGNED_SHORT,
-                                                                    value.remaining()));
-
                 params.addCell(column, path, value);
             }
         }

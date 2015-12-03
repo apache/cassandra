@@ -1,5 +1,6 @@
 3.1
 Merged from 3.0:
+ * Remove 64k limit on collection elements (CASSANDRA-10374)
  * Remove unclear Indexer.indexes() method (CASSANDRA-10690)
  * Fix NPE on stream read error (CASSANDRA-10771)
  * Normalize cqlsh DESC output (CASSANDRA-10431)
