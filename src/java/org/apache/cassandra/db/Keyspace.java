@@ -302,7 +302,7 @@ public class Keyspace
         for (CFMetaData cfm : metadata.tablesAndViews())
         {
             logger.trace("Initializing {}.{}", getName(), cfm.cfName);
-            initCf(cfm.cfId, cfm.cfName, loadSSTables);
+            initCf(cfm, loadSSTables);
         }
         this.viewManager.reload();
     }
@@ -356,27 +356,25 @@ public class Keyspace
     /**
      * adds a cf to internal structures, ends up creating disk files).
      */
-    public void initCf(UUID cfId, String cfName, boolean loadSSTables)
+    public void initCf(CFMetaData metadata, boolean loadSSTables)
     {
-        ColumnFamilyStore cfs = columnFamilyStores.get(cfId);
+        ColumnFamilyStore cfs = columnFamilyStores.get(metadata.cfId);
 
         if (cfs == null)
         {
             // CFS being created for the first time, either on server startup or new CF being added.
             // We don't worry about races here; startup is safe, and adding multiple idential CFs
             // simultaneously is a "don't do that" scenario.
-            ColumnFamilyStore newCfs = ColumnFamilyStore.createColumnFamilyStore(this, cfName, loadSSTables);
-
-            ColumnFamilyStore oldCfs = columnFamilyStores.putIfAbsent(cfId, newCfs);
+            ColumnFamilyStore oldCfs = columnFamilyStores.putIfAbsent(metadata.cfId, ColumnFamilyStore.createColumnFamilyStore(this, metadata, loadSSTables));
             // CFS mbean instantiation will error out before we hit this, but in case that changes...
             if (oldCfs != null)
-                throw new IllegalStateException("added multiple mappings for cf id " + cfId);
+                throw new IllegalStateException("added multiple mappings for cf id " + metadata.cfId);
         }
         else
         {
             // re-initializing an existing CF.  This will happen if you cleared the schema
             // on this node and it's getting repopulated from the rest of the cluster.
-            assert cfs.name.equals(cfName);
+            assert cfs.name.equals(metadata.cfName);
             cfs.reload();
         }
     }

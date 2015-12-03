@@ -606,18 +606,16 @@ public class Schema
     {
         assert getCFMetaData(cfm.ksName, cfm.cfName) == null;
 
-        update(cfm.ksName, ks ->
-        {
-            load(cfm);
+        // Make sure the keyspace is initialized and initialize the table.
+        Keyspace.open(cfm.ksName).initCf(cfm, true);
+        // Update the keyspaces map with the updated metadata
+        update(cfm.ksName, ks -> ks.withSwapped(ks.tables.with(cfm)));
+        // Update the table ID <-> table name map (cfIdMap)
+        load(cfm);
 
-            // make sure it's init-ed w/ the old definitions first,
-            // since we're going to call initCf on the new one manually
-            Keyspace.open(cfm.ksName);
-
-            return ks.withSwapped(ks.tables.with(cfm));
-        });
-
-        Keyspace.open(cfm.ksName).initCf(cfm.cfId, cfm.cfName, true);
+        // init the new CF before switching the KSM to the new one
+        // to avoid races as in CASSANDRA-10761
+        Keyspace.open(cfm.ksName).initCf(cfm, true);
         MigrationManager.instance.notifyCreateColumnFamily(cfm);
     }
 
@@ -663,19 +661,16 @@ public class Schema
     {
         assert getCFMetaData(view.ksName, view.viewName) == null;
 
-        update(view.ksName, ks ->
-        {
-            load(view);
+        Keyspace keyspace = Keyspace.open(view.ksName);
 
-            // make sure it's init-ed w/ the old definitions first,
-            // since we're going to call initCf on the new one manually
-            Keyspace.open(view.ksName);
+        // Make sure the keyspace is initialized and initialize the table.
+        keyspace.initCf(view.metadata, true);
+        // Update the keyspaces map with the updated metadata
+        update(view.ksName, ks -> ks.withSwapped(ks.views.with(view)));
+        // Update the table ID <-> table name map (cfIdMap)
+        load(view);
 
-            return ks.withSwapped(ks.views.with(view));
-        });
-
-        Keyspace.open(view.ksName).initCf(view.metadata.cfId, view.viewName, true);
-        Keyspace.open(view.ksName).viewManager.reload();
+        keyspace.viewManager.reload();
         MigrationManager.instance.notifyCreateView(view);
     }
 
