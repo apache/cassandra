@@ -1,6 +1,7 @@
 2.2.5
  * Verify tables in pseudo-system keyspaces at startup (CASSANDRA-10761)
-
+Merged from 2.1:
+ * Fix Stress profile parsing on Windows (CASSANDRA-10808)
 
 2.2.4
  * Show CQL help in cqlsh in web browser (CASSANDRA-7225)
