@@ -1,5 +1,5 @@
 /*
- * 
+ *
  * Licensed to the Apache Software Foundation (ASF) under one
  * or more contributor license agreements.  See the NOTICE file
  * distributed with this work for additional information
@@ -7,16 +7,16 @@
  * to you under the Apache License, Version 2.0 (the
  * "License"); you may not use this file except in compliance
  * with the License.  You may obtain a copy of the License at
- * 
+ *
  *   http://www.apache.org/licenses/LICENSE-2.0
- * 
+ *
  * Unless required by applicable law or agreed to in writing,
  * software distributed under the License is distributed on an
  * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
  * KIND, either express or implied.  See the License for the
  * specific language governing permissions and limitations
  * under the License.
- * 
+ *
  */
 package org.apache.cassandra.db.commitlog;
 
@@ -173,10 +173,13 @@ public class CommitLogArchiver
         }
         catch (ExecutionException e)
         {
-            if (e.getCause() instanceof IOException)
+            if (e.getCause() instanceof RuntimeException)
             {
-                logger.error("Looks like the archiving of file {} failed earlier, cassandra is going to ignore this segment for now.", name);
-                return false;
+                if (e.getCause().getCause() instanceof IOException)
+                {
+                    logger.error("Looks like the archiving of file {} failed earlier, cassandra is going to ignore this segment for now.", name, e.getCause().getCause());
+                    return false;
+                }
             }
             throw new RuntimeException(e);
         }

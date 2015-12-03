@@ -383,7 +383,8 @@ public class CommitLogSegmentManager
     void recycleSegment(final File file)
     {
         if (isCapExceeded()
-            || CommitLogDescriptor.fromFileName(file.getName()).getMessagingVersion() != MessagingService.current_version)
+            || CommitLogDescriptor.fromFileName(file.getName()).getMessagingVersion() != MessagingService.current_version
+            || !DatabaseDescriptor.getCommitLogSegmentRecyclingEnabled())
         {
             // (don't decrease managed size, since this was never a "live" segment)
             logger.debug("(Unopened) segment {} is no longer needed and will be deleted now", file);
