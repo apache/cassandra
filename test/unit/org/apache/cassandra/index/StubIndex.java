@@ -69,11 +69,6 @@ public class StubIndex implements Index
         this.indexMetadata = metadata;
     }
 
-    public boolean indexes(PartitionColumns columns)
-    {
-        return true;
-    }
-
     public boolean shouldBuildBlocking()
     {
         return false;
@@ -100,6 +95,7 @@ public class StubIndex implements Index
     }
 
     public Indexer indexerFor(final DecoratedKey key,
+                              PartitionColumns columns,
                               int nowInSec,
                               OpOrder.Group opGroup,
                               IndexTransaction.Type transactionType)

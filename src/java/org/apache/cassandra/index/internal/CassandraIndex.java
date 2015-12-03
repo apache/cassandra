@@ -217,12 +217,6 @@ public abstract class CassandraIndex implements Index
         return true;
     }
 
-    public boolean indexes(PartitionColumns columns)
-    {
-        // if we have indexes on the partition key or clustering columns, return true
-        return isPrimaryKeyIndex() || columns.contains(indexedColumn);
-    }
-
     public boolean dependsOn(ColumnDefinition column)
     {
         return indexedColumn.name.equals(column.name);
@@ -304,19 +298,34 @@ public abstract class CassandraIndex implements Index
                 validateClusterings(update);
                 break;
             case REGULAR:
-                validateRows(update);
+                if (update.columns().regulars.contains(indexedColumn))
+                    validateRows(update);
                 break;
             case STATIC:
-                validateRows(Collections.singleton(update.staticRow()));
+                if (update.columns().statics.contains(indexedColumn))
+                    validateRows(Collections.singleton(update.staticRow()));
                 break;
         }
     }
 
     public Indexer indexerFor(final DecoratedKey key,
+                              final PartitionColumns columns,
                               final int nowInSec,
                               final OpOrder.Group opGroup,
                               final IndexTransaction.Type transactionType)
     {
+        /**
+         * Indexes on regular and static columns (the non primary-key ones) only care about updates with live
+         * data for the column they index. In particular, they don't care about having just row or range deletions
+         * as they don't know how to update the index table unless they know exactly the value that is deleted.
+         *
+         * Note that in practice this means that those indexes are only purged of stale entries on compaction,
+         * when we resolve both the deletion and the prior data it deletes. Of course, such stale entries are also
+         * filtered on read.
+         */
+        if (!isPrimaryKeyIndex() && !columns.contains(indexedColumn))
+            return null;
+
         return new Indexer()
         {
             public void begin()
@@ -358,7 +367,6 @@ public abstract class CassandraIndex implements Index
                 else
                     removeCell(row.clustering(), row.getCell(indexedColumn));
             }
-
 
             public void updateRow(Row oldRow, Row newRow)
             {
