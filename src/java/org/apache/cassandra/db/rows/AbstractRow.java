@@ -126,7 +126,11 @@ public abstract class AbstractRow extends AbstractCollection<ColumnData> impleme
                 if (cd.column().isSimple())
                 {
                     Cell cell = (Cell)cd;
-                    sb.append(cell.column().name).append('=').append(cell.column().type.getString(cell.value()));
+                    sb.append(cell.column().name).append('=');
+                    if (cell.isTombstone())
+                        sb.append("<tombstone>");
+                    else
+                        sb.append(cell.column().type.getString(cell.value()));
                 }
                 else
                 {
