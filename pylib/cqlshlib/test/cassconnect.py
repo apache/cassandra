@@ -19,9 +19,8 @@ from __future__ import with_statement
 import contextlib
 import tempfile
 import os.path
-from .basecase import cql, cqlsh, cqlshlog, TEST_HOST, TEST_PORT, rundir, policy
+from .basecase import cql, cqlsh, cqlshlog, TEST_HOST, TEST_PORT, rundir, policy, quote_name
 from .run_cqlsh import run_cqlsh, call_cqlsh
-from cassandra.metadata import maybe_escape_name
 
 test_keyspace_init = os.path.join(rundir, 'test_keyspace_init.cql')
 
@@ -125,9 +124,6 @@ def cassandra_cursor(cql_version=None, ks=''):
 
 def cql_rule_set():
     return cqlsh.cql3handling.CqlRuleSet
-
-def quote_name(name):
-    return maybe_escape_name(name)
 
 class DEFAULTVAL: pass
 

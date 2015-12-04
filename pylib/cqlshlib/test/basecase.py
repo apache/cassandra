@@ -18,7 +18,7 @@ import os
 import sys
 import logging
 from itertools import izip
-from os.path import dirname, join, normpath, islink
+from os.path import dirname, join, normpath
 
 cqlshlog = logging.getLogger('test_cqlsh')
 
@@ -31,21 +31,15 @@ except ImportError:
     import unittest
 
 rundir = dirname(__file__)
-path_to_cqlsh = normpath(join(rundir, '..', '..', '..', 'bin', 'cqlsh.py'))
+cqlshdir = normpath(join(rundir, '..', '..', '..', 'bin'))
+path_to_cqlsh = normpath(join(cqlshdir, 'cqlsh.py'))
 
-# symlink a ".py" file to cqlsh main script, so we can load it as a module
-modulepath = join(rundir, 'cqlsh.py')
-try:
-    if islink(modulepath):
-        os.unlink(modulepath)
-except OSError:
-    pass
-os.symlink(path_to_cqlsh, modulepath)
+sys.path.append(cqlshdir)
 
-sys.path.append(rundir)
 import cqlsh
 cql = cqlsh.cassandra.cluster.Cluster
 policy = cqlsh.cassandra.policies.RoundRobinPolicy()
+quote_name = cqlsh.cassandra.metadata.maybe_escape_name
 
 TEST_HOST = os.environ.get('CQL_TEST_HOST', '127.0.0.1')
 TEST_PORT = int(os.environ.get('CQL_TEST_PORT', 9042))
