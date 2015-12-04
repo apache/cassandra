@@ -732,9 +732,9 @@ public abstract class CQLTester
                                                                                                 .getCodecRegistry()
                                                                                                 .codecFor(type);
                 ByteBuffer expectedByteValue = codec.serialize(expected[j], ProtocolVersion.fromInt(protocolVersion));
-                int expectedBytes = expectedByteValue.remaining();
+                int expectedBytes = expectedByteValue == null ? -1 : expectedByteValue.remaining();
                 ByteBuffer actualValue = actual.getBytesUnsafe(meta.getName(j));
-                int actualBytes = actualValue.remaining();
+                int actualBytes = actualValue == null ? -1 : actualValue.remaining();
                 if (!Objects.equal(expectedByteValue, actualValue))
                     Assert.fail(String.format("Invalid value for row %d column %d (%s of type %s), " +
                                               "expected <%s> (%d bytes) but got <%s> (%d bytes) " +

@@ -935,7 +935,7 @@ public class ViewTest extends CQLTester
         createView("mv1", "CREATE MATERIALIZED VIEW %s AS SELECT * FROM %%s WHERE a IS NOT NULL AND b IS NOT NULL AND d IS NOT NULL PRIMARY KEY (a, d, b)");
 
         updateView("INSERT INTO %s (a, b, c, d) VALUES (?, ?, ?, ?)", 0, 0, 0, 0);
-        ResultSet mvRows = executeNet(protocolVersion, "SELECT a, d, b, cFROM mv1");
+        ResultSet mvRows = executeNet(protocolVersion, "SELECT a, d, b, c FROM mv1");
         assertRowsNet(protocolVersion, mvRows, row(0, 0, 0, 0));
 
         updateView("DELETE c FROM %s WHERE a = ? AND b = ?", 0, 0);
