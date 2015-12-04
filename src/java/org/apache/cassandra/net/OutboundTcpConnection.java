@@ -35,6 +35,8 @@ import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.zip.Checksum;
 
+import javax.net.ssl.SSLHandshakeException;
+
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -468,6 +470,13 @@ public class OutboundTcpConnection extends Thread
                 }
 
                 return true;
+            }
+            catch (SSLHandshakeException e)
+            {
+                logger.error("SSL handshake error for outbound connection to " + socket, e);
+                socket = null;
+                // SSL errors won't be recoverable within timeout period so we'll just abort
+                return false;
             }
             catch (IOException e)
             {
