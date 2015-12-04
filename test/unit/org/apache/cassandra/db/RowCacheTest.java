@@ -45,6 +45,7 @@ import org.apache.cassandra.service.StorageService;
 import org.apache.cassandra.utils.ByteBufferUtil;
 
 import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertTrue;
 
 public class RowCacheTest extends SchemaLoader
 {
@@ -318,6 +319,56 @@ public class RowCacheTest extends SchemaLoader
             assertEquals(c.name(), Util.cellname(i++));
         }
     }
+
+    @Test
+    public void testSSTablesPerReadHistogramWhenRowCache()
+    {
+        CompactionManager.instance.disableAutoCompaction();
+
+        Keyspace keyspace = Keyspace.open(KEYSPACE);
+        ColumnFamilyStore cachedStore  = keyspace.getColumnFamilyStore(COLUMN_FAMILY);
+
+        // empty the row cache
+        CacheService.instance.invalidateRowCache();
+
+        // set global row cache size to 1 MB
+        CacheService.instance.setRowCacheCapacityInMB(1);
+
+        // inserting 100 rows into both column families
+        insertData(KEYSPACE, COLUMN_FAMILY, 0, 100);
+
+        //force flush for confidence that SSTables exists
+        cachedStore.forceBlockingFlush();
+
+        // clear SSTablePerReadHistogram
+        cachedStore.metric.sstablesPerReadHistogram.cf.clear();
+
+        for (int i = 0; i < 100; i++)
+        {
+            DecoratedKey key = Util.dk("key" + i);
+
+            cachedStore.getColumnFamily(key, Composites.EMPTY, Composites.EMPTY, false, 1, System.currentTimeMillis());
+
+            long count_before = cachedStore.metric.sstablesPerReadHistogram.cf.count();
+            cachedStore.getColumnFamily(key, Composites.EMPTY, Composites.EMPTY, false, 1, System.currentTimeMillis());
+
+            // check that SSTablePerReadHistogram has been updated by zero,
+            // so count has been increased and in a 1/2 of requests there were zero read SSTables
+            long count_after = cachedStore.metric.sstablesPerReadHistogram.cf.count();
+            double belowMedian_after = cachedStore.metric.sstablesPerReadHistogram.cf.getSnapshot().getValue(0.49);
+            double mean_after = cachedStore.metric.sstablesPerReadHistogram.cf.mean();
+            assertEquals("SSTablePerReadHistogram should be updated even key found in row cache", count_before + 1, count_after);
+            assertTrue("In half of requests we have not touched SSTables, " +
+                       "so 49 percentile value (" + belowMedian_after + ") must be strongly less than 0.9", belowMedian_after < 0.9D);
+            assertTrue("In half of requests we have not touched SSTables, " +
+                       "so mean value (" + mean_after + ") must be strongly less than 1, but greater than 0", mean_after < 0.999D && mean_after > 0.001D);
+        }
+
+        assertEquals("Min value of SSTablesPerRead should be zero", 0, cachedStore.metric.sstablesPerReadHistogram.cf.min(), 0.01);
+
+        CacheService.instance.setRowCacheCapacityInMB(0);
+    }
+
 
     public void rowCacheLoad(int totalKeys, int keysToSave, int offset) throws Exception
     {
