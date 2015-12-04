@@ -21,6 +21,7 @@ package org.apache.cassandra.db.view;
 import java.net.InetAddress;
 import java.util.HashMap;
 import java.util.Map;
+import java.util.Optional;
 
 import org.junit.BeforeClass;
 import org.junit.Test;
@@ -74,11 +75,12 @@ public class ViewUtilsTest
         KeyspaceMetadata meta = KeyspaceMetadata.create("Keyspace1", KeyspaceParams.create(false, replicationMap));
         Schema.instance.setKeyspaceMetadata(meta);
 
-        InetAddress naturalEndpoint = ViewUtils.getViewNaturalEndpoint("Keyspace1",
+        Optional<InetAddress> naturalEndpoint = ViewUtils.getViewNaturalEndpoint("Keyspace1",
                                                                        new StringToken("CA"),
                                                                        new StringToken("BB"));
 
-        Assert.assertEquals(InetAddress.getByName("127.0.0.2"), naturalEndpoint);
+        Assert.assertTrue(naturalEndpoint.isPresent());
+        Assert.assertEquals(InetAddress.getByName("127.0.0.2"), naturalEndpoint.get());
     }
 
 
@@ -106,10 +108,42 @@ public class ViewUtilsTest
         KeyspaceMetadata meta = KeyspaceMetadata.create("Keyspace1", KeyspaceParams.create(false, replicationMap));
         Schema.instance.setKeyspaceMetadata(meta);
 
-        InetAddress naturalEndpoint = ViewUtils.getViewNaturalEndpoint("Keyspace1",
+        Optional<InetAddress> naturalEndpoint = ViewUtils.getViewNaturalEndpoint("Keyspace1",
                                                                        new StringToken("CA"),
                                                                        new StringToken("BB"));
 
-        Assert.assertEquals(InetAddress.getByName("127.0.0.1"), naturalEndpoint);
+        Assert.assertTrue(naturalEndpoint.isPresent());
+        Assert.assertEquals(InetAddress.getByName("127.0.0.1"), naturalEndpoint.get());
+    }
+
+    @Test
+    public void testBaseTokenDoesNotBelongToLocalReplicaShouldReturnEmpty() throws Exception
+    {
+        TokenMetadata metadata = StorageService.instance.getTokenMetadata();
+        metadata.clearUnsafe();
+
+        // DC1
+        metadata.updateNormalToken(new StringToken("A"), InetAddress.getByName("127.0.0.1"));
+        metadata.updateNormalToken(new StringToken("C"), InetAddress.getByName("127.0.0.2"));
+
+        // DC2
+        metadata.updateNormalToken(new StringToken("B"), InetAddress.getByName("127.0.0.4"));
+        metadata.updateNormalToken(new StringToken("D"), InetAddress.getByName("127.0.0.5"));
+
+        Map<String, String> replicationMap = new HashMap<>();
+        replicationMap.put(ReplicationParams.CLASS, NetworkTopologyStrategy.class.getName());
+
+        replicationMap.put("DC1", "1");
+        replicationMap.put("DC2", "1");
+
+        Keyspace.clear("Keyspace1");
+        KeyspaceMetadata meta = KeyspaceMetadata.create("Keyspace1", KeyspaceParams.create(false, replicationMap));
+        Schema.instance.setKeyspaceMetadata(meta);
+
+        Optional<InetAddress> naturalEndpoint = ViewUtils.getViewNaturalEndpoint("Keyspace1",
+                                                                       new StringToken("AB"),
+                                                                       new StringToken("BB"));
+
+        Assert.assertFalse(naturalEndpoint.isPresent());
     }
 }
