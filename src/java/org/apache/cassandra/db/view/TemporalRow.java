@@ -426,7 +426,11 @@ public class TemporalRow
 
             Collection<org.apache.cassandra.db.rows.Cell> val = values(definition, resolver);
             if (val != null && val.size() == 1)
-                return Iterables.getOnlyElement(val).value();
+            {
+                org.apache.cassandra.db.rows.Cell cell = Iterables.getOnlyElement(val);
+                // handle single-column deletions correctly
+                return cell.isTombstone() ? null : cell.value();
+            }
         }
         return null;
     }

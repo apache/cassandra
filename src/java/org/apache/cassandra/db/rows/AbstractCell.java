@@ -110,7 +110,10 @@ public abstract class AbstractCell extends Cell
                                  ct.valueComparator().getString(value()),
                                  livenessInfoString());
         }
-        return String.format("[%s=%s %s]", column().name, type.getString(value()), livenessInfoString());
+        if (isTombstone())
+            return String.format("[%s=<tombstone> %s]", column().name, livenessInfoString());
+        else
+            return String.format("[%s=%s %s]", column().name, type.getString(value()), livenessInfoString());
     }
 
     private String livenessInfoString()
