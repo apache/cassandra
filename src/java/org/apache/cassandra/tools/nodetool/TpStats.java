@@ -21,7 +21,8 @@ import io.airlift.command.Command;
 
 import java.util.Map;
 
-import org.apache.cassandra.concurrent.Stage;
+import com.google.common.collect.Multimap;
+
 import org.apache.cassandra.tools.NodeProbe;
 import org.apache.cassandra.tools.NodeTool.NodeToolCmd;
 
@@ -31,17 +32,19 @@ public class TpStats extends NodeToolCmd
     @Override
     public void execute(NodeProbe probe)
     {
-        System.out.printf("%-30s%10s%10s%15s%10s%18s%n", "Pool Name", "Active", "Pending", "Completed", "Blocked", "All time blocked");
+        System.out.printf("%-25s%10s%10s%15s%10s%18s%n", "Pool Name", "Active", "Pending", "Completed", "Blocked", "All time blocked");
 
-        for (Stage stage : Stage.jmxEnabledStages())
+
+        Multimap<String, String> threadPools = probe.getThreadPools();
+        for (Map.Entry<String, String> tpool : threadPools.entries())
         {
-            System.out.printf("%-30s%10s%10s%15s%10s%18s%n",
-                              stage.getJmxName(),
-                              probe.getThreadPoolMetric(stage, "ActiveTasks"),
-                              probe.getThreadPoolMetric(stage, "PendingTasks"),
-                              probe.getThreadPoolMetric(stage, "CompletedTasks"),
-                              probe.getThreadPoolMetric(stage, "CurrentlyBlockedTasks"),
-                              probe.getThreadPoolMetric(stage, "TotalBlockedTasks"));
+            System.out.printf("%-25s%10s%10s%15s%10s%18s%n",
+                              tpool.getValue(),
+                              probe.getThreadPoolMetric(tpool.getKey(), tpool.getValue(), "ActiveTasks"),
+                              probe.getThreadPoolMetric(tpool.getKey(), tpool.getValue(), "PendingTasks"),
+                              probe.getThreadPoolMetric(tpool.getKey(), tpool.getValue(), "CompletedTasks"),
+                              probe.getThreadPoolMetric(tpool.getKey(), tpool.getValue(), "CurrentlyBlockedTasks"),
+                              probe.getThreadPoolMetric(tpool.getKey(), tpool.getValue(), "TotalBlockedTasks"));
         }
 
         System.out.printf("%n%-20s%10s%n", "Message type", "Dropped");
