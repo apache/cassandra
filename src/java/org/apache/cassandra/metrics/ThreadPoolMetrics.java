@@ -17,6 +17,8 @@
  */
 package org.apache.cassandra.metrics;
 
+import java.io.IOException;
+import java.util.Set;
 import java.util.concurrent.ThreadPoolExecutor;
 
 import com.codahale.metrics.Counter;
@@ -25,7 +27,11 @@ import com.codahale.metrics.JmxReporter;
 
 import javax.management.JMX;
 import javax.management.MBeanServerConnection;
+import javax.management.MalformedObjectNameException;
 import javax.management.ObjectName;
+
+import com.google.common.collect.HashMultimap;
+import com.google.common.collect.Multimap;
 
 import static org.apache.cassandra.metrics.CassandraMetricsRegistry.Metrics;
 
@@ -106,7 +112,6 @@ public class ThreadPoolMetrics
         Metrics.remove(factory.createMetricName("MaxPoolSize"));
     }
 
-
     public static Object getJmxMetric(MBeanServerConnection mbeanServerConn, String jmxPath, String poolName, String metricName)
     {
         String name = String.format("org.apache.cassandra.metrics:type=ThreadPools,path=%s,scope=%s,name=%s", jmxPath, poolName, metricName);
@@ -135,6 +140,30 @@ public class ThreadPoolMetrics
         catch (Exception e)
         {
             throw new RuntimeException("Error reading: " + name, e);
+        }
+    }
+
+    public static Multimap<String, String> getJmxThreadPools(MBeanServerConnection mbeanServerConn)
+    {
+        try
+        {
+            Multimap<String, String> threadPools = HashMultimap.create();
+            Set<ObjectName> threadPoolObjectNames = mbeanServerConn.queryNames(new ObjectName("org.apache.cassandra.metrics:type=ThreadPools,*"),
+                                                                               null);
+            for (ObjectName oName : threadPoolObjectNames)
+            {
+                threadPools.put(oName.getKeyProperty("path"), oName.getKeyProperty("scope"));
+            }
+
+            return threadPools;
+        }
+        catch (MalformedObjectNameException e)
+        {
+            throw new RuntimeException("Bad query to JMX server: ", e);
+        }
+        catch (IOException e)
+        {
+            throw new RuntimeException("Error getting threadpool names from JMX", e);
         }
     }
 
