@@ -27,7 +27,7 @@ Upgrading
    - The compression ratio metrics computation has been modified to be more accurate.
 
 
-3.0.1
+3.1
 =====
 
 Upgrading
