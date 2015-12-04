@@ -121,7 +121,7 @@ cqlshlibdir = os.path.join(CASSANDRA_PATH, 'pylib')
 if os.path.isdir(cqlshlibdir):
     sys.path.insert(0, cqlshlibdir)
 
-from cqlshlib import cql3handling, cqlhandling, pylexotron, sslhandling, copy
+from cqlshlib import cql3handling, cqlhandling, copyutil, pylexotron, sslhandling
 from cqlshlib.displaying import (ANSI_RESET, BLUE, COLUMN_NAME_COLORS, CYAN,
                                  RED, FormattedValue, colorme)
 from cqlshlib.formatting import (format_by_type, format_value_utype,
@@ -1569,7 +1569,7 @@ class Shell(cmd.Cmd):
         print "\n%d rows %s in %s." % (rows, verb, describe_interval(timeend - timestart))
 
     def perform_csv_import(self, ks, cf, columns, fname, opts):
-        csv_options, dialect_options, unrecognized_options = copy.parse_options(self, opts)
+        csv_options, dialect_options, unrecognized_options = copyutil.parse_options(self, opts)
         if unrecognized_options:
             self.printerr('Unrecognized COPY FROM options: %s'
                           % ', '.join(unrecognized_options.keys()))
@@ -1595,7 +1595,7 @@ class Shell(cmd.Cmd):
                 linesource.next()
             reader = csv.reader(linesource, **dialect_options)
 
-            num_processes = copy.get_num_processes(cap=4)
+            num_processes = copyutil.get_num_processes(cap=4)
 
             for i in range(num_processes):
                 parent_conn, child_conn = mp.Pipe()
@@ -1606,7 +1606,7 @@ class Shell(cmd.Cmd):
             for process in processes:
                 process.start()
 
-            meter = copy.RateMeter(10000)
+            meter = copyutil.RateMeter(10000)
             for current_record, row in enumerate(reader, start=1):
                 # write to the child process
                 pipes[current_record % num_processes].send((current_record, row))
@@ -1820,13 +1820,13 @@ class Shell(cmd.Cmd):
             new_cluster.shutdown()
 
     def perform_csv_export(self, ks, cf, columns, fname, opts):
-        csv_options, dialect_options, unrecognized_options = copy.parse_options(self, opts)
+        csv_options, dialect_options, unrecognized_options = copyutil.parse_options(self, opts)
         if unrecognized_options:
             self.printerr('Unrecognized COPY TO options: %s' % ', '.join(unrecognized_options.keys()))
             return 0
 
-        return copy.ExportTask(self, ks, cf, columns, fname, csv_options, dialect_options,
-                               DEFAULT_PROTOCOL_VERSION, CONFIG_FILE).run()
+        return copyutil.ExportTask(self, ks, cf, columns, fname, csv_options, dialect_options,
+                                   DEFAULT_PROTOCOL_VERSION, CONFIG_FILE).run()
 
     def do_show(self, parsed):
         """
