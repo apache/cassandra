@@ -53,7 +53,6 @@ import javax.management.remote.JMXConnectorFactory;
 import javax.management.remote.JMXServiceURL;
 import javax.rmi.ssl.SslRMIClientSocketFactory;
 
-import org.apache.cassandra.concurrent.Stage;
 import org.apache.cassandra.db.ColumnFamilyStoreMBean;
 import org.apache.cassandra.db.HintedHandOffManager;
 import org.apache.cassandra.db.HintedHandOffManagerMBean;
@@ -84,6 +83,7 @@ import org.apache.cassandra.streaming.management.StreamStateCompositeData;
 import com.google.common.base.Function;
 import com.google.common.collect.Iterables;
 import com.google.common.collect.Maps;
+import com.google.common.collect.Multimap;
 import com.google.common.collect.Sets;
 import com.google.common.util.concurrent.Uninterruptibles;
 
@@ -1068,9 +1068,18 @@ public class NodeProbe implements AutoCloseable
         }
     }
 
-    public Object getThreadPoolMetric(Stage stage, String metricName)
+    public Object getThreadPoolMetric(String pathName, String poolName, String metricName)
     {
-        return ThreadPoolMetrics.getJmxMetric(mbeanServerConn, stage.getJmxType(), stage.getJmxName(), metricName);
+        return ThreadPoolMetrics.getJmxMetric(mbeanServerConn, pathName, poolName, metricName);
+    }
+
+    /**
+     * Retrieve threadpool paths and names for threadpools with metrics.
+     * @return Multimap from path (internal, request, etc.) to name
+     */
+    public Multimap<String, String> getThreadPools()
+    {
+        return ThreadPoolMetrics.getJmxThreadPools(mbeanServerConn);
     }
 
     /**
