@@ -21,13 +21,13 @@ package org.apache.cassandra.db.view;
 import java.net.InetAddress;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Optional;
 
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.db.Keyspace;
 import org.apache.cassandra.dht.Token;
 import org.apache.cassandra.locator.AbstractReplicationStrategy;
 import org.apache.cassandra.locator.NetworkTopologyStrategy;
-import org.apache.cassandra.service.StorageService;
 import org.apache.cassandra.utils.FBUtilities;
 
 public final class ViewUtils
@@ -56,9 +56,9 @@ public final class ViewUtils
      *  B writes to A (B's cardinality is 2 for T1, and A's cardinality is 2 for T3)
      *  C writes to B (C's cardinality is 3 for T1, and B's cardinality is 3 for T3)
      *
-     * @throws RuntimeException if this method is called using a base token which does not belong to this replica
+     * @return Optional.empty() if this method is called using a base token which does not belong to this replica
      */
-    public static InetAddress getViewNaturalEndpoint(String keyspaceName, Token baseToken, Token viewToken)
+    public static Optional<InetAddress> getViewNaturalEndpoint(String keyspaceName, Token baseToken, Token viewToken)
     {
         AbstractReplicationStrategy replicationStrategy = Keyspace.open(keyspaceName).getReplicationStrategy();
 
@@ -77,7 +77,7 @@ public final class ViewUtils
         {
             // If we are a base endpoint which is also a view replica, we use ourselves as our view replica
             if (viewEndpoint.equals(FBUtilities.getBroadcastAddress()))
-                return viewEndpoint;
+                return Optional.of(viewEndpoint);
 
             // We have to remove any endpoint which is shared between the base and the view, as it will select itself
             // and throw off the counts otherwise.
@@ -95,20 +95,9 @@ public final class ViewUtils
         int baseIdx = baseEndpoints.indexOf(FBUtilities.getBroadcastAddress());
 
         if (baseIdx < 0)
-        {
+            //This node is not a base replica of this key, so we return empty
+            return Optional.empty();
 
-            if (StorageService.instance.getTokenMetadata().pendingEndpointsFor(viewToken, keyspaceName).size() > 0)
-            {
-                //Since there are pending endpoints we are going to write to the batchlog regardless.
-                //So we can pretend we are the views endpoint.
-
-                return FBUtilities.getBroadcastAddress();
-            }
-
-            throw new RuntimeException("Trying to get the view natural endpoint on a non-data replica");
-        }
-
-
-        return viewEndpoints.get(baseIdx);
+        return Optional.of(viewEndpoints.get(baseIdx));
     }
 }
