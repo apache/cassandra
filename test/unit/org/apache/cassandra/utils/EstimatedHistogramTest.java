@@ -28,12 +28,23 @@ public class EstimatedHistogramTest
     @Test
     public void testSimple()
     {
-        // 0 and 1 map to the same, first bucket
-        EstimatedHistogram histogram = new EstimatedHistogram();
-        histogram.add(0);
-        assertEquals(1, histogram.get(0));
-        histogram.add(1);
-        assertEquals(2, histogram.get(0));
+        {
+            // 0 and 1 map to the same, first bucket
+            EstimatedHistogram histogram = new EstimatedHistogram();
+            histogram.add(0);
+            assertEquals(1, histogram.get(0));
+            histogram.add(1);
+            assertEquals(2, histogram.get(0));
+        }
+        {
+            // 0 and 1 map to different buckets
+            EstimatedHistogram histogram = new EstimatedHistogram(90, true);
+            histogram.add(0);
+            assertEquals(1, histogram.get(0));
+            histogram.add(1);
+            assertEquals(1, histogram.get(0));
+            assertEquals(1, histogram.get(1));
+        }
     }
 
     @Test
@@ -52,6 +63,33 @@ public class EstimatedHistogramTest
         histogram.add(16);
         assertEquals(15, histogram.min());
         assertEquals(17, histogram.max());
+    }
+
+    @Test
+    public void testMean()
+    {
+        {
+            EstimatedHistogram histogram = new EstimatedHistogram();
+            for (int i = 0; i < 40; i++)
+                histogram.add(0);
+            for (int i = 0; i < 20; i++)
+                histogram.add(1);
+            for (int i = 0; i < 10; i++)
+                histogram.add(2);
+            assertEquals(70, histogram.count());
+            assertEquals(2, histogram.mean());
+        }
+        {
+            EstimatedHistogram histogram = new EstimatedHistogram(90, true);
+            for (int i = 0; i < 40; i++)
+                histogram.add(0);
+            for (int i = 0; i < 20; i++)
+                histogram.add(1);
+            for (int i = 0; i < 10; i++)
+                histogram.add(2);
+            assertEquals(70, histogram.count());
+            assertEquals(1, histogram.mean());
+        }
     }
 
     @Test
@@ -118,6 +156,15 @@ public class EstimatedHistogramTest
             assertEquals(17, histogram.percentile(0.50));
             assertEquals(17, histogram.percentile(0.60));
             assertEquals(20, histogram.percentile(0.80));
+        }
+        {
+            EstimatedHistogram histogram = new EstimatedHistogram(90, true);
+            histogram.add(0);
+            histogram.add(0);
+            histogram.add(1);
+
+            assertEquals(0, histogram.percentile(0.5));
+            assertEquals(1, histogram.percentile(0.99));
         }
     }
 }

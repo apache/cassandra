@@ -58,9 +58,9 @@ public class CassandraMetricsRegistry extends MetricRegistry
         return meter;
     }
 
-    public Histogram histogram(MetricName name)
+    public Histogram histogram(MetricName name, boolean considerZeroes)
     {
-        Histogram histogram = register(name, new ClearableHistogram(new EstimatedHistogramReservoir()));
+        Histogram histogram = register(name, new ClearableHistogram(new EstimatedHistogramReservoir(considerZeroes)));
         registerMBean(histogram, name.getMBeanName());
 
         return histogram;
@@ -68,7 +68,7 @@ public class CassandraMetricsRegistry extends MetricRegistry
 
     public Timer timer(MetricName name)
     {
-        Timer timer = register(name, new Timer(new EstimatedHistogramReservoir()));
+        Timer timer = register(name, new Timer(new EstimatedHistogramReservoir(false)));
         registerMBean(timer, name.getMBeanName());
 
         return timer;

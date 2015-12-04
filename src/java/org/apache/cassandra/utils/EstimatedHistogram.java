@@ -57,7 +57,12 @@ public class EstimatedHistogram
 
     public EstimatedHistogram(int bucketCount)
     {
-        bucketOffsets = newOffsets(bucketCount);
+        this(bucketCount, false);
+    }
+
+    public EstimatedHistogram(int bucketCount, boolean considerZeroes)
+    {
+        bucketOffsets = newOffsets(bucketCount, considerZeroes);
         buckets = new AtomicLongArray(bucketOffsets.length + 1);
     }
 
@@ -68,12 +73,15 @@ public class EstimatedHistogram
         buckets = new AtomicLongArray(bucketData);
     }
 
-    private static long[] newOffsets(int size)
+    private static long[] newOffsets(int size, boolean considerZeroes)
     {
-        long[] result = new long[size];
+        long[] result = new long[size + (considerZeroes ? 1 : 0)];
+        int i = 0;
+        if (considerZeroes)
+            result[i++] = 0;
         long last = 1;
-        result[0] = last;
-        for (int i = 1; i < size; i++)
+        result[i++] = last;
+        for (; i < result.length; i++)
         {
             long next = Math.round(last * 1.2);
             if (next == last)
@@ -193,10 +201,19 @@ public class EstimatedHistogram
     }
 
     /**
-     * @return the mean histogram value (average of bucket offsets, weighted by count)
+     * @return the ceil of mean histogram value (average of bucket offsets, weighted by count)
      * @throws IllegalStateException if any values were greater than the largest bucket threshold
      */
     public long mean()
+    {
+        return (long) Math.ceil(rawMean());
+    }
+
+    /**
+     * @return the mean histogram value (average of bucket offsets, weighted by count)
+     * @throws IllegalStateException if any values were greater than the largest bucket threshold
+     */
+    public double rawMean()
     {
         int lastBucket = buckets.length() - 1;
         if (buckets.get(lastBucket) > 0)
@@ -211,7 +228,7 @@ public class EstimatedHistogram
             sum += bCount * bucketOffsets[i];
         }
 
-        return (long) Math.ceil((double) sum / elements);
+        return (double) sum / elements;
     }
 
     /**

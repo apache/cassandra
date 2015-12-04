@@ -1654,7 +1654,9 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
             {
                 metric.rowCacheHit.inc();
                 Tracing.trace("Row cache hit");
-                return filterColumnFamily(cachedCf, filter);
+                ColumnFamily result = filterColumnFamily(cachedCf, filter);
+                metric.updateSSTableIterated(0);
+                return result;
             }
 
             metric.rowCacheHitOutOfRange.inc();

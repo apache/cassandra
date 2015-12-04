@@ -306,7 +306,7 @@ public class ColumnFamilyMetrics
                 });
             }
         });
-        sstablesPerReadHistogram = createColumnFamilyHistogram("SSTablesPerReadHistogram", cfs.keyspace.metric.sstablesPerReadHistogram);
+        sstablesPerReadHistogram = createColumnFamilyHistogram("SSTablesPerReadHistogram", cfs.keyspace.metric.sstablesPerReadHistogram, true);
         compressionRatio = createColumnFamilyGauge("CompressionRatio", new Gauge<Double>()
         {
             public Double getValue()
@@ -596,12 +596,12 @@ public class ColumnFamilyMetrics
                 return Math.max(requests, 1); // to avoid NaN.
             }
         });
-        tombstoneScannedHistogram = createColumnFamilyHistogram("TombstoneScannedHistogram", cfs.keyspace.metric.tombstoneScannedHistogram);
-        liveScannedHistogram = createColumnFamilyHistogram("LiveScannedHistogram", cfs.keyspace.metric.liveScannedHistogram);
-        colUpdateTimeDeltaHistogram = createColumnFamilyHistogram("ColUpdateTimeDeltaHistogram", cfs.keyspace.metric.colUpdateTimeDeltaHistogram);
+        tombstoneScannedHistogram = createColumnFamilyHistogram("TombstoneScannedHistogram", cfs.keyspace.metric.tombstoneScannedHistogram, false);
+        liveScannedHistogram = createColumnFamilyHistogram("LiveScannedHistogram", cfs.keyspace.metric.liveScannedHistogram, false);
+        colUpdateTimeDeltaHistogram = createColumnFamilyHistogram("ColUpdateTimeDeltaHistogram", cfs.keyspace.metric.colUpdateTimeDeltaHistogram, false);
         coordinatorReadLatency = Metrics.timer(factory.createMetricName("CoordinatorReadLatency"));
         coordinatorScanLatency = Metrics.timer(factory.createMetricName("CoordinatorScanLatency"));
-        waitingOnFreeMemtableSpace = Metrics.histogram(factory.createMetricName("WaitingOnFreeMemtableSpace"));
+        waitingOnFreeMemtableSpace = Metrics.histogram(factory.createMetricName("WaitingOnFreeMemtableSpace"), false);
 
         trueSnapshotsSize = createColumnFamilyGauge("SnapshotsSize", new Gauge<Long>()
         {
@@ -710,11 +710,11 @@ public class ColumnFamilyMetrics
      * Create a histogram-like interface that will register both a CF, keyspace and global level
      * histogram and forward any updates to both
      */
-    protected ColumnFamilyHistogram createColumnFamilyHistogram(String name, Histogram keyspaceHistogram)
+    protected ColumnFamilyHistogram createColumnFamilyHistogram(String name, Histogram keyspaceHistogram, boolean considerZeroes)
     {
-        Histogram cfHistogram = Metrics.histogram(factory.createMetricName(name));
+        Histogram cfHistogram = Metrics.histogram(factory.createMetricName(name), considerZeroes);
         register(name, cfHistogram);
-        return new ColumnFamilyHistogram(cfHistogram, keyspaceHistogram, Metrics.histogram(globalNameFactory.createMetricName(name)));
+        return new ColumnFamilyHistogram(cfHistogram, keyspaceHistogram, Metrics.histogram(globalNameFactory.createMetricName(name), considerZeroes));
     }
 
     /**

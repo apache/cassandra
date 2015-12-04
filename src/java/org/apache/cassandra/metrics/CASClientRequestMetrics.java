@@ -34,7 +34,7 @@ public class CASClientRequestMetrics extends ClientRequestMetrics
 
     public CASClientRequestMetrics(String scope) {
         super(scope);
-        contention = Metrics.histogram(factory.createMetricName("ContentionHistogram"));
+        contention = Metrics.histogram(factory.createMetricName("ContentionHistogram"), false);
         conditionNotMet =  Metrics.counter(factory.createMetricName("ConditionNotMet"));
         unfinishedCommit =  Metrics.counter(factory.createMetricName("UnfinishedCommit"));
     }

@@ -34,14 +34,14 @@ public class EstimatedHistogramReservoir implements Reservoir
     EstimatedHistogram histogram;
 
     // Default to >4 hours of in nanoseconds of buckets
-    public EstimatedHistogramReservoir()
+    public EstimatedHistogramReservoir(boolean considerZeroes)
     {
-        this(164);
+        this(164, considerZeroes);
     }
 
-    public EstimatedHistogramReservoir(int numBuckets)
+    public EstimatedHistogramReservoir(int numBuckets, boolean considerZeroes)
     {
-        histogram = new EstimatedHistogram(numBuckets);
+        histogram = new EstimatedHistogram(numBuckets, considerZeroes);
     }
 
     @Override
@@ -100,7 +100,7 @@ public class EstimatedHistogramReservoir implements Reservoir
         @Override
         public double getMean()
         {
-            return histogram.mean();
+            return histogram.rawMean();
         }
     }
 }
