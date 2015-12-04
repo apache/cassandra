@@ -546,4 +546,27 @@ public class Util
     {
         return () -> new AssertionError(message);
     }
+
+    public static class UnfilteredSource extends AbstractUnfilteredRowIterator implements UnfilteredRowIterator
+    {
+        Iterator<Unfiltered> content;
+
+        public UnfilteredSource(CFMetaData cfm, DecoratedKey partitionKey, Row staticRow, Iterator<Unfiltered> content)
+        {
+            super(cfm,
+                  partitionKey,
+                  DeletionTime.LIVE,
+                  cfm.partitionColumns(),
+                  staticRow != null ? staticRow : Rows.EMPTY_STATIC_ROW,
+                  false,
+                  EncodingStats.NO_STATS);
+            this.content = content;
+        }
+
+        @Override
+        protected Unfiltered computeNext()
+        {
+            return content.hasNext() ? content.next() : endOfData();
+        }
+    }
 }

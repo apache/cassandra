@@ -17,21 +17,16 @@
  */
 package org.apache.cassandra.db;
 
-import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.util.Arrays;
+import java.util.Collections;
 import java.util.Iterator;
 
 import org.apache.cassandra.utils.AbstractIterator;
 import com.google.common.collect.Iterators;
 
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
 import org.apache.cassandra.cache.IMeasurableMemory;
 import org.apache.cassandra.db.rows.*;
-import org.apache.cassandra.io.IVersionedSerializer;
-import org.apache.cassandra.io.util.DataInputPlus;
-import org.apache.cassandra.io.util.DataOutputPlus;
 import org.apache.cassandra.utils.ObjectSizes;
 import org.apache.cassandra.utils.memory.AbstractAllocator;
 
@@ -53,8 +48,6 @@ import org.apache.cassandra.utils.memory.AbstractAllocator;
  */
 public class RangeTombstoneList implements Iterable<RangeTombstone>, IMeasurableMemory
 {
-    private static final Logger logger = LoggerFactory.getLogger(RangeTombstoneList.class);
-
     private static long EMPTY_SIZE = ObjectSizes.measure(new RangeTombstoneList(null, 0));
 
     private final ClusteringComparator comparator;
@@ -265,6 +258,8 @@ public class RangeTombstoneList implements Iterable<RangeTombstone>, IMeasurable
     /*
      * Return is the index of the range covering name if name is covered. If the return idx is negative,
      * no range cover name and -idx-1 is the index of the first range whose start is greater than name.
+     *
+     * Note that bounds are not in the range if they fall on its boundary.
      */
     private int searchInternal(ClusteringPrefix name, int startIdx, int endIdx)
     {
@@ -274,7 +269,9 @@ public class RangeTombstoneList implements Iterable<RangeTombstone>, IMeasurable
         int pos = Arrays.binarySearch(starts, startIdx, endIdx, name, comparator);
         if (pos >= 0)
         {
-            return pos;
+            // Equality only happens for bounds (as used by forward/reverseIterator), and bounds are equal only if they
+            // are the same or complementary, in either case the bound itself is not part of the range.
+            return -pos - 1;
         }
         else
         {
@@ -283,7 +280,7 @@ public class RangeTombstoneList implements Iterable<RangeTombstone>, IMeasurable
             if (idx < 0)
                 return -1;
 
-            return comparator.compare(name, ends[idx]) <= 0 ? idx : -idx-2;
+            return comparator.compare(name, ends[idx]) < 0 ? idx : -idx-2;
         }
     }
 
@@ -387,14 +384,14 @@ public class RangeTombstoneList implements Iterable<RangeTombstone>, IMeasurable
         final int start = startIdx < 0 ? -startIdx-1 : startIdx;
 
         if (start >= size)
-            return Iterators.<RangeTombstone>emptyIterator();
+            return Collections.emptyIterator();
 
         int finishIdx = slice.end() == Slice.Bound.TOP ? size - 1 : searchInternal(slice.end(), start, size);
         // if stopIdx is the first range after 'slice.end()' we care only until the previous range
         final int finish = finishIdx < 0 ? -finishIdx-2 : finishIdx;
 
         if (start > finish)
-            return Iterators.<RangeTombstone>emptyIterator();
+            return Collections.emptyIterator();
 
         if (start == finish)
         {
@@ -428,19 +425,19 @@ public class RangeTombstoneList implements Iterable<RangeTombstone>, IMeasurable
 
     private Iterator<RangeTombstone> reverseIterator(final Slice slice)
     {
-        int startIdx = slice.end() == Slice.Bound.TOP ? 0 : searchInternal(slice.end(), 0, size);
+        int startIdx = slice.end() == Slice.Bound.TOP ? size - 1 : searchInternal(slice.end(), 0, size);
         // if startIdx is the first range after 'slice.end()' we care only until the previous range
         final int start = startIdx < 0 ? -startIdx-2 : startIdx;
 
-        if (start >= size)
-            return Iterators.<RangeTombstone>emptyIterator();
+        if (start < 0)
+            return Collections.emptyIterator();
 
-        int finishIdx = slice.start() == Slice.Bound.BOTTOM ? 0 : searchInternal(slice.start(), 0, start);
+        int finishIdx = slice.start() == Slice.Bound.BOTTOM ? 0 : searchInternal(slice.start(), 0, start + 1);  // include same as finish
         // if stopIdx is the first range after 'slice.end()' we care only until the previous range
         final int finish = finishIdx < 0 ? -finishIdx-1 : finishIdx;
 
         if (start < finish)
-            return Iterators.<RangeTombstone>emptyIterator();
+            return Collections.emptyIterator();
 
         if (start == finish)
         {
@@ -466,7 +463,7 @@ public class RangeTombstoneList implements Iterable<RangeTombstone>, IMeasurable
                     return rangeTombstoneWithNewEnd(idx--, slice.end());
                 if (idx == finish && comparator.compare(starts[idx], slice.start()) < 0)
                     return rangeTombstoneWithNewStart(idx--, slice.start());
-                return rangeTombstone(idx++);
+                return rangeTombstone(idx--);
             }
         };
     }
@@ -662,20 +659,6 @@ public class RangeTombstoneList implements Iterable<RangeTombstone>, IMeasurable
 
         setInternal(i, start, end, markedAt, delTime);
         size++;
-    }
-
-    private void removeInternal(int i)
-    {
-        assert i >= 0;
-
-        System.arraycopy(starts, i+1, starts, i, size - i - 1);
-        System.arraycopy(ends, i+1, ends, i, size - i - 1);
-        System.arraycopy(markedAts, i+1, markedAts, i, size - i - 1);
-        System.arraycopy(delTimes, i+1, delTimes, i, size - i - 1);
-
-        --size;
-        starts[size] = null;
-        ends[size] = null;
     }
 
     /*
