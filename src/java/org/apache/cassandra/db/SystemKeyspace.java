@@ -1069,6 +1069,21 @@ public final class SystemKeyspace
         return null;
     }
 
+    /**
+     * Gets the stored data center for the local node, or null if none have been set yet.
+     */
+    public static String getDatacenter()
+    {
+        String req = "SELECT data_center FROM system.%s WHERE key='%s'";
+        UntypedResultSet result = executeInternal(String.format(req, LOCAL, LOCAL));
+
+        // Look up the Data center (return it if found)
+        if (!result.isEmpty() && result.one().has("data_center"))
+            return result.one().getString("data_center");
+
+        return null;
+    }
+
     public static PaxosState loadPaxosState(DecoratedKey key, CFMetaData metadata)
     {
         String req = "SELECT * FROM system.%s WHERE row_key = ? AND cf_id = ?";
