@@ -614,11 +614,26 @@ public class SystemKeyspace
             }
         }
 
+        String req = "SELECT rack, data_center FROM system.%s WHERE key='%s'";
+        UntypedResultSet result = executeInternal(String.format(req, LOCAL_CF, LOCAL_KEY));
+
+        if (!Boolean.getBoolean("cassandra.ignore_dc"))
+        {
+            // Look up the dc (return it if found)
+            if (!result.isEmpty() && result.one().has("data_center"))
+            {
+                String storedDc = result.one().getString("data_center");
+                String currentDc = DatabaseDescriptor.getEndpointSnitch().getDatacenter(FBUtilities.getBroadcastAddress());
+                if (!storedDc.equals(currentDc))
+                {
+                    throw new ConfigurationException("Cannot start node if snitch's data center (" + currentDc + ") differs from previous data center (" + storedDc + "). " +
+                                                     "Please fix the snitch configuration, decommission and rebootstrap this node or use the flag -Dcassandra.ignore_dc=true.");
+                }
+            }
+        }
+
         if (!Boolean.getBoolean("cassandra.ignore_rack"))
         {
-            String req = "SELECT rack FROM system.%s WHERE key='%s'";
-            UntypedResultSet result = executeInternal(String.format(req, LOCAL_CF, LOCAL_KEY));
-
             // Look up the Rack (return it if found)
             if (!result.isEmpty() && result.one().has("rack"))
             {
