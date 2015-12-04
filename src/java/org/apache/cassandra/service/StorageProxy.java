@@ -704,9 +704,21 @@ public class StorageProxy implements StorageProxyMBean
                     // When local node is the endpoint and there are no pending nodes we can
                     // Just apply the mutation locally.
                     if (pairedEndpoint.equals(FBUtilities.getBroadcastAddress()) && wrapper.handler.pendingEndpoints.isEmpty() && StorageService.instance.isJoined())
-                        mutation.apply(writeCommitLog);
+                    {
+                        try
+                        {
+                            mutation.apply(writeCommitLog);
+                        }
+                        catch (Exception exc)
+                        {
+                            logger.error("Error applying local view update to keyspace {}: {}", mutation.getKeyspaceName(), mutation);
+                            throw exc;
+                        }
+                    }
                     else
+                    {
                         wrappers.add(wrapper);
+                    }
                 }
 
                 if (!wrappers.isEmpty())

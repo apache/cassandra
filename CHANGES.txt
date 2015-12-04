@@ -1,4 +1,6 @@
 3.0.1
+ * Handle single-column deletions correction in materialized views
+   when the column is part of the view primary key (CASSANDRA-10796)
  * Fix issue with datadir migration on upgrade (CASSANDRA-10788)
  * Fix bug with range tombstones on reverse queries and test coverage for
    AbstractBTreePartition (CASSANDRA-10059)

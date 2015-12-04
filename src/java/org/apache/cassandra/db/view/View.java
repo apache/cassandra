@@ -43,6 +43,8 @@ import org.apache.cassandra.service.ClientState;
 import org.apache.cassandra.service.pager.QueryPager;
 import org.apache.cassandra.transport.Server;
 import org.apache.cassandra.utils.FBUtilities;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 /**
  * A View copies data from a base table into a view table which can be queried independently from the
@@ -58,6 +60,8 @@ import org.apache.cassandra.utils.FBUtilities;
  */
 public class View
 {
+    private static final Logger logger = LoggerFactory.getLogger(View.class);
+
     /**
      * The columns should all be updated together, so we use this object as group.
      */
@@ -356,7 +360,14 @@ public class View
         CBuilder clustering = CBuilder.create(viewCfm.comparator);
         for (int i = 0; i < viewCfm.clusteringColumns().size(); i++)
         {
-            clustering.add(temporalRow.clusteringValue(viewCfm.clusteringColumns().get(i), resolver));
+            ColumnDefinition column = viewCfm.clusteringColumns().get(i);
+            ByteBuffer value = temporalRow.clusteringValue(column, resolver);
+
+            // handle single-column deletions correctly to avoid nulls in the view primary key
+            if (value == null)
+                return null;
+
+            clustering.add(value);
         }
         regularBuilder.newRow(clustering.build());
         regularBuilder.addPrimaryKeyLivenessInfo(LivenessInfo.create(viewCfm,
@@ -663,7 +674,7 @@ public class View
         {
             // In updateAffectsView, we check the partition to see if there is at least one row that matches the
             // filters and is live.  If there is more than one row in the partition, we need to re-check each one
-            // invididually.
+            // individually.
             if (partition.rowCount() != 1 && !selectQuery.selectsClustering(partition.partitionKey(), temporalRow.baseClustering()))
                 continue;
 
