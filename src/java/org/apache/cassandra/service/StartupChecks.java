@@ -75,7 +75,9 @@ public class StartupChecks
                                                                       initSigarLibrary,
                                                                       checkDataDirs,
                                                                       checkSSTablesFormat,
-                                                                      checkSystemKeyspaceState);
+                                                                      checkSystemKeyspaceState,
+                                                                      checkDatacenter,
+                                                                      checkRack);
 
     public StartupChecks withDefaultTests()
     {
@@ -299,6 +301,50 @@ public class StartupChecks
             catch (ConfigurationException e)
             {
                 throw new StartupException(100, "Fatal exception during initialization", e);
+            }
+        }
+    };
+
+    public static final StartupCheck checkDatacenter = new StartupCheck()
+    {
+        public void execute() throws StartupException
+        {
+            if (!Boolean.getBoolean("cassandra.ignore_dc"))
+            {
+                String storedDc = SystemKeyspace.getDatacenter();
+                if (storedDc != null)
+                {
+                    String currentDc = DatabaseDescriptor.getEndpointSnitch().getDatacenter(FBUtilities.getBroadcastAddress());
+                    if (!storedDc.equals(currentDc))
+                    {
+                        String formatMessage = "Cannot start node if snitch's data center (%s) differs from previous data center (%s). " +
+                                               "Please fix the snitch configuration, decommission and rebootstrap this node or use the flag -Dcassandra.ignore_dc=true.";
+
+                        throw new StartupException(100, String.format(formatMessage, currentDc, storedDc));
+                    }
+                }
+            }
+        }
+    };
+
+    public static final StartupCheck checkRack = new StartupCheck()
+    {
+        public void execute() throws StartupException
+        {
+            if (!Boolean.getBoolean("cassandra.ignore_rack"))
+            {
+                String storedRack = SystemKeyspace.getRack();
+                if (storedRack != null)
+                {
+                    String currentRack = DatabaseDescriptor.getEndpointSnitch().getRack(FBUtilities.getBroadcastAddress());
+                    if (!storedRack.equals(currentRack))
+                    {
+                        String formatMessage = "Cannot start node if snitch's rack (%s) differs from previous rack (%s). " +
+                                               "Please fix the snitch configuration, decommission and rebootstrap this node or use the flag -Dcassandra.ignore_rack=true.";
+
+                        throw new StartupException(100, String.format(formatMessage, currentRack, storedRack));
+                    }
+                }
             }
         }
     };

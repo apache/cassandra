@@ -26,10 +26,13 @@ Deprecation
 
 Operations
 ----------
-    - Switching racks is no longer an allowed operation on a node which has
-      data. Instead, the node will need to be decommissioned and rebootstrapped.
-      If moving from the SimpleSnitch, make sure the rack containing all current
-      nodes is named "rack1".
+    - Switching data center or racks is no longer an allowed operation on a node
+      which has data. Instead, the node will need to be decommissioned and
+      rebootstrapped. If moving from the SimpleSnitch, make sure that the data
+      center and rack containing all current nodes is named "datacenter1" and
+      "rack1". To override this behaviour use -Dcassandra.ignore_rack=true and/or
+      -Dcassandra.ignore_dc=true.
+    - Reloading the configuration file of GossipingPropertyFileSnitch has been disabled.
 
 New features
 ------------
@@ -39,13 +42,6 @@ New features
     - DTCS option max_sstable_age_days is now deprecated and defaults to 1000 days.
     - Native protocol server now allows both SSL and non-SSL connections on
       the same port.
-
-Operations
-------------
-    - Changing rack or dc of live nodes is no longer possible for PropertyFileSnitch
-      and YamlFileNetworkTopologySnitch. Reloading the configuration file of
-      GossipingPropertyFileSnitch has been disabled, CASSANDRA-10243.
-
 
 2.2.3
 =====
