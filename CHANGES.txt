@@ -1,5 +1,6 @@
 3.1
 Merged from 3.0:
+ * Fix issue with datadir migration on upgrade (CASSANDRA-10788)
  * Fix bug with range tombstones on reverse queries and test coverage for
    AbstractBTreePartition (CASSANDRA-10059)
  * Remove 64k limit on collection elements (CASSANDRA-10374)

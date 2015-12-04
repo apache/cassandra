@@ -1324,14 +1324,18 @@ public final class SystemKeyspace
         Iterable<String> dirs = Arrays.asList(DatabaseDescriptor.getAllDataFileLocations());
         for (String dataDir : dirs)
         {
-            logger.trace("Checking directory {} for old files", dataDir);
+            logger.trace("Checking {} for old files", dataDir);
             File dir = new File(dataDir);
             assert dir.exists() : dir + " should have been created by startup checks";
 
-            for (File ksdir : dir.listFiles((d, n) -> d.isDirectory()))
+            for (File ksdir : dir.listFiles((d, n) -> new File(d, n).isDirectory()))
             {
-                for (File cfdir : ksdir.listFiles((d, n) -> d.isDirectory()))
+                logger.trace("Checking {} for old files", ksdir);
+
+                for (File cfdir : ksdir.listFiles((d, n) -> new File(d, n).isDirectory()))
                 {
+                    logger.trace("Checking {} for old files", cfdir);
+
                     if (Descriptor.isLegacyFile(cfdir))
                     {
                         FileUtils.deleteRecursive(cfdir);
