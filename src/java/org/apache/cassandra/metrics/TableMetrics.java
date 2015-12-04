@@ -318,7 +318,7 @@ public class TableMetrics
                                                                  });
             }
         });
-        sstablesPerReadHistogram = createTableHistogram("SSTablesPerReadHistogram", cfs.keyspace.metric.sstablesPerReadHistogram);
+        sstablesPerReadHistogram = createTableHistogram("SSTablesPerReadHistogram", cfs.keyspace.metric.sstablesPerReadHistogram, true);
         compressionRatio = createTableGauge("CompressionRatio", new Gauge<Double>()
         {
             public Double getValue()
@@ -610,12 +610,12 @@ public class TableMetrics
                 return Math.max(requests, 1); // to avoid NaN.
             }
         });
-        tombstoneScannedHistogram = createTableHistogram("TombstoneScannedHistogram", cfs.keyspace.metric.tombstoneScannedHistogram);
-        liveScannedHistogram = createTableHistogram("LiveScannedHistogram", cfs.keyspace.metric.liveScannedHistogram);
-        colUpdateTimeDeltaHistogram = createTableHistogram("ColUpdateTimeDeltaHistogram", cfs.keyspace.metric.colUpdateTimeDeltaHistogram);
+        tombstoneScannedHistogram = createTableHistogram("TombstoneScannedHistogram", cfs.keyspace.metric.tombstoneScannedHistogram, false);
+        liveScannedHistogram = createTableHistogram("LiveScannedHistogram", cfs.keyspace.metric.liveScannedHistogram, false);
+        colUpdateTimeDeltaHistogram = createTableHistogram("ColUpdateTimeDeltaHistogram", cfs.keyspace.metric.colUpdateTimeDeltaHistogram, false);
         coordinatorReadLatency = Metrics.timer(factory.createMetricName("CoordinatorReadLatency"));
         coordinatorScanLatency = Metrics.timer(factory.createMetricName("CoordinatorScanLatency"));
-        waitingOnFreeMemtableSpace = Metrics.histogram(factory.createMetricName("WaitingOnFreeMemtableSpace"));
+        waitingOnFreeMemtableSpace = Metrics.histogram(factory.createMetricName("WaitingOnFreeMemtableSpace"), false);
 
         // We do not want to capture view mutation specific metrics for a view
         // They only makes sense to capture on the base table
@@ -751,19 +751,20 @@ public class TableMetrics
      * Create a histogram-like interface that will register both a CF, keyspace and global level
      * histogram and forward any updates to both
      */
-    protected TableHistogram createTableHistogram(String name, Histogram keyspaceHistogram)
+    protected TableHistogram createTableHistogram(String name, Histogram keyspaceHistogram, boolean considerZeroes)
     {
-        return createTableHistogram(name, name, keyspaceHistogram);
+        return createTableHistogram(name, name, keyspaceHistogram, considerZeroes);
     }
 
-    protected TableHistogram createTableHistogram(String name, String alias, Histogram keyspaceHistogram)
+    protected TableHistogram createTableHistogram(String name, String alias, Histogram keyspaceHistogram, boolean considerZeroes)
     {
-        Histogram cfHistogram = Metrics.histogram(factory.createMetricName(name), aliasFactory.createMetricName(alias));
+        Histogram cfHistogram = Metrics.histogram(factory.createMetricName(name), aliasFactory.createMetricName(alias), considerZeroes);
         register(name, alias, cfHistogram);
         return new TableHistogram(cfHistogram,
                                   keyspaceHistogram,
                                   Metrics.histogram(globalFactory.createMetricName(name),
-                                                    globalAliasFactory.createMetricName(alias)));
+                                                    globalAliasFactory.createMetricName(alias),
+                                                    considerZeroes));
     }
 
     protected TableTimer createTableTimer(String name, Timer keyspaceTimer)

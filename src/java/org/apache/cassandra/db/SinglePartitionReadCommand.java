@@ -361,7 +361,9 @@ public class SinglePartitionReadCommand extends ReadCommand
             {
                 cfs.metric.rowCacheHit.inc();
                 Tracing.trace("Row cache hit");
-                return clusteringIndexFilter().getUnfilteredRowIterator(columnFilter(), cachedPartition);
+                UnfilteredRowIterator unfilteredRowIterator = clusteringIndexFilter().getUnfilteredRowIterator(columnFilter(), cachedPartition);
+                cfs.metric.updateSSTableIterated(0);
+                return unfilteredRowIterator;
             }
 
             cfs.metric.rowCacheHitOutOfRange.inc();
