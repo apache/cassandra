@@ -211,7 +211,7 @@ launch_service()
 }
 
 # Parse any command line options.
-args=`getopt vfhp:bD:H:E: "$@"`
+args=`getopt vRfhp:bD:H:E: "$@"`
 eval set -- "$args"
 
 classname="org.apache.cassandra.service.CassandraDaemon"
@@ -234,6 +234,10 @@ while true; do
             "$JAVA" -cp "$CLASSPATH" org.apache.cassandra.tools.GetVersion
             exit 0
         ;;
+        -R)
+            allow_root="yes"
+            shift
+        ;;
         -D)
             properties="$properties -D$2"
             shift 2
@@ -248,14 +252,26 @@ while true; do
         ;;
         --)
             shift
+            if [ "x$*" != "x" ] ; then
+                echo "Error parsing arguments! Unknown argument \"$*\"" >&2
+                exit 1
+            fi
             break
         ;;
         *)
-            echo "Error parsing arguments!" >&2
+            echo "Error parsing arguments! Unknown argument \"$1\"" >&2
             exit 1
         ;;
     esac
 done
+
+if [ "x$allow_root" != "xyes" ] ; then
+    if [ "`id -u`" = "1" ] || [ "`id -g`" = "0" ] ; then
+        echo "Running Cassandra as root user or group is not recommended - please start Cassandra using a different system user."
+        echo "If you really want to force running Cassandra as root, use -R command line option."
+        exit 1
+    fi
+fi
 
 # see CASSANDRA-7254
 "$JAVA" -cp "$CLASSPATH" $JVM_OPTS 2>&1 | grep -q 'Error: Exception thrown by the agent : java.lang.NullPointerException'
