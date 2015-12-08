@@ -1,4 +1,5 @@
 2.1.13
+ * Allow cancellation of index summary redistribution (CASSANDRA-8805)
  * Disable reloading of GossipingPropertyFileSnitch (CASSANDRA-9474)
  * Fix Stress profile parsing on Windows (CASSANDRA-10808)
 

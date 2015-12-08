@@ -31,7 +31,8 @@ public enum OperationType
     /** Compaction for tombstone removal */
     TOMBSTONE_COMPACTION("Tombstone Compaction"),
     UNKNOWN("Unknown compaction type"),
-    ANTICOMPACTION("Anticompaction after repair");
+    ANTICOMPACTION("Anticompaction after repair"),
+    INDEX_SUMMARY("Index summary redistribution");
 
     private final String type;
 

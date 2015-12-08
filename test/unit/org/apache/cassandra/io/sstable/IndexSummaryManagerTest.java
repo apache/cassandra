@@ -22,12 +22,14 @@ import java.nio.ByteBuffer;
 import java.util.*;
 import java.util.concurrent.*;
 import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.atomic.AtomicReference;
 
+import com.google.common.base.Joiner;
+import com.google.common.collect.Sets;
 import org.junit.After;
 import org.junit.Before;
 import org.junit.Test;
 import org.junit.runner.RunWith;
-
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -36,11 +38,12 @@ import org.apache.cassandra.OrderedJUnit4ClassRunner;
 import org.apache.cassandra.SchemaLoader;
 import org.apache.cassandra.Util;
 import org.apache.cassandra.db.*;
+import org.apache.cassandra.db.compaction.CompactionInfo;
+import org.apache.cassandra.db.compaction.CompactionInterruptedException;
 import org.apache.cassandra.db.compaction.CompactionManager;
 import org.apache.cassandra.db.filter.QueryFilter;
+import org.apache.cassandra.metrics.CompactionMetrics;
 import org.apache.cassandra.metrics.RestorableMeter;
-import org.apache.cassandra.utils.FBUtilities;
-import org.apache.cassandra.utils.concurrent.OpOrder;
 
 import static org.apache.cassandra.io.sstable.Downsampling.BASE_SAMPLING_LEVEL;
 import static org.apache.cassandra.io.sstable.IndexSummaryManager.DOWNSAMPLE_THESHOLD;
@@ -75,6 +78,11 @@ public class IndexSummaryManagerTest extends SchemaLoader
     @After
     public void afterTest()
     {
+        for (CompactionInfo.Holder holder: CompactionMetrics.getCompactions())
+        {
+            holder.stop();
+        }
+
         String ksname = "Keyspace1";
         String cfname = "StandardLowIndexInterval"; // index interval of 8, no key caching
         Keyspace keyspace = Keyspace.open(ksname);
@@ -498,5 +506,60 @@ public class IndexSummaryManagerTest extends SchemaLoader
             if (entry.getKey().contains("StandardLowIndexInterval"))
                 assertTrue(entry.getValue() >= cfs.metadata.getMinIndexInterval());
         }
+    }
+
+    @Test
+    public void testCancelIndex() throws Exception
+    {
+        String ksname = "Keyspace1";
+        String cfname = "StandardLowIndexInterval"; // index interval of 8, no key caching
+        Keyspace keyspace = Keyspace.open(ksname);
+        ColumnFamilyStore cfs = keyspace.getColumnFamilyStore(cfname);
+        final int numSSTables = 4;
+        int numRows = 256;
+        createSSTables(ksname, cfname, numSSTables, numRows);
+
+        final List<SSTableReader> sstables = new ArrayList<>(cfs.getSSTables());
+        for (SSTableReader sstable : sstables)
+            sstable.overrideReadMeter(new RestorableMeter(100.0, 100.0));
+
+        final long singleSummaryOffHeapSpace = sstables.get(0).getIndexSummaryOffHeapSize();
+
+        // everything should get cut in half
+        final AtomicReference<CompactionInterruptedException> exception = new AtomicReference<>();
+        Thread t = new Thread(new Runnable()
+        {
+            public void run()
+            {
+                try
+                {
+                    redistributeSummaries(Collections.<SSTableReader>emptyList(), sstables, (singleSummaryOffHeapSpace * (numSSTables / 2)));
+                }
+                catch (CompactionInterruptedException ex)
+                {
+                    exception.set(ex);
+                }
+                catch (IOException ignored)
+                {
+                }
+            }
+        });
+        t.start();
+        while (CompactionManager.instance.getActiveCompactions() == 0 && t.isAlive())
+            Thread.sleep(1);
+        CompactionManager.instance.stopCompaction("INDEX_SUMMARY");
+        t.join();
+
+        assertNotNull("Expected compaction interrupted exception", exception.get());
+        assertTrue("Expected no active compactions", CompactionMetrics.getCompactions().isEmpty());
+
+        Set<SSTableReader> beforeRedistributionSSTables = new HashSet<>(sstables);
+        Set<SSTableReader> afterCancelSSTables = new HashSet<>(cfs.getSSTables());
+        Set<SSTableReader> disjoint = Sets.symmetricDifference(beforeRedistributionSSTables, afterCancelSSTables);
+        assertTrue(String.format("Mismatched files before and after cancelling redistribution: %s",
+                                 Joiner.on(",").join(disjoint)),
+                   disjoint.isEmpty());
+
+        validateData(cfs, numRows);
     }
 }
