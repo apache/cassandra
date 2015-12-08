@@ -87,6 +87,8 @@ public class AlterTableStatement extends SchemaAlteringStatement
             columnName = rawColumnName.prepare(cfm);
             def = cfm.getColumnDefinition(columnName);
         }
+        if (cfProps.getId() != null)
+            throw new ConfigurationException("Cannot alter table id.");
 
         switch (oType)
         {

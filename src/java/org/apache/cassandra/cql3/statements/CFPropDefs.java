@@ -17,10 +17,7 @@
  */
 package org.apache.cassandra.cql3.statements;
 
-import java.util.HashMap;
-import java.util.HashSet;
-import java.util.Map;
-import java.util.Set;
+import java.util.*;
 
 import org.apache.cassandra.cache.CachingOptions;
 import org.apache.cassandra.config.CFMetaData;
@@ -49,6 +46,8 @@ public class CFPropDefs extends PropertyDefinitions
     public static final String KW_COMPACTION = "compaction";
     public static final String KW_COMPRESSION = "compression";
 
+    public static final String KW_ID = "id";
+
     public static final String COMPACTION_STRATEGY_CLASS_KEY = "class";
 
     public static final Set<String> keywords = new HashSet<>();
@@ -69,6 +68,7 @@ public class CFPropDefs extends PropertyDefinitions
         keywords.add(KW_COMPACTION);
         keywords.add(KW_COMPRESSION);
         keywords.add(KW_MEMTABLE_FLUSH_PERIOD);
+        keywords.add(KW_ID);
 
         obsoleteKeywords.add("index_interval");
         obsoleteKeywords.add("replicate_on_write");
@@ -85,6 +85,15 @@ public class CFPropDefs extends PropertyDefinitions
             return;
 
         validate(keywords, obsoleteKeywords);
+
+        try
+        {
+            getId();
+        }
+        catch (IllegalArgumentException e)
+        {
+            throw new ConfigurationException("Invalid table id", e);
+        }
 
         Map<String, String> compactionOptions = getCompactionOptions();
         if (!compactionOptions.isEmpty())
@@ -168,6 +177,12 @@ public class CFPropDefs extends PropertyDefinitions
     public Integer getDefaultTimeToLive() throws SyntaxException
     {
         return getInt(KW_DEFAULT_TIME_TO_LIVE, 0);
+    }
+
+    public UUID getId() throws SyntaxException
+    {
+        String id = getSimple(KW_ID);
+        return id != null ? UUID.fromString(id) : null;
     }
 
     public void applyToCFMetadata(CFMetaData cfm) throws ConfigurationException, SyntaxException

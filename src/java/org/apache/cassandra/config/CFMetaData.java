@@ -470,12 +470,12 @@ public final class CFMetaData
      */
     public CFMetaData(String keyspace, String name, ColumnFamilyType type, CellNameType comp)
     {
-        this(keyspace, name, type, comp, UUIDGen.getTimeUUID());
+        this(keyspace, name, type, comp, null);
     }
 
-    private CFMetaData(String keyspace, String name, ColumnFamilyType type, CellNameType comp, UUID id)
+    public CFMetaData(String keyspace, String name, ColumnFamilyType type, CellNameType comp, UUID id)
     {
-        cfId = id;
+        cfId = id != null ? id : UUIDGen.getTimeUUID();
         ksName = keyspace;
         cfName = name;
         ksAndCFName = Pair.create(keyspace, name);
