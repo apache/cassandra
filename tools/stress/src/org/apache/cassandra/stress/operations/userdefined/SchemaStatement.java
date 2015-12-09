@@ -28,6 +28,8 @@ import java.util.List;
 
 import com.datastax.driver.core.BoundStatement;
 import com.datastax.driver.core.ColumnDefinitions;
+import com.datastax.driver.core.DataType;
+import com.datastax.driver.core.LocalDate;
 import com.datastax.driver.core.PreparedStatement;
 import com.datastax.driver.core.ResultSet;
 import org.apache.cassandra.db.ConsistencyLevel;
@@ -47,6 +49,7 @@ public abstract class SchemaStatement extends Operation
     final ConsistencyLevel cl;
     final int[] argumentIndex;
     final Object[] bindBuffer;
+    final ColumnDefinitions definitions;
 
     public SchemaStatement(Timer timer, StressSettings settings, DataSpec spec,
                            PreparedStatement statement, Integer thriftId, ConsistencyLevel cl)
@@ -57,8 +60,9 @@ public abstract class SchemaStatement extends Operation
         this.cl = cl;
         argumentIndex = new int[statement.getVariables().size()];
         bindBuffer = new Object[argumentIndex.length];
+        definitions = statement.getVariables();
         int i = 0;
-        for (ColumnDefinitions.Definition definition : statement.getVariables())
+        for (ColumnDefinitions.Definition definition : definitions)
             argumentIndex[i++] = spec.partitionGenerator.indexOf(definition.getName());
 
         statement.setConsistencyLevel(JavaDriverClient.from(cl));
@@ -68,7 +72,13 @@ public abstract class SchemaStatement extends Operation
     {
         for (int i = 0 ; i < argumentIndex.length ; i++)
         {
-            bindBuffer[i] = row.get(argumentIndex[i]);
+            Object value = row.get(argumentIndex[i]);
+            if (definitions.getType(i).getName().equals(DataType.date().getName()))
+            {
+                // Datastax only accepts com.datastax.driver.core.LocalDate for CQL type "DATE"
+                value= LocalDate.fromDaysSinceEpoch((Integer) value);
+            }
+            bindBuffer[i] = value;
             if (bindBuffer[i] == null && !spec.partitionGenerator.permitNulls(argumentIndex[i]))
                 throw new IllegalStateException();
         }
