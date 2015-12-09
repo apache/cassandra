@@ -1,4 +1,5 @@
 2.1.13
+ * Fix the way we replace sstables after anticompaction (CASSANDRA-10831)
  * cqlsh fails to decode utf-8 characters for text typed columns (CASSANDRA-10875)
  * Log error when stream session fails (CASSANDRA-9294)
  * Fix bugs in commit log archiving startup behavior (CASSANDRA-10593)

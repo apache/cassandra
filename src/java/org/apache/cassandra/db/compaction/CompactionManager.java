@@ -503,9 +503,9 @@ public class CompactionManager implements CompactionManagerMBean
                     sstableIterator.remove();
                 }
             }
+            validatedForRepair.release(Sets.union(nonAnticompacting, mutatedRepairStatuses));
             cfs.getDataTracker().notifySSTableRepairedStatusChanged(mutatedRepairStatuses);
             cfs.getDataTracker().unmarkCompacting(Sets.union(nonAnticompacting, mutatedRepairStatuses));
-            validatedForRepair.release(Sets.union(nonAnticompacting, mutatedRepairStatuses));
             if (!sstables.isEmpty())
                 doAntiCompaction(cfs, ranges, sstables, repairedAt);
         }
@@ -1085,6 +1085,7 @@ public class CompactionManager implements CompactionManagerMBean
         int unrepairedKeyCount = 0;
         logger.info("Performing anticompaction on {} sstables", repairedSSTables.size());
         // iterate over sstables to check if the repaired / unrepaired ranges intersect them.
+        Set<SSTableReader> successfullyAntiCompactedSSTables = new HashSet<>();
         for (SSTableReader sstable : repairedSSTables)
         {
             // check that compaction hasn't stolen any sstables used in previous repair sessions
@@ -1138,7 +1139,7 @@ public class CompactionManager implements CompactionManagerMBean
                 }
                 anticompactedSSTables.addAll(repairedSSTableWriter.finish(repairedAt));
                 anticompactedSSTables.addAll(unRepairedSSTableWriter.finish(ActiveRepairService.UNREPAIRED_SSTABLE));
-                cfs.getDataTracker().markCompactedSSTablesReplaced(sstableAsSet, anticompactedSSTables, OperationType.ANTICOMPACTION);
+                successfullyAntiCompactedSSTables.add(sstable);
             }
             catch (Throwable e)
             {
@@ -1148,6 +1149,7 @@ public class CompactionManager implements CompactionManagerMBean
                 unRepairedSSTableWriter.abort();
             }
         }
+        cfs.getDataTracker().markCompactedSSTablesReplaced(successfullyAntiCompactedSSTables, anticompactedSSTables, OperationType.ANTICOMPACTION);
         String format = "Repaired {} keys of {} for {}/{}";
         logger.debug(format, repairedKeyCount, (repairedKeyCount + unrepairedKeyCount), cfs.keyspace, cfs.getColumnFamilyName());
         String format2 = "Anticompaction completed successfully, anticompacted from {} to {} sstable(s).";
