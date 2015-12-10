@@ -31,6 +31,7 @@ import java.util.concurrent.atomic.AtomicInteger;
 
 import javax.management.MBeanServer;
 import javax.management.ObjectName;
+import javax.net.ssl.SSLHandshakeException;
 
 import com.google.common.annotations.VisibleForTesting;
 import com.google.common.base.Function;
@@ -1046,6 +1047,11 @@ public final class MessagingService implements MessagingServiceMBean
                 {
                     logger.trace("MessagingService server thread already closed");
                     break;
+                }
+                catch (SSLHandshakeException e)
+                {
+                    logger.error("SSL handshake error for inbound connection from " + socket, e);
+                    FileUtils.closeQuietly(socket);
                 }
                 catch (IOException e)
                 {

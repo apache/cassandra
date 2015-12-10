@@ -25,6 +25,7 @@
  * Keep the file open in trySkipCache (CASSANDRA-10669)
  * Updated trigger example (CASSANDRA-10257)
 Merged from 2.2:
+ * Better handling of SSL connection errors inter-node (CASSANDRA-10816)
  * Verify tables in pseudo-system keyspaces at startup (CASSANDRA-10761)
  * Fix IllegalArgumentException in DataOutputBuffer.reallocate for large buffers (CASSANDRA-10592)
  * Show CQL help in cqlsh in web browser (CASSANDRA-7225)
