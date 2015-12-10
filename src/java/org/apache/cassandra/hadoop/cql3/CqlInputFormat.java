@@ -53,10 +53,12 @@ import org.apache.cassandra.hadoop.*;
  *   ConfigHelper.setInputColumnFamily
  *
  * You can also configure the number of rows per InputSplit with
- *   ConfigHelper.setInputSplitSize. The default split size is 64k rows.
+ *   1: ConfigHelper.setInputSplitSize. The default split size is 64k rows.
+ *   or
+ *   2: ConfigHelper.setInputSplitSizeInMb. InputSplit size in MB with new, more precise method
+ *   If no value is provided for InputSplitSizeInMb, we default to using InputSplitSize.
  *
- *   the number of CQL rows per page
- *   CQLConfigHelper.setInputCQLPageRowSize. The default page row size is 1000. You 
+ *   CQLConfigHelper.setInputCQLPageRowSize. The default page row size is 1000. You
  *   should set it to "as big as possible, but no bigger." It set the LIMIT for the CQL 
  *   query, so you need set it big enough to minimize the network overhead, and also
  *   not too big to avoid out of memory issue.
@@ -213,9 +215,10 @@ public class CqlInputFormat extends org.apache.hadoop.mapreduce.InputFormat<Long
     private Map<TokenRange, Long> getSubSplits(String keyspace, String cfName, TokenRange range, Configuration conf) throws IOException
     {
         int splitSize = ConfigHelper.getInputSplitSize(conf);
+        int splitSizeMb = ConfigHelper.getInputSplitSizeInMb(conf);
         try
         {
-            return describeSplits(keyspace, cfName, range, splitSize);
+            return describeSplits(keyspace, cfName, range, splitSize, splitSizeMb);
         }
         catch (Exception e)
         {
@@ -235,7 +238,7 @@ public class CqlInputFormat extends org.apache.hadoop.mapreduce.InputFormat<Long
         }
     }
 
-    private Map<TokenRange, Long> describeSplits(String keyspace, String table, TokenRange tokenRange, int splitSize)
+    private Map<TokenRange, Long> describeSplits(String keyspace, String table, TokenRange tokenRange, int splitSize, int splitSizeMb)
     {
         String query = String.format("SELECT mean_partition_size, partitions_count " +
                                      "FROM %s.%s " +
@@ -256,7 +259,9 @@ public class CqlInputFormat extends org.apache.hadoop.mapreduce.InputFormat<Long
             meanPartitionSize = row.getLong("mean_partition_size");
             partitionCount = row.getLong("partitions_count");
 
-            splitCount = (int)((meanPartitionSize * partitionCount) / splitSize);
+            splitCount = splitSizeMb > 0
+                ? (int)(meanPartitionSize * partitionCount / splitSizeMb / 1024 / 1024)
+                : (int)(partitionCount / splitSize);
         }
 
         // If we have no data on this split or the size estimate is 0,
