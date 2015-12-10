@@ -1,4 +1,5 @@
 2.2.5
+ * Fix regression in split size on CqlInputFormat (CASSANDRA-10835)
  * Better handling of SSL connection errors inter-node (CASSANDRA-10816)
  * Disable reloading of GossipingPropertyFileSnitch (CASSANDRA-9474)
  * Verify tables in pseudo-system keyspaces at startup (CASSANDRA-10761)

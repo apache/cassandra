@@ -40,10 +40,12 @@ import com.datastax.driver.core.Row;
  *   ConfigHelper.setInputColumnFamily
  *
  * You can also configure the number of rows per InputSplit with
- *   ConfigHelper.setInputSplitSize. The default split size is 64k rows.
+ *   1: ConfigHelper.setInputSplitSize. The default split size is 64k rows.
+ *   or
+ *   2: ConfigHelper.setInputSplitSizeInMb. InputSplit size in MB with new, more precise method
+ *   If no value is provided for InputSplitSizeInMb, InputSplitSize will be used.
  *
- *   the number of CQL rows per page
- *   CQLConfigHelper.setInputCQLPageRowSize. The default page row size is 1000. You 
+ *   CQLConfigHelper.setInputCQLPageRowSize. The default page row size is 1000. You
  *   should set it to "as big as possible, but no bigger." It set the LIMIT for the CQL 
  *   query, so you need set it big enough to minimize the network overhead, and also
  *   not too big to avoid out of memory issue.
