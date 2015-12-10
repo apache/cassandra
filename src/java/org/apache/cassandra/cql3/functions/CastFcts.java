@@ -194,7 +194,7 @@ public final class CastFcts
         {
             return (AbstractType<I>) argTypes.get(0);
         }
-    };
+    }
 
     /**
      * <code>CastFunction</code> that implements casting by wrapping a java <code>Function</code>.
@@ -237,7 +237,7 @@ public final class CastFcts
         {
             return inputType().compose(bb);
         }
-    };
+    }
 
     /**
      * <code>JavaFunctionWrapper</code> for counter columns.
@@ -265,7 +265,7 @@ public final class CastFcts
         {
             return LongType.instance.compose(bb);
         }
-    };
+    }
 
     /**
      * <code>CastFunction</code> that implements casting by wrapping an existing <code>NativeScalarFunction</code>.
@@ -301,7 +301,7 @@ public final class CastFcts
         {
             return delegate.execute(protocolVersion, parameters);
         }
-    };
+    }
 
     /**
      * <code>CastFunction</code> that can be used to cast a type into ascii or text types.
@@ -333,7 +333,7 @@ public final class CastFcts
             inputType().getSerializer().toCQLLiteral(bb, builder);
             return outputType().decompose(builder.toString());
         }
-    };
+    }
 
     /**
      * The class must not be instantiated as it contains only static variables.
