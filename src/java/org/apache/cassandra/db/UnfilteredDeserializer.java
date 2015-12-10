@@ -406,7 +406,7 @@ public abstract class UnfilteredDeserializer
 
             public boolean hasNext()
             {
-                // Note that we loop on next == null because TombstoneTracker.openNew() could return null below.
+                // Note that we loop on next == null because TombstoneTracker.openNew() could return null below or the atom might be shadowed.
                 while (next == null)
                 {
                     if (atoms.hasNext())
@@ -419,7 +419,8 @@ public abstract class UnfilteredDeserializer
                         else
                         {
                             LegacyLayout.LegacyAtom atom = atoms.next();
-                            next = isRow(atom) ? readRow(atom) : tombstoneTracker.openNew(atom.asRangeTombstone());
+                            if (!tombstoneTracker.isShadowed(atom))
+                                next = isRow(atom) ? readRow(atom) : tombstoneTracker.openNew(atom.asRangeTombstone());
                         }
                     }
                     else if (tombstoneTracker.hasOpenTombstones())
@@ -498,7 +499,7 @@ public abstract class UnfilteredDeserializer
                 if (isDone)
                     return false;
 
-                while (next == null)
+                if (next == null)
                 {
                     next = readAtom();
                     if (next == null)
@@ -506,9 +507,6 @@ public abstract class UnfilteredDeserializer
                         isDone = true;
                         return false;
                     }
-
-                    if (tombstoneTracker.isShadowed(next))
-                        next = null;
                 }
                 return true;
             }
@@ -576,6 +574,7 @@ public abstract class UnfilteredDeserializer
              */
             public boolean isShadowed(LegacyLayout.LegacyAtom atom)
             {
+                assert !hasClosingMarkerBefore(atom);
                 long timestamp = atom.isCell() ? atom.asCell().timestamp : atom.asRangeTombstone().deletionTime.markedForDeleteAt();
 
                 if (partitionDeletion.deletes(timestamp))

@@ -958,13 +958,16 @@ public class CompactionManager implements CompactionManagerMBean
                                              LifecycleTransaction txn)
     {
         FileUtils.createDirectory(compactionFileLocation);
+        SerializationHeader header = sstable.header;
+        if (header == null)
+            header = SerializationHeader.make(sstable.metadata, Collections.singleton(sstable));
 
         return SSTableWriter.create(cfs.metadata,
                                     Descriptor.fromFilename(cfs.getSSTablePath(compactionFileLocation)),
                                     expectedBloomFilterSize,
                                     repairedAt,
                                     sstable.getSSTableLevel(),
-                                    sstable.header,
+                                    header,
                                     txn);
     }
 
