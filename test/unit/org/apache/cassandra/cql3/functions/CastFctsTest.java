@@ -292,4 +292,23 @@ public class CastFctsTest extends CQLTester
         assertRows(execute("SELECT CAST(" + f + "(CAST(b AS int)) AS text) FROM %s"),
                    row("2.0"));
     }
+
+    @Test
+    public void testCounterCastsInSelectionClause() throws Throwable
+    {
+        createTable("CREATE TABLE %s (a int primary key, b counter)");
+
+        execute("UPDATE %s SET b = b + 2 WHERE a = 1");
+
+        assertRows(execute("SELECT CAST(b AS tinyint), " +
+                "CAST(b AS smallint), " +
+                "CAST(b AS int), " +
+                "CAST(b AS bigint), " +
+                "CAST(b AS float), " +
+                "CAST(b AS double), " +
+                "CAST(b AS decimal), " +
+                "CAST(b AS ascii), " +
+                "CAST(b AS text) FROM %s"),
+                   row((byte) 2, (short) 2, 2, 2L, 2.0F, 2.0, BigDecimal.valueOf(2.0), "2", "2"));
+    }
 }

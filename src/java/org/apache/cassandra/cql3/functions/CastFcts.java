@@ -146,7 +146,17 @@ public final class CastFcts
                                                    java.util.function.Function<I, O> converter)
     {
         if (!inputType.equals(outputType))
-            functions.add(JavaFunctionWrapper.create(inputType, outputType, converter));
+            functions.add(wrapJavaFunction(inputType, outputType, converter));
+    }
+
+    @SuppressWarnings("unchecked")
+    private static <O, I> Function wrapJavaFunction(AbstractType<I> inputType,
+                                                    AbstractType<O> outputType,
+                                                    java.util.function.Function<I, O> converter)
+    {
+        return inputType.equals(CounterColumnType.instance)
+                ? JavaCounterFunctionWrapper.create(outputType, (java.util.function.Function<Long, O>) converter)
+                : JavaFunctionWrapper.create(inputType, outputType, converter);
     }
 
     private static String toLowerCaseString(CQL3Type type)
@@ -192,7 +202,7 @@ public final class CastFcts
      * @param <I> the input parameter
      * @param <O> the output parameter
      */
-    private static final class JavaFunctionWrapper<I, O> extends CastFunction<I, O>
+    private static class JavaFunctionWrapper<I, O> extends CastFunction<I, O>
     {
         /**
          * The java function used to convert the input type into the output one.
@@ -206,21 +216,54 @@ public final class CastFcts
             return new JavaFunctionWrapper<I, O>(inputType, outputType, converter);
         }
 
-        private JavaFunctionWrapper(AbstractType<I> inputType,
-                                    AbstractType<O> outputType,
-                                    java.util.function.Function<I, O> converter)
+        protected JavaFunctionWrapper(AbstractType<I> inputType,
+                                      AbstractType<O> outputType,
+                                      java.util.function.Function<I, O> converter)
         {
             super(inputType, outputType);
             this.converter = converter;
         }
 
-        public ByteBuffer execute(int protocolVersion, List<ByteBuffer> parameters)
+        public final ByteBuffer execute(int protocolVersion, List<ByteBuffer> parameters)
         {
             ByteBuffer bb = parameters.get(0);
             if (bb == null)
                 return null;
 
-            return outputType().decompose(converter.apply(inputType().compose(bb)));
+            return outputType().decompose(converter.apply(compose(bb)));
+        }
+
+        protected I compose(ByteBuffer bb)
+        {
+            return inputType().compose(bb);
+        }
+    };
+
+    /**
+     * <code>JavaFunctionWrapper</code> for counter columns.
+     *
+     * <p>Counter columns need to be handled in a special way because their binary representation is converted into
+     * the one of a BIGINT before functions are applied.</p>
+     *
+     * @param <O> the output parameter
+     */
+    private static class JavaCounterFunctionWrapper<O> extends JavaFunctionWrapper<Long, O>
+    {
+        public static <O> JavaFunctionWrapper<Long, O> create(AbstractType<O> outputType,
+                                                              java.util.function.Function<Long, O> converter)
+        {
+            return new JavaCounterFunctionWrapper<O>(outputType, converter);
+        }
+
+        protected JavaCounterFunctionWrapper(AbstractType<O> outputType,
+                                            java.util.function.Function<Long, O> converter)
+        {
+            super(CounterColumnType.instance, outputType, converter);
+        }
+
+        protected Long compose(ByteBuffer bb)
+        {
+            return LongType.instance.compose(bb);
         }
     };
 
