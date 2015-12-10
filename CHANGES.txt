@@ -1,4 +1,6 @@
 3.0.2
+ * Fix upgrade data loss due to range tombstone deleting more data than then should
+   (CASSANDRA-10822)
 Merged from 2.2
  * Add property to allow listening on broadcast interface (CASSANDRA-9748)
  * Fix regression in split size on CqlInputFormat (CASSANDRA-10835)
