@@ -1,6 +1,13 @@
 3.0.2
+Merged from 2.2
+ * Add property to allow listening on broadcast interface (CASSANDRA-9748)
+ * Fix regression in split size on CqlInputFormat (CASSANDRA-10835)
+ * Better handling of SSL connection errors inter-node (CASSANDRA-10816)
+ * Disable reloading of GossipingPropertyFileSnitch (CASSANDRA-9474)
+ * Verify tables in pseudo-system keyspaces at startup (CASSANDRA-10761)
 Merged from 2.1:
  * Allow cancellation of index summary redistribution (CASSANDRA-8805)
+
 3.0.1
  * Avoid MV race during node decommission (CASSANDRA-10674)
  * Disable reloading of GossipingPropertyFileSnitch (CASSANDRA-9474)
