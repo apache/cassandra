@@ -32,7 +32,8 @@ public enum OperationType
     TOMBSTONE_COMPACTION("Tombstone Compaction"),
     UNKNOWN("Unknown compaction type"),
     ANTICOMPACTION("Anticompaction after repair"),
-    VERIFY("Verify");
+    VERIFY("Verify"),
+    INDEX_SUMMARY("Index summary redistribution");
 
     private final String type;
 

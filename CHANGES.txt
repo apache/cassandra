@@ -4,6 +4,7 @@
  * Disable reloading of GossipingPropertyFileSnitch (CASSANDRA-9474)
  * Verify tables in pseudo-system keyspaces at startup (CASSANDRA-10761)
 Merged from 2.1:
+ * Allow cancellation of index summary redistribution (CASSANDRA-8805)
  * Fix Stress profile parsing on Windows (CASSANDRA-10808)
 
 2.2.4
