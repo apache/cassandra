@@ -202,6 +202,8 @@ public class CassandraDaemon
             logger.info("{} {}: {}", pool.getName(), pool.getType(), pool.getPeakUsage());
         logger.info("Classpath: {}", System.getProperty("java.class.path"));
 
+        logger.info("JVM Arguments: {}", ManagementFactory.getRuntimeMXBean().getInputArguments());
+
         // Fail-fast if JNA is not available or failing to initialize properly
         // except with -Dcassandra.boot_without_jna=true. See CASSANDRA-6575.
         if (!CLibrary.jnaAvailable())
