@@ -4071,28 +4071,32 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
 
     	if (keyspace != null)
     	{
-    		Keyspace keyspaceInstance = Schema.instance.getKeyspaceInstance(keyspace);
-			if(keyspaceInstance == null)
-				throw new IllegalArgumentException("The keyspace " + keyspace + ", does not exist");
+            Keyspace keyspaceInstance = Schema.instance.getKeyspaceInstance(keyspace);
+            if(keyspaceInstance == null)
+                throw new IllegalArgumentException("The keyspace " + keyspace + ", does not exist");
 
-    		if(keyspaceInstance.getReplicationStrategy() instanceof LocalStrategy)
-				throw new IllegalStateException("Ownership values for keyspaces with LocalStrategy are meaningless");
+            if(keyspaceInstance.getReplicationStrategy() instanceof LocalStrategy)
+                throw new IllegalStateException("Ownership values for keyspaces with LocalStrategy are meaningless");
     	}
     	else
     	{
-        	List<String> nonSystemKeyspaces = Schema.instance.getNonSystemKeyspaces();
+            List<String> nonSystemKeyspaces = Schema.instance.getNonSystemKeyspaces();
 
-        	//system_traces is a non-system keyspace however it needs to be counted as one for this process
-        	int specialTableCount = 0;
-        	if (nonSystemKeyspaces.contains("system_traces"))
-			{
-        		specialTableCount += 1;
-			}
-        	if (nonSystemKeyspaces.size() > specialTableCount)
-        		throw new IllegalStateException("Non-system keyspaces don't have the same replication settings, effective ownership information is meaningless");
+            //system_traces is a non-system keyspace however it needs to be counted as one for this process
+            int specialTableCount = 0;
+            if (nonSystemKeyspaces.contains("system_traces"))
+            {
+                specialTableCount += 1;
+            }
+            if (nonSystemKeyspaces.size() > specialTableCount)
+                throw new IllegalStateException("Non-system keyspaces don't have the same replication settings, effective ownership information is meaningless");
 
-        	keyspace = "system_traces";
-    	}
+            keyspace = "system_traces";
+
+            Keyspace keyspaceInstance = Schema.instance.getKeyspaceInstance(keyspace);
+            if(keyspaceInstance == null)
+                throw new IllegalArgumentException("The node does not have " + keyspace + " yet, probably still bootstrapping");
+        }
 
         TokenMetadata metadata = tokenMetadata.cloneOnlyTokenMap();
 
