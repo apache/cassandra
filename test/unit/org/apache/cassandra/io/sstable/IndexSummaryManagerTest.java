@@ -22,12 +22,17 @@ import java.nio.ByteBuffer;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.Comparator;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.Future;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicReference;
 
+import com.google.common.base.Joiner;
+import com.google.common.collect.Sets;
 import org.junit.After;
 import org.junit.Before;
 import org.junit.BeforeClass;
@@ -42,11 +47,15 @@ import org.apache.cassandra.Util;
 import org.apache.cassandra.db.ColumnFamilyStore;
 import org.apache.cassandra.db.Keyspace;
 import org.apache.cassandra.db.RowUpdateBuilder;
+import org.apache.cassandra.db.compaction.CompactionInfo;
+import org.apache.cassandra.db.compaction.CompactionInterruptedException;
+import org.apache.cassandra.db.compaction.CompactionManager;
 import org.apache.cassandra.db.rows.*;
 import org.apache.cassandra.db.compaction.OperationType;
+import org.apache.cassandra.db.lifecycle.LifecycleTransaction;
 import org.apache.cassandra.exceptions.ConfigurationException;
 import org.apache.cassandra.io.sstable.format.SSTableReader;
-import org.apache.cassandra.db.lifecycle.LifecycleTransaction;
+import org.apache.cassandra.metrics.CompactionMetrics;
 import org.apache.cassandra.metrics.RestorableMeter;
 import org.apache.cassandra.schema.CachingParams;
 import org.apache.cassandra.schema.KeyspaceParams;
@@ -55,8 +64,8 @@ import org.apache.cassandra.utils.ByteBufferUtil;
 import static com.google.common.collect.ImmutableMap.of;
 import static java.util.Arrays.asList;
 import static org.apache.cassandra.io.sstable.Downsampling.BASE_SAMPLING_LEVEL;
-import static org.apache.cassandra.io.sstable.IndexSummaryManager.DOWNSAMPLE_THESHOLD;
-import static org.apache.cassandra.io.sstable.IndexSummaryManager.UPSAMPLE_THRESHOLD;
+import static org.apache.cassandra.io.sstable.IndexSummaryRedistribution.DOWNSAMPLE_THESHOLD;
+import static org.apache.cassandra.io.sstable.IndexSummaryRedistribution.UPSAMPLE_THRESHOLD;
 import static org.apache.cassandra.io.sstable.IndexSummaryManager.redistributeSummaries;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertNotNull;
@@ -109,6 +118,11 @@ public class IndexSummaryManagerTest
     @After
     public void afterTest()
     {
+        for (CompactionInfo.Holder holder: CompactionMetrics.getCompactions())
+        {
+            holder.stop();
+        }
+
         String ksname = KEYSPACE1;
         String cfname = CF_STANDARDLOWiINTERVAL; // index interval of 8, no key caching
         Keyspace keyspace = Keyspace.open(ksname);
@@ -589,5 +603,65 @@ public class IndexSummaryManagerTest
             if (entry.getKey().contains(CF_STANDARDLOWiINTERVAL))
                 assertTrue(entry.getValue() >= cfs.metadata.params.minIndexInterval);
         }
+    }
+
+    @Test
+    public void testCancelIndex() throws Exception
+    {
+        String ksname = KEYSPACE1;
+        String cfname = CF_STANDARDLOWiINTERVAL; // index interval of 8, no key caching
+        Keyspace keyspace = Keyspace.open(ksname);
+        final ColumnFamilyStore cfs = keyspace.getColumnFamilyStore(cfname);
+        final int numSSTables = 4;
+        int numRows = 256;
+        createSSTables(ksname, cfname, numSSTables, numRows);
+
+        final List<SSTableReader> sstables = new ArrayList<>(cfs.getLiveSSTables());
+        for (SSTableReader sstable : sstables)
+            sstable.overrideReadMeter(new RestorableMeter(100.0, 100.0));
+
+        final long singleSummaryOffHeapSpace = sstables.get(0).getIndexSummaryOffHeapSize();
+
+        // everything should get cut in half
+        final AtomicReference<CompactionInterruptedException> exception = new AtomicReference<>();
+
+        Thread t = new Thread(new Runnable()
+        {
+            public void run()
+            {
+                try
+                {
+                    // Don't leave enough space for even the minimal index summaries
+                    try (LifecycleTransaction txn = cfs.getTracker().tryModify(sstables, OperationType.UNKNOWN))
+                    {
+                        redistributeSummaries(Collections.EMPTY_LIST, of(cfs.metadata.cfId, txn), singleSummaryOffHeapSpace);
+                    }
+                }
+                catch (CompactionInterruptedException ex)
+                {
+                    exception.set(ex);
+                }
+                catch (IOException ignored)
+                {
+                }
+            }
+        });
+        t.start();
+        while (CompactionManager.instance.getActiveCompactions() == 0 && t.isAlive())
+            Thread.sleep(1);
+        CompactionManager.instance.stopCompaction("INDEX_SUMMARY");
+        t.join();
+
+        assertNotNull("Expected compaction interrupted exception", exception.get());
+        assertTrue("Expected no active compactions", CompactionMetrics.getCompactions().isEmpty());
+
+        Set<SSTableReader> beforeRedistributionSSTables = new HashSet<>(sstables);
+        Set<SSTableReader> afterCancelSSTables = new HashSet<>(cfs.getLiveSSTables());
+        Set<SSTableReader> disjoint = Sets.symmetricDifference(beforeRedistributionSSTables, afterCancelSSTables);
+        assertTrue(String.format("Mismatched files before and after cancelling redistribution: %s",
+                                 Joiner.on(",").join(disjoint)),
+                   disjoint.isEmpty());
+
+        validateData(cfs, numRows);
     }
 }

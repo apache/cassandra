@@ -106,9 +106,17 @@ public final class CompactionInfo implements Serializable
     public String toString()
     {
         StringBuilder buff = new StringBuilder();
-        buff.append(getTaskType()).append('@').append(getId());
-        buff.append('(').append(getKeyspace()).append(", ").append(getColumnFamily());
-        buff.append(", ").append(getCompleted()).append('/').append(getTotal());
+        buff.append(getTaskType());
+        if (cfm != null)
+        {
+            buff.append('@').append(getId()).append('(');
+            buff.append(getKeyspace()).append(", ").append(getColumnFamily()).append(", ");
+        }
+        else
+        {
+            buff.append('(');
+        }
+        buff.append(getCompleted()).append('/').append(getTotal());
         return buff.append(')').append(unit).toString();
     }
 

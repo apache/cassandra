@@ -53,6 +53,7 @@ import org.apache.cassandra.dht.Token;
 import org.apache.cassandra.index.SecondaryIndexBuilder;
 import org.apache.cassandra.io.sstable.Descriptor;
 import org.apache.cassandra.io.sstable.ISSTableScanner;
+import org.apache.cassandra.io.sstable.IndexSummaryRedistribution;
 import org.apache.cassandra.io.sstable.SSTableRewriter;
 import org.apache.cassandra.io.sstable.SnapshotDeletingTask;
 import org.apache.cassandra.io.sstable.format.SSTableReader;
@@ -1322,6 +1323,20 @@ public class CompactionManager implements CompactionManagerMBean
             Futures.immediateCancelledFuture();
         }
         return executor.submit(runnable);
+    }
+
+    public List<SSTableReader> runIndexSummaryRedistribution(IndexSummaryRedistribution redistribution) throws IOException
+    {
+        metrics.beginCompaction(redistribution);
+
+        try
+        {
+            return redistribution.redistributeSummaries();
+        }
+        finally
+        {
+            metrics.finishCompaction(redistribution);
+        }
     }
 
     public static int getDefaultGcBefore(ColumnFamilyStore cfs, int nowInSec)

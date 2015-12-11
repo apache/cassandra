@@ -36,7 +36,8 @@ public enum OperationType
     FLUSH("Flush"),
     STREAM("Stream"),
     WRITE("Write"),
-    VIEW_BUILD("View build");
+    VIEW_BUILD("View build"),
+    INDEX_SUMMARY("Index summary redistribution");
 
     public final String type;
     public final String fileName;

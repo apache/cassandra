@@ -14,6 +14,8 @@
  * Added graphing option to cassandra-stress (CASSANDRA-7918)
  * Abort in-progress queries that time out (CASSANDRA-7392)
  * Add transparent data encryption core classes (CASSANDRA-9945)
+Merged from 2.1:
+ * Allow cancellation of index summary redistribution (CASSANDRA-8805)
 
 
 3.1
