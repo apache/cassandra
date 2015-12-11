@@ -25,6 +25,7 @@ import java.text.DecimalFormat;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
+import java.util.Map.Entry;
 
 import org.apache.cassandra.db.compaction.CompactionManagerMBean;
 import org.apache.cassandra.db.compaction.OperationType;
@@ -45,7 +46,34 @@ public class CompactionStats extends NodeToolCmd
     public void execute(NodeProbe probe)
     {
         CompactionManagerMBean cm = probe.getCompactionManagerProxy();
-        System.out.println("pending tasks: " + probe.getCompactionMetric("PendingTasks"));
+        Map<String, Map<String, Integer>> pendingTaskNumberByTable =
+            (Map<String, Map<String, Integer>>) probe.getCompactionMetric("PendingTasksByTableName");
+        int numTotalPendingTask = 0;
+        for (Entry<String, Map<String, Integer>> ksEntry : pendingTaskNumberByTable.entrySet())
+        {
+            for (Entry<String, Integer> tableEntry : ksEntry.getValue().entrySet())
+                numTotalPendingTask += tableEntry.getValue();
+        }
+        System.out.println("pending tasks: "+numTotalPendingTask);
+        for (Entry<String, Map<String, Integer>> ksEntry : pendingTaskNumberByTable.entrySet())
+        {
+            String ksName = ksEntry.getKey();
+            for (Entry<String, Integer> tableEntry : ksEntry.getValue().entrySet())
+            {
+                String tableName = tableEntry.getKey();
+                int pendingTaskCount = tableEntry.getValue();
+
+                StringBuilder builder = new StringBuilder();
+                builder.append("- ");
+                builder.append(ksName);
+                builder.append('.');
+                builder.append(tableName);
+                builder.append(": ");
+                builder.append(pendingTaskCount);
+                System.out.println(builder.toString());
+            }
+        }
+        System.out.println();
         long remainingBytes = 0;
         List<Map<String, String>> compactions = cm.getCompactions();
         if (!compactions.isEmpty())

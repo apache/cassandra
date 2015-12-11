@@ -24,6 +24,7 @@ import com.codahale.metrics.Counter;
 import com.codahale.metrics.Gauge;
 import com.codahale.metrics.Meter;
 
+import org.apache.cassandra.config.CFMetaData;
 import org.apache.cassandra.config.Schema;
 import org.apache.cassandra.db.ColumnFamilyStore;
 import org.apache.cassandra.db.Keyspace;
@@ -44,6 +45,9 @@ public class CompactionMetrics implements CompactionManager.CompactionExecutorSt
 
     /** Estimated number of compactions remaining to perform */
     public final Gauge<Integer> pendingTasks;
+    /** Estimated number of compactions remaining to perform, group by keyspace and then table name */
+    public final Gauge<Map<String, Map<String, Integer>>> pendingTasksByTableName;
+
     /** Number of completed compactions since server [re]start */
     public final Gauge<Long> completedTasks;
     /** Total number of compactions since server [re]start */
@@ -68,6 +72,54 @@ public class CompactionMetrics implements CompactionManager.CompactionExecutorSt
                 return n + compactions.size();
             }
         });
+
+        pendingTasksByTableName = Metrics.register(factory.createMetricName("PendingTasksByTableName"),
+            new Gauge<Map<String, Map<String, Integer>>>()
+        {
+            @Override
+            public Map<String, Map<String, Integer>> getValue() {
+                Map<String, Map<String, Integer>> resultMap = new HashMap<>();
+                // estimation of compactions need to be done
+                for (String keyspaceName : Schema.instance.getKeyspaces())
+                {
+                    for (ColumnFamilyStore cfs : Keyspace.open(keyspaceName).getColumnFamilyStores())
+                    {
+                        int taskNumber = cfs.getCompactionStrategyManager().getEstimatedRemainingTasks();
+                        if (taskNumber > 0)
+                        {
+                            if (!resultMap.containsKey(keyspaceName))
+                            {
+                                resultMap.put(keyspaceName, new HashMap<>());
+                            }
+                            resultMap.get(keyspaceName).put(cfs.getTableName(), taskNumber);
+                        }
+                    }
+                }
+
+                // currently running compactions
+                for (CompactionInfo.Holder compaction : compactions)
+                {
+                    CFMetaData metaData = compaction.getCompactionInfo().getCFMetaData();
+                    if (!resultMap.containsKey(metaData.ksName))
+                    {
+                        resultMap.put(metaData.ksName, new HashMap<>());
+                    }
+
+                    Map<String, Integer> tableNameToCountMap = resultMap.get(metaData.ksName);
+                    if (tableNameToCountMap.containsKey(metaData.cfName))
+                    {
+                        tableNameToCountMap.put(metaData.cfName,
+                                                tableNameToCountMap.get(metaData.cfName) + 1);
+                    }
+                    else
+                    {
+                        tableNameToCountMap.put(metaData.cfName, 1);
+                    }
+                }
+                return resultMap;
+            }
+        });
+
         completedTasks = Metrics.register(factory.createMetricName("CompletedTasks"), new Gauge<Long>()
         {
             public Long getValue()

@@ -1,4 +1,5 @@
 3.2
+ * Group pending compactions based on table (CASSANDRA-10718)
  * Add compressor name in sstablemetadata output (CASSANDRA-9879)
  * Fix type casting for counter columns (CASSANDRA-10824)
  * Prevent running Cassandra as root (CASSANDRA-8142)
