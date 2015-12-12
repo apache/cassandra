@@ -324,8 +324,8 @@ public class DatabaseDescriptor
         if (conf.authorizer != null)
             authorizer = FBUtilities.newAuthorizer(conf.authorizer);
 
-        if (authenticator instanceof AllowAllAuthenticator && !(authorizer instanceof AllowAllAuthorizer))
-            throw new ConfigurationException("AllowAllAuthenticator can't be used with " +  conf.authorizer, false);
+        if (!authenticator.requireAuthentication() && authorizer.requireAuthorization())
+            throw new ConfigurationException(conf.authenticator + " can't be used with " +  conf.authorizer, false);
 
         if (conf.role_manager != null)
             roleManager = FBUtilities.newRoleManager(conf.role_manager);

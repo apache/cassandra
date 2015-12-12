@@ -107,7 +107,7 @@ public class PermissionsCache implements PermissionsCacheMBean
     private LoadingCache<Pair<AuthenticatedUser, IResource>, Set<Permission>> initCache(
                                                              LoadingCache<Pair<AuthenticatedUser, IResource>, Set<Permission>> existing)
     {
-        if (authorizer instanceof AllowAllAuthorizer)
+        if (!authorizer.requireAuthorization())
             return null;
 
         if (DatabaseDescriptor.getPermissionsValidity() <= 0)

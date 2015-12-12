@@ -274,7 +274,7 @@ public class ClientState
 
     public void ensureHasPermission(Permission perm, IResource resource) throws UnauthorizedException
     {
-        if (DatabaseDescriptor.getAuthorizer() instanceof AllowAllAuthorizer)
+        if (!DatabaseDescriptor.getAuthorizer().requireAuthorization())
             return;
 
         // Access to built in functions is unrestricted
@@ -290,7 +290,7 @@ public class ClientState
     public void ensureHasPermission(Permission permission, Function function)
     {
         // Save creating a FunctionResource is we don't need to
-        if (DatabaseDescriptor.getAuthorizer() instanceof AllowAllAuthorizer)
+        if (!DatabaseDescriptor.getAuthorizer().requireAuthorization())
             return;
 
         // built in functions are always available to all
