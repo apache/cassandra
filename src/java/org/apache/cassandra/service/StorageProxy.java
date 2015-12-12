@@ -723,7 +723,7 @@ public class StorageProxy implements StorageProxyMBean
                         //if there are no paired endpoints there are probably range movements going on,
                         //so we write to the local batchlog to replay later
                         if (pendingEndpoints.isEmpty())
-                            logger.warn("Received base materialized view mutation for key %s that does not belong " +
+                            logger.warn("Received base materialized view mutation for key {} that does not belong " +
                                         "to this node. There is probably a range movement happening (move or decommission)," +
                                         "but this node hasn't updated its ring metadata yet. Adding mutation to " +
                                         "local batchlog to be replayed later.",
