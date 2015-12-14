@@ -534,9 +534,11 @@ public class CompactionManager implements CompactionManagerMBean
             return Collections.emptyList();
 
         List<Future<?>> futures = new ArrayList<>();
-
+        int nonEmptyTasks = 0;
         for (final AbstractCompactionTask task : tasks)
         {
+            if (task.sstables.size() > 0)
+                nonEmptyTasks++;
             Runnable runnable = new WrappedRunnable()
             {
                 protected void runMayThrow() throws IOException
@@ -551,6 +553,8 @@ public class CompactionManager implements CompactionManagerMBean
             }
             futures.add(executor.submit(runnable));
         }
+        if (nonEmptyTasks > 1)
+            logger.info("Cannot perform a full major compaction as repaired and unrepaired sstables cannot be compacted together. These two set of sstables will be compacted separately.");
         return futures;
     }
 
