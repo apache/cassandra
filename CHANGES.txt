@@ -1,4 +1,5 @@
 2.1.13
+ * Make Stress compiles within eclipse (CASSANDRA-10807)
  * Cassandra Daemon should print JVM arguments (CASSANDRA-10764)
  * Allow cancellation of index summary redistribution (CASSANDRA-8805)
  * Disable reloading of GossipingPropertyFileSnitch (CASSANDRA-9474)
