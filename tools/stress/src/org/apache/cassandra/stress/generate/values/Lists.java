@@ -26,16 +26,17 @@ import java.util.List;
 
 import org.apache.cassandra.db.marshal.ListType;
 
-public class Lists extends Generator<List>
+public class Lists<T> extends Generator<List<T>>
 {
-    final Generator valueType;
-    final Object[] buffer;
+    final Generator<T> valueType;
+    final T[] buffer;
 
-    public Lists(String name, Generator valueType, GeneratorConfig config)
+    @SuppressWarnings("unchecked")
+    public Lists(String name, Generator<T> valueType, GeneratorConfig config)
     {
         super(ListType.getInstance(valueType.type, true), config, name, List.class);
         this.valueType = valueType;
-        buffer = new Object[(int) sizeDistribution.maxValue()];
+        buffer = (T[]) new Object[(int) sizeDistribution.maxValue()];
     }
 
     public void setSeed(long seed)
@@ -45,7 +46,7 @@ public class Lists extends Generator<List>
     }
 
     @Override
-    public List generate()
+    public List<T> generate()
     {
         int size = (int) sizeDistribution.next();
         for (int i = 0 ; i < size ; i++)
