@@ -24,6 +24,9 @@ import java.util.concurrent.ConcurrentMap;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
 
+import com.github.benmanes.caffeine.cache.Cache;
+import com.github.benmanes.caffeine.cache.Caffeine;
+import com.github.benmanes.caffeine.cache.RemovalCause;
 import com.google.common.annotations.VisibleForTesting;
 import com.google.common.base.Predicate;
 import com.google.common.collect.Iterables;
@@ -32,7 +35,6 @@ import com.google.common.primitives.Ints;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import com.googlecode.concurrentlinkedhashmap.ConcurrentLinkedHashMap;
 import org.antlr.runtime.*;
 import org.apache.cassandra.concurrent.ScheduledExecutors;
 import org.apache.cassandra.config.Config;
@@ -67,8 +69,8 @@ public class QueryProcessor implements QueryHandler
 
     private static final Logger logger = LoggerFactory.getLogger(QueryProcessor.class);
 
-    private static final ConcurrentLinkedHashMap<MD5Digest, ParsedStatement.Prepared> preparedStatements;
-    private static final ConcurrentLinkedHashMap<Integer, ParsedStatement.Prepared> thriftPreparedStatements;
+    private static final Cache<MD5Digest, ParsedStatement.Prepared> preparedStatements;
+    private static final Cache<Integer, ParsedStatement.Prepared> thriftPreparedStatements;
 
     // A map for prepared statements used internally (which we don't want to mix with user statement, in particular we don't
     // bother with expiration on those.
@@ -83,20 +85,24 @@ public class QueryProcessor implements QueryHandler
 
     static
     {
-        preparedStatements = new ConcurrentLinkedHashMap.Builder<MD5Digest, ParsedStatement.Prepared>()
-                             .maximumWeightedCapacity(capacityToBytes(DatabaseDescriptor.getPreparedStatementsCacheSizeMB()))
+        preparedStatements = Caffeine.newBuilder()
+                             .maximumWeight(capacityToBytes(DatabaseDescriptor.getPreparedStatementsCacheSizeMB()))
                              .weigher(QueryProcessor::measure)
-                             .listener((md5Digest, prepared) -> {
-                                 metrics.preparedStatementsEvicted.inc();
-                                 lastMinuteEvictionsCount.incrementAndGet();
+                             .removalListener((md5Digest, prepared, cause) -> {
+                                 if (cause == RemovalCause.SIZE) {
+                                     metrics.preparedStatementsEvicted.inc();
+                                     lastMinuteEvictionsCount.incrementAndGet();                                   
+                                 }
                              }).build();
 
-        thriftPreparedStatements = new ConcurrentLinkedHashMap.Builder<Integer, ParsedStatement.Prepared>()
-                                   .maximumWeightedCapacity(capacityToBytes(DatabaseDescriptor.getThriftPreparedStatementsCacheSizeMB()))
+        thriftPreparedStatements = Caffeine.newBuilder()
+                                   .maximumWeight(capacityToBytes(DatabaseDescriptor.getThriftPreparedStatementsCacheSizeMB()))
                                    .weigher(QueryProcessor::measure)
-                                   .listener((integer, prepared) -> {
-                                       metrics.preparedStatementsEvicted.inc();
-                                       thriftLastMinuteEvictionsCount.incrementAndGet();
+                                   .removalListener((integer, prepared, cause) -> {
+                                       if (cause == RemovalCause.SIZE) {
+                                           metrics.preparedStatementsEvicted.inc();
+                                           thriftLastMinuteEvictionsCount.incrementAndGet();
+                                       }
                                    })
                                    .build();
 
@@ -125,7 +131,7 @@ public class QueryProcessor implements QueryHandler
 
     public static int preparedStatementsCount()
     {
-        return preparedStatements.size() + thriftPreparedStatements.size();
+        return preparedStatements.asMap().size() + thriftPreparedStatements.asMap().size();
     }
 
     // Work around initialization dependency
@@ -166,8 +172,8 @@ public class QueryProcessor implements QueryHandler
     @VisibleForTesting
     public static void clearPrepraredStatements()
     {
-        preparedStatements.clear();
-        thriftPreparedStatements.clear();
+        preparedStatements.invalidateAll();;
+        thriftPreparedStatements.invalidateAll();
     }
 
     private static QueryState internalQueryState()
@@ -182,12 +188,12 @@ public class QueryProcessor implements QueryHandler
 
     public ParsedStatement.Prepared getPrepared(MD5Digest id)
     {
-        return preparedStatements.get(id);
+        return preparedStatements.getIfPresent(id);
     }
 
     public ParsedStatement.Prepared getPreparedForThrift(Integer id)
     {
-        return thriftPreparedStatements.get(id);
+        return thriftPreparedStatements.getIfPresent(id);
     }
 
     public static void validateKey(ByteBuffer key) throws InvalidRequestException
@@ -438,7 +444,7 @@ public class QueryProcessor implements QueryHandler
         if (forThrift)
         {
             Integer thriftStatementId = computeThriftId(queryString, keyspace);
-            ParsedStatement.Prepared existing = thriftPreparedStatements.get(thriftStatementId);
+            ParsedStatement.Prepared existing = thriftPreparedStatements.getIfPresent(thriftStatementId);
             if (existing == null)
                 return null;
 
@@ -449,7 +455,7 @@ public class QueryProcessor implements QueryHandler
         else
         {
             MD5Digest statementId = computeId(queryString, keyspace);
-            ParsedStatement.Prepared existing = preparedStatements.get(statementId);
+            ParsedStatement.Prepared existing = preparedStatements.getIfPresent(statementId);
             if (existing == null)
                 return null;
 
@@ -617,15 +623,15 @@ public class QueryProcessor implements QueryHandler
         private static void removeInvalidPreparedStatements(String ksName, String cfName)
         {
             removeInvalidPreparedStatements(internalStatements.values().iterator(), ksName, cfName);
-            removeInvalidPersistentPreparedStatements(preparedStatements.entrySet().iterator(), ksName, cfName);
-            removeInvalidPreparedStatements(thriftPreparedStatements.values().iterator(), ksName, cfName);
+            removeInvalidPersistentPreparedStatements(preparedStatements.asMap().entrySet().iterator(), ksName, cfName);
+            removeInvalidPreparedStatements(thriftPreparedStatements.asMap().values().iterator(), ksName, cfName);
         }
 
         private static void removeInvalidPreparedStatementsForFunction(String ksName, String functionName)
         {
             Predicate<Function> matchesFunction = f -> ksName.equals(f.name().keyspace) && functionName.equals(f.name().name);
 
-            for (Iterator<Map.Entry<MD5Digest, ParsedStatement.Prepared>> iter = preparedStatements.entrySet().iterator();
+            for (Iterator<Map.Entry<MD5Digest, ParsedStatement.Prepared>> iter = preparedStatements.asMap().entrySet().iterator();
                  iter.hasNext();)
             {
                 Map.Entry<MD5Digest, ParsedStatement.Prepared> pstmt = iter.next();
@@ -640,7 +646,7 @@ public class QueryProcessor implements QueryHandler
             Iterators.removeIf(internalStatements.values().iterator(),
                                statement -> Iterables.any(statement.statement.getFunctions(), matchesFunction));
 
-            Iterators.removeIf(thriftPreparedStatements.values().iterator(),
+            Iterators.removeIf(thriftPreparedStatements.asMap().values().iterator(),
                                statement -> Iterables.any(statement.statement.getFunctions(), matchesFunction));
         }
 
