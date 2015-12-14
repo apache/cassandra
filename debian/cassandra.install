@@ -19,7 +19,6 @@ bin/cqlsh.py usr/bin
 bin/sstablescrub usr/bin
 bin/sstableupgrade usr/bin
 tools/bin/cassandra-stress usr/bin
-tools/bin/sstablemetadata usr/bin
 lib/*.jar usr/share/cassandra/lib
 lib/*.zip usr/share/cassandra/lib
 lib/sigar-bin/* usr/share/cassandra/lib/sigar-bin
