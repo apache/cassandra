@@ -24,9 +24,10 @@ import java.util.*;
 import com.google.common.base.Joiner;
 import com.google.common.collect.HashMultimap;
 import com.google.common.collect.Multimap;
-import com.google.common.collect.Sets;
 
 import org.apache.commons.cli.*;
+import org.apache.commons.lang3.StringUtils;
+
 import org.apache.thrift.protocol.TBinaryProtocol;
 import org.apache.thrift.protocol.TProtocol;
 import org.apache.thrift.transport.TTransport;
@@ -310,10 +311,11 @@ public class BulkLoader
                         }
                     }
 
-                    String cfQuery = String.format("SELECT * FROM %s.%s WHERE keyspace_name = '%s'",
-                                                 Keyspace.SYSTEM_KS,
-                                                 SystemKeyspace.SCHEMA_COLUMNFAMILIES_CF,
-                                                 keyspace);
+                    String cfQuery = String.format("SELECT %s FROM %s.%s WHERE keyspace_name = '%s'",
+                                                   StringUtils.join(getCFColumnsWithoutCollections(), ","),
+                                                   Keyspace.SYSTEM_KS,
+                                                   SystemKeyspace.SCHEMA_COLUMNFAMILIES_CF,
+                                                   keyspace);
                     CqlResult cfRes = client.execute_cql3_query(ByteBufferUtil.bytes(cfQuery), Compression.NONE, ConsistencyLevel.ONE);
 
 
@@ -338,6 +340,25 @@ public class BulkLoader
                         throw new RuntimeException("Could not retrieve endpoint ranges: ", e);
                 }
             }
+        }
+
+        //Remove dropped_columns since we can't parse collections in v2 which is used by thrift
+        //See CASSANDRA-10700
+        List<String> getCFColumnsWithoutCollections()
+        {
+
+            Iterator<ColumnDefinition> allColumns = CFMetaData.SchemaColumnFamiliesCf.allColumnsInSelectOrder();
+            List<String> selectedColumns = new ArrayList<>();
+
+            while (allColumns.hasNext())
+            {
+                ColumnDefinition def = allColumns.next();
+
+                if (!def.type.isCollection())
+                    selectedColumns.add(UTF8Type.instance.getString(def.name.bytes));
+            }
+
+            return selectedColumns;
         }
 
         @Override
