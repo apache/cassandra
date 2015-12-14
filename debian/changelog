@@ -1,3 +1,9 @@
+cassandra (3.0.2) unstable; urgency=medium
+
+  * New release 
+
+ -- Jake Luciani <jake@jakebook>  Mon, 14 Dec 2015 11:58:12 -0500
+
 cassandra (3.0.1) unstable; urgency=medium
 
   * New release
