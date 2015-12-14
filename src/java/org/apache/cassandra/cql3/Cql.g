@@ -982,7 +982,7 @@ alterUserStatement returns [AlterRoleStatement stmt]
         RoleOptions opts = new RoleOptions();
         RoleName name = new RoleName();
     }
-    : K_ALTER K_USER u=username { name.setName($u.text, false); }
+    : K_ALTER K_USER u=username { name.setName($u.text, true); }
       ( K_WITH userPassword[opts] )?
       ( K_SUPERUSER { opts.setOption(IRoleManager.Option.SUPERUSER, true); }
         | K_NOSUPERUSER { opts.setOption(IRoleManager.Option.SUPERUSER, false); } ) ?
@@ -997,7 +997,7 @@ dropUserStatement returns [DropRoleStatement stmt]
         boolean ifExists = false;
         RoleName name = new RoleName();
     }
-    : K_DROP K_USER (K_IF K_EXISTS { ifExists = true; })? u=username { name.setName($u.text, false); $stmt = new DropRoleStatement(name, ifExists); }
+    : K_DROP K_USER (K_IF K_EXISTS { ifExists = true; })? u=username { name.setName($u.text, true); $stmt = new DropRoleStatement(name, ifExists); }
     ;
 
 /**
