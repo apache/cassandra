@@ -37,7 +37,6 @@ import ConfigParser
 import csv
 import getpass
 import locale
-import multiprocessing as mp
 import optparse
 import os
 import platform
@@ -46,10 +45,9 @@ import time
 import traceback
 import warnings
 import webbrowser
-from contextlib import contextmanager
-from functools import partial
-from glob import glob
 from StringIO import StringIO
+from contextlib import contextmanager
+from glob import glob
 from uuid import UUID
 
 if sys.version_info[0] != 2 or sys.version_info[1] != 7:
@@ -142,10 +140,9 @@ except ImportError, e:
 from cassandra.auth import PlainTextAuthProvider
 from cassandra.cluster import Cluster
 from cassandra.metadata import (ColumnMetadata, KeyspaceMetadata,
-                                TableMetadata, protect_name, protect_names,
-                                protect_value)
+                                TableMetadata, protect_name, protect_names)
 from cassandra.policies import WhiteListRoundRobinPolicy
-from cassandra.protocol import QueryMessage, ResultMessage
+from cassandra.protocol import ResultMessage
 from cassandra.query import SimpleStatement, ordered_dict_factory, TraceUnavailable
 
 # cqlsh should run correctly when run out of a Cassandra source tree,
@@ -376,7 +373,7 @@ cqlsh_extra_syntax_rules = r'''
 
 <copyOptionVal> ::= <identifier>
                   | <reserved_identifier>
-                  | <stringLiteral>
+                  | <term>
                   ;
 
 # avoiding just "DEBUG" so that this rule doesn't get treated as a terminal
@@ -457,17 +454,20 @@ def complete_copy_column_names(ctxt, cqlsh):
     return set(colnames[1:]) - set(existcols)
 
 
-COPY_OPTIONS = ['DELIMITER', 'QUOTE', 'ESCAPE', 'HEADER', 'NULL', 'ENCODING',
-                'TIMEFORMAT', 'JOBS', 'PAGESIZE', 'PAGETIMEOUT', 'MAXATTEMPTS']
+COPY_COMMON_OPTIONS = ['DELIMITER', 'QUOTE', 'ESCAPE', 'HEADER', 'NULL',
+                       'MAXATTEMPTS', 'REPORTFREQUENCY']
+COPY_FROM_OPTIONS = ['CHUNKSIZE', 'INGESTRATE', 'MAXBATCHSIZE', 'MINBATCHSIZE']
+COPY_TO_OPTIONS = ['ENCODING', 'TIMEFORMAT', 'PAGESIZE', 'PAGETIMEOUT', 'MAXREQUESTS']
 
 
 @cqlsh_syntax_completer('copyOption', 'optnames')
 def complete_copy_options(ctxt, cqlsh):
     optnames = map(str.upper, ctxt.get_binding('optnames', ()))
     direction = ctxt.get_binding('dir').upper()
-    opts = set(COPY_OPTIONS) - set(optnames)
     if direction == 'FROM':
-        opts -= set(['ENCODING', 'TIMEFORMAT', 'JOBS', 'PAGESIZE', 'PAGETIMEOUT', 'MAXATTEMPTS'])
+        opts = set(COPY_COMMON_OPTIONS + COPY_FROM_OPTIONS) - set(optnames)
+    elif direction == 'TO':
+        opts = set(COPY_COMMON_OPTIONS + COPY_TO_OPTIONS) - set(optnames)
     return opts
 
 
@@ -1728,13 +1728,23 @@ class Shell(cmd.Cmd):
           ESCAPE='\'              - character to appear before the QUOTE char when quoted
           HEADER=false            - whether to ignore the first line
           NULL=''                 - string that represents a null value
-          ENCODING='utf8'         - encoding for CSV output (COPY TO only)
-          TIMEFORMAT=             - timestamp strftime format (COPY TO only)
+          ENCODING='utf8'         - encoding for CSV output (COPY TO)
+          TIMEFORMAT=             - timestamp strftime format (COPY TO)
             '%Y-%m-%d %H:%M:%S%z'   defaults to time_format value in cqlshrc
+          MAXREQUESTS=6           - the maximum number of requests each worker process can work on in parallel (COPY TO)
+          PAGESIZE=1000           - the page size for fetching results (COPY TO)
+          PAGETIMEOUT=10          - the page timeout for fetching results (COPY TO)
+          MAXATTEMPTS=5           - the maximum number of attempts for errors
+          CHUNKSIZE=1000          - the size of chunks passed to worker processes (COPY FROM)
+          INGESTRATE=100000       - an approximate ingest rate in rows per second (COPY FROM)
+          MAXBATCHSIZE=20         - the maximum size of an import batch (COPY FROM)
+          MINBATCHSIZE=2          - the minimum size of an import batch (COPY FROM)
+          REPORTFREQUENCY=0.25    - the frequency with which we display status updates in seconds
 
         When entering CSV data on STDIN, you can use the sequence "\."
         on a line by itself to end the data input.
         """
+
         ks = self.cql_unprotect_name(parsed.get_binding('ksname', None))
         if ks is None:
             ks = self.current_keyspace
@@ -1775,112 +1785,11 @@ class Shell(cmd.Cmd):
     def perform_csv_import(self, ks, cf, columns, fname, opts):
         csv_options, dialect_options, unrecognized_options = copyutil.parse_options(self, opts)
         if unrecognized_options:
-            self.printerr('Unrecognized COPY FROM options: %s'
-                          % ', '.join(unrecognized_options.keys()))
+            self.printerr('Unrecognized COPY FROM options: %s' % ', '.join(unrecognized_options.keys()))
             return 0
-        nullval, header = csv_options['nullval'], csv_options['header']
 
-        if fname is None:
-            do_close = False
-            print "[Use \. on a line by itself to end input]"
-            linesource = self.use_stdin_reader(prompt='[copy] ', until=r'\.')
-        else:
-            do_close = True
-            try:
-                linesource = open(fname, 'rb')
-            except IOError, e:
-                self.printerr("Can't open %r for reading: %s" % (fname, e))
-                return 0
-
-        current_record = None
-        processes, pipes = [], [],
-        try:
-            if header:
-                linesource.next()
-            reader = csv.reader(linesource, **dialect_options)
-
-            num_processes = copyutil.get_num_processes(cap=4)
-
-            for i in range(num_processes):
-                parent_conn, child_conn = mp.Pipe()
-                pipes.append(parent_conn)
-                processes.append(ImportProcess(self, child_conn, ks, cf, columns, nullval))
-
-            for process in processes:
-                process.start()
-
-            meter = copyutil.RateMeter(10000)
-            for current_record, row in enumerate(reader, start=1):
-                # write to the child process
-                pipes[current_record % num_processes].send((current_record, row))
-
-                # update the progress and current rate periodically
-                meter.increment()
-
-                # check for any errors reported by the children
-                if (current_record % 100) == 0:
-                    if self._check_import_processes(current_record, pipes):
-                        # no errors seen, continue with outer loop
-                        continue
-                    else:
-                        # errors seen, break out of outer loop
-                        break
-        except Exception, exc:
-            if current_record is None:
-                # we failed before we started
-                self.printerr("\nError starting import process:\n")
-                self.printerr(str(exc))
-                if self.debug:
-                    traceback.print_exc()
-            else:
-                self.printerr("\n" + str(exc))
-                self.printerr("\nAborting import at record #%d. "
-                              "Previously inserted records and some records after "
-                              "this number may be present."
-                              % (current_record,))
-                if self.debug:
-                    traceback.print_exc()
-        finally:
-            # send a message that indicates we're done
-            for pipe in pipes:
-                pipe.send((None, None))
-
-            for process in processes:
-                process.join()
-
-            self._check_import_processes(current_record, pipes)
-
-            for pipe in pipes:
-                pipe.close()
-
-            if do_close:
-                linesource.close()
-            elif self.tty:
-                print
-
-        return current_record
-
-    def _check_import_processes(self, current_record, pipes):
-        for pipe in pipes:
-            if pipe.poll():
-                try:
-                    (record_num, error) = pipe.recv()
-                    self.printerr("\n" + str(error))
-                    self.printerr(
-                        "Aborting import at record #%d. "
-                        "Previously inserted records are still present, "
-                        "and some records after that may be present as well."
-                        % (record_num,))
-                    return False
-                except EOFError:
-                    # pipe is closed, nothing to read
-                    self.printerr("\nChild process died without notification, "
-                                  "aborting import at record #%d. Previously "
-                                  "inserted records are probably still present, "
-                                  "and some records after that may be present "
-                                  "as well." % (current_record,))
-                    return False
-        return True
+        return copyutil.ImportTask(self, ks, cf, columns, fname, csv_options, dialect_options,
+                                   DEFAULT_PROTOCOL_VERSION, CONFIG_FILE).run()
 
     def perform_csv_export(self, ks, cf, columns, fname, opts):
         csv_options, dialect_options, unrecognized_options = copyutil.parse_options(self, opts)
@@ -2289,192 +2198,6 @@ class Shell(cmd.Cmd):
         if shownum:
             text = '%s:%d:%s' % (self.stdin.name, self.lineno, text)
         self.writeresult(text, color, newline=newline, out=sys.stderr)
-
-
-class ImportProcess(mp.Process):
-
-    def __init__(self, parent, pipe, ks, cf, columns, nullval):
-        mp.Process.__init__(self)
-        self.pipe = pipe
-        self.nullval = nullval
-        self.ks = ks
-        self.cf = cf
-
-        # validate we can fetch metdata but don't store it since win32 needs to pickle
-        parent.get_table_meta(ks, cf)
-
-        self.columns = columns
-        self.consistency_level = parent.consistency_level
-        self.connect_timeout = parent.conn.connect_timeout
-        self.hostname = parent.hostname
-        self.port = parent.port
-        self.ssl = parent.ssl
-        self.auth_provider = parent.auth_provider
-        self.cql_version = parent.conn.cql_version
-        self.debug = parent.debug
-
-    def run(self):
-        new_cluster = Cluster(
-            contact_points=(self.hostname,),
-            port=self.port,
-            cql_version=self.cql_version,
-            protocol_version=DEFAULT_PROTOCOL_VERSION,
-            auth_provider=self.auth_provider,
-            ssl_options=sslhandling.ssl_settings(self.hostname, CONFIG_FILE) if self.ssl else None,
-            load_balancing_policy=WhiteListRoundRobinPolicy([self.hostname]),
-            compression=None,
-            connect_timeout=self.connect_timeout)
-        session = new_cluster.connect(self.ks)
-        conn = session._pools.values()[0]._connection
-
-        table_meta = new_cluster.metadata.keyspaces[self.ks].tables[self.cf]
-
-        pk_cols = [col.name for col in table_meta.primary_key]
-        cqltypes = [table_meta.columns[name].cql_type for name in self.columns]
-        pk_indexes = [self.columns.index(col.name) for col in table_meta.primary_key]
-        is_counter_table = ("counter" in cqltypes)
-
-        if is_counter_table:
-            query = 'UPDATE %s.%s SET %%s WHERE %%s' % (
-                protect_name(table_meta.keyspace_name),
-                protect_name(table_meta.name))
-        else:
-            query = 'INSERT INTO %s.%s (%s) VALUES (%%s)' % (
-                protect_name(table_meta.keyspace_name),
-                protect_name(table_meta.name),
-                ', '.join(protect_names(self.columns)))
-
-        # we need to handle some types specially
-        should_escape = [t in ('ascii', 'text', 'timestamp', 'date', 'time', 'inet') for t in cqltypes]
-
-        insert_timestamp = int(time.time() * 1e6)
-
-        def callback(record_num, response):
-            # This is the callback we register for all inserts.  Because this
-            # is run on the event-loop thread, we need to hold a lock when
-            # adjusting in_flight.
-            with conn.lock:
-                conn.in_flight -= 1
-
-            if not isinstance(response, ResultMessage):
-                # It's an error. Notify the parent process and let it send
-                # a stop signal to all child processes (including this one).
-                self.pipe.send((record_num, str(response)))
-                if isinstance(response, Exception) and self.debug:
-                    traceback.print_exc(response)
-
-        current_record = 0
-        insert_num = 0
-        try:
-            while True:
-                # To avoid totally maxing out the connection,
-                # defer to the reactor thread when we're close
-                # to capacity
-                if conn.in_flight > (conn.max_request_id * 0.9):
-                    conn._readable = True
-                    time.sleep(0.05)
-                    continue
-
-                try:
-                    (current_record, row) = self.pipe.recv()
-                except EOFError:
-                    # the pipe was closed and there's nothing to receive
-                    sys.stdout.write('Failed to read from pipe:\n\n')
-                    sys.stdout.flush()
-                    conn._writable = True
-                    conn._readable = True
-                    break
-
-                # see if the parent process has signaled that we are done
-                if (current_record, row) == (None, None):
-                    conn._writable = True
-                    conn._readable = True
-                    self.pipe.close()
-                    break
-
-                # format the values in the row
-                for i, value in enumerate(row):
-                    if value != self.nullval:
-                        if should_escape[i]:
-                            row[i] = protect_value(value)
-                    elif i in pk_indexes:
-                        # By default, nullval is an empty string. See CASSANDRA-7792 for details.
-                        message = "Cannot insert null value for primary key column '%s'." % (pk_cols[i],)
-                        if self.nullval == '':
-                            message += " If you want to insert empty strings, consider using " \
-                                       "the WITH NULL=<marker> option for COPY."
-                        self.pipe.send((current_record, message))
-                        return
-                    else:
-                        row[i] = 'null'
-                if is_counter_table:
-                    where_clause = []
-                    set_clause = []
-                    for i, value in enumerate(row):
-                        if i in pk_indexes:
-                            where_clause.append("%s=%s" % (self.columns[i], value))
-                        else:
-                            set_clause.append("%s=%s+%s" % (self.columns[i], self.columns[i], value))
-                    full_query = query % (','.join(set_clause), ' AND '.join(where_clause))
-                else:
-                    full_query = query % (','.join(row),)
-                query_message = QueryMessage(
-                    full_query, self.consistency_level, serial_consistency_level=None,
-                    fetch_size=None, paging_state=None, timestamp=insert_timestamp)
-
-                request_id = conn.get_request_id()
-                conn.send_msg(query_message, request_id=request_id, cb=partial(callback, current_record))
-
-                with conn.lock:
-                    conn.in_flight += 1
-
-                # every 50 records, clear the pending writes queue and read
-                # any responses we have
-                if insert_num % 50 == 0:
-                    conn._writable = True
-                    conn._readable = True
-
-                insert_num += 1
-        except Exception, exc:
-            self.pipe.send((current_record, str(exc)))
-        finally:
-            # wait for any pending requests to finish
-            while conn.in_flight > 0:
-                conn._readable = True
-                time.sleep(0.1)
-
-            new_cluster.shutdown()
-
-    def stop(self):
-        self.terminate()
-
-
-class RateMeter(object):
-
-    def __init__(self, log_rate):
-        self.log_rate = log_rate
-        self.last_checkpoint_time = time.time()
-        self.current_rate = 0.0
-        self.current_record = 0
-
-    def increment(self):
-        self.current_record += 1
-
-        if (self.current_record % self.log_rate) == 0:
-            new_checkpoint_time = time.time()
-            new_rate = self.log_rate / (new_checkpoint_time - self.last_checkpoint_time)
-            self.last_checkpoint_time = new_checkpoint_time
-
-            # smooth the rate a bit
-            if self.current_rate == 0.0:
-                self.current_rate = new_rate
-            else:
-                self.current_rate = (self.current_rate + new_rate) / 2.0
-
-            output = 'Processed %s rows; Write: %.2f rows/s\r' % \
-                     (self.current_record, self.current_rate)
-            sys.stdout.write(output)
-            sys.stdout.flush()
 
 
 class SwitchCommand(object):
