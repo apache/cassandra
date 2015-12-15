@@ -1,7 +1,5 @@
-3.0.2
- * Fix upgrade data loss due to range tombstone deleting more data than then should
-   (CASSANDRA-10822)
-Merged from 2.2
+3.0.3
+Merged from 2.2:
  * Add property to allow listening on broadcast interface (CASSANDRA-9748)
  * Fix regression in split size on CqlInputFormat (CASSANDRA-10835)
  * Better handling of SSL connection errors inter-node (CASSANDRA-10816)
@@ -13,6 +11,11 @@ Merged from 2.1:
  * Make Stress compiles within eclipse (CASSANDRA-10807)
  * Cassandra Daemon should print JVM arguments (CASSANDRA-10764)
  * Allow cancellation of index summary redistribution (CASSANDRA-8805)
+
+
+3.0.2
+ * Fix upgrade data loss due to range tombstone deleting more data than then should
+   (CASSANDRA-10822)
 
 
 3.0.1
