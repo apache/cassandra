@@ -59,13 +59,15 @@ public class CreateTableStatement extends SchemaAlteringStatement
     private final Set<ColumnIdentifier> staticColumns;
     private final TableParams params;
     private final boolean ifNotExists;
+    private final UUID id;
 
-    public CreateTableStatement(CFName name, TableParams params, boolean ifNotExists, Set<ColumnIdentifier> staticColumns)
+    public CreateTableStatement(CFName name, TableParams params, boolean ifNotExists, Set<ColumnIdentifier> staticColumns, UUID id)
     {
         super(name);
         this.params = params;
         this.ifNotExists = ifNotExists;
         this.staticColumns = staticColumns;
+        this.id = id;
     }
 
     public void checkAccess(ClientState state) throws UnauthorizedException, InvalidRequestException
@@ -112,6 +114,7 @@ public class CreateTableStatement extends SchemaAlteringStatement
     public CFMetaData.Builder metadataBuilder()
     {
         CFMetaData.Builder builder = CFMetaData.Builder.create(keyspace(), columnFamily(), isDense, isCompound, hasCounters);
+        builder.withId(id);
         for (int i = 0; i < keyAliases.size(); i++)
             builder.addPartitionKey(keyAliases.get(i), keyTypes.get(i));
         for (int i = 0; i < columnAliases.size(); i++)
@@ -212,7 +215,7 @@ public class CreateTableStatement extends SchemaAlteringStatement
 
             TableParams params = properties.properties.asNewTableParams();
 
-            CreateTableStatement stmt = new CreateTableStatement(cfName, params, ifNotExists, staticColumns);
+            CreateTableStatement stmt = new CreateTableStatement(cfName, params, ifNotExists, staticColumns, properties.properties.getId());
 
             for (Map.Entry<ColumnIdentifier, CQL3Type.Raw> entry : definitions.entrySet())
             {

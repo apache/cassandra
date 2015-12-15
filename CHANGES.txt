@@ -22,6 +22,7 @@ Merged from 3.0:
 Merged from 2.2
  * Add property to allow listening on broadcast interface (CASSANDRA-9748)
 Merged from 2.1:
+ * Allow CREATE TABLE WITH ID (CASSANDRA-9179)
  * Make Stress compiles within eclipse (CASSANDRA-10807)
  * Cassandra Daemon should print JVM arguments (CASSANDRA-10764)
  * Allow cancellation of index summary redistribution (CASSANDRA-8805)

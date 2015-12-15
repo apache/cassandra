@@ -278,6 +278,7 @@ public class CreateViewStatement extends SchemaAlteringStatement
         add(cfm, targetPartitionKeys, cfmBuilder::addPartitionKey);
         add(cfm, targetClusteringColumns, cfmBuilder::addClusteringColumn);
         add(cfm, includedColumns, cfmBuilder::addRegularColumn);
+        cfmBuilder.withId(properties.properties.getId());
         TableParams params = properties.properties.asNewTableParams();
         CFMetaData viewCfm = cfmBuilder.build().params(params);
         ViewDefinition definition = new ViewDefinition(keyspace(),

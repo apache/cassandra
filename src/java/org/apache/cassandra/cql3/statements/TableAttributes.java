@@ -19,9 +19,11 @@ package org.apache.cassandra.cql3.statements;
 
 import java.util.Map;
 import java.util.Set;
+import java.util.UUID;
 
 import com.google.common.collect.ImmutableSet;
 
+import org.apache.cassandra.exceptions.ConfigurationException;
 import org.apache.cassandra.exceptions.SyntaxException;
 import org.apache.cassandra.schema.*;
 import org.apache.cassandra.schema.TableParams.Option;
@@ -30,6 +32,7 @@ import static java.lang.String.format;
 
 public final class TableAttributes extends PropertyDefinitions
 {
+    private static final String KW_ID = "id";
     private static final Set<String> validKeywords;
     private static final Set<String> obsoleteKeywords;
 
@@ -38,6 +41,7 @@ public final class TableAttributes extends PropertyDefinitions
         ImmutableSet.Builder<String> validBuilder = ImmutableSet.builder();
         for (Option option : Option.values())
             validBuilder.add(option.toString());
+        validBuilder.add(KW_ID);
         validKeywords = validBuilder.build();
         obsoleteKeywords = ImmutableSet.of();
     }
@@ -55,7 +59,22 @@ public final class TableAttributes extends PropertyDefinitions
 
     public TableParams asAlteredTableParams(TableParams previous)
     {
+        if (getId() != null)
+            throw new ConfigurationException("Cannot alter table id.");
         return build(TableParams.builder(previous));
+    }
+
+    public UUID getId() throws ConfigurationException
+    {
+        String id = getSimple(KW_ID);
+        try
+        {
+            return id != null ? UUID.fromString(id) : null;
+        }
+        catch (IllegalArgumentException e)
+        {
+            throw new ConfigurationException("Invalid table id", e);
+        }
     }
 
     private TableParams build(TableParams.Builder builder)
