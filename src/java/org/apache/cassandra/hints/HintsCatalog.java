@@ -24,6 +24,8 @@ import java.util.*;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.stream.Stream;
 
+import com.google.common.collect.ImmutableMap;
+
 import org.apache.cassandra.io.FSReadError;
 import org.apache.cassandra.utils.CLibrary;
 import org.apache.cassandra.utils.SyncUtil;
@@ -37,20 +39,22 @@ final class HintsCatalog
 {
     private final File hintsDirectory;
     private final Map<UUID, HintsStore> stores;
+    private final ImmutableMap<String, Object> writerParams;
 
-    private HintsCatalog(File hintsDirectory, Map<UUID, List<HintsDescriptor>> descriptors)
+    private HintsCatalog(File hintsDirectory, ImmutableMap<String, Object> writerParams, Map<UUID, List<HintsDescriptor>> descriptors)
     {
         this.hintsDirectory = hintsDirectory;
+        this.writerParams = writerParams;
         this.stores = new ConcurrentHashMap<>();
 
         for (Map.Entry<UUID, List<HintsDescriptor>> entry : descriptors.entrySet())
-            stores.put(entry.getKey(), HintsStore.create(entry.getKey(), hintsDirectory, entry.getValue()));
+            stores.put(entry.getKey(), HintsStore.create(entry.getKey(), hintsDirectory, writerParams, entry.getValue()));
     }
 
     /**
      * Loads hints stores from a given directory.
      */
-    static HintsCatalog load(File hintsDirectory)
+    static HintsCatalog load(File hintsDirectory, ImmutableMap<String, Object> writerParams)
     {
         try
         {
@@ -59,7 +63,7 @@ final class HintsCatalog
                      .filter(HintsDescriptor::isHintFileName)
                      .map(HintsDescriptor::readFromFile)
                      .collect(groupingBy(h -> h.hostId));
-            return new HintsCatalog(hintsDirectory, stores);
+            return new HintsCatalog(hintsDirectory, writerParams, stores);
         }
         catch (IOException e)
         {
@@ -84,7 +88,7 @@ final class HintsCatalog
         // and in this case would also allocate for the capturing lambda; the method is on a really hot path
         HintsStore store = stores.get(hostId);
         return store == null
-             ? stores.computeIfAbsent(hostId, (id) -> HintsStore.create(id, hintsDirectory, Collections.emptyList()))
+             ? stores.computeIfAbsent(hostId, (id) -> HintsStore.create(id, hintsDirectory, writerParams, Collections.emptyList()))
              : store;
     }
 
@@ -132,5 +136,10 @@ final class HintsCatalog
             SyncUtil.trySync(fd);
             CLibrary.tryCloseFD(fd);
         }
+    }
+
+    ImmutableMap<String, Object> getWriterParams()
+    {
+        return writerParams;
     }
 }

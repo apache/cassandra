@@ -22,9 +22,13 @@ import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.util.zip.CRC32;
 
+import org.apache.cassandra.io.FSError;
+import org.apache.cassandra.io.FSReadError;
+import org.apache.cassandra.io.compress.ICompressor;
 import org.apache.cassandra.io.util.ChannelProxy;
 import org.apache.cassandra.io.util.FileMark;
 import org.apache.cassandra.io.util.RandomAccessReader;
+import org.apache.cassandra.schema.CompressionParams;
 
 /**
  * A {@link RandomAccessReader} wrapper that calctulates the CRC in place.
@@ -37,7 +41,7 @@ import org.apache.cassandra.io.util.RandomAccessReader;
  * corrupted sequence by reading a huge corrupted length of bytes via
  * via {@link org.apache.cassandra.utils.ByteBufferUtil#readWithLength(java.io.DataInput)}.
  */
-public final class ChecksummedDataInput extends RandomAccessReader.RandomAccessReaderWithOwnChannel
+public class ChecksummedDataInput extends RandomAccessReader.RandomAccessReaderWithOwnChannel
 {
     private final CRC32 crc;
     private int crcPosition;
@@ -46,7 +50,7 @@ public final class ChecksummedDataInput extends RandomAccessReader.RandomAccessR
     private long limit;
     private FileMark limitMark;
 
-    private ChecksummedDataInput(Builder builder)
+    protected ChecksummedDataInput(Builder builder)
     {
         super(builder);
 
@@ -61,6 +65,11 @@ public final class ChecksummedDataInput extends RandomAccessReader.RandomAccessR
     public static ChecksummedDataInput open(File file)
     {
         return new Builder(new ChannelProxy(file)).build();
+    }
+
+    protected void releaseBuffer()
+    {
+        super.releaseBuffer();
     }
 
     public void resetCrc()
@@ -150,7 +159,7 @@ public final class ChecksummedDataInput extends RandomAccessReader.RandomAccessR
         crc.update(unprocessed);
     }
 
-    public final static class Builder extends RandomAccessReader.Builder
+    public static class Builder extends RandomAccessReader.Builder
     {
         public Builder(ChannelProxy channel)
         {

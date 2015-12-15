@@ -1623,6 +1623,16 @@ public class DatabaseDescriptor
         return conf.max_hints_file_size_in_mb * 1024L * 1024L;
     }
 
+    public static ParameterizedClass getHintsCompression()
+    {
+        return conf.hints_compression;
+    }
+
+    public static void setHintsCompression(ParameterizedClass parameterizedClass)
+    {
+        conf.hints_compression = parameterizedClass;
+    }
+
     public static boolean isIncrementalBackupsEnabled()
     {
         return conf.incremental_backups;

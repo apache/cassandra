@@ -31,10 +31,13 @@ import com.google.common.base.MoreObjects;
 import com.google.common.base.Objects;
 import com.google.common.collect.ImmutableMap;
 
+import org.apache.cassandra.config.ParameterizedClass;
 import org.apache.cassandra.db.TypeSizes;
 import org.apache.cassandra.io.FSReadError;
+import org.apache.cassandra.io.compress.ICompressor;
 import org.apache.cassandra.io.util.DataOutputPlus;
 import org.apache.cassandra.net.MessagingService;
+import org.apache.cassandra.schema.CompressionParams;
 import org.json.simple.JSONValue;
 
 import static org.apache.cassandra.utils.FBUtilities.updateChecksumInt;
@@ -50,6 +53,8 @@ final class HintsDescriptor
     static final int VERSION_30 = 1;
     static final int CURRENT_VERSION = VERSION_30;
 
+    static final String COMPRESSION = "compression";
+
     static final Pattern pattern =
         Pattern.compile("^[a-fA-F0-9]{8}\\-[a-fA-F0-9]{4}\\-[a-fA-F0-9]{4}\\-[a-fA-F0-9]{4}\\-[a-fA-F0-9]{12}\\-(\\d+)\\-(\\d+)\\.hints$");
 
@@ -59,6 +64,7 @@ final class HintsDescriptor
 
     // implemented for future compression support - see CASSANDRA-9428
     final ImmutableMap<String, Object> parameters;
+    final ParameterizedClass compressionConfig;
 
     HintsDescriptor(UUID hostId, int version, long timestamp, ImmutableMap<String, Object> parameters)
     {
@@ -66,11 +72,32 @@ final class HintsDescriptor
         this.version = version;
         this.timestamp = timestamp;
         this.parameters = parameters;
+        compressionConfig = createCompressionConfig(parameters);
+    }
+
+    HintsDescriptor(UUID hostId, long timestamp, ImmutableMap<String, Object> parameters)
+    {
+        this(hostId, CURRENT_VERSION, timestamp, parameters);
     }
 
     HintsDescriptor(UUID hostId, long timestamp)
     {
         this(hostId, CURRENT_VERSION, timestamp, ImmutableMap.<String, Object>of());
+    }
+
+    @SuppressWarnings("unchecked")
+    static ParameterizedClass createCompressionConfig(Map<String, Object> params)
+    {
+        if (params.containsKey(COMPRESSION))
+        {
+            Map<String, Object> compressorConfig = (Map<String, Object>) params.get(COMPRESSION);
+            return new ParameterizedClass((String) compressorConfig.get(ParameterizedClass.CLASS_NAME),
+                                          (Map<String, String>) compressorConfig.get(ParameterizedClass.PARAMETERS));
+        }
+        else
+        {
+            return null;
+        }
     }
 
     String fileName()
@@ -114,6 +141,16 @@ final class HintsDescriptor
         {
             throw new FSReadError(e, path.toFile());
         }
+    }
+
+    public boolean isCompressed()
+    {
+        return compressionConfig != null;
+    }
+
+    public ICompressor createCompressor()
+    {
+        return isCompressed() ? CompressionParams.createCompressor(compressionConfig) : null;
     }
 
     @Override

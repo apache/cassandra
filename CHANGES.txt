@@ -1,5 +1,6 @@
 3.0.3
- * Fix potential assertion error when reading static columns (CASSANDRA-0903)
+ * Implement hints compression (CASSANDRA-9428)
+ * Fix potential assertion error when reading static columns (CASSANDRA-10903)
  * Avoid NoSuchElementException when executing empty batch (CASSANDRA-10711)
  * Avoid building PartitionUpdate in toString (CASSANDRA-10897)
  * Reduce heap spent when receiving many SSTables (CASSANDRA-10797)

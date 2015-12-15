@@ -35,7 +35,7 @@ import org.apache.cassandra.io.FSWriteError;
  */
 final class HintsWriteExecutor
 {
-    private static final int WRITE_BUFFER_SIZE = 256 << 10;
+    static final int WRITE_BUFFER_SIZE = 256 << 10;
 
     private final HintsCatalog catalog;
     private final ByteBuffer writeBuffer;

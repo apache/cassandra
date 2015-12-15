@@ -202,6 +202,7 @@ public class Config
     public int max_hints_delivery_threads = 2;
     public int hints_flush_period_in_ms = 10000;
     public int max_hints_file_size_in_mb = 128;
+    public ParameterizedClass hints_compression;
     public int sstable_preemptive_open_interval_in_mb = 50;
 
     public volatile boolean incremental_backups = false;

@@ -77,6 +77,14 @@ hints_flush_period_in_ms: 10000
 # Maximum size for a single hints file, in megabytes.
 max_hints_file_size_in_mb: 128
 
+# Compression to apply to the hint files. If omitted, hints files
+# will be written uncompressed. LZ4, Snappy, and Deflate compressors
+# are supported.
+#hints_compression:
+#   - class_name: LZ4Compressor
+#     parameters:
+#         -
+
 # Maximum throttle in KBs per second, total. This will be
 # reduced proportionally to the number of nodes in the cluster.
 batchlog_replay_throttle_in_kb: 1024

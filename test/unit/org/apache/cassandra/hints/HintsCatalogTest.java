@@ -62,7 +62,7 @@ public class HintsCatalogTest
         writeDescriptor(directory, descriptor3);
         writeDescriptor(directory, descriptor4);
 
-        HintsCatalog catalog = HintsCatalog.load(directory);
+        HintsCatalog catalog = HintsCatalog.load(directory, HintsService.EMPTY_PARAMS);
         assertEquals(2, catalog.stores().count());
 
         HintsStore store1 = catalog.get(hostId1);
