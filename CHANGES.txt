@@ -19,10 +19,7 @@
  * Added graphing option to cassandra-stress (CASSANDRA-7918)
  * Abort in-progress queries that time out (CASSANDRA-7392)
  * Add transparent data encryption core classes (CASSANDRA-9945)
-Merged from 3.0:
- * Fix upgrade data loss due to range tombstone deleting more data than then should
-   (CASSANDRA-10822)
-Merged from 2.2
+Merged from 2.2:
  * Add property to allow listening on broadcast interface (CASSANDRA-9748)
 Merged from 2.1:
  * (cqlsh) further optimise COPY FROM (CASSANDRA-9302)
@@ -30,6 +27,12 @@ Merged from 2.1:
  * Make Stress compiles within eclipse (CASSANDRA-10807)
  * Cassandra Daemon should print JVM arguments (CASSANDRA-10764)
  * Allow cancellation of index summary redistribution (CASSANDRA-8805)
+
+
+3.1.1
+Merged from 3.0:
+  * Fix upgrade data loss due to range tombstone deleting more data than then should
+    (CASSANDRA-10822)
 
 
 3.1
