@@ -1,4 +1,5 @@
 3.0.3
+ * Add back support for 3rd party auth providers to bulk loader (CASSANDRA-10873)
  * Eliminate the dependency on jgrapht for UDT resolution (CASSANDRA-10653)
  * (Hadoop) Close Clusters and Sessions in Hadoop Input/Output classes (CASSANDRA-1837)
  * Fix sstableloader not working with upper case keyspace name (CASSANDRA-10806)
