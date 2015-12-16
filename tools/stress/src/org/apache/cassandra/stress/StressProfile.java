@@ -555,6 +555,14 @@ public class StressProfile implements Serializable
                     return new UUIDs(name, config);
                 case TIMEUUID:
                     return new TimeUUIDs(name, config);
+                case TINYINT:
+                    return new TinyInts(name, config);
+                case SMALLINT:
+                    return new SmallInts(name, config);
+                case TIME:
+                    return new Times(name, config);
+                case DATE:
+                    return new LocalDates(name, config);
                 case SET:
                     return new Sets(name, getGenerator(name, type.getTypeArguments().get(0), config), config);
                 case LIST:

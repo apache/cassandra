@@ -115,6 +115,7 @@ public class JavaDriverClient
                                                 .withPort(port)
                                                 .withPoolingOptions(poolingOpts)
                                                 .withoutJMXReporting()
+                                                .withProtocolVersion(ProtocolVersion.NEWEST_SUPPORTED)
                                                 .withoutMetrics(); // The driver uses metrics 3 with conflict with our version
         if (whitelist != null)
             clusterBuilder.withLoadBalancingPolicy(whitelist);
