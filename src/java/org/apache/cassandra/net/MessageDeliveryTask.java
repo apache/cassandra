@@ -44,10 +44,11 @@ public class MessageDeliveryTask implements Runnable
     public void run()
     {
         MessagingService.Verb verb = message.verb;
+        long timeTaken = System.currentTimeMillis() - message.constructionTime.timestamp;
         if (MessagingService.DROPPABLE_VERBS.contains(verb)
-            && System.currentTimeMillis() > message.constructionTime.timestamp + message.getTimeout())
+            && timeTaken > message.getTimeout())
         {
-            MessagingService.instance().incrementDroppedMessages(message);
+            MessagingService.instance().incrementDroppedMessages(message, timeTaken);
             return;
         }
 
