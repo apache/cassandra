@@ -19,6 +19,8 @@
  * Added graphing option to cassandra-stress (CASSANDRA-7918)
  * Abort in-progress queries that time out (CASSANDRA-7392)
  * Add transparent data encryption core classes (CASSANDRA-9945)
+Merged from 3.0:
+ * Fix sstableloader not working with upper case keyspace name (CASSANDRA-10806)
 Merged from 2.2:
  * Add new types to Stress (CASSANDRA-9556)
  * Add property to allow listening on broadcast interface (CASSANDRA-9748)
