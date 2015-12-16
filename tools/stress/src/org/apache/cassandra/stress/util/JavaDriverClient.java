@@ -95,7 +95,7 @@ public class JavaDriverClient
                                                 .addContactPoint(host)
                                                 .withPort(port)
                                                 .withPoolingOptions(poolingOpts)
-                                                .withProtocolVersion(ProtocolVersion.V2)
+                                                .withProtocolVersion(ProtocolVersion.NEWEST_SUPPORTED)
                                                 .withoutMetrics(); // The driver uses metrics 3 with conflict with our version
         if (whitelist != null)
             clusterBuilder.withLoadBalancingPolicy(whitelist);

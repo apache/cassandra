@@ -1,4 +1,5 @@
 2.2.5
+ * Add new types to Stress (CASSANDRA-9556)
  * Add property to allow listening on broadcast interface (CASSANDRA-9748)
  * Fix regression in split size on CqlInputFormat (CASSANDRA-10835)
  * Better handling of SSL connection errors inter-node (CASSANDRA-10816)
