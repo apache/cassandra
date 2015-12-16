@@ -20,6 +20,7 @@
  * Abort in-progress queries that time out (CASSANDRA-7392)
  * Add transparent data encryption core classes (CASSANDRA-9945)
 Merged from 2.2:
+ * Add new types to Stress (CASSANDRA-9556)
  * Add property to allow listening on broadcast interface (CASSANDRA-9748)
 Merged from 2.1:
  * (cqlsh) further optimise COPY FROM (CASSANDRA-9302)
