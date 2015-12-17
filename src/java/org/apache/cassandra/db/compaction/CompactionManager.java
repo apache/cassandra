@@ -283,11 +283,14 @@ public class CompactionManager implements CompactionManagerMBean
             logger.info("No sstables for {}.{}", cfs.keyspace.getName(), cfs.name);
             return AllSSTableOpStatus.SUCCESSFUL;
         }
+        Set<SSTableReader> sstables = Sets.newHashSet(operation.filterSSTables(compactingSSTables));
+        Set<SSTableReader> filteredAway = Sets.difference(Sets.newHashSet(compactingSSTables), sstables);
+        cfs.getDataTracker().unmarkCompacting(filteredAway);
+        final Set<SSTableReader> finished = Sets.newConcurrentHashSet();
+
+        List<Future<Object>> futures = new ArrayList<>();
         try
         {
-            Iterable<SSTableReader> sstables = operation.filterSSTables(compactingSSTables);
-            List<Future<Object>> futures = new ArrayList<>();
-
             for (final SSTableReader sstable : sstables)
             {
                 if (executor.isShutdown())
@@ -295,23 +298,29 @@ public class CompactionManager implements CompactionManagerMBean
                     logger.info("Executor has shut down, not submitting task");
                     return AllSSTableOpStatus.ABORTED;
                 }
-
                 futures.add(executor.submit(new Callable<Object>()
                 {
                     @Override
                     public Object call() throws Exception
                     {
-                        operation.execute(sstable);
+                        try
+                        {
+                            operation.execute(sstable);
+                        }
+                        finally
+                        {
+                            cfs.getDataTracker().unmarkCompacting(Collections.singleton(sstable));
+                            finished.add(sstable);
+                        }
                         return this;
                     }
                 }));
             }
-
             FBUtilities.waitOnFutures(futures);
         }
         finally
         {
-            cfs.getDataTracker().unmarkCompacting(compactingSSTables);
+            cfs.getDataTracker().unmarkCompacting(Sets.difference(sstables, finished));
         }
         return AllSSTableOpStatus.SUCCESSFUL;
     }
@@ -1144,6 +1153,7 @@ public class CompactionManager implements CompactionManagerMBean
                 anticompactedSSTables.addAll(repairedSSTableWriter.finish(repairedAt));
                 anticompactedSSTables.addAll(unRepairedSSTableWriter.finish(ActiveRepairService.UNREPAIRED_SSTABLE));
                 successfullyAntiCompactedSSTables.add(sstable);
+                cfs.getDataTracker().unmarkCompacting(sstableAsSet);
             }
             catch (Throwable e)
             {
