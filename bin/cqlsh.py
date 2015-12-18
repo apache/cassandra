@@ -1280,7 +1280,7 @@ class Shell(cmd.Cmd):
         elif result:
             # CAS INSERT/UPDATE
             self.writeresult("")
-            self.print_static_result(list(result), self.parse_for_update_meta(statement.query_string))
+            self.print_static_result(result.column_names, list(result), self.parse_for_table_meta(statement.query_string))
         self.flush_output()
         return True, future
 
@@ -1294,7 +1294,7 @@ class Shell(cmd.Cmd):
                 page = result.current_rows
                 if page:
                     num_rows += len(page)
-                    self.print_static_result(page, table_meta)
+                    self.print_static_result(result.column_names, page, table_meta)
                 if result.has_more_pages:
                     raw_input("---MORE---")
                     result.fetch_next_page()
@@ -1303,7 +1303,7 @@ class Shell(cmd.Cmd):
         else:
             rows = list(result)
             num_rows = len(rows)
-            self.print_static_result(rows, table_meta)
+            self.print_static_result(result.column_names, rows, table_meta)
         self.writeresult("(%d rows)" % num_rows)
 
         if self.decoding_errors:
@@ -1313,18 +1313,11 @@ class Shell(cmd.Cmd):
                 self.writeresult('%d more decoding errors suppressed.'
                                  % (len(self.decoding_errors) - 2), color=RED)
 
-    def print_static_result(self, rows, table_meta):
-        if not rows:
-            if not table_meta:
-                return
-            # print header only
-            colnames = table_meta.columns.keys()  # full header
-            formatted_names = [self.myformat_colname(name, table_meta) for name in colnames]
-            self.print_formatted_result(formatted_names, None)
+    def print_static_result(self, column_names, rows, table_meta):
+        if not column_names and not table_meta:
             return
-
-        colnames = rows[0].keys()
-        formatted_names = [self.myformat_colname(name, table_meta) for name in colnames]
+        column_names = column_names or table_meta.columns.keys()
+        formatted_names = [self.myformat_colname(name, table_meta) for name in column_names]
         formatted_values = [map(self.myformat_value, row.values()) for row in rows]
 
         if self.expand_enabled:
