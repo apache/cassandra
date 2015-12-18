@@ -818,7 +818,7 @@ public abstract class SSTableReader extends SSTable implements SelfRefCounted<SS
                 while ((indexPosition = primaryIndex.getFilePointer()) != indexSize)
                 {
                     ByteBuffer key = ByteBufferUtil.readWithShortLength(primaryIndex);
-                    RowIndexEntry indexEntry = rowIndexSerializer.deserialize(primaryIndex);
+                    /*RowIndexEntry indexEntry = */rowIndexSerializer.deserialize(primaryIndex);
                     DecoratedKey decoratedKey = decorateKey(key);
                     if (first == null)
                         first = decoratedKey;

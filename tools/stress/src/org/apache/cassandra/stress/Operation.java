@@ -1,4 +1,4 @@
-/**
+/*
  * Licensed to the Apache Software Foundation (ASF) under one
  * or more contributor license agreements.  See the NOTICE file
  * distributed with this work for additional information
@@ -15,6 +15,7 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
+
 package org.apache.cassandra.stress;
 
 import java.io.IOException;
@@ -24,7 +25,6 @@ import java.util.List;
 import com.google.common.util.concurrent.RateLimiter;
 
 import org.apache.cassandra.stress.generate.*;
-import org.apache.cassandra.stress.settings.OptionDistribution;
 import org.apache.cassandra.stress.settings.OptionRatioDistribution;
 import org.apache.cassandra.stress.settings.SettingsLog;
 import org.apache.cassandra.stress.settings.StressSettings;
@@ -141,11 +141,13 @@ public abstract class Operation
      */
     public abstract void run(ThriftClient client) throws IOException;
 
-    public void run(SimpleClient client) throws IOException {
+    public void run(SimpleClient client) throws IOException
+    {
         throw new UnsupportedOperationException();
     }
 
-    public void run(JavaDriverClient client) throws IOException {
+    public void run(JavaDriverClient client) throws IOException
+    {
         throw new UnsupportedOperationException();
     }
 

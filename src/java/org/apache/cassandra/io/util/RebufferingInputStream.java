@@ -275,16 +275,4 @@ public abstract class RebufferingInputStream extends InputStream implements Data
             return -1;
         }
     }
-
-    @Override
-    public void reset() throws IOException
-    {
-        throw new IOException("mark/reset not supported");
-    }
-
-    @Override
-    public boolean markSupported()
-    {
-        return false;
-    }
 }

@@ -88,7 +88,7 @@ public class Ring extends NodeToolCmd
         }
         catch (IllegalArgumentException ex)
         {
-            System.out.printf("%nError: " + ex.getMessage() + "%n");
+            System.out.printf("%nError: %s%n", ex.getMessage());
             return;
         }
 

@@ -550,14 +550,7 @@ public abstract class ModificationStatement implements CQLStatement
     public ResultMessage executeInternalWithoutCondition(QueryState queryState, QueryOptions options) throws RequestValidationException, RequestExecutionException
     {
         for (IMutation mutation : getMutations(options, true, queryState.getTimestamp()))
-        {
-            assert mutation instanceof Mutation || mutation instanceof CounterMutation;
-
-            if (mutation instanceof Mutation)
-                ((Mutation) mutation).apply();
-            else if (mutation instanceof CounterMutation)
-                ((CounterMutation) mutation).apply();
-        }
+            mutation.apply();
         return null;
     }
 

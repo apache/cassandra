@@ -27,6 +27,7 @@ import java.util.concurrent.ThreadLocalRandom;
 // used for both single timer results and merged timer results
 public final class TimingInterval
 {
+    public static final long[] EMPTY_SAMPLE = new long[0];
     // nanos
     private final long start;
     private final long end;
@@ -56,7 +57,7 @@ public final class TimingInterval
         maxLatency = totalLatency = 0;
         partitionCount = rowCount = operationCount = errorCount = 0;
         pauseStart = pauseLength = 0;
-        sample = new SampleOfLongs(new long[0], 1d);
+        sample = new SampleOfLongs(EMPTY_SAMPLE, 1d);
     }
 
     TimingInterval(long start, long end, long maxLatency, long pauseStart, long pauseLength, long partitionCount,

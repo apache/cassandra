@@ -110,7 +110,7 @@ public class CounterMutation implements IMutation
      *
      * @return the applied resulting Mutation
      */
-    public Mutation apply() throws WriteTimeoutException
+    public Mutation applyCounterMutation() throws WriteTimeoutException
     {
         Mutation result = new Mutation(getKeyspaceName(), key());
         Keyspace keyspace = Keyspace.open(getKeyspaceName());
@@ -130,6 +130,11 @@ public class CounterMutation implements IMutation
             for (Lock lock : locks)
                 lock.unlock();
         }
+    }
+
+    public void apply()
+    {
+        applyCounterMutation();
     }
 
     private void grabCounterLocks(Keyspace keyspace, List<Lock> locks) throws WriteTimeoutException

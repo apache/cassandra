@@ -432,7 +432,7 @@ public abstract class UnfilteredDeserializer
                         return false;
                     }
                 }
-                return next != null;
+                return true;
             }
 
             private Unfiltered readRow(LegacyLayout.LegacyAtom first)

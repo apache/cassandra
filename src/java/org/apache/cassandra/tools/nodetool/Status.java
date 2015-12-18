@@ -81,7 +81,7 @@ public class Status extends NodeToolCmd
         }
         catch (IllegalArgumentException ex)
         {
-            System.out.printf("%nError: " + ex.getMessage() + "%n");
+            System.out.printf("%nError: %s%n", ex.getMessage());
             System.exit(1);
         }
 

@@ -26,7 +26,6 @@ import java.nio.ByteBuffer;
 import java.util.ArrayList;
 import java.util.Iterator;
 import java.util.List;
-import java.util.Random;
 import java.util.concurrent.ThreadLocalRandom;
 
 import com.datastax.driver.core.*;
@@ -42,13 +41,11 @@ import org.apache.cassandra.thrift.Compression;
 import org.apache.cassandra.thrift.CqlResult;
 import org.apache.cassandra.thrift.CqlRow;
 import org.apache.cassandra.thrift.ThriftConversion;
-import org.apache.cassandra.transport.SimpleClient;
 import org.apache.cassandra.utils.Pair;
 import org.apache.thrift.TException;
 
 public class ValidatingSchemaQuery extends Operation
 {
-    final Random random = new Random();
     private Pair<Row, Row> bounds;
 
     final int clusteringComponents;
@@ -56,12 +53,6 @@ public class ValidatingSchemaQuery extends Operation
     final ConsistencyLevel cl;
     final int[] argumentIndex;
     final Object[] bindBuffer;
-
-    @Override
-    public void run(SimpleClient client) throws IOException
-    {
-        throw new UnsupportedOperationException();
-    }
 
     private ValidatingSchemaQuery(Timer timer, StressSettings settings, PartitionGenerator generator, SeedManager seedManager, ValidatingStatement[] statements, ConsistencyLevel cl, int clusteringComponents)
     {
@@ -280,14 +271,14 @@ public class ValidatingSchemaQuery extends Operation
         {
             StringBuilder cc = new StringBuilder();
             StringBuilder arg = new StringBuilder();
-            cc.append("("); arg.append("(");
+            cc.append('('); arg.append('(');
             for (int d = 0 ; d <= depth ; d++)
             {
-                if (d > 0) { cc.append(","); arg.append(","); }
+                if (d > 0) { cc.append(','); arg.append(','); }
                 cc.append(metadata.getClusteringColumns().get(d).getName());
-                arg.append("?");
+                arg.append('?');
             }
-            cc.append(")"); arg.append(")");
+            cc.append(')'); arg.append(')');
 
             ValidatingStatement[] statements = new ValidatingStatement[depth < maxDepth ? 1 : 4];
             int i = 0;

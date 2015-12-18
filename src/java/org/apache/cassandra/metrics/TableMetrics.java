@@ -42,6 +42,9 @@ import static org.apache.cassandra.metrics.CassandraMetricsRegistry.Metrics;
  */
 public class TableMetrics
 {
+
+    public static final long[] EMPTY = new long[0];
+
     /** Total amount of data stored in the memtable that resides on-heap, including column related overhead and partitions overwritten. */
     public final Gauge<Long> memtableOnHeapSize;
     /** Total amount of data stored in the memtable that resides off-heap, including column related overhead and partitions overwritten. */
@@ -171,7 +174,7 @@ public class TableMetrics
         Iterator<SSTableReader> iterator = sstables.iterator();
         if (!iterator.hasNext())
         {
-            return new long[0];
+            return EMPTY;
         }
         long[] firstBucket = getHistogram.getHistogram(iterator.next()).getBuckets(false);
         long[] values = new long[firstBucket.length];

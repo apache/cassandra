@@ -17,7 +17,6 @@
  */
 package org.apache.cassandra.db;
 
-import java.nio.ByteBuffer;
 import java.util.Collection;
 import java.util.UUID;
 
@@ -25,6 +24,7 @@ import org.apache.cassandra.db.partitions.PartitionUpdate;
 
 public interface IMutation
 {
+    public void apply();
     public String getKeyspaceName();
     public Collection<UUID> getColumnFamilyIds();
     public DecoratedKey key();

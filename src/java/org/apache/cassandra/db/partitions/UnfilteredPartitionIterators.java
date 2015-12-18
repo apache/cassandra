@@ -177,12 +177,6 @@ public abstract class UnfilteredPartitionIterators
         {
             private final List<UnfilteredRowIterator> toMerge = new ArrayList<>(iterators.size());
 
-            @Override
-            public boolean trivialReduceIsTrivial()
-            {
-                return false;
-            }
-
             public void reduce(int idx, UnfilteredRowIterator current)
             {
                 toMerge.add(current);

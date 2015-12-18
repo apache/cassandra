@@ -34,6 +34,7 @@ import org.apache.cassandra.thrift.SliceRange;
 
 public abstract class PredefinedOperation extends Operation
 {
+    public static final byte[] EMPTY_BYTE_ARRAY = {};
     public final Command type;
     private final Distribution columnCount;
     private Object cqlCache;
@@ -106,7 +107,7 @@ public abstract class PredefinedOperation extends Operation
             {
                 predicate.setSlice_range(new SliceRange()
                                          .setStart(settings.columns.names.get(lb))
-                                         .setFinish(new byte[] {})
+                                         .setFinish(EMPTY_BYTE_ARRAY)
                                          .setReversed(false)
                                          .setCount(count())
                 );

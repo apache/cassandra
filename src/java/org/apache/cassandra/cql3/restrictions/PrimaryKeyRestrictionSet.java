@@ -138,21 +138,9 @@ final class PrimaryKeyRestrictionSet extends AbstractPrimaryKeyRestrictions
     }
 
     @Override
-    public boolean isOnToken()
-    {
-        return false;
-    }
-
-    @Override
     public boolean isContains()
     {
         return contains;
-    }
-
-    @Override
-    public boolean isMultiColumn()
-    {
-        return false;
     }
 
     @Override

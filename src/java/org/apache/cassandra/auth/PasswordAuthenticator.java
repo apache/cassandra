@@ -213,10 +213,10 @@ public class PasswordAuthenticator implements IAuthenticator
                 }
             }
 
-            if (user == null)
-                throw new AuthenticationException("Authentication ID must not be null");
             if (pass == null)
                 throw new AuthenticationException("Password must not be null");
+            if (user == null)
+                throw new AuthenticationException("Authentication ID must not be null");
 
             username = new String(user, StandardCharsets.UTF_8);
             password = new String(pass, StandardCharsets.UTF_8);

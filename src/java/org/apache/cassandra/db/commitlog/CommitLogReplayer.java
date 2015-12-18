@@ -455,7 +455,7 @@ public class CommitLogReplayer
                         int uncompressedLength = replayEnd - replayPos;
                         if (uncompressedLength > uncompressedBuffer.length)
                             uncompressedBuffer = new byte[(int) (1.2 * uncompressedLength)];
-                        compressedLength = compressor.uncompress(buffer, 0, compressedLength, uncompressedBuffer, 0);
+                        compressor.uncompress(buffer, 0, compressedLength, uncompressedBuffer, 0);
                         sectionReader = new FileSegmentInputStream(ByteBuffer.wrap(uncompressedBuffer), reader.getPath(), replayPos);
                         errorContext = "compressed section at " + start + " in " + errorContext;
                     }

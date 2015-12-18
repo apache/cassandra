@@ -93,10 +93,8 @@ public class UTF8Serializer extends AbstractTextSerializer
                             if (b == (byte)0xf0)
                                 // 0xf0, 0x90-0xbf, 0x80-0xbf, 0x80-0xbf
                                 state = State.FOUR_90bf;
-                            else if (b == (byte)0xf4)
-                                // 0xf4, 0x80-0xbf, 0x80-0xbf, 0x80-0xbf
-                                state = State.FOUR_80bf_3;
                             else
+                                // 0xf4, 0x80-0xbf, 0x80-0xbf, 0x80-0xbf
                                 // 0xf1-0xf3, 0x80-0xbf, 0x80-0xbf, 0x80-0xbf
                                 state = State.FOUR_80bf_3;
                             break;

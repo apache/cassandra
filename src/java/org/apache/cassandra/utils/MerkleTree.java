@@ -326,19 +326,28 @@ public class MerkleTree implements Serializable
 
     TreeRange getHelper(Hashable hashable, Token pleft, Token pright, byte depth, Token t)
     {
-        if (hashable instanceof Leaf)
+        while (true)
         {
-            // we've reached a hash: wrap it up and deliver it
-            return new TreeRange(this, pleft, pright, depth, hashable);
-        }
-        // else: node.
+            if (hashable instanceof Leaf)
+            {
+                // we've reached a hash: wrap it up and deliver it
+                return new TreeRange(this, pleft, pright, depth, hashable);
+            }
+            // else: node.
 
-        Inner node = (Inner)hashable;
-        if (Range.contains(pleft, node.token, t))
-            // left child contains token
-            return getHelper(node.lchild, pleft, node.token, inc(depth), t);
-        // else: right child contains token
-        return getHelper(node.rchild, node.token, pright, inc(depth), t);
+            Inner node = (Inner) hashable;
+            depth = inc(depth);
+            if (Range.contains(pleft, node.token, t))
+            { // left child contains token
+                hashable = node.lchild;
+                pright = node.token;
+            }
+            else
+            { // else: right child contains token
+                hashable = node.rchild;
+                pleft = node.token;
+            }
+        }
     }
 
     /**
@@ -404,33 +413,42 @@ public class MerkleTree implements Serializable
      */
     private Hashable findHelper(Hashable current, Range<Token> activeRange, Range<Token> find) throws StopRecursion
     {
-        if (current instanceof Leaf)
+        while (true)
         {
-            if (!find.contains(activeRange))
-                // we are not fully contained in this range!
+            if (current instanceof Leaf)
+            {
+                if (!find.contains(activeRange))
+                    // we are not fully contained in this range!
+                    throw new StopRecursion.BadRange();
+                return current;
+            }
+            // else: node.
+
+            Inner node = (Inner) current;
+            Range<Token> leftRange = new Range<>(activeRange.left, node.token);
+            Range<Token> rightRange = new Range<>(node.token, activeRange.right);
+
+            if (find.contains(activeRange))
+                // this node is fully contained in the range
+                return node.calc();
+
+            // else: one of our children contains the range
+
+            if (leftRange.contains(find))
+            { // left child contains/matches the range
+                current = node.lchild;
+                activeRange = leftRange;
+            }
+            else if (rightRange.contains(find))
+            { // right child contains/matches the range
+                current = node.rchild;
+                activeRange = rightRange;
+            }
+            else
+            {
                 throw new StopRecursion.BadRange();
-            return current;
+            }
         }
-        // else: node.
-
-        Inner node = (Inner)current;
-        Range<Token> leftRange = new Range<Token>(activeRange.left, node.token);
-        Range<Token> rightRange = new Range<Token>(node.token, activeRange.right);
-
-        if (find.contains(activeRange))
-            // this node is fully contained in the range
-            return node.calc();
-
-        // else: one of our children contains the range
-
-        if (leftRange.contains(find))
-            // left child contains/matches the range
-            return findHelper(node.lchild, leftRange, find);
-        else if (rightRange.contains(find))
-            // right child contains/matches the range
-            return findHelper(node.rchild, rightRange, find);
-        else
-            throw new StopRecursion.BadRange();
     }
 
     /**

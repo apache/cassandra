@@ -223,10 +223,4 @@ public class NetworkTopologyStrategy extends AbstractReplicationStrategy
             validateReplicationFactor(e.getValue());
         }
     }
-
-    public Collection<String> recognizedOptions()
-    {
-        // We explicitely allow all options
-        return null;
-    }
 }

@@ -815,11 +815,6 @@ public interface CQL3Type
                 return true;
             }
 
-            public boolean isCollection()
-            {
-                return false;
-            }
-
             public void freeze() throws InvalidRequestException
             {
                 for (CQL3Type.Raw t : types)

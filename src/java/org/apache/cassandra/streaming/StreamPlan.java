@@ -32,6 +32,7 @@ import org.apache.cassandra.utils.UUIDGen;
  */
 public class StreamPlan
 {
+    public static final String[] EMPTY_COLUMN_FAMILIES = new String[0];
     private final UUID planId = UUIDGen.getTimeUUID();
     private final String description;
     private final List<StreamEventHandler> handlers = new ArrayList<>();
@@ -75,7 +76,7 @@ public class StreamPlan
      */
     public StreamPlan requestRanges(InetAddress from, InetAddress connecting, String keyspace, Collection<Range<Token>> ranges)
     {
-        return requestRanges(from, connecting, keyspace, ranges, new String[0]);
+        return requestRanges(from, connecting, keyspace, ranges, EMPTY_COLUMN_FAMILIES);
     }
 
     /**
@@ -116,7 +117,7 @@ public class StreamPlan
      */
     public StreamPlan transferRanges(InetAddress to, InetAddress connecting, String keyspace, Collection<Range<Token>> ranges)
     {
-        return transferRanges(to, connecting, keyspace, ranges, new String[0]);
+        return transferRanges(to, connecting, keyspace, ranges, EMPTY_COLUMN_FAMILIES);
     }
 
     /**

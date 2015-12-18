@@ -49,6 +49,9 @@ import org.apache.thrift.TException;
 public abstract class CqlOperation<V> extends PredefinedOperation
 {
 
+    public static final ByteBuffer[][] EMPTY_BYTE_BUFFERS = new ByteBuffer[0][];
+    public static final byte[][] EMPTY_BYTE_ARRAYS = new byte[0][];
+
     protected abstract List<Object> getQueryParameters(byte[] key);
     protected abstract String buildQuery();
     protected abstract CqlRunOp<V> buildRunOp(ClientWrapper client, String query, Object queryId, List<Object> params, ByteBuffer key);
@@ -455,7 +458,7 @@ public abstract class CqlOperation<V> extends PredefinedOperation
                 public ByteBuffer[][] apply(ResultSet result)
                 {
                     if (result == null)
-                        return new ByteBuffer[0][];
+                        return EMPTY_BYTE_BUFFERS;
                     List<Row> rows = result.all();
 
                     ByteBuffer[][] r = new ByteBuffer[rows.size()][];
@@ -481,7 +484,7 @@ public abstract class CqlOperation<V> extends PredefinedOperation
                 public ByteBuffer[][] apply(ResultMessage result)
                 {
                     if (!(result instanceof ResultMessage.Rows))
-                        return new ByteBuffer[0][];
+                        return EMPTY_BYTE_BUFFERS;
 
                     ResultMessage.Rows rows = ((ResultMessage.Rows) result);
                     ByteBuffer[][] r = new ByteBuffer[rows.result.size()][];
@@ -536,7 +539,7 @@ public abstract class CqlOperation<V> extends PredefinedOperation
                 {
 
                     if (result == null)
-                        return new byte[0][];
+                        return EMPTY_BYTE_ARRAYS;
                     List<Row> rows = result.all();
                     byte[][] r = new byte[rows.size()][];
                     for (int i = 0 ; i < r.length ; i++)

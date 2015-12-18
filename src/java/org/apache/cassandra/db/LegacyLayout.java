@@ -652,16 +652,18 @@ public abstract class LegacyLayout
 
             protected LegacyCell computeNext()
             {
-                if (currentRow.hasNext())
-                    return currentRow.next();
+                while (true)
+                {
+                    if (currentRow.hasNext())
+                        return currentRow.next();
 
-                if (!iterator.hasNext())
-                    return endOfData();
+                    if (!iterator.hasNext())
+                        return endOfData();
 
-                Pair<LegacyRangeTombstoneList, Iterator<LegacyCell>> row = fromRow(metadata, iterator.next());
-                deletions.addAll(row.left);
-                currentRow = row.right;
-                return computeNext();
+                    Pair<LegacyRangeTombstoneList, Iterator<LegacyCell>> row = fromRow(metadata, iterator.next());
+                    deletions.addAll(row.left);
+                    currentRow = row.right;
+                }
             }
         };
 

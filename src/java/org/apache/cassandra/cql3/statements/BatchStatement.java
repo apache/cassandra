@@ -48,7 +48,7 @@ import static org.apache.cassandra.cql3.statements.RequestValidations.checkFalse
  */
 public class BatchStatement implements CQLStatement
 {
-    public static enum Type
+    public enum Type
     {
         LOGGED, UNLOGGED, COUNTER
     }
@@ -258,7 +258,7 @@ public class BatchStatement implements CQLStatement
     /**
      * Checks batch size to ensure threshold is met. If not, a warning is logged.
      *
-     * @param cfs ColumnFamilies that will store the batch's mutations.
+     * @param updates - the batch mutations.
      */
     public static void verifyBatchSize(Iterable<PartitionUpdate> updates) throws InvalidRequestException
     {
@@ -438,14 +438,7 @@ public class BatchStatement implements CQLStatement
     private ResultMessage executeInternalWithoutCondition(QueryState queryState, QueryOptions options) throws RequestValidationException, RequestExecutionException
     {
         for (IMutation mutation : getMutations(BatchQueryOptions.withoutPerStatementVariables(options), true, queryState.getTimestamp()))
-        {
-            assert mutation instanceof Mutation || mutation instanceof CounterMutation;
-
-            if (mutation instanceof Mutation)
-                ((Mutation) mutation).apply();
-            else if (mutation instanceof CounterMutation)
-                ((CounterMutation) mutation).apply();
-        }
+            mutation.apply();
         return null;
     }
 

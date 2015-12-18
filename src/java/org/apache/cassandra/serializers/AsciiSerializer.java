@@ -35,7 +35,7 @@ public class AsciiSerializer extends AbstractTextSerializer
         for (int i = bytes.position(); i < bytes.limit(); i++)
         {
             byte b = bytes.get(i);
-            if (b < 0 || b > 127)
+            if (b < 0)
                 throw new MarshalException("Invalid byte for ascii: " + Byte.toString(b));
         }
     }

@@ -65,11 +65,6 @@ final class FieldSelector extends Selector
         };
     }
 
-    public boolean isAggregate()
-    {
-        return false;
-    }
-
     public void addInput(int protocolVersion, ResultSetBuilder rs) throws InvalidRequestException
     {
         selected.addInput(protocolVersion, rs);

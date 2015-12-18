@@ -1393,7 +1393,7 @@ public class StorageProxy implements StorageProxyMBean
             {
                 assert mutation instanceof CounterMutation;
 
-                Mutation result = ((CounterMutation) mutation).apply();
+                Mutation result = ((CounterMutation) mutation).applyCounterMutation();
                 responseHandler.response(null);
 
                 Set<InetAddress> remotes = Sets.difference(ImmutableSet.copyOf(targets),

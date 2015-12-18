@@ -20,8 +20,6 @@ package org.apache.cassandra.stress.operations.userdefined;
  * 
  */
 
-
-import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.util.ArrayList;
 import java.util.List;
@@ -37,7 +35,6 @@ import org.apache.cassandra.stress.generate.Row;
 import org.apache.cassandra.stress.settings.StressSettings;
 import org.apache.cassandra.stress.util.JavaDriverClient;
 import org.apache.cassandra.stress.util.Timer;
-import org.apache.cassandra.transport.SimpleClient;
 
 public abstract class SchemaStatement extends Operation
 {
@@ -89,12 +86,6 @@ public abstract class SchemaStatement extends Operation
         for (int i : argumentIndex)
             args.add(spec.partitionGenerator.convert(i, row.get(i)));
         return args;
-    }
-
-    @Override
-    public void run(SimpleClient client) throws IOException
-    {
-        throw new UnsupportedOperationException();
     }
 
     abstract class Runner implements RunOp
