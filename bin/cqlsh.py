@@ -211,6 +211,8 @@ parser.add_option('--cqlversion', default=DEFAULT_CQLVER,
 parser.add_option("-e", "--execute", help='Execute the statement and quit.')
 parser.add_option("--connect-timeout", default=DEFAULT_CONNECT_TIMEOUT_SECONDS, dest='connect_timeout',
                   help='Specify the connection timeout in seconds (default: %default seconds).')
+parser.add_option("-t", "--tty", action='store_true', dest='tty',
+                  help='Force tty mode (command prompt).')
 
 optvalues = optparse.Values()
 (options, arguments) = parser.parse_args(sys.argv[1:], values=optvalues)
@@ -2398,7 +2400,7 @@ def read_options(cmdlineargs, environment):
     optvalues.ssl = False
     optvalues.encoding = None
 
-    optvalues.tty = sys.stdin.isatty()
+    optvalues.tty = option_with_default(configs.getboolean, 'ui', 'tty', sys.stdin.isatty())
     optvalues.cqlversion = option_with_default(configs.get, 'cql', 'version', DEFAULT_CQLVER)
     optvalues.connect_timeout = option_with_default(configs.getint, 'connection', 'timeout', DEFAULT_CONNECT_TIMEOUT_SECONDS)
     optvalues.execute = None
