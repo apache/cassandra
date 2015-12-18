@@ -22,18 +22,19 @@ import java.util.*;
 
 import javax.annotation.Nullable;
 
+import com.google.common.collect.HashMultimap;
 import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.MapDifference;
 import com.google.common.collect.Maps;
+import com.google.common.collect.Multimap;
 
 import org.apache.cassandra.cql3.CQL3Type;
 import org.apache.cassandra.db.marshal.AbstractType;
 import org.apache.cassandra.db.marshal.UserType;
+import org.apache.cassandra.exceptions.ConfigurationException;
 import org.apache.cassandra.utils.ByteBufferUtil;
-import org.jgrapht.graph.DefaultDirectedGraph;
-import org.jgrapht.graph.DefaultEdge;
-import org.jgrapht.traverse.TopologicalOrderIterator;
 
+import static java.lang.String.format;
 import static com.google.common.collect.Iterables.filter;
 import static java.util.stream.Collectors.toList;
 import static org.apache.cassandra.utils.ByteBufferUtil.bytes;
@@ -114,7 +115,7 @@ public final class Types implements Iterable<UserType>
     public Types with(UserType type)
     {
         if (get(type.name).isPresent())
-            throw new IllegalStateException(String.format("Type %s already exists", type.name));
+            throw new IllegalStateException(format("Type %s already exists", type.name));
 
         return builder().add(this).add(type).build();
     }
@@ -125,7 +126,7 @@ public final class Types implements Iterable<UserType>
     public Types without(ByteBuffer name)
     {
         UserType type =
-            get(name).orElseThrow(() -> new IllegalStateException(String.format("Type %s doesn't exists", name)));
+            get(name).orElseThrow(() -> new IllegalStateException(format("Type %s doesn't exists", name)));
 
         return builder().add(filter(this, t -> t != type)).build();
     }
@@ -210,26 +211,41 @@ public final class Types implements Iterable<UserType>
             /*
              * build a DAG of UDT dependencies
              */
-            DefaultDirectedGraph<RawUDT, DefaultEdge> graph = new DefaultDirectedGraph<>(DefaultEdge.class);
+            Map<RawUDT, Integer> vertices = new HashMap<>(); // map values are numbers of referenced types
+            for (RawUDT udt : definitions)
+                vertices.put(udt, 0);
 
-            definitions.forEach(graph::addVertex);
-
-            for (RawUDT udt1: definitions)
+            Multimap<RawUDT, RawUDT> adjacencyList = HashMultimap.create();
+            for (RawUDT udt1 : definitions)
                 for (RawUDT udt2 : definitions)
-                    if (udt1 != udt2 && udt1.referencesUserType(udt2.name))
-                        graph.addEdge(udt2, udt1);
+                    if (udt1 != udt2 && udt1.referencesUserType(udt2))
+                        adjacencyList.put(udt2, udt1);
 
             /*
-             * iterate in topological order,
+             * resolve dependencies in topological order, using Kahn's algorithm
              */
-            Types types = new Types(new HashMap<>());
+            adjacencyList.values().forEach(vertex -> vertices.put(vertex, vertices.get(vertex) + 1));
 
-            TopologicalOrderIterator<RawUDT, DefaultEdge> iterator = new TopologicalOrderIterator<>(graph);
-            while (iterator.hasNext())
+            Queue<RawUDT> resolvableTypes = new LinkedList<>(); // UDTs with 0 dependencies
+            for (Map.Entry<RawUDT, Integer> entry : vertices.entrySet())
+                if (entry.getValue() == 0)
+                    resolvableTypes.add(entry.getKey());
+
+            Types types = new Types(new HashMap<>());
+            while (!resolvableTypes.isEmpty())
             {
-                UserType udt = iterator.next().prepare(keyspace, types); // will throw InvalidRequestException if meets an unknown type
+                RawUDT vertex = resolvableTypes.remove();
+
+                for (RawUDT dependentType : adjacencyList.get(vertex))
+                    if (vertices.replace(dependentType, vertices.get(dependentType) - 1) == 1)
+                        resolvableTypes.add(dependentType);
+
+                UserType udt = vertex.prepare(keyspace, types);
                 types.types.put(udt.name, udt);
             }
+
+            if (types.types.size() != definitions.size())
+                throw new ConfigurationException(format("Cannot resolve UDTs for keyspace %s: some types are missing", keyspace));
 
             /*
              * return an immutable copy
@@ -260,9 +276,9 @@ public final class Types implements Iterable<UserType>
                 this.fieldTypes = fieldTypes;
             }
 
-            boolean referencesUserType(String typeName)
+            boolean referencesUserType(RawUDT other)
             {
-                return fieldTypes.stream().anyMatch(t -> t.referencesUserType(typeName));
+                return fieldTypes.stream().anyMatch(t -> t.referencesUserType(other.name));
             }
 
             UserType prepare(String keyspace, Types types)
@@ -278,6 +294,18 @@ public final class Types implements Iterable<UserType>
                               .collect(toList());
 
                 return new UserType(keyspace, bytes(name), preparedFieldNames, preparedFieldTypes);
+            }
+
+            @Override
+            public int hashCode()
+            {
+                return name.hashCode();
+            }
+
+            @Override
+            public boolean equals(Object other)
+            {
+                return name.equals(((RawUDT) other).name);
             }
         }
     }
