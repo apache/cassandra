@@ -31,6 +31,7 @@ Merged from 2.2:
  * Add new types to Stress (CASSANDRA-9556)
  * Add property to allow listening on broadcast interface (CASSANDRA-9748)
 Merged from 2.1:
+ * Fix bugs in commit log archiving startup behavior (CASSANDRA-10593)
  * (cqlsh) further optimise COPY FROM (CASSANDRA-9302)
  * Allow CREATE TABLE WITH ID (CASSANDRA-9179)
  * Make Stress compiles within eclipse (CASSANDRA-10807)
