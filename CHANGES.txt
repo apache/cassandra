@@ -27,6 +27,7 @@ Merged from 3.0:
  * (Hadoop) Close Clusters and Sessions in Hadoop Input/Output classes (CASSANDRA-1837)
  * Fix sstableloader not working with upper case keyspace name (CASSANDRA-10806)
 Merged from 2.2:
+ * (cqlsh) show correct column names for empty result sets (CASSANDRA-9813)
  * Add new types to Stress (CASSANDRA-9556)
  * Add property to allow listening on broadcast interface (CASSANDRA-9748)
 Merged from 2.1:
