@@ -182,10 +182,13 @@ public class CommitLogArchiver
         }
         catch (ExecutionException e)
         {
-            if (e.getCause() instanceof IOException)
+            if (e.getCause() instanceof RuntimeException)
             {
-                logger.error("Looks like the archiving of file {} failed earlier, cassandra is going to ignore this segment for now.", name);
-                return false;
+                if (e.getCause().getCause() instanceof IOException)
+                {
+                    logger.error("Looks like the archiving of file {} failed earlier, cassandra is going to ignore this segment for now.", name, e.getCause().getCause());
+                    return false;
+                }
             }
             throw new RuntimeException(e);
         }
