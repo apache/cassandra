@@ -22,6 +22,8 @@ from __future__ import with_statement
 import re
 from .basecase import BaseTestCase, cqlsh
 from .cassconnect import testrun_cqlsh
+import unittest
+import sys
 
 BEL = '\x07'  # the terminal-bell character
 CTRL_C = '\x03'
@@ -36,6 +38,7 @@ COMPLETION_RESPONSE_TIME = 0.5
 completion_separation_re = re.compile(r'\s+')
 
 
+@unittest.skipIf(sys.platform == "win32", 'Tab completion tests not supported on Windows')
 class CqlshCompletionCase(BaseTestCase):
 
     def setUp(self):
