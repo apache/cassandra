@@ -40,18 +40,22 @@ public class NativeSSTableLoaderClient extends SSTableLoader.Client
     protected final Map<String, CFMetaData> tables;
     private final Collection<InetAddress> hosts;
     private final int port;
-    private final String username;
-    private final String password;
+    private final AuthProvider authProvider;
     private final SSLOptions sslOptions;
 
+
     public NativeSSTableLoaderClient(Collection<InetAddress> hosts, int port, String username, String password, SSLOptions sslOptions)
+    {
+        this(hosts, port, new PlainTextAuthProvider(username, password), sslOptions);
+    }
+
+    public NativeSSTableLoaderClient(Collection<InetAddress> hosts, int port, AuthProvider authProvider, SSLOptions sslOptions)
     {
         super();
         this.tables = new HashMap<>();
         this.hosts = hosts;
         this.port = port;
-        this.username = username;
-        this.password = password;
+        this.authProvider = authProvider;
         this.sslOptions = sslOptions;
     }
 
@@ -60,8 +64,8 @@ public class NativeSSTableLoaderClient extends SSTableLoader.Client
         Cluster.Builder builder = Cluster.builder().addContactPoints(hosts).withPort(port);
         if (sslOptions != null)
             builder.withSSL(sslOptions);
-        if (username != null && password != null)
-            builder = builder.withCredentials(username, password);
+        if (authProvider != null)
+            builder = builder.withAuthProvider(authProvider);
 
         try (Cluster cluster = builder.build(); Session session = cluster.connect())
         {
