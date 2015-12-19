@@ -111,6 +111,8 @@ public class IncomingTcpConnection extends Thread implements Closeable
     {
         try
         {
+            if (logger.isTraceEnabled())
+                logger.trace("Closing socket {} - isclosed: {}", socket, socket.isClosed());
             if (!socket.isClosed())
             {
                 socket.close();

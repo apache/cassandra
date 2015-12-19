@@ -352,6 +352,8 @@ public class OutboundTcpConnection extends Thread
             try
             {
                 socket.close();
+                if (logger.isTraceEnabled())
+                    logger.trace("Socket to {} closed", poolReference.endPoint());
             }
             catch (IOException e)
             {

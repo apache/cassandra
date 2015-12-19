@@ -122,7 +122,7 @@ public class Gossiper implements IFailureDetectionEventListener, GossiperMBean
 
     private final Map<InetAddress, Long> expireTimeEndpointMap = new ConcurrentHashMap<InetAddress, Long>();
 
-    private boolean inShadowRound = false;
+    private volatile boolean inShadowRound = false;
 
     private volatile long lastProcessedMessageAt = System.currentTimeMillis();
 
@@ -1321,17 +1321,24 @@ public class Gossiper implements IFailureDetectionEventListener, GossiperMBean
         MessageOut<GossipDigestSyn> message = new MessageOut<GossipDigestSyn>(MessagingService.Verb.GOSSIP_DIGEST_SYN,
                 digestSynMessage,
                 GossipDigestSyn.serializer);
+
         inShadowRound = true;
-        for (InetAddress seed : seeds)
-            MessagingService.instance().sendOneWay(message, seed);
         int slept = 0;
         try
         {
             while (true)
             {
+                if (slept % 5000 == 0)
+                { // CASSANDRA-8072, retry at the beginning and every 5 seconds
+                    logger.trace("Sending shadow round GOSSIP DIGEST SYN to seeds {}", seeds);
+                    for (InetAddress seed : seeds)
+                        MessagingService.instance().sendOneWay(message, seed);
+                }
+
                 Thread.sleep(1000);
                 if (!inShadowRound)
                     break;
+
                 slept += 1000;
                 if (slept > StorageService.RING_DELAY)
                     throw new RuntimeException("Unable to gossip with any seeds");
