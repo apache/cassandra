@@ -72,7 +72,7 @@ public class StreamReceiveTask extends StreamTask
     private boolean done = false;
 
     //  holds references to SSTables received
-    protected Collection<SSTableMultiWriter> sstables;
+    protected Collection<SSTableReader> sstables;
 
     public StreamReceiveTask(StreamSession session, UUID cfId, int totalFiles, long totalSize)
     {
@@ -97,7 +97,10 @@ public class StreamReceiveTask extends StreamTask
 
         assert cfId.equals(sstable.getCfId());
 
-        sstables.add(sstable);
+        Collection<SSTableReader> finished = sstable.finish(true);
+        txn.update(finished, false);
+        sstables.addAll(finished);
+
         if (sstables.size() == totalFiles)
         {
             done = true;
@@ -134,7 +137,6 @@ public class StreamReceiveTask extends StreamTask
                 if (kscf == null)
                 {
                     // schema was dropped during streaming
-                    task.sstables.forEach(SSTableMultiWriter::abortOrDie);
                     task.sstables.clear();
                     task.txn.abort();
                     task.session.taskCompleted(task);
@@ -143,15 +145,7 @@ public class StreamReceiveTask extends StreamTask
                 cfs = Keyspace.open(kscf.left).getColumnFamilyStore(kscf.right);
                 hasViews = !Iterables.isEmpty(View.findAll(kscf.left, kscf.right));
 
-                List<SSTableReader> readers = new ArrayList<>();
-                for (SSTableMultiWriter writer : task.sstables)
-                {
-                    Collection<SSTableReader> newReaders = writer.finish(true);
-                    readers.addAll(newReaders);
-                    task.txn.update(newReaders, false);
-                }
-
-                task.sstables.clear();
+                Collection<SSTableReader> readers = task.sstables;
 
                 try (Refs<SSTableReader> refs = Refs.ref(readers))
                 {
@@ -245,7 +239,6 @@ public class StreamReceiveTask extends StreamTask
             return;
 
         done = true;
-        sstables.forEach(SSTableMultiWriter::abortOrDie);
         txn.abort();
         sstables.clear();
     }
