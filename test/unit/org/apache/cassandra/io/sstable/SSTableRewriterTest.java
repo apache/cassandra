@@ -69,48 +69,8 @@ import org.apache.cassandra.utils.UUIDGen;
 
 import static org.junit.Assert.*;
 
-public class SSTableRewriterTest extends SchemaLoader
+public class SSTableRewriterTest extends SSTableWriterTestBase
 {
-    private static final String KEYSPACE = "SSTableRewriterTest";
-    private static final String CF = "Standard1";
-
-    private static Config.DiskAccessMode standardMode;
-    private static Config.DiskAccessMode indexMode;
-
-    @BeforeClass
-    public static void defineSchema() throws ConfigurationException
-    {
-        if (FBUtilities.isWindows())
-        {
-            standardMode = DatabaseDescriptor.getDiskAccessMode();
-            indexMode = DatabaseDescriptor.getIndexAccessMode();
-
-            DatabaseDescriptor.setDiskAccessMode(Config.DiskAccessMode.standard);
-            DatabaseDescriptor.setIndexAccessMode(Config.DiskAccessMode.standard);
-        }
-
-        SchemaLoader.prepareServer();
-        SchemaLoader.createKeyspace(KEYSPACE,
-                                    KeyspaceParams.simple(1),
-                                    SchemaLoader.standardCFMD(KEYSPACE, CF));
-    }
-
-    @AfterClass
-    public static void revertDiskAccess()
-    {
-        DatabaseDescriptor.setDiskAccessMode(standardMode);
-        DatabaseDescriptor.setIndexAccessMode(indexMode);
-    }
-
-    @After
-    public void truncateCF()
-    {
-        Keyspace keyspace = Keyspace.open(KEYSPACE);
-        ColumnFamilyStore store = keyspace.getColumnFamilyStore(CF);
-        store.truncateBlocking();
-        LifecycleTransaction.waitForDeletions();
-    }
-
     @Test
     public void basicTest() throws InterruptedException
     {
@@ -236,56 +196,6 @@ public class SSTableRewriterTest extends SchemaLoader
         int filecounts = assertFileCounts(sstables.iterator().next().descriptor.directory.list());
         assertEquals(1, filecounts);
         truncate(cfs);
-    }
-
-    @Test
-    public void testFileRemoval() throws InterruptedException
-    {
-        Keyspace keyspace = Keyspace.open(KEYSPACE);
-        ColumnFamilyStore cfs = keyspace.getColumnFamilyStore(CF);
-        truncate(cfs);
-
-        File dir = cfs.getDirectories().getDirectoryForNewSSTables();
-        LifecycleTransaction txn = LifecycleTransaction.offline(OperationType.WRITE);
-        try (SSTableWriter writer = getWriter(cfs, dir, txn))
-        {
-            for (int i = 0; i < 10000; i++)
-            {
-                UpdateBuilder builder = UpdateBuilder.create(cfs.metadata, random(i, 10)).withTimestamp(1);
-                for (int j = 0; j < 100; j++)
-                    builder.newRow("" + j).add("val", ByteBuffer.allocate(1000));
-                writer.append(builder.build().unfilteredIterator());
-            }
-
-            SSTableReader s = writer.setMaxDataAge(1000).openEarly();
-            assert s != null;
-            assertFileCounts(dir.list());
-            for (int i = 10000; i < 20000; i++)
-            {
-                UpdateBuilder builder = UpdateBuilder.create(cfs.metadata, random(i, 10)).withTimestamp(1);
-                for (int j = 0; j < 100; j++)
-                    builder.newRow("" + j).add("val", ByteBuffer.allocate(1000));
-                writer.append(builder.build().unfilteredIterator());
-            }
-            SSTableReader s2 = writer.setMaxDataAge(1000).openEarly();
-            assertTrue(s.last.compareTo(s2.last) < 0);
-            assertFileCounts(dir.list());
-            s.selfRef().release();
-            s2.selfRef().release();
-            // These checks don't work on Windows because the writer has the channel still
-            // open till .abort() is called (via the builder)
-            if (!FBUtilities.isWindows())
-            {
-                LifecycleTransaction.waitForDeletions();
-                assertFileCounts(dir.list());
-            }
-            writer.abort();
-            txn.abort();
-            LifecycleTransaction.waitForDeletions();
-            int datafiles = assertFileCounts(dir.list());
-            assertEquals(datafiles, 0);
-            validateCFS(cfs);
-        }
     }
 
     @Test
@@ -919,16 +829,6 @@ public class SSTableRewriterTest extends SchemaLoader
         }
     }
 
-    public static void truncate(ColumnFamilyStore cfs)
-    {
-        cfs.truncateBlocking();
-        LifecycleTransaction.waitForDeletions();
-        Uninterruptibles.sleepUninterruptibly(10L, TimeUnit.MILLISECONDS);
-        assertEquals(0, cfs.metric.liveDiskSpaceUsed.getCount());
-        assertEquals(0, cfs.metric.totalDiskSpaceUsed.getCount());
-        validateCFS(cfs);
-    }
-
     public static SSTableReader writeFile(ColumnFamilyStore cfs, int count)
     {
         return Iterables.getFirst(writeFiles(cfs, 1, count * 5, count / 100, 1000), null);
@@ -958,68 +858,5 @@ public class SSTableRewriterTest extends SchemaLoader
             }
         }
         return result;
-    }
-
-    public static void validateCFS(ColumnFamilyStore cfs)
-    {
-        Set<Integer> liveDescriptors = new HashSet<>();
-        long spaceUsed = 0;
-        for (SSTableReader sstable : cfs.getLiveSSTables())
-        {
-            assertFalse(sstable.isMarkedCompacted());
-            assertEquals(1, sstable.selfRef().globalCount());
-            liveDescriptors.add(sstable.descriptor.generation);
-            spaceUsed += sstable.bytesOnDisk();
-        }
-        for (File dir : cfs.getDirectories().getCFDirectories())
-        {
-            for (File f : dir.listFiles())
-            {
-                if (f.getName().contains("Data"))
-                {
-                    Descriptor d = Descriptor.fromFilename(f.getAbsolutePath());
-                    assertTrue(d.toString(), liveDescriptors.contains(d.generation));
-                }
-            }
-        }
-        assertEquals(spaceUsed, cfs.metric.liveDiskSpaceUsed.getCount());
-        assertEquals(spaceUsed, cfs.metric.totalDiskSpaceUsed.getCount());
-        assertTrue(cfs.getTracker().getCompacting().isEmpty());
-    }
-
-    public static int assertFileCounts(String [] files)
-    {
-        int tmplinkcount = 0;
-        int tmpcount = 0;
-        int datacount = 0;
-        for (String f : files)
-        {
-            if (f.endsWith("-CRC.db"))
-                continue;
-            if (f.contains("tmplink-"))
-                tmplinkcount++;
-            else if (f.contains("tmp-"))
-                tmpcount++;
-            else if (f.contains("Data"))
-                datacount++;
-        }
-        assertEquals(0, tmplinkcount);
-        assertEquals(0, tmpcount);
-        return datacount;
-    }
-
-    public static SSTableWriter getWriter(ColumnFamilyStore cfs, File directory, LifecycleTransaction txn)
-    {
-        String filename = cfs.getSSTablePath(directory);
-        return SSTableWriter.create(filename, 0, 0, new SerializationHeader(true, cfs.metadata, cfs.metadata.partitionColumns(), EncodingStats.NO_STATS), cfs.indexManager.listIndexes(), txn);
-    }
-
-    public static ByteBuffer random(int i, int size)
-    {
-        byte[] bytes = new byte[size + 4];
-        ThreadLocalRandom.current().nextBytes(bytes);
-        ByteBuffer r = ByteBuffer.wrap(bytes);
-        r.putInt(0, i);
-        return r;
     }
 }
