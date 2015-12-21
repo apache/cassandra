@@ -224,6 +224,29 @@ New features
 2.2
 ===
 
+Upgrading
+---------
+   - The authentication & authorization subsystems have been redesigned to
+     support role based access control (RBAC), resulting in a change to the
+     schema of the system_auth keyspace. See below for more detail.
+     For systems already using the internal auth implementations, the process
+     for converting existing data during a rolling upgrade is straightforward.
+     As each node is restarted, it will attempt to convert any data in the
+     legacy tables into the new schema. Until enough nodes to satisfy the
+     replication strategy for the system_auth keyspace are upgraded and so have
+     the new schema, this conversion will fail with the failure being reported
+     in the system log.
+     During the upgrade, Cassandra's internal auth classes will continue to use
+     the legacy tables, so clients experience no disruption. Issuing DCL
+     statements during an upgrade is not supported.
+     Once all nodes are upgraded, an operator with superuser privileges should
+     drop the legacy tables, system_auth.users, system_auth.credentials and 
+     system_auth.permissions. Doing so will prompt Cassandra to switch over to 
+     the new tables without requiring any further intervention.
+     While the legacy tables are present a restarted node will re-run the data
+     conversion and report the outcome so that operators can verify that it is
+     safe to drop them.
+
 New features
 ------------
    - The LIMIT clause applies now only to the number of rows returned to the user,
