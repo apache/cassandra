@@ -49,11 +49,11 @@ public class SSTableReversedIterator extends AbstractSSTableIterator
         super(sstable, file, key, indexEntry, columns, isForThrift);
     }
 
-    protected Reader createReader(RowIndexEntry indexEntry, FileDataInput file, boolean isAtPartitionStart, boolean shouldCloseFile)
+    protected Reader createReader(RowIndexEntry indexEntry, FileDataInput file, boolean shouldCloseFile)
     {
         return indexEntry.isIndexed()
-             ? new ReverseIndexedReader(indexEntry, file, isAtPartitionStart, shouldCloseFile)
-             : new ReverseReader(file, isAtPartitionStart, shouldCloseFile);
+             ? new ReverseIndexedReader(indexEntry, file, shouldCloseFile)
+             : new ReverseReader(file, shouldCloseFile);
     }
 
     public boolean isReverseOrder()
@@ -66,9 +66,9 @@ public class SSTableReversedIterator extends AbstractSSTableIterator
         protected ReusablePartitionData buffer;
         protected Iterator<Unfiltered> iterator;
 
-        private ReverseReader(FileDataInput file, boolean isAtPartitionStart, boolean shouldCloseFile)
+        private ReverseReader(FileDataInput file, boolean shouldCloseFile)
         {
-            super(file, isAtPartitionStart, shouldCloseFile);
+            super(file, shouldCloseFile);
         }
 
         protected ReusablePartitionData createBuffer(int blocksCount)
@@ -98,13 +98,6 @@ public class SSTableReversedIterator extends AbstractSSTableIterator
                 }
             }
             return new ReusablePartitionData(metadata(), partitionKey(), columns(), estimatedRowCount);
-        }
-
-        protected void init() throws IOException
-        {
-            // We should always have been initialized (at the beginning of the partition). Only indexed readers may
-            // have to initialize.
-            throw new IllegalStateException();
         }
 
         public void setForSlice(Slice slice) throws IOException
@@ -212,23 +205,16 @@ public class SSTableReversedIterator extends AbstractSSTableIterator
         // The last index block to consider for the slice
         private int lastBlockIdx;
 
-        private ReverseIndexedReader(RowIndexEntry indexEntry, FileDataInput file, boolean isAtPartitionStart, boolean shouldCloseFile)
+        private ReverseIndexedReader(RowIndexEntry indexEntry, FileDataInput file, boolean shouldCloseFile)
         {
-            super(file, isAtPartitionStart, shouldCloseFile);
+            super(file, shouldCloseFile);
             this.indexState = new IndexState(this, sstable.metadata.comparator, indexEntry, true);
-        }
-
-        protected void init() throws IOException
-        {
-            // This is actually a no-op, because if we call hasNext without having called setForSlice, then ReverseReader.hasNextInternal
-            // will call setForSlice(Slice.ALL) which does the right thing.
         }
 
         @Override
         public void setForSlice(Slice slice) throws IOException
         {
             this.slice = slice;
-            isInit = true;
 
             // if our previous slicing already got us past the beginning of the sstable, we're done
             if (indexState.isDone())

@@ -46,11 +46,11 @@ public class SSTableIterator extends AbstractSSTableIterator
         super(sstable, file, key, indexEntry, columns, isForThrift);
     }
 
-    protected Reader createReader(RowIndexEntry indexEntry, FileDataInput file, boolean isAtPartitionStart, boolean shouldCloseFile)
+    protected Reader createReader(RowIndexEntry indexEntry, FileDataInput file, boolean shouldCloseFile)
     {
         return indexEntry.isIndexed()
-             ? new ForwardIndexedReader(indexEntry, file, isAtPartitionStart, shouldCloseFile)
-             : new ForwardReader(file, isAtPartitionStart, shouldCloseFile);
+             ? new ForwardIndexedReader(indexEntry, file, shouldCloseFile)
+             : new ForwardReader(file, shouldCloseFile);
     }
 
     public boolean isReverseOrder()
@@ -70,16 +70,9 @@ public class SSTableIterator extends AbstractSSTableIterator
         protected boolean sliceDone; // set to true once we know we have no more result for the slice. This is in particular
                                      // used by the indexed reader when we know we can't have results based on the index.
 
-        private ForwardReader(FileDataInput file, boolean isAtPartitionStart, boolean shouldCloseFile)
+        private ForwardReader(FileDataInput file, boolean shouldCloseFile)
         {
-            super(file, isAtPartitionStart, shouldCloseFile);
-        }
-
-        protected void init() throws IOException
-        {
-            // We should always have been initialized (at the beginning of the partition). Only indexed readers may
-            // have to initialize.
-            throw new IllegalStateException();
+            super(file, shouldCloseFile);
         }
 
         public void setForSlice(Slice slice) throws IOException
@@ -95,6 +88,8 @@ public class SSTableIterator extends AbstractSSTableIterator
         // Return what should be returned at the end of this, or null if nothing should.
         private Unfiltered handlePreSliceData() throws IOException
         {
+            assert deserializer != null;
+
             // Note that the following comparison is not strict. The reason is that the only cases
             // where it can be == is if the "next" is a RT start marker (either a '[' of a ')[' boundary),
             // and if we had a strict inequality and an open RT marker before this, we would issue
@@ -126,6 +121,8 @@ public class SSTableIterator extends AbstractSSTableIterator
         // if we're done with the slice.
         protected Unfiltered computeNext() throws IOException
         {
+            assert deserializer != null;
+
             if (!deserializer.hasNext() || deserializer.compareNextTo(end) > 0)
                 return null;
 
@@ -142,8 +139,6 @@ public class SSTableIterator extends AbstractSSTableIterator
 
             if (sliceDone)
                 return false;
-
-            assert deserializer != null;
 
             if (start != null)
             {
@@ -187,27 +182,17 @@ public class SSTableIterator extends AbstractSSTableIterator
 
         private int lastBlockIdx; // the last index block that has data for the current query
 
-        private ForwardIndexedReader(RowIndexEntry indexEntry, FileDataInput file, boolean isAtPartitionStart, boolean shouldCloseFile)
+        private ForwardIndexedReader(RowIndexEntry indexEntry, FileDataInput file, boolean shouldCloseFile)
         {
-            super(file, isAtPartitionStart, shouldCloseFile);
+            super(file, shouldCloseFile);
             this.indexState = new IndexState(this, sstable.metadata.comparator, indexEntry, false);
             this.lastBlockIdx = indexState.blocksCount(); // if we never call setForSlice, that's where we want to stop
-        }
-
-        @Override
-        protected void init() throws IOException
-        {
-            // If this is called, it means we're calling hasNext() before any call to setForSlice. Which means
-            // we're reading everything from the beginning. So just set us up at the beginning of the first block.
-            indexState.setToBlock(0);
         }
 
         @Override
         public void setForSlice(Slice slice) throws IOException
         {
             super.setForSlice(slice);
-
-            isInit = true;
 
             // if our previous slicing already got us the biggest row in the sstable, we're done
             if (indexState.isDone())
@@ -265,6 +250,7 @@ public class SSTableIterator extends AbstractSSTableIterator
         protected Unfiltered computeNext() throws IOException
         {
             // Our previous read might have made us cross an index block boundary. If so, update our informations.
+            // If we read from the beginning of the partition, this is also what will initialize the index state.
             indexState.updateBlock();
 
             // Return the next unfiltered unless we've reached the end, or we're beyond our slice
