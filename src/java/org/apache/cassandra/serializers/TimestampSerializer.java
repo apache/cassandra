@@ -96,8 +96,14 @@ public class TimestampSerializer implements TypeSerializer<Date>
         }
     };
 
-    public static final SimpleDateFormat TO_JSON_FORMAT = new SimpleDateFormat(dateStringPatterns[15]);
-
+    private static final ThreadLocal<SimpleDateFormat> FORMATTER_TO_JSON = new ThreadLocal<SimpleDateFormat>()
+    {
+        protected SimpleDateFormat initialValue()
+        {
+            return new SimpleDateFormat(dateStringPatterns[15]);
+        }
+    };
+    
     public static final TimestampSerializer instance = new TimestampSerializer();
 
     public Date deserialize(ByteBuffer bytes)
@@ -137,6 +143,11 @@ public class TimestampSerializer implements TypeSerializer<Date>
         {
             throw new MarshalException(String.format("Unable to coerce '%s' to a formatted date (long)", source), e1);
         }
+    }
+    
+    public static SimpleDateFormat getJsonDateFormatter() 
+    {
+    	return FORMATTER_TO_JSON.get();
     }
 
     public void validate(ByteBuffer bytes) throws MarshalException

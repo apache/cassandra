@@ -82,7 +82,7 @@ public class DateType extends AbstractType<Date>
     @Override
     public String toJSONString(ByteBuffer buffer, int protocolVersion)
     {
-        return '"' + TimestampSerializer.TO_JSON_FORMAT.format(TimestampSerializer.instance.deserialize(buffer)) + '"';
+        return '"' + TimestampSerializer.getJsonDateFormatter().format(TimestampSerializer.instance.deserialize(buffer)) + '"';
     }
 
     @Override
