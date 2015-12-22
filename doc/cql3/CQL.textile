@@ -748,7 +748,7 @@ APPLY BATCH;
 The @BATCH@ statement group multiple modification statements (insertions/updates and deletions) into a single statement. It serves several purposes:
 # It saves network round-trips between the client and the server (and sometimes between the server coordinator and the replicas) when batching multiple updates.
 # All updates in a @BATCH@ belonging to a given partition key are performed in isolation.
-# By default, all operations in the batch are performed atomically.  See the notes on "@UNLOGGED@":#unloggedBatch for more details.
+# By default, all operations in the batch are performed as @LOGGED@, to ensure all mutations eventually complete (or none will).  See the notes on "@UNLOGGED@":#unloggedBatch for more details.
 
 Note that:
 * @BATCH@ statements may only contain @UPDATE@, @INSERT@ and @DELETE@ statements.
@@ -757,9 +757,9 @@ Note that:
 
 h4(#unloggedBatch). @UNLOGGED@
 
-By default, Cassandra uses a batch log to ensure all operations in a batch are applied atomically. (Note that the operations are still only isolated within a single partition.)
+By default, Cassandra uses a batch log to ensure all operations in a batch eventually complete or none will (note however that operations are only isolated within a single partition).
 
-There is a performance penalty for batch atomicity when a batch spans multiple partitions. If you do not want to incur this penalty, you can tell Cassandra to skip the batchlog with the @UNLOGGED@ option. If the @UNLOGGED@ option is used, operations are only atomic within a single partition.
+There is a performance penalty for batch atomicity when a batch spans multiple partitions. If you do not want to incur this penalty, you can tell Cassandra to skip the batchlog with the @UNLOGGED@ option. If the @UNLOGGED@ option is used, a failed batch might leave the patch only partly applied.
 
 h4(#counterBatch). @COUNTER@
 
