@@ -1020,15 +1020,18 @@ class ImportConversion(object):
                 ret[i] = self.converters[self.columns[i]](val)
             else:
                 if i in self.primary_key_indexes:
-                    message = "Cannot insert null value for primary key column '%s'." % (self.columns[i],)
-                    if self.nullval == '':
-                        message += " If you want to insert empty strings, consider using" \
-                                   " the WITH NULL=<marker> option for COPY."
-                    raise Exception(message=message)
+                    raise ValueError(self.get_null_primary_key_message(i))
 
                 ret[i] = None
 
         return ret
+
+    def get_null_primary_key_message(self, idx):
+        message = "Cannot insert null value for primary key column '%s'." % (self.columns[idx],)
+        if self.nullval == '':
+            message += " If you want to insert empty strings, consider using" \
+                       " the WITH NULL=<marker> option for COPY."
+        return message
 
     def get_row_partition_key_values(self, row):
         """
@@ -1037,6 +1040,8 @@ class ImportConversion(object):
         """
         def serialize(n):
             c, v = self.columns[n], row[n]
+            if v == self.nullval:
+                raise ValueError(self.get_null_primary_key_message(n))
             return self.cqltypes[c].serialize(self.converters[c](v), self.proto_version)
 
         partition_key_indexes = self.partition_key_indexes
