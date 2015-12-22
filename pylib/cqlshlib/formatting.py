@@ -126,7 +126,7 @@ def formatter_for(typname):
 
 @formatter_for('bytearray')
 def format_value_blob(val, colormap, **_):
-    bval = '0x' + binascii.hexlify(val)
+    bval = '0x' + binascii.hexlify(str(val))
     return colorme(bval, colormap, 'blob')
 formatter_for('buffer')(format_value_blob)
 

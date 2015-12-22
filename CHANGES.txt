@@ -1,4 +1,5 @@
 2.1.13
+ * (cqlsh) fix formatting bytearray values (CASSANDRA-10839)
  * (cqlsh) Add request timeout option to cqlsh (CASSANDRA-10686)
  * Avoid AssertionError while submitting hint with LWT (CASSANDRA-10477)
  * If CompactionMetadata is not in stats file, use index summary instead (CASSANDRA-10676)
