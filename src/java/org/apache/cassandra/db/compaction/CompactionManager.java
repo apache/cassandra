@@ -609,6 +609,62 @@ public class CompactionManager implements CompactionManagerMBean
         FBUtilities.waitOnFutures(futures);
     }
 
+    public void forceUserDefinedCleanup(String dataFiles)
+    {
+        String[] filenames = dataFiles.split(",");
+        HashMap<ColumnFamilyStore, Descriptor> descriptors = Maps.newHashMap();
+
+        for (String filename : filenames)
+        {
+            // extract keyspace and columnfamily name from filename
+            Descriptor desc = Descriptor.fromFilename(filename.trim());
+            if (Schema.instance.getCFMetaData(desc) == null)
+            {
+                logger.warn("Schema does not exist for file {}. Skipping.", filename);
+                continue;
+            }
+            // group by keyspace/columnfamily
+            ColumnFamilyStore cfs = Keyspace.open(desc.ksname).getColumnFamilyStore(desc.cfname);
+            desc = cfs.getDirectories().find(new File(filename.trim()).getName());
+            if (desc != null)
+                descriptors.put(cfs, desc);
+        }
+
+        for (Map.Entry<ColumnFamilyStore,Descriptor> entry : descriptors.entrySet())
+        {
+            ColumnFamilyStore cfs = entry.getKey();
+            Keyspace keyspace = cfs.keyspace;
+            Collection<Range<Token>> ranges = StorageService.instance.getLocalRanges(keyspace.getName());
+            boolean hasIndexes = cfs.indexManager.hasIndexes();
+            SSTableReader sstable = lookupSSTable(cfs, entry.getValue());
+
+            if (ranges.isEmpty())
+            {
+                logger.error("Cleanup cannot run before a node has joined the ring");
+                return;
+            }
+
+            if(sstable == null)
+            {
+                logger.warn("Will not clean {}, it is not an active sstable", entry.getValue());
+            }
+            else
+            {
+                LifecycleTransaction txn = cfs.getTracker().tryModify(sstable, OperationType.CLEANUP);
+                CleanupStrategy cleanupStrategy = CleanupStrategy.get(cfs, ranges, FBUtilities.nowInSeconds());
+                try
+                {
+                    doCleanupOne(cfs, txn, cleanupStrategy, ranges, hasIndexes);
+                }
+                catch (IOException e)
+                {
+                    logger.error(String.format("forceUserDefinedCleanup failed: %s", e.getLocalizedMessage()));
+                }
+            }
+        }
+    }
+
+
     public Future<?> submitUserDefined(final ColumnFamilyStore cfs, final Collection<Descriptor> dataFiles, final int gcBefore)
     {
         Runnable runnable = new WrappedRunnable()

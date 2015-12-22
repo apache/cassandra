@@ -174,6 +174,32 @@ public class CleanupTest
     }
 
     @Test
+    public void testuserDefinedCleanupWithNewToken() throws ExecutionException, InterruptedException, UnknownHostException
+    {
+        StorageService.instance.getTokenMetadata().clearUnsafe();
+
+        Keyspace keyspace = Keyspace.open(KEYSPACE1);
+        ColumnFamilyStore cfs = keyspace.getColumnFamilyStore(CF_STANDARD1);
+
+        // insert data and verify we get it back w/ range query
+        fillCF(cfs, "val", LOOPS);
+
+        assertEquals(LOOPS, Util.getAll(Util.cmd(cfs).build()).size());
+        TokenMetadata tmd = StorageService.instance.getTokenMetadata();
+
+        byte[] tk1 = new byte[1], tk2 = new byte[1];
+        tk1[0] = 2;
+        tk2[0] = 1;
+        tmd.updateNormalToken(new BytesToken(tk1), InetAddress.getByName("127.0.0.1"));
+        tmd.updateNormalToken(new BytesToken(tk2), InetAddress.getByName("127.0.0.2"));
+
+        for(SSTableReader r: cfs.getLiveSSTables())
+            CompactionManager.instance.forceUserDefinedCleanup(r.getFilename());
+
+        assertEquals(0, Util.getAll(Util.cmd(cfs).build()).size());
+    }
+
+    @Test
     public void testNeedsCleanup() throws Exception
     {
         // setup
