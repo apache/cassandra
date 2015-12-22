@@ -16,7 +16,9 @@
 
 import binascii
 import calendar
+import datetime
 import math
+import os
 import re
 import sys
 import platform
@@ -99,15 +101,16 @@ def color_text(bval, colormap, displaywidth=None):
 
 DEFAULT_NANOTIME_FORMAT = '%H:%M:%S.%N'
 DEFAULT_DATE_FORMAT = '%Y-%m-%d'
-DEFAULT_TIMESTAMP_FORMAT = '%Y-%m-%d %H:%M:%S%z'
 
-if platform.system() == 'Windows':
-    DEFAULT_TIME_FORMAT = '%Y-%m-%d %H:%M:%S %Z'
+DEFAULT_TIMESTAMP_FORMAT = os.environ.get('CQLSH_DEFAULT_TIMESTAMP_FORMAT', '')
+if not DEFAULT_TIMESTAMP_FORMAT:
+    DEFAULT_TIMESTAMP_FORMAT = '%Y-%m-%d %H:%M:%S.%f%z'
 
 
-class DateTimeFormat():
+class DateTimeFormat:
 
-    def __init__(self, timestamp_format=DEFAULT_TIMESTAMP_FORMAT, date_format=DEFAULT_DATE_FORMAT, nanotime_format=DEFAULT_NANOTIME_FORMAT):
+    def __init__(self, timestamp_format=DEFAULT_TIMESTAMP_FORMAT, date_format=DEFAULT_DATE_FORMAT,
+                 nanotime_format=DEFAULT_NANOTIME_FORMAT):
         self.timestamp_format = timestamp_format
         self.date_format = date_format
         self.nanotime_format = nanotime_format
@@ -234,15 +237,12 @@ formatter_for('int')(format_integer_type)
 
 @formatter_for('datetime')
 def format_value_timestamp(val, colormap, date_time_format, quote=False, **_):
-    bval = strftime(date_time_format.timestamp_format, calendar.timegm(val.utctimetuple()))
+    tzless_dt = datetime_from_timestamp(calendar.timegm(val.utctimetuple())) \
+        + datetime.timedelta(microseconds=val.microsecond)
+    bval = tzless_dt.replace(tzinfo=UTC()).strftime(date_time_format.timestamp_format)
     if quote:
         bval = "'%s'" % bval
     return colorme(bval, colormap, 'timestamp')
-
-
-def strftime(time_format, seconds):
-    tzless_dt = datetime_from_timestamp(seconds)
-    return tzless_dt.replace(tzinfo=UTC()).strftime(time_format)
 
 
 @formatter_for('Date')

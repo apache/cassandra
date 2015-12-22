@@ -1,4 +1,5 @@
 3.4
+ * cqlsh: Include sub-second precision in timestamps by default (CASSANDRA-10428)
  * Set javac encoding to utf-8 (CASSANDRA-11077)
  * Integrate SASI index into Cassandra (CASSANDRA-10661)
  * Add --skip-flush option to nodetool snapshot

@@ -52,6 +52,10 @@ from uuid import UUID
 if sys.version_info[0] != 2 or sys.version_info[1] != 7:
     sys.exit("\nCQL Shell supports only Python 2.7\n")
 
+# see CASSANDRA-10428
+if platform.python_implementation().startswith('Jython'):
+    sys.exit("\nCQL Shell does not run on Jython\n")
+
 description = "CQL Shell for Apache Cassandra"
 version = "5.0.1"
 
@@ -723,10 +727,6 @@ class Shell(cmd.Cmd):
 
         self.current_keyspace = keyspace
 
-        self.display_timestamp_format = display_timestamp_format
-        self.display_nanotime_format = display_nanotime_format
-        self.display_date_format = display_date_format
-
         self.max_trace_wait = max_trace_wait
         self.session.max_trace_wait = max_trace_wait
         if encoding is None:
@@ -781,7 +781,8 @@ class Shell(cmd.Cmd):
             self.decoding_errors.append(val)
         try:
             dtformats = DateTimeFormat(timestamp_format=self.display_timestamp_format,
-                                       date_format=self.display_date_format, nanotime_format=self.display_nanotime_format)
+                                       date_format=self.display_date_format,
+                                       nanotime_format=self.display_nanotime_format)
             return format_value(val, self.output_codec.name,
                                 addcolor=self.color, date_time_format=dtformats,
                                 float_precision=self.display_float_precision, **kwargs)

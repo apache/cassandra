@@ -1471,9 +1471,9 @@ class ImportConversion(object):
 
             return ret
 
-        # this should match all possible CQL datetime formats
+        # this should match all possible CQL and CQLSH datetime formats
         p = re.compile("(\d{4})\-(\d{2})\-(\d{2})\s?(?:'T')?" +  # YYYY-MM-DD[( |'T')]
-                       "(?:(\d{2}):(\d{2})(?::(\d{2}))?)?" +  # [HH:MM[:SS]]
+                       "(?:(\d{2}):(\d{2})(?::(\d{2})(?:\.(\d{1,6}))?))?" +  # [HH:MM[:SS[.NNNNNN]]]
                        "(?:([+\-])(\d{2}):?(\d{2}))?")  # [(+|-)HH[:]MM]]
 
         def convert_datetime(val, **_):
@@ -1494,13 +1494,16 @@ class ImportConversion(object):
                                     int(m.group(6)) if m.group(6) else 0,  # second
                                     0, 1, -1))  # day of week, day of year, dst-flag
 
-            if m.group(7):
-                offset = (int(m.group(8)) * 3600 + int(m.group(9)) * 60) * int(m.group(7) + '1')
+            # convert sub-seconds (a number between 1 and 6 digits) to milliseconds
+            milliseconds = 0 if not m.group(7) else int(m.group(7)) * pow(10, 3 - len(m.group(7)))
+
+            if m.group(8):
+                offset = (int(m.group(9)) * 3600 + int(m.group(10)) * 60) * int(m.group(8) + '1')
             else:
                 offset = -time.timezone
 
             # scale seconds to millis for the raw value
-            return (timegm(tval) + offset) * 1e3
+            return ((timegm(tval) + offset) * 1e3) + milliseconds
 
         def convert_date(v, **_):
             return Date(v)
