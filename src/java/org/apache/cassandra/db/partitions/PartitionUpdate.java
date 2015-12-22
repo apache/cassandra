@@ -581,6 +581,28 @@ public class PartitionUpdate extends AbstractBTreePartition
         isBuilt = true;
     }
 
+    @Override
+    public String toString()
+    {
+        if (isBuilt)
+            return super.toString();
+
+        // We intentionally override AbstractBTreePartition#toString() to avoid iterating over the rows in the
+        // partition, which can result in build() being triggered and lead to errors if the PartitionUpdate is later
+        // modified.
+
+        StringBuilder sb = new StringBuilder();
+        sb.append(String.format("[%s.%s] key=%s columns=%s",
+                                metadata.ksName,
+                                metadata.cfName,
+                                metadata.getKeyValidator().getString(partitionKey().getKey()),
+                                columns()));
+
+        sb.append("\n    deletionInfo=").append(deletionInfo);
+        sb.append(" (not built)");
+        return sb.toString();
+    }
+
     public static class PartitionUpdateSerializer
     {
         public void serialize(PartitionUpdate update, DataOutputPlus out, int version) throws IOException

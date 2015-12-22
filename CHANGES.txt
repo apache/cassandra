@@ -22,6 +22,7 @@
  * Abort in-progress queries that time out (CASSANDRA-7392)
  * Add transparent data encryption core classes (CASSANDRA-9945)
 Merged from 3.0:
+ * Avoid building PartitionUpdate in toString (CASSANDRA-10897)
  * Reduce heap spent when receiving many SSTables (CASSANDRA-10797)
  * Add back support for 3rd party auth providers to bulk loader (CASSANDRA-10873)
  * Eliminate the dependency on jgrapht for UDT resolution (CASSANDRA-10653)
