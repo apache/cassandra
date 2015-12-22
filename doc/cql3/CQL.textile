@@ -1,6 +1,6 @@
 <link rel="StyleSheet" href="CQL.css" type="text/css" media="screen">
 
-h1. Cassandra Query Language (CQL) v3.3.1
+h1. Cassandra Query Language (CQL) v3.4.0
 
 
 
@@ -2267,6 +2267,9 @@ h2(#changes). Changes
 
 The following describes the changes in each version of CQL.
 
+h3. 3.4.0
+
+* Support for "materialized views":#createMVStmt
 
 h3. 3.3.1
 
