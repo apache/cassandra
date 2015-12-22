@@ -340,6 +340,9 @@ public class BatchStatement implements CQLStatement
 
     private void executeWithoutConditions(Collection<? extends IMutation> mutations, ConsistencyLevel cl) throws RequestExecutionException, RequestValidationException
     {
+        if (mutations.isEmpty())
+            return;
+
         // Extract each collection of updates from it's IMutation and then lazily concatenate all of them into a single Iterable.
         Iterable<PartitionUpdate> updates = Iterables.concat(Iterables.transform(mutations, new Function<IMutation, Collection<PartitionUpdate>>()
         {
