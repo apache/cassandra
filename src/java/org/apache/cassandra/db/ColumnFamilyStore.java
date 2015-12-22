@@ -571,7 +571,7 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
          // clear ephemeral snapshots that were not properly cleared last session (CASSANDRA-7357)
         clearEphemeralSnapshots(directories);
 
-        logger.trace("Removing temporary or obsoleted files from unfinished operations for table", metadata.cfName);
+        logger.trace("Removing temporary or obsoleted files from unfinished operations for table {}", metadata.cfName);
         LifecycleTransaction.removeUnfinishedLeftovers(metadata);
 
         logger.trace("Further extra check for orphan sstable files for {}", metadata.cfName);
