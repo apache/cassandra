@@ -205,6 +205,16 @@ public interface Row extends Unfiltered, Collection<ColumnData>
     public Row purge(DeletionPurger purger, int nowInSec);
 
     /**
+     * Returns a copy of this row which only include the data queried by {@code filter}, excluding anything _fetched_ for
+     * internal reasons but not queried by the user (see {@link ColumnFilter} for details).
+     *
+     * @param filter the {@code ColumnFilter} to use when deciding what is user queried. This should be the filter
+     * that was used when querying the row on which this method is called.
+     * @return the row but with all data that wasn't queried by the user skipped.
+     */
+    public Row withOnlyQueriedData(ColumnFilter filter);
+
+    /**
      * Returns a copy of this row where all counter cells have they "local" shard marked for clearing.
      */
     public Row markCounterLocalToBeCleared();

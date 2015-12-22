@@ -1,4 +1,5 @@
 3.4
+ * Skip values for non-queried columns (CASSANDRA-10657)
  * Add support for secondary indexes on static columns (CASSANDRA-8103)
  * CommitLogUpgradeTestMaker creates broken commit logs (CASSANDRA-11051)
  * Add metric for number of dropped mutations (CASSANDRA-10866)

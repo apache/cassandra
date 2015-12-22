@@ -28,6 +28,7 @@ import org.apache.cassandra.config.ColumnDefinition;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.db.*;
 import org.apache.cassandra.db.filter.ClusteringIndexFilter;
+import org.apache.cassandra.db.filter.ColumnFilter;
 import org.apache.cassandra.db.filter.DataLimits;
 import org.apache.cassandra.db.partitions.*;
 import org.apache.cassandra.db.rows.*;
@@ -197,10 +198,22 @@ public class DataResolver extends ResponseResolver
 
                     public void onCell(int i, Clustering clustering, Cell merged, Cell original)
                     {
-                        if (merged != null && !merged.equals(original))
+                        if (merged != null && !merged.equals(original) && isQueried(merged))
                             currentRow(i, clustering).addCell(merged);
                     }
 
+                    private boolean isQueried(Cell cell)
+                    {
+                        // When we read, we may have some cell that have been fetched but are not selected by the user. Those cells may
+                        // have empty values as optimization (see CASSANDRA-10655) and hence they should not be included in the read-repair.
+                        // This is fine since those columns are not actually requested by the user and are only present for the sake of CQL
+                        // semantic (making sure we can always distinguish between a row that doesn't exist from one that do exist but has
+                        /// no value for the column requested by the user) and so it won't be unexpected by the user that those columns are
+                        // not repaired.
+                        ColumnDefinition column = cell.column();
+                        ColumnFilter filter = command.columnFilter();
+                        return column.isComplex() ? filter.fetchedCellIsQueried(column, cell.path()) : filter.fetchedColumnIsQueried(column);
+                    }
                 };
             }
 

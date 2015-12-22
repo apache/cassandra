@@ -746,7 +746,7 @@ public class SinglePartitionReadCommand extends ReadCommand
 
             try (UnfilteredRowIterator iter = result.unfilteredIterator(columnFilter(), Slices.ALL, false))
             {
-                final Mutation mutation = new Mutation(PartitionUpdate.fromIterator(iter));
+                final Mutation mutation = new Mutation(PartitionUpdate.fromIterator(iter, columnFilter()));
                 StageManager.getStage(Stage.MUTATION).execute(new Runnable()
                 {
                     public void run()

@@ -453,7 +453,7 @@ public class UnfilteredSerializer
         if (helper.includes(column))
         {
             Cell cell = Cell.serializer.deserialize(in, rowLiveness, column, header, helper);
-            if (!helper.isDropped(cell, false))
+            if (helper.includes(cell, rowLiveness) && !helper.isDropped(cell, false))
                 builder.addCell(cell);
         }
         else
@@ -479,7 +479,7 @@ public class UnfilteredSerializer
             while (--count >= 0)
             {
                 Cell cell = Cell.serializer.deserialize(in, rowLiveness, column, header, helper);
-                if (helper.includes(cell.path()) && !helper.isDropped(cell, true))
+                if (helper.includes(cell, rowLiveness) && !helper.isDropped(cell, true))
                     builder.addCell(cell);
             }
 

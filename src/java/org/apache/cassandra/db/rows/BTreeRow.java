@@ -237,10 +237,12 @@ public class BTreeRow extends AbstractRow
     {
         Map<ByteBuffer, CFMetaData.DroppedColumn> droppedColumns = metadata.getDroppedColumns();
 
-        if (filter.includesAllColumns() && (activeDeletion.isLive() || deletion.supersedes(activeDeletion)) && droppedColumns.isEmpty())
+        boolean mayFilterColumns = !filter.fetchesAllColumns() || !filter.allFetchedColumnsAreQueried();
+        boolean mayHaveShadowed = activeDeletion.supersedes(deletion.time());
+
+        if (!mayFilterColumns && !mayHaveShadowed && droppedColumns.isEmpty())
             return this;
 
-        boolean mayHaveShadowed = activeDeletion.supersedes(deletion.time());
 
         LivenessInfo newInfo = primaryKeyLivenessInfo;
         Deletion newDeletion = deletion;
@@ -255,6 +257,8 @@ public class BTreeRow extends AbstractRow
 
         Columns columns = filter.fetchedColumns().columns(isStatic());
         Predicate<ColumnDefinition> inclusionTester = columns.inOrderInclusionTester();
+        Predicate<ColumnDefinition> queriedByUserTester = filter.queriedColumns().columns(isStatic()).inOrderInclusionTester();
+        final LivenessInfo rowLiveness = newInfo;
         return transformAndFilter(newInfo, newDeletion, (cd) -> {
 
             ColumnDefinition column = cd.column();
@@ -263,11 +267,31 @@ public class BTreeRow extends AbstractRow
 
             CFMetaData.DroppedColumn dropped = droppedColumns.get(column.name.bytes);
             if (column.isComplex())
-                return ((ComplexColumnData) cd).filter(filter, mayHaveShadowed ? activeDeletion : DeletionTime.LIVE, dropped);
+                return ((ComplexColumnData) cd).filter(filter, mayHaveShadowed ? activeDeletion : DeletionTime.LIVE, dropped, rowLiveness);
 
             Cell cell = (Cell) cd;
-            return (dropped == null || cell.timestamp() > dropped.droppedTime) && !(mayHaveShadowed && activeDeletion.deletes(cell))
-                   ? cell : null;
+            // We include the cell unless it is 1) shadowed, 2) for a dropped column or 3) skippable.
+            // And a cell is skippable if it is for a column that is not queried by the user and its timestamp
+            // is lower than the row timestamp (see #10657 or SerializationHelper.includes() for details).
+            boolean isForDropped = dropped != null && cell.timestamp() <= dropped.droppedTime;
+            boolean isShadowed = mayHaveShadowed && activeDeletion.deletes(cell);
+            boolean isSkippable = !queriedByUserTester.test(column) && cell.timestamp() < rowLiveness.timestamp();
+            return isForDropped || isShadowed || isSkippable ? null : cell;
+        });
+    }
+
+    public Row withOnlyQueriedData(ColumnFilter filter)
+    {
+        if (filter.allFetchedColumnsAreQueried())
+            return this;
+
+        return transformAndFilter(primaryKeyLivenessInfo, deletion, (cd) -> {
+
+            ColumnDefinition column = cd.column();
+            if (column.isComplex())
+                return ((ComplexColumnData)cd).withOnlyQueriedData(filter);
+
+            return filter.fetchedColumnIsQueried(column) ? cd : null;
         });
     }
 

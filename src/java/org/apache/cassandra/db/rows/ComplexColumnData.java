@@ -29,6 +29,7 @@ import org.apache.cassandra.config.CFMetaData;
 import org.apache.cassandra.config.ColumnDefinition;
 import org.apache.cassandra.db.DeletionTime;
 import org.apache.cassandra.db.DeletionPurger;
+import org.apache.cassandra.db.LivenessInfo;
 import org.apache.cassandra.db.filter.ColumnFilter;
 import org.apache.cassandra.db.marshal.ByteType;
 import org.apache.cassandra.db.marshal.SetType;
@@ -144,25 +145,32 @@ public class ComplexColumnData extends ColumnData implements Iterable<Cell>
         return transformAndFilter(complexDeletion, Cell::markCounterLocalToBeCleared);
     }
 
-    public ComplexColumnData filter(ColumnFilter filter, DeletionTime activeDeletion, CFMetaData.DroppedColumn dropped)
+    public ComplexColumnData filter(ColumnFilter filter, DeletionTime activeDeletion, CFMetaData.DroppedColumn dropped, LivenessInfo rowLiveness)
     {
         ColumnFilter.Tester cellTester = filter.newTester(column);
         if (cellTester == null && activeDeletion.isLive() && dropped == null)
             return this;
 
         DeletionTime newDeletion = activeDeletion.supersedes(complexDeletion) ? DeletionTime.LIVE : complexDeletion;
-        return transformAndFilter(newDeletion,
-                                  (cell) ->
-                                           (cellTester == null || cellTester.includes(cell.path()))
-                                        && !activeDeletion.deletes(cell)
-                                        && (dropped == null || cell.timestamp() > dropped.droppedTime)
-                                           ? cell : null);
+        return transformAndFilter(newDeletion, (cell) ->
+        {
+            boolean isForDropped = dropped != null && cell.timestamp() <= dropped.droppedTime;
+            boolean isShadowed = activeDeletion.deletes(cell);
+            boolean isSkippable = cellTester != null && (!cellTester.fetches(cell.path())
+                                                         || (!cellTester.fetchedCellIsQueried(cell.path()) && cell.timestamp() < rowLiveness.timestamp()));
+            return isForDropped || isShadowed || isSkippable ? null : cell;
+        });
     }
 
     public ComplexColumnData purge(DeletionPurger purger, int nowInSec)
     {
         DeletionTime newDeletion = complexDeletion.isLive() || purger.shouldPurge(complexDeletion) ? DeletionTime.LIVE : complexDeletion;
         return transformAndFilter(newDeletion, (cell) -> cell.purge(purger, nowInSec));
+    }
+
+    public ComplexColumnData withOnlyQueriedData(ColumnFilter filter)
+    {
+        return transformAndFilter(complexDeletion, (cell) -> filter.fetchedCellIsQueried(column, cell.path()) ? null : cell);
     }
 
     private ComplexColumnData transformAndFilter(DeletionTime newDeletion, Function<? super Cell, ? extends Cell> function)

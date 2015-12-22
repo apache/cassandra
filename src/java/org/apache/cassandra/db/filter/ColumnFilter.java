@@ -36,44 +36,57 @@ import org.apache.cassandra.io.util.DataOutputPlus;
  * Represents which (non-PK) columns (and optionally which sub-part of a column for complex columns) are selected
  * by a query.
  *
- * In practice, this class cover 2 main cases:
- *   1) most user queries have to internally query all columns, because the CQL semantic requires us to know if
- *      a row is live or not even if it has no values for the columns requested by the user (see #6588for more
- *      details). However, while we need to know for columns if it has live values, we can actually save from
- *      sending the values for those columns that will not be returned to the user.
- *   2) for some internal queries (and for queries using #6588 if we introduce it), we're actually fine only
- *      actually querying some of the columns.
+ * We distinguish 2 sets of columns in practice: the _fetched_ columns, which are the columns that we (may, see
+ * below) need to fetch internally, and the _queried_ columns, which are the columns that the user has selected
+ * in its request.
  *
- * For complex columns, this class allows to be more fine grained than the column by only selection some of the
- * cells of the complex column (either individual cell by path name, or some slice).
+ * The reason for distinguishing those 2 sets is that due to the CQL semantic (see #6588 for more details), we
+ * often need to internally fetch all columns for the queried table, but can still do some optimizations for those
+ * columns that are not directly queried by the user (see #10657 for more details).
+ *
+ * Note that in practice:
+ *   - the _queried_ columns set is always included in the _fetched_ one.
+ *   - whenever those sets are different, we know the _fetched_ set contains all columns for the table, so we
+ *     don't have to record this set, we just keep a pointer to the table metadata. The only set we concretely
+ *     store is thus the _queried_ one.
+ *   - in the special case of a {@code SELECT *} query, we want to query all columns, and _fetched_ == _queried.
+ *     As this is a common case, we special case it by keeping the _queried_ set {@code null} (and we retrieve
+ *     the columns through the metadata pointer).
+ *
+ * For complex columns, this class optionally allows to specify a subset of the cells to query for each column.
+ * We can either select individual cells by path name, or a slice of them. Note that this is a sub-selection of
+ * _queried_ cells, so if _fetched_ != _queried_, then the cell selected by this sub-selection are considered
+ * queried and the other ones are considered fetched (and if a column has some sub-selection, it must be a queried
+ * column, which is actually enforced by the Builder below).
  */
 public class ColumnFilter
 {
     public static final Serializer serializer = new Serializer();
 
-    // Distinguish between the 2 cases described above: if 'isFetchAll' is true, then all columns will be retrieved
-    // by the query, but the values for column/cells not selected by 'selection' and 'subSelections' will be skipped.
-    // Otherwise, only the column/cells returned by 'selection' and 'subSelections' will be returned at all.
+    // True if _fetched_ is all the columns, in which case metadata must not be null. If false,
+    // then _fetched_ == _queried_ and we only store _queried_.
     private final boolean isFetchAll;
 
     private final CFMetaData metadata; // can be null if !isFetchAll
 
-    private final PartitionColumns selection; // can be null if isFetchAll and we don't want to skip any value
+    private final PartitionColumns queried; // can be null if isFetchAll and _fetched_ == _queried_
     private final SortedSetMultimap<ColumnIdentifier, ColumnSubselection> subSelections; // can be null
 
     private ColumnFilter(boolean isFetchAll,
                          CFMetaData metadata,
-                         PartitionColumns columns,
+                         PartitionColumns queried,
                          SortedSetMultimap<ColumnIdentifier, ColumnSubselection> subSelections)
     {
+        assert !isFetchAll || metadata != null;
+        assert isFetchAll || queried != null;
         this.isFetchAll = isFetchAll;
         this.metadata = metadata;
-        this.selection = columns;
+        this.queried = queried;
         this.subSelections = subSelections;
     }
 
     /**
-     * A selection that includes all columns (and their values).
+     * A filter that includes all columns for the provided table.
      */
     public static ColumnFilter all(CFMetaData metadata)
     {
@@ -81,7 +94,7 @@ public class ColumnFilter
     }
 
     /**
-     * A selection that only fetch the provided columns.
+     * A filter that only fetches/queries the provided columns.
      * <p>
      * Note that this shouldn't be used for CQL queries in general as all columns should be queried to
      * preserve CQL semantic (see class javadoc). This is ok for some internal queries however (and
@@ -93,81 +106,93 @@ public class ColumnFilter
     }
 
     /**
-     * The columns that needs to be fetched internally for this selection.
-     * <p>
-     * This is the columns that must be present in the internal rows returned by queries using this selection,
-     * not the columns that are actually queried by the user (see the class javadoc for details).
+     * The columns that needs to be fetched internally for this filter.
      *
-     * @return the column to fetch for this selection.
+     * @return the columns to fetch for this filter.
      */
     public PartitionColumns fetchedColumns()
     {
-        return isFetchAll ? metadata.partitionColumns() : selection;
+        return isFetchAll ? metadata.partitionColumns() : queried;
     }
 
-    public boolean includesAllColumns()
+    /**
+     * The columns actually queried by the user.
+     * <p>
+     * Note that this is in general not all the columns that are fetched internally (see {@link #fetchedColumns}).
+     */
+    public PartitionColumns queriedColumns()
+    {
+        assert queried != null || isFetchAll;
+        return queried == null ? metadata.partitionColumns() : queried;
+    }
+
+    public boolean fetchesAllColumns()
     {
         return isFetchAll;
     }
 
     /**
-     * Whether the provided column is selected by this selection.
+     * Whether _fetched_ == _queried_ for this filter, and so if the {@code isQueried()} methods
+     * can return {@code false} for some column/cell.
      */
-    public boolean includes(ColumnDefinition column)
+    public boolean allFetchedColumnsAreQueried()
     {
-        return isFetchAll || selection.contains(column);
+        return !isFetchAll || (queried == null && subSelections == null);
     }
 
     /**
-     * Whether we can skip the value for the provided selected column.
+     * Whether the provided column is fetched by this filter.
      */
-    public boolean canSkipValue(ColumnDefinition column)
+    public boolean fetches(ColumnDefinition column)
     {
-        // We don't use that currently, see #10655 for more details.
-        return false;
+        return isFetchAll || queried.contains(column);
     }
 
     /**
-     * Whether the provided cell of a complex column is selected by this selection.
+     * Whether the provided column, which is assumed to be _fetched_ by this filter (so the caller must guarantee
+     * that {@code fetches(column) == true}, is also _queried_ by the user.
+     *
+     * !WARNING! please be sure to understand the difference between _fetched_ and _queried_
+     * columns that this class made before using this method. If unsure, you probably want
+     * to use the {@link #fetches} method.
      */
-    public boolean includes(Cell cell)
+    public boolean fetchedColumnIsQueried(ColumnDefinition column)
     {
-        if (isFetchAll || subSelections == null || !cell.column().isComplex())
+        return !isFetchAll || queried == null || queried.contains(column);
+    }
+
+    /**
+     * Whether the provided complex cell (identified by its column and path), which is assumed to be _fetched_ by
+     * this filter, is also _queried_ by the user.
+     *
+     * !WARNING! please be sure to understand the difference between _fetched_ and _queried_
+     * columns that this class made before using this method. If unsure, you probably want
+     * to use the {@link #fetches} method.
+     */
+    public boolean fetchedCellIsQueried(ColumnDefinition column, CellPath path)
+    {
+        assert path != null;
+        if (!isFetchAll || subSelections == null)
             return true;
 
-        SortedSet<ColumnSubselection> s = subSelections.get(cell.column().name);
+        SortedSet<ColumnSubselection> s = subSelections.get(column.name);
+        // No subsection for this column means everything is queried
         if (s.isEmpty())
             return true;
 
         for (ColumnSubselection subSel : s)
-            if (subSel.compareInclusionOf(cell.path()) == 0)
+            if (subSel.compareInclusionOf(path) == 0)
                 return true;
 
         return false;
     }
 
     /**
-     * Whether we can skip the value of the cell of a complex column.
-     */
-    public boolean canSkipValue(ColumnDefinition column, CellPath path)
-    {
-        if (!isFetchAll || subSelections == null || !column.isComplex())
-            return false;
-
-        SortedSet<ColumnSubselection> s = subSelections.get(column.name);
-        if (s.isEmpty())
-            return false;
-
-        for (ColumnSubselection subSel : s)
-            if (subSel.compareInclusionOf(path) == 0)
-                return false;
-
-        return true;
-    }
-
-    /**
      * Creates a new {@code Tester} to efficiently test the inclusion of cells of complex column
      * {@code column}.
+     *
+     * @return the created tester or {@code null} if all the cells from the provided column
+     * are queried.
      */
     public Tester newTester(ColumnDefinition column)
     {
@@ -182,8 +207,8 @@ public class ColumnFilter
     }
 
     /**
-     * Returns a {@code ColumnFilter}} builder that includes all columns (so the selections
-     * added to the builder are the columns/cells for which we shouldn't skip the values).
+     * Returns a {@code ColumnFilter}} builder that fetches all columns (and queries the columns
+     * added to the builder, or everything if no column is added).
      */
     public static Builder allColumnsBuilder(CFMetaData metadata)
     {
@@ -191,8 +216,7 @@ public class ColumnFilter
     }
 
     /**
-     * Returns a {@code ColumnFilter}} builder that includes only the columns/cells
-     * added to the builder.
+     * Returns a {@code ColumnFilter} builder that only fetches the columns/cells added to the builder.
      */
     public static Builder selectionBuilder()
     {
@@ -211,17 +235,20 @@ public class ColumnFilter
             this.iterator = iterator;
         }
 
-        public boolean includes(CellPath path)
+        public boolean fetches(CellPath path)
         {
-            return isFetchAll || includedBySubselection(path);
+            return isFetchAll || hasSubselection(path);
         }
 
-        public boolean canSkipValue(CellPath path)
+        /**
+         * Must only be called if {@code fetches(path) == true}.
+         */
+        public boolean fetchedCellIsQueried(CellPath path)
         {
-            return isFetchAll && !includedBySubselection(path);
+            return !isFetchAll || hasSubselection(path);
         }
 
-        private boolean includedBySubselection(CellPath path)
+        private boolean hasSubselection(CellPath path)
         {
             while (current != null || iterator.hasNext())
             {
@@ -241,10 +268,22 @@ public class ColumnFilter
         }
     }
 
+    /**
+     * A builder for a {@code ColumnFilter} object.
+     *
+     * Note that the columns added to this build are the _queried_ column. Whether or not all columns
+     * are _fetched_ depends on which ctor you've used to obtained this builder, allColumnsBuilder (all
+     * columns are fetched) or selectionBuilder (only the queried columns are fetched).
+     *
+     * Note that for a allColumnsBuilder, if no queried columns are added, this is interpreted as querying
+     * all columns, not querying none (but if you know you want to query all columns, prefer
+     * {@link ColumnFilter#all)}. For selectionBuilder, adding no queried columns means no column will be
+     * fetched (so the builder will return {@code PartitionColumns.NONE}).
+     */
     public static class Builder
     {
-        private final CFMetaData metadata;
-        private PartitionColumns.Builder selection;
+        private final CFMetaData metadata; // null if we don't fetch all columns
+        private PartitionColumns.Builder queriedBuilder;
         private List<ColumnSubselection> subSelections;
 
         private Builder(CFMetaData metadata)
@@ -254,17 +293,17 @@ public class ColumnFilter
 
         public Builder add(ColumnDefinition c)
         {
-            if (selection == null)
-                selection = PartitionColumns.builder();
-            selection.add(c);
+            if (queriedBuilder == null)
+                queriedBuilder = PartitionColumns.builder();
+            queriedBuilder.add(c);
             return this;
         }
 
         public Builder addAll(Iterable<ColumnDefinition> columns)
         {
-            if (selection == null)
-                selection = PartitionColumns.builder();
-            selection.addAll(columns);
+            if (queriedBuilder == null)
+                queriedBuilder = PartitionColumns.builder();
+            queriedBuilder.addAll(columns);
             return this;
         }
 
@@ -291,11 +330,11 @@ public class ColumnFilter
         {
             boolean isFetchAll = metadata != null;
 
-            PartitionColumns selectedColumns = selection == null ? null : selection.build();
-            // It's only ok to have selection == null in ColumnFilter if isFetchAll. So deal with the case of a "selection" builder
+            PartitionColumns queried = queriedBuilder == null ? null : queriedBuilder.build();
+            // It's only ok to have queried == null in ColumnFilter if isFetchAll. So deal with the case of a selectionBuilder
             // with nothing selected (we can at least happen on some backward compatible queries - CASSANDRA-10471).
-            if (!isFetchAll && selectedColumns == null)
-                selectedColumns = PartitionColumns.NONE;
+            if (!isFetchAll && queried == null)
+                queried = PartitionColumns.NONE;
 
             SortedSetMultimap<ColumnIdentifier, ColumnSubselection> s = null;
             if (subSelections != null)
@@ -305,7 +344,7 @@ public class ColumnFilter
                     s.put(subSelection.column().name, subSelection);
             }
 
-            return new ColumnFilter(isFetchAll, metadata, selectedColumns, s);
+            return new ColumnFilter(isFetchAll, metadata, queried, s);
         }
     }
 
@@ -315,10 +354,10 @@ public class ColumnFilter
         if (isFetchAll)
             return "*";
 
-        if (selection.isEmpty())
+        if (queried.isEmpty())
             return "";
 
-        Iterator<ColumnDefinition> defs = selection.selectOrderIterator();
+        Iterator<ColumnDefinition> defs = queried.selectOrderIterator();
         if (!defs.hasNext())
             return "<none>";
 
@@ -355,13 +394,13 @@ public class ColumnFilter
     public static class Serializer
     {
         private static final int IS_FETCH_ALL_MASK       = 0x01;
-        private static final int HAS_SELECTION_MASK      = 0x02;
+        private static final int HAS_QUERIED_MASK      = 0x02;
         private static final int HAS_SUB_SELECTIONS_MASK = 0x04;
 
         private static int makeHeaderByte(ColumnFilter selection)
         {
             return (selection.isFetchAll ? IS_FETCH_ALL_MASK : 0)
-                 | (selection.selection != null ? HAS_SELECTION_MASK : 0)
+                 | (selection.queried != null ? HAS_QUERIED_MASK : 0)
                  | (selection.subSelections != null ? HAS_SUB_SELECTIONS_MASK : 0);
         }
 
@@ -369,10 +408,10 @@ public class ColumnFilter
         {
             out.writeByte(makeHeaderByte(selection));
 
-            if (selection.selection != null)
+            if (selection.queried != null)
             {
-                Columns.serializer.serialize(selection.selection.statics, out);
-                Columns.serializer.serialize(selection.selection.regulars, out);
+                Columns.serializer.serialize(selection.queried.statics, out);
+                Columns.serializer.serialize(selection.queried.regulars, out);
             }
 
             if (selection.subSelections != null)
@@ -387,15 +426,15 @@ public class ColumnFilter
         {
             int header = in.readUnsignedByte();
             boolean isFetchAll = (header & IS_FETCH_ALL_MASK) != 0;
-            boolean hasSelection = (header & HAS_SELECTION_MASK) != 0;
+            boolean hasQueried = (header & HAS_QUERIED_MASK) != 0;
             boolean hasSubSelections = (header & HAS_SUB_SELECTIONS_MASK) != 0;
 
-            PartitionColumns selection = null;
-            if (hasSelection)
+            PartitionColumns queried = null;
+            if (hasQueried)
             {
                 Columns statics = Columns.serializer.deserialize(in, metadata);
                 Columns regulars = Columns.serializer.deserialize(in, metadata);
-                selection = new PartitionColumns(statics, regulars);
+                queried = new PartitionColumns(statics, regulars);
             }
 
             SortedSetMultimap<ColumnIdentifier, ColumnSubselection> subSelections = null;
@@ -410,17 +449,17 @@ public class ColumnFilter
                 }
             }
 
-            return new ColumnFilter(isFetchAll, isFetchAll ? metadata : null, selection, subSelections);
+            return new ColumnFilter(isFetchAll, isFetchAll ? metadata : null, queried, subSelections);
         }
 
         public long serializedSize(ColumnFilter selection, int version)
         {
             long size = 1; // header byte
 
-            if (selection.selection != null)
+            if (selection.queried != null)
             {
-                size += Columns.serializer.serializedSize(selection.selection.statics);
-                size += Columns.serializer.serializedSize(selection.selection.regulars);
+                size += Columns.serializer.serializedSize(selection.queried.statics);
+                size += Columns.serializer.serializedSize(selection.queried.regulars);
             }
 
             if (selection.subSelections != null)

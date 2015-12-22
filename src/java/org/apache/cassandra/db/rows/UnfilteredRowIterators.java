@@ -25,6 +25,7 @@ import org.slf4j.LoggerFactory;
 
 import org.apache.cassandra.config.CFMetaData;
 import org.apache.cassandra.db.*;
+import org.apache.cassandra.db.filter.ColumnFilter;
 import org.apache.cassandra.db.transform.FilteredRows;
 import org.apache.cassandra.db.transform.MoreRows;
 import org.apache.cassandra.db.transform.Transformation;
@@ -125,6 +126,23 @@ public abstract class UnfilteredRowIterators
             Unfiltered unfiltered = iterator.next();
             unfiltered.digest(digest);
         }
+    }
+
+    /**
+     * Filter the provided iterator to exclude cells that have been fetched but are not queried by the user
+     * (see ColumnFilter for detailes).
+     *
+     * @param iterator the iterator to filter.
+     * @param filter the {@code ColumnFilter} to use when deciding which columns are the one queried by the
+     * user. This should be the filter that was used when querying {@code iterator}.
+     * @return the filtered iterator..
+     */
+    public static UnfilteredRowIterator withOnlyQueriedData(UnfilteredRowIterator iterator, ColumnFilter filter)
+    {
+        if (filter.allFetchedColumnsAreQueried())
+            return iterator;
+
+        return Transformation.apply(iterator, new WithOnlyQueriedData(filter));
     }
 
     /**
