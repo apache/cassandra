@@ -99,14 +99,14 @@ abstract class AbstractSSTableIterator implements SliceableUnfilteredRowIterator
 
                     // Note that this needs to be called after file != null and after the partitionDeletion has been set, but before readStaticRow
                     // (since it uses it) so we can't move that up (but we'll be able to simplify as soon as we drop support for the old file format).
-                    this.reader = needsReader ? createReader(indexEntry, file, true, shouldCloseFile) : null;
+                    this.reader = needsReader ? createReader(indexEntry, file, shouldCloseFile) : null;
                     this.staticRow = readStaticRow(sstable, file, helper, columns.fetchedColumns().statics, isForThrift, reader == null ? null : reader.deserializer);
                 }
                 else
                 {
                     this.partitionLevelDeletion = indexEntry.deletionTime();
                     this.staticRow = Rows.EMPTY_STATIC_ROW;
-                    this.reader = needsReader ? createReader(indexEntry, file, false, shouldCloseFile) : null;
+                    this.reader = needsReader ? createReader(indexEntry, file, shouldCloseFile) : null;
                 }
 
                 if (reader == null && file != null && shouldCloseFile)
@@ -180,7 +180,7 @@ abstract class AbstractSSTableIterator implements SliceableUnfilteredRowIterator
         }
     }
 
-    protected abstract Reader createReader(RowIndexEntry indexEntry, FileDataInput file, boolean isAtPartitionStart, boolean shouldCloseFile);
+    protected abstract Reader createReader(RowIndexEntry indexEntry, FileDataInput file, boolean shouldCloseFile);
 
     public CFMetaData metadata()
     {
@@ -291,19 +291,13 @@ abstract class AbstractSSTableIterator implements SliceableUnfilteredRowIterator
         // Records the currently open range tombstone (if any)
         protected DeletionTime openMarker = null;
 
-        // !isInit means we have never seeked in the file and thus should seek before reading anything
-        protected boolean isInit;
-
-        protected Reader(FileDataInput file, boolean isInit, boolean shouldCloseFile)
+        protected Reader(FileDataInput file, boolean shouldCloseFile)
         {
             this.file = file;
-            this.isInit = isInit;
             this.shouldCloseFile = shouldCloseFile;
 
             if (file != null)
                 createDeserializer();
-            else
-                assert !isInit;
         }
 
         private void createDeserializer()
@@ -343,12 +337,6 @@ abstract class AbstractSSTableIterator implements SliceableUnfilteredRowIterator
         {
             try
             {
-                if (!isInit)
-                {
-                    init();
-                    isInit = true;
-                }
-
                 return hasNextInternal();
             }
             catch (IOException e)
@@ -386,9 +374,6 @@ abstract class AbstractSSTableIterator implements SliceableUnfilteredRowIterator
                 throw new CorruptSSTableException(e, reader.file.getPath());
             }
         }
-
-        // Called is hasNext() is called but we haven't been yet initialized
-        protected abstract void init() throws IOException;
 
         // Set the reader so its hasNext/next methods return values within the provided slice
         public abstract void setForSlice(Slice slice) throws IOException;
@@ -458,9 +443,21 @@ abstract class AbstractSSTableIterator implements SliceableUnfilteredRowIterator
         }
 
         // Update the block idx based on the current reader position if we're past the current block.
+        // This only makes sense for forward iteration (for reverse ones, when we reach the end of a block we
+        // should seek to the previous one, not update the index state and continue).
         public void updateBlock() throws IOException
         {
-            assert currentIndexIdx >= 0;
+            assert !reversed;
+
+            // If we get here with currentBlockIdx < 0, it means setToBlock() has never been called, so it means
+            // we're about to read from the beginning of the partition, but haven't "prepared" the IndexState yet.
+            // Do so by setting us on the first block.
+            if (currentIndexIdx < 0)
+            {
+                setToBlock(0);
+                return;
+            }
+
             while (currentIndexIdx + 1 < indexes.size() && isPastCurrentBlock())
             {
                 reader.openMarker = currentIndex().endOpenMarker;
