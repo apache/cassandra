@@ -210,7 +210,8 @@ public class Scrubber implements Closeable
                     if (indexFile != null && dataStart != dataStartFromIndex)
                         outputHandler.warn(String.format("Data file row position %d differs from index file row position %d", dataStart, dataStartFromIndex));
 
-                    try (UnfilteredRowIterator iterator = withValidation(new RowMergingSSTableIterator(sstable, dataFile, key), dataFile.getPath()))
+                    try (UnfilteredRowIterator iterator = withValidation(new RowMergingSSTableIterator(SSTableIdentityIterator.create(sstable, dataFile, key)),
+                                                                         dataFile.getPath()))
                     {
                         if (prevKey != null && prevKey.compareTo(key) > 0)
                         {
@@ -241,7 +242,7 @@ public class Scrubber implements Closeable
                         {
                             dataFile.seek(dataStartFromIndex);
 
-                            try (UnfilteredRowIterator iterator = withValidation(new SSTableIdentityIterator(sstable, dataFile, key), dataFile.getPath()))
+                            try (UnfilteredRowIterator iterator = withValidation(SSTableIdentityIterator.create(sstable, dataFile, key), dataFile.getPath()))
                             {
                                 if (prevKey != null && prevKey.compareTo(key) > 0)
                                 {
@@ -471,38 +472,43 @@ public class Scrubber implements Closeable
      *
      * For more details, refer to CASSANDRA-12144.
      */
-    private static class RowMergingSSTableIterator extends SSTableIdentityIterator
+    private static class RowMergingSSTableIterator extends WrappingUnfilteredRowIterator
     {
-        RowMergingSSTableIterator(SSTableReader sstable, RandomAccessReader file, DecoratedKey key)
+        Unfiltered nextToOffer = null;
+
+        RowMergingSSTableIterator(UnfilteredRowIterator source)
         {
-            super(sstable, file, key);
+            super(source);
         }
 
         @Override
-        protected Unfiltered doCompute()
+        public boolean hasNext()
         {
-            if (!iterator.hasNext())
-                return endOfData();
+            return nextToOffer != null || wrapped.hasNext();
+        }
 
-            Unfiltered next = iterator.next();
-            if (!next.isRow())
-                return next;
+        @Override
+        public Unfiltered next()
+        {
+            Unfiltered next = nextToOffer != null ? nextToOffer : wrapped.next();
 
-            while (iterator.hasNext())
+            if (next.isRow())
             {
-                Unfiltered peek = iterator.peek();
-                // If there was a duplicate row, merge it.
-                if (next.clustering().equals(peek.clustering()) && peek.isRow())
+                while (wrapped.hasNext())
                 {
-                    iterator.next(); // Make sure that the peeked item was consumed.
+                    Unfiltered peek = wrapped.next();
+                    if (!peek.isRow() || !next.clustering().equals(peek.clustering()))
+                    {
+                        nextToOffer = peek; // Offer peek in next call
+                        return next;
+                    }
+    
+                    // Duplicate row, merge it.
                     next = Rows.merge((Row) next, (Row) peek, FBUtilities.nowInSeconds());
-                }
-                else
-                {
-                    break;
                 }
             }
 
+            nextToOffer = null;
             return next;
         }
     }

@@ -96,9 +96,11 @@ public class UnfilteredRowIteratorsMergeTest
     @SuppressWarnings("unused")
     public void testTombstoneMerge(boolean reversed, boolean iterations)
     {
+        this.reversed = reversed;
+        UnfilteredRowsGenerator generator = new UnfilteredRowsGenerator(comparator, reversed);
+
         for (int seed = 1; seed <= 100; ++seed)
         {
-            this.reversed = reversed;
             if (ITEMS <= 20)
                 System.out.println("\nSeed " + seed);
 
@@ -112,27 +114,29 @@ public class UnfilteredRowIteratorsMergeTest
             if (ITEMS <= 20)
                 System.out.println("Merging");
             for (int i=0; i<ITERATORS; ++i)
-                sources.add(generateSource(r, timeGenerators.get(r.nextInt(timeGenerators.size()))));
+                sources.add(generator.generateSource(r, ITEMS, RANGE, DEL_RANGE, timeGenerators.get(r.nextInt(timeGenerators.size()))));
             List<Unfiltered> merged = merge(sources, iterations);
     
             if (ITEMS <= 20)
                 System.out.println("results in");
             if (ITEMS <= 20)
-                dumpList(merged);
-            verifyEquivalent(sources, merged);
-            verifyValid(merged);
+                generator.dumpList(merged);
+            verifyEquivalent(sources, merged, generator);
+            generator.verifyValid(merged);
             if (reversed)
             {
                 Collections.reverse(merged);
-                this.reversed = false;
-                verifyValid(merged);
+                generator.verifyValid(merged, false);
             }
         }
     }
 
     private List<Unfiltered> merge(List<List<Unfiltered>> sources, boolean iterations)
     {
-        List<UnfilteredRowIterator> us = sources.stream().map(l -> new Source(l.iterator())).collect(Collectors.toList());
+        List<UnfilteredRowIterator> us = sources.
+                stream().
+                map(l -> new UnfilteredRowsGenerator.Source(l.iterator(), metadata, partitionKey, DeletionTime.LIVE, reversed)).
+                collect(Collectors.toList());
         List<Unfiltered> merged = new ArrayList<>();
         Iterators.addAll(merged, mergeIterators(us, iterations));
         return merged;
@@ -285,24 +289,24 @@ public class UnfilteredRowIteratorsMergeTest
         }
     }
 
-    void verifyEquivalent(List<List<Unfiltered>> sources, List<Unfiltered> merged)
+    void verifyEquivalent(List<List<Unfiltered>> sources, List<Unfiltered> merged, UnfilteredRowsGenerator generator)
     {
         try
         {
             for (int i=0; i<RANGE; ++i)
             {
-                Clusterable c = clusteringFor(i);
+                Clusterable c = UnfilteredRowsGenerator.clusteringFor(i);
                 DeletionTime dt = DeletionTime.LIVE;
                 for (List<Unfiltered> source : sources)
                 {
                     dt = deletionFor(c, source, dt);
                 }
-                Assert.assertEquals("Deletion time mismatch for position " + str(c), dt, deletionFor(c, merged));
+                Assert.assertEquals("Deletion time mismatch for position " + i, dt, deletionFor(c, merged));
                 if (dt == DeletionTime.LIVE)
                 {
                     Optional<Unfiltered> sourceOpt = sources.stream().map(source -> rowFor(c, source)).filter(x -> x != null).findAny();
                     Unfiltered mergedRow = rowFor(c, merged);
-                    Assert.assertEquals("Content mismatch for position " + str(c), str(sourceOpt.orElse(null)), str(mergedRow));
+                    Assert.assertEquals("Content mismatch for position " + i, clustering(sourceOpt.orElse(null)), clustering(mergedRow));
                 }
             }
         }
@@ -310,11 +314,18 @@ public class UnfilteredRowIteratorsMergeTest
         {
             System.out.println(e);
             for (List<Unfiltered> list : sources)
-                dumpList(list);
+                generator.dumpList(list);
             System.out.println("merged");
-            dumpList(merged);
+            generator.dumpList(merged);
             throw e;
         }
+    }
+
+    String clustering(Clusterable curr)
+    {
+        if (curr == null)
+            return "null";
+        return Int32Type.instance.getString(curr.clustering().get(0));
     }
 
     private Unfiltered rowFor(Clusterable pointer, List<Unfiltered> list)
@@ -424,21 +435,23 @@ public class UnfilteredRowIteratorsMergeTest
 
     public void testForInput(String... inputs)
     {
+        reversed = false;
+        UnfilteredRowsGenerator generator = new UnfilteredRowsGenerator(comparator, false);
+
         List<List<Unfiltered>> sources = new ArrayList<>();
         for (String input : inputs)
         {
-            List<Unfiltered> source = parse(input);
-            attachBoundaries(source);
-            dumpList(source);
-            verifyValid(source);
+            List<Unfiltered> source = generator.parse(input, DEL_RANGE);
+            generator.dumpList(source);
+            generator.verifyValid(source);
             sources.add(source);
         }
 
         List<Unfiltered> merged = merge(sources, false);
         System.out.println("Merge to:");
-        dumpList(merged);
-        verifyEquivalent(sources, merged);
-        verifyValid(merged);
+        generator.dumpList(merged);
+        verifyEquivalent(sources, merged, generator);
+        generator.verifyValid(merged);
         System.out.println();
     }
 

@@ -25,6 +25,7 @@ import com.google.common.collect.PeekingIterator;
 import org.apache.cassandra.config.ColumnDefinition;
 import org.apache.cassandra.db.*;
 import org.apache.cassandra.db.partitions.PartitionStatisticsCollector;
+import org.apache.cassandra.db.rows.Row.Deletion;
 import org.apache.cassandra.utils.MergeIterator;
 import org.apache.cassandra.utils.WrappedInt;
 
@@ -310,5 +311,81 @@ public abstract class Rows
                 nextb = b.hasNext() ? b.next() : null;
         }
         return timeDelta;
+    }
+
+    /**
+     * Returns a row that is obtained from the given existing row by removing everything that is shadowed by data in
+     * the update row. In other words, produces the smallest result row such that
+     * {@code merge(result, update, nowInSec) == merge(existing, update, nowInSec)} after filtering by rangeDeletion.
+     *
+     * @param existing source row
+     * @param update shadowing row
+     * @param rangeDeletion extra {@code DeletionTime} from covering tombstone
+     * @param nowInSec the current time in seconds (which plays a role during reconciliation
+     * because deleted cells always have precedence on timestamp equality and deciding if a
+     * cell is a live or not depends on the current time due to expiring cells).
+     */
+    public static Row removeShadowedCells(Row existing, Row update, DeletionTime rangeDeletion, int nowInSec)
+    {
+        Row.Builder builder = BTreeRow.sortedBuilder();
+        Clustering clustering = existing.clustering();
+        builder.newRow(clustering);
+
+        DeletionTime deletion = update.deletion().time();
+        if (rangeDeletion.supersedes(deletion))
+            deletion = rangeDeletion;
+
+        LivenessInfo existingInfo = existing.primaryKeyLivenessInfo();
+        if (!deletion.deletes(existingInfo))
+            builder.addPrimaryKeyLivenessInfo(existingInfo);
+        Row.Deletion rowDeletion = existing.deletion();
+        if (!deletion.supersedes(rowDeletion.time()))
+            builder.addRowDeletion(rowDeletion);
+
+        Iterator<ColumnData> a = existing.iterator();
+        Iterator<ColumnData> b = update.iterator();
+        ColumnData nexta = a.hasNext() ? a.next() : null, nextb = b.hasNext() ? b.next() : null;
+        while (nexta != null)
+        {
+            int comparison = nextb == null ? -1 : nexta.column.compareTo(nextb.column);
+            if (comparison <= 0)
+            {
+                ColumnData cura = nexta;
+                ColumnDefinition column = cura.column;
+                ColumnData curb = comparison == 0 ? nextb : null;
+                if (column.isSimple())
+                {
+                    Cells.addNonShadowed((Cell) cura, (Cell) curb, deletion, builder, nowInSec);
+                }
+                else
+                {
+                    ComplexColumnData existingData = (ComplexColumnData) cura;
+                    ComplexColumnData updateData = (ComplexColumnData) curb;
+
+                    DeletionTime existingDt = existingData.complexDeletion();
+                    DeletionTime updateDt = updateData == null ? DeletionTime.LIVE : updateData.complexDeletion();
+
+                    DeletionTime maxDt = updateDt.supersedes(deletion) ? updateDt : deletion;
+                    if (existingDt.supersedes(maxDt))
+                    {
+                        builder.addComplexDeletion(column, existingDt);
+                        maxDt = existingDt;
+                    }
+
+                    Iterator<Cell> existingCells = existingData.iterator();
+                    Iterator<Cell> updateCells = updateData == null ? null : updateData.iterator();
+                    Cells.addNonShadowedComplex(column, existingCells, updateCells, maxDt, builder, nowInSec);
+                }
+                nexta = a.hasNext() ? a.next() : null;
+                if (curb != null)
+                    nextb = b.hasNext() ? b.next() : null;
+            }
+            else
+            {
+                nextb = b.hasNext() ? b.next() : null;
+            }
+        }
+        Row row = builder.build();
+        return row != null && !row.isEmpty() ? row : null;
     }
 }

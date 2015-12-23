@@ -30,6 +30,7 @@ import org.apache.cassandra.db.*;
 import org.apache.cassandra.db.rows.*;
 import org.apache.cassandra.io.util.DataInputPlus;
 import org.apache.cassandra.io.util.DataPosition;
+import org.apache.cassandra.io.util.FileDataInput;
 import org.apache.cassandra.net.MessagingService;
 
 /**
@@ -59,6 +60,14 @@ public abstract class SSTableSimpleIterator extends AbstractIterator<Unfiltered>
             return new CurrentFormatIterator(metadata, in, header, helper);
     }
 
+    public static SSTableSimpleIterator createTombstoneOnly(CFMetaData metadata, DataInputPlus in, SerializationHeader header, SerializationHelper helper, DeletionTime partitionDeletion)
+    {
+        if (helper.version < MessagingService.VERSION_30)
+            return new OldFormatTombstoneIterator(metadata, in, helper, partitionDeletion);
+        else
+            return new CurrentFormatTombstoneIterator(metadata, in, header, helper);
+    }
+
     public abstract Row readStaticRow() throws IOException;
 
     private static class CurrentFormatIterator extends SSTableSimpleIterator
@@ -84,6 +93,41 @@ public abstract class SSTableSimpleIterator extends AbstractIterator<Unfiltered>
             try
             {
                 Unfiltered unfiltered = UnfilteredSerializer.serializer.deserialize(in, header, helper, builder);
+                return unfiltered == null ? endOfData() : unfiltered;
+            }
+            catch (IOException e)
+            {
+                throw new IOError(e);
+            }
+        }
+    }
+
+    private static class CurrentFormatTombstoneIterator extends SSTableSimpleIterator
+    {
+        private final SerializationHeader header;
+
+        private CurrentFormatTombstoneIterator(CFMetaData metadata, DataInputPlus in, SerializationHeader header, SerializationHelper helper)
+        {
+            super(metadata, in, helper);
+            this.header = header;
+        }
+
+        public Row readStaticRow() throws IOException
+        {
+            if (header.hasStatic())
+            {
+                Row staticRow = UnfilteredSerializer.serializer.deserializeStaticRow(in, header, helper);
+                if (!staticRow.deletion().isLive())
+                    return BTreeRow.emptyDeletedRow(staticRow.clustering(), staticRow.deletion());
+            }
+            return Rows.EMPTY_STATIC_ROW;
+        }
+
+        protected Unfiltered computeNext()
+        {
+            try
+            {
+                Unfiltered unfiltered = UnfilteredSerializer.serializer.deserializeTombstonesOnly((FileDataInput) in, header, helper);
                 return unfiltered == null ? endOfData() : unfiltered;
             }
             catch (IOException e)
@@ -163,4 +207,35 @@ public abstract class SSTableSimpleIterator extends AbstractIterator<Unfiltered>
 
     }
 
+    private static class OldFormatTombstoneIterator extends OldFormatIterator
+    {
+        private OldFormatTombstoneIterator(CFMetaData metadata, DataInputPlus in, SerializationHelper helper, DeletionTime partitionDeletion)
+        {
+            super(metadata, in, helper, partitionDeletion);
+        }
+
+        public Row readStaticRow() throws IOException
+        {
+            Row row = super.readStaticRow();
+            if (!row.deletion().isLive())
+                return BTreeRow.emptyDeletedRow(row.clustering(), row.deletion());
+            return Rows.EMPTY_STATIC_ROW;
+        }
+
+        protected Unfiltered computeNext()
+        {
+            while (true)
+            {
+                Unfiltered unfiltered = super.computeNext();
+                if (unfiltered == null || unfiltered.isRangeTombstoneMarker())
+                    return unfiltered;
+
+                Row row = (Row) unfiltered;
+                if (!row.deletion().isLive())
+                    return BTreeRow.emptyDeletedRow(row.clustering(), row.deletion());
+                // Otherwise read next.
+            }
+        }
+
+    }
 }

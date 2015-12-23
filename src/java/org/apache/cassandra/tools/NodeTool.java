@@ -64,6 +64,7 @@ public class NodeTool
                 Verify.class,
                 Flush.class,
                 UpgradeSSTable.class,
+                GarbageCollect.class,
                 DisableAutoCompaction.class,
                 EnableAutoCompaction.class,
                 CompactionStats.class,

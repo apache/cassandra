@@ -233,6 +233,86 @@ public abstract class Cells
         return timeDelta;
     }
 
+    /**
+     * Adds to the builder a representation of the given existing cell that, when merged/reconciled with the given
+     * update cell, produces the same result as merging the original with the update.
+     * <p>
+     * For simple cells that is either the original cell (if still live), or nothing (if shadowed).
+     *
+     * @param existing the pre-existing cell, the one that is updated.
+     * @param update the newly added cell, the update. This can be {@code null} out
+     * of convenience, in which case this function simply copy {@code existing} to
+     * {@code writer}.
+     * @param deletion the deletion time that applies to the cells being considered.
+     * This deletion time may delete both {@code existing} or {@code update}.
+     * @param builder the row builder to which the result of the filtering is written.
+     * @param nowInSec the current time in seconds (which plays a role during reconciliation
+     * because deleted cells always have precedence on timestamp equality and deciding if a
+     * cell is a live or not depends on the current time due to expiring cells).
+     */
+    public static void addNonShadowed(Cell existing,
+                                      Cell update,
+                                      DeletionTime deletion,
+                                      Row.Builder builder,
+                                      int nowInSec)
+    {
+        if (deletion.deletes(existing))
+            return;
+
+        Cell reconciled = reconcile(existing, update, nowInSec);
+        if (reconciled != update)
+            builder.addCell(existing);
+    }
+
+    /**
+     * Adds to the builder a representation of the given existing cell that, when merged/reconciled with the given
+     * update cell, produces the same result as merging the original with the update.
+     * <p>
+     * For simple cells that is either the original cell (if still live), or nothing (if shadowed).
+     *
+     * @param column the complex column the cells are for.
+     * @param existing the pre-existing cells, the ones that are updated.
+     * @param update the newly added cells, the update. This can be {@code null} out
+     * of convenience, in which case this function simply copy the cells from
+     * {@code existing} to {@code writer}.
+     * @param deletion the deletion time that applies to the cells being considered.
+     * This deletion time may delete both {@code existing} or {@code update}.
+     * @param builder the row builder to which the result of the filtering is written.
+     * @param nowInSec the current time in seconds (which plays a role during reconciliation
+     * because deleted cells always have precedence on timestamp equality and deciding if a
+     * cell is a live or not depends on the current time due to expiring cells).
+     */
+    public static void addNonShadowedComplex(ColumnDefinition column,
+                                             Iterator<Cell> existing,
+                                             Iterator<Cell> update,
+                                             DeletionTime deletion,
+                                             Row.Builder builder,
+                                             int nowInSec)
+    {
+        Comparator<CellPath> comparator = column.cellPathComparator();
+        Cell nextExisting = getNext(existing);
+        Cell nextUpdate = getNext(update);
+        while (nextExisting != null)
+        {
+            int cmp = nextUpdate == null ? -1 : comparator.compare(nextExisting.path(), nextUpdate.path());
+            if (cmp < 0)
+            {
+                addNonShadowed(nextExisting, null, deletion, builder, nowInSec);
+                nextExisting = getNext(existing);
+            }
+            else if (cmp == 0)
+            {
+                addNonShadowed(nextExisting, nextUpdate, deletion, builder, nowInSec);
+                nextExisting = getNext(existing);
+                nextUpdate = getNext(update);
+            }
+            else
+            {
+                nextUpdate = getNext(update);
+            }
+        }
+    }
+
     private static Cell getNext(Iterator<Cell> iterator)
     {
         return iterator == null || !iterator.hasNext() ? null : iterator.next();

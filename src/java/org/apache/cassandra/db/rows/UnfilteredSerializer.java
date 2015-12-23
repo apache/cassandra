@@ -24,9 +24,11 @@ import com.google.common.collect.Collections2;
 import net.nicoulaj.compilecommand.annotations.Inline;
 import org.apache.cassandra.config.ColumnDefinition;
 import org.apache.cassandra.db.*;
+import org.apache.cassandra.db.rows.Row.Deletion;
 import org.apache.cassandra.io.util.DataInputPlus;
 import org.apache.cassandra.io.util.DataOutputBuffer;
 import org.apache.cassandra.io.util.DataOutputPlus;
+import org.apache.cassandra.io.util.FileDataInput;
 import org.apache.cassandra.utils.SearchIterator;
 import org.apache.cassandra.utils.WrappedException;
 
@@ -447,6 +449,58 @@ public class UnfilteredSerializer
             if (row.isEmpty())
                 throw new IOException("Corrupt empty row found in unfiltered partition");
             return row;
+        }
+    }
+
+    public Unfiltered deserializeTombstonesOnly(FileDataInput in, SerializationHeader header, SerializationHelper helper)
+    throws IOException
+    {
+        while (true)
+        {
+            int flags = in.readUnsignedByte();
+            if (isEndOfPartition(flags))
+                return null;
+
+            int extendedFlags = readExtendedFlags(in, flags);
+
+            if (kind(flags) == Unfiltered.Kind.RANGE_TOMBSTONE_MARKER)
+            {
+                ClusteringBoundOrBoundary bound = ClusteringBoundOrBoundary.serializer.deserialize(in, helper.version, header.clusteringTypes());
+                return deserializeMarkerBody(in, header, bound);
+            }
+            else
+            {
+                assert !isStatic(extendedFlags); // deserializeStaticRow should be used for that.
+                if ((flags & HAS_DELETION) != 0)
+                {
+                    assert header.isForSSTable();
+                    boolean hasTimestamp = (flags & HAS_TIMESTAMP) != 0;
+                    boolean hasTTL = (flags & HAS_TTL) != 0;
+                    boolean deletionIsShadowable = (extendedFlags & HAS_SHADOWABLE_DELETION) != 0;
+                    Clustering clustering = Clustering.serializer.deserialize(in, helper.version, header.clusteringTypes());
+                    long nextPosition = in.readUnsignedVInt() + in.getFilePointer();
+                    in.readUnsignedVInt(); // skip previous unfiltered size
+                    if (hasTimestamp)
+                    {
+                        header.readTimestamp(in);
+                        if (hasTTL)
+                        {
+                            header.readTTL(in);
+                            header.readLocalDeletionTime(in);
+                        }
+                    }
+
+                    Deletion deletion = new Row.Deletion(header.readDeletionTime(in), deletionIsShadowable);
+                    in.seek(nextPosition);
+                    return BTreeRow.emptyDeletedRow(clustering, deletion);
+                }
+                else
+                {
+                    Clustering.serializer.skip(in, helper.version, header.clusteringTypes());
+                    skipRowBody(in);
+                    // Continue with next item.
+                }
+            }
         }
     }
 
