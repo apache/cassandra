@@ -200,61 +200,16 @@ if [ "$JVM_ARCH" = "64-Bit" ] && [ $USING_CMS -eq 0 ]; then
     JVM_OPTS="$JVM_OPTS -XX:+UseCondCardMark"
 fi
 
-# enable assertions.  disabling this in production will give a modest
-# performance benefit (around 5%).
-JVM_OPTS="$JVM_OPTS -ea"
-
-# Per-thread stack size.
-JVM_OPTS="$JVM_OPTS -Xss256k"
-
-# Make sure all memory is faulted and zeroed on startup.
-# This helps prevent soft faults in containers and makes
-# transparent hugepage allocation more effective.
-JVM_OPTS="$JVM_OPTS -XX:+AlwaysPreTouch"
-
-# Biased locking does not benefit Cassandra.
-JVM_OPTS="$JVM_OPTS -XX:-UseBiasedLocking"
-
-# Larger interned string table, for gossip's benefit (CASSANDRA-6410)
-JVM_OPTS="$JVM_OPTS -XX:StringTableSize=1000003"
-
-# Enable thread-local allocation blocks and allow the JVM to automatically
-# resize them at runtime.
-JVM_OPTS="$JVM_OPTS -XX:+UseTLAB -XX:+ResizeTLAB"
-
-# http://www.evanjones.ca/jvm-mmap-pause.html
-JVM_OPTS="$JVM_OPTS -XX:+PerfDisableSharedMem"
-
 # provides hints to the JIT compiler
 JVM_OPTS="$JVM_OPTS -XX:CompileCommandFile=$CASSANDRA_CONF/hotspot_compiler"
 
 # add the jamm javaagent
 JVM_OPTS="$JVM_OPTS -javaagent:$CASSANDRA_HOME/lib/jamm-0.3.0.jar"
 
-# enable thread priorities, primarily so we can give periodic tasks
-# a lower priority to avoid interfering with client workload
-JVM_OPTS="$JVM_OPTS -XX:+UseThreadPriorities"
-# allows lowering thread priority without being root.  see
-# http://tech.stolsvik.com/2010/01/linux-java-thread-priorities-workaround.html
-JVM_OPTS="$JVM_OPTS -XX:ThreadPriorityPolicy=42"
-
 # set jvm HeapDumpPath with CASSANDRA_HEAPDUMP_DIR
-JVM_OPTS="$JVM_OPTS -XX:+HeapDumpOnOutOfMemoryError"
 if [ "x$CASSANDRA_HEAPDUMP_DIR" != "x" ]; then
     JVM_OPTS="$JVM_OPTS -XX:HeapDumpPath=$CASSANDRA_HEAPDUMP_DIR/cassandra-`date +%s`-pid$$.hprof"
 fi
-
-# uncomment to have Cassandra JVM listen for remote debuggers/profilers on port 1414
-# JVM_OPTS="$JVM_OPTS -agentlib:jdwp=transport=dt_socket,server=y,suspend=n,address=1414"
-
-# uncomment to have Cassandra JVM log internal method compilation (developers only)
-# JVM_OPTS="$JVM_OPTS -XX:+UnlockDiagnosticVMOptions -XX:+LogCompilation"
-# JVM_OPTS="$JVM_OPTS -XX:+UnlockCommercialFeatures -XX:+FlightRecorder"
-
-# Prefer binding to IPv4 network intefaces (when net.ipv6.bindv6only=1). See
-# http://bugs.sun.com/bugdatabase/view_bug.do?bug_id=6342561 (short version:
-# comment out this entry to enable IPv6 support).
-JVM_OPTS="$JVM_OPTS -Djava.net.preferIPv4Stack=true"
 
 # jmx: metrics and administration interface
 #

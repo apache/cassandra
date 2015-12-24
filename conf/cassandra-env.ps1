@@ -416,10 +416,6 @@ Function SetCassandraEnvironment
         exit
     }
 
-    # enable assertions.  disabling this in production will give a modest
-    # performance benefit (around 5%).
-    $env:JVM_OPTS = "$env:JVM_OPTS -ea"
-
     # Specifies the default port over which Cassandra will be available for
     # JMX connections.
     $JMX_PORT="7199"
@@ -427,49 +423,10 @@ Function SetCassandraEnvironment
     # store in env to check if it's avail in verification
     $env:JMX_PORT=$JMX_PORT
 
-    # enable thread priorities, primarily so we can give periodic tasks
-    # a lower priority to avoid interfering with client workload
-    $env:JVM_OPTS="$env:JVM_OPTS -XX:+UseThreadPriorities"
-    # allows lowering thread priority without being root on linux - probably
-    # not necessary on Windows but doesn't harm anything.
-    # see http://tech.stolsvik.com/2010/01/linux-java-thread-priorities-workar
-    $env:JVM_OPTS="$env:JVM_OPTS -XX:ThreadPriorityPolicy=42"
-
-    $env:JVM_OPTS="$env:JVM_OPTS -XX:+HeapDumpOnOutOfMemoryError"
-
-    # Per-thread stack size.
-    $env:JVM_OPTS="$env:JVM_OPTS -Xss256k"
-
-    # Larger interned string table, for gossip's benefit (CASSANDRA-6410)
-    $env:JVM_OPTS="$env:JVM_OPTS -XX:StringTableSize=1000003"
-
-    # Make sure all memory is faulted and zeroed on startup.
-    # This helps prevent soft faults in containers and makes
-    # transparent hugepage allocation more effective.
-    #$env:JVM_OPTS="$env:JVM_OPTS -XX:+AlwaysPreTouch"
-
-    # Biased locking does not benefit Cassandra.
-    $env:JVM_OPTS="$env:JVM_OPTS -XX:-UseBiasedLocking"
-
-    # Enable thread-local allocation blocks and allow the JVM to automatically
-    # resize them at runtime.
-    $env:JVM_OPTS="$env:JVM_OPTS -XX:+UseTLAB -XX:+ResizeTLAB"
-
-    # http://www.evanjones.ca/jvm-mmap-pause.html
-    $env:JVM_OPTS="$env:JVM_OPTS -XX:+PerfDisableSharedMem"
-
     # Configure the following for JEMallocAllocator and if jemalloc is not available in the system
     # library path.
     # set LD_LIBRARY_PATH=<JEMALLOC_HOME>/lib/
     # $env:JVM_OPTS="$env:JVM_OPTS -Djava.library.path=<JEMALLOC_HOME>/lib/"
-
-    # uncomment to have Cassandra JVM listen for remote debuggers/profilers on port 1414
-    # $env:JVM_OPTS="$env:JVM_OPTS -agentlib:jdwp=transport=dt_socket,server=y,suspend=n,address=1414"
-
-    # Prefer binding to IPv4 network intefaces (when net.ipv6.bindv6only=1). See
-    # http://bugs.sun.com/bugdatabase/view_bug.do?bug_id=6342561 (short version:
-    # comment out this entry to enable IPv6 support).
-    $env:JVM_OPTS="$env:JVM_OPTS -Djava.net.preferIPv4Stack=true"
 
     # jmx: metrics and administration interface
     #
@@ -492,6 +449,4 @@ Function SetCassandraEnvironment
     $env:JVM_OPTS="$env:JVM_OPTS -Dcassandra.jmx.local.port=$JMX_PORT -XX:+DisableExplicitGC"
 
     $env:JVM_OPTS="$env:JVM_OPTS $env:JVM_EXTRA_OPTS"
-
-    #$env:JVM_OPTS="$env:JVM_OPTS -XX:+UnlockCommercialFeatures -XX:+FlightRecorder"
 }

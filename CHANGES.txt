@@ -1,5 +1,6 @@
 3.2
  * Add requireAuthorization method to IAuthorizer (CASSANDRA-10852)
+ * Move static JVM options to conf/jvm.options file (CASSANDRA-10494)
  * Fix CassandraVersion to accept x.y version string (CASSANDRA-10931)
  * Add forceUserDefinedCleanup to allow more flexible cleanup (CASSANDRA-10708)
  * (cqlsh) allow setting TTL with COPY (CASSANDRA-9494)

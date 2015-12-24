@@ -29,6 +29,7 @@ Upgrading
 ---------
    - The compression ratio metrics computation has been modified to be more accurate.
    - Running Cassandra as root is prevented by default.
+   - JVM options are moved from cassandra-env.(sh|ps1) to jvm.options file
 
 
 3.1
