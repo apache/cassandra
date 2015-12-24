@@ -293,13 +293,6 @@ public class CommitLogSegmentManager
 
         // make sure the writes have materialized inside of the memtables by waiting for all outstanding writes
         // on the relevant keyspaces to complete
-        Set<Keyspace> keyspaces = new HashSet<>();
-        for (UUID cfId : last.getDirtyCFIDs())
-        {
-            ColumnFamilyStore cfs = Schema.instance.getColumnFamilyStoreInstance(cfId);
-            if (cfs != null)
-                keyspaces.add(cfs.keyspace);
-        }
         Keyspace.writeOrder.awaitNewBarrier();
 
         // flush and wait for all CFs that are dirty in segments up-to and including 'last'
