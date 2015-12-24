@@ -25,6 +25,7 @@ import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentLinkedDeque;
 import java.util.concurrent.ConcurrentLinkedQueue;
 
+import com.google.common.collect.ImmutableMap;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -46,6 +47,7 @@ final class HintsStore
 
     public final UUID hostId;
     private final File hintsDirectory;
+    private final ImmutableMap<String, Object> writerParams;
 
     private final Map<HintsDescriptor, Long> dispatchOffsets;
     private final Deque<HintsDescriptor> dispatchDequeue;
@@ -55,10 +57,11 @@ final class HintsStore
     private volatile long lastUsedTimestamp;
     private volatile HintsWriter hintsWriter;
 
-    private HintsStore(UUID hostId, File hintsDirectory, List<HintsDescriptor> descriptors)
+    private HintsStore(UUID hostId, File hintsDirectory, ImmutableMap<String, Object> writerParams, List<HintsDescriptor> descriptors)
     {
         this.hostId = hostId;
         this.hintsDirectory = hintsDirectory;
+        this.writerParams = writerParams;
 
         dispatchOffsets = new ConcurrentHashMap<>();
         dispatchDequeue = new ConcurrentLinkedDeque<>(descriptors);
@@ -68,10 +71,10 @@ final class HintsStore
         lastUsedTimestamp = descriptors.stream().mapToLong(d -> d.timestamp).max().orElse(0L);
     }
 
-    static HintsStore create(UUID hostId, File hintsDirectory, List<HintsDescriptor> descriptors)
+    static HintsStore create(UUID hostId, File hintsDirectory, ImmutableMap<String, Object> writerParams, List<HintsDescriptor> descriptors)
     {
         descriptors.sort((d1, d2) -> Long.compare(d1.timestamp, d2.timestamp));
-        return new HintsStore(hostId, hintsDirectory, descriptors);
+        return new HintsStore(hostId, hintsDirectory, writerParams, descriptors);
     }
 
     InetAddress address()
@@ -179,7 +182,7 @@ final class HintsStore
     private HintsWriter openWriter()
     {
         lastUsedTimestamp = Math.max(System.currentTimeMillis(), lastUsedTimestamp + 1);
-        HintsDescriptor descriptor = new HintsDescriptor(hostId, lastUsedTimestamp);
+        HintsDescriptor descriptor = new HintsDescriptor(hostId, lastUsedTimestamp, writerParams);
 
         try
         {

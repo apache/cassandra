@@ -80,7 +80,7 @@ public class LegacyHintsMigratorTest
         // truncate system.hints to enseure nothing inside
         Keyspace.open(SystemKeyspace.NAME).getColumnFamilyStore(SystemKeyspace.LEGACY_HINTS).truncateBlocking();
         new LegacyHintsMigrator(directory, 128 * 1024 * 1024).migrate();
-        HintsCatalog catalog = HintsCatalog.load(directory);
+        HintsCatalog catalog = HintsCatalog.load(directory, HintsService.EMPTY_PARAMS);
         assertEquals(0, catalog.stores().count());
     }
 
@@ -125,7 +125,7 @@ public class LegacyHintsMigratorTest
         // validate that the hints table is truncated now
         assertTrue(Keyspace.open(SystemKeyspace.NAME).getColumnFamilyStore(SystemKeyspace.LEGACY_HINTS).isEmpty());
 
-        HintsCatalog catalog = HintsCatalog.load(directory);
+        HintsCatalog catalog = HintsCatalog.load(directory, HintsService.EMPTY_PARAMS);
 
         // assert that we've correctly loaded 10 hints stores
         assertEquals(10, catalog.stores().count());

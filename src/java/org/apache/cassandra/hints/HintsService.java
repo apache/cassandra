@@ -22,6 +22,7 @@ import java.lang.management.ManagementFactory;
 import java.net.InetAddress;
 import java.net.UnknownHostException;
 import java.util.Collections;
+import java.util.Map;
 import java.util.UUID;
 import java.util.concurrent.*;
 import java.util.concurrent.atomic.AtomicBoolean;
@@ -30,13 +31,16 @@ import java.util.function.Supplier;
 import javax.management.MBeanServer;
 import javax.management.ObjectName;
 
+import com.google.common.collect.ImmutableMap;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import org.apache.cassandra.concurrent.ScheduledExecutors;
 import org.apache.cassandra.config.DatabaseDescriptor;
+import org.apache.cassandra.config.ParameterizedClass;
 import org.apache.cassandra.metrics.HintedHandoffMetrics;
 import org.apache.cassandra.metrics.StorageMetrics;
+import org.apache.cassandra.schema.CompressionParams;
 import org.apache.cassandra.service.StorageService;
 
 import static com.google.common.collect.Iterables.transform;
@@ -60,6 +64,7 @@ public final class HintsService implements HintsServiceMBean
     private static final String MBEAN_NAME = "org.apache.cassandra.hints:type=HintsService";
 
     private static final int MIN_BUFFER_SIZE = 32 << 20;
+    static final ImmutableMap<String, Object> EMPTY_PARAMS = ImmutableMap.of();
 
     private final HintsCatalog catalog;
     private final HintsWriteExecutor writeExecutor;
@@ -79,7 +84,7 @@ public final class HintsService implements HintsServiceMBean
         File hintsDirectory = DatabaseDescriptor.getHintsDirectory();
         int maxDeliveryThreads = DatabaseDescriptor.getMaxHintsDeliveryThreads();
 
-        catalog = HintsCatalog.load(hintsDirectory);
+        catalog = HintsCatalog.load(hintsDirectory, createDescriptorParams());
         writeExecutor = new HintsWriteExecutor(catalog);
 
         int bufferSize = Math.max(DatabaseDescriptor.getMaxMutationSize() * 2, MIN_BUFFER_SIZE);
@@ -95,6 +100,26 @@ public final class HintsService implements HintsServiceMBean
                                                                                         flushPeriod,
                                                                                         TimeUnit.MILLISECONDS);
         metrics = new HintedHandoffMetrics();
+    }
+
+    private static ImmutableMap<String, Object> createDescriptorParams()
+    {
+        ImmutableMap.Builder<String, Object> builder = ImmutableMap.builder();
+
+        ParameterizedClass compressionConfig = DatabaseDescriptor.getHintsCompression();
+        if (compressionConfig != null)
+        {
+            ImmutableMap.Builder<String, Object> compressorParams = ImmutableMap.builder();
+
+            compressorParams.put(ParameterizedClass.CLASS_NAME, compressionConfig.class_name);
+            if (compressionConfig.parameters != null)
+            {
+                compressorParams.put(ParameterizedClass.PARAMETERS, compressionConfig.parameters);
+            }
+            builder.put(HintsDescriptor.COMPRESSION, compressorParams.build());
+        }
+
+        return builder.build();
     }
 
     public void registerMBean()
@@ -322,5 +347,10 @@ public final class HintsService implements HintsServiceMBean
         catalog.stores().forEach(dispatchExecutor::completeDispatchBlockingly);
 
         return dispatchExecutor.transfer(catalog, hostIdSupplier);
+    }
+
+    HintsCatalog getCatalog()
+    {
+        return catalog;
     }
 }

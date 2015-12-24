@@ -1,6 +1,8 @@
 3.2
  * Add forceUserDefinedCleanup to allow more flexible cleanup (CASSANDRA-10708)
  * (cqlsh) allow setting TTL with COPY (CASSANDRA-9494)
+ * Implement hints compression (CASSANDRA-9428)
+ * Fix potential assertion error when reading static columns (CASSANDRA-10903)
  * Fix EstimatedHistogram creation in nodetool tablehistograms (CASSANDRA-10859)
  * Establish bootstrap stream sessions sequentially (CASSANDRA-6992)
  * Sort compactionhistory output by timestamp (CASSANDRA-10464)
@@ -23,7 +25,6 @@
  * Abort in-progress queries that time out (CASSANDRA-7392)
  * Add transparent data encryption core classes (CASSANDRA-9945)
 Merged from 3.0:
- * Fix potential assertion error when reading static columns (CASSANDRA-0903)
  * Avoid NoSuchElementException when executing empty batch (CASSANDRA-10711)
  * Avoid building PartitionUpdate in toString (CASSANDRA-10897)
  * Reduce heap spent when receiving many SSTables (CASSANDRA-10797)
