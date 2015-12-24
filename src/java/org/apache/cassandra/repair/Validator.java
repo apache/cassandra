@@ -90,9 +90,11 @@ public class Validator implements Runnable
         }
         else
         {
+            List<DecoratedKey> keys = new ArrayList<>();
+            Random random = new Random();
+            
             for (Range<Token> range : tree.ranges())
             {
-                List<DecoratedKey> keys = new ArrayList<>();
                 for (DecoratedKey sample : cfs.keySamples(range))
                 {
                     assert range.contains(sample.getToken()) : "Token " + sample.getToken() + " is not within range " + desc.ranges;
@@ -107,7 +109,6 @@ public class Validator implements Runnable
                 else
                 {
                     int numKeys = keys.size();
-                    Random random = new Random();
                     // sample the column family using random keys from the index
                     while (true)
                     {
@@ -115,6 +116,7 @@ public class Validator implements Runnable
                         if (!tree.split(dk.getToken()))
                             break;
                     }
+                    keys.clear();
                 }
             }
         }
