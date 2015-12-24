@@ -18,13 +18,11 @@
 package org.apache.cassandra.net;
 
 import java.io.IOException;
-import java.util.Arrays;
-import java.util.Collection;
 import java.util.EnumSet;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-import org.apache.cassandra.db.IMutation;
+
 import org.apache.cassandra.db.filter.TombstoneOverwhelmingException;
 import org.apache.cassandra.gms.Gossiper;
 import org.apache.cassandra.index.IndexNotAvailableException;
@@ -45,11 +43,10 @@ public class MessageDeliveryTask implements Runnable
 
     public void run()
     {
-        long timeTaken = System.currentTimeMillis() - message.constructionTime.timestamp;
         MessagingService.Verb verb = message.verb;
-        if (MessagingService.DROPPABLE_VERBS.contains(verb)&& message.getTimeout() > timeTaken)
+        if (MessagingService.DROPPABLE_VERBS.contains(verb)
+            && System.currentTimeMillis() > message.constructionTime.timestamp + message.getTimeout())
         {
-            LogDroppedMessageDetails(timeTaken);
             MessagingService.instance().incrementDroppedMessages(message);
             return;
         }
@@ -83,37 +80,6 @@ public class MessageDeliveryTask implements Runnable
 
         if (GOSSIP_VERBS.contains(message.verb))
             Gossiper.instance.setLastProcessedMessageAt(message.constructionTime.timestamp);
-    }
-
-    private void LogDroppedMessageDetails(long timeTaken)
-    {
-        logger.debug("MessageDeliveryTask ran after {} ms, allowed time was {} ms. Dropping message {}",
-                timeTaken, message.getTimeout(), message.toString());
-        // Print KS and CF if Payload is mutation or a list of mutations (sent due to schema announcements)
-        IMutation mutation;
-        if (message.payload instanceof IMutation)
-        {
-            mutation = (IMutation)message.payload;
-            if (mutation != null)
-            {
-                logger.debug("MessageDeliveryTask dropped mutation of KS {}, CF {}", mutation.getKeyspaceName(), Arrays.toString(mutation.getColumnFamilyIds().toArray()));
-            }
-        }
-        else if (message.payload instanceof Collection<?>)
-        {
-            Collection<?> payloadItems = (Collection<?>)message.payload;
-            for (Object payloadItem : payloadItems)
-            {
-                if (payloadItem instanceof IMutation)
-                {
-                    mutation = (IMutation)payloadItem;
-                    if (mutation != null)
-                    {
-                        logger.debug("MessageDeliveryTask dropped mutation of KS {}, CF {}", mutation.getKeyspaceName(), Arrays.toString(mutation.getColumnFamilyIds().toArray()));
-                    }
-                }
-            }
-        }
     }
 
     private void handleFailure(Throwable t)

@@ -1198,7 +1198,7 @@ public class StorageProxy implements StorageProxyMBean
             submitHint(mutation, endpointsToHint, responseHandler);
 
         if (insertLocal)
-            performLocally(stage, mutation, mutation::apply, responseHandler);
+            performLocally(stage, mutation::apply, responseHandler);
 
         if (dcGroups != null)
         {
@@ -1268,27 +1268,6 @@ public class StorageProxy implements StorageProxyMBean
     private static void performLocally(Stage stage, final Runnable runnable, final IAsyncCallbackWithFailure<?> handler)
     {
         StageManager.getStage(stage).maybeExecuteImmediately(new LocalMutationRunnable()
-        {
-            public void runMayThrow()
-            {
-                try
-                {
-                    runnable.run();
-                    handler.response(null);
-                }
-                catch (Exception ex)
-                {
-                    if (!(ex instanceof WriteTimeoutException))
-                        logger.error("Failed to apply mutation locally : {}", ex);
-                    handler.onFailure(FBUtilities.getBroadcastAddress());
-                }
-            }
-        });
-    }
-
-    private static void performLocally(Stage stage, IMutation mutation, final Runnable runnable, final IAsyncCallbackWithFailure<?> handler)
-    {
-        StageManager.getStage(stage).maybeExecuteImmediately(new LocalMutationRunnable(mutation)
         {
             public void runMayThrow()
             {
@@ -2429,28 +2408,11 @@ public class StorageProxy implements StorageProxyMBean
     private static abstract class LocalMutationRunnable implements Runnable
     {
         private final long constructionTime = System.currentTimeMillis();
-        private IMutation mutation;
-
-        public LocalMutationRunnable(IMutation mutation)
-        {
-            this.mutation = mutation;
-        }
-
-        public LocalMutationRunnable()
-        {
-        }
 
         public final void run()
         {
-            long mutationTimeout = DatabaseDescriptor.getTimeout(MessagingService.Verb.MUTATION);
-            if (System.currentTimeMillis() > constructionTime + mutationTimeout)
+            if (System.currentTimeMillis() > constructionTime + DatabaseDescriptor.getTimeout(MessagingService.Verb.MUTATION))
             {
-                long timeTaken = System.currentTimeMillis() - constructionTime;
-                logger.debug("LocalMutationRunnable thread ran after {} ms, allowed time was {} ms. ", timeTaken, mutationTimeout);
-                if (this.mutation != null)
-                {
-                    logger.debug("MessageDeliveryTask dropped mutation of KS {}, CF {}", this.mutation.getKeyspaceName(), Arrays.toString(this.mutation.getColumnFamilyIds().toArray()));
-                }
                 MessagingService.instance().incrementDroppedMessages(MessagingService.Verb.MUTATION);
                 HintRunnable runnable = new HintRunnable(Collections.singleton(FBUtilities.getBroadcastAddress()))
                 {
