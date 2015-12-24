@@ -91,6 +91,7 @@ public abstract class Functions
         declare(AggregateFcts.sumFunctionForDouble);
         declare(AggregateFcts.sumFunctionForDecimal);
         declare(AggregateFcts.sumFunctionForVarint);
+        declare(AggregateFcts.sumFunctionForCounter);
         declare(AggregateFcts.avgFunctionForByte);
         declare(AggregateFcts.avgFunctionForShort);
         declare(AggregateFcts.avgFunctionForInt32);
@@ -99,6 +100,7 @@ public abstract class Functions
         declare(AggregateFcts.avgFunctionForDouble);
         declare(AggregateFcts.avgFunctionForVarint);
         declare(AggregateFcts.avgFunctionForDecimal);
+        declare(AggregateFcts.avgFunctionForCounter);
 
         MigrationManager.instance.register(new FunctionsMigrationListener());
     }

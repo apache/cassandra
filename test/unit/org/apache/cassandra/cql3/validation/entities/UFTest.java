@@ -716,6 +716,32 @@ public class UFTest extends CQLTester
     }
 
     @Test
+    public void testJavaFunctionCounter() throws Throwable
+    {
+        createTable("CREATE TABLE %s (key int primary key, val counter)");
+
+        String fName = createFunction(KEYSPACE, "counter",
+                                      "CREATE OR REPLACE FUNCTION %s(val counter) " +
+                                      "CALLED ON NULL INPUT " +
+                                      "RETURNS bigint " +
+                                      "LANGUAGE JAVA " +
+                                      "AS 'return val + 1;';");
+
+        execute("UPDATE %s SET val = val + 1 WHERE key = 1");
+        assertRows(execute("SELECT key, val, " + fName + "(val) FROM %s"),
+                   row(1, 1L, 2L));
+        execute("UPDATE %s SET val = val + 1 WHERE key = 1");
+        assertRows(execute("SELECT key, val, " + fName + "(val) FROM %s"),
+                   row(1, 2L, 3L));
+        execute("UPDATE %s SET val = val + 2 WHERE key = 1");
+        assertRows(execute("SELECT key, val, " + fName + "(val) FROM %s"),
+                   row(1, 4L, 5L));
+        execute("UPDATE %s SET val = val - 2 WHERE key = 1");
+        assertRows(execute("SELECT key, val, " + fName + "(val) FROM %s"),
+                   row(1, 2L, 3L));
+    }
+
+    @Test
     public void testFunctionInTargetKeyspace() throws Throwable
     {
         createTable("CREATE TABLE %s (key int primary key, val double)");

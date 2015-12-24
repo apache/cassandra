@@ -37,6 +37,7 @@ import org.apache.cassandra.db.SystemKeyspace;
 import org.apache.cassandra.exceptions.FunctionExecutionException;
 import org.apache.cassandra.exceptions.InvalidRequestException;
 import org.apache.cassandra.service.ClientState;
+import org.apache.cassandra.service.StorageService;
 import org.apache.cassandra.transport.Event;
 import org.apache.cassandra.transport.messages.ResultMessage;
 
@@ -169,6 +170,47 @@ public class AggregationTest extends CQLTester
 
         assertRows(execute("SELECT count(b), max(b) as max, b, c as first FROM %s"),
                    row(3L, 8, 2, null));
+    }
+
+    @Test
+    public void testAggregateOnCounters() throws Throwable
+    {
+        createTable("CREATE TABLE %s (a int, b counter, primary key (a))");
+
+        // Test with empty table
+        assertColumnNames(execute("SELECT count(b), max(b) as max, b FROM %s"),
+                          "system.count(b)", "max", "b");
+        assertRows(execute("SELECT count(b), max(b) as max, b FROM %s"),
+                   row(0L, null, null));
+
+        execute("UPDATE %s SET b = b + 1 WHERE a = 1");
+        execute("UPDATE %s SET b = b + 1 WHERE a = 1");
+
+        assertRows(execute("SELECT count(b), max(b) as max, min(b) as min, avg(b) as avg, sum(b) as sum FROM %s"),
+                   row(1L, 2L, 2L, 2L, 2L));
+        flush();
+        assertRows(execute("SELECT count(b), max(b) as max, min(b) as min, avg(b) as avg, sum(b) as sum FROM %s"),
+                   row(1L, 2L, 2L, 2L, 2L));
+
+        execute("UPDATE %s SET b = b + 2 WHERE a = 1");
+
+        assertRows(execute("SELECT count(b), max(b) as max, min(b) as min, avg(b) as avg, sum(b) as sum FROM %s"),
+                   row(1L, 4L, 4L, 4L, 4L));
+
+        execute("UPDATE %s SET b = b - 2 WHERE a = 1");
+
+        assertRows(execute("SELECT count(b), max(b) as max, min(b) as min, avg(b) as avg, sum(b) as sum FROM %s"),
+                   row(1L, 2L, 2L, 2L, 2L));
+        flush();
+        assertRows(execute("SELECT count(b), max(b) as max, min(b) as min, avg(b) as avg, sum(b) as sum FROM %s"),
+                   row(1L, 2L, 2L, 2L, 2L));
+
+        execute("UPDATE %s SET b = b + 1 WHERE a = 2");
+        execute("UPDATE %s SET b = b + 1 WHERE a = 2");
+        execute("UPDATE %s SET b = b + 2 WHERE a = 2");
+
+        assertRows(execute("SELECT count(b), max(b) as max, min(b) as min, avg(b) as avg, sum(b) as sum FROM %s"),
+                   row(2L, 4L, 2L, 3L, 6L));
     }
 
     @Test

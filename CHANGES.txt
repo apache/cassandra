@@ -1,4 +1,5 @@
 2.2.5
+ * Support counter-columns for native aggregates (sum,avg,max,min) (CASSANDRA-9977)
  * (cqlsh) show correct column names for empty result sets (CASSANDRA-9813)
  * Add new types to Stress (CASSANDRA-9556)
  * Add property to allow listening on broadcast interface (CASSANDRA-9748)
