@@ -427,7 +427,7 @@ public abstract class SSTableReader extends SSTable implements SelfRefCounted<SS
                 : new BufferedSegmentedFile.Builder())
         {
             if (!sstable.loadSummary(ibuilder, dbuilder))
-                sstable.buildSummary(false, ibuilder, dbuilder, false, Downsampling.BASE_SAMPLING_LEVEL);
+                sstable.buildSummary(false, false, Downsampling.BASE_SAMPLING_LEVEL);
             sstable.ifile = ibuilder.buildIndex(sstable.descriptor, sstable.indexSummary);
             sstable.dfile = dbuilder.buildData(sstable.descriptor, statsMetadata);
             sstable.bf = FilterFactory.AlwaysPresent;
@@ -726,7 +726,7 @@ public abstract class SSTableReader extends SSTable implements SelfRefCounted<SS
             boolean builtSummary = false;
             if (recreateBloomFilter || !summaryLoaded)
             {
-                buildSummary(recreateBloomFilter, ibuilder, dbuilder, summaryLoaded, Downsampling.BASE_SAMPLING_LEVEL);
+                buildSummary(recreateBloomFilter, summaryLoaded, Downsampling.BASE_SAMPLING_LEVEL);
                 builtSummary = true;
             }
 
@@ -749,7 +749,7 @@ public abstract class SSTableReader extends SSTable implements SelfRefCounted<SS
                 try(SegmentedFile.Builder ibuilderRebuild = SegmentedFile.getBuilder(DatabaseDescriptor.getIndexAccessMode(), false);
                     SegmentedFile.Builder dbuilderRebuild = SegmentedFile.getBuilder(DatabaseDescriptor.getDiskAccessMode(), compression))
                 {
-                    buildSummary(false, ibuilderRebuild, dbuilderRebuild, false, Downsampling.BASE_SAMPLING_LEVEL);
+                    buildSummary(false, false, Downsampling.BASE_SAMPLING_LEVEL);
                     ifile = ibuilderRebuild.buildIndex(descriptor, indexSummary);
                     dfile = dbuilderRebuild.buildData(descriptor, sstableMetadata);
                     saveSummary(ibuilderRebuild, dbuilderRebuild);
@@ -788,12 +788,10 @@ public abstract class SSTableReader extends SSTable implements SelfRefCounted<SS
      * Build index summary(and optionally bloom filter) by reading through Index.db file.
      *
      * @param recreateBloomFilter true if recreate bloom filter
-     * @param ibuilder
-     * @param dbuilder
      * @param summaryLoaded true if index summary is already loaded and not need to build again
      * @throws IOException
      */
-    private void buildSummary(boolean recreateBloomFilter, SegmentedFile.Builder ibuilder, SegmentedFile.Builder dbuilder, boolean summaryLoaded, int samplingLevel) throws IOException
+    private void buildSummary(boolean recreateBloomFilter, boolean summaryLoaded, int samplingLevel) throws IOException
     {
          if (!components.contains(Component.PRIMARY_INDEX))
              return;
