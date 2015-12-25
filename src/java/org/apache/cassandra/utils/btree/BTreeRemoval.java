@@ -71,7 +71,7 @@ public class BTreeRemoval
     /**
      * Remove |elem| from |btree|. It has to be present and it has to reside in a leaf node.
      */
-    private static <V> Object[] removeFromLeaf(Object[] node, int index)
+    private static Object[] removeFromLeaf(Object[] node, int index)
     {
         Object[] result = null;
         Object[] prevNode = null;
@@ -107,7 +107,7 @@ public class BTreeRemoval
                 if (i > 0)
                 {
                     final Object[] leftNeighbour = (Object[]) node[keyEnd + i - 1];
-                    final V nodeKey = (V) node[i - 1];
+                    final Object nodeKey = node[i - 1];
                     node = keyEnd == 1 ? null : copyWithKeyAndChildRemoved(node, i - 1, i - 1, false);
                     nextNode = merge(leftNeighbour, nextNode, nodeKey);
                     i = i - 1;
@@ -116,7 +116,7 @@ public class BTreeRemoval
                 else
                 {
                     final Object[] rightNeighbour = (Object[]) node[keyEnd + i + 1];
-                    final V nodeKey = (V) node[i];
+                    final Object nodeKey = node[i];
                     node = keyEnd == 1 ? null : copyWithKeyAndChildRemoved(node, i, i, false);
                     nextNode = merge(nextNode, rightNeighbour, nodeKey);
                 }
@@ -148,7 +148,7 @@ public class BTreeRemoval
         return result;
     }
 
-    private static <V> Object[] rotateRight(final Object[] node, final int i) {
+    private static Object[] rotateRight(final Object[] node, final int i) {
         final int keyEnd = BTree.getBranchKeyEnd(node);
         final Object[] nextNode = (Object[]) node[keyEnd + i];
         final Object[] rightNeighbour = (Object[]) node[keyEnd + i + 1];
@@ -222,7 +222,7 @@ public class BTreeRemoval
         return copy;
     }
 
-    private static <V> Object[] copyWithKeyAndChildRemoved(final Object[] node, final int keyIndex, final int childIndex, final boolean substractSize)
+    private static Object[] copyWithKeyAndChildRemoved(final Object[] node, final int keyIndex, final int childIndex, final boolean substractSize)
     {
         final boolean leaf = BTree.isLeaf(node);
         final int keyEnd = BTree.getKeyEnd(node);
