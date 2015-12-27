@@ -3885,7 +3885,7 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
 
     /**
      * Force a remove operation to complete. This may be necessary if a remove operation
-     * blocks forever due to node/stream failure. removeToken() must be called
+     * blocks forever due to node/stream failure. removeNode() must be called
      * first, this is a last resort measure.  No further attempt will be made to restore replicas.
      */
     public void forceRemoveCompletion()
@@ -3904,18 +3904,18 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
         }
         else
         {
-            logger.warn("No tokens to force removal on, call 'removenode' first");
+            logger.warn("No nodes to force removal on, call 'removenode' first");
         }
     }
 
     /**
      * Remove a node that has died, attempting to restore the replica count.
      * If the node is alive, decommission should be attempted.  If decommission
-     * fails, then removeToken should be called.  If we fail while trying to
+     * fails, then removeNode should be called.  If we fail while trying to
      * restore the replica count, finally forceRemoveCompleteion should be
      * called to forcibly remove the node without regard to replica count.
      *
-     * @param hostIdString token for the node
+     * @param hostIdString Host ID for the node
      */
     public void removeNode(String hostIdString)
     {
@@ -3927,7 +3927,8 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
         if (endpoint == null)
             throw new UnsupportedOperationException("Host ID not found.");
 
-        Collection<Token> tokens = tokenMetadata.getTokens(endpoint);
+        if (!tokenMetadata.isMember(endpoint))
+            throw new UnsupportedOperationException("Node to be removed is not a member of the token ring");
 
         if (endpoint.equals(myAddress))
              throw new UnsupportedOperationException("Cannot remove self");
@@ -3941,6 +3942,8 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
 
         if (!replicatingNodes.isEmpty())
             throw new UnsupportedOperationException("This node is already processing a removal. Wait for it to complete, or use 'removenode force' if this has failed.");
+
+        Collection<Token> tokens = tokenMetadata.getTokens(endpoint);
 
         // Find the endpoints that are going to become responsible for data
         for (String keyspaceName : Schema.instance.getNonSystemKeyspaces())
