@@ -737,7 +737,7 @@ public abstract class SSTableReader extends SSTable implements SelfRefCounted<SS
 
             // Check for an index summary that was downsampled even though the serialization format doesn't support
             // that.  If it was downsampled, rebuild it.  See CASSANDRA-8993 for details.
-        if (!descriptor.version.hasSamplingLevel() && !builtSummary && !validateSummarySamplingLevel() && ifile != null)
+        if (ifile != null && !descriptor.version.hasSamplingLevel() && !builtSummary && !validateSummarySamplingLevel())
             {
                 indexSummary.close();
                 ifile.close();
