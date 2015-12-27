@@ -8,6 +8,7 @@
  * Disable reloading of GossipingPropertyFileSnitch (CASSANDRA-9474)
  * Verify tables in pseudo-system keyspaces at startup (CASSANDRA-10761)
 Merged from 2.1:
+ * cqlsh fails to decode utf-8 characters for text typed columns (CASSANDRA-10875)
  * Log error when stream session fails (CASSANDRA-9294)
  * Fix bugs in commit log archiving startup behavior (CASSANDRA-10593)
  * (cqlsh) further optimise COPY FROM (CASSANDRA-9302)
