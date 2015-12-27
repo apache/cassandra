@@ -143,16 +143,16 @@ public class StressGraph
                 if (line.startsWith("Thread count was not specified"))
                     runningMultipleThreadCounts = true;
 
-                // Detect thread count:
-                Matcher tc = threadCountMessage.matcher(line);
-                if (tc.matches())
+                if (runningMultipleThreadCounts)
                 {
-                    if (runningMultipleThreadCounts)
+                    // Detect thread count:
+                    Matcher tc = threadCountMessage.matcher(line);
+                    if (tc.matches())
                     {
                         currentThreadCount = tc.group(2);
                     }
                 }
-
+                
                 // Detect mode changes
                 if (line.equals(StressMetrics.HEAD))
                 {
