@@ -356,13 +356,13 @@ public abstract class Lists
             if (idx < 0 || idx >= existingSize)
                 throw new InvalidRequestException(String.format("List index %d out of bound, list has size %d", idx, existingSize));
 
-            CellPath elementPath = existingRow.getComplexColumnData(column).getCellByIndex(idx).path();
             if (value == null)
             {
                 params.addTombstone(column);
             }
             else if (value != ByteBufferUtil.UNSET_BYTE_BUFFER)
             {
+                CellPath elementPath = existingRow.getComplexColumnData(column).getCellByIndex(idx).path();
                 params.addCell(column, elementPath, value);
             }
         }
