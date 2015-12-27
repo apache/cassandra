@@ -744,6 +744,8 @@ class Shell(cmd.Cmd):
         self.session.max_trace_wait = max_trace_wait
         if encoding is None:
             encoding = locale.getpreferredencoding()
+            if encoding is None:
+                encoding = 'utf-8'
         self.encoding = encoding
         self.output_codec = codecs.lookup(encoding)
 
@@ -1058,7 +1060,7 @@ class Shell(cmd.Cmd):
 
     def get_input_line(self, prompt=''):
         if self.tty:
-            self.lastcmd = raw_input(prompt)
+            self.lastcmd = raw_input(prompt).decode(self.encoding)
             line = self.lastcmd + '\n'
         else:
             self.lastcmd = self.stdin.readline()
