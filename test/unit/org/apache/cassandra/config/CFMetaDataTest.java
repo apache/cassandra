@@ -49,6 +49,8 @@ import org.junit.BeforeClass;
 import org.junit.Test;
 
 import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertFalse;
+import static org.junit.Assert.assertTrue;
 
 public class CFMetaDataTest
 {
@@ -172,5 +174,23 @@ public class CFMetaDataTest
 
         assertEquals(cfm.params, params);
         assertEquals(new HashSet<>(cfm.allColumns()), columns);
+    }
+    
+    @Test
+    public void testIsNameValidPositive()
+    {
+         assertTrue(CFMetaData.isNameValid("abcdefghijklmnopqrstuvwxyz"));
+         assertTrue(CFMetaData.isNameValid("ABCDEFGHIJKLMNOPQRSTUVWXYZ"));
+         assertTrue(CFMetaData.isNameValid("_01234567890"));
+    }
+    
+    @Test
+    public void testIsNameValidNegative()
+    {
+        assertFalse(CFMetaData.isNameValid(null));
+        assertFalse(CFMetaData.isNameValid(""));
+        assertFalse(CFMetaData.isNameValid(" "));
+        assertFalse(CFMetaData.isNameValid("@"));
+        assertFalse(CFMetaData.isNameValid("!"));
     }
 }
