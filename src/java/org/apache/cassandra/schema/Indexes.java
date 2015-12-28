@@ -95,7 +95,7 @@ public class Indexes implements Iterable<IndexMetadata>
     /**
      * Get the index with the specified id
      *
-     * @param name a UUID which identifies an index
+     * @param id a UUID which identifies an index
      * @return an empty {@link Optional} if no index with the specified id is found; a non-empty optional of
      *         {@link IndexMetadata} otherwise
      */
@@ -107,7 +107,7 @@ public class Indexes implements Iterable<IndexMetadata>
 
     /**
      * Answer true if contains an index with the specified id.
-     * @param name a UUID which identifies an index.
+     * @param id a UUID which identifies an index.
      * @return true if an index with the specified id is found; false otherwise
      */
     public boolean has(UUID id)

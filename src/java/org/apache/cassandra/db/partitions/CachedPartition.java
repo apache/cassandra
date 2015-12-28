@@ -45,7 +45,7 @@ public interface CachedPartition extends Partition, IRowCacheEntry
     /**
      * The number of rows that were live at the time the partition was cached.
      *
-     * See {@link ColumnFamilyStore#isFilterFullyCoveredBy} to see why we need this.
+     * See {@link org.apache.cassandra.db.ColumnFamilyStore#isFilterFullyCoveredBy} to see why we need this.
      *
      * @return the number of rows in this partition that were live at the time the
      * partition was cached (this can be different from the number of live rows now
@@ -58,7 +58,7 @@ public interface CachedPartition extends Partition, IRowCacheEntry
      * non-deleted cell.
      *
      * Note that this is generally not a very meaningful number, but this is used by
-     * {@link DataLimits#hasEnoughLiveData} as an optimization.
+     * {@link org.apache.cassandra.db.filter.DataLimits#hasEnoughLiveData} as an optimization.
      *
      * @return the number of row that have at least one non-expiring non-deleted cell.
      */
@@ -86,7 +86,7 @@ public interface CachedPartition extends Partition, IRowCacheEntry
      * The number of cells in this cached partition that are neither tombstone nor expiring.
      *
      * Note that this is generally not a very meaningful number, but this is used by
-     * {@link DataLimits#hasEnoughLiveData} as an optimization.
+     * {@link org.apache.cassandra.db.filter.DataLimits#hasEnoughLiveData} as an optimization.
      *
      * @return the number of cells that are neither tombstones nor expiring.
      */

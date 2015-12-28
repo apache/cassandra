@@ -1664,7 +1664,6 @@ public abstract class SSTableReader extends SSTable implements SelfRefCounted<SS
      * When calling this function, the caller must ensure that the SSTableReader is not referenced anywhere
      * except for threads holding a reference.
      *
-     * @return true if the this is the first time the file was marked obsolete.  Calling this
      * multiple times is usually buggy (see exceptions in Tracker.unmarkCompacting and removeOldSSTablesSize).
      */
     public void markObsolete(Runnable tidier)

@@ -26,8 +26,9 @@ import org.apache.commons.lang3.StringUtils;
 
 /**
  * Implements versioning used in Cassandra and CQL.
- * <p/>
+ * <p>
  * Note: The following code uses a slight variation from the semver document (http://semver.org).
+ * </p>
  */
 public class CassandraVersion implements Comparable<CassandraVersion>
 {
@@ -123,13 +124,14 @@ public class CassandraVersion implements Comparable<CassandraVersion>
     /**
      * Returns a version that is backward compatible with this version amongst a list
      * of provided version, or null if none can be found.
-     * <p/>
+     * <p>
      * For instance:
      * "2.0.0".findSupportingVersion("2.0.0", "3.0.0") == "2.0.0"
      * "2.0.0".findSupportingVersion("2.1.3", "3.0.0") == "2.1.3"
      * "2.0.0".findSupportingVersion("3.0.0") == null
      * "2.0.3".findSupportingVersion("2.0.0") == "2.0.0"
      * "2.1.0".findSupportingVersion("2.0.0") == null
+     * </p>
      */
     public CassandraVersion findSupportingVersion(CassandraVersion... versions)
     {

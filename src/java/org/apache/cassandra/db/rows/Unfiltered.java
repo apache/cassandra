@@ -49,7 +49,7 @@ public interface Unfiltered extends Clusterable
      * Validate the data of this atom.
      *
      * @param metadata the metadata for the table this atom is part of.
-     * @throws MarshalException if some of the data in this atom is
+     * @throws org.apache.cassandra.serializers.MarshalException if some of the data in this atom is
      * invalid (some value is invalid for its column type, or some field
      * is nonsensical).
      */

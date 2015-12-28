@@ -383,7 +383,6 @@ public class ByteBufferUtil
 
     /**
      * @param in data input
-     * @return null
      * @throws IOException if an I/O error occurs.
      */
     public static void skipShortLength(DataInputPlus in) throws IOException

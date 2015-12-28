@@ -308,10 +308,10 @@ public class RandomAccessReader extends RebufferingInputStream implements FileDa
      * represented by zero or more characters followed by {@code '\n'}, {@code
      * '\r'}, {@code "\r\n"} or the end of file marker. The string does not
      * include the line terminating sequence.
-     * <p/>
+     * <p>
      * Blocks until a line terminating sequence has been read, the end of the
      * file is reached or an exception is thrown.
-     *
+     * </p>
      * @return the contents of the line or {@code null} if no characters have
      * been read before the end of the file has been reached.
      * @throws IOException if this file is closed or another I/O error occurs.

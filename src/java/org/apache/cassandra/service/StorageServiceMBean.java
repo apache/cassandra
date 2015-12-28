@@ -515,7 +515,7 @@ public interface StorageServiceMBean extends NotificationEmitter
      * Load new SSTables to the given keyspace/table
      *
      * @param ksName The parent keyspace name
-     * @param cfName The ColumnFamily name where SSTables belong
+     * @param tableName The ColumnFamily name where SSTables belong
      */
     public void loadNewSSTables(String ksName, String tableName);
 

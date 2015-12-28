@@ -128,7 +128,7 @@ public class Validator implements Runnable
      * Called (in order) for every row present in the CF.
      * Hashes the row, and adds it to the tree being built.
      *
-     * @param row Row to add hash
+     * @param partition Partition to add hash
      */
     public void add(UnfilteredRowIterator partition)
     {

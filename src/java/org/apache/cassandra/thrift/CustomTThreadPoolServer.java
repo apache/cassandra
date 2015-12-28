@@ -56,8 +56,8 @@ import com.google.common.util.concurrent.Uninterruptibles;
  * Slightly modified version of the Apache Thrift TThreadPoolServer.
  * <p>
  * This allows passing an executor so you have more control over the actual
- * behaviour of the tasks being run.
- * <p/>
+ * behavior of the tasks being run.
+ * </p>
  * Newer version of Thrift should make this obsolete.
  */
 public class CustomTThreadPoolServer extends TServer
