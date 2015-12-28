@@ -25,13 +25,13 @@ public abstract class PurgeFunction extends Transformation<UnfilteredRowIterator
 {
     private final boolean isForThrift;
     private final DeletionPurger purger;
-    private final int gcBefore;
+    private final int nowInSec;
     private boolean isReverseOrder;
 
-    public PurgeFunction(boolean isForThrift, int gcBefore, int oldestUnrepairedTombstone, boolean onlyPurgeRepairedTombstones)
+    public PurgeFunction(boolean isForThrift, int nowInSec, int gcBefore, int oldestUnrepairedTombstone, boolean onlyPurgeRepairedTombstones)
     {
         this.isForThrift = isForThrift;
-        this.gcBefore = gcBefore;
+        this.nowInSec = nowInSec;
         this.purger = (timestamp, localDeletionTime) ->
                       !(onlyPurgeRepairedTombstones && localDeletionTime >= oldestUnrepairedTombstone)
                       && localDeletionTime < gcBefore
@@ -79,13 +79,13 @@ public abstract class PurgeFunction extends Transformation<UnfilteredRowIterator
     public Row applyToStatic(Row row)
     {
         updateProgress();
-        return row.purge(purger, gcBefore);
+        return row.purge(purger, nowInSec);
     }
 
     public Row applyToRow(Row row)
     {
         updateProgress();
-        return row.purge(purger, gcBefore);
+        return row.purge(purger, nowInSec);
     }
 
     public RangeTombstoneMarker applyToMarker(RangeTombstoneMarker marker)

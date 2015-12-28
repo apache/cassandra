@@ -91,7 +91,7 @@ public abstract class AbstractCell extends Cell
                 // Note that as long as the expiring column and the tombstone put together live longer than GC grace seconds,
                 // we'll fulfil our responsibility to repair. See discussion at
                 // http://cassandra-user-incubator-apache-org.3065146.n2.nabble.com/repair-compaction-and-tombstone-rows-td7583481.html
-                return BufferCell.tombstone(column, timestamp(), localDeletionTime() - ttl());
+                return BufferCell.tombstone(column, timestamp(), localDeletionTime() - ttl(), path());
             }
         }
         return this;
