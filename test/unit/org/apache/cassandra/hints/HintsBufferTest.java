@@ -188,7 +188,7 @@ public class HintsBufferTest
         return idx;
     }
 
-    private static Hint createHint(int idx, long baseTimestamp)
+    static Hint createHint(int idx, long baseTimestamp)
     {
         long timestamp = baseTimestamp + idx;
         return Hint.create(createMutation(idx, TimeUnit.MILLISECONDS.toMicros(timestamp)), timestamp);
