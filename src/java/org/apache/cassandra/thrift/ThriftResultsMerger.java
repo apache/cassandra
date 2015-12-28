@@ -234,9 +234,17 @@ public class ThriftResultsMerger extends Transformation<UnfilteredRowIterator>
             builder.newRow(row.clustering());
 
             ComplexColumnData complexData = row.getComplexColumnData(superColumnMapColumn);
-            PeekingIterator<Cell> dynamicCells = Iterators.peekingIterator(complexData == null ? Collections.<Cell>emptyIterator() : complexData.iterator());
-
-            builder.addComplexDeletion(superColumnMapColumn, complexData.complexDeletion());
+            
+            PeekingIterator<Cell> dynamicCells;
+            if (complexData == null)
+            {
+                dynamicCells = Iterators.peekingIterator(Collections.<Cell>emptyIterator());
+            }
+            else
+            {
+                dynamicCells = Iterators.peekingIterator(complexData.iterator());
+                builder.addComplexDeletion(superColumnMapColumn, complexData.complexDeletion());
+            }
 
             while (staticCells.hasNext() && dynamicCells.hasNext())
             {
