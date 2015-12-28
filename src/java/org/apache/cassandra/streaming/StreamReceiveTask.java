@@ -74,6 +74,8 @@ public class StreamReceiveTask extends StreamTask
     //  holds references to SSTables received
     protected Collection<SSTableReader> sstables;
 
+    private int remoteSSTablesReceived = 0;
+
     public StreamReceiveTask(StreamSession session, UUID cfId, int totalFiles, long totalSize)
     {
         super(session, cfId);
@@ -94,14 +96,14 @@ public class StreamReceiveTask extends StreamTask
     {
         if (done)
             return;
-
+        remoteSSTablesReceived++;
         assert cfId.equals(sstable.getCfId());
 
         Collection<SSTableReader> finished = sstable.finish(true);
         txn.update(finished, false);
         sstables.addAll(finished);
 
-        if (sstables.size() == totalFiles)
+        if (remoteSSTablesReceived == totalFiles)
         {
             done = true;
             executor.submit(new OnCompletionRunnable(this));
