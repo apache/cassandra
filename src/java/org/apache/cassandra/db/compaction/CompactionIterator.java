@@ -103,7 +103,7 @@ public class CompactionIterator extends CompactionInfo.Holder implements Unfilte
                                              ? EmptyIterators.unfilteredPartition(controller.cfs.metadata, false)
                                              : UnfilteredPartitionIterators.merge(scanners, nowInSec, listener());
         boolean isForThrift = merged.isForThrift(); // to stop capture of iterator in Purger, which is confusing for debug
-        this.compacted = Transformation.apply(merged, new Purger(isForThrift, controller));
+        this.compacted = Transformation.apply(merged, new Purger(isForThrift, controller, nowInSec));
     }
 
     public boolean isForThrift()
@@ -264,9 +264,9 @@ public class CompactionIterator extends CompactionInfo.Holder implements Unfilte
 
         private long compactedUnfiltered;
 
-        private Purger(boolean isForThrift, CompactionController controller)
+        private Purger(boolean isForThrift, CompactionController controller, int nowInSec)
         {
-            super(isForThrift, controller.gcBefore, controller.compactingRepaired() ? Integer.MIN_VALUE : Integer.MAX_VALUE, controller.cfs.getCompactionStrategyManager().onlyPurgeRepairedTombstones());
+            super(isForThrift, nowInSec, controller.gcBefore, controller.compactingRepaired() ? Integer.MIN_VALUE : Integer.MAX_VALUE, controller.cfs.getCompactionStrategyManager().onlyPurgeRepairedTombstones());
             this.controller = controller;
         }
 
