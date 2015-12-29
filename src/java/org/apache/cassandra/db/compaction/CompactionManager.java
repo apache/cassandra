@@ -644,15 +644,14 @@ public class CompactionManager implements CompactionManagerMBean
                 return;
             }
 
-            if(sstable == null)
+            if (sstable == null)
             {
                 logger.warn("Will not clean {}, it is not an active sstable", entry.getValue());
             }
             else
             {
-                LifecycleTransaction txn = cfs.getTracker().tryModify(sstable, OperationType.CLEANUP);
                 CleanupStrategy cleanupStrategy = CleanupStrategy.get(cfs, ranges, FBUtilities.nowInSeconds());
-                try
+                try (LifecycleTransaction txn = cfs.getTracker().tryModify(sstable, OperationType.CLEANUP))
                 {
                     doCleanupOne(cfs, txn, cleanupStrategy, ranges, hasIndexes);
                 }
