@@ -46,7 +46,8 @@ import org.apache.cassandra.utils.memory.AbstractAllocator;
 public class ColumnIdentifier extends Selectable implements IMeasurableMemory, Comparable<ColumnIdentifier>
 {
     private static final Pattern PATTERN_DOUBLE_QUOTE = Pattern.compile("\"", Pattern.LITERAL);
-
+    private static final String ESCAPED_DOUBLE_QUOTE = Matcher.quoteReplacement("\"\"");
+    
     public final ByteBuffer bytes;
     private final String text;
     /**
@@ -332,6 +333,6 @@ public class ColumnIdentifier extends Selectable implements IMeasurableMemory, C
     {
         if (UNQUOTED_IDENTIFIER.matcher(text).matches())
             return text;
-        return '"' + PATTERN_DOUBLE_QUOTE.matcher(text).replaceAll(Matcher.quoteReplacement("\"\"")) + '"';
+        return '"' + PATTERN_DOUBLE_QUOTE.matcher(text).replaceAll(ESCAPED_DOUBLE_QUOTE) + '"';
     }
 }

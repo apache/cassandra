@@ -725,6 +725,9 @@ public abstract class CassandraIndex implements Index
         return getFunctions(indexMetadata, parseTarget(baseCfs.metadata, indexMetadata)).newIndexInstance(baseCfs, indexMetadata);
     }
 
+    private static final Pattern TWO_QUOTES = Pattern.compile("\"\"");
+    private static final String QUOTE = "\"";
+
     // Public because it's also used to convert index metadata into a thrift-compatible format
     public static Pair<ColumnDefinition, IndexTarget.Type> parseTarget(CFMetaData cfm,
                                                                        IndexMetadata indexDef)
@@ -754,10 +757,10 @@ public abstract class CassandraIndex implements Index
         //      abc"def -> abc""def.
         // Because the target string is stored in a CQL compatible form, we
         // need to un-escape any such quotes to get the actual column name
-        if (columnName.startsWith("\""))
+        if (columnName.startsWith(QUOTE))
         {
             columnName = StringUtils.substring(StringUtils.substring(columnName, 1), 0, -1);
-            columnName = columnName.replaceAll("\"\"", "\"");
+            columnName = TWO_QUOTES.matcher(columnName).replaceAll(QUOTE);
         }
 
         // if it's not a CQL table, we can't assume that the column name is utf8, so

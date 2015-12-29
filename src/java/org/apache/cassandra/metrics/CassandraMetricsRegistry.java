@@ -191,6 +191,18 @@ public class CassandraMetricsRegistry extends MetricRegistry
             mBeanServer.unregisterMBean(name.getMBeanName());
         } catch (Exception ignore) {}
     }
+    
+    /**
+     * Strips a single final '$' from input
+     * 
+     * @param s String to strip
+     * @return a string with one less '$' at end
+     */
+    private static String withoutFinalDollar(String s)
+    {
+        int l = s.length();
+        return (l!=0 && '$' == s.charAt(l-1))?s.substring(0,l-1):s;
+    }
 
     public interface MetricMBean
     {
@@ -601,7 +613,7 @@ public class CassandraMetricsRegistry extends MetricRegistry
         public MetricName(Class<?> klass, String name, String scope)
         {
             this(klass.getPackage() == null ? "" : klass.getPackage().getName(),
-                    klass.getSimpleName().replaceAll("\\$$", ""),
+                    withoutFinalDollar(klass.getSimpleName()),
                     name,
                     scope);
         }
@@ -811,7 +823,7 @@ public class CassandraMetricsRegistry extends MetricRegistry
         {
             if (type == null || type.isEmpty())
             {
-                type = klass.getSimpleName().replaceAll("\\$$", "");
+                type = withoutFinalDollar(klass.getSimpleName());
             }
             return type;
         }

@@ -25,6 +25,7 @@ import java.util.*;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ThreadLocalRandom;
 import java.util.concurrent.TimeUnit;
+import java.util.regex.Pattern;
 import java.util.stream.Collectors;
 
 import com.google.common.annotations.VisibleForTesting;
@@ -68,6 +69,8 @@ public final class CFMetaData
     {
         SUPER, COUNTER, DENSE, COMPOUND
     }
+
+    private static final Pattern PATTERN_WORD_CHARS = Pattern.compile("\\w+");
 
     private static final Logger logger = LoggerFactory.getLogger(CFMetaData.class);
 
@@ -830,9 +833,9 @@ public final class CFMetaData
         return columnMetadata.get(name);
     }
 
-    public static boolean isNameValid(String name)
-    {
-        return name != null && !name.isEmpty() && name.length() <= Schema.NAME_LENGTH && name.matches("\\w+");
+    public static boolean isNameValid(String name) {
+        return name != null && !name.isEmpty()
+                && name.length() <= Schema.NAME_LENGTH && PATTERN_WORD_CHARS.matcher(name).matches();
     }
 
     public CFMetaData validate() throws ConfigurationException

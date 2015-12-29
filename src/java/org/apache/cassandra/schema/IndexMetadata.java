@@ -21,6 +21,7 @@ package org.apache.cassandra.schema;
 import java.io.IOException;
 import java.lang.reflect.InvocationTargetException;
 import java.util.*;
+import java.util.regex.Pattern;
 import java.util.stream.Collectors;
 
 import com.google.common.base.Objects;
@@ -46,6 +47,10 @@ import org.apache.cassandra.utils.UUIDSerializer;
 public final class IndexMetadata
 {
     private static final Logger logger = LoggerFactory.getLogger(IndexMetadata.class);
+    
+    private static final Pattern PATTERN_NON_WORD_CHAR = Pattern.compile("\\W");
+    private static final Pattern PATTERN_WORD_CHARS = Pattern.compile("\\w+");
+
 
     public static final Serializer serializer = new Serializer();
 
@@ -127,15 +132,15 @@ public final class IndexMetadata
 
     public static boolean isNameValid(String name)
     {
-        return name != null && !name.isEmpty() && name.matches("\\w+");
+        return name != null && !name.isEmpty() && PATTERN_WORD_CHARS.matcher(name).matches();
     }
 
     public static String getDefaultIndexName(String cfName, String root)
     {
         if (root == null)
-            return (cfName + "_" + "idx").replaceAll("\\W", "");
+            return PATTERN_NON_WORD_CHAR.matcher(cfName + "_" + "idx").replaceAll("");
         else
-            return (cfName + "_" + root + "_idx").replaceAll("\\W", "");
+            return PATTERN_NON_WORD_CHAR.matcher(cfName + "_" + root + "_idx").replaceAll("");
     }
 
     public void validate()
