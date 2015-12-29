@@ -333,6 +333,9 @@ Function SetCassandraEnvironment
 
     ParseJVMInfo
 
+    #GC log path has to be defined here since it needs to find CASSANDRA_HOME
+    $env:JVM_OPTS="$env:JVM_OPTS -Xloggc:$env:CASSANDRA_HOME/logs/gc.log"
+
     # Read user-defined JVM options from jvm.options file
     $content = Get-Content "$env:CASSANDRA_CONF\jvm.options"
     for ($i = 0; $i -lt $content.Count; $i++)

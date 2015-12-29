@@ -32,6 +32,8 @@ Upgrading
    - Custom index implementation should be aware that the method Indexer::indexes()
      has been removed as its contract was misleading and all custom implementation
      should have almost surely returned true inconditionally for that method.
+   - GC logging is now enabled by default (you can disable it in the jvm.options
+     file if you prefer).
 
 
 3.0

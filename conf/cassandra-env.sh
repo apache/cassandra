@@ -33,7 +33,7 @@ calculate_heap_sizes()
         Darwin)
             system_memory_in_bytes=`sysctl hw.memsize | awk '{print $2}'`
             system_memory_in_mb=`expr $system_memory_in_bytes / 1024 / 1024`
-            system_cpu_cores=`sysctl hw.ncpu | awk '{print $2}'`
+
         ;;
         *)
             # assume reasonable defaults for e.g. a modern desktop or
@@ -155,6 +155,9 @@ fi
 if [ "x$MALLOC_ARENA_MAX" = "x" ] ; then
     export MALLOC_ARENA_MAX=4
 fi
+
+#GC log path has to be defined here because it needs to access CASSANDRA_HOME
+JVM_OPTS="$JVM_OPTS -Xloggc:${CASSANDRA_HOME}/logs/gc.log"
 
 # Here we create the arguments that will get passed to the jvm when
 # starting cassandra.
