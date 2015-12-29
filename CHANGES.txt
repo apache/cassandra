@@ -23,6 +23,7 @@
  * Better handling of SSL connection errors inter-node (CASSANDRA-10816)
  * Disable reloading of GossipingPropertyFileSnitch (CASSANDRA-9474)
  * Verify tables in pseudo-system keyspaces at startup (CASSANDRA-10761)
+ * (cqlsh) encode input correctly when saving history
 Merged from 2.1:
  * Fix bad gossip generation seen in long-running clusters (CASSANDRA-10969)
  * Avoid NPE when incremental repair fails (CASSANDRA-10909)
