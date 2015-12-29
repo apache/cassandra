@@ -416,23 +416,22 @@ Function SetCassandraEnvironment
         $env:JVM_OPTS="$env:JVM_OPTS -XX:+CMSParallelInitialMarkEnabled -XX:+CMSEdenChunksRecordAlways"
     }
 
-    # GC logging options -- uncomment to enable
-    # $env:JVM_OPTS="$env:JVM_OPTS -XX:+PrintGCDetails"
-    # $env:JVM_OPTS="$env:JVM_OPTS -XX:+PrintGCDateStamps"
-    # $env:JVM_OPTS="$env:JVM_OPTS -XX:+PrintHeapAtGC"
-    # $env:JVM_OPTS="$env:JVM_OPTS -XX:+PrintTenuringDistribution"
-    # $env:JVM_OPTS="$env:JVM_OPTS -XX:+PrintGCApplicationStoppedTime"
-    # $env:JVM_OPTS="$env:JVM_OPTS -XX:+PrintPromotionFailure"
+    # GC logging options
+    $env:JVM_OPTS="$env:JVM_OPTS -XX:+PrintGCDetails"
+    $env:JVM_OPTS="$env:JVM_OPTS -XX:+PrintGCDateStamps"
+    $env:JVM_OPTS="$env:JVM_OPTS -XX:+PrintHeapAtGC"
+    $env:JVM_OPTS="$env:JVM_OPTS -XX:+PrintTenuringDistribution"
+    $env:JVM_OPTS="$env:JVM_OPTS -XX:+PrintGCApplicationStoppedTime"
+    $env:JVM_OPTS="$env:JVM_OPTS -XX:+PrintPromotionFailure"
     # $env:JVM_OPTS="$env:JVM_OPTS -XX:PrintFLSStatistics=1"
+
+    $env:JVM_OPTS="$env:JVM_OPTS -Xloggc:$env:CASSANDRA_HOME/logs/gc.log"
+    $env:JVM_OPTS="$env:JVM_OPTS -XX:+UseGCLogFileRotation"
+    $env:JVM_OPTS="$env:JVM_OPTS -XX:NumberOfGCLogFiles=10"
+    $env:JVM_OPTS="$env:JVM_OPTS -XX:GCLogFileSize=10M"
+    # if using version before JDK 6u34 or 7u2 use this instead of log rotation
     # $currentDate = (Get-Date).ToString('yyyy.MM.dd')
     # $env:JVM_OPTS="$env:JVM_OPTS -Xloggc:$env:CASSANDRA_HOME/logs/gc-$currentDate.log"
-
-    # If you are using JDK 6u34 7u2 or later you can enable GC log rotation
-    # don't stick the date in the log name if rotation is on.
-    # $env:JVM_OPTS="$env:JVM_OPTS -Xloggc:$env:CASSANDRA_HOME/logs/gc.log"
-    # $env:JVM_OPTS="$env:JVM_OPTS -XX:+UseGCLogFileRotation"
-    # $env:JVM_OPTS="$env:JVM_OPTS -XX:NumberOfGCLogFiles=10"
-    # $env:JVM_OPTS="$env:JVM_OPTS -XX:GCLogFileSize=10M"
 
     # Configure the following for JEMallocAllocator and if jemalloc is not available in the system
     # library path.

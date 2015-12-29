@@ -1,4 +1,5 @@
 2.2.5
+ * Enable GC logging by default
  * Optimize pending range computation (CASSANDRA-9258)
  * Skip commit log and saved cache directories in SSTable version startup check (CASSANDRA-10902)
  * drop/alter user should be case sensitive (CASSANDRA-10817)

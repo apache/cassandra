@@ -33,6 +33,8 @@ Operations
       "rack1". To override this behaviour use -Dcassandra.ignore_rack=true and/or
       -Dcassandra.ignore_dc=true.
     - Reloading the configuration file of GossipingPropertyFileSnitch has been disabled.
+    - GC logging is now enabled by default (but you can disable it if you want by
+      commenting the relevant lines of the cassandra-env file).
 
 New features
 ------------
