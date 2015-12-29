@@ -1,10 +1,13 @@
 2.2.6
+ * Use cloned TokenMetadata in size estimates to avoid race against membership check
+   (CASSANDRA-10736)
  * Always persist upsampled index summaries (CASSANDRA-10512)
  * (cqlsh) Fix inconsistent auto-complete (CASSANDRA-10733)
  * Make SELECT JSON and toJson() threadsafe (CASSANDRA-11048)
  * Fix SELECT on tuple relations for mixed ASC/DESC clustering order (CASSANDRA-7281)
  * (cqlsh) Support utf-8/cp65001 encoding on Windows (CASSANDRA-11030)
- * Fix paging on DISTINCT queries repeats result when first row in partition changes (CASSANDRA-10010)
+ * Fix paging on DISTINCT queries repeats result when first row in partition changes
+   (CASSANDRA-10010)
 Merged from 2.1:
  * Properly release sstable ref when doing offline scrub (CASSANDRA-10697)
  * Improve nodetool status performance for large cluster (CASSANDRA-7238)
