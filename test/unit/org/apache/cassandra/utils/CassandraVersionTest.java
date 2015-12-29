@@ -20,6 +20,7 @@ package org.apache.cassandra.utils;
 import org.junit.Test;
 
 import static org.junit.Assert.assertTrue;
+import static org.junit.Assert.fail;
 
 public class CassandraVersionTest
 {
@@ -29,14 +30,18 @@ public class CassandraVersionTest
         CassandraVersion version;
 
         version = new CassandraVersion("1.2.3");
-        assert version.major == 1 && version.minor == 2 && version.patch == 3;
+        assertTrue(version.major == 1 && version.minor == 2 && version.patch == 3);
 
         version = new CassandraVersion("1.2.3-foo.2+Bar");
-        assert version.major == 1 && version.minor == 2 && version.patch == 3;
+        assertTrue(version.major == 1 && version.minor == 2 && version.patch == 3);
 
         // CassandraVersion can parse 4th '.' as build number
         version = new CassandraVersion("1.2.3.456");
-        assert version.major == 1 && version.minor == 2 && version.patch == 3;
+        assertTrue(version.major == 1 && version.minor == 2 && version.patch == 3);
+
+        // support for tick-tock release
+        version = new CassandraVersion("3.2");
+        assertTrue(version.major == 3 && version.minor == 2 && version.patch == 0);
     }
 
     @Test
@@ -46,32 +51,32 @@ public class CassandraVersionTest
 
         v1 = new CassandraVersion("1.2.3");
         v2 = new CassandraVersion("1.2.4");
-        assert v1.compareTo(v2) == -1;
+        assertTrue(v1.compareTo(v2) == -1);
 
         v1 = new CassandraVersion("1.2.3");
         v2 = new CassandraVersion("1.2.3");
-        assert v1.compareTo(v2) == 0;
+        assertTrue(v1.compareTo(v2) == 0);
 
         v1 = new CassandraVersion("1.2.3");
         v2 = new CassandraVersion("2.0.0");
-        assert v1.compareTo(v2) == -1;
-        assert v2.compareTo(v1) == 1;
+        assertTrue(v1.compareTo(v2) == -1);
+        assertTrue(v2.compareTo(v1) == 1);
 
         v1 = new CassandraVersion("1.2.3");
         v2 = new CassandraVersion("1.2.3-alpha");
-        assert v1.compareTo(v2) == 1;
+        assertTrue(v1.compareTo(v2) == 1);
 
         v1 = new CassandraVersion("1.2.3");
         v2 = new CassandraVersion("1.2.3+foo");
-        assert v1.compareTo(v2) == -1;
+        assertTrue(v1.compareTo(v2) == -1);
 
         v1 = new CassandraVersion("1.2.3");
         v2 = new CassandraVersion("1.2.3-alpha+foo");
-        assert v1.compareTo(v2) == 1;
+        assertTrue(v1.compareTo(v2) == 1);
 
         v1 = new CassandraVersion("1.2.3-alpha+1");
         v2 = new CassandraVersion("1.2.3-alpha+2");
-        assert v1.compareTo(v2) == -1;
+        assertTrue(v1.compareTo(v2) == -1);
     }
 
     @Test
@@ -80,33 +85,32 @@ public class CassandraVersionTest
         CassandraVersion v1, v2;
 
         v1 = new CassandraVersion("3.0.2");
-        assert v1.isSupportedBy(v1);
+        assertTrue(v1.isSupportedBy(v1));
 
         v1 = new CassandraVersion("1.2.3");
         v2 = new CassandraVersion("1.2.4");
-        assert v1.isSupportedBy(v2);
-        assert !v2.isSupportedBy(v1);
+        assertTrue(v1.isSupportedBy(v2));
+        assertTrue(!v2.isSupportedBy(v1));
 
         v1 = new CassandraVersion("1.2.3");
         v2 = new CassandraVersion("1.3.3");
-        assert v1.isSupportedBy(v2);
-        assert !v2.isSupportedBy(v1);
+        assertTrue(v1.isSupportedBy(v2));
+        assertTrue(!v2.isSupportedBy(v1));
 
         v1 = new CassandraVersion("2.2.3");
         v2 = new CassandraVersion("1.3.3");
-        assert !v1.isSupportedBy(v2);
-        assert !v2.isSupportedBy(v1);
+        assertTrue(!v1.isSupportedBy(v2));
+        assertTrue(!v2.isSupportedBy(v1));
 
         v1 = new CassandraVersion("3.1.0");
         v2 = new CassandraVersion("3.0.1");
-        assert !v1.isSupportedBy(v2);
-        assert v2.isSupportedBy(v1);
+        assertTrue(!v1.isSupportedBy(v2));
+        assertTrue(v2.isSupportedBy(v1));
     }
 
     @Test
     public void testInvalid()
     {
-        assertThrows("1.0");
         assertThrows("1.0.0a");
         assertThrows("1.a.4");
         assertThrows("1.0.0-foo&");
@@ -132,6 +136,22 @@ public class CassandraVersionTest
         prev = next;
         next = new CassandraVersion("2.2.0");
         assertTrue(prev.compareTo(next) < 0);
+
+        prev = next;
+        next = new CassandraVersion("3.1");
+        assertTrue(prev.compareTo(next) < 0);
+
+        prev = next;
+        next = new CassandraVersion("3.1.1");
+        assertTrue(prev.compareTo(next) < 0);
+
+        prev = next;
+        next = new CassandraVersion("3.2-rc1-SNAPSHOT");
+        assertTrue(prev.compareTo(next) < 0);
+
+        prev = next;
+        next = new CassandraVersion("3.2");
+        assertTrue(prev.compareTo(next) < 0);
     }
 
     private static void assertThrows(String str)
@@ -139,7 +159,7 @@ public class CassandraVersionTest
         try
         {
             new CassandraVersion(str);
-            assert false;
+            fail();
         }
         catch (IllegalArgumentException e) {}
     }
