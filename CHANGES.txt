@@ -1,6 +1,7 @@
 3.2
  * Add forceUserDefinedCleanup to allow more flexible cleanup (CASSANDRA-10708)
  * (cqlsh) allow setting TTL with COPY (CASSANDRA-9494)
+ * Fix counting of received sstables in streaming (CASSANDRA-10949)
  * Implement hints compression (CASSANDRA-9428)
  * Fix potential assertion error when reading static columns (CASSANDRA-10903)
  * Fix EstimatedHistogram creation in nodetool tablehistograms (CASSANDRA-10859)
