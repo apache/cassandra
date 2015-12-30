@@ -20,6 +20,13 @@ New features
 ------------
     - New options for cqlsh COPY FROM and COPY TO, see CASSANDRA-9303 for details.
 
+Upgrading
+---------
+    - The default for the inter-DC stream throughput setting
+      (inter_dc_stream_throughput_outbound_megabits_per_sec in cassandra.yaml) is
+      the same than the one for intra-DC one (200Mbps) instead of being unlimited.
+      Having it unlimited was never intended and was a bug.
+
 2.1.12
 ======
 

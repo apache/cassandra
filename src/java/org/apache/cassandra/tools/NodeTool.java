@@ -138,6 +138,7 @@ public class NodeTool
                 GetCompactionThreshold.class,
                 GetCompactionThroughput.class,
                 GetStreamThroughput.class,
+                GetInterDCStreamThroughput.class,
                 GetEndpoints.class,
                 GetSSTables.class,
                 GossipInfo.class,
@@ -160,6 +161,7 @@ public class NodeTool
                 SetCompactionThreshold.class,
                 SetCompactionThroughput.class,
                 SetStreamThroughput.class,
+                SetInterDCStreamThroughput.class,
                 SetTraceProbability.class,
                 Snapshot.class,
                 ListSnapshots.class,
@@ -1608,6 +1610,16 @@ public class NodeTool
         }
     }
 
+    @Command(name = "getinterdcstreamthroughput", description = "Print the Mb/s throughput cap for inter-datacenter streaming in the system")
+    public static class GetInterDCStreamThroughput extends NodeToolCmd
+    {
+        @Override
+        public void execute(NodeProbe probe)
+        {
+            System.out.println("Current inter-datacenter stream throughput: " + probe.getInterDCStreamThroughput() + " Mb/s");
+        }
+    }
+
     @Command(name = "getendpoints", description = "Print the end points that owns the key")
     public static class GetEndpoints extends NodeToolCmd
     {
@@ -2000,6 +2012,19 @@ public class NodeTool
         public void execute(NodeProbe probe)
         {
             probe.setStreamThroughput(streamThroughput);
+        }
+    }
+
+    @Command(name = "setinterdcstreamthroughput", description = "Set the Mb/s throughput cap for inter-datacenter streaming in the system, or 0 to disable throttling")
+    public static class SetInterDCStreamThroughput extends NodeToolCmd
+    {
+        @Arguments(title = "inter_dc_stream_throughput", usage = "<value_in_mb>", description = "Value in Mb, 0 to disable throttling", required = true)
+        private Integer interDCStreamThroughput = null;
+
+        @Override
+        public void execute(NodeProbe probe)
+        {
+            probe.setInterDCStreamThroughput(interDCStreamThroughput);
         }
     }
 
