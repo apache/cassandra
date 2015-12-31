@@ -19,7 +19,7 @@ package org.apache.cassandra.cql3.statements;
 
 import java.nio.ByteBuffer;
 import java.util.*;
-
+import java.util.regex.Pattern;
 import com.google.common.collect.HashMultiset;
 import com.google.common.collect.Multiset;
 import org.apache.commons.lang3.StringUtils;
@@ -41,6 +41,8 @@ import org.apache.cassandra.transport.Event;
 /** A {@code CREATE TABLE} parsed from a CQL query statement. */
 public class CreateTableStatement extends SchemaAlteringStatement
 {
+    private static final Pattern PATTERN_WORD_CHARS = Pattern.compile("\\w+");
+
     private List<AbstractType<?>> keyTypes;
     private List<AbstractType<?>> clusteringTypes;
 
@@ -202,7 +204,7 @@ public class CreateTableStatement extends SchemaAlteringStatement
         public ParsedStatement.Prepared prepare(Types udts) throws RequestValidationException
         {
             // Column family name
-            if (!columnFamily().matches("\\w+"))
+            if (!PATTERN_WORD_CHARS.matcher(columnFamily()).matches())
                 throw new InvalidRequestException(String.format("\"%s\" is not a valid table name (must be alphanumeric character or underscore only: [a-zA-Z_0-9]+)", columnFamily()));
             if (columnFamily().length() > Schema.NAME_LENGTH)
                 throw new InvalidRequestException(String.format("Table names shouldn't be more than %s characters long (got \"%s\")", Schema.NAME_LENGTH, columnFamily()));

@@ -29,6 +29,8 @@ import java.util.Map;
 import java.util.Properties;
 import java.util.TimeZone;
 import java.util.concurrent.*;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 
 import org.apache.cassandra.concurrent.JMXEnabledThreadPoolExecutor;
 import org.apache.cassandra.config.DatabaseDescriptor;
@@ -46,6 +48,10 @@ public class CommitLogArchiver
     private static final Logger logger = LoggerFactory.getLogger(CommitLogArchiver.class);
     public static final SimpleDateFormat format = new SimpleDateFormat("yyyy:MM:dd HH:mm:ss");
     private static final String DELIMITER = ",";
+    private static final Pattern NAME = Pattern.compile("%name");
+    private static final Pattern PATH = Pattern.compile("%path");
+    private static final Pattern FROM = Pattern.compile("%from");
+    private static final Pattern TO = Pattern.compile("%to");
     static
     {
         format.setTimeZone(TimeZone.getTimeZone("GMT"));
@@ -136,8 +142,8 @@ public class CommitLogArchiver
             protected void runMayThrow() throws IOException
             {
                 segment.waitForFinalSync();
-                String command = archiveCommand.replace("%name", segment.getName());
-                command = command.replace("%path", segment.getPath());
+                String command = NAME.matcher(archiveCommand).replaceAll(Matcher.quoteReplacement(segment.getName()));
+                command = PATH.matcher(command).replaceAll(Matcher.quoteReplacement(segment.getPath()));
                 exec(command);
             }
         }));
@@ -158,8 +164,8 @@ public class CommitLogArchiver
         {
             protected void runMayThrow() throws IOException
             {
-                String command = archiveCommand.replace("%name", name);
-                command = command.replace("%path", path);
+                String command = NAME.matcher(archiveCommand).replaceAll(Matcher.quoteReplacement(name));
+                command = PATH.matcher(command).replaceAll(Matcher.quoteReplacement(path));
                 exec(command);
             }
         }));
@@ -244,8 +250,8 @@ public class CommitLogArchiver
                     continue;
                 }
 
-                String command = restoreCommand.replace("%from", fromFile.getPath());
-                command = command.replace("%to", toFile.getPath());
+                String command = FROM.matcher(restoreCommand).replaceAll(Matcher.quoteReplacement(fromFile.getPath()));
+                command = TO.matcher(command).replaceAll(Matcher.quoteReplacement(toFile.getPath()));
                 try
                 {
                     exec(command);

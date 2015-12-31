@@ -295,7 +295,7 @@ public class CommitLogReplayer
             Multimap<String, String> toReplay = HashMultimap.create();
             for (String rawPair : System.getProperty("cassandra.replayList").split(","))
             {
-                String[] pair = rawPair.trim().split("\\.");
+                String[] pair = StringUtils.split(rawPair.trim(), '.');
                 if (pair.length != 2)
                     throw new IllegalArgumentException("Each table to be replayed must be fully qualified with keyspace name, e.g., 'system.peers'");
 

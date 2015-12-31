@@ -17,9 +17,15 @@
  */
 package org.apache.cassandra.utils;
 
+import java.lang.reflect.InvocationTargetException;
+import java.lang.reflect.Method;
+import java.util.Arrays;
 import org.junit.Test;
 
+import static org.junit.Assert.assertArrayEquals;
+import static org.junit.Assert.assertThat;
 import static org.junit.Assert.assertTrue;
+import static org.junit.matchers.JUnitMatchers.containsString;
 
 public class CassandraVersionTest
 {
@@ -133,7 +139,7 @@ public class CassandraVersionTest
         next = new CassandraVersion("2.2.0");
         assertTrue(prev.compareTo(next) < 0);
     }
-
+    
     private static void assertThrows(String str)
     {
         try
@@ -142,5 +148,48 @@ public class CassandraVersionTest
             assert false;
         }
         catch (IllegalArgumentException e) {}
+    }
+    
+    @Test
+    public void testParseIdentifiersPositive() throws Throwable
+    {
+        String[] result = parseIdentifiers("DUMMY", "+a.b.cde.f_g.");
+        String[] expected = {"a", "b", "cde", "f_g"};
+        assertArrayEquals(expected, result);
+    }
+    
+    @Test
+    public void testParseIdentifiersNegative() throws Throwable
+    {
+        String version = "DUMMY";
+        try
+        {
+            parseIdentifiers(version, "+a. .b");
+            
+        }
+        catch (IllegalArgumentException e)
+        {
+            assertThat(e.getMessage(), containsString(version));
+        }
+    }
+    private static String[] parseIdentifiers(String version, String str) throws Throwable
+    {
+        String name = "parseIdentifiers";
+        Class[] args = {String.class, String.class};
+        for (Method m: CassandraVersion.class.getDeclaredMethods())
+        {
+            if (name.equals(m.getName()) && 
+                    Arrays.equals(args, m.getParameterTypes()))
+            {
+                m.setAccessible(true);
+                try 
+                {
+                return (String[]) m.invoke(null, version, str); 
+                } catch (InvocationTargetException e){
+                    throw e.getTargetException();
+                }
+            }
+        }
+        throw new NoSuchMethodException(CassandraVersion.class + "." + name + Arrays.toString(args));
     }
 }
