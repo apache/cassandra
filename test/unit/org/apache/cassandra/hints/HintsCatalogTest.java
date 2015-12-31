@@ -22,6 +22,7 @@ import java.io.IOException;
 import java.nio.file.Files;
 import java.util.*;
 
+import com.google.common.collect.ImmutableMap;
 import org.junit.Test;
 
 import static junit.framework.Assert.*;
@@ -62,7 +63,7 @@ public class HintsCatalogTest
         writeDescriptor(directory, descriptor3);
         writeDescriptor(directory, descriptor4);
 
-        HintsCatalog catalog = HintsCatalog.load(directory, HintsService.EMPTY_PARAMS);
+        HintsCatalog catalog = HintsCatalog.load(directory, ImmutableMap.of());
         assertEquals(2, catalog.stores().count());
 
         HintsStore store1 = catalog.get(hostId1);
