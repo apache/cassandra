@@ -496,23 +496,24 @@ h3(#createMVStmt). CREATE MATERIALIZED VIEW
 
 __Syntax:__
 
-bc(syntax)..
+bc(syntax).. 
 <create-table-stmt> ::= CREATE MATERIALIZED VIEW ( IF NOT EXISTS )? <viewname> AS
                           SELECT ( '(' <identifier> ( ',' <identifier> ) * ')' | '*' )
                           FROM <tablename>
                           WHERE ( <identifier> IS NOT NULL ( AND <identifier> IS NOT NULL )* )?
                           PRIMARY KEY '(' <partition-key> ( ',' <identifier> )* ')'
                           ( WITH <option> ( AND <option>)* )?
+p. 
 __Sample:__
 
-bc(sample)..
+bc(sample).. 
 CREATE MATERIALIZED VIEW monkeySpecies_by_population AS
     SELECT *
     FROM monkeySpecies
     WHERE population IS NOT NULL AND species IS NOT NULL
     PRIMARY KEY (population, species)
     WITH comment='Allow query by population instead of species';
-p.
+p. 
 The @CREATE MATERIALIZED VIEW@ statement creates a new materialized view. Each such view is a set of _rows_ which corresponds to rows which are present in the underlying, or base, table specified in the @SELECT@ statement. A materialized view cannot be directly updated, but updates to the base table will cause corresponding updates in the view.
 
 Attempting to create an already existing materialized view will return an error unless the @IF NOT EXISTS@ option is used. If it is used, the statement will be a no-op if the materialized view already exists.
