@@ -234,28 +234,28 @@ public class StressGraph
 
     private JSONObject createJSONStats(JSONObject json)
     {
-        JSONArray stats;
-        if (json == null)
+        try (InputStream logStream = new FileInputStream(stressSettings.graph.temporaryLogFile))
         {
-            json = new JSONObject();
-            stats = new JSONArray();
-        }
-        else
-        {
-            stats = (JSONArray) json.get("stats");
-        }
+            JSONArray stats;
+            if (json == null)
+            {
+                json = new JSONObject();
+                stats = new JSONArray();
+            }
+            else
+            {
+                stats = (JSONArray) json.get("stats");
+            }
 
-        try
-        {
-            stats = parseLogStats(new FileInputStream(stressSettings.graph.temporaryLogFile), stats);
+            stats = parseLogStats(logStream, stats);
+
+            json.put("title", stressSettings.graph.title);
+            json.put("stats", stats);
+            return json;
         }
-        catch (FileNotFoundException e)
+        catch (IOException e)
         {
             throw new RuntimeException(e);
         }
-
-        json.put("title", stressSettings.graph.title);
-        json.put("stats", stats);
-        return json;
     }
 }
