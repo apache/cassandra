@@ -47,15 +47,6 @@ public class CassandraVersion implements Comparable<CassandraVersion>
     private final String[] preRelease;
     private final String[] build;
 
-    private CassandraVersion(int major, int minor, int patch, String[] preRelease, String[] build)
-    {
-        this.major = major;
-        this.minor = minor;
-        this.patch = patch;
-        this.preRelease = preRelease;
-        this.build = build;
-    }
-
     /**
      * Parse a version from a string.
      *
