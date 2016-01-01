@@ -64,7 +64,7 @@ import org.mindrot.jbcrypt.BCrypt;
  * in CREATE/ALTER ROLE statements.
  *
  * Such a configuration could be implemented using a custom IRoleManager that
- * extends CassandraRoleManager and which includes Option.PASSWORD in the Set<Option>
+ * extends CassandraRoleManager and which includes Option.PASSWORD in the {@code Set<Option>}
  * returned from supportedOptions/alterableOptions. Any additional processing
  * of the password itself (such as storing it in an alternative location) would
  * be added in overridden createRole and alterRole implementations.

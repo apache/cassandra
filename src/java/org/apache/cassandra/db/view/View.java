@@ -191,7 +191,8 @@ public class View
      * If the update contains any range tombstones, there is a possibility that it will not touch a range that is
      * currently included in the view.
      *
-     * @return true if {@param partition} modifies a column included in the view
+     * @param partition the update partition
+     * @return true if partition modifies a column included in the view
      */
     public boolean updateAffectsView(AbstractBTreePartition partition)
     {

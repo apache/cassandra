@@ -37,7 +37,7 @@ import static org.apache.cassandra.cql3.statements.RequestValidations.checkTrue;
 
 /**
  * Relations encapsulate the relationship between an entity of some kind, and
- * a value (term). For example, <key> > "start" or "colname1" = "somevalue".
+ * a value (term). For example, {@code <key> > "start" or "colname1" = "somevalue"}.
  *
  */
 public final class SingleColumnRelation extends Relation

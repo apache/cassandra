@@ -333,7 +333,7 @@ public class FastByteOperations
          * @param memoryOffset2 Where to start comparing in the right buffer (pure memory address if buffer1 is null, or relative otherwise)
          * @param length1 How much to compare from the left buffer
          * @param length2 How much to compare from the right buffer
-         * @return 0 if equal, < 0 if left is less than right, etc.
+         * @return 0 if equal, {@code < 0} if left is less than right, etc.
          */
         @Inline
         public static int compareTo(Object buffer1, long memoryOffset1, int length1,

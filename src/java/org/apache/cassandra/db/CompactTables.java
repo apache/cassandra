@@ -56,6 +56,7 @@ import org.apache.cassandra.utils.ByteBufferUtil;
  *
  * As far as thrift is concerned, one exception to this is super column families, which have a different layout. Namely, a super
  * column families is encoded with:
+ * {@code
  *   CREATE TABLE super (
  *      key [key_validation_class],
  *      super_column_name [comparator],
@@ -65,6 +66,7 @@ import org.apache.cassandra.utils.ByteBufferUtil;
  *      "" map<[sub_comparator], [default_validation_class]>
  *      PRIMARY KEY (key, super_column_name)
  *   )
+ * }
  * In other words, every super column is encoded by a row. That row has one column for each defined "column_metadata", but it also
  * has a special map column (whose name is the empty string as this is guaranteed to never conflict with a user-defined
  * "column_metadata") which stores the super column "dynamic" sub-columns.

@@ -201,7 +201,7 @@ public class CommitLog implements CommitLogMBean
     }
 
     /**
-     * @return a ReplayPosition which, if >= one returned from add(), implies add() was started
+     * @return a ReplayPosition which, if {@code >= one} returned from add(), implies add() was started
      * (but not necessarily finished) prior to this call
      */
     public ReplayPosition getContext()

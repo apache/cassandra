@@ -152,7 +152,7 @@ public abstract class QueryOptions
         throw new UnsupportedOperationException();
     }
 
-    /**  The pageSize for this query. Will be <= 0 if not relevant for the query.  */
+    /**  The pageSize for this query. Will be {@code <= 0} if not relevant for the query.  */
     public int getPageSize()
     {
         return getSpecificOptions().pageSize;

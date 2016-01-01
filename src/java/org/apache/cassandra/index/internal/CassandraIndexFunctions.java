@@ -54,7 +54,7 @@ public interface CassandraIndexFunctions
     /**
      * Add the clustering columns for a specific type of index table to the a CFMetaData.Builder (which is being
      * used to construct the index table's CFMetadata. In the default implementation, the clustering columns of the
-     * index table hold the partition key & clustering columns of the base table. This is overridden in several cases:
+     * index table hold the partition key and clustering columns of the base table. This is overridden in several cases:
      * * When the indexed value is itself a clustering column, in which case, we only need store the base table's
      *   *other* clustering values in the index - the indexed value being the index table's partition key
      * * When the indexed value is a collection value, in which case we also need to capture the cell path from the base

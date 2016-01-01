@@ -1253,7 +1253,7 @@ public abstract class SSTableReader extends SSTable implements SelfRefCounted<SS
 
     /**
      * Gets the position in the index file to start scanning to find the given key (at most indexInterval keys away,
-     * modulo downsampling of the index summary). Always returns a value >= 0
+     * modulo downsampling of the index summary). Always returns a {@code value >= 0}
      */
     public long getIndexScanPosition(PartitionPosition key)
     {

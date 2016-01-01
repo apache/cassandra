@@ -232,7 +232,7 @@ public interface Index
      * false enables the index implementation (or some other component) to control if and when SSTable data is
      * incorporated into the index.
      *
-     * This is called by SecondaryIndexManager in buildIndexBlocking, buildAllIndexesBlocking & rebuildIndexesBlocking
+     * This is called by SecondaryIndexManager in buildIndexBlocking, buildAllIndexesBlocking and rebuildIndexesBlocking
      * where a return value of false causes the index to be exluded from the set of those which will process the
      * SSTable data.
      * @return if the index should be included in the set which processes SSTable data, false otherwise.
@@ -466,7 +466,7 @@ public interface Index
      * See CASSANDRA-8717 for further discussion.
      *
      * The function takes a PartitionIterator of the results from the replicas which has already been collated
-     * & reconciled, along with the command being executed. It returns another PartitionIterator containing the results
+     * and reconciled, along with the command being executed. It returns another PartitionIterator containing the results
      * of the transformation (which may be the same as the input if the transformation is a no-op).
      */
     public BiFunction<PartitionIterator, ReadCommand, PartitionIterator> postProcessorFor(ReadCommand command);

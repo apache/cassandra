@@ -1729,7 +1729,7 @@ public abstract class LegacyLayout
 
     /**
      * Almost an entire copy of RangeTombstoneList from C* 2.1.  The main difference is that LegacyBoundComparator
-     * is used in place of Comparator<Composite> (because Composite doesn't exist any more).
+     * is used in place of {@code Comparator<Composite>} (because Composite doesn't exist any more).
      *
      * This class is needed to allow us to convert single-row deletions and complex deletions into range tombstones
      * and properly merge them into the normal set of range tombstones.

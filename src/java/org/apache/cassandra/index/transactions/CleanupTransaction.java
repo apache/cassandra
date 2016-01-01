@@ -26,7 +26,7 @@ import org.apache.cassandra.db.rows.Row;
  *
  * Notifies registered indexers of each partition being removed and
  *
- * Compaction & Cleanup are somewhat simpler than dealing with incoming writes,
+ * Compaction and Cleanup are somewhat simpler than dealing with incoming writes,
  * being only concerned with cleaning up stale index entries.
  *
  * When multiple versions of a row are compacted, the CleanupTransaction is

@@ -37,7 +37,7 @@ import org.apache.cassandra.io.util.RandomAccessReader;
 import org.apache.cassandra.utils.FBUtilities;
 
 /**
- * Metadata serializer for SSTables version >= 'k'.
+ * Metadata serializer for SSTables {@code version >= 'k'}.
  *
  * <pre>
  * File format := | number of components (4 bytes) | toc | component1 | component2 | ... |

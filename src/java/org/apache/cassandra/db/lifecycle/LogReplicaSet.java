@@ -39,7 +39,8 @@ import org.apache.cassandra.utils.Throwables;
  * A set of log replicas. This class mostly iterates over replicas when writing or reading,
  * ensuring consistency among them and hiding replication details from LogFile.
  *
- * @see LogReplica, LogFile
+ * @see LogReplica
+ * @see LogFile
  */
 public class LogReplicaSet
 {

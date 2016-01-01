@@ -38,7 +38,7 @@ import org.apache.cassandra.utils.memory.AbstractAllocator;
  * A range tombstone has 4 elements: the start and end of the range covered,
  * and the deletion infos (markedAt timestamp and local deletion time). The
  * markedAt timestamp is what define the priority of 2 overlapping tombstones.
- * That is, given 2 tombstones [0, 10]@t1 and [5, 15]@t2, then if t2 > t1 (and
+ * That is, given 2 tombstones {@code [0, 10]@t1 and [5, 15]@t2, then if t2 > t1} (and
  * are the tombstones markedAt values), the 2nd tombstone take precedence over
  * the first one on [5, 10]. If such tombstones are added to a RangeTombstoneList,
  * the range tombstone list will store them as [[0, 5]@t1, [5, 15]@t2].

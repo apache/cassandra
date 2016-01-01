@@ -36,6 +36,7 @@ import org.apache.cassandra.utils.ByteBufferUtil;
  * The serialization is composed of a header, follows by the rows and range tombstones of the iterator serialized
  * until we read the end of the partition (see UnfilteredSerializer for details). The header itself
  * is:
+ * {@code
  *     <cfid><key><flags><s_header>[<partition_deletion>][<static_row>][<row_estimate>]
  * where:
  *     <cfid> is the table cfid.
@@ -54,6 +55,7 @@ import org.apache.cassandra.utils.ByteBufferUtil;
  *     <static_row> is the static row for this partition as serialized by UnfilteredSerializer.
  *     <row_estimate> is the (potentially estimated) number of rows serialized. This is only used for
  *         the purpose of sizing on the receiving end and should not be relied upon too strongly.
+ * }
  *
  * Please note that the format described above is the on-wire format. On-disk, the format is basically the
  * same, but the header is written once per sstable, not once per-partition. Further, the actual row and

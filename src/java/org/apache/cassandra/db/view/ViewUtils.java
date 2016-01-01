@@ -45,7 +45,7 @@ public final class ViewUtils
      * nodes in the local datacenter when calculating cardinality.
      *
      * For example, if we have the following ring:
-     *   A, T1 -> B, T2 -> C, T3 -> A
+     *   {@code A, T1 -> B, T2 -> C, T3 -> A}
      *
      * For the token T1, at RF=1, A would be included, so A's cardinality for T1 is 1. For the token T1, at RF=2, B would
      * be included, so B's cardinality for token T1 is 2. For token T3, at RF = 2, A would be included, so A's cardinality

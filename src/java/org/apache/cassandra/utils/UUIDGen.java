@@ -203,7 +203,7 @@ public class UUIDGen
      * of a type 1 UUID (a time-based UUID).
      *
      * To specify a 100-nanoseconds precision timestamp, one should provide a milliseconds timestamp and
-     * a number 0 <= n < 10000 such that n*100 is the number of nanoseconds within that millisecond.
+     * a number {@code 0 <= n < 10000} such that n*100 is the number of nanoseconds within that millisecond.
      *
      * <p><i><b>Warning:</b> This method is not guaranteed to return unique UUIDs; Multiple
      * invocations using identical timestamps will result in identical UUIDs.</i></p>

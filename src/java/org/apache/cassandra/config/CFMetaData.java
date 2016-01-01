@@ -419,7 +419,7 @@ public final class CFMetaData
 
     /**
      * Generates deterministic UUID from keyspace/columnfamily name pair.
-     * This is used to generate the same UUID for C* version < 2.1
+     * This is used to generate the same UUID for {@code C* version < 2.1}
      *
      * Since 2.1, this is only used for system columnfamilies and tests.
      */

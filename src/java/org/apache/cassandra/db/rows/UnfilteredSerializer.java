@@ -29,6 +29,7 @@ import org.apache.cassandra.io.util.DataOutputPlus;
 /**
  * Serialize/deserialize a single Unfiltered (both on-wire and on-disk).
  *
+ * {@code
  * The encoded format for an unfiltered is <flags>(<row>|<marker>) where:
  *
  *   <flags> is a byte (or two) whose bits are flags used by the rest of the serialization. Each
@@ -66,6 +67,7 @@ import org.apache.cassandra.io.util.DataOutputPlus;
  *       and if it's expiring a delta-encoded int <ttl> (unless it's an expiring cell
  *       and the ttl and localDeletionTime are indicated by the flags to be the same
  *       than the row ones, in which case none of those appears).
+ * }
  */
 public class UnfilteredSerializer
 {
