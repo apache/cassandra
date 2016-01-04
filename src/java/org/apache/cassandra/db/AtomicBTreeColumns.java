@@ -198,7 +198,7 @@ public class AtomicBTreeColumns extends ColumnFamily
      *
      * @return the difference in size seen after merging the given columns
      */
-    public Pair<Long, Long> addAllWithSizeDelta(final ColumnFamily cm, MemtableAllocator allocator, OpOrder.Group writeOp, Updater indexer)
+    public ColumnUpdater addAllWithSizeDelta(final ColumnFamily cm, MemtableAllocator allocator, OpOrder.Group writeOp, Updater indexer)
     {
         ColumnUpdater updater = new ColumnUpdater(this, cm.metadata, allocator, writeOp, indexer);
         DeletionInfo inputDeletionInfoCopy = null;
@@ -237,7 +237,7 @@ public class AtomicBTreeColumns extends ColumnFamily
                 {
                     indexer.updateRowLevelIndexes();
                     updater.finish();
-                    return Pair.create(updater.dataSize, updater.colUpdateTimeDelta);
+                    return updater;
                 }
                 else if (!monitorOwned)
                 {
@@ -429,7 +429,7 @@ public class AtomicBTreeColumns extends ColumnFamily
     }
 
     // the function we provide to the btree utilities to perform any column replacements
-    private static final class ColumnUpdater implements UpdateFunction<Cell>
+    static final class ColumnUpdater implements UpdateFunction<Cell>
     {
         final AtomicBTreeColumns updating;
         final CFMetaData metadata;
@@ -442,6 +442,7 @@ public class AtomicBTreeColumns extends ColumnFamily
         long colUpdateTimeDelta = Long.MAX_VALUE;
         final MemtableAllocator.DataReclaimer reclaimer;
         List<Cell> inserted; // TODO: replace with walk of aborted BTree
+        long minTimestamp = Long.MAX_VALUE;
 
         private ColumnUpdater(AtomicBTreeColumns updating, CFMetaData metadata, MemtableAllocator allocator, OpOrder.Group writeOp, Updater indexer)
         {
@@ -462,6 +463,7 @@ public class AtomicBTreeColumns extends ColumnFamily
             if (inserted == null)
                 inserted = new ArrayList<>();
             inserted.add(insert);
+            minTimestamp = Math.min(minTimestamp, insert.timestamp());
             return insert;
         }
 
@@ -469,6 +471,11 @@ public class AtomicBTreeColumns extends ColumnFamily
         {
             Cell reconciled = existing.reconcile(update);
             indexer.update(existing, reconciled);
+            // pick the smallest timestamp because we want to be consistent with the logic applied when inserting
+            // a cell in apply(Cell insert) above. For example given 3 timestamps where T3 < T2 < T1 then we want
+            // [apply(T1) -> apply(T2) -> apply(T3)] and [apply(T3) -> apply(T2) -> apply(T1)] to both return the
+            // smallest value T3, see CompactionControllerTest.testMaxPurgeableTimestamp()
+            minTimestamp = Math.min(minTimestamp, update.timestamp());
             if (existing != reconciled)
             {
                 reconciled = reconciled.localCopy(metadata, allocator, writeOp);
@@ -495,6 +502,7 @@ public class AtomicBTreeColumns extends ColumnFamily
                 inserted.clear();
             }
             reclaimer.cancel();
+            minTimestamp = Long.MAX_VALUE;
         }
 
         protected void abort(Cell abort)

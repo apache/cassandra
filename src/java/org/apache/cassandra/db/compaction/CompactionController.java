@@ -23,10 +23,10 @@ import org.apache.cassandra.io.sstable.format.SSTableReader;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import org.apache.cassandra.db.ColumnFamily;
 import org.apache.cassandra.db.ColumnFamilyStore;
-import org.apache.cassandra.db.lifecycle.SSTableIntervalTree;
-import org.apache.cassandra.db.lifecycle.Tracker;
 import org.apache.cassandra.db.DecoratedKey;
+import org.apache.cassandra.db.Memtable;
 import org.apache.cassandra.db.RowPosition;
 import org.apache.cassandra.utils.AlwaysPresentFilter;
 
@@ -96,7 +96,7 @@ public class CompactionController implements AutoCloseable
      * Finds expired sstables
      *
      * works something like this;
-     * 1. find "global" minTimestamp of overlapping sstables and compacting sstables containing any non-expired data
+     * 1. find "global" minTimestamp of overlapping sstables, compacting sstables and memtables containing any non-expired data
      * 2. build a list of fully expired candidates
      * 3. check if the candidates to be dropped actually can be dropped (maxTimestamp < global minTimestamp)
      *    - if not droppable, remove from candidates
@@ -135,8 +135,11 @@ public class CompactionController implements AutoCloseable
                 minTimestamp = Math.min(minTimestamp, candidate.getMinTimestamp());
         }
 
+        for (Memtable memtable : cfStore.getTracker().getView().getAllMemtables())
+            minTimestamp = Math.min(minTimestamp, memtable.getMinTimestamp());
+
         // At this point, minTimestamp denotes the lowest timestamp of any relevant
-        // SSTable that contains a constructive value. candidates contains all the
+        // SSTable or Memtable that contains a constructive value. candidates contains all the
         // candidates with no constructive values. The ones out of these that have
         // (getMaxTimestamp() < minTimestamp) serve no purpose anymore.
 
@@ -171,7 +174,8 @@ public class CompactionController implements AutoCloseable
      * @return the largest timestamp before which it's okay to drop tombstones for the given partition;
      * i.e., after the maxPurgeableTimestamp there may exist newer data that still needs to be suppressed
      * in other sstables.  This returns the minimum timestamp for any SSTable that contains this partition and is not
-     * participating in this compaction, or LONG.MAX_VALUE if no such SSTable exists.
+     * participating in this compaction, or memtable that contains this partition,
+     * or LONG.MAX_VALUE if no SSTable or memtable exist.
      */
     public long maxPurgeableTimestamp(DecoratedKey key)
     {
@@ -185,6 +189,13 @@ public class CompactionController implements AutoCloseable
                 min = Math.min(min, sstable.getMinTimestamp());
             else if (sstable.getBloomFilter().isPresent(key))
                 min = Math.min(min, sstable.getMinTimestamp());
+        }
+
+        for (Memtable memtable : cfs.getTracker().getView().getAllMemtables())
+        {
+            ColumnFamily cf = memtable.getColumnFamily(key);
+            if (cf != null)
+                min = Math.min(min, memtable.getMinTimestamp());
         }
         return min;
     }
