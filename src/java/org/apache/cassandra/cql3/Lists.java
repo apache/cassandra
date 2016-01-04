@@ -359,7 +359,7 @@ public abstract class Lists
             CellPath elementPath = existingRow.getComplexColumnData(column).getCellByIndex(idx).path();
             if (value == null)
             {
-                params.addTombstone(column);
+                params.addTombstone(column, elementPath);
             }
             else if (value != ByteBufferUtil.UNSET_BYTE_BUFFER)
             {
