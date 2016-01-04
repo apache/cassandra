@@ -15,7 +15,6 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-
 package org.apache.cassandra.hints;
 
 import java.io.File;
@@ -23,48 +22,39 @@ import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.nio.channels.FileChannel;
 import java.util.zip.CRC32;
+import javax.crypto.Cipher;
 
 import com.google.common.annotations.VisibleForTesting;
 
+import org.apache.cassandra.security.EncryptionUtils;
 import org.apache.cassandra.io.compress.ICompressor;
 
-public class CompressedHintsWriter extends HintsWriter
+import static org.apache.cassandra.utils.FBUtilities.updateChecksum;
+
+public class EncryptedHintsWriter extends HintsWriter
 {
-    // compressed and uncompressed size is stored at the beginning of each compressed block
-    static final int METADATA_SIZE = 8;
-
+    private final Cipher cipher;
     private final ICompressor compressor;
+    private volatile ByteBuffer byteBuffer;
 
-    private volatile ByteBuffer compressionBuffer = null;
-
-    public CompressedHintsWriter(File directory, HintsDescriptor descriptor, File file, FileChannel channel, int fd, CRC32 globalCRC)
+    protected EncryptedHintsWriter(File directory, HintsDescriptor descriptor, File file, FileChannel channel, int fd, CRC32 globalCRC)
     {
         super(directory, descriptor, file, channel, fd, globalCRC);
+        cipher = descriptor.getCipher();
         compressor = descriptor.createCompressor();
-        assert compressor != null;
     }
 
-    protected void writeBuffer(ByteBuffer bb) throws IOException
+    protected void writeBuffer(ByteBuffer input) throws IOException
     {
-        int originalSize = bb.remaining();
-        int estimatedSize = compressor.initialCompressedBufferLength(originalSize) + METADATA_SIZE;
+        byteBuffer = EncryptionUtils.compress(input, byteBuffer, true, compressor);
+        ByteBuffer output = EncryptionUtils.encryptAndWrite(byteBuffer, channel, true, cipher);
+        updateChecksum(globalCRC, output);
+    }
 
-        if (compressionBuffer == null || compressionBuffer.capacity() < estimatedSize)
-        {
-            compressionBuffer = compressor.preferredBufferType().allocate(estimatedSize);
-        }
-        compressionBuffer.clear();
-
-        compressionBuffer.position(METADATA_SIZE);
-        compressor.compress(bb, compressionBuffer);
-        int compressedSize = compressionBuffer.position() - METADATA_SIZE;
-
-        compressionBuffer.rewind();
-        compressionBuffer.putInt(originalSize);
-        compressionBuffer.putInt(compressedSize);
-        compressionBuffer.rewind();
-        compressionBuffer.limit(compressedSize + METADATA_SIZE);
-        super.writeBuffer(compressionBuffer);
+    @VisibleForTesting
+    Cipher getCipher()
+    {
+        return cipher;
     }
 
     @VisibleForTesting

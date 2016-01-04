@@ -21,6 +21,8 @@ package org.apache.cassandra.hints;
 import java.io.IOException;
 import java.nio.ByteBuffer;
 
+import com.google.common.annotations.VisibleForTesting;
+
 import org.apache.cassandra.io.FSReadError;
 import org.apache.cassandra.io.compress.ICompressor;
 import org.apache.cassandra.io.util.ChannelProxy;
@@ -33,7 +35,7 @@ public final class CompressedChecksummedDataInput extends ChecksummedDataInput
     private volatile ByteBuffer compressedBuffer = null;
     private final ByteBuffer metadataBuffer = ByteBuffer.allocate(CompressedHintsWriter.METADATA_SIZE);
 
-    public CompressedChecksummedDataInput(Builder builder)
+    public CompressedChecksummedDataInput(CompressedChecksummedDataInputBuilder builder)
     {
         super(builder);
         assert regions == null;  //mmapped regions are not supported
@@ -113,46 +115,20 @@ public final class CompressedChecksummedDataInput extends ChecksummedDataInput
         throw new UnsupportedOperationException();
     }
 
-    public static final class Builder extends ChecksummedDataInput.Builder
-    {
-        private long position;
-        private ICompressor compressor;
-
-        public Builder(ChannelProxy channel)
-        {
-            super(channel);
-            bufferType = null;
-        }
-
-        public CompressedChecksummedDataInput build()
-        {
-            assert position >= 0;
-            assert compressor != null;
-            return new CompressedChecksummedDataInput(this);
-        }
-
-        public Builder withCompressor(ICompressor compressor)
-        {
-            this.compressor = compressor;
-            bufferType = compressor.preferredBufferType();
-            return this;
-        }
-
-        public Builder withPosition(long position)
-        {
-            this.position = position;
-            return this;
-        }
-    }
-
-    public static final CompressedChecksummedDataInput upgradeInput(ChecksummedDataInput input, ICompressor compressor)
+    public static ChecksummedDataInput upgradeInput(ChecksummedDataInput input, ICompressor compressor)
     {
         long position = input.getPosition();
         input.close();
 
-        Builder builder = new Builder(new ChannelProxy(input.getPath()));
+        CompressedChecksummedDataInputBuilder builder = new CompressedChecksummedDataInputBuilder(new ChannelProxy(input.getPath()));
         builder.withPosition(position);
         builder.withCompressor(compressor);
         return builder.build();
+    }
+
+    @VisibleForTesting
+    ICompressor getCompressor()
+    {
+        return compressor;
     }
 }

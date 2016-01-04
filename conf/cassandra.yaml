@@ -942,31 +942,29 @@ enable_scripted_user_defined_functions: false
 windows_timer_interval: 1
 
 
-# Enables encrypting data at-rest (on disk). Currently, AES/CBC/PKCS5Padding is the only supported
-# encyption algorithm. Different key providers can be plugged in, but the default reads from
+# Enables encrypting data at-rest (on disk). Different key providers can be plugged in, but the default reads from
 # a JCE-style keystore. A single keystore can hold multiple keys, but the one referenced by
 # the "key_alias" is the only key that will be used for encrypt opertaions; previously used keys
 # can still (and should!) be in the keystore and will be used on decrypt operations
 # (to handle the case of key rotation).
 #
-# In order to make use of transparent data encryption, you must download and install the
-# Java Cryptography Extension (JCE) Unlimited Strength Jurisdiction Policy Files
-# for your version of the JDK.
+# It is strongly recommended to download and install Java Cryptography Extension (JCE)
+# Unlimited Strength Jurisdiction Policy Files for your version of the JDK.
 # (current link: http://www.oracle.com/technetwork/java/javase/downloads/jce8-download-2133166.html)
 #
 # Currently, only the following file types are supported for transparent data encryption, although
-# more are coming in future cassandra releases: commitlog
+# more are coming in future cassandra releases: commitlog, hints
 transparent_data_encryption_options:
     enabled: false
     chunk_length_kb: 64
     cipher: AES/CBC/PKCS5Padding
     key_alias: testing:1
-    # CBC requires iv length to be 16 bytes
+    # CBC IV length for AES needs to be 16 bytes (which is also the default size)
     # iv_length: 16
     key_provider: 
       - class_name: org.apache.cassandra.security.JKSKeyProvider
         parameters: 
-          - keystore: test/conf/cassandra.keystore
+          - keystore: conf/.keystore
             keystore_password: cassandra
             store_type: JCEKS
             key_password: cassandra

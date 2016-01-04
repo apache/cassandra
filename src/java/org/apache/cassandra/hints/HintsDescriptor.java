@@ -22,15 +22,20 @@ import java.io.IOException;
 import java.io.RandomAccessFile;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Path;
+import java.util.HashMap;
 import java.util.Map;
 import java.util.UUID;
 import java.util.regex.Pattern;
 import java.util.zip.CRC32;
+import javax.crypto.Cipher;
 
 import com.google.common.base.MoreObjects;
 import com.google.common.base.Objects;
 import com.google.common.collect.ImmutableMap;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
+import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.config.ParameterizedClass;
 import org.apache.cassandra.db.TypeSizes;
 import org.apache.cassandra.io.FSReadError;
@@ -38,6 +43,8 @@ import org.apache.cassandra.io.compress.ICompressor;
 import org.apache.cassandra.io.util.DataOutputPlus;
 import org.apache.cassandra.net.MessagingService;
 import org.apache.cassandra.schema.CompressionParams;
+import org.apache.cassandra.security.EncryptionContext;
+import org.apache.cassandra.utils.Hex;
 import org.json.simple.JSONValue;
 
 import static org.apache.cassandra.utils.FBUtilities.updateChecksumInt;
@@ -50,10 +57,13 @@ import static org.apache.cassandra.utils.FBUtilities.updateChecksumInt;
  */
 final class HintsDescriptor
 {
+    private static final Logger logger = LoggerFactory.getLogger(HintsDescriptor.class);
+
     static final int VERSION_30 = 1;
     static final int CURRENT_VERSION = VERSION_30;
 
     static final String COMPRESSION = "compression";
+    static final String ENCRYPTION = "encryption";
 
     static final Pattern pattern =
         Pattern.compile("^[a-fA-F0-9]{8}\\-[a-fA-F0-9]{4}\\-[a-fA-F0-9]{4}\\-[a-fA-F0-9]{4}\\-[a-fA-F0-9]{12}\\-(\\d+)\\-(\\d+)\\.hints$");
@@ -62,17 +72,35 @@ final class HintsDescriptor
     final int version;
     final long timestamp;
 
-    // implemented for future compression support - see CASSANDRA-9428
     final ImmutableMap<String, Object> parameters;
     final ParameterizedClass compressionConfig;
+
+    private final Cipher cipher;
+    private final ICompressor compressor;
 
     HintsDescriptor(UUID hostId, int version, long timestamp, ImmutableMap<String, Object> parameters)
     {
         this.hostId = hostId;
         this.version = version;
         this.timestamp = timestamp;
-        this.parameters = parameters;
         compressionConfig = createCompressionConfig(parameters);
+
+        EncryptionData encryption = createEncryption(parameters);
+        if (encryption == null)
+        {
+            cipher = null;
+            compressor = null;
+        }
+        else
+        {
+            if (compressionConfig != null)
+                throw new IllegalStateException("a hints file cannot be configured for both compression and encryption");
+            cipher = encryption.cipher;
+            compressor = encryption.compressor;
+            parameters = encryption.params;
+        }
+
+        this.parameters = parameters;
     }
 
     HintsDescriptor(UUID hostId, long timestamp, ImmutableMap<String, Object> parameters)
@@ -97,6 +125,71 @@ final class HintsDescriptor
         else
         {
             return null;
+        }
+    }
+
+    /**
+     * Create, if necessary, the required encryption components (for either decrpyt or encrypt operations).
+     * Note that in the case of encyption (this is, when writing out a new hints file), we need to write
+     * the cipher's IV out to the header so it can be used when decrypting. Thus, we need to add an additional
+     * entry to the {@code params} map.
+     *
+     * @param params the base parameters into the descriptor.
+     * @return null if not using encryption; else, the initialized {@link Cipher} and a possibly updated version
+     * of the {@code params} map.
+     */
+    @SuppressWarnings("unchecked")
+    static EncryptionData createEncryption(ImmutableMap<String, Object> params)
+    {
+        if (params.containsKey(ENCRYPTION))
+        {
+            Map<?, ?> encryptionConfig = (Map<?, ?>) params.get(ENCRYPTION);
+            EncryptionContext encryptionContext = EncryptionContext.createFromMap(encryptionConfig, DatabaseDescriptor.getEncryptionContext());
+
+            try
+            {
+                Cipher cipher;
+                if (encryptionConfig.containsKey(EncryptionContext.ENCRYPTION_IV))
+                {
+                    cipher = encryptionContext.getDecryptor();
+                }
+                else
+                {
+                    cipher = encryptionContext.getEncryptor();
+                    ImmutableMap<String, Object> encParams = ImmutableMap.<String, Object>builder()
+                                                                 .putAll(encryptionContext.toHeaderParameters())
+                                                                 .put(EncryptionContext.ENCRYPTION_IV, Hex.bytesToHex(cipher.getIV()))
+                                                                 .build();
+
+                    Map<String, Object> map = new HashMap<>(params);
+                    map.put(ENCRYPTION, encParams);
+                    params = ImmutableMap.<String, Object>builder().putAll(map).build();
+                }
+                return new EncryptionData(cipher, encryptionContext.getCompressor(), params);
+            }
+            catch (IOException ioe)
+            {
+                logger.warn("failed to create encyption context for hints file. ignoring encryption for hints.", ioe);
+                return null;
+            }
+        }
+        else
+        {
+            return null;
+        }
+    }
+
+    private static final class EncryptionData
+    {
+        final Cipher cipher;
+        final ICompressor compressor;
+        final ImmutableMap<String, Object> params;
+
+        private EncryptionData(Cipher cipher, ICompressor compressor, ImmutableMap<String, Object> params)
+        {
+            this.cipher = cipher;
+            this.compressor = compressor;
+            this.params = params;
         }
     }
 
@@ -148,9 +241,23 @@ final class HintsDescriptor
         return compressionConfig != null;
     }
 
+    public boolean isEncrypted()
+    {
+        return cipher != null;
+    }
+
     public ICompressor createCompressor()
     {
-        return isCompressed() ? CompressionParams.createCompressor(compressionConfig) : null;
+        if (isCompressed())
+            return CompressionParams.createCompressor(compressionConfig);
+        if (isEncrypted())
+            return compressor;
+        return null;
+    }
+
+    public Cipher getCipher()
+    {
+        return isEncrypted() ? cipher : null;
     }
 
     @Override

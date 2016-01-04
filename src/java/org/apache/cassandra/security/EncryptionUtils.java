@@ -30,6 +30,7 @@ import com.google.common.base.Preconditions;
 
 import org.apache.cassandra.db.commitlog.EncryptedSegment;
 import org.apache.cassandra.io.compress.ICompressor;
+import org.apache.cassandra.io.util.ChannelProxy;
 import org.apache.cassandra.io.util.FileDataInput;
 import org.apache.cassandra.utils.ByteBufferUtil;
 
@@ -267,6 +268,41 @@ public class EncryptionUtils
             {
                 return true;
             }
+        }
+
+        public void close()
+        {
+            // nop
+        }
+    }
+
+    public static class ChannelProxyReadChannel implements ReadableByteChannel
+    {
+        private final ChannelProxy channelProxy;
+        private volatile long currentPosition;
+
+        public ChannelProxyReadChannel(ChannelProxy channelProxy, long currentPosition)
+        {
+            this.channelProxy = channelProxy;
+            this.currentPosition = currentPosition;
+        }
+
+        public int read(ByteBuffer dst) throws IOException
+        {
+            int bytesRead = channelProxy.read(dst, currentPosition);
+            dst.flip();
+            currentPosition += bytesRead;
+            return bytesRead;
+        }
+
+        public long getCurrentPosition()
+        {
+            return currentPosition;
+        }
+
+        public boolean isOpen()
+        {
+            return channelProxy.isCleanedUp();
         }
 
         public void close()
