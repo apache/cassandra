@@ -31,6 +31,10 @@ Upgrading
    - Running Cassandra as root is prevented by default.
    - JVM options are moved from cassandra-env.(sh|ps1) to jvm.options file
 
+Deprecation
+-----------
+   - The Thrift API is deprecated and will be removed in Cassandra 4.0.
+
 
 3.1
 =====
