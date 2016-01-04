@@ -166,7 +166,7 @@ import static java.util.Arrays.asList;
 public class StorageService extends NotificationBroadcasterSupport implements IEndpointStateChangeSubscriber, StorageServiceMBean
 {
     private static final Logger logger = LoggerFactory.getLogger(StorageService.class);
-
+    
     public static final int RING_DELAY = getRingDelay(); // delay after which we assume ring has stablized
 
     private final JMXProgressSupport progressSupport = new JMXProgressSupport(this);
@@ -2707,7 +2707,7 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
         Map<Keyspace, List<String>> keyspaceColumnfamily = new HashMap<Keyspace, List<String>>();
         for (String table : tableList)
         {
-            String splittedString[] = table.split("\\.");
+            String splittedString[] = StringUtils.split(table, '.');
             if (splittedString.length == 2)
             {
                 String keyspaceName = splittedString[0];

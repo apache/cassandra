@@ -54,9 +54,9 @@ import org.apache.cassandra.scheduler.NoScheduler;
 import org.apache.cassandra.security.EncryptionContext;
 import org.apache.cassandra.service.CacheService;
 import org.apache.cassandra.thrift.ThriftServer;
-import org.apache.cassandra.utils.ByteBufferUtil;
 import org.apache.cassandra.utils.FBUtilities;
 import org.apache.cassandra.utils.memory.*;
+import org.apache.commons.lang3.StringUtils;
 
 public class DatabaseDescriptor
 {
@@ -927,8 +927,8 @@ public class DatabaseDescriptor
     {
         List<String> tokens = new ArrayList<String>();
         if (tokenString != null)
-            for (String token : tokenString.split(","))
-                tokens.add(token.replaceAll("^\\s+", "").replaceAll("\\s+$", ""));
+            for (String token : StringUtils.split(tokenString, ','))
+                tokens.add(token.trim());
         return tokens;
     }
 

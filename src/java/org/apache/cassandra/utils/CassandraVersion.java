@@ -37,6 +37,8 @@ public class CassandraVersion implements Comparable<CassandraVersion>
      * this is because 3rd and the last can be identical.
      **/
     private static final String VERSION_REGEXP = "(\\d+)\\.(\\d+)(?:\\.(\\w+))?(\\-[.\\w]+)?([.+][.\\w]+)?";
+    private static final Pattern PATTERN_WHITESPACE = Pattern.compile("\\w+");
+
     private static final Pattern pattern = Pattern.compile(VERSION_REGEXP);
     private static final Pattern SNAPSHOT = Pattern.compile("-SNAPSHOT");
 
@@ -83,10 +85,10 @@ public class CassandraVersion implements Comparable<CassandraVersion>
     {
         // Drop initial - or +
         str = str.substring(1);
-        String[] parts = str.split("\\.");
+        String[] parts = StringUtils.split(str, '.');
         for (String part : parts)
         {
-            if (!part.matches("\\w+"))
+            if (!PATTERN_WHITESPACE.matcher(part).matches())
                 throw new IllegalArgumentException("Invalid version value: " + version);
         }
         return parts;

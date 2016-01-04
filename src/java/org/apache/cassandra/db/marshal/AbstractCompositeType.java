@@ -21,6 +21,7 @@ import java.nio.ByteBuffer;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
+import java.util.regex.Pattern;
 
 import org.apache.cassandra.cql3.Term;
 import org.apache.cassandra.serializers.TypeSerializer;
@@ -107,6 +108,10 @@ public abstract class AbstractCompositeType extends AbstractType<ByteBuffer>
         }
         return l.toArray(new ByteBuffer[l.size()]);
     }
+    private static final String COLON = ":";
+    private static final Pattern COLON_PAT = Pattern.compile(COLON);
+    private static final String ESCAPED_COLON = "\\\\:";
+    private static final Pattern ESCAPED_COLON_PAT = Pattern.compile(ESCAPED_COLON);
 
 
     /*
@@ -118,7 +123,7 @@ public abstract class AbstractCompositeType extends AbstractType<ByteBuffer>
         if (input.isEmpty())
             return input;
 
-        String res = input.replaceAll(":", "\\\\:");
+        String res = COLON_PAT.matcher(input).replaceAll(ESCAPED_COLON);
         char last = res.charAt(res.length() - 1);
         return last == '\\' || last == '!' ? res + '!' : res;
     }
@@ -132,7 +137,7 @@ public abstract class AbstractCompositeType extends AbstractType<ByteBuffer>
         if (input.isEmpty())
             return input;
 
-        String res = input.replaceAll("\\\\:", ":");
+        String res = ESCAPED_COLON_PAT.matcher(input).replaceAll(COLON);
         char last = res.charAt(res.length() - 1);
         return last == '!' ? res.substring(0, res.length() - 1) : res;
     }

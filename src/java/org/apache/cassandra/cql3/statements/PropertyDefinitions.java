@@ -18,6 +18,7 @@
 package org.apache.cassandra.cql3.statements;
 
 import java.util.*;
+import java.util.regex.Pattern;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -26,6 +27,8 @@ import org.apache.cassandra.exceptions.SyntaxException;
 
 public class PropertyDefinitions
 {
+    private static final Pattern PATTERN_POSITIVE = Pattern.compile("(1|true|yes)");
+    
     protected static final Logger logger = LoggerFactory.getLogger(PropertyDefinitions.class);
 
     protected final Map<String, Object> properties = new HashMap<String, Object>();
@@ -91,7 +94,7 @@ public class PropertyDefinitions
     public Boolean getBoolean(String key, Boolean defaultValue) throws SyntaxException
     {
         String value = getSimple(key);
-        return (value == null) ? defaultValue : value.toLowerCase().matches("(1|true|yes)");
+        return (value == null) ? defaultValue : PATTERN_POSITIVE.matcher(value.toLowerCase()).matches();
     }
 
     // Return a property value, typed as a double
