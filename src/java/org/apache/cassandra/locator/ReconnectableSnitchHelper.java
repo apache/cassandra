@@ -80,7 +80,7 @@ public class ReconnectableSnitchHelper implements IEndpointStateChangeSubscriber
 
     public void onChange(InetAddress endpoint, ApplicationState state, VersionedValue value)
     {
-        if (preferLocal && !Gossiper.instance.isDeadState(Gossiper.instance.getEndpointStateForEndpoint(endpoint)) && state == ApplicationState.INTERNAL_IP)
+        if (preferLocal && state == ApplicationState.INTERNAL_IP && !Gossiper.instance.isDeadState(Gossiper.instance.getEndpointStateForEndpoint(endpoint)))
             reconnect(endpoint, value);
     }
 
