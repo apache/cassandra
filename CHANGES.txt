@@ -1,3 +1,7 @@
+3.3
+Merged from 3.0:
+ * Fix potential assertion error during compaction (CASSANDRA-10944)
+
 3.2
  * Add requireAuthorization method to IAuthorizer (CASSANDRA-10852)
  * Move static JVM options to conf/jvm.options file (CASSANDRA-10494)
