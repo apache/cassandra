@@ -17,8 +17,9 @@
  */
 package org.apache.cassandra.utils;
 
-import java.io.UnsupportedEncodingException;
+import java.nio.charset.StandardCharsets;
 import java.util.Arrays;
+
 
 /**
  * The result of the computation of an MD5 digest.
@@ -51,14 +52,7 @@ public class MD5Digest
 
     public static MD5Digest compute(String toHash)
     {
-        try
-        {
-            return compute(toHash.getBytes("UTF-8"));
-        }
-        catch (UnsupportedEncodingException e)
-        {
-            throw new RuntimeException(e.getMessage());
-        }
+        return compute(toHash.getBytes(StandardCharsets.UTF_8));
     }
 
     @Override
