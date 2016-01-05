@@ -327,10 +327,10 @@ public class Tracker
         apply(View.markFlushing(memtable));
     }
 
-    public void replaceFlushed(Memtable memtable, Collection<SSTableReader> sstables)
+    public void replaceFlushed(Memtable memtable, Iterable<SSTableReader> sstables)
     {
         assert !isDummy();
-        if (sstables == null || sstables.isEmpty())
+        if (sstables == null || Iterables.isEmpty(sstables))
         {
             // sstable may be null if we flushed batchlog and nothing needed to be retained
             // if it's null, we don't care what state the cfstore is in, we just replace it and continue

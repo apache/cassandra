@@ -24,7 +24,12 @@ public abstract class DiskAwareRunnable extends WrappedRunnable
 {
     protected Directories.DataDirectory getWriteDirectory(long writeSize)
     {
-        Directories.DataDirectory directory = getDirectories().getWriteableLocation(writeSize);
+        Directories.DataDirectory directory;
+        directory = getDirectory();
+
+        if (directory == null) // ok panic - write anywhere
+            directory = getDirectories().getWriteableLocation(writeSize);
+
         if (directory == null)
             throw new RuntimeException("Insufficient disk space to write " + writeSize + " bytes");
 
@@ -36,4 +41,14 @@ public abstract class DiskAwareRunnable extends WrappedRunnable
      * @return Directories instance for the CF.
      */
     protected abstract Directories getDirectories();
+    protected abstract Directories.DataDirectory getDirectory();
+
+    /**
+     * Called if no disk is available with free space for the full write size.
+     * @return true if the scope of the task was successfully reduced.
+     */
+    public boolean reduceScopeForLimitedSpace()
+    {
+        return false;
+    }
 }

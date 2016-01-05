@@ -37,7 +37,8 @@ public enum OperationType
     STREAM("Stream"),
     WRITE("Write"),
     VIEW_BUILD("View build"),
-    INDEX_SUMMARY("Index summary redistribution");
+    INDEX_SUMMARY("Index summary redistribution"),
+    RELOCATE("Relocate sstables to correct disk");
 
     public final String type;
     public final String fileName;

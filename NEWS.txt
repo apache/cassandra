@@ -18,6 +18,11 @@ using the provided 'sstableupgrade' tool.
 
 New features
 ------------
+   - We now make sure that a token does not exist in several data directories. This
+     means that we run one compaction strategy per data_file_directory and we use
+     one thread per directory to flush. Use nodetool relocatesstables to make sure your
+     tokens are in the correct place, or just wait and compaction will handle it. See
+     CASSANDRA-6696 for more details.
    - bound maximum in-flight commit log replay mutation bytes to 64 megabytes
      tunable via cassandra.commitlog_max_outstanding_replay_bytes
    - Support for type casting has been added to the selection clause.

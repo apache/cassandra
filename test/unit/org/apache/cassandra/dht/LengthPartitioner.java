@@ -61,6 +61,12 @@ public class LengthPartitioner implements IPartitioner
         return MINIMUM;
     }
 
+    @Override
+    public Token getMaximumToken()
+    {
+        return null;
+    }
+
     public BigIntegerToken getRandomToken()
     {
         return new BigIntegerToken(BigInteger.valueOf(new Random().nextInt(15)));

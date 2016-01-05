@@ -50,6 +50,19 @@ public class RandomPartitioner implements IPartitioner
     public static final RandomPartitioner instance = new RandomPartitioner();
     public static final AbstractType<?> partitionOrdering = new PartitionerDefinedOrder(instance);
 
+    private final Splitter splitter = new Splitter(this)
+    {
+        public Token tokenForValue(BigInteger value)
+        {
+            return new BigIntegerToken(value);
+        }
+
+        public BigInteger valueForToken(Token token)
+        {
+            return ((BigIntegerToken)token).getTokenValue();
+        }
+    };
+
     public DecoratedKey decorateKey(ByteBuffer key)
     {
         return new CachedHashDecoratedKey(getToken(key), key);
@@ -194,6 +207,11 @@ public class RandomPartitioner implements IPartitioner
         return ownerships;
     }
 
+    public Token getMaximumToken()
+    {
+        return new BigIntegerToken(MAXIMUM);
+    }
+
     public AbstractType<?> getTokenValidator()
     {
         return IntegerType.instance;
@@ -203,4 +221,10 @@ public class RandomPartitioner implements IPartitioner
     {
         return partitionOrdering;
     }
+
+    public Optional<Splitter> splitter()
+    {
+        return Optional.of(splitter);
+    }
+
 }

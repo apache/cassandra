@@ -85,7 +85,7 @@ public class DateTieredCompactionStrategy extends AbstractCompactionStrategy
      */
     private List<SSTableReader> getNextBackgroundSSTables(final int gcBefore)
     {
-        if (Iterables.isEmpty(cfs.getSSTables(SSTableSet.LIVE)))
+        if (sstables.isEmpty())
             return Collections.emptyList();
 
         Set<SSTableReader> uncompacting = ImmutableSet.copyOf(filter(cfs.getUncompactingSSTables(), sstables::contains));
@@ -212,6 +212,7 @@ public class DateTieredCompactionStrategy extends AbstractCompactionStrategy
     {
         sstables.remove(sstable);
     }
+
     /**
      * A target time span used for bucketing SSTables based on timestamps.
      */

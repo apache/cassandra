@@ -18,6 +18,7 @@
 package org.apache.cassandra.db.compaction;
 
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 
 import org.junit.Test;
@@ -215,9 +216,9 @@ public class CompactionsCQLTest extends CQLTester
     public boolean verifyStrategies(CompactionStrategyManager manager, Class<? extends AbstractCompactionStrategy> expected)
     {
         boolean found = false;
-        for (AbstractCompactionStrategy actualStrategy : manager.getStrategies())
+        for (List<AbstractCompactionStrategy> strategies : manager.getStrategies())
         {
-            if (!actualStrategy.getClass().equals(expected))
+            if (!strategies.stream().allMatch((strategy) -> strategy.getClass().equals(expected)))
                 return false;
             found = true;
         }
