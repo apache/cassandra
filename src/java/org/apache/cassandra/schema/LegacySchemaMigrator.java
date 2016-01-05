@@ -628,21 +628,26 @@ public final class LegacySchemaMigrator
             if (row.has("index_options"))
                 indexOptions = fromJsonMap(row.getString("index_options"));
 
-            String indexName = null;
-            if (row.has("index_name"))
-                indexName = row.getString("index_name");
+            if (row.has("index_name")) 
+            {
+                String indexName = row.getString("index_name");
 
-            ColumnDefinition column = createColumnFromColumnRow(row,
-                                                                keyspace,
-                                                                table,
-                                                                rawComparator,
-                                                                rawSubComparator,
-                                                                isSuper,
-                                                                isCQLTable,
-                                                                isStaticCompactTable,
-                                                                needsUpgrade);
-
-            indexes.add(IndexMetadata.fromLegacyMetadata(cfm, column, indexName, kind, indexOptions));
+                ColumnDefinition column = createColumnFromColumnRow(row,
+                                                                    keyspace,
+                                                                    table,
+                                                                    rawComparator,
+                                                                    rawSubComparator,
+                                                                    isSuper,
+                                                                    isCQLTable,
+                                                                    isStaticCompactTable,
+                                                                    needsUpgrade);
+    
+                indexes.add(IndexMetadata.fromLegacyMetadata(cfm, column, indexName, kind, indexOptions));
+            } 
+            else 
+            {
+                logger.error("Failed to find index name for legacy migration of index on {}.{}", keyspace, table);
+            }
         }
 
         return indexes.build();
