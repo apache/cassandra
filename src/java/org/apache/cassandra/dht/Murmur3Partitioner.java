@@ -48,6 +48,19 @@ public class Murmur3Partitioner implements IPartitioner
     public static final Murmur3Partitioner instance = new Murmur3Partitioner();
     public static final AbstractType<?> partitionOrdering = new PartitionerDefinedOrder(instance);
 
+    private final Splitter splitter = new Splitter(this)
+    {
+        public Token tokenForValue(BigInteger value)
+        {
+            return new LongToken(value.longValue());
+        }
+
+        public BigInteger valueForToken(Token token)
+        {
+            return BigInteger.valueOf(((LongToken) token).token);
+        }
+    };
+
     public DecoratedKey decorateKey(ByteBuffer key)
     {
         long[] hash = getHash(key);
@@ -291,8 +304,18 @@ public class Murmur3Partitioner implements IPartitioner
         return LongType.instance;
     }
 
+    public Token getMaximumToken()
+    {
+        return new LongToken(Long.MAX_VALUE);
+    }
+
     public AbstractType<?> partitionOrdering()
     {
         return partitionOrdering;
+    }
+
+    public Optional<Splitter> splitter()
+    {
+        return Optional.of(splitter);
     }
 }

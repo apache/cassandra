@@ -17,7 +17,6 @@
  */
 package org.apache.cassandra.db;
 
-import java.io.File;
 import java.util.*;
 import java.util.concurrent.*;
 import java.util.concurrent.atomic.AtomicBoolean;
@@ -45,14 +44,14 @@ import org.apache.cassandra.dht.*;
 import org.apache.cassandra.dht.Murmur3Partitioner.LongToken;
 import org.apache.cassandra.index.transactions.UpdateTransaction;
 import org.apache.cassandra.io.sstable.Descriptor;
+import org.apache.cassandra.io.sstable.SSTableMultiWriter;
 import org.apache.cassandra.io.sstable.SSTableTxnWriter;
-import org.apache.cassandra.io.sstable.format.SSTableReader;
 import org.apache.cassandra.io.sstable.metadata.MetadataCollector;
-import org.apache.cassandra.io.util.DiskAwareRunnable;
 import org.apache.cassandra.service.ActiveRepairService;
 import org.apache.cassandra.utils.ByteBufferUtil;
 import org.apache.cassandra.utils.FBUtilities;
 import org.apache.cassandra.utils.ObjectSizes;
+import org.apache.cassandra.service.StorageService;
 import org.apache.cassandra.utils.concurrent.OpOrder;
 import org.apache.cassandra.utils.memory.MemtableAllocator;
 import org.apache.cassandra.utils.memory.MemtablePool;
@@ -250,9 +249,32 @@ public class Memtable implements Comparable<Memtable>
         return partitions.size();
     }
 
-    public FlushRunnable flushRunnable()
+    public List<FlushRunnable> flushRunnables(LifecycleTransaction txn)
     {
-        return new FlushRunnable(lastReplayPosition.get());
+        List<Range<Token>> localRanges = Range.sort(StorageService.instance.getLocalRanges(cfs.keyspace.getName()));
+
+        if (!cfs.getPartitioner().splitter().isPresent() || localRanges.isEmpty())
+            return Collections.singletonList(new FlushRunnable(lastReplayPosition.get(), txn));
+
+        return createFlushRunnables(localRanges, txn);
+    }
+
+    private List<FlushRunnable> createFlushRunnables(List<Range<Token>> localRanges, LifecycleTransaction txn)
+    {
+        assert cfs.getPartitioner().splitter().isPresent();
+
+        Directories.DataDirectory[] locations = cfs.getDirectories().getWriteableLocations();
+        List<PartitionPosition> boundaries = StorageService.getDiskBoundaries(localRanges, cfs.getPartitioner(), locations);
+        List<FlushRunnable> runnables = new ArrayList<>(boundaries.size());
+        PartitionPosition rangeStart = cfs.getPartitioner().getMinimumToken().minKeyBound();
+        ReplayPosition context = lastReplayPosition.get();
+        for (int i = 0; i < boundaries.size(); i++)
+        {
+            PartitionPosition t = boundaries.get(i);
+            runnables.add(new FlushRunnable(context, rangeStart, t, locations[i], txn));
+            rangeStart = t;
+        }
+        return runnables;
     }
 
     public String toString()
@@ -312,23 +334,41 @@ public class Memtable implements Comparable<Memtable>
         return creationTime;
     }
 
-    class FlushRunnable extends DiskAwareRunnable
+    class FlushRunnable implements Callable<SSTableMultiWriter>
     {
-        private final ReplayPosition context;
+        public final ReplayPosition context;
         private final long estimatedSize;
+        private final ConcurrentNavigableMap<PartitionPosition, AtomicBTreePartition> toFlush;
 
         private final boolean isBatchLogTable;
+        private final SSTableMultiWriter writer;
 
-        FlushRunnable(ReplayPosition context)
+        // keeping these to be able to log what we are actually flushing
+        private final PartitionPosition from;
+        private final PartitionPosition to;
+
+        FlushRunnable(ReplayPosition context, PartitionPosition from, PartitionPosition to, Directories.DataDirectory flushLocation, LifecycleTransaction txn)
+        {
+            this(context, partitions.subMap(from, to), flushLocation, from, to, txn);
+        }
+
+        FlushRunnable(ReplayPosition context, LifecycleTransaction txn)
+        {
+            this(context, partitions, null, null, null, txn);
+        }
+
+        FlushRunnable(ReplayPosition context, ConcurrentNavigableMap<PartitionPosition, AtomicBTreePartition> toFlush, Directories.DataDirectory flushLocation, PartitionPosition from, PartitionPosition to, LifecycleTransaction txn)
         {
             this.context = context;
-
+            this.toFlush = toFlush;
+            this.from = from;
+            this.to = to;
             long keySize = 0;
-            for (PartitionPosition key : partitions.keySet())
+            for (PartitionPosition key : toFlush.keySet())
             {
                 //  make sure we don't write non-sensical keys
                 assert key instanceof DecoratedKey;
-                keySize += ((DecoratedKey)key).getKey().remaining();
+                keySize += ((DecoratedKey) key).getKey().remaining();
             }
             estimatedSize = (long) ((keySize // index entries
                                     + keySize // keys in data file
@@ -336,21 +376,12 @@ public class Memtable implements Comparable<Memtable>
                                     * 1.2); // bloom filter and row index overhead
 
             this.isBatchLogTable = cfs.name.equals(SystemKeyspace.BATCHES) && cfs.keyspace.getName().equals(SystemKeyspace.NAME);
-        }
 
-        public long getExpectedWriteSize()
-        {
-            return estimatedSize;
-        }
+            if (flushLocation == null)
+                writer = createFlushWriter(txn, cfs.getSSTablePath(getDirectories().getLocationForDisk(getDirectories().getWriteableLocation(estimatedSize))), columnsCollector.get(), statsCollector.get());
+            else
+                writer = createFlushWriter(txn, cfs.getSSTablePath(getDirectories().getLocationForDisk(flushLocation)), columnsCollector.get(), statsCollector.get());
 
-        protected void runMayThrow() throws Exception
-        {
-            long writeSize = getExpectedWriteSize();
-            Directories.DataDirectory dataDirectory = getWriteDirectory(writeSize);
-            File sstableDirectory = cfs.getDirectories().getLocationForDisk(dataDirectory);
-            assert sstableDirectory != null : "Flush task is not bound to any disk";
-            Collection<SSTableReader> sstables = writeSortedContents(context, sstableDirectory);
-            cfs.replaceFlushed(Memtable.this, sstables);
         }
 
         protected Directories getDirectories()
@@ -358,90 +389,64 @@ public class Memtable implements Comparable<Memtable>
             return cfs.getDirectories();
         }
 
-        private Collection<SSTableReader> writeSortedContents(ReplayPosition context, File sstableDirectory)
+        private void writeSortedContents(ReplayPosition context)
         {
-            logger.debug("Writing {}", Memtable.this.toString());
+            logger.debug("Writing {}, flushed range = ({}, {}]", Memtable.this.toString(), from, to);
 
-            Collection<SSTableReader> ssTables;
-            try (SSTableTxnWriter writer = createFlushWriter(cfs.getSSTablePath(sstableDirectory), columnsCollector.get(), statsCollector.get()))
+            boolean trackContention = logger.isTraceEnabled();
+            int heavilyContendedRowCount = 0;
+            // (we can't clear out the map as-we-go to free up memory,
+            //  since the memtable is being used for queries in the "pending flush" category)
+            for (AtomicBTreePartition partition : toFlush.values())
             {
-                boolean trackContention = logger.isTraceEnabled();
-                int heavilyContendedRowCount = 0;
-                // (we can't clear out the map as-we-go to free up memory,
-                //  since the memtable is being used for queries in the "pending flush" category)
-                for (AtomicBTreePartition partition : partitions.values())
+                // Each batchlog partition is a separate entry in the log. And for an entry, we only do 2
+                // operations: 1) we insert the entry and 2) we delete it. Further, BL data is strictly local,
+                // we don't need to preserve tombstones for repair. So if both operation are in this
+                // memtable (which will almost always be the case if there is no ongoing failure), we can
+                // just skip the entry (CASSANDRA-4667).
+                if (isBatchLogTable && !partition.partitionLevelDeletion().isLive() && partition.hasRows())
+                    continue;
+
+                if (trackContention && partition.usePessimisticLocking())
+                    heavilyContendedRowCount++;
+
+                if (!partition.isEmpty())
                 {
-                    // Each batchlog partition is a separate entry in the log. And for an entry, we only do 2
-                    // operations: 1) we insert the entry and 2) we delete it. Further, BL data is strictly local,
-                    // we don't need to preserve tombstones for repair. So if both operation are in this
-                    // memtable (which will almost always be the case if there is no ongoing failure), we can
-                    // just skip the entry (CASSANDRA-4667).
-                    if (isBatchLogTable && !partition.partitionLevelDeletion().isLive() && partition.hasRows())
-                        continue;
-
-                    if (trackContention && partition.usePessimisticLocking())
-                        heavilyContendedRowCount++;
-
-                    if (!partition.isEmpty())
+                    try (UnfilteredRowIterator iter = partition.unfilteredIterator())
                     {
-                        try (UnfilteredRowIterator iter = partition.unfilteredIterator())
-                        {
-                            writer.append(iter);
-                        }
+                        writer.append(iter);
                     }
                 }
-
-                if (writer.getFilePointer() > 0)
-                {
-                    logger.debug(String.format("Completed flushing %s (%s) for commitlog position %s",
-                                               writer.getFilename(),
-                                               FBUtilities.prettyPrintMemory(writer.getFilePointer()),
-                                               context));
-
-                    // sstables should contain non-repaired data.
-                    ssTables = writer.finish(true);
-                }
-                else
-                {
-                    logger.debug("Completed flushing {}; nothing needed to be retained.  Commitlog position was {}",
-                                writer.getFilename(), context);
-                    writer.abort();
-                    ssTables = null;
-                }
-
-                if (heavilyContendedRowCount > 0)
-                    logger.trace(String.format("High update contention in %d/%d partitions of %s ", heavilyContendedRowCount, partitions.size(), Memtable.this.toString()));
-
-                return ssTables;
             }
+
+            logger.debug(String.format("Completed flushing %s (%s) for commitlog position %s",
+                                                                              writer.getFilename(),
+                                                                              FBUtilities.prettyPrintMemory(writer.getFilePointer()),
+                                                                              context));
+
+            if (heavilyContendedRowCount > 0)
+                logger.trace(String.format("High update contention in %d/%d partitions of %s ", heavilyContendedRowCount, toFlush.size(), Memtable.this.toString()));
         }
 
-        @SuppressWarnings("resource") // log and writer closed by SSTableTxnWriter
-        public SSTableTxnWriter createFlushWriter(String filename,
-                                               PartitionColumns columns,
-                                               EncodingStats stats)
+        public SSTableMultiWriter createFlushWriter(LifecycleTransaction txn,
+                                                  String filename,
+                                                  PartitionColumns columns,
+                                                  EncodingStats stats)
         {
-            // we operate "offline" here, as we expose the resulting reader consciously when done
-            // (although we may want to modify this behaviour in future, to encapsulate full flush behaviour in LifecycleTransaction)
-            LifecycleTransaction txn = null;
-            try
-            {
-                txn = LifecycleTransaction.offline(OperationType.FLUSH);
-                MetadataCollector sstableMetadataCollector = new MetadataCollector(cfs.metadata.comparator).replayPosition(context);
-                return new SSTableTxnWriter(txn,
-                                            cfs.createSSTableMultiWriter(Descriptor.fromFilename(filename),
-                                                                         (long) partitions.size(),
-                                                                         ActiveRepairService.UNREPAIRED_SSTABLE,
-                                                                         sstableMetadataCollector,
-                                                                         new SerializationHeader(true, cfs.metadata, columns, stats),
-                                                                         txn));
-            }
-            catch (Throwable t)
-            {
-                if (txn != null)
-                    txn.close();
-                throw t;
-            }
+            MetadataCollector sstableMetadataCollector = new MetadataCollector(cfs.metadata.comparator).replayPosition(context);
+            return cfs.createSSTableMultiWriter(Descriptor.fromFilename(filename),
+                                                (long)toFlush.size(),
+                                                ActiveRepairService.UNREPAIRED_SSTABLE,
+                                                sstableMetadataCollector,
+                                                new SerializationHeader(true, cfs.metadata, columns, stats), txn);
+
+        }
+
+        @Override
+        public SSTableMultiWriter call()
+        {
+            writeSortedContents(context);
+            return writer;
         }
     }
 
