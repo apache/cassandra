@@ -67,7 +67,7 @@ public final class HintVerbHandler implements IVerbHandler<HintMessage>
         }
         catch (MarshalException e)
         {
-            logger.warn("Failed to validate a hint for {} (table id {}) - skipped", hostId);
+            logger.warn("Failed to validate a hint for {} - skipped", hostId);
             reply(id, message.from);
             return;
         }

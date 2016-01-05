@@ -213,7 +213,7 @@ public final class LegacyHintsMigrator
         }
         catch (IOException e)
         {
-            logger.error("Failed to migrate a hint for {} from legacy {}.{} table: {}",
+            logger.error("Failed to migrate a hint for {} from legacy {}.{} table",
                          row.getUUID("target_id"),
                          SystemKeyspace.NAME,
                          SystemKeyspace.LEGACY_HINTS,
@@ -222,7 +222,7 @@ public final class LegacyHintsMigrator
         }
         catch (MarshalException e)
         {
-            logger.warn("Failed to validate a hint for {} (table id {}) from legacy {}.{} table - skipping: {})",
+            logger.warn("Failed to validate a hint for {} from legacy {}.{} table - skipping",
                         row.getUUID("target_id"),
                         SystemKeyspace.NAME,
                         SystemKeyspace.LEGACY_HINTS,
