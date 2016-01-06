@@ -394,11 +394,11 @@ public interface Row extends Unfiltered, Collection<ColumnData>
         public Clustering clustering();
 
         /**
-         * Adds the liveness information for the primary key columns of this row.
+         * Adds the liveness information for the partition key columns of this row.
          *
          * This call is optional (skipping it is equivalent to calling {@code addPartitionKeyLivenessInfo(LivenessInfo.NONE)}).
          *
-         * @param info the liveness information for the primary key columns of the built row.
+         * @param info the liveness information for the partition key columns of the built row.
          */
         public void addPrimaryKeyLivenessInfo(LivenessInfo info);
 
