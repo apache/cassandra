@@ -13,6 +13,7 @@
  * Disable reloading of GossipingPropertyFileSnitch (CASSANDRA-9474)
  * Verify tables in pseudo-system keyspaces at startup (CASSANDRA-10761)
 Merged from 2.1:
+ * Match cassandra-loader options in COPY FROM (CASSANDRA-9303)
  * Fix binding to any address in CqlBulkRecordWriter (CASSANDRA-9309)
  * cqlsh fails to decode utf-8 characters for text typed columns (CASSANDRA-10875)
  * Log error when stream session fails (CASSANDRA-9294)
