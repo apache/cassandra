@@ -275,36 +275,6 @@ public class ViewTest extends CQLTester
     }
 
     @Test
-    public void testRegularColumnTimestampUpdates() throws Throwable
-    {
-        // Regression test for CASSANDRA-10910
-
-        createTable("CREATE TABLE %s (" +
-                    "k int PRIMARY KEY, " +
-                    "c int, " +
-                    "val int)");
-
-        execute("USE " + keyspace());
-        executeNet(protocolVersion, "USE " + keyspace());
-
-        createView("mv_rctstest", "CREATE MATERIALIZED VIEW %s AS SELECT * FROM %%s WHERE k IS NOT NULL AND c IS NOT NULL PRIMARY KEY (k,c)");
-
-        updateView("UPDATE %s SET c = ?, val = ? WHERE k = ?", 0, 0, 0);
-        updateView("UPDATE %s SET val = ? WHERE k = ?", 1, 0);
-        updateView("UPDATE %s SET c = ? WHERE k = ?", 1, 0);
-        assertRows(execute("SELECT c, k, val FROM mv_rctstest"), row(1, 0, 1));
-
-        updateView("TRUNCATE %s");
-
-        updateView("UPDATE %s USING TIMESTAMP 1 SET c = ?, val = ? WHERE k = ?", 0, 0, 0);
-        updateView("UPDATE %s USING TIMESTAMP 3 SET c = ? WHERE k = ?", 1, 0);
-        updateView("UPDATE %s USING TIMESTAMP 2 SET val = ? WHERE k = ?", 1, 0);
-        updateView("UPDATE %s USING TIMESTAMP 4 SET c = ? WHERE k = ?", 2, 0);
-        updateView("UPDATE %s USING TIMESTAMP 3 SET val = ? WHERE k = ?", 2, 0);
-        assertRows(execute("SELECT c, k, val FROM mv_rctstest"), row(2, 0, 2));
-    }
-
-    @Test
     public void testCountersTable() throws Throwable
     {
         createTable("CREATE TABLE %s (" +

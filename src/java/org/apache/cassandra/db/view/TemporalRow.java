@@ -22,7 +22,6 @@ import java.nio.ByteBuffer;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
-import java.util.Comparator;
 import java.util.HashMap;
 import java.util.Iterator;
 import java.util.List;
@@ -280,7 +279,9 @@ public class TemporalRow
         this.nowInSec = nowInSec;
 
         LivenessInfo liveness = row.primaryKeyLivenessInfo();
-        updateLiveness(liveness.ttl(), liveness.timestamp(), row.deletion().time().localDeletionTime());
+        this.viewClusteringLocalDeletionTime = minValueIfSet(viewClusteringLocalDeletionTime, row.deletion().time().localDeletionTime(), NO_DELETION_TIME);
+        this.viewClusteringTimestamp = minValueIfSet(viewClusteringTimestamp, liveness.timestamp(), NO_TIMESTAMP);
+        this.viewClusteringTtl = minValueIfSet(viewClusteringTtl, liveness.ttl(), NO_TTL);
 
         List<ColumnDefinition> clusteringDefs = baseCfs.metadata.clusteringColumns();
         clusteringColumns = new HashMap<>();
@@ -292,31 +293,6 @@ public class TemporalRow
 
             addColumnValue(cdef.name, null, NO_TIMESTAMP, NO_TTL, NO_DELETION_TIME, row.clustering().get(i), isNew);
         }
-    }
-
-    /*
-     * PK ts:5, ttl:1, deletion: 2
-     * Col ts:4, ttl:2, deletion: 3
-     *
-     * TTL use min, since it expires at the lowest time which we are expiring. If we have the above values, we
-     * would want to return 1, since the base row expires in 1 second.
-     *
-     * Timestamp uses max, as this is the time that the row has been written to the view. See CASSANDRA-10910.
-     *
-     * Local Deletion Time should use max, as this deletion will cover all previous values written.
-     */
-    @SuppressWarnings("unchecked")
-    private void updateLiveness(int ttl, long timestamp, int localDeletionTime)
-    {
-        // We are returning whichever is higher from valueIfSet
-        // Natural order will return the max: 1.compareTo(2) < 0, so 2 is returned
-        // Reverse order will return the min: 1.compareTo(2) > 0, so 1 is returned
-        final Comparator max = Comparator.naturalOrder();
-        final Comparator min = Comparator.reverseOrder();
-
-        this.viewClusteringTtl = valueIfSet(viewClusteringTtl, ttl, NO_TTL, min);
-        this.viewClusteringTimestamp = valueIfSet(viewClusteringTimestamp, timestamp, NO_TIMESTAMP, max);
-        this.viewClusteringLocalDeletionTime = valueIfSet(viewClusteringLocalDeletionTime, localDeletionTime, NO_DELETION_TIME, max);
     }
 
     @Override
@@ -375,33 +351,30 @@ public class TemporalRow
         // If this column is part of the view's primary keys
         if (viewPrimaryKey.contains(identifier))
         {
-            updateLiveness(ttl, timestamp, localDeletionTime);
+            this.viewClusteringTtl = minValueIfSet(this.viewClusteringTtl, ttl, NO_TTL);
+            this.viewClusteringTimestamp = minValueIfSet(this.viewClusteringTimestamp, timestamp, NO_TIMESTAMP);
+            this.viewClusteringLocalDeletionTime = minValueIfSet(this.viewClusteringLocalDeletionTime, localDeletionTime, NO_DELETION_TIME);
         }
 
         innerMap.get(cellPath).setVersion(new TemporalCell(value, timestamp, ttl, localDeletionTime, isNew));
     }
 
-    /**
-     * @return
-     * <ul>
-     *     <li>
-     *         If both existing and update are defaultValue, return defaultValue
-     *     </li>
-     *     <li>
-     *         If only one of existing or existing are defaultValue, return the one which is not
-     *     </li>
-     *     <li>
-     *         If both existing and update are not defaultValue, compare using comparator and return the higher one.
-     *     </li>
-     * </ul>
-     */
-    private static <T> T valueIfSet(T existing, T update, T defaultValue, Comparator<T> comparator)
+    private static int minValueIfSet(int existing, int update, int defaultValue)
     {
-        if (existing.equals(defaultValue))
+        if (existing == defaultValue)
             return update;
-        if (update.equals(defaultValue))
+        if (update == defaultValue)
             return existing;
-        return comparator.compare(existing, update) > 0 ? existing : update;
+        return Math.min(existing, update);
+    }
+
+    private static long minValueIfSet(long existing, long update, long defaultValue)
+    {
+        if (existing == defaultValue)
+            return update;
+        if (update == defaultValue)
+            return existing;
+        return Math.min(existing, update);
     }
 
     public int viewClusteringTtl()

@@ -51,8 +51,6 @@ Upgrading
    - Custom index implementation should be aware that the method Indexer::indexes()
      has been removed as its contract was misleading and all custom implementation
      should have almost surely returned true inconditionally for that method.
-   - GC logging is now enabled by default (you can disable it in the jvm.options
-     file if you prefer).
 
 
 3.0
@@ -401,6 +399,13 @@ Upgrading
      with the next major release. A new setting will be added, hinted_handoff_disabled_datacenters,
      to exclude data centers when the global status is enabled, see CASSANDRA-9035 for details.
 
+
+2.1.13
+======
+
+New features
+------------
+    - New options for cqlsh COPY FROM and COPY TO, see CASSANDRA-9303 for details.
 
 2.1.10
 =====

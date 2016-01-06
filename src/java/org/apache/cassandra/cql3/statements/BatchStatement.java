@@ -34,6 +34,8 @@ import org.apache.cassandra.cql3.*;
 import org.apache.cassandra.db.*;
 import org.apache.cassandra.db.partitions.PartitionUpdate;
 import org.apache.cassandra.db.rows.RowIterator;
+import org.apache.cassandra.dht.Range;
+import org.apache.cassandra.dht.Token;
 import org.apache.cassandra.exceptions.*;
 import org.apache.cassandra.service.*;
 import org.apache.cassandra.tracing.Tracing;
@@ -297,11 +299,21 @@ public class BatchStatement implements CQLStatement
             Set<DecoratedKey> keySet = new HashSet<>();
             Set<String> tableNames = new HashSet<>();
 
+            Map<String, Collection<Range<Token>>> localTokensByKs = new HashMap<>();
+            boolean localPartitionsOnly = true;
             for (PartitionUpdate update : updates)
             {
                 keySet.add(update.partitionKey());
                 tableNames.add(String.format("%s.%s", update.metadata().ksName, update.metadata().cfName));
+
+                if (localPartitionsOnly)
+                    localPartitionsOnly &= isPartitionLocal(localTokensByKs, update);
             }
+
+            // CASSANDRA-9303: If we only have local mutations we do not warn
+            if (localPartitionsOnly)
+                return;
+
 
             NoSpamLogger.log(logger, NoSpamLogger.Level.WARN, 1, TimeUnit.MINUTES, UNLOGGED_BATCH_WARNING,
                              keySet.size(), keySet.size() == 1 ? "" : "s",
@@ -311,6 +323,18 @@ public class BatchStatement implements CQLStatement
                                                     tableNames.size() == 1 ? "" : "s", tableNames}).getMessage());
 
         }
+    }
+
+    private boolean isPartitionLocal(Map<String, Collection<Range<Token>>> localTokensByKs, PartitionUpdate update)
+    {
+        Collection<Range<Token>> localRanges = localTokensByKs.get(update.metadata().ksName);
+        if (localRanges == null)
+        {
+            localRanges = StorageService.instance.getLocalRanges(update.metadata().ksName);
+            localTokensByKs.put(update.metadata().ksName, localRanges);
+        }
+
+        return Range.isInRanges(update.partitionKey().getToken(), localRanges);
     }
 
     public ResultMessage execute(QueryState queryState, QueryOptions options) throws RequestExecutionException, RequestValidationException
