@@ -361,6 +361,31 @@ public class SerializationHeader
             return String.format("SerializationHeader.Component[key=%s, cks=%s, statics=%s, regulars=%s, stats=%s]",
                                  keyType, clusteringTypes, staticColumns, regularColumns, stats);
         }
+
+        public AbstractType<?> getKetType()
+        {
+            return keyType;
+        }
+
+        public List<AbstractType<?>> getClusteringTypes()
+        {
+            return clusteringTypes;
+        }
+
+        public Map<ByteBuffer, AbstractType<?>> getStaticColumns()
+        {
+            return staticColumns;
+        }
+
+        public Map<ByteBuffer, AbstractType<?>> getRegularColumns()
+        {
+            return regularColumns;
+        }
+
+        public EncodingStats getEncodingStats()
+        {
+            return stats;
+        }
     }
 
     public static class Serializer implements IMetadataComponentSerializer<Component>

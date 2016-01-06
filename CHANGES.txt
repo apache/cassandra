@@ -1,5 +1,6 @@
 3.4
  * Add nodetool gettimeout and settimeout commands (CASSANDRA-10953)
+ * Add 3.0 metadata to sstablemetadata output (CASSANDRA-10838)
 
 
 3.3
