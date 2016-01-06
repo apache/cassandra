@@ -43,7 +43,7 @@ completekey = tab
 ;browser =
 
 [cql]
-version = 3.1.5
+version = 3.2.1
 
 [connection]
 hostname = 127.0.0.1
@@ -68,3 +68,18 @@ max_trace_wait = 10.0
 
 
 ; vim: set ft=dosini :
+
+;; optional options for COPY TO and COPY FROM
+;[copy]
+;maxattempts=10
+;numprocesses=4
+
+;; optional options for COPY FROM
+;[copy-from]
+;chunksize=5000
+;ingestrate=50000
+
+;; optional options for COPY TO
+;[copy-to]
+;pagesize=2000
+;pagetimeout=20

@@ -400,6 +400,13 @@ Upgrading
      to exclude data centers when the global status is enabled, see CASSANDRA-9035 for details.
 
 
+2.1.13
+======
+
+New features
+------------
+    - New options for cqlsh COPY FROM and COPY TO, see CASSANDRA-9303 for details.
+
 2.1.10
 =====
 

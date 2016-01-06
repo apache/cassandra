@@ -43,6 +43,7 @@ Merged from 2.2:
  * Add new types to Stress (CASSANDRA-9556)
  * Add property to allow listening on broadcast interface (CASSANDRA-9748)
 Merged from 2.1:
+ * Match cassandra-loader options in COPY FROM (CASSANDRA-9303)
  * Fix binding to any address in CqlBulkRecordWriter (CASSANDRA-9309)
  * cqlsh fails to decode utf-8 characters for text typed columns (CASSANDRA-10875)
  * Log error when stream session fails (CASSANDRA-9294)

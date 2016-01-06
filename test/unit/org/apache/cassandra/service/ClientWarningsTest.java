@@ -31,6 +31,7 @@ import org.apache.cassandra.transport.SimpleClient;
 import org.apache.cassandra.transport.messages.QueryMessage;
 
 import static junit.framework.Assert.assertEquals;
+import static org.junit.Assert.assertNull;
 
 public class ClientWarningsTest extends CQLTester
 {
@@ -52,12 +53,11 @@ public class ClientWarningsTest extends CQLTester
 
             QueryMessage query = new QueryMessage(createBatchStatement2(1), QueryOptions.DEFAULT);
             Message.Response resp = client.execute(query);
-            assertEquals(1, resp.getWarnings().size());
+            assertNull(resp.getWarnings());
 
             query = new QueryMessage(createBatchStatement2(DatabaseDescriptor.getBatchSizeWarnThreshold()), QueryOptions.DEFAULT);
             resp = client.execute(query);
-            assertEquals(2, resp.getWarnings().size());
-
+            assertEquals(1, resp.getWarnings().size());
         }
     }
 
