@@ -483,6 +483,30 @@ public interface StorageServiceMBean extends NotificationEmitter
     public void joinRing() throws IOException;
     public boolean isJoined();
 
+    public void setRpcTimeout(long value);
+    public long getRpcTimeout();
+
+    public void setReadRpcTimeout(long value);
+    public long getReadRpcTimeout();
+
+    public void setRangeRpcTimeout(long value);
+    public long getRangeRpcTimeout();
+
+    public void setWriteRpcTimeout(long value);
+    public long getWriteRpcTimeout();
+
+    public void setCounterWriteRpcTimeout(long value);
+    public long getCounterWriteRpcTimeout();
+
+    public void setCasContentionTimeout(long value);
+    public long getCasContentionTimeout();
+
+    public void setTruncateRpcTimeout(long value);
+    public long getTruncateRpcTimeout();
+
+    public void setStreamingSocketTimeout(int value);
+    public int getStreamingSocketTimeout();
+
     public void setStreamThroughputMbPerSec(int value);
     public int getStreamThroughputMbPerSec();
 

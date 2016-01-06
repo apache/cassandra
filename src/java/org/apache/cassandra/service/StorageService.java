@@ -1137,6 +1137,94 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
         }
     }
 
+    public void setRpcTimeout(long value)
+    {
+        DatabaseDescriptor.setRpcTimeout(value);
+        logger.info("set rpc timeout to {} ms", value);
+    }
+
+    public long getRpcTimeout()
+    {
+        return DatabaseDescriptor.getRpcTimeout();
+    }
+
+    public void setReadRpcTimeout(long value)
+    {
+        DatabaseDescriptor.setReadRpcTimeout(value);
+        logger.info("set read rpc timeout to {} ms", value);
+    }
+
+    public long getReadRpcTimeout()
+    {
+        return DatabaseDescriptor.getReadRpcTimeout();
+    }
+
+    public void setRangeRpcTimeout(long value)
+    {
+        DatabaseDescriptor.setRangeRpcTimeout(value);
+        logger.info("set range rpc timeout to {} ms", value);
+    }
+
+    public long getRangeRpcTimeout()
+    {
+        return DatabaseDescriptor.getRangeRpcTimeout();
+    }
+
+    public void setWriteRpcTimeout(long value)
+    {
+        DatabaseDescriptor.setWriteRpcTimeout(value);
+        logger.info("set write rpc timeout to {} ms", value);
+    }
+
+    public long getWriteRpcTimeout()
+    {
+        return DatabaseDescriptor.getWriteRpcTimeout();
+    }
+
+    public void setCounterWriteRpcTimeout(long value)
+    {
+        DatabaseDescriptor.setCounterWriteRpcTimeout(value);
+        logger.info("set counter write rpc timeout to {} ms", value);
+    }
+
+    public long getCounterWriteRpcTimeout()
+    {
+        return DatabaseDescriptor.getCounterWriteRpcTimeout();
+    }
+
+    public void setCasContentionTimeout(long value)
+    {
+        DatabaseDescriptor.setCasContentionTimeout(value);
+        logger.info("set cas contention rpc timeout to {} ms", value);
+    }
+
+    public long getCasContentionTimeout()
+    {
+        return DatabaseDescriptor.getCasContentionTimeout();
+    }
+
+    public void setTruncateRpcTimeout(long value)
+    {
+        DatabaseDescriptor.setTruncateRpcTimeout(value);
+        logger.info("set truncate rpc timeout to {} ms", value);
+    }
+
+    public long getTruncateRpcTimeout()
+    {
+        return DatabaseDescriptor.getTruncateRpcTimeout();
+    }
+
+    public void setStreamingSocketTimeout(int value)
+    {
+        DatabaseDescriptor.setStreamingSocketTimeout(value);
+        logger.info("set streaming socket timeout to {} ms", value);
+    }
+
+    public int getStreamingSocketTimeout()
+    {
+        return DatabaseDescriptor.getStreamingSocketTimeout();
+    }
+
     public void setStreamThroughputMbPerSec(int value)
     {
         DatabaseDescriptor.setStreamThroughputOutboundMegabitsPerSec(value);

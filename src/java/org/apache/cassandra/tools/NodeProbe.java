@@ -89,6 +89,7 @@ import com.google.common.collect.Maps;
 import com.google.common.collect.Multimap;
 import com.google.common.collect.Sets;
 import com.google.common.util.concurrent.Uninterruptibles;
+import org.apache.cassandra.tools.nodetool.GetTimeout;
 
 /**
  * JMX client operations for Cassandra.
@@ -957,6 +958,31 @@ public class NodeProbe implements AutoCloseable
         return ssProxy.getCompactionThroughputMbPerSec();
     }
 
+    public long getTimeout(String type)
+    {
+        switch (type)
+        {
+            case "misc":
+                return ssProxy.getRpcTimeout();
+            case "read":
+                return ssProxy.getReadRpcTimeout();
+            case "range":
+                return ssProxy.getRangeRpcTimeout();
+            case "write":
+                return ssProxy.getWriteRpcTimeout();
+            case "counterwrite":
+                return ssProxy.getCounterWriteRpcTimeout();
+            case "cascontention":
+                return ssProxy.getCasContentionTimeout();
+            case "truncate":
+                return ssProxy.getTruncateRpcTimeout();
+            case "streamingsocket":
+                return (long) ssProxy.getStreamingSocketTimeout();
+            default:
+                throw new RuntimeException("Timeout type requires one of (" + GetTimeout.TIMEOUT_TYPES + ")");
+        }
+    }
+
     public int getStreamThroughput()
     {
         return ssProxy.getStreamThroughputMbPerSec();
@@ -992,6 +1018,44 @@ public class NodeProbe implements AutoCloseable
     public void stop(String string)
     {
         compactionProxy.stopCompaction(string);
+    }
+
+    public void setTimeout(String type, long value)
+    {
+        if (value < 0)
+            throw new RuntimeException("timeout must be non-negative");
+
+        switch (type)
+        {
+            case "misc":
+                ssProxy.setRpcTimeout(value);
+                break;
+            case "read":
+                ssProxy.setReadRpcTimeout(value);
+                break;
+            case "range":
+                ssProxy.setRangeRpcTimeout(value);
+                break;
+            case "write":
+                ssProxy.setWriteRpcTimeout(value);
+                break;
+            case "counterwrite":
+                ssProxy.setCounterWriteRpcTimeout(value);
+                break;
+            case "cascontention":
+                ssProxy.setCasContentionTimeout(value);
+                break;
+            case "truncate":
+                ssProxy.setTruncateRpcTimeout(value);
+                break;
+            case "streamingsocket":
+                if (value > Integer.MAX_VALUE)
+                    throw new RuntimeException("streamingsocket timeout must be less than " + Integer.MAX_VALUE);
+                ssProxy.setStreamingSocketTimeout((int) value);
+                break;
+            default:
+                throw new RuntimeException("Timeout type requires one of (" + GetTimeout.TIMEOUT_TYPES + ")");
+        }
     }
 
     public void stopById(String compactionId)

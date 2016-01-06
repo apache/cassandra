@@ -1,7 +1,12 @@
+3.4
+ * Add nodetool gettimeout and settimeout commands (CASSANDRA-10953)
+
+
 3.3
 Merged from 3.0:
  * MV should use the maximum timestamp of the primary key (CASSANDRA-10910)
  * Fix potential assertion error during compaction (CASSANDRA-10944)
+
 
 3.2
  * Make sure tokens don't exist in several data directories (CASSANDRA-6696)

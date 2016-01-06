@@ -1794,6 +1794,11 @@ public class DatabaseDescriptor
         conf.counter_cache_keys_to_save = counterCacheKeysToSave;
     }
 
+    public static void setStreamingSocketTimeout(int value)
+    {
+        conf.streaming_socket_timeout_in_ms = value;
+    }
+
     public static int getStreamingSocketTimeout()
     {
         return conf.streaming_socket_timeout_in_ms;
