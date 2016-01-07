@@ -102,5 +102,10 @@ public class EstimatedHistogramReservoir implements Reservoir
         {
             return histogram.rawMean();
         }
+
+        @Override
+        public long[] getValues() {
+            return histogram.getBuckets(false);
+        }
     }
 }
