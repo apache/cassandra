@@ -29,6 +29,11 @@ New features
    - Hinted handoff now supports compression. Reference cassandra.yaml:hints_compression.
      Note: hints compression is currently disabled by default.
 
+Upgrading
+---------
+    - Nothing specific to 3.2 but please see previous versions upgrading section,
+      especially if you are upgrading from 2.2.
+
 
 Upgrading
 ---------
@@ -85,6 +90,9 @@ New features
 
 Upgrading
 ---------
+   - Clients must use the native protocol version 3 when upgrading from 2.2.X as
+     the native protocol version 4 is not compatible between 2.2.X and 3.Y. See
+     https://www.mail-archive.com/user@cassandra.apache.org/msg45381.html for details.
    - A new argument of type InetAdress has been added to IAuthenticator::newSaslNegotiator,
      representing the IP address of the client attempting authentication. It will be a breaking
      change for any custom implementations.
