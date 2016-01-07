@@ -87,8 +87,8 @@ public class Gossiper implements IFailureDetectionEventListener, GossiperMBean
 
     public static final long aVeryLongTime = 259200 * 1000; // 3 days
 
-    /** Maximimum difference in generation and version values we are willing to accept about a peer */
-    private static final long MAX_GENERATION_DIFFERENCE = 86400 * 365;
+    // Maximimum difference between generation value and local time we are willing to accept about a peer
+    static final int MAX_GENERATION_DIFFERENCE = 86400 * 365;
     private long FatClientTimeout;
     private final Random random = new Random();
     private final Comparator<InetAddress> inetcomparator = new Comparator<InetAddress>()
@@ -1107,13 +1107,15 @@ public class Gossiper implements IFailureDetectionEventListener, GossiperMBean
             {
                 int localGeneration = localEpStatePtr.getHeartBeatState().getGeneration();
                 int remoteGeneration = remoteState.getHeartBeatState().getGeneration();
+                long localTime = System.currentTimeMillis()/1000;
                 if (logger.isTraceEnabled())
                     logger.trace(ep + "local generation " + localGeneration + ", remote generation " + remoteGeneration);
 
-                if (localGeneration != 0 && remoteGeneration > localGeneration + MAX_GENERATION_DIFFERENCE)
+                // We measure generation drift against local time, based on the fact that generation is initialized by time
+                if (remoteGeneration > localTime + MAX_GENERATION_DIFFERENCE)
                 {
                     // assume some peer has corrupted memory and is broadcasting an unbelievable generation about another peer (or itself)
-                    logger.warn("received an invalid gossip generation for peer {}; local generation = {}, received generation = {}", ep, localGeneration, remoteGeneration);
+                    logger.warn("received an invalid gossip generation for peer {}; local time = {}, received generation = {}", ep, localTime, remoteGeneration);
                 }
                 else if (remoteGeneration > localGeneration)
                 {
