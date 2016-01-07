@@ -56,6 +56,7 @@ public class BulkLoader
     private static final String PASSWD_OPTION = "password";
     private static final String AUTH_PROVIDER_OPTION = "auth-provider";
     private static final String THROTTLE_MBITS = "throttle";
+    private static final String INTER_DC_THROTTLE_MBITS = "inter-dc-throttle";
 
     /* client encryption options */
     private static final String SSL_TRUSTSTORE = "truststore";
@@ -87,6 +88,7 @@ public class BulkLoader
                 handler,
                 options.connectionsPerHost);
         DatabaseDescriptor.setStreamThroughputOutboundMegabitsPerSec(options.throttle);
+        DatabaseDescriptor.setInterDCStreamThroughputOutboundMegabitsPerSec(options.interDcThrottle);
         StreamResultFuture future = null;
 
         ProgressIndicator indicator = new ProgressIndicator();
@@ -313,6 +315,7 @@ public class BulkLoader
         public String authProviderName;
         public AuthProvider authProvider;
         public int throttle = 0;
+        public int interDcThrottle = 0;
         public int storagePort;
         public int sslStoragePort;
         public EncryptionOptions encOptions = new EncryptionOptions.ClientEncryptionOptions();
@@ -443,12 +446,18 @@ public class BulkLoader
                 opts.storagePort = config.storage_port;
                 opts.sslStoragePort = config.ssl_storage_port;
                 opts.throttle = config.stream_throughput_outbound_megabits_per_sec;
+                opts.interDcThrottle = config.inter_dc_stream_throughput_outbound_megabits_per_sec;
                 opts.encOptions = config.client_encryption_options;
                 opts.serverEncOptions = config.server_encryption_options;
 
                 if (cmd.hasOption(THROTTLE_MBITS))
                 {
                     opts.throttle = Integer.parseInt(cmd.getOptionValue(THROTTLE_MBITS));
+                }
+
+                if (cmd.hasOption(INTER_DC_THROTTLE_MBITS))
+                {
+                    opts.interDcThrottle = Integer.parseInt(cmd.getOptionValue(INTER_DC_THROTTLE_MBITS));
                 }
 
                 if (cmd.hasOption(SSL_TRUSTSTORE))
@@ -577,6 +586,7 @@ public class BulkLoader
             options.addOption("d",  INITIAL_HOST_ADDRESS_OPTION, "initial hosts", "Required. try to connect to these hosts (comma separated) initially for ring information");
             options.addOption("p",  NATIVE_PORT_OPTION, "rpc port", "port used for native connection (default 9042)");
             options.addOption("t",  THROTTLE_MBITS, "throttle", "throttle speed in Mbits (default unlimited)");
+            options.addOption("idct",  INTER_DC_THROTTLE_MBITS, "inter-dc-throttle", "inter-datacenter throttle speed in Mbits (default unlimited)");
             options.addOption("u",  USER_OPTION, "username", "username for cassandra authentication");
             options.addOption("pw", PASSWD_OPTION, "password", "password for cassandra authentication");
             options.addOption("ap", AUTH_PROVIDER_OPTION, "auth provider", "custom AuthProvider class name for cassandra authentication");
@@ -604,7 +614,7 @@ public class BulkLoader
                             "you will need to have the files Standard1-g-1-Data.db and Standard1-g-1-Index.db into a directory /path/to/Keyspace1/Standard1/.";
             String footer = System.lineSeparator() +
                             "You can provide cassandra.yaml file with -f command line option to set up streaming throughput, client and server encryption options. " +
-                            "Only stream_throughput_outbound_megabits_per_sec, server_encryption_options and client_encryption_options are read from yaml. " +
+                            "Only stream_throughput_outbound_megabits_per_sec, inter_dc_stream_throughput_outbound_megabits_per_sec, server_encryption_options and client_encryption_options are read from yaml. " +
                             "You can override options read from cassandra.yaml with corresponding command line options.";
             new HelpFormatter().printHelp(usage, header, options, footer);
         }

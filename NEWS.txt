@@ -182,6 +182,13 @@ Operations
       -Dcassandra.ignore_dc=true.
     - Reloading the configuration file of GossipingPropertyFileSnitch has been disabled.
 
+Upgrading
+---------
+    - The default for the inter-DC stream throughput setting
+      (inter_dc_stream_throughput_outbound_megabits_per_sec in cassandra.yaml) is
+      the same than the one for intra-DC one (200Mbps) instead of being unlimited.
+      Having it unlimited was never intended and was a bug.
+
 New features
 ------------
     - Time windows in DTCS are now limited to 1 day by default to be able to
