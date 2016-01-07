@@ -26,6 +26,7 @@ Merged from 2.2:
  * Disable reloading of GossipingPropertyFileSnitch (CASSANDRA-9474)
  * Verify tables in pseudo-system keyspaces at startup (CASSANDRA-10761)
 Merged from 2.1:
+ * Fix pending range calculation during moves (CASSANDRA-10887)
  * Sane default (200Mbps) for inter-DC streaming througput (CASSANDRA-9708)
  * Match cassandra-loader options in COPY FROM (CASSANDRA-9303)
  * Fix binding to any address in CqlBulkRecordWriter (CASSANDRA-9309)

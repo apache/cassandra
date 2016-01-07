@@ -191,9 +191,11 @@ public class Util
         for (int i = hostIdPool.size(); i < howMany; i++)
             hostIdPool.add(UUID.randomUUID());
 
+        boolean endpointTokenPrefilled = endpointTokens != null && !endpointTokens.isEmpty();
         for (int i=0; i<howMany; i++)
         {
-            endpointTokens.add(new BigIntegerToken(String.valueOf(10 * i)));
+            if(!endpointTokenPrefilled)
+                endpointTokens.add(new BigIntegerToken(String.valueOf(10 * i)));
             keyTokens.add(new BigIntegerToken(String.valueOf(10 * i + 5)));
             hostIds.add(hostIdPool.get(i));
         }

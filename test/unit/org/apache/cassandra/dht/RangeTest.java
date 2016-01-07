@@ -18,6 +18,7 @@
 package org.apache.cassandra.dht;
 
 import java.nio.ByteBuffer;
+import java.util.Collection;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashSet;
@@ -29,6 +30,7 @@ import com.google.common.base.Joiner;
 import org.apache.commons.lang3.StringUtils;
 import org.junit.Test;
 
+import org.apache.commons.collections.CollectionUtils;
 import org.apache.cassandra.db.PartitionPosition;
 import org.apache.cassandra.dht.ByteOrderedPartitioner.BytesToken;
 import org.apache.cassandra.dht.RandomPartitioner.BigIntegerToken;
@@ -327,6 +329,59 @@ public class RangeTest
         assert t1.compareTo(t4) == 0;
     }
 
+    private Range<Token> makeRange(long token1, long token2)
+    {
+        return new Range<>(new Murmur3Partitioner.LongToken(token1), new Murmur3Partitioner.LongToken(token2));
+    }
+
+    private void assertRanges(Set<Range<Token>> result, Long ... tokens)
+    {
+        assert tokens.length % 2 ==0;
+
+        final Set<Range<Token>> expected = new HashSet<>();
+        for(int i=0; i < tokens.length; i+=2)
+        {
+            expected.add(makeRange(tokens[i], tokens[i+1]));
+        }
+
+        assert CollectionUtils.isEqualCollection(result, expected);
+
+    }
+
+    @Test
+    public void testSubtractAll()
+    {
+        Range<Token> range = new Range<Token>(new Murmur3Partitioner.LongToken(1L), new Murmur3Partitioner.LongToken(100L));
+
+        Collection<Range<Token>> collection = new HashSet<>();
+        collection.add(makeRange(1L, 10L));
+        assertRanges(range.subtractAll(collection), 10L, 100L);
+        collection.add(makeRange(90L, 100L));
+        assertRanges(range.subtractAll(collection), 10L, 90L);
+        collection.add(makeRange(54L, 60L));
+        assertRanges(range.subtractAll(collection), 10L, 54L, 60L, 90L);
+        collection.add(makeRange(80L, 95L));
+        assertRanges(range.subtractAll(collection), 10L, 54L, 60L, 80L);
+    }
+
+    @Test
+    public void testSubtractAllWithWrapAround()
+    {
+        Range<Token> range = new Range<Token>(new Murmur3Partitioner.LongToken(100L), new Murmur3Partitioner.LongToken(10L));
+
+        Collection<Range<Token>> collection = new HashSet<>();
+        collection.add(makeRange(20L, 30L));
+        assertRanges(range.subtractAll(collection), 100L, 10L);
+        collection.add(makeRange(200L, 500L));
+        assertRanges(range.subtractAll(collection), 100L, 200L, 500L, 10L);
+        collection.add(makeRange(1L, 10L));
+        assertRanges(range.subtractAll(collection), 100L, 200L, 500L, 1L);
+        collection.add(makeRange(0L, 1L));
+        assertRanges(range.subtractAll(collection), 100L, 200L, 500L, 0L);
+        collection.add(makeRange(1000L, 0));
+        assertRanges(range.subtractAll(collection), 100L, 200L, 500L, 1000L);
+    }
+    
     private Range<Token> makeRange(String token1, String token2)
     {
         return new Range<Token>(new BigIntegerToken(token1), new BigIntegerToken(token2));
