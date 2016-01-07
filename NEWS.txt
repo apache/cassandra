@@ -31,7 +31,7 @@ New features
 
 Upgrading
 ---------
-    - Nothing specific to 3.0.3 but please see previous versions upgrading section,
+    - Nothing specific to 3.2 but please see previous versions upgrading section,
       especially if you are upgrading from 2.2.
 
 
