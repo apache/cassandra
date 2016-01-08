@@ -178,11 +178,11 @@ public class CompactionStrategyManager implements INotificationConsumer
         if (!cfs.getPartitioner().splitter().isPresent())
             return 0;
 
-        Directories.DataDirectory[] directories = locations.getWriteableLocations();
-
         List<PartitionPosition> boundaries = StorageService.getDiskBoundaries(cfs, locations.getWriteableLocations());
         if (boundaries == null)
         {
+            Directories.DataDirectory[] directories = locations.getWriteableLocations();
+
             // try to figure out location based on sstable directory:
             for (int i = 0; i < directories.length; i++)
             {
@@ -196,8 +196,6 @@ public class CompactionStrategyManager implements INotificationConsumer
         int pos = Collections.binarySearch(boundaries, sstable.first);
         assert pos < 0; // boundaries are .minkeybound and .maxkeybound so they should never be equal
         return -pos - 1;
-
-
     }
 
     public void shutdown()
