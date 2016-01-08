@@ -32,7 +32,7 @@ import org.apache.cassandra.config.TransparentDataEncryptionOptions;
  */
 public class JKSKeyProvider implements KeyProvider
 {
-    private final Logger logger = LoggerFactory.getLogger(JKSKeyProvider.class);
+    private static final Logger logger = LoggerFactory.getLogger(JKSKeyProvider.class);
     static final String PROP_KEYSTORE = "keystore";
     static final String PROP_KEYSTORE_PW = "keystore_password";
     static final String PROP_KEYSTORE_TYPE = "store_type";
