@@ -291,7 +291,28 @@ public class Range<T extends RingPosition<T>> extends AbstractBounds<T> implemen
         return rhs.differenceToFetch(this);
     }
 
+    public Set<Range<T>> subtractAll(Collection<Range<T>> ranges)
+    {
+        Set<Range<T>> result = new HashSet<>();
+        result.add(this);
+        for(Range<T> range : ranges)
+        {
+            result = substractAllFromToken(result, range);
+        }
 
+        return result;
+    }
+
+    private static <T extends RingPosition<T>> Set<Range<T>> substractAllFromToken(Set<Range<T>> ranges, Range<T> subtract)
+    {
+        Set<Range<T>> result = new HashSet<>();
+        for(Range<T> range : ranges)
+        {
+            result.addAll(range.subtract(subtract));
+        }
+
+        return result;
+    }
     /**
      * Calculate set of the difference ranges of given two ranges
      * (as current (A, B] and rhs is (C, D])
