@@ -46,7 +46,7 @@ import org.apache.cassandra.service.StorageService;
  */
 public abstract class CompactionAwareWriter extends Transactional.AbstractTransactional implements Transactional
 {
-    protected static final Logger logger = LoggerFactory.getLogger(DefaultCompactionWriter.class);
+    protected static final Logger logger = LoggerFactory.getLogger(CompactionAwareWriter.class);
 
     protected final ColumnFamilyStore cfs;
     protected final Directories directories;
