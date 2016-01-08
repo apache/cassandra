@@ -814,14 +814,42 @@ public class TokenMetadata
             // simply add and remove them one by one to allLeftMetadata and check in between what their ranges would be.
             for (Pair<Token, InetAddress> moving : movingEndpoints)
             {
+                //Calculate all the ranges which will could be affected. This will include the ranges before and after the move.
+                Set<Range<Token>> moveAffectedRanges = new HashSet<>();
                 InetAddress endpoint = moving.right; // address of the moving node
-
-                //  moving.left is a new token of the endpoint
-                allLeftMetadata.updateNormalToken(moving.left, endpoint);
-
+                //Add ranges before the move
                 for (Range<Token> range : strategy.getAddressRanges(allLeftMetadata).get(endpoint))
                 {
-                    newPendingRanges.addPendingRange(range, endpoint);
+                    moveAffectedRanges.add(range);
+                }
+
+                allLeftMetadata.updateNormalToken(moving.left, endpoint);
+                //Add ranges after the move
+                for (Range<Token> range : strategy.getAddressRanges(allLeftMetadata).get(endpoint))
+                {
+                    moveAffectedRanges.add(range);
+                }
+
+                for(Range<Token> range : moveAffectedRanges)
+                {
+                    Set<InetAddress> currentEndpoints = ImmutableSet.copyOf(strategy.calculateNaturalEndpoints(range.right, metadata));
+                    Set<InetAddress> newEndpoints = ImmutableSet.copyOf(strategy.calculateNaturalEndpoints(range.right, allLeftMetadata));
+                    Set<InetAddress> difference = Sets.difference(newEndpoints, currentEndpoints);
+                    for(final InetAddress address : difference)
+                    {
+                        Collection<Range<Token>> newRanges = strategy.getAddressRanges(allLeftMetadata).get(address);
+                        Collection<Range<Token>> oldRanges = strategy.getAddressRanges(metadata).get(address);
+                        //We want to get rid of any ranges which the node is currently getting.
+                        newRanges.removeAll(oldRanges);
+
+                        for(Range<Token> newRange : newRanges)
+                        {
+                            for(Range<Token> pendingRange : newRange.subtractAll(oldRanges))
+                            {
+                                newPendingRanges.addPendingRange(pendingRange, address);
+                            }
+                        }
+                    }
                 }
 
                 allLeftMetadata.removeEndpoint(endpoint);
