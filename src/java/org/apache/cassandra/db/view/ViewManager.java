@@ -256,9 +256,9 @@ public class ViewManager
         return forStore;
     }
 
-    public static Lock acquireLockFor(ByteBuffer key)
+    public static Lock acquireLockFor(int keyAndCfidHash)
     {
-        Lock lock = LOCKS.get(key);
+        Lock lock = LOCKS.get(keyAndCfidHash);
 
         if (lock.tryLock())
             return lock;

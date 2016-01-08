@@ -19,6 +19,7 @@ package org.apache.cassandra.db;
 
 import java.io.File;
 import java.io.IOException;
+import java.nio.ByteBuffer;
 import java.util.*;
 import java.util.concurrent.*;
 import java.util.concurrent.atomic.AtomicLong;
@@ -408,46 +409,60 @@ public class Keyspace
         if (TEST_FAIL_WRITES && metadata.name.equals(TEST_FAIL_WRITES_KS))
             throw new RuntimeException("Testing write failures");
 
-        Lock lock = null;
+        Lock[] locks = null;
         boolean requiresViewUpdate = updateIndexes && viewManager.updatesAffectView(Collections.singleton(mutation), false);
 
         if (requiresViewUpdate)
         {
             mutation.viewLockAcquireStart.compareAndSet(0L, System.currentTimeMillis());
-            lock = ViewManager.acquireLockFor(mutation.key().getKey());
 
-            if (lock == null)
+            // the order of lock acquisition doesn't matter (from a deadlock perspective) because we only use tryLock()
+            Collection<UUID> columnFamilyIds = mutation.getColumnFamilyIds();
+            Iterator<UUID> idIterator = columnFamilyIds.iterator();
+            locks = new Lock[columnFamilyIds.size()];
+
+            for (int i = 0; i < columnFamilyIds.size(); i++)
             {
-                if ((System.currentTimeMillis() - mutation.createdAt) > DatabaseDescriptor.getWriteRpcTimeout())
+                UUID cfid = idIterator.next();
+                int lockKey = Objects.hash(mutation.key().getKey(), cfid);
+                Lock lock = ViewManager.acquireLockFor(lockKey);
+                if (lock == null)
                 {
-                    logger.trace("Could not acquire lock for {}", ByteBufferUtil.bytesToHex(mutation.key().getKey()));
-                    Tracing.trace("Could not acquire MV lock");
-                    throw new WriteTimeoutException(WriteType.VIEW, ConsistencyLevel.LOCAL_ONE, 0, 1);
+                    // we will either time out or retry, so release all acquired locks
+                    for (int j = 0; j < i; j++)
+                        locks[j].unlock();
+
+                    if ((System.currentTimeMillis() - mutation.createdAt) > DatabaseDescriptor.getWriteRpcTimeout())
+                    {
+                        logger.trace("Could not acquire lock for {} and table {}", ByteBufferUtil.bytesToHex(mutation.key().getKey()), columnFamilyStores.get(cfid).name);
+                        Tracing.trace("Could not acquire MV lock");
+                        throw new WriteTimeoutException(WriteType.VIEW, ConsistencyLevel.LOCAL_ONE, 0, 1);
+                    }
+                    else
+                    {
+                        // This view update can't happen right now. so rather than keep this thread busy
+                        // we will re-apply ourself to the queue and try again later
+                        StageManager.getStage(Stage.MUTATION).execute(() -> {
+                            if (writeCommitLog)
+                                mutation.apply();
+                            else
+                                mutation.applyUnsafe();
+                        });
+
+                        return;
+                    }
                 }
                 else
                 {
-                    //This view update can't happen right now. so rather than keep this thread busy
-                    // we will re-apply ourself to the queue and try again later
-                    StageManager.getStage(Stage.MUTATION).execute(() -> {
-                        if (writeCommitLog)
-                            mutation.apply();
-                        else
-                            mutation.applyUnsafe();
-                    });
-
-                    return;
+                    locks[i] = lock;
                 }
             }
-            else
+
+            long acquireTime = System.currentTimeMillis() - mutation.viewLockAcquireStart.get();
+            if (!isClReplay)
             {
-                long acquireTime = System.currentTimeMillis() - mutation.viewLockAcquireStart.get();
-                if (!isClReplay)
-                {
-                    for(UUID cfid : mutation.getColumnFamilyIds())
-                    {
-                        columnFamilyStores.get(cfid).metric.viewLockAcquireTime.update(acquireTime, TimeUnit.MILLISECONDS);
-                    }
-                }
+                for(UUID cfid : columnFamilyIds)
+                    columnFamilyStores.get(cfid).metric.viewLockAcquireTime.update(acquireTime, TimeUnit.MILLISECONDS);
             }
         }
         int nowInSec = FBUtilities.nowInSeconds();
@@ -498,8 +513,11 @@ public class Keyspace
         }
         finally
         {
-            if (lock != null)
-                lock.unlock();
+            if (locks != null)
+            {
+                for (Lock lock : locks)
+                    lock.unlock();
+            }
         }
     }
 
