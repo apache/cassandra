@@ -17,6 +17,7 @@
  */
 package org.apache.cassandra.transport;
 
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentMap;
 
 import io.netty.channel.Channel;
@@ -28,8 +29,6 @@ import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.service.ClientState;
 import org.apache.cassandra.service.QueryState;
 
-import org.cliffc.high_scale_lib.NonBlockingHashMap;
-
 public class ServerConnection extends Connection
 {
     private enum State { UNINITIALIZED, AUTHENTICATION, READY }
@@ -38,7 +37,7 @@ public class ServerConnection extends Connection
     private final ClientState clientState;
     private volatile State state;
 
-    private final ConcurrentMap<Integer, QueryState> queryStates = new NonBlockingHashMap<>();
+    private final ConcurrentMap<Integer, QueryState> queryStates = new ConcurrentHashMap<>();
 
     public ServerConnection(Channel channel, int version, Connection.Tracker tracker)
     {

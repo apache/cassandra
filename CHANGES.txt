@@ -1,4 +1,5 @@
 2.1.13
+ * test_bulk_round_trip_blogposts is failing occasionally (CASSANDRA-10938)
  * Fix isJoined return true only after becoming cluster member (CASANDRA-11007)
  * Fix bad gossip generation seen in long-running clusters (CASSANDRA-10969)
  * Avoid NPE when incremental repair fails (CASSANDRA-10909)
