@@ -258,9 +258,9 @@ public class CompactionManager implements CompactionManagerMBean
     private AllSSTableOpStatus parallelAllSSTableOperation(final ColumnFamilyStore cfs, final OneSSTableOperation operation, OperationType operationType) throws ExecutionException, InterruptedException
     {
         List<LifecycleTransaction> transactions = new ArrayList<>();
-        try (LifecycleTransaction compacting = cfs.markAllCompacting(operationType);)
+        try (LifecycleTransaction compacting = cfs.markAllCompacting(operationType))
         {
-            Iterable<SSTableReader> sstables = Lists.newArrayList(operation.filterSSTables(compacting));
+            Iterable<SSTableReader> sstables = compacting != null ? Lists.newArrayList(operation.filterSSTables(compacting)) : Collections.<SSTableReader>emptyList();
             if (Iterables.isEmpty(sstables))
             {
                 logger.info("No sstables for {}.{}", cfs.keyspace.getName(), cfs.name);
