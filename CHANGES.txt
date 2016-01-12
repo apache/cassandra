@@ -1,4 +1,6 @@
 2.2.5
+ * (cqlsh) Also apply --connect-timeout to control connection
+   timeout (CASSANDRA-10959)
  * Histogram buckets exposed in jmx are sorted incorrectly (CASSANDRA-10975)
  * Enable GC logging by default (CASSANDRA-10140)
  * Optimize pending range computation (CASSANDRA-9258)
