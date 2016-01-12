@@ -31,12 +31,6 @@ New features
 
 Upgrading
 ---------
-    - Nothing specific to 3.2 but please see previous versions upgrading section,
-      especially if you are upgrading from 2.2.
-
-
-Upgrading
----------
    - The compression ratio metrics computation has been modified to be more accurate.
    - Running Cassandra as root is prevented by default.
    - JVM options are moved from cassandra-env.(sh|ps1) to jvm.options file
