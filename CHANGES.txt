@@ -1,4 +1,5 @@
 2.2.5
+ * Avoid over-fetching during the page of range queries (CASSANDRA-8521)
  * Start L0 STCS-compactions even if there is a L0 -> L1 compaction
    going (CASSANDRA-10979)
  * Make UUID LSB unique per process (CASSANDRA-7925)

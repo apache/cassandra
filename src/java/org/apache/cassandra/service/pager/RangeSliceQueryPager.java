@@ -72,7 +72,8 @@ public class RangeSliceQueryPager extends AbstractQueryPager
     protected List<Row> queryNextPage(int pageSize, ConsistencyLevel consistencyLevel, boolean localQuery)
     throws RequestExecutionException
     {
-        SliceQueryFilter sf = (SliceQueryFilter)columnFilter;
+        SliceQueryFilter rawFilter = (SliceQueryFilter)columnFilter;
+        SliceQueryFilter sf = rawFilter.withUpdatedCount(Math.min(rawFilter.count, pageSize));
         AbstractBounds<RowPosition> keyRange = lastReturnedKey == null ? command.keyRange : makeIncludingKeyBounds(lastReturnedKey);
         Composite start = lastReturnedName == null ? sf.start() : lastReturnedName;
         PagedRangeCommand pageCmd = new PagedRangeCommand(command.keyspace,
