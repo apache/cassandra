@@ -1,5 +1,7 @@
 3.3
 Merged from 3.0:
+ * (cqlsh) Also apply --connect-timeout to control connection
+   timeout (CASSANDRA-10959)
  * Fix AssertionError when removing from list using UPDATE (CASSANDRA-10954)
  * Fix UnsupportedOperationException when reading old sstable with range
    tombstone (CASSANDRA-10743)
