@@ -852,4 +852,16 @@ public class CollectionsTest extends CQLTester
 
         assertRows(execute("SELECT s FROM %s WHERE k = 0"), row(set(largeText, "v2")));
     }
+
+    @Test
+    public void testRemovalThroughUpdate() throws Throwable
+    {
+        createTable("CREATE TABLE %s (k int PRIMARY KEY, l list<int>)");
+
+         execute("INSERT INTO %s(k, l) VALUES(?, ?)", 0, list(1, 2, 3));
+         assertRows(execute("SELECT * FROM %s"), row(0, list(1, 2, 3)));
+
+         execute("UPDATE %s SET l[0] = null WHERE k=0");
+         assertRows(execute("SELECT * FROM %s"), row(0, list(2, 3)));
+    }
 }

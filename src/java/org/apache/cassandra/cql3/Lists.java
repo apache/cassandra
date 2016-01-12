@@ -358,7 +358,7 @@ public abstract class Lists
 
             if (value == null)
             {
-                params.addTombstone(column);
+                params.addTombstone(column, elementPath);
             }
             else if (value != ByteBufferUtil.UNSET_BYTE_BUFFER)
             {
