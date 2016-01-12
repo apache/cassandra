@@ -11,6 +11,18 @@ Merged from 3.0:
    tombstone (CASSANDRA-10743)
  * MV should use the maximum timestamp of the primary key (CASSANDRA-10910)
  * Fix potential assertion error during compaction (CASSANDRA-10944)
+Merged from 2.2:
+ * Histogram buckets exposed in jmx are sorted incorrectly (CASSANDRA-10975)
+ * Enable GC logging by default (CASSANDRA-10140)
+ * Optimize pending range computation (CASSANDRA-9258)
+ * Skip commit log and saved cache directories in SSTable version startup check (CASSANDRA-10902)
+ * drop/alter user should be case sensitive (CASSANDRA-10817)
+Merged from 2.1:
+ * If CompactionMetadata is not in stats file, use index summary instead (CASSANDRA-10676)
+ * Retry sending gossip syn multiple times during shadow round (CASSANDRA-8072)
+ * Fix pending range calculation during moves (CASSANDRA-10887)
+ * Sane default (200Mbps) for inter-DC streaming througput (CASSANDRA-8708)
+
 
 
 3.2
@@ -53,19 +65,11 @@ Merged from 3.0:
  * (Hadoop) Close Clusters and Sessions in Hadoop Input/Output classes (CASSANDRA-10837)
  * Fix sstableloader not working with upper case keyspace name (CASSANDRA-10806)
 Merged from 2.2:
- * Histogram buckets exposed in jmx are sorted incorrectly (CASSANDRA-10975)
- * Enable GC logging by default (CASSANDRA-10140)
- * Optimize pending range computation (CASSANDRA-9258)
- * Skip commit log and saved cache directories in SSTable version startup check (CASSANDRA-10902)
- * drop/alter user should be case sensitive (CASSANDRA-10817)
  * jemalloc detection fails due to quoting issues in regexv (CASSANDRA-10946)
  * (cqlsh) show correct column names for empty result sets (CASSANDRA-9813)
  * Add new types to Stress (CASSANDRA-9556)
  * Add property to allow listening on broadcast interface (CASSANDRA-9748)
 Merged from 2.1:
- * Retry sending gossip syn multiple times during shadow round (CASSANDRA-8072)
- * Fix pending range calculation during moves (CASSANDRA-10887)
- * Sane default (200Mbps) for inter-DC streaming througput (CASSANDRA-9708)
  * Match cassandra-loader options in COPY FROM (CASSANDRA-9303)
  * Fix binding to any address in CqlBulkRecordWriter (CASSANDRA-9309)
  * cqlsh fails to decode utf-8 characters for text typed columns (CASSANDRA-10875)
