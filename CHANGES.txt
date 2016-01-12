@@ -1,4 +1,5 @@
 2.1.13
+ * Avoid NPE when incremental repair fails (CASSANDRA-10909)
  * Unmark sstables compacting once they are done in cleanup/scrub/upgradesstables (CASSANDRA-10829)
  * Revert CASSANDRA-10012 and add more logging (CASSANDRA-10961)
  * Allow simultaneous bootstrapping with strict consistency when no vnodes are used (CASSANDRA-11005)

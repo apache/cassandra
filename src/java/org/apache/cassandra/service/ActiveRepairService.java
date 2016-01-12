@@ -428,15 +428,17 @@ public class ActiveRepairService
     {
         public final Map<UUID, ColumnFamilyStore> columnFamilyStores = new HashMap<>();
         public final Collection<Range<Token>> ranges;
-        public final Map<UUID, Set<SSTableReader>> sstableMap;
+        public final Map<UUID, Set<SSTableReader>> sstableMap = new HashMap<>();
         public final long repairedAt;
 
         public ParentRepairSession(List<ColumnFamilyStore> columnFamilyStores, Collection<Range<Token>> ranges, long repairedAt)
         {
             for (ColumnFamilyStore cfs : columnFamilyStores)
+            {
                 this.columnFamilyStores.put(cfs.metadata.cfId, cfs);
+                sstableMap.put(cfs.metadata.cfId, new HashSet<SSTableReader>());
+            }
             this.ranges = ranges;
-            this.sstableMap = new HashMap<>();
             this.repairedAt = repairedAt;
         }
 
@@ -466,11 +468,7 @@ public class ActiveRepairService
 
         public void addSSTables(UUID cfId, Collection<SSTableReader> sstables)
         {
-            Set<SSTableReader> existingSSTables = this.sstableMap.get(cfId);
-            if (existingSSTables == null)
-                existingSSTables = new HashSet<>();
-            existingSSTables.addAll(sstables);
-            this.sstableMap.put(cfId, existingSSTables);
+            sstableMap.get(cfId).addAll(sstables);
         }
 
         @Override
