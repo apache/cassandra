@@ -32,6 +32,7 @@ import org.apache.cassandra.utils.FBUtilities;
 import static org.apache.cassandra.Util.throwAssert;
 import static org.apache.cassandra.cql3.statements.IndexTarget.CUSTOM_INDEX_OPTION_NAME;
 import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertNotNull;
 import static org.junit.Assert.assertTrue;
 import static org.junit.Assert.fail;
 
@@ -504,6 +505,28 @@ public class CustomIndexTest extends CQLTester
             assertEquals(index.rowsDeleted.get(i).clustering(), index.rowsInserted.get(i).clustering());
     }
 
+    @Test
+    public void validateOptions() throws Throwable
+    {
+        createTable("CREATE TABLE %s(k int, c int, v1 int, v2 int, PRIMARY KEY(k,c))");
+        createIndex(String.format("CREATE CUSTOM INDEX ON %%s(c, v2) USING '%s' WITH OPTIONS = {'foo':'bar'}",
+                                  IndexWithValidateOptions.class.getName()));
+        assertNotNull(IndexWithValidateOptions.options);
+        assertEquals("bar", IndexWithValidateOptions.options.get("foo"));
+    }
+
+    @Test
+    public void validateOptionsWithCFMetaData() throws Throwable
+    {
+        createTable("CREATE TABLE %s(k int, c int, v1 int, v2 int, PRIMARY KEY(k,c))");
+        createIndex(String.format("CREATE CUSTOM INDEX ON %%s(c, v2) USING '%s' WITH OPTIONS = {'foo':'bar'}",
+                                  IndexWithOverloadedValidateOptions.class.getName()));
+        CFMetaData cfm = getCurrentColumnFamilyStore().metadata;
+        assertEquals(cfm, IndexWithOverloadedValidateOptions.cfm);
+        assertNotNull(IndexWithOverloadedValidateOptions.options);
+        assertEquals("bar", IndexWithOverloadedValidateOptions.options.get("foo"));
+    }
+
     private void testCreateIndex(String indexName, String... targetColumnNames) throws Throwable
     {
         createIndex(String.format("CREATE CUSTOM INDEX %s ON %%s(%s) USING '%s'",
@@ -670,6 +693,40 @@ public class CustomIndexTest extends CQLTester
         public Searcher searcherFor(ReadCommand command) throws InvalidRequestException
         {
             throw new InvalidRequestException("None shall pass");
+        }
+    }
+
+    public static final class IndexWithValidateOptions extends StubIndex
+    {
+        public static Map<String, String> options;
+
+        public IndexWithValidateOptions(ColumnFamilyStore baseCfs, IndexMetadata metadata)
+        {
+            super(baseCfs, metadata);
+        }
+
+        public static Map<String, String> validateOptions(Map<String, String> options)
+        {
+            IndexWithValidateOptions.options = options;
+            return new HashMap<>();
+        }
+    }
+
+    public static final class IndexWithOverloadedValidateOptions extends StubIndex
+    {
+        public static CFMetaData cfm;
+        public static Map<String, String> options;
+
+        public IndexWithOverloadedValidateOptions(ColumnFamilyStore baseCfs, IndexMetadata metadata)
+        {
+            super(baseCfs, metadata);
+        }
+
+        public static Map<String, String> validateOptions(Map<String, String> options, CFMetaData cfm)
+        {
+            IndexWithOverloadedValidateOptions.options = options;
+            IndexWithOverloadedValidateOptions.cfm = cfm;
+            return new HashMap<>();
         }
     }
 }

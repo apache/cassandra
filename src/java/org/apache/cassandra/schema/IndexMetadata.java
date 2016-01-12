@@ -138,7 +138,7 @@ public final class IndexMetadata
             return (cfName + "_" + root + "_idx").replaceAll("\\W", "");
     }
 
-    public void validate()
+    public void validate(CFMetaData cfm)
     {
         if (!isNameValid(name))
             throw new ConfigurationException("Illegal index name " + name);
@@ -155,11 +155,14 @@ public final class IndexMetadata
             Class<Index> indexerClass = FBUtilities.classForName(className, "custom indexer");
             if(!Index.class.isAssignableFrom(indexerClass))
                 throw new ConfigurationException(String.format("Specified Indexer class (%s) does not implement the Indexer interface", className));
-            validateCustomIndexOptions(indexerClass, options);
+            validateCustomIndexOptions(cfm, indexerClass, options);
         }
     }
 
-    private void validateCustomIndexOptions(Class<? extends Index> indexerClass, Map<String, String> options) throws ConfigurationException
+    private void validateCustomIndexOptions(CFMetaData cfm,
+                                            Class<? extends Index> indexerClass,
+                                            Map<String, String> options)
+    throws ConfigurationException
     {
         try
         {
@@ -169,7 +172,16 @@ public final class IndexMetadata
             if (filteredOptions.isEmpty())
                 return;
 
-            Map<?,?> unknownOptions = (Map) indexerClass.getMethod("validateOptions", Map.class).invoke(null, filteredOptions);
+            Map<?,?> unknownOptions;
+            try
+            {
+                unknownOptions = (Map) indexerClass.getMethod("validateOptions", Map.class, CFMetaData.class).invoke(null, filteredOptions, cfm);
+            }
+            catch (NoSuchMethodException e)
+            {
+                unknownOptions = (Map) indexerClass.getMethod("validateOptions", Map.class).invoke(null, filteredOptions);
+            }
+
             if (!unknownOptions.isEmpty())
                 throw new ConfigurationException(String.format("Properties specified %s are not understood by %s", unknownOptions.keySet(), indexerClass.getSimpleName()));
         }
