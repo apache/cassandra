@@ -1,7 +1,8 @@
 2.1.13
+ * If CompactionMetadata is not in stats file, use index summary instead (CASSANDRA-10676)
  * Retry sending gossip syn multiple times during shadow round (CASSANDRA-8072)
  * Fix pending range calculation during moves (CASSANDRA-10887)
- * Sane default (200Mbps) for inter-DC streaming througput (CASSANDRA-9708)
+ * Sane default (200Mbps) for inter-DC streaming througput (CASSANDRA-8708)
  * Match cassandra-loader options in COPY FROM (CASSANDRA-9303)
  * Fix binding to any address in CqlBulkRecordWriter (CASSANDRA-9309)
  * Fix the way we replace sstables after anticompaction (CASSANDRA-10831)
