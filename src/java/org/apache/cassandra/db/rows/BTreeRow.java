@@ -549,12 +549,19 @@ public class BTreeRow extends AbstractRow
                 // TODO: relax this in the case our outer provider is sorted (want to delay until remaining changes are
                 // bedded in, as less important; galloping makes it pretty cheap anyway)
                 Arrays.sort(cells, lb, ub, (Comparator<Object>) column.cellComparator());
-                cell = (Cell) cells[lb];
                 DeletionTime deletion = DeletionTime.LIVE;
-                if (cell instanceof ComplexColumnDeletion)
+                // Deal with complex deletion (for which we've use "fake" ComplexColumnDeletion cells that we need to remove).
+                // Note that in almost all cases we'll at most one of those fake cell, but the contract of {{Row.Builder.addComplexDeletion}}
+                // does not forbid it being called twice (especially in the unsorted case) and this can actually happen when reading
+                // legacy sstables (see #10743).
+                while (lb < ub)
                 {
-                    // TODO: do we need to be robust to multiple of these being provided?
-                    deletion = new DeletionTime(cell.timestamp(), cell.localDeletionTime());
+                    cell = (Cell) cells[lb];
+                    if (!(cell instanceof ComplexColumnDeletion))
+                        break;
+
+                    if (cell.timestamp() > deletion.markedForDeleteAt())
+                        deletion = new DeletionTime(cell.timestamp(), cell.localDeletionTime());
                     lb++;
                 }
 
