@@ -142,7 +142,6 @@ from cassandra.cluster import Cluster
 from cassandra.metadata import (ColumnMetadata, KeyspaceMetadata,
                                 TableMetadata, protect_name, protect_names)
 from cassandra.policies import WhiteListRoundRobinPolicy
-from cassandra.protocol import ResultMessage
 from cassandra.query import SimpleStatement, ordered_dict_factory, TraceUnavailable
 
 # cqlsh should run correctly when run out of a Cassandra source tree,
@@ -689,6 +688,7 @@ class Shell(cmd.Cmd):
                                 auth_provider=self.auth_provider,
                                 ssl_options=sslhandling.ssl_settings(hostname, CONFIG_FILE) if ssl else None,
                                 load_balancing_policy=WhiteListRoundRobinPolicy([self.hostname]),
+                                control_connection_timeout=connect_timeout,
                                 connect_timeout=connect_timeout)
         self.owns_connection = not use_conn
         self.set_expanded_cql_version(cqlver)
@@ -1239,7 +1239,7 @@ class Shell(cmd.Cmd):
     def perform_simple_statement(self, statement):
         if not statement:
             return False, None
-        rows = None
+
         while True:
             try:
                 future = self.session.execute_async(statement, trace=self.tracing_enabled)
@@ -2118,6 +2118,7 @@ class Shell(cmd.Cmd):
                        auth_provider=auth_provider,
                        ssl_options=self.conn.ssl_options,
                        load_balancing_policy=WhiteListRoundRobinPolicy([self.hostname]),
+                       control_connection_timeout=self.conn.connect_timeout,
                        connect_timeout=self.conn.connect_timeout)
 
         if self.current_keyspace:
