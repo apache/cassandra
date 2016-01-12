@@ -6,6 +6,8 @@
 
 3.3
 Merged from 3.0:
+ * Fix UnsupportedOperationException when reading old sstable with range
+   tombstone (CASSANDRA-10743)
  * MV should use the maximum timestamp of the primary key (CASSANDRA-10910)
  * Fix potential assertion error during compaction (CASSANDRA-10944)
 
