@@ -15,6 +15,8 @@
  * (Hadoop) Close Clusters and Sessions in Hadoop Input/Output classes (CASSANDRA-10837)
  * Fix sstableloader not working with upper case keyspace name (CASSANDRA-10806)
 Merged from 2.2:
+ * (cqlsh) Also apply --connect-timeout to control connection
+   timeout (CASSANDRA-10959)
  * Histogram buckets exposed in jmx are sorted incorrectly (CASSANDRA-10975)
  * Enable GC logging by default (CASSANDRA-10140)
  * Optimize pending range computation (CASSANDRA-9258)
