@@ -1,4 +1,5 @@
 2.2.5
+ * Make sure client gets tombstone overwhelmed warning (CASSANDRA-9465)
  * Fix error streaming section more than 2GB (CASSANDRA-10961)
  * (cqlsh) Also apply --connect-timeout to control connection
    timeout (CASSANDRA-10959)

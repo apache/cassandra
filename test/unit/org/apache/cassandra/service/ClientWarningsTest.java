@@ -24,6 +24,8 @@ import org.junit.Test;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.cql3.QueryOptions;
 import org.apache.cassandra.cql3.CQLTester;
+import org.apache.cassandra.db.ColumnFamilyStore;
+import org.apache.cassandra.db.Keyspace;
 import org.apache.cassandra.dht.ByteOrderedPartitioner;
 import org.apache.cassandra.transport.Message;
 import org.apache.cassandra.transport.Server;
@@ -75,6 +77,47 @@ public class ClientWarningsTest extends CQLTester
             QueryMessage query = new QueryMessage(createBatchStatement(DatabaseDescriptor.getBatchSizeWarnThreshold()), QueryOptions.DEFAULT);
             Message.Response resp = client.execute(query);
             assertEquals(1, resp.getWarnings().size());
+        }
+    }
+
+    @Test
+    public void testTombstoneWarning() throws Exception
+    {
+        final int iterations = 10000;
+        createTable("CREATE TABLE %s (pk int, ck int, v int, PRIMARY KEY (pk, ck))");
+
+        try (SimpleClient client = new SimpleClient(nativeAddr.getHostAddress(), nativePort, Server.VERSION_4))
+        {
+            client.connect(false);
+
+            for (int i = 0; i < iterations; i++)
+            {
+                QueryMessage query = new QueryMessage(String.format("INSERT INTO %s.%s (pk, ck, v) VALUES (1, %s, 1)",
+                                                                    KEYSPACE,
+                                                                    currentTable(),
+                                                                    i), QueryOptions.DEFAULT);
+                client.execute(query);
+            }
+            ColumnFamilyStore store = Keyspace.open(KEYSPACE).getColumnFamilyStore(currentTable());
+            store.forceBlockingFlush();
+
+            for (int i = 0; i < iterations; i++)
+            {
+                QueryMessage query = new QueryMessage(String.format("DELETE v FROM %s.%s WHERE pk = 1 AND ck = %s",
+                                                                    KEYSPACE,
+                                                                    currentTable(),
+                                                                    i), QueryOptions.DEFAULT);
+                client.execute(query);
+            }
+            store.forceBlockingFlush();
+
+            {
+                QueryMessage query = new QueryMessage(String.format("SELECT * FROM %s.%s WHERE pk = 1",
+                                                                    KEYSPACE,
+                                                                    currentTable()), QueryOptions.DEFAULT);
+                Message.Response resp = client.execute(query);
+                assertEquals(1, resp.getWarnings().size());
+            }
         }
     }
 

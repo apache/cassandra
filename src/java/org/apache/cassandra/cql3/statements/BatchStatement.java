@@ -273,7 +273,7 @@ public class BatchStatement implements CQLStatement
             {
                 logger.warn(format, ksCfPairs, size, warnThreshold, size - warnThreshold, "");
             }
-            ClientWarn.warn(MessageFormatter.arrayFormat(format, new Object[] {ksCfPairs, size, warnThreshold, size - warnThreshold, ""}).getMessage());
+            ClientWarn.instance.warn(MessageFormatter.arrayFormat(format, new Object[]{ ksCfPairs, size, warnThreshold, size - warnThreshold, "" }).getMessage());
         }
     }
 
@@ -305,8 +305,13 @@ public class BatchStatement implements CQLStatement
                              keySet.size(), keySet.size() == 1 ? "" : "s",
                              ksCfPairs.size() == 1 ? "" : "s", ksCfPairs);
 
-            ClientWarn.warn(MessageFormatter.arrayFormat(unloggedBatchWarning, new Object[]{keySet.size(), keySet.size() == 1 ? "" : "s",
-                                                    ksCfPairs.size() == 1 ? "" : "s", ksCfPairs}).getMessage());
+            ClientWarn.instance.warn(MessageFormatter.arrayFormat(unloggedBatchWarning,
+                                                                  new Object[]{
+                                                                              keySet.size(),
+                                                                              keySet.size() == 1 ? "" : "s",
+                                                                              ksCfPairs.size() == 1 ? "" : "s",
+                                                                              ksCfPairs
+                                                                  }).getMessage());
 
         }
     }

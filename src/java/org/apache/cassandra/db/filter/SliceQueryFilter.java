@@ -303,7 +303,7 @@ public class SliceQueryFilter implements IDiskAtomFilter
                                        container.metadata().getKeyValidator().getString(key.getKey()),
                                        count,
                                        getSlicesInfo(container));
-            ClientWarn.warn(msg);
+            ClientWarn.instance.warn(msg);
             logger.warn(msg);
         }
         Tracing.trace("Read {} live and {} tombstone cells{}",

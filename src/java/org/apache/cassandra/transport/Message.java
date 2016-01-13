@@ -499,14 +499,14 @@ public abstract class Message
                 assert request.connection() instanceof ServerConnection;
                 connection = (ServerConnection)request.connection();
                 if (connection.getVersion() >= Server.VERSION_4)
-                    ClientWarn.captureWarnings();
+                    ClientWarn.instance.captureWarnings();
 
                 QueryState qstate = connection.validateNewMessage(request.type, connection.getVersion(), request.getStreamId());
 
                 logger.trace("Received: {}, v={}", request, connection.getVersion());
                 response = request.execute(qstate);
                 response.setStreamId(request.getStreamId());
-                response.setWarnings(ClientWarn.getWarnings());
+                response.setWarnings(ClientWarn.instance.getWarnings());
                 response.attach(connection);
                 connection.applyStateTransition(request.type, response.type);
             }
@@ -519,7 +519,7 @@ public abstract class Message
             }
             finally
             {
-                ClientWarn.resetWarnings();
+                ClientWarn.instance.resetWarnings();
             }
 
             logger.trace("Responding: {}, v={}", response, connection.getVersion());
