@@ -355,7 +355,7 @@ public abstract class UDFunction extends AbstractFunction implements ScalarFunct
                     // log and emit a warning that UDF execution took long
                     String warn = String.format("User defined function %s ran longer than %dms", this, DatabaseDescriptor.getUserDefinedFunctionWarnTimeout());
                     logger.warn(warn);
-                    ClientWarn.warn(warn);
+                    ClientWarn.instance.warn(warn);
                 }
 
             // retry with difference of warn-timeout to fail-timeout
