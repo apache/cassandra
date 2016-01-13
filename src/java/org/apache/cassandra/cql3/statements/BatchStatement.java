@@ -242,8 +242,8 @@ public class BatchStatement implements CQLStatement
             String suffix = tablesWithZeroGcGs.size() == 1 ? "" : "s";
             NoSpamLogger.log(logger, NoSpamLogger.Level.WARN, 1, TimeUnit.MINUTES, LOGGED_BATCH_LOW_GCGS_WARNING,
                              suffix, tablesWithZeroGcGs);
-            ClientWarn.warn(MessageFormatter.arrayFormat(LOGGED_BATCH_LOW_GCGS_WARNING, new Object[] { suffix, tablesWithZeroGcGs })
-                                            .getMessage());
+            ClientWarn.instance.warn(MessageFormatter.arrayFormat(LOGGED_BATCH_LOW_GCGS_WARNING, new Object[] { suffix, tablesWithZeroGcGs })
+                                                     .getMessage());
         }
 
         collector.validateIndexedColumns();
@@ -288,7 +288,7 @@ public class BatchStatement implements CQLStatement
             {
                 logger.warn(format, tableNames, size, warnThreshold, size - warnThreshold, "");
             }
-            ClientWarn.warn(MessageFormatter.arrayFormat(format, new Object[] {tableNames, size, warnThreshold, size - warnThreshold, ""}).getMessage());
+            ClientWarn.instance.warn(MessageFormatter.arrayFormat(format, new Object[] {tableNames, size, warnThreshold, size - warnThreshold, ""}).getMessage());
         }
     }
 
@@ -319,9 +319,8 @@ public class BatchStatement implements CQLStatement
                              keySet.size(), keySet.size() == 1 ? "" : "s",
                              tableNames.size() == 1 ? "" : "s", tableNames);
 
-            ClientWarn.warn(MessageFormatter.arrayFormat(UNLOGGED_BATCH_WARNING, new Object[]{keySet.size(), keySet.size() == 1 ? "" : "s",
+            ClientWarn.instance.warn(MessageFormatter.arrayFormat(UNLOGGED_BATCH_WARNING, new Object[]{keySet.size(), keySet.size() == 1 ? "" : "s",
                                                     tableNames.size() == 1 ? "" : "s", tableNames}).getMessage());
-
         }
     }
 

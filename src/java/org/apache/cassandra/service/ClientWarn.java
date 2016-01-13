@@ -20,54 +20,68 @@ package org.apache.cassandra.service;
 import java.util.ArrayList;
 import java.util.List;
 
+import org.apache.cassandra.concurrent.ExecutorLocal;
 import org.apache.cassandra.utils.FBUtilities;
 
-public class ClientWarn
+public class ClientWarn implements ExecutorLocal<ClientWarn.State>
 {
     private static final String TRUNCATED = " [truncated]";
-    private static final ThreadLocal<ClientWarn> warnLocal = new ThreadLocal<>();
-
-    private final List<String> warnings = new ArrayList<>();
+    private static final ThreadLocal<ClientWarn.State> warnLocal = new ThreadLocal<>();
+    public static ClientWarn instance = new ClientWarn();
 
     private ClientWarn()
     {
     }
 
-    public static void warn(String text)
-    {
-        ClientWarn warner = warnLocal.get();
-        if (warner != null)
-            warner.add(text);
+    public State get() {
+        return warnLocal.get();
     }
 
-    private void add(String warning)
-    {
-        if (warnings.size() < FBUtilities.MAX_UNSIGNED_SHORT)
-            warnings.add(maybeTruncate(warning));
+    public void set(State value) {
+        warnLocal.set(value);
     }
 
-    private static String maybeTruncate(String warning)
+    public void warn(String text)
     {
-        return warning.length() > FBUtilities.MAX_UNSIGNED_SHORT
-             ? warning.substring(0, FBUtilities.MAX_UNSIGNED_SHORT - TRUNCATED.length()) + TRUNCATED
-             : warning;
+        State state = warnLocal.get();
+        if (state != null)
+            state.add(text);
     }
 
-    public static void captureWarnings()
+    public void captureWarnings()
     {
-        warnLocal.set(new ClientWarn());
+        warnLocal.set(new State());
     }
 
-    public static List<String> getWarnings()
+    public List<String> getWarnings()
     {
-        ClientWarn warner = warnLocal.get();
-        if (warner == null || warner.warnings.isEmpty())
+        State state = warnLocal.get();
+        if (state == null || state.warnings.isEmpty())
             return null;
-        return warner.warnings;
+        return state.warnings;
     }
 
-    public static void resetWarnings()
+    public void resetWarnings()
     {
         warnLocal.remove();
+    }
+
+    public static class State
+    {
+        private final List<String> warnings = new ArrayList<>();
+
+        private void add(String warning)
+        {
+            if (warnings.size() < FBUtilities.MAX_UNSIGNED_SHORT)
+                warnings.add(maybeTruncate(warning));
+        }
+
+        private static String maybeTruncate(String warning)
+        {
+            return warning.length() > FBUtilities.MAX_UNSIGNED_SHORT
+                   ? warning.substring(0, FBUtilities.MAX_UNSIGNED_SHORT - TRUNCATED.length()) + TRUNCATED
+                   : warning;
+        }
+
     }
 }
