@@ -2437,7 +2437,7 @@ public class UFTest extends CQLTester
                 // don't kill the unit test... - default policy is "die"
                 DatabaseDescriptor.setUserFunctionTimeoutPolicy(Config.UserFunctionTimeoutPolicy.ignore);
 
-                ClientWarn.captureWarnings();
+                ClientWarn.instance.captureWarnings();
                 String fName = createFunction(KEYSPACE_PER_TEST, "double",
                                               "CREATE OR REPLACE FUNCTION %s(val double) " +
                                               "RETURNS NULL ON NULL INPUT " +
@@ -2445,10 +2445,10 @@ public class UFTest extends CQLTester
                                               "LANGUAGE JAVA\n" +
                                               "AS 'long t=System.currentTimeMillis()+110; while (t>System.currentTimeMillis()) { }; return 0d;'");
                 execute("SELECT " + fName + "(dval) FROM %s WHERE key=1");
-                List<String> warnings = ClientWarn.getWarnings();
+                List<String> warnings = ClientWarn.instance.getWarnings();
                 Assert.assertNotNull(warnings);
                 Assert.assertFalse(warnings.isEmpty());
-                ClientWarn.resetWarnings();
+                ClientWarn.instance.resetWarnings();
 
                 // Java UDF
 

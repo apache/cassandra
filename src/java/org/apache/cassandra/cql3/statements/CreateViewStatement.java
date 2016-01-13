@@ -169,7 +169,7 @@ public class CreateViewStatement extends SchemaAlteringStatement
                 throw new InvalidRequestException("Unknown column name detected in CREATE MATERIALIZED VIEW statement : "+identifier);
 
             if (cdef.isStatic())
-                ClientWarn.warn(String.format("Unable to include static column '%s' in Materialized View SELECT statement", identifier));
+                ClientWarn.instance.warn(String.format("Unable to include static column '%s' in Materialized View SELECT statement", identifier));
             else
                 included.add(identifier);
         }
