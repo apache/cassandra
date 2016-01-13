@@ -21,6 +21,7 @@ Merged from 2.2:
  * Skip commit log and saved cache directories in SSTable version startup check (CASSANDRA-10902)
  * drop/alter user should be case sensitive (CASSANDRA-10817)
 Merged from 2.1:
+ * Avoid AssertionError while submitting hint with LWT (CASSANDRA-10477)
  * If CompactionMetadata is not in stats file, use index summary instead (CASSANDRA-10676)
  * Retry sending gossip syn multiple times during shadow round (CASSANDRA-8072)
  * Fix pending range calculation during moves (CASSANDRA-10887)
