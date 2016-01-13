@@ -166,6 +166,7 @@ DEFAULT_PORT = 9042
 DEFAULT_CQLVER = '3.4.0'
 DEFAULT_PROTOCOL_VERSION = 4
 DEFAULT_CONNECT_TIMEOUT_SECONDS = 5
+DEFAULT_REQUEST_TIMEOUT_SECONDS = 10
 
 DEFAULT_FLOAT_PRECISION = 5
 DEFAULT_MAX_TRACE_WAIT = 10
@@ -210,6 +211,8 @@ parser.add_option('--cqlversion', default=DEFAULT_CQLVER,
 parser.add_option("-e", "--execute", help='Execute the statement and quit.')
 parser.add_option("--connect-timeout", default=DEFAULT_CONNECT_TIMEOUT_SECONDS, dest='connect_timeout',
                   help='Specify the connection timeout in seconds (default: %default seconds).')
+parser.add_option("--request-timeout", default=DEFAULT_REQUEST_TIMEOUT_SECONDS, dest='request_timeout',
+                  help='Specify the default request timeout in seconds (default: %default seconds).')
 parser.add_option("-t", "--tty", action='store_true', dest='tty',
                   help='Force tty mode (command prompt).')
 
@@ -663,7 +666,7 @@ class Shell(cmd.Cmd):
                  max_trace_wait=DEFAULT_MAX_TRACE_WAIT,
                  ssl=False,
                  single_statement=None,
-                 client_timeout=10,
+                 request_timeout=DEFAULT_REQUEST_TIMEOUT_SECONDS,
                  protocol_version=DEFAULT_PROTOCOL_VERSION,
                  connect_timeout=DEFAULT_CONNECT_TIMEOUT_SECONDS):
         cmd.Cmd.__init__(self, completekey=completekey)
@@ -713,7 +716,7 @@ class Shell(cmd.Cmd):
         if not self.conn.metadata.keyspaces:
             self.refresh_schema_metadata_best_effort()
 
-        self.session.default_timeout = client_timeout
+        self.session.default_timeout = request_timeout
         self.session.row_factory = ordered_dict_factory
         self.session.default_consistency_level = cassandra.ConsistencyLevel.ONE
         self.get_connection_versions()
@@ -2395,6 +2398,7 @@ def read_options(cmdlineargs, environment):
     optvalues.tty = option_with_default(configs.getboolean, 'ui', 'tty', sys.stdin.isatty())
     optvalues.cqlversion = option_with_default(configs.get, 'cql', 'version', DEFAULT_CQLVER)
     optvalues.connect_timeout = option_with_default(configs.getint, 'connection', 'timeout', DEFAULT_CONNECT_TIMEOUT_SECONDS)
+    optvalues.request_timeout = option_with_default(configs.getint, 'connection', 'request_timeout', DEFAULT_REQUEST_TIMEOUT_SECONDS)
     optvalues.execute = None
 
     (options, arguments) = parser.parse_args(cmdlineargs, values=optvalues)
@@ -2405,14 +2409,14 @@ def read_options(cmdlineargs, environment):
     try:
         options.connect_timeout = int(options.connect_timeout)
     except ValueError:
-        parser.error('"%s" is not a valid timeout.' % (options.connect_timeout,))
+        parser.error('"%s" is not a valid connect timeout.' % (options.connect_timeout,))
         options.connect_timeout = DEFAULT_CONNECT_TIMEOUT_SECONDS
 
-    options.client_timeout = option_with_default(configs.get, 'connection', 'client_timeout', '10')
-    if options.client_timeout.lower() == 'none':
-        options.client_timeout = None
-    else:
-        options.client_timeout = int(options.client_timeout)
+    try:
+        options.request_timeout = int(options.request_timeout)
+    except ValueError:
+        parser.error('"%s" is not a valid request timeout.' % (options.request_timeout,))
+        options.request_timeout = DEFAULT_REQUEST_TIMEOUT_SECONDS
 
     hostname = environment.get('CQLSH_HOST', hostname)
     port = environment.get('CQLSH_PORT', port)
@@ -2522,7 +2526,7 @@ def main(options, hostname, port):
                       max_trace_wait=options.max_trace_wait,
                       ssl=options.ssl,
                       single_statement=options.execute,
-                      client_timeout=options.client_timeout,
+                      request_timeout=options.request_timeout,
                       connect_timeout=options.connect_timeout,
                       encoding=options.encoding)
     except KeyboardInterrupt:
