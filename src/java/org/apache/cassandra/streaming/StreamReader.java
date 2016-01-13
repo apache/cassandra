@@ -62,6 +62,7 @@ public class StreamReader
     protected final SSTableFormat.Type format;
     protected final int sstableLevel;
     protected final SerializationHeader.Component header;
+    protected final int fileSeqNum;
 
     public StreamReader(FileMessageHeader header, StreamSession session)
     {
@@ -74,6 +75,7 @@ public class StreamReader
         this.format = header.format;
         this.sstableLevel = header.sstableLevel;
         this.header = header.header;
+        this.fileSeqNum = header.sequenceNumber;
     }
 
     /**
@@ -84,16 +86,22 @@ public class StreamReader
     @SuppressWarnings("resource") // channel needs to remain open, streams on top of it can't be closed
     public SSTableMultiWriter read(ReadableByteChannel channel) throws IOException
     {
-        logger.debug("reading file from {}, repairedAt = {}, level = {}", session.peer, repairedAt, sstableLevel);
         long totalSize = totalSize();
 
         Pair<String, String> kscf = Schema.instance.getCF(cfId);
-        if (kscf == null)
+        ColumnFamilyStore cfs = null;
+        if (kscf != null)
+            cfs = Keyspace.open(kscf.left).getColumnFamilyStore(kscf.right);
+
+        if (kscf == null || cfs == null)
         {
             // schema was dropped during streaming
             throw new IOException("CF " + cfId + " was dropped during streaming");
         }
-        ColumnFamilyStore cfs = Keyspace.open(kscf.left).getColumnFamilyStore(kscf.right);
+
+        logger.debug("[Stream #{}] Start receiving file #{} from {}, repairedAt = {}, size = {}, ks = '{}', table = '{}'.",
+                     session.planId(), fileSeqNum, session.peer, repairedAt, totalSize, cfs.keyspace.getName(),
+                     cfs.getColumnFamilyName());
 
         DataInputStream dis = new DataInputStream(new LZFInputStream(Channels.newInputStream(channel)));
         BytesReadTracker in = new BytesReadTracker(dis);
@@ -108,10 +116,15 @@ public class StreamReader
                 // TODO move this to BytesReadTracker
                 session.progress(writer.getFilename(), ProgressInfo.Direction.IN, in.getBytesRead(), totalSize);
             }
+            logger.debug("[Stream #{}] Finished receiving file #{} from {} readBytes = {}, totalSize = {}",
+                         session.planId(), fileSeqNum, session.peer, in.getBytesRead(), totalSize);
             return writer;
         }
         catch (Throwable e)
         {
+            if (deserializer != null)
+                logger.warn("[Stream {}] Error while reading partition {} from stream on ks='{}' and table='{}'.",
+                            session.planId(), deserializer.partitionKey(), cfs.keyspace.getName(), cfs.getColumnFamilyName());
             if (writer != null)
             {
                 writer.abort(e);
