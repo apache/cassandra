@@ -1201,15 +1201,6 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
         return String.format("%.2f/%.2f", onHeap, offHeap);
     }
 
-    public void maybeUpdateRowCache(DecoratedKey key)
-    {
-        if (!isRowCacheEnabled())
-            return;
-
-        RowCacheKey cacheKey = new RowCacheKey(metadata.ksAndCFName, key);
-        invalidateCachedPartition(cacheKey);
-    }
-
     /**
      * Insert/Update the column family for this key.
      * Caller is responsible for acquiring Keyspace.switchLock
@@ -1224,7 +1215,7 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
         Memtable mt = data.getMemtableFor(opGroup, replayPosition);
         long timeDelta = mt.put(update, indexer, opGroup);
         DecoratedKey key = update.partitionKey();
-        maybeUpdateRowCache(key);
+        invalidateCachedPartition(key);
         metric.samplers.get(Sampler.WRITES).addSample(key.getKey(), key.hashCode(), 1);
         metric.writeLatency.addNano(System.nanoTime() - start);
         if(timeDelta < Long.MAX_VALUE)
@@ -1875,8 +1866,8 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
 
     public void invalidateCachedPartition(DecoratedKey key)
     {
-        if (!Schema.instance.hasCF(metadata.ksAndCFName))
-            return; //2i don't cache rows
+        if (!isRowCacheEnabled())
+            return;
 
         invalidateCachedPartition(new RowCacheKey(metadata.ksAndCFName, key));
     }
