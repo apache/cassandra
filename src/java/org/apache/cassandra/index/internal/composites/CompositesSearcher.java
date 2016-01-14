@@ -242,7 +242,7 @@ public class CompositesSearcher extends CassandraIndexSearcher
             }
 
             @Override
-            public void onClose()
+            public void onPartitionClose()
             {
                 deleteAllEntries(staleEntries, writeOp, nowInSec);
             }
