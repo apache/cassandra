@@ -57,6 +57,7 @@ import org.apache.cassandra.service.StorageService;
 import org.apache.cassandra.utils.ByteBufferUtil;
 import org.apache.cassandra.utils.CounterId;
 import org.apache.cassandra.utils.FBUtilities;
+import org.apache.cassandra.utils.concurrent.OpOrder;
 
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertNotNull;
@@ -569,6 +570,37 @@ public class Util
         protected Unfiltered computeNext()
         {
             return content.hasNext() ? content.next() : endOfData();
+        }
+    }
+
+    public static UnfilteredPartitionIterator executeLocally(PartitionRangeReadCommand command,
+                                                             ColumnFamilyStore cfs,
+                                                             ReadExecutionController controller)
+    {
+        return new InternalPartitionRangeReadCommand(command).queryStorageInternal(cfs, controller);
+    }
+
+    private static final class InternalPartitionRangeReadCommand extends PartitionRangeReadCommand
+    {
+
+        private InternalPartitionRangeReadCommand(PartitionRangeReadCommand original)
+        {
+            super(original.isDigestQuery(),
+                  original.digestVersion(),
+                  original.isForThrift(),
+                  original.metadata(),
+                  original.nowInSec(),
+                  original.columnFilter(),
+                  original.rowFilter(),
+                  original.limits(),
+                  original.dataRange(),
+                  Optional.empty());
+        }
+
+        private UnfilteredPartitionIterator queryStorageInternal(ColumnFamilyStore cfs,
+                                                                 ReadExecutionController controller)
+        {
+            return queryStorage(cfs, controller);
         }
     }
 }
