@@ -37,8 +37,10 @@ import org.apache.cassandra.cql3.statements.IndexTarget;
 import org.apache.cassandra.db.marshal.AbstractType;
 import org.apache.cassandra.db.partitions.*;
 import org.apache.cassandra.db.rows.Row;
+import org.apache.cassandra.db.rows.RowIterator;
 import org.apache.cassandra.exceptions.ConfigurationException;
 import org.apache.cassandra.index.Index;
+import org.apache.cassandra.index.internal.CassandraIndex;
 import org.apache.cassandra.schema.IndexMetadata;
 import org.apache.cassandra.schema.KeyspaceParams;
 import org.apache.cassandra.utils.ByteBufferUtil;
@@ -316,6 +318,8 @@ public class SecondaryIndexTest
                        true,
                        false);
         assertIndexedNone(cfs, col, 1L);
+        ColumnFamilyStore indexCfs = cfs.indexManager.getAllIndexColumnFamilyStores().iterator().next();
+        assertIndexCfsIsEmpty(indexCfs);
     }
 
     @Test
@@ -355,6 +359,9 @@ public class SecondaryIndexTest
         // TODO: Figure out why this is re-inserting
         keyspace.apply(new RowUpdateBuilder(cfs.metadata, 2, "k1").clustering("c1").add("birthdate", 10l).build(), true, false);
         assertIndexedNone(cfs, col, 20l);
+
+        ColumnFamilyStore indexCfs = cfs.indexManager.getAllIndexColumnFamilyStores().iterator().next();
+        assertIndexCfsIsEmpty(indexCfs);
     }
 
     // See CASSANDRA-6098
@@ -507,6 +514,17 @@ public class SecondaryIndexTest
                                                                           FBUtilities.nowInSeconds()))
         {
             assertEquals(count, Util.size(iter));
+        }
+    }
+
+    private void assertIndexCfsIsEmpty(ColumnFamilyStore indexCfs)
+    {
+        PartitionRangeReadCommand command = (PartitionRangeReadCommand)Util.cmd(indexCfs).build();
+        try (ReadExecutionController controller = command.executionController();
+             PartitionIterator iter = UnfilteredPartitionIterators.filter(Util.executeLocally(command, indexCfs, controller),
+                                                                          FBUtilities.nowInSeconds()))
+        {
+            assertFalse(iter.hasNext());
         }
     }
 }
