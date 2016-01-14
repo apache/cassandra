@@ -35,6 +35,7 @@ Merged from 2.2:
  * Disable reloading of GossipingPropertyFileSnitch (CASSANDRA-9474)
  * Verify tables in pseudo-system keyspaces at startup (CASSANDRA-10761)
 Merged from 2.1:
+ * (cqlsh) fix cqlsh_copy_tests when vnodes are disabled (CASSANDRA-10997)
  * (cqlsh) Add request timeout option to cqlsh (CASSANDRA-10686)
  * Avoid AssertionError while submitting hint with LWT (CASSANDRA-10477)
  * If CompactionMetadata is not in stats file, use index summary instead (CASSANDRA-10676)

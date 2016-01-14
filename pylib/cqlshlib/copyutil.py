@@ -493,30 +493,33 @@ class ExportTask(CopyTask):
         ring = shell.get_ring(self.ks).items()
         ring.sort()
 
-        #  If the ring is empty we get the entire ring from the host we are currently connected to
         if not ring:
+            #  If the ring is empty we get the entire ring from the host we are currently connected to
             ranges[(begin_token, end_token)] = make_range_data()
-            return ranges
+        elif len(ring) == 1:
+            #  If there is only one token we get the entire ring from the replicas for that token
+            ranges[(begin_token, end_token)] = make_range_data(ring[0][1])
+        else:
+            # else we loop on the ring
+            first_range_data = None
+            previous = None
+            for token, replicas in ring:
+                if not first_range_data:
+                    first_range_data = make_range_data(replicas)  # we use it at the end when wrapping around
 
-        first_range_data = None
-        previous = None
-        for token, replicas in ring:
-            if previous is None and token.value == min_token:
-                continue  # avoids looping entire ring
+                if token.value == min_token:
+                    continue  # avoids looping entire ring
 
-            if previous is None:  # we use it at the end when wrapping around
-                first_range_data = make_range_data(replicas)
+                current_range = make_range(previous, token.value)
+                if not current_range:
+                    continue
 
-            current_range = make_range(previous, token.value)
-            if not current_range:
-                continue
+                ranges[current_range] = make_range_data(replicas)
+                previous = token.value
 
-            ranges[current_range] = make_range_data(replicas)
-            previous = token.value
-
-        #  For the last ring interval we query the same replicas that hold the first token in the ring
-        if previous is not None and (not end_token or previous < end_token):
-            ranges[(previous, end_token)] = first_range_data
+            #  For the last ring interval we query the same replicas that hold the first token in the ring
+            if previous is not None and (not end_token or previous < end_token):
+                ranges[(previous, end_token)] = first_range_data
 
         if not ranges:
             shell.printerr('Found no ranges to query, check begin and end tokens: %s - %s' % (begin_token, end_token))
