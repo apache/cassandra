@@ -114,10 +114,8 @@ public class StreamCoordinator
         {
             public void handleStreamEvent(StreamEvent event)
             {
-                if (event.eventType == StreamEvent.Type.STREAM_PREPARED)
-                {
+                if (event.eventType == StreamEvent.Type.STREAM_PREPARED || event.eventType == StreamEvent.Type.STREAM_COMPLETE)
                     connectNext();
-                }
             }
 
             public void onSuccess(StreamState result)

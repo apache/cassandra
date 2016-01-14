@@ -1,3 +1,6 @@
+3.2.1
+ Avoid bootstrap hanging when existing nodes have no data to stream (CASSANDRA-11010)
+
 3.2
  * Make sure tokens don't exist in several data directories (CASSANDRA-6696)
  * Add requireAuthorization method to IAuthorizer (CASSANDRA-10852)
