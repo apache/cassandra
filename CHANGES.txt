@@ -19,6 +19,7 @@ Merged from 2.2:
  * Skip commit log and saved cache directories in SSTable version startup check (CASSANDRA-10902)
  * drop/alter user should be case sensitive (CASSANDRA-10817)
 Merged from 2.1:
+ * (cqlsh) fix cqlsh_copy_tests when vnodes are disabled (CASSANDRA-10997)
  * (cqlsh) Add request timeout option to cqlsh (CASSANDRA-10686)
  * Avoid AssertionError while submitting hint with LWT (CASSANDRA-10477)
  * If CompactionMetadata is not in stats file, use index summary instead (CASSANDRA-10676)
