@@ -635,9 +635,11 @@ public class CompactionManager implements CompactionManagerMBean
             return Collections.emptyList();
 
         List<Future<?>> futures = new ArrayList<>();
-
+        int nonEmptyTasks = 0;
         for (final AbstractCompactionTask task : tasks)
         {
+            if (task.transaction.originals().size() > 0)
+                nonEmptyTasks++;
             Runnable runnable = new WrappedRunnable()
             {
                 protected void runMayThrow() throws IOException
@@ -652,6 +654,8 @@ public class CompactionManager implements CompactionManagerMBean
             }
             futures.add(executor.submit(runnable));
         }
+        if (nonEmptyTasks > 1)
+            logger.info("Major compaction will not result in a single sstable - repaired and unrepaired data is kept separate and compaction runs per data_file_directory.");
         return futures;
     }
 
