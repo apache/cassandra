@@ -1,6 +1,7 @@
 3.3
  * Avoid bootstrap hanging when existing nodes have no data to stream (CASSANDRA-11010)
 Merged from 3.0:
+ * Support passing base table metadata to custom 2i validation (CASSANDRA-10924)
  * Ensure stale index entries are purged during reads (CASSANDRA-11013)
  * (cqlsh) Also apply --connect-timeout to control connection
    timeout (CASSANDRA-10959)
