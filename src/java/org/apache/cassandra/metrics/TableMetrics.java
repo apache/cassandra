@@ -142,6 +142,9 @@ public class TableMetrics
     /** Time spent waiting for free memtable space, either on- or off-heap */
     public final Histogram waitingOnFreeMemtableSpace;
 
+    /** Dropped Mutations Count */
+    public final Counter droppedMutations;
+
     private final MetricNameFactory factory;
     private final MetricNameFactory aliasFactory;
     private static final MetricNameFactory globalFactory = new AllTableMetricNameFactory("Table");
@@ -621,6 +624,7 @@ public class TableMetrics
         rowCacheHitOutOfRange = createTableCounter("RowCacheHitOutOfRange");
         rowCacheHit = createTableCounter("RowCacheHit");
         rowCacheMiss = createTableCounter("RowCacheMiss");
+        droppedMutations = createTableCounter("DroppedMutations");
 
         casPrepare = new LatencyMetrics(factory, "CasPrepare", cfs.keyspace.metric.casPrepare);
         casPropose = new LatencyMetrics(factory, "CasPropose", cfs.keyspace.metric.casPropose);

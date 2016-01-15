@@ -953,6 +953,15 @@ public final class MessagingService implements MessagingServiceMBean
         return versions.containsKey(endpoint);
     }
 
+    public void incrementDroppedMutations(Optional<IMutation> mutationOpt, long timeTaken)
+    {
+        if (mutationOpt.isPresent())
+        {
+            updateDroppedMutationCount(mutationOpt.get());
+        }
+        incrementDroppedMessages(Verb.MUTATION, timeTaken);
+    }
+
     public void incrementDroppedMessages(Verb verb)
     {
         incrementDroppedMessages(verb, false);
@@ -965,6 +974,10 @@ public final class MessagingService implements MessagingServiceMBean
 
     public void incrementDroppedMessages(MessageIn message, long timeTaken)
     {
+        if (message.payload instanceof IMutation)
+        {
+            updateDroppedMutationCount((IMutation) message.payload);
+        }
         incrementDroppedMessages(message.verb, timeTaken, message.constructionTime.isCrossNode);
     }
 
@@ -978,6 +991,20 @@ public final class MessagingService implements MessagingServiceMBean
     {
         assert DROPPABLE_VERBS.contains(verb) : "Verb " + verb + " should not legally be dropped";
         incrementDroppedMessages(droppedMessagesMap.get(verb), isCrossNodeTimeout);
+    }
+
+    private void updateDroppedMutationCount(IMutation mutation)
+    {
+        assert mutation != null : "Mutation should not be null when updating dropped mutations count";
+
+        for (UUID columnFamilyId : mutation.getColumnFamilyIds())
+        {
+            ColumnFamilyStore cfs = Keyspace.open(mutation.getKeyspaceName()).getColumnFamilyStore(columnFamilyId);
+            if (cfs != null)
+            {
+                cfs.metric.droppedMutations.inc();
+            }
+        }
     }
 
     private void incrementDroppedMessages(DroppedMessages droppedMessages, long timeTaken, boolean isCrossNodeTimeout)

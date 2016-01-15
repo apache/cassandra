@@ -219,6 +219,7 @@ public class TableStats extends NodeToolCmd
                 histogram = (CassandraMetricsRegistry.JmxHistogramMBean) probe.getColumnFamilyMetric(keyspaceName, tableName, "TombstoneScannedHistogram");
                 System.out.println("\t\tAverage tombstones per slice (last five minutes): " + histogram.getMean());
                 System.out.println("\t\tMaximum tombstones per slice (last five minutes): " + histogram.getMax());
+                System.out.println("\t\tDropped Mutations: " + format((Long) probe.getColumnFamilyMetric(keyspaceName, tableName, "DroppedMutations"), humanReadable));
 
                 System.out.println("");
             }
