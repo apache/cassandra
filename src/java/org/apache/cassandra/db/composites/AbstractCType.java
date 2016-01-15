@@ -375,7 +375,8 @@ public abstract class AbstractCType implements CType
     protected static void checkRemaining(ByteBuffer bb, int offs, int length)
     {
         if (offs + length > bb.limit())
-            throw new IllegalArgumentException("Not enough bytes");
+            throw new IllegalArgumentException(String.format("Not enough bytes. Offset: %d. Length: %d. Buffer size: %d",
+                                                             offs, length, bb.limit()));
     }
 
     private static class Serializer implements CType.Serializer

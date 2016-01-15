@@ -58,52 +58,6 @@ public class CompressedInputStreamTest
     }
 
     /**
-     * Test CompressedInputStream not hang when closed while reading
-     * @throws Exception
-     */
-    @Test(expected = EOFException.class)
-    public void testClose() throws Exception
-    {
-        CompressionParameters param = new CompressionParameters(SnappyCompressor.instance, 32, Collections.<String, String>emptyMap());
-        CompressionMetadata.Chunk[] chunks = {new CompressionMetadata.Chunk(0, 100)};
-        final SynchronousQueue<Integer> blocker = new SynchronousQueue<>();
-        InputStream blockingInput = new InputStream()
-        {
-            @Override
-            public int read() throws IOException
-            {
-                try
-                {
-                    // 10 second cut off not to stop other test in case
-                    return Objects.requireNonNull(blocker.poll(10, TimeUnit.SECONDS));
-                }
-                catch (InterruptedException e)
-                {
-                    throw new IOException("Interrupted as expected", e);
-                }
-            }
-        };
-        CompressionInfo info = new CompressionInfo(chunks, param);
-        try (CompressedInputStream cis = new CompressedInputStream(blockingInput, info, true))
-        {
-            new Thread(new Runnable()
-            {
-                @Override
-                public void run()
-                {
-                    try
-                    {
-                        cis.close();
-                    }
-                    catch (Exception ignore) {}
-                }
-            }).start();
-            // block here
-            cis.read();
-        }
-    }
-
-    /**
      * @param valuesToCheck array of longs of range(0-999)
      * @throws Exception
      */

@@ -24,6 +24,9 @@ import java.nio.channels.Channels;
 import java.nio.channels.WritableByteChannel;
 import java.util.Collection;
 
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+
 import com.ning.compress.lzf.LZFOutputStream;
 
 import org.apache.cassandra.io.sstable.Component;
@@ -41,6 +44,8 @@ import org.apache.cassandra.utils.Pair;
 public class StreamWriter
 {
     private static final int DEFAULT_CHUNK_SIZE = 64 * 1024;
+
+    private static final Logger logger = LoggerFactory.getLogger(StreamWriter.class);
 
     protected final SSTableReader sstable;
     protected final Collection<Pair<Long, Long>> sections;
@@ -71,6 +76,8 @@ public class StreamWriter
     public void write(WritableByteChannel channel) throws IOException
     {
         long totalSize = totalSize();
+        logger.debug("[Stream #{}] Start streaming file {} to {}, repairedAt = {}, totalSize = {}", session.planId(),
+                     sstable.getFilename(), session.peer, sstable.getSSTableMetadata().repairedAt, totalSize);
         RandomAccessReader file = sstable.openDataReader();
         ChecksumValidator validator = new File(sstable.descriptor.filenameFor(Component.CRC)).exists()
                                     ? DataIntegrityMetadata.checksumValidator(sstable.descriptor)
@@ -109,6 +116,8 @@ public class StreamWriter
                 // make sure that current section is send
                 compressedOutput.flush();
             }
+            logger.debug("[Stream #{}] Finished streaming file {} to {}, bytesTransferred = {}, totalSize = {}",
+                         session.planId(), sstable.getFilename(), session.peer, progress, totalSize);
         }
         finally
         {
