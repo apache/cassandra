@@ -1,4 +1,5 @@
 2.1.13
+ * Allow simultaneous bootstrapping with strict consistency when no vnodes are used (CASSANDRA-11005)
  * Log a message when major compaction does not result in a single file (CASSANDRA-10847)
  * (cqlsh) fix cqlsh_copy_tests when vnodes are disabled (CASSANDRA-10997)
  * (cqlsh) fix formatting bytearray values (CASSANDRA-10839)

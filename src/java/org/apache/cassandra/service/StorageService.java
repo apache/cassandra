@@ -545,7 +545,7 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
                                                      "Use cassandra.replace_address if you want to replace this node.",
                                                      FBUtilities.getBroadcastAddress()));
         }
-        if (RangeStreamer.useStrictConsistency)
+        if (RangeStreamer.useStrictConsistency && !allowSimultaneousMoves())
         {
             for (Map.Entry<InetAddress, EndpointState> entry : Gossiper.instance.getEndpointStates())
             {
@@ -560,6 +560,11 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
             }
         }
         Gossiper.instance.resetEndpointStateMap();
+    }
+
+    private boolean allowSimultaneousMoves()
+    {
+        return RangeStreamer.allowSimultaneousMoves && DatabaseDescriptor.getNumTokens() == 1;
     }
 
     public synchronized void initClient() throws ConfigurationException
