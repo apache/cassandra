@@ -195,7 +195,7 @@ public class StartupChecks
     {
         public void execute()
         {
-            new SigarLibrary().warnIfRunningInDegradedMode();
+            SigarLibrary.instance.warnIfRunningInDegradedMode();
         }
     };
 

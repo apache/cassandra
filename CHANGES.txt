@@ -1,4 +1,5 @@
 2.2.5
+ * Make UUID LSB unique per process (CASSANDRA-7925)
  * Avoid NPE when performing sstable tasks (scrub etc.) (CASSANDRA-10980)
  * Make sure client gets tombstone overwhelmed warning (CASSANDRA-9465)
  * Fix error streaming section more than 2GB (CASSANDRA-10961)
