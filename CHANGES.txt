@@ -19,6 +19,7 @@
  * Disable reloading of GossipingPropertyFileSnitch (CASSANDRA-9474)
  * Verify tables in pseudo-system keyspaces at startup (CASSANDRA-10761)
 Merged from 2.1:
+ * Allow simultaneous bootstrapping with strict consistency when no vnodes are used (CASSANDRA-11005)
  * Log a message when major compaction does not result in a single file (CASSANDRA-10847)
  * (cqlsh) fix cqlsh_copy_tests when vnodes are disabled (CASSANDRA-10997)
  * (cqlsh) Add request timeout option to cqlsh (CASSANDRA-10686)
