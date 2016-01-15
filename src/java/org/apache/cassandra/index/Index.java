@@ -97,16 +97,21 @@ import org.apache.cassandra.utils.concurrent.OpOrder;
  * The post processing function is obtained from the Index's postProcessorFor method; the built-in indexes which ship
  * with Cassandra return a no-op function here.
  *
- * An optional static method may be provided to validate custom index options:
+ * An optional static method may be provided to validate custom index options (two variants are supported):
  *
- * <pre> {@code
- * public static Map<String, String> validateOptions(Map<String, String> options);
- * } </pre>
+ * <pre>{@code public static Map<String, String> validateOptions(Map<String, String> options);</pre>
  *
- * The input is the map of index options supplied in the WITH clause of a CREATE INDEX statement. The method should
- * return a map containing any of the supplied options which are not valid for the implementation. If the returned
- * map is not empty, validation is considered failed and an error is raised. Alternatively, the implementation may
- * choose to throw an org.apache.cassandra.exceptions.ConfigurationException if invalid options are encountered.
+ * The input is the map of index options supplied in the WITH clause of a CREATE INDEX statement.
+ *
+ * <pre>{@code public static Map<String, String> validateOptions(Map<String, String> options, CFMetaData cfm);}</pre>
+ *
+ * In this version, the base table's metadata is also supplied as an argument.
+ * If both overloaded methods are provided, only the one including the base table's metadata will be invoked.
+ *
+ * The validation method should return a map containing any of the supplied options which are not valid for the
+ * implementation. If the returned map is not empty, validation is considered failed and an error is raised.
+ * Alternatively, the implementation may choose to throw an org.apache.cassandra.exceptions.ConfigurationException
+ * if invalid options are encountered.
  *
  */
 public interface Index

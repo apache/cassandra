@@ -884,7 +884,7 @@ public final class CFMetaData
                 throw new ConfigurationException("Duplicate index name " + index.name);
             indexNames.add(index.name);
 
-            index.validate();
+            index.validate(this);
         }
 
         return this;
