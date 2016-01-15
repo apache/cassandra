@@ -119,7 +119,7 @@ final class HintsStore
         }
     }
 
-    private void delete(HintsDescriptor descriptor)
+    void delete(HintsDescriptor descriptor)
     {
         File hintsFile = new File(hintsDirectory, descriptor.fileName());
         if (hintsFile.delete())

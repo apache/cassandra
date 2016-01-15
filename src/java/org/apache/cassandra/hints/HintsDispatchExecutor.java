@@ -246,8 +246,7 @@ final class HintsDispatchExecutor
 
                 if (dispatcher.dispatch())
                 {
-                    if (!file.delete())
-                        logger.error("Failed to delete hints file {}", descriptor.fileName());
+                    store.delete(descriptor);
                     store.cleanUp(descriptor);
                     logger.info("Finished hinted handoff of file {} to endpoint {}", descriptor.fileName(), hostId);
                     return true;
