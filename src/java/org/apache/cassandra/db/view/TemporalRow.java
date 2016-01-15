@@ -18,6 +18,9 @@
 
 package org.apache.cassandra.db.view;
 
+import static java.util.Comparator.naturalOrder;
+import static java.util.Comparator.reverseOrder;
+
 import java.nio.ByteBuffer;
 import java.util.ArrayList;
 import java.util.Collection;
@@ -305,18 +308,14 @@ public class TemporalRow
      *
      * Local Deletion Time should use max, as this deletion will cover all previous values written.
      */
-    @SuppressWarnings("unchecked")
     private void updateLiveness(int ttl, long timestamp, int localDeletionTime)
     {
         // We are returning whichever is higher from valueIfSet
         // Natural order will return the max: 1.compareTo(2) < 0, so 2 is returned
         // Reverse order will return the min: 1.compareTo(2) > 0, so 1 is returned
-        final Comparator max = Comparator.naturalOrder();
-        final Comparator min = Comparator.reverseOrder();
-
-        this.viewClusteringTtl = valueIfSet(viewClusteringTtl, ttl, NO_TTL, min);
-        this.viewClusteringTimestamp = valueIfSet(viewClusteringTimestamp, timestamp, NO_TIMESTAMP, max);
-        this.viewClusteringLocalDeletionTime = valueIfSet(viewClusteringLocalDeletionTime, localDeletionTime, NO_DELETION_TIME, max);
+        this.viewClusteringTtl = valueIfSet(viewClusteringTtl, ttl, NO_TTL, reverseOrder());
+        this.viewClusteringTimestamp = valueIfSet(viewClusteringTimestamp, timestamp, NO_TIMESTAMP, naturalOrder());
+        this.viewClusteringLocalDeletionTime = valueIfSet(viewClusteringLocalDeletionTime, localDeletionTime, NO_DELETION_TIME, naturalOrder());
     }
 
     @Override
