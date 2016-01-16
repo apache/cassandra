@@ -65,6 +65,13 @@ public class CommitLogUpgradeTest
     private KillerForTests killerForTests;
     private boolean shouldBeKilled = false;
 
+    static CFMetaData metadata = CFMetaData.Builder.createDense(KEYSPACE, TABLE, false, false)
+                                                   .addPartitionKey("key", AsciiType.instance)
+                                                   .addClusteringColumn("col", AsciiType.instance)
+                                                   .addRegularColumn("val", BytesType.instance)
+                                                   .build()
+                                                   .compression(SchemaLoader.getCompressionParameters());
+
     @Before
     public void prepareToBeKilled()
     {
@@ -92,7 +99,6 @@ public class CommitLogUpgradeTest
     }
 
     @Test
-
     public void test22() throws Exception
     {
         testRestore(DATA_DIR + "2.2");
@@ -154,12 +160,6 @@ public class CommitLogUpgradeTest
     @BeforeClass
     static public void initialize() throws FileNotFoundException, IOException, InterruptedException
     {
-        CFMetaData metadata = CFMetaData.Builder.createDense(KEYSPACE, TABLE, false, false)
-                                                .addPartitionKey("key", AsciiType.instance)
-                                                .addClusteringColumn("col", AsciiType.instance)
-                                                .addRegularColumn("val", BytesType.instance)
-                                                .build()
-                                                .compression(SchemaLoader.getCompressionParameters());
         SchemaLoader.loadSchema();
         SchemaLoader.createKeyspace(KEYSPACE,
                                     KeyspaceParams.simple(1),

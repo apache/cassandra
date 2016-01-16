@@ -42,6 +42,7 @@ import org.apache.cassandra.config.Schema;
 import org.apache.cassandra.db.Mutation;
 import org.apache.cassandra.exceptions.ConfigurationException;
 import org.apache.cassandra.io.util.FileUtils;
+import org.apache.cassandra.schema.KeyspaceParams;
 import org.apache.cassandra.utils.FBUtilities;
 
 import static org.apache.cassandra.db.commitlog.CommitLogUpgradeTest.*;
@@ -91,7 +92,9 @@ public class CommitLogUpgradeTestMaker
         }
 
         SchemaLoader.loadSchema();
-        SchemaLoader.schemaDefinition("");
+        SchemaLoader.createKeyspace(KEYSPACE,
+                                    KeyspaceParams.simple(1),
+                                    metadata);
     }
 
     public void makeLog() throws IOException, InterruptedException
