@@ -25,6 +25,8 @@ public class SigarLibrary
 {
     private Logger logger = LoggerFactory.getLogger(SigarLibrary.class);
 
+    public static final SigarLibrary instance = new SigarLibrary();
+
     private Sigar sigar;
     private FileSystemMap mounts = null;
     private boolean initialized = false;
@@ -37,7 +39,7 @@ public class SigarLibrary
     // TODO: Determine if file system is remote or local
     // TODO: Determine if disk latency is within acceptable limits
 
-    public SigarLibrary()
+    private SigarLibrary()
     {
         logger.info("Initializing SIGAR library");
         try
@@ -152,6 +154,11 @@ public class SigarLibrary
             logger.warn("Could not determine if swap configuration is acceptable. Error message: {}", sigarException);
             return false;
         }
+    }
+
+    public long getPid()
+    {
+        return initialized ? sigar.getPid() : -1;
     }
 
     public void warnIfRunningInDegradedMode()
