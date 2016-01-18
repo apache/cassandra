@@ -18,6 +18,7 @@
  * (Hadoop) Close Clusters and Sessions in Hadoop Input/Output classes (CASSANDRA-10837)
  * Fix sstableloader not working with upper case keyspace name (CASSANDRA-10806)
 Merged from 2.2:
+ * Make UUID LSB unique per process (CASSANDRA-7925)
  * Avoid NPE when performing sstable tasks (scrub etc.) (CASSANDRA-10980)
  * Make sure client gets tombstone overwhelmed warning (CASSANDRA-9465)
  * Fix error streaming section more than 2GB (CASSANDRA-10961)
