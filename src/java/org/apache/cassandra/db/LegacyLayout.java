@@ -961,7 +961,7 @@ public abstract class LegacyLayout
                 // then simply ignore the cell is fine. But also not that we ignore if it's the
                 // system keyspace because for those table we actually remove columns without registering
                 // them in the dropped columns
-                assert metadata.ksName.equals(SystemKeyspace.NAME) || metadata.getDroppedColumnDefinition(cellname) != null : e.getMessage();
+                assert metadata.ksName.equals(SystemKeyspace.NAME) || metadata.getDroppedColumnDefinition(e.columnName) != null : e.getMessage();
             }
         }
     }
