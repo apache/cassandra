@@ -1,4 +1,5 @@
 2.2.6
+ * (cqlsh) Support utf-8/cp65001 encoding on Windows (CASSANDRA-11030)
  * Gossiper#isEnabled is not thread safe (CASSANDRA-11116)
  * Fix paging on DISTINCT queries repeats result when first row in partition changes (CASSANDRA-10010)
 Merged from 2.1:
