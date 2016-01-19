@@ -398,7 +398,12 @@ public class SchemaLoader
         return standardCFMD(ksName, cfName);
 
     }
-    public static CFMetaData compositeIndexCFMD(String ksName, String cfName, boolean withIndex) throws ConfigurationException
+    public static CFMetaData compositeIndexCFMD(String ksName, String cfName, boolean withRegularIndex) throws ConfigurationException
+    {
+        return compositeIndexCFMD(ksName, cfName, withRegularIndex, false);
+    }
+
+    public static CFMetaData compositeIndexCFMD(String ksName, String cfName, boolean withRegularIndex, boolean withStaticIndex) throws ConfigurationException
     {
         // the withIndex flag exists to allow tests index creation
         // on existing columns
@@ -407,9 +412,11 @@ public class SchemaLoader
                 .addClusteringColumn("c1", AsciiType.instance)
                 .addRegularColumn("birthdate", LongType.instance)
                 .addRegularColumn("notbirthdate", LongType.instance)
+                .addStaticColumn("static", LongType.instance)
                 .build();
 
-        if (withIndex)
+        if (withRegularIndex)
+        {
             cfm.indexes(
                 cfm.getIndexes()
                    .with(IndexMetadata.fromIndexTargets(cfm,
@@ -419,6 +426,20 @@ public class SchemaLoader
                                                         "birthdate_key_index",
                                                         IndexMetadata.Kind.COMPOSITES,
                                                         Collections.EMPTY_MAP)));
+        }
+
+        if (withStaticIndex)
+        {
+            cfm.indexes(
+                    cfm.getIndexes()
+                       .with(IndexMetadata.fromIndexTargets(cfm,
+                                                            Collections.singletonList(
+                                                                new IndexTarget(new ColumnIdentifier("static", true),
+                                                                                IndexTarget.Type.VALUES)),
+                                                            "static_index",
+                                                            IndexMetadata.Kind.COMPOSITES,
+                                                            Collections.EMPTY_MAP)));
+        }
 
         return cfm.compression(getCompressionParameters());
     }
@@ -446,7 +467,7 @@ public class SchemaLoader
 
         return cfm.compression(getCompressionParameters());
     }
-    
+
     public static CFMetaData jdbcCFMD(String ksName, String cfName, AbstractType comp)
     {
         return CFMetaData.Builder.create(ksName, cfName).addPartitionKey("key", BytesType.instance)

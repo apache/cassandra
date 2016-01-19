@@ -816,6 +816,7 @@ public abstract class CassandraIndex implements Index
             case CLUSTERING:
                 return CassandraIndexFunctions.CLUSTERING_COLUMN_INDEX_FUNCTIONS;
             case REGULAR:
+            case STATIC:
                 return CassandraIndexFunctions.REGULAR_COLUMN_INDEX_FUNCTIONS;
             case PARTITION_KEY:
                 return CassandraIndexFunctions.PARTITION_KEY_INDEX_FUNCTIONS;

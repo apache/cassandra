@@ -105,15 +105,6 @@ public class CreateIndexStatement extends SchemaAlteringStatement
             if (cfm.isCompactTable() && cd.isPrimaryKeyColumn())
                 throw new InvalidRequestException("Secondary indexes are not supported on PRIMARY KEY columns in COMPACT STORAGE tables");
 
-            // It would be possible to support 2ndary index on static columns (but not without modifications of at least ExtendedFilter and
-            // CompositesIndex) and maybe we should, but that means a query like:
-            //     SELECT * FROM foo WHERE static_column = 'bar'
-            // would pull the full partition every time the static column of partition is 'bar', which sounds like offering a
-            // fair potential for foot-shooting, so I prefer leaving that to a follow up ticket once we have identified cases where
-            // such indexing is actually useful.
-            if (!cfm.isCompactTable() && cd.isStatic())
-                throw new InvalidRequestException("Secondary indexes are not allowed on static columns");
-
             if (cd.kind == ColumnDefinition.Kind.PARTITION_KEY && cfm.getKeyValidatorAsClusteringComparator().size() == 1)
                 throw new InvalidRequestException(String.format("Cannot create secondary index on partition key column %s", target.column));
 

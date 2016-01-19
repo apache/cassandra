@@ -54,6 +54,9 @@ public abstract class CollectionKeyIndexBase extends CassandraIndex
     {
         CBuilder builder = CBuilder.create(getIndexComparator());
         builder.add(partitionKey);
+
+        // When indexing a static column, prefix will be empty but only the
+        // partition key is needed at query time.
         for (int i = 0; i < prefix.size(); i++)
             builder.add(prefix.get(i));
 
@@ -63,16 +66,24 @@ public abstract class CollectionKeyIndexBase extends CassandraIndex
     public IndexEntry decodeEntry(DecoratedKey indexedValue,
                                   Row indexEntry)
     {
-        int count = 1 + baseCfs.metadata.clusteringColumns().size();
         Clustering clustering = indexEntry.clustering();
-        CBuilder builder = CBuilder.create(baseCfs.getComparator());
-        for (int i = 0; i < count - 1; i++)
-            builder.add(clustering.get(i + 1));
+
+        Clustering indexedEntryClustering = null;
+        if (getIndexedColumn().isStatic())
+            indexedEntryClustering = Clustering.STATIC_CLUSTERING;
+        else
+        {
+            int count = 1 + baseCfs.metadata.clusteringColumns().size();
+            CBuilder builder = CBuilder.create(baseCfs.getComparator());
+            for (int i = 0; i < count - 1; i++)
+                builder.add(clustering.get(i + 1));
+            indexedEntryClustering = builder.build();
+        }
 
         return new IndexEntry(indexedValue,
                               clustering,
                               indexEntry.primaryKeyLivenessInfo().timestamp(),
                               clustering.get(0),
-                              builder.build());
+                              indexedEntryClustering);
     }
 }

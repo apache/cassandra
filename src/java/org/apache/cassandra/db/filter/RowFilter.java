@@ -229,6 +229,11 @@ public abstract class RowFilter implements Iterable<RowFilter.Expression>
                 DecoratedKey pk;
                 public UnfilteredRowIterator applyToPartition(UnfilteredRowIterator partition)
                 {
+                    // The filter might be on static columns, so need to check static row first.
+                    Row staticRow = applyToRow(partition.staticRow());
+                    if (staticRow == null)
+                        return null;
+
                     pk = partition.partitionKey();
                     return Transformation.apply(partition, this);
                 }

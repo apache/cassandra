@@ -18,6 +18,7 @@
 package org.apache.cassandra.cql3;
 
 import java.util.*;
+
 import org.junit.Test;
 
 import static junit.framework.Assert.*;
@@ -528,5 +529,44 @@ public class SimpleQueryTest extends CQLTester
         assertRows(execute("SELECT * FROM %s WHERE v=?", 0),
             row(0, 0, 0, 0)
         );
+    }
+
+    /** Test for Cassandra issue 10958 **/
+    @Test
+    public void restrictionOnRegularColumnWithStaticColumnPresentTest() throws Throwable
+    {
+        createTable("CREATE TABLE %s (id int, id2 int, age int static, extra int, PRIMARY KEY(id, id2))");
+
+        execute("INSERT INTO %s (id, id2, age, extra) VALUES (?, ?, ?, ?)", 1, 1, 1, 1);
+        execute("INSERT INTO %s (id, id2, age, extra) VALUES (?, ?, ?, ?)", 2, 2, 2, 2);
+        execute("UPDATE %s SET age=? WHERE id=?", 3, 3);
+
+        assertRows(execute("SELECT * FROM %s"),
+            row(1, 1, 1, 1),
+            row(2, 2, 2, 2),
+            row(3, null, 3, null)
+        );
+
+        assertRows(execute("SELECT * FROM %s WHERE extra > 1 ALLOW FILTERING"),
+            row(2, 2, 2, 2)
+        );
+    }
+
+    @Test
+    public void testRowFilteringOnStaticColumn() throws Throwable
+    {
+        createTable("CREATE TABLE %s (id int, name text, age int static, PRIMARY KEY (id, name))");
+        for (int i = 0; i < 5; i++)
+        {
+            execute("INSERT INTO %s (id, name, age) VALUES (?, ?, ?)", i, "NameDoesNotMatter", i);
+        }
+
+        assertInvalid("SELECT id, age FROM %s WHERE age < 1");
+        assertRows(execute("SELECT id, age FROM %s WHERE age < 1 ALLOW FILTERING"),
+                   row(0, 0));
+        assertRows(execute("SELECT id, age FROM %s WHERE age > 0 AND age < 3 ALLOW FILTERING"),
+                   row(1, 1), row(2, 2));
+        assertRows(execute("SELECT id, age FROM %s WHERE age > 3 ALLOW FILTERING"),
+                   row(4, 4));
     }
 }

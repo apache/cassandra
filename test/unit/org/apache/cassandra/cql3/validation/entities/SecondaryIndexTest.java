@@ -749,9 +749,6 @@ public class SecondaryIndexTest extends CQLTester
         assertInvalid("CREATE INDEX ON %s (a)");
         assertInvalid("CREATE INDEX ON %s (b)");
         assertInvalid("CREATE INDEX ON %s (c)");
-
-        createTable("CREATE TABLE %s (a int, b int, c int static , PRIMARY KEY (a, b))");
-        assertInvalid("CREATE INDEX ON %s (c)");
     }
 
     @Test

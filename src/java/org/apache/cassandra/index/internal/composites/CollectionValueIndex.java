@@ -63,7 +63,10 @@ public class CollectionValueIndex extends CassandraIndex
         for (int i = 0; i < prefix.size(); i++)
             builder.add(prefix.get(i));
 
-        // When indexing, cell will be present, but when searching, it won't  (CASSANDRA-7525)
+        // When indexing a static column, prefix will be empty but only the
+        // partition key is needed at query time.
+        // In the non-static case, cell will be present during indexing but
+        // not when searching (CASSANDRA-7525).
         if (prefix.size() == baseCfs.metadata.clusteringColumns().size() && path != null)
             builder.add(path.get(0));
 
@@ -73,15 +76,22 @@ public class CollectionValueIndex extends CassandraIndex
     public IndexEntry decodeEntry(DecoratedKey indexedValue, Row indexEntry)
     {
         Clustering clustering = indexEntry.clustering();
-        CBuilder builder = CBuilder.create(baseCfs.getComparator());
-        for (int i = 0; i < baseCfs.getComparator().size(); i++)
-            builder.add(clustering.get(i + 1));
+        Clustering indexedEntryClustering = null;
+        if (getIndexedColumn().isStatic())
+            indexedEntryClustering = Clustering.STATIC_CLUSTERING;
+        else
+        {
+            CBuilder builder = CBuilder.create(baseCfs.getComparator());
+            for (int i = 0; i < baseCfs.getComparator().size(); i++)
+                builder.add(clustering.get(i + 1));
+            indexedEntryClustering = builder.build();
+        }
 
         return new IndexEntry(indexedValue,
                                 clustering,
                                 indexEntry.primaryKeyLivenessInfo().timestamp(),
                                 clustering.get(0),
-                                builder.build());
+                                indexedEntryClustering);
     }
 
     public boolean supportsOperator(ColumnDefinition indexedColumn, Operator operator)
