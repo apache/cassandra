@@ -960,6 +960,30 @@ public class SecondaryIndexTest extends CQLTester
         assertNull(QueryProcessor.instance.getPreparedForThrift(thriftId));
     }
 
+    // See CASSANDRA-11021
+    @Test
+    public void testIndexesOnNonStaticColumnsWhereSchemaIncludesStaticColumns() throws Throwable
+    {
+        createTable("CREATE TABLE %s (a int, b int, c int static, d int, PRIMARY KEY (a, b))");
+        createIndex("CREATE INDEX b_idx on %s(b)");
+        createIndex("CREATE INDEX d_idx on %s(d)");
+
+        execute("INSERT INTO %s (a, b, c ,d) VALUES (0, 0, 0, 0)");
+        execute("INSERT INTO %s (a, b, c, d) VALUES (1, 1, 1, 1)");
+        assertRows(execute("SELECT * FROM %s WHERE b = 0"), row(0, 0, 0, 0));
+        assertRows(execute("SELECT * FROM %s WHERE d = 1"), row(1, 1, 1, 1));
+
+        execute("UPDATE %s SET c = 2 WHERE a = 0");
+        execute("UPDATE %s SET c = 3, d = 4 WHERE a = 1 AND b = 1");
+        assertRows(execute("SELECT * FROM %s WHERE b = 0"), row(0, 0, 2, 0));
+        assertRows(execute("SELECT * FROM %s WHERE d = 4"), row(1, 1, 3, 4));
+
+        execute("DELETE FROM %s WHERE a = 0");
+        execute("DELETE FROM %s WHERE a = 1 AND b = 1");
+        assertEmpty(execute("SELECT * FROM %s WHERE b = 0"));
+        assertEmpty(execute("SELECT * FROM %s WHERE d = 3"));
+    }
+
     private ResultMessage.Prepared prepareStatement(String cql, boolean forThrift)
     {
         return QueryProcessor.prepare(String.format(cql, KEYSPACE, currentTable()),
