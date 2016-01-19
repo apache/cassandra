@@ -519,9 +519,10 @@ public class NodeProbe implements AutoCloseable
      *
      * @param snapshotName the name of the snapshot.
      * @param table the table to snapshot or all on null
+     * @param options Options (skipFlush for now)
      * @param keyspaces the keyspaces to snapshot
      */
-    public void takeSnapshot(String snapshotName, String table, String... keyspaces) throws IOException
+    public void takeSnapshot(String snapshotName, String table, Map<String, String> options, String... keyspaces) throws IOException
     {
         if (table != null)
         {
@@ -529,10 +530,11 @@ public class NodeProbe implements AutoCloseable
             {
                 throw new IOException("When specifying the table for a snapshot, you must specify one and only one keyspace");
             }
-            ssProxy.takeTableSnapshot(keyspaces[0], table, snapshotName);
+
+            ssProxy.takeSnapshot(snapshotName, options, keyspaces[0] + "." + table);
         }
         else
-            ssProxy.takeSnapshot(snapshotName, keyspaces);
+            ssProxy.takeSnapshot(snapshotName, options, keyspaces);
     }
 
     /**
@@ -540,21 +542,22 @@ public class NodeProbe implements AutoCloseable
      *
      * @param snapshotName
      *            the name of the snapshot.
+     * @param options
+     *            Options (skipFlush for now)
      * @param tableList
      *            list of columnfamily from different keyspace in the form of ks1.cf1 ks2.cf2
      */
-    public void takeMultipleTableSnapshot(String snapshotName, String... tableList)
+    public void takeMultipleTableSnapshot(String snapshotName, Map<String, String> options, String... tableList)
             throws IOException
     {
         if (null != tableList && tableList.length != 0)
         {
-            ssProxy.takeMultipleTableSnapshot(snapshotName, tableList);
+            ssProxy.takeSnapshot(snapshotName, options, tableList);
         }
         else
         {
             throw new IOException("The column family List  for a snapshot should not be empty or null");
         }
-
     }
 
     /**

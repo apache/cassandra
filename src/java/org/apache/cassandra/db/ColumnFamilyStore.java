@@ -1749,16 +1749,31 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
      */
     public Set<SSTableReader> snapshot(String snapshotName)
     {
-        return snapshot(snapshotName, null, false);
+        return snapshot(snapshotName, false);
+    }
+
+    /**
+     * Take a snap shot of this columnfamily store.
+     *
+     * @param snapshotName the name of the associated with the snapshot
+     * @param skipFlush Skip blocking flush of memtable
+     */
+    public Set<SSTableReader> snapshot(String snapshotName, boolean skipFlush)
+    {
+        return snapshot(snapshotName, null, false, skipFlush);
     }
 
 
     /**
      * @param ephemeral If this flag is set to true, the snapshot will be cleaned up during next startup
+     * @param skipFlush Skip blocking flush of memtable
      */
-    public Set<SSTableReader> snapshot(String snapshotName, Predicate<SSTableReader> predicate, boolean ephemeral)
+    public Set<SSTableReader> snapshot(String snapshotName, Predicate<SSTableReader> predicate, boolean ephemeral, boolean skipFlush)
     {
-        forceBlockingFlush();
+        if (!skipFlush)
+        {
+            forceBlockingFlush();
+        }
         return snapshotWithoutFlush(snapshotName, predicate, ephemeral);
     }
 

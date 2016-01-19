@@ -90,7 +90,7 @@ public class RepairMessageVerbHandler implements IVerbHandler<RepairMessage>
                                    !sstable.metadata.isIndex() && // exclude SSTables from 2i
                                    new Bounds<>(sstable.first.getToken(), sstable.last.getToken()).intersects(repairingRange);
                         }
-                    }, true); //ephemeral snapshot, if repair fails, it will be cleaned next startup
+                    }, true, false); //ephemeral snapshot, if repair fails, it will be cleaned next startup
 
                     Set<SSTableReader> currentlyRepairing = ActiveRepairService.instance.currentlyRepairing(cfs.metadata.cfId, desc.parentSessionId);
                     if (!Sets.intersection(currentlyRepairing, snapshottedSSSTables).isEmpty())

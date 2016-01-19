@@ -94,10 +94,10 @@ public class StorageServiceServerTest
     }
 
     @Test
-    public void testSnapshot() throws IOException
+    public void testSnapshotWithFlush() throws IOException
     {
         // no need to insert extra data, even an "empty" database will have a little information in the system keyspace
-        StorageService.instance.takeSnapshot("snapshot");
+        StorageService.instance.takeSnapshot(UUID.randomUUID().toString());
     }
 
     private void checkTempFilePresence(File f, boolean exist)
@@ -173,7 +173,14 @@ public class StorageServiceServerTest
     public void testTableSnapshot() throws IOException
     {
         // no need to insert extra data, even an "empty" database will have a little information in the system keyspace
-        StorageService.instance.takeTableSnapshot(SchemaKeyspace.NAME, SchemaKeyspace.KEYSPACES, "cf_snapshot");
+        StorageService.instance.takeTableSnapshot(SchemaKeyspace.NAME, SchemaKeyspace.KEYSPACES, UUID.randomUUID().toString());
+    }
+
+    @Test
+    public void testSnapshot() throws IOException
+    {
+        // no need to insert extra data, even an "empty" database will have a little information in the system keyspace
+        StorageService.instance.takeSnapshot(UUID.randomUUID().toString(), SchemaKeyspace.NAME);
     }
 
     @Test

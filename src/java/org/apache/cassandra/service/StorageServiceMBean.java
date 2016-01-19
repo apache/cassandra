@@ -194,31 +194,34 @@ public interface StorageServiceMBean extends NotificationEmitter
     public List<InetAddress> getNaturalEndpoints(String keyspaceName, ByteBuffer key);
 
     /**
-     * Takes the snapshot for the given keyspaces. A snapshot name must be specified.
-     *
-     * @param tag the tag given to the snapshot; may not be null or empty
-     * @param keyspaceNames the name of the keyspaces to snapshot; empty means "all."
+     * @deprecated use {@link #takeSnapshot(String tag, Map options, boolean keyspaces, String... entities)} instead.
      */
+    @Deprecated
     public void takeSnapshot(String tag, String... keyspaceNames) throws IOException;
 
     /**
-     * Takes the snapshot of a specific column family. A snapshot name must be specified.
-     *
-     * @param keyspaceName the keyspace which holds the specified column family
-     * @param tableName the table to snapshot
-     * @param tag the tag given to the snapshot; may not be null or empty
+     * @deprecated use {@link #takeSnapshot(String tag, Map options, boolean keyspaces, String... entities)} instead.
      */
+    @Deprecated
     public void takeTableSnapshot(String keyspaceName, String tableName, String tag) throws IOException;
+
+    /**
+     * @deprecated use {@link #takeSnapshot(String tag, Map options, boolean keyspaces, String... entities)} instead.
+     */
+    @Deprecated
+    public void takeMultipleTableSnapshot(String tag, String... tableList) throws IOException;
 
     /**
      * Takes the snapshot of a multiple column family from different keyspaces. A snapshot name must be specified.
      * 
      * @param tag
      *            the tag given to the snapshot; may not be null or empty
-     * @param tableList
-     *            list of tables from different keyspace in the form of ks1.cf1 ks2.cf2
+     * @param options
+     *            Map of options (skipFlush is the only supported option for now)
+     * @param entities
+     *            list of keyspaces / tables in the form of empty | ks1 ks2 ... | ks1.cf1,ks2.cf2,...
      */
-    public void takeMultipleTableSnapshot(String tag, String... tableList) throws IOException;
+    public void takeSnapshot(String tag, Map<String, String> options, String... entities) throws IOException;
 
     /**
      * Remove the snapshot with the given name from the given keyspaces.

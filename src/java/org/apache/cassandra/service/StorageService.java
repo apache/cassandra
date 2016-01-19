@@ -2775,12 +2775,79 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
     }
 
     /**
+     * Takes the snapshot of a multiple column family from different keyspaces. A snapshot name must be specified.
+     *
+     * @param tag
+     *            the tag given to the snapshot; may not be null or empty
+     * @param options
+     *            Map of options (skipFlush is the only supported option for now)
+     * @param entities
+     *            list of keyspaces / tables in the form of empty | ks1 ks2 ... | ks1.cf1,ks2.cf2,...
+     */
+    @Override
+    public void takeSnapshot(String tag, Map<String, String> options, String... entities) throws IOException
+    {
+        boolean skipFlush = Boolean.parseBoolean(options.getOrDefault("skipFlush", "false"));
+
+        if (entities != null && entities.length > 0 && entities[0].contains("."))
+        {
+            takeMultipleTableSnapshot(tag, skipFlush, entities);
+        }
+        else
+        {
+            takeSnapshot(tag, skipFlush, entities);
+        }
+    }
+
+    /**
+     * Takes the snapshot of a specific table. A snapshot name must be
+     * specified.
+     *
+     * @param keyspaceName
+     *            the keyspace which holds the specified table
+     * @param tableName
+     *            the table to snapshot
+     * @param tag
+     *            the tag given to the snapshot; may not be null or empty
+     */
+    public void takeTableSnapshot(String keyspaceName, String tableName, String tag)
+            throws IOException {
+        takeMultipleTableSnapshot(tag, false, keyspaceName + "." + tableName);
+    }
+
+    /**
      * Takes the snapshot for the given keyspaces. A snapshot name must be specified.
      *
      * @param tag the tag given to the snapshot; may not be null or empty
      * @param keyspaceNames the names of the keyspaces to snapshot; empty means "all."
      */
     public void takeSnapshot(String tag, String... keyspaceNames) throws IOException
+    {
+        takeSnapshot(tag, false, keyspaceNames);
+    }
+
+    /**
+     * Takes the snapshot of a multiple column family from different keyspaces. A snapshot name must be specified.
+     *
+     * @param tag
+     *            the tag given to the snapshot; may not be null or empty
+     * @param tableList
+     *            list of tables from different keyspace in the form of ks1.cf1 ks2.cf2
+     */
+    public void takeMultipleTableSnapshot(String tag, String... tableList)
+            throws IOException
+    {
+        takeMultipleTableSnapshot(tag, false, tableList);
+    }
+
+    /**
+     * Takes the snapshot for the given keyspaces. A snapshot name must be specified.
+     *
+     * @param tag the tag given to the snapshot; may not be null or empty
+     * @param skipFlush Skip blocking flush of memtable
+     * @param keyspaceNames the names of the keyspaces to snapshot; empty means "all."
+     */
+    private void takeSnapshot(String tag, boolean skipFlush, String... keyspaceNames) throws IOException
     {
         if (operationMode == Mode.JOINING)
             throw new IOException("Cannot snapshot until bootstrap completes");
@@ -2807,37 +2874,7 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
 
 
         for (Keyspace keyspace : keyspaces)
-            keyspace.snapshot(tag, null);
-    }
-
-    /**
-     * Takes the snapshot of a specific table. A snapshot name must be specified.
-     *
-     * @param keyspaceName the keyspace which holds the specified table
-     * @param tableName the table to snapshot
-     * @param tag the tag given to the snapshot; may not be null or empty
-     */
-    public void takeTableSnapshot(String keyspaceName, String tableName, String tag) throws IOException
-    {
-        if (keyspaceName == null)
-            throw new IOException("You must supply a keyspace name");
-        if (operationMode == Mode.JOINING)
-            throw new IOException("Cannot snapshot until bootstrap completes");
-
-        if (tableName == null)
-            throw new IOException("You must supply a table name");
-        if (tableName.contains("."))
-            throw new IllegalArgumentException("Cannot take a snapshot of a secondary index by itself. Run snapshot on the table that owns the index.");
-
-        if (tag == null || tag.equals(""))
-            throw new IOException("You must supply a snapshot name.");
-
-        Keyspace keyspace = getValidKeyspace(keyspaceName);
-        ColumnFamilyStore columnFamilyStore = keyspace.getColumnFamilyStore(tableName);
-        if (columnFamilyStore.snapshotExists(tag))
-            throw new IOException("Snapshot " + tag + " already exists.");
-
-        columnFamilyStore.snapshot(tag);
+            keyspace.snapshot(tag, null, skipFlush);
     }
 
     /**
@@ -2846,11 +2883,12 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
      *
      * @param tag
      *            the tag given to the snapshot; may not be null or empty
+     * @param skipFlush
+     *            Skip blocking flush of memtable
      * @param tableList
      *            list of tables from different keyspace in the form of ks1.cf1 ks2.cf2
      */
-    @Override
-    public void takeMultipleTableSnapshot(String tag, String... tableList)
+    private void takeMultipleTableSnapshot(String tag, boolean skipFlush, String... tableList)
             throws IOException
     {
         Map<Keyspace, List<String>> keyspaceColumnfamily = new HashMap<Keyspace, List<String>>();
@@ -2899,7 +2937,7 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
         for (Entry<Keyspace, List<String>> entry : keyspaceColumnfamily.entrySet())
         {
             for (String table : entry.getValue())
-                entry.getKey().snapshot(tag, table);
+                entry.getKey().snapshot(tag, table, skipFlush);
         }
 
     }
