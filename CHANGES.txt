@@ -11,6 +11,7 @@
 3.3
  * Avoid bootstrap hanging when existing nodes have no data to stream (CASSANDRA-11010)
 Merged from 3.0:
+ * Don't attempt to index clustering values of static rows (CASSANDRA-11021)
  * Remove checksum files after replaying hints (CASSANDRA-10947)
  * Support passing base table metadata to custom 2i validation (CASSANDRA-10924)
  * Ensure stale index entries are purged during reads (CASSANDRA-11013)

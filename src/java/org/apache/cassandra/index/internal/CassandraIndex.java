@@ -342,6 +342,9 @@ public abstract class CassandraIndex implements Index
 
             public void insertRow(Row row)
             {
+                if (row.isStatic() != indexedColumn.isStatic())
+                    return;
+
                 if (isPrimaryKeyIndex())
                 {
                     indexPrimaryKey(row.clustering(),
@@ -370,6 +373,10 @@ public abstract class CassandraIndex implements Index
 
             public void updateRow(Row oldRow, Row newRow)
             {
+                assert oldRow.isStatic() == newRow.isStatic();
+                if (newRow.isStatic() != indexedColumn.isStatic())
+                    return;
+
                 if (isPrimaryKeyIndex())
                     indexPrimaryKey(newRow.clustering(),
                                     newRow.primaryKeyLivenessInfo(),
