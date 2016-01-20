@@ -1,4 +1,6 @@
 2.2.5
+ * Start L0 STCS-compactions even if there is a L0 -> L1 compaction
+   going (CASSANDRA-10979)
  * Make UUID LSB unique per process (CASSANDRA-7925)
  * Avoid NPE when performing sstable tasks (scrub etc.) (CASSANDRA-10980)
  * Make sure client gets tombstone overwhelmed warning (CASSANDRA-9465)
