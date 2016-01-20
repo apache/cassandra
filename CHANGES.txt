@@ -1,4 +1,5 @@
 2.1.14
+ * Make it clear what DTCS timestamp_resolution is used for (CASSANDRA-11041)
  * Gossiper#isEnabled is not thread safe (CASSANDRA-11116)
 
 

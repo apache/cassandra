@@ -470,7 +470,6 @@ def cf_prop_val_mapkey_completer(ctxt, cass):
         elif csc == 'DateTieredCompactionStrategy':
             opts.add('base_time_seconds')
             opts.add('max_sstable_age_days')
-            opts.add('timestamp_resolution')
             opts.add('min_threshold')
             opts.add('max_window_size_seconds')
         return map(escape_value, opts)
