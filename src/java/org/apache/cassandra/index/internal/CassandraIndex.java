@@ -10,6 +10,7 @@ import java.util.regex.Pattern;
 import java.util.stream.Collectors;
 import java.util.stream.StreamSupport;
 
+import com.google.common.collect.ImmutableSet;
 import org.apache.commons.lang3.StringUtils;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -26,6 +27,7 @@ import org.apache.cassandra.db.lifecycle.SSTableSet;
 import org.apache.cassandra.db.lifecycle.View;
 import org.apache.cassandra.db.marshal.AbstractType;
 import org.apache.cassandra.db.marshal.CollectionType;
+import org.apache.cassandra.db.marshal.EmptyType;
 import org.apache.cassandra.db.partitions.PartitionIterator;
 import org.apache.cassandra.db.partitions.PartitionUpdate;
 import org.apache.cassandra.db.rows.*;
@@ -710,14 +712,35 @@ public abstract class CassandraIndex implements Index
         CassandraIndexFunctions utils = getFunctions(indexMetadata, target);
         ColumnDefinition indexedColumn = target.left;
         AbstractType<?> indexedValueType = utils.getIndexedValueType(indexedColumn);
-        CFMetaData.Builder builder = CFMetaData.Builder.create(baseCfsMetadata.ksName,
-                                                               baseCfsMetadata.indexColumnFamilyName(indexMetadata))
-                                                       .withId(baseCfsMetadata.cfId)
-                                                       .withPartitioner(new LocalPartitioner(indexedValueType))
-                                                       .addPartitionKey(indexedColumn.name, indexedColumn.type);
 
-        builder.addClusteringColumn("partition_key", baseCfsMetadata.partitioner.partitionOrdering());
-        builder = utils.addIndexClusteringColumns(builder, baseCfsMetadata, indexedColumn);
+        // Tables for legacy KEYS indexes are non-compound and dense
+        CFMetaData.Builder builder = indexMetadata.isKeys()
+                                     ? CFMetaData.Builder.create(baseCfsMetadata.ksName,
+                                                                 baseCfsMetadata.indexColumnFamilyName(indexMetadata),
+                                                                 true, false, false)
+                                     : CFMetaData.Builder.create(baseCfsMetadata.ksName,
+                                                                 baseCfsMetadata.indexColumnFamilyName(indexMetadata));
+
+        builder =  builder.withId(baseCfsMetadata.cfId)
+                          .withPartitioner(new LocalPartitioner(indexedValueType))
+                          .addPartitionKey(indexedColumn.name, indexedColumn.type)
+                          .addClusteringColumn("partition_key", baseCfsMetadata.partitioner.partitionOrdering());
+
+        if (indexMetadata.isKeys())
+        {
+            // A dense, compact table for KEYS indexes must have a compact
+            // value column defined, even though it is never used
+            CompactTables.DefaultNames names =
+                CompactTables.defaultNameGenerator(ImmutableSet.of(indexedColumn.name.toString(), "partition_key"));
+            builder = builder.addRegularColumn(names.defaultCompactValueName(), EmptyType.instance);
+        }
+        else
+        {
+            // The clustering columns for a table backing a COMPOSITES index are dependent
+            // on the specific type of index (there are specializations for indexes on collections)
+            builder = utils.addIndexClusteringColumns(builder, baseCfsMetadata, indexedColumn);
+        }
+
         return builder.build().reloadIndexMetadataProperties(baseCfsMetadata);
     }
 

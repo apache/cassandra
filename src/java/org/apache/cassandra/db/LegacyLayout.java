@@ -142,7 +142,7 @@ public abstract class LegacyLayout
         ByteBuffer column = metadata.isCompound() ? CompositeType.extractComponent(cellname, metadata.comparator.size()) : cellname;
         if (column == null)
         {
-            // 2ndary indexes tables used to be compound but dense, but we've transformed then into regular tables
+            // Tables for composite 2ndary indexes used to be compound but dense, but we've transformed them into regular tables
             // (non compact ones) but with no regular column (i.e. we only care about the clustering). So we'll get here
             // in that case, and what we want to return is basically a row marker.
             if (metadata.partitionColumns().isEmpty())
