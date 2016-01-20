@@ -39,6 +39,7 @@ import org.apache.cassandra.thrift.ThriftConversion;
 
 import static java.lang.String.format;
 import static junit.framework.Assert.assertEquals;
+import static junit.framework.Assert.assertFalse;
 import static junit.framework.Assert.assertTrue;
 import static org.apache.cassandra.cql3.QueryProcessor.executeOnceInternal;
 import static org.apache.cassandra.utils.ByteBufferUtil.bytes;
@@ -87,6 +88,11 @@ public class LegacySchemaMigratorTest
 
         // make sure that we've read *exactly* the same set of keyspaces/tables/types/functions
         assertEquals(expected, actual);
+
+        // check that the build status of all indexes has been updated to use the new
+        // format of index name: the index_name column of system.IndexInfo used to
+        // contain table_name.index_name. Now it should contain just the index_name.
+        expected.forEach(LegacySchemaMigratorTest::verifyIndexBuildStatus);
     }
 
     private static void loadLegacySchemaTables()
@@ -542,6 +548,7 @@ public class LegacySchemaMigratorTest
     private static void legacySerializeKeyspace(KeyspaceMetadata keyspace)
     {
         makeLegacyCreateKeyspaceMutation(keyspace, TIMESTAMP).apply();
+        setLegacyIndexStatus(keyspace);
     }
 
     private static Mutation makeLegacyCreateKeyspaceMutation(KeyspaceMetadata keyspace, long timestamp)
@@ -787,4 +794,36 @@ public class LegacySchemaMigratorTest
 
         return ListType.getInstance(UTF8Type.instance, false).decompose(arguments);
     }
+
+    private static void setLegacyIndexStatus(KeyspaceMetadata keyspace)
+    {
+        keyspace.tables.forEach(LegacySchemaMigratorTest::setLegacyIndexStatus);
+    }
+
+    private static void setLegacyIndexStatus(CFMetaData table)
+    {
+        table.getIndexes().forEach((index) -> setLegacyIndexStatus(table.ksName, table.cfName, index));
+    }
+
+    private static void setLegacyIndexStatus(String keyspace, String table, IndexMetadata index)
+    {
+        SystemKeyspace.setIndexBuilt(keyspace, table + '.' + index.name);
+    }
+
+    private static void verifyIndexBuildStatus(KeyspaceMetadata keyspace)
+    {
+        keyspace.tables.forEach(LegacySchemaMigratorTest::verifyIndexBuildStatus);
+    }
+
+    private static void verifyIndexBuildStatus(CFMetaData table)
+    {
+        table.getIndexes().forEach(index -> verifyIndexBuildStatus(table.ksName, table.cfName, index));
+    }
+
+    private static void verifyIndexBuildStatus(String keyspace, String table, IndexMetadata index)
+    {
+        assertFalse(SystemKeyspace.isIndexBuilt(keyspace, table + '.' + index.name));
+        assertTrue(SystemKeyspace.isIndexBuilt(keyspace, index.name));
+    }
+
 }
