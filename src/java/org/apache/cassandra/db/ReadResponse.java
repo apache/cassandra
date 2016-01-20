@@ -53,38 +53,38 @@ public abstract class ReadResponse
 
     // This is used only when serializing data responses and we can't it easily in other cases. So this can be null, which is slighly
     // hacky, but as this hack doesn't escape this class, and it's easy enough to validate that it's not null when we need, it's "good enough".
-    private final CFMetaData metadata;
+    private final ReadCommand command;
 
-    protected ReadResponse(CFMetaData metadata)
+    protected ReadResponse(ReadCommand command)
     {
-        this.metadata = metadata;
+        this.command = command;
     }
 
-    public static ReadResponse createDataResponse(UnfilteredPartitionIterator data, ColumnFilter selection)
+    public static ReadResponse createDataResponse(UnfilteredPartitionIterator data, ReadCommand command)
     {
-        return new LocalDataResponse(data, selection);
+        return new LocalDataResponse(data, command);
     }
 
     @VisibleForTesting
-    public static ReadResponse createRemoteDataResponse(UnfilteredPartitionIterator data, ColumnFilter selection)
+    public static ReadResponse createRemoteDataResponse(UnfilteredPartitionIterator data, ReadCommand command)
     {
-        return new RemoteDataResponse(LocalDataResponse.build(data, selection));
+        return new RemoteDataResponse(LocalDataResponse.build(data, command.columnFilter()));
     }
 
-    public static ReadResponse createDigestResponse(UnfilteredPartitionIterator data, int version)
+    public static ReadResponse createDigestResponse(UnfilteredPartitionIterator data, ReadCommand command)
     {
-        return new DigestResponse(makeDigest(data, version));
+        return new DigestResponse(makeDigest(data, command));
     }
 
-    public abstract UnfilteredPartitionIterator makeIterator(CFMetaData metadata, ReadCommand command);
-    public abstract ByteBuffer digest(CFMetaData metadata, ReadCommand command);
+    public abstract UnfilteredPartitionIterator makeIterator(ReadCommand command);
+    public abstract ByteBuffer digest(ReadCommand command);
 
     public abstract boolean isDigestResponse();
 
-    protected static ByteBuffer makeDigest(UnfilteredPartitionIterator iterator, int version)
+    protected static ByteBuffer makeDigest(UnfilteredPartitionIterator iterator, ReadCommand command)
     {
         MessageDigest digest = FBUtilities.threadLocalMD5Digest();
-        UnfilteredPartitionIterators.digest(iterator, digest, version);
+        UnfilteredPartitionIterators.digest(command, iterator, digest, command.digestVersion());
         return ByteBuffer.wrap(digest.digest());
     }
 
@@ -99,12 +99,12 @@ public abstract class ReadResponse
             this.digest = digest;
         }
 
-        public UnfilteredPartitionIterator makeIterator(CFMetaData metadata, ReadCommand command)
+        public UnfilteredPartitionIterator makeIterator(ReadCommand command)
         {
             throw new UnsupportedOperationException();
         }
 
-        public ByteBuffer digest(CFMetaData metadata, ReadCommand command)
+        public ByteBuffer digest(ReadCommand command)
         {
             // We assume that the digest is in the proper version, which bug excluded should be true since this is called with
             // ReadCommand.digestVersion() as argument and that's also what we use to produce the digest in the first place.
@@ -122,11 +122,9 @@ public abstract class ReadResponse
     // built on the owning node responding to a query
     private static class LocalDataResponse extends DataResponse
     {
-        private final ColumnFilter received;
-        private LocalDataResponse(UnfilteredPartitionIterator iter, ColumnFilter received)
+        private LocalDataResponse(UnfilteredPartitionIterator iter, ReadCommand command)
         {
-            super(iter.metadata(), build(iter, received), SerializationHelper.Flag.LOCAL);
-            this.received = received;
+            super(command, build(iter, command.columnFilter()), SerializationHelper.Flag.LOCAL);
         }
 
         private static ByteBuffer build(UnfilteredPartitionIterator iter, ColumnFilter selection)
@@ -142,14 +140,6 @@ public abstract class ReadResponse
                 throw new RuntimeException(e);
             }
         }
-
-        protected ColumnFilter selection(ReadCommand sent)
-        {
-            // we didn't send anything, so we don't provide it in the serializer methods, but use the
-            // object's reference to the original column filter we received
-            assert sent == null || sent.columnFilter() == received;
-            return received;
-        }
     }
 
     // built on the coordinator node receiving a response
@@ -158,13 +148,6 @@ public abstract class ReadResponse
         protected RemoteDataResponse(ByteBuffer data)
         {
             super(null, data, SerializationHelper.Flag.FROM_REMOTE);
-        }
-
-        protected ColumnFilter selection(ReadCommand sent)
-        {
-            // we should always know what we sent, and should provide it in digest() and makeIterator()
-            assert sent != null;
-            return sent.columnFilter();
         }
     }
 
@@ -175,23 +158,24 @@ public abstract class ReadResponse
         private final ByteBuffer data;
         private final SerializationHelper.Flag flag;
 
-        protected DataResponse(CFMetaData metadata, ByteBuffer data, SerializationHelper.Flag flag)
+        protected DataResponse(ReadCommand command, ByteBuffer data, SerializationHelper.Flag flag)
         {
-            super(metadata);
+            super(command);
             this.data = data;
             this.flag = flag;
         }
 
-        protected abstract ColumnFilter selection(ReadCommand command);
-
-        public UnfilteredPartitionIterator makeIterator(CFMetaData metadata, ReadCommand command)
+        public UnfilteredPartitionIterator makeIterator(ReadCommand command)
         {
             try (DataInputBuffer in = new DataInputBuffer(data, true))
             {
+                // Note that the command parameter shadows the 'command' field and this is intended because
+                // the later can be null (for RemoteDataResponse as those are created in the serializers and
+                // those don't have easy access to the command). This is also why we need the command as parameter here.
                 return UnfilteredPartitionIterators.serializerForIntraNode().deserialize(in,
                                                                                          MessagingService.current_version,
-                                                                                         metadata,
-                                                                                         selection(command),
+                                                                                         command.metadata(),
+                                                                                         command.columnFilter(),
                                                                                          flag);
             }
             catch (IOException e)
@@ -201,11 +185,11 @@ public abstract class ReadResponse
             }
         }
 
-        public ByteBuffer digest(CFMetaData metadata, ReadCommand command)
+        public ByteBuffer digest(ReadCommand command)
         {
-            try (UnfilteredPartitionIterator iterator = makeIterator(metadata, command))
+            try (UnfilteredPartitionIterator iterator = makeIterator(command))
             {
-                return makeDigest(iterator, command.digestVersion());
+                return makeDigest(iterator, command);
             }
         }
 
@@ -229,11 +213,11 @@ public abstract class ReadResponse
         @VisibleForTesting
         LegacyRemoteDataResponse(List<ImmutableBTreePartition> partitions)
         {
-            super(null); // we never serialize LegacyRemoteDataResponses, so we don't care about the metadata
+            super(null); // we never serialize LegacyRemoteDataResponses, so we don't care about the command
             this.partitions = partitions;
         }
 
-        public UnfilteredPartitionIterator makeIterator(CFMetaData metadata, final ReadCommand command)
+        public UnfilteredPartitionIterator makeIterator(final ReadCommand command)
         {
             // Due to a bug in the serialization of AbstractBounds, anything that isn't a Range is understood by pre-3.0 nodes
             // as a Bound, which means IncludingExcludingBounds and ExcludingBounds responses may include keys they shouldn't.
@@ -271,7 +255,7 @@ public abstract class ReadResponse
 
                 public CFMetaData metadata()
                 {
-                    return metadata;
+                    return command.metadata();
                 }
 
                 public boolean hasNext()
@@ -296,11 +280,11 @@ public abstract class ReadResponse
             };
         }
 
-        public ByteBuffer digest(CFMetaData metadata, ReadCommand command)
+        public ByteBuffer digest(ReadCommand command)
         {
-            try (UnfilteredPartitionIterator iterator = makeIterator(metadata, command))
+            try (UnfilteredPartitionIterator iterator = makeIterator(command))
             {
-                return makeDigest(iterator, command.digestVersion());
+                return makeDigest(iterator, command);
             }
         }
 
@@ -323,14 +307,14 @@ public abstract class ReadResponse
                 out.writeBoolean(isDigest);
                 if (!isDigest)
                 {
-                    assert !(response instanceof LegacyRemoteDataResponse); // we only use those on the receiving side
-                    try (UnfilteredPartitionIterator iter = response.makeIterator(response.metadata, null))
+                    assert response.command != null; // we only serialize LocalDataResponse, which always has the command set
+                    try (UnfilteredPartitionIterator iter = response.makeIterator(response.command))
                     {
                         assert iter.hasNext();
                         try (UnfilteredRowIterator partition = iter.next())
                         {
                             ByteBufferUtil.writeWithShortLength(partition.partitionKey().getKey(), out);
-                            LegacyLayout.serializeAsLegacyPartition(partition, out, version);
+                            LegacyLayout.serializeAsLegacyPartition(response.command, partition, out, version);
                         }
                         assert !iter.hasNext();
                     }
@@ -397,14 +381,14 @@ public abstract class ReadResponse
                         + TypeSizes.sizeof(isDigest);
                 if (!isDigest)
                 {
-                    assert !(response instanceof LegacyRemoteDataResponse); // we only use those on the receiving side
-                    try (UnfilteredPartitionIterator iter = response.makeIterator(response.metadata, null))
+                    assert response.command != null; // we only serialize LocalDataResponse, which always has the command set
+                    try (UnfilteredPartitionIterator iter = response.makeIterator(response.command))
                     {
                         assert iter.hasNext();
                         try (UnfilteredRowIterator partition = iter.next())
                         {
                             size += ByteBufferUtil.serializedSizeWithShortLength(partition.partitionKey().getKey());
-                            size += LegacyLayout.serializedSizeAsLegacyPartition(partition, version);
+                            size += LegacyLayout.serializedSizeAsLegacyPartition(response.command, partition, version);
                         }
                         assert !iter.hasNext();
                     }
@@ -458,8 +442,8 @@ public abstract class ReadResponse
 
             // determine the number of partitions upfront for serialization
             int numPartitions = 0;
-            assert !(response instanceof LegacyRemoteDataResponse); // we only use those on the receiving side
-            try (UnfilteredPartitionIterator iterator = response.makeIterator(response.metadata, null))
+            assert response.command != null; // we only serialize LocalDataResponse, which always has the command set
+            try (UnfilteredPartitionIterator iterator = response.makeIterator(response.command))
             {
                 while (iterator.hasNext())
                 {
@@ -476,14 +460,14 @@ public abstract class ReadResponse
 
             out.writeInt(numPartitions);
 
-            try (UnfilteredPartitionIterator iterator = response.makeIterator(response.metadata, null))
+            try (UnfilteredPartitionIterator iterator = response.makeIterator(response.command))
             {
                 while (iterator.hasNext())
                 {
                     try (UnfilteredRowIterator partition = iterator.next())
                     {
                         ByteBufferUtil.writeWithShortLength(partition.partitionKey().getKey(), out);
-                        LegacyLayout.serializeAsLegacyPartition(partition, out, version);
+                        LegacyLayout.serializeAsLegacyPartition(response.command, partition, out, version);
                     }
                 }
             }
@@ -509,15 +493,15 @@ public abstract class ReadResponse
             assert version < MessagingService.VERSION_30;
             long size = TypeSizes.sizeof(0);  // number of partitions
 
-            assert !(response instanceof LegacyRemoteDataResponse); // we only use those on the receiving side
-            try (UnfilteredPartitionIterator iterator = response.makeIterator(response.metadata, null))
+            assert response.command != null; // we only serialize LocalDataResponse, which always has the command set
+            try (UnfilteredPartitionIterator iterator = response.makeIterator(response.command))
             {
                 while (iterator.hasNext())
                 {
                     try (UnfilteredRowIterator partition = iterator.next())
                     {
                         size += ByteBufferUtil.serializedSizeWithShortLength(partition.partitionKey().getKey());
-                        size += LegacyLayout.serializedSizeAsLegacyPartition(partition, version);
+                        size += LegacyLayout.serializedSizeAsLegacyPartition(response.command, partition, version);
                     }
                 }
             }

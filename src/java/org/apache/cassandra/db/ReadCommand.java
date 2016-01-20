@@ -282,11 +282,11 @@ public abstract class ReadCommand implements ReadQuery
 
     protected abstract int oldestUnrepairedTombstone();
 
-    public ReadResponse createResponse(UnfilteredPartitionIterator iterator, ColumnFilter selection)
+    public ReadResponse createResponse(UnfilteredPartitionIterator iterator)
     {
         return isDigestQuery()
-             ? ReadResponse.createDigestResponse(iterator, digestVersion)
-             : ReadResponse.createDataResponse(iterator, selection);
+             ? ReadResponse.createDigestResponse(iterator, this)
+             : ReadResponse.createDataResponse(iterator, this);
     }
 
     public long indexSerializedSize(int version)
@@ -723,18 +723,17 @@ public abstract class ReadCommand implements ReadQuery
                 out.writeBoolean(filter.isReversed());
 
                 // limit
-                DataLimits.Kind kind = rangeCommand.limits().kind();
-                boolean isDistinct = (kind == DataLimits.Kind.CQL_LIMIT || kind == DataLimits.Kind.CQL_PAGING_LIMIT) && rangeCommand.limits().perPartitionCount() == 1;
-                if (isDistinct)
+                DataLimits limits = rangeCommand.limits();
+                if (limits.isDistinct())
                     out.writeInt(1);
                 else
                     out.writeInt(LegacyReadCommandSerializer.updateLimitForQuery(rangeCommand.limits().count(), filter.requestedSlices()));
 
                 int compositesToGroup;
                 boolean selectsStatics = !rangeCommand.columnFilter().fetchedColumns().statics.isEmpty() || filter.requestedSlices().selects(Clustering.STATIC_CLUSTERING);
-                if (kind == DataLimits.Kind.THRIFT_LIMIT)
+                if (limits.kind() == DataLimits.Kind.THRIFT_LIMIT)
                     compositesToGroup = -1;
-                else if (isDistinct && !selectsStatics)
+                else if (limits.isDistinct() && !selectsStatics)
                     compositesToGroup = -2;  // for DISTINCT queries (CASSANDRA-8490)
                 else
                     compositesToGroup = metadata.isDense() ? -1 : metadata.clusteringColumns().size();
@@ -799,11 +798,15 @@ public abstract class ReadCommand implements ReadQuery
             AbstractBounds<PartitionPosition> keyRange = AbstractBounds.rowPositionSerializer.deserialize(in, metadata.partitioner, version);
             int maxResults = in.readInt();
 
-            in.readBoolean();  // countCQL3Rows (not needed)
+            boolean countCQL3Rows = in.readBoolean();  // countCQL3Rows (not needed)
             in.readBoolean();  // isPaging (not needed)
 
             boolean selectsStatics = (!selection.fetchedColumns().statics.isEmpty() || filter.selects(Clustering.STATIC_CLUSTERING));
-            boolean isDistinct = compositesToGroup == -2 || (perPartitionLimit == 1 && selectsStatics);
+            // We have 2 types of DISTINCT queries: ones on only the partition key, and ones on the partition key and static columns. For the former,
+            // we can easily detect the case because compositeToGroup is -2 and that's the only case it can be that. The latter one is slightly less
+            // direct, but we know that on 2.1/2.2 queries, DISTINCT queries are the only CQL queries that have countCQL3Rows to false so we use
+            // that fact.
+            boolean isDistinct = compositesToGroup == -2 || (compositesToGroup != -1 && !countCQL3Rows);
             DataLimits limits;
             if (isDistinct)
                 limits = DataLimits.distinctLimits(maxResults);
@@ -1054,9 +1057,13 @@ public abstract class ReadCommand implements ReadQuery
 
             RowFilter rowFilter = LegacyRangeSliceCommandSerializer.deserializeRowFilter(in, metadata);
             int maxResults = in.readInt();
-            in.readBoolean(); // countCQL3Rows
+            boolean countCQL3Rows = in.readBoolean();
 
-            boolean isDistinct = compositesToGroup == -2 || (perPartitionLimit == 1 && selectsStatics);
+            // We have 2 types of DISTINCT queries: ones on only the partition key, and ones on the partition key and static columns. For the former,
+            // we can easily detect the case because compositeToGroup is -2 and that's the only case it can be that. The latter one is slightly less
+            // direct, but we know that on 2.1/2.2 queries, DISTINCT queries are the only CQL queries that have countCQL3Rows to false so we use
+            // that fact.
+            boolean isDistinct = compositesToGroup == -2 || (compositesToGroup != -1 && !countCQL3Rows);
             DataLimits limits;
             if (isDistinct)
                 limits = DataLimits.distinctLimits(maxResults);
@@ -1340,17 +1347,16 @@ public abstract class ReadCommand implements ReadQuery
             out.writeBoolean(filter.isReversed());
 
             boolean selectsStatics = !command.columnFilter().fetchedColumns().statics.isEmpty() || slices.selects(Clustering.STATIC_CLUSTERING);
-            DataLimits.Kind kind = command.limits().kind();
-            boolean isDistinct = (kind == DataLimits.Kind.CQL_LIMIT || kind == DataLimits.Kind.CQL_PAGING_LIMIT) && command.limits().perPartitionCount() == 1;
-            if (isDistinct)
+            DataLimits limits = command.limits();
+            if (limits.isDistinct())
                 out.writeInt(1);  // the limit is always 1 for DISTINCT queries
             else
                 out.writeInt(updateLimitForQuery(command.limits().count(), filter.requestedSlices()));
 
             int compositesToGroup;
-            if (kind == DataLimits.Kind.THRIFT_LIMIT || metadata.isDense())
+            if (limits.kind() == DataLimits.Kind.THRIFT_LIMIT || metadata.isDense())
                 compositesToGroup = -1;
-            else if (isDistinct && !selectsStatics)
+            else if (limits.isDistinct() && !selectsStatics)
                 compositesToGroup = -2;  // for DISTINCT queries (CASSANDRA-8490)
             else
                 compositesToGroup = metadata.clusteringColumns().size();
@@ -1369,9 +1375,19 @@ public abstract class ReadCommand implements ReadQuery
             // if a slice query from a pre-3.0 node doesn't cover statics, we shouldn't select them at all
             ColumnFilter columnFilter = LegacyRangeSliceCommandSerializer.getColumnSelectionForSlice(selectsStatics, compositesToGroup, metadata);
 
-            boolean isDistinct = compositesToGroup == -2 || (count == 1 && selectsStatics);
+            // We have 2 types of DISTINCT queries: ones on only the partition key, and ones on the partition key and static columns. For the former,
+            // we can easily detect the case because compositeToGroup is -2 and that's the only case it can be that. The latter is probablematic
+            // however as we have no way to distinguish it from a normal select with a limit of 1 (and this, contrarily to the range query case
+            // were the countCQL3Rows boolean allows us to decide).
+            // So we consider this case not distinct here. This is ok because even if it is a distinct (with static), the count will be 1 and
+            // we'll still just query one row (a distinct DataLimits currently behave exactly like a CQL limit with a count of 1). The only
+            // drawback is that we'll send back the first row entirely while a 2.1/2.2 node would return only the first cell in that same
+            // situation. This isn't a problem for 2.1/2.2 code however (it would be for a range query, as it would throw off the count for
+            // reasons similar to CASSANDRA-10762, but it's ok for single partition queries).
+            // We do _not_ want to do the reverse however and consider a 'SELECT * FROM foo LIMIT 1' as a DISTINCT query as that would make
+            // us only return the 1st cell rather then 1st row.
             DataLimits limits;
-            if (compositesToGroup == -2 || isDistinct)
+            if (compositesToGroup == -2)
                 limits = DataLimits.distinctLimits(count);  // See CASSANDRA-8490 for the explanation of this value
             else if (compositesToGroup == -1)
                 limits = DataLimits.thriftLimits(1, count);

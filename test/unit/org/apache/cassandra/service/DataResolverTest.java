@@ -712,7 +712,7 @@ public class DataResolverTest
     public MessageIn<ReadResponse> readResponseMessage(InetAddress from, UnfilteredPartitionIterator partitionIterator, ReadCommand cmd)
     {
         return MessageIn.create(from,
-                                ReadResponse.createRemoteDataResponse(partitionIterator, cmd.columnFilter()),
+                                ReadResponse.createRemoteDataResponse(partitionIterator, cmd),
                                 Collections.EMPTY_MAP,
                                 MessagingService.Verb.REQUEST_RESPONSE,
                                 MessagingService.current_version);

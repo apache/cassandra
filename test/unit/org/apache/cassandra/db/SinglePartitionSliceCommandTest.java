@@ -111,14 +111,14 @@ public class SinglePartitionSliceCommandTest
 
         logger.debug("ReadCommand: {}", cmd);
         UnfilteredPartitionIterator partitionIterator = cmd.executeLocally(ReadOrderGroup.emptyGroup());
-        ReadResponse response = ReadResponse.createDataResponse(partitionIterator, cmd.columnFilter());
+        ReadResponse response = ReadResponse.createDataResponse(partitionIterator, cmd);
 
         logger.debug("creating response: {}", response);
-        partitionIterator = response.makeIterator(cfm, null);  // <- cmd is null
+        partitionIterator = response.makeIterator(cmd);
         assert partitionIterator.hasNext();
         UnfilteredRowIterator partition = partitionIterator.next();
 
-        LegacyLayout.LegacyUnfilteredPartition rowIter = LegacyLayout.fromUnfilteredRowIterator(partition);
+        LegacyLayout.LegacyUnfilteredPartition rowIter = LegacyLayout.fromUnfilteredRowIterator(cmd, partition);
         Assert.assertEquals(Collections.emptyList(), rowIter.cells);
     }
 
@@ -168,14 +168,14 @@ public class SinglePartitionSliceCommandTest
         // check (de)serialized iterator for memtable static cell
         try (ReadOrderGroup orderGroup = cmd.startOrderGroup(); UnfilteredPartitionIterator pi = cmd.executeLocally(orderGroup))
         {
-            response = ReadResponse.createDataResponse(pi, cmd.columnFilter());
+            response = ReadResponse.createDataResponse(pi, cmd);
         }
 
         out = new DataOutputBuffer((int) ReadResponse.serializer.serializedSize(response, MessagingService.VERSION_30));
         ReadResponse.serializer.serialize(response, out, MessagingService.VERSION_30);
         in = new DataInputBuffer(out.buffer(), true);
         dst = ReadResponse.serializer.deserialize(in, MessagingService.VERSION_30);
-        try (UnfilteredPartitionIterator pi = dst.makeIterator(cfm, cmd))
+        try (UnfilteredPartitionIterator pi = dst.makeIterator(cmd))
         {
             checkForS(pi);
         }
@@ -184,13 +184,13 @@ public class SinglePartitionSliceCommandTest
         Schema.instance.getColumnFamilyStoreInstance(cfm.cfId).forceBlockingFlush();
         try (ReadOrderGroup orderGroup = cmd.startOrderGroup(); UnfilteredPartitionIterator pi = cmd.executeLocally(orderGroup))
         {
-            response = ReadResponse.createDataResponse(pi, cmd.columnFilter());
+            response = ReadResponse.createDataResponse(pi, cmd);
         }
         out = new DataOutputBuffer((int) ReadResponse.serializer.serializedSize(response, MessagingService.VERSION_30));
         ReadResponse.serializer.serialize(response, out, MessagingService.VERSION_30);
         in = new DataInputBuffer(out.buffer(), true);
         dst = ReadResponse.serializer.deserialize(in, MessagingService.VERSION_30);
-        try (UnfilteredPartitionIterator pi = dst.makeIterator(cfm, cmd))
+        try (UnfilteredPartitionIterator pi = dst.makeIterator(cmd))
         {
             checkForS(pi);
         }

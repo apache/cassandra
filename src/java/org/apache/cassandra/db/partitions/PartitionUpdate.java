@@ -613,7 +613,7 @@ public class PartitionUpdate extends AbstractBTreePartition
 
                 if (version < MessagingService.VERSION_30)
                 {
-                    LegacyLayout.serializeAsLegacyPartition(iter, out, version);
+                    LegacyLayout.serializeAsLegacyPartition(null, iter, out, version);
                 }
                 else
                 {
@@ -699,7 +699,7 @@ public class PartitionUpdate extends AbstractBTreePartition
             try (UnfilteredRowIterator iter = update.sliceableUnfilteredIterator())
             {
                 if (version < MessagingService.VERSION_30)
-                    return LegacyLayout.serializedSizeAsLegacyPartition(iter, version);
+                    return LegacyLayout.serializedSizeAsLegacyPartition(null, iter, version);
 
                 return CFMetaData.serializer.serializedSize(update.metadata(), version)
                      + UnfilteredRowIteratorSerializer.serializer.serializedSize(iter, null, version, update.rowCount());

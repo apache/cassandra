@@ -59,9 +59,10 @@ public class DigestBackwardCompatibilityTest extends CQLTester
          *   return ColumnFamily.digest(partition);
          */
 
-        ImmutableBTreePartition partition = Util.getOnlyPartitionUnfiltered(Util.cmd(getCurrentColumnFamilyStore(), partitionKey).build());
+        ReadCommand cmd = Util.cmd(getCurrentColumnFamilyStore(), partitionKey).build();
+        ImmutableBTreePartition partition = Util.getOnlyPartitionUnfiltered(cmd);
         MessageDigest digest = FBUtilities.threadLocalMD5Digest();
-        UnfilteredRowIterators.digest(partition.unfilteredIterator(), digest, MessagingService.VERSION_22);
+        UnfilteredRowIterators.digest(cmd, partition.unfilteredIterator(), digest, MessagingService.VERSION_22);
         return ByteBuffer.wrap(digest.digest());
     }
 
