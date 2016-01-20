@@ -30,6 +30,7 @@ import io.airlift.command.Command;
 
 import org.apache.cassandra.tools.NodeProbe;
 import org.apache.cassandra.tools.NodeTool.NodeToolCmd;
+import org.apache.cassandra.tools.nodetool.formatter.TableBuilder;
 
 import static com.google.common.collect.Iterables.toArray;
 
@@ -48,9 +49,9 @@ public class CompactionHistory extends NodeToolCmd
             return;
         }
 
-        String format = "%-41s%-19s%-29s%-26s%-15s%-15s%s%n";
+        TableBuilder table = new TableBuilder();
         List<String> indexNames = tabularData.getTabularType().getIndexNames();
-        System.out.printf(format, toArray(indexNames, Object.class));
+        table.add(toArray(indexNames, String.class));
 
         Set<?> values = tabularData.keySet();
         List<CompactionHistoryRow> chr = new ArrayList<>();
@@ -69,53 +70,54 @@ public class CompactionHistory extends NodeToolCmd
         Collections.sort(chr);
         for (CompactionHistoryRow eachChc : chr)
         {
-            System.out.printf(format, eachChc.getAllAsArray());
+            table.add(eachChc.getAllAsArray());
         }
-    }
-}
-
-/**
- * Allows the Compaction History output to be ordered by 'compactedAt' - that is the
- * time at which compaction finished.
- */
-class CompactionHistoryRow implements Comparable<CompactionHistoryRow>
-{
-    private final String id;
-    private final String ksName;
-    private final String cfName;
-    private final long compactedAt;
-    private final long bytesIn;
-    private final long bytesOut;
-    private final String rowMerged;
-
-    CompactionHistoryRow(String id, String ksName, String cfName, long compactedAt, long bytesIn, long bytesOut, String rowMerged)
-    {
-        this.id = id;
-        this.ksName = ksName;
-        this.cfName = cfName;
-        this.compactedAt = compactedAt;
-        this.bytesIn = bytesIn;
-        this.bytesOut = bytesOut;
-        this.rowMerged = rowMerged;
+        table.printTo(System.out);
     }
 
-    public int compareTo(CompactionHistoryRow chc)
+    /**
+     * Allows the Compaction History output to be ordered by 'compactedAt' - that is the
+     * time at which compaction finished.
+     */
+    private static class CompactionHistoryRow implements Comparable<CompactionHistoryRow>
     {
-        return Long.signum(chc.compactedAt - this.compactedAt);
-    }
+        private final String id;
+        private final String ksName;
+        private final String cfName;
+        private final long compactedAt;
+        private final long bytesIn;
+        private final long bytesOut;
+        private final String rowMerged;
 
-    public Object[] getAllAsArray()
-    {
-        Object[] obj = new Object[7];
-        obj[0] = this.id;
-        obj[1] = this.ksName;
-        obj[2] = this.cfName;
-        Instant instant = Instant.ofEpochMilli(this.compactedAt);
-        LocalDateTime ldt = LocalDateTime.ofInstant(instant, ZoneId.systemDefault());
-        obj[3] = ldt.toString();
-        obj[4] = this.bytesIn;
-        obj[5] = this.bytesOut;
-        obj[6] = this.rowMerged;
-        return obj;
+        CompactionHistoryRow(String id, String ksName, String cfName, long compactedAt, long bytesIn, long bytesOut, String rowMerged)
+        {
+            this.id = id;
+            this.ksName = ksName;
+            this.cfName = cfName;
+            this.compactedAt = compactedAt;
+            this.bytesIn = bytesIn;
+            this.bytesOut = bytesOut;
+            this.rowMerged = rowMerged;
+        }
+
+        public int compareTo(CompactionHistoryRow chc)
+        {
+            return Long.signum(chc.compactedAt - this.compactedAt);
+        }
+
+        public String[] getAllAsArray()
+        {
+            String[] obj = new String[7];
+            obj[0] = this.id;
+            obj[1] = this.ksName;
+            obj[2] = this.cfName;
+            Instant instant = Instant.ofEpochMilli(this.compactedAt);
+            LocalDateTime ldt = LocalDateTime.ofInstant(instant, ZoneId.systemDefault());
+            obj[3] = ldt.toString();
+            obj[4] = Long.toString(this.bytesIn);
+            obj[5] = Long.toString(this.bytesOut);
+            obj[6] = this.rowMerged;
+            return obj;
+        }
     }
 }
