@@ -429,7 +429,10 @@ public class ActiveRepairService
         public ParentRepairSession(List<ColumnFamilyStore> columnFamilyStores, Collection<Range<Token>> ranges, boolean isIncremental, long repairedAt, boolean isGlobal)
         {
             for (ColumnFamilyStore cfs : columnFamilyStores)
+            {
                 this.columnFamilyStores.put(cfs.metadata.cfId, cfs);
+                sstableMap.put(cfs.metadata.cfId, new HashSet<SSTableReader>());
+            }
             this.ranges = ranges;
             this.repairedAt = repairedAt;
             this.isIncremental = isIncremental;
@@ -438,11 +441,7 @@ public class ActiveRepairService
 
         public void addSSTables(UUID cfId, Set<SSTableReader> sstables)
         {
-            Set<SSTableReader> existingSSTables = this.sstableMap.get(cfId);
-            if (existingSSTables == null)
-                existingSSTables = new HashSet<>();
-            existingSSTables.addAll(sstables);
-            this.sstableMap.put(cfId, existingSSTables);
+            sstableMap.get(cfId).addAll(sstables);
         }
 
         @SuppressWarnings("resource")

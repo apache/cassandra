@@ -36,6 +36,7 @@ Merged from 2.2:
  * Skip commit log and saved cache directories in SSTable version startup check (CASSANDRA-10902)
  * drop/alter user should be case sensitive (CASSANDRA-10817)
 Merged from 2.1:
+ * Avoid NPE when incremental repair fails (CASSANDRA-10909)
  * Unmark sstables compacting once they are done in cleanup/scrub/upgradesstables (CASSANDRA-10829)
  * Allow simultaneous bootstrapping with strict consistency when no vnodes are used (CASSANDRA-11005)
  * Log a message when major compaction does not result in a single file (CASSANDRA-10847)
