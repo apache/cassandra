@@ -502,7 +502,7 @@ bc(syntax)..
 <create-table-stmt> ::= CREATE MATERIALIZED VIEW ( IF NOT EXISTS )? <viewname> AS
                           SELECT ( '(' <identifier> ( ',' <identifier> ) * ')' | '*' )
                           FROM <tablename>
-                          WHERE ( <identifier> IS NOT NULL ( AND <identifier> IS NOT NULL )* )?
+                          ( WHERE <where-clause> )?
                           PRIMARY KEY '(' <partition-key> ( ',' <identifier> )* ')'
                           ( WITH <option> ( AND <option>)* )?
 p. 
@@ -520,9 +520,9 @@ The @CREATE MATERIALIZED VIEW@ statement creates a new materialized view. Each s
 
 Attempting to create an already existing materialized view will return an error unless the @IF NOT EXISTS@ option is used. If it is used, the statement will be a no-op if the materialized view already exists.
 
-h4(#createMVWhere). @WHERE <identifier> IS NOT NULL@
+h4(#createMVWhere). @WHERE@ Clause
 
-The where clause is required to explicitly exclude all primary key columns' null values. Any row which contains null values in the primary key will not be present in the materialized view.
+The @<where-clause>@ is similar to the "where clause of a @SELECT@ statement":#selectWhere, with a few differences.  First, the where clause must contain an expression that disallows @NULL@ values in columns in the view's primary key.  If no other restriction is desired, this can be accomplished with an @IS NOT NULL@ expression.  Second, only columns which are in the base table's primary key may be restricted with expressions other than @IS NOT NULL@.  (Note that this second restriction may be lifted in the future.)
 
 h3(#alterMVStmt). ALTER MATERIALIZED VIEW
 
@@ -895,11 +895,11 @@ WHERE movie = 'Serenity';
 
 UPDATE UserActions SET total = total + 2 WHERE user = B70DE1D0-9908-4AE3-BE34-5573E5B09F14 AND action = 'click';
 p. 
-The @UPDATE@ statement writes one or more columns for a given row in a table. The @<where-clause>@ is used to select the row to update and must include all columns composing the @PRIMARY KEY@ (the @IN@ relation is only supported for the last column of the partition key). Other columns values are specified through @<assignment>@ after the @SET@ keyword.
+The @UPDATE@ statement writes one or more columns for a given row in a table. The @<where-clause>@ is used to select the row to update and must include all columns composing the @PRIMARY KEY@. Other columns values are specified through @<assignment>@ after the @SET@ keyword.
 
-Note that unlike in SQL, @UPDATE@ does not check the prior existence of the row by default: the row is created if none existed before, and updated otherwise. Furthermore, there is no mean to know which of creation or update happened.
+Note that unlike in SQL, @UPDATE@ does not check the prior existence of the row by default: the row is created if none existed before, and updated otherwise. Furthermore, there are no means to know whether a creation or update occurred.
 
-It is however possible to use the conditions on some columns through @IF@, in which case the row will not be updated unless such condition are met. But please note that using @IF@ conditions will incur a non negligible performance cost (internally, Paxos will be used) so this should be used sparingly.
+It is however possible to use the conditions on some columns through @IF@, in which case the row will not be updated unless the conditions are met. But, please note that using @IF@ conditions will incur a non-negligible performance cost (internally, Paxos will be used) so this should be used sparingly.
 
 In an @UPDATE@ statement, all updates within the same partition key are applied atomically and in isolation.
 
@@ -909,9 +909,9 @@ The @id = id + <collection-literal>@ and @id[value1] = value2@ forms of @<assign
 
 h4(#updateOptions). @<options>@
 
-The @UPDATE@ and @INSERT@ statements allows to specify the following options for the insertion:
+The @UPDATE@ and @INSERT@ statements support the following options:
 * @TIMESTAMP@: sets the timestamp for the operation. If not specified, the coordinator will use the current time (in microseconds) at the start of statement execution as the timestamp. This is usually a suitable default.
-* @TTL@: allows to specify an optional Time To Live (in seconds) for the inserted values. If set, the inserted values are automatically removed from the database after the specified time. Note that the TTL concerns the inserted values, not the column themselves. This means that any subsequent update of the column will also reset the TTL (to whatever TTL is specified in that update). By default, values never expire. A TTL of 0 or a negative one is equivalent to no TTL.
+* @TTL@: specifies an optional Time To Live (in seconds) for the inserted values. If set, the inserted values are automatically removed from the database after the specified time. Note that the TTL concerns the inserted values, not the columns themselves. This means that any subsequent update of the column will also reset the TTL (to whatever TTL is specified in that update). By default, values never expire. A TTL of 0 or a negative value is equivalent to no TTL.
 
 
 h3(#deleteStmt). DELETE
@@ -947,13 +947,13 @@ DELETE FROM NerdMovies USING TIMESTAMP 1240003134 WHERE movie = 'Serenity';
 
 DELETE phone FROM Users WHERE userid IN (C73DE1D3-AF08-40F3-B124-3FF3E5109F22, B70DE1D0-9908-4AE3-BE34-5573E5B09F14);
 p. 
-The @DELETE@ statement deletes columns and rows. If column names are provided directly after the @DELETE@ keyword, only those columns are deleted from the row indicated by the @<where-clause>@ (the @id[value]@ syntax in @<selection>@ is for collection, please refer to the "collection section":#collections for more details).  Otherwise whole rows are removed. The @<where-clause>@ allows to specify the key for the row(s) to delete (the @IN@ relation is only supported for the last column of the partition key).
+The @DELETE@ statement deletes columns and rows. If column names are provided directly after the @DELETE@ keyword, only those columns are deleted from the row indicated by the @<where-clause>@ (the @id[value]@ syntax in @<selection>@ is for collection, please refer to the "collection section":#collections for more details).  Otherwise, whole rows are removed. The @<where-clause>@ specifies which rows are to be deleted.  Multiple rows may be deleted with one statement by using an @IN@ clause.  A range of rows may be deleted using an inequality operator (such as @>=@).
 
-@DELETE@ supports the @TIMESTAMP@ options with the same semantic that in the "@UPDATE@":#updateStmt statement.
+@DELETE@ supports the @TIMESTAMP@ option with the same semantics as the "@UPDATE@":#updateStmt statement.
 
 In a @DELETE@ statement, all deletions within the same partition key are applied atomically and in isolation.
 
-A @DELETE@ operation application can be conditioned using @IF@ like for @UPDATE@ and @INSERT@. But please not that as for the later, this will incur a non negligible performance cost (internally, Paxos will be used) and so should be used sparingly.
+A @DELETE@ operation can be conditional through the use of an @IF@ clause, similar to @UPDATE@ and @INSERT@ statements. However, as with @INSERT@ and @UPDATE@ statements, this will incur a non-negligible performance cost (internally, Paxos will be used) and so should be used sparingly.
 
 
 h3(#batchStmt). BATCH
@@ -2296,7 +2296,6 @@ The following type names are not currently used by CQL, but are reserved for pot
 | @enum@      |
 | @interval@  |
 | @macaddr@   |
-| @smallint@  |
 
 h2(#changes). Changes
 
@@ -2309,6 +2308,8 @@ h3. 3.4.1
 h3. 3.4.0
 
 * Support for "materialized views":#createMVStmt
+* "@DELETE@":#deleteStmt support for inequality expressions and @IN@ restrictions on any primary key columns
+* "@UPDATE@":#updateStmt support for @IN@ restrictions on any primary key columns
 
 h3. 3.3.1
 
