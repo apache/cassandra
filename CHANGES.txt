@@ -1,4 +1,6 @@
 3.0.3
+ * Add dropped_columns to the list of schema table so it gets handled
+   properly (CASSANDRA-11050)
  * Update CQL documentation (CASSANDRA-10899)
  * Check the column name, not cell name, for dropped columns when reading
    legacy sstables (CASSANDRA-11018)
