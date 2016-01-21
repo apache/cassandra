@@ -12,6 +12,7 @@
 3.3
  * Avoid bootstrap hanging when existing nodes have no data to stream (CASSANDRA-11010)
 Merged from 3.0:
+ * Update CQL documentation (CASSANDRA-10899)
  * Check the column name, not cell name, for dropped columns when reading
    legacy sstables (CASSANDRA-11018)
  * Don't attempt to index clustering values of static rows (CASSANDRA-11021)
