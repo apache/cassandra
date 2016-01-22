@@ -433,6 +433,49 @@ public class SelectOrderByTest extends CQLTester
                              "SELECT v as c2 FROM %s where pk1 = ? AND pk2 IN (?, ?) ORDER BY c1 DESC , c2 DESC LIMIT 0; ", 1, 1, 2);
     }
 
+    @Test
+    public void testOrderByForInClauseWithNullValue() throws Throwable
+    {
+        createTable("CREATE TABLE %s (a int, b int, c int, s int static, d int, PRIMARY KEY (a, b, c))");
+
+        execute("INSERT INTO %s (a, b, c, d) VALUES (1, 1, 1, 1)");
+        execute("INSERT INTO %s (a, b, c, d) VALUES (1, 1, 2, 1)");
+        execute("INSERT INTO %s (a, b, c, d) VALUES (2, 2, 1, 1)");
+        execute("INSERT INTO %s (a, b, c, d) VALUES (2, 2, 2, 1)");
+
+        execute("UPDATE %s SET s = 1 WHERE a = 1");
+        execute("UPDATE %s SET s = 2 WHERE a = 2");
+        execute("UPDATE %s SET s = 3 WHERE a = 3");
+
+        assertRows(execute("SELECT a, b, c, d, s FROM %s WHERE a IN (1, 2, 3) ORDER BY b DESC"),
+                   row(2, 2, 2, 1, 2),
+                   row(2, 2, 1, 1, 2),
+                   row(1, 1, 2, 1, 1),
+                   row(1, 1, 1, 1, 1),
+                   row(3, null, null, null, 3));
+
+        assertRows(execute("SELECT a, b, c, d, s FROM %s WHERE a IN (1, 2, 3) ORDER BY b ASC"),
+                   row(3, null, null, null, 3),
+                   row(1, 1, 1, 1, 1),
+                   row(1, 1, 2, 1, 1),
+                   row(2, 2, 1, 1, 2),
+                   row(2, 2, 2, 1, 2));
+
+        assertRows(execute("SELECT a, b, c, d, s FROM %s WHERE a IN (1, 2, 3) ORDER BY b DESC , c DESC"),
+                   row(2, 2, 2, 1, 2),
+                   row(2, 2, 1, 1, 2),
+                   row(1, 1, 2, 1, 1),
+                   row(1, 1, 1, 1, 1),
+                   row(3, null, null, null, 3));
+
+        assertRows(execute("SELECT a, b, c, d, s FROM %s WHERE a IN (1, 2, 3) ORDER BY b ASC, c ASC"),
+                   row(3, null, null, null, 3),
+                   row(1, 1, 1, 1, 1),
+                   row(1, 1, 2, 1, 1),
+                   row(2, 2, 1, 1, 2),
+                   row(2, 2, 2, 1, 2));
+    }
+
     /**
      * Test reversed comparators
      * migrated from cql_tests.py:TestCQL.reversed_comparator_test()
