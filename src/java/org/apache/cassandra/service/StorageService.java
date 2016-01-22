@@ -1121,7 +1121,7 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
 
     public boolean isJoined()
     {
-        return joined && !isSurveyMode;
+        return tokenMetadata.isMember(FBUtilities.getBroadcastAddress());
     }
 
     public void rebuild(String sourceDc)
