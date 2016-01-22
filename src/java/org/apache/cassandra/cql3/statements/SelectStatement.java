@@ -1056,10 +1056,21 @@ public class SelectStatement implements CQLStatement
         }
     }
 
+    private static abstract class ColumnComparator<T> implements Comparator<T>
+    {
+        protected final int compare(Comparator<ByteBuffer> comparator, ByteBuffer aValue, ByteBuffer bValue)
+        {
+            if (aValue == null)
+                return bValue == null ? 0 : -1;
+
+            return bValue == null ? 1 : comparator.compare(aValue, bValue);
+        }
+    }
+
     /**
      * Used in orderResults(...) method when single 'ORDER BY' condition where given
      */
-    private static class SingleColumnComparator implements Comparator<List<ByteBuffer>>
+    private static class SingleColumnComparator extends ColumnComparator<List<ByteBuffer>>
     {
         private final int index;
         private final Comparator<ByteBuffer> comparator;
@@ -1072,14 +1083,14 @@ public class SelectStatement implements CQLStatement
 
         public int compare(List<ByteBuffer> a, List<ByteBuffer> b)
         {
-            return comparator.compare(a.get(index), b.get(index));
+            return compare(comparator, a.get(index), b.get(index));
         }
     }
 
     /**
      * Used in orderResults(...) method when multiple 'ORDER BY' conditions where given
      */
-    private static class CompositeComparator implements Comparator<List<ByteBuffer>>
+    private static class CompositeComparator extends ColumnComparator<List<ByteBuffer>>
     {
         private final List<Comparator<ByteBuffer>> orderTypes;
         private final List<Integer> positions;
@@ -1097,10 +1108,7 @@ public class SelectStatement implements CQLStatement
                 Comparator<ByteBuffer> type = orderTypes.get(i);
                 int columnPos = positions.get(i);
 
-                ByteBuffer aValue = a.get(columnPos);
-                ByteBuffer bValue = b.get(columnPos);
-
-                int comparison = type.compare(aValue, bValue);
+                int comparison = compare(type, a.get(columnPos), b.get(columnPos));
 
                 if (comparison != 0)
                     return comparison;
