@@ -1146,7 +1146,7 @@ class Shell(cmd.Cmd):
             new_hist = srcstr.replace("\n", " ").rstrip()
 
             if nl_count > 1 and self.last_hist != new_hist:
-                readline.add_history(new_hist)
+                readline.add_history(new_hist.encode(self.encoding))
 
             self.last_hist = new_hist
         cmdword = tokens[0][1]
