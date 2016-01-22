@@ -23,6 +23,7 @@
  * Fix sstableloader not working with upper case keyspace name (CASSANDRA-10806)
 Merged from 2.2:
 2.2.5
+ * Apply change to compaction throughput in real time (CASSANDRA-10025)
  * Fix potential NPE on ORDER BY queries with IN (CASSANDRA-10955)
  * Start L0 STCS-compactions even if there is a L0 -> L1 compaction
    going (CASSANDRA-10979)
