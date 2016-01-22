@@ -48,6 +48,7 @@ Merged from 2.2:
  * Verify tables in pseudo-system keyspaces at startup (CASSANDRA-10761)
  * (cqlsh) encode input correctly when saving history
 Merged from 2.1:
+ * Fix isJoined return true only after becoming cluster member (CASANDRA-11007)
  * Fix bad gossip generation seen in long-running clusters (CASSANDRA-10969)
  * Avoid NPE when incremental repair fails (CASSANDRA-10909)
  * Unmark sstables compacting once they are done in cleanup/scrub/upgradesstables (CASSANDRA-10829)
