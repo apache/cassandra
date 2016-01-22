@@ -16,7 +16,7 @@ Merged from 3.0:
  * MV should use the maximum timestamp of the primary key (CASSANDRA-10910)
  * Fix potential assertion error during compaction (CASSANDRA-10944)
 Merged from 2.2:
-2.2.5
+ * (cqlsh) encode input correctly when saving history
  * Fix potential NPE on ORDER BY queries with IN (CASSANDRA-10955)
  * Start L0 STCS-compactions even if there is a L0 -> L1 compaction
    going (CASSANDRA-10979)
@@ -76,6 +76,7 @@ Merged from 2.1:
  * Abort in-progress queries that time out (CASSANDRA-7392)
  * Add transparent data encryption core classes (CASSANDRA-9945)
 Merged from 3.0:
+ * Better handling of SSL connection errors inter-node (CASSANDRA-10816)
  * Avoid NoSuchElementException when executing empty batch (CASSANDRA-10711)
  * Avoid building PartitionUpdate in toString (CASSANDRA-10897)
  * Reduce heap spent when receiving many SSTables (CASSANDRA-10797)
