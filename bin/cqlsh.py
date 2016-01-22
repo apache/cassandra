@@ -1269,7 +1269,7 @@ class Shell(cmd.Cmd):
         elif result:
             # CAS INSERT/UPDATE
             self.writeresult("")
-            self.print_static_result(result.column_names, list(result), self.parse_for_table_meta(statement.query_string))
+            self.print_static_result(result.column_names, list(result), self.parse_for_update_meta(statement.query_string))
         self.flush_output()
         return True, future
 
