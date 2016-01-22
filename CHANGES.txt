@@ -16,6 +16,8 @@ Merged from 3.0:
  * MV should use the maximum timestamp of the primary key (CASSANDRA-10910)
  * Fix potential assertion error during compaction (CASSANDRA-10944)
 Merged from 2.2:
+2.2.5
+ * Fix potential NPE on ORDER BY queries with IN (CASSANDRA-10955)
  * Start L0 STCS-compactions even if there is a L0 -> L1 compaction
    going (CASSANDRA-10979)
  * Make UUID LSB unique per process (CASSANDRA-7925)
