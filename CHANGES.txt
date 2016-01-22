@@ -1,4 +1,5 @@
 2.2.5
+ * Apply change to compaction throughput in real time (CASSANDRA-10025)
  * Fix potential NPE on ORDER BY queries with IN (CASSANDRA-10955)
  * Avoid over-fetching during the page of range queries (CASSANDRA-8521)
  * Start L0 STCS-compactions even if there is a L0 -> L1 compaction
