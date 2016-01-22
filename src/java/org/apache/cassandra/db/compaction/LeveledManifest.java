@@ -322,15 +322,9 @@ public class LeveledManifest
             if (score > 1.001)
             {
                 // before proceeding with a higher level, let's see if L0 is far enough behind to warrant STCS
-                if (!DatabaseDescriptor.getDisableSTCSInL0() && getLevel(0).size() > MAX_COMPACTING_L0)
-                {
-                    List<SSTableReader> mostInteresting = getSSTablesForSTCS(getLevel(0));
-                    if (!mostInteresting.isEmpty())
-                    {
-                        logger.trace("L0 is too far behind, performing size-tiering there first");
-                        return new CompactionCandidate(mostInteresting, 0, Long.MAX_VALUE);
-                    }
-                }
+                CompactionCandidate l0Compaction = getSTCSInL0CompactionCandidate();
+                if (l0Compaction != null)
+                    return l0Compaction;
 
                 // L0 is fine, proceed with this level
                 Collection<SSTableReader> candidates = getCandidatesFor(i);
@@ -354,8 +348,28 @@ public class LeveledManifest
             return null;
         Collection<SSTableReader> candidates = getCandidatesFor(0);
         if (candidates.isEmpty())
-            return null;
+        {
+            // Since we don't have any other compactions to do, see if there is a STCS compaction to perform in L0; if
+            // there is a long running compaction, we want to make sure that we continue to keep the number of SSTables
+            // small in L0.
+            return getSTCSInL0CompactionCandidate();
+        }
         return new CompactionCandidate(candidates, getNextLevel(candidates), cfs.getCompactionStrategyManager().getMaxSSTableBytes());
+    }
+
+    private CompactionCandidate getSTCSInL0CompactionCandidate()
+    {
+        if (!DatabaseDescriptor.getDisableSTCSInL0() && getLevel(0).size() > MAX_COMPACTING_L0)
+        {
+            List<SSTableReader> mostInteresting = getSSTablesForSTCS(getLevel(0));
+            if (!mostInteresting.isEmpty())
+            {
+                logger.debug("L0 is too far behind, performing size-tiering there first");
+                return new CompactionCandidate(mostInteresting, 0, Long.MAX_VALUE);
+            }
+        }
+
+        return null;
     }
 
     private List<SSTableReader> getSSTablesForSTCS(Collection<SSTableReader> sstables)
