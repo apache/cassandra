@@ -94,6 +94,9 @@ public class Memtable implements Comparable<Memtable>
     private final long creationTime = System.currentTimeMillis();
     private final long creationNano = System.nanoTime();
 
+    // The smallest timestamp for all partitions stored in this memtable
+    private long minTimestamp = Long.MAX_VALUE;
+
     // Record the comparator of the CFS at the creation of the memtable. This
     // is only used when a user update the CF comparator, to know if the
     // memtable was created with the new or old comparator.
@@ -237,6 +240,7 @@ public class Memtable implements Comparable<Memtable>
         }
 
         long[] pair = previous.addAllWithSizeDelta(update, opGroup, indexer);
+        minTimestamp = Math.min(minTimestamp, previous.stats().minTimestamp);
         liveDataSize.addAndGet(initialSize + pair[0]);
         columnsCollector.update(update.columns());
         statsCollector.update(update.stats());
@@ -332,6 +336,11 @@ public class Memtable implements Comparable<Memtable>
     public long creationTime()
     {
         return creationTime;
+    }
+
+    public long getMinTimestamp()
+    {
+        return minTimestamp;
     }
 
     class FlushRunnable implements Callable<SSTableMultiWriter>
