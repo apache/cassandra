@@ -108,6 +108,13 @@ public abstract class Relation {
         return relationType == Operator.EQ;
     }
 
+    public final boolean isLIKE()
+    {
+        return relationType == Operator.LIKE_PREFIX
+                || relationType == Operator.LIKE_SUFFIX
+                || relationType == Operator.LIKE_CONTAINS;
+    }
+
     /**
      * Checks if the operator of this relation is a <code>Slice</code> (GT, GTE, LTE, LT).
      *
@@ -143,6 +150,10 @@ public abstract class Relation {
             case CONTAINS: return newContainsRestriction(cfm, boundNames, false);
             case CONTAINS_KEY: return newContainsRestriction(cfm, boundNames, true);
             case IS_NOT: return newIsNotRestriction(cfm, boundNames);
+            case LIKE_PREFIX:
+            case LIKE_SUFFIX:
+            case LIKE_CONTAINS:
+                return newLikeRestriction(cfm, boundNames, relationType);
             default: throw invalidRequest("Unsupported \"!=\" relation: %s", this);
         }
     }
@@ -199,6 +210,10 @@ public abstract class Relation {
 
     protected abstract Restriction newIsNotRestriction(CFMetaData cfm,
                                                        VariableSpecifications boundNames) throws InvalidRequestException;
+
+    protected abstract Restriction newLikeRestriction(CFMetaData cfm,
+                                                      VariableSpecifications boundNames,
+                                                      Operator operator) throws InvalidRequestException;
 
     /**
      * Converts the specified <code>Raw</code> into a <code>Term</code>.

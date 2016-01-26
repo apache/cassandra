@@ -32,6 +32,7 @@ import org.apache.cassandra.db.marshal.AbstractType;
 import org.apache.cassandra.db.marshal.AsciiType;
 import org.apache.cassandra.db.marshal.UTF8Type;
 import org.apache.cassandra.exceptions.ConfigurationException;
+import org.apache.cassandra.index.sasi.plan.Expression.Op;
 import org.apache.cassandra.schema.IndexMetadata;
 
 import org.slf4j.Logger;
@@ -165,5 +166,10 @@ public class IndexMode
                 : Long.parseLong(indexOptions.get(INDEX_MAX_FLUSH_MEMORY_OPTION));
 
         return new IndexMode(mode, isLiteral, isAnalyzed, analyzerClass, maxMemMb);
+    }
+
+    public boolean supports(Op operator)
+    {
+        return !(isLiteral && operator == Op.RANGE) && mode.supports(operator);
     }
 }

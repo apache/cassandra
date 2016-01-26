@@ -39,6 +39,7 @@ public interface Restriction
     public boolean isOnToken();
     public boolean isSlice();
     public boolean isEQ();
+    public boolean isLIKE();
     public boolean isIN();
     public boolean isContains();
     public boolean isNotNull();

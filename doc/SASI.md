@@ -124,18 +124,34 @@ cqlsh:demo> SELECT first_name, last_name, age, height, created_at FROM sasi;
 
 #### Equality & Prefix Queries
 
-SASI supports simple queries already supported by CQL, however, for
-text fields like `first_name` equals queries perform prefix searches
--- this is similar to `first_name LIKE 'M*'` in SQL (excluding case
-sensitivity, which is dependent on the index configuration). The
-semantics of CQL's `=` were modified instead of making further
-modifications of the grammar with the introduction of a `LIKE`
-operator. Ideally, CQL would be modified to include such an operator,
-supporting both prefix and suffix searches.
+SASI supports all queries already supported by CQL, including LIKE statement
+for PREFIX, CONTAINS and SUFFIX searches.
 
 ```
 cqlsh:demo> SELECT first_name, last_name, age, height, created_at FROM sasi
-        ... WHERE first_name = 'M';
+        ... WHERE first_name = 'Pavel';
+
+  first_name | last_name | age | height | created_at
+-------------+-----------+-----+--------+---------------
+       Pavel | Yaskevich |  27 |    181 | 1442959315018
+
+(1 rows)
+```
+
+```
+cqlsh:demo> SELECT first_name, last_name, age, height, created_at FROM sasi
+       ... WHERE first_name = 'pavel';
+
+  first_name | last_name | age | height | created_at
+-------------+-----------+-----+--------+---------------
+       Pavel | Yaskevich |  27 |    181 | 1442959315018
+
+(1 rows)
+```
+
+```
+cqlsh:demo> SELECT first_name, last_name, age, height, created_at FROM sasi
+        ... WHERE first_name LIKE 'M%';
 
  first_name | last_name | age | height | created_at
 ------------+-----------+-----+--------+---------------
@@ -150,7 +166,7 @@ column because of the options provided at index creation time.
 
 ```
 cqlsh:demo> SELECT first_name, last_name, age, height, created_at FROM sasi
-        ... WHERE first_name = 'm';
+        ... WHERE first_name LIKE 'm%';
 
  first_name | last_name | age | height | created_at
 ------------+-----------+-----+--------+---------------
@@ -175,7 +191,7 @@ section.
 
 ```
 cqlsh:demo> SELECT first_name, last_name, age, height, created_at FROM sasi
-        ... WHERE first_name = 'M' and age < 30 ALLOW FILTERING;
+        ... WHERE first_name LIKE 'M%' and age < 30 ALLOW FILTERING;
 
  first_name | last_name | age | height | created_at
 ------------+-----------+-----+--------+---------------
@@ -192,7 +208,7 @@ containing the search string as a sub-string. In this case the strings
 containing "a" or "an".
 
 ```
-cqlsh:demo> SELECT * FROM sasi WHERE last_name = 'a';
+cqlsh:demo> SELECT * FROM sasi WHERE last_name LIKE '%a%';
 
  id                                   | age | created_at    | first_name | height | last_name
 --------------------------------------+-----+---------------+------------+--------+---------------
@@ -204,7 +220,7 @@ cqlsh:demo> SELECT * FROM sasi WHERE last_name = 'a';
 
 (5 rows)
 
-cqlsh:demo> SELECT * FROM sasi WHERE last_name = 'an';
+cqlsh:demo> SELECT * FROM sasi WHERE last_name LIKE '%an%';
 
  id                                   | age | created_at    | first_name | height | last_name
 --------------------------------------+-----+---------------+------------+--------+-----------
@@ -220,7 +236,7 @@ SASI also supports filtering on non-indexed columns like `height`. The
 expression can only narrow down an existing query using `AND`.
 
 ```
-cqlsh:demo> SELECT * FROM sasi WHERE last_name = 'a' AND height >= 175 ALLOW FILTERING;
+cqlsh:demo> SELECT * FROM sasi WHERE last_name LIKE '%a%' AND height >= 175 ALLOW FILTERING;
 
  id                                   | age | created_at    | first_name | height | last_name
 --------------------------------------+-----+---------------+------------+--------+---------------
@@ -274,7 +290,7 @@ property but for the
 query demonstrates the stemming applied by [`StandardAnalyzer`](https://github.com/apache/cassandra/blob/trunk/src/java/org/apache/cassandra/index/sasi/analyzer/StandardAnalyzer.java).
 
 ```
-cqlsh:demo> SELECT * FROM sasi WHERE bio = 'distributing';
+cqlsh:demo> SELECT * FROM sasi WHERE bio LIKE 'distributing';
 
  id                                   | age | bio                                                                              | created_at    | first_name | height | last_name
 --------------------------------------+-----+----------------------------------------------------------------------------------+---------------+------------+--------+-----------
@@ -283,7 +299,7 @@ cqlsh:demo> SELECT * FROM sasi WHERE bio = 'distributing';
 
 (2 rows)
 
-cqlsh:demo> SELECT * FROM sasi WHERE bio = 'they argued';
+cqlsh:demo> SELECT * FROM sasi WHERE bio LIKE 'they argued';
 
  id                                   | age | bio                                                                              | created_at    | first_name | height | last_name
 --------------------------------------+-----+----------------------------------------------------------------------------------+---------------+------------+--------+-----------
@@ -292,7 +308,7 @@ cqlsh:demo> SELECT * FROM sasi WHERE bio = 'they argued';
 
 (2 rows)
 
-cqlsh:demo> SELECT * FROM sasi WHERE bio = 'working at the company';
+cqlsh:demo> SELECT * FROM sasi WHERE bio LIKE 'working at the company';
 
  id                                   | age | bio                                                                              | created_at    | first_name | height | last_name
 --------------------------------------+-----+----------------------------------------------------------------------------------+---------------+------------+--------+-----------
@@ -300,7 +316,7 @@ cqlsh:demo> SELECT * FROM sasi WHERE bio = 'working at the company';
 
 (1 rows)
 
-cqlsh:demo> SELECT * FROM sasi WHERE bio = 'soft eng';
+cqlsh:demo> SELECT * FROM sasi WHERE bio LIKE 'soft eng';
 
  id                                   | age | bio                                                                              | created_at    | first_name | height | last_name
 --------------------------------------+-----+----------------------------------------------------------------------------------+---------------+------------+--------+-----------
@@ -709,7 +725,7 @@ the `LookupIntersectionIterator`, otherwise the
 ### The SASIIndex Class
 
 The above components are glued together by the
-[`SASIIndex`](https://github.com/apache/cassandra/blob/trunk/src/java/org/apache/cassandra/index/sasiIndex.java)
+[`SASIIndex`](https://github.com/apache/cassandra/blob/trunk/src/java/org/apache/cassandra/index/sasi/SASIIndex.java)
 class which implements `Index`, and is instantiated
 per-table containing SASI indexes. It manages all indexes for a table
 via the
@@ -718,11 +734,11 @@ and
 [`sasi.conf.view.View`](https://github.com/apache/cassandra/blob/trunk/src/java/org/apache/cassandra/index/sasi/conf/view/View.java)
 components, controls writing of all indexes for an SSTable via its
 [`PerSSTableIndexWriter`](https://github.com/apache/cassandra/blob/trunk/src/java/org/apache/cassandra/index/sasi/disk/PerSSTableIndexWriter.java), and initiates searches with
-`Indexer`. These classes glue the previously
+`Searcher`. These classes glue the previously
 mentioned indexing components together with Cassandra's SSTable
 life-cycle ensuring indexes are not only written when Memtable's flush
 but also as SSTable's are compacted. For querying, the
-`Indexer` does little but defer to
+`Searcher` does little but defer to
 [`QueryPlan`](https://github.com/apache/cassandra/blob/trunk/src/java/org/apache/cassandra/index/sasi/plan/QueryPlan.java)
 and update e.g. latency metrics exposed by SASI.
 
@@ -750,12 +766,6 @@ available in this repository or are not currently implemented.
   `LongToken`s, e.g. `Murmur3Partitioner`. Other existing partitioners which
   don't produce LongToken e.g. `ByteOrderedPartitioner` and `RandomPartitioner`
   will not work with SASI.
-* `ALLOW FILTERING`, the requirement of at least one indexes `=`
-  expression, and lack of `LIKE` limit SASIs
-  feature-set. Modifications to the grammar to allow `Index`
-  implementations to enumerate its supported features would allow SASI
-  to expose more features without need to support them in other
-  implementations.
 * Not Equals and OR support have been removed in this release while
   changes are made to Cassandra itself to support them.
 

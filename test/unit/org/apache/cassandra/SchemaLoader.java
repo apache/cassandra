@@ -541,6 +541,7 @@ public class SchemaLoader
                         {{
                             put(IndexTarget.CUSTOM_INDEX_OPTION_NAME, SASIIndex.class.getName());
                             put(IndexTarget.TARGET_OPTION_NAME, "comment");
+                            put("mode", OnDiskIndexBuilder.Mode.CONTAINS.toString());
                             put("analyzed", "true");
                         }}))
                         .with(IndexMetadata.fromSchemaMetadata("comment_suffix_split", IndexMetadata.Kind.CUSTOM, new HashMap<String, String>()

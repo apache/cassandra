@@ -645,4 +645,82 @@ public abstract class SingleColumnRestriction extends AbstractRestriction
             return index.supportsExpression(columnDef, Operator.IS_NOT);
         }
     }
+
+    public static final class LikeRestriction extends SingleColumnRestriction
+    {
+        private final Operator operator;
+        private final Term value;
+
+        public LikeRestriction(ColumnDefinition columnDef, Operator operator, Term value)
+        {
+            super(columnDef);
+            this.operator = operator;
+            this.value = value;
+        }
+
+        @Override
+        public Iterable<Function> getFunctions()
+        {
+            return value.getFunctions();
+        }
+
+        @Override
+        public boolean isEQ()
+        {
+            return false;
+        }
+
+        @Override
+        public boolean isLIKE()
+        {
+            return true;
+        }
+
+        @Override
+        public boolean canBeConvertedToMultiColumnRestriction()
+        {
+            return false;
+        }
+
+        @Override
+        MultiColumnRestriction toMultiColumnRestriction()
+        {
+            throw new UnsupportedOperationException();
+        }
+
+        @Override
+        public void addRowFilterTo(RowFilter filter,
+                                   SecondaryIndexManager indexManager,
+                                   QueryOptions options)
+        {
+            filter.add(columnDef, operator, value.bindAndGet(options));
+        }
+
+        @Override
+        public MultiCBuilder appendTo(MultiCBuilder builder, QueryOptions options)
+        {
+            // LIKE could be used with clustering columns as soon as they are indexed,
+            // but we have to hide such expression from clustering filter since it
+            // can only filter based on the complete values.
+            return builder;
+        }
+
+        @Override
+        public String toString()
+        {
+            return operator.toString();
+        }
+
+        @Override
+        public Restriction doMergeWith(Restriction otherRestriction) throws InvalidRequestException
+        {
+            throw invalidRequest("%s cannot be restricted by more than one relation if it includes a %s", columnDef.name, operator);
+        }
+
+        @Override
+        protected boolean isSupportedBy(Index index)
+        {
+            return index.supportsExpression(columnDef, operator);
+        }
+    }
 }

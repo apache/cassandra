@@ -135,7 +135,7 @@ public class OnDiskIndexTest
 
         for (Map.Entry<ByteBuffer, TokenTreeBuilder> e : data.entrySet())
         {
-            Assert.assertEquals(convert(e.getValue()), convert(onDisk.search(expressionFor(Int32Type.instance, e.getKey()))));
+            Assert.assertEquals(convert(e.getValue()), convert(onDisk.search(expressionFor(Operator.EQ, Int32Type.instance, e.getKey()))));
         }
 
         List<ByteBuffer> sortedNumbers = new ArrayList<ByteBuffer>()
@@ -536,8 +536,8 @@ public class OnDiskIndexTest
 
         ByteBuffer number = Int32Type.instance.decompose(5);
 
-        Assert.assertEquals(Collections.singleton(data.get(number).left), convert(onDisk1.search(expressionFor(Int32Type.instance, number))));
-        Assert.assertEquals(Collections.singleton(data.get(number).left), convert(onDisk2.search(expressionFor(Int32Type.instance, number))));
+        Assert.assertEquals(Collections.singleton(data.get(number).left), convert(onDisk1.search(expressionFor(Operator.EQ, Int32Type.instance, number))));
+        Assert.assertEquals(Collections.singleton(data.get(number).left), convert(onDisk2.search(expressionFor(Operator.EQ, Int32Type.instance, number))));
 
         Assert.assertEquals(onDisk1.descriptor.version.version, Descriptor.CURRENT_VERSION);
         Assert.assertEquals(onDisk2.descriptor.version.version, Descriptor.VERSION_AA);
@@ -789,8 +789,13 @@ public class OnDiskIndexTest
 
     private static Expression expressionFor(AbstractType<?> validator, ByteBuffer term)
     {
+        return expressionFor(Operator.LIKE_CONTAINS, validator, term);
+    }
+
+    private static Expression expressionFor(Operator op, AbstractType<?> validator, ByteBuffer term)
+    {
         Expression expression = new Expression("", validator);
-        expression.add(Operator.EQ, term);
+        expression.add(op, term);
         return expression;
     }
 

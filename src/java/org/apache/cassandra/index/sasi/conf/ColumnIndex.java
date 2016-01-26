@@ -25,6 +25,7 @@ import java.util.Set;
 import java.util.concurrent.atomic.AtomicReference;
 
 import org.apache.cassandra.config.ColumnDefinition;
+import org.apache.cassandra.cql3.Operator;
 import org.apache.cassandra.db.DecoratedKey;
 import org.apache.cassandra.db.marshal.AbstractType;
 import org.apache.cassandra.db.marshal.AsciiType;
@@ -173,6 +174,11 @@ public class ColumnIndex
     {
         AbstractType<?> validator = getValidator();
         return isIndexed() ? mode.isLiteral : (validator instanceof UTF8Type || validator instanceof AsciiType);
+    }
+
+    public boolean supports(Operator operator)
+    {
+        return mode.supports(Expression.Op.valueOf(operator));
     }
 
     public static ByteBuffer getValueOf(ColumnDefinition column, Row row, int nowInSecs)

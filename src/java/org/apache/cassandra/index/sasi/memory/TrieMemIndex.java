@@ -18,6 +18,7 @@
 package org.apache.cassandra.index.sasi.memory;
 
 import java.nio.ByteBuffer;
+import java.util.Collections;
 import java.util.List;
 import java.util.concurrent.ConcurrentSkipListSet;
 
@@ -27,6 +28,7 @@ import org.apache.cassandra.index.sasi.conf.ColumnIndex;
 import org.apache.cassandra.index.sasi.disk.OnDiskIndexBuilder;
 import org.apache.cassandra.index.sasi.disk.Token;
 import org.apache.cassandra.index.sasi.plan.Expression;
+import org.apache.cassandra.index.sasi.plan.Expression.Op;
 import org.apache.cassandra.index.sasi.analyzer.AbstractAnalyzer;
 import org.apache.cassandra.index.sasi.utils.RangeUnionIterator;
 import org.apache.cassandra.index.sasi.utils.RangeIterator;
@@ -136,11 +138,9 @@ public class TrieMemIndex extends MemIndex
 
         public RangeIterator<Long, Token> search(Expression expression)
         {
-            assert expression.getOp() == Expression.Op.EQ; // means that min == max
-
             ByteBuffer prefix = expression.lower == null ? null : expression.lower.value;
 
-            Iterable<ConcurrentSkipListSet<DecoratedKey>> search = search(definition.cellValueType().getString(prefix));
+            Iterable<ConcurrentSkipListSet<DecoratedKey>> search = search(expression.getOp(), definition.cellValueType().getString(prefix));
 
             RangeUnionIterator.Builder<Long, Token> builder = RangeUnionIterator.builder();
             for (ConcurrentSkipListSet<DecoratedKey> keys : search)
@@ -153,7 +153,7 @@ public class TrieMemIndex extends MemIndex
         }
 
         protected abstract ConcurrentSkipListSet<DecoratedKey> get(String value);
-        protected abstract Iterable<ConcurrentSkipListSet<DecoratedKey>> search(String value);
+        protected abstract Iterable<ConcurrentSkipListSet<DecoratedKey>> search(Op operator, String value);
         protected abstract ConcurrentSkipListSet<DecoratedKey> putIfAbsent(String value, ConcurrentSkipListSet<DecoratedKey> key);
     }
 
@@ -177,9 +177,20 @@ public class TrieMemIndex extends MemIndex
             return trie.putIfAbsent(value, newKeys);
         }
 
-        public Iterable<ConcurrentSkipListSet<DecoratedKey>> search(String value)
+        public Iterable<ConcurrentSkipListSet<DecoratedKey>> search(Op operator, String value)
         {
-            return trie.getValuesForKeysStartingWith(value);
+            switch (operator)
+            {
+                case EQ:
+                    ConcurrentSkipListSet<DecoratedKey> keys = trie.getValueForExactKey(value);
+                    return keys == null ? Collections.emptyList() : Collections.singletonList(keys);
+
+                case PREFIX:
+                    return trie.getValuesForKeysStartingWith(value);
+
+                default:
+                    throw new UnsupportedOperationException(String.format("operation %s is not supported.", operator));
+            }
         }
     }
 
@@ -203,9 +214,23 @@ public class TrieMemIndex extends MemIndex
             return trie.putIfAbsent(value, newKeys);
         }
 
-        public Iterable<ConcurrentSkipListSet<DecoratedKey>> search(String value)
+        public Iterable<ConcurrentSkipListSet<DecoratedKey>> search(Op operator, String value)
         {
-            return trie.getValuesForKeysContaining(value);
+            switch (operator)
+            {
+                case EQ:
+                    ConcurrentSkipListSet<DecoratedKey> keys = trie.getValueForExactKey(value);
+                    return keys == null ? Collections.emptyList() : Collections.singletonList(keys);
+
+                case SUFFIX:
+                    return trie.getValuesForKeysEndingWith(value);
+
+                case CONTAINS:
+                    return trie.getValuesForKeysContaining(value);
+
+                default:
+                    throw new UnsupportedOperationException(String.format("operation %s is not supported.", operator));
+            }
         }
     }
 

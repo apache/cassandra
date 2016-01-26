@@ -206,6 +206,16 @@ public class OnDiskIndex implements Iterable<OnDiskIndex.DataTerm>, Closeable
      */
     public RangeIterator<Long, Token> search(Expression exp)
     {
+        assert mode.supports(exp.getOp());
+
+        // optimization in case single term is requested from index
+        // we don't really need to build additional union iterator
+        if (exp.getOp() == Op.EQ)
+        {
+            DataTerm term = getTerm(exp.lower.value);
+            return term == null ? null : term.getTokens();
+        }
+
         // convert single NOT_EQ to range with exclusion
         final Expression expression = (exp.getOp() != Op.NOT_EQ)
                                         ? exp
@@ -424,6 +434,12 @@ public class OnDiskIndex implements Iterable<OnDiskIndex.DataTerm>, Closeable
         }
 
         return ptr;
+    }
+
+    private DataTerm getTerm(ByteBuffer query)
+    {
+        SearchResult<DataTerm> term = searchIndex(query, getDataBlock(query));
+        return term.cmp == 0 ? term.result : null;
     }
 
     private SearchResult<DataTerm> searchIndex(ByteBuffer query, int blockIdx)

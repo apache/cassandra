@@ -23,6 +23,7 @@ import java.nio.ByteBuffer;
 import java.util.*;
 
 import org.apache.cassandra.db.DecoratedKey;
+import org.apache.cassandra.index.sasi.plan.Expression.Op;
 import org.apache.cassandra.index.sasi.sa.IntegralSA;
 import org.apache.cassandra.index.sasi.sa.SA;
 import org.apache.cassandra.index.sasi.sa.TermIterator;
@@ -49,11 +50,25 @@ public class OnDiskIndexBuilder
 
     public enum Mode
     {
-        PREFIX, CONTAINS, SPARSE;
+        PREFIX(EnumSet.of(Op.EQ, Op.PREFIX, Op.NOT_EQ, Op.RANGE)),
+        CONTAINS(EnumSet.of(Op.EQ, Op.CONTAINS, Op.SUFFIX, Op.NOT_EQ)),
+        SPARSE(EnumSet.of(Op.EQ, Op.NOT_EQ, Op.RANGE));
+
+        Set<Op> supportedOps;
+
+        Mode(Set<Op> ops)
+        {
+            supportedOps = ops;
+        }
 
         public static Mode mode(String mode)
         {
             return Mode.valueOf(mode.toUpperCase());
+        }
+
+        public boolean supports(Op op)
+        {
+            return supportedOps.contains(op);
         }
     }
 

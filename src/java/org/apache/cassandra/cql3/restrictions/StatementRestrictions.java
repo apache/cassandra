@@ -134,6 +134,16 @@ public final class StatementRestrictions
     {
         this(type, cfm);
 
+
+        ColumnFamilyStore cfs;
+        SecondaryIndexManager secondaryIndexManager = null;
+
+        if (type.allowUseOfSecondaryIndices())
+        {
+            cfs = Keyspace.open(cfm.ksName).getColumnFamilyStore(cfm.cfName);
+            secondaryIndexManager = cfs.indexManager;
+        }
+
         /*
          * WHERE clause. For a given entity, rules are:
          *   - EQ relation conflicts with anything else (including a 2nd EQ)
@@ -153,6 +163,15 @@ public final class StatementRestrictions
                 for (ColumnDefinition def : relation.toRestriction(cfm, boundNames).getColumnDefs())
                     this.notNullColumns.add(def);
             }
+            else if (relation.isLIKE())
+            {
+                Restriction restriction = relation.toRestriction(cfm, boundNames);
+
+                if (!type.allowUseOfSecondaryIndices() || !restriction.hasSupportingIndex(secondaryIndexManager))
+                    throw new InvalidRequestException(relation + " restriction is only supported on properly indexed columns");
+
+                addRestriction(restriction);
+            }
             else
             {
                 addRestriction(relation.toRestriction(cfm, boundNames));
@@ -164,9 +183,6 @@ public final class StatementRestrictions
 
         if (type.allowUseOfSecondaryIndices())
         {
-            ColumnFamilyStore cfs = Keyspace.open(cfm.ksName).getColumnFamilyStore(cfm.cfName);
-            SecondaryIndexManager secondaryIndexManager = cfs.indexManager;
-
             if (whereClause.containsCustomExpressions())
                 processCustomIndexExpressions(whereClause.expressions, boundNames, secondaryIndexManager);
 

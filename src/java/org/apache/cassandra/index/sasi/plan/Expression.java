@@ -46,7 +46,37 @@ public class Expression
 
     public enum Op
     {
-        EQ, NOT_EQ, RANGE
+        EQ, PREFIX, SUFFIX, CONTAINS, NOT_EQ, RANGE;
+
+        public static Op valueOf(Operator operator)
+        {
+            switch (operator)
+            {
+                case EQ:
+                    return EQ;
+
+                case NEQ:
+                    return NOT_EQ;
+
+                case LT:
+                case GT:
+                case LTE:
+                case GTE:
+                    return RANGE;
+
+                case LIKE_PREFIX:
+                    return PREFIX;
+
+                case LIKE_SUFFIX:
+                    return SUFFIX;
+
+                case LIKE_CONTAINS:
+                    return CONTAINS;
+
+                default:
+                    throw new IllegalArgumentException("unknown operator: " + operator);
+            }
+        }
     }
 
     private final QueryController controller;
@@ -107,10 +137,13 @@ public class Expression
         boolean lowerInclusive = false, upperInclusive = false;
         switch (op)
         {
+            case LIKE_PREFIX:
+            case LIKE_SUFFIX:
+            case LIKE_CONTAINS:
             case EQ:
                 lower = new Bound(value, true);
                 upper = lower;
-                operation = Op.EQ;
+                operation = Op.valueOf(op);
                 break;
 
             case NEQ:
@@ -151,7 +184,7 @@ public class Expression
         return this;
     }
 
-    public boolean contains(ByteBuffer value)
+    public boolean isSatisfiedBy(ByteBuffer value)
     {
         if (!TypeUtil.isValid(value, validator))
         {
@@ -224,7 +257,31 @@ public class Expression
         while (analyzer.hasNext())
         {
             ByteBuffer term = analyzer.next();
-            if (ByteBufferUtil.contains(term, requestedValue))
+
+            boolean isMatch = false;
+            switch (operation)
+            {
+                case EQ:
+                // Operation.isSatisfiedBy handles conclusion on !=,
+                // here we just need to make sure that term matched it
+                case NOT_EQ:
+                    isMatch = validator.compare(term, requestedValue) == 0;
+                    break;
+
+                case PREFIX:
+                    isMatch = ByteBufferUtil.startsWith(term, requestedValue);
+                    break;
+
+                case SUFFIX:
+                    isMatch = ByteBufferUtil.endsWith(term, requestedValue);
+                    break;
+
+                case CONTAINS:
+                    isMatch = ByteBufferUtil.contains(term, requestedValue);
+                    break;
+            }
+
+            if (isMatch)
                 return true;
         }
 

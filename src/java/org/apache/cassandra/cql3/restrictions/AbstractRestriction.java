@@ -51,6 +51,12 @@ abstract class AbstractRestriction  implements Restriction
     }
 
     @Override
+    public boolean isLIKE()
+    {
+        return false;
+    }
+
+    @Override
     public boolean isIN()
     {
         return false;

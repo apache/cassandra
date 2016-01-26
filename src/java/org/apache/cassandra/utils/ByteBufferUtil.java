@@ -710,4 +710,36 @@ public class ByteBufferUtil
         }
         return false;
     }
+
+    public static boolean startsWith(ByteBuffer src, ByteBuffer prefix)
+    {
+        return startsWith(src, prefix, 0);
+    }
+
+    public static boolean endsWith(ByteBuffer src, ByteBuffer suffix)
+    {
+        return startsWith(src, suffix, src.remaining() - suffix.remaining());
+    }
+
+    private static boolean startsWith(ByteBuffer src, ByteBuffer prefix, int offset)
+    {
+        if (offset < 0)
+            return false;
+
+        int sPos = src.position() + offset;
+        int pPos = prefix.position();
+
+        if (src.remaining() - offset < prefix.remaining())
+            return false;
+
+        int len = Math.min(src.remaining() - offset, prefix.remaining());
+
+        while (len-- > 0)
+        {
+            if (src.get(sPos++) != prefix.get(pPos++))
+                return false;
+        }
+
+        return true;
+    }
 }

@@ -183,6 +183,12 @@ public class MultiColumnRelation extends Relation
     }
 
     @Override
+    protected Restriction newLikeRestriction(CFMetaData cfm, VariableSpecifications boundNames, Operator operator) throws InvalidRequestException
+    {
+        throw invalidRequest("%s cannot be used for multi-column relations", operator());
+    }
+
+    @Override
     protected Term toTerm(List<? extends ColumnSpecification> receivers,
                           Raw raw,
                           String keyspace,

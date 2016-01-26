@@ -601,6 +601,9 @@ public abstract class RowFilter implements Iterable<RowFilter.Expression>
                 case GTE:
                 case GT:
                 case NEQ:
+                case LIKE_PREFIX:
+                case LIKE_SUFFIX:
+                case LIKE_CONTAINS:
                     {
                         assert !column.isComplex() : "Only CONTAINS and CONTAINS_KEY are supported for 'complex' types";
                         ByteBuffer foundValue = getValue(metadata, partitionKey, row);

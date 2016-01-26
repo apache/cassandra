@@ -160,7 +160,7 @@ public class Operation extends RangeIterator<Long, Token>
      *
      * The algorithm is as follows: for every given expression from analyzed
      * list get corresponding column from the Row:
-     *   - apply {@link Expression#contains(ByteBuffer)}
+     *   - apply {@link Expression#isSatisfiedBy(ByteBuffer)}
      *     method to figure out if it's satisfied;
      *   - apply logical operation between boolean accumulator and current boolean result;
      *   - if result == false and node's operation is AND return right away;
@@ -225,7 +225,7 @@ public class Operation extends RangeIterator<Long, Token>
             for (int i = filters.size() - 1; i >= 0; i--)
             {
                 Expression expression = filters.get(i);
-                isMatch = !isMissingColumn && expression.contains(value);
+                isMatch = !isMissingColumn && expression.isSatisfiedBy(value);
                 if (expression.getOp() == Op.NOT_EQ)
                 {
                     // since this is NOT_EQ operation we have to
@@ -282,16 +282,29 @@ public class Operation extends RangeIterator<Long, Token>
             AbstractAnalyzer analyzer = columnIndex.getAnalyzer();
             analyzer.reset(e.getIndexValue());
 
-            // EQ/NOT_EQ can have multiple expressions e.g. text = "Hello World",
+            // EQ/LIKE_*/NOT_EQ can have multiple expressions e.g. text = "Hello World",
             // becomes text = "Hello" OR text = "World" because "space" is always interpreted as a split point (by analyzer),
             // NOT_EQ is made an independent expression only in case of pre-existing multiple EQ expressions, or
             // if there is no EQ operations and NOT_EQ is met or a single NOT_EQ expression present,
             // in such case we know exactly that there would be no more EQ/RANGE expressions for given column
             // since NOT_EQ has the lowest priority.
-            if (e.operator() == Operator.EQ
-                    || (e.operator() == Operator.NEQ
-                       && (perColumn.size() == 0 || perColumn.size() > 1
-                           || (perColumn.size() == 1 && perColumn.get(0).getOp() == Op.NOT_EQ))))
+            boolean isMultiExpression = false;
+            switch (e.operator())
+            {
+                case EQ:
+                case LIKE_PREFIX:
+                case LIKE_SUFFIX:
+                case LIKE_CONTAINS:
+                    isMultiExpression = true;
+                    break;
+
+                case NEQ:
+                    isMultiExpression = (perColumn.size() == 0 || perColumn.size() > 1
+                                     || (perColumn.size() == 1 && perColumn.get(0).getOp() == Op.NOT_EQ));
+                    break;
+            }
+
+            if (isMultiExpression)
             {
                 while (analyzer.hasNext())
                 {
@@ -323,6 +336,11 @@ public class Operation extends RangeIterator<Long, Token>
         switch (op)
         {
             case EQ:
+                return 5;
+
+            case LIKE_PREFIX:
+            case LIKE_SUFFIX:
+            case LIKE_CONTAINS:
                 return 4;
 
             case GTE:

@@ -155,6 +155,12 @@ abstract class ForwardingPrimaryKeyRestrictions implements PrimaryKeyRestriction
     }
 
     @Override
+    public boolean isLIKE()
+    {
+        return getDelegate().isLIKE();
+    }
+
+    @Override
     public boolean isIN()
     {
         return getDelegate().isIN();

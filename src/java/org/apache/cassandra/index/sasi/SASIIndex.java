@@ -28,8 +28,10 @@ import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.config.Schema;
 import org.apache.cassandra.cql3.Operator;
 import org.apache.cassandra.db.*;
+import org.apache.cassandra.db.compaction.CompactionManager;
 import org.apache.cassandra.db.compaction.OperationType;
 import org.apache.cassandra.db.filter.RowFilter;
+import org.apache.cassandra.db.lifecycle.Tracker;
 import org.apache.cassandra.db.marshal.AbstractType;
 import org.apache.cassandra.db.partitions.PartitionIterator;
 import org.apache.cassandra.db.partitions.PartitionUpdate;
@@ -96,7 +98,22 @@ public class SASIIndex implements Index, INotificationConsumer
         ColumnDefinition column = CassandraIndex.parseTarget(baseCfs.metadata, config).left;
         this.index = new ColumnIndex(baseCfs.metadata.getKeyValidator(), column, config);
 
-        baseCfs.getTracker().subscribe(this);
+        Tracker tracker = baseCfs.getTracker();
+        tracker.subscribe(this);
+
+        SortedMap<SSTableReader, Map<ColumnDefinition, ColumnIndex>> toRebuild = new TreeMap<>((a, b)
+                                                -> Integer.compare(a.descriptor.generation, b.descriptor.generation));
+
+        for (SSTableReader sstable : index.init(tracker.getView().liveSSTables()))
+        {
+            Map<ColumnDefinition, ColumnIndex> perSSTable = toRebuild.get(sstable);
+            if (perSSTable == null)
+                toRebuild.put(sstable, (perSSTable = new HashMap<>()));
+
+            perSSTable.put(index.getDefinition(), index);
+        }
+
+        CompactionManager.instance.submitIndexBuild(new SASIIndexBuilder(baseCfs, toRebuild));
     }
 
     public static Map<String, String> validateOptions(Map<String, String> options)
@@ -164,7 +181,7 @@ public class SASIIndex implements Index, INotificationConsumer
 
     public boolean supportsExpression(ColumnDefinition column, Operator operator)
     {
-        return dependsOn(column);
+        return dependsOn(column) && index.supports(operator);
     }
 
     public AbstractType<?> customExpressionValueType()

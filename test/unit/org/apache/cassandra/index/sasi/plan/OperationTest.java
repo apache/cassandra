@@ -492,13 +492,13 @@ public class OperationTest extends SchemaLoader
                                                           System.currentTimeMillis()));
 
         Operation.Builder builder = new Operation.Builder(OperationType.AND, controller,
-                                            new SimpleExpression(comment, Operator.EQ, UTF8Type.instance.decompose("eng is a work")));
+                                            new SimpleExpression(comment, Operator.LIKE_CONTAINS, UTF8Type.instance.decompose("eng is a work")));
         Operation op = builder.complete();
 
         Assert.assertTrue(op.satisfiedBy(row, false));
 
         builder = new Operation.Builder(OperationType.AND, controller,
-                                            new SimpleExpression(comment, Operator.EQ, UTF8Type.instance.decompose("soft works fine")));
+                                            new SimpleExpression(comment, Operator.LIKE_CONTAINS, UTF8Type.instance.decompose("soft works fine")));
         op = builder.complete();
 
         Assert.assertTrue(op.satisfiedBy(row, false));

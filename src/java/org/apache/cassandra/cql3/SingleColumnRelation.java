@@ -34,6 +34,7 @@ import org.apache.cassandra.exceptions.InvalidRequestException;
 
 import static org.apache.cassandra.cql3.statements.RequestValidations.checkFalse;
 import static org.apache.cassandra.cql3.statements.RequestValidations.checkTrue;
+import static org.apache.cassandra.cql3.statements.RequestValidations.invalidRequest;
 
 /**
  * Relations encapsulate the relationship between an entity of some kind, and
@@ -150,6 +151,9 @@ public final class SingleColumnRelation extends Relation
         if (isIN())
             return String.format("%s IN %s", entityAsString, inValues);
 
+        if (isLIKE())
+            return String.format("%s %s", entityAsString, relationType);
+
         return String.format("%s %s %s", entityAsString, relationType, value);
     }
 
@@ -213,6 +217,18 @@ public final class SingleColumnRelation extends Relation
         // currently enforced by the grammar
         assert value == Constants.NULL_LITERAL : "Expected null literal for IS NOT relation: " + this.toString();
         return new SingleColumnRestriction.IsNotNullRestriction(columnDef);
+    }
+
+    @Override
+    protected Restriction newLikeRestriction(CFMetaData cfm, VariableSpecifications boundNames, Operator operator) throws InvalidRequestException
+    {
+        if (mapKey != null)
+            throw invalidRequest("%s can't be used with collections.", operator());
+
+        ColumnDefinition columnDef = toColumnDefinition(cfm, entity);
+        Term term = toTerm(toReceivers(columnDef, cfm.isDense()), value, cfm.ksName, boundNames);
+
+        return new SingleColumnRestriction.LikeRestriction(columnDef, operator, term);
     }
 
     /**
@@ -305,6 +321,6 @@ public final class SingleColumnRelation extends Relation
 
     private boolean canHaveOnlyOneValue()
     {
-        return isEQ() || (isIN() && inValues != null && inValues.size() == 1);
+        return isEQ() || isLIKE() || (isIN() && inValues != null && inValues.size() == 1);
     }
 }

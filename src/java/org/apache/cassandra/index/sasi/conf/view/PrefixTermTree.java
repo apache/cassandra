@@ -48,10 +48,11 @@ public class PrefixTermTree extends RangeTermTree
 
     public PrefixTermTree(ByteBuffer min, ByteBuffer max,
                           Trie<ByteBuffer, Set<SSTableIndex>> trie,
-                          IntervalTree<ByteBuffer, SSTableIndex, Interval<ByteBuffer, SSTableIndex>> ranges,
-                          OnDiskIndexBuilder.Mode mode)
+                          IntervalTree<Term, SSTableIndex, Interval<Term, SSTableIndex>> ranges,
+                          OnDiskIndexBuilder.Mode mode,
+                          AbstractType<?> comparator)
     {
-        super(min, max, ranges);
+        super(min, max, ranges, comparator);
 
         this.mode = mode;
         this.trie = trie;
@@ -64,7 +65,6 @@ public class PrefixTermTree extends RangeTermTree
 
         Set<SSTableIndex> view = new HashSet<>(indexes.size());
         indexes.values().forEach(view::addAll);
-
         return Sets.union(view, super.search(e));
     }
 
@@ -76,6 +76,7 @@ public class PrefixTermTree extends RangeTermTree
         {
             super(mode, comparator);
             trie = new PatriciaTrie<>(new ByteBufferKeyAnalyzer(comparator));
+
         }
 
         public void addIndex(SSTableIndex index)
@@ -87,7 +88,7 @@ public class PrefixTermTree extends RangeTermTree
 
         public TermTree build()
         {
-            return new PrefixTermTree(min, max, trie, IntervalTree.build(intervals), mode);
+            return new PrefixTermTree(min, max, trie, IntervalTree.build(intervals), mode, comparator);
         }
 
         private void addTerm(ByteBuffer term, SSTableIndex index)

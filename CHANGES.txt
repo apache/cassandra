@@ -1,4 +1,5 @@
 3.4
+ * Add LIKE support to CQL3 (CASSANDRA-11067)
  * Generic Java UDF types (CASSANDRA-10819)
  * cqlsh: Include sub-second precision in timestamps by default (CASSANDRA-10428)
  * Set javac encoding to utf-8 (CASSANDRA-11077)
