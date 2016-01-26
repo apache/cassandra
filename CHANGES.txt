@@ -14,6 +14,7 @@
 3.3
  * Avoid bootstrap hanging when existing nodes have no data to stream (CASSANDRA-11010)
 Merged from 3.0:
+ * Added support for IBM zSystems architecture (CASSANDRA-11054)
  * Update CQL documentation (CASSANDRA-10899)
  * Check the column name, not cell name, for dropped columns when reading
    legacy sstables (CASSANDRA-11018)
