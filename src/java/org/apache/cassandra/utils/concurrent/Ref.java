@@ -9,9 +9,12 @@ import java.util.concurrent.*;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicIntegerFieldUpdater;
 
-import com.google.common.collect.Iterables;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+
+import com.google.common.annotations.VisibleForTesting;
+import com.google.common.base.Preconditions;
+import com.google.common.collect.Iterables;
 
 import org.apache.cassandra.concurrent.NamedThreadFactory;
 import org.apache.cassandra.db.ColumnFamilyStore;
@@ -21,6 +24,8 @@ import org.apache.cassandra.io.sstable.format.SSTableReader;
 import org.apache.cassandra.io.util.Memory;
 import org.apache.cassandra.io.util.SafeMemory;
 import org.apache.cassandra.utils.NoSpamLogger;
+import org.apache.cassandra.utils.Pair;
+import org.cliffc.high_scale_lib.NonBlockingHashMap;
 
 import static java.util.Collections.emptyList;
 
@@ -314,10 +319,20 @@ public final class Ref<T> implements RefCounted<T>
         }
     }
 
+    private static final Class<?>[] concurrentIterableClasses = new Class<?>[] {
+        ConcurrentLinkedQueue.class,
+        ConcurrentLinkedDeque.class,
+        ConcurrentSkipListSet.class,
+        CopyOnWriteArrayList.class,
+        CopyOnWriteArraySet.class,
+        DelayQueue.class,
+        NonBlockingHashMap.class,
+    };
+    static final Set<Class<?>> concurrentIterables = Collections.newSetFromMap(new IdentityHashMap<>());
     private static final Set<GlobalState> globallyExtant = Collections.newSetFromMap(new ConcurrentHashMap<>());
     static final ReferenceQueue<Object> referenceQueue = new ReferenceQueue<>();
     private static final ExecutorService EXEC = Executors.newFixedThreadPool(1, new NamedThreadFactory("Reference-Reaper"));
-    private static final ScheduledExecutorService STRONG_LEAK_DETECTOR = !DEBUG_ENABLED ? null : Executors.newScheduledThreadPool(1, new NamedThreadFactory("Strong-Reference-Leak-Detector"));
+    static final ScheduledExecutorService STRONG_LEAK_DETECTOR = !DEBUG_ENABLED ? null : Executors.newScheduledThreadPool(1, new NamedThreadFactory("Strong-Reference-Leak-Detector"));
     static
     {
         EXEC.execute(new ReferenceReaper());
@@ -326,6 +341,7 @@ public final class Ref<T> implements RefCounted<T>
             STRONG_LEAK_DETECTOR.scheduleAtFixedRate(new Visitor(), 1, 15, TimeUnit.MINUTES);
             STRONG_LEAK_DETECTOR.scheduleAtFixedRate(new StrongLeakDetector(), 2, 15, TimeUnit.MINUTES);
         }
+        concurrentIterables.addAll(Arrays.asList(concurrentIterableClasses));
     }
 
     static final class ReferenceReaper implements Runnable
@@ -353,10 +369,145 @@ public final class Ref<T> implements RefCounted<T>
         }
     }
 
+    static final Deque<InProgressVisit> inProgressVisitPool = new ArrayDeque<InProgressVisit>();
+
+    @SuppressWarnings({ "rawtypes", "unchecked" })
+    static InProgressVisit newInProgressVisit(Object o, List<Field> fields, Field field, String name)
+    {
+        Preconditions.checkNotNull(o);
+        InProgressVisit ipv = inProgressVisitPool.pollLast();
+        if (ipv == null)
+            ipv = new InProgressVisit();
+
+        ipv.o = o;
+        if (o instanceof Object[])
+            ipv.collectionIterator = Arrays.asList((Object[])o).iterator();
+        else if (o instanceof ConcurrentMap)
+        {
+            ipv.isMapIterator = true;
+            ipv.collectionIterator = ((Map)o).entrySet().iterator();
+        }
+        else if (concurrentIterables.contains(o.getClass()) | o instanceof BlockingQueue)
+            ipv.collectionIterator = ((Iterable)o).iterator();
+
+        ipv.fields = fields;
+        ipv.field = field;
+        ipv.name = name;
+        return ipv;
+    }
+
+    static void returnInProgressVisit(InProgressVisit ipv)
+    {
+        if (inProgressVisitPool.size() > 1024)
+            return;
+        ipv.name = null;
+        ipv.fields = null;
+        ipv.o = null;
+        ipv.fieldIndex = 0;
+        ipv.field = null;
+        ipv.collectionIterator = null;
+        ipv.mapEntryValue = null;
+        ipv.isMapIterator = false;
+        inProgressVisitPool.offer(ipv);
+    }
+
+    /*
+     * Stack state for walking an object graph.
+     * Field index is the index of the current field being fetched.
+     */
+    @SuppressWarnings({ "rawtypes"})
+    static class InProgressVisit
+    {
+        String name;
+        List<Field> fields;
+        Object o;
+        int fieldIndex = 0;
+        Field field;
+
+        //Need to know if Map.Entry should be returned or traversed as an object
+        boolean isMapIterator;
+        //If o is a ConcurrentMap, BlockingQueue, or Object[], this is populated with an iterator over the contents
+        Iterator<Object> collectionIterator;
+        //If o is a ConcurrentMap the entry set contains keys and values. The key is returned as the first child
+        //And the associated value is stashed here and returned next
+        Object mapEntryValue;
+
+        private Field nextField()
+        {
+            if (fields.isEmpty())
+                return null;
+
+            if (fieldIndex >= fields.size())
+                return null;
+
+            Field retval = fields.get(fieldIndex);
+            fieldIndex++;
+            return retval;
+        }
+
+        Pair<Object, Field> nextChild() throws IllegalAccessException
+        {
+            //If the last child returned was a key from a map, the value from that entry is stashed
+            //so it can be returned next
+            if (mapEntryValue != null)
+            {
+                Pair<Object, Field> retval = Pair.create(mapEntryValue, field);
+                mapEntryValue = null;
+                return retval;
+            }
+
+            //If o is a ConcurrentMap, BlockingQueue, or Object[], then an iterator will be stored to return the elements
+            if (collectionIterator != null)
+            {
+                if (!collectionIterator.hasNext())
+                    return null;
+                Object nextItem = null;
+                //Find the next non-null element to traverse since returning null will cause the visitor to stop
+                while (collectionIterator.hasNext() && (nextItem = collectionIterator.next()) == null){}
+                if (nextItem != null)
+                {
+                    if (isMapIterator && nextItem instanceof Map.Entry)
+                    {
+                        Map.Entry entry = (Map.Entry)nextItem;
+                        mapEntryValue = entry.getValue();
+                        return Pair.create(entry.getKey(), field);
+                    }
+                    return Pair.create(nextItem, field);
+                }
+                else
+                {
+                    return null;
+                }
+            }
+
+            //Basic traversal of an object by its member fields
+            //Don't return null values as that indicates no more objects
+            while (true)
+            {
+                Field nextField = nextField();
+                if (nextField == null)
+                    return null;
+                Object nextObject = nextField.get(o);
+                if (nextObject != null)
+                    return Pair.create(nextField.get(o), nextField);
+            }
+        }
+
+        @Override
+        public String toString()
+        {
+            return field == null ? name : field.toString() + "-" + o.getClass().getName();
+        }
+    }
+
     static class Visitor implements Runnable
     {
-        final Stack<Field> path = new Stack<>();
+        final Deque<InProgressVisit> path = new ArrayDeque<>();
         final Set<Object> visited = Collections.newSetFromMap(new IdentityHashMap<>());
+        @VisibleForTesting
+        int lastVisitedCount;
+        @VisibleForTesting
+        long iterations = 0;
         GlobalState visiting;
 
         public void run()
@@ -371,9 +522,11 @@ public final class Ref<T> implements RefCounted<T>
                     // do a graph exploration of the GlobalState, since it should be shallow; if it references itself, we have a problem
                     path.clear();
                     visited.clear();
+                    lastVisitedCount = 0;
+                    iterations = 0;
                     visited.add(globalState);
                     visiting = globalState;
-                    visit(globalState.tidy);
+                    traverse(globalState.tidy);
                 }
             }
             catch (Throwable t)
@@ -382,37 +535,66 @@ public final class Ref<T> implements RefCounted<T>
             }
             finally
             {
+                lastVisitedCount = visited.size();
                 path.clear();
                 visited.clear();
             }
         }
 
-        void visit(final Object object)
+        /*
+         * Searches for an indirect strong reference between rootObject and visiting.
+         */
+        void traverse(final RefCounted.Tidy rootObject)
         {
-            for (Field field : getFields(object.getClass()))
+            path.offer(newInProgressVisit(rootObject, getFields(rootObject.getClass()), null, rootObject.name()));
+
+            InProgressVisit inProgress = null;
+            while (inProgress != null || !path.isEmpty())
             {
-                path.push(field);
+                //If necessary fetch the next object to start tracing
+                if (inProgress == null)
+                    inProgress = path.pollLast();
+
                 try
                 {
-                    Object child = field.get(object);
+                    Pair<Object, Field> p = inProgress.nextChild();
+                    Object child = null;
+                    Field field = null;
+
+                    if (p != null)
+                    {
+                        iterations++;
+                        child = p.left;
+                        field = p.right;
+                    }
+
                     if (child != null && visited.add(child))
                     {
-                        visit(child);
+                        path.offer(inProgress);
+                        inProgress = newInProgressVisit(child, getFields(child.getClass()), field, null);
+                        continue;
                     }
                     else if (visiting == child)
                     {
-                        logger.error("Strong self-ref loop detected {}", path);
+                        NoSpamLogger.log(logger,
+                                NoSpamLogger.Level.ERROR,
+                                rootObject.getClass().getName(),
+                                1,
+                                TimeUnit.SECONDS,
+                                "Strong self-ref loop detected {}",
+                                path);
+                    }
+                    else if (child == null)
+                    {
+                        returnInProgressVisit(inProgress);
+                        inProgress = null;
+                        continue;
                     }
                 }
                 catch (IllegalAccessException e)
                 {
                     NoSpamLogger.log(logger, NoSpamLogger.Level.ERROR, 5, TimeUnit.MINUTES, "Could not fully check for self-referential leaks", e);
                 }
-                catch (StackOverflowError e)
-                {
-                    logger.error("Stackoverflow {}", path);
-                }
-                path.pop();
             }
         }
     }
