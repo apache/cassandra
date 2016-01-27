@@ -15,6 +15,8 @@
 3.3
  * Avoid bootstrap hanging when existing nodes have no data to stream (CASSANDRA-11010)
 Merged from 3.0:
+ * (cqlsh) handle INSERT and UPDATE statements with LWT conditions correctly
+   (CASSANDRA-11003)
  * Fix DISTINCT queries in mixed version clusters (CASSANDRA-10762)
  * Migrate build status for indexes along with legacy schema (CASSANDRA-11046)
  * Ensure SSTables for legacy KEYS indexes can be read (CASSANDRA-11045)
