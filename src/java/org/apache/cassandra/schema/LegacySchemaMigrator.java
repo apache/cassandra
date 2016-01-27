@@ -88,6 +88,7 @@ public final class LegacySchemaMigrator
                     keyspaces.size(),
                     SchemaKeyspace.NAME);
         keyspaces.forEach(LegacySchemaMigrator::storeKeyspaceInNewSchemaTables);
+        keyspaces.forEach(LegacySchemaMigrator::migrateBuiltIndexesForKeyspace);
 
         // flush the new tables before truncating the old ones
         SchemaKeyspace.flush();
@@ -100,6 +101,27 @@ public final class LegacySchemaMigrator
         unloadLegacySchemaTables();
 
         logger.info("Completed migration of legacy schema tables");
+    }
+
+    private static void migrateBuiltIndexesForKeyspace(Keyspace keyspace)
+    {
+        keyspace.tables.forEach(LegacySchemaMigrator::migrateBuiltIndexesForTable);
+    }
+
+    private static void migrateBuiltIndexesForTable(Table table)
+    {
+        table.metadata.getIndexes().forEach((index) -> migrateIndexBuildStatus(table.metadata.ksName,
+                                                                               table.metadata.cfName,
+                                                                               index));
+    }
+
+    private static void migrateIndexBuildStatus(String keyspace, String table, IndexMetadata index)
+    {
+        if (SystemKeyspace.isIndexBuilt(keyspace, table + '.' + index.name))
+        {
+            SystemKeyspace.setIndexBuilt(keyspace, index.name);
+            SystemKeyspace.setIndexRemoved(keyspace, table + '.' + index.name);
+        }
     }
 
     static void unloadLegacySchemaTables()
