@@ -1,4 +1,5 @@
 3.0.11
+ * Set javac encoding to utf-8 (CASSANDRA-11077)
  * Replace empty strings with null values if they cannot be converted (CASSANDRA-12794)
  * Fixed flacky SSTableRewriterTest: check file counts before calling validateCFS (CASSANDRA-12348)
  * Fix deserialization of 2.x DeletedCells (CASSANDRA-12620)
