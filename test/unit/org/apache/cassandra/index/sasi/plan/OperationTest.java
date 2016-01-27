@@ -512,7 +512,7 @@ public class OperationTest extends SchemaLoader
         ColumnDefinition height = getColumn(CLUSTERING_BACKEND, UTF8Type.instance.decompose("height"));
         ColumnDefinition score = getColumn(CLUSTERING_BACKEND, UTF8Type.instance.decompose("score"));
 
-        Unfiltered row = buildRow(new Clustering(UTF8Type.instance.fromString("US"), Int32Type.instance.decompose(27)),
+        Unfiltered row = buildRow(Clustering.make(UTF8Type.instance.fromString("US"), Int32Type.instance.decompose(27)),
                                   buildCell(height, Int32Type.instance.decompose(182), System.currentTimeMillis()),
                                   buildCell(score, DoubleType.instance.decompose(1.0d), System.currentTimeMillis()));
 
