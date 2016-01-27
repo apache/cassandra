@@ -97,6 +97,10 @@ public class RangeSliceQueryPager extends AbstractQueryPager
         if (lastReturnedKey == null || !lastReturnedKey.equals(first.key))
             return false;
 
+        // If the query is a DISTINCT one we can stop there
+        if (isDistinct())
+            return true;
+
         // Same as SliceQueryPager, we ignore a deleted column
         Cell firstCell = isReversed() ? lastCell(first.cf) : firstNonStaticCell(first.cf);
         // If the row was containing only static columns it has already been returned and we can skip it.
@@ -107,6 +111,12 @@ public class RangeSliceQueryPager extends AbstractQueryPager
         return !first.cf.deletionInfo().isDeleted(firstCell)
                 && firstCell.isLive(timestamp())
                 && firstCell.name().isSameCQL3RowAs(metadata.comparator, lastReturnedName);
+    }
+
+    private boolean isDistinct()
+    {
+        // As this pager is never used for Thrift queries, checking the countCQL3Rows is enough.
+        return !command.countCQL3Rows;
     }
 
     protected boolean recordLast(Row last)
