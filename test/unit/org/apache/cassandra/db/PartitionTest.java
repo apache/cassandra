@@ -138,21 +138,23 @@ public class PartitionTest
 
             new RowUpdateBuilder(cfs.metadata, 5, "key2").clustering("c").add("val", "val2").build().applyUnsafe();
 
-            ImmutableBTreePartition p1 = Util.getOnlyPartitionUnfiltered(Util.cmd(cfs, "key1").build());
-            ImmutableBTreePartition p2 = Util.getOnlyPartitionUnfiltered(Util.cmd(cfs, "key2").build());
+            ReadCommand cmd1 = Util.cmd(cfs, "key1").build();
+            ReadCommand cmd2 = Util.cmd(cfs, "key2").build();
+            ImmutableBTreePartition p1 = Util.getOnlyPartitionUnfiltered(cmd1);
+            ImmutableBTreePartition p2 = Util.getOnlyPartitionUnfiltered(cmd2);
 
             MessageDigest digest1 = MessageDigest.getInstance("MD5");
             MessageDigest digest2 = MessageDigest.getInstance("MD5");
-            UnfilteredRowIterators.digest(p1.unfilteredIterator(), digest1, version);
-            UnfilteredRowIterators.digest(p2.unfilteredIterator(), digest2, version);
+            UnfilteredRowIterators.digest(cmd1, p1.unfilteredIterator(), digest1, version);
+            UnfilteredRowIterators.digest(cmd2, p2.unfilteredIterator(), digest2, version);
             assertFalse(Arrays.equals(digest1.digest(), digest2.digest()));
 
             p1 = Util.getOnlyPartitionUnfiltered(Util.cmd(cfs, "key2").build());
             p2 = Util.getOnlyPartitionUnfiltered(Util.cmd(cfs, "key2").build());
             digest1 = MessageDigest.getInstance("MD5");
             digest2 = MessageDigest.getInstance("MD5");
-            UnfilteredRowIterators.digest(p1.unfilteredIterator(), digest1, version);
-            UnfilteredRowIterators.digest(p2.unfilteredIterator(), digest2, version);
+            UnfilteredRowIterators.digest(cmd1, p1.unfilteredIterator(), digest1, version);
+            UnfilteredRowIterators.digest(cmd2, p2.unfilteredIterator(), digest2, version);
             assertTrue(Arrays.equals(digest1.digest(), digest2.digest()));
 
             p1 = Util.getOnlyPartitionUnfiltered(Util.cmd(cfs, "key2").build());
@@ -160,8 +162,8 @@ public class PartitionTest
             p2 = Util.getOnlyPartitionUnfiltered(Util.cmd(cfs, "key2").build());
             digest1 = MessageDigest.getInstance("MD5");
             digest2 = MessageDigest.getInstance("MD5");
-            UnfilteredRowIterators.digest(p1.unfilteredIterator(), digest1, version);
-            UnfilteredRowIterators.digest(p2.unfilteredIterator(), digest2, version);
+            UnfilteredRowIterators.digest(cmd1, p1.unfilteredIterator(), digest1, version);
+            UnfilteredRowIterators.digest(cmd2, p2.unfilteredIterator(), digest2, version);
             assertFalse(Arrays.equals(digest1.digest(), digest2.digest()));
         }
         finally

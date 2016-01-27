@@ -98,6 +98,7 @@ public abstract class DataLimits
     public abstract Kind kind();
 
     public abstract boolean isUnlimited();
+    public abstract boolean isDistinct();
 
     public abstract DataLimits forPaging(int pageSize);
     public abstract DataLimits forPaging(int pageSize, ByteBuffer lastReturnedKey, int lastReturnedKeyRemaining);
@@ -232,8 +233,7 @@ public abstract class DataLimits
         protected final int rowLimit;
         protected final int perPartitionLimit;
 
-        // Whether the query is a distinct query or not. This is currently not used by the code but prior experience
-        // shows that keeping the information around is wise and might be useful in the future.
+        // Whether the query is a distinct query or not.
         protected final boolean isDistinct;
 
         private CQLLimits(int rowLimit)
@@ -268,9 +268,14 @@ public abstract class DataLimits
             return rowLimit == NO_LIMIT && perPartitionLimit == NO_LIMIT;
         }
 
+        public boolean isDistinct()
+        {
+            return isDistinct;
+        }
+
         public DataLimits forPaging(int pageSize)
         {
-            return new CQLLimits(pageSize, perPartitionLimit);
+            return new CQLLimits(pageSize, perPartitionLimit, isDistinct);
         }
 
         public DataLimits forPaging(int pageSize, ByteBuffer lastReturnedKey, int lastReturnedKeyRemaining)
@@ -511,6 +516,11 @@ public abstract class DataLimits
         public boolean isUnlimited()
         {
             return partitionLimit == NO_LIMIT && cellPerPartitionLimit == NO_LIMIT;
+        }
+
+        public boolean isDistinct()
+        {
+            return false;
         }
 
         public DataLimits forPaging(int pageSize)

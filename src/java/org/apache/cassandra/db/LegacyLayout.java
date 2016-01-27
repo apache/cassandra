@@ -32,6 +32,7 @@ import com.google.common.collect.PeekingIterator;
 import org.apache.cassandra.config.CFMetaData;
 import org.apache.cassandra.config.ColumnDefinition;
 import org.apache.cassandra.db.filter.ColumnFilter;
+import org.apache.cassandra.db.filter.DataLimits;
 import org.apache.cassandra.db.rows.*;
 import org.apache.cassandra.db.partitions.*;
 import org.apache.cassandra.db.context.CounterContext;
@@ -318,8 +319,46 @@ public abstract class LegacyLayout
         return CompositeType.build(values);
     }
 
+    /**
+     * The maximum number of cells to include per partition when converting to the old format.
+     * <p>
+     * We already apply the limit during the actual query, but for queries that counts cells and not rows (thrift queries
+     * and distinct queries as far as old nodes are concerned), we may still include a little bit more than requested
+     * because {@link DataLimits} always include full rows. So if the limit ends in the middle of a queried row, the
+     * full row will be part of our result. This would confuse old nodes however so we make sure to truncate it to
+     * what's expected before writting it on the wire.
+     *
+     * @param command the read commmand for which to determine the maximum cells per partition. This can be {@code null}
+     * in which case {@code Integer.MAX_VALUE} is returned.
+     * @return the maximum number of cells per partition that should be enforced according to the read command if
+     * post-query limitation are in order (see above). This will be {@code Integer.MAX_VALUE} if no such limits are
+     * necessary.
+     */
+    private static int maxCellsPerPartition(ReadCommand command)
+    {
+        if (command == null)
+            return Integer.MAX_VALUE;
+
+        DataLimits limits = command.limits();
+
+        // There is 2 types of DISTINCT queries: those that includes only the partition key, and those that include static columns.
+        // On old nodes, the latter expects the first row in term of CQL count, which is what we already have and there is no additional
+        // limit to apply. The former however expect only one cell per partition and rely on it (See CASSANDRA-10762).
+        if (limits.isDistinct())
+            return command.columnFilter().fetchedColumns().statics.isEmpty() ? 1 : Integer.MAX_VALUE;
+
+        switch (limits.kind())
+        {
+            case THRIFT_LIMIT:
+            case SUPER_COLUMN_COUNTING_LIMIT:
+                return limits.perPartitionCount();
+            default:
+                return Integer.MAX_VALUE;
+        }
+    }
+
     // For serializing to old wire format
-    public static LegacyUnfilteredPartition fromUnfilteredRowIterator(UnfilteredRowIterator iterator)
+    public static LegacyUnfilteredPartition fromUnfilteredRowIterator(ReadCommand command, UnfilteredRowIterator iterator)
     {
         // we need to extract the range tombstone so materialize the partition. Since this is
         // used for the on-wire format, this is not worst than it used to be.
@@ -332,6 +371,10 @@ public abstract class LegacyLayout
         // Processing the cell iterator results in the LegacyRangeTombstoneList being populated, so we do this
         // before we use the LegacyRangeTombstoneList at all
         List<LegacyLayout.LegacyCell> cells = Lists.newArrayList(pair.right);
+
+        int maxCellsPerPartition = maxCellsPerPartition(command);
+        if (cells.size() > maxCellsPerPartition)
+            cells = cells.subList(0, maxCellsPerPartition);
 
         // The LegacyRangeTombstoneList already has range tombstones for the single-row deletions and complex
         // deletions.  Go through our normal range tombstones and add then to the LegacyRTL so that the range
@@ -352,13 +395,13 @@ public abstract class LegacyLayout
         return new LegacyUnfilteredPartition(info.getPartitionDeletion(), rtl, cells);
     }
 
-    public static void serializeAsLegacyPartition(UnfilteredRowIterator partition, DataOutputPlus out, int version) throws IOException
+    public static void serializeAsLegacyPartition(ReadCommand command, UnfilteredRowIterator partition, DataOutputPlus out, int version) throws IOException
     {
         assert version < MessagingService.VERSION_30;
 
         out.writeBoolean(true);
 
-        LegacyLayout.LegacyUnfilteredPartition legacyPartition = LegacyLayout.fromUnfilteredRowIterator(partition);
+        LegacyLayout.LegacyUnfilteredPartition legacyPartition = LegacyLayout.fromUnfilteredRowIterator(command, partition);
 
         UUIDSerializer.serializer.serialize(partition.metadata().cfId, out, version);
         DeletionTime.serializer.serialize(legacyPartition.partitionDeletion, out);
@@ -420,7 +463,7 @@ public abstract class LegacyLayout
     }
 
     // For the old wire format
-    public static long serializedSizeAsLegacyPartition(UnfilteredRowIterator partition, int version)
+    public static long serializedSizeAsLegacyPartition(ReadCommand command, UnfilteredRowIterator partition, int version)
     {
         assert version < MessagingService.VERSION_30;
 
@@ -429,7 +472,7 @@ public abstract class LegacyLayout
 
         long size = TypeSizes.sizeof(true);
 
-        LegacyLayout.LegacyUnfilteredPartition legacyPartition = LegacyLayout.fromUnfilteredRowIterator(partition);
+        LegacyLayout.LegacyUnfilteredPartition legacyPartition = LegacyLayout.fromUnfilteredRowIterator(command, partition);
 
         size += UUIDSerializer.serializer.serializedSize(partition.metadata().cfId, version);
         size += DeletionTime.serializer.serializedSize(legacyPartition.partitionDeletion);
