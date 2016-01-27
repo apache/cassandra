@@ -102,15 +102,17 @@ public abstract class UnfilteredRowIterators
     /**
      * Digests the partition represented by the provided iterator.
      *
+     * @param command the command that has yield {@code iterator}. This can be null if {@code version >= MessagingService.VERSION_30}
+     * as this is only used when producing digest to be sent to legacy nodes.
      * @param iterator the iterator to digest.
      * @param digest the {@code MessageDigest} to use for the digest.
      * @param version the messaging protocol to use when producing the digest.
      */
-    public static void digest(UnfilteredRowIterator iterator, MessageDigest digest, int version)
+    public static void digest(ReadCommand command, UnfilteredRowIterator iterator, MessageDigest digest, int version)
     {
         if (version < MessagingService.VERSION_30)
         {
-            LegacyLayout.fromUnfilteredRowIterator(iterator).digest(iterator.metadata(), digest);
+            LegacyLayout.fromUnfilteredRowIterator(command, iterator).digest(iterator.metadata(), digest);
             return;
         }
 
