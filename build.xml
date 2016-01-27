@@ -759,14 +759,14 @@
         <echo message="${ant.project.name}: ${ant.file}"/>
         <!-- Order matters! -->
         <javac fork="true"
-               debug="true" debuglevel="${debuglevel}"
+               debug="true" debuglevel="${debuglevel}" encoding="utf-8"
                destdir="${build.classes.thrift}" includeantruntime="false" source="${source.version}" target="${target.version}"
                memorymaximumsize="512M">
             <src path="${interface.thrift.dir}/gen-java"/>
             <classpath refid="cassandra.classpath"/>
         </javac>
         <javac fork="true"
-               debug="true" debuglevel="${debuglevel}"
+               debug="true" debuglevel="${debuglevel}" encoding="utf-8"
                destdir="${build.classes.main}" includeantruntime="false" source="${source.version}" target="${target.version}"
                memorymaximumsize="512M">
             <src path="${build.src.java}"/>
@@ -792,7 +792,7 @@
     </path>
     <target name="stress-build" depends="build" description="build stress tool">
     	<mkdir dir="${stress.build.classes}" />
-        <javac debug="true" debuglevel="${debuglevel}" destdir="${stress.build.classes}" includeantruntime="true" source="${source.version}" target="${target.version}">
+        <javac debug="true" debuglevel="${debuglevel}" encoding="utf-8" destdir="${stress.build.classes}" includeantruntime="true" source="${source.version}" target="${target.version}">
             <src path="${stress.build.src}" />
             <classpath>
                 <path refid="cassandra.classes" />
@@ -1130,7 +1130,8 @@
      destdir="${test.classes}"
      includeantruntime="false"
      source="${source.version}" 
-     target="${target.version}">
+     target="${target.version}"
+     encoding="utf-8">
      <classpath>
         <path refid="cassandra.classpath"/>
      </classpath>
