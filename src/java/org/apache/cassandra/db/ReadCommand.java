@@ -1308,8 +1308,23 @@ public abstract class ReadCommand implements ReadQuery
                                     "Fill name in filter (hex): " + ByteBufferUtil.bytesToHex(buffer), metadata.cfId);
                 }
 
-                if (!cellName.clustering.equals(Clustering.STATIC_CLUSTERING))
+                // If we're querying for a static column, we may also need to read it
+                // as if it were a thrift dynamic column (because the column metadata,
+                // which makes it a static column in 3.0+, may have been added *after*
+                // some values were written). Note that all cql queries on non-compact
+                // tables used slice & not name filters prior to 3.0 so this path is
+                // not taken for non-compact tables. It is theoretically possible to
+                // get here via thrift, hence the check on metadata.isStaticCompactTable.
+                // See CASSANDRA-11087.
+                if (metadata.isStaticCompactTable() && cellName.clustering.equals(Clustering.STATIC_CLUSTERING))
+                {
+                    clusterings.add(new Clustering(cellName.column.name.bytes));
+                    selectionBuilder.add(metadata.compactValueColumn());
+                }
+                else
+                {
                     clusterings.add(cellName.clustering);
+                }
 
                 selectionBuilder.add(cellName.column);
             }

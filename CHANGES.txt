@@ -1,4 +1,5 @@
 3.0.3
+ * Fix deserialization of legacy read commands (CASSANDRA-11087)
  * Fix incorrect computation of deletion time in sstable metadata (CASSANDRA-11102)
  * Avoid memory leak when collecting sstable metadata (CASSANDRA-11026)
  * Mutations do not block for completion under view lock contention (CASSANDRA-10779)
