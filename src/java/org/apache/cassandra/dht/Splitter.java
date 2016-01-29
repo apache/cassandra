@@ -51,6 +51,9 @@ public abstract class Splitter
             totalTokens = totalTokens.add(right.subtract(valueForToken(r.left)));
         }
         BigInteger perPart = totalTokens.divide(BigInteger.valueOf(parts));
+        // the range owned is so tiny we can't split it:
+        if (perPart.equals(BigInteger.ZERO))
+            return Collections.singletonList(partitioner.getMaximumToken());
 
         if (dontSplitRanges)
             return splitOwnedRangesNoPartialRanges(localRanges, perPart, parts);
