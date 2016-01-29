@@ -13,6 +13,8 @@
  * Add 3.0 metadata to sstablemetadata output (CASSANDRA-10838)
 
 3.3
+ * Avoid infinite loop if owned range is smaller than number of
+   data dirs (CASSANDRA-11034)
  * Avoid bootstrap hanging when existing nodes have no data to stream (CASSANDRA-11010)
 Merged from 3.0:
  * (cqlsh) handle INSERT and UPDATE statements with LWT conditions correctly
