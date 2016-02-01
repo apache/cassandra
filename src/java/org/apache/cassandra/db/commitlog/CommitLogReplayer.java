@@ -25,6 +25,7 @@ import java.io.FileOutputStream;
 import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.util.*;
+import java.util.concurrent.ExecutionException;
 import java.util.concurrent.Future;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.zip.CRC32;
@@ -34,6 +35,7 @@ import com.google.common.collect.HashMultimap;
 import com.google.common.collect.Iterables;
 import com.google.common.collect.Multimap;
 import com.google.common.collect.Ordering;
+import com.google.common.util.concurrent.Uninterruptibles;
 
 import org.apache.commons.lang3.StringUtils;
 import org.slf4j.Logger;
@@ -54,7 +56,6 @@ import org.apache.cassandra.io.compress.ICompressor;
 import org.apache.cassandra.io.util.ChannelProxy;
 import org.apache.cassandra.io.util.DataInputBuffer;
 import org.apache.cassandra.io.util.FileDataInput;
-import org.apache.cassandra.io.util.NIODataInputStream;
 import org.apache.cassandra.io.util.RandomAccessReader;
 import org.apache.cassandra.utils.FBUtilities;
 import org.apache.cassandra.utils.JVMStabilityInspector;
@@ -567,7 +568,7 @@ public class CommitLogReplayer
 
         Runnable runnable = new WrappedRunnable()
         {
-            public void runMayThrow() throws IOException
+            public void runMayThrow() throws ExecutionException
             {
                 if (Schema.instance.getKSMetaData(mutation.getKeyspaceName()) == null)
                     return;
@@ -602,7 +603,7 @@ public class CommitLogReplayer
                 if (newMutation != null)
                 {
                     assert !newMutation.isEmpty();
-                    Keyspace.open(newMutation.getKeyspaceName()).applyFromCommitLog(newMutation);
+                    Uninterruptibles.getUninterruptibly(Keyspace.open(newMutation.getKeyspaceName()).applyFromCommitLog(newMutation));
                     keyspacesRecovered.add(keyspace);
                 }
             }

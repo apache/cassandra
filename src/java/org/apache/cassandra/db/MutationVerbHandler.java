@@ -20,6 +20,7 @@ package org.apache.cassandra.db;
 import java.io.DataInputStream;
 import java.io.IOException;
 import java.net.InetAddress;
+import java.util.function.Consumer;
 
 import org.apache.cassandra.batchlog.LegacyBatchlogMigrator;
 import org.apache.cassandra.exceptions.WriteTimeoutException;
@@ -29,6 +30,17 @@ import org.apache.cassandra.tracing.Tracing;
 
 public class MutationVerbHandler implements IVerbHandler<Mutation>
 {
+    private void reply(int id, InetAddress replyTo)
+    {
+        Tracing.trace("Enqueuing response to {}", replyTo);
+        MessagingService.instance().sendReply(WriteResponse.createMessage(), id, replyTo);
+    }
+
+    private void failed()
+    {
+        Tracing.trace("Payload application resulted in WriteTimeout, not replying");
+    }
+
     public void doVerb(MessageIn<Mutation> message, int id)  throws IOException
     {
         // Check if there were any forwarding headers in this message
@@ -49,16 +61,19 @@ public class MutationVerbHandler implements IVerbHandler<Mutation>
         try
         {
             if (message.version < MessagingService.VERSION_30 && LegacyBatchlogMigrator.isLegacyBatchlogMutation(message.payload))
+            {
                 LegacyBatchlogMigrator.handleLegacyMutation(message.payload);
+                reply(id, replyTo);
+            }
             else
-                message.payload.apply();
-
-            Tracing.trace("Enqueuing response to {}", replyTo);
-            MessagingService.instance().sendReply(WriteResponse.createMessage(), id, replyTo);
+                message.payload.applyFuture().thenAccept(o -> reply(id, replyTo)).exceptionally(wto -> {
+                    failed();
+                    return null;
+                });
         }
         catch (WriteTimeoutException wto)
         {
-            Tracing.trace("Payload application resulted in WriteTimeout, not replying");
+            failed();
         }
     }
 

@@ -379,19 +379,19 @@ public class Keyspace
         }
     }
 
-    public void apply(Mutation mutation, boolean writeCommitLog)
+    public CompletableFuture<?> apply(Mutation mutation, boolean writeCommitLog)
     {
-        apply(mutation, writeCommitLog, true, false);
+        return apply(mutation, writeCommitLog, true, false, null);
     }
 
-    public void apply(Mutation mutation, boolean writeCommitLog, boolean updateIndexes)
+    public CompletableFuture<?> apply(Mutation mutation, boolean writeCommitLog, boolean updateIndexes)
     {
-        apply(mutation, writeCommitLog, updateIndexes, false);
+        return apply(mutation, writeCommitLog, updateIndexes, false, null);
     }
 
-    public void applyFromCommitLog(Mutation mutation)
+    public CompletableFuture<?> applyFromCommitLog(Mutation mutation)
     {
-        apply(mutation, false, true, true);
+        return apply(mutation, false, true, true, null);
     }
 
     /**
@@ -403,13 +403,18 @@ public class Keyspace
      * @param updateIndexes  false to disable index updates (used by CollationController "defragmenting")
      * @param isClReplay     true if caller is the commitlog replayer
      */
-    public void apply(final Mutation mutation, final boolean writeCommitLog, boolean updateIndexes, boolean isClReplay)
+    public CompletableFuture<?> apply(final Mutation mutation,
+                                      final boolean writeCommitLog,
+                                      boolean updateIndexes,
+                                      boolean isClReplay,
+                                      CompletableFuture<?> future)
     {
         if (TEST_FAIL_WRITES && metadata.name.equals(TEST_FAIL_WRITES_KS))
             throw new RuntimeException("Testing write failures");
 
         Lock lock = null;
         boolean requiresViewUpdate = updateIndexes && viewManager.updatesAffectView(Collections.singleton(mutation), false);
+        final CompletableFuture<?> mark = future == null ? new CompletableFuture<>() : future;
 
         if (requiresViewUpdate)
         {
@@ -422,7 +427,10 @@ public class Keyspace
                 {
                     logger.trace("Could not acquire lock for {}", ByteBufferUtil.bytesToHex(mutation.key().getKey()));
                     Tracing.trace("Could not acquire MV lock");
-                    throw new WriteTimeoutException(WriteType.VIEW, ConsistencyLevel.LOCAL_ONE, 0, 1);
+                    if (future != null)
+                        future.completeExceptionally(new WriteTimeoutException(WriteType.VIEW, ConsistencyLevel.LOCAL_ONE, 0, 1));
+                    else
+                        throw new WriteTimeoutException(WriteType.VIEW, ConsistencyLevel.LOCAL_ONE, 0, 1);
                 }
                 else
                 {
@@ -430,12 +438,12 @@ public class Keyspace
                     // we will re-apply ourself to the queue and try again later
                     StageManager.getStage(Stage.MUTATION).execute(() -> {
                         if (writeCommitLog)
-                            mutation.apply();
+                            apply(mutation, true, true, isClReplay, mark);
                         else
-                            mutation.applyUnsafe();
+                            apply(mutation, false, true, isClReplay, mark);
                     });
 
-                    return;
+                    return mark;
                 }
             }
             else
@@ -495,6 +503,8 @@ public class Keyspace
                 if (requiresViewUpdate)
                     baseComplete.set(System.currentTimeMillis());
             }
+            mark.complete(null);
+            return mark;
         }
         finally
         {
