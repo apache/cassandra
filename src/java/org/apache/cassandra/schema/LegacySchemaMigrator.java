@@ -133,6 +133,7 @@ public final class LegacySchemaMigrator
             systemTables = systemTables.without(table.cfName);
 
         LegacySchemaTables.forEach(Schema.instance::unload);
+        LegacySchemaTables.forEach((cfm) -> org.apache.cassandra.db.Keyspace.openAndGetStore(cfm).invalidate());
 
         Schema.instance.setKeyspaceMetadata(systemKeyspace.withSwapped(systemTables));
     }
