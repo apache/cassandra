@@ -3,6 +3,7 @@
    data dirs (CASSANDRA-11034)
  * Avoid bootstrap hanging when existing nodes have no data to stream (CASSANDRA-11010)
 Merged from 3.0:
+ * Mutations do not block for completion under view lock contention (CASSANDRA-10779)
  * Invalidate legacy schema tables when unloading them (CASSANDRA-11071)
  * (cqlsh) handle INSERT and UPDATE statements with LWT conditions correctly
    (CASSANDRA-11003)

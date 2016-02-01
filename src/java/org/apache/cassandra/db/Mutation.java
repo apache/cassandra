@@ -20,8 +20,11 @@ package org.apache.cassandra.db;
 import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.util.*;
+import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.ExecutionException;
 import java.util.concurrent.atomic.AtomicLong;
 
+import com.google.common.util.concurrent.Uninterruptibles;
 import org.apache.commons.lang3.StringUtils;
 import org.apache.cassandra.config.CFMetaData;
 import org.apache.cassandra.config.DatabaseDescriptor;
@@ -192,14 +195,26 @@ public class Mutation implements IMutation
         return new Mutation(ks, key, modifications);
     }
 
+    public CompletableFuture<?> applyFuture()
+    {
+        Keyspace ks = Keyspace.open(keyspaceName);
+        return ks.apply(this, ks.getMetadata().params.durableWrites);
+    }
+
     /*
      * This is equivalent to calling commit. Applies the changes to
      * to the keyspace that is obtained by calling Keyspace.open().
      */
     public void apply()
     {
-        Keyspace ks = Keyspace.open(keyspaceName);
-        ks.apply(this, ks.getMetadata().params.durableWrites);
+        try
+        {
+            Uninterruptibles.getUninterruptibly(applyFuture());
+        }
+        catch (ExecutionException e)
+        {
+            throw new RuntimeException(e.getCause());
+        }
     }
 
     public void apply(boolean durableWrites)
