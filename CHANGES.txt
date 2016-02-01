@@ -373,8 +373,7 @@ Merged from 2.2:
  * Fall back to 1/4 commitlog volume for commitlog_total_space on small disks
    (CASSANDRA-10199)
 Merged from 2.1:
- * ure SSTables for legacy KEYS indexes can be read (CASSANDRA-11045)
-dded configurable warning threshold for GC duration (CASSANDRA-8907)
+ * Added configurable warning threshold for GC duration (CASSANDRA-8907)
  * Fix handling of streaming EOF (CASSANDRA-10206)
  * Only check KeyCache when it is enabled
  * Change streaming_socket_timeout_in_ms default to 1 hour (CASSANDRA-8611)
