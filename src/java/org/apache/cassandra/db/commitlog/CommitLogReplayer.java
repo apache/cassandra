@@ -115,7 +115,7 @@ public class CommitLogReplayer
         {
             Runnable runnable = new WrappedRunnable()
             {
-                public void runMayThrow() throws IOException
+                public void runMayThrow() throws ExecutionException
                 {
                     if (Schema.instance.getKSMetaData(mutation.getKeyspaceName()) == null)
                         return;
