@@ -18,6 +18,7 @@
    data dirs (CASSANDRA-11034)
  * Avoid bootstrap hanging when existing nodes have no data to stream (CASSANDRA-11010)
 Merged from 3.0:
+ * Fix deserialization of legacy read commands (CASSANDRA-11087)
  * Fix incorrect computation of deletion time in sstable metadata (CASSANDRA-11102)
  * Avoid memory leak when collecting sstable metadata (CASSANDRA-11026)
  * Mutations do not block for completion under view lock contention (CASSANDRA-10779)
