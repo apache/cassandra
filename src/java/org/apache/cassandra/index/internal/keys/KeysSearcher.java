@@ -86,6 +86,8 @@ public class KeysSearcher extends CassandraIndexSearcher
                 {
                     Row hit = indexHits.next();
                     DecoratedKey key = index.baseCfs.decorateKey(hit.clustering().get(0));
+                    if (!command.selectsKey(key))
+                        continue;
 
                     SinglePartitionReadCommand dataCmd = SinglePartitionReadCommand.create(isForThrift(),
                                                                                            index.baseCfs.metadata,
