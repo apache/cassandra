@@ -237,6 +237,7 @@ public class TTLExpiryTest
         cfs.metadata.gcGraceSeconds(0);
 
         new RowUpdateBuilder(cfs.metadata, System.currentTimeMillis(), "test")
+                .noRowMarker()
                 .add("col1", ByteBufferUtil.EMPTY_BYTE_BUFFER)
                 .build()
                 .applyUnsafe();
@@ -246,6 +247,7 @@ public class TTLExpiryTest
         for (int i = 0; i < 10; i++)
         {
             new RowUpdateBuilder(cfs.metadata, System.currentTimeMillis(), "test")
+                            .noRowMarker()
                             .delete("col1")
                             .build()
                             .applyUnsafe();
