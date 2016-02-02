@@ -1008,6 +1008,35 @@ public class DeleteTest extends CQLTester
                              "DELETE FROM %s WHERE values CONTAINS ?", 3);
     }
 
+    @Test
+    public void testDeleteWithOnlyPK() throws Throwable
+    {
+        // This is a regression test for CASSANDRA-11102
+
+        createTable("CREATE TABLE %s (k int, v int, PRIMARY KEY (k, v)) WITH gc_grace_seconds=1");
+
+        execute("INSERT INTO %s(k, v) VALUES (?, ?)", 1, 2);
+
+        execute("DELETE FROM %s WHERE k = ? AND v = ?", 1, 2);
+        execute("INSERT INTO %s(k, v) VALUES (?, ?)", 2, 3);
+
+        Thread.sleep(500);
+
+        execute("DELETE FROM %s WHERE k = ? AND v = ?", 2, 3);
+        execute("INSERT INTO %s(k, v) VALUES (?, ?)", 1, 2);
+
+        Thread.sleep(500);
+
+        flush();
+
+        assertRows(execute("SELECT * FROM %s"), row(1, 2));
+
+        Thread.sleep(1000);
+        compact();
+
+        assertRows(execute("SELECT * FROM %s"), row(1, 2));
+    }
+
     private void flush(boolean forceFlush)
     {
         if (forceFlush)
