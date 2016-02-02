@@ -39,6 +39,7 @@ import org.apache.cassandra.io.sstable.Component;
 import org.apache.cassandra.io.sstable.SSTable;
 import org.apache.cassandra.io.sstable.format.SSTableReader;
 import org.apache.cassandra.service.ActiveRepairService;
+import org.apache.cassandra.utils.ByteBufferUtil;
 import org.apache.cassandra.utils.EstimatedHistogram;
 import org.apache.cassandra.utils.MurmurHash;
 import org.apache.cassandra.utils.StreamingHistogram;
@@ -232,10 +233,17 @@ public class MetadataCollector implements PartitionStatisticsCollector
         {
             AbstractType<?> type = comparator.subtype(i);
             ByteBuffer newValue = clustering.get(i);
-            minClusteringValues[i] = min(minClusteringValues[i], newValue, type);
-            maxClusteringValues[i] = max(maxClusteringValues[i], newValue, type);
+            minClusteringValues[i] = maybeMinimize(min(minClusteringValues[i], newValue, type));
+            maxClusteringValues[i] = maybeMinimize(max(maxClusteringValues[i], newValue, type));
         }
         return this;
+    }
+
+    private static ByteBuffer maybeMinimize(ByteBuffer buffer)
+    {
+        // ByteBuffer.minimalBufferFor doesn't handle null, but we can get it in this case since it's possible
+        // for some clustering values to be null
+        return buffer == null ? null : ByteBufferUtil.minimalBufferFor(buffer);
     }
 
     private static ByteBuffer min(ByteBuffer b1, ByteBuffer b2, AbstractType<?> comparator)
