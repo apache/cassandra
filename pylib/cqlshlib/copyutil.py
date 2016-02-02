@@ -1107,7 +1107,7 @@ class ExportSession(object):
         session.default_timeout = export_process.options.copy['pagetimeout']
 
         export_process.printdebugmsg("Created connection to %s with page size %d and timeout %d seconds per page"
-                                     % (session.hosts, session.default_fetch_size, session.default_timeout))
+                                     % (cluster.contact_points, session.default_fetch_size, session.default_timeout))
 
         self.cluster = cluster
         self.session = session
@@ -1176,16 +1176,20 @@ class ExportProcess(ChildProcess):
             token_range, info = self.inmsg.get()
             self.start_request(token_range, info)
 
-    def report_error(self, err, token_range=None):
+    @staticmethod
+    def get_error_message(err, print_traceback=False):
         if isinstance(err, str):
             msg = err
         elif isinstance(err, BaseException):
             msg = "%s - %s" % (err.__class__.__name__, err)
-            if self.debug:
+            if print_traceback:
                 traceback.print_exc(err)
         else:
             msg = str(err)
+        return msg
 
+    def report_error(self, err, token_range=None):
+        msg = self.get_error_message(err, print_traceback=self.debug)
         self.printdebugmsg(msg)
         self.outmsg.put((token_range, Exception(msg)))
 
@@ -1194,47 +1198,66 @@ class ExportProcess(ChildProcess):
         Begin querying a range by executing an async query that
         will later on invoke the callbacks attached in attach_callbacks.
         """
-        session = self.get_session(info['hosts'])
-        metadata = session.cluster.metadata.keyspaces[self.ks].tables[self.table]
-        query = self.prepare_query(metadata.partition_key, token_range, info['attempts'])
-        future = session.execute_async(query)
-        self.attach_callbacks(token_range, future, session)
+        session = self.get_session(info['hosts'], token_range)
+        if session:
+            metadata = session.cluster.metadata.keyspaces[self.ks].tables[self.table]
+            query = self.prepare_query(metadata.partition_key, token_range, info['attempts'])
+            future = session.execute_async(query)
+            self.attach_callbacks(token_range, future, session)
 
     def num_requests(self):
         return sum(session.num_requests() for session in self.hosts_to_sessions.values())
 
-    def get_session(self, hosts):
+    def get_session(self, hosts, token_range):
         """
-        We select a host to connect to. If we have no connections to one of the hosts
-        yet then we select this host, else we pick the one with the smallest number
-        of requests.
+        We return a session connected to one of the hosts passed in, which are valid replicas for
+        the token range. We sort replicas by favouring those without any active requests yet or with the
+        smallest number of requests. If we fail to connect we report an error so that the token will
+        be retried again later.
 
         :return: An ExportSession connected to the chosen host.
         """
-        new_hosts = [h for h in hosts if h not in self.hosts_to_sessions]
-        if new_hosts:
-            host = new_hosts[0]
-            new_cluster = Cluster(
-                contact_points=(host,),
-                port=self.port,
-                cql_version=self.cql_version,
-                protocol_version=self.protocol_version,
-                auth_provider=self.auth_provider,
-                ssl_options=ssl_settings(host, self.config_file) if self.ssl else None,
-                load_balancing_policy=TokenAwarePolicy(WhiteListRoundRobinPolicy(hosts)),
-                default_retry_policy=ExpBackoffRetryPolicy(self),
-                compression=None,
-                control_connection_timeout=self.connect_timeout,
-                connect_timeout=self.connect_timeout)
+        # sorted replicas favouring those with no connections yet
+        hosts = sorted(hosts,
+                       key=lambda hh: 0 if hh not in self.hosts_to_sessions else self.hosts_to_sessions[hh].requests)
 
-            session = ExportSession(new_cluster, self)
-            self.hosts_to_sessions[host] = session
-            return session
-        else:
-            host = min(hosts, key=lambda hh: self.hosts_to_sessions[hh].requests)
+        errors = []
+        ret = None
+        for host in hosts:
+            try:
+                ret = self.connect(host)
+            except Exception, e:
+                errors.append(self.get_error_message(e))
+
+            if ret:
+                if errors:
+                    self.printdebugmsg("Warning: failed to connect to some replicas: %s" % (errors,))
+                return ret
+
+        self.report_error("Failed to connect to all replicas %s for %s, errors: %s" % (hosts, token_range, errors))
+        return None
+
+    def connect(self, host):
+        if host in self.hosts_to_sessions.keys():
             session = self.hosts_to_sessions[host]
             session.add_request()
             return session
+
+        new_cluster = Cluster(
+            contact_points=(host,),
+            port=self.port,
+            cql_version=self.cql_version,
+            protocol_version=self.protocol_version,
+            auth_provider=self.auth_provider,
+            ssl_options=ssl_settings(host, self.config_file) if self.ssl else None,
+            load_balancing_policy=WhiteListRoundRobinPolicy([host]),
+            default_retry_policy=ExpBackoffRetryPolicy(self),
+            compression=None,
+            control_connection_timeout=self.connect_timeout,
+            connect_timeout=self.connect_timeout)
+        session = ExportSession(new_cluster, self)
+        self.hosts_to_sessions[host] = session
+        return session
 
     def attach_callbacks(self, token_range, future, session):
         def result_callback(rows):

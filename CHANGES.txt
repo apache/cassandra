@@ -29,6 +29,7 @@
  * Verify tables in pseudo-system keyspaces at startup (CASSANDRA-10761)
  * (cqlsh) encode input correctly when saving history
 Merged from 2.1:
+ * test_bulk_round_trip_blogposts is failing occasionally (CASSANDRA-10938)
  * Fix isJoined return true only after becoming cluster member (CASANDRA-11007)
  * Fix bad gossip generation seen in long-running clusters (CASSANDRA-10969)
  * Avoid NPE when incremental repair fails (CASSANDRA-10909)
