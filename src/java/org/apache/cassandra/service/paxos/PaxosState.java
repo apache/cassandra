@@ -23,6 +23,7 @@ package org.apache.cassandra.service.paxos;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.locks.Lock;
 
+import com.google.common.base.Throwables;
 import com.google.common.util.concurrent.Striped;
 import com.google.common.util.concurrent.Uninterruptibles;
 
@@ -145,7 +146,7 @@ public class PaxosState
                 }
                 catch (ExecutionException e)
                 {
-                    throw new RuntimeException(e.getCause());
+                    Throwables.propagate(e.getCause());
                 }
             }
             else
