@@ -32,6 +32,7 @@ import java.util.zip.CRC32;
 
 import com.google.common.annotations.VisibleForTesting;
 import com.google.common.base.Predicate;
+import com.google.common.base.Throwables;
 import com.google.common.collect.HashMultimap;
 import com.google.common.collect.Iterables;
 import com.google.common.collect.Multimap;
@@ -105,7 +106,7 @@ public class CommitLogReplayer
         {
             Runnable runnable = new WrappedRunnable()
             {
-                public void runMayThrow() throws ExecutionException
+                public void runMayThrow()
                 {
                     if (Schema.instance.getKSMetaData(mutation.getKeyspaceName()) == null)
                         return;
@@ -140,7 +141,16 @@ public class CommitLogReplayer
                     if (newMutation != null)
                     {
                         assert !newMutation.isEmpty();
-                        Uninterruptibles.getUninterruptibly(Keyspace.open(newMutation.getKeyspaceName()).applyFromCommitLog(newMutation));
+
+                        try
+                        {
+                            Uninterruptibles.getUninterruptibly(Keyspace.open(newMutation.getKeyspaceName()).applyFromCommitLog(newMutation));
+                        }
+                        catch (ExecutionException e)
+                        {
+                            Throwables.propagate(e.getCause());
+                        }
+
                         clr.keyspacesRecovered.add(keyspace);
                     }
                 }
