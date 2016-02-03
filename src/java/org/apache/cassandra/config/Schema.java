@@ -28,12 +28,14 @@ import com.google.common.collect.Sets;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import org.apache.cassandra.auth.Auth;
 import org.apache.cassandra.db.*;
 import org.apache.cassandra.db.Keyspace;
 import org.apache.cassandra.db.index.SecondaryIndex;
 import org.apache.cassandra.db.index.SecondaryIndexManager;
 import org.apache.cassandra.io.sstable.Descriptor;
 import org.apache.cassandra.service.MigrationManager;
+import org.apache.cassandra.tracing.Tracing;
 import org.apache.cassandra.utils.ConcurrentBiMap;
 import org.apache.cassandra.utils.ByteBufferUtil;
 import org.apache.cassandra.utils.Pair;
@@ -67,6 +69,7 @@ public class Schema
     // 59adb24e-f3cd-3e02-97f0-5b395827453f
     public static final UUID emptyVersion;
     public static final ImmutableSet<String> systemKeyspaceNames = ImmutableSet.of(Keyspace.SYSTEM_KS);
+    public static final ImmutableSet<String> replicatedSystemKeyspaceNames = ImmutableSet.of(Tracing.TRACE_KS, Auth.AUTH_KS);
 
     static
     {
@@ -288,12 +291,27 @@ public class Schema
         return keyspaces.get(keyspaceName);
     }
 
+    private Set<String> getNonSystemKeyspacesSet()
+    {
+        return Sets.difference(keyspaces.keySet(), systemKeyspaceNames);
+    }
+
     /**
-     * @return collection of the non-system keyspaces
+     * @return collection of the non-system keyspaces (note that this count as system only the
+     * non replicated keyspaces, so keyspace like system_traces which are replicated are actually
+     * returned. See getUserKeyspace() below if you don't want those)
      */
     public List<String> getNonSystemKeyspaces()
     {
-        return ImmutableList.copyOf(Sets.difference(keyspaces.keySet(), systemKeyspaceNames));
+        return ImmutableList.copyOf(getNonSystemKeyspacesSet());
+    }
+
+    /**
+     * @return collection of the user defined keyspaces
+     */
+    public List<String> getUserKeyspaces()
+    {
+        return ImmutableList.copyOf(Sets.difference(getNonSystemKeyspacesSet(), replicatedSystemKeyspaceNames));
     }
 
     /**
