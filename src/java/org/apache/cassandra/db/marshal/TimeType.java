@@ -41,12 +41,6 @@ public class TimeType extends AbstractType<Long>
     }
 
     @Override
-    public boolean isCompatibleWith(AbstractType<?> previous)
-    {
-        return super.isCompatibleWith(previous);
-    }
-
-    @Override
     public boolean isValueCompatibleWithInternal(AbstractType<?> otherType)
     {
         return this == otherType || otherType == LongType.instance;
