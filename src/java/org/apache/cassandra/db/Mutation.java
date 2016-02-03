@@ -24,6 +24,7 @@ import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.atomic.AtomicLong;
 
+import com.google.common.base.Throwables;
 import com.google.common.util.concurrent.Uninterruptibles;
 import org.apache.commons.lang3.StringUtils;
 import org.apache.cassandra.config.CFMetaData;
@@ -217,7 +218,7 @@ public class Mutation implements IMutation
         }
         catch (ExecutionException e)
         {
-            throw new RuntimeException(e.getCause());
+            Throwables.propagate(e.getCause());
         }
     }
 
