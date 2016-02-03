@@ -146,7 +146,7 @@ public class PaxosState
                 }
                 catch (ExecutionException e)
                 {
-                    Throwables.propagate(e.getCause());
+                    throw Throwables.propagate(e.getCause());
                 }
             }
             else

@@ -148,7 +148,7 @@ public class CommitLogReplayer
                         }
                         catch (ExecutionException e)
                         {
-                            Throwables.propagate(e.getCause());
+                            throw Throwables.propagate(e.getCause());
                         }
 
                         clr.keyspacesRecovered.add(keyspace);

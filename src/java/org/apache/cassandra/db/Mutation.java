@@ -215,7 +215,7 @@ public class Mutation implements IMutation
         }
         catch (ExecutionException e)
         {
-            Throwables.propagate(e.getCause());
+            throw Throwables.propagate(e.getCause());
         }
     }
 
