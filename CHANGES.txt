@@ -18,6 +18,7 @@
    data dirs (CASSANDRA-11034)
  * Avoid bootstrap hanging when existing nodes have no data to stream (CASSANDRA-11010)
 Merged from 3.0:
+ * Remove double initialization of newly added tables (CASSANDRA-11027)
  * Filter keys searcher results by target range (CASSANDRA-11104)
  * Fix deserialization of legacy read commands (CASSANDRA-11087)
  * Fix incorrect computation of deletion time in sstable metadata (CASSANDRA-11102)
