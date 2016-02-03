@@ -31,6 +31,11 @@ import org.apache.cassandra.serializers.TimestampSerializer;
 import org.apache.cassandra.serializers.MarshalException;
 import org.apache.cassandra.utils.ByteBufferUtil;
 
+/**
+ * This is the old version of TimestampType, but has been replaced as it wasn't comparing pre-epoch timestamps
+ * correctly. This is kept for backward compatibility but shouldn't be used in new code.
+ */
+@Deprecated
 public class DateType extends AbstractType<Date>
 {
     private static final Logger logger = LoggerFactory.getLogger(DateType.class);
