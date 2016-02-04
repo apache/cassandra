@@ -31,6 +31,7 @@ import com.google.common.collect.Multimap;
 import org.apache.commons.cli.*;
 
 import com.datastax.driver.core.AuthProvider;
+import com.datastax.driver.core.JdkSSLOptions;
 import com.datastax.driver.core.PlainTextAuthProvider;
 import com.datastax.driver.core.SSLOptions;
 import javax.net.ssl.SSLContext;
@@ -272,7 +273,10 @@ public class BulkLoader
             throw new RuntimeException("Could not create SSL Context.", e);
         }
 
-        return new SSLOptions(sslContext, clientEncryptionOptions.cipher_suites);
+        return JdkSSLOptions.builder()
+                            .withSSLContext(sslContext)
+                            .withCipherSuites(clientEncryptionOptions.cipher_suites)
+                            .build();
     }
 
     static class ExternalClient extends NativeSSTableLoaderClient

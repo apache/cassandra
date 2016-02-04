@@ -44,7 +44,7 @@ public final class UDHelper
     {
         try
         {
-            Class<?> cls = Class.forName("com.datastax.driver.core.CassandraTypeParser");
+            Class<?> cls = Class.forName("com.datastax.driver.core.DataTypeClassNameParser");
             Method m = cls.getDeclaredMethod("parseOne", String.class, ProtocolVersion.class, CodecRegistry.class);
             m.setAccessible(true);
             methodParseOne = MethodHandles.lookup().unreflect(m);

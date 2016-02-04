@@ -12,6 +12,9 @@
  * Stripe view locks by key and table ID to reduce contention (CASSANDRA-10981)
  * Add nodetool gettimeout and settimeout commands (CASSANDRA-10953)
  * Add 3.0 metadata to sstablemetadata output (CASSANDRA-10838)
+Merged from 3.0:
+ * Hadoop integration is incompatible with Cassandra Driver 3.0.0 (CASSANDRA-11001)
+
 
 3.3
  * Avoid infinite loop if owned range is smaller than number of
