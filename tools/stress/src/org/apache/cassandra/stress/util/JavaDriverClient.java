@@ -68,7 +68,7 @@ public class JavaDriverClient
         this.authProvider = settings.mode.authProvider;
         this.encryptionOptions = encryptionOptions;
         if (settings.node.isWhiteList)
-            whitelist = new WhiteListPolicy(new DCAwareRoundRobinPolicy(), settings.node.resolveAll(settings.port.nativePort));
+            whitelist = new WhiteListPolicy(DCAwareRoundRobinPolicy.builder().build(), settings.node.resolveAll(settings.port.nativePort));
         else
             whitelist = null;
         connectionsPerHost = settings.mode.connectionsPerHost == null ? 8 : settings.mode.connectionsPerHost;
@@ -124,7 +124,9 @@ public class JavaDriverClient
         {
             SSLContext sslContext;
             sslContext = SSLFactory.createSSLContext(encryptionOptions, true);
-            SSLOptions sslOptions = new SSLOptions(sslContext, encryptionOptions.cipher_suites);
+            SSLOptions sslOptions = JdkSSLOptions.builder()
+                                                 .withSSLContext(sslContext)
+                                                 .withCipherSuites(encryptionOptions.cipher_suites).build();
             clusterBuilder.withSSL(sslOptions);
         }
 
@@ -165,7 +167,7 @@ public class JavaDriverClient
 
     public ResultSet execute(String query, org.apache.cassandra.db.ConsistencyLevel consistency)
     {
-        SimpleStatement stmt = getSession().newSimpleStatement(query);
+        SimpleStatement stmt = new SimpleStatement(query);
         stmt.setConsistencyLevel(from(consistency));
         return getSession().execute(stmt);
     }
