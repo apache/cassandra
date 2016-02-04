@@ -23,6 +23,8 @@ import java.lang.reflect.Method;
 import java.nio.ByteBuffer;
 import java.util.List;
 
+import com.google.common.reflect.TypeToken;
+
 import com.datastax.driver.core.CodecRegistry;
 import com.datastax.driver.core.DataType;
 import com.datastax.driver.core.ProtocolVersion;
@@ -68,15 +70,16 @@ public final class UDHelper
      * @param calledOnNullInput whether to allow {@code null} as an argument value
      * @return array of same size with UDF arguments
      */
-    public static Class<?>[] javaTypes(DataType[] dataTypes, boolean calledOnNullInput)
+    public static TypeToken<?>[] typeTokens(DataType[] dataTypes, boolean calledOnNullInput)
     {
-        Class<?>[] paramTypes = new Class[dataTypes.length];
+        TypeToken<?>[] paramTypes = new TypeToken[dataTypes.length];
         for (int i = 0; i < paramTypes.length; i++)
         {
-            Class<?> clazz = asJavaClass(dataTypes[i]);
+            TypeToken<?> typeToken = asTypeToken(dataTypes[i]);
             if (!calledOnNullInput)
             {
                 // only care about classes that can be used in a data type
+                Class<?> clazz = typeToken.getRawType();
                 if (clazz == Integer.class)
                     clazz = int.class;
                 else if (clazz == Long.class)
@@ -91,8 +94,9 @@ public final class UDHelper
                     clazz = double.class;
                 else if (clazz == Boolean.class)
                     clazz = boolean.class;
+                typeToken = TypeToken.of(clazz);
             }
-            paramTypes[i] = clazz;
+            paramTypes[i] = typeToken;
         }
         return paramTypes;
     }
@@ -149,9 +153,9 @@ public final class UDHelper
         return codec.serialize(value, ProtocolVersion.fromInt(protocolVersion));
     }
 
-    public static Class<?> asJavaClass(DataType dataType)
+    public static TypeToken<?> asTypeToken(DataType dataType)
     {
-        return codecFor(dataType).getJavaType().getRawType();
+        return codecFor(dataType).getJavaType();
     }
 
     public static boolean isNullOrEmpty(AbstractType<?> type, ByteBuffer bb)

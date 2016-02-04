@@ -35,8 +35,11 @@ import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.ThreadLocalRandom;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.regex.Pattern;
 
+import com.google.common.annotations.VisibleForTesting;
 import com.google.common.io.ByteStreams;
+import com.google.common.reflect.TypeToken;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -57,9 +60,11 @@ import org.eclipse.jdt.internal.compiler.env.NameEnvironmentAnswer;
 import org.eclipse.jdt.internal.compiler.impl.CompilerOptions;
 import org.eclipse.jdt.internal.compiler.problem.DefaultProblemFactory;
 
-final class JavaBasedUDFunction extends UDFunction
+public final class JavaBasedUDFunction extends UDFunction
 {
     private static final String BASE_PACKAGE = "org.apache.cassandra.cql3.udf.gen";
+
+    private static final Pattern JAVA_LANG_PREFIX = Pattern.compile("\\bjava\\.lang\\.");
 
     static final Logger logger = LoggerFactory.getLogger(JavaBasedUDFunction.class);
 
@@ -185,9 +190,9 @@ final class JavaBasedUDFunction extends UDFunction
               returnType, UDHelper.driverType(returnType), calledOnNullInput, "java", body);
 
         // javaParamTypes is just the Java representation for argTypes resp. argDataTypes
-        Class<?>[] javaParamTypes = UDHelper.javaTypes(argDataTypes, calledOnNullInput);
+        TypeToken<?>[] javaParamTypes = UDHelper.typeTokens(argDataTypes, calledOnNullInput);
         // javaReturnType is just the Java representation for returnType resp. returnDataType
-        Class<?> javaReturnType = UDHelper.asJavaClass(returnDataType);
+        TypeToken<?> javaReturnType = UDHelper.asTypeToken(returnDataType);
 
         // put each UDF in a separate package to prevent cross-UDF code access
         String pkgName = BASE_PACKAGE + '.' + generateClassName(name, 'p');
@@ -244,7 +249,7 @@ final class JavaBasedUDFunction extends UDFunction
         {
             EcjCompilationUnit compilationUnit = new EcjCompilationUnit(javaSource, targetClassName);
 
-            org.eclipse.jdt.internal.compiler.Compiler compiler = new Compiler(compilationUnit,
+            Compiler compiler = new Compiler(compilationUnit,
                                                                                errorHandlingPolicy,
                                                                                compilerOptions,
                                                                                compilationUnit,
@@ -392,13 +397,14 @@ final class JavaBasedUDFunction extends UDFunction
         return sb.toString();
     }
 
-    private static String javaSourceName(Class<?> type)
+    @VisibleForTesting
+    public static String javaSourceName(TypeToken<?> type)
     {
-        String n = type.getName();
-        return n.startsWith("java.lang.") ? type.getSimpleName() : n;
+        String n = type.toString();
+        return JAVA_LANG_PREFIX.matcher(n).replaceAll("");
     }
 
-    private static String generateArgumentList(Class<?>[] paramTypes, List<ColumnIdentifier> argNames)
+    private static String generateArgumentList(TypeToken<?>[] paramTypes, List<ColumnIdentifier> argNames)
     {
         // initial builder size can just be a guess (prevent temp object allocations)
         StringBuilder code = new StringBuilder(32 * paramTypes.length);
@@ -413,7 +419,7 @@ final class JavaBasedUDFunction extends UDFunction
         return code.toString();
     }
 
-    private static String generateArguments(Class<?>[] paramTypes, List<ColumnIdentifier> argNames)
+    private static String generateArguments(TypeToken<?>[] paramTypes, List<ColumnIdentifier> argNames)
     {
         StringBuilder code = new StringBuilder(64 * paramTypes.length);
         for (int i = 0; i < paramTypes.length; i++)
@@ -433,9 +439,9 @@ final class JavaBasedUDFunction extends UDFunction
         return code.toString();
     }
 
-    private static String composeMethod(Class<?> type)
+    private static String composeMethod(TypeToken<?> type)
     {
-        return (type.isPrimitive()) ? ("super.compose_" + type.getName()) : "super.compose";
+        return (type.isPrimitive()) ? ("super.compose_" + type.getRawType().getName()) : "super.compose";
     }
 
     // Java source UDFs are a very simple compilation task, which allows us to let one class implement

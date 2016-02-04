@@ -18,6 +18,7 @@
 package org.apache.cassandra.cql3.validation.entities;
 
 import java.nio.ByteBuffer;
+import java.security.AccessControlException;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Date;
@@ -27,21 +28,22 @@ import java.util.Set;
 import java.util.TreeMap;
 import java.util.TreeSet;
 import java.util.UUID;
-import java.security.AccessControlException;
 
+import com.google.common.reflect.TypeToken;
 import org.junit.Assert;
 import org.junit.Test;
 
 import com.datastax.driver.core.*;
 import com.datastax.driver.core.exceptions.InvalidQueryException;
+import org.apache.cassandra.config.Config;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.config.Schema;
 import org.apache.cassandra.cql3.CQL3Type;
 import org.apache.cassandra.cql3.CQLTester;
 import org.apache.cassandra.cql3.QueryProcessor;
 import org.apache.cassandra.cql3.UntypedResultSet;
-import org.apache.cassandra.config.Config;
 import org.apache.cassandra.cql3.functions.FunctionName;
+import org.apache.cassandra.cql3.functions.JavaBasedUDFunction;
 import org.apache.cassandra.cql3.functions.UDFunction;
 import org.apache.cassandra.cql3.functions.UDHelper;
 import org.apache.cassandra.db.marshal.CollectionType;
@@ -58,6 +60,15 @@ import org.apache.cassandra.utils.UUIDGen;
 
 public class UFTest extends CQLTester
 {
+    @Test
+    public void testJavaSourceName()
+    {
+        Assert.assertEquals("String", JavaBasedUDFunction.javaSourceName(TypeToken.of(String.class)));
+        Assert.assertEquals("java.util.Map<Integer, String>", JavaBasedUDFunction.javaSourceName(TypeTokens.mapOf(Integer.class, String.class)));
+        Assert.assertEquals("com.datastax.driver.core.UDTValue", JavaBasedUDFunction.javaSourceName(TypeToken.of(UDTValue.class)));
+        Assert.assertEquals("java.util.Set<com.datastax.driver.core.UDTValue>", JavaBasedUDFunction.javaSourceName(TypeTokens.setOf(UDTValue.class)));
+    }
+
     @Test
     public void testNonExistingOnes() throws Throwable
     {
@@ -2484,5 +2495,38 @@ public class UFTest extends CQLTester
                 DatabaseDescriptor.setUserDefinedFunctionFailTimeout(udfFailTimeout);
             }
         }
+    }
+
+    @Test
+    public void testArgumentGenerics() throws Throwable
+    {
+        createTable("CREATE TABLE %s (key int primary key, sval text, aval ascii, bval blob, empty_int int)");
+
+        String typeName = createType("CREATE TYPE %s (txt text, i int)");
+
+        String f = createFunction(KEYSPACE, "text",
+                                  "CREATE OR REPLACE FUNCTION %s("                 +
+                                  "  listText list<text>,"                         +
+                                  "  setText set<text>,"                           +
+                                  "  mapTextInt map<text, int>,"                   +
+                                  "  mapListTextSetInt map<frozen<list<text>>, frozen<set<int>>>," +
+                                  "  mapTextTuple map<text, frozen<tuple<int, text>>>," +
+                                  "  mapTextType map<text, frozen<" + typeName + ">>" +
+                                  ") "                                             +
+                                  "CALLED ON NULL INPUT "                          +
+                                  "RETURNS map<frozen<list<text>>, frozen<set<int>>> " +
+                                  "LANGUAGE JAVA\n"                                +
+                                  "AS $$" +
+                                  "     for (String s : listtext) {};" +
+                                  "     for (String s : settext) {};" +
+                                  "     for (String s : maptextint.keySet()) {};" +
+                                  "     for (Integer s : maptextint.values()) {};" +
+                                  "     for (java.util.List<String> l : maplisttextsetint.keySet()) {};" +
+                                  "     for (java.util.Set<Integer> s : maplisttextsetint.values()) {};" +
+                                  "     for (com.datastax.driver.core.TupleValue t : maptexttuple.values()) {};" +
+                                  "     for (com.datastax.driver.core.UDTValue u : maptexttype.values()) {};" +
+                                  "     return maplisttextsetint;" +
+                                  "$$");
+
     }
 }
