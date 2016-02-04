@@ -682,7 +682,7 @@ Merged from 2.0:
  * Avoid accessing partitioner through StorageProxy (CASSANDRA-8244, 8268)
  * Upgrade Metrics library and remove depricated metrics (CASSANDRA-5657)
  * Serializing Row cache alternative, fully off heap (CASSANDRA-7438)
- * Duplicate rows returned when in clause has repeated values (CASSANDRA-6707)
+ * Duplicate rows returned when in clause has repeated values (CASSANDRA-6706)
  * Make CassandraException unchecked, extend RuntimeException (CASSANDRA-8560)
  * Support direct buffer decompression for reads (CASSANDRA-8464)
  * DirectByteBuffer compatible LZ4 methods (CASSANDRA-7039)
