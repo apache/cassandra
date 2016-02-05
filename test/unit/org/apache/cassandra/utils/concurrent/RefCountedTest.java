@@ -23,7 +23,9 @@ import org.junit.Test;
 import junit.framework.Assert;
 
 import java.io.File;
+import java.lang.ref.WeakReference;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.LinkedList;
 import java.util.List;
 import java.util.Map;
@@ -368,5 +370,39 @@ public class RefCountedTest
         Assert.assertTrue(visitor.lastVisitedCount > (entryCount / 2) && visitor.lastVisitedCount < (entryCount / 2) + fudgeFactor);
         //Should iterate over the array touching roughly the same number of objects as entries
         Assert.assertTrue(visitor.iterations > (entryCount / 2) && visitor.iterations < (entryCount / 2) + fudgeFactor);
+    }
+
+    //Make sure a weak ref is ignored by the visitor looking for strong ref leaks
+    @Test
+    public void testWeakRef() throws Exception
+    {
+        AtomicReference dontRefMe = new AtomicReference();
+
+        WeakReference<Object> weakRef = new WeakReference(dontRefMe);
+
+        RefCounted.Tidy tidier = new RefCounted.Tidy() {
+            WeakReference<Object> ref = weakRef;
+
+            @Override
+            public void tidy() throws Exception
+            {
+            }
+
+            @Override
+            public String name()
+            {
+                return "42";
+            }
+        };
+
+        Ref<Object> ref = new Ref(dontRefMe, tidier);
+        dontRefMe.set(ref);
+
+        Visitor visitor = new Visitor();
+        visitor.haveLoops = new HashSet<>();
+        visitor.run();
+        ref.close();
+
+        Assert.assertTrue(visitor.haveLoops.isEmpty());
     }
 }

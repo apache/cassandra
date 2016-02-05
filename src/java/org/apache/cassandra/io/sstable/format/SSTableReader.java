@@ -18,6 +18,7 @@
 package org.apache.cassandra.io.sstable.format;
 
 import java.io.*;
+import java.lang.ref.WeakReference;
 import java.nio.ByteBuffer;
 import java.util.*;
 import java.util.concurrent.*;
@@ -2200,6 +2201,7 @@ public abstract class SSTableReader extends SSTable implements SelfRefCounted<SS
      */
     static final class GlobalTidy implements Tidy
     {
+        static WeakReference<ScheduledFuture<?>> NULL = new WeakReference<>(null);
         // keyed by descriptor, mapping to the shared GlobalTidy for that descriptor
         static final ConcurrentMap<Descriptor, Ref<GlobalTidy>> lookup = new ConcurrentHashMap<>();
 
@@ -2209,7 +2211,7 @@ public abstract class SSTableReader extends SSTable implements SelfRefCounted<SS
         private RestorableMeter readMeter;
         // the scheduled persistence of the readMeter, that we will cancel once all instances of this logical
         // sstable have been released
-        private ScheduledFuture readMeterSyncFuture;
+        private WeakReference<ScheduledFuture<?>> readMeterSyncFuture = NULL;
         // shared state managing if the logical sstable has been compacted; this is used in cleanup
         private volatile Runnable obsoletion;
 
@@ -2228,13 +2230,13 @@ public abstract class SSTableReader extends SSTable implements SelfRefCounted<SS
             if (Schema.isSystemKeyspace(desc.ksname))
             {
                 readMeter = null;
-                readMeterSyncFuture = null;
+                readMeterSyncFuture = NULL;
                 return;
             }
 
             readMeter = SystemKeyspace.getSSTableReadMeter(desc.ksname, desc.cfname, desc.generation);
             // sync the average read rate to system.sstable_activity every five minutes, starting one minute from now
-            readMeterSyncFuture = syncExecutor.scheduleAtFixedRate(new Runnable()
+            readMeterSyncFuture = new WeakReference<>(syncExecutor.scheduleAtFixedRate(new Runnable()
             {
                 public void run()
                 {
@@ -2244,15 +2246,16 @@ public abstract class SSTableReader extends SSTable implements SelfRefCounted<SS
                         SystemKeyspace.persistSSTableReadMeter(desc.ksname, desc.cfname, desc.generation, readMeter);
                     }
                 }
-            }, 1, 5, TimeUnit.MINUTES);
+            }, 1, 5, TimeUnit.MINUTES));
         }
 
         private void stopReadMeterPersistence()
         {
-            if (readMeterSyncFuture != null)
+            ScheduledFuture<?> readMeterSyncFutureLocal = readMeterSyncFuture.get();
+            if (readMeterSyncFutureLocal != null)
             {
-                readMeterSyncFuture.cancel(true);
-                readMeterSyncFuture = null;
+                readMeterSyncFutureLocal.cancel(true);
+                readMeterSyncFuture = NULL;
             }
         }
 
