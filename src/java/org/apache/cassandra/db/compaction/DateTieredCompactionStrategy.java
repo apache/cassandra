@@ -385,11 +385,12 @@ public class DateTieredCompactionStrategy extends AbstractCompactionStrategy
     @Override
     public synchronized Collection<AbstractCompactionTask> getMaximalTask(int gcBefore)
     {
-        Iterable<SSTableReader> sstables = cfs.markAllCompacting();
-        if (sstables == null)
+        Iterable<SSTableReader> filteredSSTables = filterSuspectSSTables(sstables);
+        if (Iterables.isEmpty(filteredSSTables))
             return null;
-
-        return Collections.<AbstractCompactionTask>singleton(new CompactionTask(cfs, sstables, gcBefore, false));
+        if (!cfs.getDataTracker().markCompacting(ImmutableList.copyOf(filteredSSTables)))
+            return null;
+        return Collections.<AbstractCompactionTask>singleton(new CompactionTask(cfs, filteredSSTables, gcBefore, false));
     }
 
     @Override
