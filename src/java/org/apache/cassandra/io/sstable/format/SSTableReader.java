@@ -427,7 +427,7 @@ public abstract class SSTableReader extends SSTable implements SelfRefCounted<SS
                                              System.currentTimeMillis(),
                                              statsMetadata,
                                              OpenReason.NORMAL,
-                                             header.toHeader(metadata));
+                                             header == null? null : header.toHeader(metadata));
 
         // special implementation of load to use non-pooled SegmentedFile builders
         try(SegmentedFile.Builder ibuilder = new BufferedSegmentedFile.Builder();

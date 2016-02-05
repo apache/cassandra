@@ -15,24 +15,21 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package org.apache.cassandra.utils;
+package org.apache.cassandra.io.util;
 
 import java.io.DataInput;
 import java.io.DataInputStream;
 import java.io.IOException;
 
-import org.apache.cassandra.io.util.DataInputPlus;
-
 /**
  * This class is to track bytes read from given DataInput
  */
-public class BytesReadTracker implements DataInputPlus
+public class TrackedDataInputPlus implements DataInputPlus, BytesReadTracker
 {
-
     private long bytesRead;
     final DataInput source;
 
-    public BytesReadTracker(DataInput source)
+    public TrackedDataInputPlus(DataInput source)
     {
         this.source = source;
     }

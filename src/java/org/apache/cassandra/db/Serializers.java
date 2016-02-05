@@ -29,8 +29,6 @@ import org.apache.cassandra.io.util.DataOutputPlus;
 import org.apache.cassandra.io.sstable.format.Version;
 import org.apache.cassandra.utils.ByteBufferUtil;
 
-import static org.apache.cassandra.io.sstable.IndexHelper.IndexInfo;
-
 /**
  * Holds references on serializers that depend on the table definition.
  */
@@ -48,62 +46,77 @@ public class Serializers
     // unecessary (since IndexInfo.Serializer won't depend on the metadata either).
     public ISerializer<ClusteringPrefix> indexEntryClusteringPrefixSerializer(final Version version, final SerializationHeader header)
     {
-        if (!version.storeRows())
+        if (!version.storeRows() || header ==  null) //null header indicates streaming from pre-3.0 sstables
         {
-            return new ISerializer<ClusteringPrefix>()
-            {
-                public void serialize(ClusteringPrefix clustering, DataOutputPlus out) throws IOException
-                {
-                    // We should only use this for reading old sstable, never write new ones.
-                    throw new UnsupportedOperationException();
-                }
-
-                public ClusteringPrefix deserialize(DataInputPlus in) throws IOException
-                {
-                    // We're reading the old cellname/composite
-                    ByteBuffer bb = ByteBufferUtil.readWithShortLength(in);
-                    assert bb.hasRemaining(); // empty cellnames were invalid
-
-                    int clusteringSize = metadata.clusteringColumns().size();
-                    // If the table has no clustering column, then the cellname will just be the "column" name, which we ignore here.
-                    if (clusteringSize == 0)
-                        return Clustering.EMPTY;
-
-                    if (!metadata.isCompound())
-                        return new Clustering(bb);
-
-                    List<ByteBuffer> components = CompositeType.splitName(bb);
-                    byte eoc = CompositeType.lastEOC(bb);
-
-                    if (eoc == 0 || components.size() >= clusteringSize)
-                    {
-                        // That's a clustering.
-                        if (components.size() > clusteringSize)
-                            components = components.subList(0, clusteringSize);
-
-                        return new Clustering(components.toArray(new ByteBuffer[clusteringSize]));
-                    }
-                    else
-                    {
-                        // It's a range tombstone bound. It is a start since that's the only part we've ever included
-                        // in the index entries.
-                        Slice.Bound.Kind boundKind = eoc > 0
-                                                   ? Slice.Bound.Kind.EXCL_START_BOUND
-                                                   : Slice.Bound.Kind.INCL_START_BOUND;
-
-                        return Slice.Bound.create(boundKind, components.toArray(new ByteBuffer[components.size()]));
-                    }
-                }
-
-                public long serializedSize(ClusteringPrefix clustering)
-                {
-                    // We should only use this for reading old sstable, never write new ones.
-                    throw new UnsupportedOperationException();
-                }
-            };
+            return oldFormatSerializer(version);
         }
 
+        return newFormatSerializer(version, header);
+    }
+
+    private ISerializer<ClusteringPrefix> oldFormatSerializer(final Version version)
+    {
         return new ISerializer<ClusteringPrefix>()
+        {
+            SerializationHeader newHeader = SerializationHeader.makeWithoutStats(metadata);
+
+            public void serialize(ClusteringPrefix clustering, DataOutputPlus out) throws IOException
+            {
+                //we deserialize in the old format and serialize in the new format
+                ClusteringPrefix.serializer.serialize(clustering, out,
+                                                      version.correspondingMessagingVersion(),
+                                                      newHeader.clusteringTypes());
+            }
+
+            public ClusteringPrefix deserialize(DataInputPlus in) throws IOException
+            {
+                // We're reading the old cellname/composite
+                ByteBuffer bb = ByteBufferUtil.readWithShortLength(in);
+                assert bb.hasRemaining(); // empty cellnames were invalid
+
+                int clusteringSize = metadata.clusteringColumns().size();
+                // If the table has no clustering column, then the cellname will just be the "column" name, which we ignore here.
+                if (clusteringSize == 0)
+                    return Clustering.EMPTY;
+
+                if (!metadata.isCompound())
+                    return new Clustering(bb);
+
+                List<ByteBuffer> components = CompositeType.splitName(bb);
+                byte eoc = CompositeType.lastEOC(bb);
+
+                if (eoc == 0 || components.size() >= clusteringSize)
+                {
+                    // That's a clustering.
+                    if (components.size() > clusteringSize)
+                        components = components.subList(0, clusteringSize);
+
+                    return new Clustering(components.toArray(new ByteBuffer[clusteringSize]));
+                }
+                else
+                {
+                    // It's a range tombstone bound. It is a start since that's the only part we've ever included
+                    // in the index entries.
+                    Slice.Bound.Kind boundKind = eoc > 0
+                                                 ? Slice.Bound.Kind.EXCL_START_BOUND
+                                                 : Slice.Bound.Kind.INCL_START_BOUND;
+
+                    return Slice.Bound.create(boundKind, components.toArray(new ByteBuffer[components.size()]));
+                }
+            }
+
+            public long serializedSize(ClusteringPrefix clustering)
+            {
+                return ClusteringPrefix.serializer.serializedSize(clustering, version.correspondingMessagingVersion(),
+                                                                  newHeader.clusteringTypes());
+            }
+        };
+    }
+
+
+    private ISerializer<ClusteringPrefix> newFormatSerializer(final Version version, final SerializationHeader header)
+    {
+        return new ISerializer<ClusteringPrefix>() //Reading and writing from/to the new sstable format
         {
             public void serialize(ClusteringPrefix clustering, DataOutputPlus out) throws IOException
             {
@@ -121,4 +134,5 @@ public class Serializers
             }
         };
     }
+
 }

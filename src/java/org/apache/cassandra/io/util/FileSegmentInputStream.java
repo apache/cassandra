@@ -74,17 +74,17 @@ public class FileSegmentInputStream extends DataInputBuffer implements FileDataI
         return false;
     }
 
-    public FileMark mark()
+    public DataPosition mark()
     {
         throw new UnsupportedOperationException();
     }
 
-    public void reset(FileMark mark)
+    public void reset(DataPosition mark)
     {
         throw new UnsupportedOperationException();
     }
 
-    public long bytesPastMark(FileMark mark)
+    public long bytesPastMark(DataPosition mark)
     {
         return 0;
     }

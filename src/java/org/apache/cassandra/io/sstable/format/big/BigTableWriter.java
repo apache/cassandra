@@ -55,7 +55,7 @@ public class BigTableWriter extends SSTableWriter
     private final SegmentedFile.Builder dbuilder;
     protected final SequentialWriter dataFile;
     private DecoratedKey lastWrittenKey;
-    private FileMark dataMark;
+    private DataPosition dataMark;
 
     public BigTableWriter(Descriptor descriptor, 
                           Long keyCount, 
@@ -368,7 +368,7 @@ public class BigTableWriter extends SSTableWriter
         public final SegmentedFile.Builder builder;
         public final IndexSummaryBuilder summary;
         public final IFilter bf;
-        private FileMark mark;
+        private DataPosition mark;
 
         IndexWriter(long keyCount, final SequentialWriter dataFile)
         {

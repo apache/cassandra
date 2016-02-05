@@ -30,7 +30,7 @@ import org.apache.cassandra.io.sstable.format.SSTableReader;
 import org.apache.cassandra.io.sstable.CorruptSSTableException;
 import org.apache.cassandra.io.sstable.IndexHelper;
 import org.apache.cassandra.io.util.FileDataInput;
-import org.apache.cassandra.io.util.FileMark;
+import org.apache.cassandra.io.util.DataPosition;
 import org.apache.cassandra.utils.ByteBufferUtil;
 
 abstract class AbstractSSTableIterator implements SliceableUnfilteredRowIterator
@@ -401,7 +401,7 @@ abstract class AbstractSSTableIterator implements SliceableUnfilteredRowIterator
         private int currentIndexIdx;
 
         // Marks the beginning of the block corresponding to currentIndexIdx.
-        private FileMark mark;
+        private DataPosition mark;
 
         public IndexState(Reader reader, ClusteringComparator comparator, RowIndexEntry indexEntry, boolean reversed)
         {

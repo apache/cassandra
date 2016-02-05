@@ -406,7 +406,7 @@ public class BufferedRandomAccessFileTest
             assert tmpFile.getPath().equals(r.getPath());
 
             // Create a mark and move the rw there.
-            final FileMark mark = r.mark();
+            final DataPosition mark = r.mark();
             r.reset(mark);
 
             // Expect this call to succeed.
@@ -457,7 +457,7 @@ public class BufferedRandomAccessFileTest
         RandomAccessReader file = RandomAccessReader.open(channel);
 
         file.seek(10);
-        FileMark mark = file.mark();
+        DataPosition mark = file.mark();
 
         file.seek(file.length());
         assertTrue(file.isEOF());
