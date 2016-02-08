@@ -72,7 +72,14 @@ public class BatchlogManager implements BatchlogManagerMBean
     private volatile UUID lastReplayedUuid = UUIDGen.minTimeUUID(0);
 
     // Single-thread executor service for scheduling and serializing log replay.
-    private final ScheduledExecutorService batchlogTasks = new DebuggableScheduledThreadPoolExecutor("BatchlogTasks");
+    private final ScheduledExecutorService batchlogTasks;
+
+    public BatchlogManager()
+    {
+        ScheduledThreadPoolExecutor executor = new DebuggableScheduledThreadPoolExecutor("BatchlogTasks");
+        executor.setExecuteExistingDelayedTasksAfterShutdownPolicy(false);
+        batchlogTasks = executor;
+    }
 
     public void start()
     {
