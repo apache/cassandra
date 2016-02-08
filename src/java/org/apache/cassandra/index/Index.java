@@ -395,6 +395,24 @@ public interface Index
      */
 
     /**
+     * Used to validate the various parameters of a supplied {@code}ReadCommand{@code},
+     * this is called prior to execution. In theory, any command instance may be checked
+     * by any {@code}Index{@code} instance, but in practice the index will be the one
+     * returned by a call to the {@code}getIndex(ColumnFamilyStore cfs){@code} method on
+     * the supplied command.
+     *
+     * Custom index implementations should perform any validation of query expressions here and throw a meaningful
+     * InvalidRequestException when any expression or other parameter is invalid.
+     *
+     * @param command a ReadCommand whose parameters are to be verified
+     * @throws InvalidRequestException if the details of the command fail to meet the
+     *         index's validation rules
+     */
+    default void validate(ReadCommand command) throws InvalidRequestException
+    {
+    }
+
+    /**
      * Return a function which performs post processing on the results of a partition range read command.
      * In future, this may be used as a generalized mechanism for transforming results on the coordinator prior
      * to returning them to the caller.
@@ -412,15 +430,11 @@ public interface Index
 
     /**
      * Factory method for query time search helper.
-     * Custom index implementations should perform any validation of query expressions here and throw a meaningful
-     * InvalidRequestException when any expression is invalid.
      *
      * @param command the read command being executed
      * @return an Searcher with which to perform the supplied command
-     * @throws InvalidRequestException if the command's expressions are invalid according to the
-     *         specific syntax supported by the index implementation.
      */
-    public Searcher searcherFor(ReadCommand command) throws InvalidRequestException;
+    public Searcher searcherFor(ReadCommand command);
 
     /**
      * Performs the actual index lookup during execution of a ReadCommand.

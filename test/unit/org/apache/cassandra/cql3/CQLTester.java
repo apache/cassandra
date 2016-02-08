@@ -31,18 +31,15 @@ import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.stream.Collectors;
 
-import com.datastax.driver.core.*;
-import com.datastax.driver.core.ResultSet;
-
 import com.google.common.base.Objects;
 import com.google.common.collect.ImmutableList;
 import com.google.common.collect.ImmutableSet;
-
 import org.junit.*;
-
-import com.datastax.driver.core.Cluster;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+
+import com.datastax.driver.core.*;
+import com.datastax.driver.core.ResultSet;
 import org.apache.cassandra.SchemaLoader;
 import org.apache.cassandra.concurrent.ScheduledExecutors;
 import org.apache.cassandra.config.CFMetaData;
@@ -56,7 +53,8 @@ import org.apache.cassandra.db.commitlog.CommitLog;
 import org.apache.cassandra.db.marshal.*;
 import org.apache.cassandra.db.marshal.TupleType;
 import org.apache.cassandra.dht.Murmur3Partitioner;
-import org.apache.cassandra.exceptions.*;
+import org.apache.cassandra.exceptions.ConfigurationException;
+import org.apache.cassandra.exceptions.SyntaxException;
 import org.apache.cassandra.io.util.FileUtils;
 import org.apache.cassandra.serializers.TypeSerializer;
 import org.apache.cassandra.service.ClientState;
@@ -66,6 +64,7 @@ import org.apache.cassandra.transport.Event;
 import org.apache.cassandra.transport.Server;
 import org.apache.cassandra.transport.messages.ResultMessage;
 import org.apache.cassandra.utils.ByteBufferUtil;
+
 import static junit.framework.Assert.assertNotNull;
 
 /**
@@ -1005,15 +1004,30 @@ public abstract class CQLTester
 
     protected void assertInvalidThrowMessage(String errorMessage, Class<? extends Throwable> exception, String query, Object... values) throws Throwable
     {
+        assertInvalidThrowMessage(Integer.MIN_VALUE, errorMessage, exception, query, values);
+    }
+
+    // if a protocol version > Integer.MIN_VALUE is supplied, executes
+    // the query via the java driver, mimicking a real client.
+    protected void assertInvalidThrowMessage(int protocolVersion,
+                                             String errorMessage,
+                                             Class<? extends Throwable> exception,
+                                             String query,
+                                             Object... values) throws Throwable
+    {
         try
         {
-            execute(query, values);
+            if (protocolVersion == Integer.MIN_VALUE)
+                execute(query, values);
+            else
+                executeNet(protocolVersion, query, values);
+
             String q = USE_PREPARED_VALUES
                        ? query + " (values: " + formatAllValues(values) + ")"
                        : replaceValues(query, values);
             Assert.fail("Query should be invalid but no error was thrown. Query is: " + q);
         }
-        catch (CassandraException e)
+        catch (Exception e)
         {
             if (exception != null && !exception.isAssignableFrom(e.getClass()))
             {

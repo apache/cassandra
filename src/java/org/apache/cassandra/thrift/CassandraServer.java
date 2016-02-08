@@ -48,6 +48,7 @@ import org.apache.cassandra.db.view.View;
 import org.apache.cassandra.dht.*;
 import org.apache.cassandra.dht.Range;
 import org.apache.cassandra.exceptions.*;
+import org.apache.cassandra.index.Index;
 import org.apache.cassandra.io.util.DataOutputBuffer;
 import org.apache.cassandra.locator.DynamicEndpointSnitch;
 import org.apache.cassandra.metrics.ClientMetrics;
@@ -1715,6 +1716,13 @@ public class CassandraServer implements Cassandra.Iface
                                                                           limits,
                                                                           new DataRange(bounds, filter),
                                                                           Optional.empty());
+            // If there's a secondary index that the command can use, have it validate
+            // the request parameters. Note that as a side effect, if a viable Index is
+            // identified by the CFS's index manager, it will be cached in the command
+            // and serialized during distribution to replicas in order to avoid performing
+            // further lookups.
+            cmd.maybeValidateIndex();
+
             try (PartitionIterator results = StorageProxy.getRangeSlice(cmd, consistencyLevel))
             {
                 return thriftifyKeySlices(results, column_parent, limits.perPartitionCount());

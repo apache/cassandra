@@ -27,6 +27,8 @@ import org.apache.cassandra.db.filter.DataLimits;
 import org.apache.cassandra.db.rows.Row;
 import org.apache.cassandra.dht.*;
 import org.apache.cassandra.exceptions.RequestExecutionException;
+import org.apache.cassandra.index.Index;
+import org.apache.cassandra.schema.IndexMetadata;
 
 /**
  * Pages a RangeSliceCommand whose predicate is a slice query.
@@ -89,9 +91,9 @@ public class RangeSliceQueryPager extends AbstractQueryPager
             }
         }
 
-        // it won't hurt for the next page command to query the index manager
-        // again to check for an applicable index, so don't supply one here
-        return new PartitionRangeReadCommand(command.metadata(), command.nowInSec(), command.columnFilter(), command.rowFilter(), limits, pageRange, Optional.empty());
+        Index index = command.getIndex(Keyspace.openAndGetStore(command.metadata()));
+        Optional<IndexMetadata> indexMetadata = index != null ? Optional.of(index.getIndexMetadata()) : Optional.empty();
+        return new PartitionRangeReadCommand(command.metadata(), command.nowInSec(), command.columnFilter(), command.rowFilter(), limits, pageRange, indexMetadata);
     }
 
     protected void recordLast(DecoratedKey key, Row last)
