@@ -360,10 +360,10 @@ class TestCqlshOutput(BaseTestCase):
             ('''select timestampcol from has_all_types where num = 0;''', """
              timestampcol
              MMMMMMMMMMMM
-            --------------------------
+            ---------------------------------
 
-             2012-05-14 12:53:20+0000
-             GGGGGGGGGGGGGGGGGGGGGGGG
+             2012-05-14 12:53:20.000000+0000
+             GGGGGGGGGGGGGGGGGGGGGGGGGGGGGGG
 
 
             (1 rows)
