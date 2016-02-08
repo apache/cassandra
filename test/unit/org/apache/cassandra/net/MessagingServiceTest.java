@@ -20,10 +20,9 @@
  */
 package org.apache.cassandra.net;
 
-import java.io.ByteArrayInputStream;
-import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.net.InetAddress;
+import java.net.InetSocketAddress;
 import java.net.UnknownHostException;
 import java.util.Arrays;
 import java.util.Collections;
@@ -31,23 +30,31 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 import java.util.regex.*;
 import java.util.regex.Matcher;
 
 import com.google.common.collect.Iterables;
+
 import com.codahale.metrics.Timer;
 
+import io.netty.bootstrap.Bootstrap;
+import io.netty.channel.Channel;
 import org.apache.cassandra.auth.IInternodeAuthenticator;
 import org.apache.cassandra.config.DatabaseDescriptor;
-import org.apache.cassandra.config.DatabaseDescriptor;
+import org.apache.cassandra.db.SystemKeyspace;
 import org.apache.cassandra.db.monitoring.ApproximateTime;
 import org.apache.cassandra.exceptions.ConfigurationException;
-import org.apache.cassandra.io.util.DataInputPlus.DataInputStreamPlus;
-import org.apache.cassandra.io.util.DataOutputStreamPlus;
-import org.apache.cassandra.io.util.WrappedDataOutputStreamPlus;
+import org.apache.cassandra.net.MessagingService.ServerChannel;
+import org.apache.cassandra.net.async.NettyFactory;
+import org.apache.cassandra.net.async.OutboundConnectionIdentifier;
+import org.apache.cassandra.net.async.OutboundConnectionParams;
+import org.apache.cassandra.net.async.OutboundMessagingPool;
+import org.apache.cassandra.utils.FBUtilities;
 import org.caffinitas.ohc.histo.EstimatedHistogram;
 import org.junit.After;
+import org.junit.Assert;
 import org.junit.Before;
 import org.junit.BeforeClass;
 import org.junit.Test;
@@ -91,6 +98,12 @@ public class MessagingServiceTest
         MockBackPressureStrategy.applied = false;
         messagingService.destroyConnectionPool(InetAddress.getByName("127.0.0.2"));
         messagingService.destroyConnectionPool(InetAddress.getByName("127.0.0.3"));
+    }
+
+    @After
+    public void replaceAuthenticator()
+    {
+        DatabaseDescriptor.setInternodeAuthenticator(originalAuthenticator);
     }
 
     @Test
@@ -197,7 +210,7 @@ public class MessagingServiceTest
     @Test
     public void testUpdatesBackPressureOnSendWhenEnabledAndWithSupportedCallback() throws UnknownHostException
     {
-        MockBackPressureStrategy.MockBackPressureState backPressureState = (MockBackPressureStrategy.MockBackPressureState) messagingService.getConnectionPool(InetAddress.getByName("127.0.0.2")).getBackPressureState();
+        MockBackPressureStrategy.MockBackPressureState backPressureState = (MockBackPressureStrategy.MockBackPressureState) messagingService.getBackPressureState(InetAddress.getByName("127.0.0.2"));
         IAsyncCallback bpCallback = new BackPressureCallback();
         IAsyncCallback noCallback = new NoBackPressureCallback();
         MessageOut<?> ignored = null;
@@ -218,7 +231,7 @@ public class MessagingServiceTest
     @Test
     public void testUpdatesBackPressureOnReceiveWhenEnabledAndWithSupportedCallback() throws UnknownHostException
     {
-        MockBackPressureStrategy.MockBackPressureState backPressureState = (MockBackPressureStrategy.MockBackPressureState) messagingService.getConnectionPool(InetAddress.getByName("127.0.0.2")).getBackPressureState();
+        MockBackPressureStrategy.MockBackPressureState backPressureState = (MockBackPressureStrategy.MockBackPressureState) messagingService.getBackPressureState(InetAddress.getByName("127.0.0.2"));
         IAsyncCallback bpCallback = new BackPressureCallback();
         IAsyncCallback noCallback = new NoBackPressureCallback();
         boolean timeout = false;
@@ -242,7 +255,7 @@ public class MessagingServiceTest
     @Test
     public void testUpdatesBackPressureOnTimeoutWhenEnabledAndWithSupportedCallback() throws UnknownHostException
     {
-        MockBackPressureStrategy.MockBackPressureState backPressureState = (MockBackPressureStrategy.MockBackPressureState) messagingService.getConnectionPool(InetAddress.getByName("127.0.0.2")).getBackPressureState();
+        MockBackPressureStrategy.MockBackPressureState backPressureState = (MockBackPressureStrategy.MockBackPressureState) messagingService.getBackPressureState(InetAddress.getByName("127.0.0.2"));
         IAsyncCallback bpCallback = new BackPressureCallback();
         IAsyncCallback noCallback = new NoBackPressureCallback();
         boolean timeout = true;
@@ -285,13 +298,7 @@ public class MessagingServiceTest
 
     private static void addDCLatency(long sentAt, long nowTime) throws IOException
     {
-        ByteArrayOutputStream baos = new ByteArrayOutputStream();
-        try (DataOutputStreamPlus out = new WrappedDataOutputStreamPlus(baos))
-        {
-            out.writeInt((int) sentAt);
-        }
-        DataInputStreamPlus in = new DataInputStreamPlus(new ByteArrayInputStream(baos.toByteArray()));
-        MessageIn.readConstructionTime(InetAddress.getLocalHost(), in, nowTime);
+        MessageIn.deriveConstructionTime(InetAddress.getLocalHost(), (int)sentAt, nowTime);
     }
 
     public static class MockBackPressureStrategy implements BackPressureStrategy<MockBackPressureStrategy.MockBackPressureState>
@@ -414,32 +421,83 @@ public class MessagingServiceTest
         InetAddress address = InetAddress.getByName("127.0.0.250");
 
         //Should return null
-        assertNull(ms.getConnectionPool(address));
-        assertNull(ms.getConnection(address, new MessageOut(MessagingService.Verb.GOSSIP_DIGEST_ACK)));
+        MessageOut messageOut = new MessageOut(MessagingService.Verb.GOSSIP_DIGEST_ACK);
+        assertFalse(ms.isConnected(address, messageOut));
 
         //Should tolerate null
         ms.convict(address);
-        ms.sendOneWay(new MessageOut(MessagingService.Verb.GOSSIP_DIGEST_ACK), address);
+        ms.sendOneWay(messageOut, address);
     }
 
     @Test
-    public void testOutboundTcpConnectionCleansUp() throws Exception
+    public void testOutboundMessagingConnectionCleansUp() throws Exception
     {
         MessagingService ms = MessagingService.instance();
-        DatabaseDescriptor.setInternodeAuthenticator(ALLOW_NOTHING_AUTHENTICATOR);
-        InetAddress address = InetAddress.getByName("127.0.0.250");
-        OutboundTcpConnectionPool pool = new OutboundTcpConnectionPool(address, new MockBackPressureStrategy(null).newState(address));
-        ms.connectionManagers.put(address, pool);
-        pool.smallMessages.start();
-        pool.smallMessages.enqueue(new MessageOut(MessagingService.Verb.GOSSIP_DIGEST_ACK), 0);
-        pool.smallMessages.join();
-        assertFalse(ms.connectionManagers.containsKey(address));
+        InetSocketAddress local = new InetSocketAddress("127.0.0.1", 9876);
+        InetSocketAddress remote = new InetSocketAddress("127.0.0.2", 9876);
+
+        OutboundMessagingPool pool = new OutboundMessagingPool(remote, local, null, new MockBackPressureStrategy(null).newState(remote.getAddress()), ALLOW_NOTHING_AUTHENTICATOR);
+        ms.channelManagers.put(remote.getAddress(), pool);
+        pool.sendMessage(new MessageOut(MessagingService.Verb.GOSSIP_DIGEST_ACK), 0);
+        assertFalse(ms.channelManagers.containsKey(remote.getAddress()));
     }
 
-    @After
-    public void replaceAuthenticator()
+    @Test
+    public void reconnectWithNewIp() throws UnknownHostException
     {
-        DatabaseDescriptor.setInternodeAuthenticator(originalAuthenticator);
+        InetAddress publicIp = InetAddress.getByName("127.0.0.2");
+        InetAddress privateIp = InetAddress.getByName("127.0.0.3");
+
+        // reset the preferred IP value, for good test hygene
+        SystemKeyspace.updatePreferredIP(publicIp, publicIp);
+
+        // create pool/conn with public addr
+        Assert.assertEquals(publicIp, messagingService.getCurrentEndpoint(publicIp));
+        messagingService.reconnectWithNewIp(publicIp, privateIp);
+        Assert.assertEquals(privateIp, messagingService.getCurrentEndpoint(publicIp));
+
+        messagingService.destroyConnectionPool(publicIp);
+
+        // recreate the pool/conn, and make sure the preferred ip addr is used
+        Assert.assertEquals(privateIp, messagingService.getCurrentEndpoint(publicIp));
     }
+
+    @Test
+    public void testCloseInboundConnections() throws UnknownHostException, InterruptedException
+    {
+        messagingService.listen();
+        Assert.assertTrue(messagingService.isListening());
+        Assert.assertTrue(messagingService.serverChannels.size() > 0);
+        for (ServerChannel serverChannel : messagingService.serverChannels)
+            Assert.assertEquals(0, serverChannel.size());
+
+        // now, create a connection and make sure it's in a channel group
+        InetSocketAddress server = new InetSocketAddress(FBUtilities.getBroadcastAddress(), DatabaseDescriptor.getStoragePort());
+        OutboundConnectionIdentifier id = OutboundConnectionIdentifier.small(new InetSocketAddress(InetAddress.getByName("127.0.0.2"), 0), server);
+
+        CountDownLatch latch = new CountDownLatch(1);
+        OutboundConnectionParams params = OutboundConnectionParams.builder()
+                                                                  .mode(NettyFactory.Mode.MESSAGING)
+                                                                  .sendBufferSize(1 << 10)
+                                                                  .connectionId(id)
+                                                                  .callback(handshakeResult -> latch.countDown())
+                                                                  .protocolVersion(MessagingService.current_version)
+                                                                  .build();
+        Bootstrap bootstrap = NettyFactory.instance.createOutboundBootstrap(params);
+        Channel channel = bootstrap.connect().awaitUninterruptibly().channel();
+        Assert.assertNotNull(channel);
+        latch.await(1, TimeUnit.SECONDS); // allow the netty pipeline/c* handshake to get set up
+
+        int connectCount = 0;
+        for (ServerChannel serverChannel : messagingService.serverChannels)
+            connectCount += serverChannel.size();
+        Assert.assertTrue(connectCount > 0);
+
+        // last, shutdown the MS and make sure connections are removed
+        messagingService.shutdown();
+        for (ServerChannel serverChannel : messagingService.serverChannels)
+            Assert.assertEquals(0, serverChannel.size());
+    }
+
 
 }

@@ -31,20 +31,27 @@ import org.apache.cassandra.exceptions.RequestFailureReason;
 import org.apache.cassandra.io.IVersionedSerializer;
 import org.apache.cassandra.io.util.DataInputBuffer;
 import org.apache.cassandra.io.util.DataInputPlus;
+import org.apache.cassandra.net.MessagingService.Verb;
 
+/**
+ * The receiving node's view of a {@link MessageOut}. See documentation on {@link MessageOut} for details on the
+ * serialization format.
+ *
+ * @param <T> The type of the payload
+ */
 public class MessageIn<T>
 {
     public final InetAddress from;
     public final T payload;
     public final Map<String, byte[]> parameters;
-    public final MessagingService.Verb verb;
+    public final Verb verb;
     public final int version;
     public final long constructionTime;
 
     private MessageIn(InetAddress from,
                       T payload,
                       Map<String, byte[]> parameters,
-                      MessagingService.Verb verb,
+                      Verb verb,
                       int version,
                       long constructionTime)
     {
@@ -59,7 +66,7 @@ public class MessageIn<T>
     public static <T> MessageIn<T> create(InetAddress from,
                                           T payload,
                                           Map<String, byte[]> parameters,
-                                          MessagingService.Verb verb,
+                                          Verb verb,
                                           int version,
                                           long constructionTime)
     {
@@ -85,11 +92,17 @@ public class MessageIn<T>
         InetAddress from = CompactEndpointSerializationHelper.deserialize(in);
 
         MessagingService.Verb verb = MessagingService.Verb.fromId(in.readInt());
+        Map<String, byte[]> parameters = readParameters(in);
+        int payloadSize = in.readInt();
+        return read(in, version, id, constructionTime, from, payloadSize, verb, parameters);
+    }
+
+    public static Map<String, byte[]> readParameters(DataInputPlus in) throws IOException
+    {
         int parameterCount = in.readInt();
-        Map<String, byte[]> parameters;
         if (parameterCount == 0)
         {
-            parameters = Collections.emptyMap();
+            return Collections.emptyMap();
         }
         else
         {
@@ -101,10 +114,13 @@ public class MessageIn<T>
                 in.readFully(value);
                 builder.put(key, value);
             }
-            parameters = builder.build();
+            return builder.build();
         }
+    }
 
-        int payloadSize = in.readInt();
+    public static <T2> MessageIn<T2> read(DataInputPlus in, int version, int id, long constructionTime,
+                                          InetAddress from, int payloadSize, Verb verb, Map<String, byte[]> parameters) throws IOException
+    {
         IVersionedSerializer<T2> serializer = (IVersionedSerializer<T2>) MessagingService.verbSerializers.get(verb);
         if (serializer instanceof MessagingService.CallbackDeterminedSerializer)
         {
@@ -124,12 +140,11 @@ public class MessageIn<T>
         return MessageIn.create(from, payload, parameters, verb, version, constructionTime);
     }
 
-    public static long readConstructionTime(InetAddress from, DataInputPlus input, long currentTime) throws IOException
+    public static long deriveConstructionTime(InetAddress from, int messageTimestamp, long currentTime)
     {
         // Reconstruct the message construction time sent by the remote host (we sent only the lower 4 bytes, assuming the
         // higher 4 bytes wouldn't change between the sender and receiver)
-        int partial = input.readInt(); // make sure to readInt, even if cross_node_to is not enabled
-        long sentConstructionTime = (currentTime & 0xFFFFFFFF00000000L) | (((partial & 0xFFFFFFFFL) << 2) >> 2);
+        long sentConstructionTime = (currentTime & 0xFFFFFFFF00000000L) | (((messageTimestamp & 0xFFFFFFFFL) << 2) >> 2);
 
         // Because nodes may not have their clock perfectly in sync, it's actually possible the sentConstructionTime is
         // later than the currentTime (the received time). If that's the case, as we definitively know there is a lack

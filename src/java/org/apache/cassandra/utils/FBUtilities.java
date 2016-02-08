@@ -147,6 +147,13 @@ public class FBUtilities
         return broadcastInetAddress;
     }
 
+    /**
+     * <b>THIS IS FOR TESTING ONLY!!</b>
+     */
+    public static void setBroadcastInetAddress(InetAddress addr)
+    {
+        broadcastInetAddress = addr;
+    }
 
     public static InetAddress getBroadcastRpcAddress()
     {
