@@ -49,7 +49,7 @@ public final class NativeLibrary
         OTHER;
     }
 
-    private static final OSType osType;
+    public static final OSType osType;
 
     private static final int MCL_CURRENT;
     private static final int MCL_FUTURE;

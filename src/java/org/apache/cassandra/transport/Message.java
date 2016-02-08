@@ -606,7 +606,9 @@ public abstract class Message
                 message = "Unexpected exception during request; channel = <unprintable>";
             }
 
-            if (!alwaysLogAtError && exception instanceof IOException)
+            // netty wraps SSL errors in a CodecExcpetion
+            boolean isIOException = exception instanceof IOException || (exception.getCause() instanceof IOException);
+            if (!alwaysLogAtError && isIOException)
             {
                 if (ioExceptionsAtDebugLevel.contains(exception.getMessage()))
                 {

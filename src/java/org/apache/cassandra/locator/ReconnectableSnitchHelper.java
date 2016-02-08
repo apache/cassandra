@@ -23,9 +23,9 @@ import java.net.UnknownHostException;
 
 import com.google.common.annotations.VisibleForTesting;
 
+import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.gms.*;
 import org.apache.cassandra.net.MessagingService;
-import org.apache.cassandra.net.OutboundTcpConnectionPool;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -64,18 +64,16 @@ public class ReconnectableSnitchHelper implements IEndpointStateChangeSubscriber
     @VisibleForTesting
     static void reconnect(InetAddress publicAddress, InetAddress localAddress, IEndpointSnitch snitch, String localDc)
     {
-        OutboundTcpConnectionPool cp = MessagingService.instance().getConnectionPool(publicAddress);
-        //InternodeAuthenticator said don't connect
-        if (cp == null)
+        if (!DatabaseDescriptor.getInternodeAuthenticator().authenticate(publicAddress, MessagingService.portFor(publicAddress)))
         {
             logger.debug("InternodeAuthenticator said don't reconnect to {} on {}", publicAddress, localAddress);
             return;
         }
 
         if (snitch.getDatacenter(publicAddress).equals(localDc)
-                && !cp.endPoint().equals(localAddress))
+                && !MessagingService.instance().getCurrentEndpoint(publicAddress).equals(localAddress))
         {
-            cp.reset(localAddress);
+            MessagingService.instance().reconnectWithNewIp(publicAddress, localAddress);
             logger.debug("Initiated reconnect to an Internal IP {} for the {}", localAddress, publicAddress);
         }
     }

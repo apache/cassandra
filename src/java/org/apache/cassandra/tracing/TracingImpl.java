@@ -99,8 +99,7 @@ class TracingImpl extends Tracing
     }
 
     /**
-     * Called from {@link org.apache.cassandra.net.OutboundTcpConnection} for non-local traces (traces
-     * that are not initiated by local node == coordinator).
+     * Called for non-local traces (traces that are not initiated by local node == coordinator).
      */
     public void trace(final ByteBuffer sessionId, final String message, final int ttl)
     {

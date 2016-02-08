@@ -1567,6 +1567,11 @@ public class DatabaseDescriptor
         return conf.listen_on_broadcast_address;
     }
 
+    public static void setListenOnBroadcastAddress(boolean listen_on_broadcast_address)
+    {
+        conf.listen_on_broadcast_address = listen_on_broadcast_address;
+    }
+
     public static IInternodeAuthenticator getInternodeAuthenticator()
     {
         return internodeAuthenticator;
@@ -2095,6 +2100,11 @@ public class DatabaseDescriptor
         return conf.internode_compression;
     }
 
+    public static void setInternodeCompression(Config.InternodeCompression compression)
+    {
+        conf.internode_compression = compression;
+    }
+
     public static boolean getInterDCTcpNoDelay()
     {
         return conf.inter_dc_tcp_nodelay;
@@ -2154,6 +2164,11 @@ public class DatabaseDescriptor
     public static String getOtcCoalescingStrategy()
     {
         return conf.otc_coalescing_strategy;
+    }
+
+    public static void setOtcCoalescingStrategy(String strategy)
+    {
+        conf.otc_coalescing_strategy = strategy;
     }
 
     public static int getOtcCoalescingWindow()
