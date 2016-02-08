@@ -37,6 +37,7 @@ import org.apache.cassandra.index.sasi.conf.view.View;
 import org.apache.cassandra.index.sasi.disk.Token;
 import org.apache.cassandra.index.sasi.memory.IndexMemtable;
 import org.apache.cassandra.index.sasi.plan.Expression;
+import org.apache.cassandra.index.sasi.plan.Expression.Op;
 import org.apache.cassandra.index.sasi.utils.RangeIterator;
 import org.apache.cassandra.io.sstable.Component;
 import org.apache.cassandra.io.sstable.format.SSTableReader;
@@ -58,6 +59,8 @@ public class ColumnIndex
     private final Component component;
     private final DataTracker tracker;
 
+    private final boolean isTokenized;
+
     public ColumnIndex(AbstractType<?> keyValidator, ColumnDefinition column, IndexMetadata metadata)
     {
         this.keyValidator = keyValidator;
@@ -67,6 +70,7 @@ public class ColumnIndex
         this.memtable = new AtomicReference<>(new IndexMemtable(this));
         this.tracker = new DataTracker(keyValidator, this);
         this.component = new Component(Component.Type.SECONDARY_INDEX, String.format(FILE_NAME_FORMAT, getIndexName()));
+        this.isTokenized = getAnalyzer().isTokenizing();
     }
 
     /**
@@ -170,9 +174,13 @@ public class ColumnIndex
         return isIndexed() ? mode.isLiteral : (validator instanceof UTF8Type || validator instanceof AsciiType);
     }
 
-    public boolean supports(Operator operator)
+    public boolean supports(Operator op)
     {
-        return mode.supports(Expression.Op.valueOf(operator));
+        Op operator = Op.valueOf(op);
+        return !(isTokenized && operator == Op.EQ) // EQ is only applicable to non-tokenized indexes
+            && !(isLiteral() && operator == Op.RANGE) // RANGE only applicable to indexes non-literal indexes
+            && mode.supports(operator); // for all other cases let's refer to index itself
+
     }
 
     public static ByteBuffer getValueOf(ColumnDefinition column, Row row, int nowInSecs)

@@ -46,7 +46,7 @@ public class Expression
 
     public enum Op
     {
-        EQ, PREFIX, SUFFIX, CONTAINS, NOT_EQ, RANGE;
+        EQ, MATCH, PREFIX, SUFFIX, CONTAINS, NOT_EQ, RANGE;
 
         public static Op valueOf(Operator operator)
         {
@@ -72,6 +72,9 @@ public class Expression
 
                 case LIKE_CONTAINS:
                     return CONTAINS;
+
+                case LIKE_MATCHES:
+                    return MATCH;
 
                 default:
                     throw new IllegalArgumentException("unknown operator: " + operator);
@@ -140,6 +143,7 @@ public class Expression
             case LIKE_PREFIX:
             case LIKE_SUFFIX:
             case LIKE_CONTAINS:
+            case LIKE_MATCHES:
             case EQ:
                 lower = new Bound(value, true);
                 upper = lower;
@@ -262,6 +266,7 @@ public class Expression
             switch (operation)
             {
                 case EQ:
+                case MATCH:
                 // Operation.isSatisfiedBy handles conclusion on !=,
                 // here we just need to make sure that term matched it
                 case NOT_EQ:

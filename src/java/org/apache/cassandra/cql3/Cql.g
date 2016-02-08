@@ -209,7 +209,7 @@ options {
         }
         else
         {
-            operator = Operator.EQ;
+            operator = Operator.LIKE_MATCHES;
             endIndex += 1;
         }
 

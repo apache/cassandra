@@ -42,6 +42,14 @@ public abstract class AbstractAnalyzer implements Iterator<ByteBuffer>
 
     public abstract void reset(ByteBuffer input);
 
+    /**
+     * @return true if current analyzer provides text tokenization, false otherwise.
+     */
+    public boolean isTokenizing()
+    {
+        return false;
+    }
+
     public static String normalize(String original)
     {
         return Normalizer.isNormalized(original, Normalizer.Form.NFC)

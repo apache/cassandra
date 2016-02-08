@@ -182,6 +182,7 @@ public class TrieMemIndex extends MemIndex
             switch (operator)
             {
                 case EQ:
+                case MATCH:
                     ConcurrentSkipListSet<DecoratedKey> keys = trie.getValueForExactKey(value);
                     return keys == null ? Collections.emptyList() : Collections.singletonList(keys);
 
@@ -219,6 +220,7 @@ public class TrieMemIndex extends MemIndex
             switch (operator)
             {
                 case EQ:
+                case MATCH:
                     ConcurrentSkipListSet<DecoratedKey> keys = trie.getValueForExactKey(value);
                     return keys == null ? Collections.emptyList() : Collections.singletonList(keys);
 

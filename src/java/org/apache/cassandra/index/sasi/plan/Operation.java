@@ -292,9 +292,13 @@ public class Operation extends RangeIterator<Long, Token>
             switch (e.operator())
             {
                 case EQ:
+                    isMultiExpression = false;
+                    break;
+
                 case LIKE_PREFIX:
                 case LIKE_SUFFIX:
                 case LIKE_CONTAINS:
+                case LIKE_MATCHES:
                     isMultiExpression = true;
                     break;
 
@@ -341,6 +345,7 @@ public class Operation extends RangeIterator<Long, Token>
             case LIKE_PREFIX:
             case LIKE_SUFFIX:
             case LIKE_CONTAINS:
+            case LIKE_MATCHES:
                 return 4;
 
             case GTE:

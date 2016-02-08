@@ -181,21 +181,21 @@ public class OperationTest extends SchemaLoader
 
         // comment = 'soft eng' and comment != 'likes do'
         ListMultimap<ColumnDefinition, Expression> e = Operation.analyzeGroup(controller, OperationType.OR,
-                                                    Arrays.asList(new SimpleExpression(comment, Operator.EQ, UTF8Type.instance.decompose("soft eng")),
+                                                    Arrays.asList(new SimpleExpression(comment, Operator.LIKE_MATCHES, UTF8Type.instance.decompose("soft eng")),
                                                                   new SimpleExpression(comment, Operator.NEQ, UTF8Type.instance.decompose("likes do"))));
 
         List<Expression> expectedExpressions = new ArrayList<Expression>(2)
         {{
                 add(new Expression("comment", UTF8Type.instance)
                 {{
-                        operation = Op.EQ;
+                        operation = Op.MATCH;
                         lower = new Bound(UTF8Type.instance.decompose("soft"), true);
                         upper = lower;
                 }});
 
                 add(new Expression("comment", UTF8Type.instance)
                 {{
-                        operation = Op.EQ;
+                        operation = Op.MATCH;
                         lower = new Bound(UTF8Type.instance.decompose("eng"), true);
                         upper = lower;
                 }});

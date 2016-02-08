@@ -126,6 +126,14 @@ public enum Operator
         {
             return "LIKE '%<term>%'";
         }
+    },
+    LIKE_MATCHES(13)
+    {
+        @Override
+        public String toString()
+        {
+            return "LIKE '<term>'";
+        }
     };
 
     /**
@@ -222,6 +230,7 @@ public enum Operator
                 return ByteBufferUtil.startsWith(leftOperand, rightOperand);
             case LIKE_SUFFIX:
                 return ByteBufferUtil.endsWith(leftOperand, rightOperand);
+            case LIKE_MATCHES:
             case LIKE_CONTAINS:
                 return ByteBufferUtil.contains(leftOperand, rightOperand);
             default:

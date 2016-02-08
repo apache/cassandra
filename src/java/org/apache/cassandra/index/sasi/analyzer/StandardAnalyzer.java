@@ -191,4 +191,9 @@ public class StandardAnalyzer extends AbstractAnalyzer
         scanner.yyreset(reader);
         this.inputReader = reader;
     }
+
+    public boolean isTokenizing()
+    {
+        return true;
+    }
 }

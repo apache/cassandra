@@ -167,7 +167,7 @@ public class SASIIndexTest
 
         ColumnFamilyStore store = loadData(data, forceFlush);
 
-        Set<String> rows= getIndexed(store, 10, buildExpression(UTF8Type.instance.decompose("first_name"), Operator.EQ, UTF8Type.instance.decompose("doesntmatter")));
+        Set<String> rows= getIndexed(store, 10, buildExpression(UTF8Type.instance.decompose("first_name"), Operator.LIKE_MATCHES, UTF8Type.instance.decompose("doesntmatter")));
         Assert.assertTrue(rows.toString(), Arrays.equals(new String[]{}, rows.toArray(new String[rows.size()])));
     }
 
@@ -502,18 +502,18 @@ public class SASIIndexTest
         store = loadData(part4, forceFlush);
 
         rows = getIndexed(store, 10,
-                          buildExpression(firstName, Operator.EQ, UTF8Type.instance.decompose("Susana")),
+                          buildExpression(firstName, Operator.LIKE_MATCHES, UTF8Type.instance.decompose("Susana")),
                           buildExpression(age, Operator.LTE, Int32Type.instance.decompose(13)),
                           buildExpression(age, Operator.GT, Int32Type.instance.decompose(10)));
         Assert.assertTrue(rows.toString(), Arrays.equals(new String[] { "key12" }, rows.toArray(new String[rows.size()])));
 
         rows = getIndexed(store, 10,
-                          buildExpression(firstName, Operator.EQ, UTF8Type.instance.decompose("Demario")),
+                          buildExpression(firstName, Operator.LIKE_MATCHES, UTF8Type.instance.decompose("Demario")),
                           buildExpression(age, Operator.LTE, Int32Type.instance.decompose(30)));
         Assert.assertTrue(rows.toString(), rows.size() == 0);
 
         rows = getIndexed(store, 10,
-                          buildExpression(firstName, Operator.EQ, UTF8Type.instance.decompose("Josephine")));
+                          buildExpression(firstName, Operator.LIKE_MATCHES, UTF8Type.instance.decompose("Josephine")));
         Assert.assertTrue(rows.toString(), rows.size() == 0);
 
         rows = getIndexed(store, 10,
@@ -1142,7 +1142,7 @@ public class SASIIndexTest
         rows = getIndexed(store, 10, buildExpression(comment, Operator.LIKE_SUFFIX, UTF8Type.instance.decompose("ン")));
         Assert.assertTrue(rows.toString(), Arrays.equals(new String[] { "key4", "key5" }, rows.toArray(new String[rows.size()])));
 
-        rows = getIndexed(store, 10, buildExpression(comment, Operator.EQ, UTF8Type.instance.decompose("レストラン")));
+        rows = getIndexed(store, 10, buildExpression(comment, Operator.LIKE_MATCHES, UTF8Type.instance.decompose("レストラン")));
         Assert.assertTrue(rows.toString(), Arrays.equals(new String[] { "key4" }, rows.toArray(new String[rows.size()])));
     }
 
@@ -1211,7 +1211,7 @@ public class SASIIndexTest
         rows = getIndexed(store, 10, buildExpression(comment, Operator.LIKE_SUFFIX, UTF8Type.instance.decompose("ン")));
         Assert.assertTrue(rows.toString(), Arrays.equals(new String[] { "key3" }, rows.toArray(new String[rows.size()])));
 
-        rows = getIndexed(store, 10, buildExpression(comment, Operator.EQ, UTF8Type.instance.decompose("ベンジャミン ウエスト")));
+        rows = getIndexed(store, 10, buildExpression(comment, Operator.LIKE_MATCHES, UTF8Type.instance.decompose("ベンジャミン ウエスト")));
         Assert.assertTrue(rows.toString(), Arrays.equals(new String[] { "key4" }, rows.toArray(new String[rows.size()])));
     }
 
@@ -1235,12 +1235,12 @@ public class SASIIndexTest
 
             Set<String> rows;
 
-            rows = getIndexed(store, 10, buildExpression(comment, Operator.EQ, bigValue.duplicate()));
+            rows = getIndexed(store, 10, buildExpression(comment, Operator.LIKE_MATCHES, bigValue.duplicate()));
             Assert.assertEquals(0, rows.size());
 
             store.forceBlockingFlush();
 
-            rows = getIndexed(store, 10, buildExpression(comment, Operator.EQ, bigValue.duplicate()));
+            rows = getIndexed(store, 10, buildExpression(comment, Operator.LIKE_MATCHES, bigValue.duplicate()));
             Assert.assertEquals(0, rows.size());
         }
     }
@@ -1471,6 +1471,10 @@ public class SASIIndexTest
         update(rm, name, UTF8Type.instance.decompose("Vijay"), System.currentTimeMillis());
         rm.apply();
 
+        rm = new Mutation(KS_NAME, decoratedKey("key8")); // this name is going to be tokenized
+        update(rm, name, UTF8Type.instance.decompose("Jean-Claude"), System.currentTimeMillis());
+        rm.apply();
+
         // this flush is going to produce range - 'jason' -> 'vijay'
         store.forceBlockingFlush();
 
@@ -1478,11 +1482,12 @@ public class SASIIndexTest
         // since simple interval tree lookup is not going to cover it, prefix lookup actually required.
 
         Set<String> rows;
+
         rows = getIndexed(store, 10, buildExpression(name, Operator.LIKE_PREFIX, UTF8Type.instance.decompose("J")));
-        Assert.assertTrue(rows.toString(), Arrays.equals(new String[] { "key2", "key5", "key6" }, rows.toArray(new String[rows.size()])));
+        Assert.assertTrue(rows.toString(), Arrays.equals(new String[] { "key2", "key5", "key6", "key8"}, rows.toArray(new String[rows.size()])));
 
         rows = getIndexed(store, 10, buildExpression(name, Operator.LIKE_PREFIX, UTF8Type.instance.decompose("j")));
-        Assert.assertTrue(rows.toString(), Arrays.equals(new String[] { "key2", "key5", "key6" }, rows.toArray(new String[rows.size()])));
+        Assert.assertTrue(rows.toString(), Arrays.equals(new String[] { "key2", "key5", "key6", "key8" }, rows.toArray(new String[rows.size()])));
 
         rows = getIndexed(store, 10, buildExpression(name, Operator.LIKE_PREFIX, UTF8Type.instance.decompose("m")));
         Assert.assertTrue(rows.toString(), Arrays.equals(new String[] { "key3", "key4" }, rows.toArray(new String[rows.size()])));
@@ -1495,13 +1500,28 @@ public class SASIIndexTest
 
         rows = getIndexed(store, 10, buildExpression(name, Operator.LIKE_PREFIX, UTF8Type.instance.decompose("j")),
                                      buildExpression(name, Operator.NEQ, UTF8Type.instance.decompose("joh")));
-        Assert.assertTrue(rows.toString(), Arrays.equals(new String[] { "key2", "key6" }, rows.toArray(new String[rows.size()])));
+        Assert.assertTrue(rows.toString(), Arrays.equals(new String[] { "key2", "key6", "key8" }, rows.toArray(new String[rows.size()])));
 
-        rows = getIndexed(store, 10, buildExpression(name, Operator.EQ, UTF8Type.instance.decompose("pavel")));
+        rows = getIndexed(store, 10, buildExpression(name, Operator.LIKE_MATCHES, UTF8Type.instance.decompose("pavel")));
         Assert.assertTrue(rows.toString(), Arrays.equals(new String[] { "key1" }, rows.toArray(new String[rows.size()])));
 
         rows = getIndexed(store, 10, buildExpression(name, Operator.EQ, UTF8Type.instance.decompose("Pave")));
         Assert.assertTrue(rows.isEmpty());
+
+        rows = getIndexed(store, 10, buildExpression(name, Operator.EQ, UTF8Type.instance.decompose("Pavel")));
+        Assert.assertTrue(rows.toString(), Arrays.equals(new String[] { "key1" }, rows.toArray(new String[rows.size()])));
+
+        rows = getIndexed(store, 10, buildExpression(name, Operator.LIKE_MATCHES, UTF8Type.instance.decompose("JeAn")));
+        Assert.assertTrue(rows.toString(), Arrays.equals(new String[] { "key8" }, rows.toArray(new String[rows.size()])));
+
+        rows = getIndexed(store, 10, buildExpression(name, Operator.LIKE_MATCHES, UTF8Type.instance.decompose("claUde")));
+        Assert.assertTrue(rows.toString(), Arrays.equals(new String[] { "key8" }, rows.toArray(new String[rows.size()])));
+
+        rows = getIndexed(store, 10, buildExpression(name, Operator.EQ, UTF8Type.instance.decompose("Jean")));
+        Assert.assertTrue(rows.isEmpty());
+
+        rows = getIndexed(store, 10, buildExpression(name, Operator.EQ, UTF8Type.instance.decompose("Jean-Claude")));
+        Assert.assertTrue(rows.toString(), Arrays.equals(new String[] { "key8" }, rows.toArray(new String[rows.size()])));
     }
 
     @Test
@@ -1746,6 +1766,178 @@ public class SASIIndexTest
         }
     }
 
+    @Test
+    public void testLIKEAndEQSemanticsWithDifferenceKindsOfIndexes()
+    {
+        String containsTable = "sasi_like_contains_test";
+        String prefixTable = "sasi_like_prefix_test";
+        String analyzedPrefixTable = "sasi_like_analyzed_prefix_test";
+
+        QueryProcessor.executeOnceInternal(String.format("CREATE TABLE IF NOT EXISTS %s.%s (k int primary key, v text);", KS_NAME, containsTable));
+        QueryProcessor.executeOnceInternal(String.format("CREATE TABLE IF NOT EXISTS %s.%s (k int primary key, v text);", KS_NAME, prefixTable));
+        QueryProcessor.executeOnceInternal(String.format("CREATE TABLE IF NOT EXISTS %s.%s (k int primary key, v text);", KS_NAME, analyzedPrefixTable));
+
+        QueryProcessor.executeOnceInternal(String.format("CREATE CUSTOM INDEX IF NOT EXISTS ON %s.%s(v) " +
+                "USING 'org.apache.cassandra.index.sasi.SASIIndex' WITH OPTIONS = { 'mode' : 'CONTAINS' };", KS_NAME, containsTable));
+        QueryProcessor.executeOnceInternal(String.format("CREATE CUSTOM INDEX IF NOT EXISTS ON %s.%s(v) " +
+                "USING 'org.apache.cassandra.index.sasi.SASIIndex' WITH OPTIONS = { 'mode' : 'PREFIX' };", KS_NAME, prefixTable));
+        QueryProcessor.executeOnceInternal(String.format("CREATE CUSTOM INDEX IF NOT EXISTS ON %s.%s(v) " +
+                "USING 'org.apache.cassandra.index.sasi.SASIIndex' WITH OPTIONS = { 'mode' : 'PREFIX', 'analyzed': 'true' };", KS_NAME, analyzedPrefixTable));
+
+        testLIKEAndEQSemanticsWithDifferenceKindsOfIndexes(containsTable, prefixTable, analyzedPrefixTable, false);
+        testLIKEAndEQSemanticsWithDifferenceKindsOfIndexes(containsTable, prefixTable, analyzedPrefixTable, true);
+    }
+
+    private void testLIKEAndEQSemanticsWithDifferenceKindsOfIndexes(String containsTable,
+                                                                    String prefixTable,
+                                                                    String analyzedPrefixTable,
+                                                                    boolean forceFlush)
+    {
+        QueryProcessor.executeOnceInternal(String.format("INSERT INTO %s.%s (k, v) VALUES (?, ?);", KS_NAME, containsTable), 0, "Pavel");
+        QueryProcessor.executeOnceInternal(String.format("INSERT INTO %s.%s (k, v) VALUES (?, ?);", KS_NAME, prefixTable), 0, "Jean-Claude");
+        QueryProcessor.executeOnceInternal(String.format("INSERT INTO %s.%s (k, v) VALUES (?, ?);", KS_NAME, analyzedPrefixTable), 0, "Jean-Claude");
+
+        if (forceFlush)
+        {
+            Keyspace keyspace = Keyspace.open(KS_NAME);
+            for (String table : Arrays.asList(containsTable, prefixTable, analyzedPrefixTable))
+                keyspace.getColumnFamilyStore(table).forceBlockingFlush();
+        }
+
+        UntypedResultSet results;
+
+        // CONTAINS
+
+        results = QueryProcessor.executeOnceInternal(String.format("SELECT * FROM %s.%s WHERE v LIKE 'Pav';", KS_NAME, containsTable));
+        Assert.assertNotNull(results);
+        Assert.assertEquals(0, results.size());
+
+        results = QueryProcessor.executeOnceInternal(String.format("SELECT * FROM %s.%s WHERE v LIKE 'Pavel';", KS_NAME, containsTable));
+        Assert.assertNotNull(results);
+        Assert.assertEquals(1, results.size());
+
+        try
+        {
+            QueryProcessor.executeOnceInternal(String.format("SELECT * FROM %s.%s WHERE v = 'Pav';", KS_NAME, containsTable));
+            Assert.fail();
+        }
+        catch (InvalidRequestException e)
+        {
+            // expected since CONTAINS indexes only support LIKE
+        }
+
+        try
+        {
+            QueryProcessor.executeOnceInternal(String.format("SELECT * FROM %s.%s WHERE v LIKE 'Pav%%';", KS_NAME, containsTable));
+            Assert.fail();
+        }
+        catch (InvalidRequestException e)
+        {
+            // expected since CONTAINS indexes only support LIKE '%<term>' and LIKE '%<term>%'
+        }
+
+        results = QueryProcessor.executeOnceInternal(String.format("SELECT * FROM %s.%s WHERE v LIKE '%%Pav';", KS_NAME, containsTable));
+        Assert.assertNotNull(results);
+        Assert.assertEquals(0, results.size());
+
+        results = QueryProcessor.executeOnceInternal(String.format("SELECT * FROM %s.%s WHERE v LIKE '%%Pav%%';", KS_NAME, containsTable));
+        Assert.assertNotNull(results);
+        Assert.assertEquals(1, results.size());
+
+        // PREFIX
+
+        results = QueryProcessor.executeOnceInternal(String.format("SELECT * FROM %s.%s WHERE v = 'Jean';", KS_NAME, prefixTable));
+        Assert.assertNotNull(results);
+        Assert.assertEquals(0, results.size());
+
+        results = QueryProcessor.executeOnceInternal(String.format("SELECT * FROM %s.%s WHERE v = 'Jean-Claude';", KS_NAME, prefixTable));
+        Assert.assertNotNull(results);
+        Assert.assertEquals(1, results.size());
+
+        results = QueryProcessor.executeOnceInternal(String.format("SELECT * FROM %s.%s WHERE v LIKE 'Jea';", KS_NAME, prefixTable));
+        Assert.assertNotNull(results);
+        Assert.assertEquals(0, results.size());
+
+        results = QueryProcessor.executeOnceInternal(String.format("SELECT * FROM %s.%s WHERE v LIKE 'Jea%%';", KS_NAME, prefixTable));
+        Assert.assertNotNull(results);
+        Assert.assertEquals(1, results.size());
+
+        try
+        {
+            QueryProcessor.executeOnceInternal(String.format("SELECT * FROM %s.%s WHERE v LIKE '%%Jea';", KS_NAME, prefixTable));
+            Assert.fail();
+        }
+        catch (InvalidRequestException e)
+        {
+            // expected since PREFIX indexes only support LIKE '<term>%'
+        }
+
+        try
+        {
+            QueryProcessor.executeOnceInternal(String.format("SELECT * FROM %s.%s WHERE v LIKE '%%Jea%%';", KS_NAME, prefixTable));
+            Assert.fail();
+        }
+        catch (InvalidRequestException e)
+        {
+            // expected since PREFIX indexes only support LIKE '<term>%'
+        }
+
+        // PREFIX + analyzer
+
+        try
+        {
+            QueryProcessor.executeOnceInternal(String.format("SELECT * FROM %s.%s WHERE v = 'Jean';", KS_NAME, analyzedPrefixTable));
+            Assert.fail();
+        }
+        catch (InvalidRequestException e)
+        {
+            // expected since PREFIX indexes only support EQ without tokenization
+        }
+
+        results = QueryProcessor.executeOnceInternal(String.format("SELECT * FROM %s.%s WHERE v LIKE 'Jean';", KS_NAME, analyzedPrefixTable));
+        Assert.assertNotNull(results);
+        Assert.assertEquals(1, results.size());
+
+        results = QueryProcessor.executeOnceInternal(String.format("SELECT * FROM %s.%s WHERE v LIKE 'Claude';", KS_NAME, analyzedPrefixTable));
+        Assert.assertNotNull(results);
+        Assert.assertEquals(1, results.size());
+
+        results = QueryProcessor.executeOnceInternal(String.format("SELECT * FROM %s.%s WHERE v LIKE 'Jean-Claude';", KS_NAME, analyzedPrefixTable));
+        Assert.assertNotNull(results);
+        Assert.assertEquals(1, results.size());
+
+        results = QueryProcessor.executeOnceInternal(String.format("SELECT * FROM %s.%s WHERE v LIKE 'Jean%%';", KS_NAME, analyzedPrefixTable));
+        Assert.assertNotNull(results);
+        Assert.assertEquals(1, results.size());
+
+        results = QueryProcessor.executeOnceInternal(String.format("SELECT * FROM %s.%s WHERE v LIKE 'Claude%%';", KS_NAME, analyzedPrefixTable));
+        Assert.assertNotNull(results);
+        Assert.assertEquals(1, results.size());
+
+        try
+        {
+            QueryProcessor.executeOnceInternal(String.format("SELECT * FROM %s.%s WHERE v LIKE '%%Jean';", KS_NAME, analyzedPrefixTable));
+            Assert.fail();
+        }
+        catch (InvalidRequestException e)
+        {
+            // expected since PREFIX indexes only support LIKE '<term>%' and LIKE '<term>'
+        }
+
+        try
+        {
+            QueryProcessor.executeOnceInternal(String.format("SELECT * FROM %s.%s WHERE v LIKE '%%Claude%%';", KS_NAME, analyzedPrefixTable));
+            Assert.fail();
+        }
+        catch (InvalidRequestException e)
+        {
+            // expected since PREFIX indexes only support LIKE '<term>%' and LIKE '<term>'
+        }
+
+        for (String table : Arrays.asList(containsTable, prefixTable, analyzedPrefixTable))
+            QueryProcessor.executeOnceInternal(String.format("TRUNCATE TABLE %s.%s", KS_NAME, table));
+    }
+
     private static ColumnFamilyStore loadData(Map<String, Pair<String, Integer>> data, boolean forceFlush)
     {
         return loadData(data, System.currentTimeMillis(), forceFlush);
@@ -1860,7 +2052,8 @@ public class SASIIndexTest
                 {
                     try (UnfilteredRowIterator row = rows.next())
                     {
-                        add(AsciiType.instance.compose(row.partitionKey().getKey()));
+                        if (!row.isEmpty())
+                            add(AsciiType.instance.compose(row.partitionKey().getKey()));
                     }
                 }
             }};

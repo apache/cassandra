@@ -179,6 +179,6 @@ public class IndexMode
 
     public boolean supports(Op operator)
     {
-        return !(isLiteral && operator == Op.RANGE) && mode.supports(operator);
+        return mode.supports(operator);
     }
 }
