@@ -1037,6 +1037,27 @@ public class DeleteTest extends CQLTester
         assertRows(execute("SELECT * FROM %s"), row(1, 2));
     }
 
+    @Test
+    public void testDeleteColumnNoClustering() throws Throwable
+    {
+        // This is a regression test for CASSANDRA-11068 (and ultimately another test for CASSANDRA-11102)
+        // Creates a table without clustering, insert a row (with a column) and only remove the column.
+        // We should still have a row (with a null column value) even post-compaction.
+
+        createTable("CREATE TABLE %s (k int PRIMARY KEY, v int) WITH gc_grace_seconds=0");
+
+        execute("INSERT INTO %s(k, v) VALUES (?, ?)", 0, 0);
+        execute("DELETE v FROM %s WHERE k=?", 0);
+
+        assertRows(execute("SELECT * FROM %s"), row(0, null));
+
+        flush();
+        assertRows(execute("SELECT * FROM %s"), row(0, null));
+
+        compact();
+        assertRows(execute("SELECT * FROM %s"), row(0, null));
+    }
+
     private void flush(boolean forceFlush)
     {
         if (forceFlush)
