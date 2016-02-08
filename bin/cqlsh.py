@@ -56,6 +56,9 @@ if sys.version_info[0] != 2 or sys.version_info[1] != 7:
 if platform.python_implementation().startswith('Jython'):
     sys.exit("\nCQL Shell does not run on Jython\n")
 
+UTF8 = 'utf-8'
+CP65001 = 'cp65001'  # Win utf-8 variant
+
 description = "CQL Shell for Apache Cassandra"
 version = "5.0.1"
 
@@ -106,6 +109,12 @@ elif webbrowser._tryorder[0] == 'xdg-open' and os.environ.get('XDG_DATA_DIRS', '
 # is a ../lib dir, use bundled libs there preferentially.
 ZIPLIB_DIRS = [os.path.join(CASSANDRA_PATH, 'lib')]
 myplatform = platform.system()
+is_win = myplatform == 'Windows'
+
+# Workaround for supporting CP65001 encoding on python < 3.3 (https://bugs.python.org/issue13216)
+if is_win and sys.version_info < (3, 3):
+    codecs.register(lambda name: codecs.lookup(UTF8) if name == CP65001 else None)
+
 if myplatform == 'Linux':
     ZIPLIB_DIRS.append('/usr/share/cassandra/lib')
 
@@ -729,11 +738,15 @@ class Shell(cmd.Cmd):
 
         self.max_trace_wait = max_trace_wait
         self.session.max_trace_wait = max_trace_wait
+
+        self.tty = tty
         if encoding is None:
             encoding = locale.getpreferredencoding()
             if encoding is None:
-                encoding = 'utf-8'
+                encoding = UTF8
         self.encoding = encoding
+        self.check_windows_encoding()
+
         self.output_codec = codecs.lookup(encoding)
 
         self.statement = StringIO()
@@ -743,7 +756,7 @@ class Shell(cmd.Cmd):
         self.prompt = ''
         if stdin is None:
             stdin = sys.stdin
-        self.tty = tty
+
         if tty:
             self.reset_prompt()
             self.report_connection()
@@ -758,6 +771,19 @@ class Shell(cmd.Cmd):
         self.empty_lines = 0
         self.statement_error = False
         self.single_statement = single_statement
+
+    @property
+    def is_using_utf8(self):
+        # utf8 encodings from https://docs.python.org/{2,3}/library/codecs.html
+        return self.encoding.replace('-', '_').lower() in ['utf', 'utf_8', 'u8', 'utf8', CP65001]
+
+    def check_windows_encoding(self):
+        if is_win and os.name == 'nt' and self.tty and \
+           self.is_using_utf8 and sys.stdout.encoding != CP65001:
+            self.printerr("\nWARNING: console codepage must be set to cp65001 "
+                          "to support {} encoding on Windows platforms.\n"
+                          "If you experience encoding problems, change your console"
+                          " codepage with 'chcp 65001' before starting cqlsh.\n".format(self.encoding))
 
     def refresh_schema_metadata_best_effort(self):
         try:
@@ -1028,7 +1054,7 @@ class Shell(cmd.Cmd):
             try:
                 import readline
             except ImportError:
-                if myplatform == 'Windows':
+                if is_win:
                     print "WARNING: pyreadline dependency missing.  Install to enable tab completion."
                 pass
             else:
@@ -1048,7 +1074,12 @@ class Shell(cmd.Cmd):
 
     def get_input_line(self, prompt=''):
         if self.tty:
-            self.lastcmd = raw_input(prompt).decode(self.encoding)
+            try:
+                self.lastcmd = raw_input(prompt).decode(self.encoding)
+            except UnicodeDecodeError:
+                self.lastcmd = ''
+                traceback.print_exc()
+                self.check_windows_encoding()
             line = self.lastcmd + '\n'
         else:
             self.lastcmd = self.stdin.readline()
@@ -2154,7 +2185,7 @@ class Shell(cmd.Cmd):
         Clears the console.
         """
         import subprocess
-        subprocess.call(['clear', 'cls'][myplatform == 'Windows'], shell=True)
+        subprocess.call(['clear', 'cls'][is_win], shell=True)
     do_cls = do_clear
 
     def do_debug(self, parsed):
