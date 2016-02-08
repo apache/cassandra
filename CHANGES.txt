@@ -2,6 +2,9 @@
  * Hadoop integration is incompatible with Cassandra Driver 3.0.0 (CASSANDRA-11001)
 Merged from 2.2.6
  * Gossiper#isEnabled is not thread safe (CASSANDRA-11116)
+Merged from 2.1:
+ * Avoid major compaction mixing repaired and unrepaired sstables in DTCS (CASSANDRA-11113)
+
 
 3.0.3
  * Remove double initialization of newly added tables (CASSANDRA-11027)
