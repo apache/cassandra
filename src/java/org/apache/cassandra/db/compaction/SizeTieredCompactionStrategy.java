@@ -75,7 +75,7 @@ public class SizeTieredCompactionStrategy extends AbstractCompactionStrategy
         this.sizeTieredOptions = new SizeTieredCompactionStrategyOptions(options);
     }
 
-    private List<SSTableReader> getNextBackgroundSSTables(final int gcBefore)
+    private synchronized List<SSTableReader> getNextBackgroundSSTables(final int gcBefore)
     {
         // make local copies so they can't be changed out from under us mid-method
         int minThreshold = cfs.getMinimumCompactionThreshold();
@@ -175,7 +175,7 @@ public class SizeTieredCompactionStrategy extends AbstractCompactionStrategy
     }
 
     @SuppressWarnings("resource")
-    public synchronized AbstractCompactionTask getNextBackgroundTask(int gcBefore)
+    public AbstractCompactionTask getNextBackgroundTask(int gcBefore)
     {
         while (true)
         {

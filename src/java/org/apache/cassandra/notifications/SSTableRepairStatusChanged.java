@@ -24,10 +24,10 @@ import org.apache.cassandra.io.sstable.format.SSTableReader;
 
 public class SSTableRepairStatusChanged implements INotification
 {
-    public final Collection<SSTableReader> sstable;
+    public final Collection<SSTableReader> sstables;
 
     public SSTableRepairStatusChanged(Collection<SSTableReader> repairStatusChanged)
     {
-        this.sstable = repairStatusChanged;
+        this.sstables = repairStatusChanged;
     }
 }

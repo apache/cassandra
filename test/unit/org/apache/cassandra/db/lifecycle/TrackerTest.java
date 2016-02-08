@@ -349,7 +349,7 @@ public class TrackerTest
         Assert.assertEquals(singleton(r2), ((SSTableListChangedNotification) listener.received.get(0)).added);
         listener.received.clear();
         tracker.notifySSTableRepairedStatusChanged(singleton(r1));
-        Assert.assertEquals(singleton(r1), ((SSTableRepairStatusChanged) listener.received.get(0)).sstable);
+        Assert.assertEquals(singleton(r1), ((SSTableRepairStatusChanged) listener.received.get(0)).sstables);
         listener.received.clear();
         Memtable memtable = MockSchema.memtable(cfs);
         tracker.notifyRenewed(memtable);

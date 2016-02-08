@@ -90,7 +90,7 @@ public class LeveledCompactionStrategy extends AbstractCompactionStrategy
      * (by explicit user request) even when compaction is disabled.
      */
     @SuppressWarnings("resource")
-    public synchronized AbstractCompactionTask getNextBackgroundTask(int gcBefore)
+    public AbstractCompactionTask getNextBackgroundTask(int gcBefore)
     {
         while (true)
         {

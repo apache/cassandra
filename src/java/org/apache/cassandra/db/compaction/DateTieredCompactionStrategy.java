@@ -63,7 +63,7 @@ public class DateTieredCompactionStrategy extends AbstractCompactionStrategy
 
     @Override
     @SuppressWarnings("resource")
-    public synchronized AbstractCompactionTask getNextBackgroundTask(int gcBefore)
+    public AbstractCompactionTask getNextBackgroundTask(int gcBefore)
     {
         while (true)
         {
@@ -83,7 +83,7 @@ public class DateTieredCompactionStrategy extends AbstractCompactionStrategy
      * @param gcBefore
      * @return
      */
-    private List<SSTableReader> getNextBackgroundSSTables(final int gcBefore)
+    private synchronized List<SSTableReader> getNextBackgroundSSTables(final int gcBefore)
     {
         if (sstables.isEmpty())
             return Collections.emptyList();

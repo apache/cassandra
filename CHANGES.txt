@@ -1,4 +1,5 @@
 3.6
+ * Improve concurrency in CompactionManager (CASSANDRA-10099)
  * (cqlsh) interpret CQL type for formatting blobs (CASSANDRA-11274)
  * Refuse to start and print txn log information in case of disk
    corruption (CASSANDRA-10112)

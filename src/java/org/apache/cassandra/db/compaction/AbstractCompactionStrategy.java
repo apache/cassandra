@@ -315,6 +315,12 @@ public abstract class AbstractCompactionStrategy
 
     public abstract void addSSTable(SSTableReader added);
 
+    public synchronized void addSSTables(Iterable<SSTableReader> added)
+    {
+        for (SSTableReader sstable : added)
+            addSSTable(sstable);
+    }
+
     public abstract void removeSSTable(SSTableReader sstable);
 
     public static class ScannerList implements AutoCloseable
