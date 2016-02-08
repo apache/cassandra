@@ -70,12 +70,12 @@ first being the default. The `last_name` index is created with the
 mode `CONTAINS` which matches terms on suffixes instead of prefix
 only. Examples of this are available below and more detail can be
 found in the section on
-[OnDiskIndex](https://github.com/xedin/sasi#ondiskindexbuilder).The
+[OnDiskIndex](#ondiskindexbuilder).The
 `created_at` column is created with its mode set to `SPARSE`, which is
 meant to improve performance of querying large, dense number ranges
 like timestamps for data inserted every millisecond. Details of the
 `SPARSE` implementation can also be found in the section on the
-[OnDiskIndex](https://github.com/xedin/sasi#ondiskindexbuilder). The `age`
+[OnDiskIndex](#ondiskindexbuilder). The `age`
 index is created with the default `PREFIX` mode and no
 case-sensitivity or text analysis options are specified since the
 field is numeric.
@@ -186,7 +186,7 @@ pitfalls of such a query. With SASI, while the requirement to include
 performance pitfalls do not exist because filtering is not
 performed. Details on how SASI joins data from multiple predicates is
 available below in the
-[Implementation Details](https://github.com/xedin/sasi#implementation-details)
+[Implementation Details](#implementation-details)
 section.
 
 ```
@@ -507,7 +507,7 @@ converts from Cassandra's internal representation of
 `IndexExpression`s, which has also been modified to support encoding
 queries that contain ORs and groupings of expressions using
 parentheses (see the
-[Cassandra Internal Changes](https://github.com/xedin/sasi#cassandra-internal-changes)
+[Cassandra Internal Changes](#cassandra-internal-changes)
 section below for more details). This process produces a tree of
 [`Operation`](https://github.com/apache/cassandra/blob/trunk/src/java/org/apache/cassandra/index/sasi/plan/Operation.java)s, which in turn may contain [`Expression`](https://github.com/apache/cassandra/blob/trunk/src/java/org/apache/cassandra/index/sasi/plan/Expression.java)s, all of which
 provide an alternative, more efficient, representation of the query.

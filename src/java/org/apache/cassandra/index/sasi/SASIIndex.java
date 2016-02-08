@@ -22,11 +22,10 @@ import java.util.concurrent.Callable;
 import java.util.function.BiFunction;
 
 import com.googlecode.concurrenttrees.common.Iterables;
-import org.apache.cassandra.config.CFMetaData;
-import org.apache.cassandra.config.ColumnDefinition;
-import org.apache.cassandra.config.DatabaseDescriptor;
-import org.apache.cassandra.config.Schema;
+
+import org.apache.cassandra.config.*;
 import org.apache.cassandra.cql3.Operator;
+import org.apache.cassandra.cql3.statements.IndexTarget;
 import org.apache.cassandra.db.*;
 import org.apache.cassandra.db.compaction.CompactionManager;
 import org.apache.cassandra.db.compaction.OperationType;
@@ -36,12 +35,15 @@ import org.apache.cassandra.db.marshal.AbstractType;
 import org.apache.cassandra.db.partitions.PartitionIterator;
 import org.apache.cassandra.db.partitions.PartitionUpdate;
 import org.apache.cassandra.db.rows.Row;
+import org.apache.cassandra.exceptions.ConfigurationException;
 import org.apache.cassandra.exceptions.InvalidRequestException;
 import org.apache.cassandra.index.Index;
 import org.apache.cassandra.index.IndexRegistry;
 import org.apache.cassandra.index.SecondaryIndexBuilder;
-import org.apache.cassandra.index.internal.CassandraIndex;
+import org.apache.cassandra.index.TargetParser;
 import org.apache.cassandra.index.sasi.conf.ColumnIndex;
+import org.apache.cassandra.index.sasi.conf.IndexMode;
+import org.apache.cassandra.index.sasi.disk.OnDiskIndexBuilder.Mode;
 import org.apache.cassandra.index.sasi.disk.PerSSTableIndexWriter;
 import org.apache.cassandra.index.sasi.plan.QueryPlan;
 import org.apache.cassandra.index.transactions.IndexTransaction;
@@ -51,6 +53,7 @@ import org.apache.cassandra.io.sstable.format.SSTableReader;
 import org.apache.cassandra.notifications.*;
 import org.apache.cassandra.schema.IndexMetadata;
 import org.apache.cassandra.utils.FBUtilities;
+import org.apache.cassandra.utils.Pair;
 import org.apache.cassandra.utils.concurrent.OpOrder;
 
 public class SASIIndex implements Index, INotificationConsumer
@@ -95,7 +98,7 @@ public class SASIIndex implements Index, INotificationConsumer
         this.baseCfs = baseCfs;
         this.config = config;
 
-        ColumnDefinition column = CassandraIndex.parseTarget(baseCfs.metadata, config).left;
+        ColumnDefinition column = TargetParser.parse(baseCfs.metadata, config).left;
         this.index = new ColumnIndex(baseCfs.metadata.getKeyValidator(), column, config);
 
         Tracker tracker = baseCfs.getTracker();
@@ -116,8 +119,36 @@ public class SASIIndex implements Index, INotificationConsumer
         CompactionManager.instance.submitIndexBuild(new SASIIndexBuilder(baseCfs, toRebuild));
     }
 
-    public static Map<String, String> validateOptions(Map<String, String> options)
+    public static Map<String, String> validateOptions(Map<String, String> options, CFMetaData cfm)
     {
+        String targetColumn = options.get("target");
+        if (targetColumn == null)
+            throw new ConfigurationException("unknown target column");
+
+        Pair<ColumnDefinition, IndexTarget.Type> target = TargetParser.parse(cfm, targetColumn);
+        if (target == null)
+            throw new ConfigurationException("failed to retrieve target column for: " + targetColumn);
+
+        IndexMode.validateAnalyzer(options);
+
+        IndexMode mode = IndexMode.getMode(target.left, options);
+        if (mode.mode == Mode.SPARSE)
+        {
+            if (mode.isLiteral)
+                throw new ConfigurationException("SPARSE mode is only supported on non-literal columns.");
+
+            if (mode.isAnalyzed)
+                throw new ConfigurationException("SPARSE mode doesn't support analyzers.");
+        }
+
+        ColumnFamilyStore store = Schema.instance.getColumnFamilyStoreIncludingIndexes(Pair.create(cfm.ksName, cfm.cfName));
+        if (store != null && store.indexManager.listIndexes()
+                                               .stream()
+                                               .filter((index) -> index.dependsOn(target.left)
+                                                               && index.getClass().isAssignableFrom(SASIIndex.class))
+                                               .findFirst().isPresent())
+            throw new ConfigurationException("Index on '" + targetColumn + "' already exists, SASI doesn't support multiple indexes per column.");
+
         return Collections.emptyMap();
     }
 

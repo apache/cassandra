@@ -1,4 +1,5 @@
 3.4
+ * SASI index options validation (CASSANDRA-11136)
  * Optimize disk seek using min/max column name meta data when the LIMIT clause is used
    (CASSANDRA-8180)
  * Add LIKE support to CQL3 (CASSANDRA-11067)

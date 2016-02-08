@@ -34,7 +34,7 @@ import org.apache.cassandra.cql3.ColumnIdentifier;
 import org.apache.cassandra.cql3.functions.*;
 import org.apache.cassandra.db.*;
 import org.apache.cassandra.db.marshal.*;
-import org.apache.cassandra.index.internal.CassandraIndex;
+import org.apache.cassandra.index.TargetParser;
 import org.apache.cassandra.thrift.ThriftConversion;
 
 import static java.lang.String.format;
@@ -681,7 +681,7 @@ public class LegacySchemaMigratorTest
         // index targets can be parsed by CassandraIndex.parseTarget
         // which should be true for any pre-3.0 index
         for (IndexMetadata index : indexes)
-          if (CassandraIndex.parseTarget(table, index).left.equals(column))
+          if (TargetParser.parse(table, index).left.equals(column))
                 return Optional.of(index);
 
         return Optional.empty();

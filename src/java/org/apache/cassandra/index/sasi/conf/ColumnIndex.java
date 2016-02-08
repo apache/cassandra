@@ -32,7 +32,6 @@ import org.apache.cassandra.db.marshal.AsciiType;
 import org.apache.cassandra.db.marshal.UTF8Type;
 import org.apache.cassandra.db.rows.Cell;
 import org.apache.cassandra.db.rows.Row;
-import org.apache.cassandra.exceptions.ConfigurationException;
 import org.apache.cassandra.index.sasi.analyzer.AbstractAnalyzer;
 import org.apache.cassandra.index.sasi.conf.view.View;
 import org.apache.cassandra.index.sasi.disk.Token;
@@ -68,11 +67,6 @@ public class ColumnIndex
         this.memtable = new AtomicReference<>(new IndexMemtable(this));
         this.tracker = new DataTracker(keyValidator, this);
         this.component = new Component(Component.Type.SECONDARY_INDEX, String.format(FILE_NAME_FORMAT, getIndexName()));
-    }
-
-    public void validate() throws ConfigurationException
-    {
-        mode.validate(config);
     }
 
     /**

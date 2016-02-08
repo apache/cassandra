@@ -1688,6 +1688,77 @@ public class SASIIndexTest
         }
     }
 
+    @Test
+    public void testInvalidIndexOptions()
+    {
+        ColumnFamilyStore store = Keyspace.open(KS_NAME).getColumnFamilyStore(CF_NAME);
+
+        try
+        {
+            // invalid index mode
+            SASIIndex.validateOptions(new HashMap<String, String>()
+                                      {{ put("target", "address"); put("mode", "NORMAL"); }},
+                                      store.metadata);
+            Assert.fail();
+        }
+        catch (ConfigurationException e)
+        {
+            Assert.assertTrue(e.getMessage().contains("Incorrect index mode"));
+        }
+
+        try
+        {
+            // invalid SPARSE on the literal index
+            SASIIndex.validateOptions(new HashMap<String, String>()
+                                      {{ put("target", "address"); put("mode", "SPARSE"); }},
+                                      store.metadata);
+            Assert.fail();
+        }
+        catch (ConfigurationException e)
+        {
+            Assert.assertTrue(e.getMessage().contains("non-literal"));
+        }
+
+        try
+        {
+            // invalid SPARSE on the explicitly literal index
+            SASIIndex.validateOptions(new HashMap<String, String>()
+                                      {{ put("target", "height"); put("mode", "SPARSE"); put("is_literal", "true"); }},
+                    store.metadata);
+            Assert.fail();
+        }
+        catch (ConfigurationException e)
+        {
+            Assert.assertTrue(e.getMessage().contains("non-literal"));
+        }
+
+        try
+        {
+            //  SPARSE with analyzer
+            SASIIndex.validateOptions(new HashMap<String, String>()
+                                      {{ put("target", "height"); put("mode", "SPARSE"); put("analyzed", "true"); }},
+                                      store.metadata);
+            Assert.fail();
+        }
+        catch (ConfigurationException e)
+        {
+            Assert.assertTrue(e.getMessage().contains("doesn't support analyzers"));
+        }
+
+        try
+        {
+            // new index for column which already has a SASI index
+            SASIIndex.validateOptions(new HashMap<String, String>()
+                                      {{ put("target", "first_name"); put("mode", "PREFIX"); }},
+                                      store.metadata);
+            Assert.fail();
+        }
+        catch (ConfigurationException e)
+        {
+            Assert.assertTrue(e.getMessage().contains("already exists"));
+        }
+    }
+
     private static ColumnFamilyStore loadData(Map<String, Pair<String, Integer>> data, boolean forceFlush)
     {
         return loadData(data, System.currentTimeMillis(), forceFlush);
