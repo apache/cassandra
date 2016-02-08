@@ -391,11 +391,13 @@ public class DateTieredCompactionStrategy extends AbstractCompactionStrategy
     @SuppressWarnings("resource")
     public synchronized Collection<AbstractCompactionTask> getMaximalTask(int gcBefore, boolean splitOutput)
     {
-        LifecycleTransaction modifier = cfs.markAllCompacting(OperationType.COMPACTION);
-        if (modifier == null)
+        Iterable<SSTableReader> filteredSSTables = filterSuspectSSTables(sstables);
+        if (Iterables.isEmpty(filteredSSTables))
             return null;
-
-        return Collections.<AbstractCompactionTask>singleton(new CompactionTask(cfs, modifier, gcBefore));
+        LifecycleTransaction txn = cfs.getTracker().tryModify(filteredSSTables, OperationType.COMPACTION);
+        if (txn == null)
+            return null;
+        return Collections.<AbstractCompactionTask>singleton(new CompactionTask(cfs, txn, gcBefore));
     }
 
     @Override
