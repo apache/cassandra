@@ -300,6 +300,8 @@ public class Scrubber implements Closeable
                 newInOrderSstable = inOrderWriter.closeAndOpenReader(sstable.maxDataAge);
                 if (!isOffline)
                     cfs.getDataTracker().addSSTables(Collections.singleton(newInOrderSstable));
+                else if (newInOrderSstable != null)
+                    newInOrderSstable.selfRef().release();
                 outputHandler.warn(String.format("%d out of order rows found while scrubbing %s; Those have been written (in order) to a new sstable (%s)", outOfOrderRows.size(), sstable, newInOrderSstable));
             }
 
@@ -318,6 +320,8 @@ public class Scrubber implements Closeable
         finally
         {
             controller.close();
+            if (isOffline && newSstable != null)
+                newSstable.selfRef().release();
         }
 
         if (newSstable == null)

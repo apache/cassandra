@@ -122,12 +122,15 @@ public class StandaloneScrubber
 
                         // Remove the sstable (it's been copied by scrub and snapshotted)
                         sstable.markObsolete(null);
-                        sstable.selfRef().release();
                     }
                     catch (Exception e)
                     {
                         System.err.println(String.format("Error scrubbing %s: %s", sstable, e.getMessage()));
                         e.printStackTrace(System.err);
+                    }
+                    finally
+                    {
+                        sstable.selfRef().release();
                     }
                 }
             }
