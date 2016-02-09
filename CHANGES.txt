@@ -1,11 +1,11 @@
 2.1.14
  * Make it clear what DTCS timestamp_resolution is used for (CASSANDRA-11041)
  * Gossiper#isEnabled is not thread safe (CASSANDRA-11116)
+ * Avoid major compaction mixing repaired and unrepaired sstables in DTCS (CASSANDRA-11113)
+ * test_bulk_round_trip_blogposts is failing occasionally (CASSANDRA-10938)
 
 
 2.1.13
- * Avoid major compaction mixing repaired and unrepaired sstables in DTCS (CASSANDRA-11113)
- * test_bulk_round_trip_blogposts is failing occasionally (CASSANDRA-10938)
  * Fix isJoined return true only after becoming cluster member (CASANDRA-11007)
  * Fix bad gossip generation seen in long-running clusters (CASSANDRA-10969)
  * Avoid NPE when incremental repair fails (CASSANDRA-10909)
