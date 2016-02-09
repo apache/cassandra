@@ -116,10 +116,4 @@ public class SplittingSizeTieredCompactionWriter extends CompactionAwareWriter
         logger.trace("Switching writer, currentPartitionsToWrite = {}", currentPartitionsToWrite);
         sstableWriter.switchWriter(writer);
     }
-
-    @Override
-    public List<SSTableReader> finish(long repairedAt)
-    {
-        return sstableWriter.setRepairedAt(repairedAt).finish();
-    }
 }

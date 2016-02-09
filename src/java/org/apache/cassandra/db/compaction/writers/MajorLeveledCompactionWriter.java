@@ -116,10 +116,4 @@ public class MajorLeveledCompactionWriter extends CompactionAwareWriter
         sstablesWritten = 0;
 
     }
-
-    @Override
-    public List<SSTableReader> finish(long repairedAt)
-    {
-        return sstableWriter.setRepairedAt(repairedAt).finish();
-    }
 }

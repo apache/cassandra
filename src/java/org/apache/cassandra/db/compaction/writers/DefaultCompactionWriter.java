@@ -18,7 +18,6 @@
 package org.apache.cassandra.db.compaction.writers;
 
 
-import java.util.List;
 import java.util.Set;
 
 import org.slf4j.Logger;
@@ -79,12 +78,6 @@ public class DefaultCompactionWriter extends CompactionAwareWriter
                                                     cfs.indexManager.listIndexes(),
                                                     txn);
         sstableWriter.switchWriter(writer);
-    }
-
-    @Override
-    public List<SSTableReader> finish(long repairedAt)
-    {
-        return sstableWriter.setRepairedAt(repairedAt).finish();
     }
 
     @Override

@@ -107,11 +107,6 @@ public class MaxSSTableSizeWriter extends CompactionAwareWriter
         sstableWriter.switchWriter(writer);
     }
 
-    public List<SSTableReader> finish(long repairedAt)
-    {
-        return sstableWriter.setRepairedAt(repairedAt).finish();
-    }
-
     @Override
     public long estimatedKeys()
     {
