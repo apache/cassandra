@@ -200,7 +200,8 @@ final class HintsWriteExecutor
     {
         while (true)
         {
-            flushInternal(iterator, store);
+            if (iterator.hasNext())
+                flushInternal(iterator, store);
 
             if (!iterator.hasNext())
                 break;

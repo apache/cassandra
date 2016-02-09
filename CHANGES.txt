@@ -15,6 +15,7 @@
  * Add nodetool gettimeout and settimeout commands (CASSANDRA-10953)
  * Add 3.0 metadata to sstablemetadata output (CASSANDRA-10838)
 Merged from 3.0:
+ * Avoid creating empty hint files (CASSANDRA-11090)
  * Fix leak detection strong reference loop using weak reference (CASSANDRA-11120)
  * Configurie BatchlogManager to stop delayed tasks on shutdown (CASSANDRA-11062)
  * Hadoop integration is incompatible with Cassandra Driver 3.0.0 (CASSANDRA-11001)
