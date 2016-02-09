@@ -877,6 +877,9 @@ public final class MessagingService implements MessagingServiceMBean
      */
     public int setVersion(InetAddress endpoint, int version)
     {
+        // We can't talk to someone from the future
+        version = Math.min(version, current_version);
+
         logger.trace("Setting version {} for {}", version, endpoint);
 
         if (version < VERSION_22)

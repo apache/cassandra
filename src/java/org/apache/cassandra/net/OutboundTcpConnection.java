@@ -134,13 +134,22 @@ public class OutboundTcpConnection extends Thread
     private volatile long completed;
     private final AtomicLong dropped = new AtomicLong();
     private volatile int currentMsgBufferCount = 0;
-    private int targetVersion = MessagingService.current_version;
+    private volatile int targetVersion;
 
     public OutboundTcpConnection(OutboundTcpConnectionPool pool)
     {
         super("MessagingService-Outgoing-" + pool.endPoint());
         this.poolReference = pool;
         cs = newCoalescingStrategy(pool.endPoint().getHostAddress());
+
+        // We want to use the most precise version we know because while there is version detection on connect(),
+        // the target version might be accessed by the pool (in getConnection()) before we actually connect (as we
+        // connect when the first message is submitted). Note however that the only case where we'll connect
+        // without knowing the true version of a node is if that node is a seed (otherwise, we can't know a node
+        // unless it has been gossiped to us or it has connected to us and in both case this sets the version) and
+        // in that case we won't rely on that targetVersion before we're actually connected and so the version
+        // detection in connect() will do its job.
+        targetVersion = MessagingService.instance().getVersion(pool.endPoint());
     }
 
     private static boolean isLocalDC(InetAddress targetHost)

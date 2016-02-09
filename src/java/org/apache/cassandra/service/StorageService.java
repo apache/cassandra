@@ -1774,8 +1774,23 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
                     case RPC_READY:
                         notifyRpcChange(endpoint, epState.isRpcReady());
                         break;
+                    case NET_VERSION:
+                        updateNetVersion(endpoint, value);
+                        break;
                 }
             }
+        }
+    }
+
+    private void updateNetVersion(InetAddress endpoint, VersionedValue value)
+    {
+        try
+        {
+            MessagingService.instance().setVersion(endpoint, Integer.valueOf(value.value));
+        }
+        catch (NumberFormatException e)
+        {
+            throw new AssertionError("Got invalid value for NET_VERSION application state: " + value.value);
         }
     }
 
@@ -2442,6 +2457,12 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
         // If we have restarted before the node was even marked down, we need to reset the connection pool
         if (state.isAlive())
             onDead(endpoint, state);
+
+        // Then, the node may have been upgraded and changed its messaging protocol version. If so, we
+        // want to update that before we mark the node live again to avoid problems like CASSANDRA-11128.
+        VersionedValue netVersion = state.getApplicationState(ApplicationState.NET_VERSION);
+        if (netVersion != null)
+            updateNetVersion(endpoint, netVersion);
     }
 
 
