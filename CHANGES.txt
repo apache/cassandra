@@ -1,4 +1,5 @@
 3.4
+ * Remove duplicate offline compaction tracking (CASSANDRA-11148)
  * fix EQ semantics of analyzed SASI indexes (CASSANDRA-11130)
  * Support long name output for nodetool commands (CASSANDRA-7950)
  * Encrypted hints (CASSANDRA-11040)

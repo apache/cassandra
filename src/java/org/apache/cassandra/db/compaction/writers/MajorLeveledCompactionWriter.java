@@ -49,10 +49,10 @@ public class MajorLeveledCompactionWriter extends CompactionAwareWriter
                                         Set<SSTableReader> nonExpiredSSTables,
                                         long maxSSTableSize)
     {
-        this(cfs, directories, txn, nonExpiredSSTables, maxSSTableSize, false, false);
+        this(cfs, directories, txn, nonExpiredSSTables, maxSSTableSize, false);
     }
 
-    @SuppressWarnings("resource")
+    @Deprecated
     public MajorLeveledCompactionWriter(ColumnFamilyStore cfs,
                                         Directories directories,
                                         LifecycleTransaction txn,
@@ -61,7 +61,18 @@ public class MajorLeveledCompactionWriter extends CompactionAwareWriter
                                         boolean offline,
                                         boolean keepOriginals)
     {
-        super(cfs, directories, txn, nonExpiredSSTables, offline, keepOriginals);
+        this(cfs, directories, txn, nonExpiredSSTables, maxSSTableSize, keepOriginals);
+    }
+
+    @SuppressWarnings("resource")
+    public MajorLeveledCompactionWriter(ColumnFamilyStore cfs,
+                                        Directories directories,
+                                        LifecycleTransaction txn,
+                                        Set<SSTableReader> nonExpiredSSTables,
+                                        long maxSSTableSize,
+                                        boolean keepOriginals)
+    {
+        super(cfs, directories, txn, nonExpiredSSTables, keepOriginals);
         this.maxSSTableSize = maxSSTableSize;
         long estimatedSSTables = Math.max(1, SSTableReader.getTotalBytes(nonExpiredSSTables) / maxSSTableSize);
         keysPerSSTable = estimatedTotalKeys / estimatedSSTables;

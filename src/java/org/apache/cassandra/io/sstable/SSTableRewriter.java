@@ -63,7 +63,6 @@ public class SSTableRewriter extends Transactional.AbstractTransactional impleme
     private long currentlyOpenedEarlyAt; // the position (in MB) in the target file we last (re)opened at
 
     private final List<SSTableWriter> writers = new ArrayList<>();
-    private final boolean isOffline; // true for operations that are performed without Cassandra running (prevents updates of Tracker)
     private final boolean keepOriginals; // true if we do not want to obsolete the originals
 
     private SSTableWriter writer;
@@ -72,29 +71,40 @@ public class SSTableRewriter extends Transactional.AbstractTransactional impleme
     // for testing (TODO: remove when have byteman setup)
     private boolean throwEarly, throwLate;
 
+    @Deprecated
     public SSTableRewriter(LifecycleTransaction transaction, long maxAge, boolean isOffline)
     {
         this(transaction, maxAge, isOffline, true);
     }
-
+    @Deprecated
     public SSTableRewriter(LifecycleTransaction transaction, long maxAge, boolean isOffline, boolean shouldOpenEarly)
     {
-        this(transaction, maxAge, isOffline, calculateOpenInterval(shouldOpenEarly), false);
+        this(transaction, maxAge, calculateOpenInterval(shouldOpenEarly), false);
     }
 
     @VisibleForTesting
-    public SSTableRewriter(LifecycleTransaction transaction, long maxAge, boolean isOffline, long preemptiveOpenInterval, boolean keepOriginals)
+    public SSTableRewriter(LifecycleTransaction transaction, long maxAge, long preemptiveOpenInterval, boolean keepOriginals)
     {
         this.transaction = transaction;
         this.maxAge = maxAge;
-        this.isOffline = isOffline;
         this.keepOriginals = keepOriginals;
         this.preemptiveOpenInterval = preemptiveOpenInterval;
     }
 
+    @Deprecated
     public static SSTableRewriter constructKeepingOriginals(LifecycleTransaction transaction, boolean keepOriginals, long maxAge, boolean isOffline)
     {
-        return new SSTableRewriter(transaction, maxAge, isOffline, calculateOpenInterval(true), keepOriginals);
+        return constructKeepingOriginals(transaction, keepOriginals, maxAge);
+    }
+
+    public static SSTableRewriter constructKeepingOriginals(LifecycleTransaction transaction, boolean keepOriginals, long maxAge)
+    {
+        return new SSTableRewriter(transaction, maxAge, calculateOpenInterval(true), keepOriginals);
+    }
+
+    public static SSTableRewriter constructWithoutEarlyOpening(LifecycleTransaction transaction, boolean keepOriginals, long maxAge)
+    {
+        return new SSTableRewriter(transaction, maxAge, calculateOpenInterval(false), keepOriginals);
     }
 
     private static long calculateOpenInterval(boolean shouldOpenEarly)
@@ -116,7 +126,7 @@ public class SSTableRewriter extends Transactional.AbstractTransactional impleme
         DecoratedKey key = partition.partitionKey();
         maybeReopenEarly(key);
         RowIndexEntry index = writer.append(partition);
-        if (!isOffline && index != null)
+        if (!transaction.isOffline() && index != null)
         {
             boolean save = false;
             for (SSTableReader reader : transaction.originals())
@@ -152,7 +162,7 @@ public class SSTableRewriter extends Transactional.AbstractTransactional impleme
     {
         if (writer.getFilePointer() - currentlyOpenedEarlyAt > preemptiveOpenInterval)
         {
-            if (isOffline)
+            if (transaction.isOffline())
             {
                 for (SSTableReader reader : transaction.originals())
                 {
@@ -208,7 +218,7 @@ public class SSTableRewriter extends Transactional.AbstractTransactional impleme
      */
     private void moveStarts(SSTableReader newReader, DecoratedKey lowerbound)
     {
-        if (isOffline)
+        if (transaction.isOffline())
             return;
         if (preemptiveOpenInterval == Long.MAX_VALUE)
             return;
