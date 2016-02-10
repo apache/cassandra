@@ -1,4 +1,6 @@
 3.0.4
+ * Fix wrong rack counting and invalid conditions check for TokenAllocation
+   (CASSANDRA-11139)
  * Avoid creating empty hint files (CASSANDRA-11090)
  * Fix leak detection strong reference loop using weak reference (CASSANDRA-11120)
  * Configurie BatchlogManager to stop delayed tasks on shutdown (CASSANDRA-11062)
