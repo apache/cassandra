@@ -199,9 +199,9 @@ public class TokenAllocation
         final int replicas = rs.getReplicationFactor(dc);
 
         Topology topology = tokenMetadata.getTopology();
-        int racks = topology.getDatacenterRacks().get(dc).size();
+        int racks = topology.getDatacenterRacks().get(dc).asMap().size();
 
-        if (replicas >= racks)
+        if (racks >= replicas)
         {
             return new StrategyAdapter()
             {
