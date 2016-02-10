@@ -18,10 +18,9 @@
 package org.apache.cassandra.cql3.restrictions;
 
 import java.nio.ByteBuffer;
-import java.util.Collection;
-import java.util.Collections;
-import java.util.List;
+import java.util.*;
 
+import org.apache.cassandra.db.composites.Composite;
 import org.apache.cassandra.config.ColumnDefinition;
 import org.apache.cassandra.cql3.QueryOptions;
 import org.apache.cassandra.cql3.functions.Function;
@@ -31,7 +30,6 @@ import org.apache.cassandra.db.composites.*;
 import org.apache.cassandra.db.composites.Composite.EOC;
 import org.apache.cassandra.db.index.SecondaryIndexManager;
 import org.apache.cassandra.exceptions.InvalidRequestException;
-
 import static org.apache.cassandra.cql3.statements.RequestValidations.checkFalse;
 import static org.apache.cassandra.cql3.statements.RequestValidations.invalidRequest;
 
@@ -163,7 +161,7 @@ final class PrimaryKeyRestrictionSet extends AbstractPrimaryKeyRestrictions
     @Override
     public List<Composite> valuesAsComposites(QueryOptions options) throws InvalidRequestException
     {
-        return appendTo(new CompositesBuilder(ctype), options).build();
+        return filterAndSort(appendTo(new CompositesBuilder(ctype), options).build());
     }
 
     @Override
@@ -197,29 +195,16 @@ final class PrimaryKeyRestrictionSet extends AbstractPrimaryKeyRestrictions
         {
             ColumnDefinition def = r.getFirstColumn();
 
-            // In a restriction, we always have Bound.START < Bound.END for the "base" comparator.
-            // So if we're doing a reverse slice, we must inverse the bounds when giving them as start and end of the slice filter.
-            // But if the actual comparator itself is reversed, we must inversed the bounds too.
-            Bound b = !def.isReversedType() ? bound : bound.reverse();
             if (keyPosition != def.position() || r.isContains())
                 break;
 
             if (r.isSlice())
             {
-                if (!r.hasBound(b))
-                {
-                    // There wasn't any non EQ relation on that key, we select all records having the preceding component as prefix.
-                    // For composites, if there was preceding component and we're computing the end, we must change the last component
-                    // End-Of-Component, otherwise we would be selecting only one record.
-                    return builder.buildWithEOC(bound.isEnd() ? EOC.END : EOC.START);
-                }
-
-                r.appendBoundTo(builder, b, options);
-                Composite.EOC eoc = eocFor(r, bound, b);
-                return builder.buildWithEOC(eoc);
+                r.appendBoundTo(builder, bound, options);
+                return filterAndSort(setEocs(r, bound, builder.build()));
             }
 
-            r.appendBoundTo(builder, b, options);
+            r.appendBoundTo(builder, bound, options);
 
             if (builder.hasMissingElements())
                 return Collections.emptyList();
@@ -233,7 +218,71 @@ final class PrimaryKeyRestrictionSet extends AbstractPrimaryKeyRestrictions
         // case using the eoc would be bad, since for the random partitioner we have no guarantee that
         // prefix.end() will sort after prefix (see #5240).
         EOC eoc = !builder.hasRemaining() ? EOC.NONE : (bound.isEnd() ? EOC.END : EOC.START);
-        return builder.buildWithEOC(eoc);
+        return filterAndSort(builder.buildWithEOC(eoc));
+    }
+
+    /**
+     * Removes duplicates and sort the specified composites.
+     *
+     * @param composites the composites to filter and sort
+     * @return the composites sorted and without duplicates
+     */
+    private List<Composite> filterAndSort(List<Composite> composites)
+    {
+        if (composites.size() <= 1)
+            return composites;
+
+        TreeSet<Composite> set = new TreeSet<Composite>(ctype);
+        set.addAll(composites);
+        return new ArrayList<>(set);
+    }
+
+    /**
+     * Sets EOCs for the composites returned by the specified slice restriction for the given bound.
+     *
+     * @param r the slice restriction
+     * @param bound the bound
+     * @param composites the composites
+     * @return the composites with their EOCs properly set
+     */
+    private List<Composite> setEocs(Restriction r, Bound bound, List<Composite> composites)
+    {
+        List<Composite> list = new ArrayList<>(composites.size());
+
+        // The first column of the slice might not be the first clustering column (e.g. clustering_0 = ? AND (clustering_1, clustering_2) >= (?, ?)
+        int offset = r.getFirstColumn().position();
+
+        for (int i = 0, m = composites.size(); i < m; i++)
+        {
+            Composite composite = composites.get(i);
+
+            // Handle the no bound case
+            if (composite.size() == offset)
+            {
+                list.add(composite.withEOC(bound.isEnd() ? EOC.END : EOC.START));
+                continue;
+            }
+
+            // In the case of mixed order columns, we will have some extra slices where the columns change directions.
+            // For example: if we have clustering_0 DESC and clustering_1 ASC a slice like (clustering_0, clustering_1) > (1, 2)
+            // will produce 2 slices: [EMPTY, 1.START] and [1.2.END, 1.END]
+            // So, the END bound will return 2 composite with the same values 1
+            if (composite.size() <= r.getLastColumn().position() && i < m - 1 && composite.equals(composites.get(i + 1)))
+            {
+                list.add(composite.withEOC(EOC.START));
+                list.add(composites.get(i++).withEOC(EOC.END));
+                continue;
+            }
+
+            // Handle the normal bounds
+            ColumnDefinition column = r.getColumnDefs().get(composite.size() - 1 - offset);
+            Bound b = reverseBoundIfNeeded(column, bound);
+
+            Composite.EOC eoc = eocFor(r, bound, b);
+            list.add(composite.withEOC(eoc));
+        }
+
+        return list;
     }
 
     @Override
@@ -307,7 +356,7 @@ final class PrimaryKeyRestrictionSet extends AbstractPrimaryKeyRestrictions
     }
 
     @Override
-    public Collection<ColumnDefinition> getColumnDefs()
+    public List<ColumnDefinition> getColumnDefs()
     {
         return restrictions.getColumnDefs();
     }

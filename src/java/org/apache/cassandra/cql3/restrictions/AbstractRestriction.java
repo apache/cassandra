@@ -19,12 +19,13 @@ package org.apache.cassandra.cql3.restrictions;
 
 import java.nio.ByteBuffer;
 
+import org.apache.cassandra.config.ColumnDefinition;
+
 import org.apache.cassandra.cql3.ColumnSpecification;
 import org.apache.cassandra.cql3.QueryOptions;
 import org.apache.cassandra.cql3.statements.Bound;
 import org.apache.cassandra.db.composites.CompositesBuilder;
 import org.apache.cassandra.exceptions.InvalidRequestException;
-
 import static org.apache.cassandra.cql3.statements.RequestValidations.checkBindValueSet;
 import static org.apache.cassandra.cql3.statements.RequestValidations.checkFalse;
 import static org.apache.cassandra.cql3.statements.RequestValidations.checkNotNull;
@@ -96,5 +97,17 @@ abstract class AbstractRestriction  implements Restriction
         checkBindValueSet(value, "Unsupported unset value for indexed column %s", columnSpec.name);
         checkFalse(value.remaining() > 0xFFFF, "Index expression values may not be larger than 64K");
         return value;
+    }
+
+    /**
+     * Reverses the specified bound if the column type is a reversed one.
+     *
+     * @param columnDefinition the column definition
+     * @param bound the bound
+     * @return the bound reversed if the column type was a reversed one or the original bound
+     */
+    protected static Bound reverseBoundIfNeeded(ColumnDefinition columnDefinition, Bound bound)
+    {
+        return columnDefinition.isReversedType() ? bound.reverse() : bound;
     }
 }

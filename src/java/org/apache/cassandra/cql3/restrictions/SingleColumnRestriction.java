@@ -52,7 +52,7 @@ public abstract class SingleColumnRestriction extends AbstractRestriction
     }
 
     @Override
-    public Collection<ColumnDefinition> getColumnDefs()
+    public List<ColumnDefinition> getColumnDefs()
     {
         return Collections.singletonList(columnDef);
     }
@@ -351,7 +351,12 @@ public abstract class SingleColumnRestriction extends AbstractRestriction
         @Override
         public CompositesBuilder appendBoundTo(CompositesBuilder builder, Bound bound, QueryOptions options)
         {
-            ByteBuffer value = slice.bound(bound).bindAndGet(options);
+            Bound b = reverseBoundIfNeeded(getFirstColumn(), bound);
+
+            if (!hasBound(b))
+                return builder;
+
+            ByteBuffer value = slice.bound(b).bindAndGet(options);
             checkBindValueSet(value, "Invalid unset value for column %s", columnDef.name);
             return builder.addElementToAll(value);
 

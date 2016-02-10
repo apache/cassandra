@@ -20,11 +20,9 @@ package org.apache.cassandra.cql3.restrictions;
 import java.nio.ByteBuffer;
 import java.util.*;
 
-import org.apache.cassandra.cql3.Term.Terminal;
-
-import org.apache.cassandra.cql3.Term;
 import org.apache.cassandra.config.ColumnDefinition;
 import org.apache.cassandra.cql3.*;
+import org.apache.cassandra.cql3.Term.Terminal;
 import org.apache.cassandra.cql3.functions.Function;
 import org.apache.cassandra.cql3.statements.Bound;
 import org.apache.cassandra.db.IndexExpression;
@@ -68,7 +66,7 @@ public abstract class MultiColumnRestriction extends AbstractRestriction
     }
 
     @Override
-    public Collection<ColumnDefinition> getColumnDefs()
+    public List<ColumnDefinition> getColumnDefs()
     {
         return columnDefs;
     }
@@ -361,14 +359,62 @@ public abstract class MultiColumnRestriction extends AbstractRestriction
         @Override
         public CompositesBuilder appendBoundTo(CompositesBuilder builder, Bound bound, QueryOptions options)
         {
-            List<ByteBuffer> vals = componentBounds(bound, options);
+            boolean reversed = getFirstColumn().isReversedType();
 
-            for (int i = 0, m = vals.size(); i < m; i++)
+            EnumMap<Bound, List<ByteBuffer>> componentBounds = new EnumMap<Bound, List<ByteBuffer>>(Bound.class);
+            componentBounds.put(Bound.START, componentBounds(Bound.START, options));
+            componentBounds.put(Bound.END, componentBounds(Bound.END, options));
+
+            List<List<ByteBuffer>> toAdd = new ArrayList<>();
+            List<ByteBuffer> values = new ArrayList<>();
+
+            for (int i = 0, m = columnDefs.size(); i < m; i++)
             {
-                ByteBuffer v = checkNotNull(vals.get(i), "Invalid null value in condition for column %s", columnDefs.get(i).name);
-                builder.addElementToAll(v);
+                ColumnDefinition column = columnDefs.get(i);
+                Bound b = reverseBoundIfNeeded(column, bound);
+
+                // For mixed order columns, we need to create additional slices when 2 columns are in reverse order
+                if (reversed != column.isReversedType())
+                {
+                    reversed = column.isReversedType();
+                    // As we are switching direction we need to add the current composite
+                    toAdd.add(values);
+
+                    // The new bound side has no value for this component.  just stop
+                    if (!hasComponent(b, i, componentBounds))
+                        continue;
+
+                    // The other side has still some components. We need to end the slice that we have just open.
+                    if (hasComponent(b.reverse(), i, componentBounds))
+                        toAdd.add(values);
+
+                    // We need to rebuild where we are in this bound side
+                    values = new ArrayList<ByteBuffer>();
+
+                    List<ByteBuffer> vals = componentBounds.get(b);
+
+                    int n = Math.min(i, vals.size());
+                    for (int j = 0; j < n; j++)
+                    {
+                        ByteBuffer v = checkNotNull(vals.get(j),
+                                                    "Invalid null value in condition for column %s",
+                                                    columnDefs.get(j).name);
+                        values.add(v);
+                    }
+                }
+
+                if (!hasComponent(b, i, componentBounds))
+                    continue;
+
+                ByteBuffer v = checkNotNull(componentBounds.get(b).get(i), "Invalid null value in condition for column %s", columnDefs.get(i).name);
+                values.add(v);
             }
-            return builder;
+            toAdd.add(values);
+
+            if (bound.isEnd())
+                Collections.reverse(toAdd);
+
+            return builder.addAllElementsToAll(toAdd);
         }
 
         @Override
@@ -378,9 +424,9 @@ public abstract class MultiColumnRestriction extends AbstractRestriction
         }
 
         @Override
-        public boolean hasBound(Bound b)
+        public boolean hasBound(Bound bound)
         {
-            return slice.hasBound(b);
+            return slice.hasBound(bound);
         }
 
         @Override
@@ -390,9 +436,9 @@ public abstract class MultiColumnRestriction extends AbstractRestriction
         }
 
         @Override
-        public boolean isInclusive(Bound b)
+        public boolean isInclusive(Bound bound)
         {
-            return slice.isInclusive(b);
+            return slice.isInclusive(bound);
         }
 
         @Override
@@ -448,6 +494,9 @@ public abstract class MultiColumnRestriction extends AbstractRestriction
          */
         private List<ByteBuffer> componentBounds(Bound b, QueryOptions options) throws InvalidRequestException
         {
+            if (!slice.hasBound(b))
+                return Collections.emptyList();
+
             Terminal terminal = slice.bound(b).bind(options);
 
             if (terminal instanceof Tuples.Value)
@@ -456,6 +505,11 @@ public abstract class MultiColumnRestriction extends AbstractRestriction
             }
 
             return Collections.singletonList(terminal.get(options.getProtocolVersion()));
+        }
+
+        private boolean hasComponent(Bound b, int index, EnumMap<Bound, List<ByteBuffer>> componentBounds)
+        {
+            return componentBounds.get(b).size() > index;
         }
     }
 }

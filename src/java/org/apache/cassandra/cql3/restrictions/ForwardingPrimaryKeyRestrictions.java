@@ -18,7 +18,6 @@
 package org.apache.cassandra.cql3.restrictions;
 
 import java.nio.ByteBuffer;
-import java.util.Collection;
 import java.util.List;
 
 import org.apache.cassandra.config.ColumnDefinition;
@@ -51,7 +50,7 @@ abstract class ForwardingPrimaryKeyRestrictions implements PrimaryKeyRestriction
     }
 
     @Override
-    public Collection<ColumnDefinition> getColumnDefs()
+    public List<ColumnDefinition> getColumnDefs()
     {
         return getDelegate().getColumnDefs();
     }

@@ -48,7 +48,6 @@ import org.apache.cassandra.transport.messages.ResultMessage;
 import org.apache.cassandra.triggers.TriggerExecutor;
 import org.apache.cassandra.utils.Pair;
 import org.apache.cassandra.utils.UUIDGen;
-
 import static org.apache.cassandra.cql3.statements.RequestValidations.checkFalse;
 import static org.apache.cassandra.cql3.statements.RequestValidations.checkNotNull;
 import static org.apache.cassandra.cql3.statements.RequestValidations.invalidRequest;
@@ -310,7 +309,7 @@ public abstract class ModificationStatement implements CQLStatement
             r.appendTo(keyBuilder, options);
         }
 
-        return Lists.transform(keyBuilder.build(), new com.google.common.base.Function<Composite, ByteBuffer>()
+        return Lists.transform(filterAndSort(keyBuilder.build()), new com.google.common.base.Function<Composite, ByteBuffer>()
         {
             @Override
             public ByteBuffer apply(Composite composite)
@@ -402,6 +401,22 @@ public abstract class ModificationStatement implements CQLStatement
             }
         }
         return builder.build().get(0); // We only allow IN for row keys so far
+    }
+
+    /**
+     * Removes duplicates and sort the specified composites.
+     *
+     * @param composites the composites to filter and sort
+     * @return the composites sorted and without duplicates
+     */
+    private List<Composite> filterAndSort(List<Composite> composites)
+    {
+        if (composites.size() <= 1)
+            return composites;
+
+        TreeSet<Composite> set = new TreeSet<Composite>(cfm.getKeyValidatorAsCType());
+        set.addAll(composites);
+        return new ArrayList<>(set);
     }
 
     protected ColumnDefinition getFirstEmptyKey()

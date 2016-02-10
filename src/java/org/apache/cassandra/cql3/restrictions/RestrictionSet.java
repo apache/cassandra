@@ -75,9 +75,9 @@ final class RestrictionSet implements Restrictions, Iterable<Restriction>
     }
 
     @Override
-    public final Set<ColumnDefinition> getColumnDefs()
+    public final List<ColumnDefinition> getColumnDefs()
     {
-        return restrictions.keySet();
+        return new ArrayList<>(restrictions.keySet());
     }
 
     @Override

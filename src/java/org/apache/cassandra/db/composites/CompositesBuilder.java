@@ -181,9 +181,6 @@ public final class CompositesBuilder
 
                     List<ByteBuffer> value = values.get(j);
 
-                    if (value.isEmpty())
-                        hasMissingElements = true;
-
                     if (value.contains(null))
                         containsNull = true;
                     if (value.contains(ByteBufferUtil.UNSET_BYTE_BUFFER))
@@ -283,26 +280,15 @@ public final class CompositesBuilder
         if (elementsList.isEmpty())
             return singletonList(builder.build().withEOC(eoc));
 
-        // Use a Set to sort if needed and eliminate duplicates
-        Set<Composite> set = newSet();
+        List<Composite> list = new ArrayList<>();
 
         for (int i = 0, m = elementsList.size(); i < m; i++)
         {
             List<ByteBuffer> elements = elementsList.get(i);
-            set.add(builder.buildWith(elements).withEOC(eoc));
+            list.add(builder.buildWith(elements).withEOC(eoc));
         }
 
-        return new ArrayList<>(set);
-    }
-
-    /**
-     * Returns a new <code>Set</code> instance that will be used to eliminate duplicates and sort the results.
-     *
-     * @return a new <code>Set</code> instance.
-     */
-    private Set<Composite> newSet()
-    {
-        return new TreeSet<>(ctype);
+        return list;
     }
 
     private void checkUpdateable()
