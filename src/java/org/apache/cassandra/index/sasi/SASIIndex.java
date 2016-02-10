@@ -141,14 +141,6 @@ public class SASIIndex implements Index, INotificationConsumer
                 throw new ConfigurationException("SPARSE mode doesn't support analyzers.");
         }
 
-        ColumnFamilyStore store = Schema.instance.getColumnFamilyStoreIncludingIndexes(Pair.create(cfm.ksName, cfm.cfName));
-        if (store != null && store.indexManager.listIndexes()
-                                               .stream()
-                                               .filter((index) -> index.dependsOn(target.left)
-                                                               && index.getClass().isAssignableFrom(SASIIndex.class))
-                                               .findFirst().isPresent())
-            throw new ConfigurationException("Index on '" + targetColumn + "' already exists, SASI doesn't support multiple indexes per column.");
-
         return Collections.emptyMap();
     }
 

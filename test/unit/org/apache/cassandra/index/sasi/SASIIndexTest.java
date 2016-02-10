@@ -1744,19 +1744,6 @@ public class SASIIndexTest
         {
             Assert.assertTrue(e.getMessage().contains("doesn't support analyzers"));
         }
-
-        try
-        {
-            // new index for column which already has a SASI index
-            SASIIndex.validateOptions(new HashMap<String, String>()
-                                      {{ put("target", "first_name"); put("mode", "PREFIX"); }},
-                                      store.metadata);
-            Assert.fail();
-        }
-        catch (ConfigurationException e)
-        {
-            Assert.assertTrue(e.getMessage().contains("already exists"));
-        }
     }
 
     private static ColumnFamilyStore loadData(Map<String, Pair<String, Integer>> data, boolean forceFlush)
