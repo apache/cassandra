@@ -3617,14 +3617,15 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
 
             for (String keyspace : keyspaceNames)
             {
+                // replication strategy of the current keyspace
+                AbstractReplicationStrategy strategy = Keyspace.open(keyspace).getReplicationStrategy();
+                Multimap<InetAddress, Range<Token>> endpointToRanges = strategy.getAddressRanges();
+
                 logger.debug("Calculating ranges to stream and request for keyspace {}", keyspace);
                 for (Token newToken : newTokens)
                 {
-                    // replication strategy of the current keyspace (aka table)
-                    AbstractReplicationStrategy strategy = Keyspace.open(keyspace).getReplicationStrategy();
-
                     // getting collection of the currently used ranges by this keyspace
-                    Collection<Range<Token>> currentRanges = getRangesForEndpoint(keyspace, localAddress);
+                    Collection<Range<Token>> currentRanges = endpointToRanges.get(localAddress);
                     // collection of ranges which this node will serve after move to the new token
                     Collection<Range<Token>> updatedRanges = strategy.getPendingAddressRanges(tokenMetaClone, newToken, localAddress);
 
@@ -4031,18 +4032,19 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
      */
     public LinkedHashMap<InetAddress, Float> effectiveOwnership(String keyspace) throws IllegalStateException
     {
-
-    	if (keyspace != null)
-    	{
+        AbstractReplicationStrategy strategy;
+        if (keyspace != null)
+        {
             Keyspace keyspaceInstance = Schema.instance.getKeyspaceInstance(keyspace);
-            if(keyspaceInstance == null)
+            if (keyspaceInstance == null)
                 throw new IllegalArgumentException("The keyspace " + keyspace + ", does not exist");
 
-            if(keyspaceInstance.getReplicationStrategy() instanceof LocalStrategy)
+            if (keyspaceInstance.getReplicationStrategy() instanceof LocalStrategy)
                 throw new IllegalStateException("Ownership values for keyspaces with LocalStrategy are meaningless");
-    	}
-    	else
-    	{
+            strategy = keyspaceInstance.getReplicationStrategy();
+        }
+        else
+        {
             List<String> nonSystemKeyspaces = Schema.instance.getNonSystemKeyspaces();
 
             //system_traces is a non-system keyspace however it needs to be counted as one for this process
@@ -4057,8 +4059,9 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
             keyspace = "system_traces";
 
             Keyspace keyspaceInstance = Schema.instance.getKeyspaceInstance(keyspace);
-            if(keyspaceInstance == null)
+            if (keyspaceInstance == null)
                 throw new IllegalArgumentException("The node does not have " + keyspace + " yet, probably still bootstrapping");
+            strategy = keyspaceInstance.getReplicationStrategy();
         }
 
         TokenMetadata metadata = tokenMetadata.cloneOnlyTokenMap();
@@ -4073,6 +4076,7 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
         Map<Token, Float> tokenOwnership = getPartitioner().describeOwnership(tokenMetadata.sortedTokens());
         LinkedHashMap<InetAddress, Float> finalOwnership = Maps.newLinkedHashMap();
 
+        Multimap<InetAddress, Range<Token>> endpointToRanges = strategy.getAddressRanges();
         // calculate ownership per dc
         for (Collection<InetAddress> endpoints : endpointsGroupedByDc)
         {
@@ -4080,7 +4084,7 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
             for (InetAddress endpoint : endpoints)
             {
                 float ownership = 0.0f;
-                for (Range<Token> range : getRangesForEndpoint(keyspace, endpoint))
+                for (Range<Token> range : endpointToRanges.get(endpoint))
                 {
                     if (tokenOwnership.containsKey(range.right))
                         ownership += tokenOwnership.get(range.right);
