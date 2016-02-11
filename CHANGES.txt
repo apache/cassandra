@@ -9,6 +9,7 @@ Merged from 2.2.6:
  * (cqlsh) Support utf-8/cp65001 encoding on Windows (CASSANDRA-11030)
  * Fix paging on DISTINCT queries repeats result when first row in partition changes (CASSANDRA-10010)
 Merged from 2.1:
+ * Properly release sstable ref when doing offline scrub (CASSANDRA-10697)
  * Improve nodetool status performance for large cluster (CASSANDRA-7238)
  * Gossiper#isEnabled is not thread safe (CASSANDRA-11116)
  * Avoid major compaction mixing repaired and unrepaired sstables in DTCS (CASSANDRA-11113)
