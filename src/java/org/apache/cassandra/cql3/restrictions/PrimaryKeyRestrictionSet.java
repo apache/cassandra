@@ -208,27 +208,19 @@ final class PrimaryKeyRestrictionSet extends AbstractPrimaryKeyRestrictions
         {
             ColumnDefinition def = r.getFirstColumn();
 
-            // The bound of this method is refering to the clustering order. So if said clustering order
-            // is reversed for this column, we should reverse the restriction we use.
-            Bound b = !def.isReversedType() ? bound : bound.reverse();
             if (keyPosition != def.position() || r.isContains())
                 break;
 
             if (r.isSlice())
             {
-                if (!r.hasBound(b))
-                {
-                    // There wasn't any non EQ relation on that key, we select all records having the preceding component as prefix.
-                    // For composites, if there was preceding component and we're computing the end, we must change the last component
-                    // End-Of-Component, otherwise we would be selecting only one record.
-                    return builder.buildBound(bound.isStart(), true);
-                }
-
-                r.appendBoundTo(builder, b, options);
-                return builder.buildBound(bound.isStart(), r.isInclusive(b));
+                r.appendBoundTo(builder, bound, options);
+                return builder.buildBoundForSlice(bound.isStart(),
+                                                  r.isInclusive(bound),
+                                                  r.isInclusive(bound.reverse()),
+                                                  r.getColumnDefs());
             }
 
-            r.appendBoundTo(builder, b, options);
+            r.appendBoundTo(builder, bound, options);
 
             if (builder.hasMissingElements())
                 return BTreeSet.empty(comparator);
@@ -303,7 +295,7 @@ final class PrimaryKeyRestrictionSet extends AbstractPrimaryKeyRestrictions
     }
 
     @Override
-    public Collection<ColumnDefinition> getColumnDefs()
+    public List<ColumnDefinition> getColumnDefs()
     {
         return restrictions.getColumnDefs();
     }

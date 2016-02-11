@@ -28,10 +28,11 @@ import org.apache.cassandra.config.ColumnDefinition;
 import org.apache.cassandra.cql3.*;
 import org.apache.cassandra.cql3.Term.MultiItemTerminal;
 import org.apache.cassandra.cql3.statements.Bound;
+
 import org.apache.cassandra.db.*;
 import org.apache.cassandra.db.marshal.AbstractType;
 import org.apache.cassandra.db.marshal.Int32Type;
-import org.apache.cassandra.exceptions.InvalidRequestException;
+import org.apache.cassandra.db.marshal.ReversedType;
 import org.apache.cassandra.utils.ByteBufferUtil;
 
 import static java.util.Arrays.asList;
@@ -41,9 +42,9 @@ import static org.junit.Assert.assertTrue;
 public class PrimaryKeyRestrictionSetTest
 {
     @Test
-    public void testboundsAsClusteringWithNoRestrictions() throws InvalidRequestException
+    public void testBoundsAsClusteringWithNoRestrictions()
     {
-        CFMetaData cfMetaData = newCFMetaData(1);
+        CFMetaData cfMetaData = newCFMetaData(Sort.ASC);
 
         PrimaryKeyRestrictions restrictions = new PrimaryKeyRestrictionSet(cfMetaData.comparator, false);
 
@@ -60,9 +61,9 @@ public class PrimaryKeyRestrictionSetTest
      * Test 'clustering_0 = 1' with only one clustering column
      */
     @Test
-    public void testboundsAsClusteringWithOneEqRestrictionsAndOneClusteringColumn() throws InvalidRequestException
+    public void testBoundsAsClusteringWithOneEqRestrictionsAndOneClusteringColumn()
     {
-        CFMetaData cfMetaData = newCFMetaData(1);
+        CFMetaData cfMetaData = newCFMetaData(Sort.ASC);
 
         ByteBuffer clustering_0 = ByteBufferUtil.bytes(1);
         Restriction eq = newSingleEq(cfMetaData, 0, clustering_0);
@@ -83,9 +84,9 @@ public class PrimaryKeyRestrictionSetTest
      * Test 'clustering_1 = 1' with 2 clustering columns
      */
     @Test
-    public void testboundsAsClusteringWithOneEqRestrictionsAndTwoClusteringColumns() throws InvalidRequestException
+    public void testBoundsAsClusteringWithOneEqRestrictionsAndTwoClusteringColumns()
     {
-        CFMetaData cfMetaData = newCFMetaData(2);
+        CFMetaData cfMetaData = newCFMetaData(Sort.ASC, Sort.ASC);
 
         ByteBuffer clustering_0 = ByteBufferUtil.bytes(1);
         Restriction eq = newSingleEq(cfMetaData, 0, clustering_0);
@@ -106,13 +107,13 @@ public class PrimaryKeyRestrictionSetTest
      * Test 'clustering_0 IN (1, 2, 3)' with only one clustering column
      */
     @Test
-    public void testboundsAsClusteringWithOneInRestrictionsAndOneClusteringColumn() throws InvalidRequestException
+    public void testBoundsAsClusteringWithOneInRestrictionsAndOneClusteringColumn()
     {
         ByteBuffer value1 = ByteBufferUtil.bytes(1);
         ByteBuffer value2 = ByteBufferUtil.bytes(2);
         ByteBuffer value3 = ByteBufferUtil.bytes(3);
 
-        CFMetaData cfMetaData = newCFMetaData(2);
+        CFMetaData cfMetaData = newCFMetaData(Sort.ASC, Sort.ASC);
 
         Restriction in = newSingleIN(cfMetaData, 0, value1, value2, value3);
 
@@ -136,9 +137,9 @@ public class PrimaryKeyRestrictionSetTest
      * Test slice restriction (e.g 'clustering_0 > 1') with only one clustering column
      */
     @Test
-    public void testboundsAsClusteringWithSliceRestrictionsAndOneClusteringColumn() throws InvalidRequestException
+    public void testBoundsAsClusteringWithSliceRestrictionsAndOneClusteringColumn()
     {
-        CFMetaData cfMetaData = newCFMetaData(1);
+        CFMetaData cfMetaData = newCFMetaData(Sort.ASC, Sort.ASC);
 
         ByteBuffer value1 = ByteBufferUtil.bytes(1);
         ByteBuffer value2 = ByteBufferUtil.bytes(2);
@@ -219,12 +220,98 @@ public class PrimaryKeyRestrictionSetTest
     }
 
     /**
+     * Test slice restriction (e.g 'clustering_0 > 1') with only one descending clustering column
+     */
+    @Test
+    public void testBoundsAsClusteringWithSliceRestrictionsAndOneDescendingClusteringColumn()
+    {
+        CFMetaData cfMetaData = newCFMetaData(Sort.DESC, Sort.DESC);
+
+        ByteBuffer value1 = ByteBufferUtil.bytes(1);
+        ByteBuffer value2 = ByteBufferUtil.bytes(2);
+
+        Restriction slice = newSingleSlice(cfMetaData, 0, Bound.START, false, value1);
+        PrimaryKeyRestrictions restrictions = new PrimaryKeyRestrictionSet(cfMetaData.comparator, false);
+        restrictions = restrictions.mergeWith(slice);
+
+        SortedSet<Slice.Bound> bounds = restrictions.boundsAsClustering(Bound.START, QueryOptions.DEFAULT);
+        assertEquals(1, bounds.size());
+        assertEmptyStart(get(bounds, 0));
+
+        bounds = restrictions.boundsAsClustering(Bound.END, QueryOptions.DEFAULT);
+        assertEquals(1, bounds.size());
+        assertEndBound(get(bounds, 0), false, value1);
+
+        slice = newSingleSlice(cfMetaData, 0, Bound.START, true, value1);
+        restrictions = new PrimaryKeyRestrictionSet(cfMetaData.comparator, false);
+        restrictions = restrictions.mergeWith(slice);
+
+        bounds = restrictions.boundsAsClustering(Bound.START, QueryOptions.DEFAULT);
+        assertEquals(1, bounds.size());
+        assertEmptyStart(get(bounds, 0));
+
+        bounds = restrictions.boundsAsClustering(Bound.END, QueryOptions.DEFAULT);
+        assertEquals(1, bounds.size());
+        assertEndBound(get(bounds, 0), true, value1);
+
+        slice = newSingleSlice(cfMetaData, 0, Bound.END, true, value1);
+        restrictions = new PrimaryKeyRestrictionSet(cfMetaData.comparator, false);
+        restrictions = restrictions.mergeWith(slice);
+
+        bounds = restrictions.boundsAsClustering(Bound.START, QueryOptions.DEFAULT);
+        assertEquals(1, bounds.size());
+        assertStartBound(get(bounds, 0), true, value1);
+
+        bounds = restrictions.boundsAsClustering(Bound.END, QueryOptions.DEFAULT);
+        assertEquals(1, bounds.size());
+        assertEmptyEnd(get(bounds, 0));
+
+        slice = newSingleSlice(cfMetaData, 0, Bound.END, false, value1);
+        restrictions = new PrimaryKeyRestrictionSet(cfMetaData.comparator, false);
+        restrictions = restrictions.mergeWith(slice);
+
+        bounds = restrictions.boundsAsClustering(Bound.START, QueryOptions.DEFAULT);
+        assertEquals(1, bounds.size());
+        assertStartBound(get(bounds, 0), false, value1);
+
+        bounds = restrictions.boundsAsClustering(Bound.END, QueryOptions.DEFAULT);
+        assertEquals(1, bounds.size());
+        assertEmptyEnd(get(bounds, 0));
+
+        slice = newSingleSlice(cfMetaData, 0, Bound.START, false, value1);
+        Restriction slice2 = newSingleSlice(cfMetaData, 0, Bound.END, false, value2);
+        restrictions = new PrimaryKeyRestrictionSet(cfMetaData.comparator, false);
+        restrictions = restrictions.mergeWith(slice).mergeWith(slice2);
+
+        bounds = restrictions.boundsAsClustering(Bound.START, QueryOptions.DEFAULT);
+        assertEquals(1, bounds.size());
+        assertStartBound(get(bounds, 0), false, value2);
+
+        bounds = restrictions.boundsAsClustering(Bound.END, QueryOptions.DEFAULT);
+        assertEquals(1, bounds.size());
+        assertEndBound(get(bounds, 0), false, value1);
+
+        slice = newSingleSlice(cfMetaData, 0, Bound.START, true, value1);
+        slice2 = newSingleSlice(cfMetaData, 0, Bound.END, true, value2);
+        restrictions = new PrimaryKeyRestrictionSet(cfMetaData.comparator, false);
+        restrictions = restrictions.mergeWith(slice).mergeWith(slice2);
+
+        bounds = restrictions.boundsAsClustering(Bound.START, QueryOptions.DEFAULT);
+        assertEquals(1, bounds.size());
+        assertStartBound(get(bounds, 0), true, value2);
+
+        bounds = restrictions.boundsAsClustering(Bound.END, QueryOptions.DEFAULT);
+        assertEquals(1, bounds.size());
+        assertEndBound(get(bounds, 0), true, value1);
+    }
+
+    /**
      * Test 'clustering_0 = 1 AND clustering_1 IN (1, 2, 3)'
      */
     @Test
-    public void testboundsAsClusteringWithEqAndInRestrictions() throws InvalidRequestException
+    public void testBoundsAsClusteringWithEqAndInRestrictions()
     {
-        CFMetaData cfMetaData = newCFMetaData(2);
+        CFMetaData cfMetaData = newCFMetaData(Sort.ASC, Sort.ASC);
 
         ByteBuffer value1 = ByteBufferUtil.bytes(1);
         ByteBuffer value2 = ByteBufferUtil.bytes(2);
@@ -251,9 +338,9 @@ public class PrimaryKeyRestrictionSetTest
      * Test equal and slice restrictions (e.g 'clustering_0 = 0 clustering_1 > 1')
      */
     @Test
-    public void testboundsAsClusteringWithEqAndSliceRestrictions() throws InvalidRequestException
+    public void testBoundsAsClusteringWithEqAndSliceRestrictions()
     {
-        CFMetaData cfMetaData = newCFMetaData(2);
+        CFMetaData cfMetaData = newCFMetaData(Sort.ASC, Sort.ASC);
 
         ByteBuffer value1 = ByteBufferUtil.bytes(1);
         ByteBuffer value2 = ByteBufferUtil.bytes(2);
@@ -340,9 +427,9 @@ public class PrimaryKeyRestrictionSetTest
      * Test '(clustering_0, clustering_1) = (1, 2)' with two clustering column
      */
     @Test
-    public void testboundsAsClusteringWithMultiEqRestrictions() throws InvalidRequestException
+    public void testBoundsAsClusteringWithMultiEqRestrictions()
     {
-        CFMetaData cfMetaData = newCFMetaData(2);
+        CFMetaData cfMetaData = newCFMetaData(Sort.ASC, Sort.ASC);
 
         ByteBuffer value1 = ByteBufferUtil.bytes(1);
         ByteBuffer value2 = ByteBufferUtil.bytes(2);
@@ -363,9 +450,9 @@ public class PrimaryKeyRestrictionSetTest
      * Test '(clustering_0, clustering_1) IN ((1, 2), (2, 3))' with two clustering column
      */
     @Test
-    public void testboundsAsClusteringWithMultiInRestrictions() throws InvalidRequestException
+    public void testBoundsAsClusteringWithMultiInRestrictions()
     {
-        CFMetaData cfMetaData = newCFMetaData(2);
+        CFMetaData cfMetaData = newCFMetaData(Sort.ASC, Sort.ASC);
 
         ByteBuffer value1 = ByteBufferUtil.bytes(1);
         ByteBuffer value2 = ByteBufferUtil.bytes(2);
@@ -389,9 +476,10 @@ public class PrimaryKeyRestrictionSetTest
      * Test multi-column slice restrictions (e.g '(clustering_0) > (1)') with only one clustering column
      */
     @Test
-    public void testboundsAsClusteringWithMultiSliceRestrictionsWithOneClusteringColumn() throws InvalidRequestException
+    public void testBoundsAsClusteringWithMultiSliceRestrictionsWithOneClusteringColumn()
     {
-        CFMetaData cfMetaData = newCFMetaData(1);
+        CFMetaData cfMetaData = newCFMetaData(Sort.ASC);
+
 
         ByteBuffer value1 = ByteBufferUtil.bytes(1);
         ByteBuffer value2 = ByteBufferUtil.bytes(2);
@@ -472,12 +560,99 @@ public class PrimaryKeyRestrictionSetTest
     }
 
     /**
+     * Test multi-column slice restrictions (e.g '(clustering_0) > (1)') with only one clustering column in reverse
+     * order
+     */
+    @Test
+    public void testBoundsAsClusteringWithMultiSliceRestrictionsWithOneDescendingClusteringColumn()
+    {
+        CFMetaData cfMetaData = newCFMetaData(Sort.DESC);
+
+        ByteBuffer value1 = ByteBufferUtil.bytes(1);
+        ByteBuffer value2 = ByteBufferUtil.bytes(2);
+
+        Restriction slice = newMultiSlice(cfMetaData, 0, Bound.START, false, value1);
+        PrimaryKeyRestrictions restrictions = new PrimaryKeyRestrictionSet(cfMetaData.comparator, false);
+        restrictions = restrictions.mergeWith(slice);
+
+        SortedSet<Slice.Bound> bounds = restrictions.boundsAsClustering(Bound.START, QueryOptions.DEFAULT);
+        assertEquals(1, bounds.size());
+        assertEmptyStart(get(bounds, 0));
+
+        bounds = restrictions.boundsAsClustering(Bound.END, QueryOptions.DEFAULT);
+        assertEquals(1, bounds.size());
+        assertEndBound(get(bounds, 0), false, value1);
+
+        slice = newMultiSlice(cfMetaData, 0, Bound.START, true, value1);
+        restrictions = new PrimaryKeyRestrictionSet(cfMetaData.comparator, false);
+        restrictions = restrictions.mergeWith(slice);
+
+        bounds = restrictions.boundsAsClustering(Bound.START, QueryOptions.DEFAULT);
+        assertEquals(1, bounds.size());
+        assertEmptyStart(get(bounds, 0));
+
+        bounds = restrictions.boundsAsClustering(Bound.END, QueryOptions.DEFAULT);
+        assertEquals(1, bounds.size());
+        assertEndBound(get(bounds, 0), true, value1);
+
+        slice = newMultiSlice(cfMetaData, 0, Bound.END, true, value1);
+        restrictions = new PrimaryKeyRestrictionSet(cfMetaData.comparator, false);
+        restrictions = restrictions.mergeWith(slice);
+
+        bounds = restrictions.boundsAsClustering(Bound.START, QueryOptions.DEFAULT);
+        assertEquals(1, bounds.size());
+        assertStartBound(get(bounds, 0), true, value1);
+
+        bounds = restrictions.boundsAsClustering(Bound.END, QueryOptions.DEFAULT);
+        assertEquals(1, bounds.size());
+        assertEmptyEnd(get(bounds, 0));
+
+        slice = newMultiSlice(cfMetaData, 0, Bound.END, false, value1);
+        restrictions = new PrimaryKeyRestrictionSet(cfMetaData.comparator, false);
+        restrictions = restrictions.mergeWith(slice);
+
+        bounds = restrictions.boundsAsClustering(Bound.START, QueryOptions.DEFAULT);
+        assertEquals(1, bounds.size());
+        assertStartBound(get(bounds, 0), false, value1);
+
+        bounds = restrictions.boundsAsClustering(Bound.END, QueryOptions.DEFAULT);
+        assertEquals(1, bounds.size());
+        assertEmptyEnd(get(bounds, 0));
+
+        slice = newMultiSlice(cfMetaData, 0, Bound.START, false, value1);
+        Restriction slice2 = newMultiSlice(cfMetaData, 0, Bound.END, false, value2);
+        restrictions = new PrimaryKeyRestrictionSet(cfMetaData.comparator, false);
+        restrictions = restrictions.mergeWith(slice).mergeWith(slice2);
+
+        bounds = restrictions.boundsAsClustering(Bound.START, QueryOptions.DEFAULT);
+        assertEquals(1, bounds.size());
+        assertStartBound(get(bounds, 0), false, value2);
+
+        bounds = restrictions.boundsAsClustering(Bound.END, QueryOptions.DEFAULT);
+        assertEquals(1, bounds.size());
+        assertEndBound(get(bounds, 0), false, value1);
+
+        slice = newMultiSlice(cfMetaData, 0, Bound.START, true, value1);
+        slice2 = newMultiSlice(cfMetaData, 0, Bound.END, true, value2);
+        restrictions = new PrimaryKeyRestrictionSet(cfMetaData.comparator, false);
+        restrictions = restrictions.mergeWith(slice).mergeWith(slice2);
+
+        bounds = restrictions.boundsAsClustering(Bound.START, QueryOptions.DEFAULT);
+        assertEquals(1, bounds.size());
+        assertStartBound(get(bounds, 0), true, value2);
+
+        bounds = restrictions.boundsAsClustering(Bound.END, QueryOptions.DEFAULT);
+        assertEquals(1, bounds.size());
+        assertEndBound(get(bounds, 0), true, value1);
+    }
+
+    /**
      * Test multi-column slice restrictions (e.g '(clustering_0, clustering_1) > (1, 2)')
      */
     @Test
-    public void testboundsAsClusteringWithMultiSliceRestrictionsWithTwoClusteringColumn() throws InvalidRequestException
+    public void testBoundsAsClusteringWithMultiSliceRestrictionsWithTwoClusteringColumn()
     {
-        CFMetaData cfMetaData = newCFMetaData(2);
+        CFMetaData cfMetaData = newCFMetaData(Sort.ASC, Sort.ASC);
 
         ByteBuffer value1 = ByteBufferUtil.bytes(1);
         ByteBuffer value2 = ByteBufferUtil.bytes(2);
@@ -564,12 +739,669 @@ public class PrimaryKeyRestrictionSetTest
     }
 
     /**
+     * Test multi-column slice restrictions with 2 descending clustering columns (e.g '(clustering_0, clustering_1) > (1, 2)')
+     */
+    @Test
+    public void testBoundsAsClusteringWithMultiSliceRestrictionsWithTwoDescendingClusteringColumns()
+    {
+        CFMetaData cfMetaData = newCFMetaData(Sort.DESC, Sort.DESC);
+
+        ByteBuffer value1 = ByteBufferUtil.bytes(1);
+        ByteBuffer value2 = ByteBufferUtil.bytes(2);
+
+        // (clustering_0, clustering1) > (1, 2)
+        Restriction slice = newMultiSlice(cfMetaData, 0, Bound.START, false, value1, value2);
+        PrimaryKeyRestrictions restrictions = new PrimaryKeyRestrictionSet(cfMetaData.comparator, false);
+        restrictions = restrictions.mergeWith(slice);
+
+        SortedSet<Slice.Bound> bounds = restrictions.boundsAsClustering(Bound.START, QueryOptions.DEFAULT);
+        assertEquals(1, bounds.size());
+        assertEmptyStart(get(bounds, 0));
+
+        bounds = restrictions.boundsAsClustering(Bound.END, QueryOptions.DEFAULT);
+        assertEquals(1, bounds.size());
+        assertEndBound(get(bounds, 0), false, value1, value2);
+
+        // (clustering_0, clustering1) >= (1, 2)
+        slice = newMultiSlice(cfMetaData, 0, Bound.START, true, value1, value2);
+        restrictions = new PrimaryKeyRestrictionSet(cfMetaData.comparator, false);
+        restrictions = restrictions.mergeWith(slice);
+
+        bounds = restrictions.boundsAsClustering(Bound.START, QueryOptions.DEFAULT);
+        assertEquals(1, bounds.size());
+        assertEmptyStart(get(bounds, 0));
+
+        bounds = restrictions.boundsAsClustering(Bound.END, QueryOptions.DEFAULT);
+        assertEquals(1, bounds.size());
+        assertEndBound(get(bounds, 0), true, value1, value2);
+
+        // (clustering_0, clustering1) <= (1, 2)
+        slice = newMultiSlice(cfMetaData, 0, Bound.END, true, value1, value2);
+        restrictions = new PrimaryKeyRestrictionSet(cfMetaData.comparator, false);
+        restrictions = restrictions.mergeWith(slice);
+
+        bounds = restrictions.boundsAsClustering(Bound.START, QueryOptions.DEFAULT);
+        assertEquals(1, bounds.size());
+        assertStartBound(get(bounds, 0), true, value1, value2);
+
+        bounds = restrictions.boundsAsClustering(Bound.END, QueryOptions.DEFAULT);
+        assertEquals(1, bounds.size());
+        assertEmptyEnd(get(bounds, 0));
+
+        // (clustering_0, clustering1) < (1, 2)
+        slice = newMultiSlice(cfMetaData, 0, Bound.END, false, value1, value2);
+        restrictions = new PrimaryKeyRestrictionSet(cfMetaData.comparator, false);
+        restrictions = restrictions.mergeWith(slice);
+
+        bounds = restrictions.boundsAsClustering(Bound.START, QueryOptions.DEFAULT);
+        assertEquals(1, bounds.size());
+        assertStartBound(get(bounds, 0), false, value1, value2);
+
+        bounds = restrictions.boundsAsClustering(Bound.END, QueryOptions.DEFAULT);
+        assertEquals(1, bounds.size());
+        assertEmptyEnd(get(bounds, 0));
+
+
+        // (clustering_0, clustering1) > (1, 2) AND (clustering_0) < (2)
+        slice = newMultiSlice(cfMetaData, 0, Bound.START, false, value1, value2);
+        Restriction slice2 = newMultiSlice(cfMetaData, 0, Bound.END, false, value2);
+        restrictions = new PrimaryKeyRestrictionSet(cfMetaData.comparator, false);
+        restrictions = restrictions.mergeWith(slice).mergeWith(slice2);
+
+        bounds = restrictions.boundsAsClustering(Bound.START, QueryOptions.DEFAULT);
+        assertEquals(1, bounds.size());
+        assertStartBound(get(bounds, 0), false, value2);
+
+        bounds = restrictions.boundsAsClustering(Bound.END, QueryOptions.DEFAULT);
+        assertEquals(1, bounds.size());
+        assertEndBound(get(bounds, 0), false, value1, value2);
+
+        // (clustering_0, clustering1) >= (1, 2) AND (clustering_0, clustering1) <= (2, 1)
+        slice = newMultiSlice(cfMetaData, 0, Bound.START, true, value1, value2);
+        slice2 = newMultiSlice(cfMetaData, 0, Bound.END, true, value2, value1);
+        restrictions = new PrimaryKeyRestrictionSet(cfMetaData.comparator, false);
+        restrictions = restrictions.mergeWith(slice).mergeWith(slice2);
+
+        bounds = restrictions.boundsAsClustering(Bound.START, QueryOptions.DEFAULT);
+        assertEquals(1, bounds.size());
+        assertStartBound(get(bounds, 0), true, value2, value1);
+
+        bounds = restrictions.boundsAsClustering(Bound.END, QueryOptions.DEFAULT);
+        assertEquals(1, bounds.size());
+        assertEndBound(get(bounds, 0), true, value1, value2);
+    }
+
+    /**
+     * Test multi-column slice restrictions with 1 descending clustering column and 1 ascending
+     * (e.g '(clustering_0, clustering_1) > (1, 2)')
+     */
+    @Test
+    public void testBoundsAsClusteringWithMultiSliceRestrictionsWithOneDescendingAndOneAscendingClusteringColumns()
+    {
+        CFMetaData cfMetaData = newCFMetaData(Sort.DESC, Sort.ASC);
+
+        ByteBuffer value1 = ByteBufferUtil.bytes(1);
+        ByteBuffer value2 = ByteBufferUtil.bytes(2);
+
+        // (clustering_0, clustering1) > (1, 2)
+        Restriction slice = newMultiSlice(cfMetaData, 0, Bound.START, false, value1, value2);
+        PrimaryKeyRestrictions restrictions = new PrimaryKeyRestrictionSet(cfMetaData.comparator, false);
+        restrictions = restrictions.mergeWith(slice);
+
+        SortedSet<Slice.Bound> bounds = restrictions.boundsAsClustering(Bound.START, QueryOptions.DEFAULT);
+        assertEquals(2, bounds.size());
+        assertEmptyStart(get(bounds, 0));
+        assertStartBound(get(bounds, 1), false, value1, value2);
+
+        bounds = restrictions.boundsAsClustering(Bound.END, QueryOptions.DEFAULT);
+        assertEquals(2, bounds.size());
+        assertEndBound(get(bounds, 0), false, value1);
+        assertEndBound(get(bounds, 1), true, value1);
+
+        // (clustering_0, clustering1) >= (1, 2)
+        slice = newMultiSlice(cfMetaData, 0, Bound.START, true, value1, value2);
+        restrictions = new PrimaryKeyRestrictionSet(cfMetaData.comparator, false);
+        restrictions = restrictions.mergeWith(slice);
+
+        bounds = restrictions.boundsAsClustering(Bound.START, QueryOptions.DEFAULT);
+        assertEquals(2, bounds.size());
+        assertEmptyStart(get(bounds, 0));
+        assertStartBound(get(bounds, 1), true, value1, value2);
+
+        bounds = restrictions.boundsAsClustering(Bound.END, QueryOptions.DEFAULT);
+        assertEquals(2, bounds.size());
+        assertEndBound(get(bounds, 0), false, value1);
+        assertEndBound(get(bounds, 1), true, value1);
+
+        // (clustering_0, clustering1) <= (1, 2)
+        slice = newMultiSlice(cfMetaData, 0, Bound.END, true, value1, value2);
+        restrictions = new PrimaryKeyRestrictionSet(cfMetaData.comparator, false);
+        restrictions = restrictions.mergeWith(slice);
+
+        bounds = restrictions.boundsAsClustering(Bound.START, QueryOptions.DEFAULT);
+        assertEquals(2, bounds.size());
+        assertStartBound(get(bounds, 0), true, value1);
+        assertStartBound(get(bounds, 1), false, value1);
+
+        bounds = restrictions.boundsAsClustering(Bound.END, QueryOptions.DEFAULT);
+        assertEquals(2, bounds.size());
+        assertEndBound(get(bounds, 0), true, value1, value2);
+        assertEmptyEnd(get(bounds, 1));
+
+        // (clustering_0, clustering1) < (1, 2)
+        slice = newMultiSlice(cfMetaData, 0, Bound.END, false, value1, value2);
+        restrictions = new PrimaryKeyRestrictionSet(cfMetaData.comparator, false);
+        restrictions = restrictions.mergeWith(slice);
+
+        bounds = restrictions.boundsAsClustering(Bound.START, QueryOptions.DEFAULT);
+        assertEquals(2, bounds.size());
+        assertStartBound(get(bounds, 0), true, value1);
+        assertStartBound(get(bounds, 1), false, value1);
+
+        bounds = restrictions.boundsAsClustering(Bound.END, QueryOptions.DEFAULT);
+        assertEquals(2, bounds.size());
+        assertEndBound(get(bounds, 0), false, value1, value2);
+        assertEmptyEnd(get(bounds, 1));
+
+        // (clustering_0, clustering1) > (1, 2) AND (clustering_0) < (2)
+        slice = newMultiSlice(cfMetaData, 0, Bound.START, false, value1, value2);
+        Restriction slice2 = newMultiSlice(cfMetaData, 0, Bound.END, false, value2);
+        restrictions = new PrimaryKeyRestrictionSet(cfMetaData.comparator, false);
+        restrictions = restrictions.mergeWith(slice).mergeWith(slice2);
+
+        bounds = restrictions.boundsAsClustering(Bound.START, QueryOptions.DEFAULT);
+        assertEquals(2, bounds.size());
+        assertStartBound(get(bounds, 0), false, value2);
+        assertStartBound(get(bounds, 1), false, value1, value2);
+
+        bounds = restrictions.boundsAsClustering(Bound.END, QueryOptions.DEFAULT);
+        assertEquals(2, bounds.size());
+        assertEndBound(get(bounds, 0), false, value1);
+        assertEndBound(get(bounds, 1), true, value1);
+
+        // (clustering_0) > (1) AND (clustering_0, clustering1) < (2, 1)
+        slice = newMultiSlice(cfMetaData, 0, Bound.START, false, value1);
+        slice2 = newMultiSlice(cfMetaData, 0, Bound.END, false, value2, value1);
+        restrictions = new PrimaryKeyRestrictionSet(cfMetaData.comparator, false);
+        restrictions = restrictions.mergeWith(slice).mergeWith(slice2);
+
+        bounds = restrictions.boundsAsClustering(Bound.START, QueryOptions.DEFAULT);
+        assertEquals(2, bounds.size());
+        assertStartBound(get(bounds, 0), true, value2);
+        assertStartBound(get(bounds, 1), false, value2);
+
+        bounds = restrictions.boundsAsClustering(Bound.END, QueryOptions.DEFAULT);
+        assertEquals(2, bounds.size());
+        assertEndBound(get(bounds, 0), false, value2, value1);
+        assertEndBound(get(bounds, 1), false, value1);
+
+        // (clustering_0, clustering1) >= (1, 2) AND (clustering_0, clustering1) <= (2, 1)
+        slice = newMultiSlice(cfMetaData, 0, Bound.START, true, value1, value2);
+        slice2 = newMultiSlice(cfMetaData, 0, Bound.END, true, value2, value1);
+        restrictions = new PrimaryKeyRestrictionSet(cfMetaData.comparator, false);
+        restrictions = restrictions.mergeWith(slice).mergeWith(slice2);
+
+        bounds = restrictions.boundsAsClustering(Bound.START, QueryOptions.DEFAULT);
+        assertEquals(3, bounds.size());
+        assertStartBound(get(bounds, 0), true, value2);
+        assertStartBound(get(bounds, 1), false, value2);
+        assertStartBound(get(bounds, 2), true, value1, value2);
+
+        bounds = restrictions.boundsAsClustering(Bound.END, QueryOptions.DEFAULT);
+        assertEquals(3, bounds.size());
+        assertEndBound(get(bounds, 0), true, value2, value1);
+        assertEndBound(get(bounds, 1), false, value1);
+        assertEndBound(get(bounds, 2), true, value1);
+    }
+
+    /**
+     * Test multi-column slice restrictions with 1 descending clustering column and 1 ascending
+     * (e.g '(clustering_0, clustering_1) > (1, 2)')
+     */
+    @Test
+    public void testBoundsAsClusteringWithMultiSliceRestrictionsWithOneAscendingAndOneDescendingClusteringColumns()
+    {
+        CFMetaData cfMetaData = newCFMetaData(Sort.ASC, Sort.DESC);
+
+        ByteBuffer value1 = ByteBufferUtil.bytes(1);
+        ByteBuffer value2 = ByteBufferUtil.bytes(2);
+
+        // (clustering_0, clustering1) > (1, 2)
+        Restriction slice = newMultiSlice(cfMetaData, 0, Bound.START, false, value1, value2);
+        PrimaryKeyRestrictions restrictions = new PrimaryKeyRestrictionSet(cfMetaData.comparator, false);
+        restrictions = restrictions.mergeWith(slice);
+
+        SortedSet<Slice.Bound> bounds = restrictions.boundsAsClustering(Bound.START, QueryOptions.DEFAULT);
+        assertEquals(2, bounds.size());
+        assertStartBound(get(bounds, 0), true, value1);
+        assertStartBound(get(bounds, 1), false, value1);
+
+        bounds = restrictions.boundsAsClustering(Bound.END, QueryOptions.DEFAULT);
+        assertEquals(2, bounds.size());
+        assertEndBound(get(bounds, 0), false, value1, value2);
+        assertEmptyEnd(get(bounds, 1));
+
+        // (clustering_0, clustering1) >= (1, 2)
+        slice = newMultiSlice(cfMetaData, 0, Bound.START, true, value1, value2);
+        restrictions = new PrimaryKeyRestrictionSet(cfMetaData.comparator, false);
+        restrictions = restrictions.mergeWith(slice);
+
+        bounds = restrictions.boundsAsClustering(Bound.START, QueryOptions.DEFAULT);
+        assertEquals(2, bounds.size());
+        assertStartBound(get(bounds, 0), true, value1);
+        assertStartBound(get(bounds, 1), false, value1);
+
+        bounds = restrictions.boundsAsClustering(Bound.END, QueryOptions.DEFAULT);
+        assertEquals(2, bounds.size());
+        assertEndBound(get(bounds, 0), true, value1, value2);
+        assertEmptyEnd(get(bounds, 1));
+
+        // (clustering_0, clustering1) <= (1, 2)
+        slice = newMultiSlice(cfMetaData, 0, Bound.END, true, value1, value2);
+        restrictions = new PrimaryKeyRestrictionSet(cfMetaData.comparator, false);
+        restrictions = restrictions.mergeWith(slice);
+
+        bounds = restrictions.boundsAsClustering(Bound.START, QueryOptions.DEFAULT);
+        assertEquals(2, bounds.size());
+        assertEmptyStart(get(bounds, 0));
+        assertStartBound(get(bounds, 1), true, value1, value2);
+
+        bounds = restrictions.boundsAsClustering(Bound.END, QueryOptions.DEFAULT);
+        assertEquals(2, bounds.size());
+        assertEndBound(get(bounds, 0), false, value1);
+        assertEndBound(get(bounds, 1), true, value1);
+
+        // (clustering_0, clustering1) < (1, 2)
+        slice = newMultiSlice(cfMetaData, 0, Bound.END, false, value1, value2);
+        restrictions = new PrimaryKeyRestrictionSet(cfMetaData.comparator, false);
+        restrictions = restrictions.mergeWith(slice);
+
+        bounds = restrictions.boundsAsClustering(Bound.START, QueryOptions.DEFAULT);
+        assertEquals(2, bounds.size());
+        assertEmptyStart(get(bounds, 0));
+        assertStartBound(get(bounds, 1), false, value1, value2);
+
+        bounds = restrictions.boundsAsClustering(Bound.END, QueryOptions.DEFAULT);
+        assertEquals(2, bounds.size());
+        assertEndBound(get(bounds, 0), false, value1);
+        assertEndBound(get(bounds, 1), true, value1);
+
+        // (clustering_0, clustering1) > (1, 2) AND (clustering_0) < (2)
+        slice = newMultiSlice(cfMetaData, 0, Bound.START, false, value1, value2);
+        Restriction slice2 = newMultiSlice(cfMetaData, 0, Bound.END, false, value2);
+        restrictions = new PrimaryKeyRestrictionSet(cfMetaData.comparator, false);
+        restrictions = restrictions.mergeWith(slice).mergeWith(slice2);
+
+        bounds = restrictions.boundsAsClustering(Bound.START, QueryOptions.DEFAULT);
+        assertEquals(2, bounds.size());
+        assertStartBound(get(bounds, 0), true, value1);
+        assertStartBound(get(bounds, 1), false, value1);
+
+        bounds = restrictions.boundsAsClustering(Bound.END, QueryOptions.DEFAULT);
+        assertEquals(2, bounds.size());
+        assertEndBound(get(bounds, 0), false, value1, value2);
+        assertEndBound(get(bounds, 1), false, value2);
+
+        // (clustering_0, clustering1) >= (1, 2) AND (clustering_0, clustering1) <= (2, 1)
+        slice = newMultiSlice(cfMetaData, 0, Bound.START, true, value1, value2);
+        slice2 = newMultiSlice(cfMetaData, 0, Bound.END, true, value2, value1);
+        restrictions = new PrimaryKeyRestrictionSet(cfMetaData.comparator, false);
+        restrictions = restrictions.mergeWith(slice).mergeWith(slice2);
+
+        bounds = restrictions.boundsAsClustering(Bound.START, QueryOptions.DEFAULT);
+        assertEquals(3, bounds.size());
+        assertStartBound(get(bounds, 0), true, value1);
+        assertStartBound(get(bounds, 1), false, value1);
+        assertStartBound(get(bounds, 2), true, value2, value1);
+
+        bounds = restrictions.boundsAsClustering(Bound.END, QueryOptions.DEFAULT);
+        assertEquals(3, bounds.size());
+        assertEndBound(get(bounds, 0), true, value1, value2);
+        assertEndBound(get(bounds, 1), false, value2);
+        assertEndBound(get(bounds, 2), true, value2);
+    }
+
+    /**
+     * Test multi-column slice restrictions with 2 ascending clustering column and 2 descending
+     * (e.g '(clustering_0, clustering1, clustering_3, clustering4) > (1, 2, 3, 4)')
+     */
+    @Test
+    public void testBoundsAsClusteringWithMultiSliceRestrictionsWithTwoAscendingAndTwoDescendingClusteringColumns()
+    {
+        CFMetaData cfMetaData = newCFMetaData(Sort.ASC, Sort.ASC, Sort.DESC, Sort.DESC);
+
+        ByteBuffer value1 = ByteBufferUtil.bytes(1);
+        ByteBuffer value2 = ByteBufferUtil.bytes(2);
+        ByteBuffer value3 = ByteBufferUtil.bytes(3);
+        ByteBuffer value4 = ByteBufferUtil.bytes(4);
+
+        // (clustering_0, clustering1, clustering_2, clustering_3) > (1, 2, 3, 4)
+        Restriction slice = newMultiSlice(cfMetaData, 0, Bound.START, false, value1, value2, value3, value4);
+        PrimaryKeyRestrictions restrictions = new PrimaryKeyRestrictionSet(cfMetaData.comparator, false);
+        restrictions = restrictions.mergeWith(slice);
+
+        SortedSet<Slice.Bound> bounds = restrictions.boundsAsClustering(Bound.START, QueryOptions.DEFAULT);
+        assertEquals(2, bounds.size());
+        assertStartBound(get(bounds, 0), true, value1, value2);
+        assertStartBound(get(bounds, 1), false, value1, value2);
+
+        bounds = restrictions.boundsAsClustering(Bound.END, QueryOptions.DEFAULT);
+        assertEquals(2, bounds.size());
+        assertEndBound(get(bounds, 0), false, value1, value2, value3, value4);
+        assertEmptyEnd(get(bounds, 1));
+
+        // clustering_0 = 1 AND (clustering_1, clustering_2, clustering_3) > (2, 3, 4)
+        Restriction eq = newSingleEq(cfMetaData, 0, value1);
+        slice = newMultiSlice(cfMetaData, 1, Bound.START, false, value2, value3, value4);
+        restrictions = new PrimaryKeyRestrictionSet(cfMetaData.comparator, false);
+        restrictions = restrictions.mergeWith(slice);
+        restrictions = restrictions.mergeWith(eq);
+
+        bounds = restrictions.boundsAsClustering(Bound.START, QueryOptions.DEFAULT);
+        assertEquals(2, bounds.size());
+        assertStartBound(get(bounds, 0), true, value1, value2);
+        assertStartBound(get(bounds, 1), false, value1, value2);
+
+        bounds = restrictions.boundsAsClustering(Bound.END, QueryOptions.DEFAULT);
+        assertEquals(2, bounds.size());
+        assertEndBound(get(bounds, 0), false, value1, value2, value3, value4);
+        assertEndBound(get(bounds, 1), true, value1);
+
+        // clustering_0 IN (1, 2) AND (clustering_1, clustering_2, clustering_3) > (2, 3, 4)
+        Restriction in = newSingleIN(cfMetaData, 0, value1, value2);
+        slice = newMultiSlice(cfMetaData, 1, Bound.START, false, value2, value3, value4);
+        restrictions = new PrimaryKeyRestrictionSet(cfMetaData.comparator, false);
+        restrictions = restrictions.mergeWith(slice);
+        restrictions = restrictions.mergeWith(in);
+
+        bounds = restrictions.boundsAsClustering(Bound.START, QueryOptions.DEFAULT);
+        assertEquals(4, bounds.size());
+        assertStartBound(get(bounds, 0), true, value1, value2);
+        assertStartBound(get(bounds, 1), false, value1, value2);
+        assertStartBound(get(bounds, 2), true, value2, value2);
+        assertStartBound(get(bounds, 3), false, value2, value2);
+
+        bounds = restrictions.boundsAsClustering(Bound.END, QueryOptions.DEFAULT);
+        assertEquals(4, bounds.size());
+        assertEndBound(get(bounds, 0), false, value1, value2, value3, value4);
+        assertEndBound(get(bounds, 1), true, value1);
+        assertEndBound(get(bounds, 2), false, value2, value2, value3, value4);
+        assertEndBound(get(bounds, 3), true, value2);
+
+        // (clustering_0, clustering1) >= (1, 2)
+        slice = newMultiSlice(cfMetaData, 0, Bound.START, true, value1, value2);
+        restrictions = new PrimaryKeyRestrictionSet(cfMetaData.comparator, false);
+        restrictions = restrictions.mergeWith(slice);
+
+        bounds = restrictions.boundsAsClustering(Bound.START, QueryOptions.DEFAULT);
+        assertEquals(1, bounds.size());
+        assertStartBound(get(bounds, 0), true, value1, value2);
+
+        bounds = restrictions.boundsAsClustering(Bound.END, QueryOptions.DEFAULT);
+        assertEquals(1, bounds.size());
+        assertEmptyEnd(get(bounds, 0));
+
+        // (clustering_0, clustering1, clustering_2, clustering_3) >= (1, 2, 3, 4)
+        slice = newMultiSlice(cfMetaData, 0, Bound.START, true, value1, value2, value3, value4);
+        restrictions = new PrimaryKeyRestrictionSet(cfMetaData.comparator, false);
+        restrictions = restrictions.mergeWith(slice);
+
+        bounds = restrictions.boundsAsClustering(Bound.START, QueryOptions.DEFAULT);
+        assertEquals(2, bounds.size());
+        assertStartBound(get(bounds, 0), true, value1, value2);
+        assertStartBound(get(bounds, 1), false, value1, value2);
+
+        bounds = restrictions.boundsAsClustering(Bound.END, QueryOptions.DEFAULT);
+        assertEquals(2, bounds.size());
+        assertEndBound(get(bounds, 0), true, value1, value2, value3, value4);
+        assertEmptyEnd(get(bounds, 1));
+
+        // (clustering_0, clustering1, clustering_2, clustering_3) <= (1, 2, 3, 4)
+        slice = newMultiSlice(cfMetaData, 0, Bound.END, true, value1, value2, value3, value4);
+        restrictions = new PrimaryKeyRestrictionSet(cfMetaData.comparator, false);
+        restrictions = restrictions.mergeWith(slice);
+
+        bounds = restrictions.boundsAsClustering(Bound.START, QueryOptions.DEFAULT);
+        assertEquals(2, bounds.size());
+        assertEmptyStart(get(bounds, 0));
+        assertStartBound(get(bounds, 1), true, value1, value2, value3, value4);
+
+        bounds = restrictions.boundsAsClustering(Bound.END, QueryOptions.DEFAULT);
+        assertEquals(2, bounds.size());
+        assertEndBound(get(bounds, 0), false, value1, value2);
+        assertEndBound(get(bounds, 1), true, value1, value2);
+
+        // (clustering_0, clustering1, clustering_2, clustering_3) < (1, 2, 3, 4)
+        slice = newMultiSlice(cfMetaData, 0, Bound.END, false, value1, value2, value3, value4);
+        restrictions = new PrimaryKeyRestrictionSet(cfMetaData.comparator, false);
+        restrictions = restrictions.mergeWith(slice);
+
+        bounds = restrictions.boundsAsClustering(Bound.START, QueryOptions.DEFAULT);
+        assertEquals(2, bounds.size());
+        assertEmptyStart(get(bounds, 0));
+        assertStartBound(get(bounds, 1), false, value1, value2, value3, value4);
+
+        bounds = restrictions.boundsAsClustering(Bound.END, QueryOptions.DEFAULT);
+        assertEquals(2, bounds.size());
+        assertEndBound(get(bounds, 0), false, value1, value2);
+        assertEndBound(get(bounds, 1), true, value1, value2);
+
+        // (clustering_0, clustering1, clustering_2, clustering_3) > (1, 2, 3, 4) AND (clustering_0, clustering_1) < (2, 3)
+        slice = newMultiSlice(cfMetaData, 0, Bound.START, false, value1, value2, value3, value4);
+        Restriction slice2 = newMultiSlice(cfMetaData, 0, Bound.END, false, value2, value3);
+        restrictions = new PrimaryKeyRestrictionSet(cfMetaData.comparator, false);
+        restrictions = restrictions.mergeWith(slice).mergeWith(slice2);
+
+        bounds = restrictions.boundsAsClustering(Bound.START, QueryOptions.DEFAULT);
+        assertEquals(2, bounds.size());
+        assertStartBound(get(bounds, 0), true, value1, value2);
+        assertStartBound(get(bounds, 1), false, value1, value2);
+
+        bounds = restrictions.boundsAsClustering(Bound.END, QueryOptions.DEFAULT);
+        assertEquals(2, bounds.size());
+        assertEndBound(get(bounds, 0), false, value1, value2, value3, value4);
+        assertEndBound(get(bounds, 1), false, value2, value3);
+
+        // (clustering_0, clustering1, clustering_2, clustering_3) >= (1, 2, 3, 4) AND (clustering_0, clustering1, clustering_2, clustering_3) <= (4, 3, 2, 1)
+        slice = newMultiSlice(cfMetaData, 0, Bound.START, true, value1, value2, value3, value4);
+        slice2 = newMultiSlice(cfMetaData, 0, Bound.END, true, value4, value3, value2, value1);
+        restrictions = new PrimaryKeyRestrictionSet(cfMetaData.comparator, false);
+        restrictions = restrictions.mergeWith(slice).mergeWith(slice2);
+
+        bounds = restrictions.boundsAsClustering(Bound.START, QueryOptions.DEFAULT);
+        assertEquals(3, bounds.size());
+        assertStartBound(get(bounds, 0), true, value1, value2);
+        assertStartBound(get(bounds, 1), false, value1, value2);
+        assertStartBound(get(bounds, 2), true, value4, value3, value2, value1);
+
+        bounds = restrictions.boundsAsClustering(Bound.END, QueryOptions.DEFAULT);
+        assertEquals(3, bounds.size());
+        assertEndBound(get(bounds, 0), true, value1, value2, value3, value4);
+        assertEndBound(get(bounds, 1), false, value4, value3);
+        assertEndBound(get(bounds, 2), true, value4, value3);
+    }
+
+    /**
+     * Test multi-column slice restrictions with ascending, descending, ascending and descending columns
+     * (e.g '(clustering_0, clustering1, clustering_3, clustering4) > (1, 2, 3, 4)')
+     */
+    @Test
+    public void testBoundsAsClusteringWithMultiSliceRestrictionsWithAscendingDescendingColumnMix()
+    {
+        CFMetaData cfMetaData = newCFMetaData(Sort.ASC, Sort.DESC, Sort.ASC, Sort.DESC);
+
+        ByteBuffer value1 = ByteBufferUtil.bytes(1);
+        ByteBuffer value2 = ByteBufferUtil.bytes(2);
+        ByteBuffer value3 = ByteBufferUtil.bytes(3);
+        ByteBuffer value4 = ByteBufferUtil.bytes(4);
+
+        // (clustering_0, clustering1, clustering_2, clustering_3) > (1, 2, 3, 4)
+        Restriction slice = newMultiSlice(cfMetaData, 0, Bound.START, false, value1, value2, value3, value4);
+        PrimaryKeyRestrictions restrictions = new PrimaryKeyRestrictionSet(cfMetaData.comparator, false);
+        restrictions = restrictions.mergeWith(slice);
+
+        SortedSet<Slice.Bound> bounds = restrictions.boundsAsClustering(Bound.START, QueryOptions.DEFAULT);
+        assertEquals(4, bounds.size());
+        assertStartBound(get(bounds, 0), true, value1);
+        assertStartBound(get(bounds, 1), true, value1, value2, value3);
+        assertStartBound(get(bounds, 2), false, value1, value2, value3);
+        assertStartBound(get(bounds, 3), false, value1);
+
+
+        bounds = restrictions.boundsAsClustering(Bound.END, QueryOptions.DEFAULT);
+        assertEquals(4, bounds.size());
+        assertEndBound(get(bounds, 0), false, value1, value2);
+        assertEndBound(get(bounds, 1), false, value1, value2, value3, value4);
+        assertEndBound(get(bounds, 2), true, value1, value2);
+        assertEmptyEnd(get(bounds, 3));
+
+        // clustering_0 = 1 AND (clustering_1, clustering_2, clustering_3) > (2, 3, 4)
+        Restriction eq = newSingleEq(cfMetaData, 0, value1);
+        slice = newMultiSlice(cfMetaData, 1, Bound.START, false, value2, value3, value4);
+        restrictions = new PrimaryKeyRestrictionSet(cfMetaData.comparator, false);
+        restrictions = restrictions.mergeWith(slice);
+        restrictions = restrictions.mergeWith(eq);
+
+        bounds = restrictions.boundsAsClustering(Bound.START, QueryOptions.DEFAULT);
+        assertEquals(3, bounds.size());
+        assertStartBound(get(bounds, 0), true, value1);
+        assertStartBound(get(bounds, 1), true, value1, value2, value3);
+        assertStartBound(get(bounds, 2), false, value1, value2, value3);
+
+        bounds = restrictions.boundsAsClustering(Bound.END, QueryOptions.DEFAULT);
+        assertEquals(3, bounds.size());
+        assertEndBound(get(bounds, 0), false, value1, value2);
+        assertEndBound(get(bounds, 1), false, value1, value2, value3, value4);
+        assertEndBound(get(bounds, 2), true, value1, value2);
+
+        // (clustering_0, clustering1) >= (1, 2)
+        slice = newMultiSlice(cfMetaData, 0, Bound.START, true, value1, value2);
+        restrictions = new PrimaryKeyRestrictionSet(cfMetaData.comparator, false);
+        restrictions = restrictions.mergeWith(slice);
+
+        bounds = restrictions.boundsAsClustering(Bound.START, QueryOptions.DEFAULT);
+        assertEquals(2, bounds.size());
+        assertStartBound(get(bounds, 0), true, value1);
+        assertStartBound(get(bounds, 1), false, value1);
+
+        bounds = restrictions.boundsAsClustering(Bound.END, QueryOptions.DEFAULT);
+        assertEquals(2, bounds.size());
+        assertEndBound(get(bounds, 0), true, value1, value2);
+        assertEmptyEnd(get(bounds, 1));
+
+        // (clustering_0, clustering1, clustering_2, clustering_3) >= (1, 2, 3, 4)
+        slice = newMultiSlice(cfMetaData, 0, Bound.START, true, value1, value2, value3, value4);
+        restrictions = new PrimaryKeyRestrictionSet(cfMetaData.comparator, false);
+        restrictions = restrictions.mergeWith(slice);
+
+        bounds = restrictions.boundsAsClustering(Bound.START, QueryOptions.DEFAULT);
+        assertEquals(4, bounds.size());
+        assertStartBound(get(bounds, 0), true, value1);
+        assertStartBound(get(bounds, 1), true, value1, value2, value3);
+        assertStartBound(get(bounds, 2), false, value1, value2, value3);
+        assertStartBound(get(bounds, 3), false, value1);
+
+        bounds = restrictions.boundsAsClustering(Bound.END, QueryOptions.DEFAULT);
+        assertEquals(4, bounds.size());
+        assertEndBound(get(bounds, 0), false, value1, value2);
+        assertEndBound(get(bounds, 1), true, value1, value2, value3, value4);
+        assertEndBound(get(bounds, 2), true, value1, value2);
+        assertEmptyEnd(get(bounds, 3));
+
+        // (clustering_0, clustering1, clustering_2, clustering_3) <= (1, 2, 3, 4)
+        slice = newMultiSlice(cfMetaData, 0, Bound.END, true, value1, value2, value3, value4);
+        restrictions = new PrimaryKeyRestrictionSet(cfMetaData.comparator, false);
+        restrictions = restrictions.mergeWith(slice);
+
+        bounds = restrictions.boundsAsClustering(Bound.START, QueryOptions.DEFAULT);
+        assertEquals(4, bounds.size());
+        assertEmptyStart(get(bounds, 0));
+        assertStartBound(get(bounds, 1), true, value1, value2);
+        assertStartBound(get(bounds, 2), true, value1, value2, value3, value4);
+        assertStartBound(get(bounds, 3), false, value1, value2);
+
+        bounds = restrictions.boundsAsClustering(Bound.END, QueryOptions.DEFAULT);
+        assertEquals(4, bounds.size());
+        assertEndBound(get(bounds, 0), false, value1);
+        assertEndBound(get(bounds, 1), false, value1, value2, value3);
+        assertEndBound(get(bounds, 2), true, value1, value2, value3);
+        assertEndBound(get(bounds, 3), true, value1);
+
+        // (clustering_0, clustering1, clustering_2, clustering_3) < (1, 2, 3, 4)
+        slice = newMultiSlice(cfMetaData, 0, Bound.END, false, value1, value2, value3, value4);
+        restrictions = new PrimaryKeyRestrictionSet(cfMetaData.comparator, false);
+        restrictions = restrictions.mergeWith(slice);
+
+        bounds = restrictions.boundsAsClustering(Bound.START, QueryOptions.DEFAULT);
+        assertEquals(4, bounds.size());
+        assertEmptyStart(get(bounds, 0));
+        assertStartBound(get(bounds, 1), true, value1, value2);
+        assertStartBound(get(bounds, 2), false, value1, value2, value3, value4);
+        assertStartBound(get(bounds, 3), false, value1, value2);
+
+        bounds = restrictions.boundsAsClustering(Bound.END, QueryOptions.DEFAULT);
+        assertEquals(4, bounds.size());
+        assertEndBound(get(bounds, 0), false, value1);
+        assertEndBound(get(bounds, 1), false, value1, value2, value3);
+        assertEndBound(get(bounds, 2), true, value1, value2, value3);
+        assertEndBound(get(bounds, 3), true, value1);
+
+        // (clustering_0, clustering1, clustering_2, clustering_3) > (1, 2, 3, 4) AND (clustering_0, clustering_1) < (2, 3)
+        slice = newMultiSlice(cfMetaData, 0, Bound.START, false, value1, value2, value3, value4);
+        Restriction slice2 = newMultiSlice(cfMetaData, 0, Bound.END, false, value2, value3);
+        restrictions = new PrimaryKeyRestrictionSet(cfMetaData.comparator, false);
+        restrictions = restrictions.mergeWith(slice).mergeWith(slice2);
+
+        bounds = restrictions.boundsAsClustering(Bound.START, QueryOptions.DEFAULT);
+        assertEquals(5, bounds.size());
+        assertStartBound(get(bounds, 0), true, value1);
+        assertStartBound(get(bounds, 1), true, value1, value2, value3);
+        assertStartBound(get(bounds, 2), false, value1, value2, value3);
+        assertStartBound(get(bounds, 3), false, value1);
+        assertStartBound(get(bounds, 4), false, value2, value3);
+
+        bounds = restrictions.boundsAsClustering(Bound.END, QueryOptions.DEFAULT);
+        assertEquals(5, bounds.size());
+        assertEndBound(get(bounds, 0), false, value1, value2);
+        assertEndBound(get(bounds, 1), false, value1, value2, value3, value4);
+        assertEndBound(get(bounds, 2), true, value1, value2);
+        assertEndBound(get(bounds, 3), false, value2);
+        assertEndBound(get(bounds, 4), true, value2);
+
+        // (clustering_0, clustering1, clustering_2, clustering_3) >= (1, 2, 3, 4) AND (clustering_0, clustering1, clustering_2, clustering_3) <= (4, 3, 2, 1)
+        slice = newMultiSlice(cfMetaData, 0, Bound.START, true, value1, value2, value3, value4);
+        slice2 = newMultiSlice(cfMetaData, 0, Bound.END, true, value4, value3, value2, value1);
+        restrictions = new PrimaryKeyRestrictionSet(cfMetaData.comparator, false);
+        restrictions = restrictions.mergeWith(slice).mergeWith(slice2);
+
+        bounds = restrictions.boundsAsClustering(Bound.START, QueryOptions.DEFAULT);
+        assertEquals(7, bounds.size());
+        assertStartBound(get(bounds, 0), true, value1);
+        assertStartBound(get(bounds, 1), true, value1, value2, value3);
+        assertStartBound(get(bounds, 2), false, value1, value2, value3);
+        assertStartBound(get(bounds, 3), false, value1);
+        assertStartBound(get(bounds, 4), true, value4, value3);
+        assertStartBound(get(bounds, 5), true, value4, value3, value2, value1);
+        assertStartBound(get(bounds, 6), false, value4, value3);
+
+        bounds = restrictions.boundsAsClustering(Bound.END, QueryOptions.DEFAULT);
+        assertEquals(7, bounds.size());
+        assertEndBound(get(bounds, 0), false, value1, value2);
+        assertEndBound(get(bounds, 1), true, value1, value2, value3, value4);
+        assertEndBound(get(bounds, 2), true, value1, value2);
+        assertEndBound(get(bounds, 3), false, value4);
+        assertEndBound(get(bounds, 4), false, value4, value3, value2);
+        assertEndBound(get(bounds, 5), true, value4, value3, value2);
+        assertEndBound(get(bounds, 6), true, value4);
+    }
+
+    /**
      * Test mixing single and multi equals restrictions (e.g. clustering_0 = 1 AND (clustering_1, clustering_2) = (2, 3))
      */
     @Test
-    public void testboundsAsClusteringWithSingleEqAndMultiEqRestrictions() throws InvalidRequestException
+    public void testBoundsAsClusteringWithSingleEqAndMultiEqRestrictions()
     {
-        CFMetaData cfMetaData = newCFMetaData(4);
+        CFMetaData cfMetaData = newCFMetaData(Sort.ASC, Sort.ASC, Sort.ASC, Sort.ASC);
 
         ByteBuffer value1 = ByteBufferUtil.bytes(1);
         ByteBuffer value2 = ByteBufferUtil.bytes(2);
@@ -639,9 +1471,9 @@ public class PrimaryKeyRestrictionSetTest
      * Test clustering_0 = 1 AND (clustering_1, clustering_2) IN ((2, 3), (4, 5))
      */
     @Test
-    public void testboundsAsClusteringWithSingleEqAndMultiINRestrictions() throws InvalidRequestException
+    public void testBoundsAsClusteringWithSingleEqAndMultiINRestrictions()
     {
-        CFMetaData cfMetaData = newCFMetaData(4);
+        CFMetaData cfMetaData = newCFMetaData(Sort.ASC, Sort.ASC, Sort.ASC, Sort.ASC);
 
         ByteBuffer value1 = ByteBufferUtil.bytes(1);
         ByteBuffer value2 = ByteBufferUtil.bytes(2);
@@ -702,9 +1534,9 @@ public class PrimaryKeyRestrictionSetTest
      * (e.g. clustering_0 = 1 AND (clustering_1, clustering_2) > (2, 3))
      */
     @Test
-    public void testboundsAsClusteringWithSingleEqAndSliceRestrictions() throws InvalidRequestException
+    public void testBoundsAsClusteringWithSingleEqAndSliceRestrictions()
     {
-        CFMetaData cfMetaData = newCFMetaData(3);
+        CFMetaData cfMetaData = newCFMetaData(Sort.ASC, Sort.ASC, Sort.ASC);
 
         ByteBuffer value1 = ByteBufferUtil.bytes(1);
         ByteBuffer value2 = ByteBufferUtil.bytes(2);
@@ -762,9 +1594,9 @@ public class PrimaryKeyRestrictionSetTest
      * (e.g. clustering_0 = 1 AND (clustering_1, clustering_2) > (2, 3))
      */
     @Test
-    public void testboundsAsClusteringWithMultiEqAndSingleSliceRestrictions() throws InvalidRequestException
+    public void testBoundsAsClusteringWithMultiEqAndSingleSliceRestrictions()
     {
-        CFMetaData cfMetaData = newCFMetaData(3);
+        CFMetaData cfMetaData = newCFMetaData(Sort.ASC, Sort.ASC, Sort.ASC);
 
         ByteBuffer value1 = ByteBufferUtil.bytes(1);
         ByteBuffer value2 = ByteBufferUtil.bytes(2);
@@ -786,9 +1618,9 @@ public class PrimaryKeyRestrictionSetTest
     }
 
     @Test
-    public void testboundsAsClusteringWithSeveralMultiColumnRestrictions() throws InvalidRequestException
+    public void testBoundsAsClusteringWithSeveralMultiColumnRestrictions()
     {
-        CFMetaData cfMetaData = newCFMetaData(4);
+        CFMetaData cfMetaData = newCFMetaData(Sort.ASC, Sort.ASC, Sort.ASC, Sort.ASC);
 
         ByteBuffer value1 = ByteBufferUtil.bytes(1);
         ByteBuffer value2 = ByteBufferUtil.bytes(2);
@@ -907,18 +1739,18 @@ public class PrimaryKeyRestrictionSetTest
      * @param numberOfClusteringColumns the number of clustering column
      * @return a new <code>CFMetaData</code> instance
      */
-    private static CFMetaData newCFMetaData(int numberOfClusteringColumns)
+    private static CFMetaData newCFMetaData(Sort... sorts)
     {
         List<AbstractType<?>> types = new ArrayList<>();
 
-        for (int i = 0; i < numberOfClusteringColumns; i++)
-            types.add(Int32Type.instance);
+        for (Sort sort : sorts)
+            types.add(sort == Sort.ASC ? Int32Type.instance : ReversedType.getInstance(Int32Type.instance));
 
         CFMetaData.Builder builder = CFMetaData.Builder.create("keyspace", "test")
                                                        .addPartitionKey("partition_key", Int32Type.instance);
 
-        for (int i = 0; i < numberOfClusteringColumns; i++)
-            builder.addClusteringColumn("clustering_" + i, Int32Type.instance);
+        for (int i = 0; i < sorts.length; i++)
+            builder.addClusteringColumn("clustering_" + i, types.get(i));
 
         return builder.build();
     }
@@ -1077,5 +1909,11 @@ public class PrimaryKeyRestrictionSetTest
     private static <T> T get(SortedSet<T> set, int i)
     {
         return Iterables.get(set, i);
+    }
+
+    private static enum Sort
+    {
+        ASC,
+        DESC;
     }
 }
