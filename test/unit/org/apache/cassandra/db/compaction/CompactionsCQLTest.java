@@ -26,9 +26,9 @@ import org.apache.cassandra.cql3.CQLTester;
 import org.apache.cassandra.cql3.UntypedResultSet;
 import org.apache.cassandra.db.ColumnFamilyStore;
 import org.apache.cassandra.db.Keyspace;
-import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertTrue;
+import static org.junit.Assert.fail;
 
 public class CompactionsCQLTest extends CQLTester
 {
@@ -41,8 +41,7 @@ public class CompactionsCQLTest extends CQLTester
         flush();
         execute("insert into %s (id) values ('1')");
         flush();
-        Thread.sleep(1000);
-        assertTrue(minorWasTriggered(KEYSPACE, currentTable()));
+        waitForMinor(KEYSPACE, currentTable(), 5000, true);
     }
 
     @Test
@@ -54,8 +53,7 @@ public class CompactionsCQLTest extends CQLTester
         flush();
         execute("insert into %s (id) values ('1')");
         flush();
-        Thread.sleep(1000);
-        assertTrue(minorWasTriggered(KEYSPACE, currentTable()));
+        waitForMinor(KEYSPACE, currentTable(), 5000, true);
     }
 
 
@@ -68,8 +66,7 @@ public class CompactionsCQLTest extends CQLTester
         flush();
         execute("insert into %s (id) values ('1')");
         flush();
-        Thread.sleep(1000);
-        assertTrue(minorWasTriggered(KEYSPACE, currentTable()));
+        waitForMinor(KEYSPACE, currentTable(), 5000, true);
     }
 
     @Test
@@ -81,8 +78,7 @@ public class CompactionsCQLTest extends CQLTester
         flush();
         execute("insert into %s (id) values ('1')");
         flush();
-        Thread.sleep(1000);
-        assertFalse(minorWasTriggered(KEYSPACE, currentTable()));
+        waitForMinor(KEYSPACE, currentTable(), 5000, false);
     }
 
     @Test
@@ -96,8 +92,7 @@ public class CompactionsCQLTest extends CQLTester
         flush();
         execute("insert into %s (id) values ('1')");
         flush();
-        Thread.sleep(1000);
-        assertTrue(minorWasTriggered(KEYSPACE, currentTable()));
+        waitForMinor(KEYSPACE, currentTable(), 5000, true);
     }
 
     @Test
@@ -111,8 +106,7 @@ public class CompactionsCQLTest extends CQLTester
         flush();
         execute("insert into %s (id) values ('1')");
         flush();
-        Thread.sleep(1000);
-        assertFalse(minorWasTriggered(KEYSPACE, currentTable()));
+        waitForMinor(KEYSPACE, currentTable(), 5000, false);
     }
 
     @Test
@@ -126,8 +120,7 @@ public class CompactionsCQLTest extends CQLTester
         flush();
         execute("insert into %s (id) values ('1')");
         flush();
-        Thread.sleep(1000);
-        assertFalse(minorWasTriggered(KEYSPACE, currentTable()));
+        waitForMinor(KEYSPACE, currentTable(), 5000, false);
     }
 
     @Test
@@ -141,8 +134,7 @@ public class CompactionsCQLTest extends CQLTester
         flush();
         execute("insert into %s (id) values ('1')");
         flush();
-        Thread.sleep(1000);
-        assertTrue(minorWasTriggered(KEYSPACE, currentTable()));
+        waitForMinor(KEYSPACE, currentTable(), 5000, true);
     }
 
     @Test
@@ -226,15 +218,23 @@ public class CompactionsCQLTest extends CQLTester
         return Keyspace.open(KEYSPACE).getColumnFamilyStore(currentTable());
     }
 
-    private boolean minorWasTriggered(String keyspace, String cf) throws Throwable
+    private void waitForMinor(String keyspace, String cf, long maxWaitTime, boolean shouldFind) throws Throwable
     {
-        UntypedResultSet res = execute("SELECT * FROM system.compaction_history");
-        boolean minorWasTriggered = false;
-        for (UntypedResultSet.Row r : res)
+        long startTime = System.currentTimeMillis();
+        while (System.currentTimeMillis() - startTime < maxWaitTime)
         {
-            if (r.getString("keyspace_name").equals(keyspace) && r.getString("columnfamily_name").equals(cf))
-                minorWasTriggered = true;
+            UntypedResultSet res = execute("SELECT * FROM system.compaction_history");
+            for (UntypedResultSet.Row r : res)
+            {
+                if (r.getString("keyspace_name").equals(keyspace) && r.getString("columnfamily_name").equals(cf))
+                    if (shouldFind)
+                        return;
+                    else
+                        fail("Found minor compaction");
+            }
+            Thread.sleep(100);
         }
-        return minorWasTriggered;
+        if (shouldFind)
+            fail("No minor compaction triggered in "+maxWaitTime+"ms");
     }
 }
