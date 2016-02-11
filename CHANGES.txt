@@ -1,4 +1,5 @@
 2.2.6
+ * Make SELECT JSON and toJson() threadsafe (CASSANDRA-11048)
  * Fix SELECT on tuple relations for mixed ASC/DESC clustering order (CASSANDRA-7281)
  * (cqlsh) Support utf-8/cp65001 encoding on Windows (CASSANDRA-11030)
  * Fix paging on DISTINCT queries repeats result when first row in partition changes (CASSANDRA-10010)
