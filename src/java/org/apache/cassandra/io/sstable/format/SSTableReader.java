@@ -1175,17 +1175,18 @@ public abstract class SSTableReader extends SSTable implements SelfRefCounted<SS
             {
                 // we can use the existing index summary to make a smaller one
                 newSummary = IndexSummaryBuilder.downsample(indexSummary, samplingLevel, minIndexInterval, getPartitioner());
-
-                try(SegmentedFile.Builder ibuilder = SegmentedFile.getBuilder(DatabaseDescriptor.getIndexAccessMode(), false);
-                    SegmentedFile.Builder dbuilder = SegmentedFile.getBuilder(DatabaseDescriptor.getDiskAccessMode(), compression))
-                {
-                    saveSummary(ibuilder, dbuilder, newSummary);
-                }
             }
             else
             {
                 throw new AssertionError("Attempted to clone SSTableReader with the same index summary sampling level and " +
                         "no adjustments to min/max_index_interval");
+            }
+
+            //Always save the resampled index
+            try(SegmentedFile.Builder ibuilder = SegmentedFile.getBuilder(DatabaseDescriptor.getIndexAccessMode(), false);
+                SegmentedFile.Builder dbuilder = SegmentedFile.getBuilder(DatabaseDescriptor.getDiskAccessMode(), compression))
+            {
+                saveSummary(ibuilder, dbuilder, newSummary);
             }
 
             long newSize = bytesOnDisk();
