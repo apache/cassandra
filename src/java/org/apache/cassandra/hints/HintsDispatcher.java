@@ -32,7 +32,6 @@ import org.apache.cassandra.gms.FailureDetector;
 import org.apache.cassandra.net.IAsyncCallbackWithFailure;
 import org.apache.cassandra.net.MessageIn;
 import org.apache.cassandra.net.MessagingService;
-import org.apache.cassandra.service.StorageService;
 import org.apache.cassandra.utils.concurrent.SimpleCondition;
 
 /**
@@ -64,11 +63,10 @@ final class HintsDispatcher implements AutoCloseable
         this.isPaused = isPaused;
     }
 
-    static HintsDispatcher create(File file, RateLimiter rateLimiter, UUID hostId, UUID hintFor, AtomicBoolean isPaused)
+    static HintsDispatcher create(File file, RateLimiter rateLimiter, InetAddress address, UUID hostId, AtomicBoolean isPaused)
     {
-        InetAddress address = StorageService.instance.getEndpointForHostId(hostId);
         int messagingVersion = MessagingService.instance().getVersion(address);
-        return new HintsDispatcher(HintsReader.open(file, rateLimiter), hintFor, address, messagingVersion, isPaused);
+        return new HintsDispatcher(HintsReader.open(file, rateLimiter), hostId, address, messagingVersion, isPaused);
     }
 
     public void close()
@@ -152,6 +150,7 @@ final class HintsDispatcher implements AutoCloseable
     /*
      * Sending hints in compatibility mode.
      */
+
     private <T> Action sendHints(Iterator<T> hints, Collection<Callback> callbacks, Function<T, Callback> sendFunction)
     {
         while (hints.hasNext())
