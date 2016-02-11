@@ -21,6 +21,8 @@ import org.apache.cassandra.cql3.QueryOptions;
 import org.apache.cassandra.cql3.statements.Bound;
 import org.apache.cassandra.db.MultiCBuilder;
 
+import org.apache.cassandra.config.ColumnDefinition;
+
 /**
  * Base class for <code>Restriction</code>s
  */
@@ -90,5 +92,17 @@ abstract class AbstractRestriction  implements Restriction
     public boolean isInclusive(Bound b)
     {
         return true;
+    }
+
+    /**
+     * Reverses the specified bound if the column type is a reversed one.
+     *
+     * @param columnDefinition the column definition
+     * @param bound the bound
+     * @return the bound reversed if the column type was a reversed one or the original bound
+     */
+    protected static Bound reverseBoundIfNeeded(ColumnDefinition columnDefinition, Bound bound)
+    {
+        return columnDefinition.isReversedType() ? bound.reverse() : bound;
     }
 }

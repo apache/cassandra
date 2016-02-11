@@ -17,7 +17,7 @@
  */
 package org.apache.cassandra.cql3.restrictions;
 
-import java.util.Collection;
+import java.util.List;
 
 import org.apache.cassandra.config.ColumnDefinition;
 import org.apache.cassandra.cql3.QueryOptions;
@@ -61,7 +61,7 @@ public interface Restriction
      * Returns the column definitions in position order.
      * @return the column definitions in position order.
      */
-    public Collection<ColumnDefinition> getColumnDefs();
+    public List<ColumnDefinition> getColumnDefs();
 
     /**
      * Return an Iterable over all of the functions (both native and user-defined) used by any component

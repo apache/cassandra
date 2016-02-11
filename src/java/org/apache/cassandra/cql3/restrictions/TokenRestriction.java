@@ -68,7 +68,7 @@ public abstract class TokenRestriction extends AbstractPrimaryKeyRestrictions
     }
 
     @Override
-    public Collection<ColumnDefinition> getColumnDefs()
+    public List<ColumnDefinition> getColumnDefs()
     {
         return columnDefs;
     }

@@ -177,6 +177,16 @@ final class PrimaryKeyRestrictionSet extends AbstractPrimaryKeyRestrictions
         return false;
     }
 
+    private boolean hasMultiColumnSlice()
+    {
+        for (Restriction restriction : restrictions)
+        {
+            if (restriction.isMultiColumn() && restriction.isSlice())
+                return true;
+        }
+        return false;
+    }
+
     @Override
     public NavigableSet<Clustering> valuesAsClustering(QueryOptions options) throws InvalidRequestException
     {
@@ -204,33 +214,25 @@ final class PrimaryKeyRestrictionSet extends AbstractPrimaryKeyRestrictions
     @Override
     public NavigableSet<Slice.Bound> boundsAsClustering(Bound bound, QueryOptions options) throws InvalidRequestException
     {
-        MultiCBuilder builder = MultiCBuilder.create(comparator, hasIN());
+        MultiCBuilder builder = MultiCBuilder.create(comparator, hasIN() || hasMultiColumnSlice());
         int keyPosition = 0;
         for (Restriction r : restrictions)
         {
             ColumnDefinition def = r.getFirstColumn();
 
-            // The bound of this method is refering to the clustering order. So if said clustering order
-            // is reversed for this column, we should reverse the restriction we use.
-            Bound b = !def.isReversedType() ? bound : bound.reverse();
             if (keyPosition != def.position() || r.isContains())
                 break;
 
             if (r.isSlice())
             {
-                if (!r.hasBound(b))
-                {
-                    // There wasn't any non EQ relation on that key, we select all records having the preceding component as prefix.
-                    // For composites, if there was preceding component and we're computing the end, we must change the last component
-                    // End-Of-Component, otherwise we would be selecting only one record.
-                    return builder.buildBound(bound.isStart(), true);
-                }
-
-                r.appendBoundTo(builder, b, options);
-                return builder.buildBound(bound.isStart(), r.isInclusive(b));
+                r.appendBoundTo(builder, bound, options);
+                return builder.buildBoundForSlice(bound.isStart(),
+                                                  r.isInclusive(bound),
+                                                  r.isInclusive(bound.reverse()),
+                                                  r.getColumnDefs());
             }
 
-            r.appendBoundTo(builder, b, options);
+            r.appendBoundTo(builder, bound, options);
 
             if (builder.hasMissingElements())
                 return BTreeSet.empty(comparator);
@@ -305,7 +307,7 @@ final class PrimaryKeyRestrictionSet extends AbstractPrimaryKeyRestrictions
     }
 
     @Override
-    public Collection<ColumnDefinition> getColumnDefs()
+    public List<ColumnDefinition> getColumnDefs()
     {
         return restrictions.getColumnDefs();
     }
