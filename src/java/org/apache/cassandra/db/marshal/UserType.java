@@ -206,7 +206,7 @@ public class UserType extends TupleType
                 name = "\"" + name + "\"";
 
             sb.append('"');
-            sb.append(Json.JSON_STRING_ENCODER.quoteAsString(name));
+            sb.append(Json.quoteAsJsonString(name));
             sb.append("\": ");
 
             ByteBuffer valueBuffer = buffers[i];

@@ -35,9 +35,15 @@ public class Json
 {
     public static final ObjectMapper JSON_OBJECT_MAPPER = new ObjectMapper();
 
-    public static final JsonStringEncoder JSON_STRING_ENCODER = new JsonStringEncoder();
-
     public static final ColumnIdentifier JSON_COLUMN_ID = new ColumnIdentifier("[json]", true);
+
+    /**
+     * Quotes string contents using standard JSON quoting.
+     */
+    public static String quoteAsJsonString(String s)
+    {
+        return new String(JsonStringEncoder.getInstance().quoteAsString(s));
+    }
 
     public static Object decodeJson(String json)
     {
