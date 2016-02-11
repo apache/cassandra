@@ -198,13 +198,32 @@ public class LeveledCompactionStrategyTest
      */
     private void waitForLeveling(ColumnFamilyStore cfs) throws InterruptedException
     {
-        CompactionStrategyManager strategy = cfs.getCompactionStrategyManager();
-        // L0 is the lowest priority, so when that's done, we know everything is done
-        while (strategy.getSSTableCountPerLevel()[0] > 1)
+        CompactionStrategyManager strategyManager = cfs.getCompactionStrategyManager();
+        while (true)
+        {
+            // since we run several compaction strategies we wait until L0 in all strategies is empty and
+            // atleast one L1+ is non-empty. In these tests we always run a single data directory with only unrepaired data
+            // so it should be good enough
+            boolean allL0Empty = true;
+            boolean anyL1NonEmpty = false;
+            for (List<AbstractCompactionStrategy> strategies : strategyManager.getStrategies())
+            {
+                for (AbstractCompactionStrategy strategy : strategies)
+                {
+                    if (!(strategy instanceof LeveledCompactionStrategy))
+                        return;
+                    // note that we check > 1 here, if there is too little data in L0, we don't compact it up to L1
+                    if (((LeveledCompactionStrategy)strategy).getLevelSize(0) > 1)
+                        allL0Empty = false;
+                    for (int i = 1; i < 5; i++)
+                        if (((LeveledCompactionStrategy)strategy).getLevelSize(i) > 0)
+                            anyL1NonEmpty = true;
+                }
+            }
+            if (allL0Empty && anyL1NonEmpty)
+                return;
             Thread.sleep(100);
-
-        // in AbstractCompationStrategy.replaceSSTables() first we remove and then we add sstables so wait a little bit longer
-        Thread.sleep(10);
+        }
     }
 
     @Test
