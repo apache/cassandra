@@ -167,7 +167,7 @@ public class ScrubTest
 
         // with skipCorrupted == false, the scrub is expected to fail
         try (LifecycleTransaction txn = cfs.getTracker().tryModify(Arrays.asList(sstable), OperationType.SCRUB);
-             Scrubber scrubber = new Scrubber(cfs, txn, false, false, true);)
+             Scrubber scrubber = new Scrubber(cfs, txn, false, true);)
         {
             scrubber.scrub();
             fail("Expected a CorruptSSTableException to be thrown");
@@ -177,7 +177,7 @@ public class ScrubTest
         // with skipCorrupted == true, the corrupt rows will be skipped
         Scrubber.ScrubResult scrubResult;
         try (LifecycleTransaction txn = cfs.getTracker().tryModify(Arrays.asList(sstable), OperationType.SCRUB);
-             Scrubber scrubber = new Scrubber(cfs, txn, true, false, true);)
+             Scrubber scrubber = new Scrubber(cfs, txn, true, true);)
         {
             scrubResult = scrubber.scrubWithResult();
         }
@@ -227,7 +227,7 @@ public class ScrubTest
 
         // with skipCorrupted == false, the scrub is expected to fail
         try (LifecycleTransaction txn = cfs.getTracker().tryModify(Arrays.asList(sstable), OperationType.SCRUB);
-             Scrubber scrubber = new Scrubber(cfs, txn, false, false, true))
+             Scrubber scrubber = new Scrubber(cfs, txn, false, true))
         {
             // with skipCorrupted == true, the corrupt row will be skipped
             scrubber.scrub();
@@ -236,7 +236,7 @@ public class ScrubTest
         catch (IOError err) {}
 
         try (LifecycleTransaction txn = cfs.getTracker().tryModify(Arrays.asList(sstable), OperationType.SCRUB);
-             Scrubber scrubber = new Scrubber(cfs, txn, true, false, true))
+             Scrubber scrubber = new Scrubber(cfs, txn, true, true))
         {
             // with skipCorrupted == true, the corrupt row will be skipped
             scrubber.scrub();
@@ -350,7 +350,7 @@ public class ScrubTest
         for (SSTableReader sstable : cfs.getSSTables())
             new File(sstable.descriptor.filenameFor(Component.PRIMARY_INDEX)).delete();
 
-        CompactionManager.instance.performScrub(cfs, false, true, true);
+        CompactionManager.instance.performScrub(cfs, false, true);
 
         // check data is still there
         rows = cfs.getRangeSlice(Util.range("", ""), null, new IdentityQueryFilter(), 1000);
@@ -417,7 +417,7 @@ public class ScrubTest
             sstable.last = sstable.first;
 
         try (LifecycleTransaction txn = LifecycleTransaction.offline(OperationType.SCRUB, sstable);
-             Scrubber scrubber = new Scrubber(cfs, txn, false, true, true);)
+             Scrubber scrubber = new Scrubber(cfs, txn, false, true);)
         {
             scrubber.scrub();
         }
@@ -454,7 +454,7 @@ public class ScrubTest
         SSTableReader sstable = SSTableReader.openNoValidation(desc, components, cfs);
 
         try (LifecycleTransaction txn = LifecycleTransaction.offline(OperationType.SCRUB, sstable);
-             Scrubber scrubber = new Scrubber(cfs, txn, false, true, true);)
+             Scrubber scrubber = new Scrubber(cfs, txn, false, true);)
         {
             scrubber.scrub();
         }

@@ -56,8 +56,6 @@ public class Scrubber implements Closeable
     private final ScrubInfo scrubInfo;
     private final RowIndexEntry.IndexSerializer rowIndexEntrySerializer;
 
-    private final boolean isOffline;
-
     private SSTableReader newSstable;
     private SSTableReader newInOrderSstable;
 
@@ -81,20 +79,19 @@ public class Scrubber implements Closeable
     };
     private final SortedSet<Row> outOfOrderRows = new TreeSet<>(rowComparator);
 
-    public Scrubber(ColumnFamilyStore cfs, LifecycleTransaction transaction, boolean skipCorrupted, boolean isOffline, boolean checkData) throws IOException
+    public Scrubber(ColumnFamilyStore cfs, LifecycleTransaction transaction, boolean skipCorrupted, boolean checkData) throws IOException
     {
-        this(cfs, transaction, skipCorrupted, new OutputHandler.LogOutput(), isOffline, checkData);
+        this(cfs, transaction, skipCorrupted, new OutputHandler.LogOutput(), checkData);
     }
 
     @SuppressWarnings("resource")
-    public Scrubber(ColumnFamilyStore cfs, LifecycleTransaction transaction, boolean skipCorrupted, OutputHandler outputHandler, boolean isOffline, boolean checkData) throws IOException
+    public Scrubber(ColumnFamilyStore cfs, LifecycleTransaction transaction, boolean skipCorrupted, OutputHandler outputHandler, boolean checkData) throws IOException
     {
         this.cfs = cfs;
         this.transaction = transaction;
         this.sstable = transaction.onlyOne();
         this.outputHandler = outputHandler;
         this.skipCorrupted = skipCorrupted;
-        this.isOffline = isOffline;
         this.rowIndexEntrySerializer = sstable.descriptor.version.getSSTableFormat().getIndexSerializer(sstable.metadata);
 
         List<SSTableReader> toScrub = Collections.singletonList(sstable);
@@ -105,7 +102,7 @@ public class Scrubber implements Closeable
             throw new IOException("disk full");
 
         // If we run scrub offline, we should never purge tombstone, as we cannot know if other sstable have data that the tombstone deletes.
-        this.controller = isOffline
+        this.controller = transaction.isOffline()
                         ? new ScrubController(cfs)
                         : new CompactionController(cfs, Collections.singleton(sstable), CompactionManager.getDefaultGcBefore(cfs));
         this.isCommutative = cfs.metadata.isCounter();
@@ -126,7 +123,7 @@ public class Scrubber implements Closeable
         // we'll also loop through the index at the same time, using the position from the index to recover if the
         // row header (key or data size) is corrupt. (This means our position in the index file will be one row
         // "ahead" of the data file.)
-        this.dataFile = isOffline
+        this.dataFile = transaction.isOffline()
                         ? sstable.openDataReader()
                         : sstable.openDataReader(CompactionManager.instance.getRateLimiter());
 
@@ -143,7 +140,7 @@ public class Scrubber implements Closeable
     public void scrub()
     {
         outputHandler.output(String.format("Scrubbing %s (%s bytes)", sstable, dataFile.length()));
-        try (SSTableRewriter writer = new SSTableRewriter(cfs, transaction, sstable.maxDataAge, isOffline))
+        try (SSTableRewriter writer = new SSTableRewriter(cfs, transaction, sstable.maxDataAge, transaction.isOffline()))
         {
             nextIndexKey = indexAvailable() ? ByteBufferUtil.readWithShortLength(indexFile) : null;
             if (indexAvailable())
@@ -306,6 +303,8 @@ public class Scrubber implements Closeable
                     newInOrderSstable = inOrderWriter.finish(-1, sstable.maxDataAge, true);
                 }
                 transaction.update(newInOrderSstable, false);
+                if (transaction.isOffline() && newInOrderSstable != null)
+                    newInOrderSstable.selfRef().release();
                 outputHandler.warn(String.format("%d out of order rows found while scrubbing %s; Those have been written (in order) to a new sstable (%s)", outOfOrderRows.size(), sstable, newInOrderSstable));
             }
 
@@ -321,6 +320,8 @@ public class Scrubber implements Closeable
         finally
         {
             controller.close();
+            if (transaction.isOffline() && newSstable != null)
+                newSstable.selfRef().release();
         }
 
         if (newSstable == null)
