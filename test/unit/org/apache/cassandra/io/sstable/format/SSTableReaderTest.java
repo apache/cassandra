@@ -1,4 +1,4 @@
-package org.apache.cassandra.io.sstable;
+package org.apache.cassandra.io.sstable.format;
 /*
  *
  * Licensed to the Apache Software Foundation (ASF) under one
@@ -36,6 +36,9 @@ import java.util.concurrent.ThreadPoolExecutor;
 import com.google.common.collect.Sets;
 import org.apache.cassandra.cache.CachingOptions;
 import org.apache.cassandra.config.KSMetaData;
+import org.apache.cassandra.io.sstable.Component;
+import org.apache.cassandra.io.sstable.Descriptor;
+import org.apache.cassandra.io.sstable.ISSTableScanner;
 import org.apache.cassandra.io.sstable.format.SSTableReader;
 import org.apache.cassandra.locator.SimpleStrategy;
 import org.junit.Assert;
@@ -150,38 +153,46 @@ public class SSTableReaderTest
     @Test
     public void testSpannedIndexPositions() throws IOException
     {
+        long originalMaxSegmentSize = MmappedSegmentedFile.MAX_SEGMENT_SIZE;
         MmappedSegmentedFile.MAX_SEGMENT_SIZE = 40; // each index entry is ~11 bytes, so this will generate lots of segments
 
-        Keyspace keyspace = Keyspace.open(KEYSPACE1);
-        ColumnFamilyStore store = keyspace.getColumnFamilyStore("Standard1");
-
-        // insert a bunch of data and compact to a single sstable
-        CompactionManager.instance.disableAutoCompaction();
-        for (int j = 0; j < 100; j += 2)
+        try
         {
-            ByteBuffer key = ByteBufferUtil.bytes(String.valueOf(j));
-            Mutation rm = new Mutation(KEYSPACE1, key);
-            rm.add("Standard1", cellname("0"), ByteBufferUtil.EMPTY_BYTE_BUFFER, j);
-            rm.applyUnsafe();
+            Keyspace keyspace = Keyspace.open(KEYSPACE1);
+            ColumnFamilyStore store = keyspace.getColumnFamilyStore("Standard1");
+
+            // insert a bunch of data and compact to a single sstable
+            CompactionManager.instance.disableAutoCompaction();
+            for (int j = 0; j < 100; j += 2)
+            {
+                ByteBuffer key = ByteBufferUtil.bytes(String.valueOf(j));
+                Mutation rm = new Mutation(KEYSPACE1, key);
+                rm.add("Standard1", cellname("0"), ByteBufferUtil.EMPTY_BYTE_BUFFER, j);
+                rm.applyUnsafe();
+            }
+            store.forceBlockingFlush();
+            CompactionManager.instance.performMaximal(store, false);
+
+            // check that all our keys are found correctly
+            SSTableReader sstable = store.getSSTables().iterator().next();
+            for (int j = 0; j < 100; j += 2)
+            {
+                DecoratedKey dk = Util.dk(String.valueOf(j));
+                FileDataInput file = sstable.getFileDataInput(sstable.getPosition(dk, SSTableReader.Operator.EQ).position);
+                DecoratedKey keyInDisk = sstable.partitioner.decorateKey(ByteBufferUtil.readWithShortLength(file));
+                assert keyInDisk.equals(dk) : String.format("%s != %s in %s", keyInDisk, dk, file.getPath());
+            }
+
+            // check no false positives
+            for (int j = 1; j < 110; j += 2)
+            {
+                DecoratedKey dk = Util.dk(String.valueOf(j));
+                assert sstable.getPosition(dk, SSTableReader.Operator.EQ) == null;
+            }
         }
-        store.forceBlockingFlush();
-        CompactionManager.instance.performMaximal(store, false);
-
-        // check that all our keys are found correctly
-        SSTableReader sstable = store.getSSTables().iterator().next();
-        for (int j = 0; j < 100; j += 2)
+        finally
         {
-            DecoratedKey dk = Util.dk(String.valueOf(j));
-            FileDataInput file = sstable.getFileDataInput(sstable.getPosition(dk, SSTableReader.Operator.EQ).position);
-            DecoratedKey keyInDisk = sstable.partitioner.decorateKey(ByteBufferUtil.readWithShortLength(file));
-            assert keyInDisk.equals(dk) : String.format("%s != %s in %s", keyInDisk, dk, file.getPath());
-        }
-
-        // check no false positives
-        for (int j = 1; j < 110; j += 2)
-        {
-            DecoratedKey dk = Util.dk(String.valueOf(j));
-            assert sstable.getPosition(dk, SSTableReader.Operator.EQ) == null;
+            MmappedSegmentedFile.MAX_SEGMENT_SIZE = originalMaxSegmentSize;
         }
     }
 
@@ -442,7 +453,7 @@ public class SSTableReaderTest
 
         // re-open the same sstable as it would be during bulk loading
         Set<Component> components = Sets.newHashSet(Component.DATA, Component.PRIMARY_INDEX);
-        if (sstable.components.contains(Component.COMPRESSION_INFO))
+        if (sstable.compression)
             components.add(Component.COMPRESSION_INFO);
         SSTableReader bulkLoaded = SSTableReader.openForBatch(sstable.descriptor, components, store.metadata, sstable.partitioner);
         sections = bulkLoaded.getPositionsForRanges(ranges);
@@ -512,6 +523,102 @@ public class SSTableReaderTest
 
         assertEquals(sstable.estimatedKeys(), replacement.estimatedKeys(), 1);
     }
+
+    @Test
+    public void testIndexSummaryUpsampleAndReload() throws Exception
+    {
+        long originalMaxSegmentSize = MmappedSegmentedFile.MAX_SEGMENT_SIZE;
+        MmappedSegmentedFile.MAX_SEGMENT_SIZE = 40; // each index entry is ~11 bytes, so this will generate lots of segments
+
+        try
+        {
+            testIndexSummaryUpsampleAndReload0();
+        }
+        finally
+        {
+            MmappedSegmentedFile.MAX_SEGMENT_SIZE = originalMaxSegmentSize;
+        }
+    }
+
+    private void testIndexSummaryUpsampleAndReload0() throws Exception
+    {
+        Keyspace keyspace = Keyspace.open(KEYSPACE1);
+        final ColumnFamilyStore store = keyspace.getColumnFamilyStore("StandardLowIndexInterval"); // index interval of 8, no key caching
+        CompactionManager.instance.disableAutoCompaction();
+
+        final int NUM_ROWS = 512;
+        for (int j = 0; j < NUM_ROWS; j++)
+        {
+            ByteBuffer key = ByteBufferUtil.bytes(String.format("%3d", j));
+            Mutation rm = new Mutation(KEYSPACE1, key);
+            rm.add("StandardLowIndexInterval", Util.cellname("0"), ByteBufferUtil.bytes(String.format("%3d", j)), j);
+            rm.applyUnsafe();
+        }
+        store.forceBlockingFlush();
+        CompactionManager.instance.performMaximal(store, false);
+
+        Collection<SSTableReader> sstables = store.getSSTables();
+        assert sstables.size() == 1;
+        final SSTableReader sstable = sstables.iterator().next();
+
+        try (LifecycleTransaction txn = store.getTracker().tryModify(Arrays.asList(sstable), OperationType.UNKNOWN))
+        {
+            SSTableReader replacement = sstable.cloneWithNewSummarySamplingLevel(store, sstable.getIndexSummarySamplingLevel() + 1);
+            txn.update(replacement, true);
+            txn.finish();
+        }
+        SSTableReader reopen = SSTableReader.open(sstable.descriptor);
+        assert reopen.getIndexSummarySamplingLevel() == sstable.getIndexSummarySamplingLevel() + 1;
+    }
+
+    @Test
+    public void testIndexSummaryDownsampleAndReload() throws Exception
+    {
+        long originalMaxSegmentSize = MmappedSegmentedFile.MAX_SEGMENT_SIZE;
+        MmappedSegmentedFile.MAX_SEGMENT_SIZE = 40; // each index entry is ~11 bytes, so this will generate lots of segments
+
+        try
+        {
+            testIndexSummaryDownsampleAndReload0();
+        }
+        finally
+        {
+            MmappedSegmentedFile.MAX_SEGMENT_SIZE = originalMaxSegmentSize;
+        }
+    }
+
+    private void testIndexSummaryDownsampleAndReload0() throws Exception
+    {
+        Keyspace keyspace = Keyspace.open(KEYSPACE1);
+        final ColumnFamilyStore store = keyspace.getColumnFamilyStore("StandardLowIndexInterval"); // index interval of 8, no key caching
+        CompactionManager.instance.disableAutoCompaction();
+
+        final int NUM_ROWS = 512;
+        for (int j = 0; j < NUM_ROWS; j++)
+        {
+            ByteBuffer key = ByteBufferUtil.bytes(String.format("%3d", j));
+            Mutation rm = new Mutation(KEYSPACE1, key);
+            rm.add("StandardLowIndexInterval", Util.cellname("0"), ByteBufferUtil.bytes(String.format("%3d", j)), j);
+            rm.applyUnsafe();
+        }
+        store.forceBlockingFlush();
+        CompactionManager.instance.performMaximal(store, false);
+
+        Collection<SSTableReader> sstables = store.getSSTables();
+        assert sstables.size() == 1;
+        final SSTableReader sstable = sstables.iterator().next();
+
+        try (LifecycleTransaction txn = store.getTracker().tryModify(Arrays.asList(sstable), OperationType.UNKNOWN))
+        {
+            SSTableReader replacement = sstable.cloneWithNewSummarySamplingLevel(store, sstable.getIndexSummarySamplingLevel() / 2);
+            txn.update(replacement, true);
+            txn.finish();
+        }
+        SSTableReader reopen = SSTableReader.open(sstable.descriptor);
+        assert Arrays.equals(sstable.ifile.copyReadableBounds(), reopen.ifile.copyReadableBounds());
+        assert Arrays.equals(sstable.dfile.copyReadableBounds(), reopen.dfile.copyReadableBounds());
+    }
+
 
     private void assertIndexQueryWorks(ColumnFamilyStore indexedCFS)
     {

@@ -155,6 +155,16 @@ public abstract class SegmentedFile extends SharedCloseableImpl
     }
 
     /**
+     * Retrieve the readable bounds if any so they can be cloned into other files such
+     * as when downsampling an index summary. Readable bounds are in between record locations in a file
+     * that are good positions for mapping the file such that records don't cross mappings.
+     */
+    public long[] copyReadableBounds()
+    {
+        return new long[0];
+    }
+
+    /**
      * Collects potential segmentation points in an underlying file, and builds a SegmentedFile to represent it.
      */
     public static abstract class Builder implements AutoCloseable
