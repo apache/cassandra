@@ -62,7 +62,7 @@ public class UTF8Type extends AbstractType<String>
     {
         try
         {
-            return '"' + new String(Json.JSON_STRING_ENCODER.quoteAsString(ByteBufferUtil.string(buffer, Charset.forName("UTF-8")))) + '"';
+            return '"' + Json.quoteAsJsonString(ByteBufferUtil.string(buffer, Charset.forName("UTF-8"))) + '"';
         }
         catch (CharacterCodingException exc)
         {

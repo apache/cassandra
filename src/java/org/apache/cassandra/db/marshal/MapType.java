@@ -245,7 +245,7 @@ public class MapType<K, V> extends CollectionType<Map<K, V>>
             if (key.startsWith("\""))
                 sb.append(key);
             else
-                sb.append('"').append(Json.JSON_STRING_ENCODER.quoteAsString(key)).append('"');
+                sb.append('"').append(Json.quoteAsJsonString(key)).append('"');
 
             sb.append(": ");
             sb.append(values.toJSONString(CollectionSerializer.readValue(buffer, protocolVersion), protocolVersion));

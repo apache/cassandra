@@ -386,7 +386,7 @@ public abstract class Selection
 
                 ByteBuffer buffer = row.get(i);
                 sb.append('"');
-                sb.append(Json.JSON_STRING_ENCODER.quoteAsString(columnName));
+                sb.append(Json.quoteAsJsonString(columnName));
                 sb.append("\": ");
                 if (buffer == null)
                     sb.append("null");

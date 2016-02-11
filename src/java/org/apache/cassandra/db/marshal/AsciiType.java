@@ -83,7 +83,7 @@ public class AsciiType extends AbstractType<String>
     {
         try
         {
-            return '"' + new String(Json.JSON_STRING_ENCODER.quoteAsString(ByteBufferUtil.string(buffer, Charset.forName("US-ASCII")))) + '"';
+            return '"' + Json.quoteAsJsonString(ByteBufferUtil.string(buffer, Charset.forName("US-ASCII"))) + '"';
         }
         catch (CharacterCodingException exc)
         {

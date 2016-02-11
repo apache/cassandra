@@ -25,6 +25,7 @@ import org.apache.cassandra.serializers.SimpleDateSerializer;
 import org.apache.cassandra.serializers.TimeSerializer;
 import org.apache.cassandra.utils.ByteBufferUtil;
 
+import org.junit.Assert;
 import org.junit.BeforeClass;
 import org.junit.Test;
 
@@ -32,11 +33,12 @@ import java.math.BigDecimal;
 import java.math.BigInteger;
 import java.net.InetAddress;
 import java.text.SimpleDateFormat;
-import java.util.Date;
-import java.util.UUID;
+import java.util.*;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
+import java.util.concurrent.Future;
+import java.util.concurrent.TimeUnit;
 
-import static org.junit.Assert.assertEquals;
-import static org.junit.Assert.assertTrue;
 import static org.junit.Assert.fail;
 
 public class JsonTest extends CQLTester
@@ -927,11 +929,11 @@ public class JsonTest extends CQLTester
 
         // map<set<text>, text> keys
         String innerKey1 = "[\"0\", \"1\"]";
-        String fullKey1 = String.format("{\"%s\": \"%s\"}", new String(Json.JSON_STRING_ENCODER.quoteAsString(innerKey1)), "a");
-        String stringKey1 = new String(Json.JSON_STRING_ENCODER.quoteAsString(fullKey1));
+        String fullKey1 = String.format("{\"%s\": \"%s\"}", Json.quoteAsJsonString(innerKey1), "a");
+        String stringKey1 = Json.quoteAsJsonString(fullKey1);
         String innerKey2 = "[\"3\", \"4\"]";
-        String fullKey2 = String.format("{\"%s\": \"%s\"}", new String(Json.JSON_STRING_ENCODER.quoteAsString(innerKey2)), "b");
-        String stringKey2 = new String(Json.JSON_STRING_ENCODER.quoteAsString(fullKey2));
+        String fullKey2 = String.format("{\"%s\": \"%s\"}", Json.quoteAsJsonString(innerKey2), "b");
+        String stringKey2 = Json.quoteAsJsonString(fullKey2);
         execute("INSERT INTO %s JSON ?", "{\"k\": 0, \"nestedsetmap\": {\"" + stringKey1 + "\": true, \"" + stringKey2 + "\": false}}");
         assertRows(execute("SELECT JSON k, nestedsetmap FROM %s"), row("{\"k\": 0, \"nestedsetmap\": {\"" + stringKey1 + "\": true, \"" + stringKey2 + "\": false}}"));
 
@@ -954,5 +956,57 @@ public class JsonTest extends CQLTester
 
         execute("INSERT INTO %s JSON ?", "{\"k\": 0, \"a\": {\"a\": 0, \"b\": [1, 2, 3], \"c\": null}, \"b\": null}");
         assertRows(execute("SELECT k, a.a, a.b, a.c, b FROM %s"), row(0, 0, set(1, 2, 3), null, null));
+    }
+
+    // done for CASSANDRA-11048
+    @Test
+    public void testJsonTreadSafety() throws Throwable
+    {
+        int numThreads = 10;
+        final int numRows = 10000;
+
+        createTable("CREATE TABLE %s (" +
+                "k text PRIMARY KEY, " +
+                "v text)");
+
+        for (int i = 0; i < numRows; i++)
+            execute("INSERT INTO %s (k, v) VALUES (?, ?)", "" + i, "" + i);
+
+        long seed = System.nanoTime();
+        System.out.println("Seed " + seed);
+        final Random rand = new Random(seed);
+
+        final Runnable worker = new Runnable()
+        {
+            @Override
+            public void run()
+            {
+                try
+                {
+                    for (int i = 0; i < numRows; i++)
+                    {
+                        String key = "" + rand.nextInt(numRows);
+                        assertRows(execute("SELECT JSON * FROM %s WHERE k = ?", key),
+                                row(String.format("{\"k\": \"%s\", \"v\": \"%s\"}", key, key)));
+                    }
+                }
+                catch (Throwable exc)
+                {
+                    exc.printStackTrace();
+                    fail(exc.getMessage());
+                }
+            }
+        };
+
+        ExecutorService executor = Executors.newFixedThreadPool(numThreads);
+        List<Future> futures = new ArrayList<>();
+        for (int i = 0; i < numThreads; i++)
+            futures.add(executor.submit(worker));
+
+        for (Future future : futures)
+            future.get(10, TimeUnit.SECONDS);
+
+        executor.shutdown();
+        Assert.assertTrue(executor.awaitTermination(10, TimeUnit.SECONDS));
     }
 }
