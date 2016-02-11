@@ -10,6 +10,7 @@
  * Add dropped_columns to the list of schema table so it gets handled
    properly (CASSANDRA-11050)
 Merged from 2.2:
+ * (cqlsh) Fix inconsistent auto-complete (CASSANDRA-10733)
  * Make SELECT JSON and toJson() threadsafe (CASSANDRA-11048)
  * Fix SELECT on tuple relations for mixed ASC/DESC clustering order (CASSANDRA-7281)
  * (cqlsh) Support utf-8/cp65001 encoding on Windows (CASSANDRA-11030)

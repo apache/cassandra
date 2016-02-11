@@ -306,7 +306,7 @@ class CqlParsingRuleSet(pylexotron.ParsingRuleSet):
                 first = first[:-1]
             if debug:
                 print "** Got a partial completion: %r." % (common_prefix,)
-            first += common_prefix
+            return first + common_prefix
         if debug:
             print "** New total completion: %r. Checking for further matches...\n" % (first,)
         return self.cql_complete_multiple(text, first, init_bindings, startsymbol=startsymbol)
