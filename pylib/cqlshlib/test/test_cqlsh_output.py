@@ -370,6 +370,24 @@ class TestCqlshOutput(BaseTestCase):
             nnnnnnnn
             """),
         ), env={'TZ': 'Etc/UTC'})
+        try:
+            import pytz  # test only if pytz is available on PYTHONPATH
+            self.assertQueriesGiveColoredOutput((
+                ('''select timestampcol from has_all_types where num = 0;''', """
+                 timestampcol
+                 MMMMMMMMMMMM
+                --------------------------
+
+                 2012-05-14 09:53:20-0300
+                 GGGGGGGGGGGGGGGGGGGGGGGG
+
+
+                (1 rows)
+                nnnnnnnn
+                """),
+            ), env={'TZ': 'America/Sao_Paulo'})
+        except ImportError:
+            pass
 
     def test_boolean_output(self):
         self.assertCqlverQueriesGiveColoredOutput((
