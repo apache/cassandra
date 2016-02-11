@@ -127,7 +127,7 @@ final class LogFile
 
     boolean verify()
     {
-        assert records.isEmpty();
+        records.clear();
         if (!replicas.readRecords(records))
         {
             logger.error("Failed to read records from {}", replicas);

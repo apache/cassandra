@@ -1079,7 +1079,8 @@ public class LogTransactionTest extends AbstractTransactionalTest
         }
         catch(RuntimeException e)
         {
-            //pass
+            //pass as long as the cause is not an assertion
+            assertFalse(e.getCause() instanceof AssertionError);
         }
 
         logs.finish();
