@@ -89,7 +89,7 @@ public class YamlConfigurationLoader implements ConfigurationLoader
     {
         try
         {
-            logger.info("Loading settings from {}", url);
+            logger.debug("Loading settings from {}", url);
             byte[] configBytes;
             try (InputStream is = url.openStream())
             {
@@ -100,8 +100,6 @@ public class YamlConfigurationLoader implements ConfigurationLoader
                 // getStorageConfigURL should have ruled this out
                 throw new AssertionError(e);
             }
-
-            logConfig(configBytes);
 
             org.yaml.snakeyaml.constructor.Constructor constructor = new org.yaml.snakeyaml.constructor.Constructor(Config.class);
             TypeDescription seedDesc = new TypeDescription(ParameterizedClass.class);
@@ -119,20 +117,6 @@ public class YamlConfigurationLoader implements ConfigurationLoader
         {
             throw new ConfigurationException("Invalid yaml: " + url, e);
         }
-    }
-
-    private void logConfig(byte[] configBytes)
-    {
-        Map<Object, Object> configMap = new TreeMap<>((Map<?, ?>) new Yaml().load(new ByteArrayInputStream(configBytes)));
-        // these keys contain passwords, don't log them
-        for (String sensitiveKey : new String[] { "client_encryption_options", "server_encryption_options" })
-        {
-            if (configMap.containsKey(sensitiveKey))
-            {
-                configMap.put(sensitiveKey, "<REDACTED>");
-            }
-        }
-        logger.info("Node configuration:[{}]", Joiner.on("; ").join(configMap.entrySet()));
     }
 
     private static class MissingPropertiesChecker extends PropertyUtils

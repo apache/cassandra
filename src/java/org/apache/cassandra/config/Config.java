@@ -17,13 +17,26 @@
  */
 package org.apache.cassandra.config;
 
+import java.io.ByteArrayInputStream;
 import java.io.IOException;
 import java.io.StringReader;
+import java.lang.reflect.Field;
+import java.lang.reflect.Modifier;
+import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
+import java.util.TreeMap;
 import java.util.concurrent.TimeUnit;
 
+import com.google.common.base.Joiner;
 import com.google.common.collect.Sets;
+
+import org.apache.commons.lang3.builder.ToStringBuilder;
+
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 import org.apache.cassandra.config.EncryptionOptions.ClientEncryptionOptions;
 import org.apache.cassandra.config.EncryptionOptions.ServerEncryptionOptions;
@@ -38,6 +51,8 @@ import org.supercsv.prefs.CsvPreference;
  */
 public class Config
 {
+    private static final Logger logger = LoggerFactory.getLogger(Config.class);
+
     /*
      * Prefix for Java properties for internal Cassandra configuration options
      */
@@ -367,5 +382,41 @@ public class Config
     public static enum RequestSchedulerId
     {
         keyspace
+    }
+
+    private static final List<String> SENSITIVE_KEYS = new ArrayList<String>() {{
+        add("client_encryption_options");
+        add("server_encryption_options");
+    }};
+    public void log()
+    {
+        Map<String, String> configMap = new TreeMap<>();
+        for (Field field : getClass().getFields())
+        {
+            // ignore the constants
+            if (Modifier.isFinal(field.getModifiers()))
+                continue;
+
+            String name = field.getName();
+            if (SENSITIVE_KEYS.contains(name))
+            {
+                configMap.put(name, "<REDACTED>");
+                continue;
+            }
+
+            String value;
+            try
+            {
+                // Field.get() can throw NPE if the value of the field is null
+                value = field.get(this).toString();
+            }
+            catch (NullPointerException | IllegalAccessException npe)
+            {
+                value = "null";
+            }
+            configMap.put(name, value);
+        }
+
+        logger.info("Node configuration:[" + Joiner.on("; ").join(configMap.entrySet()) + "]");
     }
 }
