@@ -50,6 +50,8 @@ import org.apache.cassandra.exceptions.SyntaxException;
 import org.apache.cassandra.index.sasi.conf.ColumnIndex;
 import org.apache.cassandra.index.sasi.disk.OnDiskIndexBuilder;
 import org.apache.cassandra.index.sasi.exceptions.TimeQuotaExceededException;
+import org.apache.cassandra.index.sasi.memory.IndexMemtable;
+import org.apache.cassandra.index.sasi.plan.QueryController;
 import org.apache.cassandra.index.sasi.plan.QueryPlan;
 import org.apache.cassandra.schema.IndexMetadata;
 import org.apache.cassandra.schema.KeyspaceMetadata;
@@ -1936,6 +1938,81 @@ public class SASIIndexTest
 
         for (String table : Arrays.asList(containsTable, prefixTable, analyzedPrefixTable))
             QueryProcessor.executeOnceInternal(String.format("TRUNCATE TABLE %s.%s", KS_NAME, table));
+    }
+
+    @Test
+    public void testIndexMemtableSwitching()
+    {
+        // write some data but don't flush
+        ColumnFamilyStore store = loadData(new HashMap<String, Pair<String, Integer>>()
+        {{
+            put("key1", Pair.create("Pavel", 14));
+        }}, false);
+
+        ColumnIndex index = ((SASIIndex) store.indexManager.getIndexByName("first_name")).getIndex();
+        IndexMemtable beforeFlushMemtable = index.getCurrentMemtable();
+
+        PartitionRangeReadCommand command = new PartitionRangeReadCommand(store.metadata,
+                                                                          FBUtilities.nowInSeconds(),
+                                                                          ColumnFilter.all(store.metadata),
+                                                                          RowFilter.NONE,
+                                                                          DataLimits.NONE,
+                                                                          DataRange.allData(store.getPartitioner()),
+                                                                          Optional.empty());
+
+        QueryController controller = new QueryController(store, command, Integer.MAX_VALUE);
+        org.apache.cassandra.index.sasi.plan.Expression expression =
+                new org.apache.cassandra.index.sasi.plan.Expression(controller, index)
+                                                    .add(Operator.LIKE_MATCHES, UTF8Type.instance.fromString("Pavel"));
+
+        Assert.assertTrue(beforeFlushMemtable.search(expression).getCount() > 0);
+
+        store.forceBlockingFlush();
+
+        IndexMemtable afterFlushMemtable = index.getCurrentMemtable();
+
+        Assert.assertNotSame(afterFlushMemtable, beforeFlushMemtable);
+        Assert.assertNull(afterFlushMemtable.search(expression));
+        Assert.assertEquals(0, index.getPendingMemtables().size());
+
+        loadData(new HashMap<String, Pair<String, Integer>>()
+        {{
+            put("key2", Pair.create("Sam", 15));
+        }}, false);
+
+        expression = new org.apache.cassandra.index.sasi.plan.Expression(controller, index)
+                        .add(Operator.LIKE_MATCHES, UTF8Type.instance.fromString("Sam"));
+
+        beforeFlushMemtable = index.getCurrentMemtable();
+        Assert.assertTrue(beforeFlushMemtable.search(expression).getCount() > 0);
+
+        // let's emulate switching memtable and see if we can still read-data in "pending"
+        index.switchMemtable(store.getTracker().getView().getCurrentMemtable());
+
+        Assert.assertNotSame(index.getCurrentMemtable(), beforeFlushMemtable);
+        Assert.assertEquals(1, index.getPendingMemtables().size());
+
+        Assert.assertTrue(index.searchMemtable(expression).getCount() > 0);
+
+        // emulate "everything is flushed" notification
+        index.discardMemtable(store.getTracker().getView().getCurrentMemtable());
+
+        Assert.assertEquals(0, index.getPendingMemtables().size());
+        Assert.assertNull(index.searchMemtable(expression));
+
+        // test discarding data from memtable
+        loadData(new HashMap<String, Pair<String, Integer>>()
+        {{
+            put("key3", Pair.create("Jonathan", 16));
+        }}, false);
+
+        expression = new org.apache.cassandra.index.sasi.plan.Expression(controller, index)
+                .add(Operator.LIKE_MATCHES, UTF8Type.instance.fromString("Jonathan"));
+
+        Assert.assertTrue(index.searchMemtable(expression).getCount() > 0);
+
+        index.switchMemtable();
+        Assert.assertNull(index.searchMemtable(expression));
     }
 
     private static ColumnFamilyStore loadData(Map<String, Pair<String, Integer>> data, boolean forceFlush)

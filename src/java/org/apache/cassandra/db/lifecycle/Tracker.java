@@ -318,6 +318,8 @@ public class Tracker
         Pair<View, View> result = apply(View.switchMemtable(newMemtable));
         if (truncating)
             notifyRenewed(newMemtable);
+        else
+            notifySwitched(result.left.getCurrentMemtable());
 
         return result.left.getCurrentMemtable();
     }
@@ -348,6 +350,8 @@ public class Tracker
         fail = updateSizeTracking(emptySet(), sstables, null);
         // TODO: if we're invalidated, should we notifyadded AND removed, or just skip both?
         fail = notifyAdded(sstables, fail);
+
+        notifyDiscarded(memtable);
 
         if (!isDummy() && !cfstore.isValid())
             dropSSTables();
@@ -441,16 +445,30 @@ public class Tracker
             subscriber.handleNotification(notification, this);
     }
 
-    public void notifyRenewed(Memtable renewed)
+    public void notifyTruncated(long truncatedAt)
     {
-        INotification notification = new MemtableRenewedNotification(renewed);
+        INotification notification = new TruncationNotification(truncatedAt);
         for (INotificationConsumer subscriber : subscribers)
             subscriber.handleNotification(notification, this);
     }
 
-    public void notifyTruncated(long truncatedAt)
+    public void notifyRenewed(Memtable renewed)
     {
-        INotification notification = new TruncationNotification(truncatedAt);
+        notify(new MemtableRenewedNotification(renewed));
+    }
+
+    public void notifySwitched(Memtable previous)
+    {
+        notify(new MemtableSwitchedNotification(previous));
+    }
+
+    public void notifyDiscarded(Memtable discarded)
+    {
+        notify(new MemtableDiscardedNotification(discarded));
+    }
+
+    private void notify(INotification notification)
+    {
         for (INotificationConsumer subscriber : subscribers)
             subscriber.handleNotification(notification, this);
     }

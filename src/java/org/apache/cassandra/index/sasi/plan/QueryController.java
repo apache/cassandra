@@ -20,12 +20,12 @@ package org.apache.cassandra.index.sasi.plan;
 import java.util.*;
 import java.util.concurrent.TimeUnit;
 
+import com.google.common.collect.Sets;
+
 import org.apache.cassandra.config.CFMetaData;
 import org.apache.cassandra.db.*;
-import org.apache.cassandra.db.ColumnFamilyStore.RefViewFragment;
 import org.apache.cassandra.db.filter.DataLimits;
 import org.apache.cassandra.db.filter.RowFilter;
-import org.apache.cassandra.db.lifecycle.SSTableSet;
 import org.apache.cassandra.db.rows.UnfilteredRowIterator;
 import org.apache.cassandra.index.Index;
 import org.apache.cassandra.index.sasi.SASIIndex;
@@ -51,18 +51,16 @@ public class QueryController
 
     private final ColumnFamilyStore cfs;
     private final PartitionRangeReadCommand command;
+    private final DataRange range;
     private final Map<Collection<Expression>, List<RangeIterator<Long, Token>>> resources = new HashMap<>();
-    private final RefViewFragment scope;
-    private final Set<SSTableReader> sstables;
 
     public QueryController(ColumnFamilyStore cfs, PartitionRangeReadCommand command, long timeQuotaMs)
     {
         this.cfs = cfs;
         this.command = command;
+        this.range = command.dataRange();
         this.executionQuota = TimeUnit.MILLISECONDS.toNanos(timeQuotaMs);
         this.executionStart = System.nanoTime();
-        this.scope = getSSTableScope(cfs, command);
-        this.sstables = new HashSet<>(scope.sstables);
     }
 
     public boolean isForThrift()
@@ -178,14 +176,7 @@ public class QueryController
 
     public void finish()
     {
-        try
-        {
-            resources.values().forEach(this::releaseIndexes);
-        }
-        finally
-        {
-            scope.release();
-        }
+        resources.values().forEach(this::releaseIndexes);
     }
 
     private Map<Expression, Set<SSTableIndex>> getView(OperationType op, Collection<Expression> expressions)
@@ -220,7 +211,7 @@ public class QueryController
             }
             else
             {
-                readers.addAll(view.match(sstables, e));
+                readers.addAll(applyScope(view.match(e)));
             }
 
             indexes.put(e, readers);
@@ -243,7 +234,7 @@ public class QueryController
             if (view == null)
                 continue;
 
-            Set<SSTableIndex> indexes = view.match(sstables, e);
+            Set<SSTableIndex> indexes = applyScope(view.match(e));
             if (primaryIndexes.size() > indexes.size())
             {
                 primaryIndexes = indexes;
@@ -254,8 +245,11 @@ public class QueryController
         return expression == null ? null : Pair.create(expression, primaryIndexes);
     }
 
-    private static RefViewFragment getSSTableScope(ColumnFamilyStore cfs, PartitionRangeReadCommand command)
+    private Set<SSTableIndex> applyScope(Set<SSTableIndex> indexes)
     {
-        return cfs.selectAndReference(org.apache.cassandra.db.lifecycle.View.select(SSTableSet.CANONICAL, command.dataRange().keyRange()));
+        return Sets.filter(indexes, index -> {
+            SSTableReader sstable = index.getSSTable();
+            return range.startKey().compareTo(sstable.last) <= 0 && (range.stopKey().isMinimum() || sstable.first.compareTo(range.stopKey()) <= 0);
+        });
     }
 }

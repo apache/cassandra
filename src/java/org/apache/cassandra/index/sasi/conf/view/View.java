@@ -87,9 +87,9 @@ public class View implements Iterable<SSTableIndex>
             throw new IllegalStateException(String.format("mismatched sizes for intervals tree for keys vs terms: %d != %d", keyIntervalTree.intervalCount(), termTree.intervalCount()));
     }
 
-    public Set<SSTableIndex> match(final Set<SSTableReader> scope, Expression expression)
+    public Set<SSTableIndex> match(Expression expression)
     {
-        return Sets.filter(termTree.search(expression), index -> scope.contains(index.getSSTable()));
+        return termTree.search(expression);
     }
 
     public List<SSTableIndex> match(ByteBuffer minKey, ByteBuffer maxKey)

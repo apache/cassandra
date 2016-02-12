@@ -22,11 +22,16 @@ import java.util.Collection;
 import java.util.Collections;
 import java.util.Optional;
 import java.util.Set;
+import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.ConcurrentMap;
 import java.util.concurrent.atomic.AtomicReference;
+
+import com.google.common.annotations.VisibleForTesting;
 
 import org.apache.cassandra.config.ColumnDefinition;
 import org.apache.cassandra.cql3.Operator;
 import org.apache.cassandra.db.DecoratedKey;
+import org.apache.cassandra.db.Memtable;
 import org.apache.cassandra.db.marshal.AbstractType;
 import org.apache.cassandra.db.marshal.AsciiType;
 import org.apache.cassandra.db.marshal.UTF8Type;
@@ -39,6 +44,7 @@ import org.apache.cassandra.index.sasi.memory.IndexMemtable;
 import org.apache.cassandra.index.sasi.plan.Expression;
 import org.apache.cassandra.index.sasi.plan.Expression.Op;
 import org.apache.cassandra.index.sasi.utils.RangeIterator;
+import org.apache.cassandra.index.sasi.utils.RangeUnionIterator;
 import org.apache.cassandra.io.sstable.Component;
 import org.apache.cassandra.io.sstable.format.SSTableReader;
 import org.apache.cassandra.schema.IndexMetadata;
@@ -54,6 +60,8 @@ public class ColumnIndex
     private final Optional<IndexMetadata> config;
 
     private final AtomicReference<IndexMemtable> memtable;
+    private final ConcurrentMap<Memtable, IndexMemtable> pendingFlush = new ConcurrentHashMap<>();
+
     private final IndexMode mode;
 
     private final Component component;
@@ -92,17 +100,45 @@ public class ColumnIndex
 
     public long index(DecoratedKey key, Row row)
     {
-        return memtable.get().index(key, getValueOf(column, row, FBUtilities.nowInSeconds()));
+        return getCurrentMemtable().index(key, getValueOf(column, row, FBUtilities.nowInSeconds()));
     }
 
     public void switchMemtable()
     {
+        // discard current memtable with all of it's data, useful on truncate
         memtable.set(new IndexMemtable(this));
+    }
+
+    public void switchMemtable(Memtable parent)
+    {
+        pendingFlush.putIfAbsent(parent, memtable.getAndSet(new IndexMemtable(this)));
+    }
+
+    public void discardMemtable(Memtable parent)
+    {
+        pendingFlush.remove(parent);
+    }
+
+    @VisibleForTesting
+    public IndexMemtable getCurrentMemtable()
+    {
+        return memtable.get();
+    }
+
+    @VisibleForTesting
+    public Collection<IndexMemtable> getPendingMemtables()
+    {
+        return pendingFlush.values();
     }
 
     public RangeIterator<Long, Token> searchMemtable(Expression e)
     {
-        return memtable.get().search(e);
+        RangeIterator.Builder<Long, Token> builder = new RangeUnionIterator.Builder<>();
+        builder.add(getCurrentMemtable().search(e));
+        for (IndexMemtable memtable : getPendingMemtables())
+            builder.add(memtable.search(e));
+
+        return builder.build();
     }
 
     public void update(Collection<SSTableReader> oldSSTables, Collection<SSTableReader> newSSTables)

@@ -311,6 +311,14 @@ public class SASIIndex implements Index, INotificationConsumer
         {
             index.switchMemtable();
         }
+        else if (notification instanceof MemtableSwitchedNotification)
+        {
+            index.switchMemtable(((MemtableSwitchedNotification) notification).memtable);
+        }
+        else if (notification instanceof MemtableDiscardedNotification)
+        {
+            index.discardMemtable(((MemtableDiscardedNotification) notification).memtable);
+        }
     }
 
     public ColumnIndex getIndex()
