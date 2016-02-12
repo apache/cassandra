@@ -28,6 +28,7 @@ import org.apache.cassandra.db.lifecycle.View;
 import org.apache.cassandra.dht.Range;
 import org.apache.cassandra.dht.Token;
 import org.apache.cassandra.io.sstable.format.SSTableReader;
+import org.apache.cassandra.locator.TokenMetadata;
 import org.apache.cassandra.service.MigrationListener;
 import org.apache.cassandra.service.MigrationManager;
 import org.apache.cassandra.service.StorageService;
@@ -58,7 +59,8 @@ public class SizeEstimatesRecorder extends MigrationListener implements Runnable
 
     public void run()
     {
-        if (!StorageService.instance.getTokenMetadata().isMember(FBUtilities.getBroadcastAddress()))
+        TokenMetadata metadata = StorageService.instance.getTokenMetadata().cloneOnlyTokenMap();
+        if (!metadata.isMember(FBUtilities.getBroadcastAddress()))
         {
             logger.debug("Node is not part of the ring; not recording size estimates");
             return;
@@ -68,7 +70,7 @@ public class SizeEstimatesRecorder extends MigrationListener implements Runnable
 
         // find primary token ranges for the local node.
         Collection<Token> localTokens = StorageService.instance.getLocalTokens();
-        Collection<Range<Token>> localRanges = StorageService.instance.getTokenMetadata().getPrimaryRangesFor(localTokens);
+        Collection<Range<Token>> localRanges = metadata.getPrimaryRangesFor(localTokens);
 
         for (Keyspace keyspace : Keyspace.nonSystem())
         {
