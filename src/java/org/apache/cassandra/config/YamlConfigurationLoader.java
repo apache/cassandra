@@ -27,9 +27,7 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
-import java.util.TreeMap;
 
-import com.google.common.base.Joiner;
 import com.google.common.collect.Lists;
 import com.google.common.collect.Maps;
 import com.google.common.collect.Sets;
@@ -113,8 +111,6 @@ public class YamlConfigurationLoader implements ConfigurationLoader
                 throw new AssertionError(e);
             }
 
-            logConfig(configBytes);
-
             Constructor constructor = new CustomConstructor(Config.class);
             MissingPropertiesChecker propertiesChecker = new MissingPropertiesChecker();
             constructor.setPropertyUtils(propertiesChecker);
@@ -163,20 +159,6 @@ public class YamlConfigurationLoader implements ConfigurationLoader
         {
             return Sets.newConcurrentHashSet();
         }
-    }
-
-    private void logConfig(byte[] configBytes)
-    {
-        Map<Object, Object> configMap = new TreeMap<>((Map<?, ?>) new Yaml().load(new ByteArrayInputStream(configBytes)));
-        // these keys contain passwords, don't log them
-        for (String sensitiveKey : new String[] { "client_encryption_options", "server_encryption_options" })
-        {
-            if (configMap.containsKey(sensitiveKey))
-            {
-                configMap.put(sensitiveKey, "<REDACTED>");
-            }
-        }
-        logger.info("Node configuration:[{}]", Joiner.on("; ").join(configMap.entrySet()));
     }
 
     private static class MissingPropertiesChecker extends PropertyUtils

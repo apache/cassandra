@@ -53,7 +53,6 @@ import org.apache.cassandra.scheduler.IRequestScheduler;
 import org.apache.cassandra.scheduler.NoScheduler;
 import org.apache.cassandra.service.CacheService;
 import org.apache.cassandra.thrift.ThriftServer;
-import org.apache.cassandra.utils.ByteBufferUtil;
 import org.apache.cassandra.utils.FBUtilities;
 import org.apache.cassandra.utils.memory.*;
 
@@ -101,6 +100,7 @@ public class DatabaseDescriptor
 
     private static String localDC;
     private static Comparator<InetAddress> localComparator;
+    private static boolean hasLoggedConfig;
 
     public static void forceStaticInitialization() {}
     static
@@ -132,7 +132,15 @@ public class DatabaseDescriptor
         ConfigurationLoader loader = loaderClass == null
                                    ? new YamlConfigurationLoader()
                                    : FBUtilities.<ConfigurationLoader>construct(loaderClass, "configuration loading");
-        return loader.loadConfig();
+        Config config = loader.loadConfig();
+
+        if (!hasLoggedConfig)
+        {
+            hasLoggedConfig = true;
+            config.log();
+        }
+
+        return config;
     }
 
     private static InetAddress getNetworkInterfaceAddress(String intf, String configName, boolean preferIPv6) throws ConfigurationException
