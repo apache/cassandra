@@ -1,4 +1,5 @@
 2.1.14
+ * Fix streaming_socket_timeout_in_ms not enforced (CASSANDRA-11286)
  * Avoid dropping message too quickly due to missing unit conversion (CASSANDRA-11302)
  * COPY FROM on large datasets: fix progress report and debug performance (CASSANDRA-11053)
  * InvalidateKeys should have a weak ref to key cache (CASSANDRA-11176)

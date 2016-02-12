@@ -27,6 +27,7 @@ import java.util.Set;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.streaming.StreamResultFuture;
 import org.apache.cassandra.streaming.messages.StreamInitMessage;
 import org.apache.cassandra.streaming.messages.StreamMessage;
@@ -62,6 +63,10 @@ public class IncomingStreamingConnection extends Thread implements Closeable
             DataInput input = new DataInputStream(socket.getInputStream());
             StreamInitMessage init = StreamInitMessage.serializer.deserialize(input, version);
 
+            //Set SO_TIMEOUT on follower side
+            if (!init.isForOutgoing)
+                socket.setSoTimeout(DatabaseDescriptor.getStreamingSocketTimeout());
+
             // The initiator makes two connections, one for incoming and one for outgoing.
             // The receiving side distinguish two connections by looking at StreamInitMessage#isForOutgoing.
             // Note: we cannot use the same socket for incoming and outgoing streams because we want to
@@ -74,7 +79,7 @@ public class IncomingStreamingConnection extends Thread implements Closeable
             close();
         }
     }
-    
+
     @Override
     public void close()
     {
