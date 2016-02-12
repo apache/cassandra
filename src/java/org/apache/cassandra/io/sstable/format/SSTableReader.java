@@ -2246,7 +2246,7 @@ public abstract class SSTableReader extends SSTable implements SelfRefCounted<SS
 
             // Don't track read rates for tables in the system keyspace and don't bother trying to load or persist
             // the read meter when in client mode.
-            if (SystemKeyspace.NAME.equals(desc.ksname))
+            if (SystemKeyspace.NAME.equals(desc.ksname) || !DatabaseDescriptor.isDaemonInitialized())
             {
                 readMeter = null;
                 readMeterSyncFuture = null;
@@ -2272,9 +2272,11 @@ public abstract class SSTableReader extends SSTable implements SelfRefCounted<SS
         {
             lookup.remove(desc);
             if (readMeterSyncFuture != null)
+            {
                 readMeterSyncFuture.cancel(true);
-            if (isCompacted.get())
-                SystemKeyspace.clearSSTableReadMeter(desc.ksname, desc.cfname, desc.generation);
+                if (isCompacted.get())
+                    SystemKeyspace.clearSSTableReadMeter(desc.ksname, desc.cfname, desc.generation);
+            }
             // don't ideally want to dropPageCache for the file until all instances have been released
             CLibrary.trySkipCache(desc.filenameFor(Component.DATA), 0, 0);
             CLibrary.trySkipCache(desc.filenameFor(Component.PRIMARY_INDEX), 0, 0);

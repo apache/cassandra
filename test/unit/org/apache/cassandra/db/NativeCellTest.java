@@ -32,6 +32,7 @@ import org.junit.Test;
 
 import org.apache.cassandra.config.CFMetaData;
 import org.apache.cassandra.config.ColumnDefinition;
+import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.cql3.ColumnIdentifier;
 import org.apache.cassandra.db.composites.CellName;
 import org.apache.cassandra.db.composites.CellNameType;
@@ -128,6 +129,8 @@ public class NativeCellTest
         {
             throw new AssertionError();
         }
+        // TODO: CounterId accesses SystemKespace to get local host ID, so need to mark as daemon initialized
+        DatabaseDescriptor.setDaemonInitialized();
     }
 
     @Test

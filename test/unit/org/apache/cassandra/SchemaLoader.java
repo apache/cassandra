@@ -90,6 +90,7 @@ public class SchemaLoader
             }
         });
 
+        DatabaseDescriptor.setDaemonInitialized();
         Keyspace.setInitialized();
     }
 

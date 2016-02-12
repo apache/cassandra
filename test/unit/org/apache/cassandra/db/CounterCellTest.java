@@ -30,6 +30,7 @@ import org.junit.Assert;
 import org.junit.Test;
 
 import org.apache.cassandra.Util;
+import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.db.composites.CellNameType;
 import org.apache.cassandra.db.composites.SimpleDenseCellNameType;
 import org.apache.cassandra.db.context.CounterContext;
@@ -57,6 +58,8 @@ public class CounterCellTest
         countLength   = 8; // size of long
 
         stepLength    = idLength + clockLength + countLength;
+        // TODO: CounterId accesses SystemKespace to get local host ID, so need to mark as daemon initialized
+        DatabaseDescriptor.setDaemonInitialized();
     }
 
     @Test

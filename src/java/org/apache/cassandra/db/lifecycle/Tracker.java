@@ -31,7 +31,6 @@ import com.google.common.collect.*;
 import org.apache.cassandra.db.ColumnFamilyStore;
 import org.apache.cassandra.db.Directories;
 import org.apache.cassandra.db.Memtable;
-import org.apache.cassandra.db.commitlog.CommitLog;
 import org.apache.cassandra.db.commitlog.ReplayPosition;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -52,6 +51,7 @@ import static com.google.common.base.Predicates.not;
 import static com.google.common.collect.ImmutableSet.copyOf;
 import static com.google.common.collect.Iterables.filter;
 import static java.util.Collections.singleton;
+import static java.util.Collections.singletonList;
 import static org.apache.cassandra.db.lifecycle.Helpers.*;
 import static org.apache.cassandra.db.lifecycle.View.permitCompacting;
 import static org.apache.cassandra.db.lifecycle.View.updateCompacting;
@@ -61,21 +61,29 @@ import static org.apache.cassandra.utils.Throwables.merge;
 import static org.apache.cassandra.utils.concurrent.Refs.release;
 import static org.apache.cassandra.utils.concurrent.Refs.selfRefs;
 
+/**
+ * Tracker tracks live {@link View} of data store for a table.
+ */
 public class Tracker
 {
     private static final Logger logger = LoggerFactory.getLogger(Tracker.class);
 
-    public final Collection<INotificationConsumer> subscribers = new CopyOnWriteArrayList<>();
+    private final Collection<INotificationConsumer> subscribers = new CopyOnWriteArrayList<>();
+
     public final ColumnFamilyStore cfstore;
     final AtomicReference<View> view;
     public final boolean loadsstables;
 
-    public Tracker(ColumnFamilyStore cfstore, boolean loadsstables)
+    /**
+     * @param memtable Initial Memtable. Can be null.
+     * @param loadsstables true to indicate to load SSTables (TODO: remove as this is only accessed from 2i)
+     */
+    public Tracker(Memtable memtable, boolean loadsstables)
     {
-        this.cfstore = cfstore;
+        this.cfstore = memtable != null ? memtable.cfs : null;
         this.view = new AtomicReference<>();
         this.loadsstables = loadsstables;
-        this.reset();
+        this.reset(memtable);
     }
 
     public LifecycleTransaction tryModify(SSTableReader sstable, OperationType operationType)
@@ -196,16 +204,14 @@ public class Tracker
 
     /** (Re)initializes the tracker, purging all references. */
     @VisibleForTesting
-    public void reset()
+    public void reset(Memtable memtable)
     {
-        view.set(new View(
-                         !isDummy() ? ImmutableList.of(new Memtable(new AtomicReference<>(CommitLog.instance.getContext()), cfstore))
-                                    : ImmutableList.<Memtable>of(),
-                         ImmutableList.<Memtable>of(),
-                         Collections.<SSTableReader, SSTableReader>emptyMap(),
-                         Collections.<SSTableReader>emptySet(),
-                         Collections.<SSTableReader>emptySet(),
-                         SSTableIntervalTree.empty()));
+        view.set(new View(memtable != null ? singletonList(memtable) : Collections.<Memtable>emptyList(),
+                          Collections.<Memtable>emptyList(),
+                          Collections.<SSTableReader, SSTableReader>emptyMap(),
+                          Collections.<SSTableReader>emptySet(),
+                          Collections.<SSTableReader>emptySet(),
+                          SSTableIntervalTree.empty()));
     }
 
     public Throwable dropSSTablesIfInvalid(Throwable accumulate)
@@ -473,7 +479,7 @@ public class Tracker
 
     public boolean isDummy()
     {
-        return cfstore == null;
+        return cfstore == null || !DatabaseDescriptor.isDaemonInitialized();
     }
 
     public void subscribe(INotificationConsumer consumer)
