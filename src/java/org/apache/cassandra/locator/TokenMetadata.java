@@ -28,6 +28,7 @@ import java.util.concurrent.locks.ReentrantReadWriteLock;
 
 import com.google.common.annotations.VisibleForTesting;
 import com.google.common.collect.*;
+import org.apache.commons.lang3.StringUtils;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -870,8 +871,7 @@ public class TokenMetadata
     {
         List<Token> tokens = sortedTokens();
         int index = Collections.binarySearch(tokens, token);
-//        assert index >= 0 : token + " not found in " + StringUtils.join(tokenToEndpointMap.keySet(), ", ");
-        if (index < 0) index = -index-1;
+        assert index >= 0 : token + " not found in " + StringUtils.join(tokenToEndpointMap.keySet(), ", ");
         return index == 0 ? tokens.get(tokens.size() - 1) : tokens.get(index - 1);
     }
 
@@ -879,8 +879,7 @@ public class TokenMetadata
     {
         List<Token> tokens = sortedTokens();
         int index = Collections.binarySearch(tokens, token);
-//        assert index >= 0 : token + " not found in " + StringUtils.join(tokenToEndpointMap.keySet(), ", ");
-        if (index < 0) return (Token) tokens.get(-index-1);
+        assert index >= 0 : token + " not found in " + StringUtils.join(tokenToEndpointMap.keySet(), ", ");
         return (index == (tokens.size() - 1)) ? tokens.get(0) : tokens.get(index + 1);
     }
 
