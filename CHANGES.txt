@@ -21,6 +21,7 @@
  * Add nodetool gettimeout and settimeout commands (CASSANDRA-10953)
  * Add 3.0 metadata to sstablemetadata output (CASSANDRA-10838)
 Merged from 3.0:
+ * Avoid potential AssertionError in mixed version cluster (CASSANDRA-11128)
  * Properly handle hinted handoff after topology changes (CASSANDRA-5902)
  * AssertionError when listing sstable files on inconsistent disk state (CASSANDRA-11156)
  * Fix wrong rack counting and invalid conditions check for TokenAllocation
