@@ -9,6 +9,7 @@ import com.google.common.collect.ImmutableList;
 import com.google.common.collect.ImmutableMap;
 import org.junit.Test;
 
+import com.datastax.driver.core.exceptions.QueryValidationException;
 import org.apache.cassandra.Util;
 import org.apache.cassandra.config.CFMetaData;
 import org.apache.cassandra.cql3.CQLTester;
@@ -27,6 +28,7 @@ import org.apache.cassandra.db.partitions.UnfilteredPartitionIterator;
 import org.apache.cassandra.exceptions.InvalidRequestException;
 import org.apache.cassandra.schema.IndexMetadata;
 import org.apache.cassandra.schema.Indexes;
+import org.apache.cassandra.transport.Server;
 import org.apache.cassandra.utils.FBUtilities;
 
 import static org.apache.cassandra.Util.throwAssert;
@@ -321,8 +323,10 @@ public class CustomIndexTest extends CQLTester
 
         createIndex(String.format("CREATE CUSTOM INDEX custom_index ON %%s(c) USING '%s'", StubIndex.class.getName()));
 
-        assertInvalidMessage(String.format(IndexRestrictions.INDEX_NOT_FOUND, "no_such_index", keyspace(), currentTable()),
-                             "SELECT * FROM %s WHERE expr(no_such_index, 'foo bar baz ')");
+        assertInvalidThrowMessage(Server.CURRENT_VERSION,
+                                  String.format(IndexRestrictions.INDEX_NOT_FOUND, "no_such_index", keyspace(), currentTable()),
+                                  QueryValidationException.class,
+                                  "SELECT * FROM %s WHERE expr(no_such_index, 'foo bar baz ')");
 
         // simple case
         assertRows(execute("SELECT * FROM %s WHERE expr(custom_index, 'foo bar baz')"), row);
@@ -330,16 +334,22 @@ public class CustomIndexTest extends CQLTester
         assertRows(execute("SELECT * FROM %s WHERE expr(custom_index, $$foo \" ~~~ bar Baz$$)"), row);
 
         // multiple expressions on the same index
-        assertInvalidMessage(IndexRestrictions.MULTIPLE_EXPRESSIONS,
-                             "SELECT * FROM %s WHERE expr(custom_index, 'foo') AND expr(custom_index, 'bar')");
+        assertInvalidThrowMessage(Server.CURRENT_VERSION,
+                                  IndexRestrictions.MULTIPLE_EXPRESSIONS,
+                                  QueryValidationException.class,
+                                  "SELECT * FROM %s WHERE expr(custom_index, 'foo') AND expr(custom_index, 'bar')");
 
         // multiple expressions on different indexes
         createIndex(String.format("CREATE CUSTOM INDEX other_custom_index ON %%s(d) USING '%s'", StubIndex.class.getName()));
-        assertInvalidMessage(IndexRestrictions.MULTIPLE_EXPRESSIONS,
-                             "SELECT * FROM %s WHERE expr(custom_index, 'foo') AND expr(other_custom_index, 'bar')");
+        assertInvalidThrowMessage(Server.CURRENT_VERSION,
+                                  IndexRestrictions.MULTIPLE_EXPRESSIONS,
+                                  QueryValidationException.class,
+                                  "SELECT * FROM %s WHERE expr(custom_index, 'foo') AND expr(other_custom_index, 'bar')");
 
-        assertInvalidMessage(SelectStatement.REQUIRES_ALLOW_FILTERING_MESSAGE,
-                             "SELECT * FROM %s WHERE expr(custom_index, 'foo') AND d=0");
+        assertInvalidThrowMessage(Server.CURRENT_VERSION,
+                                  SelectStatement.REQUIRES_ALLOW_FILTERING_MESSAGE,
+                                  QueryValidationException.class,
+                                  "SELECT * FROM %s WHERE expr(custom_index, 'foo') AND d=0");
         assertRows(execute("SELECT * FROM %s WHERE expr(custom_index, 'foo') AND d=0 ALLOW FILTERING"), row);
     }
 
@@ -349,8 +359,10 @@ public class CustomIndexTest extends CQLTester
         createTable("CREATE TABLE %s (a int, b int, c int, d int, PRIMARY KEY (a, b))");
         createIndex(String.format("CREATE CUSTOM INDEX custom_index ON %%s(c) USING '%s'",
                                   NoCustomExpressionsIndex.class.getName()));
-        assertInvalidMessage(String.format( IndexRestrictions.CUSTOM_EXPRESSION_NOT_SUPPORTED, "custom_index"),
-                             "SELECT * FROM %s WHERE expr(custom_index, 'foo bar baz')");
+        assertInvalidThrowMessage(Server.CURRENT_VERSION,
+                                  String.format( IndexRestrictions.CUSTOM_EXPRESSION_NOT_SUPPORTED, "custom_index"),
+                                  QueryValidationException.class,
+                                  "SELECT * FROM %s WHERE expr(custom_index, 'foo bar baz')");
     }
 
     @Test
@@ -358,8 +370,11 @@ public class CustomIndexTest extends CQLTester
     {
         createTable("CREATE TABLE %s (a int, b int, c int, d int, PRIMARY KEY (a, b))");
         createIndex(String.format("CREATE CUSTOM INDEX custom_index ON %%s(c) USING '%s'",
-                                  ExpressionRejectingIndex.class.getName()));
-        assertInvalidMessage("None shall pass", "SELECT * FROM %s WHERE expr(custom_index, 'foo bar baz')");
+                                  AlwaysRejectIndex.class.getName()));
+        assertInvalidThrowMessage(Server.CURRENT_VERSION,
+                                  "None shall pass",
+                                  QueryValidationException.class,
+                                  "SELECT * FROM %s WHERE expr(custom_index, 'foo bar baz')");
     }
 
     @Test
@@ -367,8 +382,10 @@ public class CustomIndexTest extends CQLTester
     {
         createTable("CREATE TABLE %s (a int, b int, c int, d int, PRIMARY KEY (a, b))");
         createIndex("CREATE INDEX non_custom_index ON %s(c)");
-        assertInvalidMessage(String.format(IndexRestrictions.NON_CUSTOM_INDEX_IN_EXPRESSION, "non_custom_index"),
-                             "SELECT * FROM %s WHERE expr(non_custom_index, 'c=0')");
+        assertInvalidThrowMessage(Server.CURRENT_VERSION,
+                                  String.format(IndexRestrictions.NON_CUSTOM_INDEX_IN_EXPRESSION, "non_custom_index"),
+                                  QueryValidationException.class,
+                                  "SELECT * FROM %s WHERE expr(non_custom_index, 'c=0')");
     }
 
     @Test
@@ -377,10 +394,14 @@ public class CustomIndexTest extends CQLTester
         createTable("CREATE TABLE %s (a int, b int, c int, d int, PRIMARY KEY (a, b))");
         createIndex(String.format("CREATE CUSTOM INDEX custom_index ON %%s(c) USING '%s'", StubIndex.class.getName()));
 
-        assertInvalidMessage(ModificationStatement.CUSTOM_EXPRESSIONS_NOT_ALLOWED,
-                             "DELETE FROM %s WHERE expr(custom_index, 'foo bar baz ')");
-        assertInvalidMessage(ModificationStatement.CUSTOM_EXPRESSIONS_NOT_ALLOWED,
-                             "UPDATE %s SET d=0 WHERE expr(custom_index, 'foo bar baz ')");
+        assertInvalidThrowMessage(Server.CURRENT_VERSION,
+                                  ModificationStatement.CUSTOM_EXPRESSIONS_NOT_ALLOWED,
+                                  QueryValidationException.class,
+                                  "DELETE FROM %s WHERE expr(custom_index, 'foo bar baz ')");
+        assertInvalidThrowMessage(Server.CURRENT_VERSION,
+                                  ModificationStatement.CUSTOM_EXPRESSIONS_NOT_ALLOWED,
+                                  QueryValidationException.class,
+                                  "UPDATE %s SET d=0 WHERE expr(custom_index, 'foo bar baz ')");
     }
 
     @Test
@@ -451,12 +472,16 @@ public class CustomIndexTest extends CQLTester
                                   UTF8ExpressionIndex.class.getName()));
 
         execute("SELECT * FROM %s WHERE expr(text_index, 'foo')");
-        assertInvalidMessage("Invalid INTEGER constant (99) for \"custom index expression\" of type text",
-                             "SELECT * FROM %s WHERE expr(text_index, 99)");
+        assertInvalidThrowMessage(Server.CURRENT_VERSION,
+                                  "Invalid INTEGER constant (99) for \"custom index expression\" of type text",
+                                  QueryValidationException.class,
+                                  "SELECT * FROM %s WHERE expr(text_index, 99)");
 
         execute("SELECT * FROM %s WHERE expr(int_index, 99)");
-        assertInvalidMessage("Invalid STRING constant (foo) for \"custom index expression\" of type int",
-                             "SELECT * FROM %s WHERE expr(int_index, 'foo')");
+        assertInvalidThrowMessage(Server.CURRENT_VERSION,
+                                  "Invalid STRING constant (foo) for \"custom index expression\" of type int",
+                                  QueryValidationException.class,
+                                  "SELECT * FROM %s WHERE expr(int_index, 'foo')");
     }
 
     @Test
@@ -683,16 +708,21 @@ public class CustomIndexTest extends CQLTester
         }
     }
 
-    public static final class ExpressionRejectingIndex extends StubIndex
+    public static final class AlwaysRejectIndex extends StubIndex
     {
-        public ExpressionRejectingIndex(ColumnFamilyStore baseCfs, IndexMetadata metadata)
+        public AlwaysRejectIndex(ColumnFamilyStore baseCfs, IndexMetadata metadata)
         {
             super(baseCfs, metadata);
         }
 
-        public Searcher searcherFor(ReadCommand command) throws InvalidRequestException
+        public void validate(ReadCommand command) throws InvalidRequestException
         {
             throw new InvalidRequestException("None shall pass");
+        }
+
+        public Searcher searcherFor(ReadCommand command)
+        {
+            throw new InvalidRequestException("None shall pass (though I'd have expected to fail faster)");
         }
     }
 

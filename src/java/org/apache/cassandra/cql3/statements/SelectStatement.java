@@ -46,6 +46,7 @@ import org.apache.cassandra.db.rows.RowIterator;
 import org.apache.cassandra.db.view.View;
 import org.apache.cassandra.dht.AbstractBounds;
 import org.apache.cassandra.exceptions.*;
+import org.apache.cassandra.index.Index;
 import org.apache.cassandra.index.SecondaryIndexManager;
 import org.apache.cassandra.serializers.MarshalException;
 import org.apache.cassandra.service.ClientState;
@@ -490,9 +491,24 @@ public class SelectStatement implements CQLStatement
         // The LIMIT provided by the user is the number of CQL row he wants returned.
         // We want to have getRangeSlice to count the number of columns, not the number of keys.
         AbstractBounds<PartitionPosition> keyBounds = restrictions.getPartitionKeyBounds(options);
-        return keyBounds == null
-             ? ReadQuery.EMPTY
-             : new PartitionRangeReadCommand(cfm, nowInSec, queriedColumns, rowFilter, limit, new DataRange(keyBounds, clusteringIndexFilter), Optional.empty());
+        if (keyBounds == null)
+            return ReadQuery.EMPTY;
+
+        PartitionRangeReadCommand command = new PartitionRangeReadCommand(cfm,
+                                                                          nowInSec,
+                                                                          queriedColumns,
+                                                                          rowFilter,
+                                                                          limit,
+                                                                          new DataRange(keyBounds, clusteringIndexFilter),
+                                                                          Optional.empty());
+        // If there's a secondary index that the command can use, have it validate
+        // the request parameters. Note that as a side effect, if a viable Index is
+        // identified by the CFS's index manager, it will be cached in the command
+        // and serialized during distribution to replicas in order to avoid performing
+        // further lookups.
+        command.maybeValidateIndex();
+
+        return command;
     }
 
     private ClusteringIndexFilter makeClusteringIndexFilter(QueryOptions options)

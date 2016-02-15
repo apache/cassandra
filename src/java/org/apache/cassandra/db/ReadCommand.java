@@ -324,6 +324,19 @@ public abstract class ReadCommand extends MonitorableImpl implements ReadQuery
     }
 
     /**
+     * If the index manager for the CFS determines that there's an applicable
+     * 2i that can be used to execute this command, call its (optional)
+     * validation method to check that nothing in this command's parameters
+     * violates the implementation specific validation rules.
+     */
+    public void maybeValidateIndex()
+    {
+        Index index = getIndex(Keyspace.openAndGetStore(metadata));
+        if (null != index)
+            index.validate(this);
+    }
+
+    /**
      * Executes this command on the local host.
      *
      * @param executionController the execution controller spanning this command
