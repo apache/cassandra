@@ -122,6 +122,8 @@ public class OutboundTcpConnectionPool
         return newSocket(endPoint());
     }
 
+    // Closing the socket will close the underlying channel.
+    @SuppressWarnings("resource")
     public static Socket newSocket(InetAddress endpoint) throws IOException
     {
         // zero means 'bind on any available port.'
