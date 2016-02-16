@@ -1,4 +1,5 @@
 2.2.6
+ * Add cassandra-stress keystore option (CASSANDRA-9325)
  * Dont mark sstables as repairing with sub range repairs (CASSANDRA-11451)
  * Fix use of NullUpdater for 2i during compaction (CASSANDRA-11450)
  * Notify when sstables change after cancelling compaction (CASSANDRA-11373)
