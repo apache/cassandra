@@ -179,6 +179,7 @@ from cqlshlib.util import get_file_encoding_bomsize, trim_if_present
 
 DEFAULT_HOST = '127.0.0.1'
 DEFAULT_PORT = 9042
+DEFAULT_SSL = False
 DEFAULT_CQLVER = '3.4.0'
 DEFAULT_PROTOCOL_VERSION = 4
 DEFAULT_CONNECT_TIMEOUT_SECONDS = 5
@@ -2440,7 +2441,7 @@ def read_options(cmdlineargs, environment):
 
     optvalues.debug = False
     optvalues.file = None
-    optvalues.ssl = False
+    optvalues.ssl = option_with_default(configs.getboolean, 'connection', 'ssl', DEFAULT_SSL)
     optvalues.encoding = option_with_default(configs.get, 'ui', 'encoding', UTF8)
 
     optvalues.tty = option_with_default(configs.getboolean, 'ui', 'tty', sys.stdin.isatty())
@@ -2555,6 +2556,7 @@ def main(options, hostname, port):
         sys.stderr.write("Using CQL driver: %s\n" % (cassandra,))
         sys.stderr.write("Using connect timeout: %s seconds\n" % (options.connect_timeout,))
         sys.stderr.write("Using '%s' encoding\n" % (options.encoding,))
+        sys.stderr.write("Using ssl: %s\n" % (options.ssl,))
 
     # create timezone based on settings, environment or auto-detection
     timezone = None
