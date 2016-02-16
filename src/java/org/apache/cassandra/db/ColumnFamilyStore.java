@@ -1217,6 +1217,7 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
         DecoratedKey key = update.partitionKey();
         invalidateCachedPartition(key);
         metric.samplers.get(Sampler.WRITES).addSample(key.getKey(), key.hashCode(), 1);
+        StorageHook.instance.reportWrite(metadata.cfId, update);
         metric.writeLatency.addNano(System.nanoTime() - start);
         if(timeDelta < Long.MAX_VALUE)
             metric.colUpdateTimeDeltaHistogram.update(timeDelta);

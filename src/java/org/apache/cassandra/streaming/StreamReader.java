@@ -143,7 +143,9 @@ public class StreamReader
         if (localDir == null)
             throw new IOException("Insufficient disk space to store " + totalSize + " bytes");
 
-        return new RangeAwareSSTableWriter(cfs, estimatedKeys, repairedAt, format, sstableLevel, totalSize, session.getTransaction(cfId), header);
+        RangeAwareSSTableWriter writer = new RangeAwareSSTableWriter(cfs, estimatedKeys, repairedAt, format, sstableLevel, totalSize, session.getTransaction(cfId), header);
+        StreamHook.instance.reportIncomingFile(cfs, writer, session, fileSeqNum);
+        return writer;
     }
 
     protected void drain(InputStream dis, long bytesRead) throws IOException

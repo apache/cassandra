@@ -39,8 +39,6 @@ import org.apache.cassandra.db.PartitionPosition;
 import org.apache.cassandra.dht.Range;
 import org.apache.cassandra.dht.Token;
 import org.apache.cassandra.gms.*;
-import org.apache.cassandra.io.sstable.Component;
-import org.apache.cassandra.io.sstable.Descriptor;
 import org.apache.cassandra.metrics.StreamingMetrics;
 import org.apache.cassandra.service.ActiveRepairService;
 import org.apache.cassandra.streaming.messages.*;
@@ -222,6 +220,7 @@ public class StreamSession implements IEndpointStateChangeSubscriber
     public void init(StreamResultFuture streamResult)
     {
         this.streamResult = streamResult;
+        StreamHook.instance.reportStreamFuture(this, streamResult);
     }
 
     public void start()
