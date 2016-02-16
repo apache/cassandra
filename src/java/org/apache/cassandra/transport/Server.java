@@ -331,7 +331,8 @@ public class Server implements CassandraDaemon.Server
         protected final SslHandler createSslHandler() {
             SSLEngine sslEngine = sslContext.createSSLEngine();
             sslEngine.setUseClientMode(false);
-            sslEngine.setEnabledCipherSuites(encryptionOptions.cipher_suites);
+            String[] suites = SSLFactory.filterCipherSuites(sslEngine.getSupportedCipherSuites(), encryptionOptions.cipher_suites);
+            sslEngine.setEnabledCipherSuites(suites);
             sslEngine.setNeedClientAuth(encryptionOptions.require_client_auth);
             sslEngine.setEnabledProtocols(SSLFactory.ACCEPTED_PROTOCOLS);
             return new SslHandler(sslEngine);

@@ -1,4 +1,5 @@
 2.2.6
+ * Preserve order for preferred SSL cipher suites (CASSANDRA-11164)
  * Range.compareTo() violates the contract of Comparable (CASSANDRA-11216)
  * Avoid NPE when serializing ErrorMessage with null message (CASSANDRA-11167)
  * Replacing an aggregate with a new version doesn't reset INITCOND (CASSANDRA-10840)
@@ -32,6 +33,7 @@ Merged from 2.1:
  * test_bulk_round_trip_blogposts is failing occasionally (CASSANDRA-10938)
  * (cqlsh) Support timezone conversion using pytz (CASSANDRA-10397)
  * cqlsh: change default encoding to UTF-8 (CASSANDRA-11124)
+
 
 2.2.5
  * maxPurgeableTimestamp needs to check memtables too (CASSANDRA-9949)

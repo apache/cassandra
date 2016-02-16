@@ -291,7 +291,8 @@ public class SimpleClient implements Closeable
             super.initChannel(channel);
             SSLEngine sslEngine = sslContext.createSSLEngine();
             sslEngine.setUseClientMode(true);
-            sslEngine.setEnabledCipherSuites(encryptionOptions.cipher_suites);
+            String[] suites = SSLFactory.filterCipherSuites(sslEngine.getSupportedCipherSuites(), encryptionOptions.cipher_suites);
+            sslEngine.setEnabledCipherSuites(suites);
             sslEngine.setEnabledProtocols(SSLFactory.ACCEPTED_PROTOCOLS);
             channel.pipeline().addFirst("ssl", new SslHandler(sslEngine));
         }
