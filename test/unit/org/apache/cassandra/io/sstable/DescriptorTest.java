@@ -84,16 +84,22 @@ public class DescriptorTest
         // secondary index
         String idxName = "myidx";
         File idxDir = new File(dir.getAbsolutePath() + File.separator + Directories.SECONDARY_INDEX_NAME_SEPARATOR + idxName);
-        checkFromFilename(new Descriptor(idxDir, ksname, cfname + Directories.SECONDARY_INDEX_NAME_SEPARATOR + idxName, 4, Descriptor.Type.FINAL), false);
+        checkFromFilename(new Descriptor(idxDir, ksname, cfname + Directories.SECONDARY_INDEX_NAME_SEPARATOR + idxName,
+                                         4, Descriptor.Type.FINAL), false);
         // secondary index tmp
-        checkFromFilename(new Descriptor(idxDir, ksname, cfname + Directories.SECONDARY_INDEX_NAME_SEPARATOR + idxName, 5, Descriptor.Type.TEMP), false);
+        checkFromFilename(new Descriptor(idxDir, ksname, cfname + Directories.SECONDARY_INDEX_NAME_SEPARATOR + idxName,
+                                         5, Descriptor.Type.TEMP), false);
 
         // legacy version
-        checkFromFilename(new Descriptor("ja", dir, ksname, cfname, 1, Descriptor.Type.FINAL, SSTableFormat.Type.LEGACY), false);
+        checkFromFilename(new Descriptor("ja", dir, ksname, cfname, 1, Descriptor.Type.FINAL,
+                                         SSTableFormat.Type.LEGACY), false);
         // legacy tmp
-        checkFromFilename(new Descriptor("ja", dir, ksname, cfname, 2, Descriptor.Type.TEMP, SSTableFormat.Type.LEGACY), false);
+        checkFromFilename(new Descriptor("ja", dir, ksname, cfname, 2, Descriptor.Type.TEMP, SSTableFormat.Type.LEGACY),
+                          false);
         // legacy secondary index
-        checkFromFilename(new Descriptor("ja", dir, ksname, cfname + Directories.SECONDARY_INDEX_NAME_SEPARATOR + idxName, 3, Descriptor.Type.FINAL, SSTableFormat.Type.LEGACY), false);
+        checkFromFilename(new Descriptor("ja", dir, ksname,
+                                         cfname + Directories.SECONDARY_INDEX_NAME_SEPARATOR + idxName, 3,
+                                         Descriptor.Type.FINAL, SSTableFormat.Type.LEGACY), false);
     }
 
     private void checkFromFilename(Descriptor original, boolean skipComponent)
@@ -121,23 +127,38 @@ public class DescriptorTest
     }
 
     @Test
+    public void testEquality()
+    {
+        // Descriptor should be equal when parent directory points to the same directory
+        File dir = new File(".");
+        Descriptor desc1 = new Descriptor(dir, "ks", "cf", 1, Descriptor.Type.FINAL);
+        Descriptor desc2 = new Descriptor(dir.getAbsoluteFile(), "ks", "cf", 1, Descriptor.Type.FINAL);
+        assertEquals(desc1, desc2);
+        assertEquals(desc1.hashCode(), desc2.hashCode());
+    }
+
+    @Test
     public void validateNames()
     {
 
-        String names[] = {
-            /*"system-schema_keyspaces-ka-1-CompressionInfo.db",  "system-schema_keyspaces-ka-1-Summary.db",
-            "system-schema_keyspaces-ka-1-Data.db",             "system-schema_keyspaces-ka-1-TOC.txt",
-            "system-schema_keyspaces-ka-1-Digest.sha1",         "system-schema_keyspaces-ka-2-CompressionInfo.db",
-            "system-schema_keyspaces-ka-1-Filter.db",           "system-schema_keyspaces-ka-2-Data.db",
-            "system-schema_keyspaces-ka-1-Index.db",            "system-schema_keyspaces-ka-2-Digest.sha1",
-            "system-schema_keyspaces-ka-1-Statistics.db",
-            "system-schema_keyspacest-tmp-ka-1-Data.db",*/
-            "system-schema_keyspace-ka-1-"+ SSTableFormat.Type.BIG.name+"-Data.db"
+        String[] names = {
+             // old formats
+             "system-schema_keyspaces-jb-1-Data.db",
+             "system-schema_keyspaces-tmp-jb-1-Data.db",
+             "system-schema_keyspaces-ka-1-big-Data.db",
+             "system-schema_keyspaces-tmp-ka-1-big-Data.db",
+             // 2ndary index
+             "keyspace1-standard1.idx1-ka-1-big-Data.db",
+             // new formats
+             "la-1-big-Data.db",
+             "tmp-la-1-big-Data.db",
+             // 2ndary index
+             ".idx1" + File.separator + "la-1-big-Data.db",
         };
 
         for (String name : names)
         {
-            Descriptor d = Descriptor.fromFilename(name);
+            assertNotNull(Descriptor.fromFilename(name));
         }
     }
 
