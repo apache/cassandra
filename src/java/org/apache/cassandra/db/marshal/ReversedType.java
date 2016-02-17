@@ -135,9 +135,9 @@ public class ReversedType<T> extends AbstractType<T>
         return baseType.getSerializer();
     }
 
-    public boolean references(AbstractType<?> check)
+    public boolean referencesUserType(String userTypeName)
     {
-        return super.references(check) || baseType.references(check);
+        return baseType.referencesUserType(userTypeName);
     }
 
     @Override

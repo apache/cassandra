@@ -69,9 +69,9 @@ public class SetType<T> extends CollectionType<Set<T>>
     }
 
     @Override
-    public boolean references(AbstractType<?> check)
+    public boolean referencesUserType(String userTypeName)
     {
-        return super.references(check) || elements.references(check);
+        return getElementsType().referencesUserType(userTypeName);
     }
 
     public AbstractType<T> getElementsType()

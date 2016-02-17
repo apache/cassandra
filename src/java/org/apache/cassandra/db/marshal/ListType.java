@@ -75,9 +75,9 @@ public class ListType<T> extends CollectionType<List<T>>
     }
 
     @Override
-    public boolean references(AbstractType<?> check)
+    public boolean referencesUserType(String userTypeName)
     {
-        return super.references(check) || elements.references(check);
+        return getElementsType().referencesUserType(userTypeName);
     }
 
     public AbstractType<T> getElementsType()

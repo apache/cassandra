@@ -75,9 +75,10 @@ public class MapType<K, V> extends CollectionType<Map<K, V>>
     }
 
     @Override
-    public boolean references(AbstractType<?> check)
+    public boolean referencesUserType(String userTypeName)
     {
-        return super.references(check) || keys.references(check) || values.references(check);
+        return getKeysType().referencesUserType(userTypeName) ||
+               getValuesType().referencesUserType(userTypeName);
     }
 
     public AbstractType<K> getKeysType()

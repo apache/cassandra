@@ -35,7 +35,6 @@ public class DropTypeStatement extends SchemaAlteringStatement
 
     public DropTypeStatement(UTName name, boolean ifExists)
     {
-        super();
         this.name = name;
         this.ifExists = ifExists;
     }
@@ -80,53 +79,22 @@ public class DropTypeStatement extends SchemaAlteringStatement
 
         for (Function function : ksm.functions)
         {
-            if (isUsedBy(function.returnType()))
+            if (function.returnType().referencesUserType(name.getStringTypeName()))
                 throw new InvalidRequestException(String.format("Cannot drop user type %s as it is still used by function %s", name, function));
 
             for (AbstractType<?> argType : function.argTypes())
-                if (isUsedBy(argType))
+                if (argType.referencesUserType(name.getStringTypeName()))
                     throw new InvalidRequestException(String.format("Cannot drop user type %s as it is still used by function %s", name, function));
         }
 
         for (UserType ut : ksm.types)
-            if (!ut.name.equals(name.getUserTypeName()) && isUsedBy(ut))
+            if (!ut.name.equals(name.getUserTypeName()) && ut.referencesUserType(name.getStringTypeName()))
                 throw new InvalidRequestException(String.format("Cannot drop user type %s as it is still used by user type %s", name, ut.getNameAsString()));
 
         for (CFMetaData cfm : ksm.tablesAndViews())
             for (ColumnDefinition def : cfm.allColumns())
-                if (isUsedBy(def.type))
+                if (def.type.referencesUserType(name.getStringTypeName()))
                     throw new InvalidRequestException(String.format("Cannot drop user type %s as it is still used by table %s.%s", name, cfm.ksName, cfm.cfName));
-    }
-
-    private boolean isUsedBy(AbstractType<?> toCheck) throws RequestValidationException
-    {
-        if (toCheck instanceof UserType)
-        {
-            UserType ut = (UserType)toCheck;
-            if (name.getKeyspace().equals(ut.keyspace) && name.getUserTypeName().equals(ut.name))
-                return true;
-
-            for (AbstractType<?> subtype : ut.fieldTypes())
-                if (isUsedBy(subtype))
-                    return true;
-        }
-        else if (toCheck instanceof CompositeType)
-        {
-            CompositeType ct = (CompositeType)toCheck;
-            for (AbstractType<?> subtype : ct.types)
-                if (isUsedBy(subtype))
-                    return true;
-        }
-        else if (toCheck instanceof CollectionType)
-        {
-            if (toCheck instanceof ListType)
-                return isUsedBy(((ListType)toCheck).getElementsType());
-            else if (toCheck instanceof SetType)
-                return isUsedBy(((SetType)toCheck).getElementsType());
-            else
-                return isUsedBy(((MapType)toCheck).getKeysType()) || isUsedBy(((MapType)toCheck).getValuesType());
-        }
-        return false;
     }
 
     @Override

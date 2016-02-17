@@ -19,7 +19,6 @@ package org.apache.cassandra.db.marshal;
 
 import java.nio.ByteBuffer;
 import java.nio.charset.CharacterCodingException;
-import java.nio.charset.Charset;
 import java.nio.charset.StandardCharsets;
 import java.util.*;
 
@@ -29,7 +28,6 @@ import org.apache.cassandra.cql3.*;
 import org.apache.cassandra.exceptions.ConfigurationException;
 import org.apache.cassandra.exceptions.SyntaxException;
 import org.apache.cassandra.serializers.*;
-import org.apache.cassandra.transport.Server;
 import org.apache.cassandra.utils.ByteBufferUtil;
 import org.apache.cassandra.utils.Pair;
 
@@ -238,6 +236,13 @@ public class UserType extends TupleType
     public CQL3Type asCQL3Type()
     {
         return CQL3Type.UserDefined.create(this);
+    }
+
+    @Override
+    public boolean referencesUserType(String userTypeName)
+    {
+        return getNameAsString().equals(userTypeName) ||
+               fieldTypes().stream().anyMatch(f -> f.referencesUserType(userTypeName));
     }
 
     @Override
