@@ -57,8 +57,8 @@ def create_test_keyspace(cursor):
 
 def split_cql_commands(source):
     ruleset = cql_rule_set()
-    statements, in_batch = ruleset.cql_split_statements(source)
-    if in_batch:
+    statements, endtoken_escaped = ruleset.cql_split_statements(source)
+    if endtoken_escaped:
         raise ValueError("CQL source ends unexpectedly")
 
     return [ruleset.cql_extract_orig(toks, source) for toks in statements if toks]
