@@ -223,4 +223,10 @@ public class NetworkTopologyStrategy extends AbstractReplicationStrategy
             validateReplicationFactor(e.getValue());
         }
     }
+
+    @Override
+    public boolean hasSameSettings(AbstractReplicationStrategy other)
+    {
+        return super.hasSameSettings(other) && ((NetworkTopologyStrategy) other).datacenters.equals(datacenters);
+    }
 }
