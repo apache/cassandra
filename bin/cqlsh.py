@@ -217,9 +217,8 @@ parser.add_option('-k', '--keyspace', help='Authenticate to the given keyspace.'
 parser.add_option("-f", "--file", help="Execute commands from FILE, then exit")
 parser.add_option('--debug', action='store_true',
                   help='Show additional debugging information')
-parser.add_option("--encoding", help="Specify a non-default encoding for output.  If you are " +
-                  "experiencing problems with unicode characters, using utf8 may fix the problem." +
-                  " (Default from system preferences: %s)" % (locale.getpreferredencoding(),))
+parser.add_option("--encoding", help="Specify a non-default encoding for output." +
+                  " (Default: %s)" % (UTF8,))
 parser.add_option("--cqlshrc", help="Specify an alternative cqlshrc file location.")
 parser.add_option('--cqlversion', default=DEFAULT_CQLVER,
                   help='Specify a particular CQL version (default: %default).'
@@ -760,10 +759,6 @@ class Shell(cmd.Cmd):
         self.session.max_trace_wait = max_trace_wait
 
         self.tty = tty
-        if encoding is None:
-            encoding = locale.getpreferredencoding()
-            if encoding is None:
-                encoding = UTF8
         self.encoding = encoding
         self.check_windows_encoding()
 
@@ -2446,7 +2441,7 @@ def read_options(cmdlineargs, environment):
     optvalues.debug = False
     optvalues.file = None
     optvalues.ssl = False
-    optvalues.encoding = None
+    optvalues.encoding = option_with_default(configs.get, 'ui', 'encoding', UTF8)
 
     optvalues.tty = option_with_default(configs.getboolean, 'ui', 'tty', sys.stdin.isatty())
     optvalues.cqlversion = option_with_default(configs.get, 'cql', 'version', DEFAULT_CQLVER)
@@ -2559,6 +2554,7 @@ def main(options, hostname, port):
     if options.debug:
         sys.stderr.write("Using CQL driver: %s\n" % (cassandra,))
         sys.stderr.write("Using connect timeout: %s seconds\n" % (options.connect_timeout,))
+        sys.stderr.write("Using '%s' encoding\n" % (options.encoding,))
 
     # create timezone based on settings, environment or auto-detection
     timezone = None
