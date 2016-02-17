@@ -22,10 +22,12 @@ import java.security.NoSuchAlgorithmException;
 import java.util.*;
 
 import com.google.common.collect.ImmutableList;
+import com.google.common.collect.ImmutableSet;
 import com.google.common.collect.Sets;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import org.apache.cassandra.auth.AuthKeyspace;
 import org.apache.cassandra.cql3.functions.Functions;
 import org.apache.cassandra.cql3.functions.UDAggregate;
 import org.apache.cassandra.cql3.functions.UDFunction;
@@ -37,7 +39,9 @@ import org.apache.cassandra.db.marshal.UserType;
 import org.apache.cassandra.db.index.SecondaryIndex;
 import org.apache.cassandra.io.sstable.Descriptor;
 import org.apache.cassandra.schema.LegacySchemaTables;
+import org.apache.cassandra.repair.SystemDistributedKeyspace;
 import org.apache.cassandra.service.MigrationManager;
+import org.apache.cassandra.tracing.TraceKeyspace;
 import org.apache.cassandra.utils.ConcurrentBiMap;
 import org.apache.cassandra.utils.Pair;
 import org.cliffc.high_scale_lib.NonBlockingHashMap;
@@ -69,6 +73,10 @@ public class Schema
 
     // 59adb24e-f3cd-3e02-97f0-5b395827453f
     public static final UUID emptyVersion;
+
+    private static final ImmutableSet<String> replicatedSystemKeyspaceNames = ImmutableSet.of(TraceKeyspace.NAME,
+                                                                                              AuthKeyspace.NAME,
+                                                                                              SystemDistributedKeyspace.NAME);
 
     static
     {
@@ -299,12 +307,27 @@ public class Schema
         return keyspaces.get(keyspaceName);
     }
 
+    private Set<String> getNonSystemKeyspacesSet()
+    {
+        return Sets.difference(keyspaces.keySet(), Collections.singleton(SystemKeyspace.NAME));
+    }
+
     /**
-     * @return collection of the non-system keyspaces
+     * @return collection of the non-system keyspaces (note that this count as system only the
+     * non replicated keyspaces, so keyspace like system_traces which are replicated are actually
+     * returned. See getUserKeyspace() below if you don't want those)
      */
     public List<String> getNonSystemKeyspaces()
     {
-        return ImmutableList.copyOf(Sets.difference(keyspaces.keySet(), Collections.singleton(SystemKeyspace.NAME)));
+        return ImmutableList.copyOf(getNonSystemKeyspacesSet());
+    }
+
+    /**
+     * @return collection of the user defined keyspaces
+     */
+    public List<String> getUserKeyspaces()
+    {
+        return ImmutableList.copyOf(Sets.difference(getNonSystemKeyspacesSet(), replicatedSystemKeyspaceNames));
     }
 
     /**
