@@ -231,7 +231,7 @@ while true; do
             exit 0
         ;;
         -v)
-            "$JAVA" -cp "$CLASSPATH" org.apache.cassandra.tools.GetVersion
+            "$JAVA" -cp "$CLASSPATH" "-Dlogback.configurationFile=logback-tools.xml" org.apache.cassandra.tools.GetVersion
             exit 0
         ;;
         -R)
