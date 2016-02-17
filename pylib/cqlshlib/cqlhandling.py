@@ -142,6 +142,7 @@ class CqlParsingRuleSet(pylexotron.ParsingRuleSet):
         stmts = util.split_list(tokens, lambda t: t[0] == 'endtoken')
         output = []
         in_batch = False
+        in_pg_string = len([st for st in tokens if len(st) > 0 and st[0] == 'unclosedPgString']) == 1
         for stmt in stmts:
             if in_batch:
                 output[-1].extend(stmt)
@@ -152,7 +153,7 @@ class CqlParsingRuleSet(pylexotron.ParsingRuleSet):
                     in_batch = False
                 elif stmt[0][1].upper() == 'BEGIN':
                     in_batch = True
-        return output, in_batch
+        return output, in_batch or in_pg_string
 
     def cql_complete_single(self, text, partial, init_bindings={}, ignore_case=True,
                             startsymbol='Start'):

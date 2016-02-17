@@ -1132,7 +1132,7 @@ class Shell(cmd.Cmd):
         """
 
         try:
-            statements, in_batch = cqlruleset.cql_split_statements(statementtext)
+            statements, endtoken_escaped = cqlruleset.cql_split_statements(statementtext)
         except pylexotron.LexingError, e:
             if self.show_line_nums:
                 self.printerr('Invalid syntax at char %d' % (e.charnum,))
@@ -1148,7 +1148,7 @@ class Shell(cmd.Cmd):
             statements = statements[:-1]
         if not statements:
             return True
-        if in_batch or statements[-1][-1][0] != 'endtoken':
+        if endtoken_escaped or statements[-1][-1][0] != 'endtoken':
             self.set_continue_prompt()
             return
         for st in statements:
