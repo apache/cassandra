@@ -528,6 +528,9 @@ public class BulkLoader
                 else
                 {
                     config = new Config();
+                    // unthrottle stream by default
+                    config.stream_throughput_outbound_megabits_per_sec = 0;
+                    config.inter_dc_stream_throughput_outbound_megabits_per_sec = 0;
                 }
                 opts.storagePort = config.storage_port;
                 opts.sslStoragePort = config.ssl_storage_port;
