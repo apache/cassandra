@@ -120,17 +120,6 @@ public class CompositeType extends AbstractCompositeType
         this.types = ImmutableList.copyOf(types);
     }
 
-    @Override
-    public boolean references(AbstractType<?> check)
-    {
-        if (super.references(check))
-            return true;
-        for (AbstractType<?> type : types)
-            if (type.references(check))
-                return true;
-        return false;
-    }
-
     protected AbstractType<?> getComparator(int i, ByteBuffer bb)
     {
         try

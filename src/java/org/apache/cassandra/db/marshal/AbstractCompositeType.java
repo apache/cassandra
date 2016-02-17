@@ -296,6 +296,12 @@ public abstract class AbstractCompositeType extends AbstractType<ByteBuffer>
         return BytesSerializer.instance;
     }
 
+    @Override
+    public boolean referencesUserType(String name)
+    {
+        return getComponents().stream().anyMatch(f -> f.referencesUserType(name));
+    }
+
     /**
      * @return the comparator for the given component. static CompositeType will consult
      * @param i DynamicCompositeType will read the type information from @param bb

@@ -400,12 +400,9 @@ public abstract class AbstractType<T> implements Comparator<ByteBuffer>
             ByteBufferUtil.skipWithVIntLength(in);
     }
 
-    /**
-     * Checks whether this type or any of the types this type contains references the given type.
-     */
-    public boolean references(AbstractType<?> check)
+    public boolean referencesUserType(String userTypeName)
     {
-        return this.equals(check);
+        return false;
     }
 
     /**

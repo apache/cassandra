@@ -447,6 +447,74 @@ public class UserTypesTest extends CQLTester
         assertInvalidMessage("would create a circular reference", "ALTER TYPE " + typeWithKs(type1) + " ADD needs_to_fail frozen<list<" + typeWithKs(type1) + ">>");
     }
 
+    @Test
+    public void testTypeAlterUsedInFunction() throws Throwable
+    {
+        String type1 = createType("CREATE TYPE %s (foo ascii)");
+        assertComplexInvalidAlterDropStatements(type1, type1, "{foo: 'abc'}");
+
+        type1 = createType("CREATE TYPE %s (foo ascii)");
+        assertComplexInvalidAlterDropStatements(type1, "list<frozen<" + type1 + ">>", "[{foo: 'abc'}]");
+
+        type1 = createType("CREATE TYPE %s (foo ascii)");
+        assertComplexInvalidAlterDropStatements(type1, "set<frozen<" + type1 + ">>", "{{foo: 'abc'}}");
+
+        type1 = createType("CREATE TYPE %s (foo ascii)");
+        assertComplexInvalidAlterDropStatements(type1, "map<text, frozen<" + type1 + ">>", "{'key': {foo: 'abc'}}");
+
+        type1 = createType("CREATE TYPE %s (foo ascii)");
+        String type2 = createType("CREATE TYPE %s (foo frozen<" + type1 + ">)");
+        assertComplexInvalidAlterDropStatements(type1, type2, "{foo: 'abc'}");
+
+        type1 = createType("CREATE TYPE %s (foo ascii)");
+        type2 = createType("CREATE TYPE %s (foo frozen<" + type1 + ">)");
+        assertComplexInvalidAlterDropStatements(type1,
+                                                "list<frozen<" + type2 + ">>",
+                                                "[{foo: 'abc'}]");
+
+        type1 = createType("CREATE TYPE %s (foo ascii)");
+        type2 = createType("CREATE TYPE %s (foo frozen<set<" + type1 + ">>)");
+        assertComplexInvalidAlterDropStatements(type1,
+                                                "map<text, frozen<" + type2 + ">>",
+                                                "{'key': {foo: {{foo: 'abc'}}}}");
+
+        type1 = createType("CREATE TYPE %s (foo ascii)");
+        assertComplexInvalidAlterDropStatements(type1,
+                                                "tuple<text, frozen<" + type1 + ">>",
+                                                "('key', {foo: 'abc'})");
+
+        type1 = createType("CREATE TYPE %s (foo ascii)");
+        assertComplexInvalidAlterDropStatements(type1,
+                                                "tuple<text, frozen<tuple<tuple<" + type1 + ", int>, int>>>",
+                                                "('key', (({foo: 'abc'}, 0), 0))");
+
+        type1 = createType("CREATE TYPE %s (foo ascii)");
+        type2 = createType("CREATE TYPE %s (foo frozen<set<" + type1 + ">>)");
+        assertComplexInvalidAlterDropStatements(type1,
+                                                "tuple<text, frozen<" + type2 + ">>",
+                                                "('key', {foo: {{foo: 'abc'}}})");
+    }
+
+    private void assertComplexInvalidAlterDropStatements(String type1, String fArgType, String initcond) throws Throwable
+    {
+        String f = createFunction(KEYSPACE, type1, "CREATE FUNCTION %s(arg " + fArgType + ", col int) " +
+                                                   "RETURNS NULL ON NULL INPUT " +
+                                                   "RETURNS " + fArgType + ' ' +
+                                                   "LANGUAGE java AS 'return arg;'");
+        createAggregate(KEYSPACE, "int", "CREATE AGGREGATE %s(int) " +
+                                         "SFUNC " + shortFunctionName(f) + ' ' +
+                                         "STYPE " + fArgType + ' ' +
+                                         "INITCOND " + initcond);
+        assertInvalidAlterDropStatements(type1);
+    }
+
+    private void assertInvalidAlterDropStatements(String t) throws Throwable
+    {
+        assertInvalidMessage("Cannot alter user type " + typeWithKs(t), "ALTER TYPE " + typeWithKs(t) + " RENAME foo TO bar;");
+        assertInvalidMessage("Cannot alter user type " + typeWithKs(t), "ALTER TYPE " + typeWithKs(t) + " ALTER foo TYPE text;");
+        assertInvalidMessage("Cannot drop user type " + typeWithKs(t), "DROP TYPE " + typeWithKs(t) + ';');
+    }
+
     private String typeWithKs(String type1)
     {
         return keyspace() + '.' + type1;
