@@ -30,7 +30,7 @@ Merged from 2.1:
  * Make it clear what DTCS timestamp_resolution is used for (CASSANDRA-11041)
  * test_bulk_round_trip_blogposts is failing occasionally (CASSANDRA-10938)
  * (cqlsh) Support timezone conversion using pytz (CASSANDRA-10397)
-
+ * cqlsh: change default encoding to UTF-8 (CASSANDRA-11124)
 
 2.2.5
  * maxPurgeableTimestamp needs to check memtables too (CASSANDRA-9949)
