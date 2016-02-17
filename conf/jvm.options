@@ -75,6 +75,11 @@
 # strategies and benchmark write performance differences without affecting the production workload. 
 #-Dcassandra.write_survey=true
 
+# To disable configuration via JMX of auth caches (such as those for credentials, permissions and
+# roles). This will mean those config options can only be set (persistently) in cassandra.yaml
+# and will require a restart for new values to take effect.
+#-Dcassandra.disable_auth_caches_remote_configuration=true
+
 ########################
 # GENERAL JVM SETTINGS #
 ########################

@@ -321,6 +321,19 @@ public class DatabaseDescriptor
         if (conf.authenticator != null)
             authenticator = FBUtilities.newAuthenticator(conf.authenticator);
 
+        // the configuration options regarding credentials caching are only guaranteed to
+        // work with PasswordAuthenticator, so log a message if some other authenticator
+        // is in use and non-default values are detected
+        if (!(authenticator instanceof PasswordAuthenticator)
+            && (conf.credentials_update_interval_in_ms != -1
+                || conf.credentials_validity_in_ms != 2000
+                || conf.credentials_cache_max_entries != 1000))
+        {
+            logger.info("Configuration options credentials_update_interval_in_ms, credentials_validity_in_ms and " +
+                        "credentials_cache_max_entries may not be applicable for the configured authenticator ({})",
+                        authenticator.getClass().getName());
+        }
+
         if (conf.authorizer != null)
             authorizer = FBUtilities.newAuthorizer(conf.authorizer);
 
@@ -754,16 +767,26 @@ public class DatabaseDescriptor
         conf.permissions_validity_in_ms = timeout;
     }
 
-    public static int getPermissionsCacheMaxEntries()
-    {
-        return conf.permissions_cache_max_entries;
-    }
-
     public static int getPermissionsUpdateInterval()
     {
         return conf.permissions_update_interval_in_ms == -1
              ? conf.permissions_validity_in_ms
              : conf.permissions_update_interval_in_ms;
+    }
+
+    public static void setPermissionsUpdateInterval(int updateInterval)
+    {
+        conf.permissions_update_interval_in_ms = updateInterval;
+    }
+
+    public static int getPermissionsCacheMaxEntries()
+    {
+        return conf.permissions_cache_max_entries;
+    }
+
+    public static int setPermissionsCacheMaxEntries(int maxEntries)
+    {
+        return conf.permissions_cache_max_entries = maxEntries;
     }
 
     public static int getRolesValidity()
@@ -774,11 +797,6 @@ public class DatabaseDescriptor
     public static void setRolesValidity(int validity)
     {
         conf.roles_validity_in_ms = validity;
-    }
-
-    public static int getRolesCacheMaxEntries()
-    {
-        return conf.roles_cache_max_entries;
     }
 
     public static int getRolesUpdateInterval()
@@ -793,9 +811,46 @@ public class DatabaseDescriptor
         conf.roles_update_interval_in_ms = interval;
     }
 
-    public static void setPermissionsUpdateInterval(int updateInterval)
+    public static int getRolesCacheMaxEntries()
     {
-        conf.permissions_update_interval_in_ms = updateInterval;
+        return conf.roles_cache_max_entries;
+    }
+
+    public static int setRolesCacheMaxEntries(int maxEntries)
+    {
+        return conf.roles_cache_max_entries = maxEntries;
+    }
+
+    public static int getCredentialsValidity()
+    {
+        return conf.credentials_validity_in_ms;
+    }
+
+    public static void setCredentialsValidity(int timeout)
+    {
+        conf.credentials_validity_in_ms = timeout;
+    }
+
+    public static int getCredentialsUpdateInterval()
+    {
+        return conf.credentials_update_interval_in_ms == -1
+               ? conf.credentials_validity_in_ms
+               : conf.credentials_update_interval_in_ms;
+    }
+
+    public static void setCredentialsUpdateInterval(int updateInterval)
+    {
+        conf.credentials_update_interval_in_ms = updateInterval;
+    }
+
+    public static int getCredentialsCacheMaxEntries()
+    {
+        return conf.credentials_cache_max_entries;
+    }
+
+    public static int setCredentialsCacheMaxEntries(int maxEntries)
+    {
+        return conf.credentials_cache_max_entries = maxEntries;
     }
 
     public static int getThriftFramedTransportSize()

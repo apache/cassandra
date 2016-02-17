@@ -120,11 +120,11 @@ authorizer: AllowAllAuthorizer
 #   increase system_auth keyspace replication factor if you use this role manager.
 role_manager: CassandraRoleManager
 
-# Validity period for roles cache (fetching permissions can be an
-# expensive operation depending on the authorizer). Granted roles are cached for
-# authenticated sessions in AuthenticatedUser and after the period specified
-# here, become eligible for (async) reload.
-# Defaults to 2000, set to 0 to disable.
+# Validity period for roles cache (fetching granted roles can be an expensive
+# operation depending on the role manager, CassandraRoleManager is one example)
+# Granted roles are cached for authenticated sessions in AuthenticatedUser and
+# after the period specified here, become eligible for (async) reload.
+# Defaults to 2000, set to 0 to disable caching entirely.
 # Will be disabled automatically for AllowAllAuthenticator.
 roles_validity_in_ms: 2000
 
@@ -134,7 +134,7 @@ roles_validity_in_ms: 2000
 # completes. If roles_validity_in_ms is non-zero, then this must be
 # also.
 # Defaults to the same value as roles_validity_in_ms.
-# roles_update_interval_in_ms: 1000
+# roles_update_interval_in_ms: 2000
 
 # Validity period for permissions cache (fetching permissions can be an
 # expensive operation depending on the authorizer, CassandraAuthorizer is
@@ -148,7 +148,26 @@ permissions_validity_in_ms: 2000
 # completes. If permissions_validity_in_ms is non-zero, then this must be
 # also.
 # Defaults to the same value as permissions_validity_in_ms.
-# permissions_update_interval_in_ms: 1000
+# permissions_update_interval_in_ms: 2000
+
+# Validity period for credentials cache. This cache is tightly coupled to
+# the provided PasswordAuthenticator implementation of IAuthenticator. If
+# another IAuthenticator implementation is configured, this cache will not
+# be automatically used and so the following settings will have no effect.
+# Please note, credentials are cached in their encrypted form, so while
+# activating this cache may reduce the number of queries made to the
+# underlying table, it may not  bring a significant reduction in the
+# latency of individual authentication attempts.
+# Defaults to 2000, set to 0 to disable credentials caching.
+credentials_validity_in_ms: 2000
+
+# Refresh interval for credentials cache (if enabled).
+# After this interval, cache entries become eligible for refresh. Upon next
+# access, an async reload is scheduled and the old value returned until it
+# completes. If credentials_validity_in_ms is non-zero, then this must be
+# also.
+# Defaults to the same value as credentials_validity_in_ms.
+# credentials_update_interval_in_ms: 2000
 
 # The partitioner is responsible for distributing groups of rows (by
 # partition key) across nodes in the cluster.  You should leave this

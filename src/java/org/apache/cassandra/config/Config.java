@@ -43,11 +43,14 @@ public class Config
     public String authorizer;
     public String role_manager;
     public volatile int permissions_validity_in_ms = 2000;
-    public int permissions_cache_max_entries = 1000;
+    public volatile int permissions_cache_max_entries = 1000;
     public volatile int permissions_update_interval_in_ms = -1;
     public volatile int roles_validity_in_ms = 2000;
-    public int roles_cache_max_entries = 1000;
+    public volatile int roles_cache_max_entries = 1000;
     public volatile int roles_update_interval_in_ms = -1;
+    public volatile int credentials_validity_in_ms = 2000;
+    public volatile int credentials_cache_max_entries = 1000;
+    public volatile int credentials_update_interval_in_ms = -1;
 
     /* Hashing strategy Random or OPHF */
     public String partitioner;

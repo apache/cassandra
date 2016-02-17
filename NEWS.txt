@@ -13,6 +13,30 @@ restore snapshots created with the previous major version using the
 'sstableloader' tool. You can upgrade the file format of your snapshots
 using the provided 'sstableupgrade' tool.
 
+3.4
+===
+
+New features
+------------
+    - Internal authentication now supports caching of encrypted credentials.
+      Reference cassandra.yaml:credentials_validity_in_ms
+    - Remote configuration of auth caches via JMX can be disabled using the
+      the system property cassandra.disable_auth_caches_remote_configuration
+
+Upgrading
+---------
+    - Nothing specific to 3.4 but please see previous versions upgrading section,
+      especially if you are upgrading from 2.2.
+
+Deprecation
+-----------
+    - The mbean interfaces org.apache.cassandra.auth.PermissionsCacheMBean and
+      org.apache.cassandra.auth.RolesCacheMBean are deprecated in favor of
+      org.apache.cassandra.auth.AuthCacheMBean. This generalized interface is
+      common across all caches in the auth subsystem. The specific mbean interfaces
+      for each individual cache will be removed in a subsequent major version.
+
+
 3.2
 ===
 
