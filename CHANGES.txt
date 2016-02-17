@@ -1,4 +1,5 @@
 3.4
+ * add SASI validation for partitioner and complex columns (CASSANDRA-11169)
  * Add caching of encrypted credentials in PasswordAuthenticator (CASSANDRA-7715)
  * fix SASI memtable switching on flush (CASSANDRA-11159)
  * Remove duplicate offline compaction tracking (CASSANDRA-11148)

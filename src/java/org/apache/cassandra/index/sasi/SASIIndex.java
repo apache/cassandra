@@ -35,6 +35,7 @@ import org.apache.cassandra.db.marshal.AbstractType;
 import org.apache.cassandra.db.partitions.PartitionIterator;
 import org.apache.cassandra.db.partitions.PartitionUpdate;
 import org.apache.cassandra.db.rows.Row;
+import org.apache.cassandra.dht.Murmur3Partitioner;
 import org.apache.cassandra.exceptions.ConfigurationException;
 import org.apache.cassandra.exceptions.InvalidRequestException;
 import org.apache.cassandra.index.Index;
@@ -121,6 +122,9 @@ public class SASIIndex implements Index, INotificationConsumer
 
     public static Map<String, String> validateOptions(Map<String, String> options, CFMetaData cfm)
     {
+        if (!(cfm.partitioner instanceof Murmur3Partitioner))
+            throw new ConfigurationException("SASI only supports Murmur3Partitioner.");
+
         String targetColumn = options.get("target");
         if (targetColumn == null)
             throw new ConfigurationException("unknown target column");
@@ -128,6 +132,9 @@ public class SASIIndex implements Index, INotificationConsumer
         Pair<ColumnDefinition, IndexTarget.Type> target = TargetParser.parse(cfm, targetColumn);
         if (target == null)
             throw new ConfigurationException("failed to retrieve target column for: " + targetColumn);
+
+        if (target.left.isComplex())
+            throw new ConfigurationException("complex columns are not yet supported by SASI");
 
         IndexMode.validateAnalyzer(options);
 
