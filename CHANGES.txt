@@ -50,6 +50,7 @@ Merged from 2.2:
  * Fix paging on DISTINCT queries repeats result when first row in partition changes
    (CASSANDRA-10010)
 Merged from 2.1:
+ * Fix sstableloader to unthrottle streaming by default (CASSANDRA-9714)
  * Fix incorrect warning in 'nodetool status' (CASSANDRA-10176)
  * Properly release sstable ref when doing offline scrub (CASSANDRA-10697)
  * Improve nodetool status performance for large cluster (CASSANDRA-7238)
