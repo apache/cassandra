@@ -198,4 +198,10 @@ public class NetworkTopologyStrategy extends AbstractReplicationStrategy
         // We explicitely allow all options
         return null;
     }
+
+    @Override
+    public boolean hasSameSettings(AbstractReplicationStrategy other)
+    {
+        return super.hasSameSettings(other) && ((NetworkTopologyStrategy) other).datacenters.equals(datacenters);
+    }
 }

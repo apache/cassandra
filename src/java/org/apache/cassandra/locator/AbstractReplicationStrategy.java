@@ -299,6 +299,11 @@ public abstract class AbstractReplicationStrategy
         return strategyClass;
     }
 
+    public boolean hasSameSettings(AbstractReplicationStrategy other)
+    {
+        return getClass().equals(other.getClass()) && getReplicationFactor() == other.getReplicationFactor();
+    }
+
     protected void validateReplicationFactor(String rf) throws ConfigurationException
     {
         try
