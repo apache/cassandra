@@ -958,6 +958,25 @@ public class JsonTest extends CQLTester
         assertRows(execute("SELECT k, a.a, a.b, a.c, b FROM %s"), row(0, 0, set(1, 2, 3), null, null));
     }
 
+    // done for CASSANDRA-11146
+    @Test
+    public void testAlterUDT() throws Throwable
+    {
+        String typeName = createType("CREATE TYPE %s (a int)");
+        createTable("CREATE TABLE %s (" +
+                "k int PRIMARY KEY, " +
+                "a frozen<" + typeName + ">)");
+
+        execute("INSERT INTO %s JSON ?", "{\"k\": 0, \"a\": {\"a\": 0}}");
+        assertRows(execute("SELECT JSON * FROM %s"), row("{\"k\": 0, \"a\": {\"a\": 0}}"));
+
+        schemaChange("ALTER TYPE " + KEYSPACE + "." + typeName + " ADD b boolean");
+        assertRows(execute("SELECT JSON * FROM %s"), row("{\"k\": 0, \"a\": {\"a\": 0, \"b\": null}}"));
+
+        execute("INSERT INTO %s JSON ?", "{\"k\": 0, \"a\": {\"a\": 0, \"b\": true}}");
+        assertRows(execute("SELECT JSON * FROM %s"), row("{\"k\": 0, \"a\": {\"a\": 0, \"b\": true}}"));
+    }
+
     // done for CASSANDRA-11048
     @Test
     public void testJsonTreadSafety() throws Throwable
