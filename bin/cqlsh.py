@@ -676,6 +676,7 @@ class Shell(cmd.Cmd):
                  display_timestamp_format=DEFAULT_TIMESTAMP_FORMAT,
                  display_date_format=DEFAULT_DATE_FORMAT,
                  display_float_precision=DEFAULT_FLOAT_PRECISION,
+                 display_timezone=None,
                  max_trace_wait=DEFAULT_MAX_TRACE_WAIT,
                  ssl=False,
                  single_statement=None,
@@ -724,6 +725,8 @@ class Shell(cmd.Cmd):
         self.display_date_format = display_date_format
 
         self.display_float_precision = display_float_precision
+
+        self.display_timezone = display_timezone
 
         # If there is no schema metadata present (due to a schema mismatch), force schema refresh
         if not self.conn.metadata.keyspaces:
@@ -807,8 +810,8 @@ class Shell(cmd.Cmd):
             self.decoding_errors.append(val)
         try:
             dtformats = DateTimeFormat(timestamp_format=self.display_timestamp_format,
-                                       date_format=self.display_date_format,
-                                       nanotime_format=self.display_nanotime_format)
+                                       date_format=self.display_date_format, nanotime_format=self.display_nanotime_format,
+                                       timezone=self.display_timezone)
             return format_value(val, self.output_codec.name,
                                 addcolor=self.color, date_time_format=dtformats,
                                 float_precision=self.display_float_precision, **kwargs)
@@ -2421,6 +2424,7 @@ def read_options(cmdlineargs, environment):
     optvalues.field_size_limit = option_with_default(configs.getint, 'csv', 'field_size_limit', csv.field_size_limit())
     optvalues.max_trace_wait = option_with_default(configs.getfloat, 'tracing', 'max_trace_wait',
                                                    DEFAULT_MAX_TRACE_WAIT)
+    optvalues.timezone = option_with_default(configs.get, 'ui', 'timezone', None)
 
     optvalues.debug = False
     optvalues.file = None
@@ -2539,6 +2543,36 @@ def main(options, hostname, port):
         sys.stderr.write("Using CQL driver: %s\n" % (cassandra,))
         sys.stderr.write("Using connect timeout: %s seconds\n" % (options.connect_timeout,))
 
+    # create timezone based on settings, environment or auto-detection
+    timezone = None
+    if options.timezone or 'TZ' in os.environ:
+        try:
+            import pytz
+            if options.timezone:
+                try:
+                    timezone = pytz.timezone(options.timezone)
+                except:
+                    sys.stderr.write("Warning: could not recognize timezone '%s' specified in cqlshrc\n\n" % (options.timezone))
+            if 'TZ' in os.environ:
+                try:
+                    timezone = pytz.timezone(os.environ['TZ'])
+                except:
+                    sys.stderr.write("Warning: could not recognize timezone '%s' from environment value TZ\n\n" % (os.environ['TZ']))
+        except ImportError:
+            sys.stderr.write("Warning: Timezone defined and 'pytz' module for timezone conversion not installed. Timestamps will be displayed in UTC timezone.\n\n")
+
+    # try auto-detect timezone if tzlocal is installed
+    if not timezone:
+        try:
+            from tzlocal import get_localzone
+            timezone = get_localzone()
+        except ImportError:
+            # we silently ignore and fallback to UTC unless a custom timestamp format (which likely
+            # does contain a TZ part) was specified
+            if options.time_format != DEFAULT_TIMESTAMP_FORMAT:
+                sys.stderr.write("Warning: custom timestamp format specified in cqlshrc, but local timezone could not be detected.\n" +
+                                 "Either install Python 'tzlocal' module for auto-detection or specify client timezone in your cqlshrc.\n\n")
+
     try:
         shell = Shell(hostname,
                       port,
@@ -2555,6 +2589,7 @@ def main(options, hostname, port):
                       display_nanotime_format=options.nanotime_format,
                       display_date_format=options.date_format,
                       display_float_precision=options.float_precision,
+                      display_timezone=timezone,
                       max_trace_wait=options.max_trace_wait,
                       ssl=options.ssl,
                       single_statement=options.execute,
