@@ -33,6 +33,7 @@ import org.apache.cassandra.db.rows.UnfilteredRowIterator;
 import org.apache.cassandra.io.sstable.Descriptor;
 import org.apache.cassandra.io.sstable.SSTableMultiWriter;
 import org.apache.cassandra.service.StorageService;
+import org.apache.cassandra.utils.FBUtilities;
 
 public class RangeAwareSSTableWriter implements SSTableMultiWriter
 {
@@ -65,7 +66,8 @@ public class RangeAwareSSTableWriter implements SSTableMultiWriter
         {
             Directories.DataDirectory localDir = cfs.getDirectories().getWriteableLocation(totalSize);
             if (localDir == null)
-                throw new IOException("Insufficient disk space to store " + totalSize + " bytes");
+                throw new IOException(String.format("Insufficient disk space to store %s",
+                                                    FBUtilities.prettyPrintMemory(totalSize)));
             Descriptor desc = Descriptor.fromFilename(cfs.getSSTablePath(cfs.getDirectories().getLocationForDisk(localDir), format));
             currentWriter = cfs.createSSTableMultiWriter(desc, estimatedKeys, repairedAt, sstableLevel, header, txn);
         }

@@ -87,7 +87,7 @@ public class Verifier implements Closeable
     {
         long rowStart = 0;
 
-        outputHandler.output(String.format("Verifying %s (%s bytes)", sstable, dataFile.length()));
+        outputHandler.output(String.format("Verifying %s (%s)", sstable, FBUtilities.prettyPrintMemory(dataFile.length())));
         outputHandler.output(String.format("Checking computed hash of %s ", sstable));
 
 
@@ -177,7 +177,7 @@ public class Verifier implements Closeable
                 long dataSize = nextRowPositionFromIndex - dataStartFromIndex;
                 // avoid an NPE if key is null
                 String keyName = key == null ? "(unreadable key)" : ByteBufferUtil.bytesToHex(key.getKey());
-                outputHandler.debug(String.format("row %s is %s bytes", keyName, dataSize));
+                outputHandler.debug(String.format("row %s is %s", keyName, FBUtilities.prettyPrintMemory(dataSize)));
 
                 assert currentIndexKey != null || indexFile.isEOF();
 

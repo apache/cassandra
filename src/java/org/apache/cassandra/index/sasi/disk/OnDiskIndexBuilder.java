@@ -155,7 +155,9 @@ public class OnDiskIndexBuilder
     {
         if (term.remaining() >= MAX_TERM_SIZE)
         {
-            logger.error("Rejecting value (value size {}, maximum size {} bytes).", term.remaining(), Short.MAX_VALUE);
+            logger.error("Rejecting value (value size {}, maximum size {}).",
+                         FBUtilities.prettyPrintMemory(term.remaining()),
+                         FBUtilities.prettyPrintMemory(Short.MAX_VALUE));
             return this;
         }
 

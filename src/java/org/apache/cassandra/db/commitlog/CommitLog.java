@@ -46,6 +46,7 @@ import org.apache.cassandra.metrics.CommitLogMetrics;
 import org.apache.cassandra.net.MessagingService;
 import org.apache.cassandra.security.EncryptionContext;
 import org.apache.cassandra.service.StorageService;
+import org.apache.cassandra.utils.FBUtilities;
 import org.apache.cassandra.utils.JVMStabilityInspector;
 
 import static org.apache.cassandra.db.commitlog.CommitLogSegment.*;
@@ -264,8 +265,9 @@ public class CommitLog implements CommitLogMBean
         int totalSize = size + ENTRY_OVERHEAD_SIZE;
         if (totalSize > MAX_MUTATION_SIZE)
         {
-            throw new IllegalArgumentException(String.format("Mutation of %s bytes is too large for the maxiumum size of %s",
-                                                             totalSize, MAX_MUTATION_SIZE));
+            throw new IllegalArgumentException(String.format("Mutation of %s is too large for the maxiumum size of %s",
+                                                             FBUtilities.prettyPrintMemory(totalSize),
+                                                             FBUtilities.prettyPrintMemory(MAX_MUTATION_SIZE)));
         }
 
         Allocation alloc = allocator.allocate(mutation, (int) totalSize);

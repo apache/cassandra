@@ -26,6 +26,7 @@ import org.apache.cassandra.index.sasi.disk.Token;
 import org.apache.cassandra.index.sasi.plan.Expression;
 import org.apache.cassandra.index.sasi.utils.RangeIterator;
 import org.apache.cassandra.index.sasi.utils.TypeUtil;
+import org.apache.cassandra.utils.FBUtilities;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -52,10 +53,10 @@ public class IndexMemtable
             int size = value.remaining();
             if ((value = TypeUtil.tryUpcast(value, validator)) == null)
             {
-                logger.error("Can't add column {} to index for key: {}, value size {} bytes, validator: {}.",
+                logger.error("Can't add column {} to index for key: {}, value size {}, validator: {}.",
                              index.columnIndex.getColumnName(),
                              index.columnIndex.keyValidator().getString(key.getKey()),
-                             size,
+                             FBUtilities.prettyPrintMemory(size),
                              validator);
                 return 0;
             }

@@ -31,6 +31,7 @@ import org.apache.cassandra.index.sasi.utils.TypeUtil;
 import org.apache.cassandra.db.marshal.AbstractType;
 import org.apache.cassandra.db.marshal.UTF8Type;
 import org.apache.cassandra.utils.ByteBufferUtil;
+import org.apache.cassandra.utils.FBUtilities;
 
 import org.apache.commons.lang3.builder.HashCodeBuilder;
 
@@ -195,10 +196,10 @@ public class Expression
             int size = value.remaining();
             if ((value = TypeUtil.tryUpcast(value, validator)) == null)
             {
-                logger.error("Can't cast value for {} to size accepted by {}, value size is {} bytes.",
+                logger.error("Can't cast value for {} to size accepted by {}, value size is {}.",
                              index.getColumnName(),
                              validator,
-                             size);
+                             FBUtilities.prettyPrintMemory(size));
                 return false;
             }
         }

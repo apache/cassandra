@@ -36,6 +36,7 @@ import org.apache.cassandra.config.EncryptionOptions;
 import org.apache.cassandra.io.sstable.SSTableLoader;
 import org.apache.cassandra.security.SSLFactory;
 import org.apache.cassandra.streaming.*;
+import org.apache.cassandra.utils.FBUtilities;
 import org.apache.cassandra.utils.JVMStabilityInspector;
 import org.apache.cassandra.utils.NativeSSTableLoaderClient;
 import org.apache.cassandra.utils.OutputHandler;
@@ -122,7 +123,7 @@ public class BulkLoader
         private long lastProgress;
         private long lastTime;
 
-        private int peak = 0;
+        private long peak = 0;
         private int totalFiles = 0;
 
         private final Multimap<InetAddress, SessionInfo> sessionsByHost = HashMultimap.create();
@@ -208,37 +209,37 @@ public class BulkLoader
                 lastProgress = totalProgress;
 
                 sb.append("total: ").append(totalSize == 0 ? 100L : totalProgress * 100L / totalSize).append("% ");
-                sb.append(String.format("%-3d", mbPerSec(deltaProgress, deltaTime))).append("MB/s");
-                int average = mbPerSec(totalProgress, time - start);
+                sb.append(FBUtilities.prettyPrintMemoryPerSecond(deltaProgress, deltaTime));
+                long average = bytesPerSecond(totalProgress, time - start);
+
                 if (average > peak)
                 {
                     peak = average;
                 }
-                sb.append("(avg: ").append(average).append(" MB/s)");
+                sb.append(" (avg: ").append(FBUtilities.prettyPrintMemoryPerSecond(totalProgress, time - start)).append(")");
 
-                System.out.print(sb.toString());
+                System.out.println(sb.toString());
             }
         }
 
-        private int mbPerSec(long bytes, long timeInNano)
+        private long bytesPerSecond(long bytes, long timeInNano)
         {
-            double bytesPerNano = (double)bytes / timeInNano;
-            return (int)(bytesPerNano * 1000 * 1000 * 1000 / (1024 * 1024));
+            return timeInNano != 0 ? (long) (((double) bytes / timeInNano) * 1000 * 1000 * 1000) : 0;
         }
 
         private void printSummary(int connectionsPerHost)
         {
             long end = System.nanoTime();
-            long durationMS = (end - start) / 1000000;
-            int average = mbPerSec(lastProgress, end - start);
+            long durationMS = ((end - start) / (1000000));
+
             StringBuilder sb = new StringBuilder();
             sb.append("\nSummary statistics: \n");
-            sb.append(String.format("   %-30s: %-10d%n", "Connections per host: ", connectionsPerHost));
-            sb.append(String.format("   %-30s: %-10d%n", "Total files transferred: ", totalFiles));
-            sb.append(String.format("   %-30s: %-10d%n", "Total bytes transferred: ", lastProgress));
-            sb.append(String.format("   %-30s: %-10d%n", "Total duration (ms): ", durationMS));
-            sb.append(String.format("   %-30s: %-10d%n", "Average transfer rate (MB/s): ", + average));
-            sb.append(String.format("   %-30s: %-10d%n", "Peak transfer rate (MB/s): ", + peak));
+            sb.append(String.format("   %-24s: %-10d%n", "Connections per host ", connectionsPerHost));
+            sb.append(String.format("   %-24s: %-10d%n", "Total files transferred ", totalFiles));
+            sb.append(String.format("   %-24s: %-10s%n", "Total bytes transferred ", FBUtilities.prettyPrintMemory(lastProgress)));
+            sb.append(String.format("   %-24s: %-10s%n", "Total duration ", durationMS + " ms"));
+            sb.append(String.format("   %-24s: %-10s%n", "Average transfer rate ", FBUtilities.prettyPrintMemoryPerSecond(lastProgress, end - start)));
+            sb.append(String.format("   %-24s: %-10s%n", "Peak transfer rate ",  FBUtilities.prettyPrintMemoryPerSecond(peak)));
             System.out.println(sb.toString());
         }
     }

@@ -35,7 +35,7 @@ public class NetStats extends NodeToolCmd
 {
     @Option(title = "human_readable",
             name = {"-H", "--human-readable"},
-            description = "Display bytes in human readable form, i.e. KB, MB, GB, TB")
+            description = "Display bytes in human readable form, i.e. KiB, MiB, GiB, TiB")
     private boolean humanReadable = false;
 
     @Override

@@ -131,9 +131,9 @@ public class QueryProcessor implements QueryHandler
             {
                 long count = lastMinuteEvictionsCount.getAndSet(0);
                 if (count > 0)
-                    logger.info("{} prepared statements discarded in the last minute because cache limit reached ({} bytes)",
+                    logger.info("{} prepared statements discarded in the last minute because cache limit reached ({})",
                                 count,
-                                MAX_CACHE_PREPARED_MEMORY);
+                                FBUtilities.prettyPrintMemory(MAX_CACHE_PREPARED_MEMORY));
             }
         }, 1, 1, TimeUnit.MINUTES);
     }

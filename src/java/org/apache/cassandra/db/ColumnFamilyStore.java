@@ -851,8 +851,13 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
             offHeapTotal += allocator.offHeap().owns();
         }
 
-        logger.debug("Enqueuing flush of {}: {}", name, String.format("%d (%.0f%%) on-heap, %d (%.0f%%) off-heap",
-                                                                     onHeapTotal, onHeapRatio * 100, offHeapTotal, offHeapRatio * 100));
+        logger.debug("Enqueuing flush of {}: {}",
+                     name,
+                     String.format("%s (%.0f%%) on-heap, %s (%.0f%%) off-heap",
+                                   FBUtilities.prettyPrintMemory(onHeapTotal),
+                                   onHeapRatio * 100,
+                                   FBUtilities.prettyPrintMemory(offHeapTotal),
+                                   offHeapRatio * 100));
     }
 
 
@@ -1125,7 +1130,12 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
                 }
                 memtable.cfs.replaceFlushed(memtable, sstables);
                 reclaim(memtable);
-                logger.debug("Flushed to {} ({} sstables, {} bytes), biggest {} bytes, smallest {} bytes", sstables, sstables.size(), totalBytesOnDisk, maxBytesOnDisk, minBytesOnDisk);
+                logger.debug("Flushed to {} ({} sstables, {}), biggest {}, smallest {}",
+                             sstables,
+                             sstables.size(),
+                             FBUtilities.prettyPrintMemory(totalBytesOnDisk),
+                             FBUtilities.prettyPrintMemory(maxBytesOnDisk),
+                             FBUtilities.prettyPrintMemory(minBytesOnDisk));
             }
             // signal the post-flush we've done our work
             postFlush.latch.countDown();

@@ -40,6 +40,7 @@ import org.apache.cassandra.db.compaction.CompactionInterruptedException;
 import org.apache.cassandra.db.compaction.OperationType;
 import org.apache.cassandra.db.lifecycle.LifecycleTransaction;
 import org.apache.cassandra.io.sstable.format.SSTableReader;
+import org.apache.cassandra.utils.FBUtilities;
 import org.apache.cassandra.utils.Pair;
 
 import static org.apache.cassandra.io.sstable.Downsampling.BASE_SAMPLING_LEVEL;
@@ -131,8 +132,8 @@ public class IndexSummaryRedistribution extends CompactionInfo.Holder
         total = 0;
         for (SSTableReader sstable : Iterables.concat(compacting, oldFormatSSTables, newSSTables))
             total += sstable.getIndexSummaryOffHeapSize();
-        logger.trace("Completed resizing of index summaries; current approximate memory used: {} MB",
-                     total / 1024.0 / 1024.0);
+        logger.trace("Completed resizing of index summaries; current approximate memory used: {}",
+                     FBUtilities.prettyPrintMemory(total));
 
         return newSSTables;
     }
@@ -183,11 +184,12 @@ public class IndexSummaryRedistribution extends CompactionInfo.Holder
             int numEntriesAtNewSamplingLevel = IndexSummaryBuilder.entriesAtSamplingLevel(newSamplingLevel, maxSummarySize);
             double effectiveIndexInterval = sstable.getEffectiveIndexInterval();
 
-            logger.trace("{} has {} reads/sec; ideal space for index summary: {} bytes ({} entries); considering moving " +
-                    "from level {} ({} entries, {} bytes) to level {} ({} entries, {} bytes)",
-                    sstable.getFilename(), readsPerSec, idealSpace, targetNumEntries, currentSamplingLevel, currentNumEntries,
-                    currentNumEntries * avgEntrySize, newSamplingLevel, numEntriesAtNewSamplingLevel,
-                    numEntriesAtNewSamplingLevel * avgEntrySize);
+            logger.trace("{} has {} reads/sec; ideal space for index summary: {} ({} entries); considering moving " +
+                    "from level {} ({} entries, {}) " +
+                    "to level {} ({} entries, {})",
+                    sstable.getFilename(), readsPerSec, FBUtilities.prettyPrintMemory(idealSpace), targetNumEntries,
+                    currentSamplingLevel, currentNumEntries, FBUtilities.prettyPrintMemory((long) (currentNumEntries * avgEntrySize)),
+                    newSamplingLevel, numEntriesAtNewSamplingLevel, FBUtilities.prettyPrintMemory((long) (numEntriesAtNewSamplingLevel * avgEntrySize)));
 
             if (effectiveIndexInterval < minIndexInterval)
             {

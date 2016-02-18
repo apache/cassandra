@@ -212,9 +212,9 @@ public class PerSSTableIndexWriter implements SSTableFlushObserver
 
                 if (token.remaining() >= OnDiskIndexBuilder.MAX_TERM_SIZE)
                 {
-                    logger.info("Rejecting value (size {}, maximum {} bytes) for column {} (analyzed {}) at {} SSTable.",
-                            term.remaining(),
-                            OnDiskIndexBuilder.MAX_TERM_SIZE,
+                    logger.info("Rejecting value (size {}, maximum {}) for column {} (analyzed {}) at {} SSTable.",
+                            FBUtilities.prettyPrintMemory(term.remaining()),
+                            FBUtilities.prettyPrintMemory(OnDiskIndexBuilder.MAX_TERM_SIZE),
                             columnIndex.getColumnName(),
                             columnIndex.getMode().isAnalyzed,
                             descriptor);
@@ -225,11 +225,11 @@ public class PerSSTableIndexWriter implements SSTableFlushObserver
                 {
                     if ((token = TypeUtil.tryUpcast(token, columnIndex.getValidator())) == null)
                     {
-                        logger.info("({}) Failed to add {} to index for key: {}, value size was {} bytes, validator is {}.",
+                        logger.info("({}) Failed to add {} to index for key: {}, value size was {}, validator is {}.",
                                     outputFile,
                                     columnIndex.getColumnName(),
                                     keyValidator.getString(key.getKey()),
-                                    size,
+                                    FBUtilities.prettyPrintMemory(size),
                                     columnIndex.getValidator());
                         continue;
                     }

@@ -593,8 +593,8 @@ public class DatabaseDescriptor
             }
         }
         if (dataFreeBytes < 64L * 1024 * 1048576) // 64 GB
-            logger.warn("Only {} MB free across all data volumes. Consider adding more capacity to your cluster or removing obsolete snapshots",
-                        dataFreeBytes / 1048576);
+            logger.warn("Only {} free across all data volumes. Consider adding more capacity to your cluster or removing obsolete snapshots",
+                        FBUtilities.prettyPrintMemory(dataFreeBytes));
 
 
         if (conf.commitlog_directory.equals(conf.saved_caches_directory))

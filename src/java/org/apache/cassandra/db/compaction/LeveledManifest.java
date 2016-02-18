@@ -39,6 +39,7 @@ import org.apache.cassandra.dht.Bounds;
 import org.apache.cassandra.dht.Range;
 import org.apache.cassandra.dht.Token;
 import org.apache.cassandra.service.StorageService;
+import org.apache.cassandra.utils.FBUtilities;
 import org.apache.cassandra.utils.Pair;
 
 public class LeveledManifest
@@ -471,8 +472,11 @@ public class LeveledManifest
             {
                 if (!getLevel(i).isEmpty())
                 {
-                    logger.trace("L{} contains {} SSTables ({} bytes) in {}",
-                                 i, getLevel(i).size(), SSTableReader.getTotalBytes(getLevel(i)), this);
+                    logger.trace("L{} contains {} SSTables ({}) in {}",
+                                 i,
+                                 getLevel(i).size(),
+                                 FBUtilities.prettyPrintMemory(SSTableReader.getTotalBytes(getLevel(i))),
+                                 this);
                 }
             }
         }

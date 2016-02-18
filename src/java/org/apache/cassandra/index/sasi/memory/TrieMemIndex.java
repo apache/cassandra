@@ -38,6 +38,7 @@ import com.googlecode.concurrenttrees.radix.ConcurrentRadixTree;
 import com.googlecode.concurrenttrees.suffix.ConcurrentSuffixTree;
 import com.googlecode.concurrenttrees.radix.node.concrete.SmartArrayBasedNodeFactory;
 import com.googlecode.concurrenttrees.radix.node.Node;
+import org.apache.cassandra.utils.FBUtilities;
 
 
 import org.slf4j.Logger;
@@ -82,11 +83,11 @@ public class TrieMemIndex extends MemIndex
 
             if (term.remaining() >= OnDiskIndexBuilder.MAX_TERM_SIZE)
             {
-                logger.info("Can't add term of column {} to index for key: {}, term size {} bytes, max allowed size {} bytes, use analyzed = true (if not yet set) for that column.",
+                logger.info("Can't add term of column {} to index for key: {}, term size {}, max allowed size {}, use analyzed = true (if not yet set) for that column.",
                             columnIndex.getColumnName(),
                             keyValidator.getString(key.getKey()),
-                            term.remaining(),
-                            OnDiskIndexBuilder.MAX_TERM_SIZE);
+                            FBUtilities.prettyPrintMemory(term.remaining()),
+                            FBUtilities.prettyPrintMemory(OnDiskIndexBuilder.MAX_TERM_SIZE));
                 continue;
             }
 

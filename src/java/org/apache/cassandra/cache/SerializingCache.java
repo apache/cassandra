@@ -31,6 +31,7 @@ import org.apache.cassandra.io.ISerializer;
 import org.apache.cassandra.io.util.MemoryInputStream;
 import org.apache.cassandra.io.util.MemoryOutputStream;
 import org.apache.cassandra.io.util.WrappedDataOutputStreamPlus;
+import org.apache.cassandra.utils.FBUtilities;
 
 /**
  * Serializes cache values off-heap.
@@ -99,7 +100,7 @@ public class SerializingCache<K, V> implements ICache<K, V>
     {
         long serializedSize = serializer.serializedSize(value);
         if (serializedSize > Integer.MAX_VALUE)
-            throw new IllegalArgumentException("Unable to allocate " + serializedSize + " bytes");
+            throw new IllegalArgumentException(String.format("Unable to allocate %s", FBUtilities.prettyPrintMemory(serializedSize)));
 
         RefCountedMemory freeableMemory;
         try

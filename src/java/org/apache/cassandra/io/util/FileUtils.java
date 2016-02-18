@@ -399,25 +399,25 @@ public class FileUtils
         {
             d = value / TB;
             String val = df.format(d);
-            return val + " TB";
+            return val + " TiB";
         }
         else if ( value >= GB )
         {
             d = value / GB;
             String val = df.format(d);
-            return val + " GB";
+            return val + " GiB";
         }
         else if ( value >= MB )
         {
             d = value / MB;
             String val = df.format(d);
-            return val + " MB";
+            return val + " MiB";
         }
         else if ( value >= KB )
         {
             d = value / KB;
             String val = df.format(d);
-            return val + " KB";
+            return val + " KiB";
         }
         else
         {

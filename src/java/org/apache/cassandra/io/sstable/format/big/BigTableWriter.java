@@ -172,7 +172,7 @@ public class BigTableWriter extends SSTableWriter
         if (rowSize > DatabaseDescriptor.getCompactionLargePartitionWarningThreshold())
         {
             String keyString = metadata.getKeyValidator().getString(key.getKey());
-            logger.warn("Writing large partition {}/{}:{} ({} bytes)", metadata.ksName, metadata.cfName, keyString, rowSize);
+            logger.warn("Writing large partition {}/{}:{} ({})", metadata.ksName, metadata.cfName, keyString, FBUtilities.prettyPrintMemory(rowSize));
         }
     }
 

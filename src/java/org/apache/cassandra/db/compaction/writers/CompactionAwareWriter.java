@@ -35,6 +35,7 @@ import org.apache.cassandra.db.compaction.CompactionTask;
 import org.apache.cassandra.db.lifecycle.LifecycleTransaction;
 import org.apache.cassandra.io.sstable.SSTableRewriter;
 import org.apache.cassandra.io.sstable.format.SSTableReader;
+import org.apache.cassandra.utils.FBUtilities;
 import org.apache.cassandra.utils.concurrent.Transactional;
 import org.apache.cassandra.db.compaction.OperationType;
 import org.apache.cassandra.service.StorageService;
@@ -213,13 +214,17 @@ public abstract class CompactionAwareWriter extends Transactional.AbstractTransa
         if (d != null)
         {
             if (d.getAvailableSpace() < estimatedWriteSize)
-                throw new RuntimeException(String.format("Not enough space to write %d bytes to %s (%d bytes available)", estimatedWriteSize, d.location, d.getAvailableSpace()));
+                throw new RuntimeException(String.format("Not enough space to write %s to %s (%s available)",
+                                                         FBUtilities.prettyPrintMemory(estimatedWriteSize),
+                                                         d.location,
+                                                         FBUtilities.prettyPrintMemory(d.getAvailableSpace())));
             logger.trace("putting compaction results in {}", directory);
             return d;
         }
         d = getDirectories().getWriteableLocation(estimatedWriteSize);
         if (d == null)
-            throw new RuntimeException("Not enough disk space to store "+estimatedWriteSize+" bytes");
+            throw new RuntimeException(String.format("Not enough disk space to store %s",
+                                                     FBUtilities.prettyPrintMemory(estimatedWriteSize)));
         return d;
     }
 

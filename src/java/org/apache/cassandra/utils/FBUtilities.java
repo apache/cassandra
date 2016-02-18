@@ -595,6 +595,26 @@ public class FBUtilities
         return String.format("%.3fKiB", size / (double) (1 << 10));
     }
 
+    public static String prettyPrintMemoryPerSecond(long rate)
+    {
+        if (rate >= 1 << 30)
+            return String.format("%.3fGiB/s", rate / (double) (1 << 30));
+        if (rate >= 1 << 20)
+            return String.format("%.3fMiB/s", rate / (double) (1 << 20));
+        return String.format("%.3fKiB/s", rate / (double) (1 << 10));
+    }
+
+    public static String prettyPrintMemoryPerSecond(long bytes, long timeInNano)
+    {
+        // We can't sanely calculate a rate over 0 nanoseconds
+        if (timeInNano == 0)
+            return "NaN  KiB/s";
+
+        long rate = (long) (((double) bytes / timeInNano) * 1000 * 1000 * 1000);
+
+        return prettyPrintMemoryPerSecond(rate);
+    }
+
     /**
      * Starts and waits for the given @param pb to finish.
      * @throws java.io.IOException on non-zero exit code

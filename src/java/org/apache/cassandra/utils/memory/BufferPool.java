@@ -29,6 +29,7 @@ import java.util.concurrent.atomic.AtomicLongFieldUpdater;
 import org.apache.cassandra.concurrent.NamedThreadFactory;
 import org.apache.cassandra.io.compress.BufferType;
 import org.apache.cassandra.io.util.FileUtils;
+import org.apache.cassandra.utils.FBUtilities;
 import org.apache.cassandra.utils.NoSpamLogger;
 
 import com.google.common.annotations.VisibleForTesting;
@@ -115,7 +116,7 @@ public class BufferPool
             return ret;
 
         if (logger.isTraceEnabled())
-            logger.trace("Requested buffer size {} has been allocated directly due to lack of capacity", size);
+            logger.trace("Requested buffer size {} has been allocated directly due to lack of capacity", FBUtilities.prettyPrintMemory(size));
 
         return localPool.get().allocate(size, allocateOnHeapWhenExhausted);
     }
@@ -131,7 +132,9 @@ public class BufferPool
         if (size > CHUNK_SIZE)
         {
             if (logger.isTraceEnabled())
-                logger.trace("Requested buffer size {} is bigger than {}, allocating directly", size, CHUNK_SIZE);
+                logger.trace("Requested buffer size {} is bigger than {}, allocating directly",
+                             FBUtilities.prettyPrintMemory(size),
+                             FBUtilities.prettyPrintMemory(CHUNK_SIZE));
 
             return localPool.get().allocate(size, allocateOnHeapWhenExhausted);
         }
@@ -223,8 +226,8 @@ public class BufferPool
             if (DISABLED)
                 logger.info("Global buffer pool is disabled, allocating {}", ALLOCATE_ON_HEAP_WHEN_EXAHUSTED ? "on heap" : "off heap");
             else
-                logger.info("Global buffer pool is enabled, when pool is exahusted (max is {} mb) it will allocate {}",
-                            MEMORY_USAGE_THRESHOLD / (1024L * 1024L),
+                logger.info("Global buffer pool is enabled, when pool is exahusted (max is {}) it will allocate {}",
+                            FBUtilities.prettyPrintMemory(MEMORY_USAGE_THRESHOLD),
                             ALLOCATE_ON_HEAP_WHEN_EXAHUSTED ? "on heap" : "off heap");
         }
 
@@ -260,8 +263,9 @@ public class BufferPool
                 long cur = memoryUsage.get();
                 if (cur + MACRO_CHUNK_SIZE > MEMORY_USAGE_THRESHOLD)
                 {
-                    noSpamLogger.info("Maximum memory usage reached ({} bytes), cannot allocate chunk of {} bytes",
-                                      MEMORY_USAGE_THRESHOLD, MACRO_CHUNK_SIZE);
+                    noSpamLogger.info("Maximum memory usage reached ({}), cannot allocate chunk of {}",
+                                      FBUtilities.prettyPrintMemory(MEMORY_USAGE_THRESHOLD),
+                                      FBUtilities.prettyPrintMemory(MACRO_CHUNK_SIZE));
                     return false;
                 }
                 if (memoryUsage.compareAndSet(cur, cur + MACRO_CHUNK_SIZE))
