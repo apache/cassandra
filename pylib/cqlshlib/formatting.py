@@ -107,10 +107,12 @@ if platform.system() == 'Windows':
 
 class DateTimeFormat():
 
-    def __init__(self, timestamp_format=DEFAULT_TIMESTAMP_FORMAT, date_format=DEFAULT_DATE_FORMAT, nanotime_format=DEFAULT_NANOTIME_FORMAT):
+    def __init__(self, timestamp_format=DEFAULT_TIMESTAMP_FORMAT, date_format=DEFAULT_DATE_FORMAT,
+                 nanotime_format=DEFAULT_NANOTIME_FORMAT, timezone=None):
         self.timestamp_format = timestamp_format
         self.date_format = date_format
         self.nanotime_format = nanotime_format
+        self.timezone = timezone
 
 
 def format_value_default(val, colormap, **_):
@@ -234,15 +236,17 @@ formatter_for('int')(format_integer_type)
 
 @formatter_for('datetime')
 def format_value_timestamp(val, colormap, date_time_format, quote=False, **_):
-    bval = strftime(date_time_format.timestamp_format, calendar.timegm(val.utctimetuple()))
+    bval = strftime(date_time_format.timestamp_format, calendar.timegm(val.utctimetuple()), timezone=date_time_format.timezone)
     if quote:
         bval = "'%s'" % bval
     return colorme(bval, colormap, 'timestamp')
 
 
-def strftime(time_format, seconds):
-    tzless_dt = datetime_from_timestamp(seconds)
-    return tzless_dt.replace(tzinfo=UTC()).strftime(time_format)
+def strftime(time_format, seconds, timezone=None):
+    ret_dt = datetime_from_timestamp(seconds).replace(tzinfo=UTC())
+    if timezone:
+        ret_dt = ret_dt.astimezone(timezone)
+    return ret_dt.strftime(time_format)
 
 
 @formatter_for('Date')
