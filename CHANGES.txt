@@ -26,8 +26,6 @@
  * Add nodetool gettimeout and settimeout commands (CASSANDRA-10953)
  * Add 3.0 metadata to sstablemetadata output (CASSANDRA-10838)
 Merged from 3.0:
-=======
-3.0.4
  * Disallow drop/alter operations of UDTs used by UDAs (CASSANDRA-10721)
  * Add query time validation method on Index (CASSANDRA-11043)
  * Avoid potential AssertionError in mixed version cluster (CASSANDRA-11128)
@@ -42,6 +40,7 @@ Merged from 3.0:
  * Add dropped_columns to the list of schema table so it gets handled
    properly (CASSANDRA-11050)
 Merged from 2.2:
+ * (cqlsh) cqlsh cannot be called through symlink (CASSANDRA-11037)
  * fix ohc and java-driver pom dependencies in build.xml (CASSANDRA-10793)
  * Protect from keyspace dropped during repair (CASSANDRA-11065)
  * Handle adding fields to a UDT in SELECT JSON and toJson() (CASSANDRA-11146)
