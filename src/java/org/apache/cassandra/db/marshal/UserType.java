@@ -209,7 +209,7 @@ public class UserType extends TupleType
             sb.append(Json.quoteAsJsonString(name));
             sb.append("\": ");
 
-            ByteBuffer valueBuffer = buffers[i];
+            ByteBuffer valueBuffer = (i >= buffers.length) ? null : buffers[i];
             if (valueBuffer == null)
                 sb.append("null");
             else
