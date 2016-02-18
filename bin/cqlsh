@@ -16,4 +16,4 @@
 # limitations under the License.
 
 
-python "`dirname "$0"`/cqlsh.py" "$@"
+python "`python -c "import os;print(os.path.dirname(os.path.realpath('$0')))"`/cqlsh.py" "$@"
