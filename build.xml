@@ -575,6 +575,9 @@
       	<dependency groupId="joda-time" artifactId="joda-time"/>
 
         <dependency groupId="org.fusesource" artifactId="sigar"/>
+
+        <dependency groupId="org.eclipse.jdt.core.compiler" artifactId="ecj"/>
+        <dependency groupId="org.caffinitas.ohc" artifactId="ohc-core"/>
       </artifact:pom>
       <artifact:pom id="thrift-pom"
                     artifactId="cassandra-thrift"
