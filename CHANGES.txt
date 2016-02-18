@@ -1,4 +1,5 @@
 2.2.6
+ * Protect from keyspace dropped during repair (CASSANDRA-11065)
  * Handle adding fields to a UDT in SELECT JSON and toJson() (CASSANDRA-11146)
  * Better error message for cleanup (CASSANDRA-10991)
  * cqlsh pg-style-strings broken if line ends with ';' (CASSANDRA-11123)

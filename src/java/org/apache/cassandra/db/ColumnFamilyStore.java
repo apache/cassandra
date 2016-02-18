@@ -3074,4 +3074,41 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
             return sstables;
         }
     };
+
+    /**
+     * Returns a ColumnFamilyStore by cfId if it exists, null otherwise
+     * Differently from others, this method does not throw exception if the table does not exist.
+     */
+    public static ColumnFamilyStore getIfExists(UUID cfId)
+    {
+        Pair<String, String> kscf = Schema.instance.getCF(cfId);
+        if (kscf == null)
+            return null;
+
+        Keyspace keyspace = Keyspace.open(kscf.left);
+        if (keyspace == null)
+            return null;
+
+        return keyspace.getColumnFamilyStore(cfId);
+    }
+
+    /**
+     * Returns a ColumnFamilyStore by ksname and cfname if it exists, null otherwise
+     * Differently from others, this method does not throw exception if the keyspace or table does not exist.
+     */
+    public static ColumnFamilyStore getIfExists(String ksName, String cfName)
+    {
+        if (ksName == null || cfName == null)
+            return null;
+
+        Keyspace keyspace = Keyspace.open(ksName);
+        if (keyspace == null)
+            return null;
+
+        UUID id = Schema.instance.getId(ksName, cfName);
+        if (id == null)
+            return null;
+
+        return keyspace.getColumnFamilyStore(id);
+    }
 }
