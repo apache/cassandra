@@ -42,6 +42,7 @@ Merged from 3.0:
  * Add dropped_columns to the list of schema table so it gets handled
    properly (CASSANDRA-11050)
 Merged from 2.2:
+ * Better error message for cleanup (CASSANDRA-10991)
  * cqlsh pg-style-strings broken if line ends with ';' (CASSANDRA-11123)
  * Always persist upsampled index summaries (CASSANDRA-10512)
  * (cqlsh) Fix inconsistent auto-complete (CASSANDRA-10733)
