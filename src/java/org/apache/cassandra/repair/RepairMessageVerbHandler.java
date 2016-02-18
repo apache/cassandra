@@ -17,6 +17,7 @@
  */
 package org.apache.cassandra.repair;
 
+import java.net.InetAddress;
 import java.util.*;
 
 import com.google.common.base.Predicate;
@@ -26,12 +27,9 @@ import com.google.common.util.concurrent.MoreExecutors;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import org.apache.cassandra.config.Schema;
 import org.apache.cassandra.db.ColumnFamilyStore;
-import org.apache.cassandra.db.Keyspace;
 import org.apache.cassandra.db.compaction.CompactionManager;
 import org.apache.cassandra.dht.Bounds;
-import org.apache.cassandra.dht.LocalPartitioner;
 import org.apache.cassandra.dht.Range;
 import org.apache.cassandra.dht.Token;
 import org.apache.cassandra.io.sstable.format.SSTableReader;
@@ -41,7 +39,6 @@ import org.apache.cassandra.net.MessageOut;
 import org.apache.cassandra.net.MessagingService;
 import org.apache.cassandra.repair.messages.*;
 import org.apache.cassandra.service.ActiveRepairService;
-import org.apache.cassandra.utils.Pair;
 
 /**
  * Handles all repair related message.
@@ -65,8 +62,13 @@ public class RepairMessageVerbHandler implements IVerbHandler<RepairMessage>
                     List<ColumnFamilyStore> columnFamilyStores = new ArrayList<>(prepareMessage.cfIds.size());
                     for (UUID cfId : prepareMessage.cfIds)
                     {
-                        Pair<String, String> kscf = Schema.instance.getCF(cfId);
-                        ColumnFamilyStore columnFamilyStore = Keyspace.open(kscf.left).getColumnFamilyStore(kscf.right);
+                        ColumnFamilyStore columnFamilyStore = ColumnFamilyStore.getIfExists(cfId);
+                        if (columnFamilyStore == null)
+                        {
+                            logErrorAndSendFailureResponse(String.format("Table with id %s was dropped during prepare phase of repair",
+                                                                         cfId.toString()), message.from, id);
+                            return;
+                        }
                         columnFamilyStores.add(columnFamilyStore);
                     }
                     ActiveRepairService.instance.registerParentRepairSession(prepareMessage.parentRepairSession,
@@ -80,7 +82,13 @@ public class RepairMessageVerbHandler implements IVerbHandler<RepairMessage>
 
                 case SNAPSHOT:
                     logger.debug("Snapshotting {}", desc);
-                    ColumnFamilyStore cfs = Keyspace.open(desc.keyspace).getColumnFamilyStore(desc.columnFamily);
+                    final ColumnFamilyStore cfs = ColumnFamilyStore.getIfExists(desc.keyspace, desc.columnFamily);
+                    if (cfs == null)
+                    {
+                        logErrorAndSendFailureResponse(String.format("Table %s.%s was dropped during snapshot phase of repair",
+                                                                     desc.keyspace, desc.columnFamily), message.from, id);
+                        return;
+                    }
                     final Collection<Range<Token>> repairingRange = desc.ranges;
                     Set<SSTableReader> snapshottedSSSTables = cfs.snapshot(desc.sessionId.toString(), new Predicate<SSTableReader>()
                     {
@@ -97,10 +105,7 @@ public class RepairMessageVerbHandler implements IVerbHandler<RepairMessage>
                     {
                         // clear snapshot that we just created
                         cfs.clearSnapshot(desc.sessionId.toString());
-                        logger.error("Cannot start multiple repair sessions over the same sstables");
-                        MessageOut reply = new MessageOut(MessagingService.Verb.INTERNAL_RESPONSE)
-                                               .withParameter(MessagingService.FAILURE_RESPONSE_PARAM, MessagingService.ONE_BYTE);
-                        MessagingService.instance().sendReply(reply, id, message.from);
+                        logErrorAndSendFailureResponse("Cannot start multiple repair sessions over the same sstables", message.from, id);
                         return;
                     }
                     ActiveRepairService.instance.getParentRepairSession(desc.parentSessionId).addSSTables(cfs.metadata.cfId, snapshottedSSSTables);
@@ -112,7 +117,13 @@ public class RepairMessageVerbHandler implements IVerbHandler<RepairMessage>
                     ValidationRequest validationRequest = (ValidationRequest) message.payload;
                     logger.debug("Validating {}", validationRequest);
                     // trigger read-only compaction
-                    ColumnFamilyStore store = Keyspace.open(desc.keyspace).getColumnFamilyStore(desc.columnFamily);
+                    ColumnFamilyStore store = ColumnFamilyStore.getIfExists(desc.keyspace, desc.columnFamily);
+                    if (store == null)
+                    {
+                        logger.error("Table {}.{} was dropped during snapshot phase of repair", desc.keyspace, desc.columnFamily);
+                        MessagingService.instance().sendOneWay(new ValidationComplete(desc).createMessage(), message.from);
+                        return;
+                    }
 
                     Validator validator = new Validator(desc, message.from, validationRequest.gcBefore);
                     CompactionManager.instance.submitValidation(store, validator);
@@ -163,5 +174,13 @@ public class RepairMessageVerbHandler implements IVerbHandler<RepairMessage>
                 ActiveRepairService.instance.removeParentRepairSession(desc.parentSessionId);
             throw new RuntimeException(e);
         }
+    }
+
+    private void logErrorAndSendFailureResponse(String errorMessage, InetAddress to, int id)
+    {
+        logger.error(errorMessage);
+        MessageOut reply = new MessageOut(MessagingService.Verb.INTERNAL_RESPONSE)
+                               .withParameter(MessagingService.FAILURE_RESPONSE_PARAM, MessagingService.ONE_BYTE);
+        MessagingService.instance().sendReply(reply, id, to);
     }
 }
