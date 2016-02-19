@@ -22,12 +22,21 @@ import java.text.SimpleDateFormat;
 import java.util.Arrays;
 import java.util.Calendar;
 import java.util.Date;
+import java.util.Locale;
 import java.util.TimeZone;
+import java.util.concurrent.ThreadLocalRandom;
 
 import org.apache.commons.lang3.time.DateUtils;
 
 import org.junit.Test;
 
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+
+import ch.qos.logback.classic.LoggerContext;
+import ch.qos.logback.classic.spi.TurboFilterList;
+import ch.qos.logback.classic.turbo.ReconfigureOnChangeFilter;
+import ch.qos.logback.classic.turbo.TurboFilter;
 import org.apache.cassandra.config.Schema;
 import org.apache.cassandra.cql3.CQLTester;
 import org.apache.cassandra.cql3.QueryProcessor;
@@ -1730,5 +1739,85 @@ public class AggregationTest extends CQLTester
         execute("INSERT INTO %s (a, b) VALUES (2, null)");
         execute("INSERT INTO %s (a, b) VALUES (3, 2)");
         assertRows(execute("SELECT " + a + "(b) FROM %s"), row(Arrays.asList("1", "2")));
+    }
+
+    @Test
+    public void testLogbackReload() throws Throwable
+    {
+        // see https://issues.apache.org/jira/browse/CASSANDRA-11033
+
+        // make logback's scan interval 1ms - boilerplate, but necessary for this test
+        configureLogbackScanPeriod(1L);
+        try
+        {
+
+            createTable("CREATE TABLE %s (" +
+                        "   year int PRIMARY KEY," +
+                        "   country text," +
+                        "   title text)");
+
+            String[] countries = Locale.getISOCountries();
+            ThreadLocalRandom rand = ThreadLocalRandom.current();
+            for (int i = 0; i < 10000; i++)
+            {
+                execute("INSERT INTO %s (year, country, title) VALUES (1980,?,?)",
+                        countries[rand.nextInt(countries.length)],
+                        "title-" + i);
+            }
+
+            String albumCountByCountry = createFunction(KEYSPACE,
+                                                        "map<text,bigint>,text,text",
+                                                        "CREATE FUNCTION IF NOT EXISTS %s(state map<text,bigint>,country text, album_title text)\n" +
+                                                        " RETURNS NULL ON NULL INPUT\n" +
+                                                        " RETURNS map<text,bigint>\n" +
+                                                        " LANGUAGE java\n" +
+                                                        " AS $$\n" +
+                                                        "   if(state.containsKey(country)) {\n" +
+                                                        "       Long newCount = (Long)state.get(country) + 1;\n" +
+                                                        "       state.put(country, newCount);\n" +
+                                                        "   } else {\n" +
+                                                        "       state.put(country, 1L);\n" +
+                                                        "   }\n" +
+                                                        "   return state;\n" +
+                                                        " $$;");
+
+            String releasesByCountry = createAggregate(KEYSPACE,
+                                                       "text, text",
+                                                       " CREATE AGGREGATE IF NOT EXISTS %s(text, text)\n" +
+                                                       " SFUNC " + shortFunctionName(albumCountByCountry) + '\n' +
+                                                       " STYPE map<text,bigint>\n" +
+                                                       " INITCOND { };");
+
+            for (int i = 0; i < 1000; i++)
+            {
+                execute("SELECT " + releasesByCountry + "(country,title) FROM %s WHERE year=1980");
+            }
+        }
+        finally
+        {
+            configureLogbackScanPeriod(60000L);
+        }
+    }
+
+    private static void configureLogbackScanPeriod(long millis)
+    {
+        Logger l = LoggerFactory.getLogger(AggregationTest.class);
+        ch.qos.logback.classic.Logger logbackLogger = (ch.qos.logback.classic.Logger) l;
+        LoggerContext ctx = logbackLogger.getLoggerContext();
+        TurboFilterList turboFilterList = ctx.getTurboFilterList();
+        boolean done = false;
+        for (TurboFilter turboFilter : turboFilterList)
+        {
+            if (turboFilter instanceof ReconfigureOnChangeFilter)
+            {
+                ReconfigureOnChangeFilter reconfigureFilter = (ReconfigureOnChangeFilter) turboFilter;
+                reconfigureFilter.setRefreshPeriod(millis);
+                reconfigureFilter.stop();
+                reconfigureFilter.start(); // start() sets the next check timestammp
+                done = true;
+                break;
+            }
+        }
+        assertTrue("ReconfigureOnChangeFilter not in logback's turbo-filter list - do that by adding scan=\"true\" to logback-test.xml's configuration element", done);
     }
 }

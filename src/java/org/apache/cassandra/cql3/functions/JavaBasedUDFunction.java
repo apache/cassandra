@@ -40,7 +40,7 @@ import com.google.common.io.ByteStreams;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import com.datastax.driver.core.DataType;
+import com.datastax.driver.core.TypeCodec;
 import org.apache.cassandra.concurrent.NamedThreadFactory;
 import org.apache.cassandra.cql3.ColumnIdentifier;
 import org.apache.cassandra.db.marshal.AbstractType;
@@ -184,10 +184,10 @@ final class JavaBasedUDFunction extends UDFunction
         super(name, argNames, argTypes, UDHelper.driverTypes(argTypes),
               returnType, UDHelper.driverType(returnType), calledOnNullInput, "java", body);
 
-        // javaParamTypes is just the Java representation for argTypes resp. argDataTypes
-        Class<?>[] javaParamTypes = UDHelper.javaTypes(argDataTypes, calledOnNullInput);
-        // javaReturnType is just the Java representation for returnType resp. returnDataType
-        Class<?> javaReturnType = UDHelper.asJavaClass(returnDataType);
+        // javaParamTypes is just the Java representation for argTypes resp. argCodecs
+        Class<?>[] javaParamTypes = UDHelper.javaTypes(argCodecs, calledOnNullInput);
+        // javaReturnType is just the Java representation for returnType resp. returnCodec
+        Class<?> javaReturnType = UDHelper.asJavaClass(returnCodec);
 
         // put each UDF in a separate package to prevent cross-UDF code access
         String pkgName = BASE_PACKAGE + '.' + generateClassName(name, 'p');
@@ -327,9 +327,9 @@ final class JavaBasedUDFunction extends UDFunction
                 if (nonSyntheticMethodCount != 2 || cls.getDeclaredConstructors().length != 1)
                     throw new InvalidRequestException("Check your source to not define additional Java methods or constructors");
                 MethodType methodType = MethodType.methodType(void.class)
-                                                  .appendParameterTypes(DataType.class, DataType[].class);
+                                                  .appendParameterTypes(TypeCodec.class, TypeCodec[].class);
                 MethodHandle ctor = MethodHandles.lookup().findConstructor(cls, methodType);
-                this.javaUDF = (JavaUDF) ctor.invokeWithArguments(returnDataType, argDataTypes);
+                this.javaUDF = (JavaUDF) ctor.invokeWithArguments(returnCodec, argCodecs);
             }
             finally
             {

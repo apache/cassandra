@@ -5,13 +5,13 @@ import java.util.List;
 
 import org.apache.cassandra.cql3.functions.JavaUDF;
 
-import com.datastax.driver.core.DataType;
+import com.datastax.driver.core.TypeCodec;
 
 public final class #class_name# extends JavaUDF
 {
-    public #class_name#(DataType returnDataType, DataType[] argDataTypes)
+    public #class_name#(TypeCodec<Object> returnCodec, TypeCodec<Object>[] argCodecs)
     {
-        super(returnDataType, argDataTypes);
+        super(returnCodec, argCodecs);
     }
 
     protected ByteBuffer executeImpl(int protocolVersion, List<ByteBuffer> params)
