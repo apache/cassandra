@@ -43,7 +43,7 @@ public class QueryWithIndexedSSTableTest extends CQLTester
 
         // We create a partition that is big enough that the underlying sstable will be indexed
         // For that, we use a large-ish number of row, and a value that isn't too small.
-        String text = makeRandomTest(VALUE_LENGTH);
+        String text = TombstonesWithIndexedSSTableTest.makeRandomString(VALUE_LENGTH);
         for (int i = 0; i < ROWS; i++)
             execute("INSERT INTO %s(k, t, v) VALUES (?, ?, ?)", 0, i, text + i);
 
@@ -72,7 +72,7 @@ public class QueryWithIndexedSSTableTest extends CQLTester
     }
 
     // Creates a random string 
-    public static String makeRandomTest(int length)
+    public static String makeRandomSt(int length)
     {
         Random random = new Random();
         char[] chars = new char[26];

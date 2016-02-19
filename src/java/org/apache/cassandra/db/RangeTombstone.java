@@ -199,6 +199,12 @@ public class RangeTombstone
             public RangeTombstone.Bound deserialize(DataInputPlus in, int version, List<AbstractType<?>> types) throws IOException
             {
                 Kind kind = Kind.values()[in.readByte()];
+                return deserializeValues(in, kind, version, types);
+            }
+
+            public RangeTombstone.Bound deserializeValues(DataInputPlus in, Kind kind, int version,
+                    List<AbstractType<?>> types) throws IOException
+            {
                 int size = in.readUnsignedShort();
                 if (size == 0)
                     return kind.isStart() ? BOTTOM : TOP;
