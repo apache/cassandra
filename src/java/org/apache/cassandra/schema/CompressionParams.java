@@ -56,7 +56,7 @@ public final class CompressionParams
     public static final String CHUNK_LENGTH_IN_KB = "chunk_length_in_kb";
     public static final String ENABLED = "enabled";
 
-    public static final CompressionParams DEFAULT = new CompressionParams(LZ4Compressor.instance,
+    public static final CompressionParams DEFAULT = new CompressionParams(LZ4Compressor.create(Collections.<String, String>emptyMap()),
                                                                           DEFAULT_CHUNK_LENGTH,
                                                                           Collections.emptyMap());
 
@@ -139,7 +139,7 @@ public final class CompressionParams
 
     public static CompressionParams lz4(Integer chunkLength)
     {
-        return new CompressionParams(LZ4Compressor.instance, chunkLength, Collections.emptyMap());
+        return new CompressionParams(LZ4Compressor.create(Collections.emptyMap()), chunkLength, Collections.emptyMap());
     }
 
     public CompressionParams(String sstableCompressorClass, Integer chunkLength, Map<String, String> otherOptions) throws ConfigurationException
@@ -272,7 +272,7 @@ public final class CompressionParams
     private static Map<String, String> copyOptions(Map<? extends CharSequence, ? extends CharSequence> co)
     {
         if (co == null || co.isEmpty())
-            return Collections.<String, String>emptyMap();
+            return Collections.emptyMap();
 
         Map<String, String> compressionOptions = new HashMap<>();
         for (Map.Entry<? extends CharSequence, ? extends CharSequence> entry : co.entrySet())

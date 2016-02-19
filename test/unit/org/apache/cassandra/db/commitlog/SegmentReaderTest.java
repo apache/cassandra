@@ -24,6 +24,7 @@ import java.io.IOException;
 import java.io.RandomAccessFile;
 import java.nio.ByteBuffer;
 import java.nio.channels.FileChannel;
+import java.util.Collections;
 import java.util.Random;
 import javax.crypto.Cipher;
 
@@ -52,7 +53,7 @@ public class SegmentReaderTest
     @Test
     public void compressedSegmenter_LZ4() throws IOException
     {
-        compressedSegmenter(LZ4Compressor.create(null));
+        compressedSegmenter(LZ4Compressor.create(Collections.emptyMap()));
     }
 
     @Test
