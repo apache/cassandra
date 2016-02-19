@@ -238,14 +238,18 @@ formatter_for('int')(format_integer_type)
 
 @formatter_for('datetime')
 def format_value_timestamp(val, colormap, date_time_format, quote=False, **_):
-    bval = strftime(date_time_format.timestamp_format, calendar.timegm(val.utctimetuple()), timezone=date_time_format.timezone)
+    bval = strftime(date_time_format.timestamp_format,
+                    calendar.timegm(val.utctimetuple()),
+                    microseconds=val.microsecond,
+                    timezone=date_time_format.timezone)
     if quote:
         bval = "'%s'" % bval
     return colorme(bval, colormap, 'timestamp')
 
 
-def strftime(time_format, seconds, timezone=None):
-    ret_dt = datetime_from_timestamp(seconds).replace(tzinfo=UTC())
+def strftime(time_format, seconds, microseconds=0, timezone=None):
+    ret_dt = datetime_from_timestamp(seconds) + datetime.timedelta(microseconds=microseconds)
+    ret_dt = ret_dt.replace(tzinfo=UTC())
     if timezone:
         ret_dt = ret_dt.astimezone(timezone)
     return ret_dt.strftime(time_format)
