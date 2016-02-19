@@ -66,6 +66,7 @@ Merged from 2.1:
  * Gossiper#isEnabled is not thread safe (CASSANDRA-11116)
  * Avoid major compaction mixing repaired and unrepaired sstables in DTCS (CASSANDRA-11113)
  * Make it clear what DTCS timestamp_resolution is used for (CASSANDRA-11041)
+ * (cqlsh) Display milliseconds when datetime overflows (CASSANDRA-10625)
 
 
 3.3
