@@ -21,7 +21,7 @@ package org.apache.cassandra.cql3.functions;
 import java.nio.ByteBuffer;
 import java.util.List;
 
-import com.datastax.driver.core.DataType;
+import com.datastax.driver.core.TypeCodec;
 
 /**
  * Base class for all Java UDFs.
@@ -31,73 +31,73 @@ import com.datastax.driver.core.DataType;
  */
 public abstract class JavaUDF
 {
-    private final DataType returnDataType;
-    private final DataType[] argDataTypes;
+    private final TypeCodec<Object> returnCodec;
+    private final TypeCodec<Object>[] argCodecs;
 
-    protected JavaUDF(DataType returnDataType, DataType[] argDataTypes)
+    protected JavaUDF(TypeCodec<Object> returnCodec, TypeCodec<Object>[] argCodecs)
     {
-        this.returnDataType = returnDataType;
-        this.argDataTypes = argDataTypes;
+        this.returnCodec = returnCodec;
+        this.argCodecs = argCodecs;
     }
 
     protected abstract ByteBuffer executeImpl(int protocolVersion, List<ByteBuffer> params);
 
     protected Object compose(int protocolVersion, int argIndex, ByteBuffer value)
     {
-        return UDFunction.compose(argDataTypes, protocolVersion, argIndex, value);
+        return UDFunction.compose(argCodecs, protocolVersion, argIndex, value);
     }
 
     protected ByteBuffer decompose(int protocolVersion, Object value)
     {
-        return UDFunction.decompose(returnDataType, protocolVersion, value);
+        return UDFunction.decompose(returnCodec, protocolVersion, value);
     }
 
     // do not remove - used by generated Java UDFs
     protected float compose_float(int protocolVersion, int argIndex, ByteBuffer value)
     {
         assert value != null && value.remaining() > 0;
-        return (float) UDHelper.deserialize(DataType.cfloat(), protocolVersion, value);
+        return (float) UDHelper.deserialize(TypeCodec.cfloat(), protocolVersion, value);
     }
 
     // do not remove - used by generated Java UDFs
     protected double compose_double(int protocolVersion, int argIndex, ByteBuffer value)
     {
         assert value != null && value.remaining() > 0;
-        return (double) UDHelper.deserialize(DataType.cdouble(), protocolVersion, value);
+        return (double) UDHelper.deserialize(TypeCodec.cdouble(), protocolVersion, value);
     }
 
     // do not remove - used by generated Java UDFs
     protected byte compose_byte(int protocolVersion, int argIndex, ByteBuffer value)
     {
         assert value != null && value.remaining() > 0;
-        return (byte) UDHelper.deserialize(DataType.tinyint(), protocolVersion, value);
+        return (byte) UDHelper.deserialize(TypeCodec.tinyInt(), protocolVersion, value);
     }
 
     // do not remove - used by generated Java UDFs
     protected short compose_short(int protocolVersion, int argIndex, ByteBuffer value)
     {
         assert value != null && value.remaining() > 0;
-        return (short) UDHelper.deserialize(DataType.smallint(), protocolVersion, value);
+        return (short) UDHelper.deserialize(TypeCodec.smallInt(), protocolVersion, value);
     }
 
     // do not remove - used by generated Java UDFs
     protected int compose_int(int protocolVersion, int argIndex, ByteBuffer value)
     {
         assert value != null && value.remaining() > 0;
-        return (int) UDHelper.deserialize(DataType.cint(), protocolVersion, value);
+        return (int) UDHelper.deserialize(TypeCodec.cint(), protocolVersion, value);
     }
 
     // do not remove - used by generated Java UDFs
     protected long compose_long(int protocolVersion, int argIndex, ByteBuffer value)
     {
         assert value != null && value.remaining() > 0;
-        return (long) UDHelper.deserialize(DataType.bigint(), protocolVersion, value);
+        return (long) UDHelper.deserialize(TypeCodec.bigint(), protocolVersion, value);
     }
 
     // do not remove - used by generated Java UDFs
     protected boolean compose_boolean(int protocolVersion, int argIndex, ByteBuffer value)
     {
         assert value != null && value.remaining() > 0;
-        return (boolean) UDHelper.deserialize(DataType.cboolean(), protocolVersion, value);
+        return (boolean) UDHelper.deserialize(TypeCodec.cboolean(), protocolVersion, value);
     }
 }

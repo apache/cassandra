@@ -26,6 +26,7 @@
  * Add nodetool gettimeout and settimeout commands (CASSANDRA-10953)
  * Add 3.0 metadata to sstablemetadata output (CASSANDRA-10838)
 Merged from 3.0:
+ * Prevent logging in sandboxed state (CASSANDRA-11033)
  * Disallow drop/alter operations of UDTs used by UDAs (CASSANDRA-10721)
  * Add query time validation method on Index (CASSANDRA-11043)
  * Avoid potential AssertionError in mixed version cluster (CASSANDRA-11128)

@@ -58,6 +58,14 @@ public final class UDHelper
         }
     }
 
+    static TypeCodec<Object>[] codecsFor(DataType[] dataType)
+    {
+        TypeCodec<Object>[] codecs = new TypeCodec[dataType.length];
+        for (int i = 0; i < dataType.length; i++)
+            codecs[i] = codecFor(dataType[i]);
+        return codecs;
+    }
+
     static TypeCodec<Object> codecFor(DataType dataType)
     {
         return codecRegistry.codecFor(dataType);
@@ -70,12 +78,12 @@ public final class UDHelper
      * @param calledOnNullInput whether to allow {@code null} as an argument value
      * @return array of same size with UDF arguments
      */
-    public static TypeToken<?>[] typeTokens(DataType[] dataTypes, boolean calledOnNullInput)
+    public static TypeToken<?>[] typeTokens(TypeCodec<Object>[] dataTypes, boolean calledOnNullInput)
     {
         TypeToken<?>[] paramTypes = new TypeToken[dataTypes.length];
         for (int i = 0; i < paramTypes.length; i++)
         {
-            TypeToken<?> typeToken = asTypeToken(dataTypes[i]);
+            TypeToken<?> typeToken = dataTypes[i].getJavaType();
             if (!calledOnNullInput)
             {
                 // only care about classes that can be used in a data type
@@ -139,23 +147,22 @@ public final class UDHelper
         }
     }
 
-    public static Object deserialize(DataType dataType, int protocolVersion, ByteBuffer value)
+    public static Object deserialize(TypeCodec<?> codec, int protocolVersion, ByteBuffer value)
     {
-        return codecFor(dataType).deserialize(value, ProtocolVersion.fromInt(protocolVersion));
+        return codec.deserialize(value, ProtocolVersion.fromInt(protocolVersion));
     }
 
-    public static ByteBuffer serialize(DataType dataType, int protocolVersion, Object value)
+    public static ByteBuffer serialize(TypeCodec<?> codec, int protocolVersion, Object value)
     {
-        TypeCodec<Object> codec = codecFor(dataType);
-        if (! codec.getJavaType().getRawType().isAssignableFrom(value.getClass()))
-            throw new InvalidTypeException("Invalid value for CQL type " + dataType.getName().toString());
+        if (!codec.getJavaType().getRawType().isAssignableFrom(value.getClass()))
+            throw new InvalidTypeException("Invalid value for CQL type " + codec.getCqlType().getName().toString());
 
-        return codec.serialize(value, ProtocolVersion.fromInt(protocolVersion));
+        return ((TypeCodec)codec).serialize(value, ProtocolVersion.fromInt(protocolVersion));
     }
 
-    public static TypeToken<?> asTypeToken(DataType dataType)
+    public static Class<?> asJavaClass(TypeCodec<?> codec)
     {
-        return codecFor(dataType).getJavaType();
+        return codec.getJavaType().getRawType();
     }
 
     public static boolean isNullOrEmpty(AbstractType<?> type, ByteBuffer bb)

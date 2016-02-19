@@ -17,7 +17,7 @@
  under the License.
 -->
 
-<configuration debug="false">
+<configuration debug="false" scan="true">
   <!-- Shutdown hook ensures that async appender flushes -->
   <shutdownHook class="ch.qos.logback.core.hook.DelayingShutdownHook"/>
 

@@ -22,7 +22,7 @@ import java.nio.ByteBuffer;
 import java.util.List;
 
 import com.datastax.driver.core.DataType;
-import org.apache.cassandra.config.DatabaseDescriptor;
+import com.datastax.driver.core.TypeCodec;
 import org.apache.cassandra.cql3.functions.JavaUDF;
 
 /**
@@ -30,7 +30,7 @@ import org.apache.cassandra.cql3.functions.JavaUDF;
  */
 public final class CallComDatastax extends JavaUDF
 {
-    public CallComDatastax(DataType returnDataType, DataType[] argDataTypes)
+    public CallComDatastax(TypeCodec<Object> returnDataType, TypeCodec<Object>[] argDataTypes)
     {
         super(returnDataType, argDataTypes);
     }

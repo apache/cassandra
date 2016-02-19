@@ -47,7 +47,7 @@ public final class UDFByteCodeVerifier
 
     public static final String JAVA_UDF_NAME = JavaUDF.class.getName().replace('.', '/');
     public static final String OBJECT_NAME = Object.class.getName().replace('.', '/');
-    public static final String CTOR_SIG = "(Lcom/datastax/driver/core/DataType;[Lcom/datastax/driver/core/DataType;)V";
+    public static final String CTOR_SIG = "(Lcom/datastax/driver/core/TypeCodec;[Lcom/datastax/driver/core/TypeCodec;)V";
 
     private final Set<String> disallowedClasses = new HashSet<>();
     private final Multimap<String, String> disallowedMethodCalls = HashMultimap.create();
@@ -97,7 +97,7 @@ public final class UDFByteCodeVerifier
                 {
                     if (Opcodes.ACC_PUBLIC != access)
                         errors.add("constructor not public");
-                    // allowed constructor - JavaUDF(DataType returnDataType, DataType[] argDataTypes)
+                    // allowed constructor - JavaUDF(TypeCodec returnCodec, TypeCodec[] argCodecs)
                     return new ConstructorVisitor(errors);
                 }
                 if ("executeImpl".equals(name) && "(ILjava/util/List;)Ljava/nio/ByteBuffer;".equals(desc))

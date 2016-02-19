@@ -21,7 +21,7 @@ package org.apache.cassandra.cql3.validation.entities.udfverify;
 import java.nio.ByteBuffer;
 import java.util.List;
 
-import com.datastax.driver.core.DataType;
+import com.datastax.driver.core.TypeCodec;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.cql3.functions.JavaUDF;
 
@@ -30,7 +30,7 @@ import org.apache.cassandra.cql3.functions.JavaUDF;
  */
 public final class CallOrgApache extends JavaUDF
 {
-    public CallOrgApache(DataType returnDataType, DataType[] argDataTypes)
+    public CallOrgApache(TypeCodec<Object> returnDataType, TypeCodec<Object>[] argDataTypes)
     {
         super(returnDataType, argDataTypes);
     }
