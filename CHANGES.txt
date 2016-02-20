@@ -1,4 +1,5 @@
 2.2.6
+ * Replacing an aggregate with a new version doesn't reset INITCOND (CASSANDRA-10840)
  * (cqlsh) cqlsh cannot be called through symlink (CASSANDRA-11037)
  * fix ohc and java-driver pom dependencies in build.xml (CASSANDRA-10793)
  * Protect from keyspace dropped during repair (CASSANDRA-11065)

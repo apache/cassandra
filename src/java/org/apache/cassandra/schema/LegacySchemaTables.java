@@ -1394,12 +1394,9 @@ public class LegacySchemaTables
         adder.resetCollection("argument_types");
         adder.add("return_type", aggregate.returnType().toString());
         adder.add("state_func", aggregate.stateFunction().name().name);
-        if (aggregate.stateType() != null)
-            adder.add("state_type", aggregate.stateType().toString());
-        if (aggregate.finalFunction() != null)
-            adder.add("final_func", aggregate.finalFunction().name().name);
-        if (aggregate.initialCondition() != null)
-            adder.add("initcond", aggregate.initialCondition());
+        adder.add("state_type", aggregate.stateType().toString());
+        adder.add("final_func", aggregate.finalFunction() != null ? aggregate.finalFunction().name().name : null);
+        adder.add("initcond", aggregate.initialCondition() != null ? aggregate.initialCondition() : null);
 
         for (AbstractType<?> argType : aggregate.argTypes())
             adder.addListEntry("argument_types", argType.toString());

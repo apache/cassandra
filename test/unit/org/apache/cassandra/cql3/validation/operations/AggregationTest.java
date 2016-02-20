@@ -18,6 +18,7 @@
 package org.apache.cassandra.cql3.validation.operations;
 
 import java.math.BigDecimal;
+import java.nio.ByteBuffer;
 import java.text.SimpleDateFormat;
 import java.util.Calendar;
 import java.util.Date;
@@ -37,7 +38,6 @@ import org.apache.cassandra.db.SystemKeyspace;
 import org.apache.cassandra.exceptions.FunctionExecutionException;
 import org.apache.cassandra.exceptions.InvalidRequestException;
 import org.apache.cassandra.service.ClientState;
-import org.apache.cassandra.service.StorageService;
 import org.apache.cassandra.transport.Event;
 import org.apache.cassandra.transport.messages.ResultMessage;
 
@@ -387,7 +387,7 @@ public class AggregationTest extends CQLTester
         assertRows(execute("SELECT " + copySign + "(c, d) FROM %s"), row(1.2), row(-1.3), row(1.4));
         assertRows(execute("SELECT max(" + copySign + "(c, d)) FROM %s"), row(1.4));
         assertRows(execute("SELECT " + copySign + "(c, max(c)) FROM %s"), row(1.2));
-        assertRows(execute("SELECT " + copySign + "(max(c), c) FROM %s"), row(-1.4));;
+        assertRows(execute("SELECT " + copySign + "(max(c), c) FROM %s"), row(-1.4));
     }
 
     @Test
@@ -1683,5 +1683,60 @@ public class AggregationTest extends CQLTester
         assertRows(execute("SELECT " + aCON + "(b) FROM %s"), row("finxnullyxnullyxnully"));
         assertRows(execute("SELECT " + aRNON + "(b) FROM %s"), row("fin"));
 
+    }
+
+    @Test
+    public void testOrReplaceOptionals() throws Throwable
+    {
+        String fState = createFunction(KEYSPACE,
+                                       "list<text>, int",
+                                       "CREATE FUNCTION %s(s list<text>, i int) " +
+                                       "CALLED ON NULL INPUT " +
+                                       "RETURNS list<text> " +
+                                       "LANGUAGE java " +
+                                       "AS 'if (i != null) s.add(String.valueOf(i)); return s;'");
+
+        String fFinal = shortFunctionName(createFunction(KEYSPACE,
+                                                         "list<text>",
+                                                         "CREATE FUNCTION %s(s list<text>) " +
+                                                         "CALLED ON NULL INPUT " +
+                                                         "RETURNS list<text> " +
+                                                         "LANGUAGE java " +
+                                                         "AS 'return s;'"));
+
+        String a = createAggregate(KEYSPACE,
+                                   "int",
+                                   "CREATE AGGREGATE %s(int) " +
+                                   "SFUNC " + shortFunctionName(fState) + ' ' +
+                                   "STYPE list<text> ");
+
+        checkOptionals(a, null, null);
+
+        String ddlPrefix = "CREATE OR REPLACE AGGREGATE " + a + "(int) " +
+                           "SFUNC " + shortFunctionName(fState) + ' ' +
+                           "STYPE list<text> ";
+
+        // Test replacing INITCOND
+        for (String condition : new String[]{"", "INITCOND null"})
+        {
+            execute(ddlPrefix + "INITCOND [  ] ");
+            checkOptionals(a, null, ByteBuffer.allocate(4));
+
+            execute(ddlPrefix + condition);
+            checkOptionals(a, null, null);
+        }
+
+        // Test replacing FINALFUNC
+        execute(ddlPrefix + "FINALFUNC " + shortFunctionName(fFinal) + " ");
+        checkOptionals(a, shortFunctionName(fFinal), null);
+
+        execute(ddlPrefix);
+        checkOptionals(a, null, null);
+    }
+
+    private void checkOptionals(String aggregateName, String finalFunc, ByteBuffer initCond) throws Throwable
+    {
+        assertRows(execute("SELECT final_func, initcond FROM system.schema_aggregates WHERE keyspace_name=? AND aggregate_name=?", KEYSPACE, shortFunctionName(aggregateName)),
+                   row(finalFunc, initCond));
     }
 }
