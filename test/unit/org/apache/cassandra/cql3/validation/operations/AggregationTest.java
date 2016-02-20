@@ -1714,7 +1714,7 @@ public class AggregationTest extends CQLTester
     }
 
     @Test
-    public void testEmptyListInitcond() throws Throwable
+    public void testEmptyListAndNullInitcond() throws Throwable
     {
         String f = createFunction(KEYSPACE,
                                       "list, int",
@@ -1819,5 +1819,63 @@ public class AggregationTest extends CQLTester
             }
         }
         assertTrue("ReconfigureOnChangeFilter not in logback's turbo-filter list - do that by adding scan=\"true\" to logback-test.xml's configuration element", done);
+    }
+
+    @Test
+    public void testOrReplaceOptionals() throws Throwable
+    {
+        String fState = createFunction(KEYSPACE,
+                                       "list<text>, int",
+                                       "CREATE FUNCTION %s(s list<text>, i int) " +
+                                       "CALLED ON NULL INPUT " +
+                                       "RETURNS list<text> " +
+                                       "LANGUAGE java " +
+                                       "AS 'if (i != null) s.add(String.valueOf(i)); return s;'");
+
+        String fFinal = shortFunctionName(createFunction(KEYSPACE,
+                                                         "list<text>",
+                                                         "CREATE FUNCTION %s(s list<text>) " +
+                                                         "CALLED ON NULL INPUT " +
+                                                         "RETURNS list<text> " +
+                                                         "LANGUAGE java " +
+                                                         "AS 'return s;'"));
+
+        String a = createAggregate(KEYSPACE,
+                                   "int",
+                                   "CREATE AGGREGATE %s(int) " +
+                                   "SFUNC " + shortFunctionName(fState) + ' ' +
+                                   "STYPE list<text> ");
+
+        checkOptionals(a, null, null);
+
+        String ddlPrefix = "CREATE OR REPLACE AGGREGATE " + a + "(int) " +
+                           "SFUNC " + shortFunctionName(fState) + ' ' +
+                           "STYPE list<text> ";
+
+        // Test replacing INITCOND
+        execute(ddlPrefix + "INITCOND [  ] ");
+        checkOptionals(a, null, "[]");
+
+        execute(ddlPrefix);
+        checkOptionals(a, null, null);
+
+        execute(ddlPrefix + "INITCOND [  ] ");
+        checkOptionals(a, null, "[]");
+
+        execute(ddlPrefix + "INITCOND null");
+        checkOptionals(a, null, null);
+
+        // Test replacing FINALFUNC
+        execute(ddlPrefix + "FINALFUNC " + shortFunctionName(fFinal) + ' ');
+        checkOptionals(a, shortFunctionName(fFinal), null);
+
+        execute(ddlPrefix);
+        checkOptionals(a, null, null);
+    }
+
+    private void checkOptionals(String aggregateName, String finalFunc, String initCond) throws Throwable
+    {
+        assertRows(execute("SELECT final_func, initcond FROM system_schema.aggregates WHERE keyspace_name=? AND aggregate_name=?", KEYSPACE, shortFunctionName(aggregateName)),
+                   row(finalFunc, initCond));
     }
 }

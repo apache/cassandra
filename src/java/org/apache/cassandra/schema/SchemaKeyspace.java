@@ -839,12 +839,14 @@ public final class SchemaKeyspace
         RowUpdateBuilder adder =
             new RowUpdateBuilder(Aggregates, timestamp, mutation) .clustering(aggregate.name().name, functionArgumentsList(aggregate));
 
-        CQL3Type stateCqlType = aggregate.stateType().asCQL3Type();
         adder.add("return_type", aggregate.returnType().asCQL3Type().toString())
              .add("state_func", aggregate.stateFunction().name().name)
-             .add("state_type", aggregate.stateType() != null ? stateCqlType.toString() : null)
+             .add("state_type", aggregate.stateType().asCQL3Type().toString())
              .add("final_func", aggregate.finalFunction() != null ? aggregate.finalFunction().name().name : null)
-             .add("initcond", aggregate.initialCondition() != null ? stateCqlType.asCQLLiteral(aggregate.initialCondition(), Server.CURRENT_VERSION) : null)
+             .add("initcond", aggregate.initialCondition() != null
+                              // must use the frozen state type here, as 'null' for unfrozen collections may mean 'empty'
+                              ? aggregate.stateType().freeze().asCQL3Type().asCQLLiteral(aggregate.initialCondition(), Server.CURRENT_VERSION)
+                              : null)
              .build();
     }
 
