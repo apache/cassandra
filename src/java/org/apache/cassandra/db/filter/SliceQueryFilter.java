@@ -38,7 +38,6 @@ import org.apache.cassandra.io.sstable.SSTableReader;
 import org.apache.cassandra.io.util.DataOutputPlus;
 import org.apache.cassandra.io.util.FileDataInput;
 import org.apache.cassandra.tracing.Tracing;
-import org.apache.cassandra.utils.ByteBufferUtil;
 import org.apache.cassandra.utils.Pair;
 
 public class SliceQueryFilter implements IDiskAtomFilter
@@ -281,10 +280,12 @@ public class SliceQueryFilter implements IDiskAtomFilter
             {
                 Tracing.trace("Scanned over {} tombstones; query aborted (see tombstone_failure_threshold)",
                               DatabaseDescriptor.getTombstoneFailureThreshold());
-                logger.error("Scanned over {} tombstones in {}.{}; query aborted (see tombstone_failure_threshold)",
-                             DatabaseDescriptor.getTombstoneFailureThreshold(),
-                             container.metadata().ksName,
-                             container.metadata().cfName);
+                String msg = String.format("Scanned over %d tombstones in %s.%s for key: %1.512s; query aborted (see tombstone_failure_threshold).",
+                                           DatabaseDescriptor.getTombstoneFailureThreshold(),
+                                           container.metadata().ksName,
+                                           container.metadata().cfName,
+                                           container.metadata().getKeyValidator().getString(key.getKey()));
+                logger.error(msg);
                 throw new TombstoneOverwhelmingException();
             }
 
