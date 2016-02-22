@@ -18,8 +18,6 @@
  */
 package org.apache.cassandra.db.filter;
 
-import org.apache.cassandra.db.DecoratedKey;
-
 public class TombstoneOverwhelmingException extends RuntimeException
 {
     private final int numTombstones;
@@ -28,14 +26,15 @@ public class TombstoneOverwhelmingException extends RuntimeException
     private final String cfName;
     private final String lastCellName;
     private final String slicesInfo;
-    private String partitionKey = null;
+    private final String partitionKey;
 
     public TombstoneOverwhelmingException(int numTombstones,
                                           int numRequested,
                                           String ksName,
                                           String cfName,
                                           String lastCellName,
-                                          String slicesInfo)
+                                          String slicesInfo,
+                                          String partitionKey)
     {
         this.numTombstones = numTombstones;
         this.numRequested = numRequested;
@@ -43,12 +42,7 @@ public class TombstoneOverwhelmingException extends RuntimeException
         this.cfName = cfName;
         this.lastCellName = lastCellName;
         this.slicesInfo = slicesInfo;
-    }
-
-    public void setKey(DecoratedKey key)
-    {
-        if (key != null)
-            partitionKey = key.toString();
+        this.partitionKey = partitionKey;
     }
 
     public String getLocalizedMessage()

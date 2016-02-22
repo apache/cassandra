@@ -286,7 +286,8 @@ public class SliceQueryFilter implements IDiskAtomFilter
                                                          container.metadata().ksName,
                                                          container.metadata().cfName,
                                                          container.getComparator().getString(cell.name()),
-                                                         getSlicesInfo(container));
+                                                         getSlicesInfo(container),
+                                                         container.metadata().getKeyValidator().getString(key.getKey()));
             }
 
             container.appendColumn(cell);

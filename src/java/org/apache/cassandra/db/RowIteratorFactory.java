@@ -94,23 +94,15 @@ public class RowIteratorFactory
                 ColumnFamily cached = cfs.getRawCachedRow(key);
                 IDiskAtomFilter filter = range.columnFilter(key.getKey());
 
-                try
+                if (cached == null || !cfs.isFilterFullyCoveredBy(filter, cached, now))
                 {
-                    if (cached == null || !cfs.isFilterFullyCoveredBy(filter, cached, now))
-                    {
-                        // not cached: collate
-                        QueryFilter.collateOnDiskAtom(returnCF, colIters, filter, key, gcBefore, now);
-                    }
-                    else
-                    {
-                        QueryFilter keyFilter = new QueryFilter(key, cfs.name, filter, now);
-                        returnCF = cfs.filterColumnFamily(cached, keyFilter);
-                    }
+                    // not cached: collate
+                    QueryFilter.collateOnDiskAtom(returnCF, colIters, filter, key, gcBefore, now);
                 }
-                catch(TombstoneOverwhelmingException e)
+                else
                 {
-                    e.setKey(key);
-                    throw e;
+                    QueryFilter keyFilter = new QueryFilter(key, cfs.name, filter, now);
+                    returnCF = cfs.filterColumnFamily(cached, keyFilter);
                 }
 
                 Row rv = new Row(key, returnCF);

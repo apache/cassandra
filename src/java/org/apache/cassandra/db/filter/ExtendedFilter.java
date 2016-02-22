@@ -304,15 +304,7 @@ public abstract class ExtendedFilter
             ColumnFamily pruned = data.cloneMeShallow();
             IDiskAtomFilter filter = dataRange.columnFilter(rowKey.getKey());
             Iterator<Cell> iter = filter.getColumnIterator(data);
-            try
-            {
-                filter.collectReducedColumns(pruned, QueryFilter.gatherTombstones(pruned, iter), rowKey, cfs.gcBefore(timestamp), timestamp);
-            }
-            catch (TombstoneOverwhelmingException e)
-            {
-                e.setKey(rowKey);
-                throw e;
-            }
+            filter.collectReducedColumns(pruned, QueryFilter.gatherTombstones(pruned, iter), rowKey, cfs.gcBefore(timestamp), timestamp);
             return pruned;
         }
 
