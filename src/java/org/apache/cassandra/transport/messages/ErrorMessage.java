@@ -151,7 +151,8 @@ public class ErrorMessage extends Message.Response
         {
             final TransportException err = getBackwardsCompatibleException(msg, version);
             dest.writeInt(err.code().value);
-            CBUtil.writeString(err.getMessage(), dest);
+            String errorString = err.getMessage() == null ? "" : err.getMessage();
+            CBUtil.writeString(errorString, dest);
 
             switch (err.code())
             {
@@ -212,7 +213,8 @@ public class ErrorMessage extends Message.Response
         public int encodedSize(ErrorMessage msg, int version)
         {
             final TransportException err = getBackwardsCompatibleException(msg, version);
-            int size = 4 + CBUtil.sizeOfString(err.getMessage());
+            String errorString = err.getMessage() == null ? "" : err.getMessage();
+            int size = 4 + CBUtil.sizeOfString(errorString);
             switch (err.code())
             {
                 case UNAVAILABLE:
