@@ -16,6 +16,7 @@
  * Fix paging on DISTINCT queries repeats result when first row in partition changes
    (CASSANDRA-10010)
 Merged from 2.1:
+ * Only notify if repair status changed (CASSANDRA-11172)
  * Add partition key to TombstoneOverwhelmingException error message (CASSANDRA-10888)
  * Use logback setting for 'cassandra -v' command (CASSANDRA-10767)
  * Fix sstableloader to unthrottle streaming by default (CASSANDRA-9714)

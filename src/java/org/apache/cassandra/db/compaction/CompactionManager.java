@@ -491,7 +491,14 @@ public class CompactionManager implements CompactionManagerMBean
         logger.trace("Starting anticompaction for ranges {}", ranges);
         Set<SSTableReader> sstables = new HashSet<>(validatedForRepair);
         Set<SSTableReader> mutatedRepairStatuses = new HashSet<>();
+        // we should only notify that repair status changed if it actually did:
+        Set<SSTableReader> mutatedRepairStatusToNotify = new HashSet<>();
+        Map<SSTableReader, Boolean> wasRepairedBefore = new HashMap<>();
+        for (SSTableReader sstable : sstables)
+            wasRepairedBefore.put(sstable, sstable.isRepaired());
+
         Set<SSTableReader> nonAnticompacting = new HashSet<>();
+
         Iterator<SSTableReader> sstableIterator = sstables.iterator();
         try
         {
@@ -513,6 +520,8 @@ public class CompactionManager implements CompactionManagerMBean
                         sstable.descriptor.getMetadataSerializer().mutateRepairedAt(sstable.descriptor, repairedAt);
                         sstable.reloadSSTableMetadata();
                         mutatedRepairStatuses.add(sstable);
+                        if (!wasRepairedBefore.get(sstable))
+                            mutatedRepairStatusToNotify.add(sstable);
                         sstableIterator.remove();
                         shouldAnticompact = true;
                         break;
@@ -531,7 +540,7 @@ public class CompactionManager implements CompactionManagerMBean
                     sstableIterator.remove();
                 }
             }
-            cfs.getTracker().notifySSTableRepairedStatusChanged(mutatedRepairStatuses);
+            cfs.getTracker().notifySSTableRepairedStatusChanged(mutatedRepairStatusToNotify);
             txn.cancel(Sets.union(nonAnticompacting, mutatedRepairStatuses));
             validatedForRepair.release(Sets.union(nonAnticompacting, mutatedRepairStatuses));
             assert txn.originals().equals(sstables);
