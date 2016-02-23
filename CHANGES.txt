@@ -44,6 +44,7 @@ Merged from 3.0:
  * Add dropped_columns to the list of schema table so it gets handled
    properly (CASSANDRA-11050)
 Merged from 2.2:
+ * Avoid NPE when serializing ErrorMessage with null message (CASSANDRA-11167)
  * Replacing an aggregate with a new version doesn't reset INITCOND (CASSANDRA-10840)
  * (cqlsh) cqlsh cannot be called through symlink (CASSANDRA-11037)
  * fix ohc and java-driver pom dependencies in build.xml (CASSANDRA-10793)

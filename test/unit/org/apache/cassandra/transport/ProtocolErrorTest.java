@@ -122,4 +122,22 @@ public class ProtocolErrorTest {
             Assert.assertTrue(e.getMessage().contains("Request is too big"));
         }
     }
+
+    @Test
+    public void testErrorMessageWithNullString() throws Exception
+    {
+        // test for CASSANDRA-11167
+        ErrorMessage msg = ErrorMessage.fromException(new ServerError((String) null));
+        assert msg.toString().endsWith("null") : msg.toString();
+        int size = ErrorMessage.codec.encodedSize(msg, Server.CURRENT_VERSION);
+        ByteBuf buf = Unpooled.buffer(size);
+        ErrorMessage.codec.encode(msg, buf, Server.CURRENT_VERSION);
+
+        ByteBuf expected = Unpooled.wrappedBuffer(new byte[]{
+                0x00, 0x00, 0x00, 0x00,  // int error code
+                0x00, 0x00               // short message length
+        });
+
+        Assert.assertEquals(expected, buf);
+    }
 }
