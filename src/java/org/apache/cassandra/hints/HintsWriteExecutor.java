@@ -133,8 +133,7 @@ final class HintsWriteExecutor
             finally
             {
                 HintsBuffer recycledBuffer = buffer.recycle();
-                if (!bufferPool.offer(recycledBuffer))
-                    recycledBuffer.free();
+                bufferPool.offer(recycledBuffer);
             }
         }
     }

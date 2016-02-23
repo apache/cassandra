@@ -27,6 +27,7 @@
  * Add nodetool gettimeout and settimeout commands (CASSANDRA-10953)
  * Add 3.0 metadata to sstablemetadata output (CASSANDRA-10838)
 Merged from 3.0:
+ * Introduce backpressure for hints (CASSANDRA-10972)
  * Fix ClusteringPrefix not being able to read tombstone range boundaries (CASSANDRA-11158)
  * Prevent logging in sandboxed state (CASSANDRA-11033)
  * Disallow drop/alter operations of UDTs used by UDAs (CASSANDRA-10721)
