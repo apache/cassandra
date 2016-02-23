@@ -13,6 +13,20 @@ restore snapshots created with the previous major version using the
 'sstableloader' tool. You can upgrade the file format of your snapshots
 using the provided 'sstableupgrade' tool.
 
+3.0.4
+=====
+
+New features
+------------
+   - sstabledump tool is added to be 3.0 version of former sstable2json. The tool only
+     supports v3.0+ SSTables. See tool's help for more detail.
+
+Upgrading
+---------
+   - Nothing specific to this release, but please see previous versions upgrading section,
+     especially if you are upgrading from 2.2.
+
+
 3.0.3
 =====
 

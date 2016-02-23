@@ -25,7 +25,7 @@ import org.apache.cassandra.db.rows.SliceableUnfilteredRowIterator;
 import org.apache.cassandra.db.filter.ColumnFilter;
 import org.apache.cassandra.db.columniterator.SSTableIterator;
 import org.apache.cassandra.db.columniterator.SSTableReversedIterator;
-import org.apache.cassandra.dht.IPartitioner;
+import org.apache.cassandra.dht.AbstractBounds;
 import org.apache.cassandra.dht.Range;
 import org.apache.cassandra.dht.Token;
 import org.apache.cassandra.io.sstable.Component;
@@ -79,6 +79,17 @@ public class BigTableReader extends SSTableReader
     public ISSTableScanner getScanner(ColumnFilter columns, DataRange dataRange, RateLimiter limiter, boolean isForThrift)
     {
         return BigTableScanner.getScanner(this, columns, dataRange, limiter, isForThrift);
+    }
+
+    /**
+     * Direct I/O SSTableScanner over an iterator of bounds.
+     *
+     * @param boundsIterator the keys to cover
+     * @return A Scanner for seeking over the rows of the SSTable.
+     */
+    public ISSTableScanner getScanner(Iterator<AbstractBounds<PartitionPosition>> boundsIterator)
+    {
+        return BigTableScanner.getScanner(this, boundsIterator);
     }
 
     /**

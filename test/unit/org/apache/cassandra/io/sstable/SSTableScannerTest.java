@@ -24,6 +24,8 @@ import java.util.Collection;
 import java.util.List;
 
 import com.google.common.collect.Iterables;
+import com.google.common.util.concurrent.RateLimiter;
+
 import org.junit.BeforeClass;
 import org.junit.Test;
 
@@ -217,7 +219,7 @@ public class SSTableScannerTest
         SSTableReader sstable = store.getLiveSSTables().iterator().next();
 
         // full range scan
-        ISSTableScanner scanner = sstable.getScanner(null);
+        ISSTableScanner scanner = sstable.getScanner(RateLimiter.create(Double.MAX_VALUE));
         for (int i = 2; i < 10; i++)
             assertEquals(toKey(i), new String(scanner.next().partitionKey().getKey().array()));
 
@@ -323,7 +325,7 @@ public class SSTableScannerTest
         SSTableReader sstable = store.getLiveSSTables().iterator().next();
 
         // full range scan
-        ISSTableScanner fullScanner = sstable.getScanner(null);
+        ISSTableScanner fullScanner = sstable.getScanner(RateLimiter.create(Double.MAX_VALUE));
         assertScanContainsRanges(fullScanner,
                                  2, 9,
                                  102, 109,
@@ -453,7 +455,7 @@ public class SSTableScannerTest
         SSTableReader sstable = store.getLiveSSTables().iterator().next();
 
         // full range scan
-        ISSTableScanner fullScanner = sstable.getScanner(null);
+        ISSTableScanner fullScanner = sstable.getScanner(RateLimiter.create(Double.MAX_VALUE));
         assertScanContainsRanges(fullScanner, 205, 205);
 
         // scan three ranges separately
