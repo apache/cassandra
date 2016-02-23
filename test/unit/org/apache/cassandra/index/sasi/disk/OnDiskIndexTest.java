@@ -697,6 +697,13 @@ public class OnDiskIndexTest
     {
         RangeIterator<Long, Token> tokens = onDiskIndex.search(expressionFor(start, true, end, false));
 
+        // no results should be produced only if range is empty
+        if (tokens == null)
+        {
+            Assert.assertEquals(0, end - start);
+            return;
+        }
+
         int keyCount = 0;
         Long lastToken = null;
         while (tokens.hasNext())
