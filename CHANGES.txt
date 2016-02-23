@@ -63,6 +63,7 @@ Merged from 2.2:
    (CASSANDRA-10010)
  * (cqlsh) Support timezone conversion using pytz (CASSANDRA-10397)
 Merged from 2.1:
+ * Don't remove FailureDetector history on removeEndpoint (CASSANDRA-10371)
  * Only notify if repair status changed (CASSANDRA-11172)
  * Use logback setting for 'cassandra -v' command (CASSANDRA-10767)
  * Fix sstableloader to unthrottle streaming by default (CASSANDRA-9714)
