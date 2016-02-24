@@ -20,9 +20,9 @@
 """:"
 # bash code here; finds a suitable python interpreter and execs this file.
 # prefer unqualified "python" if suitable:
-python -c 'import sys; sys.exit(not (0x020500b0 < sys.hexversion < 0x03000000))' 2>/dev/null \
+python -c 'import sys; sys.exit(not (0x020700b0 < sys.hexversion < 0x03000000))' 2>/dev/null \
     && exec python "$0" "$@"
-for pyver in 2.6 2.7 2.5; do
+for pyver in 2.7; do
     which python$pyver > /dev/null 2>&1 && exec python$pyver "$0" "$@"
 done
 echo "No appropriate python interpreter found." >&2
