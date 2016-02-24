@@ -33,10 +33,6 @@ import org.apache.cassandra.io.IVersionedSerializer;
 import org.apache.cassandra.io.util.DataOutputPlus;
 import org.apache.cassandra.tracing.Tracing;
 import org.apache.cassandra.utils.FBUtilities;
-import org.apache.cassandra.utils.UUIDGen;
-
-import static org.apache.cassandra.tracing.Tracing.TRACE_HEADER;
-import static org.apache.cassandra.tracing.Tracing.TRACE_TYPE;
 import static org.apache.cassandra.tracing.Tracing.isTracing;
 
 public class MessageOut<T>
@@ -61,8 +57,7 @@ public class MessageOut<T>
              payload,
              serializer,
              isTracing()
-                 ? ImmutableMap.of(TRACE_HEADER, UUIDGen.decompose(Tracing.instance.getSessionId()),
-                                   TRACE_TYPE, new byte[] { Tracing.TraceType.serialize(Tracing.instance.getTraceType()) })
+                 ? Tracing.instance.getTraceHeaders()
                  : Collections.<String, byte[]>emptyMap());
     }
 
