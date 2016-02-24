@@ -145,7 +145,7 @@ public class StartupChecks
     {
         public void execute()
         {
-            String jmxPort = System.getProperty("com.sun.management.jmxremote.port");
+            String jmxPort = System.getProperty("cassandra.jmx.remote.port");
             if (jmxPort == null)
             {
                 logger.warn("JMX is not enabled to receive remote connections. Please see cassandra-env.sh for more info.");

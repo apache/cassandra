@@ -29,14 +29,11 @@ import org.junit.Test;
 import org.apache.cassandra.auth.*;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.config.Schema;
-import org.apache.cassandra.cql3.Attributes;
-import org.apache.cassandra.cql3.CQLStatement;
-import org.apache.cassandra.cql3.QueryProcessor;
+import org.apache.cassandra.cql3.*;
 import org.apache.cassandra.cql3.functions.Function;
 import org.apache.cassandra.cql3.functions.FunctionName;
 import org.apache.cassandra.cql3.statements.BatchStatement;
 import org.apache.cassandra.cql3.statements.ModificationStatement;
-import org.apache.cassandra.cql3.CQLTester;
 import org.apache.cassandra.exceptions.*;
 import org.apache.cassandra.service.ClientState;
 import org.apache.cassandra.utils.Pair;
@@ -625,100 +622,5 @@ public class UFAuthTest extends CQLTester
     private String functionCall(String functionName, String...args)
     {
         return String.format("%s(%s)", functionName, Joiner.on(",").join(args));
-    }
-
-    static class StubAuthorizer implements IAuthorizer
-    {
-        Map<Pair<String, IResource>, Set<Permission>> userPermissions = new HashMap<>();
-
-        private void clear()
-        {
-            userPermissions.clear();
-        }
-
-        public Set<Permission> authorize(AuthenticatedUser user, IResource resource)
-        {
-            Pair<String, IResource> key = Pair.create(user.getName(), resource);
-            Set<Permission> perms = userPermissions.get(key);
-            return perms != null ? perms : Collections.<Permission>emptySet();
-        }
-
-        public void grant(AuthenticatedUser performer,
-                          Set<Permission> permissions,
-                          IResource resource,
-                          RoleResource grantee) throws RequestValidationException, RequestExecutionException
-        {
-            Pair<String, IResource> key = Pair.create(grantee.getRoleName(), resource);
-            Set<Permission> perms = userPermissions.get(key);
-            if (null == perms)
-            {
-                perms = new HashSet<>();
-                userPermissions.put(key, perms);
-            }
-            perms.addAll(permissions);
-        }
-
-        public void revoke(AuthenticatedUser performer,
-                           Set<Permission> permissions,
-                           IResource resource,
-                           RoleResource revokee) throws RequestValidationException, RequestExecutionException
-        {
-            Pair<String, IResource> key = Pair.create(revokee.getRoleName(), resource);
-            Set<Permission> perms = userPermissions.get(key);
-            if (null != perms)
-                perms.removeAll(permissions);
-            if (perms.isEmpty())
-                userPermissions.remove(key);
-        }
-
-        public Set<PermissionDetails> list(AuthenticatedUser performer,
-                                           Set<Permission> permissions,
-                                           IResource resource,
-                                           RoleResource grantee) throws RequestValidationException, RequestExecutionException
-        {
-            Pair<String, IResource> key = Pair.create(grantee.getRoleName(), resource);
-            Set<Permission> perms = userPermissions.get(key);
-            if (perms == null)
-                return Collections.emptySet();
-
-
-            Set<PermissionDetails> details = new HashSet<>();
-            for (Permission permission : perms)
-            {
-                if (permissions.contains(permission))
-                    details.add(new PermissionDetails(grantee.getRoleName(), resource, permission));
-            }
-            return details;
-        }
-
-        public void revokeAllFrom(RoleResource revokee)
-        {
-            for (Pair<String, IResource> key : userPermissions.keySet())
-                if (key.left.equals(revokee.getRoleName()))
-                    userPermissions.remove(key);
-        }
-
-        public void revokeAllOn(IResource droppedResource)
-        {
-            for (Pair<String, IResource> key : userPermissions.keySet())
-                if (key.right.equals(droppedResource))
-                    userPermissions.remove(key);
-
-        }
-
-        public Set<? extends IResource> protectedResources()
-        {
-            return Collections.emptySet();
-        }
-
-        public void validateConfiguration() throws ConfigurationException
-        {
-
-        }
-
-        public void setup()
-        {
-
-        }
     }
 }

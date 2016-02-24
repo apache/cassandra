@@ -129,6 +129,8 @@ K_AUTHORIZE:   A U T H O R I Z E;
 K_DESCRIBE:    D E S C R I B E;
 K_EXECUTE:     E X E C U T E;
 K_NORECURSIVE: N O R E C U R S I V E;
+K_MBEAN:       M B E A N;
+K_MBEANS:      M B E A N S;
 
 K_USER:        U S E R;
 K_USERS:       U S E R S;

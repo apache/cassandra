@@ -156,6 +156,31 @@ options {
         return filtered;
     }
 
+    public String canonicalizeObjectName(String s, boolean enforcePattern)
+    {
+        // these two conditions are here because technically they are valid
+        // ObjectNames, but we want to restrict their use without adding unnecessary
+        // work to JMXResource construction as that also happens on hotter code paths
+        if ("".equals(s))
+            addRecognitionError("Empty JMX object name supplied");
+
+        if ("*:*".equals(s))
+            addRecognitionError("Please use ALL MBEANS instead of wildcard pattern");
+
+        try
+        {
+            javax.management.ObjectName objectName = javax.management.ObjectName.getInstance(s);
+            if (enforcePattern && !objectName.isPattern())
+                addRecognitionError("Plural form used, but non-pattern JMX object name specified (" + s + ")");
+            return objectName.getCanonicalName();
+        }
+        catch (javax.management.MalformedObjectNameException e)
+        {
+          addRecognitionError(s + " is not a valid JMX object name");
+          return s;
+        }
+    }
+
 }
 
 /** STATEMENTS **/
@@ -932,6 +957,7 @@ resource returns [IResource res]
     : d=dataResource { $res = $d.res; }
     | r=roleResource { $res = $r.res; }
     | f=functionResource { $res = $f.res; }
+    | j=jmxResource { $res = $j.res; }
     ;
 
 dataResource returns [DataResource res]
@@ -939,6 +965,14 @@ dataResource returns [DataResource res]
     | K_KEYSPACE ks = keyspaceName { $res = DataResource.keyspace($ks.id); }
     | ( K_COLUMNFAMILY )? cf = columnFamilyName
       { $res = DataResource.table($cf.name.getKeyspace(), $cf.name.getColumnFamily()); }
+    ;
+
+jmxResource returns [JMXResource res]
+    : K_ALL K_MBEANS { $res = JMXResource.root(); }
+    // when a bean name (or pattern) is supplied, validate that it's a legal ObjectName
+    // also, just to be picky, if the "MBEANS" form is used, only allow a pattern style names
+    | K_MBEAN mbean { $res = JMXResource.mbean(canonicalizeObjectName($mbean.text, false)); }
+    | K_MBEANS mbean { $res = JMXResource.mbean(canonicalizeObjectName($mbean.text, true)); }
     ;
 
 roleResource returns [RoleResource res]
@@ -1521,6 +1555,10 @@ username
     : IDENT
     | STRING_LITERAL
     | QUOTED_NAME { addRecognitionError("Quoted strings are are not supported for user names and USER is deprecated, please use ROLE");}
+    ;
+
+mbean
+    : STRING_LITERAL
     ;
 
 // Basically the same as cident, but we need to exlude existing CQL3 types

@@ -309,7 +309,7 @@ public class NodeTool
                     nodeClient = new NodeProbe(host, parseInt(port));
                 else
                     nodeClient = new NodeProbe(host, parseInt(port), username, password);
-            } catch (IOException e)
+            } catch (IOException | SecurityException e)
             {
                 Throwable rootCause = Throwables.getRootCause(e);
                 System.err.println(format("nodetool: Failed to connect to '%s:%s' - %s: '%s'.", host, port, rootCause.getClass().getSimpleName(), rootCause.getMessage()));

@@ -254,6 +254,7 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
     private volatile boolean initialized = false;
     private volatile boolean joined = false;
     private volatile boolean gossipActive = false;
+    private volatile boolean authSetupComplete = false;
 
     /* the probability for tracing any particular request, 0 disables tracing and 1 enables for all */
     private double traceProbability = 0.0;
@@ -1119,6 +1120,12 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
         DatabaseDescriptor.getAuthenticator().setup();
         DatabaseDescriptor.getAuthorizer().setup();
         MigrationManager.instance.register(new AuthMigrationListener());
+        authSetupComplete = true;
+    }
+
+    public boolean isAuthSetupComplete()
+    {
+        return authSetupComplete;
     }
 
     private void maybeAddKeyspace(KeyspaceMetadata ksm)

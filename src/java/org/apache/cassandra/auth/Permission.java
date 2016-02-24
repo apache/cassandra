@@ -63,7 +63,9 @@ public enum Permission
     // UDF permissions
     EXECUTE;  // required to invoke any user defined function or aggregate
 
+    public static final Set<Permission> ALL_DATA =
+            ImmutableSet.copyOf(EnumSet.range(Permission.CREATE, Permission.EXECUTE));
     public static final Set<Permission> ALL =
-            Sets.immutableEnumSet(EnumSet.range(Permission.CREATE, Permission.EXECUTE));
+            ImmutableSet.copyOf(EnumSet.range(Permission.CREATE, Permission.EXECUTE));
     public static final Set<Permission> NONE = ImmutableSet.of();
 }

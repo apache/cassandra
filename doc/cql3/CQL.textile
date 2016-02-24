@@ -1452,6 +1452,7 @@ Permissions on resources are granted to roles; there are several different types
 * The hierarchy of Data resources, Keyspaces and Tables has the structure @ALL KEYSPACES@ -> @KEYSPACE@ -> @TABLE@
 * Function resources have the structure @ALL FUNCTIONS@ -> @KEYSPACE@ -> @FUNCTION@
 * Resources representing roles have the structure @ALL ROLES@ -> @ROLE@
+* Resources representing JMX ObjectNames, which map to sets of MBeans/MXBeans, have the structure @ALL MBEANS@ -> @MBEAN@
 
 Permissions can be granted at any level of these hierarchies and they flow downwards. So granting a permission on a resource higher up the chain automatically grants that same permission on all resources lower down. For example, granting @SELECT@ on a @KEYSPACE@ automatically grants it on all @TABLES@ in that @KEYSPACE@. Likewise, granting a permission on @ALL FUNCTIONS@ grants it on every defined function, regardless of which keyspace it is scoped in. It is also possible to grant permissions on all functions scoped to a particular keyspace. 
 
@@ -1467,7 +1468,7 @@ The full set of available permissions is:
 * @DESCRIBE@
 * @EXECUTE@
 
-Not all permissions are applicable to every type of resource. For instance, @EXECUTE@ is only relevant in the context of functions; granting @EXECUTE@ on a resource representing a table is nonsensical. Attempting to @GRANT@ a permission on resource to which it cannot be applied results in an error response. The following illustrates which permissions can be granted on which types of resource, and which statements are enabled by that permission.
+Not all permissions are applicable to every type of resource. For instance, @EXECUTE@ is only relevant in the context of functions or mbeans; granting @EXECUTE@ on a resource representing a table is nonsensical. Attempting to @GRANT@ a permission on resource to which it cannot be applied results in an error response. The following illustrates which permissions can be granted on which types of resource, and which statements are enabled by that permission.
 
 |_. permission |_. resource                   |_. operations        |
 | @CREATE@     | @ALL KEYSPACES@              |@CREATE KEYSPACE@ ==<br>== @CREATE TABLE@ in any keyspace|
@@ -1494,9 +1495,15 @@ Not all permissions are applicable to every type of resource. For instance, @EXE
 | @SELECT@     | @ALL KEYSPACES@              |@SELECT@ on any table|
 | @SELECT@     | @KEYSPACE@                   |@SELECT@ on any table in keyspace|
 | @SELECT@     | @TABLE@                      |@SELECT@ on specified table|
+| @SELECT@     | @ALL MBEANS@                 |Call getter methods on any mbean|
+| @SELECT@     | @MBEANS@                     |Call getter methods on any mbean matching a wildcard pattern|
+| @SELECT@     | @MBEAN@                      |Call getter methods on named mbean|
 | @MODIFY@     | @ALL KEYSPACES@              |@INSERT@ on any table ==<br>== @UPDATE@ on any table ==<br>== @DELETE@ on any table ==<br>== @TRUNCATE@ on any table|
-| @MODIFY@     | @KEYSPACE@                  |@INSERT@ on any table in keyspace ==<br>== @UPDATE@ on any table in keyspace ==<br>  == @DELETE@ on any table in keyspace ==<br>== @TRUNCATE@ on any table in keyspace
+| @MODIFY@     | @KEYSPACE@                   |@INSERT@ on any table in keyspace ==<br>== @UPDATE@ on any table in keyspace ==<br>  == @DELETE@ on any table in keyspace ==<br>== @TRUNCATE@ on any table in keyspace
 | @MODIFY@     | @TABLE@                      |@INSERT@ ==<br>== @UPDATE@ ==<br>== @DELETE@ ==<br>== @TRUNCATE@|
+| @MODIFY@     | @ALL MBEANS@                 |Call setter methods on any mbean|
+| @MODIFY@     | @MBEANS@                     |Call setter methods on any mbean matching a wildcard pattern|
+| @MODIFY@     | @MBEAN@                      |Call setter methods on named mbean|
 | @AUTHORIZE@  | @ALL KEYSPACES@              |@GRANT PERMISSION@ on any table ==<br>== @REVOKE PERMISSION@ on any table|
 | @AUTHORIZE@  | @KEYSPACE@                   |@GRANT PERMISSION@ on table in keyspace ==<br>== @REVOKE PERMISSION@ on table in keyspace|
 | @AUTHORIZE@  | @TABLE@                      |@GRANT PERMISSION@ ==<br>== @REVOKE PERMISSION@ |
@@ -1504,12 +1511,21 @@ Not all permissions are applicable to every type of resource. For instance, @EXE
 | @AUTHORIZE@  | @ALL FUNCTIONS IN KEYSPACE@  |@GRANT PERMISSION@ in keyspace ==<br>== @REVOKE PERMISSION@ in keyspace|
 | @AUTHORIZE@  | @ALL FUNCTIONS IN KEYSPACE@  |@GRANT PERMISSION@ in keyspace ==<br>== @REVOKE PERMISSION@ in keyspace|
 | @AUTHORIZE@  | @FUNCTION@                   |@GRANT PERMISSION@ ==<br>== @REVOKE PERMISSION@|
+| @AUTHORIZE@  | @ALL MBEANS@                 |@GRANT PERMISSION@ on any mbean ==<br>== @REVOKE PERMISSION@ on any mbean|
+| @AUTHORIZE@  | @MBEANS@                     |@GRANT PERMISSION@ on any mbean matching a wildcard pattern ==<br>== @REVOKE PERMISSION@ on any mbean matching a wildcard pattern|
+| @AUTHORIZE@  | @MBEAN@                      |@GRANT PERMISSION@ on named mbean ==<br>== @REVOKE PERMISSION@ on named mbean|
 | @AUTHORIZE@  | @ALL ROLES@                  |@GRANT ROLE@ grant any role ==<br>== @REVOKE ROLE@ revoke any role|
 | @AUTHORIZE@  | @ROLES@                      |@GRANT ROLE@ grant role ==<br>== @REVOKE ROLE@ revoke role|
 | @DESCRIBE@   | @ALL ROLES@                  |@LIST ROLES@ all roles or only roles granted to another, specified role|
+| @DESCRIBE@   | @ALL MBEANS                  |Retrieve metadata about any mbean from the platform's MBeanServer|
+| @DESCRIBE@   | @MBEANS                      |Retrieve metadata about any mbean matching a wildcard patter from the platform's MBeanServer|
+| @DESCRIBE@   | @MBEAN                       |Retrieve metadata about a named mbean from the platform's MBeanServer|
 | @EXECUTE@    | @ALL FUNCTIONS@              |@SELECT@, @INSERT@, @UPDATE@ using any function ==<br>== use of any function in @CREATE AGGREGATE@|
 | @EXECUTE@    | @ALL FUNCTIONS IN KEYSPACE@  |@SELECT@, @INSERT@, @UPDATE@ using any function in keyspace ==<br>== use of any function in keyspace in @CREATE AGGREGATE@|
 | @EXECUTE@    | @FUNCTION@                   |@SELECT@, @INSERT@, @UPDATE@ using function ==<br>== use of function in @CREATE AGGREGATE@|
+| @EXECUTE@    | @ALL MBEANS@                 |Execute operations on any mbean|
+| @EXECUTE@    | @MBEANS@                     |Execute operations on any mbean matching a wildcard pattern|
+| @EXECUTE@    | @MBEAN@                      |Execute operations on named mbean|
 
 
 h3(#grantPermissionsStmt). GRANT PERMISSION
@@ -1528,6 +1544,8 @@ bc(syntax)..
              | ROLE <identifier>
              | ALL FUNCTIONS ( IN KEYSPACE <identifier> )?
              | FUNCTION <functionname>
+             | ALL MBEANS
+             | ( MBEAN | MBEANS ) <objectName>
 p. 
 
 __Sample:__ 
@@ -1582,7 +1600,9 @@ bc(syntax)..
              | ROLE <identifier>
              | ALL FUNCTIONS ( IN KEYSPACE <identifier> )?
              | FUNCTION <functionname>
-p. 
+             | ALL MBEANS
+             | ( MBEAN | MBEANS ) <objectName>
+p.
 
 __Sample:__ 
 
@@ -1610,7 +1630,9 @@ bc(syntax)..
              | ROLE <identifier>
              | ALL FUNCTIONS ( IN KEYSPACE <identifier> )?
              | FUNCTION <functionname>
-p. 
+             | ALL MBEANS
+             | ( MBEAN | MBEANS ) <objectName>
+p.
 
 __Sample:__
 

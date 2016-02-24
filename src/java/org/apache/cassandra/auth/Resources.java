@@ -58,6 +58,8 @@ public final class Resources
             return DataResource.fromName(name);
         else if (name.startsWith(FunctionResource.root().getName()))
             return FunctionResource.fromName(name);
+        else if (name.startsWith(JMXResource.root().getName()))
+            return JMXResource.fromName(name);
         else
             throw new IllegalArgumentException(String.format("Name %s is not valid for any resource type", name));
     }
