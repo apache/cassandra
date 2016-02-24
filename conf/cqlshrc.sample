@@ -42,7 +42,8 @@
 ;; Used for automatic completion and suggestions
 ; completekey = tab
 
-
+;; The encoding used for characters
+; encoding = utf8
 
 ; To use another than the system default browser for cqlsh HELP to open
 ; the CQL doc HTML, use the 'browser' preference.
