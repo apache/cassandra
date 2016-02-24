@@ -1139,7 +1139,7 @@ public final class CFMetaData
         private final boolean isSuper;
         private final boolean isCounter;
         private final boolean isView;
-        private IPartitioner partitioner;
+        private Optional<IPartitioner> partitioner;
 
         private UUID tableId;
 
@@ -1157,7 +1157,7 @@ public final class CFMetaData
             this.isSuper = isSuper;
             this.isCounter = isCounter;
             this.isView = isView;
-            this.partitioner = DatabaseDescriptor.getPartitioner();
+            this.partitioner = Optional.empty();
         }
 
         public static Builder create(String keyspace, String table)
@@ -1192,7 +1192,7 @@ public final class CFMetaData
 
         public Builder withPartitioner(IPartitioner partitioner)
         {
-            this.partitioner = partitioner;
+            this.partitioner = Optional.ofNullable(partitioner);
             return this;
         }
 
@@ -1303,7 +1303,7 @@ public final class CFMetaData
                                   partitions,
                                   clusterings,
                                   builder.build(),
-                                  partitioner);
+                                  partitioner.orElseGet(DatabaseDescriptor::getPartitioner));
         }
     }
 

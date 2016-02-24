@@ -22,6 +22,8 @@ New features
       Reference cassandra.yaml:credentials_validity_in_ms
     - Remote configuration of auth caches via JMX can be disabled using the
       the system property cassandra.disable_auth_caches_remote_configuration
+    - sstabledump tool is added to be 3.0 version of former sstable2json. The tool only
+      supports v3.0+ SSTables. See tool's help for more detail.
 
 Upgrading
 ---------

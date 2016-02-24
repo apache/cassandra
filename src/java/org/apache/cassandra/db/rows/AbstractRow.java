@@ -92,6 +92,11 @@ public abstract class AbstractRow extends AbstractCollection<ColumnData> impleme
 
     public String toString(CFMetaData metadata, boolean fullDetails)
     {
+        return toString(metadata, true, fullDetails);
+    }
+
+    public String toString(CFMetaData metadata, boolean includeClusterKeys, boolean fullDetails)
+    {
         StringBuilder sb = new StringBuilder();
         sb.append("Row");
         if (fullDetails)
@@ -101,7 +106,12 @@ public abstract class AbstractRow extends AbstractCollection<ColumnData> impleme
                 sb.append(" del=").append(deletion());
             sb.append(" ]");
         }
-        sb.append(": ").append(clustering().toString(metadata)).append(" | ");
+        sb.append(": ");
+        if(includeClusterKeys)
+            sb.append(clustering().toString(metadata));
+        else
+            sb.append(clustering().toCQLString(metadata));
+        sb.append(" | ");
         boolean isFirst = true;
         for (ColumnData cd : this)
         {

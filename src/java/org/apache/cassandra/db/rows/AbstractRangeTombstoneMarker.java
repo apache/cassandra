@@ -71,4 +71,8 @@ public abstract class AbstractRangeTombstoneMarker implements RangeTombstoneMark
     {
         return toString(metadata);
     }
+    public String toString(CFMetaData metadata, boolean includeClusteringKeys, boolean fullDetails)
+    {
+        return toString(metadata);
+    }
 }

@@ -57,6 +57,7 @@ public interface Unfiltered extends Clusterable
 
     public String toString(CFMetaData metadata);
     public String toString(CFMetaData metadata, boolean fullDetails);
+    public String toString(CFMetaData metadata, boolean includeClusterKeys, boolean fullDetails);
 
     default boolean isRow()
     {

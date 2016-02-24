@@ -1759,6 +1759,14 @@ public abstract class SSTableReader extends SSTable implements SelfRefCounted<SS
     public abstract ISSTableScanner getScanner(Collection<Range<Token>> ranges, RateLimiter limiter);
 
     /**
+     * Direct I/O SSTableScanner over an iterator of bounds.
+     *
+     * @param bounds the keys to cover
+     * @return A Scanner for seeking over the rows of the SSTable.
+     */
+    public abstract ISSTableScanner getScanner(Iterator<AbstractBounds<PartitionPosition>> rangeIterator);
+
+    /**
      * @param columns the columns to return.
      * @param dataRange filter to use when reading the columns
      * @return A Scanner for seeking over the rows of the SSTable.
