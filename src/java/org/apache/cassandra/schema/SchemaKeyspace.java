@@ -845,7 +845,7 @@ public final class SchemaKeyspace
              .add("final_func", aggregate.finalFunction() != null ? aggregate.finalFunction().name().name : null)
              .add("initcond", aggregate.initialCondition() != null
                               // must use the frozen state type here, as 'null' for unfrozen collections may mean 'empty'
-                              ? aggregate.stateType().freeze().asCQL3Type().asCQLLiteral(aggregate.initialCondition(), Server.CURRENT_VERSION)
+                              ? aggregate.stateType().freeze().asCQL3Type().toCQLLiteral(aggregate.initialCondition(), Server.CURRENT_VERSION)
                               : null)
              .build();
     }

@@ -54,16 +54,10 @@ public class BytesSerializer implements TypeSerializer<ByteBuffer>
     }
 
     @Override
-    public void toCQLLiteral(ByteBuffer buffer, StringBuilder target)
+    public String toCQLLiteral(ByteBuffer buffer)
     {
-        if (buffer == null)
-        {
-            target.append("null");
-        }
-        else
-        {
-            target.append("0x");
-            target.append(toString(deserialize(buffer)));
-        }
+        return buffer == null
+             ? "null"
+             : "0x" + toString(deserialize(buffer));
     }
 }

@@ -20,6 +20,7 @@ package org.apache.cassandra.cql3.statements;
 import java.nio.ByteBuffer;
 import java.util.ArrayList;
 import java.util.Collections;
+import java.util.Objects;
 import java.util.List;
 
 import org.apache.cassandra.auth.*;
@@ -29,11 +30,13 @@ import org.apache.cassandra.cql3.*;
 import org.apache.cassandra.cql3.functions.*;
 import org.apache.cassandra.db.marshal.AbstractType;
 import org.apache.cassandra.exceptions.*;
+import org.apache.cassandra.serializers.MarshalException;
 import org.apache.cassandra.service.ClientState;
 import org.apache.cassandra.service.MigrationManager;
 import org.apache.cassandra.service.QueryState;
 import org.apache.cassandra.thrift.ThriftValidation;
 import org.apache.cassandra.transport.Event;
+import org.apache.cassandra.transport.Server;
 
 /**
  * A {@code CREATE AGGREGATE} statement parsed from a CQL query.
@@ -111,6 +114,24 @@ public final class CreateAggregateStatement extends SchemaAlteringStatement
         if (ival != null)
         {
             initcond = Terms.asBytes(functionName.keyspace, ival.toString(), stateType);
+
+            if (initcond != null)
+            {
+                try
+                {
+                    stateType.validate(initcond);
+                }
+                catch (MarshalException e)
+                {
+                    throw new InvalidRequestException(String.format("Invalid value for INITCOND of type %s%s", stateType.asCQL3Type(),
+                                                                    e.getMessage() == null ? "" : String.format(" (%s)", e.getMessage())));
+                }
+            }
+
+            // Sanity check that converts the initcond to a CQL literal and parse it back to avoid getting in CASSANDRA-11064.
+            String initcondAsCql = stateType.asCQL3Type().toCQLLiteral(initcond, Server.CURRENT_VERSION);
+            assert Objects.equals(initcond, Terms.asBytes(functionName.keyspace, initcondAsCql, stateType));
+
             if (Constants.NULL_LITERAL != ival && UDHelper.isNullOrEmpty(stateType, initcond))
                 throw new InvalidRequestException("INITCOND must not be empty for all types except TEXT, ASCII, BLOB");
         }
