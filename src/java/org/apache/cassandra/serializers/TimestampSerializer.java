@@ -190,11 +190,10 @@ public class TimestampSerializer implements TypeSerializer<Date>
      * @see #FORMATTER_UTC
      */
     @Override
-    public void toCQLLiteral(ByteBuffer buffer, StringBuilder target)
+    public String toCQLLiteral(ByteBuffer buffer)
     {
-        if (buffer == null || !buffer.hasRemaining())
-            target.append("null");
-        else
-            target.append(FORMATTER_UTC.get().format(deserialize(buffer)));
+        return buffer == null || !buffer.hasRemaining()
+             ? "null"
+             : FORMATTER_UTC.get().format(deserialize(buffer));
     }
 }

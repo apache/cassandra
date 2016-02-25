@@ -17,11 +17,13 @@
  */
 package org.apache.cassandra.serializers;
 
-import org.apache.cassandra.utils.ByteBufferUtil;
-
 import java.nio.ByteBuffer;
 import java.nio.charset.CharacterCodingException;
 import java.nio.charset.Charset;
+
+import org.apache.commons.lang3.StringUtils;
+
+import org.apache.cassandra.utils.ByteBufferUtil;
 
 public abstract class AbstractTextSerializer implements TypeSerializer<String>
 {
@@ -64,26 +66,10 @@ public abstract class AbstractTextSerializer implements TypeSerializer<String>
      * Caveat: it does only generate literals with single quotes and not pg-style literals.
      */
     @Override
-    public void toCQLLiteral(ByteBuffer buffer, StringBuilder target)
+    public String toCQLLiteral(ByteBuffer buffer)
     {
-        if (buffer == null)
-        {
-            target.append("null");
-        }
-        else
-        {
-            String s = deserialize(buffer);
-
-            target.append('\'');
-            for (int i=0; i<s.length(); i++)
-            {
-                char c = s.charAt(i);
-                if (c == '\'')
-                    target.append("''");
-                else
-                    target.append(c);
-            }
-            target.append('\'');
-        }
+        return buffer == null
+             ? "null"
+             : '\'' + StringUtils.replace(deserialize(buffer), "'", "''") + '\'';
     }
 }

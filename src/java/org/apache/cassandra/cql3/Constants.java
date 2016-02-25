@@ -143,9 +143,12 @@ public abstract class Constants
                 validator = ((ReversedType<?>) validator).baseType;
             try
             {
-                // BytesType doesn't want it's input prefixed by '0x'.
-                if (type == Type.HEX && validator instanceof BytesType)
-                    return validator.fromString(text.substring(2));
+                if (type == Type.HEX)
+                    // Note that validator could be BytesType, but it could also be a custom type, so
+                    // we hardcode BytesType (rather than using 'validator') in the call below.
+                    // Further note that BytesType doesn't want it's input prefixed by '0x', hence the substring.
+                    return BytesType.instance.fromString(text.substring(2));
+
                 if (validator instanceof CounterColumnType)
                     return LongType.instance.fromString(text);
                 return validator.fromString(text);

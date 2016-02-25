@@ -329,9 +329,7 @@ public final class CastFcts
             if (bb == null)
                 return null;
 
-            StringBuilder builder = new StringBuilder();
-            inputType().getSerializer().toCQLLiteral(bb, builder);
-            return outputType().decompose(builder.toString());
+            return outputType().decompose(inputType().getSerializer().toCQLLiteral(bb));
         }
     }
 

@@ -29,6 +29,7 @@
  * Add nodetool gettimeout and settimeout commands (CASSANDRA-10953)
  * Add 3.0 metadata to sstablemetadata output (CASSANDRA-10838)
 Merged from 3.0:
+ * Failed aggregate creation breaks server permanently (CASSANDRA-11064)
  * Add sstabledump tool (CASSANDRA-7464)
  * Introduce backpressure for hints (CASSANDRA-10972)
  * Fix ClusteringPrefix not being able to read tombstone range boundaries (CASSANDRA-11158)

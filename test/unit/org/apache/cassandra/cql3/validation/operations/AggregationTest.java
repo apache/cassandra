@@ -18,6 +18,7 @@
 package org.apache.cassandra.cql3.validation.operations;
 
 import java.math.BigDecimal;
+import java.nio.ByteBuffer;
 import java.text.SimpleDateFormat;
 import java.util.Arrays;
 import java.util.Calendar;
@@ -44,11 +45,15 @@ import org.apache.cassandra.cql3.UntypedResultSet;
 import org.apache.cassandra.cql3.UntypedResultSet.Row;
 import org.apache.cassandra.cql3.functions.UDAggregate;
 import org.apache.cassandra.db.SystemKeyspace;
+import org.apache.cassandra.db.marshal.AbstractType;
+import org.apache.cassandra.db.marshal.DynamicCompositeType;
+import org.apache.cassandra.db.marshal.TypeParser;
 import org.apache.cassandra.exceptions.FunctionExecutionException;
 import org.apache.cassandra.exceptions.InvalidRequestException;
 import org.apache.cassandra.schema.KeyspaceMetadata;
 import org.apache.cassandra.service.ClientState;
 import org.apache.cassandra.transport.Event;
+import org.apache.cassandra.transport.Server;
 import org.apache.cassandra.transport.messages.ResultMessage;
 
 import static org.junit.Assert.assertEquals;
@@ -1878,5 +1883,72 @@ public class AggregationTest extends CQLTester
     {
         assertRows(execute("SELECT final_func, initcond FROM system_schema.aggregates WHERE keyspace_name=? AND aggregate_name=?", KEYSPACE, shortFunctionName(aggregateName)),
                    row(finalFunc, initCond));
+    }
+
+    public void testCustomTypeInitcond() throws Throwable
+    {
+        try
+        {
+            String type = "DynamicCompositeType(s => UTF8Type, i => Int32Type)";
+
+            executeNet(Server.CURRENT_VERSION,
+                       "CREATE FUNCTION " + KEYSPACE + ".f11064(i 'DynamicCompositeType(s => UTF8Type, i => Int32Type)')\n" +
+                       "RETURNS NULL ON NULL INPUT\n" +
+                       "RETURNS '" + type + "'\n" +
+                       "LANGUAGE java\n" +
+                       "AS 'return i;'");
+
+            // create aggregate using the 'composite syntax' for composite types
+            executeNet(Server.CURRENT_VERSION,
+                       "CREATE AGGREGATE " + KEYSPACE + ".a11064()\n" +
+                       "SFUNC f11064 " +
+                       "STYPE '" + type + "'\n" +
+                       "INITCOND 's@foo:i@32'");
+
+            AbstractType<?> compositeType = TypeParser.parse(type);
+            ByteBuffer compositeTypeValue = compositeType.fromString("s@foo:i@32");
+            String compositeTypeString = compositeType.asCQL3Type().toCQLLiteral(compositeTypeValue, Server.CURRENT_VERSION);
+            // ensure that the composite type is serialized using the 'blob syntax'
+            assertTrue(compositeTypeString.startsWith("0x"));
+
+            // ensure that the composite type is 'serialized' using the 'blob syntax' in the schema
+            assertRows(execute("SELECT initcond FROM system_schema.aggregates WHERE keyspace_name=? AND aggregate_name=?", KEYSPACE, "a11064"),
+                       row(compositeTypeString));
+
+            // create aggregate using the 'blob syntax' for composite types
+            executeNet(Server.CURRENT_VERSION,
+                       "CREATE AGGREGATE " + KEYSPACE + ".a11064_2()\n" +
+                       "SFUNC f11064 " +
+                       "STYPE '" + type + "'\n" +
+                       "INITCOND " + compositeTypeString);
+
+            // ensure that the composite type is 'serialized' using the 'blob syntax' in the schema
+            assertRows(execute("SELECT initcond FROM system_schema.aggregates WHERE keyspace_name=? AND aggregate_name=?", KEYSPACE, "a11064_2"),
+                       row(compositeTypeString));
+        }
+        finally
+        {
+            try
+            {
+                execute("DROP AGGREGATE " + KEYSPACE + ".a11064_2");
+            }
+            catch (Exception ignore)
+            {
+            }
+            try
+            {
+                execute("DROP AGGREGATE " + KEYSPACE + ".a11064");
+            }
+            catch (Exception ignore)
+            {
+            }
+            try
+            {
+                execute("DROP FUNCTION " + KEYSPACE + ".f11064");
+            }
+            catch (Exception ignore)
+            {
+            }
+        }
     }
 }
