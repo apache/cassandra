@@ -3081,7 +3081,10 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
         Collection<Range<Token>> repairingRange = createRepairRangeFrom(beginToken, endToken);
 
         RepairOption options = new RepairOption(parallelism, false, !fullRepair, false, 1, repairingRange, true);
-        options.getDataCenters().addAll(dataCenters);
+        if (dataCenters != null)
+        {
+            options.getDataCenters().addAll(dataCenters);
+        }
         if (hosts != null)
         {
             options.getHosts().addAll(hosts);

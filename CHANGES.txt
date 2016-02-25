@@ -18,6 +18,7 @@
  * Hadoop integration is incompatible with Cassandra Driver 3.0.0 (CASSANDRA-11001)
  * Add dropped_columns to the list of schema table so it gets handled
    properly (CASSANDRA-11050)
+ * Fix NPE when using forceRepairRangeAsync without DC (CASSANDRA-11239)
 Merged from 2.2:
  * Range.compareTo() violates the contract of Comparable (CASSANDRA-11216)
  * Avoid NPE when serializing ErrorMessage with null message (CASSANDRA-11167)
