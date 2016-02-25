@@ -175,10 +175,6 @@ public class CQL3CasRequest implements CASRequest
             upd.applyUpdates(current, update);
 
         Keyspace.openAndGetStore(cfm).indexManager.validate(update);
-
-        if (isBatch)
-            BatchStatement.verifyBatchSize(Collections.singleton(update));
-
         return update;
     }
 
