@@ -23,6 +23,8 @@ New features
    - Startup is now aborted if corrupted transaction log files are found. The details
      of the affected log files are now logged, allowing the operator to decide how
      to resolve the situation.
+   - Filtering expressions are made more pluggable and can be added programatically via
+     a QueryHandler implementation. See CASSANDRA-11295 for more details.
 
 3.4
 =====

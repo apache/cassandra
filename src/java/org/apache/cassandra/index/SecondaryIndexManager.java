@@ -632,7 +632,7 @@ public class SecondaryIndexManager implements IndexRegistry
                 Tracing.trace("Command contains a custom index expression, using target index {}", customExpression.getTargetIndex().name);
                 return indexes.get(customExpression.getTargetIndex().name);
             }
-            else
+            else if (!expression.isUserDefined())
             {
                 indexes.values().stream()
                        .filter(index -> index.supportsExpression(expression.column(), expression.operator()))

@@ -29,7 +29,7 @@ import org.apache.cassandra.index.SecondaryIndexManager;
 /**
  * Sets of restrictions
  */
-interface Restrictions
+public interface Restrictions
 {
     /**
      * Returns the column definitions in position order.

@@ -1,4 +1,5 @@
 3.6
+ * Make custom filtering more extensible with UserExpression (CASSANDRA-11295)
  * Improve field-checking and error reporting in cassandra.yaml (CASSANDRA-10649)
  * Print CAS stats in nodetool proxyhistograms (CASSANDRA-11507)
  * More user friendly error when providing an invalid token to nodetool (CASSANDRA-9348)
