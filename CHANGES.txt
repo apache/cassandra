@@ -1,4 +1,5 @@
 2.2.6
+ * Range.compareTo() violates the contract of Comparable (CASSANDRA-11216)
  * Avoid NPE when serializing ErrorMessage with null message (CASSANDRA-11167)
  * Replacing an aggregate with a new version doesn't reset INITCOND (CASSANDRA-10840)
  * (cqlsh) cqlsh cannot be called through symlink (CASSANDRA-11037)
