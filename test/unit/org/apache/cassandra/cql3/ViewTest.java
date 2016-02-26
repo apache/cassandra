@@ -18,20 +18,20 @@
 
 package org.apache.cassandra.cql3;
 
-import java.math.BigDecimal;
-import java.math.BigInteger;
-import java.net.InetAddress;
-import java.text.SimpleDateFormat;
 import java.util.ArrayList;
-import java.util.Arrays;
-import java.util.Date;
 import java.util.HashSet;
 import java.util.List;
-import java.util.UUID;
 import java.util.concurrent.TimeUnit;
 
 import junit.framework.Assert;
+import org.junit.After;
+import org.junit.Before;
+import org.junit.BeforeClass;
+import org.junit.Test;
 
+import com.datastax.driver.core.ResultSet;
+import com.datastax.driver.core.Row;
+import com.datastax.driver.core.exceptions.InvalidQueryException;
 import org.apache.cassandra.concurrent.SEPExecutor;
 import org.apache.cassandra.concurrent.Stage;
 import org.apache.cassandra.concurrent.StageManager;
@@ -41,14 +41,6 @@ import org.apache.cassandra.db.ColumnFamilyStore;
 import org.apache.cassandra.db.Keyspace;
 import org.apache.cassandra.db.SystemKeyspace;
 import org.apache.cassandra.utils.FBUtilities;
-import org.junit.After;
-import org.junit.Before;
-import org.junit.BeforeClass;
-import org.junit.Test;
-
-import com.datastax.driver.core.ResultSet;
-import com.datastax.driver.core.Row;
-import com.datastax.driver.core.exceptions.InvalidQueryException;
 
 import static org.junit.Assert.assertTrue;
 
@@ -1001,5 +993,30 @@ public class ViewTest extends CQLTester
         updateView("DELETE d FROM %s WHERE a = ? AND b = ?", 0, 0);
         mvRows = executeNet(protocolVersion, "SELECT a, d, b FROM mv1");
         assertTrue(mvRows.isExhausted());
+    }
+
+    @Test
+    public void testCollectionInView() throws Throwable
+    {
+        createTable("CREATE TABLE %s (" +
+                    "a int," +
+                    "b int," +
+                    "c map<int, text>," +
+                    "PRIMARY KEY (a))");
+
+        executeNet(protocolVersion, "USE " + keyspace());
+        createView("mvmap", "CREATE MATERIALIZED VIEW %s AS SELECT a, b FROM %%s WHERE b IS NOT NULL PRIMARY KEY (b, a)");
+
+        updateView("INSERT INTO %s (a, b) VALUES (?, ?)", 0, 0);
+        ResultSet mvRows = executeNet(protocolVersion, "SELECT a, b FROM mvmap WHERE b = ?", 0);
+        assertRowsNet(protocolVersion, mvRows, row(0, 0));
+
+        updateView("INSERT INTO %s (a, b, c) VALUES (?, ?, ?)", 1, 1, map(1, "1"));
+        mvRows = executeNet(protocolVersion, "SELECT a, b FROM mvmap WHERE b = ?", 1);
+        assertRowsNet(protocolVersion, mvRows, row(1, 1));
+
+        updateView("INSERT INTO %s (a, b, c) VALUES (?, ?, ?)", 0, 0, map(0, "0"));
+        mvRows = executeNet(protocolVersion, "SELECT a, b FROM mvmap WHERE b = ?", 0);
+        assertRowsNet(protocolVersion, mvRows, row(0, 0));
     }
 }

@@ -169,7 +169,7 @@ public class View
 
         for (ColumnDefinition cdef : baseCfs.metadata.allColumns())
         {
-            if (cdef.isComplex())
+            if (cdef.isComplex() && definition.includes(cdef.name))
             {
                 baseComplexColumns.add(cdef);
             }
