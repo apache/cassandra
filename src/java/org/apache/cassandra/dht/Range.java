@@ -31,6 +31,8 @@ import org.apache.cassandra.utils.Pair;
  * A Range is responsible for the tokens between (left, right].
  *
  * Used by the partitioner and by map/reduce by-token range scans.
+ *
+ * Note: this class has a natural ordering that is inconsistent with equals
  */
 public class Range<T extends RingPosition<T>> extends AbstractBounds<T> implements Comparable<Range<T>>, Serializable
 {
@@ -253,18 +255,18 @@ public class Range<T extends RingPosition<T>> extends AbstractBounds<T> implemen
        return left.compareTo(right) >= 0;
     }
 
+    /**
+     * Note: this class has a natural ordering that is inconsistent with equals
+     */
     public int compareTo(Range<T> rhs)
     {
-        /*
-         * If the range represented by the "this" pointer
-         * is a wrap around then it is the smaller one.
-         */
-        if ( isWrapAround(left, right) )
-            return -1;
+        boolean lhsWrap = isWrapAround(left, right);
+        boolean rhsWrap = isWrapAround(rhs.left, rhs.right);
 
-        if ( isWrapAround(rhs.left, rhs.right) )
-            return 1;
-
+        // if one of the two wraps, that's the smaller one.
+        if (lhsWrap != rhsWrap)
+            return Boolean.compare(!lhsWrap, !rhsWrap);
+        // otherwise compare by right.
         return right.compareTo(rhs.right);
     }
 
