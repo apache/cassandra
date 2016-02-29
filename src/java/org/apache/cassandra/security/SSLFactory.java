@@ -24,9 +24,10 @@ import java.net.InetAddress;
 import java.net.InetSocketAddress;
 import java.security.KeyStore;
 import java.security.cert.X509Certificate;
+import java.util.Arrays;
 import java.util.Date;
 import java.util.Enumeration;
-import java.util.Set;
+import java.util.List;
 
 import javax.net.ssl.KeyManagerFactory;
 import javax.net.ssl.SSLContext;
@@ -37,10 +38,12 @@ import javax.net.ssl.TrustManagerFactory;
 
 import org.apache.cassandra.config.EncryptionOptions;
 import org.apache.cassandra.io.util.FileUtils;
-import org.apache.commons.lang3.StringUtils;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import com.google.common.base.Predicates;
+import com.google.common.collect.ImmutableSet;
+import com.google.common.collect.Iterables;
 import com.google.common.collect.Sets;
 
 /**
@@ -58,8 +61,8 @@ public final class SSLFactory
         SSLContext ctx = createSSLContext(options, true);
         SSLServerSocket serverSocket = (SSLServerSocket)ctx.getServerSocketFactory().createServerSocket();
         serverSocket.setReuseAddress(true);
-        String[] suits = filterCipherSuites(serverSocket.getSupportedCipherSuites(), options.cipher_suites);
-        serverSocket.setEnabledCipherSuites(suits);
+        String[] suites = filterCipherSuites(serverSocket.getSupportedCipherSuites(), options.cipher_suites);
+        serverSocket.setEnabledCipherSuites(suites);
         serverSocket.setNeedClientAuth(options.require_client_auth);
         serverSocket.setEnabledProtocols(ACCEPTED_PROTOCOLS);
         serverSocket.bind(new InetSocketAddress(address, port), 500);
@@ -71,8 +74,8 @@ public final class SSLFactory
     {
         SSLContext ctx = createSSLContext(options, true);
         SSLSocket socket = (SSLSocket) ctx.getSocketFactory().createSocket(address, port, localAddress, localPort);
-        String[] suits = filterCipherSuites(socket.getSupportedCipherSuites(), options.cipher_suites);
-        socket.setEnabledCipherSuites(suits);
+        String[] suites = filterCipherSuites(socket.getSupportedCipherSuites(), options.cipher_suites);
+        socket.setEnabledCipherSuites(suites);
         socket.setEnabledProtocols(ACCEPTED_PROTOCOLS);
         return socket;
     }
@@ -82,8 +85,8 @@ public final class SSLFactory
     {
         SSLContext ctx = createSSLContext(options, true);
         SSLSocket socket = (SSLSocket) ctx.getSocketFactory().createSocket(address, port);
-        String[] suits = filterCipherSuites(socket.getSupportedCipherSuites(), options.cipher_suites);
-        socket.setEnabledCipherSuites(suits);
+        String[] suites = filterCipherSuites(socket.getSupportedCipherSuites(), options.cipher_suites);
+        socket.setEnabledCipherSuites(suites);
         socket.setEnabledProtocols(ACCEPTED_PROTOCOLS);
         return socket;
     }
@@ -93,8 +96,8 @@ public final class SSLFactory
     {
         SSLContext ctx = createSSLContext(options, true);
         SSLSocket socket = (SSLSocket) ctx.getSocketFactory().createSocket();
-        String[] suits = filterCipherSuites(socket.getSupportedCipherSuites(), options.cipher_suites);
-        socket.setEnabledCipherSuites(suits);
+        String[] suites = filterCipherSuites(socket.getSupportedCipherSuites(), options.cipher_suites);
+        socket.setEnabledCipherSuites(suites);
         socket.setEnabledProtocols(ACCEPTED_PROTOCOLS);
         return socket;
     }
@@ -155,12 +158,18 @@ public final class SSLFactory
         return ctx;
     }
 
-    private static String[] filterCipherSuites(String[] supported, String[] desired)
+    public static String[] filterCipherSuites(String[] supported, String[] desired)
     {
-        Set<String> des = Sets.newHashSet(desired);
-        Set<String> toReturn = Sets.intersection(Sets.newHashSet(supported), des);
-        if (des.size() > toReturn.size())
-            logger.warn("Filtering out {} as it isnt supported by the socket", StringUtils.join(Sets.difference(des, toReturn), ","));
-        return toReturn.toArray(new String[toReturn.size()]);
+        if (Arrays.equals(supported, desired))
+            return desired;
+        List<String> ldesired = Arrays.asList(desired);
+        ImmutableSet<String> ssupported = ImmutableSet.copyOf(supported);
+        String[] ret = Iterables.toArray(Iterables.filter(ldesired, Predicates.in(ssupported)), String.class);
+        if (desired.length > ret.length && logger.isWarnEnabled())
+        {
+            Iterable<String> missing = Iterables.filter(ldesired, Predicates.not(Predicates.in(Sets.newHashSet(ret))));
+            logger.warn("Filtering out {} as it isn't supported by the socket", Iterables.toString(missing));
+        }
+        return ret;
     }
 }

@@ -245,7 +245,7 @@ public class CustomTThreadPoolServer extends TServer
                 if (clientEnc.enabled)
                 {
                     logger.info("enabling encrypted thrift connections between client and server");
-                    TSSLTransportParameters params = new TSSLTransportParameters(clientEnc.protocol, clientEnc.cipher_suites);
+                    TSSLTransportParameters params = new TSSLTransportParameters(clientEnc.protocol, new String[0]);
                     params.setKeyStore(clientEnc.keystore, clientEnc.keystore_password);
                     if (clientEnc.require_client_auth)
                     {
@@ -254,6 +254,8 @@ public class CustomTThreadPoolServer extends TServer
                     }
                     TServerSocket sslServer = TSSLTransportFactory.getServerSocket(addr.getPort(), 0, addr.getAddress(), params);
                     SSLServerSocket sslServerSocket = (SSLServerSocket) sslServer.getServerSocket();
+                    String[] suites = SSLFactory.filterCipherSuites(sslServerSocket.getSupportedCipherSuites(), clientEnc.cipher_suites);
+                    sslServerSocket.setEnabledCipherSuites(suites);
                     sslServerSocket.setEnabledProtocols(SSLFactory.ACCEPTED_PROTOCOLS);
                     serverTransport = new TCustomServerSocket(sslServer.getServerSocket(), args.keepAlive, args.sendBufferSize, args.recvBufferSize);
                 }
