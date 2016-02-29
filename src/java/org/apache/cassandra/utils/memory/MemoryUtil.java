@@ -50,8 +50,10 @@ public abstract class MemoryUtil
     static
     {
         String arch = System.getProperty("os.arch");
+        // Note that s390x architecture are not officially supported and adding it here is only done out of convenience
+        // for those that want to run C* on this architecture at their own risk (see #11214)
         UNALIGNED = arch.equals("i386") || arch.equals("x86")
-                || arch.equals("amd64") || arch.equals("x86_64");
+                || arch.equals("amd64") || arch.equals("x86_64") || arch.equals("s390x");
         INVERTED_ORDER = UNALIGNED && !BIG_ENDIAN;
         try
         {
