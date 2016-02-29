@@ -58,7 +58,6 @@ public class SplittingSizeTieredCompactionWriter extends CompactionAwareWriter
         this(cfs, directories, txn, nonExpiredSSTables, DEFAULT_SMALLEST_SSTABLE_BYTES);
     }
 
-    @SuppressWarnings("resource")
     public SplittingSizeTieredCompactionWriter(ColumnFamilyStore cfs, Directories directories, LifecycleTransaction txn, Set<SSTableReader> nonExpiredSSTables, long smallestSSTable)
     {
         super(cfs, directories, txn, nonExpiredSSTables, false, false);
@@ -105,6 +104,7 @@ public class SplittingSizeTieredCompactionWriter extends CompactionAwareWriter
     {
         this.location = location;
         long currentPartitionsToWrite = Math.round(ratios[currentRatioIndex] * estimatedTotalKeys);
+        @SuppressWarnings("resource")
         SSTableWriter writer = SSTableWriter.create(Descriptor.fromFilename(cfs.getSSTablePath(getDirectories().getLocationForDisk(location))),
                                                     currentPartitionsToWrite,
                                                     minRepairedAt,

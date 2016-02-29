@@ -1070,6 +1070,7 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
                         Iterator<SSTableMultiWriter> writerIterator = flushResults.iterator();
                         while (writerIterator.hasNext())
                         {
+                            @SuppressWarnings("resource")
                             SSTableMultiWriter writer = writerIterator.next();
                             if (writer.getFilePointer() > 0)
                             {

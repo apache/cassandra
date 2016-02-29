@@ -115,6 +115,7 @@ public final class CompressedChecksummedDataInput extends ChecksummedDataInput
         throw new UnsupportedOperationException();
     }
 
+    @SuppressWarnings("resource") // Closing the ChecksummedDataInput will close the underlying channel.
     public static ChecksummedDataInput upgradeInput(ChecksummedDataInput input, ICompressor compressor)
     {
         long position = input.getPosition();

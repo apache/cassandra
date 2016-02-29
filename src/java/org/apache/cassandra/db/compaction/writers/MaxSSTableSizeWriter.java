@@ -17,8 +17,6 @@
  */
 package org.apache.cassandra.db.compaction.writers;
 
-import java.io.File;
-import java.util.List;
 import java.util.Set;
 
 import org.apache.cassandra.db.ColumnFamilyStore;
@@ -64,7 +62,6 @@ public class MaxSSTableSizeWriter extends CompactionAwareWriter
         this(cfs, directories, txn, nonExpiredSSTables, maxSSTableSize, level, keepOriginals);
     }
 
-    @SuppressWarnings("resource")
     public MaxSSTableSizeWriter(ColumnFamilyStore cfs,
                                 Directories directories,
                                 LifecycleTransaction txn,
@@ -95,6 +92,7 @@ public class MaxSSTableSizeWriter extends CompactionAwareWriter
     public void switchCompactionLocation(Directories.DataDirectory location)
     {
         sstableDirectory = location;
+        @SuppressWarnings("resource")
         SSTableWriter writer = SSTableWriter.create(Descriptor.fromFilename(cfs.getSSTablePath(getDirectories().getLocationForDisk(sstableDirectory))),
                                                     estimatedTotalKeys / estimatedSSTables,
                                                     minRepairedAt,
