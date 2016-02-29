@@ -679,6 +679,7 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
                 // before mutation stage, so we can get all the hints saved before shutting down
                 MessagingService.instance().shutdown();
                 viewMutationStage.shutdown();
+                BatchlogManager.instance.shutdown();
                 HintsService.instance.pauseDispatch();
                 counterMutationStage.shutdown();
                 mutationStage.shutdown();
