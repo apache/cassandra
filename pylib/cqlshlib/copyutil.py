@@ -51,7 +51,7 @@ from cassandra.util import Date, Time
 
 from cql3handling import CqlRuleSet
 from displaying import NO_COLOR_MAP
-from formatting import format_value_default, DateTimeFormat, EMPTY, get_formatter
+from formatting import format_value_default, CqlType, DateTimeFormat, EMPTY, get_formatter
 from sslhandling import ssl_settings
 
 PROFILE_ON = False
@@ -1463,12 +1463,17 @@ class ExportProcess(ChildProcess):
         return session
 
     def attach_callbacks(self, token_range, future, session):
+        metadata = session.cluster.metadata
+        ks_meta = metadata.keyspaces[self.ks]
+        table_meta = ks_meta.tables[self.table]
+        cql_types = [CqlType(table_meta.columns[c].cql_type, ks_meta) for c in self.columns]
+
         def result_callback(rows):
             if future.has_more_pages:
                 future.start_fetching_next_page()
-                self.write_rows_to_csv(token_range, rows)
+                self.write_rows_to_csv(token_range, rows, cql_types)
             else:
-                self.write_rows_to_csv(token_range, rows)
+                self.write_rows_to_csv(token_range, rows, cql_types)
                 self.outmsg.send((None, None))
                 session.complete_request()
 
@@ -1478,7 +1483,7 @@ class ExportProcess(ChildProcess):
 
         future.add_callbacks(callback=result_callback, errback=err_callback)
 
-    def write_rows_to_csv(self, token_range, rows):
+    def write_rows_to_csv(self, token_range, rows, cql_types):
         if not rows:
             return  # no rows in this range
 
@@ -1487,7 +1492,7 @@ class ExportProcess(ChildProcess):
             writer = csv.writer(output, **self.options.dialect)
 
             for row in rows:
-                writer.writerow(map(self.format_value, row))
+                writer.writerow(map(self.format_value, row, cql_types))
 
             data = (output.getvalue(), len(rows))
             self.outmsg.send((token_range, data))
@@ -1496,17 +1501,17 @@ class ExportProcess(ChildProcess):
         except Exception, e:
             self.report_error(e, token_range)
 
-    def format_value(self, val):
+    def format_value(self, val, cqltype):
         if val is None or val == EMPTY:
             return format_value_default(self.nullval, colormap=NO_COLOR_MAP)
 
-        ctype = type(val)
-        formatter = self.formatters.get(ctype, None)
+        formatter = self.formatters.get(cqltype, None)
         if not formatter:
-            formatter = get_formatter(ctype)
-            self.formatters[ctype] = formatter
+            formatter = get_formatter(val, cqltype)
+            self.formatters[cqltype] = formatter
 
-        return formatter(val, encoding=self.encoding, colormap=NO_COLOR_MAP, date_time_format=self.date_time_format,
+        return formatter(val, cqltype=cqltype,
+                         encoding=self.encoding, colormap=NO_COLOR_MAP, date_time_format=self.date_time_format,
                          float_precision=self.float_precision, nullval=self.nullval, quote=False,
                          decimal_sep=self.decimal_sep, thousands_sep=self.thousands_sep,
                          boolean_styles=self.boolean_styles)

@@ -36,7 +36,6 @@ import codecs
 import ConfigParser
 import csv
 import getpass
-import locale
 import optparse
 import os
 import platform
@@ -157,7 +156,6 @@ from cassandra.metadata import (ColumnMetadata, KeyspaceMetadata,
                                 TableMetadata, protect_name, protect_names)
 from cassandra.policies import WhiteListRoundRobinPolicy
 from cassandra.query import SimpleStatement, ordered_dict_factory, TraceUnavailable
-from cassandra.type_codes import DateType
 from cassandra.util import datetime_from_timestamp
 
 # cqlsh should run correctly when run out of a Cassandra source tree,
@@ -171,9 +169,8 @@ from cqlshlib.copyutil import ExportTask, ImportTask
 from cqlshlib.displaying import (ANSI_RESET, BLUE, COLUMN_NAME_COLORS, CYAN,
                                  RED, WHITE, FormattedValue, colorme)
 from cqlshlib.formatting import (DEFAULT_DATE_FORMAT, DEFAULT_NANOTIME_FORMAT,
-                                 DEFAULT_TIMESTAMP_FORMAT, DateTimeFormat,
-                                 format_by_type, format_value_utype,
-                                 formatter_for)
+                                 DEFAULT_TIMESTAMP_FORMAT, CqlType, DateTimeFormat,
+                                 format_by_type, formatter_for)
 from cqlshlib.tracing import print_trace, print_trace_session
 from cqlshlib.util import get_file_encoding_bomsize, trim_if_present
 
@@ -578,14 +575,14 @@ def full_cql_version(ver):
     return ver, vertuple
 
 
-def format_value(val, output_encoding, addcolor=False, date_time_format=None,
+def format_value(val, cqltype, encoding, addcolor=False, date_time_format=None,
                  float_precision=None, colormap=None, nullval=None):
     if isinstance(val, DecodeError):
         if addcolor:
             return colorme(repr(val.thebytes), colormap, 'error')
         else:
             return FormattedValue(repr(val.thebytes))
-    return format_by_type(type(val), val, output_encoding, colormap=colormap,
+    return format_by_type(val, cqltype=cqltype, encoding=encoding, colormap=colormap,
                           addcolor=addcolor, nullval=nullval, date_time_format=date_time_format,
                           float_precision=float_precision)
 
@@ -602,30 +599,6 @@ warnings.filterwarnings('always', category=cql3handling.UnexpectedTableStructure
 
 
 def insert_driver_hooks():
-    extend_cql_deserialization()
-    auto_format_udts()
-
-
-def extend_cql_deserialization():
-    """
-    The python driver returns BLOBs as string, but we expect them as bytearrays
-    the implementation of cassandra.cqltypes.BytesType.deserialize.
-
-    The deserializers package exists only when the driver has been compiled with cython extensions and
-    cassandra.deserializers.DesBytesType replaces cassandra.cqltypes.BytesType.deserialize.
-
-    DesBytesTypeByteArray is a fast deserializer that converts blobs into bytearrays but it was
-    only introduced recently (3.1.0). If it is available we use it, otherwise we remove
-    cassandra.deserializers.DesBytesType so that we fall back onto cassandra.cqltypes.BytesType.deserialize
-    just like in the case where no cython extensions are present.
-    """
-    if hasattr(cassandra, 'deserializers'):
-        if hasattr(cassandra.deserializers, 'DesBytesTypeByteArray'):
-            cassandra.deserializers.DesBytesType = cassandra.deserializers.DesBytesTypeByteArray
-        else:
-            del cassandra.deserializers.DesBytesType
-
-    cassandra.cqltypes.BytesType.deserialize = staticmethod(lambda byts, protocol_version: bytearray(byts))
 
     class DateOverFlowWarning(RuntimeWarning):
         pass
@@ -636,7 +609,8 @@ def extend_cql_deserialization():
         try:
             return datetime_from_timestamp(timestamp_ms / 1000.0)
         except OverflowError:
-            warnings.warn(DateOverFlowWarning("Some timestamps are larger than Python datetime can represent. Timestamps are displayed in milliseconds from epoch."))
+            warnings.warn(DateOverFlowWarning("Some timestamps are larger than Python datetime can represent. "
+                                              "Timestamps are displayed in milliseconds from epoch."))
             return timestamp_ms
 
     cassandra.cqltypes.DateType.deserialize = staticmethod(deserialize_date_fallback_int)
@@ -646,27 +620,6 @@ def extend_cql_deserialization():
 
     # Return cassandra.cqltypes.EMPTY instead of None for empty values
     cassandra.cqltypes.CassandraType.support_empty_values = True
-
-
-def auto_format_udts():
-    # when we see a new user defined type, set up the shell formatting for it
-    udt_apply_params = cassandra.cqltypes.UserType.apply_parameters
-
-    def new_apply_params(cls, *args, **kwargs):
-        udt_class = udt_apply_params(*args, **kwargs)
-        formatter_for(udt_class.typename)(format_value_utype)
-        return udt_class
-
-    cassandra.cqltypes.UserType.udt_apply_parameters = classmethod(new_apply_params)
-
-    make_udt_class = cassandra.cqltypes.UserType.make_udt_class
-
-    def new_make_udt_class(cls, *args, **kwargs):
-        udt_class = make_udt_class(*args, **kwargs)
-        formatter_for(udt_class.tuple_type.__name__)(format_value_utype)
-        return udt_class
-
-    cassandra.cqltypes.UserType.make_udt_class = classmethod(new_make_udt_class)
 
 
 class FrozenType(cassandra.cqltypes._ParameterizedType):
@@ -838,20 +791,20 @@ class Shell(cmd.Cmd):
     def cqlver_atleast(self, major, minor=0, patch=0):
         return self.cql_ver_tuple[:3] >= (major, minor, patch)
 
-    def myformat_value(self, val, **kwargs):
+    def myformat_value(self, val, cqltype=None, **kwargs):
         if isinstance(val, DecodeError):
             self.decoding_errors.append(val)
         try:
             dtformats = DateTimeFormat(timestamp_format=self.display_timestamp_format,
                                        date_format=self.display_date_format, nanotime_format=self.display_nanotime_format,
                                        timezone=self.display_timezone)
-            return format_value(val, self.output_codec.name,
+            return format_value(val, cqltype=cqltype, encoding=self.output_codec.name,
                                 addcolor=self.color, date_time_format=dtformats,
                                 float_precision=self.display_float_precision, **kwargs)
         except Exception, e:
             err = FormatError(val, e)
             self.decoding_errors.append(err)
-            return format_value(err, self.output_codec.name, addcolor=self.color)
+            return format_value(err, cqltype=cqltype, encoding=self.output_codec.name, addcolor=self.color)
 
     def myformat_colname(self, name, table_meta=None):
         column_colors = COLUMN_NAME_COLORS.copy()
@@ -1376,8 +1329,15 @@ class Shell(cmd.Cmd):
         if not column_names and not table_meta:
             return
         column_names = column_names or table_meta.columns.keys()
+
+        cql_types = []
+        if table_meta:
+            ks_meta = self.conn.metadata.keyspaces[table_meta.keyspace_name]
+            cql_types = [CqlType(table_meta.columns[c].cql_type, ks_meta)
+                         if c in table_meta.columns else None for c in column_names]
+
         formatted_names = [self.myformat_colname(name, table_meta) for name in column_names]
-        formatted_values = [map(self.myformat_value, row.values()) for row in rows]
+        formatted_values = [map(self.myformat_value, row.values(), cql_types) for row in rows]
 
         if self.expand_enabled:
             self.print_formatted_result_vertically(formatted_names, formatted_values)
@@ -1656,7 +1616,6 @@ class Shell(cmd.Cmd):
         except KeyError:
             raise UserTypeNotFound("User type %r not found" % typename)
         print usertype.export_as_string()
-        print
 
     def describe_cluster(self):
         print '\nCluster: %s' % self.get_cluster_name()

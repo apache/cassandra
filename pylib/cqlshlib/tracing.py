@@ -16,6 +16,7 @@
 
 from cqlshlib.displaying import MAGENTA
 from datetime import datetime
+from formatting import CqlType
 import time
 from cassandra.query import QueryTrace, TraceUnavailable
 
