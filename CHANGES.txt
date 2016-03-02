@@ -1,3 +1,11 @@
+3.0.5
+Merged from 2.2:
+ * Only log yaml config once, at startup (CASSANDRA-11217)
+ * Reference leak with parallel repairs on the same table (CASSANDRA-11215)
+Merged from 2.1:
+ * InvalidateKeys should have a weak ref to key cache (CASSANDRA-11176)
+
+
 3.0.4
  * Preserve order for preferred SSL cipher suites (CASSANDRA-11164)
  * MV should only query complex columns included in the view (CASSANDRA-11069)
@@ -21,8 +29,6 @@
    properly (CASSANDRA-11050)
  * Fix NPE when using forceRepairRangeAsync without DC (CASSANDRA-11239)
 Merged from 2.2:
- * Only log yaml config once, at startup (CASSANDRA-11217)
- * Reference leak with parallel repairs on the same table (CASSANDRA-11215)
  * Range.compareTo() violates the contract of Comparable (CASSANDRA-11216)
  * Avoid NPE when serializing ErrorMessage with null message (CASSANDRA-11167)
  * Replacing an aggregate with a new version doesn't reset INITCOND (CASSANDRA-10840)
@@ -43,7 +49,6 @@ Merged from 2.2:
    (CASSANDRA-10010)
  * cqlsh: change default encoding to UTF-8 (CASSANDRA-11124)
 Merged from 2.1:
- * InvalidateKeys should have a weak ref to key cache (CASSANDRA-11176)
  * Don't remove FailureDetector history on removeEndpoint (CASSANDRA-10371)
  * Only notify if repair status changed (CASSANDRA-11172)
  * Use logback setting for 'cassandra -v' command (CASSANDRA-10767)
