@@ -1067,35 +1067,9 @@ public class CompactionManager implements CompactionManagerMBean
             {
                 // flush first so everyone is validating data that is as similar as possible
                 StorageService.instance.forceKeyspaceFlush(cfs.keyspace.getName(), cfs.name);
-                ActiveRepairService.ParentRepairSession prs = ActiveRepairService.instance.getParentRepairSession(validator.desc.parentSessionId);
-                ColumnFamilyStore.RefViewFragment sstableCandidates = cfs.selectAndReference(View.select(SSTableSet.CANONICAL, (s) -> !prs.isIncremental || !s.isRepaired()));
-                Set<SSTableReader> sstablesToValidate = new HashSet<>();
-
-                for (SSTableReader sstable : sstableCandidates.sstables)
-                {
-                    if (new Bounds<>(sstable.first.getToken(), sstable.last.getToken()).intersects(validator.desc.ranges))
-                    {
-                        sstablesToValidate.add(sstable);
-                    }
-                }
-
-                Set<SSTableReader> currentlyRepairing = ActiveRepairService.instance.currentlyRepairing(cfs.metadata.cfId, validator.desc.parentSessionId);
-
-                if (!Sets.intersection(currentlyRepairing, sstablesToValidate).isEmpty())
-                {
-                    logger.error("Cannot start multiple repair sessions over the same sstables");
-                    throw new RuntimeException("Cannot start multiple repair sessions over the same sstables");
-                }
-
-                sstables = Refs.tryRef(sstablesToValidate);
+                sstables = getSSTablesToValidate(cfs, validator);
                 if (sstables == null)
-                {
-                    logger.error("Could not reference sstables");
-                    throw new RuntimeException("Could not reference sstables");
-                }
-                sstableCandidates.release();
-                prs.addSSTables(cfs.metadata.cfId, sstablesToValidate);
-
+                    return; // this means the parent repair session was removed - the repair session failed on another node and we removed it
                 if (validator.gcBefore > 0)
                     gcBefore = validator.gcBefore;
                 else
@@ -1157,6 +1131,45 @@ public class CompactionManager implements CompactionManagerMBean
             if (sstables != null)
                 sstables.release();
         }
+    }
+
+    private synchronized Refs<SSTableReader> getSSTablesToValidate(ColumnFamilyStore cfs, Validator validator)
+    {
+        Refs<SSTableReader> sstables;
+
+        ActiveRepairService.ParentRepairSession prs = ActiveRepairService.instance.getParentRepairSession(validator.desc.parentSessionId);
+        if (prs == null)
+            return null;
+        Set<SSTableReader> sstablesToValidate = new HashSet<>();
+        try (ColumnFamilyStore.RefViewFragment sstableCandidates = cfs.selectAndReference(View.select(SSTableSet.CANONICAL, (s) -> !prs.isIncremental || !s.isRepaired())))
+        {
+            for (SSTableReader sstable : sstableCandidates.sstables)
+            {
+                if (new Bounds<>(sstable.first.getToken(), sstable.last.getToken()).intersects(validator.desc.ranges))
+                {
+                    sstablesToValidate.add(sstable);
+                }
+            }
+
+            Set<SSTableReader> currentlyRepairing = ActiveRepairService.instance.currentlyRepairing(cfs.metadata.cfId, validator.desc.parentSessionId);
+
+            if (!Sets.intersection(currentlyRepairing, sstablesToValidate).isEmpty())
+            {
+                logger.error("Cannot start multiple repair sessions over the same sstables");
+                throw new RuntimeException("Cannot start multiple repair sessions over the same sstables");
+            }
+
+            sstables = Refs.tryRef(sstablesToValidate);
+            if (sstables == null)
+            {
+                logger.error("Could not reference sstables");
+                throw new RuntimeException("Could not reference sstables");
+            }
+        }
+
+        prs.addSSTables(cfs.metadata.cfId, sstablesToValidate);
+
+        return sstables;
     }
 
     /**
