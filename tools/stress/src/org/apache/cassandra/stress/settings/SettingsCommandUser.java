@@ -33,6 +33,7 @@ import org.apache.cassandra.stress.StressProfile;
 import org.apache.cassandra.stress.generate.DistributionFactory;
 import org.apache.cassandra.stress.generate.PartitionGenerator;
 import org.apache.cassandra.stress.generate.SeedManager;
+import org.apache.cassandra.stress.generate.TokenRangeIterator;
 import org.apache.cassandra.stress.operations.OpDistributionFactory;
 import org.apache.cassandra.stress.operations.SampledOpDistributionFactory;
 import org.apache.cassandra.stress.util.Timer;
@@ -69,15 +70,24 @@ public class SettingsCommandUser extends SettingsCommand
     public OpDistributionFactory getFactory(final StressSettings settings)
     {
         final SeedManager seeds = new SeedManager(settings);
+        final TokenRangeIterator tokenRangeIterator = profile.tokenRangeQueries.isEmpty()
+                                                      ? null
+                                                      : new TokenRangeIterator(settings,
+                                                                               profile.maybeLoadTokenRanges(settings));
+
         return new SampledOpDistributionFactory<String>(ratios, clustering)
         {
-            protected List<? extends Operation> get(Timer timer, PartitionGenerator generator, String key)
+            protected List<? extends Operation> get(Timer timer, PartitionGenerator generator, String key, boolean isWarmup)
             {
                 if (key.equalsIgnoreCase("insert"))
                     return Collections.singletonList(profile.getInsert(timer, generator, seeds, settings));
                 if (key.equalsIgnoreCase("validate"))
                     return profile.getValidate(timer, generator, seeds, settings);
-                return Collections.singletonList(profile.getQuery(key, timer, generator, seeds, settings));
+
+                if (profile.tokenRangeQueries.containsKey(key))
+                    return Collections.singletonList(profile.getBulkReadQueries(key, timer, settings, tokenRangeIterator, isWarmup));
+
+                return Collections.singletonList(profile.getQuery(key, timer, generator, seeds, settings, isWarmup));
             }
 
             protected PartitionGenerator newGenerator()

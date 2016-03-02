@@ -2,7 +2,7 @@ package org.apache.cassandra.stress;
 
 import java.util.concurrent.atomic.AtomicLong;
 
-interface WorkManager
+public interface WorkManager
 {
     // -1 indicates consumer should terminate
     int takePermits(int count);

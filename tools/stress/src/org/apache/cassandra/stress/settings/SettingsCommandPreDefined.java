@@ -51,7 +51,7 @@ public class SettingsCommandPreDefined extends SettingsCommand
         final SeedManager seeds = new SeedManager(settings);
         return new OpDistributionFactory()
         {
-            public OpDistribution get(Timing timing, int sampleCount)
+            public OpDistribution get(Timing timing, int sampleCount, boolean isWarmup)
             {
                 return new FixedOpDistribution(PredefinedOperation.operation(type, timing.newTimer(type.toString(), sampleCount),
                                                newGenerator(settings), seeds, settings, add));

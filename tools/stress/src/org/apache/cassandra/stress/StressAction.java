@@ -71,7 +71,7 @@ public class StressAction implements Runnable
             success = runMulti(settings.rate.auto, rateLimiter);
         else
             success = null != run(settings.command.getFactory(settings), settings.rate.threadCount, settings.command.count,
-                                  settings.command.duration, rateLimiter, settings.command.durationUnits, output);
+                                  settings.command.duration, rateLimiter, settings.command.durationUnits, output, false);
 
         if (success)
             output.println("END");
@@ -84,12 +84,12 @@ public class StressAction implements Runnable
     // type provided separately to support recursive call for mixed command with each command type it is performing
     private void warmup(OpDistributionFactory operations)
     {
-        // warmup - do 50k iterations; by default hotspot compiles methods after 10k invocations
         PrintStream warmupOutput = new PrintStream(new OutputStream() { @Override public void write(int b) throws IOException { } } );
-        int iterations = 50000 * settings.node.nodes.size();
+        // do 25% of iterations as warmup but no more than 50k (by default hotspot compiles methods after 10k invocations)
+        int iterations = (settings.command.count > 0
+                         ? Math.min(50000, (int)(settings.command.count * 0.25))
+                         : 50000) * settings.node.nodes.size();
         int threads = 100;
-        if (iterations > settings.command.count && settings.command.count > 0)
-            return;
 
         if (settings.rate.maxThreads > 0)
             threads = Math.min(threads, settings.rate.maxThreads);
@@ -101,7 +101,7 @@ public class StressAction implements Runnable
             // we need to warm up all the nodes in the cluster ideally, but we may not be the only stress instance;
             // so warm up all the nodes we're speaking to only.
             output.println(String.format("Warming up %s with %d iterations...", single.desc(), iterations));
-            run(single, threads, iterations, 0, null, null, warmupOutput);
+            run(single, threads, iterations, 0, null, null, warmupOutput, true);
         }
     }
 
@@ -124,7 +124,7 @@ public class StressAction implements Runnable
                 settings.command.truncateTables(settings);
 
             StressMetrics result = run(settings.command.getFactory(settings), threadCount, settings.command.count,
-                                       settings.command.duration, rateLimiter, settings.command.durationUnits, output);
+                                       settings.command.duration, rateLimiter, settings.command.durationUnits, output, false);
             if (result == null)
                 return false;
             results.add(result);
@@ -181,7 +181,14 @@ public class StressAction implements Runnable
         return improvement / count;
     }
 
-    private StressMetrics run(OpDistributionFactory operations, int threadCount, long opCount, long duration, RateLimiter rateLimiter, TimeUnit durationUnits, PrintStream output)
+    private StressMetrics run(OpDistributionFactory operations,
+                              int threadCount,
+                              long opCount,
+                              long duration,
+                              RateLimiter rateLimiter,
+                              TimeUnit durationUnits,
+                              PrintStream output,
+                              boolean isWarmup)
     {
         output.println(String.format("Running %s with %d threads %s",
                                      operations.desc(),
@@ -199,10 +206,12 @@ public class StressAction implements Runnable
 
         final CountDownLatch done = new CountDownLatch(threadCount);
         final Consumer[] consumers = new Consumer[threadCount];
+        int sampleCount = settings.samples.liveCount / threadCount;
         for (int i = 0; i < threadCount; i++)
         {
-            consumers[i] = new Consumer(operations, done, workManager, metrics, rateLimiter,
-                                        settings.samples.liveCount / threadCount);
+
+            consumers[i] = new Consumer(operations.get(metrics.getTiming(), sampleCount, isWarmup),
+                                        done, workManager, metrics, rateLimiter);
         }
 
         // starting worker threadCount
@@ -259,14 +268,17 @@ public class StressAction implements Runnable
         private final WorkManager workManager;
         private final CountDownLatch done;
 
-        public Consumer(OpDistributionFactory operations, CountDownLatch done, WorkManager workManager, StressMetrics metrics,
-                        RateLimiter rateLimiter, int sampleCount)
+        public Consumer(OpDistribution operations,
+                        CountDownLatch done,
+                        WorkManager workManager,
+                        StressMetrics metrics,
+                        RateLimiter rateLimiter)
         {
             this.done = done;
             this.rateLimiter = rateLimiter;
             this.workManager = workManager;
             this.metrics = metrics;
-            this.operations = operations.get(metrics.getTiming(), sampleCount);
+            this.operations = operations;
         }
 
         public void run()

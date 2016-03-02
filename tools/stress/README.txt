@@ -72,6 +72,11 @@ Primary Options:
         The port to connect to cassandra nodes on
     -sendto:
         Specify a stress server to send this command to
+    -graph:
+        Graph recorded metrics
+    -tokenrange:
+        Token range settings
+
 
 Suboptions:
     Every command and primary option has its own collection of suboptions. These are too numerous to list here.
