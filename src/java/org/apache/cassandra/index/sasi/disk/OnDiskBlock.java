@@ -81,6 +81,7 @@ public abstract class OnDiskBlock<T extends Term>
         return new SearchResult<>(element, cmp, middle);
     }
 
+    @SuppressWarnings("resource")
     protected T getTerm(int index)
     {
         MappedBuffer dup = blockIndex.duplicate();

@@ -245,6 +245,7 @@ public class OnDiskIndexBuilder
         return true;
     }
 
+    @SuppressWarnings("resource")
     protected void finish(Descriptor descriptor, Pair<ByteBuffer, ByteBuffer> range, File file, TermIterator terms)
     {
         SequentialWriter out = null;

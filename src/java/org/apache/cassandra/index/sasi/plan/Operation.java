@@ -39,6 +39,7 @@ import com.google.common.annotations.VisibleForTesting;
 import com.google.common.collect.*;
 import org.apache.cassandra.utils.FBUtilities;
 
+@SuppressWarnings("resource")
 public class Operation extends RangeIterator<Long, Token>
 {
     public enum OperationType

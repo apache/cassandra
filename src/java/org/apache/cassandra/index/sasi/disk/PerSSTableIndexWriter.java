@@ -281,6 +281,7 @@ public class PerSSTableIndexWriter implements SSTableFlushObserver
                     // parts are present but there is something still in memory, let's flush that inline
                     if (!currentBuilder.isEmpty())
                     {
+                        @SuppressWarnings("resource")
                         OnDiskIndex last = scheduleSegmentFlush(false).call();
                         segments.add(Futures.immediateFuture(last));
                     }
@@ -290,6 +291,7 @@ public class PerSSTableIndexWriter implements SSTableFlushObserver
 
                     for (Future<OnDiskIndex> f : segments)
                     {
+                        @SuppressWarnings("resource")
                         OnDiskIndex part = Futures.getUnchecked(f);
                         if (part == null)
                             continue;

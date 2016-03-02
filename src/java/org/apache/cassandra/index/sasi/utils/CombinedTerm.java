@@ -43,6 +43,7 @@ public class CombinedTerm implements CombinedValue<DataTerm>
         this.term = term;
         this.tokens = new TreeMap<>();
 
+        @SuppressWarnings("resource")
         RangeIterator<Long, Token> tokens = term.getTokens();
         while (tokens.hasNext())
         {
