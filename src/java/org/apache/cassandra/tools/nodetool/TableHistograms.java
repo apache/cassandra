@@ -66,14 +66,12 @@ public class TableHistograms extends NodeToolCmd
         }
         else
         {
-            long[] rowSizeBucketOffsets = new EstimatedHistogram(estimatedRowSize.length).getBucketOffsets();
-            long[] columnCountBucketOffsets = new EstimatedHistogram(estimatedColumnCount.length).getBucketOffsets();
-            EstimatedHistogram rowSizeHist = new EstimatedHistogram(rowSizeBucketOffsets, estimatedRowSize);
-            EstimatedHistogram columnCountHist = new EstimatedHistogram(columnCountBucketOffsets, estimatedColumnCount);
+            EstimatedHistogram rowSizeHist = new EstimatedHistogram(estimatedRowSize);
+            EstimatedHistogram columnCountHist = new EstimatedHistogram(estimatedColumnCount);
 
             if (rowSizeHist.isOverflowed())
             {
-                System.err.println(String.format("Row sizes are larger than %s, unable to calculate percentiles", rowSizeBucketOffsets[rowSizeBucketOffsets.length - 1]));
+                System.err.println(String.format("Row sizes are larger than %s, unable to calculate percentiles", rowSizeHist.getLargestBucketOffset()));
                 for (int i = 0; i < offsetPercentiles.length; i++)
                         estimatedRowSizePercentiles[i] = Double.NaN;
             }
@@ -85,7 +83,7 @@ public class TableHistograms extends NodeToolCmd
 
             if (columnCountHist.isOverflowed())
             {
-                System.err.println(String.format("Column counts are larger than %s, unable to calculate percentiles", columnCountBucketOffsets[columnCountBucketOffsets.length - 1]));
+                System.err.println(String.format("Column counts are larger than %s, unable to calculate percentiles", columnCountHist.getLargestBucketOffset()));
                 for (int i = 0; i < estimatedColumnCountPercentiles.length; i++)
                     estimatedColumnCountPercentiles[i] = Double.NaN;
             }
