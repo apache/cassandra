@@ -108,9 +108,6 @@ public abstract class CQLTester
         }
         PROTOCOL_VERSIONS = builder.build();
 
-        // Once per-JVM is enough
-        prepareServer();
-
         nativeAddr = InetAddress.getLoopbackAddress();
 
         try
@@ -230,6 +227,9 @@ public abstract class CQLTester
             DatabaseDescriptor.setRowCacheSizeInMB(ROW_CACHE_SIZE_IN_MB);
 
         StorageService.instance.setPartitionerUnsafe(Murmur3Partitioner.instance);
+
+        // Once per-JVM is enough
+        prepareServer();
     }
 
     @AfterClass

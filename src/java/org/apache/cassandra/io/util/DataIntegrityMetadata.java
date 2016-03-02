@@ -34,6 +34,7 @@ import com.google.common.base.Charsets;
 import org.apache.cassandra.io.FSWriteError;
 import org.apache.cassandra.io.sstable.Component;
 import org.apache.cassandra.io.sstable.Descriptor;
+import org.apache.cassandra.utils.ChecksumType;
 import org.apache.cassandra.utils.Throwables;
 
 public class DataIntegrityMetadata
@@ -45,21 +46,21 @@ public class DataIntegrityMetadata
 
     public static class ChecksumValidator implements Closeable
     {
-        private final Checksum checksum;
+        private final ChecksumType checksumType;
         private final RandomAccessReader reader;
         public final int chunkSize;
         private final String dataFilename;
 
         public ChecksumValidator(Descriptor descriptor) throws IOException
         {
-            this(descriptor.version.uncompressedChecksumType().newInstance(),
+            this(descriptor.version.uncompressedChecksumType(),
                  RandomAccessReader.open(new File(descriptor.filenameFor(Component.CRC))),
                  descriptor.filenameFor(Component.DATA));
         }
 
-        public ChecksumValidator(Checksum checksum, RandomAccessReader reader, String dataFilename) throws IOException
+        public ChecksumValidator(ChecksumType checksumType, RandomAccessReader reader, String dataFilename) throws IOException
         {
-            this.checksum = checksum;
+            this.checksumType = checksumType;
             this.reader = reader;
             this.dataFilename = dataFilename;
             chunkSize = reader.readInt();
@@ -79,9 +80,7 @@ public class DataIntegrityMetadata
 
         public void validate(byte[] bytes, int start, int end) throws IOException
         {
-            checksum.update(bytes, start, end);
-            int current = (int) checksum.getValue();
-            checksum.reset();
+            int current = (int) checksumType.of(bytes, start, end);
             int actual = reader.readInt();
             if (current != actual)
                 throw new IOException("Corrupted File : " + dataFilename);

@@ -443,7 +443,7 @@ public class Scrubber implements Closeable
             }
             catch (Exception e)
             {
-                throw new RuntimeException();
+                throw new RuntimeException(e);
             }
         }
     }

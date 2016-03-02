@@ -24,7 +24,7 @@ import java.util.zip.Adler32;
 
 public enum ChecksumType
 {
-    Adler32()
+    Adler32
     {
 
         @Override
@@ -40,7 +40,7 @@ public enum ChecksumType
         }
 
     },
-    CRC32()
+    CRC32
     {
 
         @Override
@@ -58,6 +58,28 @@ public enum ChecksumType
     };
 
     public abstract Checksum newInstance();
-
     public abstract void update(Checksum checksum, ByteBuffer buf);
+
+    private ThreadLocal<Checksum> instances = ThreadLocal.withInitial(this::newInstance);
+
+    public Checksum threadLocalInstance()
+    {
+        return instances.get();
+    }
+
+    public long of(ByteBuffer buf)
+    {
+        Checksum checksum = instances.get();
+        checksum.reset();
+        update(checksum, buf);
+        return checksum.getValue();
+    }
+
+    public long of(byte[] data, int off, int len)
+    {
+        Checksum checksum = instances.get();
+        checksum.reset();
+        checksum.update(data, off, len);
+        return checksum.getValue();
+    }
 }

@@ -15,32 +15,18 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package org.apache.cassandra.cache;
 
-import java.util.Iterator;
+package org.apache.cassandra.io.util;
 
 /**
- * This is similar to the Map interface, but requires maintaining a given capacity
- * and does not require put or remove to return values, which lets SerializingCache
- * be more efficient by avoiding deserialize except on get.
+ * Interface for the classes that can be used to instantiate rebufferers over a given file.
+ *
+ * These are one of two types:
+ *  - chunk sources (e.g. SimpleReadRebufferer) which instantiate a buffer managing rebufferer referencing
+ *    themselves.
+ *  - thread-safe shared rebufferers (e.g. MmapRebufferer) which directly return themselves.
  */
-public interface ICache<K, V> extends CacheSize
+public interface RebuffererFactory extends ReaderFileProxy
 {
-    public void put(K key, V value);
-
-    public boolean putIfAbsent(K key, V value);
-
-    public boolean replace(K key, V old, V value);
-
-    public V get(K key);
-
-    public void remove(K key);
-
-    public void clear();
-
-    public Iterator<K> keyIterator();
-
-    public Iterator<K> hotKeyIterator(int n);
-
-    public boolean containsKey(K key);
+    Rebufferer instantiateRebufferer();
 }

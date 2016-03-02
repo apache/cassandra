@@ -99,8 +99,8 @@ public class MmappedRegionsTest
             {
                 MmappedRegions.Region region = regions.floor(i);
                 assertNotNull(region);
-                assertEquals(0, region.bottom());
-                assertEquals(1024, region.top());
+                assertEquals(0, region.offset());
+                assertEquals(1024, region.end());
             }
 
             regions.extend(2048);
@@ -110,13 +110,13 @@ public class MmappedRegionsTest
                 assertNotNull(region);
                 if (i < 1024)
                 {
-                    assertEquals(0, region.bottom());
-                    assertEquals(1024, region.top());
+                    assertEquals(0, region.offset());
+                    assertEquals(1024, region.end());
                 }
                 else
                 {
-                    assertEquals(1024, region.bottom());
-                    assertEquals(2048, region.top());
+                    assertEquals(1024, region.offset());
+                    assertEquals(2048, region.end());
                 }
             }
         }
@@ -141,8 +141,8 @@ public class MmappedRegionsTest
             {
                 MmappedRegions.Region region = regions.floor(i);
                 assertNotNull(region);
-                assertEquals(SIZE * (i / SIZE), region.bottom());
-                assertEquals(SIZE + (SIZE * (i / SIZE)), region.top());
+                assertEquals(SIZE * (i / SIZE), region.offset());
+                assertEquals(SIZE + (SIZE * (i / SIZE)), region.end());
             }
         }
         finally
@@ -169,8 +169,8 @@ public class MmappedRegionsTest
             {
                 MmappedRegions.Region region = regions.floor(i);
                 assertNotNull(region);
-                assertEquals(SIZE * (i / SIZE), region.bottom());
-                assertEquals(SIZE + (SIZE * (i / SIZE)), region.top());
+                assertEquals(SIZE * (i / SIZE), region.offset());
+                assertEquals(SIZE + (SIZE * (i / SIZE)), region.end());
             }
         }
         finally
@@ -209,8 +209,8 @@ public class MmappedRegionsTest
         {
             MmappedRegions.Region region = snapshot.floor(i);
             assertNotNull(region);
-            assertEquals(SIZE * (i / SIZE), region.bottom());
-            assertEquals(SIZE + (SIZE * (i / SIZE)), region.top());
+            assertEquals(SIZE * (i / SIZE), region.offset());
+            assertEquals(SIZE + (SIZE * (i / SIZE)), region.end());
 
             // check we can access the buffer
             assertNotNull(region.buffer.duplicate().getInt());
@@ -267,8 +267,8 @@ public class MmappedRegionsTest
             {
                 MmappedRegions.Region region = regions.floor(i);
                 assertNotNull(region);
-                assertEquals(0, region.bottom());
-                assertEquals(4096, region.top());
+                assertEquals(0, region.offset());
+                assertEquals(4096, region.end());
             }
         }
     }
@@ -326,8 +326,8 @@ public class MmappedRegionsTest
                 assertNotNull(compressedChunk);
                 assertEquals(chunk.length + 4, compressedChunk.capacity());
 
-                assertEquals(chunk.offset, region.bottom());
-                assertEquals(chunk.offset + chunk.length + 4, region.top());
+                assertEquals(chunk.offset, region.offset());
+                assertEquals(chunk.offset + chunk.length + 4, region.end());
 
                 i += metadata.chunkLength();
             }

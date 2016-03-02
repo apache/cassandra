@@ -380,9 +380,14 @@ concurrent_counter_writes: 32
 # be limited by the less of concurrent reads or concurrent writes.
 concurrent_materialized_view_writes: 32
 
-# Maximum memory to use for pooling sstable buffers. Defaults to the smaller
-# of 1/4 of heap or 512MB. This pool is allocated off-heap, so is in addition
-# to the memory allocated for heap. Memory is only allocated as needed.
+# Maximum memory to use for sstable chunk cache and buffer pooling.
+# 32MB of this are reserved for pooling buffers, the rest is used as an
+# cache that holds uncompressed sstable chunks.
+# Defaults to the smaller of 1/4 of heap or 512MB. This pool is allocated off-heap,
+# so is in addition to the memory allocated for heap. The cache also has on-heap
+# overhead which is roughly 128 bytes per chunk (i.e. 0.2% of the reserved size
+# if the default 64k chunk size is used).
+# Memory is only allocated when needed.
 # file_cache_size_in_mb: 512
 
 # Flag indicating whether to allocate on or off heap when the sstable buffer

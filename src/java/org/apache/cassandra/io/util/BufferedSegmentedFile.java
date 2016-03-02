@@ -17,16 +17,29 @@
  */
 package org.apache.cassandra.io.util;
 
+import org.apache.cassandra.cache.ChunkCache;
+import org.apache.cassandra.io.compress.BufferType;
+
 public class BufferedSegmentedFile extends SegmentedFile
 {
     public BufferedSegmentedFile(ChannelProxy channel, int bufferSize, long length)
     {
-        super(new Cleanup(channel), channel, bufferSize, length);
+        this(channel, createRebufferer(channel, length, bufferSize), length);
+    }
+
+    private BufferedSegmentedFile(ChannelProxy channel, RebuffererFactory rebufferer, long length)
+    {
+        super(new Cleanup(channel, rebufferer), channel, rebufferer, length);
     }
 
     private BufferedSegmentedFile(BufferedSegmentedFile copy)
     {
         super(copy);
+    }
+
+    private static RebuffererFactory createRebufferer(ChannelProxy channel, long length, int bufferSize)
+    {
+        return ChunkCache.maybeWrap(new SimpleChunkReader(channel, length, BufferType.OFF_HEAP, bufferSize));
     }
 
     public static class Builder extends SegmentedFile.Builder

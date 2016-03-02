@@ -19,78 +19,34 @@ package org.apache.cassandra.io.util;
 
 import java.io.*;
 
-import com.google.common.util.concurrent.RateLimiter;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import org.apache.cassandra.db.TypeSizes;
 import org.apache.cassandra.io.sstable.format.Version;
-import org.apache.cassandra.utils.JVMStabilityInspector;
 
 public class MmappedSegmentedFile extends SegmentedFile
 {
     private static final Logger logger = LoggerFactory.getLogger(MmappedSegmentedFile.class);
 
-    private final MmappedRegions regions;
-
-    public MmappedSegmentedFile(ChannelProxy channel, int bufferSize, long length, MmappedRegions regions)
+    public MmappedSegmentedFile(ChannelProxy channel, long length, MmappedRegions regions)
     {
-        super(new Cleanup(channel, regions), channel, bufferSize, length);
-        this.regions = regions;
+        this(channel, new MmapRebufferer(channel, length, regions), length);
+    }
+
+    public MmappedSegmentedFile(ChannelProxy channel, RebuffererFactory rebufferer, long length)
+    {
+        super(new Cleanup(channel, rebufferer), channel, rebufferer, length);
     }
 
     private MmappedSegmentedFile(MmappedSegmentedFile copy)
     {
         super(copy);
-        this.regions = copy.regions;
     }
 
     public MmappedSegmentedFile sharedCopy()
     {
         return new MmappedSegmentedFile(this);
-    }
-
-    public RandomAccessReader createReader()
-    {
-        return new RandomAccessReader.Builder(channel)
-               .overrideLength(length)
-               .regions(regions)
-               .build();
-    }
-
-    public RandomAccessReader createReader(RateLimiter limiter)
-    {
-        return new RandomAccessReader.Builder(channel)
-               .overrideLength(length)
-               .bufferSize(bufferSize)
-               .regions(regions)
-               .limiter(limiter)
-               .build();
-    }
-
-    private static final class Cleanup extends SegmentedFile.Cleanup
-    {
-        private final MmappedRegions regions;
-
-        Cleanup(ChannelProxy channel, MmappedRegions regions)
-        {
-            super(channel);
-            this.regions = regions;
-        }
-
-        public void tidy()
-        {
-            Throwable err = regions.close(null);
-            if (err != null)
-            {
-                JVMStabilityInspector.inspectThrowable(err);
-
-                // This is not supposed to happen
-                logger.error("Error while closing mmapped regions", err);
-            }
-
-            super.tidy();
-        }
     }
 
     /**
@@ -110,7 +66,7 @@ public class MmappedSegmentedFile extends SegmentedFile
             long length = overrideLength > 0 ? overrideLength : channel.size();
             updateRegions(channel, length);
 
-            return new MmappedSegmentedFile(channel, bufferSize, length, regions.sharedCopy());
+            return new MmappedSegmentedFile(channel, length, regions.sharedCopy());
         }
 
         private void updateRegions(ChannelProxy channel, long length)

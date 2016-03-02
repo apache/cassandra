@@ -43,12 +43,12 @@ public class EncryptedChecksummedDataInput extends ChecksummedDataInput
 
     private final EncryptionUtils.ChannelProxyReadChannel readChannel;
 
-    protected EncryptedChecksummedDataInput(Builder builder)
+    protected EncryptedChecksummedDataInput(ChannelProxy channel, Cipher cipher, ICompressor compressor, long filePosition)
     {
-        super(builder);
-        cipher = builder.cipher;
-        compressor = builder.compressor;
-        readChannel = new EncryptionUtils.ChannelProxyReadChannel(channel, builder.position);
+        super(channel);
+        this.cipher = cipher;
+        this.compressor = compressor;
+        readChannel = new EncryptionUtils.ChannelProxyReadChannel(channel, filePosition);
         assert cipher != null;
         assert compressor != null;
     }
@@ -59,10 +59,16 @@ public class EncryptedChecksummedDataInput extends ChecksummedDataInput
      */
     public boolean isEOF()
     {
-        return readChannel.getCurrentPosition() == channel.size() && buffer.remaining() == 0;
+        return getSourcePosition() == channel.size() && buffer.remaining() == 0;
     }
 
-    protected void reBufferStandard()
+    public long getSourcePosition()
+    {
+        return readChannel.getCurrentPosition();
+    }
+
+    @Override
+    protected void readBuffer()
     {
         try
         {
@@ -79,40 +85,13 @@ public class EncryptedChecksummedDataInput extends ChecksummedDataInput
         }
     }
 
-    public static class Builder extends CompressedChecksummedDataInputBuilder
-    {
-        Cipher cipher;
-
-        public Builder(ChannelProxy channel)
-        {
-            super(channel);
-        }
-
-        public Builder withCipher(Cipher cipher)
-        {
-            this.cipher = cipher;
-            return this;
-        }
-
-        public ChecksummedDataInput build()
-        {
-            assert position >= 0;
-            assert compressor != null;
-            assert cipher != null;
-            return new EncryptedChecksummedDataInput(this);
-        }
-    }
-
+    @SuppressWarnings("resource")
     public static ChecksummedDataInput upgradeInput(ChecksummedDataInput input, Cipher cipher, ICompressor compressor)
     {
         long position = input.getPosition();
         input.close();
 
-        Builder builder = new Builder(new ChannelProxy(input.getPath()));
-        builder.withPosition(position);
-        builder.withCompressor(compressor);
-        builder.withCipher(cipher);
-        return builder.build();
+        return new EncryptedChecksummedDataInput(new ChannelProxy(input.getPath()), cipher, compressor, position);
     }
 
     @VisibleForTesting

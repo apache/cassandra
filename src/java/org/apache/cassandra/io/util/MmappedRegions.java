@@ -22,8 +22,11 @@ import java.nio.ByteBuffer;
 import java.nio.channels.FileChannel;
 import java.util.Arrays;
 
+import org.slf4j.LoggerFactory;
+
 import org.apache.cassandra.io.FSReadError;
 import org.apache.cassandra.io.compress.CompressionMetadata;
+import org.apache.cassandra.utils.JVMStabilityInspector;
 import org.apache.cassandra.utils.Throwables;
 import org.apache.cassandra.utils.concurrent.RefCounted;
 import org.apache.cassandra.utils.concurrent.SharedCloseableImpl;
@@ -190,8 +193,20 @@ public class MmappedRegions extends SharedCloseableImpl
         assert !isCleanedUp() : "Attempted to use closed region";
         return state.floor(position);
     }
+    
+    public void closeQuietly()
+    {
+        Throwable err = close(null);
+        if (err != null)
+        {
+            JVMStabilityInspector.inspectThrowable(err);
 
-    public static final class Region
+            // This is not supposed to happen
+            LoggerFactory.getLogger(getClass()).error("Error while closing mmapped regions", err);
+        }
+    }
+
+    public static final class Region implements Rebufferer.BufferHolder
     {
         public final long offset;
         public final ByteBuffer buffer;
@@ -202,14 +217,24 @@ public class MmappedRegions extends SharedCloseableImpl
             this.buffer = buffer;
         }
 
-        public long bottom()
+        public ByteBuffer buffer()
+        {
+            return buffer.duplicate();
+        }
+
+        public long offset()
         {
             return offset;
         }
 
-        public long top()
+        public long end()
         {
             return offset + buffer.capacity();
+        }
+
+        public void release()
+        {
+            // only released after no readers are present
         }
     }
 
@@ -260,7 +285,7 @@ public class MmappedRegions extends SharedCloseableImpl
 
         private Region floor(long position)
         {
-            assert 0 <= position && position < length : String.format("%d >= %d", position, length);
+            assert 0 <= position && position <= length : String.format("%d > %d", position, length);
 
             int idx = Arrays.binarySearch(offsets, 0, last +1, position);
             assert idx != -1 : String.format("Bad position %d for regions %s, last %d in %s", position, Arrays.toString(offsets), last, channel);

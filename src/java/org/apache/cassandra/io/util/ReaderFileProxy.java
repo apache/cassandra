@@ -15,32 +15,22 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package org.apache.cassandra.cache;
 
-import java.util.Iterator;
+package org.apache.cassandra.io.util;
 
 /**
- * This is similar to the Map interface, but requires maintaining a given capacity
- * and does not require put or remove to return values, which lets SerializingCache
- * be more efficient by avoiding deserialize except on get.
+ * Base class for the RandomAccessReader components that implement reading.
  */
-public interface ICache<K, V> extends CacheSize
+public interface ReaderFileProxy extends AutoCloseable
 {
-    public void put(K key, V value);
+    void close();               // no checked exceptions
 
-    public boolean putIfAbsent(K key, V value);
+    ChannelProxy channel();
 
-    public boolean replace(K key, V old, V value);
+    long fileLength();
 
-    public V get(K key);
-
-    public void remove(K key);
-
-    public void clear();
-
-    public Iterator<K> keyIterator();
-
-    public Iterator<K> hotKeyIterator(int n);
-
-    public boolean containsKey(K key);
+    /**
+     * Needed for tests. Returns the table's CRC check chance, which is only set for compressed tables.
+     */
+    double getCrcCheckChance();
 }

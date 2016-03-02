@@ -60,7 +60,7 @@ public class CompressedInputStream extends InputStream
     // number of bytes in the buffer that are actually valid
     protected int validBufferBytes = -1;
 
-    private final Checksum checksum;
+    private final ChecksumType checksumType;
 
     // raw checksum bytes
     private final byte[] checksumBytes = new byte[4];
@@ -76,11 +76,11 @@ public class CompressedInputStream extends InputStream
     public CompressedInputStream(InputStream source, CompressionInfo info, ChecksumType checksumType, Supplier<Double> crcCheckChanceSupplier)
     {
         this.info = info;
-        this.checksum =  checksumType.newInstance();
         this.buffer = new byte[info.parameters.chunkLength()];
         // buffer is limited to store up to 1024 chunks
         this.dataBuffer = new ArrayBlockingQueue<>(Math.min(info.chunks.length, 1024));
         this.crcCheckChanceSupplier = crcCheckChanceSupplier;
+        this.checksumType = checksumType;
 
         new Thread(new Reader(source, info, dataBuffer)).start();
     }
@@ -122,14 +122,11 @@ public class CompressedInputStream extends InputStream
         // validate crc randomly
         if (this.crcCheckChanceSupplier.get() > ThreadLocalRandom.current().nextDouble())
         {
-            checksum.update(compressed, 0, compressed.length - checksumBytes.length);
+            int checksum = (int) checksumType.of(compressed, 0, compressed.length - checksumBytes.length);
 
             System.arraycopy(compressed, compressed.length - checksumBytes.length, checksumBytes, 0, checksumBytes.length);
-            if (Ints.fromByteArray(checksumBytes) != (int) checksum.getValue())
+            if (Ints.fromByteArray(checksumBytes) != checksum)
                 throw new IOException("CRC unmatched");
-
-            // reset checksum object back to the original (blank) state
-            checksum.reset();
         }
 
         // buffer offset is always aligned

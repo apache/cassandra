@@ -46,7 +46,7 @@ import org.apache.cassandra.utils.concurrent.Ref;
 public class BufferPool
 {
     /** The size of a page aligned buffer, 64KiB */
-    static final int CHUNK_SIZE = 64 << 10;
+    public static final int CHUNK_SIZE = 64 << 10;
 
     @VisibleForTesting
     public static long MEMORY_USAGE_THRESHOLD = DatabaseDescriptor.getFileCacheSizeInMB() * 1024L * 1024L;

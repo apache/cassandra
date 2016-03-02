@@ -35,13 +35,11 @@ public final class CompressedChecksummedDataInput extends ChecksummedDataInput
     private volatile ByteBuffer compressedBuffer = null;
     private final ByteBuffer metadataBuffer = ByteBuffer.allocate(CompressedHintsWriter.METADATA_SIZE);
 
-    public CompressedChecksummedDataInput(CompressedChecksummedDataInputBuilder builder)
+    public CompressedChecksummedDataInput(ChannelProxy channel, ICompressor compressor, long filePosition)
     {
-        super(builder);
-        assert regions == null;  //mmapped regions are not supported
-
-        compressor = builder.compressor;
-        filePosition = builder.position;
+        super(channel, compressor.preferredBufferType());
+        this.compressor = compressor;
+        this.filePosition = filePosition;
     }
 
     /**
@@ -53,7 +51,13 @@ public final class CompressedChecksummedDataInput extends ChecksummedDataInput
         return filePosition == channel.size() && buffer.remaining() == 0;
     }
 
-    protected void reBufferStandard()
+    public long getSourcePosition()
+    {
+        return filePosition;
+    }
+
+    @Override
+    protected void readBuffer()
     {
         metadataBuffer.clear();
         channel.read(metadataBuffer, filePosition);
@@ -70,7 +74,7 @@ public final class CompressedChecksummedDataInput extends ChecksummedDataInput
             {
                 BufferPool.put(compressedBuffer);
             }
-            compressedBuffer = allocateBuffer(bufferSize, compressor.preferredBufferType());
+            compressedBuffer = BufferPool.get(bufferSize, compressor.preferredBufferType());
         }
 
         compressedBuffer.clear();
@@ -79,12 +83,11 @@ public final class CompressedChecksummedDataInput extends ChecksummedDataInput
         compressedBuffer.rewind();
         filePosition += compressedSize;
 
-        bufferOffset += buffer.position();
         if (buffer.capacity() < uncompressedSize)
         {
             int bufferSize = uncompressedSize + (uncompressedSize / 20);
             BufferPool.put(buffer);
-            buffer = allocateBuffer(bufferSize, compressor.preferredBufferType());
+            buffer = BufferPool.get(bufferSize, compressor.preferredBufferType());
         }
 
         buffer.clear();
@@ -100,19 +103,11 @@ public final class CompressedChecksummedDataInput extends ChecksummedDataInput
         }
     }
 
-    protected void releaseBuffer()
+    @Override
+    public void close()
     {
-        super.releaseBuffer();
-        if (compressedBuffer != null)
-        {
-            BufferPool.put(compressedBuffer);
-            compressedBuffer = null;
-        }
-    }
-
-    protected void reBufferMmap()
-    {
-        throw new UnsupportedOperationException();
+        BufferPool.put(compressedBuffer);
+        super.close();
     }
 
     @SuppressWarnings("resource") // Closing the ChecksummedDataInput will close the underlying channel.
@@ -121,10 +116,7 @@ public final class CompressedChecksummedDataInput extends ChecksummedDataInput
         long position = input.getPosition();
         input.close();
 
-        CompressedChecksummedDataInputBuilder builder = new CompressedChecksummedDataInputBuilder(new ChannelProxy(input.getPath()));
-        builder.withPosition(position);
-        builder.withCompressor(compressor);
-        return builder.build();
+        return new CompressedChecksummedDataInput(new ChannelProxy(input.getPath()), compressor, position);
     }
 
     @VisibleForTesting

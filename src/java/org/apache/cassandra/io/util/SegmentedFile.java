@@ -21,7 +21,6 @@ import java.io.DataInput;
 import java.io.DataOutput;
 import java.io.File;
 import java.io.IOException;
-import java.util.function.Supplier;
 
 import com.google.common.util.concurrent.RateLimiter;
 
@@ -52,27 +51,21 @@ import static org.apache.cassandra.utils.Throwables.maybeFail;
 public abstract class SegmentedFile extends SharedCloseableImpl
 {
     public final ChannelProxy channel;
-    public final int bufferSize;
-    public final long length;
 
     // This differs from length for compressed files (but we still need length for
     // SegmentIterator because offsets in the file are relative to the uncompressed size)
     public final long onDiskLength;
 
     /**
-     * Use getBuilder to get a Builder to construct a SegmentedFile.
+     * Rebufferer to use to construct RandomAccessReaders.
      */
-    SegmentedFile(Cleanup cleanup, ChannelProxy channel, int bufferSize, long length)
-    {
-        this(cleanup, channel, bufferSize, length, length);
-    }
+    private final RebuffererFactory rebufferer;
 
-    protected SegmentedFile(Cleanup cleanup, ChannelProxy channel, int bufferSize, long length, long onDiskLength)
+    protected SegmentedFile(Cleanup cleanup, ChannelProxy channel, RebuffererFactory rebufferer, long onDiskLength)
     {
         super(cleanup);
+        this.rebufferer = rebufferer;
         this.channel = channel;
-        this.bufferSize = bufferSize;
-        this.length = length;
         this.onDiskLength = onDiskLength;
     }
 
@@ -80,8 +73,7 @@ public abstract class SegmentedFile extends SharedCloseableImpl
     {
         super(copy);
         channel = copy.channel;
-        bufferSize = copy.bufferSize;
-        length = copy.length;
+        rebufferer = copy.rebufferer;
         onDiskLength = copy.onDiskLength;
     }
 
@@ -90,12 +82,24 @@ public abstract class SegmentedFile extends SharedCloseableImpl
         return channel.filePath();
     }
 
+    public long dataLength()
+    {
+        return rebufferer.fileLength();
+    }
+
+    public RebuffererFactory rebuffererFactory()
+    {
+        return rebufferer;
+    }
+
     protected static class Cleanup implements RefCounted.Tidy
     {
         final ChannelProxy channel;
-        protected Cleanup(ChannelProxy channel)
+        final ReaderFileProxy rebufferer;
+        protected Cleanup(ChannelProxy channel, ReaderFileProxy rebufferer)
         {
             this.channel = channel;
+            this.rebufferer = rebufferer;
         }
 
         public String name()
@@ -105,7 +109,14 @@ public abstract class SegmentedFile extends SharedCloseableImpl
 
         public void tidy()
         {
-            channel.close();
+            try
+            {
+                channel.close();
+            }
+            finally
+            {
+                rebufferer.close();
+            }
         }
     }
 
@@ -113,19 +124,12 @@ public abstract class SegmentedFile extends SharedCloseableImpl
 
     public RandomAccessReader createReader()
     {
-        return new RandomAccessReader.Builder(channel)
-               .overrideLength(length)
-               .bufferSize(bufferSize)
-               .build();
+        return RandomAccessReader.build(this, null);
     }
 
     public RandomAccessReader createReader(RateLimiter limiter)
     {
-        return new RandomAccessReader.Builder(channel)
-               .overrideLength(length)
-               .bufferSize(bufferSize)
-               .limiter(limiter)
-               .build();
+        return RandomAccessReader.build(this, limiter);
     }
 
     public FileDataInput createReader(long position)
@@ -308,7 +312,7 @@ public abstract class SegmentedFile extends SharedCloseableImpl
     @Override
     public String toString() {
         return getClass().getSimpleName() + "(path='" + path() + '\'' +
-               ", length=" + length +
+               ", length=" + rebufferer.fileLength() +
                ')';
-}
+    }
 }
