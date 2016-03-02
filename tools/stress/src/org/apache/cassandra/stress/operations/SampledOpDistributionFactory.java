@@ -44,16 +44,17 @@ public abstract class SampledOpDistributionFactory<T> implements OpDistributionF
         this.clustering = clustering;
     }
 
-    protected abstract List<? extends Operation> get(Timer timer, PartitionGenerator generator, T key);
+    protected abstract List<? extends Operation> get(Timer timer, PartitionGenerator generator, T key, boolean isWarmup);
     protected abstract PartitionGenerator newGenerator();
 
-    public OpDistribution get(Timing timing, int sampleCount)
+    public OpDistribution get(Timing timing, int sampleCount, boolean isWarmup)
     {
         PartitionGenerator generator = newGenerator();
         List<Pair<Operation, Double>> operations = new ArrayList<>();
         for (Map.Entry<T, Double> ratio : ratios.entrySet())
         {
-            List<? extends Operation> ops = get(timing.newTimer(ratio.getKey().toString(), sampleCount), generator, ratio.getKey());
+            List<? extends Operation> ops = get(timing.newTimer(ratio.getKey().toString(), sampleCount),
+                                                generator, ratio.getKey(), isWarmup);
             for (Operation op : ops)
                 operations.add(new Pair<>(op, ratio.getValue() / ops.size()));
         }
@@ -75,15 +76,18 @@ public abstract class SampledOpDistributionFactory<T> implements OpDistributionF
         {
             out.add(new OpDistributionFactory()
             {
-                public OpDistribution get(Timing timing, int sampleCount)
+                public OpDistribution get(Timing timing, int sampleCount, boolean isWarmup)
                 {
-                    List<? extends Operation> ops = SampledOpDistributionFactory.this.get(timing.newTimer(ratio.getKey().toString(), sampleCount), newGenerator(), ratio.getKey());
+                    List<? extends Operation> ops = SampledOpDistributionFactory.this.get(timing.newTimer(ratio.getKey().toString(), sampleCount),
+                                                                                          newGenerator(),
+                                                                                          ratio.getKey(),
+                                                                                          isWarmup);
                     if (ops.size() == 1)
                         return new FixedOpDistribution(ops.get(0));
                     List<Pair<Operation, Double>> ratios = new ArrayList<>();
                     for (Operation op : ops)
                         ratios.add(new Pair<>(op, 1d / ops.size()));
-                    return new SampledOpDistribution(new EnumeratedDistribution<Operation>(ratios), new DistributionFixed(1));
+                    return new SampledOpDistribution(new EnumeratedDistribution<>(ratios), new DistributionFixed(1));
                 }
 
                 public String desc()

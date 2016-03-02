@@ -20,6 +20,7 @@
  */
 package org.apache.cassandra.stress;
 
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
@@ -35,11 +36,18 @@ public class StressYaml
     public List<Map<String, Object>> columnspec;
     public Map<String, QueryDef> queries;
     public Map<String, String> insert;
+    public Map<String, TokenRangeQueryDef> token_range_queries = new HashMap<>();
 
     public static class QueryDef
     {
         public String cql;
         public String fields;
+    }
+
+    public static class TokenRangeQueryDef
+    {
+        public String columns;
+        public int page_size = 5000;
     }
 
 }

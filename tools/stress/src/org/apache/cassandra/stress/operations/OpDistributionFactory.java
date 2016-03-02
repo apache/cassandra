@@ -25,7 +25,7 @@ import org.apache.cassandra.stress.util.Timing;
 
 public interface OpDistributionFactory
 {
-    public OpDistribution get(Timing timing, int sampleCount);
+    public OpDistribution get(Timing timing, int sampleCount, boolean isWarmup);
     public String desc();
     Iterable<OpDistributionFactory> each();
 }

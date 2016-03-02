@@ -93,3 +93,16 @@ queries:
    range1:
       cql: select * from typestest where name = ? and choice = ? and date >= ? LIMIT 100
       fields: multirow            # samerow or multirow (select arguments from the same row, or randomly from all rows in the partition)
+
+
+#
+# A list of bulk read queries that analytics tools may perform against the schema
+# Each query will sweep an entire token range, page by page.
+#
+token_range_queries:
+  all_columns_tr_query:
+    columns: '*'
+    page_size: 5000
+
+  value_tr_query:
+    columns: value
