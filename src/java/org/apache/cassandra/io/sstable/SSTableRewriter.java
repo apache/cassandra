@@ -17,6 +17,7 @@
  */
 package org.apache.cassandra.io.sstable;
 
+import java.lang.ref.WeakReference;
 import java.util.*;
 
 import com.google.common.annotations.VisibleForTesting;
@@ -251,12 +252,12 @@ public class SSTableRewriter extends Transactional.AbstractTransactional impleme
     private static final class InvalidateKeys implements Runnable
     {
         final List<KeyCacheKey> cacheKeys = new ArrayList<>();
-        final InstrumentingCache<KeyCacheKey, ?> cache;
+        final WeakReference<InstrumentingCache<KeyCacheKey, ?>> cacheRef;
 
         private InvalidateKeys(SSTableReader reader, Collection<DecoratedKey> invalidate)
         {
-            this.cache = reader.getKeyCache();
-            if (cache != null)
+            this.cacheRef = new WeakReference<>(reader.getKeyCache());
+            if (cacheRef.get() != null)
             {
                 for (DecoratedKey key : invalidate)
                     cacheKeys.add(reader.getCacheKey(key));
@@ -266,7 +267,11 @@ public class SSTableRewriter extends Transactional.AbstractTransactional impleme
         public void run()
         {
             for (KeyCacheKey key : cacheKeys)
-                cache.remove(key);
+            {
+                InstrumentingCache<KeyCacheKey, ?> cache = cacheRef.get();
+                if (cache != null)
+                    cache.remove(key);
+            }
         }
     }
 
