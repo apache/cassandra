@@ -75,6 +75,7 @@ Merged from 2.2:
  * (cqlsh) Support timezone conversion using pytz (CASSANDRA-10397)
  * cqlsh: change default encoding to UTF-8 (CASSANDRA-11124)
 Merged from 2.1:
+ * InvalidateKeys should have a weak ref to key cache (CASSANDRA-11176)
  * Don't remove FailureDetector history on removeEndpoint (CASSANDRA-10371)
  * Only notify if repair status changed (CASSANDRA-11172)
  * Use logback setting for 'cassandra -v' command (CASSANDRA-10767)
