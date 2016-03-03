@@ -1,4 +1,6 @@
 3.5
+Merged from 3.0:
+ * Fix sstableloader fail when using materialized view (CASSANDRA-11275)
 Merged from 2.2:
  * Only log yaml config once, at startup (CASSANDRA-11217)
  * Reference leak with parallel repairs on the same table (CASSANDRA-11215)

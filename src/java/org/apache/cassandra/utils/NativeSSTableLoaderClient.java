@@ -169,12 +169,12 @@ public class NativeSSTableLoaderClient extends SSTableLoader.Client
                                                   Types types)
     {
         UUID id = row.getUUID("id");
-        Set<CFMetaData.Flag> flags = CFMetaData.flagsFromStrings(row.getSet("flags", String.class));
+        Set<CFMetaData.Flag> flags = isView ? Collections.emptySet() : CFMetaData.flagsFromStrings(row.getSet("flags", String.class));
 
         boolean isSuper = flags.contains(CFMetaData.Flag.SUPER);
         boolean isCounter = flags.contains(CFMetaData.Flag.COUNTER);
         boolean isDense = flags.contains(CFMetaData.Flag.DENSE);
-        boolean isCompound = flags.contains(CFMetaData.Flag.COMPOUND);
+        boolean isCompound = isView || flags.contains(CFMetaData.Flag.COMPOUND);
 
         String columnsQuery = String.format("SELECT * FROM %s.%s WHERE keyspace_name = ? AND table_name = ?",
                                             SchemaKeyspace.NAME,
