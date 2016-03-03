@@ -169,7 +169,7 @@ if os.path.isdir(cqlshlibdir):
 from cqlshlib import cql3handling, cqlhandling, pylexotron, sslhandling
 from cqlshlib.copyutil import ExportTask, ImportTask
 from cqlshlib.displaying import (ANSI_RESET, BLUE, COLUMN_NAME_COLORS, CYAN,
-                                 RED, FormattedValue, colorme)
+                                 RED, WHITE, FormattedValue, colorme)
 from cqlshlib.formatting import (DEFAULT_DATE_FORMAT, DEFAULT_NANOTIME_FORMAT,
                                  DEFAULT_TIMESTAMP_FORMAT, DateTimeFormat,
                                  format_by_type, format_value_utype,
@@ -841,6 +841,8 @@ class Shell(cmd.Cmd):
                 column_colors.default_factory = lambda: RED
             elif name in [col.name for col in table_meta.clustering_key]:
                 column_colors.default_factory = lambda: CYAN
+            elif name in table_meta.columns and table_meta.columns[name].is_static:
+                column_colors.default_factory = lambda: WHITE
         return self.myformat_value(name, colormap=column_colors)
 
     def report_connection(self):
