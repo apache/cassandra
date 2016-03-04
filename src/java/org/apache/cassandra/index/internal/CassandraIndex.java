@@ -48,6 +48,8 @@ import org.apache.cassandra.utils.Pair;
 import org.apache.cassandra.utils.concurrent.OpOrder;
 import org.apache.cassandra.utils.concurrent.Refs;
 
+import static org.apache.cassandra.cql3.statements.RequestValidations.checkFalse;
+
 /**
  * Index implementation which indexes the values for a single column in the base
  * table and which stores its index data in a local, hidden table.
@@ -190,6 +192,19 @@ public abstract class CassandraIndex implements Index
             indexCfs.reload();
             return null;
         };
+    }
+
+    @Override
+    public void validate(ReadCommand command) throws InvalidRequestException
+    {
+        Optional<RowFilter.Expression> target = getTargetExpression(command.rowFilter().getExpressions());
+
+        if (target.isPresent())
+        {
+            ByteBuffer indexValue = target.get().getIndexValue();
+            checkFalse(indexValue.remaining() > FBUtilities.MAX_UNSIGNED_SHORT,
+                       "Index expression values may not be larger than 64K");
+        }
     }
 
     private void setMetadata(IndexMetadata indexDef)

@@ -209,9 +209,7 @@ public class UpdateTest extends CQLTester
             assertInvalidMessage("Cannot use CONTAINS on non-collection column partitionkey",
                                  "UPDATE %s SET value = ? WHERE partitionKey CONTAINS ? AND clustering_1 = ?", 7, 0, 1);
 
-            String expectedMsg = isEmpty(compactOption) ? "Non PRIMARY KEY columns found in where clause: value"
-                                                        : "Predicates on the non-primary-key column (value) of a COMPACT table are not yet supported";
-            assertInvalidMessage(expectedMsg,
+            assertInvalidMessage("Non PRIMARY KEY columns found in where clause: value",
                                  "UPDATE %s SET value = ? WHERE partitionKey = ? AND clustering_1 = ? AND value = ?", 7, 0, 1, 3);
 
             assertInvalidMessage("Slice restrictions are not supported on the clustering columns in UPDATE statements",
@@ -398,9 +396,7 @@ public class UpdateTest extends CQLTester
             assertInvalidMessage("Cannot use CONTAINS on non-collection column partitionkey",
                                  "UPDATE %s SET value = ? WHERE partitionKey CONTAINS ? AND clustering_1 = ? AND clustering_2 = ?", 7, 0, 1, 1);
 
-            String expectedMsg = isEmpty(compactOption) ? "Non PRIMARY KEY columns found in where clause: value"
-                                                        : "Predicates on the non-primary-key column (value) of a COMPACT table are not yet supported";
-            assertInvalidMessage(expectedMsg,
+            assertInvalidMessage("Non PRIMARY KEY columns found in where clause: value",
                                  "UPDATE %s SET value = ? WHERE partitionKey = ? AND clustering_1 = ? AND clustering_2 = ? AND value = ?", 7, 0, 1, 1, 3);
 
             assertInvalidMessage("Slice restrictions are not supported on the clustering columns in UPDATE statements",

@@ -50,8 +50,10 @@ import static org.apache.cassandra.cql3.statements.RequestValidations.invalidReq
  */
 public final class StatementRestrictions
 {
-    public static final String NO_INDEX_FOUND_MESSAGE =
-        "No supported secondary index found for the non primary key columns restrictions";
+    public static final String REQUIRES_ALLOW_FILTERING_MESSAGE =
+            "Cannot execute this query as it might involve data filtering and " +
+            "thus may have unpredictable performance. If you want to execute " +
+            "this query despite the performance unpredictability, use ALLOW FILTERING";
 
     /**
      * The type of statement
@@ -224,7 +226,7 @@ public final class StatementRestrictions
             if (hasQueriableIndex)
                 usesSecondaryIndexing = true;
             else if (!useFiltering)
-                throw invalidRequest(NO_INDEX_FOUND_MESSAGE);
+                throw invalidRequest(StatementRestrictions.REQUIRES_ALLOW_FILTERING_MESSAGE);
 
             indexRestrictions.add(nonPrimaryKeyRestrictions);
         }
