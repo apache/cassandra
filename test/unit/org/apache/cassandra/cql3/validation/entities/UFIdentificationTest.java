@@ -200,18 +200,16 @@ public class UFIdentificationTest extends CQLTester
     public void testSelectStatementSimpleRestrictions() throws Throwable
     {
         assertFunctions(cql("SELECT i_val FROM %s WHERE key=%s", functionCall(iFunc, "1")), iFunc);
-        assertFunctions(cql("SELECT i_val FROM %s WHERE key=0 AND t_sc=%s", functionCall(tFunc, "'foo'")), tFunc);
         assertFunctions(cql("SELECT i_val FROM %s WHERE key=0 AND i_cc=%s AND t_cc='foo'", functionCall(iFunc, "1")), iFunc);
         assertFunctions(cql("SELECT i_val FROM %s WHERE key=0 AND i_cc=0 AND t_cc=%s", functionCall(tFunc, "'foo'")), tFunc);
 
         String iFunc2 = createEchoFunction("int");
         String tFunc2 = createEchoFunction("text");
-        assertFunctions(cql("SELECT i_val FROM %s WHERE key=%s AND t_sc=%s AND i_cc=%s AND t_cc=%s",
+        assertFunctions(cql("SELECT i_val FROM %s WHERE key=%s AND i_cc=%s AND t_cc=%s",
                             functionCall(iFunc, "1"),
-                            functionCall(tFunc, "'foo'"),
                             functionCall(iFunc2, "1"),
                             functionCall(tFunc2, "'foo'")),
-                        iFunc, tFunc, iFunc2, tFunc2);
+                        iFunc, iFunc2, tFunc2);
     }
 
     @Test

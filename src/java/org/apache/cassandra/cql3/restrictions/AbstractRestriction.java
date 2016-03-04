@@ -93,8 +93,8 @@ abstract class AbstractRestriction  implements Restriction
                                                      ByteBuffer value)
                                                      throws InvalidRequestException
     {
-        checkNotNull(value, "Unsupported null value for indexed column %s", columnSpec.name);
-        checkBindValueSet(value, "Unsupported unset value for indexed column %s", columnSpec.name);
+        checkNotNull(value, "Unsupported null value for column %s", columnSpec.name);
+        checkBindValueSet(value, "Unsupported unset value for column %s", columnSpec.name);
         checkFalse(value.remaining() > 0xFFFF, "Index expression values may not be larger than 64K");
         return value;
     }

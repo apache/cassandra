@@ -631,10 +631,10 @@ public class FrozenCollectionsTest extends CQLTester
         assertInvalidMessage("Cannot restrict clustering columns by a CONTAINS relation without a secondary index",
                              "SELECT * FROM %s WHERE b CONTAINS ? ALLOW FILTERING", 1);
 
-        assertInvalidMessage("No secondary indexes on the restricted columns support the provided operator",
+        assertInvalidMessage("Predicates on non-primary-key columns (d) are not yet supported for non secondary index queries",
                              "SELECT * FROM %s WHERE d CONTAINS KEY ?", 1);
 
-        assertInvalidMessage("No secondary indexes on the restricted columns support the provided operator",
+        assertInvalidMessage("Predicates on non-primary-key columns (d) are not yet supported for non secondary index queries",
                              "SELECT * FROM %s WHERE d CONTAINS KEY ? ALLOW FILTERING", 1);
 
         assertInvalidMessage("Cannot restrict clustering columns by a CONTAINS relation without a secondary index",

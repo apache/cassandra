@@ -604,7 +604,6 @@ public class SelectStatement implements CQLStatement
         SecondaryIndexManager secondaryIndexManager = cfs.indexManager;
 
         List<IndexExpression> expressions = restrictions.getIndexExpressions(secondaryIndexManager, options);
-
         secondaryIndexManager.validateIndexSearchersForQuery(expressions);
 
         return expressions;
@@ -853,7 +852,8 @@ public class SelectStatement implements CQLStatement
                                                  whereClause,
                                                  boundNames,
                                                  selection.containsOnlyStaticColumns(),
-                                                 selection.containsACollection());
+                                                 selection.containsACollection(),
+                                                 parameters.allowFiltering);
             }
             catch (UnrecognizedEntityException e)
             {
@@ -1003,9 +1003,7 @@ public class SelectStatement implements CQLStatement
                 //  - Have more than one IndexExpression
                 //  - Have no index expression and the column filter is not the identity
                 checkFalse(restrictions.needFiltering(),
-                           "Cannot execute this query as it might involve data filtering and " +
-                           "thus may have unpredictable performance. If you want to execute " +
-                           "this query despite the performance unpredictability, use ALLOW FILTERING");
+                           StatementRestrictions.REQUIRES_ALLOW_FILTERING_MESSAGE);
             }
 
             // We don't internally support exclusive slice bounds on non-composite tables. To deal with it we do an

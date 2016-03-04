@@ -38,6 +38,8 @@ import org.apache.commons.lang3.StringUtils;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import com.google.common.base.Joiner;
+
 import org.apache.cassandra.config.ColumnDefinition;
 import org.apache.cassandra.config.IndexType;
 import org.apache.cassandra.db.Cell;
@@ -49,6 +51,7 @@ import org.apache.cassandra.db.Row;
 import org.apache.cassandra.db.SystemKeyspace;
 import org.apache.cassandra.db.compaction.CompactionManager;
 import org.apache.cassandra.db.composites.CellName;
+import org.apache.cassandra.db.composites.CellNameType;
 import org.apache.cassandra.db.filter.ExtendedFilter;
 import org.apache.cassandra.exceptions.InvalidRequestException;
 import org.apache.cassandra.io.sstable.ReducingKeyIterator;
@@ -595,8 +598,15 @@ public class SecondaryIndexManager
             }
         }
 
-        if (!haveSupportedIndexLookup)
+        CellNameType comparator = baseCfs.metadata.comparator;
+        // For thrift static CFs we can use filtering if no indexes can be used
+        if (!haveSupportedIndexLookup && (comparator.isDense() ||  comparator.isCompound()))
         {
+            if (expressionsByIndexType.isEmpty())
+                throw new InvalidRequestException(
+                    String.format("Predicates on non-primary-key columns (%s) are not yet supported for non secondary index queries",
+                                  Joiner.on(", ").join(getColumnNames(clause))));
+
             // build the error message
             int i = 0;
             StringBuilder sb = new StringBuilder("No secondary indexes on the restricted columns support the provided operators: ");
@@ -607,21 +617,34 @@ public class SecondaryIndexManager
                     if (i++ > 0)
                         sb.append(", ");
                     sb.append("'");
-                    String columnName;
-                    try
-                    {
-                        columnName = ByteBufferUtil.string(expression.column);
-                    }
-                    catch (CharacterCodingException ex)
-                    {
-                        columnName = "<unprintable>";
-                    }
+                    String columnName = getColumnName(expression);
                     sb.append(columnName).append(" ").append(expression.operator).append(" <value>").append("'");
                 }
             }
 
             throw new InvalidRequestException(sb.toString());
         }
+    }
+
+    private static String getColumnName(IndexExpression expression)
+    {
+        try
+        {
+            return ByteBufferUtil.string(expression.column);
+        }
+        catch (CharacterCodingException ex)
+        {
+            return "<unprintable>";
+        }
+    }
+
+    private static Set<String> getColumnNames(List<IndexExpression> expressions)
+    {
+        Set<String> columnNames = new HashSet<>();
+        for (IndexExpression expression : expressions)
+            columnNames.add(getColumnName(expression));
+
+        return columnNames;
     }
 
     /**

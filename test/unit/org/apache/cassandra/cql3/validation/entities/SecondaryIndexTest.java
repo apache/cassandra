@@ -109,7 +109,7 @@ public class SecondaryIndexTest extends CQLTester
             execute("DROP INDEX " + indexName);
         }
 
-        assertInvalidMessage("No secondary indexes on the restricted columns support the provided operators",
+        assertInvalidMessage("Predicates on non-primary-key columns (b) are not yet supported for non secondary index queries",
                              "SELECT * FROM %s where b = ?", 1);
         dropIndex("DROP INDEX IF EXISTS " + indexName);
         assertInvalidMessage("Index '" + removeQuotes(indexName.toLowerCase(Locale.US)) + "' could not be found", "DROP INDEX " + indexName);

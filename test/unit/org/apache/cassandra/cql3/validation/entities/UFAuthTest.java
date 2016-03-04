@@ -261,17 +261,6 @@ public class UFAuthTest extends CQLTester
     }
 
     @Test
-    public void functionInStaticColumnRestrictionInSelect() throws Throwable
-    {
-        setupTable("CREATE TABLE %s (k int, s int STATIC, v1 int, v2 int, PRIMARY KEY(k, v1))");
-        String functionName = createSimpleFunction();
-        String cql = String.format("SELECT k FROM %s WHERE k = 0 AND s = %s",
-                                   KEYSPACE + "." + currentTable(),
-                                   functionCall(functionName));
-        assertPermissionsOnFunction(cql, functionName);
-    }
-
-    @Test
     public void functionInRegularCondition() throws Throwable
     {
         String functionName = createSimpleFunction();

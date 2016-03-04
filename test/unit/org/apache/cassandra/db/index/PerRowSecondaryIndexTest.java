@@ -155,7 +155,7 @@ public class PerRowSecondaryIndexTest
 
         assertTrue(Arrays.equals("k3".getBytes(), PerRowSecondaryIndexTest.TestIndex.LAST_INDEXED_KEY.array()));
     }
-    
+
     @Test
     public void testInvalidSearch()
     {
@@ -163,7 +163,7 @@ public class PerRowSecondaryIndexTest
         rm = new Mutation(KEYSPACE1, ByteBufferUtil.bytes("k4"));
         rm.add("Indexed1", Util.cellname("indexed"), ByteBufferUtil.bytes("foo"), 1);
         rm.apply();
-        
+
         // test we can search:
         UntypedResultSet result = QueryProcessor.executeInternal(String.format("SELECT * FROM \"%s\".\"Indexed1\" WHERE indexed = 'foo'", KEYSPACE1));
         assertEquals(1, result.size());

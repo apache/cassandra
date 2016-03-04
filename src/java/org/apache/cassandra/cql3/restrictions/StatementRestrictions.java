@@ -36,6 +36,7 @@ import org.apache.cassandra.exceptions.InvalidRequestException;
 import org.apache.cassandra.service.StorageService;
 import org.apache.cassandra.utils.ByteBufferUtil;
 
+import static org.apache.cassandra.config.ColumnDefinition.toIdentifiers;
 import static org.apache.cassandra.cql3.statements.RequestValidations.checkFalse;
 import static org.apache.cassandra.cql3.statements.RequestValidations.checkNotNull;
 import static org.apache.cassandra.cql3.statements.RequestValidations.checkTrue;
@@ -46,6 +47,11 @@ import static org.apache.cassandra.cql3.statements.RequestValidations.invalidReq
  */
 public final class StatementRestrictions
 {
+    public static final String REQUIRES_ALLOW_FILTERING_MESSAGE =
+            "Cannot execute this query as it might involve data filtering and " +
+            "thus may have unpredictable performance. If you want to execute " +
+            "this query despite the performance unpredictability, use ALLOW FILTERING";
+
     /**
      * The Column Family meta data
      */
@@ -101,10 +107,11 @@ public final class StatementRestrictions
     }
 
     public StatementRestrictions(CFMetaData cfm,
-            List<Relation> whereClause,
-            VariableSpecifications boundNames,
-            boolean selectsOnlyStaticColumns,
-            boolean selectACollection) throws InvalidRequestException
+                                 List<Relation> whereClause,
+                                 VariableSpecifications boundNames,
+                                 boolean selectsOnlyStaticColumns,
+                                 boolean selectACollection,
+                                 boolean useFiltering)
     {
         this.cfm = cfm;
         this.partitionKeyRestrictions = new PrimaryKeyRestrictionSet(cfm.getKeyValidatorAsCType());
@@ -155,6 +162,16 @@ public final class StatementRestrictions
         // there is restrictions not covered by the PK.
         if (!nonPrimaryKeyRestrictions.isEmpty())
         {
+            if (!hasQueriableIndex)
+            {
+                // Filtering for non-index query is only supported for thrift static CFs
+                if (cfm.comparator.isDense() ||  cfm.comparator.isCompound())
+                    throw invalidRequest("Predicates on non-primary-key columns (%s) are not yet supported for non secondary index queries",
+                                         Joiner.on(", ").join(toIdentifiers(nonPrimaryKeyRestrictions.getColumnDefs())));
+
+                if (!useFiltering)
+                    throw invalidRequest(REQUIRES_ALLOW_FILTERING_MESSAGE);
+            }
             usesSecondaryIndexing = true;
             indexRestrictions.add(nonPrimaryKeyRestrictions);
         }
