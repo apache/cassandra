@@ -243,10 +243,6 @@ public final class SingleColumnRelation extends Relation
     {
         ColumnSpecification receiver = columnDef;
 
-        checkFalse(!columnDef.isPrimaryKeyColumn() && isDense,
-                   "Predicates on the non-primary-key column (%s) of a COMPACT table are not yet supported",
-                   columnDef.name);
-
         if (isIN())
         {
             // We only allow IN on the row key and the clustering key so far, never on non-PK columns, and this even if

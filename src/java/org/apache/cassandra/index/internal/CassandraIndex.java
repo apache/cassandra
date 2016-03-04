@@ -5,12 +5,11 @@ import java.util.*;
 import java.util.concurrent.Callable;
 import java.util.concurrent.Future;
 import java.util.function.BiFunction;
-import java.util.regex.Pattern;
 import java.util.stream.Collectors;
 import java.util.stream.StreamSupport;
 
 import com.google.common.collect.ImmutableSet;
-import org.apache.cassandra.index.TargetParser;
+
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -31,9 +30,7 @@ import org.apache.cassandra.db.partitions.PartitionUpdate;
 import org.apache.cassandra.db.rows.*;
 import org.apache.cassandra.dht.LocalPartitioner;
 import org.apache.cassandra.exceptions.InvalidRequestException;
-import org.apache.cassandra.index.Index;
-import org.apache.cassandra.index.IndexRegistry;
-import org.apache.cassandra.index.SecondaryIndexBuilder;
+import org.apache.cassandra.index.*;
 import org.apache.cassandra.index.internal.composites.CompositesSearcher;
 import org.apache.cassandra.index.internal.keys.KeysSearcher;
 import org.apache.cassandra.index.transactions.IndexTransaction;
@@ -45,6 +42,8 @@ import org.apache.cassandra.utils.FBUtilities;
 import org.apache.cassandra.utils.Pair;
 import org.apache.cassandra.utils.concurrent.OpOrder;
 import org.apache.cassandra.utils.concurrent.Refs;
+
+import static org.apache.cassandra.cql3.statements.RequestValidations.checkFalse;
 
 /**
  * Index implementation which indexes the values for a single column in the base
@@ -188,6 +187,19 @@ public abstract class CassandraIndex implements Index
         };
     }
 
+    @Override
+    public void validate(ReadCommand command) throws InvalidRequestException
+    {
+        Optional<RowFilter.Expression> target = getTargetExpression(command.rowFilter().getExpressions());
+
+        if (target.isPresent())
+        {
+            ByteBuffer indexValue = target.get().getIndexValue();
+            checkFalse(indexValue.remaining() > FBUtilities.MAX_UNSIGNED_SHORT,
+                       "Index expression values may not be larger than 64K");
+        }
+    }
+
     private void setMetadata(IndexMetadata indexDef)
     {
         metadata = indexDef;
@@ -266,7 +278,6 @@ public abstract class CassandraIndex implements Index
 
         if (target.isPresent())
         {
-            target.get().validateForIndexing();
             switch (getIndexMetadata().kind)
             {
                 case COMPOSITES:

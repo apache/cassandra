@@ -1,5 +1,6 @@
 3.5
 Merged from 3.0:
+ * Fix filtering on non-primary key columns for queries without index (CASSANDRA-6377)
  * Fix sstableloader fail when using materialized view (CASSANDRA-11275)
 Merged from 2.2:
  * Only log yaml config once, at startup (CASSANDRA-11217)

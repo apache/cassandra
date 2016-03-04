@@ -80,23 +80,29 @@ public abstract class RowFilter implements Iterable<RowFilter.Expression>
 
     public void add(ColumnDefinition def, Operator op, ByteBuffer value)
     {
-        expressions.add(new SimpleExpression(def, op, value));
+        add(new SimpleExpression(def, op, value));
     }
 
     public void addMapEquality(ColumnDefinition def, ByteBuffer key, Operator op, ByteBuffer value)
     {
-        expressions.add(new MapEqualityExpression(def, key, op, value));
+        add(new MapEqualityExpression(def, key, op, value));
     }
 
     public void addThriftExpression(CFMetaData metadata, ByteBuffer name, Operator op, ByteBuffer value)
     {
         assert (this instanceof ThriftFilter);
-        expressions.add(new ThriftExpression(metadata, name, op, value));
+        add(new ThriftExpression(metadata, name, op, value));
     }
 
     public void addCustomIndexExpression(CFMetaData cfm, IndexMetadata targetIndex, ByteBuffer value)
     {
-        expressions.add(new CustomExpression(cfm, targetIndex, value));
+        add(new CustomExpression(cfm, targetIndex, value));
+    }
+
+    private void add(Expression expression)
+    {
+        expression.validate();
+        expressions.add(expression);
     }
 
     public List<Expression> getExpressions()
@@ -228,6 +234,9 @@ public abstract class RowFilter implements Iterable<RowFilter.Expression>
                 return iter;
 
             final CFMetaData metadata = iter.metadata();
+            long numberOfStaticColumnExpressions = expressions.stream().filter(e -> e.column.isStatic()).count();
+            final boolean filterStaticColumns = numberOfStaticColumnExpressions != 0;
+            final boolean filterNonStaticColumns = (expressions.size() - numberOfStaticColumnExpressions) > 0;
 
             class IsSatisfiedFilter extends Transformation<UnfilteredRowIterator>
             {
@@ -235,12 +244,13 @@ public abstract class RowFilter implements Iterable<RowFilter.Expression>
                 public UnfilteredRowIterator applyToPartition(UnfilteredRowIterator partition)
                 {
                     // The filter might be on static columns, so need to check static row first.
-                    Row staticRow = applyToRow(partition.staticRow());
-                    if (staticRow == null)
+                    if (filterStaticColumns && applyToRow(partition.staticRow()) == null)
                         return null;
 
                     pk = partition.partitionKey();
-                    return Transformation.apply(partition, this);
+                    UnfilteredRowIterator iterator = Transformation.apply(partition, this);
+
+                    return (filterNonStaticColumns && !iterator.hasNext()) ? null : iterator;
                 }
 
                 public Row applyToRow(Row row)
@@ -375,11 +385,17 @@ public abstract class RowFilter implements Iterable<RowFilter.Expression>
             return value;
         }
 
-        public void validateForIndexing() throws InvalidRequestException
+        public void validate()
         {
-            checkNotNull(value, "Unsupported null value for indexed column %s", column.name);
-            checkBindValueSet(value, "Unsupported unset value for indexed column %s", column.name);
-            checkFalse(value.remaining() > FBUtilities.MAX_UNSIGNED_SHORT, "Index expression values may not be larger than 64K");
+            checkNotNull(value, "Unsupported null value for column %s", column.name);
+            checkBindValueSet(value, "Unsupported unset value for column %s", column.name);
+        }
+
+        @Deprecated
+        public void validateForIndexing()
+        {
+            checkFalse(value.remaining() > FBUtilities.MAX_UNSIGNED_SHORT,
+                       "Index expression values may not be larger than 64K");
         }
 
         /**
@@ -720,11 +736,12 @@ public abstract class RowFilter implements Iterable<RowFilter.Expression>
         }
 
         @Override
-        public void validateForIndexing() throws InvalidRequestException
+        public void validate() throws InvalidRequestException
         {
-            super.validateForIndexing();
-            checkNotNull(key, "Unsupported null value for key of map column %s", column.name);
-            checkBindValueSet(key, "Unsupported unset value for key of map column %s", column.name);
+            checkNotNull(key, "Unsupported null map key for column %s", column.name);
+            checkBindValueSet(key, "Unsupported unset map key for column %s", column.name);
+            checkNotNull(value, "Unsupported null map value for column %s", column.name);
+            checkBindValueSet(value, "Unsupported unset map value for column %s", column.name);
         }
 
         @Override
@@ -803,13 +820,10 @@ public abstract class RowFilter implements Iterable<RowFilter.Expression>
      */
     private static class ThriftExpression extends Expression
     {
-        private final CFMetaData metadata;
-
         public ThriftExpression(CFMetaData metadata, ByteBuffer name, Operator operator, ByteBuffer value)
         {
             super(makeDefinition(metadata, name), operator, value);
             assert metadata.isCompactTable();
-            this.metadata = metadata;
         }
 
         private static ColumnDefinition makeDefinition(CFMetaData metadata, ByteBuffer name)

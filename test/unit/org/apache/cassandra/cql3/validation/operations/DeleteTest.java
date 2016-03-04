@@ -503,10 +503,7 @@ public class DeleteTest extends CQLTester
                                  "DELETE FROM %s WHERE partitionKey CONTAINS ? AND clustering = ?", 0, 1);
 
             // Non primary key in the where clause
-            String errorMsg = isEmpty(compactOption) ? "Non PRIMARY KEY columns found in where clause: value"
-                                                     : "Predicates on the non-primary-key column (value) of a COMPACT table are not yet supported";
-
-            assertInvalidMessage(errorMsg,
+            assertInvalidMessage("Non PRIMARY KEY columns found in where clause: value",
                                  "DELETE FROM %s WHERE partitionKey = ? AND clustering = ? AND value = ?", 0, 1, 3);
         }
     }
@@ -636,10 +633,7 @@ public class DeleteTest extends CQLTester
                                  "DELETE FROM %s WHERE partitionKey CONTAINS ? AND clustering_1 = ? AND clustering_2 = ?", 0, 1, 1);
 
             // Non primary key in the where clause
-            String errorMsg = isEmpty(compactOption) ? "Non PRIMARY KEY columns found in where clause: value"
-                                                     : "Predicates on the non-primary-key column (value) of a COMPACT table are not yet supported";
-
-            assertInvalidMessage(errorMsg,
+            assertInvalidMessage("Non PRIMARY KEY columns found in where clause: value",
                                  "DELETE FROM %s WHERE partitionKey = ? AND clustering_1 = ? AND clustering_2 = ? AND value = ?", 0, 1, 1, 3);
         }
     }

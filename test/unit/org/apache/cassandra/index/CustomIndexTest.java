@@ -15,9 +15,9 @@ import org.apache.cassandra.config.CFMetaData;
 import org.apache.cassandra.cql3.CQLTester;
 import org.apache.cassandra.cql3.ColumnIdentifier;
 import org.apache.cassandra.cql3.restrictions.IndexRestrictions;
+import org.apache.cassandra.cql3.restrictions.StatementRestrictions;
 import org.apache.cassandra.cql3.statements.IndexTarget;
 import org.apache.cassandra.cql3.statements.ModificationStatement;
-import org.apache.cassandra.cql3.statements.SelectStatement;
 import org.apache.cassandra.db.ColumnFamilyStore;
 import org.apache.cassandra.db.ReadCommand;
 import org.apache.cassandra.db.ReadExecutionController;
@@ -347,7 +347,7 @@ public class CustomIndexTest extends CQLTester
                                   "SELECT * FROM %s WHERE expr(custom_index, 'foo') AND expr(other_custom_index, 'bar')");
 
         assertInvalidThrowMessage(Server.CURRENT_VERSION,
-                                  SelectStatement.REQUIRES_ALLOW_FILTERING_MESSAGE,
+                                  StatementRestrictions.REQUIRES_ALLOW_FILTERING_MESSAGE,
                                   QueryValidationException.class,
                                   "SELECT * FROM %s WHERE expr(custom_index, 'foo') AND d=0");
         assertRows(execute("SELECT * FROM %s WHERE expr(custom_index, 'foo') AND d=0 ALLOW FILTERING"), row);
