@@ -46,7 +46,6 @@ import org.apache.cassandra.db.rows.RowIterator;
 import org.apache.cassandra.db.view.View;
 import org.apache.cassandra.dht.AbstractBounds;
 import org.apache.cassandra.exceptions.*;
-import org.apache.cassandra.index.Index;
 import org.apache.cassandra.index.SecondaryIndexManager;
 import org.apache.cassandra.serializers.MarshalException;
 import org.apache.cassandra.service.ClientState;
@@ -79,11 +78,6 @@ public class SelectStatement implements CQLStatement
     private static final Logger logger = LoggerFactory.getLogger(SelectStatement.class);
 
     private static final int DEFAULT_COUNT_PAGE_SIZE = 10000;
-    public static final String REQUIRES_ALLOW_FILTERING_MESSAGE =
-        "Cannot execute this query as it might involve data filtering and " +
-        "thus may have unpredictable performance. If you want to execute " +
-        "this query despite the performance unpredictability, use ALLOW FILTERING";
-
     private final int boundTerms;
     public final CFMetaData cfm;
     public final Parameters parameters;
@@ -702,9 +696,7 @@ public class SelectStatement implements CQLStatement
         // we want to include static columns and we're done.
         if (!partition.hasNext())
         {
-            if (!staticRow.isEmpty()
-                && (!restrictions.hasClusteringColumnsRestriction() || cfm.isStaticCompactTable())
-                && !restrictions.hasRegularColumnsRestriction())
+            if (!staticRow.isEmpty() && (!restrictions.hasClusteringColumnsRestriction() || cfm.isStaticCompactTable()))
             {
                 result.newRow(protocolVersion);
                 for (ColumnDefinition def : selection.getColumns())
@@ -1020,7 +1012,7 @@ public class SelectStatement implements CQLStatement
                 // We will potentially filter data if either:
                 //  - Have more than one IndexExpression
                 //  - Have no index expression and the row filter is not the identity
-                checkFalse(restrictions.needFiltering(), REQUIRES_ALLOW_FILTERING_MESSAGE);
+                checkFalse(restrictions.needFiltering(), StatementRestrictions.REQUIRES_ALLOW_FILTERING_MESSAGE);
             }
         }
 
