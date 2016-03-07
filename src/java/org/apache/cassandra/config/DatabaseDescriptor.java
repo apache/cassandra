@@ -951,7 +951,7 @@ public class DatabaseDescriptor
         }
         catch (UnknownHostException e)
         {
-            return null;
+            throw new RuntimeException("Replacement ost name could not be resolved or scope_id was specified for a global IPv6 address", e);
         }
     }
 
