@@ -1,4 +1,5 @@
 2.2.6
+ * Unresolved hostname leads to replace being ignored (CASSANDRA-11210)
  * Fix filtering on non-primary key columns for thrift static column families
    (CASSANDRA-6377)
  * Only log yaml config once, at startup (CASSANDRA-11217)
