@@ -63,6 +63,7 @@ Merged from 3.0:
    properly (CASSANDRA-11050)
  * Fix NPE when using forceRepairRangeAsync without DC (CASSANDRA-11239)
 Merged from 2.2:
+ * Unresolved hostname leads to replace being ignored (CASSANDRA-11210)
  * Preserve order for preferred SSL cipher suites (CASSANDRA-11164)
  * Range.compareTo() violates the contract of Comparable (CASSANDRA-11216)
  * Avoid NPE when serializing ErrorMessage with null message (CASSANDRA-11167)
