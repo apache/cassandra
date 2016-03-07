@@ -65,6 +65,18 @@ public class EstimatedHistogram
         buckets = new AtomicLongArray(bucketOffsets.length + 1);
     }
 
+    /**
+     * Create EstimatedHistogram from only bucket data.
+     *
+     * @param bucketData bucket data
+     */
+    public EstimatedHistogram(long[] bucketData)
+    {
+        assert bucketData != null && bucketData.length > 0 : "Bucket data must be an array of size more than 0";
+        bucketOffsets = newOffsets(bucketData.length - 1, false);
+        buckets = new AtomicLongArray(bucketData);
+    }
+
     public EstimatedHistogram(long[] offsets, long[] bucketData)
     {
         assert bucketData.length == offsets.length +1;
@@ -239,6 +251,14 @@ public class EstimatedHistogram
        for (int i = 0; i < buckets.length(); i++)
            sum += buckets.get(i);
        return sum;
+    }
+
+    /**
+     * @return the largest bucket offset
+     */
+    public long getLargestBucketOffset()
+    {
+        return bucketOffsets[bucketOffsets.length - 1];
     }
 
     /**
