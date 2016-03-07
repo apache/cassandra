@@ -420,7 +420,7 @@ public class UnfilteredSerializer
                 long timestamp = header.readTimestamp(in);
                 int ttl = hasTTL ? header.readTTL(in) : LivenessInfo.NO_TTL;
                 int localDeletionTime = hasTTL ? header.readLocalDeletionTime(in) : LivenessInfo.NO_EXPIRATION_TIME;
-                rowLiveness = LivenessInfo.create(timestamp, ttl, localDeletionTime);
+                rowLiveness = LivenessInfo.withExpirationTime(timestamp, ttl, localDeletionTime);
             }
 
             builder.addPrimaryKeyLivenessInfo(rowLiveness);

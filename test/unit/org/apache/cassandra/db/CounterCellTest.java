@@ -101,20 +101,20 @@ public class CounterCellTest
     {
         ColumnDefinition cDef = cfs.metadata.getColumnDefinition(colName);
         ByteBuffer val = CounterContext.instance().createLocal(count);
-        return BufferCell.live(cfs.metadata, cDef, ts, val);
+        return BufferCell.live(cDef, ts, val);
     }
 
     private Cell createCounterCell(ColumnFamilyStore cfs, ByteBuffer colName, CounterId id, long count, long ts)
     {
         ColumnDefinition cDef = cfs.metadata.getColumnDefinition(colName);
         ByteBuffer val = CounterContext.instance().createGlobal(id, ts, count);
-        return BufferCell.live(cfs.metadata, cDef, ts, val);
+        return BufferCell.live(cDef, ts, val);
     }
 
     private Cell createCounterCellFromContext(ColumnFamilyStore cfs, ByteBuffer colName, ContextState context, long ts)
     {
         ColumnDefinition cDef = cfs.metadata.getColumnDefinition(colName);
-        return BufferCell.live(cfs.metadata, cDef, ts, context.context);
+        return BufferCell.live(cDef, ts, context.context);
     }
 
     private Cell createDeleted(ColumnFamilyStore cfs, ByteBuffer colName, long ts, int localDeletionTime)
@@ -274,7 +274,7 @@ public class CounterCellTest
         Cell original = createCounterCellFromContext(cfs, col, state, 5);
 
         ColumnDefinition cDef = cfs.metadata.getColumnDefinition(col);
-        Cell cleared = BufferCell.live(cfs.metadata, cDef, 5, CounterContext.instance().clearAllLocal(state.context));
+        Cell cleared = BufferCell.live(cDef, 5, CounterContext.instance().clearAllLocal(state.context));
 
         CounterContext.instance().updateDigest(digest1, original.value());
         CounterContext.instance().updateDigest(digest2, cleared.value());

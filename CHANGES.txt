@@ -1,3 +1,7 @@
+3.6
+ * Allow to remove TTLs on table with default_time_to_live (CASSANDRA-11207)
+
+
 3.5
 Merged from 3.0:
  * Fix filtering on non-primary key columns for queries without index (CASSANDRA-6377)

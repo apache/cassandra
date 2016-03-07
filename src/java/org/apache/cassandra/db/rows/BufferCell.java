@@ -19,12 +19,10 @@ package org.apache.cassandra.db.rows;
 
 import java.nio.ByteBuffer;
 
-import org.apache.cassandra.config.CFMetaData;
 import org.apache.cassandra.config.ColumnDefinition;
 import org.apache.cassandra.db.marshal.ByteType;
 import org.apache.cassandra.utils.ByteBufferUtil;
 import org.apache.cassandra.utils.ObjectSizes;
-import org.apache.cassandra.utils.FBUtilities;
 import org.apache.cassandra.utils.memory.AbstractAllocator;
 
 public class BufferCell extends AbstractCell
@@ -49,16 +47,13 @@ public class BufferCell extends AbstractCell
         this.path = path;
     }
 
-    public static BufferCell live(CFMetaData metadata, ColumnDefinition column, long timestamp, ByteBuffer value)
+    public static BufferCell live(ColumnDefinition column, long timestamp, ByteBuffer value)
     {
-        return live(metadata, column, timestamp, value, null);
+        return live(column, timestamp, value, null);
     }
 
-    public static BufferCell live(CFMetaData metadata, ColumnDefinition column, long timestamp, ByteBuffer value, CellPath path)
+    public static BufferCell live(ColumnDefinition column, long timestamp, ByteBuffer value, CellPath path)
     {
-        if (metadata.params.defaultTimeToLive != NO_TTL)
-            return expiring(column, timestamp, metadata.params.defaultTimeToLive, FBUtilities.nowInSeconds(), value, path);
-
         return new BufferCell(column, timestamp, NO_TTL, NO_DELETION_TIME, value, path);
     }
 

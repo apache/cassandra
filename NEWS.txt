@@ -13,8 +13,16 @@ restore snapshots created with the previous major version using the
 'sstableloader' tool. You can upgrade the file format of your snapshots
 using the provided 'sstableupgrade' tool.
 
+3.6
+=====
+
+New features
+------------
+   - for tables having a default_time_to_live specifying a TTL of 0 will remove the TTL
+     from the inserted or updated values.
+
 3.4
-===
+=====
 
 New features
 ------------

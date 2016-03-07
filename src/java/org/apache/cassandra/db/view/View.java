@@ -371,8 +371,7 @@ public class View
             clustering.add(value);
         }
         regularBuilder.newRow(clustering.build());
-        regularBuilder.addPrimaryKeyLivenessInfo(LivenessInfo.create(viewCfm,
-                                                                     temporalRow.viewClusteringTimestamp(),
+        regularBuilder.addPrimaryKeyLivenessInfo(LivenessInfo.create(temporalRow.viewClusteringTimestamp(),
                                                                      temporalRow.viewClusteringTtl(),
                                                                      temporalRow.viewClusteringLocalDeletionTime()));
 

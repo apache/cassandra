@@ -447,7 +447,7 @@ public class DataResolverTest
 
     private Cell mapCell(int k, int v, long ts)
     {
-        return BufferCell.live(cfm2, m, ts, bb(v), CellPath.create(bb(k)));
+        return BufferCell.live(m, ts, bb(v), CellPath.create(bb(k)));
     }
 
     @Test

@@ -1167,7 +1167,7 @@ public abstract class LegacyLayout
             {
                 // It's the row marker
                 assert !cell.value.hasRemaining();
-                builder.addPrimaryKeyLivenessInfo(LivenessInfo.create(cell.timestamp, cell.ttl, cell.localDeletionTime));
+                builder.addPrimaryKeyLivenessInfo(LivenessInfo.withExpirationTime(cell.timestamp, cell.ttl, cell.localDeletionTime));
             }
             else
             {

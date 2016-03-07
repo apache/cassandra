@@ -625,7 +625,7 @@ public class OperationTest extends SchemaLoader
 
     private static Cell buildCell(ColumnDefinition column, ByteBuffer value, long timestamp)
     {
-        return BufferCell.live(BACKEND.metadata, column, timestamp, value);
+        return BufferCell.live(column, timestamp, value);
     }
 
     private static Cell deletedCell(ColumnDefinition column, long timestamp, int nowInSeconds)

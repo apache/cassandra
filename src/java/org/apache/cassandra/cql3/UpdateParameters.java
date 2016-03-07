@@ -116,7 +116,7 @@ public class UpdateParameters
 
     public void addPrimaryKeyLivenessInfo()
     {
-        builder.addPrimaryKeyLivenessInfo(LivenessInfo.create(metadata, timestamp, ttl, nowInSec));
+        builder.addPrimaryKeyLivenessInfo(LivenessInfo.create(timestamp, ttl, nowInSec));
     }
 
     public void addRowDeletion()
@@ -149,7 +149,7 @@ public class UpdateParameters
     public void addCell(ColumnDefinition column, CellPath path, ByteBuffer value) throws InvalidRequestException
     {
         Cell cell = ttl == LivenessInfo.NO_TTL
-                  ? BufferCell.live(metadata, column, timestamp, value, path)
+                  ? BufferCell.live(column, timestamp, value, path)
                   : BufferCell.expiring(column, timestamp, ttl, nowInSec, value, path);
         builder.addCell(cell);
     }
@@ -166,7 +166,7 @@ public class UpdateParameters
         // but that makes things a bit more complex as this means we need to be able to distinguish inside
         // PartitionUpdate between counter updates that has been processed by CounterMutation and those that
         // haven't.
-        builder.addCell(BufferCell.live(metadata, column, timestamp, CounterContext.instance().createLocal(increment)));
+        builder.addCell(BufferCell.live(column, timestamp, CounterContext.instance().createLocal(increment)));
     }
 
     public void setComplexDeletionTime(ColumnDefinition column)

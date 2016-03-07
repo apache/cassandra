@@ -18,9 +18,12 @@
 
 package org.apache.cassandra.cql3.validation.operations;
 
+import org.junit.Assert;
 import org.junit.Test;
 
 import org.apache.cassandra.cql3.CQLTester;
+import org.apache.cassandra.cql3.UntypedResultSet;
+import org.apache.cassandra.cql3.UntypedResultSet.Row;
 
 public class InsertTest extends CQLTester
 {
@@ -282,5 +285,33 @@ public class InsertTest extends CQLTester
                              "INSERT INTO %s (clustering_1, clustering_2, staticValue) VALUES (0, 0, 'A')");
         assertInvalidMessage("Some clustering keys are missing: clustering_1",
                              "INSERT INTO %s (partitionKey, clustering_2, staticValue) VALUES (0, 0, 'A')");
+    }
+
+    @Test
+    public void testInsertWithDefaultTtl() throws Throwable
+    {
+        final int secondsPerMinute = 60;
+        createTable("CREATE TABLE %s (a int PRIMARY KEY, b int) WITH default_time_to_live = " + (10 * secondsPerMinute));
+
+        execute("INSERT INTO %s (a, b) VALUES (1, 1)");
+        UntypedResultSet resultSet = execute("SELECT ttl(b) FROM %s WHERE a = 1");
+        Assert.assertEquals(1, resultSet.size());
+        Row row = resultSet.one();
+        Assert.assertTrue(row.getInt("ttl(b)") >= (9 * secondsPerMinute));
+
+        execute("INSERT INTO %s (a, b) VALUES (2, 2) USING TTL ?", (5 * secondsPerMinute));
+        resultSet = execute("SELECT ttl(b) FROM %s WHERE a = 2");
+        Assert.assertEquals(1, resultSet.size());
+        row = resultSet.one();
+        Assert.assertTrue(row.getInt("ttl(b)") <= (5 * secondsPerMinute));
+
+        execute("INSERT INTO %s (a, b) VALUES (3, 3) USING TTL ?", 0);
+        assertRows(execute("SELECT ttl(b) FROM %s WHERE a = 3"), row(new Object[]{null}));
+
+        execute("INSERT INTO %s (a, b) VALUES (4, 4) USING TTL ?", unset());
+        resultSet = execute("SELECT ttl(b) FROM %s WHERE a = 4");
+        Assert.assertEquals(1, resultSet.size());
+        row = resultSet.one();
+        Assert.assertTrue(row.getInt("ttl(b)") >= (9 * secondsPerMinute));
     }
 }

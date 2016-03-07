@@ -2201,14 +2201,14 @@ public class SASIIndexTest
     private static Cell buildCell(ByteBuffer name, ByteBuffer value, long timestamp)
     {
         CFMetaData cfm = Keyspace.open(KS_NAME).getColumnFamilyStore(CF_NAME).metadata;
-        return BufferCell.live(cfm, cfm.getColumnDefinition(name), timestamp, value);
+        return BufferCell.live(cfm.getColumnDefinition(name), timestamp, value);
     }
 
     private static Cell buildCell(CFMetaData cfm, ByteBuffer name, ByteBuffer value, long timestamp)
     {
         ColumnDefinition column = cfm.getColumnDefinition(name);
         assert column != null;
-        return BufferCell.live(cfm, column, timestamp, value);
+        return BufferCell.live(column, timestamp, value);
     }
 
     private static Expression buildExpression(ByteBuffer name, Operator op, ByteBuffer value)

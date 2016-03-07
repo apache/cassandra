@@ -48,7 +48,6 @@ import org.apache.cassandra.db.view.View;
 import org.apache.cassandra.dht.*;
 import org.apache.cassandra.dht.Range;
 import org.apache.cassandra.exceptions.*;
-import org.apache.cassandra.index.Index;
 import org.apache.cassandra.io.util.DataOutputBuffer;
 import org.apache.cassandra.locator.DynamicEndpointSnitch;
 import org.apache.cassandra.metrics.ClientMetrics;
@@ -817,9 +816,21 @@ public class CassandraServer implements Cassandra.Iface
     private Cell cellFromColumn(CFMetaData metadata, LegacyLayout.LegacyCellName name, Column column)
     {
         CellPath path = name.collectionElement == null ? null : CellPath.create(name.collectionElement);
-        return column.ttl == 0
-             ? BufferCell.live(metadata, name.column, column.timestamp, column.value, path)
-             : BufferCell.expiring(name.column, column.timestamp, column.ttl, FBUtilities.nowInSeconds(), column.value, path);
+        int ttl = getTtl(metadata, column);
+        return ttl == LivenessInfo.NO_TTL
+             ? BufferCell.live(name.column, column.timestamp, column.value, path)
+             : BufferCell.expiring(name.column, column.timestamp, ttl, FBUtilities.nowInSeconds(), column.value, path);
+    }
+
+    private int getTtl(CFMetaData metadata,Column column)
+    {
+        if (!column.isSetTtl())
+            return metadata.params.defaultTimeToLive;
+
+        if (column.ttl == LivenessInfo.NO_TTL && metadata.params.defaultTimeToLive != LivenessInfo.NO_TTL)
+            return LivenessInfo.NO_TTL;
+
+        return column.ttl;
     }
 
     private void internal_insert(ByteBuffer key, ColumnParent column_parent, Column column, ConsistencyLevel consistency_level)
@@ -2171,7 +2182,7 @@ public class CassandraServer implements Cassandra.Iface
                 // See UpdateParameters.addCounter() for more details on this
                 ByteBuffer value = CounterContext.instance().createLocal(column.value);
                 CellPath path = name.collectionElement == null ? null : CellPath.create(name.collectionElement);
-                Cell cell = BufferCell.live(metadata, name.column, FBUtilities.timestampMicros(), value, path);
+                Cell cell = BufferCell.live(name.column, FBUtilities.timestampMicros(), value, path);
 
                 PartitionUpdate update = PartitionUpdate.singleRowUpdate(metadata, key, BTreeRow.singleCellRow(name.clustering, cell));
 

@@ -104,7 +104,7 @@ public class PartitionImplementationTest
         ColumnDefinition defCol = cfm.getColumnDefinition(new ColumnIdentifier("col", true));
         Row.Builder row = BTreeRow.unsortedBuilder(TIMESTAMP);
         row.newRow(clustering);
-        row.addCell(BufferCell.live(cfm, defCol, TIMESTAMP, ByteBufferUtil.bytes(colValue)));
+        row.addCell(BufferCell.live(defCol, TIMESTAMP, ByteBufferUtil.bytes(colValue)));
         return row.build();
     }
 
@@ -113,7 +113,7 @@ public class PartitionImplementationTest
         ColumnDefinition defCol = cfm.getColumnDefinition(new ColumnIdentifier("static_col", true));
         Row.Builder row = BTreeRow.unsortedBuilder(TIMESTAMP);
         row.newRow(Clustering.STATIC_CLUSTERING);
-        row.addCell(BufferCell.live(cfm, defCol, TIMESTAMP, ByteBufferUtil.bytes("static value")));
+        row.addCell(BufferCell.live(defCol, TIMESTAMP, ByteBufferUtil.bytes("static value")));
         return row.build();
     }
 

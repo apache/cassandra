@@ -356,7 +356,7 @@ public class CustomCassandraIndex implements Index
                 insert(key.getKey(),
                        clustering,
                        cell,
-                       LivenessInfo.create(cell.timestamp(), cell.ttl(), cell.localDeletionTime()),
+                       LivenessInfo.withExpirationTime(cell.timestamp(), cell.ttl(), cell.localDeletionTime()),
                        opGroup);
             }
 
@@ -404,7 +404,7 @@ public class CustomCassandraIndex implements Index
                         }
                     }
                 }
-                return LivenessInfo.create(baseCfs.metadata, timestamp, ttl, nowInSec);
+                return LivenessInfo.create(timestamp, ttl, nowInSec);
             }
         };
     }

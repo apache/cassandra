@@ -46,12 +46,14 @@ public class TriggerExecutorTest
         CFMetaData metadata = makeCfMetaData("ks1", "cf1", TriggerMetadata.create("test", SameKeySameCfTrigger.class.getName()));
         PartitionUpdate mutated = TriggerExecutor.instance.execute(makeCf(metadata, "k1", "v1", null));
 
-        RowIterator rowIterator = UnfilteredRowIterators.filter(mutated.unfilteredIterator(), FBUtilities.nowInSeconds());
+        try (RowIterator rowIterator = UnfilteredRowIterators.filter(mutated.unfilteredIterator(),
+                                                                     FBUtilities.nowInSeconds()))
+        {
+            Iterator<Cell> cells = rowIterator.next().cells().iterator();
+            assertEquals(bytes("trigger"), cells.next().value());
 
-        Iterator<Cell> cells = rowIterator.next().cells().iterator();
-        assertEquals(bytes("trigger"), cells.next().value());
-
-        assertTrue(!rowIterator.hasNext());
+            assertTrue(!rowIterator.hasNext());
+        }
     }
 
     @Test(expected = InvalidRequestException.class)
@@ -272,9 +274,9 @@ public class TriggerExecutorTest
         builder.newRow(Clustering.EMPTY);
         long ts = FBUtilities.timestampMicros();
         if (columnValue1 != null)
-            builder.addCell(BufferCell.live(metadata, metadata.getColumnDefinition(bytes("c1")), ts, bytes(columnValue1)));
+            builder.addCell(BufferCell.live(metadata.getColumnDefinition(bytes("c1")), ts, bytes(columnValue1)));
         if (columnValue2 != null)
-            builder.addCell(BufferCell.live(metadata, metadata.getColumnDefinition(bytes("c2")), ts, bytes(columnValue2)));
+            builder.addCell(BufferCell.live(metadata.getColumnDefinition(bytes("c2")), ts, bytes(columnValue2)));
 
         return PartitionUpdate.singleRowUpdate(metadata, Util.dk(key), builder.build());
     }

@@ -114,15 +114,15 @@ public class CellTest
         long ts1 = now1*1000000;
 
 
-        Cell r1m1 = BufferCell.live(cfm2, m, ts1, bb(1), CellPath.create(bb(1)));
-        Cell r1m2 = BufferCell.live(cfm2, m, ts1, bb(2), CellPath.create(bb(2)));
+        Cell r1m1 = BufferCell.live(m, ts1, bb(1), CellPath.create(bb(1)));
+        Cell r1m2 = BufferCell.live(m, ts1, bb(2), CellPath.create(bb(2)));
         List<Cell> cells1 = Lists.newArrayList(r1m1, r1m2);
 
         int now2 = now1 + 1;
         long ts2 = now2*1000000;
-        Cell r2m2 = BufferCell.live(cfm2, m, ts2, bb(1), CellPath.create(bb(2)));
-        Cell r2m3 = BufferCell.live(cfm2, m, ts2, bb(2), CellPath.create(bb(3)));
-        Cell r2m4 = BufferCell.live(cfm2, m, ts2, bb(3), CellPath.create(bb(4)));
+        Cell r2m2 = BufferCell.live(m, ts2, bb(1), CellPath.create(bb(2)));
+        Cell r2m3 = BufferCell.live(m, ts2, bb(2), CellPath.create(bb(3)));
+        Cell r2m4 = BufferCell.live(m, ts2, bb(3), CellPath.create(bb(4)));
         List<Cell> cells2 = Lists.newArrayList(r2m2, r2m3, r2m4);
 
         RowBuilder builder = new RowBuilder();
@@ -152,7 +152,7 @@ public class CellTest
     private Cell regular(CFMetaData cfm, String columnName, String value, long timestamp)
     {
         ColumnDefinition cdef = cfm.getColumnDefinition(ByteBufferUtil.bytes(columnName));
-        return BufferCell.live(cfm, cdef, timestamp, ByteBufferUtil.bytes(value));
+        return BufferCell.live(cdef, timestamp, ByteBufferUtil.bytes(value));
     }
 
     private Cell expiring(CFMetaData cfm, String columnName, String value, long timestamp, int localExpirationTime)

@@ -85,7 +85,7 @@ public class RowUpdateBuilder
 
         // If a CQL table, add the "row marker"
         if (update.metadata().isCQLTable() && useRowMarker)
-            regularBuilder.addPrimaryKeyLivenessInfo(LivenessInfo.create(update.metadata(), timestamp, ttl, localDeletionTime));
+            regularBuilder.addPrimaryKeyLivenessInfo(LivenessInfo.create(timestamp, ttl, localDeletionTime));
     }
 
     private Row.Builder builder()
@@ -276,7 +276,7 @@ public class RowUpdateBuilder
     {
         return value == null
              ? BufferCell.tombstone(c, timestamp, localDeletionTime)
-             : (ttl == LivenessInfo.NO_TTL ? BufferCell.live(update.metadata(), c, timestamp, value, path) : BufferCell.expiring(c, timestamp, ttl, localDeletionTime, value, path));
+             : (ttl == LivenessInfo.NO_TTL ? BufferCell.live(c, timestamp, value, path) : BufferCell.expiring(c, timestamp, ttl, localDeletionTime, value, path));
     }
 
     public RowUpdateBuilder add(ColumnDefinition columnDefinition, Object value)

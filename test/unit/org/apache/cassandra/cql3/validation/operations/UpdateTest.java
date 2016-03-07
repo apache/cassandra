@@ -20,10 +20,13 @@ package org.apache.cassandra.cql3.validation.operations;
 
 import java.util.Arrays;
 
+import org.junit.Assert;
 import org.junit.Test;
 
 import static org.apache.commons.lang3.StringUtils.isEmpty;
 import org.apache.cassandra.cql3.CQLTester;
+import org.apache.cassandra.cql3.UntypedResultSet;
+import org.apache.cassandra.cql3.UntypedResultSet.Row;
 import org.apache.cassandra.utils.ByteBufferUtil;
 
 public class UpdateTest extends CQLTester
@@ -519,5 +522,33 @@ public class UpdateTest extends CQLTester
         execute("UPDATE %s SET l[?] = ? WHERE k = ?", 1, "v4", 0);
 
         assertRows(execute("SELECT l FROM %s WHERE k = 0"), row(list("v1", "v4", "v3")));
+    }
+
+    @Test
+    public void testUpdateWithDefaultTtl() throws Throwable
+    {
+        final int secondsPerMinute = 60;
+        createTable("CREATE TABLE %s (a int PRIMARY KEY, b int) WITH default_time_to_live = " + (10 * secondsPerMinute));
+
+        execute("UPDATE %s SET b = 1 WHERE a = 1");
+        UntypedResultSet resultSet = execute("SELECT ttl(b) FROM %s WHERE a = 1");
+        Assert.assertEquals(1, resultSet.size());
+        Row row = resultSet.one();
+        Assert.assertTrue(row.getInt("ttl(b)") >= (9 * secondsPerMinute));
+
+        execute("UPDATE %s USING TTL ? SET b = 3 WHERE a = 1", 0);
+        assertRows(execute("SELECT ttl(b) FROM %s WHERE a = 1"), row(new Object[]{null}));
+
+        execute("UPDATE %s SET b = 3 WHERE a = 1");
+        resultSet = execute("SELECT ttl(b) FROM %s WHERE a = 1");
+        Assert.assertEquals(1, resultSet.size());
+        row = resultSet.one();
+        Assert.assertTrue(row.getInt("ttl(b)") >= (9 * secondsPerMinute));
+
+        execute("UPDATE %s USING TTL ? SET b = 2 WHERE a = 2", unset());
+        resultSet = execute("SELECT ttl(b) FROM %s WHERE a = 2");
+        Assert.assertEquals(1, resultSet.size());
+        row = resultSet.one();
+        Assert.assertTrue(row.getInt("ttl(b)") >= (9 * secondsPerMinute));
     }
 }

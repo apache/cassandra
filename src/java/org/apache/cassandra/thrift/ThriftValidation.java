@@ -363,8 +363,8 @@ public class ThriftValidation
     {
         if (column.isSetTtl())
         {
-            if (column.ttl <= 0)
-                throw new org.apache.cassandra.exceptions.InvalidRequestException("ttl must be positive");
+            if (column.ttl < 0)
+                throw new org.apache.cassandra.exceptions.InvalidRequestException("ttl must be greater or equal to 0");
 
             if (column.ttl > Attributes.MAX_TTL)
                 throw new org.apache.cassandra.exceptions.InvalidRequestException(String.format("ttl is too large. requested (%d) maximum (%d)", column.ttl, Attributes.MAX_TTL));
