@@ -95,70 +95,73 @@ public class CompositesSearcher extends CassandraIndexSearcher
 
             private boolean prepareNext()
             {
-                if (next != null)
-                    return true;
-
-                if (nextEntry == null)
+                while (true)
                 {
-                    if (!indexHits.hasNext())
-                        return false;
+                    if (next != null)
+                        return true;
 
-                    nextEntry = index.decodeEntry(indexKey, indexHits.next());
-                }
-
-                // Gather all index hits belonging to the same partition and query the data for those hits.
-                // TODO: it's much more efficient to do 1 read for all hits to the same partition than doing
-                // 1 read per index hit. However, this basically mean materializing all hits for a partition
-                // in memory so we should consider adding some paging mechanism. However, index hits should
-                // be relatively small so it's much better than the previous code that was materializing all
-                // *data* for a given partition.
-                BTreeSet.Builder<Clustering> clusterings = BTreeSet.builder(index.baseCfs.getComparator());
-                List<IndexEntry> entries = new ArrayList<>();
-                DecoratedKey partitionKey = index.baseCfs.decorateKey(nextEntry.indexedKey);
-
-                while (nextEntry != null && partitionKey.getKey().equals(nextEntry.indexedKey))
-                {
-                    // We're queried a slice of the index, but some hits may not match some of the clustering column constraints
-                    if (isMatchingEntry(partitionKey, nextEntry, command))
+                    if (nextEntry == null)
                     {
-                        clusterings.add(nextEntry.indexedEntryClustering);
-                        entries.add(nextEntry);
+                        if (!indexHits.hasNext())
+                            return false;
+
+                        nextEntry = index.decodeEntry(indexKey, indexHits.next());
                     }
 
-                    nextEntry = indexHits.hasNext() ? index.decodeEntry(indexKey, indexHits.next()) : null;
+                    // Gather all index hits belonging to the same partition and query the data for those hits.
+                    // TODO: it's much more efficient to do 1 read for all hits to the same partition than doing
+                    // 1 read per index hit. However, this basically mean materializing all hits for a partition
+                    // in memory so we should consider adding some paging mechanism. However, index hits should
+                    // be relatively small so it's much better than the previous code that was materializing all
+                    // *data* for a given partition.
+                    BTreeSet.Builder<Clustering> clusterings = BTreeSet.builder(index.baseCfs.getComparator());
+                    List<IndexEntry> entries = new ArrayList<>();
+                    DecoratedKey partitionKey = index.baseCfs.decorateKey(nextEntry.indexedKey);
+
+                    while (nextEntry != null && partitionKey.getKey().equals(nextEntry.indexedKey))
+                    {
+                        // We're queried a slice of the index, but some hits may not match some of the clustering column constraints
+                        if (isMatchingEntry(partitionKey, nextEntry, command))
+                        {
+                            clusterings.add(nextEntry.indexedEntryClustering);
+                            entries.add(nextEntry);
+                        }
+
+                        nextEntry = indexHits.hasNext() ? index.decodeEntry(indexKey, indexHits.next()) : null;
+                    }
+
+                    // Because we've eliminated entries that don't match the clustering columns, it's possible we added nothing
+                    if (clusterings.isEmpty())
+                        continue;
+
+                    // Query the gathered index hits. We still need to filter stale hits from the resulting query.
+                    ClusteringIndexNamesFilter filter = new ClusteringIndexNamesFilter(clusterings.build(), false);
+                    SinglePartitionReadCommand dataCmd = SinglePartitionReadCommand.create(index.baseCfs.metadata,
+                                                                                           command.nowInSec(),
+                                                                                           command.columnFilter(),
+                                                                                           command.rowFilter(),
+                                                                                           DataLimits.NONE,
+                                                                                           partitionKey,
+                                                                                           filter);
+                    @SuppressWarnings("resource") // We close right away if empty, and if it's assign to next it will be called either
+                    // by the next caller of next, or through closing this iterator is this come before.
+                    UnfilteredRowIterator dataIter =
+                        filterStaleEntries(dataCmd.queryMemtableAndDisk(index.baseCfs,
+                                                                        orderGroup.baseReadOpOrderGroup()),
+                                           indexKey.getKey(),
+                                           entries,
+                                           orderGroup.writeOpOrderGroup(),
+                                           command.nowInSec());
+
+                    if (dataIter.isEmpty())
+                    {
+                        dataIter.close();
+                        continue;
+                    }
+
+                    next = dataIter;
+                    return true;
                 }
-
-                // Because we've eliminated entries that don't match the clustering columns, it's possible we added nothing
-                if (clusterings.isEmpty())
-                    return prepareNext();
-
-                // Query the gathered index hits. We still need to filter stale hits from the resulting query.
-                ClusteringIndexNamesFilter filter = new ClusteringIndexNamesFilter(clusterings.build(), false);
-                SinglePartitionReadCommand dataCmd = SinglePartitionReadCommand.create(index.baseCfs.metadata,
-                                                                                       command.nowInSec(),
-                                                                                       command.columnFilter(),
-                                                                                       command.rowFilter(),
-                                                                                       DataLimits.NONE,
-                                                                                       partitionKey,
-                                                                                       filter);
-                @SuppressWarnings("resource") // We close right away if empty, and if it's assign to next it will be called either
-                                              // by the next caller of next, or through closing this iterator is this come before.
-                UnfilteredRowIterator dataIter = filterStaleEntries(dataCmd.queryMemtableAndDisk(index.baseCfs,
-                                                                                                 orderGroup.baseReadOpOrderGroup()),
-                                                                    indexKey.getKey(),
-                                                                    entries,
-                                                                    orderGroup.writeOpOrderGroup(),
-                                                                    command.nowInSec());
-
-
-                if (dataIter.isEmpty())
-                {
-                    dataIter.close();
-                    return prepareNext();
-                }
-
-                next = dataIter;
-                return true;
             }
 
             public void remove()
