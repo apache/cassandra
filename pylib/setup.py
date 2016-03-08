@@ -16,9 +16,11 @@
 # limitations under the License.
 
 from distutils.core import setup
+from Cython.Build import cythonize
 
 setup(
     name="cassandra-pylib",
     description="Cassandra Python Libraries",
     packages=["cqlshlib"],
+    ext_modules=cythonize("cqlshlib/copyutil.py"),
 )

@@ -8,7 +8,7 @@ Merged from 2.2:
  * Reference leak with parallel repairs on the same table (CASSANDRA-11215)
 Merged from 2.1:
  * InvalidateKeys should have a weak ref to key cache (CASSANDRA-11176)
-
+ * COPY FROM on large datasets: fix progress report and debug performance (CASSANDRA-11053)
 
 3.0.4
  * Preserve order for preferred SSL cipher suites (CASSANDRA-11164)
