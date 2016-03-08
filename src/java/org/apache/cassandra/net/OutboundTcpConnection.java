@@ -226,7 +226,7 @@ public class OutboundTcpConnection extends Thread
                         continue;
                     }
 
-                    if (qm.isTimedOut(TimeUnit.MILLISECONDS.toNanos(m.getTimeout()), System.nanoTime()))
+                    if (qm.isTimedOut())
                         dropped.incrementAndGet();
                     else if (socket != null || connect())
                         writeConnected(qm, count == 1 && backlog.isEmpty());
@@ -549,7 +549,7 @@ public class OutboundTcpConnection extends Thread
             QueuedMessage qm = iter.next();
             if (!qm.droppable)
                 continue;
-            if (qm.timestampNanos >= System.nanoTime() - qm.message.getTimeout())
+            if (!qm.isTimedOut())
                 return;
             iter.remove();
             dropped.incrementAndGet();
@@ -573,9 +573,9 @@ public class OutboundTcpConnection extends Thread
         }
 
         /** don't drop a non-droppable message just because it's timestamp is expired */
-        boolean isTimedOut(long maxTimeNanos, long nowNanos)
+        boolean isTimedOut()
         {
-            return droppable && timestampNanos < nowNanos - maxTimeNanos;
+            return droppable && timestampNanos < System.nanoTime() - TimeUnit.MILLISECONDS.toNanos(message.getTimeout());
         }
 
         boolean shouldRetry()
