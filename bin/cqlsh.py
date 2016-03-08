@@ -480,7 +480,7 @@ COPY_COMMON_OPTIONS = ['DELIMITER', 'QUOTE', 'ESCAPE', 'HEADER', 'NULL', 'DATETI
                        'MAXATTEMPTS', 'REPORTFREQUENCY', 'DECIMALSEP', 'THOUSANDSSEP', 'BOOLSTYLE',
                        'NUMPROCESSES', 'CONFIGFILE', 'RATEFILE']
 COPY_FROM_OPTIONS = ['CHUNKSIZE', 'INGESTRATE', 'MAXBATCHSIZE', 'MINBATCHSIZE', 'MAXROWS',
-                     'SKIPROWS', 'SKIPCOLS', 'MAXPARSEERRORS', 'MAXINSERTERRORS', 'ERRFILE', 'TTL']
+                     'SKIPROWS', 'SKIPCOLS', 'MAXPARSEERRORS', 'MAXINSERTERRORS', 'ERRFILE', 'PREPAREDSTATEMENTS', 'TTL']
 COPY_TO_OPTIONS = ['ENCODING', 'PAGESIZE', 'PAGETIMEOUT', 'BEGINTOKEN', 'ENDTOKEN', 'MAXOUTPUTSIZE', 'MAXREQUESTS']
 
 
@@ -607,7 +607,24 @@ def insert_driver_hooks():
 
 
 def extend_cql_deserialization():
-    # The python driver returns BLOBs as string, but we expect them as bytearrays
+    """
+    The python driver returns BLOBs as string, but we expect them as bytearrays
+    the implementation of cassandra.cqltypes.BytesType.deserialize.
+
+    The deserializers package exists only when the driver has been compiled with cython extensions and
+    cassandra.deserializers.DesBytesType replaces cassandra.cqltypes.BytesType.deserialize.
+
+    DesBytesTypeByteArray is a fast deserializer that converts blobs into bytearrays but it was
+    only introduced recently (3.1.0). If it is available we use it, otherwise we remove
+    cassandra.deserializers.DesBytesType so that we fall back onto cassandra.cqltypes.BytesType.deserialize
+    just like in the case where no cython extensions are present.
+    """
+    if hasattr(cassandra, 'deserializers'):
+        if hasattr(cassandra.deserializers, 'DesBytesTypeByteArray'):
+            cassandra.deserializers.DesBytesType = cassandra.deserializers.DesBytesTypeByteArray
+        else:
+            del cassandra.deserializers.DesBytesType
+
     cassandra.cqltypes.BytesType.deserialize = staticmethod(lambda byts, protocol_version: bytearray(byts))
 
     class DateOverFlowWarning(RuntimeWarning):
@@ -623,6 +640,9 @@ def extend_cql_deserialization():
             return timestamp_ms
 
     cassandra.cqltypes.DateType.deserialize = staticmethod(deserialize_date_fallback_int)
+
+    if hasattr(cassandra, 'deserializers'):
+        del cassandra.deserializers.DesDateType
 
     # Return cassandra.cqltypes.EMPTY instead of None for empty values
     cassandra.cqltypes.CassandraType.support_empty_values = True
@@ -1856,9 +1876,9 @@ class Shell(cmd.Cmd):
 
         Available COPY FROM options and defaults:
 
-          CHUNKSIZE=1000          - the size of chunks passed to worker processes
+          CHUNKSIZE=5000          - the size of chunks passed to worker processes
           INGESTRATE=100000       - an approximate ingest rate in rows per second
-          MINBATCHSIZE=2          - the minimum size of an import batch
+          MINBATCHSIZE=10         - the minimum size of an import batch
           MAXBATCHSIZE=20         - the maximum size of an import batch
           MAXROWS=-1              - the maximum number of rows, -1 means no maximum
           SKIPROWS=0              - the number of rows to skip
@@ -1867,6 +1887,11 @@ class Shell(cmd.Cmd):
           MAXINSERTERRORS=-1      - the maximum global number of insert errors, -1 means no maximum
           ERRFILE=''              - a file where to store all rows that could not be imported, by default this is
                                     import_ks_table.err where <ks> is your keyspace and <table> is your table name.
+          PREPAREDSTATEMENTS=True - whether to use prepared statements when importing, by default True. Set this to
+                                    False if you don't mind shifting data parsing to the cluster. The cluster will also
+                                    have to compile every batch statement. For large and oversized clusters
+                                    this will result in a faster import but for smaller clusters it may generate
+                                    timeouts.
           TTL=3600                - the time to live in seconds, by default data will not expire
 
         Available COPY TO options and defaults:

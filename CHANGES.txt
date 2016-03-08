@@ -13,6 +13,7 @@ Merged from 2.2:
  * Only log yaml config once, at startup (CASSANDRA-11217)
  * Reference leak with parallel repairs on the same table (CASSANDRA-11215)
 Merged from 2.1:
+ * COPY FROM on large datasets: fix progress report and debug performance (CASSANDRA-11053)
  * InvalidateKeys should have a weak ref to key cache (CASSANDRA-11176)
 
 
