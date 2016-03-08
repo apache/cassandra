@@ -74,6 +74,10 @@ import org.apache.cassandra.utils.Pair;
  *   // Close the writer, finalizing the sstable
  *   writer.close();
  * </pre>
+ *
+ * Please note that {@code CQLSSTableWriter} is <b>not</b> thread-safe (multiple threads cannot access the
+ * same instance). It is however safe to use multiple instances in parallel (even if those instance write
+ * sstables for the same table).
  */
 public class CQLSSTableWriter implements Closeable
 {
