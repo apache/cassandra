@@ -2,6 +2,7 @@ package org.apache.cassandra.index;
 
 import java.util.*;
 import java.util.concurrent.Callable;
+import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.stream.Collectors;
 
@@ -534,6 +535,32 @@ public class CustomIndexTest extends CQLTester
         assertEquals(3, index.rowsDeleted.size());
         for (int i = 0; i < 3; i++)
             assertEquals(index.rowsDeleted.get(i).clustering(), index.rowsInserted.get(i).clustering());
+    }
+
+    @Test
+    public void notifyIndexersOfExpiredRowsDuringCompaction() throws Throwable
+    {
+        createTable("CREATE TABLE %s (k int, c int, PRIMARY KEY (k,c))");
+        createIndex(String.format("CREATE CUSTOM INDEX row_ttl_test_index ON %%s() USING '%s'", StubIndex.class.getName()));
+        ColumnFamilyStore cfs = getCurrentColumnFamilyStore();
+        StubIndex index  = (StubIndex)cfs.indexManager.getIndexByName("row_ttl_test_index");
+
+        execute("INSERT INTO %s (k, c) VALUES (?, ?) USING TTL 1", 0, 0);
+        execute("INSERT INTO %s (k, c) VALUES (?, ?)", 0, 1);
+        execute("INSERT INTO %s (k, c) VALUES (?, ?)", 0, 2);
+        execute("INSERT INTO %s (k, c) VALUES (?, ?)", 3, 3);
+        assertEquals(4, index.rowsInserted.size());
+        // flush so that we end up with an expiring row in the first sstable
+        flush();
+
+        // let the row with the ttl expire, then force a compaction
+        TimeUnit.SECONDS.sleep(2);
+        compact();
+
+        // the index should have been notified of the expired row
+        assertEquals(1, index.rowsDeleted.size());
+        Integer deletedClustering = Int32Type.instance.compose(index.rowsDeleted.get(0).clustering().get(0));
+        assertEquals(0, deletedClustering.intValue());
     }
 
     @Test
