@@ -19,6 +19,8 @@
 package org.apache.cassandra.db;
 
 import java.io.IOException;
+import java.util.HashMap;
+import java.util.Map;
 
 import com.google.common.collect.ImmutableList;
 import org.junit.Before;
@@ -163,6 +165,24 @@ public class RowTest
         // when we read with a nowInSeconds after the cell has expired, the row is filtered
         // so the PartitionIterator is empty
         Util.assertEmpty(Util.cmd(cfs, dk).includeRow("c1").withNowInSeconds(nowInSeconds + ttl + 1).build());
+    }
+
+    @Test
+    public void testHashCode()
+    {
+        ColumnDefinition defA = cfm.getColumnDefinition(new ColumnIdentifier("a", true));
+        ColumnDefinition defB = cfm.getColumnDefinition(new ColumnIdentifier("b", true));
+
+        Row.Builder builder = BTreeRow.unsortedBuilder(nowInSeconds);
+        builder.newRow(cfm.comparator.make("c1"));
+        writeSimpleCellValue(builder, cfm, defA, "a1", 0);
+        writeSimpleCellValue(builder, cfm, defA, "a2", 1);
+        writeSimpleCellValue(builder, cfm, defB, "b1", 1);
+        Row row = builder.build();
+
+        Map<Row, Integer> map = new HashMap<>();
+        map.put(row, 1);
+        assertEquals(Integer.valueOf(1), map.get(row));
     }
 
     private void assertRangeTombstoneMarkers(Slice.Bound start, Slice.Bound end, DeletionTime deletionTime, Object[] expected)
