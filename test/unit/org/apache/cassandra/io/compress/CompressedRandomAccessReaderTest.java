@@ -24,20 +24,26 @@ import java.io.RandomAccessFile;
 import java.util.Collections;
 import java.util.Random;
 
+import com.google.common.util.concurrent.RateLimiter;
 import org.junit.Test;
+
 import org.apache.cassandra.db.composites.SimpleDenseCellNameType;
 import org.apache.cassandra.db.marshal.BytesType;
 import org.apache.cassandra.exceptions.ConfigurationException;
 import org.apache.cassandra.io.sstable.CorruptSSTableException;
 import org.apache.cassandra.io.sstable.metadata.MetadataCollector;
 import org.apache.cassandra.io.util.ChannelProxy;
+import org.apache.cassandra.io.util.CompressedPoolingSegmentedFile;
+import org.apache.cassandra.io.util.FileDataInput;
 import org.apache.cassandra.io.util.FileMark;
 import org.apache.cassandra.io.util.RandomAccessReader;
 import org.apache.cassandra.io.util.SequentialWriter;
 import org.apache.cassandra.utils.SyncUtil;
 
 import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertNotNull;
+import static org.junit.Assert.assertTrue;
 
 public class CompressedRandomAccessReaderTest
 {
@@ -231,6 +237,60 @@ public class CompressedRandomAccessReaderTest
 
             if (checksumModifier != null)
                 checksumModifier.close();
+        }
+    }
+
+    @Test
+    public void testThrottledReadersAreNotCached() throws IOException
+    {
+        String CONTENT = "Lorem ipsum dolor sit amet, consectetur adipiscing elit. Etiam vitae.";
+
+        File file = new File("testThrottledReadersAreNotCached");
+        file.deleteOnExit();
+
+        File metadata = new File(file.getPath() + ".meta");
+        metadata.deleteOnExit();
+
+        MetadataCollector sstableMetadataCollector = new MetadataCollector(new SimpleDenseCellNameType(BytesType.instance)).replayPosition(null);
+        try (SequentialWriter writer = new CompressedSequentialWriter(file, metadata.getPath(), new CompressionParameters(SnappyCompressor.instance), sstableMetadataCollector))
+        {
+            writer.write(CONTENT.getBytes());
+            writer.finish();
+        }
+
+        CompressionMetadata meta = new CompressionMetadata(metadata.getPath(), file.length());
+
+        try(ChannelProxy channel = new ChannelProxy(file);
+            CompressedPoolingSegmentedFile segmentedFile = new CompressedPoolingSegmentedFile(channel, meta))
+        {
+            //The cache bucket is only initialized by a call to FileCacheService.instance.get() so first
+            // we must create a reader using the interface for accessing segments
+            FileDataInput reader = segmentedFile.getSegment(0);
+            assertNotNull(reader);
+            reader.close();
+
+            //Now we create a throttled reader, this should not be added to the cache
+            RateLimiter limiter = RateLimiter.create(1024);
+            reader = segmentedFile.createThrottledReader(limiter);
+            assertNotNull(reader);
+            assertTrue(reader instanceof CompressedThrottledReader);
+            reader.close();
+
+            //We retrieve 2 readers, neither should be a throttled reader
+            FileDataInput[] readers =
+            {
+                segmentedFile.getSegment(0),
+                segmentedFile.getSegment(0)
+            };
+
+            for (FileDataInput r : readers)
+            {
+                assertNotNull(r);
+                assertFalse(r instanceof CompressedThrottledReader);
+            }
+
+            for (FileDataInput r : readers)
+                r.close();
         }
     }
 

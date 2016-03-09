@@ -41,26 +41,15 @@ public class CompressedRandomAccessReader extends RandomAccessReader
 {
     public static CompressedRandomAccessReader open(ChannelProxy channel, CompressionMetadata metadata)
     {
-        try
-        {
-            return new CompressedRandomAccessReader(channel, metadata, null);
-        }
-        catch (FileNotFoundException e)
-        {
-            throw new RuntimeException(e);
-        }
+        return new CompressedRandomAccessReader(channel, metadata, null, null);
     }
 
     public static CompressedRandomAccessReader open(ICompressedFile file)
     {
-        try
-        {
-            return new CompressedRandomAccessReader(file.channel(), file.getMetadata(), file);
-        }
-        catch (FileNotFoundException e)
-        {
-            throw new RuntimeException(e);
-        }
+        return new CompressedRandomAccessReader(file.channel(),
+                                                file.getMetadata(),
+                                                file,
+                                                file instanceof PoolingSegmentedFile ? (PoolingSegmentedFile) file : null);
     }
 
     private final TreeMap<Long, MappedByteBuffer> chunkSegments;
@@ -76,9 +65,9 @@ public class CompressedRandomAccessReader extends RandomAccessReader
     // raw checksum bytes
     private ByteBuffer checksumBytes;
 
-    protected CompressedRandomAccessReader(ChannelProxy channel, CompressionMetadata metadata, ICompressedFile file) throws FileNotFoundException
+    protected CompressedRandomAccessReader(ChannelProxy channel, CompressionMetadata metadata, ICompressedFile file, PoolingSegmentedFile owner)
     {
-        super(channel, metadata.chunkLength(), metadata.compressedFileLength, metadata.compressor().preferredBufferType(), file instanceof PoolingSegmentedFile ? (PoolingSegmentedFile) file : null);
+        super(channel, metadata.chunkLength(), metadata.compressedFileLength, metadata.compressor().preferredBufferType(), owner);
         this.metadata = metadata;
         checksum = new Adler32();
 

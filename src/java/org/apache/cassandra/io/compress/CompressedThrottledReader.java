@@ -21,8 +21,6 @@ package org.apache.cassandra.io.compress;
  */
 
 
-import java.io.FileNotFoundException;
-
 import com.google.common.util.concurrent.RateLimiter;
 
 import org.apache.cassandra.io.util.ChannelProxy;
@@ -32,9 +30,9 @@ public class CompressedThrottledReader extends CompressedRandomAccessReader
 {
     private final RateLimiter limiter;
 
-    public CompressedThrottledReader(ChannelProxy channel, CompressionMetadata metadata, ICompressedFile file, RateLimiter limiter) throws FileNotFoundException
+    public CompressedThrottledReader(ChannelProxy channel, CompressionMetadata metadata, ICompressedFile file, RateLimiter limiter)
     {
-        super(channel, metadata, file);
+        super(channel, metadata, file, null);
         this.limiter = limiter;
     }
 
@@ -46,13 +44,6 @@ public class CompressedThrottledReader extends CompressedRandomAccessReader
 
     public static CompressedThrottledReader open(ICompressedFile file, RateLimiter limiter)
     {
-        try
-        {
-            return new CompressedThrottledReader(file.channel(), file.getMetadata(), file, limiter);
-        }
-        catch (FileNotFoundException e)
-        {
-            throw new RuntimeException(e);
-        }
+        return new CompressedThrottledReader(file.channel(), file.getMetadata(), file, limiter);
     }
 }
