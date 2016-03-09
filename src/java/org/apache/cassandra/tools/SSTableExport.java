@@ -35,10 +35,9 @@ import org.apache.cassandra.db.PartitionPosition;
 import org.apache.cassandra.db.SerializationHeader;
 import org.apache.cassandra.db.marshal.UTF8Type;
 import org.apache.cassandra.db.rows.UnfilteredRowIterator;
-import org.apache.cassandra.dht.AbstractBounds;
-import org.apache.cassandra.dht.Bounds;
-import org.apache.cassandra.dht.IPartitioner;
+import org.apache.cassandra.dht.*;
 import org.apache.cassandra.exceptions.ConfigurationException;
+import org.apache.cassandra.index.SecondaryIndexManager;
 import org.apache.cassandra.io.sstable.Descriptor;
 import org.apache.cassandra.io.sstable.ISSTableScanner;
 import org.apache.cassandra.io.sstable.KeyIterator;
@@ -100,7 +99,10 @@ public class SSTableExport
         ValidationMetadata validationMetadata = (ValidationMetadata) sstableMetadata.get(MetadataType.VALIDATION);
         SerializationHeader.Component header = (SerializationHeader.Component) sstableMetadata.get(MetadataType.HEADER);
 
-        IPartitioner partitioner = FBUtilities.newPartitioner(validationMetadata.partitioner);
+        IPartitioner partitioner = SecondaryIndexManager.isIndexColumnFamily(desc.cfname)
+                                   ? new LocalPartitioner(header.getKeyType())
+                                   : FBUtilities.newPartitioner(validationMetadata.partitioner);
+
         CFMetaData.Builder builder = CFMetaData.Builder.create("keyspace", "table").withPartitioner(partitioner);
         header.getStaticColumns().entrySet().stream()
                 .forEach(entry -> {
@@ -112,7 +114,7 @@ public class SSTableExport
                     ColumnIdentifier ident = ColumnIdentifier.getInterned(UTF8Type.instance.getString(entry.getKey()), true);
                     builder.addRegularColumn(ident, entry.getValue());
                 });
-        builder.addPartitionKey("PartitionKey", header.getKetType());
+        builder.addPartitionKey("PartitionKey", header.getKeyType());
         for (int i = 0; i < header.getClusteringTypes().size(); i++)
         {
             builder.addClusteringColumn("clustering" + (i > 0 ? i : ""), header.getClusteringTypes().get(i));
