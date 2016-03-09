@@ -209,6 +209,17 @@ public class SSTableExport
                     partitions.forEach(partition ->
                     {
                         position.set(currentScanner.getCurrentPosition());
+
+                        if (!partition.partitionLevelDeletion().isLive())
+                        {
+                            System.out.println("[" + metadata.getKeyValidator().getString(partition.partitionKey().getKey()) + "]@" +
+                                               position.get() + " " + partition.partitionLevelDeletion());
+                        }
+                        if (!partition.staticRow().isEmpty())
+                        {
+                            System.out.println("[" + metadata.getKeyValidator().getString(partition.partitionKey().getKey()) + "]@" +
+                                               position.get() + " " + partition.staticRow().toString(metadata, true));
+                        }
                         partition.forEachRemaining(row ->
                         {
                             System.out.println(
