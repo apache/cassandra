@@ -178,7 +178,7 @@ public abstract class AbstractRow extends AbstractCollection<ColumnData> impleme
     @Override
     public int hashCode()
     {
-        int hash = Objects.hash(clustering(), columns(), primaryKeyLivenessInfo(), deletion());
+        int hash = Objects.hash(clustering(), primaryKeyLivenessInfo(), deletion());
         for (ColumnData cd : this)
             hash += 31 * cd.hashCode();
         return hash;
