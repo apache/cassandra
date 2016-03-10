@@ -229,9 +229,14 @@ public class CreateIndexStatement extends SchemaAlteringStatement
         // check to disallow creation of an index which duplicates an existing one in all but name
         Optional<IndexMetadata> existingIndex = Iterables.tryFind(cfm.getIndexes(), existing -> existing.equalsWithoutName(index));
         if (existingIndex.isPresent())
-            throw new InvalidRequestException(String.format("Index %s is a duplicate of existing index %s",
-                                                            index.name,
-                                                            existingIndex.get().name));
+        {
+            if (ifNotExists)
+                return null;
+            else
+                throw new InvalidRequestException(String.format("Index %s is a duplicate of existing index %s",
+                                                                index.name,
+                                                                existingIndex.get().name));
+        }
 
         logger.trace("Updating index definition for {}", indexName);
         cfm.indexes(cfm.getIndexes().with(index));

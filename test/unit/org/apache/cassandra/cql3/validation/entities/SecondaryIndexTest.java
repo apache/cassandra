@@ -106,7 +106,11 @@ public class SecondaryIndexTest extends CQLTester
                                            removeQuotes(indexName.toLowerCase(Locale.US))),
                              "CREATE INDEX " + indexName + " ON %s(b)");
 
+        // IF NOT EXISTS should apply in cases where the new index differs from an existing one in name only
         String otherIndexName = "index_" + System.nanoTime();
+        assertEquals(1, getCurrentColumnFamilyStore().metadata.getIndexes().size());
+        createIndex("CREATE INDEX IF NOT EXISTS " + otherIndexName + " ON %s(b)");
+        assertEquals(1, getCurrentColumnFamilyStore().metadata.getIndexes().size());
         assertInvalidMessage(String.format("Index %s is a duplicate of existing index %s",
                                            removeQuotes(otherIndexName.toLowerCase(Locale.US)),
                                            removeQuotes(indexName.toLowerCase(Locale.US))),
