@@ -25,6 +25,7 @@ import java.util.concurrent.ThreadLocalRandom;
 
 import org.apache.cassandra.stress.Operation;
 import org.apache.cassandra.stress.generate.*;
+import org.apache.cassandra.stress.operations.PartitionOperation;
 import org.apache.cassandra.stress.settings.Command;
 import org.apache.cassandra.stress.settings.CqlVersion;
 import org.apache.cassandra.stress.settings.StressSettings;
@@ -32,7 +33,7 @@ import org.apache.cassandra.stress.util.Timer;
 import org.apache.cassandra.thrift.SlicePredicate;
 import org.apache.cassandra.thrift.SliceRange;
 
-public abstract class PredefinedOperation extends Operation
+public abstract class PredefinedOperation extends PartitionOperation
 {
     public static final byte[] EMPTY_BYTE_ARRAY = {};
     public final Command type;
