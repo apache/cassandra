@@ -624,6 +624,7 @@ public class StreamSession implements IEndpointStateChangeSubscriber
         else
         {
             state(State.WAIT_COMPLETE);
+            handler.closeIncoming();
         }
     }
 
@@ -711,6 +712,7 @@ public class StreamSession implements IEndpointStateChangeSubscriber
                 handler.sendMessage(new CompleteMessage());
                 completeSent = true;
                 state(State.WAIT_COMPLETE);
+                handler.closeOutgoing();
             }
         }
         return completed;
