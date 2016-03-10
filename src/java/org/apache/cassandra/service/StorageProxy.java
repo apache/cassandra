@@ -2117,29 +2117,30 @@ public class StorageProxy implements StorageProxyMBean
 
     public static boolean shouldHint(InetAddress ep)
     {
-        if (DatabaseDescriptor.shouldHintByDC())
+        if (DatabaseDescriptor.hintedHandoffEnabled())
         {
-            final String dc = DatabaseDescriptor.getEndpointSnitch().getDatacenter(ep);
-            //Disable DC specific hints
-            if(!DatabaseDescriptor.hintedHandoffEnabled(dc))
+            if (DatabaseDescriptor.shouldHintByDC())
+            {
+                final String dc = DatabaseDescriptor.getEndpointSnitch().getDatacenter(ep);
+                // Disable DC specific hints
+                if (!DatabaseDescriptor.hintedHandoffEnabled(dc))
+                {
+                    return false;
+                }
+            }
+
+            boolean hintWindowExpired = Gossiper.instance.getEndpointDowntime(ep) > DatabaseDescriptor.getMaxHintWindow();
+            if (hintWindowExpired)
             {
                 HintedHandOffManager.instance.metrics.incrPastWindow(ep);
-                return false;
+                Tracing.trace("Not hinting {} which has been down {}ms", ep, Gossiper.instance.getEndpointDowntime(ep));
             }
+            return !hintWindowExpired;
         }
-        else if (!DatabaseDescriptor.hintedHandoffEnabled())
+        else
         {
-            HintedHandOffManager.instance.metrics.incrPastWindow(ep);
             return false;
         }
-
-        boolean hintWindowExpired = Gossiper.instance.getEndpointDowntime(ep) > DatabaseDescriptor.getMaxHintWindow();
-        if (hintWindowExpired)
-        {
-            HintedHandOffManager.instance.metrics.incrPastWindow(ep);
-            Tracing.trace("Not hinting {} which has been down {}ms", ep, Gossiper.instance.getEndpointDowntime(ep));
-        }
-        return !hintWindowExpired;
     }
 
     /**
