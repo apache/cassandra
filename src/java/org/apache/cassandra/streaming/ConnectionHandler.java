@@ -109,10 +109,20 @@ public class ConnectionHandler
     {
         logger.debug("[Stream #{}] Closing stream connection handler on {}", session.planId(), session.peer);
 
-        ListenableFuture<?> inClosed = incoming == null ? Futures.immediateFuture(null) : incoming.close();
-        ListenableFuture<?> outClosed = outgoing == null ? Futures.immediateFuture(null) : outgoing.close();
+        ListenableFuture<?> inClosed = closeIncoming();
+        ListenableFuture<?> outClosed = closeOutgoing();
 
         return Futures.allAsList(inClosed, outClosed);
+    }
+
+    public ListenableFuture<?> closeOutgoing()
+    {
+        return outgoing == null ? Futures.immediateFuture(null) : outgoing.close();
+    }
+
+    public ListenableFuture<?> closeIncoming()
+    {
+        return incoming == null ? Futures.immediateFuture(null) : incoming.close();
     }
 
     /**
@@ -170,11 +180,8 @@ public class ConnectionHandler
 
         protected static ReadableByteChannel getReadChannel(Socket socket) throws IOException
         {
-            ReadableByteChannel in = socket.getChannel();
-            // socket channel is null when encrypted(SSL)
-            return in == null
-                 ? Channels.newChannel(socket.getInputStream())
-                 : in;
+            //we do this instead of socket.getChannel() so socketSoTimeout is respected
+            return Channels.newChannel(socket.getInputStream());
         }
 
         @SuppressWarnings("resource")
