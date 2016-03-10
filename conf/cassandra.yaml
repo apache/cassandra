@@ -755,10 +755,9 @@ request_timeout_in_ms: 10000
 # and the times are synchronized between the nodes.
 cross_node_timeout: false
 
-# Enable socket timeout for streaming operation.
-# When a timeout occurs during streaming, streaming is retried from the start
-# of the current file. This _can_ involve re-streaming an important amount of
-# data, so you should avoid setting the value too low.
+# Set socket timeout for streaming operation.
+# The stream session is failed if no data is received by any of the
+# participants within that period.
 # Default value is 3600000, which means streams timeout after an hour.
 # streaming_socket_timeout_in_ms: 3600000
 
