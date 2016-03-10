@@ -162,7 +162,7 @@ public class PagingState
     public String toString()
     {
         return String.format("PagingState(key=%s, cellname=%s, remaining=%d, remainingInPartition=%d",
-                             ByteBufferUtil.bytesToHex(partitionKey),
+                             partitionKey != null ? ByteBufferUtil.bytesToHex(partitionKey) : null,
                              rowMark,
                              remaining,
                              remainingInPartition);

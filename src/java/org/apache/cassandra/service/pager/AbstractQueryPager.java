@@ -124,8 +124,11 @@ abstract class AbstractQueryPager implements QueryPager
             int counted = counter.counted();
             remaining -= counted;
             // If the clustering of the last row returned is a static one, it means that the partition was only
-            // containing data within the static columns. Therefore, there are not data remaining within the partition.
-            if (lastRow != null && lastRow.clustering() == Clustering.STATIC_CLUSTERING)
+            // containing data within the static columns. If the clustering of the last row returned is empty
+            // it means that there is only one row per partition. Therefore, in both cases there are no data remaining
+            // within the partition.
+            if (lastRow != null && (lastRow.clustering() == Clustering.STATIC_CLUSTERING
+                    || lastRow.clustering() == Clustering.EMPTY))
             {
                 remainingInPartition = 0;
             }

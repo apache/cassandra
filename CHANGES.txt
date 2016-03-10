@@ -1,4 +1,5 @@
 3.0.5
+ * Fix paging for IN queries on tables without clustering columns (CASSANDRA-11208)
  * Remove recursive call from CompositesSearcher (CASSANDRA-11304)
  * Fix filtering on non-primary key columns for queries without index (CASSANDRA-6377)
  * Fix sstableloader fail when using materialized view (CASSANDRA-11275)
