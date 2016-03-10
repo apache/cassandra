@@ -522,9 +522,9 @@ public class LifecycleTransaction extends Transactional.AbstractTransactional
         log.untrackNew(table);
     }
 
-    public static void removeUnfinishedLeftovers(CFMetaData metadata)
+    public static boolean removeUnfinishedLeftovers(CFMetaData metadata)
     {
-        LogTransaction.removeUnfinishedLeftovers(metadata);
+        return LogTransaction.removeUnfinishedLeftovers(metadata);
     }
 
     /**

@@ -24,6 +24,7 @@ import java.nio.file.NoSuchFileException;
 import java.util.*;
 import java.util.concurrent.ConcurrentLinkedQueue;
 import java.util.concurrent.TimeUnit;
+import java.util.function.Predicate;
 
 import com.google.common.annotations.VisibleForTesting;
 import com.google.common.util.concurrent.Runnables;
@@ -55,7 +56,7 @@ import org.apache.cassandra.utils.concurrent.Transactional;
  * IMPORTANT: The transaction must complete (commit or abort) before any temporary files are deleted, even though the
  * txn log file itself will not be deleted until all tracked files are deleted. This is required by FileLister to ensure
  * a consistent disk state. LifecycleTransaction ensures this requirement, so this class should really never be used
- * outside of LT. @see FileLister.classifyFiles(TransactionData txn)
+ * outside of LT. @see LogAwareFileLister.classifyFiles()
  *
  * A class that tracks sstable files involved in a transaction across sstables:
  * if the transaction succeeds the old files should be deleted and the new ones kept; vice-versa if it fails.
@@ -67,8 +68,7 @@ import org.apache.cassandra.utils.concurrent.Transactional;
  *
  * where sstable-2 is a new sstable to be retained if the transaction succeeds and sstable-1 is an old sstable to be
  * removed. CRC is an incremental CRC of the file content up to this point. For old sstable files we also log the
- * last update time of all files for the sstable descriptor and a checksum of vital properties such as update times
- * and file sizes.
+ * last update time of all files for the sstable descriptor and the number of sstable files.
  *
  * Upon commit we add a final line to the log file:
  *
@@ -238,27 +238,29 @@ class LogTransaction extends Transactional.AbstractTransactional implements Tran
         public void run()
         {
             if (logger.isTraceEnabled())
-                logger.trace("Removing files for transaction {}", name());
+                logger.trace("Removing files for transaction log {}", data);
 
             if (!data.completed())
             { // this happens if we forget to close a txn and the garbage collector closes it for us
-                logger.error("{} was not completed, trying to abort it now", data);
+                logger.error("Transaction log {} indicates txn was not completed, trying to abort it now", data);
                 Throwable err = Throwables.perform((Throwable)null, data::abort);
                 if (err != null)
-                    logger.error("Failed to abort {}", data, err);
+                    logger.error("Failed to abort transaction log {}", data, err);
             }
 
             Throwable err = data.removeUnfinishedLeftovers(null);
 
             if (err != null)
             {
-                logger.info("Failed deleting files for transaction {}, we'll retry after GC and on on server restart", name(), err);
+                logger.info("Failed deleting files for transaction log {}, we'll retry after GC and on on server restart",
+                            data,
+                            err);
                 failedDeletions.add(this);
             }
             else
             {
                 if (logger.isTraceEnabled())
-                    logger.trace("Closing file transaction {}", name());
+                    logger.trace("Closing transaction log {}", data);
 
                 data.close();
             }
@@ -360,7 +362,7 @@ class LogTransaction extends Transactional.AbstractTransactional implements Tran
         }
         catch (Throwable t)
         {
-            logger.error("Failed to complete file transaction {}", id(), t);
+            logger.error("Failed to complete file transaction id {}", id(), t);
             return Throwables.merge(accumulate, t);
         }
     }
@@ -378,31 +380,43 @@ class LogTransaction extends Transactional.AbstractTransactional implements Tran
     protected void doPrepare() { }
 
     /**
-     * Called on startup to scan existing folders for any unfinished leftovers of
-     * operations that were ongoing when the process exited. Also called by the standalone
-     * sstableutil tool when the cleanup option is specified, @see StandaloneSSTableUtil.
+     * Removes any leftovers from unifinished transactions as indicated by any transaction log files that
+     * are found in the table directories. This means that any old sstable files for transactions that were committed,
+     * or any new sstable files for transactions that were aborted or still in progress, should be removed *if
+     * it is safe to do so*. Refer to the checks in LogFile.verify for further details on the safety checks
+     * before removing transaction leftovers and refer to the comments at the beginning of this file or in NEWS.txt
+     * for further details on transaction logs.
+     *
+     * This method is called on startup and by the standalone sstableutil tool when the cleanup option is specified,
+     * @see StandaloneSSTableUtil.
+     *
+     * @return true if the leftovers of all transaction logs found were removed, false otherwise.
      *
      */
-    static void removeUnfinishedLeftovers(CFMetaData metadata)
+    static boolean removeUnfinishedLeftovers(CFMetaData metadata)
     {
-        removeUnfinishedLeftovers(new Directories(metadata).getCFDirectories());
+        return removeUnfinishedLeftovers(new Directories(metadata).getCFDirectories());
     }
 
     @VisibleForTesting
-    static void removeUnfinishedLeftovers(List<File> folders)
+    static boolean removeUnfinishedLeftovers(List<File> directories)
     {
         LogFilesByName logFiles = new LogFilesByName();
-        folders.forEach(logFiles::list);
-        logFiles.removeUnfinishedLeftovers();
+        directories.forEach(logFiles::list);
+        return logFiles.removeUnfinishedLeftovers();
     }
 
     private static final class LogFilesByName
     {
+        // This maps a transaction log file name to a list of physical files. Each sstable
+        // can have multiple directories and a transaction is trakced by identical transaction log
+        // files, one per directory. So for each transaction file name we can have multiple
+        // physical files.
         Map<String, List<File>> files = new HashMap<>();
 
-        void list(File folder)
+        void list(File directory)
         {
-            Arrays.stream(folder.listFiles(LogFile::isLogFile)).forEach(this::add);
+            Arrays.stream(directory.listFiles(LogFile::isLogFile)).forEach(this::add);
         }
 
         void add(File file)
@@ -417,25 +431,35 @@ class LogTransaction extends Transactional.AbstractTransactional implements Tran
             filesByName.add(file);
         }
 
-        void removeUnfinishedLeftovers()
+        boolean removeUnfinishedLeftovers()
         {
-            files.forEach(LogFilesByName::removeUnfinishedLeftovers);
+            return files.entrySet()
+                        .stream()
+                        .map(LogFilesByName::removeUnfinishedLeftovers)
+                        .allMatch(Predicate.isEqual(true));
         }
 
-        static void removeUnfinishedLeftovers(String name, List<File> logFiles)
+        static boolean removeUnfinishedLeftovers(Map.Entry<String, List<File>> entry)
         {
-            LogFile txn = LogFile.make(name, logFiles);
+            LogFile txn = LogFile.make(entry.getKey(), entry.getValue());
             try
             {
                 if (txn.verify())
                 {
                     Throwable failure = txn.removeUnfinishedLeftovers(null);
                     if (failure != null)
-                        logger.error("Failed to remove unfinished transaction leftovers for txn {}", txn, failure);
+                    {
+                        logger.error("Failed to remove unfinished transaction leftovers for transaction log {}",
+                                     txn.toString(true), failure);
+                        return false;
+                    }
+
+                    return true;
                 }
                 else
                 {
-                    logger.error("Unexpected disk state: failed to read transaction txn {}", txn);
+                    logger.error("Unexpected disk state: failed to read transaction log {}", txn.toString(true));
+                    return false;
                 }
             }
             finally

@@ -134,8 +134,9 @@ public class StartupChecks
         {
             long now = System.currentTimeMillis();
             if (now < EARLIEST_LAUNCH_DATE)
-                throw new StartupException(1, String.format("current machine time is %s, but that is seemingly incorrect. exiting now.",
-                                                            new Date(now).toString()));
+                throw new StartupException(StartupException.ERR_WRONG_MACHINE_STATE,
+                                           String.format("current machine time is %s, but that is seemingly incorrect. exiting now.",
+                                                         new Date(now).toString()));
         }
     };
 
@@ -186,7 +187,7 @@ public class StartupChecks
         {
             // Fail-fast if JNA is not available or failing to initialize properly
             if (!CLibrary.jnaAvailable())
-                throw new StartupException(3, "JNA failing to initialize properly. ");
+                throw new StartupException(StartupException.ERR_WRONG_MACHINE_STATE, "JNA failing to initialize properly. ");
         }
     };
 
@@ -216,12 +217,14 @@ public class StartupChecks
                 logger.warn("Directory {} doesn't exist", dataDir);
                 // if they don't, failing their creation, stop cassandra.
                 if (!dir.mkdirs())
-                    throw new StartupException(3, "Has no permission to create directory "+ dataDir);
+                    throw new StartupException(StartupException.ERR_WRONG_DISK_STATE,
+                                               "Has no permission to create directory "+ dataDir);
             }
 
             // if directories exist verify their permissions
             if (!Directories.verifyFullPermissions(dir, dataDir))
-                throw new StartupException(3, "Insufficient permissions on directory " + dataDir);
+                throw new StartupException(StartupException.ERR_WRONG_DISK_STATE,
+                                           "Insufficient permissions on directory " + dataDir);
         }
     };
 
@@ -272,11 +275,12 @@ public class StartupChecks
             }
 
             if (!invalid.isEmpty())
-                throw new StartupException(3, String.format("Detected unreadable sstables %s, please check " +
-                                                            "NEWS.txt and ensure that you have upgraded through " +
-                                                            "all required intermediate versions, running " +
-                                                            "upgradesstables",
-                                                            Joiner.on(",").join(invalid)));
+                throw new StartupException(StartupException.ERR_WRONG_DISK_STATE,
+                                           String.format("Detected unreadable sstables %s, please check " +
+                                                         "NEWS.txt and ensure that you have upgraded through " +
+                                                         "all required intermediate versions, running " +
+                                                         "upgradesstables",
+                                                         Joiner.on(",").join(invalid)));
 
         }
     };
@@ -318,7 +322,7 @@ public class StartupChecks
                         String formatMessage = "Cannot start node if snitch's data center (%s) differs from previous data center (%s). " +
                                                "Please fix the snitch configuration, decommission and rebootstrap this node or use the flag -Dcassandra.ignore_dc=true.";
 
-                        throw new StartupException(100, String.format(formatMessage, currentDc, storedDc));
+                        throw new StartupException(StartupException.ERR_WRONG_CONFIG, String.format(formatMessage, currentDc, storedDc));
                     }
                 }
             }
@@ -340,7 +344,7 @@ public class StartupChecks
                         String formatMessage = "Cannot start node if snitch's rack (%s) differs from previous rack (%s). " +
                                                "Please fix the snitch configuration, decommission and rebootstrap this node or use the flag -Dcassandra.ignore_rack=true.";
 
-                        throw new StartupException(100, String.format(formatMessage, currentRack, storedRack));
+                        throw new StartupException(StartupException.ERR_WRONG_CONFIG, String.format(formatMessage, currentRack, storedRack));
                     }
                 }
             }

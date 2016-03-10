@@ -236,7 +236,16 @@ public class CassandraDaemon
                 continue;
 
             for (CFMetaData cfm : Schema.instance.getTablesAndViews(keyspaceName))
-                ColumnFamilyStore.scrubDataDirectories(cfm);
+            {
+                try
+                {
+                    ColumnFamilyStore.scrubDataDirectories(cfm);
+                }
+                catch (StartupException e)
+                {
+                    exitOrFail(e.returnCode, e.getMessage(), e.getCause());
+                }
+            }
         }
 
         Keyspace.setInitialized();

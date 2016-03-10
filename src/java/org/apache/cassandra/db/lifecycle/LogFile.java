@@ -73,9 +73,9 @@ final class LogFile
         return new LogFile(operationType, id, logReplicas);
     }
 
-    Throwable syncFolder(Throwable accumulate)
+    Throwable syncDirectory(Throwable accumulate)
     {
-        return replicas.syncFolder(accumulate);
+        return replicas.syncDirectory(accumulate);
     }
 
     OperationType type()
@@ -94,9 +94,9 @@ final class LogFile
         {
             deleteFilesForRecordsOfType(committed() ? Type.REMOVE : Type.ADD);
 
-            // we sync the parent folders between contents and log deletion
+            // we sync the parent directories between contents and log deletion
             // to ensure there is a happens before edge between them
-            Throwables.maybeFail(syncFolder(accumulate));
+            Throwables.maybeFail(syncDirectory(accumulate));
 
             accumulate = replicas.delete(accumulate);
         }
@@ -130,7 +130,7 @@ final class LogFile
         records.clear();
         if (!replicas.readRecords(records))
         {
-            logger.error("Failed to read records from {}", replicas);
+            logger.error("Failed to read records for transaction log {}", this);
             return false;
         }
 
@@ -143,7 +143,7 @@ final class LogFile
         LogRecord failedOn = firstInvalid.get();
         if (getLastRecord() != failedOn)
         {
-            logError(failedOn);
+            setErrorInReplicas(failedOn);
             return false;
         }
 
@@ -151,10 +151,10 @@ final class LogFile
         if (records.stream()
                    .filter((r) -> r != failedOn)
                    .filter(LogRecord::isInvalid)
-                   .map(LogFile::logError)
+                   .map(this::setErrorInReplicas)
                    .findFirst().isPresent())
         {
-            logError(failedOn);
+            setErrorInReplicas(failedOn);
             return false;
         }
 
@@ -167,9 +167,9 @@ final class LogFile
         return true;
     }
 
-    static LogRecord logError(LogRecord record)
+    LogRecord setErrorInReplicas(LogRecord record)
     {
-        logger.error("{}", record.error());
+        replicas.setErrorInReplicas(record);
         return record;
     }
 
@@ -177,9 +177,8 @@ final class LogFile
     {
         if (record.checksum != record.computeChecksum())
         {
-            record.setError(String.format("Invalid checksum for sstable [%s], record [%s]: [%d] should have been [%d]",
+            record.setError(String.format("Invalid checksum for sstable [%s]: [%d] should have been [%d]",
                                           record.fileName(),
-                                          record,
                                           record.checksum,
                                           record.computeChecksum()));
             return;
@@ -197,10 +196,9 @@ final class LogFile
         record.status.onDiskRecord = record.withExistingFiles();
         if (record.updateTime != record.status.onDiskRecord.updateTime && record.status.onDiskRecord.numFiles > 0)
         {
-            record.setError(String.format("Unexpected files detected for sstable [%s], " +
-                                          "record [%s]: last update time [%tT] should have been [%tT]",
+            record.setError(String.format("Unexpected files detected for sstable [%s]: " +
+                                          "last update time [%tT] should have been [%tT]",
                                           record.fileName(),
-                                          record,
                                           record.status.onDiskRecord.updateTime,
                                           record.updateTime));
 
@@ -212,11 +210,9 @@ final class LogFile
         if (record.type == Type.REMOVE && record.status.onDiskRecord.numFiles < record.numFiles)
         { // if we found a corruption in the last record, then we continue only
           // if the number of files matches exactly for all previous records.
-            record.setError(String.format("Incomplete fileset detected for sstable [%s], record [%s]: " +
-                                          "number of files [%d] should have been [%d]. Treating as unrecoverable " +
-                                          "due to corruption of the final record.",
+            record.setError(String.format("Incomplete fileset detected for sstable [%s]: " +
+                                          "number of files [%d] should have been [%d].",
                                           record.fileName(),
-                                          record.raw,
                                           record.status.onDiskRecord.numFiles,
                                           record.numFiles));
         }
@@ -267,8 +263,9 @@ final class LogFile
     {
         assert type == Type.ADD || type == Type.REMOVE;
 
-        File folder = table.descriptor.directory;
-        replicas.maybeCreateReplica(folder, getFileName(folder), records);
+        File directory = table.descriptor.directory;
+        String fileName = StringUtils.join(directory, File.separator, getFileName());
+        replicas.maybeCreateReplica(directory, fileName, records);
         return LogRecord.make(type, table);
     }
 
@@ -351,7 +348,25 @@ final class LogFile
     @Override
     public String toString()
     {
-        return replicas.toString();
+        return toString(false);
+    }
+
+    public String toString(boolean showContents)
+    {
+        StringBuilder str = new StringBuilder();
+        str.append('[');
+        str.append(getFileName());
+        str.append(" in ");
+        str.append(replicas.getDirectories());
+        str.append(']');
+        if (showContents)
+        {
+            str.append(System.lineSeparator());
+            str.append("Files and contents follow:");
+            str.append(System.lineSeparator());
+            replicas.printContentsWithAnyErrors(str);
+        }
+        return str.toString();
     }
 
     @VisibleForTesting
@@ -366,16 +381,15 @@ final class LogFile
         return replicas.getFilePaths();
     }
 
-    private String getFileName(File folder)
+    private String getFileName()
     {
-        String fileName = StringUtils.join(BigFormat.latestVersion,
-                                           LogFile.SEP,
-                                           "txn",
-                                           LogFile.SEP,
-                                           type.fileName,
-                                           LogFile.SEP,
-                                           id.toString(),
-                                           LogFile.EXT);
-        return StringUtils.join(folder, File.separator, fileName);
+        return StringUtils.join(BigFormat.latestVersion,
+                                LogFile.SEP,
+                                "txn",
+                                LogFile.SEP,
+                                type.fileName,
+                                LogFile.SEP,
+                                id.toString(),
+                                LogFile.EXT);
     }
 }

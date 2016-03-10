@@ -519,7 +519,7 @@ public class LogTransactionTest extends AbstractTransactionalTest
                             LogAwareFileLister.getTemporaryFiles(dataFolder2));
 
         // normally called at startup
-        LogTransaction.removeUnfinishedLeftovers(Arrays.asList(dataFolder1, dataFolder2));
+        assertTrue(LogTransaction.removeUnfinishedLeftovers(Arrays.asList(dataFolder1, dataFolder2)));
 
         // new tables should be only table left
         assertFiles(dataFolder1.getPath(), new HashSet<>(sstables[1].getAllFilePaths()));
@@ -570,7 +570,7 @@ public class LogTransactionTest extends AbstractTransactionalTest
                             LogAwareFileLister.getTemporaryFiles(dataFolder2));
 
         // normally called at startup
-        LogTransaction.removeUnfinishedLeftovers(Arrays.asList(dataFolder1, dataFolder2));
+        assertTrue(LogTransaction.removeUnfinishedLeftovers(Arrays.asList(dataFolder1, dataFolder2)));
 
         // old tables should be only table left
         assertFiles(dataFolder1.getPath(), new HashSet<>(sstables[0].getAllFilePaths()));
@@ -735,7 +735,8 @@ public class LogTransactionTest extends AbstractTransactionalTest
 
         Arrays.stream(sstables).forEach(s -> s.selfRef().release());
 
-        LogTransaction.removeUnfinishedLeftovers(Arrays.asList(dataFolder1, dataFolder2));
+        // if shouldCommit is true then it should remove the leftovers and return true, false otherwise
+        assertEquals(shouldCommit, LogTransaction.removeUnfinishedLeftovers(Arrays.asList(dataFolder1, dataFolder2)));
         LogTransaction.waitForDeletions();
 
         if (shouldCommit)
@@ -862,7 +863,7 @@ public class LogTransactionTest extends AbstractTransactionalTest
                                   if (filePath.endsWith("Data.db"))
                                   {
                                       assertTrue(FileUtils.delete(filePath));
-                                      assertNull(t.txnFile().syncFolder(null));
+                                      assertNull(t.txnFile().syncDirectory(null));
                                       break;
                                   }
                               }

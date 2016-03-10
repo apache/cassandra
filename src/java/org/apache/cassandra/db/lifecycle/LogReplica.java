@@ -19,6 +19,9 @@
 package org.apache.cassandra.db.lifecycle;
 
 import java.io.File;
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
 
 import org.apache.cassandra.io.util.FileUtils;
 import org.apache.cassandra.utils.CLibrary;
@@ -26,7 +29,7 @@ import org.apache.cassandra.utils.CLibrary;
 /**
  * Because a column family may have sstables on different disks and disks can
  * be removed, we duplicate log files into many replicas so as to have a file
- * in each folder where sstables exist.
+ * in each directory where sstables exist.
  *
  * Each replica contains the exact same content but we do allow for final
  * partial records in case we crashed after writing to one replica but
@@ -37,11 +40,12 @@ import org.apache.cassandra.utils.CLibrary;
 final class LogReplica
 {
     private final File file;
-    private int folderDescriptor;
+    private int directoryDescriptor;
+    private final Map<String, String> errors = new HashMap<>();
 
-    static LogReplica create(File folder, String fileName)
+    static LogReplica create(File directory, String fileName)
     {
-        return new LogReplica(new File(fileName), CLibrary.tryOpenDirectory(folder.getPath()));
+        return new LogReplica(new File(fileName), CLibrary.tryOpenDirectory(directory.getPath()));
     }
 
     static LogReplica open(File file)
@@ -49,15 +53,30 @@ final class LogReplica
         return new LogReplica(file, CLibrary.tryOpenDirectory(file.getParentFile().getPath()));
     }
 
-    LogReplica(File file, int folderDescriptor)
+    LogReplica(File file, int directoryDescriptor)
     {
         this.file = file;
-        this.folderDescriptor = folderDescriptor;
+        this.directoryDescriptor = directoryDescriptor;
     }
 
     File file()
     {
         return file;
+    }
+
+    List<String> readLines()
+    {
+        return FileUtils.readLines(file);
+    }
+
+    String getFileName()
+    {
+        return file.getName();
+    }
+
+    String getDirectory()
+    {
+        return file.getParent();
     }
 
     void append(LogRecord record)
@@ -66,21 +85,21 @@ final class LogReplica
         FileUtils.appendAndSync(file, record.toString());
 
         // If the file did not exist before appending the first
-        // line, then sync the folder as well since now it must exist
+        // line, then sync the directory as well since now it must exist
         if (!existed)
-            syncFolder();
+            syncDirectory();
     }
 
-    void syncFolder()
+    void syncDirectory()
     {
-        if (folderDescriptor >= 0)
-            CLibrary.trySync(folderDescriptor);
+        if (directoryDescriptor >= 0)
+            CLibrary.trySync(directoryDescriptor);
     }
 
     void delete()
     {
         LogTransaction.delete(file);
-        syncFolder();
+        syncDirectory();
     }
 
     boolean exists()
@@ -90,10 +109,10 @@ final class LogReplica
 
     void close()
     {
-        if (folderDescriptor >= 0)
+        if (directoryDescriptor >= 0)
         {
-            CLibrary.tryCloseFD(folderDescriptor);
-            folderDescriptor = -1;
+            CLibrary.tryCloseFD(directoryDescriptor);
+            directoryDescriptor = -1;
         }
     }
 
@@ -101,5 +120,32 @@ final class LogReplica
     public String toString()
     {
         return String.format("[%s] ", file);
+    }
+
+    void setError(String line, String error)
+    {
+        errors.put(line, error);
+    }
+
+    void printContentsWithAnyErrors(StringBuilder str)
+    {
+        str.append(file.getPath());
+        str.append(System.lineSeparator());
+        FileUtils.readLines(file).forEach(line -> printLineWithAnyError(str, line));
+    }
+
+    private void printLineWithAnyError(StringBuilder str, String line)
+    {
+        str.append('\t');
+        str.append(line);
+        str.append(System.lineSeparator());
+
+        String error = errors.get(line);
+        if (error != null)
+        {
+            str.append("\t\t***");
+            str.append(error);
+            str.append(System.lineSeparator());
+        }
     }
 }

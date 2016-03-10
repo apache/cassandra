@@ -18,8 +18,11 @@ using the provided 'sstableupgrade' tool.
 
 New features
 ------------
-   - for tables having a default_time_to_live specifying a TTL of 0 will remove the TTL
+   - For tables having a default_time_to_live specifying a TTL of 0 will remove the TTL
      from the inserted or updated values.
+   - Startup is now aborted if corrupted transaction log files are found. The details
+     of the affected log files are now logged, allowing the operator to decide how
+     to resolve the situation.
 
 3.4
 =====
