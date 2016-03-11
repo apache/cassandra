@@ -1,4 +1,5 @@
 2.2.6
+ * (cqlsh) Fix error when result is 0 rows with EXPAND ON (CASSANDRA-11092)
  * Fix intra-node serialization issue for multicolumn-restrictions (CASSANDRA-11196)
  * Non-obsoleting compaction operations over compressed files can impose rate limit on normal reads (CASSANDRA-11301)
  * Add missing newline at end of bin/cqlsh (CASSANDRA-11325)
