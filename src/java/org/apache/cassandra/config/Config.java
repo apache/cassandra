@@ -388,10 +388,11 @@ public class Config
         add("client_encryption_options");
         add("server_encryption_options");
     }};
-    public void log()
+
+    public static void log(Config config)
     {
         Map<String, String> configMap = new TreeMap<>();
-        for (Field field : getClass().getFields())
+        for (Field field : Config.class.getFields())
         {
             // ignore the constants
             if (Modifier.isFinal(field.getModifiers()))
@@ -408,7 +409,7 @@ public class Config
             try
             {
                 // Field.get() can throw NPE if the value of the field is null
-                value = field.get(this).toString();
+                value = field.get(config).toString();
             }
             catch (NullPointerException | IllegalAccessException npe)
             {

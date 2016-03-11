@@ -137,7 +137,7 @@ public class DatabaseDescriptor
         if (!hasLoggedConfig)
         {
             hasLoggedConfig = true;
-            config.log();
+            Config.log(config);
         }
 
         return config;
