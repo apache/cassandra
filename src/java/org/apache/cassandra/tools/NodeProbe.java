@@ -692,10 +692,10 @@ public class NodeProbe implements AutoCloseable
         return ssProxy.getNaturalEndpoints(keyspace, cf, key);
     }
 
-    public List<String> getSSTables(String keyspace, String cf, String key)
+    public List<String> getSSTables(String keyspace, String cf, String key, boolean hexFormat)
     {
         ColumnFamilyStoreMBean cfsProxy = getCfsProxy(keyspace, cf);
-        return cfsProxy.getSSTablesForKey(key);
+        return cfsProxy.getSSTablesForKey(key, hexFormat);
     }
 
     public Set<StreamState> getStreamStatus()

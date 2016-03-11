@@ -1554,7 +1554,13 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
     // WARNING: this returns the set of LIVE sstables only, which may be only partially written
     public List<String> getSSTablesForKey(String key)
     {
-        DecoratedKey dk = decorateKey(metadata.getKeyValidator().fromString(key));
+        return getSSTablesForKey(key, false);
+    }
+
+    public List<String> getSSTablesForKey(String key, boolean hexFormat)
+    {
+        ByteBuffer keyBuffer = hexFormat ? ByteBufferUtil.hexToBytes(key) : metadata.getKeyValidator().fromString(key);
+        DecoratedKey dk = decorateKey(keyBuffer);
         try (OpOrder.Group op = readOrdering.start())
         {
             List<String> files = new ArrayList<>();

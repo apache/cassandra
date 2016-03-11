@@ -124,6 +124,14 @@ public interface ColumnFamilyStoreMBean
     public List<String> getSSTablesForKey(String key);
 
     /**
+     * Returns a list of filenames that contain the given key on this node
+     * @param key
+     * @param hexFormat if key is in hex string format
+     * @return list of filenames containing the key
+     */
+    public List<String> getSSTablesForKey(String key, boolean hexFormat);
+
+    /**
      * Scan through Keyspace/ColumnFamily's data directory
      * determine which SSTables should be loaded and load them
      */
