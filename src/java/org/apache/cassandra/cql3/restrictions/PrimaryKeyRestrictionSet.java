@@ -20,6 +20,8 @@ package org.apache.cassandra.cql3.restrictions;
 import java.nio.ByteBuffer;
 import java.util.*;
 
+import com.google.common.collect.Lists;
+
 import org.apache.cassandra.db.composites.Composite;
 import org.apache.cassandra.config.ColumnDefinition;
 import org.apache.cassandra.cql3.QueryOptions;
@@ -201,7 +203,24 @@ final class PrimaryKeyRestrictionSet extends AbstractPrimaryKeyRestrictions
             if (r.isSlice())
             {
                 r.appendBoundTo(builder, bound, options);
-                return filterAndSort(setEocs(r, bound, builder.build()));
+
+                // Since CASSANDRA-7281, the composites might not end with the same components and it is possible
+                // that one of the composites is an empty one. Unfortunatly, AbstractCType will always sort
+                // Composites.EMPTY before all the other components due to its EOC, even if it is not the desired
+                // behaviour in some cases. To avoid that problem the code will use normal composites for the empty
+                // ones until the composites are properly sorted. They will then be replaced by Composites.EMPTY as
+                // it is what is expected by the intra-node serialization.
+                // It is clearly a hack but it does not make a lot of sense to refactor 2.2 for that as the problem is
+                // already solved in 3.0.
+                List<Composite> composites = filterAndSort(setEocs(r, bound, builder.build()));
+                return Lists.transform(composites, new com.google.common.base.Function<Composite, Composite>()
+                {
+                    @Override
+                    public Composite apply(Composite composite)
+                    {
+                        return composite.isEmpty() ? Composites.EMPTY: composite;
+                    }
+                });
             }
 
             r.appendBoundTo(builder, bound, options);
@@ -234,6 +253,7 @@ final class PrimaryKeyRestrictionSet extends AbstractPrimaryKeyRestrictions
 
         TreeSet<Composite> set = new TreeSet<Composite>(ctype);
         set.addAll(composites);
+
         return new ArrayList<>(set);
     }
 

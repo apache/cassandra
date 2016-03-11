@@ -31,6 +31,7 @@ import org.apache.cassandra.cql3.statements.Bound;
 import org.apache.cassandra.db.ColumnFamilyType;
 import org.apache.cassandra.db.composites.Composite;
 import org.apache.cassandra.db.composites.Composite.EOC;
+import org.apache.cassandra.db.composites.Composites;
 import org.apache.cassandra.db.composites.CompoundSparseCellNameType;
 import org.apache.cassandra.db.marshal.AbstractType;
 import org.apache.cassandra.db.marshal.Int32Type;
@@ -1682,7 +1683,7 @@ public class PrimaryKeyRestrictionSetTest
      */
     private static void assertEmptyComposite(Composite composite)
     {
-        assertTrue(composite.isEmpty());
+        assertEquals(Composites.EMPTY, composite);
     }
 
     /**
