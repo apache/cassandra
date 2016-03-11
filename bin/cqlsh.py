@@ -1328,7 +1328,13 @@ class Shell(cmd.Cmd):
     def print_static_result(self, column_names, rows, table_meta):
         if not column_names and not table_meta:
             return
+
         column_names = column_names or table_meta.columns.keys()
+        formatted_names = [self.myformat_colname(name, table_meta) for name in column_names]
+        if not rows:
+            # print header only
+            self.print_formatted_result(formatted_names, None)
+            return
 
         cql_types = []
         if table_meta:
@@ -1336,7 +1342,6 @@ class Shell(cmd.Cmd):
             cql_types = [CqlType(table_meta.columns[c].cql_type, ks_meta)
                          if c in table_meta.columns else None for c in column_names]
 
-        formatted_names = [self.myformat_colname(name, table_meta) for name in column_names]
         formatted_values = [map(self.myformat_value, row.values(), cql_types) for row in rows]
 
         if self.expand_enabled:
