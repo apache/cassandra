@@ -92,7 +92,7 @@ public abstract class UnfilteredRowIterators
     }
 
     /**
-     * Returns an empty atom iterator for a given partition.
+     * Returns an empty unfiltered iterator for a given partition.
      */
     public static UnfilteredRowIterator noRowsIterator(final CFMetaData cfm, final DecoratedKey partitionKey, final Row staticRow, final DeletionTime partitionDeletion, final boolean isReverseOrder)
     {

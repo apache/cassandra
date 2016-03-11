@@ -215,6 +215,18 @@ public interface Row extends Unfiltered, Collection<ColumnData>
      */
     public Row updateAllTimestamp(long newTimestamp);
 
+    /**
+     * Returns a copy of this row with the new deletion as row deletion if it is more recent
+     * than the current row deletion.
+     * <p>
+     * WARNING: this method <b>does not</b> check that nothing in the row is shadowed by the provided
+     * deletion and if that is the case, the created row will be <b>invalid</b>. It is thus up to the
+     * caller to verify that this is not the case and the only reasonable use case of this is probably
+     * when the row and the deletion comes from the same {@code UnfilteredRowIterator} since that gives
+     * use this guarantee.
+     */
+    public Row withRowDeletion(DeletionTime deletion);
+
     public int dataSize();
 
     public long unsharedHeapSizeExcludingData();
@@ -227,12 +239,15 @@ public interface Row extends Unfiltered, Collection<ColumnData>
      * A row deletion mostly consists of the time of said deletion, but there is 2 variants: shadowable
      * and regular row deletion.
      * <p>
-     * A shadowable row deletion only exists if the row timestamp ({@code primaryKeyLivenessInfo().timestamp()})
-     * is lower than the deletion timestamp. That is, if a row has a shadowable deletion with timestamp A and an update is made
-     * to that row with a timestamp B such that B > A, then the shadowable deletion is 'shadowed' by that update. A concrete
-     * consequence is that if said update has cells with timestamp lower than A, then those cells are preserved
-     * (since the deletion is removed), and this contrarily to a normal (regular) deletion where the deletion is preserved
-     * and such cells are removed.
+     * A shadowable row deletion only exists if the row has no timestamp. In other words, the deletion is only
+     * valid as long as no newer insert is done (thus setting a row timestap; note that if the row timestamp set
+     * is lower than the deletion, it is shadowed (and thus ignored) as usual).
+     * <p>
+     * That is, if a row has a shadowable deletion with timestamp A and an update is madeto that row with a
+     * timestamp B such that B > A (and that update sets the row timestamp), then the shadowable deletion is 'shadowed'
+     * by that update. A concrete consequence is that if said update has cells with timestamp lower than A, then those
+     * cells are preserved(since the deletion is removed), and this contrarily to a normal (regular) deletion where the
+     * deletion is preserved and such cells are removed.
      * <p>
      * Currently, the only use of shadowable row deletions is Materialized Views, see CASSANDRA-10261.
      */
@@ -312,6 +327,11 @@ public interface Row extends Unfiltered, Collection<ColumnData>
             return time.deletes(info);
         }
 
+        public boolean deletes(Cell cell)
+        {
+            return time.deletes(cell);
+        }
+
         public void digest(MessageDigest digest)
         {
             time.digest(digest);
@@ -361,6 +381,9 @@ public interface Row extends Unfiltered, Collection<ColumnData>
      *      any column before {@code c} and before any call for any column after {@code c}.
      *   5) Calls to {@link #addCell} are further done in strictly increasing cell order (the one defined by
      *      {@link Cell#comparator}. That is, for a give column, cells are passed in {@code CellPath} order.
+     *   6) No shadowed data should be added. Concretely, this means that if a a row deletion is added, it doesn't
+     *      deletes the row timestamp or any cell added later, and similarly no cell added is deleted by the complex
+     *      deletion of the column this is a cell of.
      *
      * An unsorted builder will not expect those last rules however: {@link #addCell} and {@link #addComplexDeletion}
      * can be done in any order. And in particular unsorted builder allows multiple calls for the same column/cell. In

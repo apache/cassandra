@@ -82,4 +82,6 @@ public abstract class ColumnData
     public abstract ColumnData markCounterLocalToBeCleared();
 
     public abstract ColumnData purge(DeletionPurger purger, int nowInSec);
+
+    public abstract long maxTimestamp();
 }

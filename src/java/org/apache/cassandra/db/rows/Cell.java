@@ -129,6 +129,8 @@ public abstract class Cell extends ColumnData
      */
     public abstract CellPath path();
 
+    public abstract Cell withUpdatedColumn(ColumnDefinition newColumn);
+
     public abstract Cell withUpdatedValue(ByteBuffer newValue);
 
     public abstract Cell copy(AbstractAllocator allocator);

@@ -210,6 +210,13 @@ public abstract class Slices implements Iterable<Slice>
             return this;
         }
 
+        public Builder addAll(Slices slices)
+        {
+            for (Slice slice : slices)
+                add(slice);
+            return this;
+        }
+
         public int size()
         {
             return slices.size();

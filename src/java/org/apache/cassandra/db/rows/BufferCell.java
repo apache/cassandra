@@ -133,6 +133,11 @@ public class BufferCell extends AbstractCell
         return path;
     }
 
+    public Cell withUpdatedColumn(ColumnDefinition newColumn)
+    {
+        return new BufferCell(newColumn, timestamp, ttl, localDeletionTime, value, path);
+    }
+
     public Cell withUpdatedValue(ByteBuffer newValue)
     {
         return new BufferCell(column, timestamp, ttl, localDeletionTime, newValue, path);

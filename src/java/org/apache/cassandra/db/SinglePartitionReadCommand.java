@@ -229,6 +229,39 @@ public class SinglePartitionReadCommand extends ReadCommand
         return create(metadata, nowInSec, metadata.decorateKey(key), slices);
     }
 
+    /**
+     * Creates a new single partition name command for the provided rows.
+     *
+     * @param metadata the table to query.
+     * @param nowInSec the time in seconds to use are "now" for this query.
+     * @param key the partition key for the partition to query.
+     * @param names the clustering for the rows to query.
+     *
+     * @return a newly created read command that queries the {@code names} in {@code key}. The returned query will
+     * query every columns (without limit or row filtering) and be in forward order.
+     */
+    public static SinglePartitionReadCommand create(CFMetaData metadata, int nowInSec, DecoratedKey key, NavigableSet<Clustering> names)
+    {
+        ClusteringIndexNamesFilter filter = new ClusteringIndexNamesFilter(names, false);
+        return SinglePartitionReadCommand.create(metadata, nowInSec, ColumnFilter.all(metadata), RowFilter.NONE, DataLimits.NONE, key, filter);
+    }
+
+    /**
+     * Creates a new single partition name command for the provided row.
+     *
+     * @param metadata the table to query.
+     * @param nowInSec the time in seconds to use are "now" for this query.
+     * @param key the partition key for the partition to query.
+     * @param name the clustering for the row to query.
+     *
+     * @return a newly created read command that queries {@code name} in {@code key}. The returned query will
+     * query every columns (without limit or row filtering).
+     */
+    public static SinglePartitionReadCommand create(CFMetaData metadata, int nowInSec, DecoratedKey key, Clustering name)
+    {
+        return create(metadata, nowInSec, key, FBUtilities.singleton(name, metadata.comparator));
+    }
+
     public SinglePartitionReadCommand copy()
     {
         return new SinglePartitionReadCommand(isDigestQuery(), digestVersion(), isForThrift(), metadata(), nowInSec(), columnFilter(), rowFilter(), limits(), partitionKey(), clusteringIndexFilter());

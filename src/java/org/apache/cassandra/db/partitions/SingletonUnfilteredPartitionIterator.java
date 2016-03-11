@@ -65,6 +65,7 @@ public class SingletonUnfilteredPartitionIterator implements UnfilteredPartition
 
     public void close()
     {
-        iter.close();
+        if (!returned)
+            iter.close();
     }
 }

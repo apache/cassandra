@@ -31,6 +31,7 @@ import com.google.common.annotations.VisibleForTesting;
 import com.google.common.base.MoreObjects;
 import com.google.common.base.Objects;
 import com.google.common.collect.ImmutableSet;
+import com.google.common.collect.Iterables;
 import com.google.common.collect.Sets;
 import org.apache.commons.lang3.ArrayUtils;
 import org.apache.commons.lang3.builder.HashCodeBuilder;
@@ -610,6 +611,11 @@ public final class CFMetaData
                 return otherColumns.hasNext() ? otherColumns.next() : endOfData();
             }
         };
+    }
+
+    public Iterable<ColumnDefinition> primaryKeyColumns()
+    {
+        return Iterables.concat(partitionKeyColumns, clusteringColumns);
     }
 
     public List<ColumnDefinition> partitionKeyColumns()
