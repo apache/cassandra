@@ -32,7 +32,6 @@ import org.apache.cassandra.io.sstable.metadata.MetadataCollector;
 
 public class MaxSSTableSizeWriter extends CompactionAwareWriter
 {
-    private final long estimatedTotalKeys;
     private final long expectedWriteSize;
     private final long maxSSTableSize;
     private final int level;
@@ -46,10 +45,9 @@ public class MaxSSTableSizeWriter extends CompactionAwareWriter
         this.allSSTables = txn.originals();
         this.level = level;
         this.maxSSTableSize = maxSSTableSize;
-        long totalSize = cfs.getExpectedCompactedFileSize(nonExpiredSSTables, compactionType);
+        long totalSize = getTotalWriteSize(nonExpiredSSTables, estimatedTotalKeys, cfs, compactionType);
         expectedWriteSize = Math.min(maxSSTableSize, totalSize);
-        estimatedTotalKeys = SSTableReader.getApproximateKeyCount(nonExpiredSSTables);
-        estimatedSSTables = Math.max(1, estimatedTotalKeys / maxSSTableSize);
+        estimatedSSTables = Math.max(1, totalSize / maxSSTableSize);
         File sstableDirectory = cfs.directories.getLocationForDisk(getWriteDirectory(expectedWriteSize));
         @SuppressWarnings("resource")
         SSTableWriter writer = SSTableWriter.create(Descriptor.fromFilename(cfs.getTempSSTablePath(sstableDirectory)),
@@ -59,6 +57,19 @@ public class MaxSSTableSizeWriter extends CompactionAwareWriter
                                                     cfs.partitioner,
                                                     new MetadataCollector(allSSTables, cfs.metadata.comparator, level));
         sstableWriter.switchWriter(writer);
+    }
+
+    /**
+     * Gets the estimated total amount of data to write during compaction
+     */
+    private static long getTotalWriteSize(Iterable<SSTableReader> nonExpiredSSTables, long estimatedTotalKeys, ColumnFamilyStore cfs, OperationType compactionType)
+    {
+        long estimatedKeysBeforeCompaction = 0;
+        for (SSTableReader sstable : nonExpiredSSTables)
+            estimatedKeysBeforeCompaction += sstable.estimatedKeys();
+        estimatedKeysBeforeCompaction = Math.max(1, estimatedKeysBeforeCompaction);
+        double estimatedCompactionRatio = (double) estimatedTotalKeys / estimatedKeysBeforeCompaction;
+        return Math.round(estimatedCompactionRatio * cfs.getExpectedCompactedFileSize(nonExpiredSSTables, compactionType));
     }
 
     @Override
@@ -79,11 +90,5 @@ public class MaxSSTableSizeWriter extends CompactionAwareWriter
             sstableWriter.switchWriter(writer);
         }
         return rie != null;
-    }
-
-    @Override
-    public long estimatedKeys()
-    {
-        return estimatedTotalKeys;
     }
 }
