@@ -98,6 +98,7 @@ public class CompactionManager implements CompactionManagerMBean
         }
     };
 
+
     static
     {
         instance = new CompactionManager();
@@ -657,23 +658,47 @@ public class CompactionManager implements CompactionManagerMBean
         {
             if (task.transaction.originals().size() > 0)
                 nonEmptyTasks++;
-            Runnable runnable = new WrappedRunnable()
-            {
-                protected void runMayThrow() throws IOException
-                {
-                    task.execute(metrics);
-                }
-            };
-            if (executor.isShutdown())
-            {
-                logger.info("Compaction executor has shut down, not submitting task");
-                return Collections.emptyList();
-            }
-            futures.add(executor.submit(runnable));
+
+            Future<?> future = submitTask(task);
+            if (future != null)
+                futures.add(future);
         }
         if (nonEmptyTasks > 1)
             logger.info("Major compaction will not result in a single sstable - repaired and unrepaired data is kept separate and compaction runs per data_file_directory.");
+
         return futures;
+    }
+
+    public Future<?> submitTask(final AbstractCompactionTask task) {
+        Runnable runnable = new WrappedRunnable()
+        {
+            protected void runMayThrow() throws IOException
+            {
+                task.execute(metrics);
+            }
+        };
+        if (executor.isShutdown())
+        {
+            logger.info("Compaction executor has shut down, not submitting task");
+            return null;
+        }
+        return executor.submit(runnable);
+    }
+
+    public void performOnSSTables(ColumnFamilyStore cfStore, Collection<SSTableReader> sstables)
+    {
+        Future<?> future = submitOnSSTables(cfStore, getDefaultGcBefore(cfStore, FBUtilities.nowInSeconds()), sstables);
+        if (future != null)
+            FBUtilities.waitOnFuture(future);
+    }
+
+    public Future<?> submitOnSSTables(final ColumnFamilyStore cfStore, final int gcBefore, final Collection<SSTableReader> sstables)
+    {
+        final AbstractCompactionTask task = cfStore.getCompactionStrategyManager().getUserDefinedTask(sstables, gcBefore);
+        if (task == null)
+            throw new RuntimeException("Cannot start multiple compaction sessions over the same sstables");
+
+        return submitTask(task);
     }
 
     public void forceUserDefinedCompaction(String dataFiles)

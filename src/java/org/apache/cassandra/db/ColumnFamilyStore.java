@@ -1920,6 +1920,29 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
         CompactionManager.instance.performMaximal(this, splitOutput);
     }
 
+    public void forceCompactionForTokenRange(Collection<Range<Token>> tokenRanges) throws ExecutionException, InterruptedException
+    {
+        final Collection<SSTableReader> sstables = sstablesInBounds(tokenRanges);
+        if (sstables == null || sstables.isEmpty()) {
+            logger.debug("No sstables found for the provided token range");
+            return;
+        }
+
+        CompactionManager.instance.performOnSSTables(this, sstables);
+    }
+
+    private Collection<SSTableReader> sstablesInBounds(Collection<Range<Token>> tokenRangeCollection)
+    {
+        final List<SSTableReader> sstables = new ArrayList<>();
+
+        for (Range<Token> tokenRange : tokenRangeCollection)
+        {
+            Iterable<SSTableReader> ssTableReaders = data.getView().sstablesInBounds(SSTableSet.LIVE, tokenRange.left.minKeyBound(), tokenRange.right.maxKeyBound());
+            Iterables.addAll(sstables, ssTableReaders);
+        }
+        return sstables;
+    }
+
     public static Iterable<ColumnFamilyStore> all()
     {
         List<Iterable<ColumnFamilyStore>> stores = new ArrayList<Iterable<ColumnFamilyStore>>(Schema.instance.getKeyspaces().size());

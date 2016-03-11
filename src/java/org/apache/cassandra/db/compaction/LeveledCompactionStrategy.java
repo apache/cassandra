@@ -143,7 +143,16 @@ public class LeveledCompactionStrategy extends AbstractCompactionStrategy
     @Override
     public AbstractCompactionTask getUserDefinedTask(Collection<SSTableReader> sstables, int gcBefore)
     {
-        throw new UnsupportedOperationException("LevelDB compaction strategy does not allow user-specified compactions");
+        assert !sstables.isEmpty();
+
+        LifecycleTransaction transaction = cfs.getTracker().tryModify(sstables, OperationType.COMPACTION);
+        if (transaction == null)
+        {
+            logger.trace("Unable to mark {} for compaction; probably a background compaction got to it first.  You can disable background compactions temporarily if this is a problem", sstables);
+            return null;
+        }
+
+        return new LeveledCompactionTask(cfs, transaction, 0, gcBefore, getMaxSSTableBytes(), true);
     }
 
     @Override
