@@ -17,6 +17,8 @@
  * Gossiper#isEnabled is not thread safe (CASSANDRA-11116)
  * Avoid major compaction mixing repaired and unrepaired sstables in DTCS (CASSANDRA-11113)
  * test_bulk_round_trip_blogposts is failing occasionally (CASSANDRA-10938)
+ * Add a -j parameter to scrub/cleanup/upgradesstables to state how
+   many threads to use (CASSANDRA-11179)
 
 
 2.1.13

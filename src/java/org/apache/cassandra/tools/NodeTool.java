@@ -1138,6 +1138,11 @@ public class NodeTool
         @Arguments(usage = "[<keyspace> <cfnames>...]", description = "The keyspace followed by one or many column families")
         private List<String> args = new ArrayList<>();
 
+        @Option(title = "jobs",
+                name = {"-j", "--jobs"},
+                description = "Number of sstables to cleanup simultaneusly, set to 0 to use all available compaction threads")
+        private int jobs = 2;
+
         @Override
         public void execute(NodeProbe probe)
         {
@@ -1151,7 +1156,7 @@ public class NodeTool
 
                 try
                 {
-                    probe.forceKeyspaceCleanup(System.out, keyspace, cfnames);
+                    probe.forceKeyspaceCleanup(System.out, jobs, keyspace, cfnames);
                 } catch (Exception e)
                 {
                     throw new RuntimeException("Error occurred during cleanup", e);
@@ -1267,6 +1272,11 @@ public class NodeTool
                 description = "Do not validate columns using column validator")
         private boolean noValidation = false;
 
+        @Option(title = "jobs",
+                name = {"-j", "--jobs"},
+                description = "Number of sstables to scrub simultanously, set to 0 to use all available compaction threads")
+        private int jobs = 2;
+
         @Override
         public void execute(NodeProbe probe)
         {
@@ -1277,7 +1287,7 @@ public class NodeTool
             {
                 try
                 {
-                    probe.scrub(System.out, disableSnapshot, skipCorrupted, !noValidation, keyspace, cfnames);
+                    probe.scrub(System.out, disableSnapshot, skipCorrupted, !noValidation, jobs, keyspace, cfnames);
                 } catch (Exception e)
                 {
                     throw new RuntimeException("Error occurred during flushing", e);
@@ -1345,6 +1355,11 @@ public class NodeTool
         @Option(title = "include_all", name = {"-a", "--include-all-sstables"}, description = "Use -a to include all sstables, even those already on the current version")
         private boolean includeAll = false;
 
+        @Option(title = "jobs",
+                name = {"-j","--jobs"},
+                description = "Number of sstables to upgrade simultaneously, set to 0 to use all available compaction threads")
+        private int jobs = 2;
+
         @Override
         public void execute(NodeProbe probe)
         {
@@ -1355,7 +1370,7 @@ public class NodeTool
             {
                 try
                 {
-                    probe.upgradeSSTables(System.out, keyspace, !includeAll, cfnames);
+                    probe.upgradeSSTables(System.out, keyspace, !includeAll, jobs, cfnames);
                 } catch (Exception e)
                 {
                     throw new RuntimeException("Error occurred during enabling auto-compaction", e);

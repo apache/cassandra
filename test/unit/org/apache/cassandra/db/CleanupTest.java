@@ -83,7 +83,7 @@ public class CleanupTest extends SchemaLoader
         assertEquals(LOOPS, rows.size());
 
         // with one token in the ring, owned by the local node, cleanup should be a no-op
-        CompactionManager.instance.performCleanup(cfs);
+        CompactionManager.instance.performCleanup(cfs, 2);
 
         // ensure max timestamp of the sstables are retained post-cleanup
         assert expectedMaxTimestamps.equals(getMaxTimestampList(cfs));
@@ -128,7 +128,7 @@ public class CleanupTest extends SchemaLoader
         tmd.updateNormalToken(new BytesToken(tk1), InetAddress.getByName("127.0.0.1"));
         tmd.updateNormalToken(new BytesToken(tk2), InetAddress.getByName("127.0.0.2"));
 
-        CompactionManager.instance.performCleanup(cfs);
+        CompactionManager.instance.performCleanup(cfs, 2);
 
         // row data should be gone
         rows = Util.getRangeSlice(cfs);
@@ -165,7 +165,7 @@ public class CleanupTest extends SchemaLoader
         tk2[0] = 1;
         tmd.updateNormalToken(new BytesToken(tk1), InetAddress.getByName("127.0.0.1"));
         tmd.updateNormalToken(new BytesToken(tk2), InetAddress.getByName("127.0.0.2"));
-        CompactionManager.instance.performCleanup(cfs);
+        CompactionManager.instance.performCleanup(cfs, 2);
 
         rows = Util.getRangeSlice(cfs);
         assertEquals(0, rows.size());
