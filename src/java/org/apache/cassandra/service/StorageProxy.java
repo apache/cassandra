@@ -2329,31 +2329,30 @@ public class StorageProxy implements StorageProxyMBean
 
     public static boolean shouldHint(InetAddress ep)
     {
-        if (!DatabaseDescriptor.hintedHandoffEnabled())
+        if (DatabaseDescriptor.hintedHandoffEnabled())
         {
-            HintsService.instance.metrics.incrPastWindow(ep);
+            Set<String> disabledDCs = DatabaseDescriptor.hintedHandoffDisabledDCs();
+            if (!disabledDCs.isEmpty())
+            {
+                final String dc = DatabaseDescriptor.getEndpointSnitch().getDatacenter(ep);
+                if (disabledDCs.contains(dc))
+                {
+                    Tracing.trace("Not hinting {} since its data center {} has been disabled {}", ep, dc, disabledDCs);
+                    return false;
+                }
+            }
+            boolean hintWindowExpired = Gossiper.instance.getEndpointDowntime(ep) > DatabaseDescriptor.getMaxHintWindow();
+            if (hintWindowExpired)
+            {
+                HintsService.instance.metrics.incrPastWindow(ep);
+                Tracing.trace("Not hinting {} which has been down {} ms", ep, Gossiper.instance.getEndpointDowntime(ep));
+            }
+            return !hintWindowExpired;
+        }
+        else
+        {
             return false;
         }
-
-        Set<String> disabledDCs = DatabaseDescriptor.hintedHandoffDisabledDCs();
-        if (!disabledDCs.isEmpty())
-        {
-            final String dc = DatabaseDescriptor.getEndpointSnitch().getDatacenter(ep);
-            if (disabledDCs.contains(dc))
-            {
-                Tracing.trace("Not hinting {} since its data center {} has been disabled {}", ep, dc, disabledDCs);
-                HintsService.instance.metrics.incrPastWindow(ep);
-                return false;
-            }
-        }
-
-        boolean hintWindowExpired = Gossiper.instance.getEndpointDowntime(ep) > DatabaseDescriptor.getMaxHintWindow();
-        if (hintWindowExpired)
-        {
-            HintsService.instance.metrics.incrPastWindow(ep);
-            Tracing.trace("Not hinting {} which has been down {} ms", ep, Gossiper.instance.getEndpointDowntime(ep));
-        }
-        return !hintWindowExpired;
     }
 
     /**
