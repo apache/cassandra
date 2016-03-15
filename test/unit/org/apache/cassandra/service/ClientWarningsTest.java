@@ -72,9 +72,13 @@ public class ClientWarningsTest extends CQLTester
         {
             client.connect(false);
 
-            QueryMessage query = new QueryMessage(createBatchStatement(DatabaseDescriptor.getBatchSizeWarnThreshold()), QueryOptions.DEFAULT);
+            QueryMessage query = new QueryMessage(createBatchStatement2(DatabaseDescriptor.getBatchSizeWarnThreshold() / 2 + 1), QueryOptions.DEFAULT);
             Message.Response resp = client.execute(query);
             assertEquals(1, resp.getWarnings().size());
+
+            query = new QueryMessage(createBatchStatement(DatabaseDescriptor.getBatchSizeWarnThreshold()), QueryOptions.DEFAULT);
+            resp = client.execute(query);
+            assertNull(resp.getWarnings());
         }
     }
 
