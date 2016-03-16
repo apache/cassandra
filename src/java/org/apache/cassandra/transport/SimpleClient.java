@@ -308,7 +308,6 @@ public class SimpleClient implements Closeable
             sslEngine.setUseClientMode(true);
             String[] suites = SSLFactory.filterCipherSuites(sslEngine.getSupportedCipherSuites(), encryptionOptions.cipher_suites);
             sslEngine.setEnabledCipherSuites(suites);
-            sslEngine.setEnabledProtocols(SSLFactory.ACCEPTED_PROTOCOLS);
             channel.pipeline().addFirst("ssl", new SslHandler(sslEngine));
         }
     }
