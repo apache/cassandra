@@ -701,7 +701,7 @@ public class SinglePartitionReadCommand extends ReadCommand
         /* add the SSTables on disk */
         Collections.sort(view.sstables, SSTableReader.maxTimestampComparator);
         int sstablesIterated = 0;
-
+        boolean onlyUnrepaired = true;
         // read sorted sstables
         for (SSTableReader sstable : view.sstables)
         {
@@ -745,6 +745,8 @@ public class SinglePartitionReadCommand extends ReadCommand
                 if (iter.isEmpty())
                     continue;
 
+                if (sstable.isRepaired())
+                    onlyUnrepaired = false;
                 sstablesIterated++;
                 result = add(isForThrift() ? ThriftResultsMerger.maybeWrap(iter, nowInSec()) : iter, result, filter, sstable.isRepaired());
             }
@@ -761,6 +763,7 @@ public class SinglePartitionReadCommand extends ReadCommand
 
         // "hoist up" the requested data into a more recent sstable
         if (sstablesIterated > cfs.getMinimumCompactionThreshold()
+            && onlyUnrepaired
             && !cfs.isAutoCompactionDisabled()
             && cfs.getCompactionStrategyManager().shouldDefragment())
         {
