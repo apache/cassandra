@@ -18,6 +18,10 @@ using the provided 'sstableupgrade' tool.
 
 New features
 ------------
+   - Collision checks are performed when joining the token ring, regardless of whether
+     the node should bootstrap. Additionally, replace_address can legitimately be used
+     without bootstrapping to help with recovery of nodes with partially failed disks.
+     See CASSANDRA-10134 for more details.
    - Key cache will only hold indexed entries up to the size configured by
      column_index_cache_size_in_kb in cassandra.yaml in memory. Larger indexed entries
      will never go into memory. See CASSANDRA-11206 for more details.

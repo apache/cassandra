@@ -31,9 +31,7 @@ import org.apache.cassandra.config.Config;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.io.FSError;
 import org.apache.cassandra.io.sstable.CorruptSSTableException;
-import org.apache.cassandra.service.CassandraDaemon;
 import org.apache.cassandra.service.StorageService;
-import org.apache.cassandra.thrift.Cassandra;
 
 /**
  * Responsible for deciding whether to kill the JVM if it gets in an "unstable" state (think OOM).
@@ -76,7 +74,7 @@ public final class JVMStabilityInspector
 
     public static void inspectCommitLogThrowable(Throwable t)
     {
-        if (!StorageService.instance.isSetupCompleted())
+        if (!StorageService.instance.isDaemonSetupCompleted())
         {
             logger.error("Exiting due to error while processing commit log during initialization.", t);
             killer.killCurrentJVM(t, true);

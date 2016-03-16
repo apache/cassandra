@@ -478,7 +478,7 @@ public interface StorageServiceMBean extends NotificationEmitter
     // allows a user to forcibly completely stop cassandra
     public void stopDaemon();
 
-    // to determine if gossip is disabled
+    // to determine if initialization has completed
     public boolean isInitialized();
 
     // allows a user to disable thrift

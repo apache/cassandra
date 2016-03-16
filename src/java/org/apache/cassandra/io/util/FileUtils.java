@@ -463,7 +463,7 @@ public class FileUtils
 
     public static void handleCorruptSSTable(CorruptSSTableException e)
     {
-        if (!StorageService.instance.isSetupCompleted())
+        if (!StorageService.instance.isDaemonSetupCompleted())
             handleStartupFSError(e);
 
         JVMStabilityInspector.inspectThrowable(e);
@@ -477,7 +477,7 @@ public class FileUtils
     
     public static void handleFSError(FSError e)
     {
-        if (!StorageService.instance.isSetupCompleted())
+        if (!StorageService.instance.isDaemonSetupCompleted())
             handleStartupFSError(e);
 
         JVMStabilityInspector.inspectThrowable(e);

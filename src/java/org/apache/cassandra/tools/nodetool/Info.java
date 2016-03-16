@@ -43,7 +43,7 @@ public class Info extends NodeToolCmd
     @Override
     public void execute(NodeProbe probe)
     {
-        boolean gossipInitialized = probe.isInitialized();
+        boolean gossipInitialized = probe.isGossipRunning();
 
         System.out.printf("%-23s: %s%n", "ID", probe.getLocalHostId());
         System.out.printf("%-23s: %s%n", "Gossip active", gossipInitialized);

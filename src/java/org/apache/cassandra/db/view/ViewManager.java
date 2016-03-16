@@ -35,6 +35,8 @@ import org.apache.cassandra.db.partitions.PartitionUpdate;
 import org.apache.cassandra.dht.Token;
 import org.apache.cassandra.repair.SystemDistributedKeyspace;
 import org.apache.cassandra.service.StorageProxy;
+import org.apache.cassandra.service.StorageService;
+
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -210,6 +212,20 @@ public class ViewManager
         {
             if (!viewsByName.containsKey(entry.getKey()))
                 addView(entry.getValue());
+        }
+
+        // Building views involves updating view build status in the system_distributed
+        // keyspace and therefore it requires ring information. This check prevents builds
+        // being submitted when Keyspaces are initialized during CassandraDaemon::setup as
+        // that happens before StorageService & gossip are initialized. After SS has been
+        // init'd we schedule builds for *all* views anyway, so this doesn't have any effect
+        // on startup. It does mean however, that builds will not be triggered if gossip is
+        // disabled via JMX or nodetool as that sets SS to an uninitialized state.
+        if (!StorageService.instance.isInitialized())
+        {
+            logger.info("Not submitting build tasks for views in keyspace {} as " +
+                        "storage service is not initialized", keyspace.getName());
+            return;
         }
 
         for (View view : allViews())

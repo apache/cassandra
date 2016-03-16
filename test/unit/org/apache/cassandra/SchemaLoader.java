@@ -71,6 +71,8 @@ public class SchemaLoader
 
     public static void startGossiper()
     {
+        // skip shadow round and endpoint collision check in tests
+        System.setProperty("cassandra.allow_unsafe_join", "true");
         if (!Gossiper.instance.isEnabled())
             Gossiper.instance.start((int) (System.currentTimeMillis() / 1000));
     }
