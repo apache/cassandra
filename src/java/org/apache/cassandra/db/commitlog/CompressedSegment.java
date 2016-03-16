@@ -21,6 +21,7 @@ import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.util.Queue;
 import java.util.concurrent.ConcurrentLinkedQueue;
+import java.util.concurrent.atomic.AtomicInteger;
 
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.io.FSWriteError;
@@ -44,6 +45,12 @@ public class CompressedSegment extends CommitLogSegment
     static Queue<ByteBuffer> bufferPool = new ConcurrentLinkedQueue<>();
 
     /**
+     * The number of buffers in use
+     */
+    private static AtomicInteger usedBuffers = new AtomicInteger(0);
+
+
+    /**
      * Maximum number of buffers in the compression pool. The default value is 3, it should not be set lower than that
      * (one segment in compression, one written to, one in reserve); delays in compression may cause the log to use
      * more, depending on how soon the sync policy stops all writing threads.
@@ -52,16 +59,18 @@ public class CompressedSegment extends CommitLogSegment
 
     static final int COMPRESSED_MARKER_SIZE = SYNC_MARKER_SIZE + 4;
     final ICompressor compressor;
+    final Runnable onClose;
 
     volatile long lastWrittenPos = 0;
 
     /**
      * Constructs a new segment file.
      */
-    CompressedSegment(CommitLog commitLog)
+    CompressedSegment(CommitLog commitLog, Runnable onClose)
     {
         super(commitLog);
         this.compressor = commitLog.compressor;
+        this.onClose = onClose;
         try
         {
             channel.write((ByteBuffer) buffer.duplicate().flip());
@@ -80,6 +89,7 @@ public class CompressedSegment extends CommitLogSegment
 
     ByteBuffer createBuffer(CommitLog commitLog)
     {
+        usedBuffers.incrementAndGet();
         ByteBuffer buf = bufferPool.poll();
         if (buf == null)
         {
@@ -138,12 +148,29 @@ public class CompressedSegment extends CommitLogSegment
     @Override
     protected void internalClose()
     {
-        if (bufferPool.size() < MAX_BUFFERPOOL_SIZE)
-            bufferPool.add(buffer);
-        else
-            FileUtils.clean(buffer);
+        usedBuffers.decrementAndGet();
+        try {
+            if (bufferPool.size() < MAX_BUFFERPOOL_SIZE)
+                bufferPool.add(buffer);
+            else
+                FileUtils.clean(buffer);
+            super.internalClose();
+        }
+        finally
+        {
+            onClose.run();
+        }
+    }
 
-        super.internalClose();
+    /**
+     * Checks if the number of buffers in use is greater or equals to the maximum number of buffers allowed in the pool.
+     *
+     * @return <code>true</code> if the number of buffers in use is greater or equals to the maximum number of buffers
+     * allowed in the pool, <code>false</code> otherwise.
+     */
+    static boolean hasReachedPoolLimit()
+    {
+        return usedBuffers.get() >= MAX_BUFFERPOOL_SIZE;
     }
 
     static void shutdown()

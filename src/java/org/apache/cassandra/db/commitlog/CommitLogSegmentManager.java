@@ -114,11 +114,11 @@ public class CommitLogSegmentManager
                         if (task == null)
                         {
                             // if we have no more work to do, check if we should create a new segment
-                            if (availableSegments.isEmpty() && (activeSegments.isEmpty() || createReserveSegments))
+                            if (!atSegmentLimit() && availableSegments.isEmpty() && (activeSegments.isEmpty() || createReserveSegments))
                             {
                                 logger.trace("No segments in reserve; creating a fresh one");
                                 // TODO : some error handling in case we fail to create a new segment
-                                availableSegments.add(CommitLogSegment.createSegment(commitLog));
+                                availableSegments.add(CommitLogSegment.createSegment(commitLog, () -> wakeManager()));
                                 hasAvailableSegments.signalAll();
                             }
 
@@ -163,6 +163,12 @@ public class CommitLogSegmentManager
                     }
                 }
             }
+
+            private boolean atSegmentLimit()
+            {
+                return CommitLogSegment.usesBufferPool(commitLog) && CompressedSegment.hasReachedPoolLimit();
+            }
+
         };
 
         run = true;
@@ -553,5 +559,6 @@ public class CommitLogSegmentManager
     {
         return Collections.unmodifiableCollection(activeSegments);
     }
+
 }
 
