@@ -106,8 +106,6 @@ Merged from 2.2:
 Merged from 2.1:
  * Fix streaming_socket_timeout_in_ms not enforced (CASSANDRA-11286)
  * Avoid dropping message too quickly due to missing unit conversion (CASSANDRA-11302)
- * COPY FROM on large datasets: fix progress report and debug performance (CASSANDRA-11053)
- * InvalidateKeys should have a weak ref to key cache (CASSANDRA-11176)
  * Don't remove FailureDetector history on removeEndpoint (CASSANDRA-10371)
  * Only notify if repair status changed (CASSANDRA-11172)
  * Use logback setting for 'cassandra -v' command (CASSANDRA-10767)
