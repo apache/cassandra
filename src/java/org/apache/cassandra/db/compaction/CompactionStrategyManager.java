@@ -766,10 +766,17 @@ public class CompactionStrategyManager implements INotificationConsumer
         }
     }
 
-    @VisibleForTesting
-    List<List<AbstractCompactionStrategy>> getStrategies()
+    public List<List<AbstractCompactionStrategy>> getStrategies()
     {
-        return Arrays.asList(repaired, unrepaired);
+        readLock.lock();
+        try
+        {
+            return Arrays.asList(repaired, unrepaired);
+        }
+        finally
+        {
+            readLock.unlock();
+        }
     }
 
     public void setNewLocalCompactionStrategy(CompactionParams params)
