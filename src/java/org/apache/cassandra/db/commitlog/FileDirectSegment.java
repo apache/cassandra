@@ -21,11 +21,11 @@ import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.util.Queue;
 import java.util.concurrent.ConcurrentLinkedQueue;
+import java.util.concurrent.atomic.AtomicInteger;
 
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.io.FSWriteError;
 import org.apache.cassandra.io.compress.BufferType;
-import org.apache.cassandra.io.compress.ICompressor;
 import org.apache.cassandra.io.util.FileUtils;
 
 /**
@@ -51,11 +51,19 @@ public abstract class FileDirectSegment extends CommitLogSegment
      */
     static final int MAX_BUFFERPOOL_SIZE = DatabaseDescriptor.getCommitLogMaxCompressionBuffersInPool();
 
+    /**
+     * The number of buffers in use
+     */
+    private static AtomicInteger usedBuffers = new AtomicInteger(0);
+
     volatile long lastWrittenPos = 0;
 
-    FileDirectSegment(CommitLog commitLog)
+    private final Runnable onClose;
+
+    FileDirectSegment(CommitLog commitLog, Runnable onClose)
     {
         super(commitLog);
+        this.onClose = onClose;
     }
 
     void writeLogHeader()
@@ -74,6 +82,7 @@ public abstract class FileDirectSegment extends CommitLogSegment
 
     ByteBuffer createBuffer(BufferType bufferType)
     {
+        usedBuffers.incrementAndGet();
         ByteBuffer buf = bufferPool.poll();
         if (buf != null)
         {
@@ -87,16 +96,35 @@ public abstract class FileDirectSegment extends CommitLogSegment
     @Override
     protected void internalClose()
     {
-        if (bufferPool.size() < MAX_BUFFERPOOL_SIZE)
-            bufferPool.add(buffer);
-        else
-            FileUtils.clean(buffer);
+        usedBuffers.decrementAndGet();
 
-        super.internalClose();
+        try
+        {
+            if (bufferPool.size() < MAX_BUFFERPOOL_SIZE)
+                bufferPool.add(buffer);
+            else
+                FileUtils.clean(buffer);
+            super.internalClose();
+        }
+        finally
+        {
+            onClose.run();
+        }
     }
 
     static void shutdown()
     {
         bufferPool.clear();
+    }
+
+    /**
+     * Checks if the number of buffers in use is greater or equals to the maximum number of buffers allowed in the pool.
+     *
+     * @return <code>true</code> if the number of buffers in use is greater or equals to the maximum number of buffers
+     * allowed in the pool, <code>false</code> otherwise.
+     */
+    static boolean hasReachedPoolLimit()
+    {
+        return usedBuffers.get() >= MAX_BUFFERPOOL_SIZE;
     }
 }

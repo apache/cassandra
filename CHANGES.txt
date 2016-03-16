@@ -10,6 +10,7 @@
 
 3.5
 Merged from 3.0:
+ * Add backpressure to compressed or encrypted commit log (CASSANDRA-10971)
  * SSTableExport supports secondary index tables (CASSANDRA-11330)
  * Fix sstabledump to include missing info in debug output (CASSANDRA-11321)
  * Establish and implement canonical bulk reading workload(s) (CASSANDRA-10331)

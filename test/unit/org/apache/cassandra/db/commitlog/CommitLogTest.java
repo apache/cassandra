@@ -18,20 +18,9 @@
 */
 package org.apache.cassandra.db.commitlog;
 
-import java.io.ByteArrayOutputStream;
-import java.io.DataOutputStream;
-import java.io.File;
-import java.io.FileOutputStream;
-import java.io.IOException;
-import java.io.OutputStream;
-import java.io.RandomAccessFile;
+import java.io.*;
 import java.nio.ByteBuffer;
-import java.util.Collections;
-import java.util.HashMap;
-import java.util.List;
-import java.util.Map;
-import java.util.Random;
-import java.util.UUID;
+import java.util.*;
 import java.util.concurrent.Callable;
 import java.util.concurrent.ExecutionException;
 import java.util.zip.CRC32;
@@ -39,19 +28,17 @@ import java.util.zip.Checksum;
 
 import com.google.common.collect.Iterables;
 
-import org.apache.cassandra.db.ColumnFamilyStore;
-import org.apache.cassandra.db.Keyspace;
-import org.apache.cassandra.db.Mutation;
-import org.apache.cassandra.db.RowUpdateBuilder;
-import org.apache.cassandra.db.marshal.AsciiType;
-import org.apache.cassandra.db.marshal.BytesType;
+import org.junit.*;
 
 import org.apache.cassandra.SchemaLoader;
 import org.apache.cassandra.Util;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.config.ParameterizedClass;
+import org.apache.cassandra.db.*;
 import org.apache.cassandra.db.commitlog.CommitLogReplayer.CommitLogReplayException;
 import org.apache.cassandra.db.compaction.CompactionManager;
+import org.apache.cassandra.db.marshal.AsciiType;
+import org.apache.cassandra.db.marshal.BytesType;
 import org.apache.cassandra.db.partitions.PartitionUpdate;
 import org.apache.cassandra.db.rows.Row;
 import org.apache.cassandra.db.rows.SerializationHelper;
@@ -61,21 +48,12 @@ import org.apache.cassandra.io.compress.LZ4Compressor;
 import org.apache.cassandra.io.compress.SnappyCompressor;
 import org.apache.cassandra.io.util.DataInputPlus;
 import org.apache.cassandra.io.util.FastByteArrayInputStream;
-import org.apache.cassandra.io.util.FileUtils;
 import org.apache.cassandra.net.MessagingService;
 import org.apache.cassandra.schema.KeyspaceParams;
-import org.apache.cassandra.utils.JVMStabilityInspector;
-import org.apache.cassandra.utils.KillerForTests;
 import org.apache.cassandra.security.EncryptionContext;
 import org.apache.cassandra.security.EncryptionContextGenerator;
-import org.apache.cassandra.utils.Hex;
-import org.apache.cassandra.utils.Pair;
+import org.apache.cassandra.utils.*;
 import org.apache.cassandra.utils.vint.VIntCoding;
-
-import org.junit.Assert;
-import org.junit.Before;
-import org.junit.BeforeClass;
-import org.junit.Test;
 
 import static org.apache.cassandra.utils.ByteBufferUtil.bytes;
 import static org.junit.Assert.assertEquals;
@@ -106,7 +84,7 @@ public class CommitLogTest
     }
 
     @Before
-    public void setup()
+    public void setup() throws IOException
     {
         logDirectory = DatabaseDescriptor.getCommitLogLocation() + "/unit";
         new File(logDirectory).mkdirs();
@@ -575,11 +553,22 @@ public class CommitLogTest
     @Test
     public void replay_StandardMmapped() throws IOException
     {
-        DatabaseDescriptor.setCommitLogCompression(null);
-        DatabaseDescriptor.setEncryptionContext(EncryptionContextGenerator.createDisabledContext());
-        CommitLog commitLog = new CommitLog(logDirectory, CommitLogArchiver.disabled()).start();
-        replaySimple(commitLog);
-        replayWithDiscard(commitLog);
+        ParameterizedClass originalCompression = DatabaseDescriptor.getCommitLogCompression();
+        EncryptionContext originalEncryptionContext = DatabaseDescriptor.getEncryptionContext();
+        try
+        {
+            DatabaseDescriptor.setCommitLogCompression(null);
+            DatabaseDescriptor.setEncryptionContext(EncryptionContextGenerator.createDisabledContext());
+            CommitLog.instance.resetUnsafe(true);
+            replaySimple(CommitLog.instance);
+            replayWithDiscard(CommitLog.instance);
+        }
+        finally
+        {
+            DatabaseDescriptor.setCommitLogCompression(originalCompression);
+            DatabaseDescriptor.setEncryptionContext(originalEncryptionContext);
+            CommitLog.instance.resetUnsafe(true);
+        }
     }
 
     @Test
@@ -602,29 +591,44 @@ public class CommitLogTest
 
     private void replay_Compressed(ParameterizedClass parameterizedClass) throws IOException
     {
-        DatabaseDescriptor.setCommitLogCompression(parameterizedClass);
-        DatabaseDescriptor.setEncryptionContext(EncryptionContextGenerator.createDisabledContext());
-        CommitLog commitLog = new CommitLog(logDirectory, CommitLogArchiver.disabled()).start();
-        replaySimple(commitLog);
-        replayWithDiscard(commitLog);
+        ParameterizedClass originalCompression = DatabaseDescriptor.getCommitLogCompression();
+        EncryptionContext originalEncryptionContext = DatabaseDescriptor.getEncryptionContext();
+        try
+        {
+            DatabaseDescriptor.setCommitLogCompression(parameterizedClass);
+            DatabaseDescriptor.setEncryptionContext(EncryptionContextGenerator.createDisabledContext());
+            CommitLog.instance.resetUnsafe(true);
+
+            replaySimple(CommitLog.instance);
+            replayWithDiscard(CommitLog.instance);
+        }
+        finally
+        {
+            DatabaseDescriptor.setCommitLogCompression(originalCompression);
+            DatabaseDescriptor.setEncryptionContext(originalEncryptionContext);
+            CommitLog.instance.resetUnsafe(true);
+        }
     }
 
     @Test
     public void replay_Encrypted() throws IOException
     {
-        DatabaseDescriptor.setCommitLogCompression(null);
-        DatabaseDescriptor.setEncryptionContext(EncryptionContextGenerator.createContext(true));
-        CommitLog commitLog = new CommitLog(logDirectory, CommitLogArchiver.disabled()).start();
-
+        ParameterizedClass originalCompression = DatabaseDescriptor.getCommitLogCompression();
+        EncryptionContext originalEncryptionContext = DatabaseDescriptor.getEncryptionContext();
         try
         {
-            replaySimple(commitLog);
-            replayWithDiscard(commitLog);
+            DatabaseDescriptor.setCommitLogCompression(null);
+            DatabaseDescriptor.setEncryptionContext(EncryptionContextGenerator.createContext(true));
+            CommitLog.instance.resetUnsafe(true);
+
+            replaySimple(CommitLog.instance);
+            replayWithDiscard(CommitLog.instance);
         }
         finally
         {
-            for (String file : commitLog.getActiveSegmentNames())
-                FileUtils.delete(new File(commitLog.location, file));
+            DatabaseDescriptor.setCommitLogCompression(originalCompression);
+            DatabaseDescriptor.setEncryptionContext(originalEncryptionContext);
+            CommitLog.instance.resetUnsafe(true);
         }
     }
 
@@ -706,6 +710,7 @@ public class CommitLogTest
             this.filterPosition = filterPosition;
         }
 
+        @SuppressWarnings("resource")
         void replayMutation(byte[] inputBuffer, int size, final long entryLocation, final CommitLogDescriptor desc) throws IOException
         {
             if (entryLocation <= filterPosition.position)
