@@ -124,7 +124,7 @@ public class SSTableMetadataViewer
                 if (header != null)
                 {
                     EncodingStats encodingStats = header.getEncodingStats();
-                    AbstractType<?> keyType = header.getKetType();
+                    AbstractType<?> keyType = header.getKeyType();
                     List<AbstractType<?>> clusteringTypes = header.getClusteringTypes();
                     Map<ByteBuffer, AbstractType<?>> staticColumns = header.getStaticColumns();
                     Map<String, String> statics = staticColumns.entrySet().stream()

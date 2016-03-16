@@ -10,6 +10,7 @@
 
 3.5
 Merged from 3.0:
+ * SSTableExport supports secondary index tables (CASSANDRA-11330)
  * Fix sstabledump to include missing info in debug output (CASSANDRA-11321)
  * Establish and implement canonical bulk reading workload(s) (CASSANDRA-10331)
  * Fix paging for IN queries on tables without clustering columns (CASSANDRA-11208)
