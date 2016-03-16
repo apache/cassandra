@@ -53,7 +53,6 @@ import com.google.common.collect.Sets;
 public final class SSLFactory
 {
     private static final Logger logger = LoggerFactory.getLogger(SSLFactory.class);
-    public static final String[] ACCEPTED_PROTOCOLS = new String[] {"SSLv2Hello", "TLSv1", "TLSv1.1", "TLSv1.2"};
     private static boolean checkedExpiry = false;
 
     public static SSLServerSocket getServerSocket(EncryptionOptions options, InetAddress address, int port) throws IOException
@@ -64,7 +63,6 @@ public final class SSLFactory
         String[] suites = filterCipherSuites(serverSocket.getSupportedCipherSuites(), options.cipher_suites);
         serverSocket.setEnabledCipherSuites(suites);
         serverSocket.setNeedClientAuth(options.require_client_auth);
-        serverSocket.setEnabledProtocols(ACCEPTED_PROTOCOLS);
         serverSocket.bind(new InetSocketAddress(address, port), 500);
         return serverSocket;
     }
@@ -76,7 +74,6 @@ public final class SSLFactory
         SSLSocket socket = (SSLSocket) ctx.getSocketFactory().createSocket(address, port, localAddress, localPort);
         String[] suites = filterCipherSuites(socket.getSupportedCipherSuites(), options.cipher_suites);
         socket.setEnabledCipherSuites(suites);
-        socket.setEnabledProtocols(ACCEPTED_PROTOCOLS);
         return socket;
     }
 
@@ -87,7 +84,6 @@ public final class SSLFactory
         SSLSocket socket = (SSLSocket) ctx.getSocketFactory().createSocket(address, port);
         String[] suites = filterCipherSuites(socket.getSupportedCipherSuites(), options.cipher_suites);
         socket.setEnabledCipherSuites(suites);
-        socket.setEnabledProtocols(ACCEPTED_PROTOCOLS);
         return socket;
     }
 
@@ -98,7 +94,6 @@ public final class SSLFactory
         SSLSocket socket = (SSLSocket) ctx.getSocketFactory().createSocket();
         String[] suites = filterCipherSuites(socket.getSupportedCipherSuites(), options.cipher_suites);
         socket.setEnabledCipherSuites(suites);
-        socket.setEnabledProtocols(ACCEPTED_PROTOCOLS);
         return socket;
     }
 

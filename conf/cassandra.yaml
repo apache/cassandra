@@ -876,10 +876,14 @@ request_scheduler: org.apache.cassandra.scheduler.NoScheduler
 # request_scheduler_id: keyspace
 
 # Enable or disable inter-node encryption
-# Default settings are TLS v1, RSA 1024-bit keys (it is imperative that
-# users generate their own keys) TLS_RSA_WITH_AES_128_CBC_SHA as the cipher
-# suite for authentication, key exchange and encryption of the actual data transfers.
-# Use the DHE/ECDHE ciphers if running in FIPS 140 compliant mode.
+# JVM defaults for supported SSL socket protocols and cipher suites can
+# be replaced using custom encryption options. This is not recommended
+# unless you have policies in place that dictate certain settings, or
+# need to disable vulnerable ciphers or protocols in case the JVM cannot
+# be updated.
+# FIPS compliant settings can be configured at JVM level and should not
+# involve changing encryption settings here:
+# https://docs.oracle.com/javase/8/docs/technotes/guides/security/jsse/FIPS.html
 # NOTE: No custom encryption options are enabled at the moment
 # The available internode options are : all, none, dc, rack
 #
