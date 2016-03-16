@@ -362,7 +362,7 @@ public class SerializationHeader
                                  keyType, clusteringTypes, staticColumns, regularColumns, stats);
         }
 
-        public AbstractType<?> getKetType()
+        public AbstractType<?> getKeyType()
         {
             return keyType;
         }
