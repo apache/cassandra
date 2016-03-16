@@ -44,9 +44,9 @@ public class CompressedSegment extends FileDirectSegment
     /**
      * Constructs a new segment file.
      */
-    CompressedSegment(CommitLog commitLog)
+    CompressedSegment(CommitLog commitLog, Runnable onClose)
     {
-        super(commitLog);
+        super(commitLog, onClose);
         this.compressor = commitLog.compressor;
     }
 

@@ -65,9 +65,9 @@ public class EncryptedSegment extends FileDirectSegment
     private final EncryptionContext encryptionContext;
     private final Cipher cipher;
 
-    public EncryptedSegment(CommitLog commitLog, EncryptionContext encryptionContext)
+    public EncryptedSegment(CommitLog commitLog, EncryptionContext encryptionContext, Runnable onClose)
     {
-        super(commitLog);
+        super(commitLog, onClose);
         this.encryptionContext = encryptionContext;
 
         try
