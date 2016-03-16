@@ -53,28 +53,18 @@ import com.google.common.collect.Sets;
 public final class SSLFactory
 {
     private static final Logger logger = LoggerFactory.getLogger(SSLFactory.class);
-    public static final String[] ACCEPTED_PROTOCOLS = new String[] {"SSLv2Hello", "TLSv1", "TLSv1.1", "TLSv1.2"};
     private static boolean checkedExpiry = false;
 
     public static SSLServerSocket getServerSocket(EncryptionOptions options, InetAddress address, int port) throws IOException
     {
         SSLContext ctx = createSSLContext(options, true);
-        SSLServerSocket serverSocket = (SSLServerSocket) ctx.getServerSocketFactory().createServerSocket();
-        try
-        {
-            serverSocket.setReuseAddress(true);
-            String[] suites = filterCipherSuites(serverSocket.getSupportedCipherSuites(), options.cipher_suites);
-            serverSocket.setEnabledCipherSuites(suites);
-            serverSocket.setNeedClientAuth(options.require_client_auth);
-            serverSocket.setEnabledProtocols(ACCEPTED_PROTOCOLS);
-            serverSocket.bind(new InetSocketAddress(address, port), 500);
-            return serverSocket;
-        }
-        catch (IllegalArgumentException | SecurityException | IOException e)
-        {
-            serverSocket.close();
-            throw e;
-        }
+        SSLServerSocket serverSocket = (SSLServerSocket)ctx.getServerSocketFactory().createServerSocket();
+        serverSocket.setReuseAddress(true);
+        String[] suites = filterCipherSuites(serverSocket.getSupportedCipherSuites(), options.cipher_suites);
+        serverSocket.setEnabledCipherSuites(suites);
+        serverSocket.setNeedClientAuth(options.require_client_auth);
+        serverSocket.bind(new InetSocketAddress(address, port), 500);
+        return serverSocket;
     }
 
     /** Create a socket and connect */
@@ -82,18 +72,9 @@ public final class SSLFactory
     {
         SSLContext ctx = createSSLContext(options, true);
         SSLSocket socket = (SSLSocket) ctx.getSocketFactory().createSocket(address, port, localAddress, localPort);
-        try
-        {
-            String[] suites = filterCipherSuites(socket.getSupportedCipherSuites(), options.cipher_suites);
-            socket.setEnabledCipherSuites(suites);
-            socket.setEnabledProtocols(ACCEPTED_PROTOCOLS);
-            return socket;
-        }
-        catch (IllegalArgumentException e)
-        {
-            socket.close();
-            throw e;
-        }
+        String[] suites = filterCipherSuites(socket.getSupportedCipherSuites(), options.cipher_suites);
+        socket.setEnabledCipherSuites(suites);
+        return socket;
     }
 
     /** Create a socket and connect, using any local address */
@@ -101,18 +82,9 @@ public final class SSLFactory
     {
         SSLContext ctx = createSSLContext(options, true);
         SSLSocket socket = (SSLSocket) ctx.getSocketFactory().createSocket(address, port);
-        try
-        {
-            String[] suites = filterCipherSuites(socket.getSupportedCipherSuites(), options.cipher_suites);
-            socket.setEnabledCipherSuites(suites);
-            socket.setEnabledProtocols(ACCEPTED_PROTOCOLS);
-            return socket;
-        }
-        catch (IllegalArgumentException e)
-        {
-            socket.close();
-            throw e;
-        }
+        String[] suites = filterCipherSuites(socket.getSupportedCipherSuites(), options.cipher_suites);
+        socket.setEnabledCipherSuites(suites);
+        return socket;
     }
 
     /** Just create a socket */
@@ -120,18 +92,9 @@ public final class SSLFactory
     {
         SSLContext ctx = createSSLContext(options, true);
         SSLSocket socket = (SSLSocket) ctx.getSocketFactory().createSocket();
-        try
-        {
-            String[] suites = filterCipherSuites(socket.getSupportedCipherSuites(), options.cipher_suites);
-            socket.setEnabledCipherSuites(suites);
-            socket.setEnabledProtocols(ACCEPTED_PROTOCOLS);
-            return socket;
-        }
-        catch (IllegalArgumentException e)
-        {
-            socket.close();
-            throw e;
-        }
+        String[] suites = filterCipherSuites(socket.getSupportedCipherSuites(), options.cipher_suites);
+        socket.setEnabledCipherSuites(suites);
+        return socket;
     }
 
     @SuppressWarnings("resource")
