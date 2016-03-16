@@ -40,7 +40,6 @@ Merged from 2.1:
    properly (CASSANDRA-11050)
  * Fix NPE when using forceRepairRangeAsync without DC (CASSANDRA-11239)
 Merged from 2.2:
- * Unresolved hostname leads to replace being ignored (CASSANDRA-11210)
  * Range.compareTo() violates the contract of Comparable (CASSANDRA-11216)
  * Avoid NPE when serializing ErrorMessage with null message (CASSANDRA-11167)
  * Replacing an aggregate with a new version doesn't reset INITCOND (CASSANDRA-10840)
@@ -63,8 +62,6 @@ Merged from 2.2:
 Merged from 2.1:
  * Fix streaming_socket_timeout_in_ms not enforced (CASSANDRA-11286)
  * Avoid dropping message too quickly due to missing unit conversion (CASSANDRA-11302)
- * COPY FROM on large datasets: fix progress report and debug performance (CASSANDRA-11053)
- * InvalidateKeys should have a weak ref to key cache (CASSANDRA-11176)
  * Don't remove FailureDetector history on removeEndpoint (CASSANDRA-10371)
  * Only notify if repair status changed (CASSANDRA-11172)
  * Use logback setting for 'cassandra -v' command (CASSANDRA-10767)
