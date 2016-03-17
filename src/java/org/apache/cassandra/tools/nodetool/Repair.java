@@ -56,7 +56,7 @@ public class Repair extends NodeToolCmd
     private boolean localDC = false;
 
     @Option(title = "specific_dc", name = {"-dc", "--in-dc"}, description = "Use -dc to repair specific datacenters")
-    private List<String> specificDataCenters = new ArrayList<>();
+    private List<String> specificDataCenters = new ArrayList<>();;
 
     @Option(title = "specific_host", name = {"-hosts", "--in-hosts"}, description = "Use -hosts to repair specific hosts")
     private List<String> specificHosts = new ArrayList<>();

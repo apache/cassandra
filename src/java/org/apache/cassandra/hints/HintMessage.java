@@ -33,7 +33,7 @@ import org.apache.cassandra.io.util.DataInputPlus;
 import org.apache.cassandra.io.util.DataOutputPlus;
 import org.apache.cassandra.net.MessageOut;
 import org.apache.cassandra.net.MessagingService;
-import org.apache.cassandra.utils.BytesReadTracker;
+import org.apache.cassandra.io.util.TrackedDataInputPlus;
 import org.apache.cassandra.utils.UUIDSerializer;
 
 /**
@@ -117,7 +117,7 @@ public final class HintMessage
             UUID hostId = UUIDSerializer.serializer.deserialize(in, version);
 
             long hintSize = in.readUnsignedVInt();
-            BytesReadTracker countingIn = new BytesReadTracker(in);
+            TrackedDataInputPlus countingIn = new TrackedDataInputPlus(in);
             try
             {
                 return new HintMessage(hostId, Hint.serializer.deserialize(countingIn, version));

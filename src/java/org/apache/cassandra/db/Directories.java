@@ -95,9 +95,11 @@ public class Directories
 
     public static final String BACKUPS_SUBDIR = "backups";
     public static final String SNAPSHOT_SUBDIR = "snapshots";
+    public static final String TMP_SUBDIR = "tmp";
     public static final String SECONDARY_INDEX_NAME_SEPARATOR = ".";
 
     public static final DataDirectory[] dataDirectories;
+
     static
     {
         String[] locations = DatabaseDescriptor.getAllDataFileLocations();
@@ -333,6 +335,34 @@ public class Directories
     public File getWriteableLocationAsFile(long writeSize)
     {
         return getLocationForDisk(getWriteableLocation(writeSize));
+    }
+
+    /**
+     * Returns a temporary subdirectory on non-blacklisted data directory
+     * that _currently_ has {@code writeSize} bytes as usable space.
+     * This method does not create the temporary directory.
+     *
+     * @throws IOError if all directories are blacklisted.
+     */
+    public File getTemporaryWriteableDirectoryAsFile(long writeSize)
+    {
+        File location = getLocationForDisk(getWriteableLocation(writeSize));
+        if (location == null)
+            return null;
+        return new File(location, TMP_SUBDIR);
+    }
+
+    public void removeTemporaryDirectories()
+    {
+        for (File dataDir : dataPaths)
+        {
+            File tmpDir = new File(dataDir, TMP_SUBDIR);
+            if (tmpDir.exists())
+            {
+                logger.debug("Removing temporary directory {}", tmpDir);
+                FileUtils.deleteRecursive(tmpDir);
+            }
+        }
     }
 
     /**

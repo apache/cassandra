@@ -15,6 +15,16 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
+
 package org.apache.cassandra.io.util;
 
-public interface FileMark {}
+import java.io.IOException;
+
+public interface RewindableDataInput extends DataInputPlus
+{
+    DataPosition mark();
+
+    void reset(DataPosition mark) throws IOException;
+
+    long bytesPastMark(DataPosition mark);
+}

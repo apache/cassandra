@@ -200,19 +200,19 @@ public class RandomAccessReader extends RebufferingInputStream implements FileDa
         return bytes;
     }
 
-    public FileMark mark()
+    public DataPosition mark()
     {
         markedPointer = current();
         return new BufferedRandomAccessFileMark(markedPointer);
     }
 
-    public void reset(FileMark mark)
+    public void reset(DataPosition mark)
     {
         assert mark instanceof BufferedRandomAccessFileMark;
         seek(((BufferedRandomAccessFileMark) mark).pointer);
     }
 
-    public long bytesPastMark(FileMark mark)
+    public long bytesPastMark(DataPosition mark)
     {
         assert mark instanceof BufferedRandomAccessFileMark;
         long bytes = current() - ((BufferedRandomAccessFileMark) mark).pointer;
@@ -262,7 +262,7 @@ public class RandomAccessReader extends RebufferingInputStream implements FileDa
     /**
      * Class to hold a mark to the position of the file
      */
-    protected static class BufferedRandomAccessFileMark implements FileMark
+    protected static class BufferedRandomAccessFileMark implements DataPosition
     {
         final long pointer;
 

@@ -68,17 +68,23 @@ public class FileSegmentInputStream extends DataInputBuffer implements FileDataI
         buffer.position((int) (pos - offset));
     }
 
-    public FileMark mark()
+    @Override
+    public boolean markSupported()
+    {
+        return false;
+    }
+
+    public DataPosition mark()
     {
         throw new UnsupportedOperationException();
     }
 
-    public void reset(FileMark mark)
+    public void reset(DataPosition mark)
     {
         throw new UnsupportedOperationException();
     }
 
-    public long bytesPastMark(FileMark mark)
+    public long bytesPastMark(DataPosition mark)
     {
         return 0;
     }

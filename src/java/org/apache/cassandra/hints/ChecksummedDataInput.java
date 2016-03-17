@@ -22,13 +22,9 @@ import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.util.zip.CRC32;
 
-import org.apache.cassandra.io.FSError;
-import org.apache.cassandra.io.FSReadError;
-import org.apache.cassandra.io.compress.ICompressor;
 import org.apache.cassandra.io.util.ChannelProxy;
-import org.apache.cassandra.io.util.FileMark;
+import org.apache.cassandra.io.util.DataPosition;
 import org.apache.cassandra.io.util.RandomAccessReader;
-import org.apache.cassandra.schema.CompressionParams;
 
 /**
  * A {@link RandomAccessReader} wrapper that calctulates the CRC in place.
@@ -48,7 +44,7 @@ public class ChecksummedDataInput extends RandomAccessReader.RandomAccessReaderW
     private boolean crcUpdateDisabled;
 
     private long limit;
-    private FileMark limitMark;
+    private DataPosition limitMark;
 
     protected ChecksummedDataInput(Builder builder)
     {
