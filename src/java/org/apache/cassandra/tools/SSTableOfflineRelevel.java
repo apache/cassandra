@@ -29,7 +29,9 @@ import java.util.Map;
 import java.util.Set;
 
 import com.google.common.base.Throwables;
+import com.google.common.collect.ArrayListMultimap;
 import com.google.common.collect.HashMultimap;
+import com.google.common.collect.Multimap;
 import com.google.common.collect.SetMultimap;
 
 import org.apache.cassandra.config.Schema;
@@ -143,8 +145,23 @@ public class SSTableOfflineRelevel
             approxExpectedLevels = (int) Math.ceil(Math.log10(sstables.size()));
         }
 
+        private void printLeveling(Iterable<SSTableReader> sstables)
+        {
+            Multimap<Integer, SSTableReader> leveling = ArrayListMultimap.create();
+            int maxLevel = 0;
+            for (SSTableReader sstable : sstables)
+            {
+                leveling.put(sstable.getSSTableLevel(), sstable);
+                maxLevel = Math.max(sstable.getSSTableLevel(), maxLevel);
+            }
+            System.out.println("Current leveling:");
+            for (int i = 0; i <= maxLevel; i++)
+                System.out.println(String.format("L%d=%d", i, leveling.get(i).size()));
+        }
+
         public void relevel(boolean dryRun) throws IOException
         {
+            printLeveling(sstables);
             List<SSTableReader> sortedSSTables = new ArrayList<>(sstables);
             Collections.sort(sortedSSTables, new Comparator<SSTableReader>()
             {
@@ -187,8 +204,9 @@ public class SSTableOfflineRelevel
                 System.out.println("New leveling: ");
 
             System.out.println("L0="+l0.size());
+            // item 0 in levels is the highest level we will create, printing from L1 up here:
             for (int i = levels.size() - 1; i >= 0; i--)
-                System.out.println(String.format("L%d %d", levels.size() - i, levels.get(i).size()));
+                System.out.println(String.format("L%d=%d", levels.size() - i, levels.get(i).size()));
 
             if (!dryRun)
             {
