@@ -869,17 +869,21 @@ bc(syntax)..
                | <identifier> '=' <identifier> '+' <map-literal>
                | <identifier> '[' <term> ']' '=' <term>
 
-<condition> ::= <identifier> '=' <term>
-              | <identifier> '[' <term> ']' '=' <term>
+<condition> ::= <identifier> <op> <term>
+              | <identifier> IN (<variable> | '(' ( <term> ( ',' <term> )* )? ')')
+              | <identifier> '[' <term> ']' <op> <term>
+              | <identifier> '[' <term> ']' IN <term>
+
+<op> ::= '<' | '<=' | '=' | '!=' | '>=' | '>'
 
 <where-clause> ::= <relation> ( AND <relation> )*
 
 <relation> ::= <identifier> '=' <term>
              | '(' <identifier> (',' <identifier>)* ')' '=' <term-tuple>
              | <identifier> IN '(' ( <term> ( ',' <term>)* )? ')'
-             | <identifier> IN '?'
+             | <identifier> IN <variable>
              | '(' <identifier> (',' <identifier>)* ')' IN '(' ( <term-tuple> ( ',' <term-tuple>)* )? ')'
-             | '(' <identifier> (',' <identifier>)* ')' IN '?'
+             | '(' <identifier> (',' <identifier>)* ')' IN <variable>
 
 <option> ::= TIMESTAMP <integer>
            | TTL <integer>
@@ -897,7 +901,7 @@ UPDATE UserActions SET total = total + 2 WHERE user = B70DE1D0-9908-4AE3-BE34-55
 p. 
 The @UPDATE@ statement writes one or more columns for a given row in a table. The @<where-clause>@ is used to select the row to update and must include all columns composing the @PRIMARY KEY@. Other columns values are specified through @<assignment>@ after the @SET@ keyword.
 
-Note that unlike in SQL, @UPDATE@ does not check the prior existence of the row by default: the row is created if none existed before, and updated otherwise. Furthermore, there are no means to know whether a creation or update occurred.
+Note that unlike in SQL, @UPDATE@ does not check the prior existence of the row by default (except through the use of @<condition>@, see below): the row is created if none existed before, and updated otherwise. Furthermore, there are no means to know whether a creation or update occurred.
 
 It is however possible to use the conditions on some columns through @IF@, in which case the row will not be updated unless the conditions are met. But, please note that using @IF@ conditions will incur a non-negligible performance cost (internally, Paxos will be used) so this should be used sparingly.
 
@@ -932,13 +936,17 @@ bc(syntax)..
 <relation> ::= <identifier> <op> <term>
              | '(' <identifier> (',' <identifier>)* ')' <op> <term-tuple>
              | <identifier> IN '(' ( <term> ( ',' <term>)* )? ')'
-             | <identifier> IN '?'
+             | <identifier> IN <variable>
              | '(' <identifier> (',' <identifier>)* ')' IN '(' ( <term-tuple> ( ',' <term-tuple>)* )? ')'
-             | '(' <identifier> (',' <identifier>)* ')' IN '?'
+             | '(' <identifier> (',' <identifier>)* ')' IN <variable>
 
 <op> ::= '=' | '<' | '>' | '<=' | '>='
-<condition> ::= <identifier> '=' <term>
-              | <identifier> '[' <term> ']' '=' <term>
+
+<condition> ::= <identifier> (<op> | '!=') <term>
+              | <identifier> IN (<variable> | '(' ( <term> ( ',' <term> )* )? ')')
+              | <identifier> '[' <term> ']' (<op> | '!=') <term>
+              | <identifier> '[' <term> ']' IN <term>
+
 p. 
 __Sample:__
 
