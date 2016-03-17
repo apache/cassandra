@@ -1,4 +1,5 @@
 3.6
+ * Store repair options in parent_repair_history (CASSANDRA-11244)
  * Print current leveling in sstableofflinerelevel (CASSANDRA-9588)
  * Remove hard-coded SSL cipher suites and protocols (CASSANDRA-10508)
  * Improve concurrency in CompactionStrategyManager (CASSANDRA-10099)

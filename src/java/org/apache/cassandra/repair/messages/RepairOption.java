@@ -19,6 +19,7 @@ package org.apache.cassandra.repair.messages;
 
 import java.util.*;
 
+import com.google.common.base.Joiner;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -28,7 +29,6 @@ import org.apache.cassandra.dht.IPartitioner;
 import org.apache.cassandra.dht.Range;
 import org.apache.cassandra.dht.Token;
 import org.apache.cassandra.repair.RepairParallelism;
-import org.apache.cassandra.tools.nodetool.Repair;
 import org.apache.cassandra.utils.FBUtilities;
 
 /**
@@ -45,6 +45,7 @@ public class RepairOption
     public static final String DATACENTERS_KEY = "dataCenters";
     public static final String HOSTS_KEY = "hosts";
     public static final String TRACE_KEY = "trace";
+    public static final String SUB_RANGE_REPAIR_KEY = "sub_range_repair";
 
     // we don't want to push nodes too much for repair
     public static final int MAX_JOB_THREADS = 4;
@@ -316,5 +317,21 @@ public class RepairOption
                        ", hosts: " + hosts +
                        ", # of ranges: " + ranges.size() +
                        ')';
+    }
+
+    public Map<String, String> asMap()
+    {
+        Map<String, String> options = new HashMap<>();
+        options.put(PARALLELISM_KEY, parallelism.toString());
+        options.put(PRIMARY_RANGE_KEY, Boolean.toString(primaryRange));
+        options.put(INCREMENTAL_KEY, Boolean.toString(incremental));
+        options.put(JOB_THREADS_KEY, Integer.toString(jobThreads));
+        options.put(COLUMNFAMILIES_KEY, Joiner.on(",").join(columnFamilies));
+        options.put(DATACENTERS_KEY, Joiner.on(",").join(dataCenters));
+        options.put(HOSTS_KEY, Joiner.on(",").join(hosts));
+        options.put(SUB_RANGE_REPAIR_KEY, Boolean.toString(isSubrangeRepair));
+        options.put(TRACE_KEY, Boolean.toString(trace));
+        options.put(RANGES_KEY, Joiner.on(",").join(ranges));
+        return options;
     }
 }

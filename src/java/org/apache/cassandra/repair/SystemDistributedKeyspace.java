@@ -24,6 +24,7 @@ import java.nio.ByteBuffer;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
 import java.util.UUID;
 
@@ -38,6 +39,7 @@ import org.apache.cassandra.cql3.QueryProcessor;
 import org.apache.cassandra.db.ConsistencyLevel;
 import org.apache.cassandra.dht.Range;
 import org.apache.cassandra.dht.Token;
+import org.apache.cassandra.repair.messages.RepairOption;
 import org.apache.cassandra.schema.KeyspaceMetadata;
 import org.apache.cassandra.schema.KeyspaceParams;
 import org.apache.cassandra.schema.Tables;
@@ -90,6 +92,7 @@ public final class SystemDistributedKeyspace
                      + "exception_stacktrace text,"
                      + "requested_ranges set<text>,"
                      + "successful_ranges set<text>,"
+                     + "options map<text, text>,"
                      + "PRIMARY KEY (parent_id))");
 
     private static CFMetaData compile(String name, String description, String schema)
@@ -103,13 +106,38 @@ public final class SystemDistributedKeyspace
         return KeyspaceMetadata.create(NAME, KeyspaceParams.simple(3), Tables.of(RepairHistory, ParentRepairHistory));
     }
 
-    public static void startParentRepair(UUID parent_id, String keyspaceName, String[] cfnames, Collection<Range<Token>> ranges)
+    public static void startParentRepair(UUID parent_id, String keyspaceName, String[] cfnames, RepairOption options)
     {
-
-        String query = "INSERT INTO %s.%s (parent_id, keyspace_name, columnfamily_names, requested_ranges, started_at)"+
-                                 " VALUES (%s,        '%s',          { '%s' },           { '%s' },          toTimestamp(now()))";
-        String fmtQry = String.format(query, NAME, PARENT_REPAIR_HISTORY, parent_id.toString(), keyspaceName, Joiner.on("','").join(cfnames), Joiner.on("','").join(ranges));
+        Collection<Range<Token>> ranges = options.getRanges();
+        String query = "INSERT INTO %s.%s (parent_id, keyspace_name, columnfamily_names, requested_ranges, started_at,          options)"+
+                                 " VALUES (%s,        '%s',          { '%s' },           { '%s' },          toTimestamp(now()), { %s })";
+        String fmtQry = String.format(query,
+                                      NAME,
+                                      PARENT_REPAIR_HISTORY,
+                                      parent_id.toString(),
+                                      keyspaceName,
+                                      Joiner.on("','").join(cfnames),
+                                      Joiner.on("','").join(ranges),
+                                      toCQLMap(options.asMap(), RepairOption.RANGES_KEY, RepairOption.COLUMNFAMILIES_KEY));
         processSilent(fmtQry);
+    }
+
+    private static String toCQLMap(Map<String, String> options, String ... ignore)
+    {
+        Set<String> toIgnore = Sets.newHashSet(ignore);
+        StringBuilder map = new StringBuilder();
+        boolean first = true;
+        for (Map.Entry<String, String> entry : options.entrySet())
+        {
+            if (!toIgnore.contains(entry.getKey()))
+            {
+                if (!first)
+                    map.append(',');
+                first = false;
+                map.append(String.format("'%s': '%s'", entry.getKey(), entry.getValue()));
+            }
+        }
+        return map.toString();
     }
 
     public static void failParentRepair(UUID parent_id, Throwable t)

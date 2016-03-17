@@ -189,7 +189,7 @@ public class RepairRunnable extends WrappedRunnable implements ProgressEventNoti
         }
 
         final UUID parentSession = UUIDGen.getTimeUUID();
-        SystemDistributedKeyspace.startParentRepair(parentSession, keyspace, cfnames, options.getRanges());
+        SystemDistributedKeyspace.startParentRepair(parentSession, keyspace, cfnames, options);
         long repairedAt;
         try
         {
