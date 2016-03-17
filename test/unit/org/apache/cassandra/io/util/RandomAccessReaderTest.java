@@ -356,7 +356,7 @@ public class RandomAccessReaderTest
             assertFalse(reader.isEOF());
             assertEquals((numIterations - 1) * expected.length(), reader.bytesRemaining());
 
-            FileMark mark = reader.mark();
+            DataPosition mark = reader.mark();
             assertEquals(0, reader.bytesPastMark());
             assertEquals(0, reader.bytesPastMark(mark));
 

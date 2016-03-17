@@ -3,8 +3,8 @@ package org.apache.cassandra.db.commitlog;
 import java.io.DataInput;
 import java.nio.ByteBuffer;
 
+import org.apache.cassandra.io.util.DataPosition;
 import org.apache.cassandra.io.util.FileDataInput;
-import org.apache.cassandra.io.util.FileMark;
 import org.apache.cassandra.io.util.FileSegmentInputStream;
 
 /**
@@ -60,7 +60,7 @@ public class EncryptedFileSegmentInputStream extends FileSegmentInputStream impl
         throw new UnsupportedOperationException();
     }
 
-    public long bytesPastMark(FileMark mark)
+    public long bytesPastMark(DataPosition mark)
     {
         throw new UnsupportedOperationException();
     }

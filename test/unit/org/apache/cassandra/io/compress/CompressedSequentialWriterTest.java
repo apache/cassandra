@@ -38,7 +38,7 @@ import org.apache.cassandra.db.marshal.BytesType;
 import org.apache.cassandra.db.marshal.UTF8Type;
 import org.apache.cassandra.io.sstable.metadata.MetadataCollector;
 import org.apache.cassandra.io.util.ChannelProxy;
-import org.apache.cassandra.io.util.FileMark;
+import org.apache.cassandra.io.util.DataPosition;
 import org.apache.cassandra.io.util.RandomAccessReader;
 import org.apache.cassandra.io.util.SequentialWriterTest;
 import org.apache.cassandra.schema.CompressionParams;
@@ -104,7 +104,7 @@ public class CompressedSequentialWriterTest extends SequentialWriterTest
                 dataPost.flip();
 
                 writer.write(dataPre);
-                FileMark mark = writer.mark();
+                DataPosition mark = writer.mark();
 
                 // Write enough garbage to transition chunk
                 for (int i = 0; i < CompressionParams.DEFAULT_CHUNK_LENGTH; i++)

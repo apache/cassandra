@@ -589,6 +589,8 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
          // clear ephemeral snapshots that were not properly cleared last session (CASSANDRA-7357)
         clearEphemeralSnapshots(directories);
 
+        directories.removeTemporaryDirectories();
+
         logger.trace("Removing temporary or obsoleted files from unfinished operations for table {}", metadata.cfName);
         if (!LifecycleTransaction.removeUnfinishedLeftovers(metadata))
             throw new StartupException(StartupException.ERR_WRONG_DISK_STATE,

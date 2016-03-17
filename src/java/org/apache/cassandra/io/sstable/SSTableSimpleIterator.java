@@ -21,6 +21,7 @@ import java.io.IOException;
 import java.io.IOError;
 import java.util.Iterator;
 
+import org.apache.cassandra.io.util.RewindableDataInput;
 import org.apache.cassandra.utils.AbstractIterator;
 
 import org.apache.cassandra.config.CFMetaData;
@@ -29,7 +30,7 @@ import org.apache.cassandra.db.*;
 import org.apache.cassandra.db.rows.*;
 import org.apache.cassandra.io.util.DataInputPlus;
 import org.apache.cassandra.io.util.FileDataInput;
-import org.apache.cassandra.io.util.FileMark;
+import org.apache.cassandra.io.util.DataPosition;
 import org.apache.cassandra.net.MessagingService;
 
 /**
@@ -113,11 +114,9 @@ public abstract class SSTableSimpleIterator extends AbstractIterator<Unfiltered>
                 // need to extract them. Which imply 2 passes (one to extract the static, then one for other value).
                 if (metadata.isStaticCompactTable())
                 {
-                    // Because we don't support streaming from old file version, the only case we should get there is for compaction,
-                    // where the DataInput should be a file based one.
-                    assert in instanceof FileDataInput;
-                    FileDataInput file = (FileDataInput)in;
-                    FileMark mark = file.mark();
+                    assert in instanceof RewindableDataInput;
+                    RewindableDataInput file = (RewindableDataInput)in;
+                    DataPosition mark = file.mark();
                     Row staticRow = LegacyLayout.extractStaticColumns(metadata, file, metadata.partitionColumns().statics);
                     file.reset(mark);
 

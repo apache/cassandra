@@ -30,7 +30,7 @@ import org.apache.cassandra.exceptions.ConfigurationException;
 import org.apache.cassandra.io.sstable.CorruptSSTableException;
 import org.apache.cassandra.io.sstable.metadata.MetadataCollector;
 import org.apache.cassandra.io.util.ChannelProxy;
-import org.apache.cassandra.io.util.FileMark;
+import org.apache.cassandra.io.util.DataPosition;
 import org.apache.cassandra.io.util.MmappedRegions;
 import org.apache.cassandra.io.util.RandomAccessReader;
 import org.apache.cassandra.io.util.SequentialWriter;
@@ -84,7 +84,7 @@ public class CompressedRandomAccessReaderTest
                 for (int i = 0; i < 20; i++)
                     writer.write("x".getBytes());
 
-                FileMark mark = writer.mark();
+                DataPosition mark = writer.mark();
                 // write enough garbage to create new chunks:
                 for (int i = 0; i < 40; ++i)
                     writer.write("y".getBytes());
@@ -126,7 +126,7 @@ public class CompressedRandomAccessReaderTest
                 : SequentialWriter.open(f))
             {
                 writer.write("The quick ".getBytes());
-                FileMark mark = writer.mark();
+                DataPosition mark = writer.mark();
                 writer.write("blue fox jumps over the lazy dog".getBytes());
 
                 // write enough to be sure to change chunk

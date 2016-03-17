@@ -32,7 +32,7 @@ import org.apache.cassandra.io.FSWriteError;
 import org.apache.cassandra.io.sstable.CorruptSSTableException;
 import org.apache.cassandra.io.sstable.metadata.MetadataCollector;
 import org.apache.cassandra.io.util.DataIntegrityMetadata;
-import org.apache.cassandra.io.util.FileMark;
+import org.apache.cassandra.io.util.DataPosition;
 import org.apache.cassandra.io.util.FileUtils;
 import org.apache.cassandra.io.util.SequentialWriter;
 import org.apache.cassandra.schema.CompressionParams;
@@ -153,7 +153,7 @@ public class CompressedSequentialWriter extends SequentialWriter
     }
 
     @Override
-    public FileMark mark()
+    public DataPosition mark()
     {
         if (!buffer.hasRemaining())
             doFlush(0);
@@ -161,7 +161,7 @@ public class CompressedSequentialWriter extends SequentialWriter
     }
 
     @Override
-    public synchronized void resetAndTruncate(FileMark mark)
+    public synchronized void resetAndTruncate(DataPosition mark)
     {
         assert mark instanceof CompressedFileWriterMark;
 
@@ -306,7 +306,7 @@ public class CompressedSequentialWriter extends SequentialWriter
     /**
      * Class to hold a mark to the position of the file
      */
-    protected static class CompressedFileWriterMark implements FileMark
+    protected static class CompressedFileWriterMark implements DataPosition
     {
         // chunk offset in the compressed file
         final long chunkOffset;

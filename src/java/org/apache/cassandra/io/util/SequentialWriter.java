@@ -304,7 +304,7 @@ public class SequentialWriter extends BufferedDataOutputStreamPlus implements Tr
         return bufferOffset + (buffer == null ? 0 : buffer.position());
     }
 
-    public FileMark mark()
+    public DataPosition mark()
     {
         return new BufferedFileWriterMark(current());
     }
@@ -313,7 +313,7 @@ public class SequentialWriter extends BufferedDataOutputStreamPlus implements Tr
      * Drops all buffered data that's past the limits of our new file mark + buffer capacity, or syncs and truncates
      * the underlying file to the marked position
      */
-    public void resetAndTruncate(FileMark mark)
+    public void resetAndTruncate(DataPosition mark)
     {
         assert mark instanceof BufferedFileWriterMark;
 
@@ -411,7 +411,7 @@ public class SequentialWriter extends BufferedDataOutputStreamPlus implements Tr
     /**
      * Class to hold a mark to the position of the file
      */
-    protected static class BufferedFileWriterMark implements FileMark
+    protected static class BufferedFileWriterMark implements DataPosition
     {
         final long pointer;
 
