@@ -1883,7 +1883,7 @@ h3(#timeuuidFun). Timeuuid functions
 
 h4. @now@
 
-The @now@ function takes no arguments and generates a new unique timeuuid (at the time where the statement using it is executed). Note that this method is useful for insertion but is largely non-sensical in @WHERE@ clauses. For instance, a query of the form
+The @now@ function takes no arguments and generates, on the coordinator node, a new unique timeuuid (at the time where the statement using it is executed). Note that this method is useful for insertion but is largely non-sensical in @WHERE@ clauses. For instance, a query of the form
 
 bc(sample). 
 SELECT * FROM myTable WHERE t = now()
