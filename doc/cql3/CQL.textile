@@ -639,14 +639,18 @@ bc(syntax)..
                | <identifier> '=' <identifier> '+' <map-literal>
                | <identifier> '[' <term> ']' '=' <term>
 
-<condition> ::= <identifier> '=' <term>
-              | <identifier> '[' <term> ']' '=' <term>
+<condition> ::= <identifier> <op> <term>
+              | <identifier> IN (<variable> | '(' ( <term> ( ',' <term> )* )? ')')
+              | <identifier> '[' <term> ']' <op> <term>
+              | <identifier> '[' <term> ']' IN <term>
+
+<op> ::= '<' | '<=' | '=' | '!=' | '>=' | '>'
 
 <where-clause> ::= <relation> ( AND <relation> )*
 
 <relation> ::= <identifier> '=' <term>
              | <identifier> IN '(' ( <term> ( ',' <term> )* )? ')'
-             | <identifier> IN '?'
+             | <identifier> IN <variable>
 
 <option> ::= TIMESTAMP <integer>
            | TTL <integer>
@@ -664,7 +668,7 @@ UPDATE UserActions SET total = total + 2 WHERE user = B70DE1D0-9908-4AE3-BE34-55
 p. 
 The @UPDATE@ statement writes one or more columns for a given row in a table. The @<where-clause>@ is used to select the row to update and must include all columns composing the @PRIMARY KEY@ (the @IN@ relation is only supported for the last column of the partition key). Other columns values are specified through @<assignment>@ after the @SET@ keyword.
 
-Note that unlike in SQL, @UPDATE@ does not check the prior existence of the row by default: the row is created if none existed before, and updated otherwise. Furthermore, there is no mean to know which of creation or update happened.
+Note that unlike in SQL, @UPDATE@ does not check the prior existence of the row by default (except through the use of @<condition>@, see below): the row is created if none existed before, and updated otherwise. Furthermore, there is no mean to know which of creation or update happened.
 
 It is however possible to use the conditions on some columns through @IF@, in which case the row will not be updated unless such condition are met. But please note that using @IF@ conditions will incur a non negligible performance cost (internally, Paxos will be used) so this should be used sparingly.
 
@@ -698,10 +702,14 @@ bc(syntax)..
 
 <relation> ::= <identifier> '=' <term>
              | <identifier> IN '(' ( <term> ( ',' <term> )* )? ')'
-             | <identifier> IN '?'
+             | <identifier> IN <variable>
 
-<condition> ::= <identifier> '=' <term>
-              | <identifier> '[' <term> ']' '=' <term>
+<condition> ::= <identifier> <op> <term>
+              | <identifier> IN (<variable> | '(' ( <term> ( ',' <term> )* )? ')')
+              | <identifier> '[' <term> ']' <op> <term>
+              | <identifier> '[' <term> ']' IN <term>
+
+<op> ::= '<' | '<=' | '=' | '!=' | '>=' | '>'
 p. 
 __Sample:__
 
