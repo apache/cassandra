@@ -184,6 +184,8 @@ public class StressSettings implements Serializable
     }
 
     private static volatile JavaDriverClient client;
+    private static volatile int numFailures;
+    private static int MAX_NUM_FAILURES = 10;
 
     public JavaDriverClient getJavaDriverClient()
     {
@@ -195,9 +197,12 @@ public class StressSettings implements Serializable
         if (client != null)
             return client;
 
-        try
+        synchronized (this)
         {
-            synchronized (this)
+            if (numFailures >= MAX_NUM_FAILURES)
+                throw new RuntimeException("Failed to create client too many times");
+
+            try
             {
                 String currentNode = node.randomNode();
                 if (client != null)
@@ -211,10 +216,11 @@ public class StressSettings implements Serializable
 
                 return client = c;
             }
-        }
-        catch (Exception e)
-        {
-            throw new RuntimeException(e);
+            catch (Exception e)
+            {
+                numFailures +=1;
+                throw new RuntimeException(e);
+            }
         }
     }
 
@@ -228,22 +234,14 @@ public class StressSettings implements Serializable
 
     public static StressSettings parse(String[] args)
     {
-        try
-        {
-            args = repairParams(args);
-            final Map<String, String[]> clArgs = parseMap(args);
-            if (clArgs.containsKey("legacy"))
-                return Legacy.build(Arrays.copyOfRange(args, 1, args.length));
-            if (SettingsMisc.maybeDoSpecial(clArgs))
-                System.exit(1);
-            return get(clArgs);
-        }
-        catch (IllegalArgumentException e)
-        {
-            System.out.println(e.getMessage());
-            System.exit(1);
-            throw new AssertionError();
-        }
+        args = repairParams(args);
+        final Map<String, String[]> clArgs = parseMap(args);
+        if (clArgs.containsKey("legacy"))
+            return Legacy.build(Arrays.copyOfRange(args, 1, args.length));
+        if (SettingsMisc.maybeDoSpecial(clArgs))
+            return null;
+        return get(clArgs);
+
     }
 
     private static String[] repairParams(String[] args)

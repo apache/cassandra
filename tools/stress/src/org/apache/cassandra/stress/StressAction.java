@@ -79,6 +79,9 @@ public class StressAction implements Runnable
             output.println("FAILURE");
 
         settings.disconnect();
+
+        if (!success)
+            throw new RuntimeException("Failed to execute stress action");
     }
 
     // type provided separately to support recursive call for mixed command with each command type it is performing
@@ -101,8 +104,11 @@ public class StressAction implements Runnable
             // we need to warm up all the nodes in the cluster ideally, but we may not be the only stress instance;
             // so warm up all the nodes we're speaking to only.
             output.println(String.format("Warming up %s with %d iterations...", single.desc(), iterations));
-            run(single, threads, iterations, 0, null, null, warmupOutput, true);
+            boolean success = null != run(single, threads, iterations, 0, null, null, warmupOutput, true);
+            if (!success)
+                throw new RuntimeException("Failed to execute warmup");
         }
+
     }
 
     // TODO : permit varying more than just thread count
@@ -332,19 +338,21 @@ public class StressAction implements Runnable
                     catch (Exception e)
                     {
                         if (output == null)
-                        {
                             System.err.println(e.getMessage());
-                            success = false;
-                            System.exit(-1);
-                        }
+                        else
+                            e.printStackTrace(output);
 
-                        e.printStackTrace(output);
                         success = false;
                         workManager.stop();
                         metrics.cancel();
                         return;
                     }
                 }
+            }
+            catch (Exception e)
+            {
+                System.err.println(e.getMessage());
+                success = false;
             }
             finally
             {

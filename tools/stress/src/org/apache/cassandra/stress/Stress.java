@@ -58,19 +58,31 @@ public final class Stress
         if (FBUtilities.isWindows())
             WindowsTimer.startTimerPeriod(1);
 
+        int exitCode = run(arguments);
+
+        if (FBUtilities.isWindows())
+            WindowsTimer.endTimerPeriod(1);
+
+        System.exit(exitCode);
+    }
+
+
+    private static int run(String[] arguments)
+    {
         try
         {
-
             final StressSettings settings;
             try
             {
                 settings = StressSettings.parse(arguments);
+                if (settings == null)
+                    return 0; // special settings action
             }
             catch (IllegalArgumentException e)
             {
+                System.out.printf("%s\n", e.getMessage());
                 printHelpMessage();
-                e.printStackTrace();
-                return;
+                return 1;
             }
 
             MultiPrintStream logout = settings.log.getOutput();
@@ -128,14 +140,10 @@ public final class Stress
         catch (Throwable t)
         {
             t.printStackTrace();
-        }
-        finally
-        {
-            if (FBUtilities.isWindows())
-                WindowsTimer.endTimerPeriod(1);
-            System.exit(0);
+            return 1;
         }
 
+        return 0;
     }
 
     /**

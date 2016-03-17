@@ -1,4 +1,5 @@
 3.6
+ * Stress should exit with non-zero status after failure (CASSANDRA-10340)
  * Add client to cqlsh SHOW_SESSION (CASSANDRA-8958)
  * Fix nodetool tablestats keyspace level metrics (CASSANDRA-11226)
  * Store repair options in parent_repair_history (CASSANDRA-11244)
