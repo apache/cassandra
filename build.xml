@@ -34,6 +34,7 @@
     <property name="basedir" value="."/>
     <property name="build.src" value="${basedir}/src"/>
     <property name="build.src.java" value="${basedir}/src/java"/>
+    <property name="build.src.antlr" value="${basedir}/src/antlr"/>
     <property name="build.src.jdkoverride" value="${basedir}/src/jdkoverride" />
     <property name="build.src.resources" value="${basedir}/src/resources"/>
     <property name="build.src.gen-java" value="${basedir}/src/gen-java"/>
@@ -211,12 +212,12 @@
     -->
     <target name="check-gen-cql3-grammar">
         <uptodate property="cql3current"
-                srcfile="${build.src.java}/org/apache/cassandra/cql3/Cql.g"
+                srcfile="${build.src.antlr}/Cql.g"
                 targetfile="${build.src.gen-java}/org/apache/cassandra/cql3/Cql.tokens"/>
     </target>
  
     <target name="gen-cql3-grammar" depends="check-gen-cql3-grammar" unless="cql3current">
-      <echo>Building Grammar ${build.src.java}/org/apache/cassandra/cql3/Cql.g  ...</echo>
+      <echo>Building Grammar ${build.src.antlr}/Cql.g  ...</echo>
       <java classname="org.antlr.Tool"
             classpath="${build.dir.lib}/jars/antlr-3.5.2.jar;${build.lib}/antlr-runtime-3.5.2.jar;${build.lib}/ST4-4.0.8.jar"
             fork="true"
@@ -224,7 +225,7 @@
          <jvmarg value="-Xmx512M" />
          <arg value="-Xconversiontimeout" />
          <arg value="10000" />
-         <arg value="${build.src.java}/org/apache/cassandra/cql3/Cql.g" />
+         <arg value="${build.src.antlr}/Cql.g" />
          <arg value="-fo" />
          <arg value="${build.src.gen-java}/org/apache/cassandra/cql3/" />
          <arg value="-Xmaxinlinedfastates"/>

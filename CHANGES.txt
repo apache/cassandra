@@ -1,4 +1,5 @@
 3.6
+ * Break the CQL grammar into separate Parser and Lexer (CASSANDRA-11372)
  * Compress only inter-dc traffic by default (CASSANDRA-8888)
  * Add metrics to track write amplification (CASSANDRA-11420)
  * cassandra-stress: cannot handle "value-less" tables (CASSANDRA-7739)
