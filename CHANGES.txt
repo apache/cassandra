@@ -1,4 +1,5 @@
 3.6
+ * sstablemetadata should print sstable min/max token (CASSANDRA-7159)
  * Do not wrap CassandraException in TriggerExecutor (CASSANDRA-9421)
  * COPY TO should have higher double precision (CASSANDRA-11255)
  * Stress should exit with non-zero status after failure (CASSANDRA-10340)

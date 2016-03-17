@@ -17,7 +17,9 @@
  */
 package org.apache.cassandra.tools;
 
+import java.io.DataInputStream;
 import java.io.File;
+import java.io.FileInputStream;
 import java.io.IOException;
 import java.io.PrintStream;
 import java.nio.ByteBuffer;
@@ -27,15 +29,19 @@ import java.util.List;
 import java.util.Map;
 import java.util.stream.Collectors;
 
+import org.apache.cassandra.db.DecoratedKey;
 import org.apache.cassandra.db.SerializationHeader;
 import org.apache.cassandra.db.marshal.AbstractType;
 import org.apache.cassandra.db.marshal.UTF8Type;
 import org.apache.cassandra.db.rows.EncodingStats;
+import org.apache.cassandra.dht.IPartitioner;
 import org.apache.cassandra.io.compress.CompressionMetadata;
 import org.apache.cassandra.io.sstable.Component;
 import org.apache.cassandra.io.sstable.Descriptor;
+import org.apache.cassandra.io.sstable.IndexSummary;
 import org.apache.cassandra.io.sstable.metadata.*;
 import org.apache.cassandra.utils.FBUtilities;
+import org.apache.cassandra.utils.Pair;
 
 /**
  * Shows the contents of sstable metadata
@@ -88,6 +94,10 @@ public class SSTableMetadataViewer
                         out.printf("Compression ratio: %s%n", stats.compressionRatio);
                     out.printf("TTL min: %s%n", stats.minTTL);
                     out.printf("TTL max: %s%n", stats.maxTTL);
+
+                    if (validation != null && header != null)
+                        printMinMaxToken(descriptor, FBUtilities.newPartitioner(validation.partitioner), header.getKeyType(), out);
+
                     if (header != null && header.getClusteringTypes().size() == stats.minClusteringValues.size())
                     {
                         List<AbstractType<?>> clusteringTypes = header.getClusteringTypes();
@@ -170,4 +180,19 @@ public class SSTableMetadataViewer
                                       (i < ecch.length ? ecch[i] : "")));
         }
     }
+
+    private static void printMinMaxToken(Descriptor descriptor, IPartitioner partitioner, AbstractType<?> keyType, PrintStream out) throws IOException
+    {
+        File summariesFile = new File(descriptor.filenameFor(Component.SUMMARY));
+        if (!summariesFile.exists())
+            return;
+
+        try (DataInputStream iStream = new DataInputStream(new FileInputStream(summariesFile)))
+        {
+            Pair<DecoratedKey, DecoratedKey> firstLast = new IndexSummary.IndexSummarySerializer().deserializeFirstLastKey(iStream, partitioner, descriptor.version.hasSamplingLevel());
+            out.printf("First token: %s (key=%s)%n", firstLast.left.getToken(), keyType.getString(firstLast.left.getKey()));
+            out.printf("Last token: %s (key=%s)%n", firstLast.right.getToken(), keyType.getString(firstLast.right.getKey()));
+        }
+    }
+
 }
