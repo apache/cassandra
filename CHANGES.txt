@@ -9,6 +9,7 @@ Merged from 3.0:
  * Fix filtering on non-primary key columns for queries without index (CASSANDRA-6377)
  * Fix sstableloader fail when using materialized view (CASSANDRA-11275)
 Merged from 2.2:
+ * Clarify that now() function is calculated on the coordinator node in CQL documentation (CASSANDRA-10900)
  * Fix bloom filter sizing with LCS (CASSANDRA-11344)
  * (cqlsh) Fix error when result is 0 rows with EXPAND ON (CASSANDRA-11092)
  * Add missing newline at end of bin/cqlsh (CASSANDRA-11325)
