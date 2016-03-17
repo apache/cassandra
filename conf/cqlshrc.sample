@@ -35,9 +35,10 @@
 ;; Display timezone
 ;timezone = Etc/UTC
 
-;; The number of digits displayed after the decimal point
+;; The number of digits displayed after the decimal point for single and double precision numbers
 ;; (note that increasing this to large numbers can result in unusual values)
-; float_precision = 5
+;float_precision = 5
+;double_precision = 12
 
 ;; Used for automatic completion and suggestions
 ; completekey = tab

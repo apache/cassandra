@@ -1,4 +1,5 @@
 3.6
+ * COPY TO should have higher double precision (CASSANDRA-11255)
  * Stress should exit with non-zero status after failure (CASSANDRA-10340)
  * Add client to cqlsh SHOW_SESSION (CASSANDRA-8958)
  * Fix nodetool tablestats keyspace level metrics (CASSANDRA-11226)

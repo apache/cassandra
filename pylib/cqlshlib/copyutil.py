@@ -254,7 +254,8 @@ class CopyTask(object):
         copy_options['maxattempts'] = int(opts.pop('maxattempts', 5))
         copy_options['dtformats'] = DateTimeFormat(opts.pop('datetimeformat', shell.display_timestamp_format),
                                                    shell.display_date_format, shell.display_nanotime_format)
-        copy_options['float_precision'] = shell.display_float_precision
+        copy_options['floatprecision'] = int(opts.pop('floatprecision', '5'))
+        copy_options['doubleprecision'] = int(opts.pop('doubleprecision', '12'))
         copy_options['chunksize'] = int(opts.pop('chunksize', 5000))
         copy_options['ingestrate'] = int(opts.pop('ingestrate', 100000))
         copy_options['maxbatchsize'] = int(opts.pop('maxbatchsize', 20))
@@ -1346,7 +1347,8 @@ class ExportProcess(ChildProcess):
         ChildProcess.__init__(self, params=params, target=self.run)
         options = params['options']
         self.encoding = options.copy['encoding']
-        self.float_precision = options.copy['float_precision']
+        self.float_precision = options.copy['floatprecision']
+        self.double_precision = options.copy['doubleprecision']
         self.nullval = options.copy['nullval']
         self.max_requests = options.copy['maxrequests']
 
@@ -1510,9 +1512,12 @@ class ExportProcess(ChildProcess):
             formatter = get_formatter(val, cqltype)
             self.formatters[cqltype] = formatter
 
+        if not hasattr(cqltype, 'precision'):
+            cqltype.precision = self.double_precision if cqltype.type_name == 'double' else self.float_precision
+
         return formatter(val, cqltype=cqltype,
                          encoding=self.encoding, colormap=NO_COLOR_MAP, date_time_format=self.date_time_format,
-                         float_precision=self.float_precision, nullval=self.nullval, quote=False,
+                         float_precision=cqltype.precision, nullval=self.nullval, quote=False,
                          decimal_sep=self.decimal_sep, thousands_sep=self.thousands_sep,
                          boolean_styles=self.boolean_styles)
 

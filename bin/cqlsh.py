@@ -183,6 +183,7 @@ DEFAULT_CONNECT_TIMEOUT_SECONDS = 5
 DEFAULT_REQUEST_TIMEOUT_SECONDS = 10
 
 DEFAULT_FLOAT_PRECISION = 5
+DEFAULT_DOUBLE_PRECISION = 5
 DEFAULT_MAX_TRACE_WAIT = 10
 
 if readline is not None and readline.__doc__ is not None and 'libedit' in readline.__doc__:
@@ -478,7 +479,8 @@ COPY_COMMON_OPTIONS = ['DELIMITER', 'QUOTE', 'ESCAPE', 'HEADER', 'NULL', 'DATETI
                        'NUMPROCESSES', 'CONFIGFILE', 'RATEFILE']
 COPY_FROM_OPTIONS = ['CHUNKSIZE', 'INGESTRATE', 'MAXBATCHSIZE', 'MINBATCHSIZE', 'MAXROWS',
                      'SKIPROWS', 'SKIPCOLS', 'MAXPARSEERRORS', 'MAXINSERTERRORS', 'ERRFILE', 'PREPAREDSTATEMENTS', 'TTL']
-COPY_TO_OPTIONS = ['ENCODING', 'PAGESIZE', 'PAGETIMEOUT', 'BEGINTOKEN', 'ENDTOKEN', 'MAXOUTPUTSIZE', 'MAXREQUESTS']
+COPY_TO_OPTIONS = ['ENCODING', 'PAGESIZE', 'PAGETIMEOUT', 'BEGINTOKEN', 'ENDTOKEN', 'MAXOUTPUTSIZE', 'MAXREQUESTS',
+                   'FLOATPRECISION', 'DOUBLEPRECISION']
 
 
 @cqlsh_syntax_completer('copyOption', 'optnames')
@@ -666,6 +668,7 @@ class Shell(cmd.Cmd):
                  display_timestamp_format=DEFAULT_TIMESTAMP_FORMAT,
                  display_date_format=DEFAULT_DATE_FORMAT,
                  display_float_precision=DEFAULT_FLOAT_PRECISION,
+                 display_double_precision=DEFAULT_DOUBLE_PRECISION,
                  display_timezone=None,
                  max_trace_wait=DEFAULT_MAX_TRACE_WAIT,
                  ssl=False,
@@ -715,6 +718,7 @@ class Shell(cmd.Cmd):
         self.display_date_format = display_date_format
 
         self.display_float_precision = display_float_precision
+        self.display_double_precision = display_double_precision
 
         self.display_timezone = display_timezone
 
@@ -798,9 +802,11 @@ class Shell(cmd.Cmd):
             dtformats = DateTimeFormat(timestamp_format=self.display_timestamp_format,
                                        date_format=self.display_date_format, nanotime_format=self.display_nanotime_format,
                                        timezone=self.display_timezone)
+            precision = self.display_double_precision if cqltype is not None and cqltype.type_name == 'double' \
+                else self.display_float_precision
             return format_value(val, cqltype=cqltype, encoding=self.output_codec.name,
                                 addcolor=self.color, date_time_format=dtformats,
-                                float_precision=self.display_float_precision, **kwargs)
+                                float_precision=precision, **kwargs)
         except Exception, e:
             err = FormatError(val, e)
             self.decoding_errors.append(err)
@@ -1869,6 +1875,8 @@ class Shell(cmd.Cmd):
           MAXOUTPUTSIZE='-1'       - the maximum size of the output file measured in number of lines,
                                      beyond this maximum the output file will be split into segments,
                                      -1 means unlimited.
+          FLOATPRECISION=5         - the number of digits displayed after the decimal point for cql float values
+          DOUBLEPRECISION=12       - the number of digits displayed after the decimal point for cql double values
 
         When entering CSV data on STDIN, you can use the sequence "\."
         on a line by itself to end the data input.
@@ -1974,6 +1982,7 @@ class Shell(cmd.Cmd):
                          display_date_format=self.display_date_format,
                          display_nanotime_format=self.display_nanotime_format,
                          display_float_precision=self.display_float_precision,
+                         display_double_precision=self.display_double_precision,
                          max_trace_wait=self.max_trace_wait)
         subshell.cmdloop()
         f.close()
@@ -2425,6 +2434,8 @@ def read_options(cmdlineargs, environment):
                                                     DEFAULT_DATE_FORMAT)
     optvalues.float_precision = option_with_default(configs.getint, 'ui', 'float_precision',
                                                     DEFAULT_FLOAT_PRECISION)
+    optvalues.double_precision = option_with_default(configs.getint, 'ui', 'double_precision',
+                                                     DEFAULT_DOUBLE_PRECISION)
     optvalues.field_size_limit = option_with_default(configs.getint, 'csv', 'field_size_limit', csv.field_size_limit())
     optvalues.max_trace_wait = option_with_default(configs.getfloat, 'tracing', 'max_trace_wait',
                                                    DEFAULT_MAX_TRACE_WAIT)
@@ -2595,6 +2606,7 @@ def main(options, hostname, port):
                       display_nanotime_format=options.nanotime_format,
                       display_date_format=options.date_format,
                       display_float_precision=options.float_precision,
+                      display_double_precision=options.double_precision,
                       display_timezone=timezone,
                       max_trace_wait=options.max_trace_wait,
                       ssl=options.ssl,
