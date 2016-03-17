@@ -1,6 +1,7 @@
 3.6
  * Store repair options in parent_repair_history (CASSANDRA-11244)
  * Print current leveling in sstableofflinerelevel (CASSANDRA-9588)
+ * Change repair message for keyspaces with RF 1 (CASSANDRA-11203)
  * Remove hard-coded SSL cipher suites and protocols (CASSANDRA-10508)
  * Improve concurrency in CompactionStrategyManager (CASSANDRA-10099)
  * (cqlsh) interpret CQL type for formatting blobs (CASSANDRA-11274)

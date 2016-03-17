@@ -56,7 +56,8 @@ public class RepairRunner extends JMXNotificationProgressListener
         cmd = ssProxy.repairAsync(keyspace, options);
         if (cmd <= 0)
         {
-            String message = String.format("[%s] Nothing to repair for keyspace '%s'", format.format(System.currentTimeMillis()), keyspace);
+            // repairAsync can only return 0 for replication factor 1.
+            String message = String.format("[%s] Replication factor is 1. No repair is needed for keyspace '%s'", format.format(System.currentTimeMillis()), keyspace);
             out.println(message);
         }
         else
