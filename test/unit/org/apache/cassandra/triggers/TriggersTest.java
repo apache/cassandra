@@ -18,7 +18,6 @@
 package org.apache.cassandra.triggers;
 
 import java.net.InetAddress;
-import java.nio.ByteBuffer;
 import java.util.Collection;
 import java.util.Collections;
 
@@ -35,7 +34,6 @@ import org.apache.cassandra.db.*;
 import org.apache.cassandra.db.ConsistencyLevel;
 import org.apache.cassandra.db.Mutation;
 import org.apache.cassandra.db.partitions.Partition;
-import org.apache.cassandra.db.partitions.PartitionUpdate;
 import org.apache.cassandra.exceptions.ConfigurationException;
 import org.apache.cassandra.exceptions.RequestExecutionException;
 import org.apache.cassandra.service.StorageService;
@@ -197,9 +195,7 @@ public class TriggersTest
         assertUpdateIsAugmented(6);
     }
 
-    // Unfortunately, an IRE thrown from StorageProxy.cas
-    // results in a RuntimeException from QueryProcessor.process
-    @Test(expected=RuntimeException.class)
+    @Test(expected=org.apache.cassandra.exceptions.InvalidRequestException.class)
     public void onCqlUpdateWithConditionsRejectGeneratedUpdatesForDifferentPartition() throws Exception
     {
         String cf = "cf" + System.nanoTime();
@@ -215,9 +211,7 @@ public class TriggersTest
         }
     }
 
-    // Unfortunately, an IRE thrown from StorageProxy.cas
-    // results in a RuntimeException from QueryProcessor.process
-    @Test(expected=RuntimeException.class)
+    @Test(expected=org.apache.cassandra.exceptions.InvalidRequestException.class)
     public void onCqlUpdateWithConditionsRejectGeneratedUpdatesForDifferentTable() throws Exception
     {
         String cf = "cf" + System.nanoTime();
@@ -280,6 +274,27 @@ public class TriggersTest
         finally
         {
             assertUpdateNotExecuted(cf, 10);
+        }
+    }
+
+    @Test(expected=org.apache.cassandra.exceptions.InvalidRequestException.class)
+    public void ifTriggerThrowsErrorNoMutationsAreApplied() throws Exception
+    {
+        String cf = "cf" + System.nanoTime();
+        try
+        {
+            setupTableWithTrigger(cf, ErrorTrigger.class);
+            String cql = String.format("INSERT INTO %s.%s (k, v1) VALUES (11, 11)", ksName, cf);
+            QueryProcessor.process(cql, ConsistencyLevel.ONE);
+        }
+        catch (Exception e)
+        {
+            assertTrue(e.getMessage().equals(ErrorTrigger.MESSAGE));
+            throw e;
+        }
+        finally
+        {
+            assertUpdateNotExecuted(cf, 11);
         }
     }
 
@@ -350,6 +365,15 @@ public class TriggersTest
             update.add("v2", 999);
 
             return Collections.singletonList(update.build());
+        }
+    }
+
+    public static class ErrorTrigger implements ITrigger
+    {
+        public static final String MESSAGE = "Thrown by ErrorTrigger";
+        public Collection<Mutation> augment(Partition partition)
+        {
+            throw new org.apache.cassandra.exceptions.InvalidRequestException(MESSAGE);
         }
     }
 }
