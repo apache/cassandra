@@ -721,6 +721,12 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
 
         replacing = DatabaseDescriptor.isReplacing();
 
+        if (!Boolean.parseBoolean(System.getProperty("cassandra.start_gossip", "true")))
+        {
+            logger.info("Not starting gossip as requested.");
+            return;
+        }
+
         prepareToJoin();
 
         // Has to be called after the host id has potentially changed in prepareToJoin().
@@ -733,7 +739,6 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
             JVMStabilityInspector.inspectThrowable(t);
             logger.warn("Error loading counter cache", t);
         }
-
 
         if (Boolean.parseBoolean(System.getProperty("cassandra.join_ring", "true")))
         {
