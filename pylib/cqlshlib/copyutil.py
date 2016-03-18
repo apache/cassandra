@@ -1176,7 +1176,7 @@ class FeedingProcess(mp.Process):
                     if rows:
                         sent += self.send_chunk(ch, rows)
                 except Exception, exc:
-                    self.outmsg.send(ImportTaskError(exc.__class__.__name__, exc.message))
+                    self.outmsg.send(ImportTaskError(exc.__class__.__name__, str(exc)))
 
                 if reader.exhausted:
                     break
@@ -1679,7 +1679,11 @@ class ImportConversion(object):
             return converters.get(t.typename, convert_unknown)(unprotect(v), ct=t)
 
         def convert_blob(v, **_):
-            return bytearray.fromhex(v[2:])
+            try:
+                return bytearray.fromhex(v[2:])
+            except TypeError:
+                # Work-around for Python 2.6 bug
+                return bytearray.fromhex(unicode(v[2:]))
 
         def convert_text(v, **_):
             return v
@@ -1869,7 +1873,7 @@ class ImportConversion(object):
         try:
             return [conv(val) for conv, val in zip(converters, row)]
         except Exception, e:
-            raise ParseError(e.message)
+            raise ParseError(str(e))
 
     def get_null_primary_key_message(self, idx):
         message = "Cannot insert null value for primary key column '%s'." % (self.columns[idx],)
@@ -2183,7 +2187,7 @@ class ImportProcess(ChildProcess):
             try:
                 return conv.convert_row(r)
             except Exception, err:
-                errors[err.message].append(r)
+                errors[str(err)].append(r)
                 return None
 
         converted_rows = filter(None, [convert_row(r) for r in rows])
@@ -2248,7 +2252,7 @@ class ImportProcess(ChildProcess):
                 pk = get_row_partition_key_values(row)
                 rows_by_ring_pos[get_ring_pos(ring, pk_to_token_value(pk))].append(row)
             except Exception, e:
-                errors[e.message].append(row)
+                errors[str(e)].append(row)
 
         if errors:
             for msg, rows in errors.iteritems():
@@ -2286,7 +2290,7 @@ class ImportProcess(ChildProcess):
     def report_error(self, err, chunk, rows=None, attempts=1, final=True):
         if self.debug:
             traceback.print_exc(err)
-        self.outmsg.send(ImportTaskError(err.__class__.__name__, err.message, rows, attempts, final))
+        self.outmsg.send(ImportTaskError(err.__class__.__name__, str(err), rows, attempts, final))
         if final:
             self.update_chunk(rows, chunk)
 

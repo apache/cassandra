@@ -1,4 +1,5 @@
 2.1.14
+ * COPY FROM fails when importing blob (CASSANDRA-11375)
  * Backport CASSANDRA-10679 (CASSANDRA-9598)
  * Don't do defragmentation if reading from repaired sstables (CASSANDRA-10342)
  * Fix streaming_socket_timeout_in_ms not enforced (CASSANDRA-11286)
