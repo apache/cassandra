@@ -191,6 +191,8 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
 
     private final StreamStateStore streamStateStore = new StreamStateStore();
 
+    private final AtomicBoolean doneAuthSetup = new AtomicBoolean(false);
+
     /** This method updates the local token on disk  */
     public void setTokens(Collection<Token> tokens)
     {
@@ -657,6 +659,7 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
                 states.add(Pair.create(ApplicationState.STATUS, valueFactory.hibernate(true)));
                 Gossiper.instance.addLocalApplicationStates(states);
             }
+            doAuthSetup();
             logger.info("Not joining ring as requested. Use JMX (StorageService->joinRing()) to initiate ring joining");
         }
     }
@@ -974,12 +977,15 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
 
     private void doAuthSetup()
     {
-        maybeAddOrUpdateKeyspace(AuthKeyspace.definition());
+        if (!doneAuthSetup.getAndSet(true))
+        {
+            maybeAddOrUpdateKeyspace(AuthKeyspace.definition());
 
-        DatabaseDescriptor.getRoleManager().setup();
-        DatabaseDescriptor.getAuthenticator().setup();
-        DatabaseDescriptor.getAuthorizer().setup();
-        MigrationManager.instance.register(new AuthMigrationListener());
+            DatabaseDescriptor.getRoleManager().setup();
+            DatabaseDescriptor.getAuthenticator().setup();
+            DatabaseDescriptor.getAuthorizer().setup();
+            MigrationManager.instance.register(new AuthMigrationListener());
+        }
     }
 
     private void maybeAddKeyspace(KSMetaData ksm)

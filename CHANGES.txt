@@ -1,4 +1,5 @@
 2.2.10
+ * Nodes started with join_ring=False should be able to serve requests when authentication is enabled (CASSANDRA-11381)
  * cqlsh COPY FROM: increment error count only for failures, not for attempts (CASSANDRA-13209)
  * nodetool upgradesstables should upgrade system tables (CASSANDRA-13119)
  * Avoid starting gossiper in RemoveTest (CASSANDRA-13407)
