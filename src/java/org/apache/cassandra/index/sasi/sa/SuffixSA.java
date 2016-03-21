@@ -20,6 +20,7 @@ package org.apache.cassandra.index.sasi.sa;
 import java.nio.ByteBuffer;
 import java.nio.CharBuffer;
 
+import org.apache.cassandra.index.sasi.disk.DynamicTokenTreeBuilder;
 import org.apache.cassandra.index.sasi.disk.OnDiskIndexBuilder;
 import org.apache.cassandra.index.sasi.disk.TokenTreeBuilder;
 import org.apache.cassandra.db.marshal.AbstractType;
@@ -116,19 +117,19 @@ public class SuffixSA extends SA<CharBuffer>
                 if (lastProcessedSuffix == null)
                 {
                     lastProcessedSuffix = suffix.left;
-                    container = new TokenTreeBuilder(suffix.right.getTokens());
+                    container = new DynamicTokenTreeBuilder(suffix.right);
                 }
                 else if (comparator.compare(lastProcessedSuffix, suffix.left) == 0)
                 {
                     lastProcessedSuffix = suffix.left;
-                    container.add(suffix.right.getTokens());
+                    container.add(suffix.right);
                 }
                 else
                 {
                     Pair<ByteBuffer, TokenTreeBuilder> result = finishSuffix();
 
                     lastProcessedSuffix = suffix.left;
-                    container = new TokenTreeBuilder(suffix.right.getTokens());
+                    container = new DynamicTokenTreeBuilder(suffix.right);
 
                     return result;
                 }

@@ -18,42 +18,22 @@
 package org.apache.cassandra.index.sasi.utils;
 
 import java.nio.ByteBuffer;
-import java.util.Map;
-import java.util.TreeMap;
+import java.util.*;
 
+import org.apache.cassandra.index.sasi.disk.*;
 import org.apache.cassandra.index.sasi.disk.OnDiskIndex.DataTerm;
-import org.apache.cassandra.index.sasi.disk.Token;
-import org.apache.cassandra.index.sasi.disk.TokenTree;
-import org.apache.cassandra.index.sasi.disk.TokenTreeBuilder;
 import org.apache.cassandra.db.marshal.AbstractType;
-
-import com.carrotsearch.hppc.LongOpenHashSet;
-import com.carrotsearch.hppc.LongSet;
-import com.carrotsearch.hppc.cursors.LongCursor;
 
 public class CombinedTerm implements CombinedValue<DataTerm>
 {
     private final AbstractType<?> comparator;
     private final DataTerm term;
-    private final TreeMap<Long, LongSet> tokens;
+    private final List<DataTerm> mergedTerms = new ArrayList<>();
 
     public CombinedTerm(AbstractType<?> comparator, DataTerm term)
     {
         this.comparator = comparator;
         this.term = term;
-        this.tokens = new TreeMap<>();
-
-        RangeIterator<Long, Token> tokens = term.getTokens();
-        while (tokens.hasNext())
-        {
-            Token current = tokens.next();
-            LongSet offsets = this.tokens.get(current.get());
-            if (offsets == null)
-                this.tokens.put(current.get(), (offsets = new LongOpenHashSet()));
-
-            for (Long offset : ((TokenTree.OnDiskToken) current).getOffsets())
-                offsets.add(offset);
-        }
     }
 
     public ByteBuffer getTerm()
@@ -61,14 +41,18 @@ public class CombinedTerm implements CombinedValue<DataTerm>
         return term.getTerm();
     }
 
-    public Map<Long, LongSet> getTokens()
+    public RangeIterator<Long, Token> getTokenIterator()
     {
-        return tokens;
+        RangeIterator.Builder<Long, Token> union = RangeUnionIterator.builder();
+        union.add(term.getTokens());
+        mergedTerms.stream().map(OnDiskIndex.DataTerm::getTokens).forEach(union::add);
+
+        return union.build();
     }
 
     public TokenTreeBuilder getTokenTreeBuilder()
     {
-        return new TokenTreeBuilder(tokens).finish();
+        return new StaticTokenTreeBuilder(this).finish();
     }
 
     public void merge(CombinedValue<DataTerm> other)
@@ -80,15 +64,7 @@ public class CombinedTerm implements CombinedValue<DataTerm>
 
         assert comparator == o.comparator;
 
-        for (Map.Entry<Long, LongSet> token : o.tokens.entrySet())
-        {
-            LongSet offsets = this.tokens.get(token.getKey());
-            if (offsets == null)
-                this.tokens.put(token.getKey(), (offsets = new LongOpenHashSet()));
-
-            for (LongCursor offset : token.getValue())
-                offsets.add(offset.value);
-        }
+        mergedTerms.add(o.term);
     }
 
     public DataTerm get()

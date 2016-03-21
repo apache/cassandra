@@ -605,6 +605,12 @@ public class OnDiskIndexTest
         }
     }
 
+    public void putAll(SortedMap<Long, LongSet> offsets, TokenTreeBuilder ttb)
+    {
+        for (Pair<Long, LongSet> entry : ttb)
+            offsets.put(entry.left, entry.right);
+    }
+
     @Test
     public void testCombiningOfThePartitionedSA() throws Exception
     {
@@ -620,7 +626,7 @@ public class OnDiskIndexTest
                 expected.put(i, (offsets = new TreeMap<>()));
 
             builderA.add(LongType.instance.decompose(i), keyAt(i), i);
-            offsets.putAll(keyBuilder(i).getTokens());
+            putAll(offsets, keyBuilder(i));
         }
 
         for (long i = 50; i < 100; i++)
@@ -631,7 +637,7 @@ public class OnDiskIndexTest
 
             long position = 100L + i;
             builderB.add(LongType.instance.decompose(i), keyAt(position), position);
-            offsets.putAll(keyBuilder(100L + i).getTokens());
+            putAll(offsets, keyBuilder(100L + i));
         }
 
         File indexA = File.createTempFile("on-disk-sa-partition-a", ".db");
@@ -659,7 +665,7 @@ public class OnDiskIndexTest
             if (offsets == null)
                 actual.put(composedTerm, (offsets = new TreeMap<>()));
 
-            offsets.putAll(term.getTokens());
+            putAll(offsets, term.getTokenTreeBuilder());
         }
 
         Assert.assertEquals(actual, expected);
@@ -684,7 +690,7 @@ public class OnDiskIndexTest
             if (offsets == null)
                 actual.put(composedTerm, (offsets = new TreeMap<>()));
 
-            offsets.putAll(term.getTokens());
+            putAll(offsets, term.getTokenTreeBuilder());
         }
 
         Assert.assertEquals(actual, expected);
@@ -735,7 +741,7 @@ public class OnDiskIndexTest
 
     private static TokenTreeBuilder keyBuilder(Long... keys)
     {
-        TokenTreeBuilder builder = new TokenTreeBuilder();
+        TokenTreeBuilder builder = new DynamicTokenTreeBuilder();
 
         for (final Long key : keys)
         {
@@ -850,9 +856,9 @@ public class OnDiskIndexTest
 
     private static void addAll(OnDiskIndexBuilder builder, ByteBuffer term, TokenTreeBuilder tokens)
     {
-        for (Map.Entry<Long, LongSet> token : tokens.getTokens().entrySet())
+        for (Pair<Long, LongSet> token : tokens)
         {
-            for (long position : token.getValue().toArray())
+            for (long position : token.right.toArray())
                 builder.add(term, keyAt(position), position);
         }
     }

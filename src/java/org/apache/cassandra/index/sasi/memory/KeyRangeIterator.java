@@ -29,6 +29,8 @@ import org.apache.cassandra.index.sasi.utils.AbstractIterator;
 import org.apache.cassandra.index.sasi.utils.CombinedValue;
 import org.apache.cassandra.index.sasi.utils.RangeIterator;
 
+import com.carrotsearch.hppc.LongOpenHashSet;
+import com.carrotsearch.hppc.LongSet;
 import com.google.common.collect.PeekingIterator;
 
 public class KeyRangeIterator extends RangeIterator<Long, Token>
@@ -89,6 +91,15 @@ public class KeyRangeIterator extends RangeIterator<Long, Token>
             {{
                 add(key);
             }};
+        }
+
+        public LongSet getOffsets()
+        {
+            LongSet offsets = new LongOpenHashSet(4);
+            for (DecoratedKey key : keys)
+                offsets.add((long) key.getToken().getTokenValue());
+
+            return offsets;
         }
 
         public void merge(CombinedValue<Long> other)

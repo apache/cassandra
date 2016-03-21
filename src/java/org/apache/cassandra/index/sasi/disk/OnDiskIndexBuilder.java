@@ -162,7 +162,7 @@ public class OnDiskIndexBuilder
         TokenTreeBuilder tokens = terms.get(term);
         if (tokens == null)
         {
-            terms.put(term, (tokens = new TokenTreeBuilder()));
+            terms.put(term, (tokens = new DynamicTokenTreeBuilder()));
 
             // on-heap size estimates from jol
             // 64 bytes for TTB + 48 bytes for TreeMap in TTB + size bytes for the term (map key)
@@ -269,8 +269,8 @@ public class OnDiskIndexBuilder
 
             out.skipBytes((int) (BLOCK_SIZE - out.position()));
 
-            dataLevel = mode == Mode.SPARSE ? new DataBuilderLevel(out, new MutableDataBlock(mode))
-                                            : new MutableLevel<>(out, new MutableDataBlock(mode));
+            dataLevel = mode == Mode.SPARSE ? new DataBuilderLevel(out, new MutableDataBlock(termComparator, mode))
+                                            : new MutableLevel<>(out, new MutableDataBlock(termComparator, mode));
             while (terms.hasNext())
             {
                 Pair<ByteBuffer, TokenTreeBuilder> term = terms.next();
@@ -454,7 +454,7 @@ public class OnDiskIndexBuilder
         public DataBuilderLevel(SequentialWriter out, MutableBlock<InMemoryDataTerm> block)
         {
             super(out, block);
-            superBlockTree = new TokenTreeBuilder();
+            superBlockTree = new DynamicTokenTreeBuilder();
         }
 
         public InMemoryPointerTerm add(InMemoryDataTerm term) throws IOException
@@ -465,20 +465,20 @@ public class OnDiskIndexBuilder
                 dataBlocksCnt++;
                 flushSuperBlock(false);
             }
-            superBlockTree.add(term.keys.getTokens());
+            superBlockTree.add(term.keys);
             return ptr;
         }
 
         public void flushSuperBlock(boolean force) throws IOException
         {
-            if (dataBlocksCnt == SUPER_BLOCK_SIZE || (force && !superBlockTree.getTokens().isEmpty()))
+            if (dataBlocksCnt == SUPER_BLOCK_SIZE || (force && !superBlockTree.isEmpty()))
             {
                 superBlockOffsets.add(out.position());
                 superBlockTree.finish().write(out);
                 alignToBlock(out);
 
                 dataBlocksCnt = 0;
-                superBlockTree = new TokenTreeBuilder();
+                superBlockTree = new DynamicTokenTreeBuilder();
             }
         }
 
@@ -549,28 +549,34 @@ public class OnDiskIndexBuilder
 
     private static class MutableDataBlock extends MutableBlock<InMemoryDataTerm>
     {
+        private static final int MAX_KEYS_SPARSE = 5;
+
+        private final AbstractType<?> comparator;
         private final Mode mode;
 
         private int offset = 0;
-        private int sparseValueTerms = 0;
 
         private final List<TokenTreeBuilder> containers = new ArrayList<>();
         private TokenTreeBuilder combinedIndex;
 
-        public MutableDataBlock(Mode mode)
+        public MutableDataBlock(AbstractType<?> comparator, Mode mode)
         {
+            this.comparator = comparator;
             this.mode = mode;
-            this.combinedIndex = new TokenTreeBuilder();
+            this.combinedIndex = initCombinedIndex();
         }
 
         protected void addInternal(InMemoryDataTerm term) throws IOException
         {
             TokenTreeBuilder keys = term.keys;
 
-            if (mode == Mode.SPARSE && keys.getTokenCount() <= 5)
+            if (mode == Mode.SPARSE)
             {
+                if (keys.getTokenCount() > MAX_KEYS_SPARSE)
+                    throw new IOException(String.format("Term - '%s' belongs to more than %d keys in %s mode, which is not allowed.",
+                                                        comparator.getString(term.term), MAX_KEYS_SPARSE, mode.name()));
+
                 writeTerm(term, keys);
-                sparseValueTerms++;
             }
             else
             {
@@ -581,7 +587,7 @@ public class OnDiskIndexBuilder
             }
 
             if (mode == Mode.SPARSE)
-                combinedIndex.add(keys.getTokens());
+                combinedIndex.add(keys);
         }
 
         protected int sizeAfter(InMemoryDataTerm element)
@@ -593,7 +599,7 @@ public class OnDiskIndexBuilder
         {
             super.flushAndClear(out);
 
-            out.writeInt((sparseValueTerms == 0) ? -1 : offset);
+            out.writeInt(mode == Mode.SPARSE ? offset : -1);
 
             if (containers.size() > 0)
             {
@@ -601,18 +607,15 @@ public class OnDiskIndexBuilder
                     tokens.write(out);
             }
 
-            if (sparseValueTerms > 0)
-            {
+            if (mode == Mode.SPARSE && combinedIndex != null)
                 combinedIndex.finish().write(out);
-            }
 
             alignToBlock(out);
 
             containers.clear();
-            combinedIndex = new TokenTreeBuilder();
+            combinedIndex = initCombinedIndex();
 
             offset = 0;
-            sparseValueTerms = 0;
         }
 
         private int ptrLength(InMemoryDataTerm term)
@@ -626,10 +629,8 @@ public class OnDiskIndexBuilder
         {
             term.serialize(buffer);
             buffer.writeByte((byte) keys.getTokenCount());
-
-            Iterator<Pair<Long, LongSet>> tokens = keys.iterator();
-            while (tokens.hasNext())
-                buffer.writeLong(tokens.next().left);
+            for (Pair<Long, LongSet> key : keys)
+                buffer.writeLong(key.left);
         }
 
         private void writeTerm(InMemoryTerm term, int offset) throws IOException
@@ -637,6 +638,11 @@ public class OnDiskIndexBuilder
             term.serialize(buffer);
             buffer.writeByte(0x0);
             buffer.writeInt(offset);
+        }
+
+        private TokenTreeBuilder initCombinedIndex()
+        {
+            return mode == Mode.SPARSE ? new DynamicTokenTreeBuilder() : null;
         }
     }
 }

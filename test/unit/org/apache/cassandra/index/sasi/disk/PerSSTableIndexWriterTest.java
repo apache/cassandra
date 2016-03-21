@@ -20,14 +20,18 @@ package org.apache.cassandra.index.sasi.disk;
 import java.io.File;
 import java.nio.ByteBuffer;
 import java.util.*;
+import java.util.concurrent.Callable;
+import java.util.concurrent.ThreadLocalRandom;
 
 import org.apache.cassandra.SchemaLoader;
+import org.apache.cassandra.config.CFMetaData;
 import org.apache.cassandra.config.ColumnDefinition;
 import org.apache.cassandra.db.Clustering;
 import org.apache.cassandra.db.ColumnFamilyStore;
 import org.apache.cassandra.db.DecoratedKey;
 import org.apache.cassandra.db.Keyspace;
 import org.apache.cassandra.db.compaction.OperationType;
+import org.apache.cassandra.db.marshal.LongType;
 import org.apache.cassandra.db.rows.BTreeRow;
 import org.apache.cassandra.db.rows.BufferCell;
 import org.apache.cassandra.db.rows.Row;
@@ -36,6 +40,7 @@ import org.apache.cassandra.index.sasi.utils.RangeIterator;
 import org.apache.cassandra.db.marshal.Int32Type;
 import org.apache.cassandra.db.marshal.UTF8Type;
 import org.apache.cassandra.exceptions.ConfigurationException;
+import org.apache.cassandra.io.FSError;
 import org.apache.cassandra.io.sstable.Descriptor;
 import org.apache.cassandra.io.util.FileUtils;
 import org.apache.cassandra.schema.KeyspaceMetadata;
@@ -157,5 +162,90 @@ public class PerSSTableIndexWriterTest extends SchemaLoader
             Assert.assertTrue(actualKeys.contains(key));
 
         FileUtils.closeQuietly(index);
+    }
+
+    @Test
+    public void testSparse() throws Exception
+    {
+        final String columnName = "timestamp";
+
+        ColumnFamilyStore cfs = Keyspace.open(KS_NAME).getColumnFamilyStore(CF_NAME);
+        ColumnDefinition column = cfs.metadata.getColumnDefinition(UTF8Type.instance.decompose(columnName));
+
+        SASIIndex sasi = (SASIIndex) cfs.indexManager.getIndexByName(columnName);
+
+        File directory = cfs.getDirectories().getDirectoryForNewSSTables();
+        Descriptor descriptor = Descriptor.fromFilename(cfs.getSSTablePath(directory));
+        PerSSTableIndexWriter indexWriter = (PerSSTableIndexWriter) sasi.getFlushObserver(descriptor, OperationType.FLUSH);
+
+        final long now = System.currentTimeMillis();
+
+        indexWriter.begin();
+        indexWriter.indexes.put(column, indexWriter.newIndex(sasi.getIndex()));
+
+        populateSegment(cfs.metadata, indexWriter.getIndex(column), new HashMap<Long, Set<Integer>>()
+        {{
+            put(now,     new HashSet<>(Arrays.asList(0, 1)));
+            put(now + 1, new HashSet<>(Arrays.asList(2, 3)));
+            put(now + 2, new HashSet<>(Arrays.asList(4, 5, 6, 7, 8, 9)));
+        }});
+
+        Callable<OnDiskIndex> segmentBuilder = indexWriter.getIndex(column).scheduleSegmentFlush(false);
+
+        Assert.assertNull(segmentBuilder.call());
+
+        PerSSTableIndexWriter.Index index = indexWriter.getIndex(column);
+        Random random = ThreadLocalRandom.current();
+
+        Set<String> segments = new HashSet<>();
+        // now let's test multiple correct segments with yield incorrect final segment
+        for (int i = 0; i < 3; i++)
+        {
+            populateSegment(cfs.metadata, index, new HashMap<Long, Set<Integer>>()
+            {{
+                put(now,     new HashSet<>(Arrays.asList(random.nextInt(), random.nextInt(), random.nextInt())));
+                put(now + 1, new HashSet<>(Arrays.asList(random.nextInt(), random.nextInt(), random.nextInt())));
+                put(now + 2, new HashSet<>(Arrays.asList(random.nextInt(), random.nextInt(), random.nextInt())));
+            }});
+
+            try
+            {
+                // flush each of the new segments, they should all succeed
+                OnDiskIndex segment = index.scheduleSegmentFlush(false).call();
+                index.segments.add(Futures.immediateFuture(segment));
+                segments.add(segment.getIndexPath());
+            }
+            catch (Exception | FSError e)
+            {
+                e.printStackTrace();
+                Assert.fail();
+            }
+        }
+
+        // make sure that all of the segments are present of the filesystem
+        for (String segment : segments)
+            Assert.assertTrue(new File(segment).exists());
+
+        indexWriter.complete();
+
+        // make sure that individual segments have been cleaned up
+        for (String segment : segments)
+            Assert.assertFalse(new File(segment).exists());
+
+        // and combined index doesn't exist either
+        Assert.assertFalse(new File(index.outputFile).exists());
+    }
+
+    private static void populateSegment(CFMetaData metadata, PerSSTableIndexWriter.Index index, Map<Long, Set<Integer>> data)
+    {
+        for (Map.Entry<Long, Set<Integer>> value : data.entrySet())
+        {
+            ByteBuffer term = LongType.instance.decompose(value.getKey());
+            for (Integer keyPos : value.getValue())
+            {
+                ByteBuffer key = ByteBufferUtil.bytes(String.format("key%06d", keyPos));
+                index.add(term, metadata.partitioner.decorateKey(key), ThreadLocalRandom.current().nextInt(Integer.MAX_VALUE - 1));
+            }
+        }
     }
 }
