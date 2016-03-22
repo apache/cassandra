@@ -421,6 +421,7 @@ public class SSTableExport
                                              ssTableFileName, descriptor.ksname));
             System.exit(1);
         }
+        Keyspace.setInitialized();
         Keyspace keyspace = Keyspace.open(descriptor.ksname);
 
         // Make it works for indexes too - find parent cf if necessary

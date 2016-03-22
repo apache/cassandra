@@ -34,6 +34,7 @@
  * Fix paging on DISTINCT queries repeats result when first row in partition changes
    (CASSANDRA-10010)
 Merged from 2.1:
+ * Backport CASSANDRA-10679 (CASSANDRA-9598)
  * Don't do defragmentation if reading from repaired sstables (CASSANDRA-10342)
  * Fix streaming_socket_timeout_in_ms not enforced (CASSANDRA-11286)
  * Avoid dropping message too quickly due to missing unit conversion (CASSANDRA-11302)
