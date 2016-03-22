@@ -152,6 +152,7 @@ class CopyTask(object):
         self.shell = shell
         self.ks = ks
         self.table = table
+        self.table_meta = self.shell.get_table_meta(self.ks, self.table)
         self.local_dc = shell.conn.metadata.get_host(shell.hostname).datacenter
         self.fname = safe_normpath(fname)
         self.protocol_version = protocol_version
@@ -386,6 +387,20 @@ class CopyTask(object):
                     debug=shell.debug
                     )
 
+    def validate_columns(self):
+        shell = self.shell
+
+        if not self.columns:
+            shell.printerr("No column specified")
+            return False
+
+        for c in self.columns:
+            if c not in self.table_meta.columns:
+                shell.printerr('Invalid column name %s' % (c,))
+                return False
+
+        return True
+
     def update_params(self, params, i):
         """
         Add the communication channels to the parameters to be passed to the worker process:
@@ -515,8 +530,7 @@ class ExportTask(CopyTask):
             shell.printerr('Unrecognized COPY TO options: %s' % ', '.join(self.options.unrecognized.keys()))
             return
 
-        if not self.columns:
-            shell.printerr("No column specified")
+        if not self.validate_columns():
             return 0
 
         ranges = self.get_ranges()
@@ -987,7 +1001,6 @@ class ImportTask(CopyTask):
         options = self.options
         self.skip_columns = [c.strip() for c in self.options.copy['skipcols'].split(',')]
         self.valid_columns = [c for c in self.columns if c not in self.skip_columns]
-        self.table_meta = self.shell.get_table_meta(self.ks, self.table)
         self.receive_meter = RateMeter(log_fcn=self.printmsg,
                                        update_interval=options.copy['reportfrequency'],
                                        log_file=options.copy['ratefile'])
@@ -1001,6 +1014,22 @@ class ImportTask(CopyTask):
         ret['valid_columns'] = self.valid_columns
         return ret
 
+    def validate_columns(self):
+        if not CopyTask.validate_columns(self):
+            return False
+
+        shell = self.shell
+        if not self.valid_columns:
+            shell.printerr("No valid column specified")
+            return False
+
+        for c in self.table_meta.primary_key:
+            if c.name not in self.valid_columns:
+                shell.printerr("Primary key column '%s' missing or skipped" % (c.name,))
+                return False
+
+        return True
+
     def run(self):
         shell = self.shell
 
@@ -1008,14 +1037,8 @@ class ImportTask(CopyTask):
             shell.printerr('Unrecognized COPY FROM options: %s' % ', '.join(self.options.unrecognized.keys()))
             return
 
-        if not self.valid_columns:
-            shell.printerr("No column specified")
+        if not self.validate_columns():
             return 0
-
-        for c in self.table_meta.primary_key:
-            if c.name not in self.valid_columns:
-                shell.printerr("Primary key column '%s' missing or skipped" % (c.name,))
-                return 0
 
         self.printmsg("\nStarting copy of %s.%s with columns %s." % (self.ks, self.table, self.valid_columns))
 

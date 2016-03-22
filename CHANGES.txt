@@ -9,6 +9,7 @@
  * Fix filtering on non-primary key columns for queries without index (CASSANDRA-6377)
  * Fix sstableloader fail when using materialized view (CASSANDRA-11275)
 Merged from 2.2:
+ * cqlsh: COPY FROM should check that explicit column names are valid (CASSANDRA-11333)
  * Add -Dcassandra.start_gossip startup option (CASSANDRA-10809)
  * Fix UTF8Validator.validate() for modified UTF-8 (CASSANDRA-10748)
  * Clarify that now() function is calculated on the coordinator node in CQL documentation (CASSANDRA-10900)
