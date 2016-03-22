@@ -1,4 +1,5 @@
 3.6
+ * More user friendly error when providing an invalid token to nodetool (CASSANDRA-9348)
  * Add static column support to SASI index (CASSANDRA-11183)
  * Support EQ/PREFIX queries in SASI CONTAINS mode without tokenization (CASSANDRA-11434)
  * Support LIKE operator in prepared statements (CASSANDRA-11456)
