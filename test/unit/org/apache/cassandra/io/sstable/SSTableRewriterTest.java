@@ -41,6 +41,7 @@ import org.apache.cassandra.db.*;
 import org.apache.cassandra.db.compaction.AbstractCompactedRow;
 import org.apache.cassandra.db.compaction.AbstractCompactionStrategy;
 import org.apache.cassandra.db.compaction.CompactionController;
+import org.apache.cassandra.db.compaction.CompactionManager;
 import org.apache.cassandra.db.compaction.LazilyCompactedRow;
 import org.apache.cassandra.db.compaction.OperationType;
 import org.apache.cassandra.exceptions.ConfigurationException;
@@ -929,6 +930,8 @@ public class SSTableRewriterTest extends SchemaLoader
         assertEquals(spaceUsed, cfs.metric.liveDiskSpaceUsed.getCount());
         assertEquals(spaceUsed, cfs.metric.totalDiskSpaceUsed.getCount());
         assertTrue(cfs.getTracker().getCompacting().isEmpty());
+        if (cfs.getSSTables().size() > 0)
+            assertFalse(CompactionManager.instance.submitMaximal(cfs, cfs.gcBefore(System.currentTimeMillis()/1000), false).isEmpty());
     }
 
     public static int assertFileCounts(String [] files, int expectedtmplinkCount, int expectedtmpCount)

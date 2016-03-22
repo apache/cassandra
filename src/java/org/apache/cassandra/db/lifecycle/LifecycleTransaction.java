@@ -181,7 +181,10 @@ public class LifecycleTransaction extends Transactional.AbstractTransactional
         accumulate = markObsolete(null, obsolete, accumulate);
 
         // replace all updated readers with a version restored to its original state
-        accumulate = tracker.apply(updateLiveSet(logged.update, restoreUpdatedOriginals()), accumulate);
+        List<SSTableReader> restored = restoreUpdatedOriginals();
+        List<SSTableReader> invalid = Lists.newArrayList(Iterables.concat(logged.update, logged.obsolete));
+        accumulate = tracker.apply(updateLiveSet(logged.update, restored), accumulate);
+        accumulate = tracker.notifySSTablesChanged(invalid, restored, OperationType.COMPACTION, accumulate);
         // setReplaced immediately preceding versions that have not been obsoleted
         accumulate = setReplaced(logged.update, accumulate);
         // we have replaced all of logged.update and never made visible staged.update,
