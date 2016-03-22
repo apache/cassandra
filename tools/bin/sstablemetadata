@@ -17,11 +17,11 @@
 # limitations under the License.
 
 if [ "x$CASSANDRA_INCLUDE" = "x" ]; then
-    for include in "`dirname "$0"`/cassandra.in.sh" \
-                   "$HOME/.cassandra.in.sh" \
-                   /usr/share/cassandra/cassandra.in.sh \
+    for include in /usr/share/cassandra/cassandra.in.sh \
                    /usr/local/share/cassandra/cassandra.in.sh \
-                   /opt/cassandra/cassandra.in.sh; do
+                   /opt/cassandra/cassandra.in.sh \
+                   "$HOME/.cassandra.in.sh" \
+                   "`dirname "$0"`/cassandra.in.sh"; do
         if [ -r "$include" ]; then
             . "$include"
             break
@@ -31,7 +31,6 @@ elif [ -r "$CASSANDRA_INCLUDE" ]; then
     . "$CASSANDRA_INCLUDE"
 fi
 
-
 # Use JAVA_HOME if set, otherwise look for java in PATH
 if [ -x "$JAVA_HOME/bin/java" ]; then
     JAVA="$JAVA_HOME/bin/java"
@@ -39,12 +38,23 @@ else
     JAVA="`which java`"
 fi
 
+if [ "x$JAVA" = "x" ]; then
+    echo "Java executable not found (hint: set JAVA_HOME)" >&2
+    exit 1
+fi
+
 if [ -z "$CLASSPATH" ]; then
     echo "You must set the CLASSPATH var" >&2
     exit 1
 fi
 
-"$JAVA" -cp "$CLASSPATH" \
+if [ "x$MAX_HEAP_SIZE" = "x" ]; then
+    MAX_HEAP_SIZE="256M"
+fi
+
+"$JAVA" $JAVA_AGENT -ea -cp "$CLASSPATH" $JVM_OPTS -Xmx$MAX_HEAP_SIZE \
         -Dcassandra.storagedir="$cassandra_storagedir" \
         -Dlogback.configurationFile=logback-tools.xml \
         org.apache.cassandra.tools.SSTableMetadataViewer "$@"
+
+# vi:ai sw=4 ts=4 tw=0 et

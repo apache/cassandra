@@ -20,7 +20,7 @@ if [ "x$CASSANDRA_INCLUDE" = "x" ]; then
     for include in /usr/share/cassandra/cassandra.in.sh \
                    /usr/local/share/cassandra/cassandra.in.sh \
                    /opt/cassandra/cassandra.in.sh \
-                   ~/.cassandra.in.sh \
+                   "$HOME/.cassandra.in.sh" \
                    "`dirname "$0"`/cassandra.in.sh"; do
         if [ -r "$include" ]; then
             . "$include"
@@ -38,6 +38,11 @@ else
     JAVA="`which java`"
 fi
 
+if [ "x$JAVA" = "x" ]; then
+    echo "Java executable not found (hint: set JAVA_HOME)" >&2
+    exit 1
+fi
+
 if [ -z "$CLASSPATH" ]; then
     echo "You must set the CLASSPATH var" >&2
     exit 1
@@ -47,8 +52,9 @@ if [ "x$MAX_HEAP_SIZE" = "x" ]; then
     MAX_HEAP_SIZE="256M"
 fi
 
-"$JAVA" $JAVA_AGENT -ea -cp "$CLASSPATH" -Xmx$MAX_HEAP_SIZE \
+"$JAVA" $JAVA_AGENT -ea -cp "$CLASSPATH" $JVM_OPTS -Xmx$MAX_HEAP_SIZE \
         -Dcassandra.storagedir="$cassandra_storagedir" \
         -Dlogback.configurationFile=logback-tools.xml \
         org.apache.cassandra.tools.SSTableOfflineRelevel "$@"
 
+# vi:ai sw=4 ts=4 tw=0 et
