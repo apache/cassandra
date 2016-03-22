@@ -578,6 +578,11 @@ public class SchemaLoader
 
     public static CFMetaData clusteringSASICFMD(String ksName, String cfName)
     {
+        return clusteringSASICFMD(ksName, cfName, "location", "age", "height", "score");
+    }
+
+    public static CFMetaData clusteringSASICFMD(String ksName, String cfName, String...indexedColumns)
+    {
         CFMetaData cfm = CFMetaData.Builder.create(ksName, cfName)
                                            .addPartitionKey("name", UTF8Type.instance)
                                            .addClusteringColumn("location", UTF8Type.instance)
@@ -586,32 +591,17 @@ public class SchemaLoader
                                            .addRegularColumn("score", DoubleType.instance)
                                            .build();
 
-        cfm.indexes(cfm.getIndexes()
-                       .with(IndexMetadata.fromSchemaMetadata("location", IndexMetadata.Kind.CUSTOM, new HashMap<String, String>()
-                       {{
-                           put(IndexTarget.CUSTOM_INDEX_OPTION_NAME, SASIIndex.class.getName());
-                           put(IndexTarget.TARGET_OPTION_NAME, "location");
-                           put("mode", OnDiskIndexBuilder.Mode.PREFIX.toString());
-                       }}))
-                       .with(IndexMetadata.fromSchemaMetadata("age", IndexMetadata.Kind.CUSTOM, new HashMap<String, String>()
-                       {{
-                           put(IndexTarget.CUSTOM_INDEX_OPTION_NAME, SASIIndex.class.getName());
-                           put(IndexTarget.TARGET_OPTION_NAME, "age");
-                           put("mode", OnDiskIndexBuilder.Mode.PREFIX.toString());
-                       }}))
-                       .with(IndexMetadata.fromSchemaMetadata("height", IndexMetadata.Kind.CUSTOM, new HashMap<String, String>()
-                       {{
-                           put(IndexTarget.CUSTOM_INDEX_OPTION_NAME, SASIIndex.class.getName());
-                           put(IndexTarget.TARGET_OPTION_NAME, "height");
-                           put("mode", OnDiskIndexBuilder.Mode.PREFIX.toString());
-                       }}))
-                       .with(IndexMetadata.fromSchemaMetadata("score", IndexMetadata.Kind.CUSTOM, new HashMap<String, String>()
-                       {{
-                           put(IndexTarget.CUSTOM_INDEX_OPTION_NAME, SASIIndex.class.getName());
-                           put(IndexTarget.TARGET_OPTION_NAME, "score");
-                           put("mode", OnDiskIndexBuilder.Mode.PREFIX.toString());
-                       }})));
-
+        Indexes indexes = cfm.getIndexes();
+        for (String indexedColumn : indexedColumns)
+        {
+            indexes = indexes.with(IndexMetadata.fromSchemaMetadata(indexedColumn, IndexMetadata.Kind.CUSTOM, new HashMap<String, String>()
+            {{
+                put(IndexTarget.CUSTOM_INDEX_OPTION_NAME, SASIIndex.class.getName());
+                put(IndexTarget.TARGET_OPTION_NAME, indexedColumn);
+                put("mode", OnDiskIndexBuilder.Mode.PREFIX.toString());
+            }}));
+        }
+        cfm.indexes(indexes);
         return cfm;
     }
 

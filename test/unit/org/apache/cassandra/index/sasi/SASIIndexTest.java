@@ -80,7 +80,8 @@ public class SASIIndexTest
 
     private static final String KS_NAME = "sasi";
     private static final String CF_NAME = "test_cf";
-    private static final String CLUSTERING_CF_NAME = "clustering_test_cf";
+    private static final String CLUSTERING_CF_NAME_1 = "clustering_test_cf_1";
+    private static final String CLUSTERING_CF_NAME_2 = "clustering_test_cf_2";
 
     @BeforeClass
     public static void loadSchema() throws ConfigurationException
@@ -90,7 +91,8 @@ public class SASIIndexTest
         MigrationManager.announceNewKeyspace(KeyspaceMetadata.create(KS_NAME,
                                                                      KeyspaceParams.simpleTransient(1),
                                                                      Tables.of(SchemaLoader.sasiCFMD(KS_NAME, CF_NAME),
-                                                                               SchemaLoader.clusteringSASICFMD(KS_NAME, CLUSTERING_CF_NAME))));
+                                                                               SchemaLoader.clusteringSASICFMD(KS_NAME, CLUSTERING_CF_NAME_1),
+                                                                               SchemaLoader.clusteringSASICFMD(KS_NAME, CLUSTERING_CF_NAME_2, "location"))));
     }
 
     @After
@@ -1621,64 +1623,64 @@ public class SASIIndexTest
 
     public void testClusteringIndexes(boolean forceFlush) throws Exception
     {
-        ColumnFamilyStore store = Keyspace.open(KS_NAME).getColumnFamilyStore(CLUSTERING_CF_NAME);
+        ColumnFamilyStore store = Keyspace.open(KS_NAME).getColumnFamilyStore(CLUSTERING_CF_NAME_1);
 
-        executeCQL("INSERT INTO %s.%s (name, location, age, height, score) VALUES (?, ?, ?, ?, ?)", "Pavel", "US", 27, 183, 1.0);
-        executeCQL("INSERT INTO %s.%s (name, location, age, height, score) VALUES (?, ?, ?, ?, ?)", "Pavel", "BY", 28, 182, 2.0);
-        executeCQL("INSERT INTO %s.%s (name, location, age, height, score) VALUES (?, ?, ?, ?, ?)", "Jordan", "US", 27, 182, 1.0);
+        executeCQL(CLUSTERING_CF_NAME_1, "INSERT INTO %s.%s (name, location, age, height, score) VALUES (?, ?, ?, ?, ?)", "Pavel", "US", 27, 183, 1.0);
+        executeCQL(CLUSTERING_CF_NAME_1, "INSERT INTO %s.%s (name, location, age, height, score) VALUES (?, ?, ?, ?, ?)", "Pavel", "BY", 28, 182, 2.0);
+        executeCQL(CLUSTERING_CF_NAME_1 ,"INSERT INTO %s.%s (name, location, age, height, score) VALUES (?, ?, ?, ?, ?)", "Jordan", "US", 27, 182, 1.0);
 
         if (forceFlush)
             store.forceBlockingFlush();
 
         UntypedResultSet results;
 
-        results = executeCQL("SELECT * FROM %s.%s WHERE location = ? ALLOW FILTERING", "US");
+        results = executeCQL(CLUSTERING_CF_NAME_1 ,"SELECT * FROM %s.%s WHERE location = ? ALLOW FILTERING", "US");
         Assert.assertNotNull(results);
         Assert.assertEquals(2, results.size());
 
-        results = executeCQL("SELECT * FROM %s.%s WHERE age >= ? AND height = ? ALLOW FILTERING", 27, 182);
+        results = executeCQL(CLUSTERING_CF_NAME_1 ,"SELECT * FROM %s.%s WHERE age >= ? AND height = ? ALLOW FILTERING", 27, 182);
         Assert.assertNotNull(results);
         Assert.assertEquals(2, results.size());
 
-        results = executeCQL("SELECT * FROM %s.%s WHERE age = ? AND height = ? ALLOW FILTERING", 28, 182);
+        results = executeCQL(CLUSTERING_CF_NAME_1 ,"SELECT * FROM %s.%s WHERE age = ? AND height = ? ALLOW FILTERING", 28, 182);
         Assert.assertNotNull(results);
         Assert.assertEquals(1, results.size());
 
-        results = executeCQL("SELECT * FROM %s.%s WHERE age >= ? AND height = ? AND score >= ? ALLOW FILTERING", 27, 182, 1.0);
+        results = executeCQL(CLUSTERING_CF_NAME_1 ,"SELECT * FROM %s.%s WHERE age >= ? AND height = ? AND score >= ? ALLOW FILTERING", 27, 182, 1.0);
         Assert.assertNotNull(results);
         Assert.assertEquals(2, results.size());
 
-        results = executeCQL("SELECT * FROM %s.%s WHERE age >= ? AND height = ? AND score = ? ALLOW FILTERING", 27, 182, 1.0);
+        results = executeCQL(CLUSTERING_CF_NAME_1 ,"SELECT * FROM %s.%s WHERE age >= ? AND height = ? AND score = ? ALLOW FILTERING", 27, 182, 1.0);
         Assert.assertNotNull(results);
         Assert.assertEquals(1, results.size());
 
-        results = executeCQL("SELECT * FROM %s.%s WHERE location = ? AND age >= ? ALLOW FILTERING", "US", 27);
+        results = executeCQL(CLUSTERING_CF_NAME_1 ,"SELECT * FROM %s.%s WHERE location = ? AND age >= ? ALLOW FILTERING", "US", 27);
         Assert.assertNotNull(results);
         Assert.assertEquals(2, results.size());
 
-        results = executeCQL("SELECT * FROM %s.%s WHERE location = ? ALLOW FILTERING", "BY");
+        results = executeCQL(CLUSTERING_CF_NAME_1 ,"SELECT * FROM %s.%s WHERE location = ? ALLOW FILTERING", "BY");
         Assert.assertNotNull(results);
         Assert.assertEquals(1, results.size());
 
-        results = executeCQL("SELECT * FROM %s.%s WHERE location LIKE 'U%%' ALLOW FILTERING");
+        results = executeCQL(CLUSTERING_CF_NAME_1 ,"SELECT * FROM %s.%s WHERE location LIKE 'U%%' ALLOW FILTERING");
         Assert.assertNotNull(results);
         Assert.assertEquals(2, results.size());
 
-        results = executeCQL("SELECT * FROM %s.%s WHERE location LIKE 'U%%' AND height >= 183 ALLOW FILTERING");
+        results = executeCQL(CLUSTERING_CF_NAME_1 ,"SELECT * FROM %s.%s WHERE location LIKE 'U%%' AND height >= 183 ALLOW FILTERING");
         Assert.assertNotNull(results);
         Assert.assertEquals(1, results.size());
 
-        results = executeCQL("SELECT * FROM %s.%s WHERE location LIKE 'US%%' ALLOW FILTERING");
+        results = executeCQL(CLUSTERING_CF_NAME_1 ,"SELECT * FROM %s.%s WHERE location LIKE 'US%%' ALLOW FILTERING");
         Assert.assertNotNull(results);
         Assert.assertEquals(2, results.size());
 
-        results = executeCQL("SELECT * FROM %s.%s WHERE location LIKE 'US' ALLOW FILTERING");
+        results = executeCQL(CLUSTERING_CF_NAME_1 ,"SELECT * FROM %s.%s WHERE location LIKE 'US' ALLOW FILTERING");
         Assert.assertNotNull(results);
         Assert.assertEquals(2, results.size());
 
         try
         {
-            executeCQL("SELECT * FROM %s.%s WHERE location LIKE '%%U' ALLOW FILTERING");
+            executeCQL(CLUSTERING_CF_NAME_1 ,"SELECT * FROM %s.%s WHERE location LIKE '%%U' ALLOW FILTERING");
             Assert.fail();
         }
         catch (InvalidRequestException e)
@@ -1689,7 +1691,7 @@ public class SASIIndexTest
 
         try
         {
-            executeCQL("SELECT * FROM %s.%s WHERE location LIKE '%%' ALLOW FILTERING");
+            executeCQL(CLUSTERING_CF_NAME_1 ,"SELECT * FROM %s.%s WHERE location LIKE '%%' ALLOW FILTERING");
             Assert.fail();
         }
         catch (SyntaxException e)
@@ -1700,7 +1702,7 @@ public class SASIIndexTest
 
         try
         {
-            executeCQL("SELECT * FROM %s.%s WHERE location LIKE '%%%%' ALLOW FILTERING");
+            executeCQL(CLUSTERING_CF_NAME_1 ,"SELECT * FROM %s.%s WHERE location LIKE '%%%%' ALLOW FILTERING");
             Assert.fail();
         }
         catch (SyntaxException e)
@@ -1708,6 +1710,19 @@ public class SASIIndexTest
             Assert.assertTrue(e.getMessage().contains("empty"));
             // expected
         }
+
+        // check restrictions on non-indexed clustering columns when preceding columns are indexed
+        store = Keyspace.open(KS_NAME).getColumnFamilyStore(CLUSTERING_CF_NAME_2);
+        executeCQL(CLUSTERING_CF_NAME_2 ,"INSERT INTO %s.%s (name, location, age, height, score) VALUES (?, ?, ?, ?, ?)", "Tony", "US", 43, 184, 2.0);
+        executeCQL(CLUSTERING_CF_NAME_2 ,"INSERT INTO %s.%s (name, location, age, height, score) VALUES (?, ?, ?, ?, ?)", "Christopher", "US", 27, 180, 1.0);
+
+        if (forceFlush)
+            store.forceBlockingFlush();
+
+        results = executeCQL(CLUSTERING_CF_NAME_2 ,"SELECT * FROM %s.%s WHERE location LIKE 'US' AND age = 43 ALLOW FILTERING");
+        Assert.assertNotNull(results);
+        Assert.assertEquals(1, results.size());
+        Assert.assertEquals("Tony", results.one().getString("name"));
     }
 
     @Test
@@ -2037,7 +2052,7 @@ public class SASIIndexTest
     {
         Keyspace ks = Keyspace.open(KS_NAME);
         ks.getColumnFamilyStore(CF_NAME).truncateBlocking();
-        ks.getColumnFamilyStore(CLUSTERING_CF_NAME).truncateBlocking();
+        ks.getColumnFamilyStore(CLUSTERING_CF_NAME_1).truncateBlocking();
     }
 
     private static Set<String> getIndexed(ColumnFamilyStore store, int maxResults, Expression... expressions)
@@ -2150,9 +2165,9 @@ public class SASIIndexTest
         }};
     }
 
-    private UntypedResultSet executeCQL(String query, Object... values)
+    private UntypedResultSet executeCQL(String cfName, String query, Object... values)
     {
-        return QueryProcessor.executeOnceInternal(String.format(query, KS_NAME, CLUSTERING_CF_NAME), values);
+        return QueryProcessor.executeOnceInternal(String.format(query, KS_NAME, cfName), values);
     }
 
     private Set<String> executeCQLWithKeys(String rawStatement) throws Exception

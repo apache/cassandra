@@ -737,7 +737,7 @@ public final class StatementRestrictions
         // this would mean a 'SELECT *' on a static compact table would query whole partitions, even though we'll only return
         // the static part as far as CQL is concerned. This is thus mostly an optimization to use the query-by-name path).
         int numberOfClusteringColumns = cfm.isStaticCompactTable() ? 0 : cfm.clusteringColumns().size();
-        // it is a range query if it has at least one the column alias for which no relation is defined or is not EQ.
+        // it is a range query if it has at least one the column alias for which no relation is defined or is not EQ or IN.
         return clusteringColumnsRestrictions.size() < numberOfClusteringColumns
             || (!clusteringColumnsRestrictions.isEQ() && !clusteringColumnsRestrictions.isIN());
     }
