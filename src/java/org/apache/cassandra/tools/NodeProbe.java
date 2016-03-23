@@ -1265,13 +1265,12 @@ public class NodeProbe implements AutoCloseable
         }
 
         double[] offsetPercentiles = new double[] { 0.5, 0.75, 0.95, 0.98, 0.99 };
-        long[] offsets = new EstimatedHistogram(counts.length).getBucketOffsets();
-        EstimatedHistogram metric = new EstimatedHistogram(offsets, counts);
+        EstimatedHistogram metric = new EstimatedHistogram(counts);
 
         if (metric.isOverflowed())
         {
             System.err.println(String.format("EstimatedHistogram overflowed larger than %s, unable to calculate percentiles",
-                                             offsets[offsets.length - 1]));
+                                             metric.getLargestBucketOffset()));
             for (int i = 0; i < result.length; i++)
                 result[i] = Double.NaN;
         }
