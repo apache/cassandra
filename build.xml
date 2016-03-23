@@ -725,6 +725,7 @@
             <src path="${build.src.gen-java}"/>
             <classpath refid="cassandra.classpath"/>
             <compilerarg value="-XDignore.symbol.file"/>
+            <compilerarg line="-encoding utf-8"/>
         </javac>
         <antcall target="createVersionPropFile"/>
         <copy todir="${build.classes.main}">
@@ -1086,6 +1087,7 @@
       <src path="${test.unit.src}"/>
       <src path="${test.long.src}"/>
       <src path="${test.pig.src}"/>
+      <compilerarg line="-encoding utf-8"/>
     </javac>
 
     <!-- Non-java resources needed by the test suite -->
