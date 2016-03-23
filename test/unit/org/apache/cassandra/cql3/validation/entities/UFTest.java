@@ -2529,4 +2529,24 @@ public class UFTest extends CQLTester
                                   "$$");
 
     }
+
+    @Test
+    public void testImportJavaUtil() throws Throwable
+    {
+        createTable("CREATE TABLE %s (key int primary key, sval text)");
+
+        String f = createFunction(KEYSPACE, "text",
+                "CREATE OR REPLACE FUNCTION %s(listText list<text>) "                                             +
+                        "CALLED ON NULL INPUT "                          +
+                        "RETURNS set<text> " +
+                        "LANGUAGE JAVA\n"                                +
+                        "AS $$\n" +
+                        "     Set<String> set = new HashSet<String>(); " +
+                        "     for (String s : listtext) {" +
+                        "            set.add(s);" +
+                        "     }" +
+                        "     return set;" +
+                        "$$");
+
+    }
 }
