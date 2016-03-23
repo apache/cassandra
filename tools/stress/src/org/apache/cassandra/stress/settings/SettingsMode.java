@@ -29,6 +29,7 @@ import java.util.Map;
 import com.datastax.driver.core.AuthProvider;
 import com.datastax.driver.core.PlainTextAuthProvider;
 import com.datastax.driver.core.ProtocolOptions;
+import com.datastax.driver.core.ProtocolVersion;
 
 public class SettingsMode implements Serializable
 {
@@ -36,6 +37,7 @@ public class SettingsMode implements Serializable
     public final ConnectionAPI api;
     public final ConnectionStyle style;
     public final CqlVersion cqlVersion;
+    public final ProtocolVersion protocolVersion;
 
     public final String username;
     public final String password;
@@ -53,6 +55,9 @@ public class SettingsMode implements Serializable
         {
             cqlVersion = CqlVersion.CQL3;
             Cql3Options opts = (Cql3Options) options;
+            protocolVersion = "NEWEST_SUPPORTED".equals(opts.protocolVersion.value())
+                    ? ProtocolVersion.NEWEST_SUPPORTED
+                    : ProtocolVersion.fromInt(Integer.parseInt(opts.protocolVersion.value()));
             api = opts.mode().displayPrefix.equals("native") ? ConnectionAPI.JAVA_DRIVER_NATIVE : ConnectionAPI.THRIFT;
             style = opts.useUnPrepared.setByUser() ? ConnectionStyle.CQL :  ConnectionStyle.CQL_PREPARED;
             compression = ProtocolOptions.Compression.valueOf(opts.useCompression.value().toUpperCase()).name();
@@ -92,6 +97,7 @@ public class SettingsMode implements Serializable
         {
             cqlVersion = CqlVersion.CQL3;
             Cql3SimpleNativeOptions opts = (Cql3SimpleNativeOptions) options;
+            protocolVersion = ProtocolVersion.NEWEST_SUPPORTED;
             api = ConnectionAPI.SIMPLE_NATIVE;
             style = opts.usePrepared.setByUser() ? ConnectionStyle.CQL_PREPARED : ConnectionStyle.CQL;
             compression = ProtocolOptions.Compression.NONE.name();
@@ -105,6 +111,7 @@ public class SettingsMode implements Serializable
         else if (options instanceof ThriftOptions)
         {
             ThriftOptions opts = (ThriftOptions) options;
+            protocolVersion = ProtocolVersion.NEWEST_SUPPORTED;
             cqlVersion = CqlVersion.NOCQL;
             api = opts.smart.setByUser() ? ConnectionAPI.THRIFT_SMART : ConnectionAPI.THRIFT;
             style = ConnectionStyle.THRIFT;
@@ -148,6 +155,7 @@ public class SettingsMode implements Serializable
     private static abstract class Cql3Options extends GroupedOptions
     {
         final OptionSimple api = new OptionSimple("cql3", "", null, "", true);
+        final OptionSimple protocolVersion = new OptionSimple("protocolVersion=", "[2-4]+", "NEWEST_SUPPORTED", "CQL Protocol Version", false);
         final OptionSimple useUnPrepared = new OptionSimple("unprepared", "", null, "force use of unprepared statements", false);
         final OptionSimple useCompression = new OptionSimple("compression=", "none|lz4|snappy", "none", "", false);
         final OptionSimple port = new OptionSimple("port=", "[0-9]+", "9046", "", false);
@@ -162,7 +170,7 @@ public class SettingsMode implements Serializable
         public List<? extends Option> options()
         {
             return Arrays.asList(mode(), useUnPrepared, api, useCompression, port, user, password, authProvider,
-                                 maxPendingPerConnection, connectionsPerHost);
+                                 maxPendingPerConnection, connectionsPerHost, protocolVersion);
         }
     }
 

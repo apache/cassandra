@@ -47,6 +47,7 @@ public class JavaDriverClient
     public final int maxPendingPerConnection;
     public final int connectionsPerHost;
 
+    private final ProtocolVersion protocolVersion;
     private final EncryptionOptions.ClientEncryptionOptions encryptionOptions;
     private Cluster cluster;
     private Session session;
@@ -61,6 +62,7 @@ public class JavaDriverClient
 
     public JavaDriverClient(StressSettings settings, String host, int port, EncryptionOptions.ClientEncryptionOptions encryptionOptions)
     {
+        this.protocolVersion = settings.mode.protocolVersion;
         this.host = host;
         this.port = port;
         this.username = settings.mode.username;
@@ -115,7 +117,7 @@ public class JavaDriverClient
                                                 .withPort(port)
                                                 .withPoolingOptions(poolingOpts)
                                                 .withoutJMXReporting()
-                                                .withProtocolVersion(ProtocolVersion.NEWEST_SUPPORTED)
+                                                .withProtocolVersion(protocolVersion)
                                                 .withoutMetrics(); // The driver uses metrics 3 with conflict with our version
         if (whitelist != null)
             clusterBuilder.withLoadBalancingPolicy(whitelist);
