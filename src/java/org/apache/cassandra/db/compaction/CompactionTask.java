@@ -223,6 +223,9 @@ public class CompactionTask extends AbstractCompactionTask
             logger.trace(String.format("CF Total Bytes Compacted: %,d", CompactionTask.addToTotalBytesCompacted(endsize)));
             logger.trace("Actual #keys: {}, Estimated #keys:{}, Err%: {}", totalKeysWritten, estimatedKeys, ((double)(totalKeysWritten - estimatedKeys)/totalKeysWritten));
 
+            // update the metrics
+            cfs.metric.compactionBytesWritten.inc(endsize);
+
             if (transaction.isOffline())
                 Refs.release(Refs.selfRefs(newSStables));
         }

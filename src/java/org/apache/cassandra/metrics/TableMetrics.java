@@ -79,6 +79,10 @@ public class TableMetrics
     public final LatencyMetrics writeLatency;
     /** Estimated number of tasks pending for this table */
     public final Counter pendingFlushes;
+    /** Total number of bytes flushed since server [re]start */
+    public final Counter bytesFlushed;
+    /** Total number of bytes written by compaction since server [re]start */
+    public final Counter compactionBytesWritten;
     /** Estimate of number of pending compactios for this table */
     public final Gauge<Integer> pendingCompactions;
     /** Number of SSTables on disk for this CF */
@@ -343,6 +347,8 @@ public class TableMetrics
         writeLatency = new LatencyMetrics(factory, "Write", cfs.keyspace.metric.writeLatency, globalWriteLatency);
         rangeLatency = new LatencyMetrics(factory, "Range", cfs.keyspace.metric.rangeLatency, globalRangeLatency);
         pendingFlushes = createTableCounter("PendingFlushes");
+        bytesFlushed = createTableCounter("BytesFlushed");
+        compactionBytesWritten = createTableCounter("CompactionBytesWritten");
         pendingCompactions = createTableGauge("PendingCompactions", new Gauge<Integer>()
         {
             public Integer getValue()

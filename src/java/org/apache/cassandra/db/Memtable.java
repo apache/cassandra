@@ -430,10 +430,13 @@ public class Memtable implements Comparable<Memtable>
                 }
             }
 
+            long bytesFlushed = writer.getFilePointer();
             logger.debug(String.format("Completed flushing %s (%s) for commitlog position %s",
                                                                               writer.getFilename(),
-                                                                              FBUtilities.prettyPrintMemory(writer.getFilePointer()),
+                                                                              FBUtilities.prettyPrintMemory(bytesFlushed),
                                                                               context));
+            // Update the metrics
+            cfs.metric.bytesFlushed.inc(bytesFlushed);
 
             if (heavilyContendedRowCount > 0)
                 logger.trace(String.format("High update contention in %d/%d partitions of %s ", heavilyContendedRowCount, toFlush.size(), Memtable.this.toString()));
