@@ -66,6 +66,7 @@ public enum DataType implements OptionCodec.Codecable<DataType>
     private final int id;
     private final int protocolVersion;
     private final AbstractType type;
+    private final Pair<DataType, Object> pair;
     private static final Map<AbstractType, DataType> dataTypeMap = new HashMap<AbstractType, DataType>();
     static
     {
@@ -81,6 +82,7 @@ public enum DataType implements OptionCodec.Codecable<DataType>
         this.id = id;
         this.type = type;
         this.protocolVersion = protocolVersion;
+        pair = Pair.create(this, null);
     }
 
     public int getId(int version)
@@ -261,7 +263,7 @@ public enum DataType implements OptionCodec.Codecable<DataType>
             // Fall back to CUSTOM if target doesn't know this data type
             if (version < dt.protocolVersion)
                 return Pair.<DataType, Object>create(CUSTOM, type.toString());
-            return Pair.create(dt, null);
+            return dt.pair;
         }
     }
 

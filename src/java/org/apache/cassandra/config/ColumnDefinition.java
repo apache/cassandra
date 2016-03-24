@@ -81,6 +81,8 @@ public class ColumnDefinition extends ColumnSpecification implements Comparable<
     private final Comparator<Object> asymmetricCellPathComparator;
     private final Comparator<? super Cell> cellComparator;
 
+    private int hash;
+
     /**
      * These objects are compared frequently, so we encode several of their comparison components
      * into a single long value so that this can be done efficiently
@@ -262,9 +264,21 @@ public class ColumnDefinition extends ColumnSpecification implements Comparable<
     @Override
     public int hashCode()
     {
-        return Objects.hashCode(ksName, cfName, name, type, kind, position);
+        // This achieves the same as Objects.hashcode, but avoids the object array allocation
+        // which features significantly in the allocation profile and caches the result.
+        int result = hash;
+        if(result == 0)
+        {
+            result = 31 + (ksName == null ? 0 : ksName.hashCode());
+            result = 31 * result + (cfName == null ? 0 : cfName.hashCode());
+            result = 31 * result + (name == null ? 0 : name.hashCode());
+            result = 31 * result + (type == null ? 0 : type.hashCode());
+            result = 31 * result + (kind == null ? 0 : kind.hashCode());
+            result = 31 * result + position;
+            hash = result;
+        }
+        return result;
     }
-
     @Override
     public String toString()
     {
