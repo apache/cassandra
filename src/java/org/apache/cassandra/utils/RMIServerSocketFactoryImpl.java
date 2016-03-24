@@ -1,7 +1,8 @@
 package org.apache.cassandra.utils;
 
 import java.io.IOException;
-import java.net.*;
+import java.net.InetAddress;
+import java.net.ServerSocket;
 import java.rmi.server.RMIServerSocketFactory;
 import javax.net.ServerSocketFactory;
 
@@ -9,8 +10,12 @@ import javax.net.ServerSocketFactory;
 public class RMIServerSocketFactoryImpl implements RMIServerSocketFactory
 {
 
-    public ServerSocket createServerSocket(final int pPort) throws IOException  {
-        return ServerSocketFactory.getDefault().createServerSocket(pPort, 0, InetAddress.getLoopbackAddress());
+    public ServerSocket createServerSocket(final int pPort) throws IOException
+    {
+        ServerSocket socket = ServerSocketFactory.getDefault()
+                                                 .createServerSocket(pPort, 0, InetAddress.getLoopbackAddress());
+        socket.setReuseAddress(true);
+        return socket;
     }
 
     public boolean equals(Object obj)
