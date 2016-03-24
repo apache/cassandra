@@ -21,6 +21,7 @@
 
 
 3.5
+ * Fix clustering and row filters for LIKE queries on clustering columns (CASSANDRA-11397)
 Merged from 3.0:
  * Allocate merkletrees with the correct size (CASSANDRA-11390)
  * Support streaming pre-3.0 sstables (CASSANDRA-10990)

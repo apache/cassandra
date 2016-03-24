@@ -704,10 +704,10 @@ public abstract class SingleColumnRestriction extends AbstractRestriction
         @Override
         public MultiCBuilder appendTo(MultiCBuilder builder, QueryOptions options)
         {
-            // LIKE could be used with clustering columns as soon as they are indexed,
-            // but we have to hide such expression from clustering filter since it
-            // can only filter based on the complete values.
-            return builder;
+            // LIKE can be used with clustering columns, but as it doesn't
+            // represent an actual clustering value, it can't be used in a
+            // clustering filter.
+            throw new UnsupportedOperationException();
         }
 
         @Override

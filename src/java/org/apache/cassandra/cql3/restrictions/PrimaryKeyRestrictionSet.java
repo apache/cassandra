@@ -55,6 +55,11 @@ final class PrimaryKeyRestrictionSet extends AbstractPrimaryKeyRestrictions
     private boolean in;
 
     /**
+     * <code>true</code> if the restrictions are corresponding to a LIKE, <code>false</code> otherwise.
+     */
+    private boolean like;
+
+    /**
      * <code>true</code> if the restrictions are corresponding to a Slice, <code>false</code> otherwise.
      */
     private boolean slice;
@@ -106,6 +111,8 @@ final class PrimaryKeyRestrictionSet extends AbstractPrimaryKeyRestrictions
             this.contains = true;
         else if (restriction.isIN() || primaryKeyRestrictions.isIN())
             this.in = true;
+        else if (restriction.isLIKE() || primaryKeyRestrictions.isLIKE())
+            this.like = true;
         else
             this.eq = true;
     }
@@ -135,6 +142,12 @@ final class PrimaryKeyRestrictionSet extends AbstractPrimaryKeyRestrictions
     public boolean isIN()
     {
         return in;
+    }
+
+    @Override
+    public boolean isLIKE()
+    {
+        return like;
     }
 
     @Override
@@ -220,7 +233,7 @@ final class PrimaryKeyRestrictionSet extends AbstractPrimaryKeyRestrictions
         {
             ColumnDefinition def = r.getFirstColumn();
 
-            if (keyPosition != def.position() || r.isContains())
+            if (keyPosition != def.position() || r.isContains() || r.isLIKE())
                 break;
 
             if (r.isSlice())
@@ -296,7 +309,7 @@ final class PrimaryKeyRestrictionSet extends AbstractPrimaryKeyRestrictions
             ColumnDefinition columnDef = restriction.getFirstColumn();
 
             // We ignore all the clustering columns that can be handled by slices.
-            if (!isPartitionKey && !restriction.isContains()&& position == columnDef.position())
+            if (!isPartitionKey && !(restriction.isContains() || restriction.isLIKE()) && position == columnDef.position())
             {
                 position = restriction.getLastColumn().position() + 1;
                 if (!restriction.hasSupportingIndex(indexManager))
