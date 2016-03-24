@@ -1,4 +1,5 @@
 3.0.5
+ * Enable SO_REUSEADDR for JMX RMI server sockets (CASSANDRA-11093)
  * Allocate merkletrees with the correct size (CASSANDRA-11390)
  * Support streaming pre-3.0 sstables (CASSANDRA-10990)
  * Add backpressure to compressed commit log (CASSANDRA-10971)
