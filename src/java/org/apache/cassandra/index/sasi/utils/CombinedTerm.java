@@ -41,6 +41,11 @@ public class CombinedTerm implements CombinedValue<DataTerm>
         return term.getTerm();
     }
 
+    public boolean isPartial()
+    {
+        return term.isPartial();
+    }
+
     public RangeIterator<Long, Token> getTokenIterator()
     {
         RangeIterator.Builder<Long, Token> union = RangeUnionIterator.builder();

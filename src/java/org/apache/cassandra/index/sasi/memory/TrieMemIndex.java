@@ -228,6 +228,7 @@ public class TrieMemIndex extends MemIndex
                 case SUFFIX:
                     return trie.getValuesForKeysEndingWith(value);
 
+                case PREFIX:
                 case CONTAINS:
                     return trie.getValuesForKeysContaining(value);
 

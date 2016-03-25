@@ -22,6 +22,7 @@ import java.nio.ByteBuffer;
 import org.apache.cassandra.index.sasi.disk.Descriptor;
 import org.apache.cassandra.index.sasi.disk.OnDiskIndex;
 import org.apache.cassandra.index.sasi.disk.TokenTreeBuilder;
+import org.apache.cassandra.index.sasi.sa.IndexedTerm;
 import org.apache.cassandra.index.sasi.sa.TermIterator;
 import org.apache.cassandra.db.marshal.AbstractType;
 import org.apache.cassandra.utils.Pair;
@@ -72,7 +73,7 @@ public class CombinedTermIterator extends TermIterator
         return max;
     }
 
-    protected Pair<ByteBuffer, TokenTreeBuilder> computeNext()
+    protected Pair<IndexedTerm, TokenTreeBuilder> computeNext()
     {
         if (!union.hasNext())
         {
@@ -81,7 +82,7 @@ public class CombinedTermIterator extends TermIterator
         else
         {
             CombinedTerm term = union.next();
-            return Pair.create(term.getTerm(), term.getTokenTreeBuilder());
+            return Pair.create(new IndexedTerm(term.getTerm(), term.isPartial()), term.getTokenTreeBuilder());
         }
 
     }

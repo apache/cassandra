@@ -65,6 +65,7 @@ public class OnDiskIndexTest
                 put(UTF8Type.instance.decompose("foo"),  keyBuilder(7L));
                 put(UTF8Type.instance.decompose("bar"),  keyBuilder(9L, 10L));
                 put(UTF8Type.instance.decompose("michael"), keyBuilder(11L, 12L, 1L));
+                put(UTF8Type.instance.decompose("am"), keyBuilder(15L));
         }};
 
         OnDiskIndexBuilder builder = new OnDiskIndexBuilder(UTF8Type.instance, UTF8Type.instance, OnDiskIndexBuilder.Mode.CONTAINS);
@@ -100,6 +101,7 @@ public class OnDiskIndexTest
         Assert.assertEquals(convert(7), convert(onDisk.search(expressionFor("oo"))));
         Assert.assertEquals(convert(7), convert(onDisk.search(expressionFor("o"))));
         Assert.assertEquals(convert(1, 2, 3, 4, 6), convert(onDisk.search(expressionFor("t"))));
+        Assert.assertEquals(convert(1, 2, 11, 12), convert(onDisk.search(expressionFor("m", Operator.LIKE_PREFIX))));
 
         Assert.assertEquals(Collections.<DecoratedKey>emptySet(), convert(onDisk.search(expressionFor("hello"))));
 
@@ -851,7 +853,12 @@ public class OnDiskIndexTest
 
     private static Expression expressionFor(String term)
     {
-        return expressionFor(UTF8Type.instance, UTF8Type.instance.decompose(term));
+        return expressionFor(term, Operator.LIKE_CONTAINS);
+    }
+
+    private static Expression expressionFor(String term, Operator op)
+    {
+        return expressionFor(op, UTF8Type.instance, UTF8Type.instance.decompose(term));
     }
 
     private static void addAll(OnDiskIndexBuilder builder, ByteBuffer term, TokenTreeBuilder tokens)

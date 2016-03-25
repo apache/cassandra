@@ -322,6 +322,9 @@ public class Expression
         if (!hasLower())
             return true;
 
+        if (nonMatchingPartial(term))
+            return false;
+
         int cmp = term.compareTo(validator, lower.value, false);
         return cmp > 0 || cmp == 0 && lower.inclusive;
     }
@@ -330,6 +333,9 @@ public class Expression
     {
         if (!hasUpper())
             return true;
+
+        if (nonMatchingPartial(term))
+            return false;
 
         int cmp = term.compareTo(validator, upper.value, false);
         return cmp < 0 || cmp == 0 && upper.inclusive;
@@ -379,6 +385,10 @@ public class Expression
                 && exclusions.equals(o.exclusions);
     }
 
+    private boolean nonMatchingPartial(OnDiskIndex.DataTerm term)
+    {
+        return term.isPartial() && operation == Op.PREFIX;
+    }
 
     public static class Bound
     {

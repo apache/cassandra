@@ -27,6 +27,7 @@ import org.apache.cassandra.db.DecoratedKey;
 import org.apache.cassandra.db.marshal.AbstractType;
 import org.apache.cassandra.index.sasi.conf.ColumnIndex;
 import org.apache.cassandra.index.sasi.disk.OnDiskIndex;
+import org.apache.cassandra.index.sasi.disk.OnDiskIndexBuilder;
 import org.apache.cassandra.index.sasi.disk.Token;
 import org.apache.cassandra.index.sasi.plan.Expression;
 import org.apache.cassandra.index.sasi.utils.RangeIterator;
@@ -65,6 +66,16 @@ public class SSTableIndex
                 columnIndex.getIndexName());
 
         this.index = new OnDiskIndex(indexFile, validator, new DecoratedKeyFetcher(sstable));
+    }
+
+    public OnDiskIndexBuilder.Mode mode()
+    {
+        return index.mode();
+    }
+
+    public boolean hasMarkedPartials()
+    {
+        return index.hasMarkedPartials();
     }
 
     public ByteBuffer minTerm()

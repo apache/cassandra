@@ -24,7 +24,7 @@ import org.apache.cassandra.utils.Pair;
 
 import com.google.common.collect.AbstractIterator;
 
-public abstract class TermIterator extends AbstractIterator<Pair<ByteBuffer, TokenTreeBuilder>>
+public abstract class TermIterator extends AbstractIterator<Pair<IndexedTerm, TokenTreeBuilder>>
 {
     public abstract ByteBuffer minTerm();
     public abstract ByteBuffer maxTerm();

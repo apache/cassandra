@@ -22,6 +22,7 @@ import java.util.Collections;
 import java.util.Comparator;
 import java.util.Iterator;
 
+import org.apache.cassandra.index.Index;
 import org.apache.cassandra.index.sasi.disk.OnDiskIndexBuilder;
 import org.apache.cassandra.index.sasi.disk.TokenTreeBuilder;
 import org.apache.cassandra.db.marshal.AbstractType;
@@ -72,13 +73,13 @@ public class IntegralSA extends SA<ByteBuffer>
             return terms.get(terms.size() - 1).getTerm();
         }
 
-        protected Pair<ByteBuffer, TokenTreeBuilder> computeNext()
+        protected Pair<IndexedTerm, TokenTreeBuilder> computeNext()
         {
             if (!termIterator.hasNext())
                 return endOfData();
 
             Term<ByteBuffer> term = termIterator.next();
-            return Pair.create(term.getTerm(), term.getTokens().finish());
+            return Pair.create(new IndexedTerm(term.getTerm(), false), term.getTokens().finish());
         }
     }
 }

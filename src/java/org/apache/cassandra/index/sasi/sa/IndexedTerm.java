@@ -15,37 +15,29 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package org.apache.cassandra.index.sasi.disk;
 
-/**
- * Object descriptor for SASIIndex files. Similar to, and based upon, the sstable descriptor.
- */
-public class Descriptor
+package org.apache.cassandra.index.sasi.sa;
+
+import java.nio.ByteBuffer;
+
+public class IndexedTerm
 {
-    public static final String VERSION_AA = "aa";
-    public static final String VERSION_AB = "ab";
-    public static final String CURRENT_VERSION = VERSION_AB;
-    public static final Descriptor CURRENT = new Descriptor(CURRENT_VERSION);
+    private final ByteBuffer term;
+    private final boolean isPartial;
 
-    public static class Version
+    public IndexedTerm(ByteBuffer term, boolean isPartial)
     {
-        public final String version;
-
-        public Version(String version)
-        {
-            this.version = version;
-        }
-
-        public String toString()
-        {
-            return version;
-        }
+        this.term = term;
+        this.isPartial = isPartial;
     }
 
-    public final Version version;
-
-    public Descriptor(String v)
+    public ByteBuffer getBytes()
     {
-        this.version = new Version(v);
+        return term;
+    }
+
+    public boolean isPartial()
+    {
+        return isPartial;
     }
 }

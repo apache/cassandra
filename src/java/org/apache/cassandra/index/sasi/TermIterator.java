@@ -24,6 +24,7 @@ import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
 
 import org.apache.cassandra.config.DatabaseDescriptor;
+import org.apache.cassandra.index.sasi.disk.OnDiskIndexBuilder;
 import org.apache.cassandra.index.sasi.disk.Token;
 import org.apache.cassandra.index.sasi.plan.Expression;
 import org.apache.cassandra.index.sasi.utils.RangeUnionIterator;
@@ -101,6 +102,14 @@ public class TermIterator extends RangeIterator<Long, Token>
 
             for (final SSTableIndex index : perSSTableIndexes)
             {
+                if (e.getOp() == Expression.Op.PREFIX &&
+                    index.mode() == OnDiskIndexBuilder.Mode.CONTAINS && !index.hasMarkedPartials())
+                    throw new UnsupportedOperationException(String.format("The index %s has not yet been upgraded " +
+                                                                          "to support prefix queries in CONTAINS mode. " +
+                                                                          "Wait for compaction or rebuild the index.",
+                                                                          index.getPath()));
+
+
                 if (!index.reference())
                 {
                     latch.countDown();

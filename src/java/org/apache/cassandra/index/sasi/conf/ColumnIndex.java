@@ -39,6 +39,7 @@ import org.apache.cassandra.db.rows.Cell;
 import org.apache.cassandra.db.rows.Row;
 import org.apache.cassandra.index.sasi.analyzer.AbstractAnalyzer;
 import org.apache.cassandra.index.sasi.conf.view.View;
+import org.apache.cassandra.index.sasi.disk.OnDiskIndexBuilder;
 import org.apache.cassandra.index.sasi.disk.Token;
 import org.apache.cassandra.index.sasi.memory.IndexMemtable;
 import org.apache.cassandra.index.sasi.plan.Expression;
@@ -217,8 +218,9 @@ public class ColumnIndex
 
         Op operator = Op.valueOf(op);
         return !(isTokenized && operator == Op.EQ) // EQ is only applicable to non-tokenized indexes
-            && !(isLiteral() && operator == Op.RANGE) // RANGE only applicable to indexes non-literal indexes
-            && mode.supports(operator); // for all other cases let's refer to index itself
+               && !(isTokenized && mode.mode == OnDiskIndexBuilder.Mode.CONTAINS && operator == Op.PREFIX) // PREFIX not supported on tokenized CONTAINS mode indexes
+               && !(isLiteral() && operator == Op.RANGE) // RANGE only applicable to indexes non-literal indexes
+               && mode.supports(operator); // for all other cases let's refer to index itself
 
     }
 

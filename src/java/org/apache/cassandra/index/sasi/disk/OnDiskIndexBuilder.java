@@ -24,6 +24,7 @@ import java.util.*;
 
 import org.apache.cassandra.db.DecoratedKey;
 import org.apache.cassandra.index.sasi.plan.Expression.Op;
+import org.apache.cassandra.index.sasi.sa.IndexedTerm;
 import org.apache.cassandra.index.sasi.sa.IntegralSA;
 import org.apache.cassandra.index.sasi.sa.SA;
 import org.apache.cassandra.index.sasi.sa.TermIterator;
@@ -51,7 +52,7 @@ public class OnDiskIndexBuilder
     public enum Mode
     {
         PREFIX(EnumSet.of(Op.EQ, Op.MATCH, Op.PREFIX, Op.NOT_EQ, Op.RANGE)),
-        CONTAINS(EnumSet.of(Op.MATCH, Op.CONTAINS, Op.SUFFIX, Op.NOT_EQ)),
+        CONTAINS(EnumSet.of(Op.EQ, Op.MATCH, Op.CONTAINS, Op.PREFIX, Op.SUFFIX, Op.NOT_EQ)),
         SPARSE(EnumSet.of(Op.EQ, Op.NOT_EQ, Op.RANGE));
 
         Set<Op> supportedOps;
@@ -128,6 +129,7 @@ public class OnDiskIndexBuilder
     public static final int BLOCK_SIZE = 4096;
     public static final int MAX_TERM_SIZE = 1024;
     public static final int SUPER_BLOCK_SIZE = 64;
+    public static final int IS_PARTIAL_BIT = 15;
 
     private final List<MutableLevel<InMemoryPointerTerm>> levels = new ArrayList<>();
     private MutableLevel<InMemoryDataTerm> dataLevel;
@@ -138,17 +140,24 @@ public class OnDiskIndexBuilder
 
     private final Map<ByteBuffer, TokenTreeBuilder> terms;
     private final Mode mode;
+    private final boolean marksPartials;
 
     private ByteBuffer minKey, maxKey;
     private long estimatedBytes;
 
     public OnDiskIndexBuilder(AbstractType<?> keyComparator, AbstractType<?> comparator, Mode mode)
     {
+        this(keyComparator, comparator, mode, true);
+    }
+
+    public OnDiskIndexBuilder(AbstractType<?> keyComparator, AbstractType<?> comparator, Mode mode, boolean marksPartials)
+    {
         this.keyComparator = keyComparator;
         this.termComparator = comparator;
         this.terms = new HashMap<>();
         this.termSize = TermSize.sizeOf(comparator);
         this.mode = mode;
+        this.marksPartials = marksPartials;
     }
 
     public OnDiskIndexBuilder add(ByteBuffer term, DecoratedKey key, long keyPosition)
@@ -269,6 +278,7 @@ public class OnDiskIndexBuilder
             ByteBufferUtil.writeWithShortLength(range.right, out);
 
             out.writeUTF(mode.toString());
+            out.writeBoolean(marksPartials);
 
             out.skipBytes((int) (BLOCK_SIZE - out.position()));
 
@@ -276,7 +286,7 @@ public class OnDiskIndexBuilder
                                             : new MutableLevel<>(out, new MutableDataBlock(termComparator, mode));
             while (terms.hasNext())
             {
-                Pair<ByteBuffer, TokenTreeBuilder> term = terms.next();
+                Pair<IndexedTerm, TokenTreeBuilder> term = terms.next();
                 addTerm(new InMemoryDataTerm(term.left, term.right), out);
             }
 
@@ -333,24 +343,30 @@ public class OnDiskIndexBuilder
 
     private class InMemoryTerm
     {
-        protected final ByteBuffer term;
+        protected final IndexedTerm term;
 
-        public InMemoryTerm(ByteBuffer term)
+        public InMemoryTerm(IndexedTerm term)
         {
             this.term = term;
         }
 
         public int serializedSize()
         {
-            return (termSize.isConstant() ? 0 : 2) + term.remaining();
+            return (termSize.isConstant() ? 0 : 2) + term.getBytes().remaining();
         }
 
         public void serialize(DataOutputPlus out) throws IOException
         {
             if (termSize.isConstant())
-                out.write(term);
+            {
+                out.write(term.getBytes());
+            }
             else
-                ByteBufferUtil.writeWithShortLength(term, out);
+            {
+                out.writeShort(term.getBytes().remaining() | ((marksPartials && term.isPartial() ? 1 : 0) << IS_PARTIAL_BIT));
+                out.write(term.getBytes());
+            }
+
         }
     }
 
@@ -358,7 +374,7 @@ public class OnDiskIndexBuilder
     {
         protected final int blockCnt;
 
-        public InMemoryPointerTerm(ByteBuffer term, int blockCnt)
+        public InMemoryPointerTerm(IndexedTerm term, int blockCnt)
         {
             super(term);
             this.blockCnt = blockCnt;
@@ -380,7 +396,7 @@ public class OnDiskIndexBuilder
     {
         private final TokenTreeBuilder keys;
 
-        public InMemoryDataTerm(ByteBuffer term, TokenTreeBuilder keys)
+        public InMemoryDataTerm(IndexedTerm term, TokenTreeBuilder keys)
         {
             super(term);
             this.keys = keys;
@@ -577,7 +593,7 @@ public class OnDiskIndexBuilder
             {
                 if (keys.getTokenCount() > MAX_KEYS_SPARSE)
                     throw new IOException(String.format("Term - '%s' belongs to more than %d keys in %s mode, which is not allowed.",
-                                                        comparator.getString(term.term), MAX_KEYS_SPARSE, mode.name()));
+                                                        comparator.getString(term.term.getBytes()), MAX_KEYS_SPARSE, mode.name()));
 
                 writeTerm(term, keys);
             }

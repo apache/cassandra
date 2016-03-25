@@ -104,6 +104,7 @@ public class OnDiskIndex implements Iterable<OnDiskIndex.DataTerm>, Closeable
     protected final AbstractType<?> comparator;
     protected final MappedBuffer indexFile;
     protected final long indexSize;
+    protected final boolean hasMarkedPartials;
 
     protected final Function<Long, DecoratedKey> keyFetcher;
 
@@ -138,6 +139,7 @@ public class OnDiskIndex implements Iterable<OnDiskIndex.DataTerm>, Closeable
             maxKey = ByteBufferUtil.readWithShortLength(backingFile);
 
             mode = OnDiskIndexBuilder.Mode.mode(backingFile.readUTF());
+            hasMarkedPartials = backingFile.readBoolean();
 
             indexSize = backingFile.length();
             indexFile = new MappedBuffer(new ChannelProxy(indexPath, backingFile.getChannel()));
@@ -165,6 +167,16 @@ public class OnDiskIndex implements Iterable<OnDiskIndex.DataTerm>, Closeable
         {
             FileUtils.closeQuietly(backingFile);
         }
+    }
+
+    public boolean hasMarkedPartials()
+    {
+        return hasMarkedPartials;
+    }
+
+    public OnDiskIndexBuilder.Mode mode()
+    {
+        return mode;
     }
 
     public ByteBuffer minTerm()
@@ -208,6 +220,9 @@ public class OnDiskIndex implements Iterable<OnDiskIndex.DataTerm>, Closeable
     public RangeIterator<Long, Token> search(Expression exp)
     {
         assert mode.supports(exp.getOp());
+
+        if (exp.getOp() == Expression.Op.PREFIX && mode == OnDiskIndexBuilder.Mode.CONTAINS && !hasMarkedPartials)
+            throw new UnsupportedOperationException("prefix queries in CONTAINS mode are not supported by this index");
 
         // optimization in case single term is requested from index
         // we don't really need to build additional union iterator
@@ -602,7 +617,7 @@ public class OnDiskIndex implements Iterable<OnDiskIndex.DataTerm>, Closeable
 
         protected PointerTerm cast(MappedBuffer data)
         {
-            return new PointerTerm(data, termSize);
+            return new PointerTerm(data, termSize, hasMarkedPartials);
         }
     }
 
@@ -612,7 +627,7 @@ public class OnDiskIndex implements Iterable<OnDiskIndex.DataTerm>, Closeable
 
         protected DataTerm(MappedBuffer content, OnDiskIndexBuilder.TermSize size, TokenTree perBlockIndex)
         {
-            super(content, size);
+            super(content, size, hasMarkedPartials);
             this.perBlockIndex = perBlockIndex;
         }
 
@@ -660,9 +675,9 @@ public class OnDiskIndex implements Iterable<OnDiskIndex.DataTerm>, Closeable
 
     protected static class PointerTerm extends Term
     {
-        public PointerTerm(MappedBuffer content, OnDiskIndexBuilder.TermSize size)
+        public PointerTerm(MappedBuffer content, OnDiskIndexBuilder.TermSize size, boolean hasMarkedPartials)
         {
-            super(content, size);
+            super(content, size, hasMarkedPartials);
         }
 
         public int getBlock()
