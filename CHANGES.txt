@@ -1,4 +1,5 @@
 3.6
+ * Compress only inter-dc traffic by default (CASSANDRA-8888)
  * Add metrics to track write amplification (CASSANDRA-11420)
  * cassandra-stress: cannot handle "value-less" tables (CASSANDRA-7739)
  * Add/drop multiple columns in one ALTER TABLE statement (CASSANDRA-10411)
