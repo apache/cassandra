@@ -28,13 +28,6 @@ import java.util.Set;
 import java.util.UUID;
 import java.util.concurrent.TimeUnit;
 
-import com.google.common.base.Predicate;
-import com.google.common.collect.Iterables;
-import com.google.common.collect.Sets;
-import org.apache.commons.lang3.StringUtils;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
-
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.db.ColumnFamilyStore;
 import org.apache.cassandra.db.SystemKeyspace;
@@ -44,8 +37,14 @@ import org.apache.cassandra.io.sstable.SSTableRewriter;
 import org.apache.cassandra.io.sstable.SSTableWriter;
 import org.apache.cassandra.io.sstable.metadata.MetadataCollector;
 import org.apache.cassandra.service.ActiveRepairService;
-import org.apache.cassandra.utils.CloseableIterator;
 import org.apache.cassandra.utils.concurrent.Refs;
+import org.apache.commons.lang3.StringUtils;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+
+import com.google.common.base.Predicate;
+import com.google.common.collect.Iterables;
+import com.google.common.collect.Sets;
 
 public class CompactionTask extends AbstractCompactionTask
 {
@@ -305,12 +304,17 @@ public class CompactionTask extends AbstractCompactionTask
                                  repairedAt,
                                  cfs.metadata,
                                  cfs.partitioner,
-                                 new MetadataCollector(sstables, cfs.metadata.comparator, getLevel()));
+                new MetadataCollector(sstables, cfs.metadata.comparator, getLevel(), getTenantGroup()));
     }
 
     protected int getLevel()
     {
         return 0;
+    }
+
+    protected String getTenantGroup()
+    {
+        return TenantUtil.DEFAULT_TENANT;
     }
 
     protected CompactionController getCompactionController(Set<SSTableReader> toCompact)

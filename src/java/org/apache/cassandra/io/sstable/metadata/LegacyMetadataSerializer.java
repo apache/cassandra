@@ -17,11 +17,18 @@
  */
 package org.apache.cassandra.io.sstable.metadata;
 
-import java.io.*;
+import java.io.BufferedInputStream;
+import java.io.DataInputStream;
+import java.io.File;
+import java.io.FileInputStream;
+import java.io.IOException;
 import java.nio.ByteBuffer;
-import java.util.*;
-
-import com.google.common.collect.Maps;
+import java.util.ArrayList;
+import java.util.EnumSet;
+import java.util.HashSet;
+import java.util.List;
+import java.util.Map;
+import java.util.Set;
 
 import org.apache.cassandra.db.commitlog.ReplayPosition;
 import org.apache.cassandra.io.sstable.Component;
@@ -31,6 +38,8 @@ import org.apache.cassandra.service.ActiveRepairService;
 import org.apache.cassandra.utils.ByteBufferUtil;
 import org.apache.cassandra.utils.EstimatedHistogram;
 import org.apache.cassandra.utils.StreamingHistogram;
+
+import com.google.common.collect.Maps;
 
 /**
  * Serializer for SSTable from legacy versions
@@ -117,6 +126,8 @@ public class LegacyMetadataSerializer extends MetadataSerializer
                 for (int i = 0; i < colCount; i++)
                     maxColumnNames.add(ByteBufferUtil.readWithShortLength(in));
 
+                String sstableTenant = in.readUTF();
+
                 if (types.contains(MetadataType.VALIDATION))
                     components.put(MetadataType.VALIDATION,
                                    new ValidationMetadata(partitioner, bloomFilterFPChance));
@@ -134,7 +145,8 @@ public class LegacyMetadataSerializer extends MetadataSerializer
                                                      minColumnNames,
                                                      maxColumnNames,
                                                      true,
-                                                     ActiveRepairService.UNREPAIRED_SSTABLE));
+                                    ActiveRepairService.UNREPAIRED_SSTABLE,
+                                    sstableTenant));
                 if (types.contains(MetadataType.COMPACTION))
                     components.put(MetadataType.COMPACTION,
                                    new CompactionMetadata(ancestors, null));

@@ -23,9 +23,6 @@ import java.nio.ByteBuffer;
 import java.util.ArrayList;
 import java.util.List;
 
-import org.apache.commons.lang3.builder.EqualsBuilder;
-import org.apache.commons.lang3.builder.HashCodeBuilder;
-
 import org.apache.cassandra.db.TypeSizes;
 import org.apache.cassandra.db.commitlog.ReplayPosition;
 import org.apache.cassandra.io.sstable.Descriptor;
@@ -33,6 +30,8 @@ import org.apache.cassandra.io.util.DataOutputPlus;
 import org.apache.cassandra.utils.ByteBufferUtil;
 import org.apache.cassandra.utils.EstimatedHistogram;
 import org.apache.cassandra.utils.StreamingHistogram;
+import org.apache.commons.lang3.builder.EqualsBuilder;
+import org.apache.commons.lang3.builder.HashCodeBuilder;
 
 /**
  * SSTable metadata that always stay on heap.
@@ -54,6 +53,7 @@ public class StatsMetadata extends MetadataComponent
     public final List<ByteBuffer> minColumnNames;
     public final boolean hasLegacyCounterShards;
     public final long repairedAt;
+    public final String sstableTenant;
 
     public StatsMetadata(EstimatedHistogram estimatedRowSize,
                          EstimatedHistogram estimatedColumnCount,
@@ -67,7 +67,8 @@ public class StatsMetadata extends MetadataComponent
                          List<ByteBuffer> minColumnNames,
                          List<ByteBuffer> maxColumnNames,
                          boolean hasLegacyCounterShards,
-                         long repairedAt)
+                         long repairedAt,
+                         String sstableTenant)
     {
         this.estimatedRowSize = estimatedRowSize;
         this.estimatedColumnCount = estimatedColumnCount;
@@ -82,6 +83,7 @@ public class StatsMetadata extends MetadataComponent
         this.maxColumnNames = maxColumnNames;
         this.hasLegacyCounterShards = hasLegacyCounterShards;
         this.repairedAt = repairedAt;
+        this.sstableTenant = sstableTenant;
     }
 
     public MetadataType getType()
@@ -127,7 +129,8 @@ public class StatsMetadata extends MetadataComponent
                                  minColumnNames,
                                  maxColumnNames,
                                  hasLegacyCounterShards,
-                                 repairedAt);
+                                 repairedAt,
+                                 sstableTenant);
     }
 
     public StatsMetadata mutateRepairedAt(long newRepairedAt)
@@ -144,7 +147,8 @@ public class StatsMetadata extends MetadataComponent
                                  minColumnNames,
                                  maxColumnNames,
                                  hasLegacyCounterShards,
-                                 newRepairedAt);
+                                 newRepairedAt,
+                                 sstableTenant);
     }
 
     @Override
@@ -233,6 +237,7 @@ public class StatsMetadata extends MetadataComponent
             for (ByteBuffer columnName : component.maxColumnNames)
                 ByteBufferUtil.writeWithShortLength(columnName, out);
             out.writeBoolean(component.hasLegacyCounterShards);
+            out.writeUTF(component.sstableTenant);
         }
 
         public StatsMetadata deserialize(Descriptor.Version version, DataInput in) throws IOException
@@ -263,6 +268,8 @@ public class StatsMetadata extends MetadataComponent
             boolean hasLegacyCounterShards = true;
             if (version.tracksLegacyCounterShards)
                 hasLegacyCounterShards = in.readBoolean();
+            
+            String sstableTenant = in.readUTF();
 
             return new StatsMetadata(rowSizes,
                                      columnCounts,
@@ -276,7 +283,8 @@ public class StatsMetadata extends MetadataComponent
                                      minColumnNames,
                                      maxColumnNames,
                                      hasLegacyCounterShards,
-                                     repairedAt);
+                                     repairedAt,
+                                     sstableTenant);
         }
     }
 }

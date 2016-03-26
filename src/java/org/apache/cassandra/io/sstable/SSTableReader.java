@@ -2044,6 +2044,11 @@ public class SSTableReader extends SSTable implements SelfRefCounted<SSTableRead
     {
         return sstableMetadata.sstableLevel;
     }
+    
+    public String getSSTableTenant()
+    {
+        return sstableMetadata.sstableTenant;
+    }
 
     /**
      * Reloads the sstable metadata from disk.

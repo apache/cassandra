@@ -26,12 +26,8 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 
-import com.google.common.collect.ImmutableList;
-import com.google.common.collect.Maps;
-
-import com.clearspring.analytics.stream.cardinality.HyperLogLogPlus;
-import com.clearspring.analytics.stream.cardinality.ICardinality;
 import org.apache.cassandra.db.commitlog.ReplayPosition;
+import org.apache.cassandra.db.compaction.TenantUtil;
 import org.apache.cassandra.db.composites.CellNameType;
 import org.apache.cassandra.io.sstable.ColumnNameHelper;
 import org.apache.cassandra.io.sstable.ColumnStats;
@@ -42,6 +38,11 @@ import org.apache.cassandra.service.ActiveRepairService;
 import org.apache.cassandra.utils.EstimatedHistogram;
 import org.apache.cassandra.utils.MurmurHash;
 import org.apache.cassandra.utils.StreamingHistogram;
+
+import com.clearspring.analytics.stream.cardinality.HyperLogLogPlus;
+import com.clearspring.analytics.stream.cardinality.ICardinality;
+import com.google.common.collect.ImmutableList;
+import com.google.common.collect.Maps;
 
 public class MetadataCollector
 {
@@ -78,7 +79,8 @@ public class MetadataCollector
                                  Collections.<ByteBuffer>emptyList(),
                                  Collections.<ByteBuffer>emptyList(),
                                  true,
-                                 ActiveRepairService.UNREPAIRED_SSTABLE);
+                ActiveRepairService.UNREPAIRED_SSTABLE,
+                TenantUtil.DEFAULT_TENANT);
     }
 
     protected EstimatedHistogram estimatedRowSize = defaultRowSizeHistogram();
@@ -94,6 +96,7 @@ public class MetadataCollector
     protected List<ByteBuffer> minColumnNames = Collections.emptyList();
     protected List<ByteBuffer> maxColumnNames = Collections.emptyList();
     protected boolean hasLegacyCounterShards = false;
+    protected String sstableTenant;
 
     /**
      * Default cardinality estimation method is to use HyperLogLog++.
@@ -107,14 +110,17 @@ public class MetadataCollector
     public MetadataCollector(CellNameType columnNameComparator)
     {
         this.columnNameComparator = columnNameComparator;
+        sstableTenant(TenantUtil.DEFAULT_TENANT);
     }
 
-    public MetadataCollector(Collection<SSTableReader> sstables, CellNameType columnNameComparator, int level)
+    public MetadataCollector(Collection<SSTableReader> sstables, CellNameType columnNameComparator, int level,
+            String sstableTenant)
     {
         this(columnNameComparator);
 
         replayPosition(ReplayPosition.getReplayPosition(sstables));
         sstableLevel(level);
+        sstableTenant(sstableTenant);
         // Get the max timestamp of the precompacted sstables
         // and adds generation of live ancestors
         for (SSTableReader sstable : sstables)
@@ -209,6 +215,12 @@ public class MetadataCollector
         return this;
     }
 
+    public MetadataCollector sstableTenant(String sstableTenant)
+    {
+        this.sstableTenant = sstableTenant;
+        return this;
+    }
+
     public MetadataCollector updateMinColumnNames(List<ByteBuffer> minColumnNames)
     {
         if (minColumnNames.size() > 0)
@@ -245,6 +257,10 @@ public class MetadataCollector
 
     public Map<MetadataType, MetadataComponent> finalizeMetadata(String partitioner, double bloomFilterFPChance, long repairedAt)
     {
+        if (sstableTenant == null)
+        {
+            throw new IllegalArgumentException(sstableTenant);
+        }
         Map<MetadataType, MetadataComponent> components = Maps.newHashMap();
         components.put(MetadataType.VALIDATION, new ValidationMetadata(partitioner, bloomFilterFPChance));
         components.put(MetadataType.STATS, new StatsMetadata(estimatedRowSize,
@@ -259,7 +275,8 @@ public class MetadataCollector
                                                              ImmutableList.copyOf(minColumnNames),
                                                              ImmutableList.copyOf(maxColumnNames),
                                                              hasLegacyCounterShards,
-                                                             repairedAt));
+                repairedAt,
+                sstableTenant));
         components.put(MetadataType.COMPACTION, new CompactionMetadata(ancestors, cardinality));
         return components;
     }

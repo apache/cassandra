@@ -33,6 +33,7 @@ import org.apache.cassandra.cql3.ColumnIdentifier;
 import org.apache.cassandra.db.*;
 import org.apache.cassandra.db.commitlog.CommitLog;
 import org.apache.cassandra.db.compaction.LeveledCompactionStrategy;
+import org.apache.cassandra.db.compaction.TenantAwaredCompactionStrategy;
 import org.apache.cassandra.db.index.PerRowSecondaryIndexTest;
 import org.apache.cassandra.db.index.SecondaryIndex;
 import org.apache.cassandra.db.marshal.*;
@@ -200,7 +201,9 @@ public class SchemaLoader
                                            standardCFMD(ks1, "UUIDKeys").keyValidator(UUIDType.instance),
                                            CFMetaData.denseCFMetaData(ks1, "MixedTypes", LongType.instance).keyValidator(UUIDType.instance).defaultValidator(BooleanType.instance),
                                            CFMetaData.denseCFMetaData(ks1, "MixedTypesComposite", composite).keyValidator(composite).defaultValidator(BooleanType.instance),
-                                           standardCFMD(ks1, "AsciiKeys").keyValidator(AsciiType.instance)
+                                           standardCFMD(ks1, "AsciiKeys").keyValidator(AsciiType.instance),
+                                           standardCFMD(ks1, "StandardTenantAwared")
+                                           .compactionStrategyClass(TenantAwaredCompactionStrategy.class)
         ));
 
         // Keyspace 2

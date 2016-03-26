@@ -20,6 +20,7 @@ package org.apache.cassandra.db.compaction;
 import java.io.File;
 import java.io.IOException;
 import java.lang.management.ManagementFactory;
+import java.nio.ByteBuffer;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
@@ -29,25 +30,19 @@ import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
-import java.util.concurrent.*;
+import java.util.concurrent.BlockingQueue;
+import java.util.concurrent.Callable;
+import java.util.concurrent.ExecutionException;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Future;
+import java.util.concurrent.LinkedBlockingQueue;
+import java.util.concurrent.SynchronousQueue;
+import java.util.concurrent.TimeUnit;
+
 import javax.management.MBeanServer;
 import javax.management.ObjectName;
 import javax.management.openmbean.OpenDataException;
 import javax.management.openmbean.TabularData;
-
-import com.google.common.base.Predicate;
-import com.google.common.base.Throwables;
-import com.google.common.collect.ArrayListMultimap;
-import com.google.common.collect.ConcurrentHashMultiset;
-import com.google.common.collect.Iterables;
-import com.google.common.collect.Lists;
-import com.google.common.collect.Multimap;
-import com.google.common.collect.Multiset;
-import com.google.common.collect.Sets;
-import com.google.common.annotations.VisibleForTesting;
-import com.google.common.util.concurrent.*;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
 
 import org.apache.cassandra.cache.AutoSavingCache;
 import org.apache.cassandra.concurrent.DebuggableThreadPoolExecutor;
@@ -64,20 +59,48 @@ import org.apache.cassandra.db.OnDiskAtom;
 import org.apache.cassandra.db.SystemKeyspace;
 import org.apache.cassandra.db.compaction.CompactionInfo.Holder;
 import org.apache.cassandra.db.index.SecondaryIndexBuilder;
+import org.apache.cassandra.db.marshal.UTF8Type;
 import org.apache.cassandra.dht.Bounds;
 import org.apache.cassandra.dht.Range;
 import org.apache.cassandra.dht.Token;
-import org.apache.cassandra.io.sstable.*;
+import org.apache.cassandra.io.sstable.Descriptor;
+import org.apache.cassandra.io.sstable.ISSTableScanner;
+import org.apache.cassandra.io.sstable.IndexSummaryRedistribution;
+import org.apache.cassandra.io.sstable.SSTableIdentityIterator;
+import org.apache.cassandra.io.sstable.SSTableReader;
+import org.apache.cassandra.io.sstable.SSTableRewriter;
+import org.apache.cassandra.io.sstable.SSTableWriter;
 import org.apache.cassandra.io.sstable.metadata.MetadataCollector;
 import org.apache.cassandra.io.util.FileUtils;
 import org.apache.cassandra.metrics.CompactionMetrics;
 import org.apache.cassandra.repair.Validator;
 import org.apache.cassandra.service.ActiveRepairService;
 import org.apache.cassandra.service.StorageService;
+import org.apache.cassandra.utils.ByteBufferUtil;
+import org.apache.cassandra.utils.FBUtilities;
+import org.apache.cassandra.utils.JVMStabilityInspector;
+import org.apache.cassandra.utils.MerkleTree;
+import org.apache.cassandra.utils.WrappedRunnable;
 import org.apache.cassandra.utils.concurrent.OpOrder;
-import org.apache.cassandra.utils.*;
-
 import org.apache.cassandra.utils.concurrent.Refs;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+
+import com.google.common.annotations.VisibleForTesting;
+import com.google.common.base.Predicate;
+import com.google.common.base.Throwables;
+import com.google.common.collect.ArrayListMultimap;
+import com.google.common.collect.ConcurrentHashMultiset;
+import com.google.common.collect.Iterables;
+import com.google.common.collect.Lists;
+import com.google.common.collect.Multimap;
+import com.google.common.collect.Multiset;
+import com.google.common.collect.Sets;
+import com.google.common.util.concurrent.Futures;
+import com.google.common.util.concurrent.ListenableFuture;
+import com.google.common.util.concurrent.ListenableFutureTask;
+import com.google.common.util.concurrent.RateLimiter;
+import com.google.common.util.concurrent.Uninterruptibles;
 
 /**
  * A singleton which manages a private executor of ongoing compactions.
@@ -946,6 +969,24 @@ public class CompactionManager implements CompactionManagerMBean
         }
     }
 
+    public static SSTableWriter createWriterWithTenantId(ColumnFamilyStore cfs,
+            File compactionFileLocation,
+            long expectedBloomFilterSize,
+            long repairedAt,
+            SSTableReader sstable,
+            String tenantId)
+    {
+        FileUtils.createDirectory(compactionFileLocation);
+        return new SSTableWriter(cfs.getTempSSTablePath(compactionFileLocation),
+                expectedBloomFilterSize,
+                repairedAt,
+                cfs.metadata,
+                cfs.partitioner,
+                new MetadataCollector(Collections.singleton(sstable), cfs.metadata.comparator,
+                        sstable.getSSTableLevel(),
+                        tenantId));
+    }
+
     public static SSTableWriter createWriter(ColumnFamilyStore cfs,
                                              File compactionFileLocation,
                                              long expectedBloomFilterSize,
@@ -958,7 +999,8 @@ public class CompactionManager implements CompactionManagerMBean
                                  repairedAt,
                                  cfs.metadata,
                                  cfs.partitioner,
-                                 new MetadataCollector(Collections.singleton(sstable), cfs.metadata.comparator, sstable.getSSTableLevel()));
+                                 new MetadataCollector(Collections.singleton(sstable), cfs.metadata.comparator, sstable.getSSTableLevel(),
+                                         sstable.getSSTableTenant()));
     }
 
     /**
@@ -1091,7 +1133,7 @@ public class CompactionManager implements CompactionManagerMBean
      * @param ranges Repaired ranges to be placed into one of the new sstables. The repaired table will be tracked via
      * the {@link org.apache.cassandra.io.sstable.metadata.StatsMetadata#repairedAt} field.
      */
-    private Collection<SSTableReader> doAntiCompaction(ColumnFamilyStore cfs, Collection<Range<Token>> ranges, Collection<SSTableReader> repairedSSTables, long repairedAt)
+    public Collection<SSTableReader> doAntiCompaction(ColumnFamilyStore cfs, Collection<Range<Token>> ranges, Collection<SSTableReader> repairedSSTables, long repairedAt)
     {
         List<SSTableReader> anticompactedSSTables = new ArrayList<>();
         int repairedKeyCount = 0;
@@ -1114,6 +1156,7 @@ public class CompactionManager implements CompactionManagerMBean
             sstableAsSet.add(sstable);
 
             File destination = cfs.directories.getWriteableLocationAsFile(cfs.getExpectedCompactedFileSize(sstableAsSet, OperationType.ANTICOMPACTION));
+            // TODO check behaviour
             SSTableRewriter repairedSSTableWriter = new SSTableRewriter(cfs, sstableAsSet, sstable.maxDataAge, false, false);
             SSTableRewriter unRepairedSSTableWriter = new SSTableRewriter(cfs, sstableAsSet, sstable.maxDataAge, false, false);
 
@@ -1121,6 +1164,7 @@ public class CompactionManager implements CompactionManagerMBean
                  CompactionController controller = new CompactionController(cfs, sstableAsSet, getDefaultGcBefore(cfs)))
             {
                 int expectedBloomFilterSize = Math.max(cfs.metadata.getMinIndexInterval(), (int)sstable.estimatedKeys());
+                // TODO check how writer is created
                 repairedSSTableWriter.switchWriter(CompactionManager.createWriter(cfs, destination, expectedBloomFilterSize, repairedAt, sstable));
                 unRepairedSSTableWriter.switchWriter(CompactionManager.createWriter(cfs, destination, expectedBloomFilterSize, ActiveRepairService.UNREPAIRED_SSTABLE, sstable));
 
@@ -1133,6 +1177,9 @@ public class CompactionManager implements CompactionManagerMBean
                     while (iter.hasNext())
                     {
                         AbstractCompactedRow row = iter.next();
+                        // TODO here we can split the data into 2 sstables by comparing tenant_id
+                        // FIXME I need a sstable metadata viewer to easy 123456789
+                        // FIXME how can I cooperate this anti-compaction into real-compaction, what's the performance impact
                         if (containmentChecker.contains(row.key.getToken()))
                         {
                             repairedSSTableWriter.append(row);
@@ -1170,6 +1217,132 @@ public class CompactionManager implements CompactionManagerMBean
         logger.info(format2, repairedSSTables.size(), anticompactedSSTables.size());
 
         return anticompactedSSTables;
+    }
+
+    public Collection<SSTableReader> doSplitCompaction(ColumnFamilyStore cfs, Refs<SSTableReader> repairedSSTables)
+    {
+        List<SSTableReader> anticompactedSSTables = new ArrayList<>();
+        int splitOutKeyCount = 0;
+        int remainKeyCount = 0;
+        logger.info("Performing anticompaction on {} sstables", repairedSSTables.size());
+        // iterate over sstables to check if the repaired / unrepaired ranges intersect them.
+        Set<SSTableReader> successfullyAntiCompactedSSTables = new HashSet<>();
+
+        try
+        {
+            for (SSTableReader sstable : repairedSSTables)
+            {
+                // check that compaction hasn't stolen any sstables used in previous repair sessions
+                // if we need to skip the anticompaction, it will be carried out by the next repair
+                if (!new File(sstable.getFilename()).exists())
+                {
+                    logger.info(
+                            "Skipping anticompaction for {}, required sstable was compacted and is no longer available.",
+                            sstable);
+                    continue;
+                }
+
+                logger.info("Anticompacting {}", sstable);
+                Set<SSTableReader> sstableAsSet = new HashSet<>();
+                sstableAsSet.add(sstable);
+
+                File destination = cfs.directories.getWriteableLocationAsFile(
+                        cfs.getExpectedCompactedFileSize(sstableAsSet, OperationType.ANTICOMPACTION));
+                // TODO check behaviour
+                SSTableRewriter splitOutSStableWritter = new SSTableRewriter(cfs, sstableAsSet, sstable.maxDataAge,
+                        false, false);
+                SSTableRewriter remainSStableWritter = new SSTableRewriter(cfs, sstableAsSet, sstable.maxDataAge, false,
+                        false);
+
+                try (AbstractCompactionStrategy.ScannerList scanners = cfs.getCompactionStrategy()
+                        .getScanners(new HashSet<>(Collections.singleton(sstable)));
+                        CompactionController controller = new CompactionController(cfs, sstableAsSet,
+                                getDefaultGcBefore(cfs)))
+                {
+                    int expectedBloomFilterSize = Math.max(cfs.metadata.getMinIndexInterval(),
+                            (int) sstable.estimatedKeys());
+
+                    remainSStableWritter.switchWriter(CompactionManager.createWriter(cfs, destination,
+                            expectedBloomFilterSize, ActiveRepairService.UNREPAIRED_SSTABLE, sstable));
+
+                    CompactionIterable ci = new CompactionIterable(OperationType.ANTICOMPACTION, scanners.scanners,
+                            controller);
+                    Iterator<AbstractCompactedRow> iter = ci.iterator();
+                    metrics.beginCompaction(ci);
+
+                    final String DEFAULT_GROUP = "";
+                    String newSSTableGroup = DEFAULT_GROUP;
+
+                    // FIXME in the case of only one tenant data?
+                    try
+                    {
+                        while (iter.hasNext())
+                            {
+                            AbstractCompactedRow row = iter.next();
+                            // TODO here we can split the data into 2 sstables by comparing tenant_id
+                            // FIXME I need a sstable metadata viewer to easy debug
+                            // FIXME how can I cooperate this anti-compaction into real-compaction
+                            // FIXME write currentGroup into SSTableMetaData
+                            String currentFirstPk = getFirstPkAsString(row.key);
+                            if (newSSTableGroup.equals(DEFAULT_GROUP))
+                            {
+                                newSSTableGroup = currentFirstPk;
+                                splitOutSStableWritter.switchWriter(CompactionManager.createWriterWithTenantId(cfs, destination,
+                                                expectedBloomFilterSize, ActiveRepairService.UNREPAIRED_SSTABLE,
+                                                sstable, newSSTableGroup));
+                            }
+                            if (newSSTableGroup.equals(currentFirstPk))
+                            {
+                                splitOutSStableWritter.append(row);
+                                splitOutKeyCount++;
+                            }
+                            // otherwise save into the new 'non-repaired' table
+                            else
+                            {
+                                remainSStableWritter.append(row);
+                                remainKeyCount++;
+                            }
+                        }
+                    }
+                    finally
+                    {
+                        metrics.finishCompaction(ci);
+                    }
+                    anticompactedSSTables.addAll(splitOutSStableWritter.finish(ActiveRepairService.UNREPAIRED_SSTABLE));
+                    anticompactedSSTables.addAll(remainSStableWritter.finish(ActiveRepairService.UNREPAIRED_SSTABLE));
+                    successfullyAntiCompactedSSTables.add(sstable);
+                    cfs.getDataTracker().unmarkCompacting(sstableAsSet);
+                }
+                catch (Throwable e)
+                {
+                    JVMStabilityInspector.inspectThrowable(e);
+                    logger.error("Error anticompacting " + sstable, e);
+                    splitOutSStableWritter.abort();
+                    remainSStableWritter.abort();
+                }
+            }
+            cfs.getDataTracker().markCompactedSSTablesReplaced(successfullyAntiCompactedSSTables, anticompactedSSTables,
+                    OperationType.ANTICOMPACTION);
+            String format = "Repaired {} keys of {} for {}/{}";
+            logger.debug(format, splitOutKeyCount, (splitOutKeyCount + remainKeyCount), cfs.keyspace,
+                    cfs.getColumnFamilyName());
+            String format2 = "Anticompaction completed successfully, anticompacted from {} to {} sstable(s).";
+            logger.info(format2, repairedSSTables.size(), anticompactedSSTables.size());
+	    }
+	    finally
+	    {
+	    	repairedSSTables.release();
+	        cfs.getDataTracker().unmarkCompacting(repairedSSTables);
+	    }
+	    
+        return anticompactedSSTables;
+    }
+
+    public static String getFirstPkAsString(DecoratedKey key){
+        String firstPk = "";
+        ByteBuffer bytes = ByteBufferUtil.readBytesWithShortLength(key.getKey().duplicate());
+        firstPk = UTF8Type.instance.getString(bytes);
+        return firstPk;
     }
 
     /**
