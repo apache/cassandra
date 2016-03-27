@@ -27,6 +27,8 @@ import org.apache.cassandra.index.sasi.utils.MappedBuffer;
 import org.apache.cassandra.index.sasi.utils.RangeIterator;
 import org.apache.cassandra.utils.MergeIterator;
 
+import com.carrotsearch.hppc.LongOpenHashSet;
+import com.carrotsearch.hppc.LongSet;
 import com.google.common.annotations.VisibleForTesting;
 import com.google.common.base.Function;
 import com.google.common.collect.Iterators;
@@ -406,9 +408,9 @@ public class TokenTree
             });
         }
 
-        public Set<Long> getOffsets()
+        public LongSet getOffsets()
         {
-            Set<Long> offsets = new HashSet<>();
+            LongSet offsets = new LongOpenHashSet(4);
             for (TokenInfo i : info)
             {
                 for (long offset : i.fetchOffsets())

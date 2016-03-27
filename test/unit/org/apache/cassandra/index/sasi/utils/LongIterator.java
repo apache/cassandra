@@ -23,6 +23,8 @@ import java.util.Collections;
 import java.util.Iterator;
 import java.util.List;
 
+import com.carrotsearch.hppc.LongOpenHashSet;
+import com.carrotsearch.hppc.LongSet;
 import org.apache.cassandra.db.DecoratedKey;
 import org.apache.cassandra.index.sasi.disk.Token;
 
@@ -77,6 +79,12 @@ public class LongIterator extends RangeIterator<Long, Token>
         public void merge(CombinedValue<Long> other)
         {
             // no-op
+        }
+
+        @Override
+        public LongSet getOffsets()
+        {
+            return new LongOpenHashSet(4);
         }
 
         @Override
