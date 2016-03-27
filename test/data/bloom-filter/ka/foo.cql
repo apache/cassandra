@@ -59,6 +59,6 @@ Compression ratio: 0.4
 Estimated droppable tombstones: 0.0
 SSTable Level: 0
 Repaired at: 0
-ReplayPosition(segmentId=1428529465658, position=6481)
+CommitLogPosition(segmentId=1428529465658, position=6481)
 Estimated tombstone drop times:%n
 

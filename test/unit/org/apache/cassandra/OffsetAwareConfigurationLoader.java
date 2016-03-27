@@ -47,17 +47,20 @@ public class OffsetAwareConfigurationLoader extends YamlConfigurationLoader
     {
         Config config = super.loadConfig();
 
+        String sep = File.pathSeparator;
 
         config.rpc_port += offset;
         config.native_transport_port += offset;
         config.storage_port += offset;
 
-        config.commitlog_directory += File.pathSeparator + offset;
-        config.saved_caches_directory += File.pathSeparator + offset;
-        config.hints_directory += File.pathSeparator + offset;
-        for (int i = 0; i < config.data_file_directories.length; i++)
-            config.data_file_directories[i] += File.pathSeparator + offset;
+        config.commitlog_directory += sep + offset;
+        config.saved_caches_directory += sep + offset;
+        config.hints_directory += sep + offset;
 
+        config.cdc_raw_directory += sep + offset;
+
+        for (int i = 0; i < config.data_file_directories.length; i++)
+            config.data_file_directories[i] += sep + offset;
 
         return config;
     }

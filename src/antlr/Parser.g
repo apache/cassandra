@@ -100,7 +100,7 @@ options {
         if (map == null || map.entries == null || map.entries.isEmpty())
             return Collections.<String, String>emptyMap();
 
-        Map<String, String> res = new HashMap<String, String>(map.entries.size());
+        Map<String, String> res = new HashMap<>(map.entries.size());
 
         for (Pair<Term.Raw, Term.Raw> entry : map.entries)
         {
@@ -761,7 +761,6 @@ alterKeyspaceStatement returns [AlterKeyspaceStatement expr]
     : K_ALTER K_KEYSPACE ks=keyspaceName
         K_WITH properties[attrs] { $expr = new AlterKeyspaceStatement(ks, attrs); }
     ;
-
 
 /**
  * ALTER COLUMN FAMILY <CF> ALTER <column> TYPE <newtype>;

@@ -43,6 +43,8 @@ import org.apache.cassandra.io.util.DataInputPlus;
 import org.apache.cassandra.io.util.DataOutputBuffer;
 import org.apache.cassandra.net.MessagingService;
 import org.apache.cassandra.schema.KeyspaceParams;
+import org.apache.cassandra.service.CassandraDaemon;
+import org.apache.cassandra.service.StorageService;
 import org.apache.cassandra.utils.ByteBufferUtil;
 
 public class ReadMessageTest
@@ -56,6 +58,10 @@ public class ReadMessageTest
     @BeforeClass
     public static void defineSchema() throws ConfigurationException
     {
+        CassandraDaemon daemon = new CassandraDaemon();
+        daemon.completeSetup(); //startup must be completed, otherwise commit log failure must kill JVM regardless of failure policy
+        StorageService.instance.registerDaemon(daemon);
+
         CFMetaData cfForReadMetadata = CFMetaData.Builder.create(KEYSPACE1, CF_FOR_READ_TEST)
                                                             .addPartitionKey("key", BytesType.instance)
                                                             .addClusteringColumn("col1", AsciiType.instance)
@@ -195,7 +201,9 @@ public class ReadMessageTest
 
         Checker checker = new Checker(cfs.metadata.getColumnDefinition(ByteBufferUtil.bytes("commit1")),
                                       cfsnocommit.metadata.getColumnDefinition(ByteBufferUtil.bytes("commit2")));
-        CommitLogTestReplayer.examineCommitLog(checker);
+
+        CommitLogTestReplayer replayer = new CommitLogTestReplayer(checker);
+        replayer.examineCommitLog();
 
         assertTrue(checker.commitLogMessageFound);
         assertFalse(checker.noCommitLogMessageFound);

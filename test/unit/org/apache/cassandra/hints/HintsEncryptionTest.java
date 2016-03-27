@@ -42,7 +42,7 @@ public class HintsEncryptionTest extends AlteredHints
     }
 
     @Test
-    public void encyptedHints() throws Exception
+    public void encryptedHints() throws Exception
     {
         multiFlushAndDeserializeTest();
     }

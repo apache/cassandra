@@ -41,7 +41,7 @@ import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.cql3.QueryProcessor;
 import org.apache.cassandra.cql3.UntypedResultSet;
 import org.apache.cassandra.cql3.functions.*;
-import org.apache.cassandra.db.commitlog.ReplayPosition;
+import org.apache.cassandra.db.commitlog.CommitLogPosition;
 import org.apache.cassandra.db.compaction.CompactionHistoryTabularData;
 import org.apache.cassandra.db.marshal.*;
 import org.apache.cassandra.db.partitions.PartitionUpdate;
@@ -455,7 +455,7 @@ public final class SystemKeyspace
                         .build();
     }
 
-    private static volatile Map<UUID, Pair<ReplayPosition, Long>> truncationRecords;
+    private static volatile Map<UUID, Pair<CommitLogPosition, Long>> truncationRecords;
 
     public enum BootstrapState
     {
@@ -619,7 +619,7 @@ public final class SystemKeyspace
         return Pair.create(generation, lastKey);
     }
 
-    public static synchronized void saveTruncationRecord(ColumnFamilyStore cfs, long truncatedAt, ReplayPosition position)
+    public static synchronized void saveTruncationRecord(ColumnFamilyStore cfs, long truncatedAt, CommitLogPosition position)
     {
         String req = "UPDATE system.%s SET truncated_at = truncated_at + ? WHERE key = '%s'";
         executeInternal(String.format(req, LOCAL, LOCAL), truncationAsMapEntry(cfs, truncatedAt, position));
@@ -638,11 +638,11 @@ public final class SystemKeyspace
         forceBlockingFlush(LOCAL);
     }
 
-    private static Map<UUID, ByteBuffer> truncationAsMapEntry(ColumnFamilyStore cfs, long truncatedAt, ReplayPosition position)
+    private static Map<UUID, ByteBuffer> truncationAsMapEntry(ColumnFamilyStore cfs, long truncatedAt, CommitLogPosition position)
     {
         try (DataOutputBuffer out = new DataOutputBuffer())
         {
-            ReplayPosition.serializer.serialize(position, out);
+            CommitLogPosition.serializer.serialize(position, out);
             out.writeLong(truncatedAt);
             return singletonMap(cfs.metadata.cfId, ByteBuffer.wrap(out.getData(), 0, out.getLength()));
         }
@@ -652,30 +652,30 @@ public final class SystemKeyspace
         }
     }
 
-    public static ReplayPosition getTruncatedPosition(UUID cfId)
+    public static CommitLogPosition getTruncatedPosition(UUID cfId)
     {
-        Pair<ReplayPosition, Long> record = getTruncationRecord(cfId);
+        Pair<CommitLogPosition, Long> record = getTruncationRecord(cfId);
         return record == null ? null : record.left;
     }
 
     public static long getTruncatedAt(UUID cfId)
     {
-        Pair<ReplayPosition, Long> record = getTruncationRecord(cfId);
+        Pair<CommitLogPosition, Long> record = getTruncationRecord(cfId);
         return record == null ? Long.MIN_VALUE : record.right;
     }
 
-    private static synchronized Pair<ReplayPosition, Long> getTruncationRecord(UUID cfId)
+    private static synchronized Pair<CommitLogPosition, Long> getTruncationRecord(UUID cfId)
     {
         if (truncationRecords == null)
             truncationRecords = readTruncationRecords();
         return truncationRecords.get(cfId);
     }
 
-    private static Map<UUID, Pair<ReplayPosition, Long>> readTruncationRecords()
+    private static Map<UUID, Pair<CommitLogPosition, Long>> readTruncationRecords()
     {
         UntypedResultSet rows = executeInternal(String.format("SELECT truncated_at FROM system.%s WHERE key = '%s'", LOCAL, LOCAL));
 
-        Map<UUID, Pair<ReplayPosition, Long>> records = new HashMap<>();
+        Map<UUID, Pair<CommitLogPosition, Long>> records = new HashMap<>();
 
         if (!rows.isEmpty() && rows.one().has("truncated_at"))
         {
@@ -687,11 +687,11 @@ public final class SystemKeyspace
         return records;
     }
 
-    private static Pair<ReplayPosition, Long> truncationRecordFromBlob(ByteBuffer bytes)
+    private static Pair<CommitLogPosition, Long> truncationRecordFromBlob(ByteBuffer bytes)
     {
         try (RebufferingInputStream in = new DataInputBuffer(bytes, true))
         {
-            return Pair.create(ReplayPosition.serializer.deserialize(in), in.available() > 0 ? in.readLong() : Long.MIN_VALUE);
+            return Pair.create(CommitLogPosition.serializer.deserialize(in), in.available() > 0 ? in.readLong() : Long.MIN_VALUE);
         }
         catch (IOException e)
         {

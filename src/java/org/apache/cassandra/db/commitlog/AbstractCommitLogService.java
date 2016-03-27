@@ -29,7 +29,6 @@ import static org.apache.cassandra.db.commitlog.CommitLogSegment.Allocation;
 
 public abstract class AbstractCommitLogService
 {
-
     private Thread thread;
     private volatile boolean shutdown = false;
 
@@ -89,7 +88,7 @@ public abstract class AbstractCommitLogService
 
                         // sync and signal
                         long syncStarted = System.currentTimeMillis();
-                        //This is a target for Byteman in CommitLogSegmentManagerTest
+                        // This is a target for Byteman in CommitLogSegmentManagerTest
                         commitLog.sync(shutdown);
                         lastSyncedAt = syncStarted;
                         syncComplete.signalAll();

@@ -193,6 +193,17 @@ partitioner: org.apache.cassandra.dht.Murmur3Partitioner
 # If not set, the default directory is $CASSANDRA_HOME/data/commitlog.
 # commitlog_directory: /var/lib/cassandra/commitlog
 
+# Enable / disable CDC functionality on a per-node basis. This modifies the logic used
+# for write path allocation rejection (standard: never reject. cdc: reject Mutation
+# containing a CDC-enabled table if at space limit in cdc_raw_directory).
+cdc_enabled: false
+
+# CommitLogSegments are moved to this directory on flush if cdc_enabled: true and the
+# segment contains mutations for a CDC-enabled table. This should be placed on a
+# separate spindle than the data directories. If not set, the default directory is
+# $CASSANDRA_HOME/data/cdc_raw.
+# cdc_raw_directory: /var/lib/cassandra/cdc_raw
+
 # policy for data disk failures:
 # die: shut down gossip and client transports and kill the JVM for any fs errors or
 #      single-sstable errors, so the node can be replaced.
@@ -473,6 +484,21 @@ memtable_allocation_type: heap_buffers
 # If your data directories are backed by SSD, you can increase this, but
 # avoid having memtable_flush_writers * data_file_directories > number of cores
 #memtable_flush_writers: 1
+
+# Total space to use for change-data-capture logs on disk.
+#
+# If space gets above this value, Cassandra will throw WriteTimeoutException
+# on Mutations including tables with CDC enabled. A CDCCompactor is responsible
+# for parsing the raw CDC logs and deleting them when parsing is completed.
+#
+# The default value is the min of 4096 mb and 1/8th of the total space
+# of the drive where cdc_raw_directory resides.
+# cdc_total_space_in_mb: 4096
+
+# When we hit our cdc_raw limit and the CDCCompactor is either running behind
+# or experiencing backpressure, we check at the following interval to see if any
+# new space for cdc-tracked tables has been made available. Default to 250ms
+# cdc_free_space_check_interval_ms: 250
 
 # A fixed memory pool size in MB for for SSTable index summaries. If left
 # empty, this will default to 5% of the heap size. If the memory usage of

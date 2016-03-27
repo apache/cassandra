@@ -193,6 +193,10 @@ public abstract class CQLTester
             FileUtils.deleteRecursive(dir);
         }
 
+        File cdcDir = new File(DatabaseDescriptor.getCDCLogLocation());
+        if (cdcDir.exists())
+            FileUtils.deleteRecursive(cdcDir);
+
         cleanupSavedCaches();
 
         // clean up data directory which are stored as data directory/keyspace/data files

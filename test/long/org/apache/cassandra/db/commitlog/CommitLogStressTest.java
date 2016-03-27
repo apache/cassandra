@@ -21,41 +21,23 @@ package org.apache.cassandra.db.commitlog;
  *
  */
 
-import java.io.File;
-import java.io.FileInputStream;
-import java.io.IOException;
+import java.io.*;
 import java.nio.ByteBuffer;
-import java.util.ArrayList;
-import java.util.Collection;
-import java.util.Iterator;
-import java.util.List;
-import java.util.Map;
-import java.util.Random;
-import java.util.concurrent.Executors;
-import java.util.concurrent.ScheduledExecutorService;
-import java.util.concurrent.ThreadLocalRandom;
-import java.util.concurrent.TimeUnit;
+import java.util.*;
+import java.util.concurrent.*;
 import java.util.concurrent.atomic.AtomicLong;
 
 import com.google.common.util.concurrent.RateLimiter;
+import org.junit.*;
 
-import org.junit.Assert;
-import org.junit.Before;
-import org.junit.BeforeClass;
-import org.junit.Test;
-import org.apache.cassandra.SchemaLoader;
-import org.apache.cassandra.Util;
-import org.apache.cassandra.UpdateBuilder;
+import org.apache.cassandra.*;
 import org.apache.cassandra.config.Config.CommitLogSync;
-import org.apache.cassandra.config.DatabaseDescriptor;
-import org.apache.cassandra.config.ParameterizedClass;
-import org.apache.cassandra.config.Schema;
+import org.apache.cassandra.config.*;
+import org.apache.cassandra.db.Keyspace;
 import org.apache.cassandra.db.Mutation;
-import org.apache.cassandra.db.rows.Cell;
-import org.apache.cassandra.db.rows.Row;
-import org.apache.cassandra.db.rows.SerializationHelper;
-import org.apache.cassandra.db.partitions.PartitionUpdate;
 import org.apache.cassandra.db.marshal.UTF8Type;
+import org.apache.cassandra.db.partitions.PartitionUpdate;
+import org.apache.cassandra.db.rows.*;
 import org.apache.cassandra.io.util.DataInputBuffer;
 import org.apache.cassandra.io.util.DataInputPlus;
 import org.apache.cassandra.security.EncryptionContext;
@@ -131,7 +113,7 @@ public class CommitLogStressTest
     volatile boolean stop = false;
     boolean randomSize = false;
     boolean discardedRun = false;
-    ReplayPosition discardedPos;
+    CommitLogPosition discardedPos;
 
     @BeforeClass
     static public void initialize() throws IOException
@@ -151,7 +133,7 @@ public class CommitLogStressTest
     }
 
     @Before
-    public void cleanDir()
+    public void cleanDir() throws IOException
     {
         File dir = new File(location);
         if (dir.isDirectory())
@@ -217,12 +199,22 @@ public class CommitLogStressTest
     {
         DatabaseDescriptor.setCommitLogCompression(compression);
         DatabaseDescriptor.setEncryptionContext(encryptionContext);
-        for (CommitLogSync sync : CommitLogSync.values())
+
+        String originalDir = DatabaseDescriptor.getCommitLogLocation();
+        try
         {
-            DatabaseDescriptor.setCommitLogSync(sync);
-            CommitLog commitLog = new CommitLog(location, CommitLogArchiver.disabled()).start();
-            testLog(commitLog);
-            assert !failed;
+            DatabaseDescriptor.setCommitLogLocation(location);
+            for (CommitLogSync sync : CommitLogSync.values())
+            {
+                DatabaseDescriptor.setCommitLogSync(sync);
+                CommitLog commitLog = new CommitLog(CommitLogArchiver.disabled()).start();
+                testLog(commitLog);
+                assert !failed;
+            }
+        }
+        finally
+        {
+            DatabaseDescriptor.setCommitLogLocation(originalDir);
         }
     }
 
@@ -234,12 +226,12 @@ public class CommitLogStressTest
                            commitLog.executor.getClass().getSimpleName(),
                            randomSize ? " random size" : "",
                            discardedRun ? " with discarded run" : "");
-        commitLog.allocator.enableReserveSegmentCreation();
+        CommitLog.instance.segmentManager.enableReserveSegmentCreation();
         
         final List<CommitlogThread> threads = new ArrayList<>();
         ScheduledExecutorService scheduled = startThreads(commitLog, threads);
 
-        discardedPos = ReplayPosition.NONE;
+        discardedPos = CommitLogPosition.NONE;
         if (discardedRun)
         {
             // Makes sure post-break data is not deleted, and that replayer correctly rejects earlier mutations.
@@ -251,13 +243,12 @@ public class CommitLogStressTest
             for (CommitlogThread t: threads)
             {
                 t.join();
-                if (t.rp.compareTo(discardedPos) > 0)
-                    discardedPos = t.rp;
+                if (t.clsp.compareTo(discardedPos) > 0)
+                    discardedPos = t.clsp;
             }
             verifySizes(commitLog);
 
-            commitLog.discardCompletedSegments(Schema.instance.getCFMetaData("Keyspace1", "Standard1").cfId,
-                                               discardedPos);
+            commitLog.discardCompletedSegments(Schema.instance.getCFMetaData("Keyspace1", "Standard1").cfId, discardedPos);
             threads.clear();
 
             System.out.format("Discarded at %s\n", discardedPos);
@@ -285,26 +276,28 @@ public class CommitLogStressTest
 
         System.out.println("Stopped. Replaying... ");
         System.out.flush();
-        Replayer repl = new Replayer(commitLog);
+        Reader reader = new Reader();
         File[] files = new File(location).listFiles();
-        repl.recover(files);
+
+        DummyHandler handler = new DummyHandler();
+        reader.readAllFiles(handler, files);
 
         for (File f : files)
             if (!f.delete())
                 Assert.fail("Failed to delete " + f);
 
-        if (hash == repl.hash && cells == repl.cells)
+        if (hash == reader.hash && cells == reader.cells)
             System.out.format("Test success. compressor = %s, encryption enabled = %b; discarded = %d, skipped = %d\n",
                               commitLog.configuration.getCompressorName(),
                               commitLog.configuration.useEncryption(),
-                              repl.discarded, repl.skipped);
+                              reader.discarded, reader.skipped);
         else
         {
             System.out.format("Test failed (compressor = %s, encryption enabled = %b). Cells %d, expected %d, diff %d; discarded = %d, skipped = %d -  hash %d expected %d.\n",
                               commitLog.configuration.getCompressorName(),
                               commitLog.configuration.useEncryption(),
-                              repl.cells, cells, cells - repl.cells, repl.discarded, repl.skipped,
-                              repl.hash, hash);
+                              reader.cells, cells, cells - reader.cells, reader.discarded, reader.skipped,
+                              reader.hash, hash);
             failed = true;
         }
     }
@@ -318,16 +311,16 @@ public class CommitLogStressTest
         // FIXME: The executor should give us a chance to await completion of the sync we requested.
         commitLog.executor.requestExtraSync().awaitUninterruptibly();
         // Wait for any pending deletes or segment allocations to complete.
-        commitLog.allocator.awaitManagementTasksCompletion();
+        CommitLog.instance.segmentManager.awaitManagementTasksCompletion();
 
         long combinedSize = 0;
-        for (File f : new File(commitLog.location).listFiles())
+        for (File f : new File(DatabaseDescriptor.getCommitLogLocation()).listFiles())
             combinedSize += f.length();
         Assert.assertEquals(combinedSize, commitLog.getActiveOnDiskSize());
 
         List<String> logFileNames = commitLog.getActiveSegmentNames();
         Map<String, Double> ratios = commitLog.getActiveSegmentCompressionRatios();
-        Collection<CommitLogSegment> segments = commitLog.allocator.getActiveSegments();
+        Collection<CommitLogSegment> segments = CommitLog.instance.segmentManager.getActiveSegments();
 
         for (CommitLogSegment segment : segments)
         {
@@ -419,7 +412,7 @@ public class CommitLogStressTest
         final CommitLog commitLog;
         final Random random;
 
-        volatile ReplayPosition rp;
+        volatile CommitLogPosition clsp;
 
         public CommitlogThread(CommitLog commitLog, Random rand)
         {
@@ -448,34 +441,35 @@ public class CommitLogStressTest
                     dataSize += sz;
                 }
 
-                rp = commitLog.add(new Mutation(builder.build()));
+                Keyspace ks = Keyspace.open("Keyspace1");
+                clsp = commitLog.add(new Mutation(builder.build()));
                 counter.incrementAndGet();
             }
         }
     }
 
-    class Replayer extends CommitLogReplayer
+    class Reader extends CommitLogReader
     {
-        Replayer(CommitLog log)
-        {
-            super(log, discardedPos, null, ReplayFilter.create());
-        }
-
         int hash;
         int cells;
         int discarded;
         int skipped;
 
         @Override
-        void replayMutation(byte[] inputBuffer, int size, final int entryLocation, final CommitLogDescriptor desc)
+        protected void readMutation(CommitLogReadHandler handler,
+                                    byte[] inputBuffer,
+                                    int size,
+                                    CommitLogPosition minPosition,
+                                    final int entryLocation,
+                                    final CommitLogDescriptor desc) throws IOException
         {
-            if (desc.id < discardedPos.segment)
+            if (desc.id < discardedPos.segmentId)
             {
                 System.out.format("Mutation from discarded segment, segment %d pos %d\n", desc.id, entryLocation);
                 discarded++;
                 return;
             }
-            else if (desc.id == discardedPos.segment && entryLocation <= discardedPos.position)
+            else if (desc.id == discardedPos.segmentId && entryLocation <= discardedPos.position)
             {
                 // Skip over this mutation.
                 skipped++;
@@ -515,5 +509,14 @@ public class CommitLogStressTest
                 }
             }
         }
+    }
+
+    class DummyHandler implements CommitLogReadHandler
+    {
+        public boolean shouldSkipSegmentOnError(CommitLogReadException exception) throws IOException { return false; }
+
+        public void handleUnrecoverableError(CommitLogReadException exception) throws IOException { }
+
+        public void handleMutation(Mutation m, int size, int entryLocation, CommitLogDescriptor desc) { }
     }
 }

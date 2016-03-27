@@ -30,13 +30,13 @@ New features
    - TimeWindowCompactionStrategy has been added. This has proven to be a better approach
      to time series compaction and new tables should use this instead of DTCS. See
      CASSANDRA-9666 for details.
-
-Deprecation
------------
-   - DateTieredCompactionStrategy has been deprecated - new tables should use
-     TimeWindowCompactionStrategy. Note that migrating an existing DTCS-table to TWCS might
-     cause increased compaction load for a while after the migration so make sure you run
-     tests before migrating. Read CASSANDRA-9666 for background on this.
+   - Change-Data-Capture is now available. See cassandra.yaml and for cdc-specific flags and
+     a brief explanation of on-disk locations for archived data in CommitLog form. This can
+     be enabled via ALTER TABLE ... WITH cdc=true.
+     Upon flush, CommitLogSegments containing data for CDC-enabled tables are moved to
+     the data/cdc_raw directory until removed by the user and writes to CDC-enabled tables
+     will be rejected with a WriteTimeoutException once cdc_total_space_in_mb is reached
+     between unflushed CommitLogSegments and cdc_raw.
 
 Upgrading
 ---------
@@ -47,6 +47,12 @@ Upgrading
       drop the old versions, and this _before_ upgrade (see CASSANDRA-10783 for more
       details).
 
+Deprecation
+-----------
+   - DateTieredCompactionStrategy has been deprecated - new tables should use
+     TimeWindowCompactionStrategy. Note that migrating an existing DTCS-table to TWCS might
+     cause increased compaction load for a while after the migration so make sure you run
+     tests before migrating. Read CASSANDRA-9666 for background on this.
 
 3.7
 ===
@@ -58,6 +64,7 @@ Upgrading
      max_value_size_in_mb in cassandra.yaml. The default is 256MB, which matches the default
      value of native_transport_max_frame_size_in_mb. SSTables will be considered corrupt if
      they contain values whose size exceeds this limit. See CASSANDRA-9530 for more details.
+
 
 3.6
 =====
@@ -88,6 +95,7 @@ New features
      to resolve the situation.
    - Filtering expressions are made more pluggable and can be added programatically via
      a QueryHandler implementation. See CASSANDRA-11295 for more details.
+
 
 3.4
 =====
@@ -366,8 +374,8 @@ Upgrading
      the legacy tables, so clients experience no disruption. Issuing DCL
      statements during an upgrade is not supported.
      Once all nodes are upgraded, an operator with superuser privileges should
-     drop the legacy tables, system_auth.users, system_auth.credentials and 
-     system_auth.permissions. Doing so will prompt Cassandra to switch over to 
+     drop the legacy tables, system_auth.users, system_auth.credentials and
+     system_auth.permissions. Doing so will prompt Cassandra to switch over to
      the new tables without requiring any further intervention.
      While the legacy tables are present a restarted node will re-run the data
      conversion and report the outcome so that operators can verify that it is
@@ -536,8 +544,8 @@ Upgrading
     - cqlsh will now display timestamps with a UTC timezone. Previously,
       timestamps were displayed with the local timezone.
     - Commit log files are no longer recycled by default, due to negative
-      performance implications. This can be enabled again with the 
-      commitlog_segment_recycling option in your cassandra.yaml 
+      performance implications. This can be enabled again with the
+      commitlog_segment_recycling option in your cassandra.yaml
     - JMX methods set/getCompactionStrategyClass have been deprecated, use
       set/getCompactionParameters/set/getCompactionParametersJson instead
 
@@ -666,7 +674,7 @@ New features
 Upgrading
 ---------
    - commitlog_sync_batch_window_in_ms behavior has changed from the
-     maximum time to wait between fsync to the minimum time.  We are 
+     maximum time to wait between fsync to the minimum time.  We are
      working on making this more user-friendly (see CASSANDRA-9533) but in the
      meantime, this means 2.1 needs a much smaller batch window to keep
      writer threads from starving.  The suggested default is now 2ms.

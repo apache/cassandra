@@ -44,7 +44,7 @@ import org.apache.cassandra.cache.*;
 import org.apache.cassandra.concurrent.*;
 import org.apache.cassandra.config.*;
 import org.apache.cassandra.db.commitlog.CommitLog;
-import org.apache.cassandra.db.commitlog.ReplayPosition;
+import org.apache.cassandra.db.commitlog.CommitLogPosition;
 import org.apache.cassandra.db.compaction.*;
 import org.apache.cassandra.db.filter.ClusteringIndexFilter;
 import org.apache.cassandra.db.filter.DataLimits;
@@ -814,7 +814,7 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
      *
      * @param memtable
      */
-    public ListenableFuture<ReplayPosition> switchMemtableIfCurrent(Memtable memtable)
+    public ListenableFuture<CommitLogPosition> switchMemtableIfCurrent(Memtable memtable)
     {
         synchronized (data)
         {
@@ -831,14 +831,14 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
      * not complete until the Memtable (and all prior Memtables) have been successfully flushed, and the CL
      * marked clean up to the position owned by the Memtable.
      */
-    public ListenableFuture<ReplayPosition> switchMemtable()
+    public ListenableFuture<CommitLogPosition> switchMemtable()
     {
         synchronized (data)
         {
             logFlush();
             Flush flush = new Flush(false);
             flushExecutor.execute(flush);
-            ListenableFutureTask<ReplayPosition> task = ListenableFutureTask.create(flush.postFlush);
+            ListenableFutureTask<CommitLogPosition> task = ListenableFutureTask.create(flush.postFlush);
             postFlushExecutor.submit(task);
             return task;
         }
@@ -881,7 +881,7 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
      * @return a Future yielding the commit log position that can be guaranteed to have been successfully written
      *         to sstables for this table once the future completes
      */
-    public ListenableFuture<ReplayPosition> forceFlush()
+    public ListenableFuture<CommitLogPosition> forceFlush()
     {
         synchronized (data)
         {
@@ -900,7 +900,7 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
      * @return a Future yielding the commit log position that can be guaranteed to have been successfully written
      *         to sstables for this table once the future completes
      */
-    public ListenableFuture<ReplayPosition> forceFlush(ReplayPosition flushIfDirtyBefore)
+    public ListenableFuture<?> forceFlush(CommitLogPosition flushIfDirtyBefore)
     {
         // we don't loop through the remaining memtables since here we only care about commit log dirtiness
         // and this does not vary between a table and its table-backed indexes
@@ -914,24 +914,20 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
      * @return a Future yielding the commit log position that can be guaranteed to have been successfully written
      *         to sstables for this table once the future completes
      */
-    private ListenableFuture<ReplayPosition> waitForFlushes()
+    private ListenableFuture<CommitLogPosition> waitForFlushes()
     {
         // we grab the current memtable; once any preceding memtables have flushed, we know its
         // commitLogLowerBound has been set (as this it is set with the upper bound of the preceding memtable)
         final Memtable current = data.getView().getCurrentMemtable();
-        ListenableFutureTask<ReplayPosition> task = ListenableFutureTask.create(new Callable<ReplayPosition>()
-        {
-            public ReplayPosition call()
-            {
-                logger.debug("forceFlush requested but everything is clean in {}", name);
-                return current.getCommitLogLowerBound();
-            }
+        ListenableFutureTask<CommitLogPosition> task = ListenableFutureTask.create(() -> {
+            logger.debug("forceFlush requested but everything is clean in {}", name);
+            return current.getCommitLogLowerBound();
         });
         postFlushExecutor.execute(task);
         return task;
     }
 
-    public ReplayPosition forceBlockingFlush()
+    public CommitLogPosition forceBlockingFlush()
     {
         return FBUtilities.waitOnFuture(forceFlush());
     }
@@ -940,18 +936,21 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
      * Both synchronises custom secondary indexes and provides ordering guarantees for futures on switchMemtable/flush
      * etc, which expect to be able to wait until the flush (and all prior flushes) requested have completed.
      */
-    private final class PostFlush implements Callable<ReplayPosition>
+    private final class PostFlush implements Callable<CommitLogPosition>
     {
         final boolean flushSecondaryIndexes;
         final OpOrder.Barrier writeBarrier;
         final CountDownLatch latch = new CountDownLatch(1);
+        final CommitLogPosition commitLogUpperBound;
         volatile Throwable flushFailure = null;
-        final ReplayPosition commitLogUpperBound;
         final List<Memtable> memtables;
         final List<Collection<SSTableReader>> readers;
 
-        private PostFlush(boolean flushSecondaryIndexes, OpOrder.Barrier writeBarrier, ReplayPosition commitLogUpperBound,
-                          List<Memtable> memtables, List<Collection<SSTableReader>> readers)
+        private PostFlush(boolean flushSecondaryIndexes,
+                          OpOrder.Barrier writeBarrier,
+                          CommitLogPosition commitLogUpperBound,
+                          List<Memtable> memtables,
+                          List<Collection<SSTableReader>> readers)
         {
             this.writeBarrier = writeBarrier;
             this.flushSecondaryIndexes = flushSecondaryIndexes;
@@ -960,7 +959,7 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
             this.readers = readers;
         }
 
-        public ReplayPosition call()
+        public CommitLogPosition call()
         {
             if (discardFlushResults == ColumnFamilyStore.this)
                 return commitLogUpperBound;
@@ -988,6 +987,8 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
                 throw new IllegalStateException();
             }
 
+            // Must check commitLogUpperBound != null because Flush may find that all memtables are clean
+            // and so not set a commitLogUpperBound
             // If a flush errored out but the error was ignored, make sure we don't discard the commit log.
             if (flushFailure == null)
             {
@@ -1044,7 +1045,7 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
             writeBarrier = keyspace.writeOrder.newBarrier();
 
             // submit flushes for the memtable for any indexed sub-cfses, and our own
-            AtomicReference<ReplayPosition> commitLogUpperBound = new AtomicReference<>();
+            AtomicReference<CommitLogPosition> commitLogUpperBound = new AtomicReference<>();
             for (ColumnFamilyStore cfs : concatWithIndexes())
             {
                 // switch all memtables, regardless of their dirty status, setting the barrier
@@ -1062,7 +1063,7 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
 
             // we then issue the barrier; this lets us wait for all operations started prior to the barrier to complete;
             // since this happens after wiring up the commitLogUpperBound, we also know all operations with earlier
-            // replay positions have also completed, i.e. the memtables are done and ready to flush
+            // commit log segment position have also completed, i.e. the memtables are done and ready to flush
             writeBarrier.issue();
             postFlush = new PostFlush(!truncate, writeBarrier, commitLogUpperBound.get(), memtables, readers);
         }
@@ -1215,16 +1216,16 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
     }
 
     // atomically set the upper bound for the commit log
-    private static void setCommitLogUpperBound(AtomicReference<ReplayPosition> commitLogUpperBound)
+    private static void setCommitLogUpperBound(AtomicReference<CommitLogPosition> commitLogUpperBound)
     {
         // we attempt to set the holder to the current commit log context. at the same time all writes to the memtables are
         // also maintaining this value, so if somebody sneaks ahead of us somehow (should be rare) we simply retry,
         // so that we know all operations prior to the position have not reached it yet
-        ReplayPosition lastReplayPosition;
+        CommitLogPosition lastReplayPosition;
         while (true)
         {
-            lastReplayPosition = new Memtable.LastReplayPosition(CommitLog.instance.getContext());
-            ReplayPosition currentLast = commitLogUpperBound.get();
+            lastReplayPosition = new Memtable.LastCommitLogPosition((CommitLog.instance.getCurrentPosition()));
+            CommitLogPosition currentLast = commitLogUpperBound.get();
             if ((currentLast == null || currentLast.compareTo(lastReplayPosition) <= 0)
                 && commitLogUpperBound.compareAndSet(currentLast, lastReplayPosition))
                 break;
@@ -1238,7 +1239,7 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
     public void simulateFailedFlush()
     {
         discardFlushResults = this;
-        data.markFlushing(data.switchMemtable(false, new Memtable(new AtomicReference<>(CommitLog.instance.getContext()), this)));
+        data.markFlushing(data.switchMemtable(false, new Memtable(new AtomicReference<>(CommitLog.instance.getCurrentPosition()), this)));
     }
 
     public void resumeFlushing()
@@ -1316,11 +1317,11 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
      * param @ key - key for update/insert
      * param @ columnFamily - columnFamily changes
      */
-    public void apply(PartitionUpdate update, UpdateTransaction indexer, OpOrder.Group opGroup, ReplayPosition replayPosition)
+    public void apply(PartitionUpdate update, UpdateTransaction indexer, OpOrder.Group opGroup, CommitLogPosition commitLogPosition)
 
     {
         long start = System.nanoTime();
-        Memtable mt = data.getMemtableFor(opGroup, replayPosition);
+        Memtable mt = data.getMemtableFor(opGroup, commitLogPosition);
         long timeDelta = mt.put(update, indexer, opGroup);
         DecoratedKey key = update.partitionKey();
         invalidateCachedPartition(key);
@@ -2105,7 +2106,7 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
         // recording the timestamp IN BETWEEN those actions. Any sstables created
         // with this timestamp or greater time, will not be marked for delete.
         //
-        // Bonus complication: since we store replay position in sstable metadata,
+        // Bonus complication: since we store commit log segment position in sstable metadata,
         // truncating those sstables means we will replay any CL segments from the
         // beginning if we restart before they [the CL segments] are discarded for
         // normal reasons post-truncate.  To prevent this, we store truncation
@@ -2113,7 +2114,7 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
         logger.trace("truncating {}", name);
 
         final long truncatedAt;
-        final ReplayPosition replayAfter;
+        final CommitLogPosition replayAfter;
 
         if (keyspace.getMetadata().params.durableWrites || DatabaseDescriptor.isAutoSnapshot())
         {
@@ -2169,7 +2170,7 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
     /**
      * Drops current memtable without flushing to disk. This should only be called when truncating a column family which is not durable.
      */
-    public Future<ReplayPosition> dumpMemtable()
+    public Future<CommitLogPosition> dumpMemtable()
     {
         synchronized (data)
         {
@@ -2422,7 +2423,7 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
     public Iterable<ColumnFamilyStore> concatWithIndexes()
     {
         // we return the main CFS first, which we rely on for simplicity in switchMemtable(), for getting the
-        // latest replay position
+        // latest commit log segment position
         return Iterables.concat(Collections.singleton(this), indexManager.getAllIndexColumnFamilyStores());
     }
 

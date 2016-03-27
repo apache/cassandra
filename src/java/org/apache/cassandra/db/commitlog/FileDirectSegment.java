@@ -19,15 +19,8 @@ package org.apache.cassandra.db.commitlog;
 
 import java.io.IOException;
 import java.nio.ByteBuffer;
-import java.util.Queue;
-import java.util.concurrent.ConcurrentLinkedQueue;
-import java.util.concurrent.atomic.AtomicInteger;
 
-import io.netty.util.concurrent.FastThreadLocal;
-import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.io.FSWriteError;
-import org.apache.cassandra.io.compress.BufferType;
-import org.apache.cassandra.io.util.FileUtils;
 
 /**
  * Writes to the backing commit log file only on sync, allowing transformations of the mutations,
@@ -35,45 +28,23 @@ import org.apache.cassandra.io.util.FileUtils;
  */
 public abstract class FileDirectSegment extends CommitLogSegment
 {
-    protected static final FastThreadLocal<ByteBuffer> reusableBufferHolder = new FastThreadLocal<ByteBuffer>()
-    {
-        protected ByteBuffer initialValue()
-        {
-            return ByteBuffer.allocate(0);
-        }
-    };
-
-    static Queue<ByteBuffer> bufferPool = new ConcurrentLinkedQueue<>();
-
-    /**
-     * Maximum number of buffers in the compression pool. The default value is 3, it should not be set lower than that
-     * (one segment in compression, one written to, one in reserve); delays in compression may cause the log to use
-     * more, depending on how soon the sync policy stops all writing threads.
-     */
-    static final int MAX_BUFFERPOOL_SIZE = DatabaseDescriptor.getCommitLogMaxCompressionBuffersInPool();
-
-    /**
-     * The number of buffers in use
-     */
-    private static AtomicInteger usedBuffers = new AtomicInteger(0);
-
     volatile long lastWrittenPos = 0;
-
     private final Runnable onClose;
 
-    FileDirectSegment(CommitLog commitLog, Runnable onClose)
+    FileDirectSegment(CommitLog commitLog, AbstractCommitLogSegmentManager manager, Runnable onClose)
     {
-        super(commitLog);
+        super(commitLog, manager);
         this.onClose = onClose;
     }
 
+    @Override
     void writeLogHeader()
     {
         super.writeLogHeader();
         try
         {
             channel.write((ByteBuffer) buffer.duplicate().flip());
-            commitLog.allocator.addSize(lastWrittenPos = buffer.position());
+            manager.addSize(lastWrittenPos = buffer.position());
         }
         catch (IOException e)
         {
@@ -81,51 +52,17 @@ public abstract class FileDirectSegment extends CommitLogSegment
         }
     }
 
-    ByteBuffer createBuffer(BufferType bufferType)
-    {
-        usedBuffers.incrementAndGet();
-        ByteBuffer buf = bufferPool.poll();
-        if (buf != null)
-        {
-            buf.clear();
-            return buf;
-        }
-
-        return bufferType.allocate(DatabaseDescriptor.getCommitLogSegmentSize());
-    }
-
     @Override
     protected void internalClose()
     {
-        usedBuffers.decrementAndGet();
-
         try
         {
-            if (bufferPool.size() < MAX_BUFFERPOOL_SIZE)
-                bufferPool.add(buffer);
-            else
-                FileUtils.clean(buffer);
+            manager.getBufferPool().releaseBuffer(buffer);
             super.internalClose();
         }
         finally
         {
             onClose.run();
         }
-    }
-
-    static void shutdown()
-    {
-        bufferPool.clear();
-    }
-
-    /**
-     * Checks if the number of buffers in use is greater or equals to the maximum number of buffers allowed in the pool.
-     *
-     * @return <code>true</code> if the number of buffers in use is greater or equals to the maximum number of buffers
-     * allowed in the pool, <code>false</code> otherwise.
-     */
-    static boolean hasReachedPoolLimit()
-    {
-        return usedBuffers.get() >= MAX_BUFFERPOOL_SIZE;
     }
 }

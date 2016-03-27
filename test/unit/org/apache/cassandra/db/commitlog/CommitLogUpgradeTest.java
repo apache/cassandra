@@ -137,10 +137,13 @@ public class CommitLogUpgradeTest
     @Test
     public void test22_bitrot_ignored() throws Exception
     {
-        try {
+        try
+        {
             System.setProperty(CommitLogReplayer.IGNORE_REPLAY_ERRORS_PROPERTY, "true");
             testRestore(DATA_DIR + "2.2-lz4-bitrot");
-        } finally {
+        }
+        finally
+        {
             System.clearProperty(CommitLogReplayer.IGNORE_REPLAY_ERRORS_PROPERTY);
         }
     }
@@ -155,10 +158,13 @@ public class CommitLogUpgradeTest
     @Test
     public void test22_bitrot2_ignored() throws Exception
     {
-        try {
+        try
+        {
             System.setProperty(CommitLogReplayer.IGNORE_REPLAY_ERRORS_PROPERTY, "true");
             testRestore(DATA_DIR + "2.2-lz4-bitrot2");
-        } finally {
+        }
+        finally
+        {
             System.clearProperty(CommitLogReplayer.IGNORE_REPLAY_ERRORS_PROPERTY);
         }
     }
@@ -199,9 +205,9 @@ public class CommitLogUpgradeTest
         }
 
         Hasher hasher = new Hasher();
-        CommitLogTestReplayer replayer = new CommitLogTestReplayer(CommitLog.instance, hasher);
+        CommitLogTestReplayer replayer = new CommitLogTestReplayer(hasher);
         File[] files = new File(location).listFiles((file, name) -> name.endsWith(".log"));
-        replayer.recover(files);
+        replayer.replayFiles(files);
 
         Assert.assertEquals(cells, hasher.cells);
         Assert.assertEquals(hash, hasher.hash);

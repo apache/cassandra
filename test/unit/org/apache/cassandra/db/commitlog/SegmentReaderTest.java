@@ -31,9 +31,9 @@ import javax.crypto.Cipher;
 import org.junit.Assert;
 import org.junit.Test;
 
-import org.apache.cassandra.db.commitlog.SegmentReader.CompressedSegmenter;
-import org.apache.cassandra.db.commitlog.SegmentReader.EncryptedSegmenter;
-import org.apache.cassandra.db.commitlog.SegmentReader.SyncSegment;
+import org.apache.cassandra.db.commitlog.CommitLogSegmentReader.CompressedSegmenter;
+import org.apache.cassandra.db.commitlog.CommitLogSegmentReader.EncryptedSegmenter;
+import org.apache.cassandra.db.commitlog.CommitLogSegmentReader.SyncSegment;
 import org.apache.cassandra.io.compress.DeflateCompressor;
 import org.apache.cassandra.io.compress.ICompressor;
 import org.apache.cassandra.io.compress.LZ4Compressor;

@@ -219,7 +219,7 @@ public class CommitLogUpgradeTestMaker
         int dataSize = 0;
         final CommitLog commitLog;
 
-        volatile ReplayPosition rp;
+        volatile CommitLogPosition clsp;
 
         public CommitlogExecutor(CommitLog commitLog)
         {
@@ -248,7 +248,7 @@ public class CommitLogUpgradeTestMaker
                     dataSize += sz;
                 }
 
-                rp = commitLog.add((Mutation)builder.makeMutation());
+                clsp = commitLog.add((Mutation)builder.makeMutation());
                 counter.incrementAndGet();
             }
         }

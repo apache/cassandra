@@ -11,6 +11,7 @@
  * Faster streaming (CASSANDRA-9766)
  * Add prepared query parameter to trace for "Execute CQL3 prepared query" session (CASSANDRA-11425)
  * Add repaired percentage metric (CASSANDRA-11503)
+ * Add Change-Data-Capture (CASSANDRA-8844)
 Merged from 3.0:
  * Add TimeWindowCompactionStrategy (CASSANDRA-9666)
 Merged from 2.2:

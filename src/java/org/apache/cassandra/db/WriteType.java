@@ -25,5 +25,6 @@ public enum WriteType
     COUNTER,
     BATCH_LOG,
     CAS,
-    VIEW;
+    VIEW,
+    CDC;
 }

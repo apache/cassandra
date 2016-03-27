@@ -198,6 +198,12 @@ public class Config
 
     public Integer max_mutation_size_in_kb;
 
+    // Change-data-capture logs
+    public Boolean cdc_enabled = false;
+    public String cdc_raw_directory;
+    public Integer cdc_total_space_in_mb;
+    public Integer cdc_free_space_check_interval_ms = 250;
+
     @Deprecated
     public int commitlog_periodic_queue_size = -1;
 

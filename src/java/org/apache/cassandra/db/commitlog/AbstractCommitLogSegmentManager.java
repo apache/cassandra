@@ -18,18 +18,9 @@
 package org.apache.cassandra.db.commitlog;
 
 import java.io.File;
-import java.util.ArrayList;
-import java.util.Collection;
-import java.util.Collections;
-import java.util.LinkedHashMap;
-import java.util.List;
-import java.util.Map;
-import java.util.UUID;
-import java.util.concurrent.BlockingQueue;
-import java.util.concurrent.ConcurrentLinkedQueue;
-import java.util.concurrent.Future;
-import java.util.concurrent.LinkedBlockingQueue;
-import java.util.concurrent.TimeUnit;
+import java.io.IOException;
+import java.util.*;
+import java.util.concurrent.*;
 import java.util.concurrent.atomic.AtomicLong;
 
 import com.google.common.annotations.VisibleForTesting;
@@ -40,14 +31,9 @@ import org.slf4j.LoggerFactory;
 
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.config.Schema;
-import org.apache.cassandra.db.ColumnFamilyStore;
-import org.apache.cassandra.db.Keyspace;
-import org.apache.cassandra.db.Mutation;
-import org.apache.cassandra.io.util.FileUtils;
-import org.apache.cassandra.utils.Pair;
+import org.apache.cassandra.db.*;
+import org.apache.cassandra.utils.*;
 import org.apache.cassandra.utils.concurrent.WaitQueue;
-import org.apache.cassandra.utils.JVMStabilityInspector;
-import org.apache.cassandra.utils.WrappedRunnable;
 
 import static org.apache.cassandra.db.commitlog.CommitLogSegment.Allocation;
 
@@ -55,13 +41,11 @@ import static org.apache.cassandra.db.commitlog.CommitLogSegment.Allocation;
  * Performs eager-creation of commit log segments in a background thread. All the
  * public methods are thread safe.
  */
-public class CommitLogSegmentManager
+public abstract class AbstractCommitLogSegmentManager
 {
-    static final Logger logger = LoggerFactory.getLogger(CommitLogSegmentManager.class);
+    static final Logger logger = LoggerFactory.getLogger(AbstractCommitLogSegmentManager.class);
 
-    /**
-     * Queue of work to be done by the manager thread, also used to wake the thread to perform segment allocation.
-     */
+    // Queue of work to be done by the manager thread, also used to wake the thread to perform segment allocation.
     private final BlockingQueue<Runnable> segmentManagementTasks = new LinkedBlockingQueue<>();
 
     /** Segments that are ready to be used. Head of the queue is the one we allocate writes to */
@@ -71,9 +55,11 @@ public class CommitLogSegmentManager
     private final ConcurrentLinkedQueue<CommitLogSegment> activeSegments = new ConcurrentLinkedQueue<>();
 
     /** The segment we are currently allocating commit log records to */
-    private volatile CommitLogSegment allocatingFrom = null;
+    protected volatile CommitLogSegment allocatingFrom = null;
 
     private final WaitQueue hasAvailableSegments = new WaitQueue();
+
+    final String storageDirectory;
 
     /**
      * Tracks commitlog size, in multiples of the segment size.  We need to do this so we can "promise" size
@@ -89,13 +75,20 @@ public class CommitLogSegmentManager
      */
     volatile boolean createReserveSegments = false;
 
-    private Thread managerThread;
-    private volatile boolean run = true;
-    private final CommitLog commitLog;
+    // Used by tests to determine if segment manager is active or not.
+    volatile boolean processingTask = false;
 
-    CommitLogSegmentManager(final CommitLog commitLog)
+    private Thread managerThread;
+    protected volatile boolean run = true;
+    protected final CommitLog commitLog;
+
+    private static final SimpleCachedBufferPool bufferPool =
+        new SimpleCachedBufferPool(DatabaseDescriptor.getCommitLogMaxCompressionBuffersPerPool(), DatabaseDescriptor.getCommitLogSegmentSize());
+
+    AbstractCommitLogSegmentManager(final CommitLog commitLog, String storageDirectory)
     {
         this.commitLog = commitLog;
+        this.storageDirectory = storageDirectory;
     }
 
     void start()
@@ -110,14 +103,17 @@ public class CommitLogSegmentManager
                     try
                     {
                         Runnable task = segmentManagementTasks.poll();
+                        processingTask = true;
                         if (task == null)
                         {
                             // if we have no more work to do, check if we should create a new segment
-                            if (!atSegmentLimit() && availableSegments.isEmpty() && (activeSegments.isEmpty() || createReserveSegments))
+                            if (!atSegmentLimit() &&
+                                availableSegments.isEmpty() &&
+                                (activeSegments.isEmpty() || createReserveSegments))
                             {
                                 logger.trace("No segments in reserve; creating a fresh one");
                                 // TODO : some error handling in case we fail to create a new segment
-                                availableSegments.add(CommitLogSegment.createSegment(commitLog, () -> wakeManager()));
+                                availableSegments.add(createSegment());
                                 hasAvailableSegments.signalAll();
                             }
 
@@ -139,9 +135,11 @@ public class CommitLogSegmentManager
                                 flushDataFrom(segmentsToRecycle, false);
                             }
 
+                            // Since we're operating on a "null" allocation task, block here for the next task on the
+                            // queue rather than looping, grabbing another null, and repeating the above work.
                             try
                             {
-                                // wait for new work to be provided
+                                processingTask = false;
                                 task = segmentManagementTasks.take();
                             }
                             catch (InterruptedException e)
@@ -149,8 +147,8 @@ public class CommitLogSegmentManager
                                 throw new AssertionError();
                             }
                         }
-
                         task.run();
+                        processingTask = false;
                     }
                     catch (Throwable t)
                     {
@@ -165,9 +163,8 @@ public class CommitLogSegmentManager
 
             private boolean atSegmentLimit()
             {
-                return CommitLogSegment.usesBufferPool(commitLog) && CompressedSegment.hasReachedPoolLimit();
+                return CommitLogSegment.usesBufferPool(commitLog) && bufferPool.atLimit();
             }
-
         };
 
         run = true;
@@ -176,28 +173,44 @@ public class CommitLogSegmentManager
         managerThread.start();
     }
 
+
     /**
-     * Reserve space in the current segment for the provided mutation or, if there isn't space available,
-     * create a new segment.
-     *
-     * @return the provided Allocation object
+     * Shut down the CLSM. Used both during testing and during regular shutdown, so needs to stop everything.
      */
-    public Allocation allocate(Mutation mutation, int size)
-    {
-        CommitLogSegment segment = allocatingFrom();
+    public abstract void shutdown();
 
-        Allocation alloc;
-        while ( null == (alloc = segment.allocate(mutation, size)) )
-        {
-            // failed to allocate, so move to a new segment with enough room
-            advanceAllocatingFrom(segment);
-            segment = allocatingFrom;
-        }
+    /**
+     * Allocate a segment within this CLSM. Should either succeed or throw.
+     */
+    public abstract Allocation allocate(Mutation mutation, int size);
 
-        return alloc;
-    }
+    /**
+     * The recovery and replay process replays mutations into memtables and flushes them to disk. Individual CLSM
+     * decide what to do with those segments on disk after they've been replayed.
+     */
+    abstract void handleReplayedSegment(final File file);
 
-    // simple wrapper to ensure non-null value for allocatingFrom; only necessary on first call
+    /**
+     * Hook to allow segment managers to track state surrounding creation of new segments. Onl perform as task submit
+     * to segment manager so it's performed on segment management thread.
+     */
+    abstract CommitLogSegment createSegment();
+
+    /**
+     * Indicates that a segment file has been flushed and is no longer needed. Only perform as task submit to segment
+     * manager so it's performend on segment management thread, or perform while segment management thread is shutdown
+     * during testing resets.
+     *
+     * @param segment segment to be discarded
+     * @param delete  whether or not the segment is safe to be deleted.
+     */
+    abstract void discard(CommitLogSegment segment, boolean delete);
+
+
+    /**
+     * Grab the current CommitLogSegment we're allocating from. Also serves as a utility method to block while the allocator
+     * is working on initial allocation of a CommitLogSegment.
+     */
     CommitLogSegment allocatingFrom()
     {
         CommitLogSegment r = allocatingFrom;
@@ -210,9 +223,12 @@ public class CommitLogSegmentManager
     }
 
     /**
-     * Fetches a new segment from the queue, creating a new one if necessary, and activates it
+     * Fetches a new segment from the queue, signaling the management thread to create a new one if necessary, and "activates" it.
+     * Blocks until a new segment is allocated and the thread requesting an advanceAllocatingFrom is signalled.
+     *
+     * WARNING: Assumes segment management thread always succeeds in allocating a new segment or kills the JVM.
      */
-    private void advanceAllocatingFrom(CommitLogSegment old)
+    protected void advanceAllocatingFrom(CommitLogSegment old)
     {
         while (true)
         {
@@ -275,7 +291,7 @@ public class CommitLogSegmentManager
         }
     }
 
-    private void wakeManager()
+    protected void wakeManager()
     {
         // put a NO-OP on the queue, to trigger management thread (and create a new segment if necessary)
         segmentManagementTasks.add(Runnables.doNothing());
@@ -308,14 +324,16 @@ public class CommitLogSegmentManager
 
             for (CommitLogSegment segment : activeSegments)
                 for (UUID cfId : droppedCfs)
-                    segment.markClean(cfId, segment.getContext());
+                    segment.markClean(cfId, segment.getCurrentCommitLogPosition());
 
             // now recycle segments that are unused, as we may not have triggered a discardCompletedSegments()
             // if the previous active segment was the only one to recycle (since an active segment isn't
             // necessarily dirty, and we only call dCS after a flush).
             for (CommitLogSegment segment : activeSegments)
+            {
                 if (segment.isUnused())
                     recycleSegment(segment);
+            }
 
             CommitLogSegment first;
             if ((first = activeSegments.peek()) != null && first.id <= last.id)
@@ -323,7 +341,7 @@ public class CommitLogSegmentManager
         }
         catch (Throwable t)
         {
-            // for now just log the error and return false, indicating that we failed
+            // for now just log the error
             logger.error("Failed waiting for a forced recycle of in-use commit log segments", t);
         }
     }
@@ -348,19 +366,6 @@ public class CommitLogSegmentManager
     }
 
     /**
-     * Differs from the above because it can work on any file instead of just existing
-     * commit log segments managed by this manager.
-     *
-     * @param file segment file that is no longer in use.
-     */
-    void recycleSegment(final File file)
-    {
-        // (don't decrease managed size, since this was never a "live" segment)
-        logger.trace("(Unopened) segment {} is no longer needed and will be deleted now", file);
-        FileUtils.deleteWithConfirm(file);
-    }
-
-    /**
      * Indicates that a segment file should be deleted.
      *
      * @param segment segment to be discarded
@@ -368,14 +373,7 @@ public class CommitLogSegmentManager
     private void discardSegment(final CommitLogSegment segment, final boolean deleteFile)
     {
         logger.trace("Segment {} is no longer active and will be deleted {}", segment, deleteFile ? "now" : "by the archive script");
-
-        segmentManagementTasks.add(new Runnable()
-        {
-            public void run()
-            {
-                segment.discard(deleteFile);
-            }
-        });
+        segmentManagementTasks.add(() -> discard(segment, deleteFile));
     }
 
     /**
@@ -434,7 +432,7 @@ public class CommitLogSegmentManager
     {
         if (segments.isEmpty())
             return Futures.immediateFuture(null);
-        final ReplayPosition maxReplayPosition = segments.get(segments.size() - 1).getContext();
+        final CommitLogPosition maxCommitLogPosition = segments.get(segments.size() - 1).getCurrentCommitLogPosition();
 
         // a map of CfId -> forceFlush() to ensure we only queue one flush per cf
         final Map<UUID, ListenableFuture<?>> flushes = new LinkedHashMap<>();
@@ -449,7 +447,7 @@ public class CommitLogSegmentManager
                     // even though we remove the schema entry before a final flush when dropping a CF,
                     // it's still possible for a writer to race and finish his append after the flush.
                     logger.trace("Marking clean CF {} that doesn't exist anymore", dirtyCFId);
-                    segment.markClean(dirtyCFId, segment.getContext());
+                    segment.markClean(dirtyCFId, segment.getCurrentCommitLogPosition());
                 }
                 else if (!flushes.containsKey(dirtyCFId))
                 {
@@ -457,7 +455,7 @@ public class CommitLogSegmentManager
                     final ColumnFamilyStore cfs = Keyspace.open(keyspace).getColumnFamilyStore(dirtyCFId);
                     // can safely call forceFlush here as we will only ever block (briefly) for other attempts to flush,
                     // no deadlock possibility since switchLock removal
-                    flushes.put(dirtyCFId, force ? cfs.forceFlush() : cfs.forceFlush(maxReplayPosition));
+                    flushes.put(dirtyCFId, force ? cfs.forceFlush() : cfs.forceFlush(maxCommitLogPosition));
                 }
             }
         }
@@ -509,33 +507,23 @@ public class CommitLogSegmentManager
     // Used by tests only.
     void awaitManagementTasksCompletion()
     {
-        while (!segmentManagementTasks.isEmpty())
+        while (segmentManagementTasks.size() > 0 || processingTask)
             Thread.yield();
-        // The last management task is not yet complete. Wait a while for it.
-        Uninterruptibles.sleepUninterruptibly(100, TimeUnit.MILLISECONDS);
-        // TODO: If this functionality is required by anything other than tests, signalling must be used to ensure
-        // waiting completes correctly.
     }
 
-    private static void closeAndDeleteSegmentUnsafe(CommitLogSegment segment, boolean delete)
+    /**
+     * Explicitly for use only during resets in unit testing.
+     */
+    private void closeAndDeleteSegmentUnsafe(CommitLogSegment segment, boolean delete)
     {
         try
         {
-            segment.discard(delete);
+            discard(segment, delete);
         }
         catch (AssertionError ignored)
         {
             // segment file does not exist
         }
-    }
-
-    /**
-     * Initiates the shutdown process for the management thread.
-     */
-    public void shutdown()
-    {
-        run = false;
-        wakeManager();
     }
 
     /**
@@ -551,7 +539,7 @@ public class CommitLogSegmentManager
         for (CommitLogSegment segment : availableSegments)
             segment.close();
 
-        FileDirectSegment.shutdown();
+        bufferPool.shutdown();
     }
 
     /**
@@ -563,5 +551,34 @@ public class CommitLogSegmentManager
         return Collections.unmodifiableCollection(activeSegments);
     }
 
+    /**
+     * @return the current CommitLogPosition of the active segment we're allocating from
+     */
+    CommitLogPosition getCurrentPosition()
+    {
+        return allocatingFrom().getCurrentCommitLogPosition();
+    }
+
+    /**
+     * Forces a disk flush on the commit log files that need it.  Blocking.
+     */
+    public void sync(boolean syncAllSegments) throws IOException
+    {
+        CommitLogSegment current = allocatingFrom();
+        for (CommitLogSegment segment : getActiveSegments())
+        {
+            if (!syncAllSegments && segment.id > current.id)
+                return;
+            segment.sync();
+        }
+    }
+
+    /**
+     * Used by compressed and encrypted segments to share a buffer pool across the CLSM.
+     */
+    SimpleCachedBufferPool getBufferPool()
+    {
+        return bufferPool;
+    }
 }
 

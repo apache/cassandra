@@ -27,6 +27,7 @@ import com.google.common.annotations.VisibleForTesting;
 import com.google.common.collect.AbstractIterator;
 
 import org.apache.cassandra.db.commitlog.EncryptedFileSegmentInputStream.ChunkProvider;
+import org.apache.cassandra.db.commitlog.CommitLogReadHandler.*;
 import org.apache.cassandra.io.FSReadError;
 import org.apache.cassandra.io.compress.ICompressor;
 import org.apache.cassandra.io.util.FileDataInput;
@@ -43,8 +44,9 @@ import static org.apache.cassandra.utils.FBUtilities.updateChecksumInt;
 /**
  * Read each sync section of a commit log, iteratively.
  */
-public class SegmentReader implements Iterable<SegmentReader.SyncSegment>
+public class CommitLogSegmentReader implements Iterable<CommitLogSegmentReader.SyncSegment>
 {
+    private final CommitLogReadHandler handler;
     private final CommitLogDescriptor descriptor;
     private final RandomAccessReader reader;
     private final Segmenter segmenter;
@@ -55,15 +57,19 @@ public class SegmentReader implements Iterable<SegmentReader.SyncSegment>
      */
     protected int end;
 
-    protected SegmentReader(CommitLogDescriptor descriptor, RandomAccessReader reader, boolean tolerateTruncation)
+    protected CommitLogSegmentReader(CommitLogReadHandler handler,
+                                     CommitLogDescriptor descriptor,
+                                     RandomAccessReader reader,
+                                     boolean tolerateTruncation)
     {
+        this.handler = handler;
         this.descriptor = descriptor;
         this.reader = reader;
         this.tolerateTruncation = tolerateTruncation;
 
         end = (int) reader.getFilePointer();
         if (descriptor.getEncryptionContext().isEnabled())
-            segmenter = new EncryptedSegmenter(reader, descriptor);
+            segmenter = new EncryptedSegmenter(descriptor, reader);
         else if (descriptor.compression != null)
             segmenter = new CompressedSegmenter(descriptor, reader);
         else
@@ -75,7 +81,7 @@ public class SegmentReader implements Iterable<SegmentReader.SyncSegment>
         return new SegmentIterator();
     }
 
-    protected class SegmentIterator extends AbstractIterator<SegmentReader.SyncSegment>
+    protected class SegmentIterator extends AbstractIterator<CommitLogSegmentReader.SyncSegment>
     {
         protected SyncSegment computeNext()
         {
@@ -95,14 +101,16 @@ public class SegmentReader implements Iterable<SegmentReader.SyncSegment>
                         // try to grab and use as much of the file as possible, which might be nothing if the end of the file truly is corrupt
                         end = (int) reader.length();
                     }
-
                     return segmenter.nextSegment(currentStart + SYNC_MARKER_SIZE, end);
                 }
-                catch(SegmentReader.SegmentReadException e)
+                catch(CommitLogSegmentReader.SegmentReadException e)
                 {
                     try
                     {
-                        CommitLogReplayer.handleReplayError(!e.invalidCrc && tolerateTruncation, e.getMessage());
+                        handler.handleUnrecoverableError(new CommitLogReadException(
+                                                    e.getMessage(),
+                                                    CommitLogReadErrorReason.UNRECOVERABLE_DESCRIPTOR_ERROR,
+                                                    !e.invalidCrc && tolerateTruncation));
                     }
                     catch (IOException ioe)
                     {
@@ -115,7 +123,10 @@ public class SegmentReader implements Iterable<SegmentReader.SyncSegment>
                     {
                         boolean tolerateErrorsInSection = tolerateTruncation & segmenter.tolerateSegmentErrors(end, reader.length());
                         // if no exception is thrown, the while loop will continue
-                        CommitLogReplayer.handleReplayError(tolerateErrorsInSection, e.getMessage());
+                        handler.handleUnrecoverableError(new CommitLogReadException(
+                                                    e.getMessage(),
+                                                    CommitLogReadErrorReason.UNRECOVERABLE_DESCRIPTOR_ERROR,
+                                                    tolerateErrorsInSection));
                     }
                     catch (IOException ioe)
                     {
@@ -303,7 +314,7 @@ public class SegmentReader implements Iterable<SegmentReader.SyncSegment>
         private long currentSegmentEndPosition;
         private long nextLogicalStart;
 
-        public EncryptedSegmenter(RandomAccessReader reader, CommitLogDescriptor descriptor)
+        public EncryptedSegmenter(CommitLogDescriptor descriptor, RandomAccessReader reader)
         {
             this(reader, descriptor.getEncryptionContext());
         }

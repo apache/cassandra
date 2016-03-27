@@ -44,9 +44,9 @@ public class CompressedSegment extends FileDirectSegment
     /**
      * Constructs a new segment file.
      */
-    CompressedSegment(CommitLog commitLog, Runnable onClose)
+    CompressedSegment(CommitLog commitLog, AbstractCommitLogSegmentManager manager, Runnable onClose)
     {
-        super(commitLog, onClose);
+        super(commitLog, manager, onClose);
         this.compressor = commitLog.configuration.getCompressor();
     }
 
@@ -57,7 +57,7 @@ public class CompressedSegment extends FileDirectSegment
 
     ByteBuffer createBuffer(CommitLog commitLog)
     {
-        return createBuffer(commitLog.configuration.getCompressor().preferredBufferType());
+        return manager.getBufferPool().createBuffer(commitLog.configuration.getCompressor().preferredBufferType());
     }
 
     @Override
@@ -71,13 +71,13 @@ public class CompressedSegment extends FileDirectSegment
         try
         {
             int neededBufferSize = compressor.initialCompressedBufferLength(length) + COMPRESSED_MARKER_SIZE;
-            ByteBuffer compressedBuffer = reusableBufferHolder.get();
+            ByteBuffer compressedBuffer = manager.getBufferPool().getThreadLocalReusableBuffer();
             if (compressor.preferredBufferType() != BufferType.typeOf(compressedBuffer) ||
                 compressedBuffer.capacity() < neededBufferSize)
             {
                 FileUtils.clean(compressedBuffer);
                 compressedBuffer = allocate(neededBufferSize);
-                reusableBufferHolder.set(compressedBuffer);
+                manager.getBufferPool().setThreadLocalReusableBuffer(compressedBuffer);
             }
 
             ByteBuffer inputBuffer = buffer.duplicate();
@@ -91,7 +91,7 @@ public class CompressedSegment extends FileDirectSegment
             // Only one thread can be here at a given time.
             // Protected by synchronization on CommitLogSegment.sync().
             writeSyncMarker(compressedBuffer, 0, (int) channel.position(), (int) channel.position() + compressedBuffer.remaining());
-            commitLog.allocator.addSize(compressedBuffer.limit());
+            manager.addSize(compressedBuffer.limit());
             channel.write(compressedBuffer);
             assert channel.position() - lastWrittenPos == compressedBuffer.limit();
             lastWrittenPos = channel.position();

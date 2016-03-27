@@ -149,7 +149,7 @@ public class OutOfSpaceTest extends CQLTester
 
         // Make sure commit log wasn't discarded.
         UUID cfid = currentTableMetadata().cfId;
-        for (CommitLogSegment segment : CommitLog.instance.allocator.getActiveSegments())
+        for (CommitLogSegment segment : CommitLog.instance.segmentManager.getActiveSegments())
             if (segment.getDirtyCFIDs().contains(cfid))
                 return;
         fail("Expected commit log to remain dirty for the affected table.");

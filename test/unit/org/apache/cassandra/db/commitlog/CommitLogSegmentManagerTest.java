@@ -23,8 +23,13 @@ package org.apache.cassandra.db.commitlog;
 import java.nio.ByteBuffer;
 import java.util.Random;
 import java.util.concurrent.Semaphore;
-
 import javax.naming.ConfigurationException;
+
+import com.google.common.collect.ImmutableMap;
+import org.junit.Assert;
+import org.junit.BeforeClass;
+import org.junit.Test;
+import org.junit.runner.RunWith;
 
 import org.apache.cassandra.SchemaLoader;
 import org.apache.cassandra.Util;
@@ -41,12 +46,6 @@ import org.apache.cassandra.db.marshal.BytesType;
 import org.apache.cassandra.schema.KeyspaceParams;
 import org.jboss.byteman.contrib.bmunit.BMRule;
 import org.jboss.byteman.contrib.bmunit.BMUnitRunner;
-import org.junit.Assert;
-import org.junit.BeforeClass;
-import org.junit.Test;
-import org.junit.runner.RunWith;
-
-import com.google.common.collect.ImmutableMap;
 
 @RunWith(BMUnitRunner.class)
 public class CommitLogSegmentManagerTest
@@ -99,9 +98,9 @@ public class CommitLogSegmentManagerTest
         });
         dummyThread.start();
 
-        CommitLogSegmentManager clsm = CommitLog.instance.allocator;
+        AbstractCommitLogSegmentManager clsm = CommitLog.instance.segmentManager;
 
-        //Protect against delay, but still break out as fast as possible
+        // Protect against delay, but still break out as fast as possible
         long start = System.currentTimeMillis();
         while (System.currentTimeMillis() - start < 5000)
         {
@@ -110,10 +109,10 @@ public class CommitLogSegmentManagerTest
         }
         Thread.sleep(1000);
 
-        //Should only be able to create 3 segments not 7 because it blocks waiting for truncation that never comes
+        // Should only be able to create 3 segments (not 7) because it blocks waiting for truncation that never comes.
         Assert.assertEquals(3, clsm.getActiveSegments().size());
 
-        clsm.getActiveSegments().forEach( segment -> clsm.recycleSegment(segment));
+        clsm.getActiveSegments().forEach(segment -> clsm.recycleSegment(segment));
 
         Util.spinAssertEquals(3, () -> clsm.getActiveSegments().size(), 5);
     }

@@ -28,7 +28,7 @@ import com.google.common.collect.PeekingIterator;
 
 import org.apache.cassandra.config.CFMetaData;
 import org.apache.cassandra.db.*;
-import org.apache.cassandra.db.commitlog.ReplayPosition;
+import org.apache.cassandra.db.commitlog.CommitLogPosition;
 import org.apache.cassandra.db.filter.*;
 import org.apache.cassandra.db.rows.*;
 import org.apache.cassandra.db.partitions.*;
@@ -94,7 +94,7 @@ public class TableViews extends AbstractCollection<View>
             viewCfs.dumpMemtable();
     }
 
-    public void truncateBlocking(ReplayPosition replayAfter, long truncatedAt)
+    public void truncateBlocking(CommitLogPosition replayAfter, long truncatedAt)
     {
         for (ColumnFamilyStore viewCfs : allViewsCfs())
         {
