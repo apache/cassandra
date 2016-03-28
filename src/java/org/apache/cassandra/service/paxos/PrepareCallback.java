@@ -59,7 +59,7 @@ public class PrepareCallback extends AbstractPaxosCallback<PrepareResponse>
     public synchronized void response(MessageIn<PrepareResponse> message)
     {
         PrepareResponse response = message.payload;
-        logger.debug("Prepare response {} from {}", response, message.from);
+        logger.trace("Prepare response {} from {}", response, message.from);
 
         // In case of clock skew, another node could be proposing with ballot that are quite a bit
         // older than our own. In that case, we record the more recent commit we've received to make
