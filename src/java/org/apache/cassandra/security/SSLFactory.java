@@ -31,6 +31,7 @@ import java.util.List;
 
 import javax.net.ssl.KeyManagerFactory;
 import javax.net.ssl.SSLContext;
+import javax.net.ssl.SSLParameters;
 import javax.net.ssl.SSLServerSocket;
 import javax.net.ssl.SSLSocket;
 import javax.net.ssl.TrustManager;
@@ -60,10 +61,9 @@ public final class SSLFactory
         SSLContext ctx = createSSLContext(options, true);
         SSLServerSocket serverSocket = (SSLServerSocket)ctx.getServerSocketFactory().createServerSocket();
         serverSocket.setReuseAddress(true);
-        String[] suites = filterCipherSuites(serverSocket.getSupportedCipherSuites(), options.cipher_suites);
-        serverSocket.setEnabledCipherSuites(suites);
-        serverSocket.setNeedClientAuth(options.require_client_auth);
+        prepareSocket(serverSocket, options);
         serverSocket.bind(new InetSocketAddress(address, port), 500);
+
         return serverSocket;
     }
 
@@ -72,8 +72,7 @@ public final class SSLFactory
     {
         SSLContext ctx = createSSLContext(options, true);
         SSLSocket socket = (SSLSocket) ctx.getSocketFactory().createSocket(address, port, localAddress, localPort);
-        String[] suites = filterCipherSuites(socket.getSupportedCipherSuites(), options.cipher_suites);
-        socket.setEnabledCipherSuites(suites);
+        prepareSocket(socket, options);
         return socket;
     }
 
@@ -82,8 +81,7 @@ public final class SSLFactory
     {
         SSLContext ctx = createSSLContext(options, true);
         SSLSocket socket = (SSLSocket) ctx.getSocketFactory().createSocket(address, port);
-        String[] suites = filterCipherSuites(socket.getSupportedCipherSuites(), options.cipher_suites);
-        socket.setEnabledCipherSuites(suites);
+        prepareSocket(socket, options);
         return socket;
     }
 
@@ -92,9 +90,35 @@ public final class SSLFactory
     {
         SSLContext ctx = createSSLContext(options, true);
         SSLSocket socket = (SSLSocket) ctx.getSocketFactory().createSocket();
-        String[] suites = filterCipherSuites(socket.getSupportedCipherSuites(), options.cipher_suites);
-        socket.setEnabledCipherSuites(suites);
+        prepareSocket(socket, options);
         return socket;
+    }
+
+    /** Sets relevant socket options specified in encryption settings */
+    private static void prepareSocket(SSLServerSocket serverSocket, EncryptionOptions options)
+    {
+        String[] suites = filterCipherSuites(serverSocket.getSupportedCipherSuites(), options.cipher_suites);
+        if(options.require_endpoint_verification)
+        {
+            SSLParameters sslParameters = serverSocket.getSSLParameters();
+            sslParameters.setEndpointIdentificationAlgorithm("HTTPS");
+            serverSocket.setSSLParameters(sslParameters);
+        }
+        serverSocket.setEnabledCipherSuites(suites);
+        serverSocket.setNeedClientAuth(options.require_client_auth);
+    }
+
+    /** Sets relevant socket options specified in encryption settings */
+    private static void prepareSocket(SSLSocket socket, EncryptionOptions options)
+    {
+        String[] suites = filterCipherSuites(socket.getSupportedCipherSuites(), options.cipher_suites);
+        if(options.require_endpoint_verification)
+        {
+            SSLParameters sslParameters = socket.getSSLParameters();
+            sslParameters.setEndpointIdentificationAlgorithm("HTTPS");
+            socket.setSSLParameters(sslParameters);
+        }
+        socket.setEnabledCipherSuites(suites);
     }
 
     @SuppressWarnings("resource")
