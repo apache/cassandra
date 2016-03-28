@@ -848,8 +848,8 @@ alterKeyspaceStatement returns [AlterKeyspaceStatement expr]
 
 /**
  * ALTER COLUMN FAMILY <CF> ALTER <column> TYPE <newtype>;
- * ALTER COLUMN FAMILY <CF> ADD <column> <newtype>;
- * ALTER COLUMN FAMILY <CF> DROP <column>;
+ * ALTER COLUMN FAMILY <CF> ADD <column> <newtype>; | ALTER COLUMN FAMILY <CF> ADD (<column> <newtype>,<column1> <newtype1>..... <column n> <newtype n>)
+ * ALTER COLUMN FAMILY <CF> DROP <column>; | ALTER COLUMN FAMILY <CF> DROP ( <column>,<column1>.....<column n>)
  * ALTER COLUMN FAMILY <CF> WITH <property> = <value>;
  * ALTER COLUMN FAMILY <CF> RENAME <column> TO <column>;
  */
@@ -858,19 +858,31 @@ alterTableStatement returns [AlterTableStatement expr]
         AlterTableStatement.Type type = null;
         TableAttributes attrs = new TableAttributes();
         Map<ColumnIdentifier.Raw, ColumnIdentifier.Raw> renames = new HashMap<ColumnIdentifier.Raw, ColumnIdentifier.Raw>();
-        boolean isStatic = false;
+        List<AlterTableStatementColumn> colNameList = new ArrayList<AlterTableStatementColumn>();
     }
     : K_ALTER K_COLUMNFAMILY cf=columnFamilyName
-          ( K_ALTER id=cident K_TYPE v=comparatorType { type = AlterTableStatement.Type.ALTER; }
-          | K_ADD   id=cident v=comparatorType ({ isStatic=true; } K_STATIC)? { type = AlterTableStatement.Type.ADD; }
-          | K_DROP  id=cident                         { type = AlterTableStatement.Type.DROP; }
+          ( K_ALTER id=cident  K_TYPE v=comparatorType  { type = AlterTableStatement.Type.ALTER; } { colNameList.add(new AlterTableStatementColumn(id,v)); }
+          | K_ADD  (        (id=cident   v=comparatorType   b1=cfisStatic { colNameList.add(new AlterTableStatementColumn(id,v,b1)); })
+                     | ('('  id1=cident  v1=comparatorType  b1=cfisStatic { colNameList.add(new AlterTableStatementColumn(id1,v1,b1)); }
+                       ( ',' idn=cident  vn=comparatorType  bn=cfisStatic { colNameList.add(new AlterTableStatementColumn(idn,vn,bn)); } )* ')' ) ) { type = AlterTableStatement.Type.ADD; }
+          | K_DROP (         id=cident  { colNameList.add(new AlterTableStatementColumn(id)); }
+                     | ('('  id1=cident { colNameList.add(new AlterTableStatementColumn(id1)); }
+                       ( ',' idn=cident { colNameList.add(new AlterTableStatementColumn(idn)); } )* ')') ) { type = AlterTableStatement.Type.DROP; }
           | K_WITH  properties[attrs]                 { type = AlterTableStatement.Type.OPTS; }
           | K_RENAME                                  { type = AlterTableStatement.Type.RENAME; }
                id1=cident K_TO toId1=cident { renames.put(id1, toId1); }
                ( K_AND idn=cident K_TO toIdn=cident { renames.put(idn, toIdn); } )*
           )
     {
-        $expr = new AlterTableStatement(cf, type, id, v, attrs, renames, isStatic);
+        $expr = new AlterTableStatement(cf, type, colNameList, attrs, renames);
+    }
+    ;
+
+cfisStatic returns [boolean isStaticColumn]
+    @init{
+        boolean isStatic = false;
+    }
+    : (K_STATIC { isStatic=true; })? { $isStaticColumn = isStatic;
     }
     ;
 

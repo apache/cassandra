@@ -324,4 +324,85 @@ public class AlterTest extends CQLTester
         createTable("CREATE TABLE %s (key blob, column1 blob, value blob, PRIMARY KEY ((key), column1)) WITH COMPACT STORAGE");
         assertInvalidThrow(InvalidRequestException.class, "ALTER TABLE %s ALTER column1 TYPE ascii");
     }
+
+    /*
+     * Test case to check addition of one column
+    */
+    @Test
+    public void testAlterAddOneColumn() throws Throwable
+    {
+        createTable("CREATE TABLE IF NOT EXISTS %s (id int, name text, PRIMARY KEY (id))");
+        alterTable("ALTER TABLE %s add mail text;");
+
+        assertColumnNames(execute("SELECT * FROM %s"), "id", "mail", "name");
+    }
+
+    /*
+     * Test case to check addition of more than one column
+     */
+    @Test
+    public void testAlterAddMultiColumn() throws Throwable
+    {
+        createTable("CREATE TABLE IF NOT EXISTS %s (id int, yearofbirth int, PRIMARY KEY (id))");
+        alterTable("ALTER TABLE %s add (firstname text, password blob, lastname text, \"SOME escaped col\" bigint)");
+
+        assertColumnNames(execute("SELECT * FROM %s"), "id", "SOME escaped col", "firstname", "lastname", "password", "yearofbirth");
+    }
+
+    /*
+     *  Should throw SyntaxException if multiple columns are added using wrong syntax.
+     *  Expected Syntax : Alter table T1 add (C1 datatype,C2 datatype,C3 datatype)
+     */
+    @Test(expected = SyntaxException.class)
+    public void testAlterAddMultiColumnWithoutBraces() throws Throwable
+    {
+        execute("ALTER TABLE %s.users add lastname text, password blob, yearofbirth int;");
+    }
+
+    /*
+     *  Test case to check deletion of one column
+     */
+    @Test
+    public void testAlterDropOneColumn() throws Throwable
+    {
+        createTable("CREATE TABLE IF NOT EXISTS %s (id text, telephone int, yearofbirth int, PRIMARY KEY (id))");
+        alterTable("ALTER TABLE %s drop telephone");
+
+        assertColumnNames(execute("SELECT * FROM %s"), "id", "yearofbirth");
+    }
+
+    @Test
+    /*
+     * Test case to check deletion of more than one column
+     */
+    public void testAlterDropMultiColumn() throws Throwable
+    {
+        createTable("CREATE TABLE IF NOT EXISTS %s (id text, address text, telephone int, yearofbirth int, \"SOME escaped col\" bigint, PRIMARY KEY (id))");
+        alterTable("ALTER TABLE %s drop (address, telephone, \"SOME escaped col\");");
+
+        assertColumnNames(execute("SELECT * FROM %s"), "id", "yearofbirth");
+    }
+
+    /*
+     *  Should throw SyntaxException if multiple columns are dropped using wrong syntax.
+     */
+    @Test(expected = SyntaxException.class)
+    public void testAlterDeletionColumnWithoutBraces() throws Throwable
+    {
+        execute("ALTER TABLE %s.users drop name,address;");
+    }
+
+    @Test(expected = InvalidRequestException.class)
+    public void testAlterAddDuplicateColumn() throws Throwable
+    {
+        createTable("CREATE TABLE IF NOT EXISTS %s (id text, address text, telephone int, yearofbirth int, PRIMARY KEY (id))");
+        execute("ALTER TABLE %s add (salary int, salary int);");
+    }
+
+    @Test(expected = InvalidRequestException.class)
+    public void testAlterDropDuplicateColumn() throws Throwable
+    {
+        createTable("CREATE TABLE IF NOT EXISTS %s (id text, address text, telephone int, yearofbirth int, PRIMARY KEY (id))");
+        execute("ALTER TABLE %s drop (address, address);");
+    }
 }

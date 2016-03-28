@@ -396,7 +396,9 @@ bc(syntax)..
 
 <instruction> ::= ALTER <identifier> TYPE <type>
                 | ADD   <identifier> <type>
+                | ADD   ( <identifier> <type> ( , <identifier> <type> )* )
                 | DROP  <identifier>
+                | DROP  ( <identifier> ( , <identifier> )* )
                 | WITH  <option> ( AND <option> )*
 p. 
 __Sample:__
@@ -2312,6 +2314,7 @@ The following describes the changes in each version of CQL.
 h3. 3.4.2
 
 * "@INSERT/UPDATE options@":#updateOptions for tables having a default_time_to_live specifying a TTL of 0 will remove the TTL from the inserted or updated values
+* "@ALTER TABLE@":#alterTableStmt @ADD@ and @DROP@ now allow mutiple columns to be added/removed
 
 h3. 3.4.1
 
