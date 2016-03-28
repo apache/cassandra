@@ -368,41 +368,50 @@ public class StressProfile implements Serializable
                     maybeLoadSchemaInfo(settings);
 
                     Set<ColumnMetadata> keyColumns = com.google.common.collect.Sets.newHashSet(tableMetaData.getPrimaryKey());
+                    Set<ColumnMetadata> allColumns = com.google.common.collect.Sets.newHashSet(tableMetaData.getColumns());
+                    boolean isKeyOnlyTable = (keyColumns.size() == allColumns.size());
+                    //With compact storage
+                    if (!isKeyOnlyTable && (keyColumns.size() == (allColumns.size() - 1)))
+                    {
+                        com.google.common.collect.Sets.SetView diff = com.google.common.collect.Sets.difference(allColumns, keyColumns);
+                        for (Object obj : diff)
+                        {
+                            ColumnMetadata col = (ColumnMetadata)obj;
+                            isKeyOnlyTable = col.getName().isEmpty();
+                            break;
+                        }
+                    }
 
                     //Non PK Columns
                     StringBuilder sb = new StringBuilder();
-
-                    sb.append("UPDATE \"").append(tableName).append("\" SET ");
-
-                    //PK Columns
-                    StringBuilder pred = new StringBuilder();
-                    pred.append(" WHERE ");
-
-                    boolean firstCol = true;
-                    boolean firstPred = true;
-                    for (ColumnMetadata c : tableMetaData.getColumns())
+                    if (!isKeyOnlyTable)
                     {
+                        sb.append("UPDATE \"").append(tableName).append("\" SET ");
+                        //PK Columns
+                        StringBuilder pred = new StringBuilder();
+                        pred.append(" WHERE ");
 
-                        if (keyColumns.contains(c))
-                        {
-                            if (firstPred)
-                                firstPred = false;
-                            else
-                                pred.append(" AND ");
+                        boolean firstCol = true;
+                        boolean firstPred = true;
+                        for (ColumnMetadata c : tableMetaData.getColumns()) {
 
-                            pred.append(c.getName()).append(" = ?");
-                        }
-                        else
-                        {
-                            if (firstCol)
-                                firstCol = false;
-                            else
-                                sb.append(",");
+                            if (keyColumns.contains(c)) {
+                                if (firstPred)
+                                    firstPred = false;
+                                else
+                                    pred.append(" AND ");
 
-                            sb.append(c.getName()).append(" = ");
+                                pred.append(c.getName()).append(" = ?");
+                            } else {
+                                if (firstCol)
+                                    firstCol = false;
+                                else
+                                    sb.append(',');
 
-                            switch (c.getType().getName())
-                            {
+                                sb.append(c.getName()).append(" = ");
+
+                                switch (c.getType().getName())
+                                {
                                 case SET:
                                 case LIST:
                                 case COUNTER:
@@ -411,12 +420,26 @@ public class StressProfile implements Serializable
                                 default:
                                     sb.append("?");
                                     break;
+                                }
                             }
                         }
-                    }
 
-                    //Put PK predicates at the end
-                    sb.append(pred);
+                        //Put PK predicates at the end
+                        sb.append(pred);
+                    }
+                    else
+                    {
+                        sb.append("INSERT INTO \"").append(tableName).append("\" (");
+                        StringBuilder value = new StringBuilder();
+                        for (ColumnMetadata c : tableMetaData.getPrimaryKey())
+                        {
+                            sb.append(c.getName()).append(", ");
+                            value.append("?, ");
+                        }
+                        sb.delete(sb.lastIndexOf(","), sb.length());
+                        value.delete(value.lastIndexOf(","), value.length());
+                        sb.append(") ").append("values(").append(value).append(')');
+                    }
 
                     if (insert == null)
                         insert = new HashMap<>();

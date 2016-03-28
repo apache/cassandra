@@ -1,4 +1,5 @@
 3.6
+ * cassandra-stress: cannot handle "value-less" tables (CASSANDRA-7739)
  * Add/drop multiple columns in one ALTER TABLE statement (CASSANDRA-10411)
  * Add require_endpoint_verification opt for internode encryption (CASSANDRA-9220)
  * Add auto import java.util for UDF code block (CASSANDRA-11392)
