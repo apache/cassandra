@@ -979,7 +979,7 @@ public class JsonTest extends CQLTester
 
     // done for CASSANDRA-11048
     @Test
-    public void testJsonTreadSafety() throws Throwable
+    public void testJsonThreadSafety() throws Throwable
     {
         int numThreads = 10;
         final int numRows = 10000;
