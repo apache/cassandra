@@ -426,7 +426,7 @@ public class ActiveRepairService
         private final Map<UUID, Set<SSTableReader>> sstableMap = new HashMap<>();
         private final long repairedAt;
         public final boolean isIncremental;
-        private final boolean isGlobal;
+        public final boolean isGlobal;
 
         public ParentRepairSession(List<ColumnFamilyStore> columnFamilyStores, Collection<Range<Token>> ranges, boolean isIncremental, boolean isGlobal, long repairedAt)
         {

@@ -108,16 +108,18 @@ public class RepairMessageVerbHandler implements IVerbHandler<RepairMessage>
                                     new Bounds<>(sstable.first.getToken(), sstable.last.getToken()).intersects(Collections.singleton(repairingRange));
                         }
                     }, true); //ephemeral snapshot, if repair fails, it will be cleaned next startup
-
-                    Set<SSTableReader> currentlyRepairing = ActiveRepairService.instance.currentlyRepairing(cfs.metadata.cfId, desc.parentSessionId);
-                    if (!Sets.intersection(currentlyRepairing, snapshottedSSSTables).isEmpty())
+                    if (ActiveRepairService.instance.getParentRepairSession(desc.parentSessionId).isGlobal)
                     {
-                        // clear snapshot that we just created
-                        cfs.clearSnapshot(desc.sessionId.toString());
-                        logErrorAndSendFailureResponse("Cannot start multiple repair sessions over the same sstables", message.from, id);
-                        return;
+                        Set<SSTableReader> currentlyRepairing = ActiveRepairService.instance.currentlyRepairing(cfs.metadata.cfId, desc.parentSessionId);
+                        if (!Sets.intersection(currentlyRepairing, snapshottedSSSTables).isEmpty())
+                        {
+                            // clear snapshot that we just created
+                            cfs.clearSnapshot(desc.sessionId.toString());
+                            logErrorAndSendFailureResponse("Cannot start multiple repair sessions over the same sstables", message.from, id);
+                            return;
+                        }
+                        ActiveRepairService.instance.getParentRepairSession(desc.parentSessionId).addSSTables(cfs.metadata.cfId, snapshottedSSSTables);
                     }
-                    ActiveRepairService.instance.getParentRepairSession(desc.parentSessionId).addSSTables(cfs.metadata.cfId, snapshottedSSSTables);
                     logger.debug("Enqueuing response to snapshot request {} to {}", desc.sessionId, message.from);
                     MessagingService.instance().sendReply(new MessageOut(MessagingService.Verb.INTERNAL_RESPONSE), id, message.from);
                     break;
