@@ -206,7 +206,7 @@ public class ConnectionHandler
             this.socket = socket;
             this.protocolVersion = protocolVersion;
 
-            new Thread(this, name() + "-" + session.peer).start();
+            new Thread(this, name() + "-" + socket.getRemoteSocketAddress()).start();
         }
 
         public ListenableFuture<?> close()
