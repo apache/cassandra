@@ -23,6 +23,8 @@ Merged from 2.2:
  * Only log yaml config once, at startup (CASSANDRA-11217)
  * Reference leak with parallel repairs on the same table (CASSANDRA-11215)
 Merged from 2.1:
+ * Add a -j parameter to scrub/cleanup/upgradesstables to state how
+   many threads to use (CASSANDRA-11179)
  * Backport CASSANDRA-10679 (CASSANDRA-9598)
  * InvalidateKeys should have a weak ref to key cache (CASSANDRA-11176)
  * COPY FROM on large datasets: fix progress report and debug performance (CASSANDRA-11053)

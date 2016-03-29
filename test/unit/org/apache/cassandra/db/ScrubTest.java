@@ -114,7 +114,7 @@ public class ScrubTest
         fillCF(cfs, 1);
         assertOrderedAll(cfs, 1);
 
-        CompactionManager.instance.performScrub(cfs, false, true);
+        CompactionManager.instance.performScrub(cfs, false, true, 2);
 
         // check data is still there
         assertOrderedAll(cfs, 1);
@@ -242,7 +242,7 @@ public class ScrubTest
         SSTableReader sstable = cfs.getLiveSSTables().iterator().next();
         overrideWithGarbage(sstable, 0, 2);
 
-        CompactionManager.instance.performScrub(cfs, false, true);
+        CompactionManager.instance.performScrub(cfs, false, true, 2);
 
         // check data is still there
         assertOrderedAll(cfs, 4);
@@ -275,7 +275,7 @@ public class ScrubTest
         fillCF(cfs, 10);
         assertOrderedAll(cfs, 10);
 
-        CompactionManager.instance.performScrub(cfs, false, true);
+        CompactionManager.instance.performScrub(cfs, false, true, 2);
 
         // check data is still there
         assertOrderedAll(cfs, 10);
@@ -296,7 +296,7 @@ public class ScrubTest
         for (SSTableReader sstable : cfs.getLiveSSTables())
             new File(sstable.descriptor.filenameFor(Component.PRIMARY_INDEX)).delete();
 
-        CompactionManager.instance.performScrub(cfs, false, true);
+        CompactionManager.instance.performScrub(cfs, false, true, 2);
 
         // check data is still there
         assertOrderedAll(cfs, 10);
@@ -500,7 +500,7 @@ public class ScrubTest
 
         QueryProcessor.executeInternal(String.format("INSERT INTO \"%s\".test_compact_static_columns (a, b, c, d) VALUES (123, c3db07e8-b602-11e3-bc6b-e0b9a54a6d93, true, 'foobar')", KEYSPACE));
         cfs.forceBlockingFlush();
-        CompactionManager.instance.performScrub(cfs, false, true);
+        CompactionManager.instance.performScrub(cfs, false, true, 2);
 
         QueryProcessor.process("CREATE TABLE \"Keyspace1\".test_scrub_validation (a text primary key, b int)", ConsistencyLevel.ONE);
         ColumnFamilyStore cfs2 = keyspace.getColumnFamilyStore("test_scrub_validation");
@@ -508,7 +508,7 @@ public class ScrubTest
         new Mutation(UpdateBuilder.create(cfs2.metadata, "key").newRow().add("b", LongType.instance.decompose(1L)).build()).apply();
         cfs2.forceBlockingFlush();
 
-        CompactionManager.instance.performScrub(cfs2, false, false);
+        CompactionManager.instance.performScrub(cfs2, false, false, 2);
     }
 
     /**
@@ -527,7 +527,7 @@ public class ScrubTest
         QueryProcessor.executeInternal(String.format("INSERT INTO \"%s\".test_compact_dynamic_columns (a, b, c) VALUES (0, 'b', 'bar')", KEYSPACE));
         QueryProcessor.executeInternal(String.format("INSERT INTO \"%s\".test_compact_dynamic_columns (a, b, c) VALUES (0, 'c', 'boo')", KEYSPACE));
         cfs.forceBlockingFlush();
-        CompactionManager.instance.performScrub(cfs, true, true);
+        CompactionManager.instance.performScrub(cfs, true, true, 2);
 
         // Scrub is silent, but it will remove broken records. So reading everything back to make sure nothing to "scrubbed away"
         UntypedResultSet rs = QueryProcessor.executeInternal(String.format("SELECT * FROM \"%s\".test_compact_dynamic_columns", KEYSPACE));
@@ -616,7 +616,7 @@ public class ScrubTest
                 { //make sure the next scrub fails
                     overrideWithGarbage(indexCfs.getLiveSSTables().iterator().next(), ByteBufferUtil.bytes(1L), ByteBufferUtil.bytes(2L));
                 }
-                CompactionManager.AllSSTableOpStatus result = indexCfs.scrub(false, false, true, true);
+                CompactionManager.AllSSTableOpStatus result = indexCfs.scrub(false, false, true, true, 0);
                 assertEquals(failure ?
                              CompactionManager.AllSSTableOpStatus.ABORTED :
                              CompactionManager.AllSSTableOpStatus.SUCCESSFUL,
