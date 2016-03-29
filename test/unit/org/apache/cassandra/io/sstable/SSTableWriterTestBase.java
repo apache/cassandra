@@ -36,6 +36,7 @@ import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.db.ColumnFamilyStore;
 import org.apache.cassandra.db.Keyspace;
 import org.apache.cassandra.db.SerializationHeader;
+import org.apache.cassandra.db.compaction.CompactionManager;
 import org.apache.cassandra.db.lifecycle.LifecycleTransaction;
 import org.apache.cassandra.db.rows.EncodingStats;
 import org.apache.cassandra.exceptions.ConfigurationException;
@@ -126,6 +127,8 @@ public class SSTableWriterTestBase extends SchemaLoader
         assertEquals(spaceUsed, cfs.metric.liveDiskSpaceUsed.getCount());
         assertEquals(spaceUsed, cfs.metric.totalDiskSpaceUsed.getCount());
         assertTrue(cfs.getTracker().getCompacting().isEmpty());
+        if(cfs.getLiveSSTables().size() > 0)
+            assertFalse(CompactionManager.instance.submitMaximal(cfs, cfs.gcBefore((int) (System.currentTimeMillis() / 1000)), false).isEmpty());
     }
 
     public static SSTableWriter getWriter(ColumnFamilyStore cfs, File directory, LifecycleTransaction txn)
