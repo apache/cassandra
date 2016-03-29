@@ -22,6 +22,7 @@ import java.util.List;
 
 import io.airlift.command.Arguments;
 import io.airlift.command.Command;
+import io.airlift.command.Option;
 import org.apache.cassandra.tools.NodeProbe;
 import org.apache.cassandra.tools.NodeTool;
 
@@ -31,6 +32,11 @@ public class RelocateSSTables extends NodeTool.NodeToolCmd
     @Arguments(usage = "<keyspace> <table>", description = "The keyspace and table name")
     private List<String> args = new ArrayList<>();
 
+    @Option(title = "jobs",
+            name = {"-j", "--jobs"},
+            description = "Number of sstables to relocate simultanously, set to 0 to use all available compaction threads")
+    private int jobs = 2;
+
     @Override
     public void execute(NodeProbe probe)
     {
@@ -39,7 +45,7 @@ public class RelocateSSTables extends NodeTool.NodeToolCmd
         try
         {
             for (String keyspace : keyspaces)
-                probe.relocateSSTables(keyspace, cfnames);
+                probe.relocateSSTables(jobs, keyspace, cfnames);
         }
         catch (Exception e)
         {

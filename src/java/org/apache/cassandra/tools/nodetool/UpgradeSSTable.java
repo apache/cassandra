@@ -36,6 +36,11 @@ public class UpgradeSSTable extends NodeToolCmd
     @Option(title = "include_all", name = {"-a", "--include-all-sstables"}, description = "Use -a to include all sstables, even those already on the current version")
     private boolean includeAll = false;
 
+    @Option(title = "jobs",
+            name = {"-j", "--jobs"},
+            description = "Number of sstables to upgrade simultanously, set to 0 to use all available compaction threads")
+    private int jobs = 2;
+
     @Override
     public void execute(NodeProbe probe)
     {
@@ -46,8 +51,9 @@ public class UpgradeSSTable extends NodeToolCmd
         {
             try
             {
-                probe.upgradeSSTables(System.out, keyspace, !includeAll, tableNames);
-            } catch (Exception e)
+                probe.upgradeSSTables(System.out, keyspace, !includeAll, jobs, tableNames);
+            }
+            catch (Exception e)
             {
                 throw new RuntimeException("Error occurred during enabling auto-compaction", e);
             }
