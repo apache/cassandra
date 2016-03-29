@@ -1377,18 +1377,18 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
         return maxFile;
     }
 
-    public CompactionManager.AllSSTableOpStatus forceCleanup() throws ExecutionException, InterruptedException
+    public CompactionManager.AllSSTableOpStatus forceCleanup(int jobs) throws ExecutionException, InterruptedException
     {
-        return CompactionManager.instance.performCleanup(ColumnFamilyStore.this);
+        return CompactionManager.instance.performCleanup(ColumnFamilyStore.this, jobs);
     }
 
-    public CompactionManager.AllSSTableOpStatus scrub(boolean disableSnapshot, boolean skipCorrupted, boolean checkData) throws ExecutionException, InterruptedException
+    public CompactionManager.AllSSTableOpStatus scrub(boolean disableSnapshot, boolean skipCorrupted, boolean checkData, int jobs) throws ExecutionException, InterruptedException
     {
-        return scrub(disableSnapshot, skipCorrupted, false, checkData);
+        return scrub(disableSnapshot, skipCorrupted, false, checkData, jobs);
     }
 
     @VisibleForTesting
-    public CompactionManager.AllSSTableOpStatus scrub(boolean disableSnapshot, boolean skipCorrupted, boolean alwaysFail, boolean checkData) throws ExecutionException, InterruptedException
+    public CompactionManager.AllSSTableOpStatus scrub(boolean disableSnapshot, boolean skipCorrupted, boolean alwaysFail, boolean checkData, int jobs) throws ExecutionException, InterruptedException
     {
         // skip snapshot creation during scrub, SEE JIRA 5891
         if(!disableSnapshot)
@@ -1396,7 +1396,7 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
 
         try
         {
-            return CompactionManager.instance.performScrub(ColumnFamilyStore.this, skipCorrupted, checkData);
+            return CompactionManager.instance.performScrub(ColumnFamilyStore.this, skipCorrupted, checkData, jobs);
         }
         catch(Throwable t)
         {
@@ -1436,14 +1436,14 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
         return CompactionManager.instance.performVerify(ColumnFamilyStore.this, extendedVerify);
     }
 
-    public CompactionManager.AllSSTableOpStatus sstablesRewrite(boolean excludeCurrentVersion) throws ExecutionException, InterruptedException
+    public CompactionManager.AllSSTableOpStatus sstablesRewrite(boolean excludeCurrentVersion, int jobs) throws ExecutionException, InterruptedException
     {
-        return CompactionManager.instance.performSSTableRewrite(ColumnFamilyStore.this, excludeCurrentVersion);
+        return CompactionManager.instance.performSSTableRewrite(ColumnFamilyStore.this, excludeCurrentVersion, jobs);
     }
 
-    public CompactionManager.AllSSTableOpStatus relocateSSTables() throws ExecutionException, InterruptedException
+    public CompactionManager.AllSSTableOpStatus relocateSSTables(int jobs) throws ExecutionException, InterruptedException
     {
-        return CompactionManager.instance.relocateSSTables(this);
+        return CompactionManager.instance.relocateSSTables(this, jobs);
     }
 
     public void markObsolete(Collection<SSTableReader> sstables, OperationType compactionType)
