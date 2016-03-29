@@ -392,30 +392,34 @@ public class CustomIndexTest extends CQLTester
     public void customExpressionsDisallowedInModifications() throws Throwable
     {
         createTable("CREATE TABLE %s (a int, b int, c int, d int, PRIMARY KEY (a, b))");
-        createIndex(String.format("CREATE CUSTOM INDEX custom_index ON %%s(c) USING '%s'", StubIndex.class.getName()));
+        String indexName = currentTable() + "_custom_index";
+        createIndex(String.format("CREATE CUSTOM INDEX %s ON %%s(c) USING '%s'",
+                                  indexName, StubIndex.class.getName()));
 
         assertInvalidThrowMessage(Server.CURRENT_VERSION,
                                   ModificationStatement.CUSTOM_EXPRESSIONS_NOT_ALLOWED,
                                   QueryValidationException.class,
-                                  "DELETE FROM %s WHERE expr(custom_index, 'foo bar baz ')");
+                                  String.format("DELETE FROM %%s WHERE expr(%s, 'foo bar baz ')", indexName));
         assertInvalidThrowMessage(Server.CURRENT_VERSION,
                                   ModificationStatement.CUSTOM_EXPRESSIONS_NOT_ALLOWED,
                                   QueryValidationException.class,
-                                  "UPDATE %s SET d=0 WHERE expr(custom_index, 'foo bar baz ')");
+                                  String.format("UPDATE %%s SET d=0 WHERE expr(%s, 'foo bar baz ')", indexName));
     }
 
     @Test
     public void indexSelectionPrefersMostSelectiveIndex() throws Throwable
     {
         createTable("CREATE TABLE %s(a int, b int, c int, PRIMARY KEY (a))");
-        createIndex(String.format("CREATE CUSTOM INDEX more_selective ON %%s(b) USING '%s'",
+        createIndex(String.format("CREATE CUSTOM INDEX %s_more_selective ON %%s(b) USING '%s'",
+                                  currentTable(),
                                   SettableSelectivityIndex.class.getName()));
-        createIndex(String.format("CREATE CUSTOM INDEX less_selective ON %%s(c) USING '%s'",
+        createIndex(String.format("CREATE CUSTOM INDEX %s_less_selective ON %%s(c) USING '%s'",
+                                  currentTable(),
                                   SettableSelectivityIndex.class.getName()));
         SettableSelectivityIndex moreSelective =
-            (SettableSelectivityIndex)getCurrentColumnFamilyStore().indexManager.getIndexByName("more_selective");
+            (SettableSelectivityIndex)getCurrentColumnFamilyStore().indexManager.getIndexByName(currentTable() + "_more_selective");
         SettableSelectivityIndex lessSelective =
-            (SettableSelectivityIndex)getCurrentColumnFamilyStore().indexManager.getIndexByName("less_selective");
+            (SettableSelectivityIndex)getCurrentColumnFamilyStore().indexManager.getIndexByName(currentTable() + "_less_selective");
         assertEquals(0, moreSelective.searchersProvided);
         assertEquals(0, lessSelective.searchersProvided);
 
@@ -437,14 +441,16 @@ public class CustomIndexTest extends CQLTester
     public void customExpressionForcesIndexSelection() throws Throwable
     {
         createTable("CREATE TABLE %s(a int, b int, c int, PRIMARY KEY (a))");
-        createIndex(String.format("CREATE CUSTOM INDEX more_selective ON %%s(b) USING '%s'",
+        createIndex(String.format("CREATE CUSTOM INDEX %s_more_selective ON %%s(b) USING '%s'",
+                                  currentTable(),
                                   SettableSelectivityIndex.class.getName()));
-        createIndex(String.format("CREATE CUSTOM INDEX less_selective ON %%s(c) USING '%s'",
+        createIndex(String.format("CREATE CUSTOM INDEX %s_less_selective ON %%s(c) USING '%s'",
+                                  currentTable(),
                                   SettableSelectivityIndex.class.getName()));
         SettableSelectivityIndex moreSelective =
-            (SettableSelectivityIndex)getCurrentColumnFamilyStore().indexManager.getIndexByName("more_selective");
+            (SettableSelectivityIndex)getCurrentColumnFamilyStore().indexManager.getIndexByName(currentTable() + "_more_selective");
         SettableSelectivityIndex lessSelective =
-            (SettableSelectivityIndex)getCurrentColumnFamilyStore().indexManager.getIndexByName("less_selective");
+            (SettableSelectivityIndex)getCurrentColumnFamilyStore().indexManager.getIndexByName(currentTable() + "_less_selective");
         assertEquals(0, moreSelective.searchersProvided);
         assertEquals(0, lessSelective.searchersProvided);
 
@@ -456,7 +462,7 @@ public class CustomIndexTest extends CQLTester
         assertEquals(0, lessSelective.searchersProvided);
 
         // when a custom expression is present, its target index should be preferred
-        execute("SELECT * FROM %s WHERE b=0 AND expr(less_selective, 'expression') ALLOW FILTERING");
+        execute(String.format("SELECT * FROM %%s WHERE b=0 AND expr(%s_less_selective, 'expression') ALLOW FILTERING", currentTable()));
         assertEquals(1, moreSelective.searchersProvided);
         assertEquals(1, lessSelective.searchersProvided);
     }
