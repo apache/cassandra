@@ -23,6 +23,7 @@ import io.airlift.command.Command;
 import java.util.ArrayList;
 import java.util.List;
 
+import io.airlift.command.Option;
 import org.apache.cassandra.db.SystemKeyspace;
 import org.apache.cassandra.tools.NodeProbe;
 import org.apache.cassandra.tools.NodeTool.NodeToolCmd;
@@ -32,6 +33,11 @@ public class Cleanup extends NodeToolCmd
 {
     @Arguments(usage = "[<keyspace> <tables>...]", description = "The keyspace followed by one or many tables")
     private List<String> args = new ArrayList<>();
+
+    @Option(title = "jobs",
+            name = {"-j", "--jobs"},
+            description = "Number of sstables to cleanup simultanously, set to 0 to use all available compaction threads")
+    private int jobs = 2;
 
     @Override
     public void execute(NodeProbe probe)
@@ -46,7 +52,7 @@ public class Cleanup extends NodeToolCmd
 
             try
             {
-                probe.forceKeyspaceCleanup(System.out, keyspace, cfnames);
+                probe.forceKeyspaceCleanup(System.out, jobs, keyspace, cfnames);
             } catch (Exception e)
             {
                 throw new RuntimeException("Error occurred during cleanup", e);
