@@ -967,6 +967,7 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
         final OpOrder.Barrier writeBarrier;
         final CountDownLatch latch = new CountDownLatch(1);
         final ReplayPosition lastReplayPosition;
+        volatile FSWriteError flushFailure = null;
 
         private PostFlush(boolean flushSecondaryIndexes, OpOrder.Barrier writeBarrier, ReplayPosition lastReplayPosition)
         {
@@ -1009,12 +1010,16 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
 
             // must check lastReplayPosition != null because Flush may find that all memtables are clean
             // and so not set a lastReplayPosition
-            if (lastReplayPosition != null)
+            // If a flush errored out but the error was ignored, make sure we don't discard the commit log.
+            if (lastReplayPosition != null && flushFailure == null)
             {
                 CommitLog.instance.discardCompletedSegments(metadata.cfId, lastReplayPosition);
             }
 
             metric.pendingFlushes.dec();
+
+            if (flushFailure != null)
+                throw flushFailure;
         }
     }
 
@@ -1114,11 +1119,20 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
 
             metric.memtableSwitchCount.inc();
 
-            for (Memtable memtable : memtables)
+            try
             {
-                // flush the memtable
-                MoreExecutors.sameThreadExecutor().execute(memtable.flushRunnable());
-                reclaim(memtable);
+                for (Memtable memtable : memtables)
+                {
+                    // flush the memtable
+                    MoreExecutors.sameThreadExecutor().execute(memtable.flushRunnable());
+                    reclaim(memtable);
+                }
+            }
+            catch (FSWriteError e)
+            {
+                JVMStabilityInspector.inspectThrowable(e);
+                // If we weren't killed, try to continue work but do not allow CommitLog to be discarded.
+                postFlush.flushFailure = e;
             }
 
             // signal the post-flush we've done our work
