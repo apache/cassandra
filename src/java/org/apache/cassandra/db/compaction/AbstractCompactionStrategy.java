@@ -263,6 +263,11 @@ public abstract class AbstractCompactionStrategy
         });
     }
 
+
+    public ScannerList getScanners(Collection<SSTableReader> sstables, Range<Token> range)
+    {
+        return range == null ? getScanners(sstables, (Collection<Range<Token>>)null) : getScanners(sstables, Collections.singleton(range));
+    }
     /**
      * Returns a list of KeyScanners given sstables and a range on which to scan.
      * The default implementation simply grab one SSTableScanner per-sstable, but overriding this method
@@ -270,14 +275,14 @@ public abstract class AbstractCompactionStrategy
      * LeveledCompactionStrategy for instance).
      */
     @SuppressWarnings("resource")
-    public ScannerList getScanners(Collection<SSTableReader> sstables, Range<Token> range)
+    public ScannerList getScanners(Collection<SSTableReader> sstables, Collection<Range<Token>> ranges)
     {
         RateLimiter limiter = CompactionManager.instance.getRateLimiter();
         ArrayList<ISSTableScanner> scanners = new ArrayList<ISSTableScanner>();
         try
         {
             for (SSTableReader sstable : sstables)
-                scanners.add(sstable.getScanner(range, limiter));
+                scanners.add(sstable.getScanner(ranges, limiter));
         }
         catch (Throwable t)
         {
@@ -349,7 +354,7 @@ public abstract class AbstractCompactionStrategy
 
     public ScannerList getScanners(Collection<SSTableReader> toCompact)
     {
-        return getScanners(toCompact, null);
+        return getScanners(toCompact, (Collection<Range<Token>>)null);
     }
 
     /**

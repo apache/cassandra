@@ -110,7 +110,10 @@ public class BigTableReader extends SSTableReader
      */
     public ISSTableScanner getScanner(Collection<Range<Token>> ranges, RateLimiter limiter)
     {
-        return BigTableScanner.getScanner(this, ranges, limiter);
+        if (ranges != null)
+            return BigTableScanner.getScanner(this, ranges, limiter);
+        else
+            return getScanner(limiter);
     }
 
 

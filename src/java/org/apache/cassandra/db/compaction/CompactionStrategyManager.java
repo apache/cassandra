@@ -353,7 +353,7 @@ public class CompactionStrategyManager implements INotificationConsumer
      *
      * Delegates the call to the compaction strategies to allow LCS to create a scanner
      * @param sstables
-     * @param range
+     * @param ranges
      * @return
      */
     @SuppressWarnings("resource")
@@ -370,25 +370,16 @@ public class CompactionStrategyManager implements INotificationConsumer
         }
 
         Set<ISSTableScanner> scanners = new HashSet<>(sstables.size());
-
-        for (Range<Token> range : ranges)
-        {
-            AbstractCompactionStrategy.ScannerList repairedScanners = repaired.getScanners(repairedSSTables, range);
-            AbstractCompactionStrategy.ScannerList unrepairedScanners = unrepaired.getScanners(unrepairedSSTables, range);
-
-            for (ISSTableScanner scanner : Iterables.concat(repairedScanners.scanners, unrepairedScanners.scanners))
-            {
-                if (!scanners.add(scanner))
-                    scanner.close();
-            }
-        }
-
+        AbstractCompactionStrategy.ScannerList repairedScanners = repaired.getScanners(repairedSSTables, ranges);
+        AbstractCompactionStrategy.ScannerList unrepairedScanners = unrepaired.getScanners(unrepairedSSTables, ranges);
+        scanners.addAll(repairedScanners.scanners);
+        scanners.addAll(unrepairedScanners.scanners);
         return new AbstractCompactionStrategy.ScannerList(new ArrayList<>(scanners));
     }
 
     public synchronized AbstractCompactionStrategy.ScannerList getScanners(Collection<SSTableReader> sstables)
     {
-        return getScanners(sstables, Collections.singleton(null));
+        return getScanners(sstables, null);
     }
 
     public Collection<Collection<SSTableReader>> groupSSTablesForAntiCompaction(Collection<SSTableReader> sstablesToGroup)
