@@ -638,6 +638,7 @@ public abstract class CQLTester
         }
         catch (Exception e)
         {
+            logger.info("Error performing schema change", e);
             throw new RuntimeException("Error setting schema for test (query was: " + query + ")", e);
         }
     }
