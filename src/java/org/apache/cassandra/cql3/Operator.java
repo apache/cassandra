@@ -25,10 +25,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 
-import org.apache.cassandra.db.marshal.AbstractType;
-import org.apache.cassandra.db.marshal.ListType;
-import org.apache.cassandra.db.marshal.MapType;
-import org.apache.cassandra.db.marshal.SetType;
+import org.apache.cassandra.db.marshal.*;
 import org.apache.cassandra.utils.ByteBufferUtil;
 
 public enum Operator
@@ -134,6 +131,14 @@ public enum Operator
         {
             return "LIKE '<term>'";
         }
+    },
+    LIKE(14)
+    {
+        @Override
+        public String toString()
+        {
+            return "LIKE";
+        }
     };
 
     /**
@@ -234,7 +239,7 @@ public enum Operator
             case LIKE_CONTAINS:
                 return ByteBufferUtil.contains(leftOperand, rightOperand);
             default:
-                // we shouldn't get CONTAINS, CONTAINS KEY, or IS NOT here
+                // we shouldn't get LIKE, CONTAINS, CONTAINS KEY, or IS NOT here
                 throw new AssertionError();
         }
     }

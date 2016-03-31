@@ -78,9 +78,11 @@ public abstract class RowFilter implements Iterable<RowFilter.Expression>
         return new ThriftFilter(new ArrayList<>(capacity));
     }
 
-    public void add(ColumnDefinition def, Operator op, ByteBuffer value)
+    public SimpleExpression add(ColumnDefinition def, Operator op, ByteBuffer value)
     {
-        add(new SimpleExpression(def, op, value));
+        SimpleExpression expression = new SimpleExpression(def, op, value);
+        add(expression);
+        return expression;
     }
 
     public void addMapEquality(ColumnDefinition def, ByteBuffer key, Operator op, ByteBuffer value)
@@ -593,9 +595,9 @@ public abstract class RowFilter implements Iterable<RowFilter.Expression>
     /**
      * An expression of the form 'column' 'op' 'value'.
      */
-    private static class SimpleExpression extends Expression
+    public static class SimpleExpression extends Expression
     {
-        public SimpleExpression(ColumnDefinition column, Operator operator, ByteBuffer value)
+        SimpleExpression(ColumnDefinition column, Operator operator, ByteBuffer value)
         {
             super(column, operator, value);
         }

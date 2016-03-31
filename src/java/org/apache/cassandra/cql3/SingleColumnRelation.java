@@ -151,9 +151,6 @@ public final class SingleColumnRelation extends Relation
         if (isIN())
             return String.format("%s IN %s", entityAsString, inValues);
 
-        if (isLIKE())
-            return String.format("%s %s", entityAsString, relationType);
-
         return String.format("%s %s %s", entityAsString, relationType, value);
     }
 

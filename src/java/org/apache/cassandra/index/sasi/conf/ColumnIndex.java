@@ -212,6 +212,9 @@ public class ColumnIndex
 
     public boolean supports(Operator op)
     {
+        if (op == Operator.LIKE)
+            return isLiteral();
+
         Op operator = Op.valueOf(op);
         return !(isTokenized && operator == Op.EQ) // EQ is only applicable to non-tokenized indexes
             && !(isLiteral() && operator == Op.RANGE) // RANGE only applicable to indexes non-literal indexes

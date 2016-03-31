@@ -44,6 +44,7 @@ import org.apache.cassandra.index.IndexNotAvailableException;
 import org.apache.cassandra.index.SecondaryIndexManager;
 import org.apache.cassandra.index.StubIndex;
 import org.apache.cassandra.index.internal.CustomCassandraIndex;
+import org.apache.cassandra.index.sasi.SASIIndex;
 import org.apache.cassandra.schema.IndexMetadata;
 import org.apache.cassandra.service.ClientState;
 import org.apache.cassandra.transport.messages.ResultMessage;
@@ -683,6 +684,69 @@ public class SecondaryIndexTest extends CQLTester
         failInsert("BEGIN BATCH\n" +
                    "INSERT INTO %s (a, b) VALUES (0, ?) IF NOT EXISTS;\n" +
                    "APPLY BATCH", map);
+    }
+
+    @Test
+    public void prepareStatementsWithLIKEClauses() throws Throwable
+    {
+        createTable("CREATE TABLE %s (a int, c1 text, c2 text, v1 text, v2 text, v3 int, PRIMARY KEY (a, c1, c2))");
+        createIndex(String.format("CREATE CUSTOM INDEX c1_idx on %%s(c1) USING '%s' WITH OPTIONS = {'mode' : 'PREFIX'}",
+                                  SASIIndex.class.getName()));
+        createIndex(String.format("CREATE CUSTOM INDEX c2_idx on %%s(c2) USING '%s' WITH OPTIONS = {'mode' : 'CONTAINS'}",
+                                  SASIIndex.class.getName()));
+        createIndex(String.format("CREATE CUSTOM INDEX v1_idx on %%s(v1) USING '%s' WITH OPTIONS = {'mode' : 'PREFIX'}",
+                                  SASIIndex.class.getName()));
+        createIndex(String.format("CREATE CUSTOM INDEX v2_idx on %%s(v2) USING '%s' WITH OPTIONS = {'mode' : 'CONTAINS'}",
+                                  SASIIndex.class.getName()));
+        createIndex(String.format("CREATE CUSTOM INDEX v3_idx on %%s(v3) USING '%s'", SASIIndex.class.getName()));
+
+        forcePreparedValues();
+        // prefix mode indexes support prefix/contains/matches
+        assertInvalidMessage("c1 LIKE '%<term>' abc is only supported on properly indexed columns",
+                             "SELECT * FROM %s WHERE c1 LIKE ?",
+                             "%abc");
+        assertInvalidMessage("c1 LIKE '%<term>%' abc is only supported on properly indexed columns",
+                             "SELECT * FROM %s WHERE c1 LIKE ?",
+                             "%abc%");
+        execute("SELECT * FROM %s WHERE c1 LIKE ?", "abc%");
+        execute("SELECT * FROM %s WHERE c1 LIKE ?", "abc");
+        assertInvalidMessage("v1 LIKE '%<term>' abc is only supported on properly indexed columns",
+                             "SELECT * FROM %s WHERE v1 LIKE ?",
+                             "%abc");
+        assertInvalidMessage("v1 LIKE '%<term>%' abc is only supported on properly indexed columns",
+                             "SELECT * FROM %s WHERE v1 LIKE ?",
+                             "%abc%");
+        execute("SELECT * FROM %s WHERE v1 LIKE ?", "abc%");
+        execute("SELECT * FROM %s WHERE v1 LIKE ?", "abc");
+
+        // contains mode indexes support suffix/contains/matches
+        assertInvalidMessage("c2 LIKE '<term>%' abc is only supported on properly indexed columns",
+                             "SELECT * FROM %s WHERE c2 LIKE ?",
+                             "abc%");
+        execute("SELECT * FROM %s WHERE c2 LIKE ?", "%abc");
+        execute("SELECT * FROM %s WHERE c2 LIKE ?", "%abc%");
+        execute("SELECT * FROM %s WHERE c2 LIKE ?", "abc");
+        assertInvalidMessage("v2 LIKE '<term>%' abc is only supported on properly indexed columns",
+                             "SELECT * FROM %s WHERE v2 LIKE ?",
+                             "abc%");
+        execute("SELECT * FROM %s WHERE v2 LIKE ?", "%abc");
+        execute("SELECT * FROM %s WHERE v2 LIKE ?", "%abc%");
+        execute("SELECT * FROM %s WHERE v2 LIKE ?", "abc");
+
+        // LIKE is not supported on indexes of non-literal values
+        // this is rejected before binding, so the value isn't available in the error message
+        assertInvalidMessage("LIKE restriction is only supported on properly indexed columns. v3 LIKE ? is not valid",
+                             "SELECT * FROM %s WHERE v3 LIKE ?",
+                             "%abc");
+        assertInvalidMessage("LIKE restriction is only supported on properly indexed columns. v3 LIKE ? is not valid",
+                             "SELECT * FROM %s WHERE v3 LIKE ?",
+                             "%abc%");
+        assertInvalidMessage("LIKE restriction is only supported on properly indexed columns. v3 LIKE ? is not valid",
+                             "SELECT * FROM %s WHERE v3 LIKE ?",
+                             "%abc%");
+        assertInvalidMessage("LIKE restriction is only supported on properly indexed columns. v3 LIKE ? is not valid",
+                             "SELECT * FROM %s WHERE v3 LIKE ?",
+                             "abc");
     }
 
     public void failInsert(String insertCQL, Object...args) throws Throwable

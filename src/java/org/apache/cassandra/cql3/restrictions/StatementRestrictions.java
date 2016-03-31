@@ -164,7 +164,9 @@ public final class StatementRestrictions
                 Restriction restriction = relation.toRestriction(cfm, boundNames);
 
                 if (!type.allowUseOfSecondaryIndices() || !restriction.hasSupportingIndex(secondaryIndexManager))
-                    throw new InvalidRequestException(relation + " restriction is only supported on properly indexed columns");
+                    throw new InvalidRequestException(String.format("LIKE restriction is only supported on properly " +
+                                                                    "indexed columns. %s is not valid.",
+                                                                    relation.toString()));
 
                 addRestriction(restriction);
             }

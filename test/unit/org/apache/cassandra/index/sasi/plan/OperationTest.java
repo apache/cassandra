@@ -577,7 +577,7 @@ public class OperationTest extends SchemaLoader
 
     private static class SimpleExpression extends RowFilter.Expression
     {
-        protected SimpleExpression(ColumnDefinition column, Operator operator, ByteBuffer value)
+        SimpleExpression(ColumnDefinition column, Operator operator, ByteBuffer value)
         {
             super(column, operator, value);
         }

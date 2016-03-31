@@ -23,10 +23,10 @@ import java.util.UUID;
 import org.junit.Test;
 
 import junit.framework.Assert;
+import org.apache.cassandra.cql3.CQLTester;
 import org.apache.cassandra.cql3.UntypedResultSet;
 import org.apache.cassandra.cql3.restrictions.StatementRestrictions;
 import org.apache.cassandra.utils.ByteBufferUtil;
-import org.apache.cassandra.cql3.CQLTester;
 
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertTrue;
@@ -2353,5 +2353,4 @@ public class SelectTest extends CQLTester
                              "SELECT * FROM %s WHERE c CONTAINS KEY ? ALLOW FILTERING",
                              unset());
     }
-
 }

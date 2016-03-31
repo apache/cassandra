@@ -156,45 +156,6 @@ options {
         return filtered;
     }
 
-    public void buildLIKERelation(WhereClause.Builder whereClause, ColumnIdentifier.Raw name, String likeValue)
-    {
-        Operator operator;
-        int beginIndex = 0;
-        int endIndex = likeValue.length() - 1;
-
-        if (likeValue.charAt(endIndex) == '\%')
-        {
-            if (likeValue.charAt(beginIndex) == '\%')
-            {
-                operator = Operator.LIKE_CONTAINS;
-                beginIndex =+ 1;
-            }
-            else
-            {
-                operator = Operator.LIKE_PREFIX;
-            }
-        }
-        else if (likeValue.charAt(beginIndex) == '\%')
-        {
-            operator = Operator.LIKE_SUFFIX;
-            beginIndex += 1;
-            endIndex += 1;
-        }
-        else
-        {
-            operator = Operator.LIKE_MATCHES;
-            endIndex += 1;
-        }
-
-        if (endIndex == 0 || beginIndex == endIndex)
-        {
-            addRecognitionError("LIKE value can't be empty.");
-            return;
-        }
-
-        String value = likeValue.substring(beginIndex, endIndex);
-        whereClause.add(new SingleColumnRelation(name, operator, Constants.Literal.string(value)));
-    }
 }
 
 /** STATEMENTS **/
@@ -1402,7 +1363,7 @@ relationType returns [Operator op]
 
 relation[WhereClause.Builder clauses]
     : name=cident type=relationType t=term { $clauses.add(new SingleColumnRelation(name, type, t)); }
-    | name=cident K_LIKE v=STRING_LITERAL { buildLIKERelation($clauses, name, $v.text); }
+    | name=cident K_LIKE t=term { $clauses.add(new SingleColumnRelation(name, Operator.LIKE, t)); }
     | name=cident K_IS K_NOT K_NULL { $clauses.add(new SingleColumnRelation(name, Operator.IS_NOT, Constants.NULL_LITERAL)); }
     | K_TOKEN l=tupleOfIdentifiers type=relationType t=term
         { $clauses.add(new TokenRelation(l, type, t)); }

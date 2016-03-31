@@ -113,7 +113,8 @@ public abstract class Relation {
         return relationType == Operator.LIKE_PREFIX
                 || relationType == Operator.LIKE_SUFFIX
                 || relationType == Operator.LIKE_CONTAINS
-                || relationType == Operator.LIKE_MATCHES;
+                || relationType == Operator.LIKE_MATCHES
+                || relationType == Operator.LIKE;
     }
 
     /**
@@ -155,6 +156,7 @@ public abstract class Relation {
             case LIKE_SUFFIX:
             case LIKE_CONTAINS:
             case LIKE_MATCHES:
+            case LIKE:
                 return newLikeRestriction(cfm, boundNames, relationType);
             default: throw invalidRequest("Unsupported \"!=\" relation: %s", this);
         }

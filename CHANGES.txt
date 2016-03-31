@@ -1,4 +1,5 @@
 3.6
+ * Support LIKE operator in prepared statements (CASSANDRA-11456)
  * Add a command to see if a Materialized View has finished building (CASSANDRA-9967)
  * Log endpoint and port associated with streaming operation (CASSANDRA-8777)
  * Print sensible units for all log messages (CASSANDRA-9692)

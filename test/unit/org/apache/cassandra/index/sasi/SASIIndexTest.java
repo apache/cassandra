@@ -1694,7 +1694,7 @@ public class SASIIndexTest
             executeCQL(CLUSTERING_CF_NAME_1 ,"SELECT * FROM %s.%s WHERE location LIKE '%%' ALLOW FILTERING");
             Assert.fail();
         }
-        catch (SyntaxException e)
+        catch (InvalidRequestException e)
         {
             Assert.assertTrue(e.getMessage().contains("empty"));
             // expected
@@ -1705,7 +1705,7 @@ public class SASIIndexTest
             executeCQL(CLUSTERING_CF_NAME_1 ,"SELECT * FROM %s.%s WHERE location LIKE '%%%%' ALLOW FILTERING");
             Assert.fail();
         }
-        catch (SyntaxException e)
+        catch (InvalidRequestException e)
         {
             Assert.assertTrue(e.getMessage().contains("empty"));
             // expected

@@ -18,7 +18,9 @@
 package org.apache.cassandra.cql3.restrictions;
 
 import java.nio.ByteBuffer;
-import java.util.*;
+import java.util.ArrayList;
+import java.util.Collections;
+import java.util.List;
 
 import com.google.common.collect.Iterables;
 
@@ -32,6 +34,8 @@ import org.apache.cassandra.db.filter.RowFilter;
 import org.apache.cassandra.exceptions.InvalidRequestException;
 import org.apache.cassandra.index.Index;
 import org.apache.cassandra.index.SecondaryIndexManager;
+import org.apache.cassandra.utils.ByteBufferUtil;
+import org.apache.cassandra.utils.Pair;
 
 import static org.apache.cassandra.cql3.statements.RequestValidations.checkBindValueSet;
 import static org.apache.cassandra.cql3.statements.RequestValidations.checkFalse;
@@ -653,6 +657,7 @@ public abstract class SingleColumnRestriction extends AbstractRestriction
 
     public static final class LikeRestriction extends SingleColumnRestriction
     {
+        private static final ByteBuffer LIKE_WILDCARD = ByteBufferUtil.bytes("%");
         private final Operator operator;
         private final Term value;
 
@@ -698,7 +703,14 @@ public abstract class SingleColumnRestriction extends AbstractRestriction
                                    SecondaryIndexManager indexManager,
                                    QueryOptions options)
         {
-            filter.add(columnDef, operator, value.bindAndGet(options));
+            Pair<Operator, ByteBuffer> operation = makeSpecific(value.bindAndGet(options));
+
+            // there must be a suitable INDEX for LIKE_XXX expressions
+            RowFilter.SimpleExpression expression = filter.add(columnDef, operation.left, operation.right);
+            indexManager.getBestIndexFor(expression)
+                        .orElseThrow(() -> new InvalidRequestException(expression.toString() +
+                                                                       " is only supported on properly" +
+                                                                       " indexed columns"));
         }
 
         @Override
@@ -726,6 +738,52 @@ public abstract class SingleColumnRestriction extends AbstractRestriction
         protected boolean isSupportedBy(Index index)
         {
             return index.supportsExpression(columnDef, operator);
+        }
+
+        /**
+         * As the specific subtype of LIKE (LIKE_PREFIX, LIKE_SUFFIX, LIKE_CONTAINS, LIKE_MATCHES) can only be
+         * determined by examining the value, which in turn can only be known after binding, all LIKE restrictions
+         * are initially created with the generic LIKE operator. This function takes the bound value, trims the
+         * wildcard '%' chars from it and returns a tuple of the inferred operator subtype and the final value
+         * @param value the bound value for the LIKE operation
+         * @return  Pair containing the inferred LIKE subtype and the value with wildcards removed
+         */
+        private static Pair<Operator, ByteBuffer> makeSpecific(ByteBuffer value)
+        {
+            Operator operator;
+            int beginIndex = value.position();
+            int endIndex = value.limit() - 1;
+            if (ByteBufferUtil.endsWith(value, LIKE_WILDCARD))
+            {
+                if (ByteBufferUtil.startsWith(value, LIKE_WILDCARD))
+                {
+                    operator = Operator.LIKE_CONTAINS;
+                    beginIndex =+ 1;
+                }
+                else
+                {
+                    operator = Operator.LIKE_PREFIX;
+                }
+            }
+            else if (ByteBufferUtil.startsWith(value, LIKE_WILDCARD))
+            {
+                operator = Operator.LIKE_SUFFIX;
+                beginIndex += 1;
+                endIndex += 1;
+            }
+            else
+            {
+                operator = Operator.LIKE_MATCHES;
+                endIndex += 1;
+            }
+
+            if (endIndex == 0 || beginIndex == endIndex)
+                throw new InvalidRequestException("LIKE value can't be empty.");
+
+            ByteBuffer newValue = value.duplicate();
+            newValue.position(beginIndex);
+            newValue.limit(endIndex);
+            return Pair.create(operator, newValue);
         }
     }
 }
