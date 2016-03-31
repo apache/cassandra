@@ -65,6 +65,10 @@ public class SettingsTransport implements Serializable
             factoryOptions.put(SSLTransportFactory.TRUSTSTORE, options.trustStore.value());
         if (transportFactory.supportedOptions().contains(SSLTransportFactory.TRUSTSTORE_PASSWORD))
             factoryOptions.put(SSLTransportFactory.TRUSTSTORE_PASSWORD, options.trustStorePw.value());
+        if (transportFactory.supportedOptions().contains(SSLTransportFactory.KEYSTORE))
+            factoryOptions.put(SSLTransportFactory.KEYSTORE, options.keyStore.value());
+        if (transportFactory.supportedOptions().contains(SSLTransportFactory.KEYSTORE_PASSWORD))
+            factoryOptions.put(SSLTransportFactory.KEYSTORE_PASSWORD, options.keyStorePw.value());
         if (transportFactory.supportedOptions().contains(SSLTransportFactory.PROTOCOL))
             factoryOptions.put(SSLTransportFactory.PROTOCOL, options.protocol.value());
         if (transportFactory.supportedOptions().contains(SSLTransportFactory.CIPHER_SUITES))
@@ -102,6 +106,16 @@ public class SettingsTransport implements Serializable
             encOptions.enabled = true;
             encOptions.truststore = options.trustStore.value();
             encOptions.truststore_password = options.trustStorePw.value();
+            if (options.keyStore.present())
+            {
+                encOptions.keystore = options.keyStore.value();
+                encOptions.keystore_password = options.keyStorePw.value();
+            }
+            else
+            {
+                // mandatory for SSLFactory.createSSLContext(), see CASSANDRA-9325
+                encOptions.keystore = encOptions.truststore;
+            }
             encOptions.algorithm = options.alg.value();
             encOptions.protocol = options.protocol.value();
             encOptions.cipher_suites = options.ciphers.value().split(",");
@@ -116,6 +130,8 @@ public class SettingsTransport implements Serializable
         final OptionSimple factory = new OptionSimple("factory=", ".*", TFramedTransportFactory.class.getName(), "Fully-qualified ITransportFactory class name for creating a connection. Note: For Thrift over SSL, use org.apache.cassandra.thrift.SSLTransportFactory.", false);
         final OptionSimple trustStore = new OptionSimple("truststore=", ".*", null, "SSL: full path to truststore", false);
         final OptionSimple trustStorePw = new OptionSimple("truststore-password=", ".*", null, "SSL: truststore password", false);
+        final OptionSimple keyStore = new OptionSimple("keystore=", ".*", null, "SSL: full path to keystore", false);
+        final OptionSimple keyStorePw = new OptionSimple("keystore-password=", ".*", null, "SSL: keystore password", false);
         final OptionSimple protocol = new OptionSimple("ssl-protocol=", ".*", "TLS", "SSL: connection protocol to use", false);
         final OptionSimple alg = new OptionSimple("ssl-alg=", ".*", "SunX509", "SSL: algorithm", false);
         final OptionSimple storeType = new OptionSimple("store-type=", ".*", "JKS", "SSL: keystore format", false);
@@ -124,7 +140,7 @@ public class SettingsTransport implements Serializable
         @Override
         public List<? extends Option> options()
         {
-            return Arrays.asList(factory, trustStore, trustStorePw, protocol, alg, storeType, ciphers);
+            return Arrays.asList(factory, trustStore, trustStorePw, keyStore, keyStorePw, protocol, alg, storeType, ciphers);
         }
     }
 
