@@ -1311,12 +1311,15 @@ public class CompactionManager implements CompactionManagerMBean
                 }
             }
 
-            Set<SSTableReader> currentlyRepairing = ActiveRepairService.instance.currentlyRepairing(cfs.metadata.cfId, validator.desc.parentSessionId);
-
-            if (!Sets.intersection(currentlyRepairing, sstablesToValidate).isEmpty())
+            if (prs.isGlobal)
             {
-                logger.error("Cannot start multiple repair sessions over the same sstables");
-                throw new RuntimeException("Cannot start multiple repair sessions over the same sstables");
+                Set<SSTableReader> currentlyRepairing = ActiveRepairService.instance.currentlyRepairing(cfs.metadata.cfId, validator.desc.parentSessionId);
+
+                if (!Sets.intersection(currentlyRepairing, sstablesToValidate).isEmpty())
+                {
+                    logger.error("Cannot start multiple repair sessions over the same sstables");
+                    throw new RuntimeException("Cannot start multiple repair sessions over the same sstables");
+                }
             }
 
             sstables = Refs.tryRef(sstablesToValidate);
@@ -1326,8 +1329,8 @@ public class CompactionManager implements CompactionManagerMBean
                 throw new RuntimeException("Could not reference sstables");
             }
         }
-
-        prs.addSSTables(cfs.metadata.cfId, sstablesToValidate);
+        if (prs.isGlobal)
+            prs.addSSTables(cfs.metadata.cfId, sstablesToValidate);
 
         return sstables;
     }
