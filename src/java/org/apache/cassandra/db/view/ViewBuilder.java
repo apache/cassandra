@@ -42,6 +42,7 @@ import org.apache.cassandra.dht.Range;
 import org.apache.cassandra.dht.Token;
 import org.apache.cassandra.io.sstable.ReducingKeyIterator;
 import org.apache.cassandra.io.sstable.format.SSTableReader;
+import org.apache.cassandra.repair.SystemDistributedKeyspace;
 import org.apache.cassandra.service.StorageProxy;
 import org.apache.cassandra.service.StorageService;
 import org.apache.cassandra.service.pager.QueryPager;
@@ -102,10 +103,15 @@ public class ViewBuilder extends CompactionInfo.Holder
 
     public void run()
     {
+        UUID localHostId = SystemKeyspace.getLocalHostId();
         String ksname = baseCfs.metadata.ksName, viewName = view.name;
 
         if (SystemKeyspace.isViewBuilt(ksname, viewName))
+        {
+            if (!SystemKeyspace.isViewStatusReplicated(ksname, viewName))
+                updateDistributed(ksname, viewName, localHostId);
             return;
+        }
 
         Iterable<Range<Token>> ranges = StorageService.instance.getLocalRanges(baseCfs.metadata.ksName);
         final Pair<Integer, Token> buildStatus = SystemKeyspace.getViewBuildStatus(ksname, viewName);
@@ -148,6 +154,7 @@ public class ViewBuilder extends CompactionInfo.Holder
         try (Refs<SSTableReader> sstables = baseCfs.selectAndReference(function).refs;
              ReducingKeyIterator iter = new ReducingKeyIterator(sstables))
         {
+            SystemDistributedKeyspace.startViewBuild(ksname, viewName, localHostId);
             while (!isStopped && iter.hasNext())
             {
                 DecoratedKey key = iter.next();
@@ -172,16 +179,33 @@ public class ViewBuilder extends CompactionInfo.Holder
             }
 
             if (!isStopped)
-            SystemKeyspace.finishViewBuildStatus(ksname, viewName);
-
+            {
+                SystemKeyspace.finishViewBuildStatus(ksname, viewName);
+                updateDistributed(ksname, viewName, localHostId);
+            }
         }
         catch (Exception e)
         {
-            final ViewBuilder builder = new ViewBuilder(baseCfs, view);
-            ScheduledExecutors.nonPeriodicTasks.schedule(() -> CompactionManager.instance.submitViewBuilder(builder),
+            ScheduledExecutors.nonPeriodicTasks.schedule(() -> CompactionManager.instance.submitViewBuilder(this),
                                                          5,
                                                          TimeUnit.MINUTES);
             logger.warn("Materialized View failed to complete, sleeping 5 minutes before restarting", e);
+        }
+    }
+
+    private void updateDistributed(String ksname, String viewName, UUID localHostId)
+    {
+        try
+        {
+            SystemDistributedKeyspace.successfulViewBuild(ksname, viewName, localHostId);
+            SystemKeyspace.setViewBuiltReplicated(ksname, viewName);
+        }
+        catch (Exception e)
+        {
+            ScheduledExecutors.nonPeriodicTasks.schedule(() -> CompactionManager.instance.submitViewBuilder(this),
+                                                         5,
+                                                         TimeUnit.MINUTES);
+            logger.warn("Failed to updated the distributed status of view, sleeping 5 minutes before retrying", e);
         }
     }
 

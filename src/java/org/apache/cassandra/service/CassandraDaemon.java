@@ -318,21 +318,6 @@ public class CassandraDaemon
             }
         }
 
-        Runnable viewRebuild = new Runnable()
-        {
-            @Override
-            public void run()
-            {
-                for (Keyspace keyspace : Keyspace.all())
-                {
-                    keyspace.viewManager.buildAllViews();
-                }
-            }
-        };
-
-        ScheduledExecutors.optionalTasks.schedule(viewRebuild, StorageService.RING_DELAY, TimeUnit.MILLISECONDS);
-
-
         SystemKeyspace.finishStartup();
 
         // Metrics
@@ -362,6 +347,17 @@ public class CassandraDaemon
             System.err.println(e.getMessage() + "\nFatal configuration error; unable to start server.  See log for stacktrace.");
             exitOrFail(1, "Fatal configuration error", e);
         }
+
+        // Because we are writing to the system_distributed keyspace, this should happen after that is created, which
+        // happens in StorageService.instance.initServer()
+        Runnable viewRebuild = () -> {
+            for (Keyspace keyspace : Keyspace.all())
+            {
+                keyspace.viewManager.buildAllViews();
+            }
+        };
+
+        ScheduledExecutors.optionalTasks.schedule(viewRebuild, StorageService.RING_DELAY, TimeUnit.MILLISECONDS);
 
         Mx4jTool.maybeLoad();
 

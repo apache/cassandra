@@ -23,12 +23,15 @@ import java.net.InetAddress;
 import java.nio.ByteBuffer;
 import java.util.ArrayList;
 import java.util.Collection;
+import java.util.Collections;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.UUID;
 
 import com.google.common.base.Joiner;
+import com.google.common.collect.Lists;
 import com.google.common.collect.Sets;
 
 import org.slf4j.Logger;
@@ -36,15 +39,18 @@ import org.slf4j.LoggerFactory;
 
 import org.apache.cassandra.config.CFMetaData;
 import org.apache.cassandra.cql3.QueryProcessor;
+import org.apache.cassandra.cql3.UntypedResultSet;
 import org.apache.cassandra.db.ConsistencyLevel;
+import org.apache.cassandra.db.Keyspace;
 import org.apache.cassandra.dht.Range;
 import org.apache.cassandra.dht.Token;
 import org.apache.cassandra.repair.messages.RepairOption;
 import org.apache.cassandra.schema.KeyspaceMetadata;
 import org.apache.cassandra.schema.KeyspaceParams;
 import org.apache.cassandra.schema.Tables;
-import org.apache.cassandra.utils.ByteBufferUtil;
 import org.apache.cassandra.utils.FBUtilities;
+
+import static org.apache.cassandra.utils.ByteBufferUtil.bytes;
 
 public final class SystemDistributedKeyspace
 {
@@ -59,6 +65,8 @@ public final class SystemDistributedKeyspace
     public static final String REPAIR_HISTORY = "repair_history";
 
     public static final String PARENT_REPAIR_HISTORY = "parent_repair_history";
+
+    public static final String VIEW_BUILD_STATUS = "view_build_status";
 
     private static final CFMetaData RepairHistory =
         compile(REPAIR_HISTORY,
@@ -95,6 +103,16 @@ public final class SystemDistributedKeyspace
                      + "options map<text, text>,"
                      + "PRIMARY KEY (parent_id))");
 
+    private static final CFMetaData ViewBuildStatus =
+    compile(VIEW_BUILD_STATUS,
+            "Materialized View build status",
+            "CREATE TABLE %s ("
+                     + "keyspace_name text,"
+                     + "view_name text,"
+                     + "host_id uuid,"
+                     + "status text,"
+                     + "PRIMARY KEY ((keyspace_name, view_name), host_id))");
+
     private static CFMetaData compile(String name, String description, String schema)
     {
         return CFMetaData.compile(String.format(schema, name), NAME)
@@ -103,7 +121,7 @@ public final class SystemDistributedKeyspace
 
     public static KeyspaceMetadata metadata()
     {
-        return KeyspaceMetadata.create(NAME, KeyspaceParams.simple(3), Tables.of(RepairHistory, ParentRepairHistory));
+        return KeyspaceMetadata.create(NAME, KeyspaceParams.simple(3), Tables.of(RepairHistory, ParentRepairHistory, ViewBuildStatus));
     }
 
     public static void startParentRepair(UUID parent_id, String keyspaceName, String[] cfnames, RepairOption options)
@@ -220,6 +238,58 @@ public final class SystemDistributedKeyspace
         processSilent(fmtQry, t.getMessage(), sw.toString());
     }
 
+    public static void startViewBuild(String keyspace, String view, UUID hostId)
+    {
+        String query = "INSERT INTO %s.%s (keyspace_name, view_name, host_id, status) VALUES (?, ?, ?, ?)";
+        QueryProcessor.process(String.format(query, NAME, VIEW_BUILD_STATUS),
+                               ConsistencyLevel.ONE,
+                               Lists.newArrayList(bytes(keyspace),
+                                                  bytes(view),
+                                                  bytes(hostId),
+                                                  bytes(BuildStatus.STARTED.toString())));
+    }
+
+    public static void successfulViewBuild(String keyspace, String view, UUID hostId)
+    {
+        String query = "UPDATE %s.%s SET status = ? WHERE keyspace_name = ? AND view_name = ? AND host_id = ?";
+        QueryProcessor.process(String.format(query, NAME, VIEW_BUILD_STATUS),
+                               ConsistencyLevel.ONE,
+                               Lists.newArrayList(bytes(BuildStatus.SUCCESS.toString()),
+                                                  bytes(keyspace),
+                                                  bytes(view),
+                                                  bytes(hostId)));
+    }
+
+    public static Map<UUID, String> viewStatus(String keyspace, String view)
+    {
+        String query = "SELECT host_id, status FROM %s.%s WHERE keyspace_name = ? AND view_name = ?";
+        UntypedResultSet results;
+        try
+        {
+            results = QueryProcessor.execute(String.format(query, NAME, VIEW_BUILD_STATUS),
+                                             ConsistencyLevel.ONE,
+                                             keyspace,
+                                             view);
+        } catch (Exception e) {
+            return Collections.emptyMap();
+        }
+
+
+        Map<UUID, String> status = new HashMap<>();
+        for (UntypedResultSet.Row row : results)
+        {
+            status.put(row.getUUID("host_id"), row.getString("status"));
+        }
+        return status;
+    }
+
+    public static void setViewRemoved(String keyspaceName, String viewName)
+    {
+        String buildReq = "DELETE FROM %s.%s WHERE keyspace_name = ? AND view_name = ?";
+        QueryProcessor.executeInternal(String.format(buildReq, NAME, VIEW_BUILD_STATUS), keyspaceName, viewName);
+        forceBlockingFlush(VIEW_BUILD_STATUS);
+    }
+
     private static void processSilent(String fmtQry, String... values)
     {
         try
@@ -227,7 +297,7 @@ public final class SystemDistributedKeyspace
             List<ByteBuffer> valueList = new ArrayList<>();
             for (String v : values)
             {
-                valueList.add(ByteBufferUtil.bytes(v));
+                valueList.add(bytes(v));
             }
             QueryProcessor.process(fmtQry, ConsistencyLevel.ONE, valueList);
         }
@@ -237,9 +307,19 @@ public final class SystemDistributedKeyspace
         }
     }
 
+    public static void forceBlockingFlush(String table)
+    {
+        if (!Boolean.getBoolean("cassandra.unsafesystem"))
+            FBUtilities.waitOnFuture(Keyspace.open(NAME).getColumnFamilyStore(table).forceFlush());
+    }
 
     private enum RepairState
     {
         STARTED, SUCCESS, FAILED
+    }
+
+    private enum BuildStatus
+    {
+        UNKNOWN, STARTED, SUCCESS
     }
 }

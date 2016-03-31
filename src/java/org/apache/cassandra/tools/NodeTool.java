@@ -139,7 +139,8 @@ public class NodeTool
                 EnableHintsForDC.class,
                 FailureDetectorInfo.class,
                 RefreshSizeEstimates.class,
-                RelocateSSTables.class
+                RelocateSSTables.class,
+                ViewBuildStatus.class
         );
 
         Cli.CliBuilder<Runnable> builder = Cli.builder("nodetool");
