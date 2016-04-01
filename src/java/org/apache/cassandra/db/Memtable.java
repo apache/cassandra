@@ -24,6 +24,7 @@ import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.AtomicReference;
 
 import com.google.common.annotations.VisibleForTesting;
+import com.google.common.base.Throwables;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -44,6 +45,7 @@ import org.apache.cassandra.db.rows.UnfilteredRowIterators;
 import org.apache.cassandra.dht.*;
 import org.apache.cassandra.dht.Murmur3Partitioner.LongToken;
 import org.apache.cassandra.index.transactions.UpdateTransaction;
+import org.apache.cassandra.io.FSWriteError;
 import org.apache.cassandra.io.sstable.Descriptor;
 import org.apache.cassandra.io.sstable.SSTableMultiWriter;
 import org.apache.cassandra.io.sstable.SSTableTxnWriter;
@@ -274,13 +276,28 @@ public class Memtable implements Comparable<Memtable>
         List<FlushRunnable> runnables = new ArrayList<>(boundaries.size());
         PartitionPosition rangeStart = cfs.getPartitioner().getMinimumToken().minKeyBound();
         ReplayPosition context = lastReplayPosition.get();
-        for (int i = 0; i < boundaries.size(); i++)
+        try
         {
-            PartitionPosition t = boundaries.get(i);
-            runnables.add(new FlushRunnable(context, rangeStart, t, locations[i], txn));
-            rangeStart = t;
+            for (int i = 0; i < boundaries.size(); i++)
+            {
+                PartitionPosition t = boundaries.get(i);
+                runnables.add(new FlushRunnable(context, rangeStart, t, locations[i], txn));
+                rangeStart = t;
+            }
+            return runnables;
         }
-        return runnables;
+        catch (Throwable e)
+        {
+            throw Throwables.propagate(abortRunnables(runnables, e));
+        }
+    }
+
+    public Throwable abortRunnables(List<FlushRunnable> runnables, Throwable t)
+    {
+        if (runnables != null)
+            for (FlushRunnable runnable : runnables)
+                t = runnable.writer.abort(t);
+        return t;
     }
 
     public String toString()
@@ -389,7 +406,7 @@ public class Memtable implements Comparable<Memtable>
             this.isBatchLogTable = cfs.name.equals(SystemKeyspace.BATCHES) && cfs.keyspace.getName().equals(SystemKeyspace.NAME);
 
             if (flushLocation == null)
-                writer = createFlushWriter(txn, cfs.getSSTablePath(getDirectories().getLocationForDisk(getDirectories().getWriteableLocation(estimatedSize))), columnsCollector.get(), statsCollector.get());
+                writer = createFlushWriter(txn, cfs.getSSTablePath(getDirectories().getWriteableLocationAsFile(estimatedSize)), columnsCollector.get(), statsCollector.get());
             else
                 writer = createFlushWriter(txn, cfs.getSSTablePath(getDirectories().getLocationForDisk(flushLocation)), columnsCollector.get(), statsCollector.get());
 

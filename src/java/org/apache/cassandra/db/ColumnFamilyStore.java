@@ -921,6 +921,7 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
         final OpOrder.Barrier writeBarrier;
         final CountDownLatch latch = new CountDownLatch(1);
         final ReplayPosition lastReplayPosition;
+        volatile Throwable flushFailure = null;
 
         private PostFlush(boolean flushSecondaryIndexes, OpOrder.Barrier writeBarrier, ReplayPosition lastReplayPosition)
         {
@@ -956,12 +957,16 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
 
             // must check lastReplayPosition != null because Flush may find that all memtables are clean
             // and so not set a lastReplayPosition
-            if (lastReplayPosition != null)
+            // If a flush errored out but the error was ignored, make sure we don't discard the commit log.
+            if (lastReplayPosition != null && flushFailure == null)
             {
                 CommitLog.instance.discardCompletedSegments(metadata.cfId, lastReplayPosition);
             }
 
             metric.pendingFlushes.dec();
+
+            if (flushFailure != null)
+                throw Throwables.propagate(flushFailure);
         }
     }
 
@@ -1061,84 +1066,109 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
 
             metric.memtableSwitchCount.inc();
 
-            for (Memtable memtable : memtables)
+            try
             {
-                List<Future<SSTableMultiWriter>> futures = new ArrayList<>();
-                long totalBytesOnDisk = 0;
-                long maxBytesOnDisk = 0;
-                long minBytesOnDisk = Long.MAX_VALUE;
-                List<SSTableReader> sstables = new ArrayList<>();
-                try (LifecycleTransaction txn = LifecycleTransaction.offline(OperationType.FLUSH))
+                for (Memtable memtable : memtables)
+                {
+                    flushMemtable(memtable);
+                }
+            }
+            catch (Throwable t)
+            {
+                JVMStabilityInspector.inspectThrowable(t);
+                postFlush.flushFailure = t;
+            }
+            // signal the post-flush we've done our work
+            postFlush.latch.countDown();
+        }
+
+        public void flushMemtable(Memtable memtable)
+        {
+            List<Future<SSTableMultiWriter>> futures = new ArrayList<>();
+            long totalBytesOnDisk = 0;
+            long maxBytesOnDisk = 0;
+            long minBytesOnDisk = Long.MAX_VALUE;
+            List<SSTableReader> sstables = new ArrayList<>();
+            try (LifecycleTransaction txn = LifecycleTransaction.offline(OperationType.FLUSH))
+            {
+                List<Memtable.FlushRunnable> flushRunnables = null;
+                List<SSTableMultiWriter> flushResults = null;
+
+                try
                 {
                     // flush the memtable
-                    List<Memtable.FlushRunnable> flushRunnables = memtable.flushRunnables(txn);
+                    flushRunnables = memtable.flushRunnables(txn);
 
                     for (int i = 0; i < flushRunnables.size(); i++)
                         futures.add(perDiskflushExecutors[i].submit(flushRunnables.get(i)));
 
-                    List<SSTableMultiWriter> flushResults = Lists.newArrayList(FBUtilities.waitOnFutures(futures));
+                    flushResults = Lists.newArrayList(FBUtilities.waitOnFutures(futures));
+                }
+                catch (Throwable t)
+                {
+                    t = memtable.abortRunnables(flushRunnables, t);
+                    t = txn.abort(t);
+                    throw Throwables.propagate(t);
+                }
 
-                    try
+                try
+                {
+                    Iterator<SSTableMultiWriter> writerIterator = flushResults.iterator();
+                    while (writerIterator.hasNext())
                     {
-                        Iterator<SSTableMultiWriter> writerIterator = flushResults.iterator();
-                        while (writerIterator.hasNext())
+                        @SuppressWarnings("resource")
+                        SSTableMultiWriter writer = writerIterator.next();
+                        if (writer.getFilePointer() > 0)
                         {
-                            @SuppressWarnings("resource")
-                            SSTableMultiWriter writer = writerIterator.next();
-                            if (writer.getFilePointer() > 0)
-                            {
-                                writer.setOpenResult(true).prepareToCommit();
-                            }
-                            else
-                            {
-                                maybeFail(writer.abort(null));
-                                writerIterator.remove();
-                            }
+                            writer.setOpenResult(true).prepareToCommit();
                         }
-                    }
-                    catch (Throwable t)
-                    {
-                        for (SSTableMultiWriter writer : flushResults)
-                            t = writer.abort(t);
-                        t = txn.abort(t);
-                        Throwables.propagate(t);
-                    }
-
-                    txn.prepareToCommit();
-
-                    Throwable accumulate = null;
-                    for (SSTableMultiWriter writer : flushResults)
-                        accumulate = writer.commit(accumulate);
-
-                    maybeFail(txn.commit(accumulate));
-
-                    for (SSTableMultiWriter writer : flushResults)
-                    {
-                        Collection<SSTableReader> flushedSSTables = writer.finished();
-                        for (SSTableReader sstable : flushedSSTables)
+                        else
                         {
-                            if (sstable != null)
-                            {
-                                sstables.add(sstable);
-                                long size = sstable.bytesOnDisk();
-                                totalBytesOnDisk += size;
-                                maxBytesOnDisk = Math.max(maxBytesOnDisk, size);
-                                minBytesOnDisk = Math.min(minBytesOnDisk, size);
-                            }
+                            maybeFail(writer.abort(null));
+                            writerIterator.remove();
                         }
                     }
                 }
-                memtable.cfs.replaceFlushed(memtable, sstables);
-                reclaim(memtable);
+                catch (Throwable t)
+                {
+                    for (SSTableMultiWriter writer : flushResults)
+                        t = writer.abort(t);
+                    t = txn.abort(t);
+                    Throwables.propagate(t);
+                }
+
+                txn.prepareToCommit();
+
+                Throwable accumulate = null;
+                for (SSTableMultiWriter writer : flushResults)
+                    accumulate = writer.commit(accumulate);
+
+                maybeFail(txn.commit(accumulate));
+
+                for (SSTableMultiWriter writer : flushResults)
+                {
+                    Collection<SSTableReader> flushedSSTables = writer.finished();
+                    for (SSTableReader sstable : flushedSSTables)
+                    {
+                        if (sstable != null)
+                        {
+                            sstables.add(sstable);
+                            long size = sstable.bytesOnDisk();
+                            totalBytesOnDisk += size;
+                            maxBytesOnDisk = Math.max(maxBytesOnDisk, size);
+                            minBytesOnDisk = Math.min(minBytesOnDisk, size);
+                        }
+                    }
+                }
+            }
+            memtable.cfs.replaceFlushed(memtable, sstables);
+            reclaim(memtable);
                 logger.debug("Flushed to {} ({} sstables, {}), biggest {}, smallest {}",
                              sstables,
                              sstables.size(),
                              FBUtilities.prettyPrintMemory(totalBytesOnDisk),
                              FBUtilities.prettyPrintMemory(maxBytesOnDisk),
                              FBUtilities.prettyPrintMemory(minBytesOnDisk));
-            }
-            // signal the post-flush we've done our work
-            postFlush.latch.countDown();
         }
 
         private void reclaim(final Memtable memtable)
