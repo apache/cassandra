@@ -320,7 +320,7 @@ public class Directories
      * which may return any non-blacklisted directory - even a data directory that has no usable space.
      * Do not use this method in production code.
      *
-     * @throws IOError if all directories are blacklisted.
+     * @throws FSWriteError if all directories are blacklisted.
      */
     public File getDirectoryForNewSSTables()
     {
@@ -330,11 +330,14 @@ public class Directories
     /**
      * Returns a non-blacklisted data directory that _currently_ has {@code writeSize} bytes as usable space.
      *
-     * @throws IOError if all directories are blacklisted.
+     * @throws FSWriteError if all directories are blacklisted.
      */
     public File getWriteableLocationAsFile(long writeSize)
     {
-        return getLocationForDisk(getWriteableLocation(writeSize));
+        File location = getLocationForDisk(getWriteableLocation(writeSize));
+        if (location == null)
+            throw new FSWriteError(new IOException("No configured data directory contains enough space to write " + writeSize + " bytes"), "");
+        return location;
     }
 
     /**
@@ -366,9 +369,10 @@ public class Directories
     }
 
     /**
-     * Returns a non-blacklisted data directory that _currently_ has {@code writeSize} bytes as usable space.
+     * Returns a non-blacklisted data directory that _currently_ has {@code writeSize} bytes as usable space, null if
+     * there is not enough space left in all directories.
      *
-     * @throws IOError if all directories are blacklisted.
+     * @throws FSWriteError if all directories are blacklisted.
      */
     public DataDirectory getWriteableLocation(long writeSize)
     {
@@ -401,7 +405,7 @@ public class Directories
             if (tooBig)
                 return null;
             else
-                throw new IOError(new IOException("All configured data directories have been blacklisted as unwritable for erroring out"));
+                throw new FSWriteError(new IOException("All configured data directories have been blacklisted as unwritable for erroring out"), "");
 
         // shortcut for single data directory systems
         if (candidates.size() == 1)
