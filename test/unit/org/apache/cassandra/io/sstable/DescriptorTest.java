@@ -30,8 +30,7 @@ import org.apache.cassandra.io.sstable.format.SSTableFormat;
 import org.apache.cassandra.utils.ByteBufferUtil;
 import org.apache.cassandra.utils.Pair;
 
-import static org.junit.Assert.assertEquals;
-import static org.junit.Assert.assertNull;
+import static org.junit.Assert.*;
 
 public class DescriptorTest
 {
@@ -116,23 +115,38 @@ public class DescriptorTest
     }
 
     @Test
+    public void testEquality()
+    {
+        // Descriptor should be equal when parent directory points to the same directory
+        File dir = new File(".");
+        Descriptor desc1 = new Descriptor(dir, "ks", "cf", 1);
+        Descriptor desc2 = new Descriptor(dir.getAbsoluteFile(), "ks", "cf", 1);
+        assertEquals(desc1, desc2);
+        assertEquals(desc1.hashCode(), desc2.hashCode());
+    }
+
+    @Test
     public void validateNames()
     {
-
-        String names[] = {
-            /*"system-schema_keyspaces-ka-1-CompressionInfo.db",  "system-schema_keyspaces-ka-1-Summary.db",
-            "system-schema_keyspaces-ka-1-Data.db",             "system-schema_keyspaces-ka-1-TOC.txt",
-            "system-schema_keyspaces-ka-1-Digest.sha1",         "system-schema_keyspaces-ka-2-CompressionInfo.db",
-            "system-schema_keyspaces-ka-1-Filter.db",           "system-schema_keyspaces-ka-2-Data.db",
-            "system-schema_keyspaces-ka-1-Index.db",            "system-schema_keyspaces-ka-2-Digest.sha1",
-            "system-schema_keyspaces-ka-1-Statistics.db",
-            "system-schema_keyspacest-tmp-ka-1-Data.db",*/
-            "system-schema_keyspace-ka-1-"+ SSTableFormat.Type.BIG.name+"-Data.db"
+        // TODO tmp file name probably is not handled correctly after CASSANDRA-7066
+        String[] names = {
+             // old formats
+             "system-schema_keyspaces-jb-1-Data.db",
+             //"system-schema_keyspaces-tmp-jb-1-Data.db",
+             "system-schema_keyspaces-ka-1-big-Data.db",
+             //"system-schema_keyspaces-tmp-ka-1-big-Data.db",
+             // 2ndary index
+             "keyspace1-standard1.idx1-ka-1-big-Data.db",
+             // new formats
+             "la-1-big-Data.db",
+             //"tmp-la-1-big-Data.db",
+             // 2ndary index
+             ".idx1" + File.separator + "la-1-big-Data.db",
         };
 
         for (String name : names)
         {
-            Descriptor d = Descriptor.fromFilename(name);
+            assertNotNull(Descriptor.fromFilename(name));
         }
     }
 

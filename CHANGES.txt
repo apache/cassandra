@@ -17,6 +17,7 @@ Merged from 3.0:
  * Fix filtering on non-primary key columns for queries without index (CASSANDRA-6377)
  * Fix sstableloader fail when using materialized view (CASSANDRA-11275)
 Merged from 2.2:
+ * Use canonical path for directory in SSTable descriptor (CASSANDRA-10587)
  * Add cassandra-stress keystore option (CASSANDRA-9325)
  * Dont mark sstables as repairing with sub range repairs (CASSANDRA-11451)
  * Notify when sstables change after cancelling compaction (CASSANDRA-11373)
