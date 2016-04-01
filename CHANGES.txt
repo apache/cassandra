@@ -77,6 +77,7 @@ Merged from 2.2:
    (CASSANDRA-10010)
  * cqlsh: change default encoding to UTF-8 (CASSANDRA-11124)
 Merged from 2.1:
+ * Fix out-of-space error treatment in memtable flushing (CASSANDRA-11448).
  * Don't do defragmentation if reading from repaired sstables (CASSANDRA-10342)
  * Fix streaming_socket_timeout_in_ms not enforced (CASSANDRA-11286)
  * Avoid dropping message too quickly due to missing unit conversion (CASSANDRA-11302)

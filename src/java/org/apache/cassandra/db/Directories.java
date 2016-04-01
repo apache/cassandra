@@ -387,7 +387,7 @@ public class Directories
             if (tooBig)
                 return null;
             else
-                throw new IOError(new IOException("All configured data directories have been blacklisted as unwritable for erroring out"));
+                throw new FSWriteError(new IOException("All configured data directories have been blacklisted as unwritable for erroring out"), "");
 
         // shortcut for single data directory systems
         if (candidates.size() == 1)
