@@ -97,7 +97,7 @@ public class DropIndexStatement extends SchemaAlteringStatement
 
         CFMetaData updatedCfm = updateCFMetadata(cfm);
         indexedCF = updatedCfm.cfName;
-        MigrationManager.announceColumnFamilyUpdate(updatedCfm, false, isLocalOnly);
+        MigrationManager.announceColumnFamilyUpdate(updatedCfm, isLocalOnly);
         return true;
     }
 

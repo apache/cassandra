@@ -113,7 +113,7 @@ public abstract class AlterTypeStatement extends SchemaAlteringStatement
             for (ColumnDefinition def : copy.allColumns())
                 modified |= updateDefinition(copy, def, toUpdate.keyspace, toUpdate.name, updated);
             if (modified)
-                MigrationManager.announceColumnFamilyUpdate(copy, false, isLocalOnly);
+                MigrationManager.announceColumnFamilyUpdate(copy, isLocalOnly);
         }
 
         // Other user types potentially using the updated type

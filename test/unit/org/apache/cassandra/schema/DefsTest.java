@@ -462,22 +462,22 @@ public class DefsTest
 
         // test valid operations.
         newCfm.comment("Modified comment");
-        MigrationManager.announceColumnFamilyUpdate(newCfm, false); // doesn't get set back here.
+        MigrationManager.announceColumnFamilyUpdate(newCfm); // doesn't get set back here.
 
         newCfm.readRepairChance(0.23);
-        MigrationManager.announceColumnFamilyUpdate(newCfm, false);
+        MigrationManager.announceColumnFamilyUpdate(newCfm);
 
         newCfm.gcGraceSeconds(12);
-        MigrationManager.announceColumnFamilyUpdate(newCfm, false);
+        MigrationManager.announceColumnFamilyUpdate(newCfm);
 
         newCfm.defaultValidator(UTF8Type.instance);
-        MigrationManager.announceColumnFamilyUpdate(newCfm, false);
+        MigrationManager.announceColumnFamilyUpdate(newCfm);
 
         newCfm.minCompactionThreshold(3);
-        MigrationManager.announceColumnFamilyUpdate(newCfm, false);
+        MigrationManager.announceColumnFamilyUpdate(newCfm);
 
         newCfm.maxCompactionThreshold(33);
-        MigrationManager.announceColumnFamilyUpdate(newCfm, false);
+        MigrationManager.announceColumnFamilyUpdate(newCfm);
 
         // can't test changing the reconciler because there is only one impl.
 
@@ -559,7 +559,7 @@ public class DefsTest
         ColumnDefinition cdOld = meta.regularColumns().iterator().next();
         ColumnDefinition cdNew = ColumnDefinition.regularDef(meta, cdOld.name.bytes, cdOld.type, null);
         meta.addOrReplaceColumnDefinition(cdNew);
-        MigrationManager.announceColumnFamilyUpdate(meta, false);
+        MigrationManager.announceColumnFamilyUpdate(meta);
 
         // check
         Assert.assertTrue(cfs.indexManager.getIndexes().isEmpty());

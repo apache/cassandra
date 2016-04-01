@@ -908,8 +908,7 @@ public class LegacySchemaTables
     public static Mutation makeUpdateTableMutation(KSMetaData keyspace,
                                                    CFMetaData oldTable,
                                                    CFMetaData newTable,
-                                                   long timestamp,
-                                                   boolean fromThrift)
+                                                   long timestamp)
     {
         Mutation mutation = makeCreateKeyspaceMutation(keyspace, timestamp, false);
 
@@ -920,14 +919,7 @@ public class LegacySchemaTables
 
         // columns that are no longer needed
         for (ColumnDefinition column : columnDiff.entriesOnlyOnLeft().values())
-        {
-            // Thrift only knows about the REGULAR ColumnDefinition type, so don't consider other type
-            // are being deleted just because they are not here.
-            if (fromThrift && column.kind != ColumnDefinition.Kind.REGULAR)
-                continue;
-
             dropColumnFromSchemaMutation(oldTable, column, timestamp, mutation);
-        }
 
         // newly added columns
         for (ColumnDefinition column : columnDiff.entriesOnlyOnRight().values())

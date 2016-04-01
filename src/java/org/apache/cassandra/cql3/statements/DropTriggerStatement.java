@@ -63,7 +63,7 @@ public class DropTriggerStatement extends SchemaAlteringStatement
         if (cfm.removeTrigger(triggerName))
         {
             logger.info("Dropping trigger with name {}", triggerName);
-            MigrationManager.announceColumnFamilyUpdate(cfm, false, isLocalOnly);
+            MigrationManager.announceColumnFamilyUpdate(cfm, isLocalOnly);
             return true;
         }
         if (!ifExists)

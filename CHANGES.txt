@@ -1,9 +1,10 @@
 2.2.7
+ * Fix is_dense recalculation for Thrift-updated tables (CASSANDRA-11502)
  * Remove unnescessary file existence check during anticompaction (CASSANDRA-11660)
  * Add missing files to debian packages (CASSANDRA-11642)
  * Avoid calling Iterables::concat in loops during ModificationStatement::getFunctions (CASSANDRA-11621)
  * cqlsh: COPY FROM should use regular inserts for single statement batches and
-          report errors correctly if workers processes crash on initialization (CASSANDRA-11474)
+   report errors correctly if workers processes crash on initialization (CASSANDRA-11474)
  * Always close cluster with connection in CqlRecordWriter (CASSANDRA-11553)
 Merged from 2.1:
  * cqlsh COPY FROM fails for null values with non-prepared statements (CASSANDRA-11631)

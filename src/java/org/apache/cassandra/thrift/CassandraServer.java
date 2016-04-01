@@ -1661,7 +1661,7 @@ public class CassandraServer implements Cassandra.Iface
             if (!oldCfm.getTriggers().equals(cfm.getTriggers()))
                 state().ensureIsSuper("Only superusers are allowed to add or remove triggers.");
 
-            MigrationManager.announceColumnFamilyUpdate(cfm, true);
+            MigrationManager.announceColumnFamilyUpdate(cfm);
             return Schema.instance.getVersion().toString();
         }
         catch (RequestValidationException e)

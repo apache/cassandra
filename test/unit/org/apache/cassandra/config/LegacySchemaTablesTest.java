@@ -1,4 +1,4 @@
-/**
+/*
  * Licensed to the Apache Software Foundation (ASF) under one
  * or more contributor license agreements.  See the NOTICE file
  * distributed with this work for additional information
@@ -19,18 +19,23 @@
 package org.apache.cassandra.config;
 
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.List;
 import java.util.HashMap;
 import java.util.HashSet;
 
+import com.google.common.collect.Iterables;
+
 import org.apache.cassandra.SchemaLoader;
 import org.apache.cassandra.db.*;
 import org.apache.cassandra.db.marshal.AsciiType;
+import org.apache.cassandra.db.marshal.BytesType;
 import org.apache.cassandra.db.marshal.UTF8Type;
 import org.apache.cassandra.exceptions.ConfigurationException;
 import org.apache.cassandra.io.compress.*;
 import org.apache.cassandra.locator.SimpleStrategy;
 import org.apache.cassandra.schema.LegacySchemaTables;
+import org.apache.cassandra.service.MigrationManager;
 import org.apache.cassandra.service.StorageService;
 import org.apache.cassandra.thrift.CfDef;
 import org.apache.cassandra.thrift.ColumnDef;
@@ -43,11 +48,16 @@ import org.junit.BeforeClass;
 import org.junit.Test;
 
 import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertFalse;
+import static org.junit.Assert.assertNotNull;
+import static org.junit.Assert.assertNull;
+import static org.junit.Assert.assertTrue;
 
 public class LegacySchemaTablesTest
 {
     private static final String KEYSPACE1 = "CFMetaDataTest1";
     private static final String CF_STANDARD1 = "Standard1";
+    private static final String CF_STANDARD2 = "Standard2";
 
     private static List<ColumnDef> columnDefs = new ArrayList<ColumnDef>();
 
@@ -70,6 +80,54 @@ public class LegacySchemaTablesTest
                                     SimpleStrategy.class,
                                     KSMetaData.optsWithRF(1),
                                     SchemaLoader.standardCFMD(KEYSPACE1, CF_STANDARD1));
+    }
+
+    @Test
+    public void testIsDenseRecalculation()
+    {
+        // 1.a start with a dense CF
+        CfDef cfDef0 = new CfDef().setDefault_validation_class(BytesType.class.getCanonicalName())
+                                  .setComparator_type(UTF8Type.class.getCanonicalName())
+                                  .setColumn_metadata(Collections.<ColumnDef>emptyList())
+                                  .setKeyspace(KEYSPACE1)
+                                  .setName(CF_STANDARD2);
+        CFMetaData cfm0 = ThriftConversion.fromThrift(cfDef0);
+        MigrationManager.announceNewColumnFamily(cfm0, true);
+
+        // 1.b validate that the cf is dense, has a single compact value and a clustering column, and no regulars
+        CFMetaData current = Schema.instance.getCFMetaData(KEYSPACE1, CF_STANDARD2);
+        assertTrue(current.getIsDense());
+        assertNotNull(current.compactValueColumn());
+        assertEquals(0, Iterables.size(current.regularAndStaticColumns()));
+        assertEquals(1, current.clusteringColumns().size());
+
+        // 2.a add a column to the table
+        CfDef cfDef1 = ThriftConversion.toThrift(current);
+        List<ColumnDef> colDefs =
+            Collections.singletonList(new ColumnDef(ByteBufferUtil.bytes("col1"), AsciiType.class.getCanonicalName()));
+        cfDef1.setColumn_metadata(colDefs);
+        CFMetaData cfm1 = ThriftConversion.fromThriftForUpdate(cfDef1, current);
+        MigrationManager.announceColumnFamilyUpdate(cfm1, true);
+
+        // 2.b validate that the cf is sparse now, had no compact value column or clustering column, and 1 regular
+        current = Schema.instance.getCFMetaData(KEYSPACE1, CF_STANDARD2);
+        assertFalse(current.getIsDense());
+        assertNull(current.compactValueColumn());
+        assertEquals(1, Iterables.size(current.regularAndStaticColumns()));
+        assertEquals(0, current.clusteringColumns().size());
+
+        // 3.a remove the column
+        CfDef cfDef2 = ThriftConversion.toThrift(current);
+        cfDef2.setColumn_metadata(Collections.<ColumnDef>emptyList());
+        CFMetaData cfm2 = ThriftConversion.fromThriftForUpdate(cfDef2, current);
+        MigrationManager.announceColumnFamilyUpdate(cfm2, true);
+
+        // 3.b validate that the cf is dense, has a single compact value and a clustering column, and no regulars
+        current = Schema.instance.getCFMetaData(KEYSPACE1, CF_STANDARD2);
+        assertTrue(current.getIsDense());
+        assertNotNull(current.compactValueColumn());
+        assertEquals(0, Iterables.size(current.regularAndStaticColumns()));
+        assertEquals(1, current.clusteringColumns().size());
     }
 
     @Test

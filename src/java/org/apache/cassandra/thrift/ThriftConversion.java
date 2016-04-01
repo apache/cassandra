@@ -223,15 +223,32 @@ public class ThriftConversion
             if (hasKeyAlias)
                 defs.add(ColumnDefinition.partitionKeyDef(cf_def.keyspace, cf_def.name, cf_def.key_alias, keyValidator, null));
 
+            // for Thrift updates, we should be calculating denseness from just the regular columns & comparator
+            boolean isDense = CFMetaData.calculateIsDense(fullRawComparator, defs);
+
             // Now add any CQL metadata that we want to copy, skipping the keyAlias if there was one
             for (ColumnDefinition def : previousCQLMetadata)
             {
-                // isPartOfCellName basically means 'is not just a CQL metadata'
-                if (def.isPartOfCellName())
+                // skip all pre-existing REGULAR columns
+                if (def.kind == ColumnDefinition.Kind.REGULAR)
                     continue;
 
+                // skip previous PARTITION_KEY column def if key_alias has been set by this update already (overwritten)
                 if (def.kind == ColumnDefinition.Kind.PARTITION_KEY && hasKeyAlias)
                     continue;
+
+                // the table switched from DENSE to SPARSE by adding one or more REGULAR columns;
+                // in this case we should now drop the COMPACT_VALUE column
+                if (def.kind == ColumnDefinition.Kind.COMPACT_VALUE && !isDense)
+                    continue;
+
+                // skip CLUSTERING_COLUMN column(s) of a sparse table, if:
+                // a) this is a Standard columnfamily *OR* b) it's a Super columnfamily and the second (subcolumn) component;
+                // in other words, only keep the clustering column in sparse tables if it's the first (super) component
+                // of a super column family
+                if (def.kind == ColumnDefinition.Kind.CLUSTERING_COLUMN && !isDense)
+                    if (cfType == ColumnFamilyType.Standard || def.position() != 0)
+                        continue;
 
                 defs.add(def);
             }
@@ -242,7 +259,8 @@ public class ThriftConversion
             if (cfId == null)
                 cfId = UUIDGen.getTimeUUID();
 
-            CFMetaData newCFMD = new CFMetaData(cf_def.keyspace, cf_def.name, cfType, comparator, cfId);
+            // set isDense now so that it doesn't get re-calculated incorrectly later in rebuild() b/c of defined clusterings
+            CFMetaData newCFMD = new CFMetaData(cf_def.keyspace, cf_def.name, cfType, comparator, cfId).isDense(isDense);
 
             newCFMD.addAllColumnDefinitions(defs);
 

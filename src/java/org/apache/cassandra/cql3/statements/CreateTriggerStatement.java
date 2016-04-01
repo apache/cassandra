@@ -78,7 +78,7 @@ public class CreateTriggerStatement extends SchemaAlteringStatement
         {
             cfm.addTriggerDefinition(triggerDefinition);
             logger.info("Adding trigger with name {} and class {}", triggerName, triggerClass);
-            MigrationManager.announceColumnFamilyUpdate(cfm, false, isLocalOnly);
+            MigrationManager.announceColumnFamilyUpdate(cfm, isLocalOnly);
             return true;
         }
         return false;
