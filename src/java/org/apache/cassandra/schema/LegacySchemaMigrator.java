@@ -284,7 +284,9 @@ public final class LegacySchemaMigrator
         AbstractType<?> subComparator = tableRow.has("subcomparator") ? TypeParser.parse(tableRow.getString("subcomparator")) : null;
 
         boolean isSuper = "super".equals(tableRow.getString("type").toLowerCase());
-        boolean isDense = tableRow.getBoolean("is_dense");
+        boolean isDense = tableRow.has("is_dense")
+                        ? tableRow.getBoolean("is_dense")
+                        : calculateIsDense(rawComparator, columnRows);
         boolean isCompound = rawComparator instanceof CompositeType;
 
         // We don't really use the default validator but as we have it for backward compatibility, we use it to know if it's a counter table
@@ -362,6 +364,65 @@ public final class LegacySchemaMigrator
 
         return cfm.params(decodeTableParams(tableRow))
                   .triggers(createTriggersFromTriggerRows(triggerRows));
+    }
+
+    /*
+     * We call dense a CF for which each component of the comparator is a clustering column, i.e. no
+     * component is used to store a regular column names. In other words, non-composite static "thrift"
+     * and CQL3 CF are *not* dense.
+     * We save whether the table is dense or not during table creation through CQL, but we don't have this
+     * information for table just created through thrift, nor for table prior to CASSANDRA-7744, so this
+     * method does its best to infer whether the table is dense or not based on other elements.
+     */
+    public static boolean calculateIsDense(AbstractType<?> comparator, UntypedResultSet columnRows)
+    {
+        /*
+         * As said above, this method is only here because we need to deal with thrift upgrades.
+         * Once a CF has been "upgraded", i.e. we've rebuilt and save its CQL3 metadata at least once,
+         * then we'll have saved the "is_dense" value and will be good to go.
+         *
+         * But non-upgraded thrift CF (and pre-7744 CF) will have no value for "is_dense", so we need
+         * to infer that information without relying on it in that case. And for the most part this is
+         * easy, a CF that has at least one REGULAR definition is not dense. But the subtlety is that not
+         * having a REGULAR definition may not mean dense because of CQL3 definitions that have only the
+         * PRIMARY KEY defined.
+         *
+         * So we need to recognize those special case CQL3 table with only a primary key. If we have some
+         * clustering columns, we're fine as said above. So the only problem is that we cannot decide for
+         * sure if a CF without REGULAR columns nor CLUSTERING_COLUMN definition is meant to be dense, or if it
+         * has been created in CQL3 by say:
+         *    CREATE TABLE test (k int PRIMARY KEY)
+         * in which case it should not be dense. However, we can limit our margin of error by assuming we are
+         * in the latter case only if the comparator is exactly CompositeType(UTF8Type).
+         */
+        boolean hasRegular = false;
+        int maxClusteringIdx = -1;
+
+        for (UntypedResultSet.Row columnRow : columnRows)
+        {
+            switch (columnRow.getString("type"))
+            {
+                case "clustering_key":
+                    maxClusteringIdx = Math.max(maxClusteringIdx, columnRow.has("component_index") ? columnRow.getInt("component_index") : 0);
+                    break;
+                case "regular":
+                    hasRegular = true;
+                    break;
+            }
+        }
+
+        return maxClusteringIdx >= 0
+               ? maxClusteringIdx == comparator.componentsCount() - 1
+               : !hasRegular && !isCQL3OnlyPKComparator(comparator);
+    }
+
+    private static boolean isCQL3OnlyPKComparator(AbstractType<?> comparator)
+    {
+        if (!(comparator instanceof CompositeType))
+            return false;
+
+        CompositeType ct = (CompositeType)comparator;
+        return ct.types.size() == 1 && ct.types.get(0) instanceof UTF8Type;
     }
 
     private static TableParams decodeTableParams(UntypedResultSet.Row row)
