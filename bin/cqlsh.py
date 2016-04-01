@@ -1854,7 +1854,7 @@ class Shell(cmd.Cmd):
           SKIPROWS=0              - the number of rows to skip
           SKIPCOLS=''             - a comma separated list of column names to skip
           MAXPARSEERRORS=-1       - the maximum global number of parsing errors, -1 means no maximum
-          MAXINSERTERRORS=-1      - the maximum global number of insert errors, -1 means no maximum
+          MAXINSERTERRORS=1000    - the maximum global number of insert errors, -1 means no maximum
           ERRFILE=''              - a file where to store all rows that could not be imported, by default this is
                                     import_ks_table.err where <ks> is your keyspace and <table> is your table name.
           PREPAREDSTATEMENTS=True - whether to use prepared statements when importing, by default True. Set this to

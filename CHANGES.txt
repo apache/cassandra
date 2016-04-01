@@ -34,6 +34,7 @@
  * Avoid index segment stitching in RAM which lead to OOM on big SSTable files (CASSANDRA-11383)
  * Fix clustering and row filters for LIKE queries on clustering columns (CASSANDRA-11397)
 Merged from 3.0:
+ * Improve backoff policy for cqlsh COPY FROM (CASSANDRA-11320)
  * Improve IF NOT EXISTS check in CREATE INDEX (CASSANDRA-11131)
  * Upgrade ohc to 0.4.3
  * Enable SO_REUSEADDR for JMX RMI server sockets (CASSANDRA-11093)
