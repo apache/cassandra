@@ -202,7 +202,7 @@ port = 9042
 ; maxparseerrors = -1
 
 ;; The maximum global number of insert errors to ignore, -1 means unlimited
-; maxinserterrors = -1
+; maxinserterrors = 1000
 
 ;; A file to store all rows that could not be imported, by default this is
 ;; import_<ks>_<table>.err where <ks> is your keyspace and <table> is your table name.
