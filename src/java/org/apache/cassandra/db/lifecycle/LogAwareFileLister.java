@@ -169,27 +169,4 @@ final class LogAwareFileLister
                  .flatMap(Set::stream)
                  .forEach((f) -> this.files.put(f, FileType.TEMPORARY));
     }
-
-    @VisibleForTesting
-    static Set<File> getTemporaryFiles(File folder)
-    {
-        return listFiles(folder, FileType.TEMPORARY);
-    }
-
-    @VisibleForTesting
-    static Set<File> getFinalFiles(File folder)
-    {
-        return listFiles(folder, FileType.FINAL);
-    }
-
-    @VisibleForTesting
-    static Set<File> listFiles(File folder, FileType ... types)
-    {
-        Collection<FileType> match = Arrays.asList(types);
-        return new LogAwareFileLister(folder.toPath(),
-                                      (file, type) -> match.contains(type),
-                                      OnTxnErr.IGNORE).list()
-                                                      .stream()
-                                                      .collect(Collectors.toSet());
-    }
 }

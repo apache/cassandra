@@ -18,6 +18,8 @@
 package org.apache.cassandra.io.sstable;
 
 import java.io.File;
+import java.io.IOError;
+import java.io.IOException;
 import java.util.*;
 import java.util.regex.Pattern;
 
@@ -47,6 +49,8 @@ import static org.apache.cassandra.io.sstable.Component.separator;
 public class Descriptor
 {
     public static String TMP_EXT = ".tmp";
+
+    /** canonicalized path to the directory where SSTable resides */
     public final File directory;
     /** version has the following format: <code>[a-z]+</code> */
     public final Version version;
@@ -85,14 +89,21 @@ public class Descriptor
     {
         assert version != null && directory != null && ksname != null && cfname != null && formatType.info.getLatestVersion().getClass().equals(version.getClass());
         this.version = version;
-        this.directory = directory;
+        try
+        {
+            this.directory = directory.getCanonicalFile();
+        }
+        catch (IOException e)
+        {
+            throw new IOError(e);
+        }
         this.ksname = ksname;
         this.cfname = cfname;
         this.generation = generation;
         this.formatType = formatType;
         this.digestComponent = digestComponent;
 
-        hashCode = Objects.hashCode(version, directory, generation, ksname, cfname, formatType);
+        hashCode = Objects.hashCode(version, this.directory, generation, ksname, cfname, formatType);
     }
 
     public Descriptor withGeneration(int newGeneration)
@@ -200,8 +211,7 @@ public class Descriptor
      */
     public static Descriptor fromFilename(String filename)
     {
-        File file = new File(filename);
-        return fromFilename(file.getParentFile(), file.getName(), false).left;
+        return fromFilename(filename, false);
     }
 
     public static Descriptor fromFilename(String filename, SSTableFormat.Type formatType)
@@ -211,7 +221,7 @@ public class Descriptor
 
     public static Descriptor fromFilename(String filename, boolean skipComponent)
     {
-        File file = new File(filename);
+        File file = new File(filename).getAbsoluteFile();
         return fromFilename(file.getParentFile(), file.getName(), skipComponent).left;
     }
 
