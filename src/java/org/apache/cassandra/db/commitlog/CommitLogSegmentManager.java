@@ -34,6 +34,7 @@ import java.util.concurrent.LinkedBlockingQueue;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicLong;
 
+import com.google.common.annotations.VisibleForTesting;
 import com.google.common.collect.Iterables;
 import com.google.common.util.concurrent.*;
 
@@ -558,7 +559,8 @@ public class CommitLogSegmentManager
     /**
      * @return a read-only collection of the active commit log segments
      */
-    Collection<CommitLogSegment> getActiveSegments()
+    @VisibleForTesting
+    public Collection<CommitLogSegment> getActiveSegments()
     {
         return Collections.unmodifiableCollection(activeSegments);
     }

@@ -17,7 +17,10 @@
  */
 package org.apache.cassandra.io.util;
 
+import java.io.IOException;
+
 import org.apache.cassandra.db.Directories;
+import org.apache.cassandra.io.FSWriteError;
 import org.apache.cassandra.utils.WrappedRunnable;
 
 public abstract class DiskAwareRunnable extends WrappedRunnable
@@ -26,7 +29,7 @@ public abstract class DiskAwareRunnable extends WrappedRunnable
     {
         Directories.DataDirectory directory = getDirectories().getWriteableLocation(writeSize);
         if (directory == null)
-            throw new RuntimeException("Insufficient disk space to write " + writeSize + " bytes");
+            throw new FSWriteError(new IOException("Insufficient disk space to write " + writeSize + " bytes"), "");
 
         return directory;
     }
