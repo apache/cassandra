@@ -1,5 +1,6 @@
 2.1.14
- * Fix out-of-space error treatment in memtable flushing (CASSANDRA-11448).
+ * Fix paging for COMPACT tables without clustering columns (CASSANDRA-11467)
+ * Fix out-of-space error treatment in memtable flushing (CASSANDRA-11448)
  * Backport CASSANDRA-10859 (CASSANDRA-11415)
  * COPY FROM fails when importing blob (CASSANDRA-11375)
  * Backport CASSANDRA-10679 (CASSANDRA-9598)

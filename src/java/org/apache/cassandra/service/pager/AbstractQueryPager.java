@@ -359,6 +359,9 @@ abstract class AbstractQueryPager implements QueryPager
         // paging and a deletion (pretty unlikely), so this is probably acceptable.
         int liveCount = columnCounter().countAll(cf).live();
 
+        if (liveCount == toDiscard)
+            return toDiscard;
+
         ColumnCounter counter = columnCounter();
         // Discard the last 'toDiscard' live (so stop adding as sound as we're past 'liveCount - toDiscard')
         while (iter.hasNext())
