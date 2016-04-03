@@ -212,8 +212,11 @@
     -->
     <target name="check-gen-cql3-grammar">
         <uptodate property="cql3current"
-                srcfile="${build.src.antlr}/Cql.g"
-                targetfile="${build.src.gen-java}/org/apache/cassandra/cql3/Cql.tokens"/>
+                targetfile="${build.src.gen-java}/org/apache/cassandra/cql3/Cql.tokens">
+            <srcfiles dir="${build.src.antlr}">
+                <include name="*.g"/>
+            </srcfiles>
+        </uptodate>
     </target>
  
     <target name="gen-cql3-grammar" depends="check-gen-cql3-grammar" unless="cql3current">
