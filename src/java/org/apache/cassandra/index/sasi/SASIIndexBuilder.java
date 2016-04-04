@@ -78,6 +78,9 @@ class SASIIndexBuilder extends SecondaryIndexBuilder
 
                             try (SSTableIdentityIterator partition = new SSTableIdentityIterator(sstable, dataFile, key))
                             {
+                                // if the row has statics attached, it has to be indexed separately
+                                indexWriter.nextUnfilteredCluster(partition.staticRow());
+
                                 while (partition.hasNext())
                                     indexWriter.nextUnfilteredCluster(partition.next());
                             }

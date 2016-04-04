@@ -719,16 +719,12 @@ public class SecondaryIndexTest extends CQLTester
         execute("SELECT * FROM %s WHERE v1 LIKE ?", "abc%");
         execute("SELECT * FROM %s WHERE v1 LIKE ?", "abc");
 
-        // contains mode indexes support suffix/contains/matches
-        assertInvalidMessage("c2 LIKE '<term>%' abc is only supported on properly indexed columns",
-                             "SELECT * FROM %s WHERE c2 LIKE ?",
-                             "abc%");
+        // contains mode indexes support prefix/suffix/contains/matches
+        execute("SELECT * FROM %s WHERE c2 LIKE ?", "abc%");
         execute("SELECT * FROM %s WHERE c2 LIKE ?", "%abc");
         execute("SELECT * FROM %s WHERE c2 LIKE ?", "%abc%");
         execute("SELECT * FROM %s WHERE c2 LIKE ?", "abc");
-        assertInvalidMessage("v2 LIKE '<term>%' abc is only supported on properly indexed columns",
-                             "SELECT * FROM %s WHERE v2 LIKE ?",
-                             "abc%");
+        execute("SELECT * FROM %s WHERE v2 LIKE ?", "abc%");
         execute("SELECT * FROM %s WHERE v2 LIKE ?", "%abc");
         execute("SELECT * FROM %s WHERE v2 LIKE ?", "%abc%");
         execute("SELECT * FROM %s WHERE v2 LIKE ?", "abc");

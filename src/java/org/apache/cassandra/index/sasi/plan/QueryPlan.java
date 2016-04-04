@@ -112,11 +112,13 @@ public class QueryPlan
 
                     try (UnfilteredRowIterator partition = controller.getPartition(key, executionController))
                     {
+                        Row staticRow = partition.staticRow();
                         List<Unfiltered> clusters = new ArrayList<>();
+
                         while (partition.hasNext())
                         {
                             Unfiltered row = partition.next();
-                            if (operationTree.satisfiedBy(row, true))
+                            if (operationTree.satisfiedBy(row, staticRow, true))
                                 clusters.add(row);
                         }
 

@@ -82,6 +82,7 @@ public class SASIIndexTest
     private static final String CF_NAME = "test_cf";
     private static final String CLUSTERING_CF_NAME_1 = "clustering_test_cf_1";
     private static final String CLUSTERING_CF_NAME_2 = "clustering_test_cf_2";
+    private static final String STATIC_CF_NAME = "static_sasi_test_cf";
 
     @BeforeClass
     public static void loadSchema() throws ConfigurationException
@@ -92,7 +93,8 @@ public class SASIIndexTest
                                                                      KeyspaceParams.simpleTransient(1),
                                                                      Tables.of(SchemaLoader.sasiCFMD(KS_NAME, CF_NAME),
                                                                                SchemaLoader.clusteringSASICFMD(KS_NAME, CLUSTERING_CF_NAME_1),
-                                                                               SchemaLoader.clusteringSASICFMD(KS_NAME, CLUSTERING_CF_NAME_2, "location"))));
+                                                                               SchemaLoader.clusteringSASICFMD(KS_NAME, CLUSTERING_CF_NAME_2, "location"),
+                                                                               SchemaLoader.staticSASICFMD(KS_NAME, STATIC_CF_NAME))));
     }
 
     @After
@@ -1723,6 +1725,104 @@ public class SASIIndexTest
         Assert.assertNotNull(results);
         Assert.assertEquals(1, results.size());
         Assert.assertEquals("Tony", results.one().getString("name"));
+    }
+
+    @Test
+    public void testStaticIndex() throws Exception
+    {
+        testStaticIndex(false);
+        cleanupData();
+        testStaticIndex(true);
+    }
+
+    public void testStaticIndex(boolean shouldFlush) throws Exception
+    {
+        ColumnFamilyStore store = Keyspace.open(KS_NAME).getColumnFamilyStore(STATIC_CF_NAME);
+
+        executeCQL(STATIC_CF_NAME, "INSERT INTO %s.%s (sensor_id,sensor_type) VALUES(?, ?)", 1, "TEMPERATURE");
+        executeCQL(STATIC_CF_NAME, "INSERT INTO %s.%s (sensor_id,date,value,variance) VALUES(?, ?, ?, ?)", 1, 20160401L, 24.46, 2);
+        executeCQL(STATIC_CF_NAME, "INSERT INTO %s.%s (sensor_id,date,value,variance) VALUES(?, ?, ?, ?)", 1, 20160402L, 25.62, 5);
+        executeCQL(STATIC_CF_NAME, "INSERT INTO %s.%s (sensor_id,date,value,variance) VALUES(?, ?, ?, ?)", 1, 20160403L, 24.96, 4);
+
+        if (shouldFlush)
+            store.forceBlockingFlush();
+
+        executeCQL(STATIC_CF_NAME, "INSERT INTO %s.%s (sensor_id,sensor_type) VALUES(?, ?)", 2, "PRESSURE");
+        executeCQL(STATIC_CF_NAME, "INSERT INTO %s.%s (sensor_id,date,value,variance) VALUES(?, ?, ?, ?)", 2, 20160401L, 1.03, 9);
+        executeCQL(STATIC_CF_NAME, "INSERT INTO %s.%s (sensor_id,date,value,variance) VALUES(?, ?, ?, ?)", 2, 20160402L, 1.04, 7);
+        executeCQL(STATIC_CF_NAME, "INSERT INTO %s.%s (sensor_id,date,value,variance) VALUES(?, ?, ?, ?)", 2, 20160403L, 1.01, 4);
+
+        if (shouldFlush)
+            store.forceBlockingFlush();
+
+        UntypedResultSet results;
+
+        // Prefix search on static column only
+        results = executeCQL(STATIC_CF_NAME ,"SELECT * FROM %s.%s WHERE sensor_type LIKE 'temp%%'");
+        Assert.assertNotNull(results);
+        Assert.assertEquals(3, results.size());
+
+        Iterator<UntypedResultSet.Row> iterator = results.iterator();
+
+        UntypedResultSet.Row row1 = iterator.next();
+        Assert.assertEquals(20160401L, row1.getLong("date"));
+        Assert.assertEquals(24.46, row1.getDouble("value"));
+        Assert.assertEquals(2, row1.getInt("variance"));
+
+
+        UntypedResultSet.Row row2 = iterator.next();
+        Assert.assertEquals(20160402L, row2.getLong("date"));
+        Assert.assertEquals(25.62, row2.getDouble("value"));
+        Assert.assertEquals(5, row2.getInt("variance"));
+
+        UntypedResultSet.Row row3 = iterator.next();
+        Assert.assertEquals(20160403L, row3.getLong("date"));
+        Assert.assertEquals(24.96, row3.getDouble("value"));
+        Assert.assertEquals(4, row3.getInt("variance"));
+
+
+        // Combined static and non static filtering
+        results = executeCQL(STATIC_CF_NAME ,"SELECT * FROM %s.%s WHERE sensor_type=? AND value >= ? AND value <= ? AND variance=? ALLOW FILTERING",
+                             "pressure", 1.02, 1.05, 7);
+        Assert.assertNotNull(results);
+        Assert.assertEquals(1, results.size());
+
+        row1 = results.one();
+        Assert.assertEquals(20160402L, row1.getLong("date"));
+        Assert.assertEquals(1.04, row1.getDouble("value"));
+        Assert.assertEquals(7, row1.getInt("variance"));
+
+        // Only non statc columns filtering
+        results = executeCQL(STATIC_CF_NAME ,"SELECT * FROM %s.%s WHERE value >= ? AND variance <= ? ALLOW FILTERING", 1.02, 7);
+        Assert.assertNotNull(results);
+        Assert.assertEquals(4, results.size());
+
+        iterator = results.iterator();
+
+        row1 = iterator.next();
+        Assert.assertEquals("TEMPERATURE", row1.getString("sensor_type"));
+        Assert.assertEquals(20160401L, row1.getLong("date"));
+        Assert.assertEquals(24.46, row1.getDouble("value"));
+        Assert.assertEquals(2, row1.getInt("variance"));
+
+
+        row2 = iterator.next();
+        Assert.assertEquals("TEMPERATURE", row2.getString("sensor_type"));
+        Assert.assertEquals(20160402L, row2.getLong("date"));
+        Assert.assertEquals(25.62, row2.getDouble("value"));
+        Assert.assertEquals(5, row2.getInt("variance"));
+
+        row3 = iterator.next();
+        Assert.assertEquals("TEMPERATURE", row3.getString("sensor_type"));
+        Assert.assertEquals(20160403L, row3.getLong("date"));
+        Assert.assertEquals(24.96, row3.getDouble("value"));
+        Assert.assertEquals(4, row3.getInt("variance"));
+
+        UntypedResultSet.Row row4 = iterator.next();
+        Assert.assertEquals("PRESSURE", row4.getString("sensor_type"));
+        Assert.assertEquals(20160402L, row4.getLong("date"));
+        Assert.assertEquals(1.04, row4.getDouble("value"));
+        Assert.assertEquals(7, row4.getInt("variance"));
     }
 
     @Test

@@ -226,11 +226,19 @@ public class ColumnIndex
 
     public static ByteBuffer getValueOf(ColumnDefinition column, Row row, int nowInSecs)
     {
+        if (row == null)
+            return null;
+
         switch (column.kind)
         {
             case CLUSTERING:
                 return row.clustering().get(column.position());
 
+            // treat static cell retrieval the same was as regular
+            // only if row kind is STATIC otherwise return null
+            case STATIC:
+                if (!row.isStatic())
+                    return null;
             case REGULAR:
                 Cell cell = row.getCell(column);
                 return cell == null || !cell.isLive(nowInSecs) ? null : cell.value();

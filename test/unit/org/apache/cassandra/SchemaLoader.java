@@ -605,6 +605,44 @@ public class SchemaLoader
         return cfm;
     }
 
+    public static CFMetaData staticSASICFMD(String ksName, String cfName)
+    {
+        CFMetaData cfm = CFMetaData.Builder.create(ksName, cfName)
+                                           .addPartitionKey("sensor_id", Int32Type.instance)
+                                           .addStaticColumn("sensor_type", UTF8Type.instance)
+                                           .addClusteringColumn("date", LongType.instance)
+                                           .addRegularColumn("value", DoubleType.instance)
+                                           .addRegularColumn("variance", Int32Type.instance)
+                                           .build();
+
+        Indexes indexes = cfm.getIndexes();
+        indexes = indexes.with(IndexMetadata.fromSchemaMetadata("sensor_type", IndexMetadata.Kind.CUSTOM, new HashMap<String, String>()
+        {{
+            put(IndexTarget.CUSTOM_INDEX_OPTION_NAME, SASIIndex.class.getName());
+            put(IndexTarget.TARGET_OPTION_NAME, "sensor_type");
+            put("mode", OnDiskIndexBuilder.Mode.PREFIX.toString());
+            put("analyzer_class", "org.apache.cassandra.index.sasi.analyzer.NonTokenizingAnalyzer");
+            put("case_sensitive", "false");
+        }}));
+
+        indexes = indexes.with(IndexMetadata.fromSchemaMetadata("value", IndexMetadata.Kind.CUSTOM, new HashMap<String, String>()
+        {{
+            put(IndexTarget.CUSTOM_INDEX_OPTION_NAME, SASIIndex.class.getName());
+            put(IndexTarget.TARGET_OPTION_NAME, "value");
+            put("mode", OnDiskIndexBuilder.Mode.PREFIX.toString());
+        }}));
+
+        indexes = indexes.with(IndexMetadata.fromSchemaMetadata("variance", IndexMetadata.Kind.CUSTOM, new HashMap<String, String>()
+        {{
+            put(IndexTarget.CUSTOM_INDEX_OPTION_NAME, SASIIndex.class.getName());
+            put(IndexTarget.TARGET_OPTION_NAME, "variance");
+            put("mode", OnDiskIndexBuilder.Mode.PREFIX.toString());
+        }}));
+
+        cfm.indexes(indexes);
+        return cfm;
+    }
+
     public static CompressionParams getCompressionParameters()
     {
         return getCompressionParameters(null);

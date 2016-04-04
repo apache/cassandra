@@ -109,7 +109,13 @@ public class ColumnIndex
             ByteBufferUtil.writeWithShortLength(iterator.partitionKey().getKey(), writer);
             DeletionTime.serializer.serialize(iterator.partitionLevelDeletion(), writer);
             if (header.hasStatic())
-                UnfilteredSerializer.serializer.serializeStaticRow(iterator.staticRow(), header, writer, version);
+            {
+                Row staticRow = iterator.staticRow();
+
+                UnfilteredSerializer.serializer.serializeStaticRow(staticRow, header, writer, version);
+                if (!observers.isEmpty())
+                    observers.forEach((o) -> o.nextUnfilteredCluster(staticRow));
+            }
         }
 
         public ColumnIndex build() throws IOException
