@@ -30,6 +30,8 @@
  * Resolve some eclipse-warnings (CASSANDRA-11086)
  * (cqlsh) Show static columns in a different color (CASSANDRA-11059)
  * Allow to remove TTLs on table with default_time_to_live (CASSANDRA-11207)
+Merged from 2.2:
+ * IncomingStreamingConnection version check message wrong (CASSANDRA-11462)
 
 
 3.5

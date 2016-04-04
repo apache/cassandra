@@ -57,9 +57,10 @@ public class IncomingStreamingConnection extends Thread implements Closeable
     {
         try
         {
-            // streaming connections are per-session and have a fixed version.  we can't do anything with a wrong-version stream connection, so drop it.
+            // streaming connections are per-session and have a fixed version.
+            // we can't do anything with a wrong-version stream connection, so drop it.
             if (version != StreamMessage.CURRENT_VERSION)
-                throw new IOException(String.format("Received stream using protocol version %d (my version %d). Terminating connection", version, MessagingService.current_version));
+                throw new IOException(String.format("Received stream using protocol version %d (my version %d). Terminating connection", version, StreamMessage.CURRENT_VERSION));
 
             DataInputPlus input = new DataInputStreamPlus(socket.getInputStream());
             StreamInitMessage init = StreamInitMessage.serializer.deserialize(input, version);
@@ -76,7 +77,9 @@ public class IncomingStreamingConnection extends Thread implements Closeable
         }
         catch (IOException e)
         {
-            logger.trace("IOException reading from socket; closing", e);
+            logger.error(String.format("IOException while reading from socket from %s, closing: %s",
+                                       socket.getRemoteSocketAddress(), e));
+            logger.trace(String.format("IOException while reading from socket from %s, closing", socket.getRemoteSocketAddress()), e);
             close();
         }
     }
