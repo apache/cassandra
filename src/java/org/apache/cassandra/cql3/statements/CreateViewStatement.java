@@ -195,7 +195,7 @@ public class CreateViewStatement extends SchemaAlteringStatement
         // build the select statement
         Map<ColumnIdentifier.Raw, Boolean> orderings = Collections.emptyMap();
         SelectStatement.Parameters parameters = new SelectStatement.Parameters(orderings, false, true, false);
-        SelectStatement.RawStatement rawSelect = new SelectStatement.RawStatement(baseName, parameters, selectClause, whereClause, null);
+        SelectStatement.RawStatement rawSelect = new SelectStatement.RawStatement(baseName, parameters, selectClause, whereClause, null, null);
 
         ClientState state = ClientState.forInternalCalls();
         state.setKeyspace(keyspace());

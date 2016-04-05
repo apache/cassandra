@@ -72,12 +72,21 @@ public abstract class DataLimits
 
     public static DataLimits cqlLimits(int cqlRowLimit)
     {
-        return new CQLLimits(cqlRowLimit);
+        return cqlRowLimit == NO_LIMIT ? NONE : new CQLLimits(cqlRowLimit);
     }
 
     public static DataLimits cqlLimits(int cqlRowLimit, int perPartitionLimit)
     {
-        return new CQLLimits(cqlRowLimit, perPartitionLimit);
+        return cqlRowLimit == NO_LIMIT && perPartitionLimit == NO_LIMIT
+             ? NONE
+             : new CQLLimits(cqlRowLimit, perPartitionLimit);
+    }
+
+    private static DataLimits cqlLimits(int cqlRowLimit, int perPartitionLimit, boolean isDistinct)
+    {
+        return cqlRowLimit == NO_LIMIT && perPartitionLimit == NO_LIMIT && !isDistinct
+             ? NONE
+             : new CQLLimits(cqlRowLimit, perPartitionLimit, isDistinct);
     }
 
     public static DataLimits distinctLimits(int cqlRowLimit)
@@ -766,7 +775,7 @@ public abstract class DataLimits
                     int perPartitionLimit = (int)in.readUnsignedVInt();
                     boolean isDistinct = in.readBoolean();
                     if (kind == Kind.CQL_LIMIT)
-                        return new CQLLimits(rowLimit, perPartitionLimit, isDistinct);
+                        return cqlLimits(rowLimit, perPartitionLimit, isDistinct);
 
                     ByteBuffer lastKey = ByteBufferUtil.readWithVIntLength(in);
                     int lastRemaining = (int)in.readUnsignedVInt();

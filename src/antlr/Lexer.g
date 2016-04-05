@@ -69,6 +69,8 @@ K_INSERT:      I N S E R T;
 K_UPDATE:      U P D A T E;
 K_WITH:        W I T H;
 K_LIMIT:       L I M I T;
+K_PER:         P E R;
+K_PARTITION:   P A R T I T I O N;
 K_USING:       U S I N G;
 K_USE:         U S E;
 K_DISTINCT:    D I S T I N C T;
