@@ -30,6 +30,12 @@ import org.apache.cassandra.utils.FBUtilities;
  * A {@code LivenessInfo} can first be empty. If it isn't, it contains at least a timestamp,
  * which is the timestamp for the row primary key columns. On top of that, the info can be
  * ttl'ed, in which case the {@code LivenessInfo} also has both a ttl and a local expiration time.
+ * <p>
+ * Please note that if a liveness info is ttl'ed, that expiration is <b>only</b> an expiration
+ * of the liveness info itself (so, of the timestamp), and once the info expires it becomes
+ * {@code EMPTY}. But if a row has a liveness info which expires, the rest of the row data is
+ * unaffected (of course, the rest of said row data might be ttl'ed on its own but this is
+ * separate).
  */
 public class LivenessInfo
 {
