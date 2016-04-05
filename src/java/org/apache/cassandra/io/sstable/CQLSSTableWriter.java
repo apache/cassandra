@@ -21,28 +21,44 @@ import java.io.Closeable;
 import java.io.File;
 import java.io.IOException;
 import java.nio.ByteBuffer;
-import java.util.*;
+import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.Collections;
+import java.util.List;
+import java.util.Map;
+import java.util.SortedSet;
 
-import org.apache.cassandra.config.*;
-import org.apache.cassandra.cql3.*;
-import org.apache.cassandra.cql3.statements.CFStatement;
+import com.datastax.driver.core.ProtocolVersion;
+import com.datastax.driver.core.TypeCodec;
+import org.apache.cassandra.config.CFMetaData;
+import org.apache.cassandra.config.Config;
+import org.apache.cassandra.config.DatabaseDescriptor;
+import org.apache.cassandra.config.Schema;
+import org.apache.cassandra.cql3.ColumnSpecification;
+import org.apache.cassandra.cql3.QueryOptions;
+import org.apache.cassandra.cql3.QueryProcessor;
+import org.apache.cassandra.cql3.UpdateParameters;
+import org.apache.cassandra.cql3.functions.UDHelper;
 import org.apache.cassandra.cql3.statements.CreateTableStatement;
+import org.apache.cassandra.cql3.statements.CreateTypeStatement;
 import org.apache.cassandra.cql3.statements.ParsedStatement;
 import org.apache.cassandra.cql3.statements.UpdateStatement;
 import org.apache.cassandra.db.Clustering;
 import org.apache.cassandra.db.DecoratedKey;
 import org.apache.cassandra.db.marshal.AbstractType;
+import org.apache.cassandra.db.marshal.UserType;
 import org.apache.cassandra.db.partitions.Partition;
 import org.apache.cassandra.dht.IPartitioner;
 import org.apache.cassandra.dht.Murmur3Partitioner;
 import org.apache.cassandra.exceptions.InvalidRequestException;
 import org.apache.cassandra.exceptions.RequestValidationException;
+import org.apache.cassandra.exceptions.SyntaxException;
 import org.apache.cassandra.io.sstable.format.SSTableFormat;
 import org.apache.cassandra.schema.KeyspaceMetadata;
 import org.apache.cassandra.schema.KeyspaceParams;
-import org.apache.cassandra.schema.Tables;
 import org.apache.cassandra.schema.Types;
 import org.apache.cassandra.service.ClientState;
+import org.apache.cassandra.utils.ByteBufferUtil;
 import org.apache.cassandra.utils.Pair;
 
 /**
@@ -50,12 +66,14 @@ import org.apache.cassandra.utils.Pair;
  * <p>
  * Typical usage looks like:
  * <pre>
+ *   String type = CREATE TYPE myKs.myType (a int, b int)";
  *   String schema = "CREATE TABLE myKs.myTable ("
  *                 + "  k int PRIMARY KEY,"
  *                 + "  v1 text,"
- *                 + "  v2 int"
+ *                 + "  v2 int,"
+ *                 + "  v3 myType,"
  *                 + ")";
- *   String insert = "INSERT INTO myKs.myTable (k, v1, v2) VALUES (?, ?, ?)";
+ *   String insert = "INSERT INTO myKs.myTable (k, v1, v2, v3) VALUES (?, ?, ?, ?)";
  *
  *   // Creates a new writer. You need to provide at least the directory where to write the created sstable,
  *   // the schema for the sstable to write and a (prepared) insert statement to use. If you do not use the
@@ -63,13 +81,15 @@ import org.apache.cassandra.utils.Pair;
  *   // CQLSSTableWriter.Builder for more details on the available options.
  *   CQLSSTableWriter writer = CQLSSTableWriter.builder()
  *                                             .inDirectory("path/to/directory")
+ *                                             .withType(type)
  *                                             .forTable(schema)
  *                                             .using(insert).build();
  *
+ *   UserType myType = writer.getUDType("myType");
  *   // Adds a nember of rows to the resulting sstable
- *   writer.addRow(0, "test1", 24);
- *   writer.addRow(1, "test2", null);
- *   writer.addRow(2, "test3", 42);
+ *   writer.addRow(0, "test1", 24, myType.newValue().setInt("a", 10).setInt("b", 20));
+ *   writer.addRow(1, "test2", null, null);
+ *   writer.addRow(2, "test3", 42, myType.newValue().setInt("a", 30).setInt("b", 40));
  *
  *   // Close the writer, finalizing the sstable
  *   writer.close();
@@ -145,8 +165,14 @@ public class CQLSSTableWriter implements Closeable
     {
         int size = Math.min(values.size(), boundNames.size());
         List<ByteBuffer> rawValues = new ArrayList<>(size);
+
         for (int i = 0; i < size; i++)
-            rawValues.add(values.get(i) == null ? null : ((AbstractType)boundNames.get(i).type).decompose(values.get(i)));
+        {
+            TypeCodec typeCodec = UDHelper.codecFor(UDHelper.driverType(boundNames.get(i).type));
+            rawValues.add(values.get(i) == null ? null : typeCodec.serialize(values.get(i),
+                                                                             ProtocolVersion.NEWEST_SUPPORTED));
+        }
+
         return rawAddRow(rawValues);
     }
 
@@ -175,10 +201,11 @@ public class CQLSSTableWriter implements Closeable
     {
         int size = boundNames.size();
         List<ByteBuffer> rawValues = new ArrayList<>(size);
-        for (int i = 0; i < size; i++) {
+        for (int i = 0; i < size; i++)
+        {
             ColumnSpecification spec = boundNames.get(i);
             Object value = values.get(spec.name.toString());
-            rawValues.add(value == null ? null : ((AbstractType)spec.type).decompose(value));
+            rawValues.add(value == null ? null : ((AbstractType) spec.type).decompose(value));
         }
         return rawAddRow(rawValues);
     }
@@ -270,6 +297,20 @@ public class CQLSSTableWriter implements Closeable
     }
 
     /**
+     * Returns the User Defined type, used in this SSTable Writer, that can
+     * be used to create UDTValue instances.
+     *
+     * @param dataType name of the User Defined type
+     * @return user defined type
+     */
+    public com.datastax.driver.core.UserType getUDType(String dataType)
+    {
+        KeyspaceMetadata ksm = Schema.instance.getKSMetaData(insert.keyspace());
+        UserType userType = ksm.types.getNullable(ByteBufferUtil.bytes(dataType));
+        return (com.datastax.driver.core.UserType) UDHelper.driverType(userType);
+    }
+
+    /**
      * Close this writer.
      * <p>
      * This method should be called, otherwise the produced sstables are not
@@ -289,14 +330,17 @@ public class CQLSSTableWriter implements Closeable
 
         protected SSTableFormat.Type formatType = null;
 
-        private CFMetaData schema;
-        private UpdateStatement insert;
-        private List<ColumnSpecification> boundNames;
+        private CreateTableStatement.RawStatement schemaStatement;
+        private final List<CreateTypeStatement> typeStatements;
+        private UpdateStatement.ParsedInsert insertStatement;
+        private IPartitioner partitioner;
 
         private boolean sorted = false;
         private long bufferSizeInMB = 128;
 
-        protected Builder() {}
+        protected Builder() {
+            this.typeStatements = new ArrayList<>();
+        }
 
         /**
          * The directory where to write the sstables.
@@ -334,6 +378,12 @@ public class CQLSSTableWriter implements Closeable
             return this;
         }
 
+        public Builder withType(String typeDefinition) throws SyntaxException
+        {
+            typeStatements.add(parseStatement(typeDefinition, CreateTypeStatement.class, "CREATE TYPE"));
+            return this;
+        }
+
         /**
          * The schema (CREATE TABLE statement) for the table for which sstable are to be created.
          * <p>
@@ -350,52 +400,8 @@ public class CQLSSTableWriter implements Closeable
          */
         public Builder forTable(String schema)
         {
-            try
-            {
-                synchronized (CQLSSTableWriter.class)
-                {
-                    this.schema = getTableMetadata(schema);
-
-                    // We need to register the keyspace/table metadata through Schema, otherwise we won't be able to properly
-                    // build the insert statement in using().
-                    KeyspaceMetadata ksm = Schema.instance.getKSMetaData(this.schema.ksName);
-                    if (ksm == null)
-                    {
-                        createKeyspaceWithTable(this.schema);
-                    }
-                    else if (Schema.instance.getCFMetaData(this.schema.ksName, this.schema.cfName) == null)
-                    {
-                        addTableToKeyspace(ksm, this.schema);
-                    }
-                    return this;
-                }
-            }
-            catch (RequestValidationException e)
-            {
-                throw new IllegalArgumentException(e.getMessage(), e);
-            }
-        }
-
-        /**
-         * Creates the keyspace with the specified table.
-         *
-         * @param table the table that must be created.
-         */
-        private static void createKeyspaceWithTable(CFMetaData table)
-        {
-            Schema.instance.load(KeyspaceMetadata.create(table.ksName, KeyspaceParams.simple(1), Tables.of(table)));
-        }
-
-        /**
-         * Adds the table to the to the specified keyspace.
-         *
-         * @param keyspace the keyspace to add to
-         * @param table the table to add
-         */
-        private static void addTableToKeyspace(KeyspaceMetadata keyspace, CFMetaData table)
-        {
-            Schema.instance.load(table);
-            Schema.instance.setKeyspaceMetadata(keyspace.withSwapped(keyspace.tables.with(table)));
+            this.schemaStatement = parseStatement(schema, CreateTableStatement.RawStatement.class, "CREATE TABLE");
+            return this;
         }
 
         /**
@@ -410,7 +416,7 @@ public class CQLSSTableWriter implements Closeable
          */
         public Builder withPartitioner(IPartitioner partitioner)
         {
-            this.schema = schema.copy(partitioner);
+            this.partitioner = partitioner;
             return this;
         }
 
@@ -424,27 +430,16 @@ public class CQLSSTableWriter implements Closeable
          * <p>
          * This is a mandatory option, and this needs to be called after foTable().
          *
-         * @param insertStatement an insertion statement that defines the order
+         * @param insert an insertion statement that defines the order
          * of column values to use.
          * @return this builder.
          *
          * @throws IllegalArgumentException if {@code insertStatement} is not a valid insertion
          * statement, does not have a fully-qualified table name or have no bind variables.
          */
-        public Builder using(String insertStatement)
+        public Builder using(String insert)
         {
-            if (schema == null)
-                throw new IllegalStateException("You need to define the schema by calling forTable() prior to this call.");
-
-            Pair<UpdateStatement, List<ColumnSpecification>> p = getStatement(insertStatement, UpdateStatement.class, "INSERT");
-            this.insert = p.left;
-            this.boundNames = p.right;
-            if (this.insert.hasConditions())
-                throw new IllegalArgumentException("Conditional statements are not supported");
-            if (this.insert.isCounter())
-                throw new IllegalArgumentException("Counter update statements are not supported");
-            if (this.boundNames.isEmpty())
-                throw new IllegalArgumentException("Provided insert statement has no bind variables");
+            this.insertStatement = parseStatement(insert, UpdateStatement.ParsedInsert.class, "INSERT");
             return this;
         }
 
@@ -490,54 +485,111 @@ public class CQLSSTableWriter implements Closeable
             return this;
         }
 
-        private static CFMetaData getTableMetadata(String schema)
-        {
-            CFStatement parsed = (CFStatement)QueryProcessor.parseStatement(schema);
-            // tables with UDTs are currently not supported by CQLSSTableWrite, so we just use Types.none(), for now
-            // see CASSANDRA-10624 for more details
-            CreateTableStatement statement = (CreateTableStatement) ((CreateTableStatement.RawStatement) parsed).prepare(Types.none()).statement;
-            statement.validate(ClientState.forInternalCalls());
-            return statement.getCFMetaData();
-        }
-
-        private static <T extends CQLStatement> Pair<T, List<ColumnSpecification>> getStatement(String query, Class<T> klass, String type)
-        {
-            try
-            {
-                ClientState state = ClientState.forInternalCalls();
-                ParsedStatement.Prepared prepared = QueryProcessor.getStatement(query, state);
-                CQLStatement stmt = prepared.statement;
-                stmt.validate(state);
-
-                if (!stmt.getClass().equals(klass))
-                    throw new IllegalArgumentException("Invalid query, must be a " + type + " statement");
-
-                return Pair.create(klass.cast(stmt), prepared.boundNames);
-            }
-            catch (RequestValidationException e)
-            {
-                throw new IllegalArgumentException(e.getMessage(), e);
-            }
-        }
-
         @SuppressWarnings("resource")
         public CQLSSTableWriter build()
         {
             if (directory == null)
                 throw new IllegalStateException("No ouptut directory specified, you should provide a directory with inDirectory()");
-            if (schema == null)
+            if (schemaStatement == null)
                 throw new IllegalStateException("Missing schema, you should provide the schema for the SSTable to create with forTable()");
-            if (insert == null)
+            if (insertStatement == null)
                 throw new IllegalStateException("No insert statement specified, you should provide an insert statement through using()");
 
-            AbstractSSTableSimpleWriter writer = sorted
-                                               ? new SSTableSimpleWriter(directory, schema, insert.updatedColumns())
-                                               : new SSTableSimpleUnsortedWriter(directory, schema, insert.updatedColumns(), bufferSizeInMB);
+            synchronized (CQLSSTableWriter.class)
+            {
+                String keyspace = schemaStatement.keyspace();
 
-            if (formatType != null)
-                writer.setSSTableFormatType(formatType);
+                if (Schema.instance.getKSMetaData(keyspace) == null)
+                    Schema.instance.load(KeyspaceMetadata.create(keyspace, KeyspaceParams.simple(1)));
 
-            return new CQLSSTableWriter(writer, insert, boundNames);
+                createTypes(keyspace);
+                CFMetaData cfMetaData = createTable(keyspace);
+                Pair<UpdateStatement, List<ColumnSpecification>> preparedInsert = prepareInsert();
+
+                AbstractSSTableSimpleWriter writer = sorted
+                                                     ? new SSTableSimpleWriter(directory, cfMetaData, preparedInsert.left.updatedColumns())
+                                                     : new SSTableSimpleUnsortedWriter(directory, cfMetaData, preparedInsert.left.updatedColumns(), bufferSizeInMB);
+
+                if (formatType != null)
+                    writer.setSSTableFormatType(formatType);
+
+                return new CQLSSTableWriter(writer, preparedInsert.left, preparedInsert.right);
+            }
+        }
+
+        private void createTypes(String keyspace)
+        {
+            KeyspaceMetadata ksm = Schema.instance.getKSMetaData(keyspace);
+            Types.RawBuilder builder = Types.rawBuilder(keyspace);
+            for (CreateTypeStatement st : typeStatements)
+                st.addToRawBuilder(builder);
+
+            ksm = ksm.withSwapped(builder.build());
+            Schema.instance.setKeyspaceMetadata(ksm);
+        }
+        /**
+         * Creates the table according to schema statement
+         *
+         * @param keyspace name of the keyspace where table should be created
+         */
+        private CFMetaData createTable(String keyspace)
+        {
+            KeyspaceMetadata ksm = Schema.instance.getKSMetaData(keyspace);
+
+            CFMetaData cfMetaData = ksm.tables.getNullable(schemaStatement.columnFamily());
+            if (cfMetaData == null)
+            {
+                CreateTableStatement statement = (CreateTableStatement) schemaStatement.prepare(ksm.types).statement;
+                statement.validate(ClientState.forInternalCalls());
+
+                cfMetaData = statement.getCFMetaData();
+
+                Schema.instance.load(cfMetaData);
+                Schema.instance.setKeyspaceMetadata(ksm.withSwapped(ksm.tables.with(cfMetaData)));
+            }
+
+            if (partitioner != null)
+                return cfMetaData.copy(partitioner);
+            else
+                return cfMetaData;
+        }
+
+        /**
+         * Prepares insert statement for writing data to SSTable
+         *
+         * @return prepared Insert statement and it's bound names
+         */
+        private Pair<UpdateStatement, List<ColumnSpecification>> prepareInsert()
+        {
+            ParsedStatement.Prepared cqlStatement = insertStatement.prepare();
+            UpdateStatement insert = (UpdateStatement) cqlStatement.statement;
+            insert.validate(ClientState.forInternalCalls());
+
+            if (insert.hasConditions())
+                throw new IllegalArgumentException("Conditional statements are not supported");
+            if (insert.isCounter())
+                throw new IllegalArgumentException("Counter update statements are not supported");
+            if (cqlStatement.boundNames.isEmpty())
+                throw new IllegalArgumentException("Provided insert statement has no bind variables");
+
+            return Pair.create(insert, cqlStatement.boundNames);
+        }
+    }
+
+    private static <T extends ParsedStatement> T parseStatement(String query, Class<T> klass, String type)
+    {
+        try
+        {
+            ParsedStatement stmt = QueryProcessor.parseStatement(query);
+
+            if (!stmt.getClass().equals(klass))
+                throw new IllegalArgumentException("Invalid query, must be a " + type + " statement but was: " + stmt.getClass());
+
+            return klass.cast(stmt);
+        }
+        catch (RequestValidationException e)
+        {
+            throw new IllegalArgumentException(e.getMessage(), e);
         }
     }
 }

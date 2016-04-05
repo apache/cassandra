@@ -20,10 +20,10 @@ package org.apache.cassandra.io.sstable;
 import java.io.File;
 import java.io.FilenameFilter;
 import java.nio.ByteBuffer;
-import java.util.Arrays;
-import java.util.Iterator;
-import java.util.UUID;
+import java.util.*;
+import java.util.concurrent.ExecutionException;
 
+import com.google.common.collect.ImmutableList;
 import com.google.common.collect.ImmutableMap;
 import com.google.common.io.Files;
 
@@ -33,16 +33,19 @@ import org.junit.Test;
 
 import org.apache.cassandra.SchemaLoader;
 import org.apache.cassandra.Util;
-import org.apache.cassandra.config.CFMetaData;
-import org.apache.cassandra.config.Config;
-import org.apache.cassandra.config.Schema;
-import org.apache.cassandra.cql3.QueryProcessor;
-import org.apache.cassandra.cql3.UntypedResultSet;
+import org.apache.cassandra.config.*;
+import org.apache.cassandra.cql3.*;
+import org.apache.cassandra.cql3.functions.UDHelper;
 import org.apache.cassandra.db.Keyspace;
 import org.apache.cassandra.dht.*;
 import org.apache.cassandra.service.StorageService;
 import org.apache.cassandra.utils.FBUtilities;
 import org.apache.cassandra.utils.OutputHandler;
+import com.datastax.driver.core.DataType;
+import com.datastax.driver.core.ProtocolVersion;
+import com.datastax.driver.core.TypeCodec;
+import com.datastax.driver.core.UDTValue;
+import com.datastax.driver.core.UserType;
 
 import static org.junit.Assert.assertEquals;
 
@@ -92,24 +95,7 @@ public class CQLSSTableWriterTest
 
             writer.close();
 
-            SSTableLoader loader = new SSTableLoader(dataDir, new SSTableLoader.Client()
-            {
-                private String keyspace;
-
-                public void init(String keyspace)
-                {
-                    this.keyspace = keyspace;
-                    for (Range<Token> range : StorageService.instance.getLocalRanges("cql_keyspace"))
-                        addRangeForEndpoint(range, FBUtilities.getBroadcastAddress());
-                }
-
-                public CFMetaData getTableMetadata(String cfName)
-                {
-                    return Schema.instance.getCFMetaData(keyspace, cfName);
-                }
-            }, new OutputHandler.SystemOutput(false, false));
-
-            loader.stream().get();
+            loadSSTables(dataDir, KS);
 
             UntypedResultSet rs = QueryProcessor.executeInternal("SELECT * FROM cql_keyspace.table1;");
             assertEquals(4, rs.size());
@@ -300,6 +286,151 @@ public class CQLSSTableWriterTest
             }
         }
 
+        loadSSTables(dataDir, KS);
+
+        UntypedResultSet rs = QueryProcessor.executeInternal("SELECT * FROM cql_keyspace2.table2;");
+        assertEquals(threads.length * NUMBER_WRITES_IN_RUNNABLE, rs.size());
+    }
+
+    @Test
+    @SuppressWarnings("unchecked")
+    public void testWritesWithUdts() throws Exception
+    {
+        final String KS = "cql_keyspace3";
+        final String TABLE = "table3";
+
+        final String schema = "CREATE TABLE " + KS + "." + TABLE + " ("
+                              + "  k int,"
+                              + "  v1 list<frozen<tuple2>>,"
+                              + "  v2 frozen<tuple3>,"
+                              + "  PRIMARY KEY (k)"
+                              + ")";
+
+        File tempdir = Files.createTempDir();
+        File dataDir = new File(tempdir.getAbsolutePath() + File.separator + KS + File.separator + TABLE);
+        assert dataDir.mkdirs();
+
+        CQLSSTableWriter writer = CQLSSTableWriter.builder()
+                                                  .inDirectory(dataDir)
+                                                  .withType("CREATE TYPE " + KS + ".tuple2 (a int, b int)")
+                                                  .withType("CREATE TYPE " + KS + ".tuple3 (a int, b int, c int)")
+                                                  .forTable(schema)
+                                                  .using("INSERT INTO " + KS + "." + TABLE + " (k, v1, v2) " +
+                                                         "VALUES (?, ?, ?)").build();
+
+        UserType tuple2Type = writer.getUDType("tuple2");
+        UserType tuple3Type = writer.getUDType("tuple3");
+        for (int i = 0; i < 100; i++)
+        {
+            writer.addRow(i,
+                          ImmutableList.builder()
+                                       .add(tuple2Type.newValue()
+                                                      .setInt("a", i * 10)
+                                                      .setInt("b", i * 20))
+                                       .add(tuple2Type.newValue()
+                                                      .setInt("a", i * 30)
+                                                      .setInt("b", i * 40))
+                                       .build(),
+                          tuple3Type.newValue()
+                                    .setInt("a", i * 100)
+                                    .setInt("b", i * 200)
+                                    .setInt("c", i * 300));
+        }
+
+        writer.close();
+        loadSSTables(dataDir, KS);
+
+        UntypedResultSet resultSet = QueryProcessor.executeInternal("SELECT * FROM " + KS + "." + TABLE);
+        TypeCodec collectionCodec = UDHelper.codecFor(DataType.CollectionType.frozenList(tuple2Type));
+        TypeCodec tuple3Codec = UDHelper.codecFor(tuple3Type);
+
+        assertEquals(resultSet.size(), 100);
+        int cnt = 0;
+        for (UntypedResultSet.Row row: resultSet) {
+            assertEquals(cnt,
+                         row.getInt("k"));
+            List<UDTValue> values = (List<UDTValue>) collectionCodec.deserialize(row.getBytes("v1"),
+                                                                                 ProtocolVersion.NEWEST_SUPPORTED);
+            assertEquals(values.get(0).getInt("a"), cnt * 10);
+            assertEquals(values.get(0).getInt("b"), cnt * 20);
+            assertEquals(values.get(1).getInt("a"), cnt * 30);
+            assertEquals(values.get(1).getInt("b"), cnt * 40);
+
+            UDTValue v2 = (UDTValue) tuple3Codec.deserialize(row.getBytes("v2"), ProtocolVersion.NEWEST_SUPPORTED);
+
+            assertEquals(v2.getInt("a"), cnt * 100);
+            assertEquals(v2.getInt("b"), cnt * 200);
+            assertEquals(v2.getInt("c"), cnt * 300);
+            cnt++;
+        }
+    }
+
+    @Test
+    @SuppressWarnings("unchecked")
+    public void testWritesWithDependentUdts() throws Exception
+    {
+        final String KS = "cql_keyspace4";
+        final String TABLE = "table4";
+
+        final String schema = "CREATE TABLE " + KS + "." + TABLE + " ("
+                              + "  k int,"
+                              + "  v1 frozen<nested_tuple>,"
+                              + "  PRIMARY KEY (k)"
+                              + ")";
+
+        File tempdir = Files.createTempDir();
+        File dataDir = new File(tempdir.getAbsolutePath() + File.separator + KS + File.separator + TABLE);
+        assert dataDir.mkdirs();
+
+        CQLSSTableWriter writer = CQLSSTableWriter.builder()
+                                                  .inDirectory(dataDir)
+                                                  .withType("CREATE TYPE " + KS + ".nested_tuple (c int, tpl frozen<tuple2>)")
+                                                  .withType("CREATE TYPE " + KS + ".tuple2 (a int, b int)")
+                                                  .forTable(schema)
+                                                  .using("INSERT INTO " + KS + "." + TABLE + " (k, v1) " +
+                                                         "VALUES (?, ?)")
+                                                  .build();
+
+        UserType tuple2Type = writer.getUDType("tuple2");
+        UserType nestedTuple = writer.getUDType("nested_tuple");
+        TypeCodec tuple2Codec = UDHelper.codecFor(tuple2Type);
+        TypeCodec nestedTupleCodec = UDHelper.codecFor(nestedTuple);
+
+        for (int i = 0; i < 100; i++)
+        {
+            writer.addRow(i,
+                          nestedTuple.newValue()
+                                     .setInt("c", i * 100)
+                                     .set("tpl",
+                                          tuple2Type.newValue()
+                                                    .setInt("a", i * 200)
+                                                    .setInt("b", i * 300),
+                                          tuple2Codec));
+        }
+
+        writer.close();
+        loadSSTables(dataDir, KS);
+
+        UntypedResultSet resultSet = QueryProcessor.executeInternal("SELECT * FROM " + KS + "." + TABLE);
+
+        assertEquals(resultSet.size(), 100);
+        int cnt = 0;
+        for (UntypedResultSet.Row row: resultSet) {
+            assertEquals(cnt,
+                         row.getInt("k"));
+            UDTValue nestedTpl = (UDTValue) nestedTupleCodec.deserialize(row.getBytes("v1"),
+                                                                         ProtocolVersion.NEWEST_SUPPORTED);
+            assertEquals(nestedTpl.getInt("c"), cnt * 100);
+            UDTValue tpl = nestedTpl.getUDTValue("tpl");
+            assertEquals(tpl.getInt("a"), cnt * 200);
+            assertEquals(tpl.getInt("b"), cnt * 300);
+
+            cnt++;
+        }
+    }
+
+    private static void loadSSTables(File dataDir, String ks) throws ExecutionException, InterruptedException
+    {
         SSTableLoader loader = new SSTableLoader(dataDir, new SSTableLoader.Client()
         {
             private String keyspace;
@@ -307,7 +438,7 @@ public class CQLSSTableWriterTest
             public void init(String keyspace)
             {
                 this.keyspace = keyspace;
-                for (Range<Token> range : StorageService.instance.getLocalRanges(KS))
+                for (Range<Token> range : StorageService.instance.getLocalRanges(ks))
                     addRangeForEndpoint(range, FBUtilities.getBroadcastAddress());
             }
 
@@ -318,8 +449,5 @@ public class CQLSSTableWriterTest
         }, new OutputHandler.SystemOutput(false, false));
 
         loader.stream().get();
-
-        UntypedResultSet rs = QueryProcessor.executeInternal("SELECT * FROM cql_keyspace2.table2;");
-        assertEquals(threads.length * NUMBER_WRITES_IN_RUNNABLE, rs.size());
     }
 }

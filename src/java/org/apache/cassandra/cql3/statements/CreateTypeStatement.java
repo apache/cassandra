@@ -19,6 +19,7 @@ package org.apache.cassandra.cql3.statements;
 
 import java.nio.ByteBuffer;
 import java.util.*;
+import java.util.stream.Collectors;
 
 import org.apache.cassandra.auth.Permission;
 import org.apache.cassandra.config.*;
@@ -28,6 +29,7 @@ import org.apache.cassandra.db.marshal.UTF8Type;
 import org.apache.cassandra.db.marshal.UserType;
 import org.apache.cassandra.exceptions.*;
 import org.apache.cassandra.schema.KeyspaceMetadata;
+import org.apache.cassandra.schema.Types;
 import org.apache.cassandra.service.ClientState;
 import org.apache.cassandra.service.MigrationManager;
 import org.apache.cassandra.transport.Event;
@@ -97,13 +99,20 @@ public class CreateTypeStatement extends SchemaAlteringStatement
         }
     }
 
+    public void addToRawBuilder(Types.RawBuilder builder) throws InvalidRequestException
+    {
+        builder.add(name.getStringTypeName(),
+                    columnNames.stream().map(ColumnIdentifier::toString).collect(Collectors.toList()),
+                    columnTypes.stream().map(CQL3Type.Raw::toString).collect(Collectors.toList()));
+    }
+
     @Override
     public String keyspace()
     {
         return name.getKeyspace();
     }
 
-    private UserType createType() throws InvalidRequestException
+    public UserType createType() throws InvalidRequestException
     {
         List<ByteBuffer> names = new ArrayList<>(columnNames.size());
         for (ColumnIdentifier name : columnNames)

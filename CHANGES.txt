@@ -1,4 +1,5 @@
 3.6
+ * Support UDT in CQLSSTableWriter (CASSANDRA-10624)
  * Support for non-frozen user-defined types, updating
    individual fields of user-defined types (CASSANDRA-7423)
  * Make LZ4 compression level configurable (CASSANDRA-11051)

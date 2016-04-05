@@ -35,7 +35,7 @@ import org.apache.cassandra.db.marshal.AbstractType;
 import org.apache.cassandra.transport.Server;
 
 /**
- * Helper class for User Defined Functions + Aggregates.
+ * Helper class for User Defined Functions, Types and Aggregates.
  */
 public final class UDHelper
 {
@@ -66,7 +66,7 @@ public final class UDHelper
         return codecs;
     }
 
-    static TypeCodec<Object> codecFor(DataType dataType)
+    public static TypeCodec<Object> codecFor(DataType dataType)
     {
         return codecRegistry.codecFor(dataType);
     }

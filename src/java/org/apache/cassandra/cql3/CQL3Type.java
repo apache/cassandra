@@ -773,7 +773,10 @@ public interface CQL3Type
             @Override
             public String toString()
             {
-                return name.toString();
+                if (frozen)
+                    return "frozen<" + name.toString() + '>';
+                else
+                    return name.toString();
             }
         }
 
