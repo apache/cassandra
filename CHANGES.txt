@@ -1,7 +1,7 @@
 3.0.6
+ * Validate that num_tokens and initial_token are consistent with one another (CASSANDRA-10120)
 Merged from 2.2:
  * IncomingStreamingConnection version check message wrong (CASSANDRA-11462)
-
 
 3.0.5
  * Fix rare NPE on schema upgrade from 2.x to 3.x (CASSANDRA-10943)

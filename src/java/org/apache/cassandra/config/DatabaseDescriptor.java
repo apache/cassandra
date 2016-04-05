@@ -610,14 +610,21 @@ public class DatabaseDescriptor
         if (conf.concurrent_compactors <= 0)
             throw new ConfigurationException("concurrent_compactors should be strictly greater than 0, but was " + conf.concurrent_compactors, false);
 
-        if (conf.initial_token != null)
-            for (String token : tokensFromString(conf.initial_token))
-                partitioner.getTokenFactory().validate(token);
-
         if (conf.num_tokens == null)
-        	conf.num_tokens = 1;
+            conf.num_tokens = 1;
         else if (conf.num_tokens > MAX_NUM_TOKENS)
             throw new ConfigurationException(String.format("A maximum number of %d tokens per node is supported", MAX_NUM_TOKENS), false);
+
+        if (conf.initial_token != null)
+        {
+            Collection<String> tokens = tokensFromString(conf.initial_token);
+            if (tokens.size() != conf.num_tokens)
+                throw new ConfigurationException("The number of initial tokens (by initial_token) specified is different from num_tokens value", false);
+
+            for (String token : tokens)
+                partitioner.getTokenFactory().validate(token);
+        }
+
 
         try
         {
