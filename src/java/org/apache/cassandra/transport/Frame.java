@@ -162,19 +162,24 @@ public class Frame
                 return;
             }
 
-            // Wait until we have the complete header
-            if (buffer.readableBytes() < Header.LENGTH)
+            int readableBytes = buffer.readableBytes();
+            if (readableBytes == 0)
                 return;
 
             int idx = buffer.readerIndex();
 
+            // Check the first byte for the protocol version before we wait for a complete header.  Protocol versions
+            // 1 and 2 use a shorter header, so we may never have a complete header's worth of bytes.
             int firstByte = buffer.getByte(idx++);
             Message.Direction direction = Message.Direction.extractFromVersion(firstByte);
             int version = firstByte & PROTOCOL_VERSION_MASK;
-
             if (version < Server.MIN_SUPPORTED_VERSION || version > Server.CURRENT_VERSION)
                 throw new ProtocolException(String.format("Invalid or unsupported protocol version (%d); the lowest supported version is %d and the greatest is %d",
                                                           version, Server.MIN_SUPPORTED_VERSION, Server.CURRENT_VERSION));
+
+            // Wait until we have the complete header
+            if (readableBytes < Header.LENGTH)
+                return;
 
             int flags = buffer.getByte(idx++);
 

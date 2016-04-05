@@ -68,6 +68,29 @@ public class ProtocolErrorTest {
     }
 
     @Test
+    public void testInvalidProtocolVersionShortFrame() throws Exception
+    {
+        // test for CASSANDRA-11464
+        Frame.Decoder dec = new Frame.Decoder(null);
+
+        List<Object> results = new ArrayList<>();
+        byte[] frame = new byte[] {
+                (byte) REQUEST.addToVersion(1),  // direction & version
+                0x00,  // flags
+                0x01,  // stream ID
+                0x09,  // opcode
+                0x00, 0x00, 0x00, 0x21,  // body length
+        };
+        ByteBuf buf = Unpooled.wrappedBuffer(frame);
+        try {
+            dec.decode(null, buf, results);
+            Assert.fail("Expected protocol error");
+        } catch (ProtocolException e) {
+            Assert.assertTrue(e.getMessage().contains("Invalid or unsupported protocol version"));
+        }
+    }
+
+    @Test
     public void testInvalidDirection() throws Exception
     {
         Frame.Decoder dec = new Frame.Decoder(null);
