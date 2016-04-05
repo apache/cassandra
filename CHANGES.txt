@@ -1,4 +1,6 @@
 3.0.6
+ * Properly respond with ProtocolError when a v1/v2 native protocol
+   header is received (CASSANDRA-11464)
  * Validate that num_tokens and initial_token are consistent with one another (CASSANDRA-10120)
 Merged from 2.2:
  * IncomingStreamingConnection version check message wrong (CASSANDRA-11462)
