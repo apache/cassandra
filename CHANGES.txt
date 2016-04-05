@@ -1,4 +1,5 @@
 2.2.6
+ * Make deprecated repair methods backward-compatible with previous notification service (CASSANDRA-11430)
  * IncomingStreamingConnection version check message wrong (CASSANDRA-11462)
  * DatabaseDescriptor should log stacktrace in case of Eception during seed provider creation (CASSANDRA-11312)
  * Use canonical path for directory in SSTable descriptor (CASSANDRA-10587)
