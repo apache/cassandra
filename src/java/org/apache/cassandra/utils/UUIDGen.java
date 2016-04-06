@@ -21,6 +21,7 @@ import java.net.InetAddress;
 import java.nio.ByteBuffer;
 import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
+import java.security.SecureRandom;
 import java.util.Collection;
 import java.util.Random;
 import java.util.UUID;
@@ -239,7 +240,7 @@ public class UUIDGen
 
     private static long makeClockSeqAndNode()
     {
-        long clock = new Random(System.currentTimeMillis()).nextLong();
+        long clock = new SecureRandom().nextLong();
 
         long lsb = 0;
         lsb |= 0x8000000000000000L;                 // variant (2 bits)
