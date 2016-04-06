@@ -59,7 +59,7 @@ public abstract class Slices implements Iterable<Slice>
      */
     public static Slices with(ClusteringComparator comparator, Slice slice)
     {
-        if (slice.start() == Slice.Bound.BOTTOM && slice.end() == Slice.Bound.TOP)
+        if (slice.start() == ClusteringBound.BOTTOM && slice.end() == ClusteringBound.TOP)
             return Slices.ALL;
 
         assert comparator.compare(slice.start(), slice.end()) <= 0;
@@ -186,7 +186,7 @@ public abstract class Slices implements Iterable<Slice>
             this.slices = new ArrayList<>(initialSize);
         }
 
-        public Builder add(Slice.Bound start, Slice.Bound end)
+        public Builder add(ClusteringBound start, ClusteringBound end)
         {
             return add(Slice.make(start, end));
         }
@@ -328,7 +328,7 @@ public abstract class Slices implements Iterable<Slice>
             for (int i = 0; i < size; i++)
                 slices[i] = Slice.serializer.deserialize(in, version, metadata.comparator.subtypes());
 
-            if (size == 1 && slices[0].start() == Slice.Bound.BOTTOM && slices[0].end() == Slice.Bound.TOP)
+            if (size == 1 && slices[0].start() == ClusteringBound.BOTTOM && slices[0].end() == ClusteringBound.TOP)
                 return ALL;
 
             return new ArrayBackedSlices(metadata.comparator, slices);
@@ -646,8 +646,8 @@ public abstract class Slices implements Iterable<Slice>
 
             public static ComponentOfSlice fromSlice(int component, Slice slice)
             {
-                Slice.Bound start = slice.start();
-                Slice.Bound end = slice.end();
+                ClusteringBound start = slice.start();
+                ClusteringBound end = slice.end();
 
                 if (component >= start.size() && component >= end.size())
                     return null;

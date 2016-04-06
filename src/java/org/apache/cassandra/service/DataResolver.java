@@ -167,7 +167,7 @@ public class DataResolver extends ResponseResolver
             private final Row.Builder[] currentRows = new Row.Builder[sources.length];
             private final RowDiffListener diffListener;
 
-            private final Slice.Bound[] markerOpen = new Slice.Bound[sources.length];
+            private final ClusteringBound[] markerOpen = new ClusteringBound[sources.length];
             private final DeletionTime[] markerTime = new DeletionTime[sources.length];
 
             public MergeListener(DecoratedKey partitionKey, PartitionColumns columns, boolean isReversed)
@@ -268,8 +268,8 @@ public class DataResolver extends ResponseResolver
                     // Note that boundaries are both close and open, so it's not one or the other
                     if (merged.isClose(isReversed) && markerOpen[i] != null)
                     {
-                        Slice.Bound open = markerOpen[i];
-                        Slice.Bound close = merged.closeBound(isReversed);
+                        ClusteringBound open = markerOpen[i];
+                        ClusteringBound close = merged.closeBound(isReversed);
                         update(i).add(new RangeTombstone(Slice.make(isReversed ? close : open, isReversed ? open : close), markerTime[i]));
                     }
                     if (merged.isOpen(isReversed) && (marker == null || merged.openDeletionTime(isReversed).supersedes(marker.openDeletionTime(isReversed))))

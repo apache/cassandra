@@ -20,18 +20,18 @@ package org.apache.cassandra.db.rows;
 import java.nio.ByteBuffer;
 
 import org.apache.cassandra.config.CFMetaData;
-import org.apache.cassandra.db.*;
+import org.apache.cassandra.db.ClusteringBoundOrBoundary;
 
-public abstract class AbstractRangeTombstoneMarker implements RangeTombstoneMarker
+public abstract class AbstractRangeTombstoneMarker<B extends ClusteringBoundOrBoundary> implements RangeTombstoneMarker
 {
-    protected final RangeTombstone.Bound bound;
+    protected final B bound;
 
-    protected AbstractRangeTombstoneMarker(RangeTombstone.Bound bound)
+    protected AbstractRangeTombstoneMarker(B bound)
     {
         this.bound = bound;
     }
 
-    public RangeTombstone.Bound clustering()
+    public B clustering()
     {
         return bound;
     }
@@ -58,7 +58,7 @@ public abstract class AbstractRangeTombstoneMarker implements RangeTombstoneMark
 
     public void validateData(CFMetaData metadata)
     {
-        Slice.Bound bound = clustering();
+        ClusteringBoundOrBoundary bound = clustering();
         for (int i = 0; i < bound.size(); i++)
         {
             ByteBuffer value = bound.get(i);

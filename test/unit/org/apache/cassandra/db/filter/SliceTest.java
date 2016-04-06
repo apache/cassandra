@@ -367,14 +367,14 @@ public class SliceTest
         assertSlicesNormalization(cc, slices(s(-1, 2), s(-1, 3), s(5, 9)), slices(s(-1, 3), s(5, 9)));
     }
 
-    private static Slice.Bound makeBound(ClusteringPrefix.Kind kind, Integer... components)
+    private static ClusteringBound makeBound(ClusteringPrefix.Kind kind, Integer... components)
     {
         ByteBuffer[] values = new ByteBuffer[components.length];
         for (int i = 0; i < components.length; i++)
         {
             values[i] = ByteBufferUtil.bytes(components[i]);
         }
-        return Slice.Bound.create(kind, values);
+        return ClusteringBound.create(kind, values);
     }
 
     private static List<ByteBuffer> columnNames(Integer ... components)

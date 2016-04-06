@@ -193,8 +193,8 @@ public abstract class AbstractBTreePartition implements Partition, Iterable<Row>
 
     private UnfilteredRowIterator sliceIterator(ColumnFilter selection, Slice slice, boolean reversed, Holder current, Row staticRow)
     {
-        Slice.Bound start = slice.start() == Slice.Bound.BOTTOM ? null : slice.start();
-        Slice.Bound end = slice.end() == Slice.Bound.TOP ? null : slice.end();
+        ClusteringBound start = slice.start() == ClusteringBound.BOTTOM ? null : slice.start();
+        ClusteringBound end = slice.end() == ClusteringBound.TOP ? null : slice.end();
         Iterator<Row> rowIter = BTree.slice(current.tree, metadata.comparator, start, true, end, true, desc(reversed));
         Iterator<RangeTombstone> deleteIter = current.deletionInfo.rangeIterator(slice, reversed);
 

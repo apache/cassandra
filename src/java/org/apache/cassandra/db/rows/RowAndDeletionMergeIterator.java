@@ -153,12 +153,12 @@ public class RowAndDeletionMergeIterator extends AbstractUnfilteredRowIterator
         return range;
     }
 
-    private Slice.Bound openBound(RangeTombstone range)
+    private ClusteringBound openBound(RangeTombstone range)
     {
         return range.deletedSlice().open(isReverseOrder());
     }
 
-    private Slice.Bound closeBound(RangeTombstone range)
+    private ClusteringBound closeBound(RangeTombstone range)
     {
         return range.deletedSlice().close(isReverseOrder());
     }

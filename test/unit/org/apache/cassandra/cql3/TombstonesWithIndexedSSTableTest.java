@@ -108,7 +108,6 @@ public class TombstonesWithIndexedSSTableTest extends CQLTester
         assertRowCount(execute("SELECT DISTINCT s FROM %s WHERE k = ? ORDER BY t DESC", 0), 1);
     }
 
-    // Creates a random string
     public static String makeRandomString(int length)
     {
         Random random = new Random();

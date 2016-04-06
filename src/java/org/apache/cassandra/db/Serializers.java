@@ -132,11 +132,11 @@ public class Serializers
                 {
                     // It's a range tombstone bound. It is a start since that's the only part we've ever included
                     // in the index entries.
-                    Slice.Bound.Kind boundKind = eoc > 0
-                                                 ? Slice.Bound.Kind.EXCL_START_BOUND
-                                                 : Slice.Bound.Kind.INCL_START_BOUND;
+                    ClusteringPrefix.Kind boundKind = eoc > 0
+                                                 ? ClusteringPrefix.Kind.EXCL_START_BOUND
+                                                 : ClusteringPrefix.Kind.INCL_START_BOUND;
 
-                    return Slice.Bound.create(boundKind, components.toArray(new ByteBuffer[components.size()]));
+                    return ClusteringBound.create(boundKind, components.toArray(new ByteBuffer[components.size()]));
                 }
             }
 

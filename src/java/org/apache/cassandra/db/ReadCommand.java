@@ -1074,7 +1074,7 @@ public abstract class ReadCommand extends MonitorableImpl implements ReadQuery
             // slice filter's stop.
             DataRange.Paging pagingRange = (DataRange.Paging) rangeCommand.dataRange();
             Clustering lastReturned = pagingRange.getLastReturned();
-            Slice.Bound newStart = Slice.Bound.exclusiveStartOf(lastReturned);
+            ClusteringBound newStart = ClusteringBound.exclusiveStartOf(lastReturned);
             Slice lastSlice = filter.requestedSlices().get(filter.requestedSlices().size() - 1);
             ByteBufferUtil.writeWithShortLength(LegacyLayout.encodeBound(metadata, newStart, true), out);
             ByteBufferUtil.writeWithShortLength(LegacyLayout.encodeClustering(metadata, lastSlice.end().clustering()), out);
@@ -1542,7 +1542,7 @@ public abstract class ReadCommand extends MonitorableImpl implements ReadQuery
         static long serializedStaticSliceSize(CFMetaData metadata)
         {
             // unlike serializeStaticSlice(), but we don't care about reversal for size calculations
-            ByteBuffer sliceStart = LegacyLayout.encodeBound(metadata, Slice.Bound.BOTTOM, false);
+            ByteBuffer sliceStart = LegacyLayout.encodeBound(metadata, ClusteringBound.BOTTOM, false);
             long size = ByteBufferUtil.serializedSizeWithShortLength(sliceStart);
 
             size += TypeSizes.sizeof((short) (metadata.comparator.size() * 3 + 2));
@@ -1570,7 +1570,7 @@ public abstract class ReadCommand extends MonitorableImpl implements ReadQuery
             // slice finish after we've written the static slice start
             if (!isReversed)
             {
-                ByteBuffer sliceStart = LegacyLayout.encodeBound(metadata, Slice.Bound.BOTTOM, false);
+                ByteBuffer sliceStart = LegacyLayout.encodeBound(metadata, ClusteringBound.BOTTOM, false);
                 ByteBufferUtil.writeWithShortLength(sliceStart, out);
             }
 
@@ -1586,7 +1586,7 @@ public abstract class ReadCommand extends MonitorableImpl implements ReadQuery
 
             if (isReversed)
             {
-                ByteBuffer sliceStart = LegacyLayout.encodeBound(metadata, Slice.Bound.BOTTOM, false);
+                ByteBuffer sliceStart = LegacyLayout.encodeBound(metadata, ClusteringBound.BOTTOM, false);
                 ByteBufferUtil.writeWithShortLength(sliceStart, out);
             }
         }
@@ -1708,7 +1708,7 @@ public abstract class ReadCommand extends MonitorableImpl implements ReadQuery
             {
                 Slices.Builder slicesBuilder = new Slices.Builder(metadata.comparator);
                 for (Clustering clustering : requestedRows)
-                    slicesBuilder.add(Slice.Bound.inclusiveStartOf(clustering), Slice.Bound.inclusiveEndOf(clustering));
+                    slicesBuilder.add(ClusteringBound.inclusiveStartOf(clustering), ClusteringBound.inclusiveEndOf(clustering));
                 slices = slicesBuilder.build();
             }
 

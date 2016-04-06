@@ -674,8 +674,8 @@ public abstract class ModificationStatement implements CQLStatement
 
     private Slices createSlice(QueryOptions options)
     {
-        SortedSet<Slice.Bound> startBounds = restrictions.getClusteringColumnsBounds(Bound.START, options);
-        SortedSet<Slice.Bound> endBounds = restrictions.getClusteringColumnsBounds(Bound.END, options);
+        SortedSet<ClusteringBound> startBounds = restrictions.getClusteringColumnsBounds(Bound.START, options);
+        SortedSet<ClusteringBound> endBounds = restrictions.getClusteringColumnsBounds(Bound.END, options);
 
         return toSlices(startBounds, endBounds);
     }
@@ -714,14 +714,14 @@ public abstract class ModificationStatement implements CQLStatement
         return new UpdateParameters(cfm, updatedColumns(), options, getTimestamp(now, options), getTimeToLive(options), lists);
     }
 
-    private Slices toSlices(SortedSet<Slice.Bound> startBounds, SortedSet<Slice.Bound> endBounds)
+    private Slices toSlices(SortedSet<ClusteringBound> startBounds, SortedSet<ClusteringBound> endBounds)
     {
         assert startBounds.size() == endBounds.size();
 
         Slices.Builder builder = new Slices.Builder(cfm.comparator);
 
-        Iterator<Slice.Bound> starts = startBounds.iterator();
-        Iterator<Slice.Bound> ends = endBounds.iterator();
+        Iterator<ClusteringBound> starts = startBounds.iterator();
+        Iterator<ClusteringBound> ends = endBounds.iterator();
 
         while (starts.hasNext())
         {

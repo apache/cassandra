@@ -108,12 +108,12 @@ public class RowTest
             while (merged.hasNext())
             {
                 RangeTombstoneBoundMarker openMarker = (RangeTombstoneBoundMarker)merged.next();
-                Slice.Bound openBound = openMarker.clustering();
+                ClusteringBound openBound = openMarker.clustering();
                 DeletionTime openDeletion = new DeletionTime(openMarker.deletionTime().markedForDeleteAt(),
                                                                    openMarker.deletionTime().localDeletionTime());
 
                 RangeTombstoneBoundMarker closeMarker = (RangeTombstoneBoundMarker)merged.next();
-                Slice.Bound closeBound = closeMarker.clustering();
+                ClusteringBound closeBound = closeMarker.clustering();
                 DeletionTime closeDeletion = new DeletionTime(closeMarker.deletionTime().markedForDeleteAt(),
                                                                     closeMarker.deletionTime().localDeletionTime());
 
@@ -185,16 +185,16 @@ public class RowTest
         assertEquals(Integer.valueOf(1), map.get(row));
     }
 
-    private void assertRangeTombstoneMarkers(Slice.Bound start, Slice.Bound end, DeletionTime deletionTime, Object[] expected)
+    private void assertRangeTombstoneMarkers(ClusteringBound start, ClusteringBound end, DeletionTime deletionTime, Object[] expected)
     {
         AbstractType clusteringType = (AbstractType)cfm.comparator.subtype(0);
 
         assertEquals(1, start.size());
-        assertEquals(start.kind(), Slice.Bound.Kind.INCL_START_BOUND);
+        assertEquals(start.kind(), ClusteringPrefix.Kind.INCL_START_BOUND);
         assertEquals(expected[0], clusteringType.getString(start.get(0)));
 
         assertEquals(1, end.size());
-        assertEquals(end.kind(), Slice.Bound.Kind.INCL_END_BOUND);
+        assertEquals(end.kind(), ClusteringPrefix.Kind.INCL_END_BOUND);
         assertEquals(expected[1], clusteringType.getString(end.get(0)));
 
         assertEquals(expected[2], deletionTime.markedForDeleteAt());

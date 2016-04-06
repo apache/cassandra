@@ -59,9 +59,9 @@ public class SSTableIterator extends AbstractSSTableIterator
     private class ForwardReader extends Reader
     {
         // The start of the current slice. This will be null as soon as we know we've passed that bound.
-        protected Slice.Bound start;
+        protected ClusteringBound start;
         // The end of the current slice. Will never be null.
-        protected Slice.Bound end = Slice.Bound.TOP;
+        protected ClusteringBound end = ClusteringBound.TOP;
 
         protected Unfiltered next; // the next element to return: this is computed by hasNextInternal().
 
@@ -75,7 +75,7 @@ public class SSTableIterator extends AbstractSSTableIterator
 
         public void setForSlice(Slice slice) throws IOException
         {
-            start = slice.start() == Slice.Bound.BOTTOM ? null : slice.start();
+            start = slice.start() == ClusteringBound.BOTTOM ? null : slice.start();
             end = slice.end();
 
             sliceDone = false;
@@ -103,7 +103,7 @@ public class SSTableIterator extends AbstractSSTableIterator
                     updateOpenMarker((RangeTombstoneMarker)deserializer.readNext());
             }
 
-            Slice.Bound sliceStart = start;
+            ClusteringBound sliceStart = start;
             start = null;
 
             // We've reached the beginning of our queried slice. If we have an open marker

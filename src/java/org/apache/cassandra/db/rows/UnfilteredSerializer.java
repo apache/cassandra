@@ -53,7 +53,7 @@ import org.apache.cassandra.io.util.DataOutputPlus;
  *           is the vint encoded value of n, i.e. <celln>'s 1-based index, <celli>
  *           are the <cell> for this complex column
  *   <marker> is <bound><deletion> where <bound> is the marker bound as serialized
- *       by {@code Slice.Bound.serializer} and <deletion> is the marker deletion
+ *       by {@code ClusteringBoundOrBoundary.serializer} and <deletion> is the marker deletion
  *       time.
  *
  *   <cell> A cell start with a 1 byte <flag>. The 2nd and third flag bits indicate if
@@ -203,7 +203,7 @@ public class UnfilteredSerializer
     throws IOException
     {
         out.writeByte((byte)IS_MARKER);
-        RangeTombstone.Bound.serializer.serialize(marker.clustering(), out, version, header.clusteringTypes());
+        ClusteringBoundOrBoundary.serializer.serialize(marker.clustering(), out, version, header.clusteringTypes());
 
         if (header.isForSSTable())
         {
@@ -305,7 +305,7 @@ public class UnfilteredSerializer
     {
         assert !header.isForSSTable();
         return 1 // flags
-             + RangeTombstone.Bound.serializer.serializedSize(marker.clustering(), version, header.clusteringTypes())
+             + ClusteringBoundOrBoundary.serializer.serializedSize(marker.clustering(), version, header.clusteringTypes())
              + serializedMarkerBodySize(marker, header, previousUnfilteredSize, version);
     }
 
@@ -352,7 +352,7 @@ public class UnfilteredSerializer
 
         if (kind(flags) == Unfiltered.Kind.RANGE_TOMBSTONE_MARKER)
         {
-            RangeTombstone.Bound bound = RangeTombstone.Bound.serializer.deserialize(in, helper.version, header.clusteringTypes());
+            ClusteringBoundOrBoundary bound = ClusteringBoundOrBoundary.serializer.deserialize(in, helper.version, header.clusteringTypes());
             return deserializeMarkerBody(in, header, bound);
         }
         else
@@ -374,7 +374,7 @@ public class UnfilteredSerializer
         return deserializeRowBody(in, header, helper, flags, extendedFlags, builder);
     }
 
-    public RangeTombstoneMarker deserializeMarkerBody(DataInputPlus in, SerializationHeader header, RangeTombstone.Bound bound)
+    public RangeTombstoneMarker deserializeMarkerBody(DataInputPlus in, SerializationHeader header, ClusteringBoundOrBoundary bound)
     throws IOException
     {
         if (header.isForSSTable())
@@ -384,9 +384,9 @@ public class UnfilteredSerializer
         }
 
         if (bound.isBoundary())
-            return new RangeTombstoneBoundaryMarker(bound, header.readDeletionTime(in), header.readDeletionTime(in));
+            return new RangeTombstoneBoundaryMarker((ClusteringBoundary) bound, header.readDeletionTime(in), header.readDeletionTime(in));
         else
-            return new RangeTombstoneBoundMarker(bound, header.readDeletionTime(in));
+            return new RangeTombstoneBoundMarker((ClusteringBound) bound, header.readDeletionTime(in));
     }
 
     public Row deserializeRowBody(DataInputPlus in,
