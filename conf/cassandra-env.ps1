@@ -425,7 +425,7 @@ Function SetCassandraEnvironment
     $env:JVM_OPTS="$env:JVM_OPTS -XX:+PrintPromotionFailure"
     # $env:JVM_OPTS="$env:JVM_OPTS -XX:PrintFLSStatistics=1"
 
-    $env:JVM_OPTS="$env:JVM_OPTS -Xloggc:$env:CASSANDRA_HOME/logs/gc.log"
+    $env:JVM_OPTS="$env:JVM_OPTS -Xloggc:""$env:CASSANDRA_HOME/logs/gc.log"""
     $env:JVM_OPTS="$env:JVM_OPTS -XX:+UseGCLogFileRotation"
     $env:JVM_OPTS="$env:JVM_OPTS -XX:NumberOfGCLogFiles=10"
     $env:JVM_OPTS="$env:JVM_OPTS -XX:GCLogFileSize=10M"
