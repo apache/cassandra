@@ -915,6 +915,8 @@ public class SecondaryIndexManager implements IndexRegistry
             {
                 public void onPrimaryKeyLivenessInfo(int i, Clustering clustering, LivenessInfo merged, LivenessInfo original)
                 {
+                    if (original != null && (merged == null || !merged.isLive(nowInSec)))
+                        getBuilder(i, clustering).addPrimaryKeyLivenessInfo(original);
                 }
 
                 public void onDeletion(int i, Clustering clustering, Row.Deletion merged, Row.Deletion original)
@@ -927,15 +929,18 @@ public class SecondaryIndexManager implements IndexRegistry
 
                 public void onCell(int i, Clustering clustering, Cell merged, Cell original)
                 {
-                    if (original != null && merged == null)
+                    if (original != null && (merged == null || !merged.isLive(nowInSec)))
+                        getBuilder(i, clustering).addCell(original);
+                }
+
+                private Row.Builder getBuilder(int index, Clustering clustering)
+                {
+                    if (builders[index] == null)
                     {
-                        if (builders[i] == null)
-                        {
-                            builders[i] = BTreeRow.sortedBuilder();
-                            builders[i].newRow(clustering);
-                        }
-                        builders[i].addCell(original);
+                        builders[index] = BTreeRow.sortedBuilder();
+                        builders[index].newRow(clustering);
                     }
+                    return builders[index];
                 }
             };
 

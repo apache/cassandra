@@ -35,6 +35,7 @@
  * (cqlsh) Show static columns in a different color (CASSANDRA-11059)
  * Allow to remove TTLs on table with default_time_to_live (CASSANDRA-11207)
 Merged from 3.0:
+ * Notify indexers of expired rows during compaction (CASSANDRA-11329)
  * Properly respond with ProtocolError when a v1/v2 native protocol
    header is received (CASSANDRA-11464)
  * Validate that num_tokens and initial_token are consistent with one another (CASSANDRA-10120)

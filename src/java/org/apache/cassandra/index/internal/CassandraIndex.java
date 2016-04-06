@@ -372,7 +372,7 @@ public abstract class CassandraIndex implements Index
             public void removeRow(Row row)
             {
                 if (isPrimaryKeyIndex())
-                    indexPrimaryKey(row.clustering(), row.primaryKeyLivenessInfo(), row.deletion());
+                    return;
 
                 if (indexedColumn.isComplex())
                     removeCells(row.clustering(), row.getComplexColumnData(indexedColumn));
