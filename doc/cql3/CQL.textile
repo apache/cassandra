@@ -1029,6 +1029,7 @@ bc(syntax)..
                   FROM <tablename>
                   ( WHERE <where-clause> )?
                   ( ORDER BY <order-by> )?
+                  ( PER PARTITION LIMIT <integer> )?
                   ( LIMIT <integer> )?
                   ( ALLOW FILTERING )?
 
@@ -1147,9 +1148,9 @@ The @ORDER BY@ option allows to select the order of the returned results. It tak
 * if the table has been defined without any specific @CLUSTERING ORDER@, then then allowed orderings are the order induced by the clustering columns and the reverse of that one.
 * otherwise, the orderings allowed are the order of the @CLUSTERING ORDER@ option and the reversed one.
 
-h4(#selectLimit). @LIMIT@
+h4(#selectLimit). @LIMIT@ and @PER PARTITION LIMIT@
 
-The @LIMIT@ option to a @SELECT@ statement limits the number of rows returned by a query.
+The @LIMIT@ option to a @SELECT@ statement limits the number of rows returned by a query, while the @PER PARTITION LIMIT@ option limits the number of rows returned for a given partition by the query. Note that both type of limit can used in the same statement.
 
 h4(#selectAllowFiltering). @ALLOW FILTERING@
 
@@ -2315,6 +2316,7 @@ h3. 3.4.2
 
 * "@INSERT/UPDATE options@":#updateOptions for tables having a default_time_to_live specifying a TTL of 0 will remove the TTL from the inserted or updated values
 * "@ALTER TABLE@":#alterTableStmt @ADD@ and @DROP@ now allow mutiple columns to be added/removed
+* New "@PER PARTITION LIMIT@":#selectLimit option (see "CASSANDRA-7017":https://issues.apache.org/jira/browse/CASSANDRA-7017).
 
 h3. 3.4.1
 

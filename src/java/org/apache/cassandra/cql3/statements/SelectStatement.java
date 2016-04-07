@@ -857,7 +857,7 @@ public class SelectStatement implements CQLStatement
                                                         isReversed,
                                                         orderingComparator,
                                                         prepareLimit(boundNames, limit, keyspace(), limitReceiver()),
-                                                        prepareLimit(boundNames, perPartitionLimit, keyspace(), limitReceiver()));
+                                                        prepareLimit(boundNames, perPartitionLimit, keyspace(), perPartitionLimitReceiver()));
 
             return new ParsedStatement.Prepared(stmt, boundNames, boundNames.getPartitionKeyBindIndexes(cfm));
         }
@@ -1053,6 +1053,11 @@ public class SelectStatement implements CQLStatement
         private ColumnSpecification limitReceiver()
         {
             return new ColumnSpecification(keyspace(), columnFamily(), new ColumnIdentifier("[limit]", true), Int32Type.instance);
+        }
+
+        private ColumnSpecification perPartitionLimitReceiver()
+        {
+            return new ColumnSpecification(keyspace(), columnFamily(), new ColumnIdentifier("[per_partition_limit]", true), Int32Type.instance);
         }
 
         @Override
