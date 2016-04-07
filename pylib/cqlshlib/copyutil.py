@@ -370,8 +370,11 @@ class CopyTask(object):
         """
         try:
             num_cores_for_testing = os.environ.get('CQLSH_COPY_TEST_NUM_CORES', '')
-            return int(num_cores_for_testing) if num_cores_for_testing else mp.cpu_count()
+            ret = int(num_cores_for_testing) if num_cores_for_testing else mp.cpu_count()
+            printdebugmsg("Detected %d core(s)" % (ret,))
+            return ret
         except NotImplementedError:
+            printdebugmsg("Failed to detect number of cores, returning 1")
             return 1
 
     @staticmethod

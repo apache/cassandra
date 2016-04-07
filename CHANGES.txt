@@ -1,4 +1,5 @@
 3.6
+ * Make number of cores used by cqlsh COPY visible to testing code (CASSANDRA-11437)
  * Allow filtering on clustering columns for queries without secondary indexes (CASSANDRA-11310)
  * Refactor Restriction hierarchy (CASSANDRA-11354)
  * Eliminate allocations in R/W path (CASSANDRA-11421)
