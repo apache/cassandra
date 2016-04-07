@@ -1,6 +1,7 @@
 package org.apache.cassandra.db.lifecycle;
 
 import java.io.File;
+import java.nio.file.Path;
 import java.util.*;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
@@ -315,13 +316,23 @@ final class LogFile
         files.forEach(LogTransaction::delete);
     }
 
-    Map<LogRecord, Set<File>> getFilesOfType(NavigableSet<File> files, Type type)
+    /**
+     * Extract from the files passed in all those that are of the given type.
+     *
+     * Scan all records and select those that are of the given type, valid, and
+     * located in the same folder. For each such record extract from the files passed in
+     * those that belong to this record.
+     *
+     * @return a map linking each mapped record to its files, where the files where passed in as parameters.
+     */
+    Map<LogRecord, Set<File>> getFilesOfType(Path folder, NavigableSet<File> files, Type type)
     {
         Map<LogRecord, Set<File>> ret = new HashMap<>();
 
         records.stream()
                .filter(type::matches)
                .filter(LogRecord::isValid)
+               .filter(r -> r.isInFolder(folder))
                .forEach((r) -> ret.put(r, getRecordFiles(files, r)));
 
         return ret;
@@ -377,5 +388,10 @@ final class LogFile
                                            id.toString(),
                                            LogFile.EXT);
         return StringUtils.join(folder, File.separator, fileName);
+    }
+
+    Collection<LogRecord> getRecords()
+    {
+        return records;
     }
 }
