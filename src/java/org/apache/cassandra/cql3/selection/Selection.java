@@ -258,6 +258,32 @@ public abstract class Selection
                 .toString();
     }
 
+    public static List<ByteBuffer> rowToJson(List<ByteBuffer> row, int protocolVersion, ResultSet.ResultMetadata metadata)
+    {
+        StringBuilder sb = new StringBuilder("{");
+        for (int i = 0; i < metadata.names.size(); i++)
+        {
+            if (i > 0)
+                sb.append(", ");
+
+            ColumnSpecification spec = metadata.names.get(i);
+            String columnName = spec.name.toString();
+            if (!columnName.equals(columnName.toLowerCase(Locale.US)))
+                columnName = "\"" + columnName + "\"";
+
+            ByteBuffer buffer = row.get(i);
+            sb.append('"');
+            sb.append(Json.quoteAsJsonString(columnName));
+            sb.append("\": ");
+            if (buffer == null)
+                sb.append("null");
+            else
+                sb.append(spec.type.toJSONString(buffer, protocolVersion));
+        }
+        sb.append("}");
+        return Collections.singletonList(UTF8Type.instance.getSerializer().serialize(sb.toString()));
+    }
+
     public class ResultSetBuilder
     {
         private final ResultSet resultSet;
@@ -367,34 +393,8 @@ public abstract class Selection
         private List<ByteBuffer> getOutputRow(int protocolVersion)
         {
             List<ByteBuffer> outputRow = selectors.getOutputRow(protocolVersion);
-            return isJson ? rowToJson(outputRow, protocolVersion)
+            return isJson ? rowToJson(outputRow, protocolVersion, metadata)
                           : outputRow;
-        }
-
-        private List<ByteBuffer> rowToJson(List<ByteBuffer> row, int protocolVersion)
-        {
-            StringBuilder sb = new StringBuilder("{");
-            for (int i = 0; i < metadata.names.size(); i++)
-            {
-                if (i > 0)
-                    sb.append(", ");
-
-                ColumnSpecification spec = metadata.names.get(i);
-                String columnName = spec.name.toString();
-                if (!columnName.equals(columnName.toLowerCase(Locale.US)))
-                    columnName = "\"" + columnName + "\"";
-
-                ByteBuffer buffer = row.get(i);
-                sb.append('"');
-                sb.append(Json.quoteAsJsonString(columnName));
-                sb.append("\": ");
-                if (buffer == null)
-                    sb.append("null");
-                else
-                    sb.append(spec.type.toJSONString(buffer, protocolVersion));
-            }
-            sb.append("}");
-            return Collections.singletonList(UTF8Type.instance.getSerializer().serialize(sb.toString()));
         }
     }
 
