@@ -1,4 +1,5 @@
 3.5
+ * StaticTokenTreeBuilder should respect posibility of duplicate tokens (CASSANDRA-11525)
  * Correctly fix potential assertion error during compaction (CASSANDRA-11353)
  * Avoid index segment stitching in RAM which lead to OOM on big SSTable files (CASSANDRA-11383)
  * Fix clustering and row filters for LIKE queries on clustering columns (CASSANDRA-11397)

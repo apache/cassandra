@@ -33,6 +33,7 @@ import org.apache.cassandra.index.sasi.utils.CombinedValue;
 import org.apache.cassandra.index.sasi.utils.MappedBuffer;
 import org.apache.cassandra.index.sasi.utils.RangeIterator;
 import org.apache.cassandra.db.marshal.LongType;
+import org.apache.cassandra.index.sasi.utils.RangeUnionIterator;
 import org.apache.cassandra.io.compress.BufferType;
 import org.apache.cassandra.io.util.FileUtils;
 import org.apache.cassandra.utils.MurmurHash;
@@ -52,7 +53,7 @@ public class TokenTreeTest
     private static final Function<Long, DecoratedKey> KEY_CONVERTER = new KeyConverter();
 
     static LongSet singleOffset = new LongOpenHashSet() {{ add(1); }};
-    static LongSet bigSingleOffset = new LongOpenHashSet() {{ add(((long) Integer.MAX_VALUE) + 10); }};
+    static LongSet bigSingleOffset = new LongOpenHashSet() {{ add(2147521562L); }};
     static LongSet shortPackableCollision = new LongOpenHashSet() {{ add(2L); add(3L); }}; // can pack two shorts
     static LongSet intPackableCollision = new LongOpenHashSet() {{ add(6L); add(((long) Short.MAX_VALUE) + 1); }}; // can pack int & short
     static LongSet multiCollision =  new LongOpenHashSet() {{ add(3L); add(4L); add(5L); }}; // can't pack
@@ -351,6 +352,75 @@ public class TokenTreeTest
         Assert.assertEquals(EntryType.PACKED, EntryType.of(EntryType.PACKED.ordinal()));
         Assert.assertEquals(EntryType.FACTORED, EntryType.of(EntryType.FACTORED.ordinal()));
         Assert.assertEquals(EntryType.OVERFLOW, EntryType.of(EntryType.OVERFLOW.ordinal()));
+    }
+
+    @Test
+    public void testMergingOfEqualTokenTrees() throws Exception
+    {
+        testMergingOfEqualTokenTrees(simpleTokenMap);
+        testMergingOfEqualTokenTrees(bigTokensMap);
+    }
+
+    public void testMergingOfEqualTokenTrees(SortedMap<Long, LongSet> tokensMap) throws Exception
+    {
+        TokenTreeBuilder tokensA = new DynamicTokenTreeBuilder(tokensMap);
+        TokenTreeBuilder tokensB = new DynamicTokenTreeBuilder(tokensMap);
+
+        TokenTree a = buildTree(tokensA);
+        TokenTree b = buildTree(tokensB);
+
+        TokenTreeBuilder tokensC = new StaticTokenTreeBuilder(new CombinedTerm(null, null)
+        {
+            public RangeIterator<Long, Token> getTokenIterator()
+            {
+                RangeIterator.Builder<Long, Token> union = RangeUnionIterator.builder();
+                union.add(a.iterator(new KeyConverter()));
+                union.add(b.iterator(new KeyConverter()));
+
+                return union.build();
+            }
+        });
+
+        TokenTree c = buildTree(tokensC);
+        Assert.assertEquals(tokensMap.size(), c.getCount());
+
+        Iterator<Token> tokenIterator = c.iterator(KEY_CONVERTER);
+        Iterator<Map.Entry<Long, LongSet>> listIterator = tokensMap.entrySet().iterator();
+        while (tokenIterator.hasNext() && listIterator.hasNext())
+        {
+            Token treeNext = tokenIterator.next();
+            Map.Entry<Long, LongSet> listNext = listIterator.next();
+
+            Assert.assertEquals(listNext.getKey(), treeNext.get());
+            Assert.assertEquals(convert(listNext.getValue()), convert(treeNext));
+        }
+
+        for (Map.Entry<Long, LongSet> entry : tokensMap.entrySet())
+        {
+            TokenTree.OnDiskToken result = c.get(entry.getKey(), KEY_CONVERTER);
+            Assert.assertNotNull("failed to find object for token " + entry.getKey(), result);
+
+            LongSet found = result.getOffsets();
+            Assert.assertEquals(entry.getValue(), found);
+
+        }
+    }
+
+
+    private static TokenTree buildTree(TokenTreeBuilder builder) throws Exception
+    {
+        builder.finish();
+        final File treeFile = File.createTempFile("token-tree-", "db");
+        treeFile.deleteOnExit();
+
+        try (SequentialWriter writer = new SequentialWriter(treeFile, 4096, BufferType.ON_HEAP))
+        {
+            builder.write(writer);
+            writer.sync();
+        }
+
+        final RandomAccessReader reader = RandomAccessReader.open(treeFile);
+        return new TokenTree(new MappedBuffer(reader));
     }
 
     private static class EntrySetSkippableIterator extends RangeIterator<Long, TokenWithOffsets>
