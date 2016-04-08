@@ -1,4 +1,5 @@
 3.6
+ * Make LZ4 compression level configurable (CASSANDRA-11051)
  * Allow per-partition LIMIT clause in CQL (CASSANDRA-7017)
  * Make custom filtering more extensible with UserExpression (CASSANDRA-11295)
  * Improve field-checking and error reporting in cassandra.yaml (CASSANDRA-10649)
