@@ -20,6 +20,7 @@ package org.apache.cassandra.db.columniterator;
 import java.io.IOException;
 import java.util.Iterator;
 import java.util.List;
+import java.util.NoSuchElementException;
 
 import org.apache.cassandra.config.CFMetaData;
 import org.apache.cassandra.db.*;
@@ -113,7 +114,7 @@ abstract class AbstractSSTableIterator implements UnfilteredRowIterator
                     this.reader = needsReader ? createReader(indexEntry, file, shouldCloseFile) : null;
                 }
 
-                if (reader != null && slices.size() > 0)
+                if (reader != null && !slices.isEmpty())
                     reader.setForSlice(slices.get(0));
 
                 if (reader == null && file != null && shouldCloseFile)
@@ -187,7 +188,13 @@ abstract class AbstractSSTableIterator implements UnfilteredRowIterator
         }
     }
 
-    protected abstract Reader createReader(RowIndexEntry indexEntry, FileDataInput file, boolean shouldCloseFile);
+    protected abstract Reader createReaderInternal(RowIndexEntry indexEntry, FileDataInput file, boolean shouldCloseFile);
+
+    private Reader createReader(RowIndexEntry indexEntry, FileDataInput file, boolean shouldCloseFile)
+    {
+        return slices.isEmpty() ? new NoRowsReader(file, shouldCloseFile)
+                                : createReaderInternal(indexEntry, file, shouldCloseFile);
+    };
 
     public CFMetaData metadata()
     {
@@ -399,6 +406,30 @@ abstract class AbstractSSTableIterator implements UnfilteredRowIterator
         {
             if (shouldCloseFile && file != null)
                 file.close();
+        }
+    }
+
+    // Reader for when we have Slices.NONE but need to read static row or partition level deletion
+    private class NoRowsReader extends AbstractSSTableIterator.Reader
+    {
+        private NoRowsReader(FileDataInput file, boolean shouldCloseFile)
+        {
+            super(file, shouldCloseFile);
+        }
+
+        public void setForSlice(Slice slice) throws IOException
+        {
+            return;
+        }
+
+        protected boolean hasNextInternal() throws IOException
+        {
+            return false;
+        }
+
+        protected Unfiltered nextInternal() throws IOException
+        {
+            throw new NoSuchElementException();
         }
     }
 
