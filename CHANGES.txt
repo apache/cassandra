@@ -1,5 +1,4 @@
 3.6
- * Correctly fix potential assertion error during compaction (CASSANDRA-11353)
  * Make LZ4 compression level configurable (CASSANDRA-11051)
  * Allow per-partition LIMIT clause in CQL (CASSANDRA-7017)
  * Make custom filtering more extensible with UserExpression (CASSANDRA-11295)
