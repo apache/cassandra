@@ -144,6 +144,7 @@ public class Config
     /* if the size of columns or super-columns are more than this, indexing will kick in */
     public Integer column_index_size_in_kb = 64;
     public Integer batch_size_warn_threshold_in_kb = 5;
+    public Integer unlogged_batch_across_partitions_warn_threshold = 10;
     public Integer concurrent_compactors;
     public volatile Integer compaction_throughput_mb_per_sec = 16;
     public volatile Integer compaction_large_partition_warning_threshold_mb = 100;

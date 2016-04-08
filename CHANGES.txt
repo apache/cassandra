@@ -1,4 +1,5 @@
 2.1.14
+ * Checking if an unlogged batch is local is inefficient (CASSANDRA-11529)
  * Fix paging for COMPACT tables without clustering columns (CASSANDRA-11467)
  * Fix out-of-space error treatment in memtable flushing (CASSANDRA-11448)
  * Backport CASSANDRA-10859 (CASSANDRA-11415)
