@@ -111,8 +111,10 @@ public class Tuples
             for (int i = 0; i < elements.size(); i++)
             {
                 if (i >= tt.size())
+                {
                     throw new InvalidRequestException(String.format("Invalid tuple literal for %s: too many elements. Type %s expects %d but got %d",
-                                                                    receiver.name, tt.asCQL3Type(), tt.size(), elements.size()));
+                            receiver.name, tt.asCQL3Type(), tt.size(), elements.size()));
+                }
 
                 Term.Raw value = elements.get(i);
                 ColumnSpecification spec = componentSpecOf(receiver, i);
@@ -154,6 +156,13 @@ public class Tuples
 
         public static Value fromSerialized(ByteBuffer bytes, TupleType type)
         {
+            ByteBuffer[] values = type.split(bytes);
+            if (values.length > type.size())
+            {
+                throw new InvalidRequestException(String.format(
+                        "Tuple value contained too many fields (expected %s, got %s)", type.size(), values.length));
+            }
+
             return new Value(type.split(bytes));
         }
 
@@ -199,6 +208,10 @@ public class Tuples
 
         private ByteBuffer[] bindInternal(QueryOptions options) throws InvalidRequestException
         {
+            if (elements.size() > type.size())
+                throw new InvalidRequestException(String.format(
+                        "Tuple value contained too many fields (expected %s, got %s)", type.size(), elements.size()));
+
             ByteBuffer[] buffers = new ByteBuffer[elements.size()];
             for (int i = 0; i < elements.size(); i++)
             {

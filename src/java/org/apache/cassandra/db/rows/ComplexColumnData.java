@@ -251,7 +251,6 @@ public class ComplexColumnData extends ColumnData implements Iterable<Cell>
 
         public void addCell(Cell cell)
         {
-            assert cell.column().equals(column);
             builder.add(cell);
         }
 

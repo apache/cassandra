@@ -124,7 +124,7 @@ public final class StatementRestrictions
                                  WhereClause whereClause,
                                  VariableSpecifications boundNames,
                                  boolean selectsOnlyStaticColumns,
-                                 boolean selectACollection,
+                                 boolean selectsComplexColumn,
                                  boolean useFiltering,
                                  boolean forView) throws InvalidRequestException
     {
@@ -218,7 +218,7 @@ public final class StatementRestrictions
                 throw invalidRequest("Cannot restrict clustering columns when selecting only static columns");
         }
 
-        processClusteringColumnsRestrictions(hasQueriableIndex, selectsOnlyStaticColumns, selectACollection, forView);
+        processClusteringColumnsRestrictions(hasQueriableIndex, selectsOnlyStaticColumns, selectsComplexColumn, forView);
 
         // Covers indexes on the first clustering column (among others).
         if (isKeyRange && hasQueriableClusteringColumnIndex)
@@ -447,11 +447,11 @@ public final class StatementRestrictions
      * @param hasQueriableIndex <code>true</code> if some of the queried data are indexed, <code>false</code> otherwise
      * @param selectsOnlyStaticColumns <code>true</code> if the selected or modified columns are all statics,
      * <code>false</code> otherwise.
-     * @param selectACollection <code>true</code> if the query should return a collection column
+     * @param selectsComplexColumn <code>true</code> if the query should return a collection column
      */
     private void processClusteringColumnsRestrictions(boolean hasQueriableIndex,
                                                       boolean selectsOnlyStaticColumns,
-                                                      boolean selectACollection,
+                                                      boolean selectsComplexColumn,
                                                       boolean forView) throws InvalidRequestException
     {
         checkFalse(!type.allowClusteringColumnSlices() && clusteringColumnsRestrictions.isSlice(),
@@ -466,7 +466,7 @@ public final class StatementRestrictions
         }
         else
         {
-            checkFalse(clusteringColumnsRestrictions.isIN() && selectACollection,
+            checkFalse(clusteringColumnsRestrictions.isIN() && selectsComplexColumn,
                        "Cannot restrict clustering columns by IN relations when a collection is selected by the query");
             checkFalse(clusteringColumnsRestrictions.isContains() && !hasQueriableIndex,
                        "Cannot restrict clustering columns by a CONTAINS relation without a secondary index");

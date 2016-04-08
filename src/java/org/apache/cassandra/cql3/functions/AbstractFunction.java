@@ -91,7 +91,7 @@ public abstract class AbstractFunction implements Function
         // We should ignore the fact that the receiver type is frozen in our comparison as functions do not support
         // frozen types for return type
         AbstractType<?> returnType = returnType();
-        if (receiver.type.isFrozenCollection())
+        if (receiver.type.isFreezable() && !receiver.type.isMultiCell())
             returnType = returnType.freeze();
 
         if (receiver.type.equals(returnType))

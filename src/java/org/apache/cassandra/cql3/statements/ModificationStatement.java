@@ -831,7 +831,7 @@ public abstract class ModificationStatement implements CQLStatement
                 ColumnDefinition def = metadata.getColumnDefinition(id);
                 checkNotNull(metadata.getColumnDefinition(id), "Unknown identifier %s in IF conditions", id);
 
-                ColumnCondition condition = entry.right.prepare(keyspace(), def);
+                ColumnCondition condition = entry.right.prepare(keyspace(), def, metadata);
                 condition.collectMarkerSpecification(boundNames);
 
                 checkFalse(def.isPrimaryKeyColumn(), "PRIMARY KEY column '%s' cannot have IF conditions", id);

@@ -162,7 +162,7 @@ public abstract class Constants
         public AssignmentTestable.TestResult testAssignment(String keyspace, ColumnSpecification receiver)
         {
             CQL3Type receiverType = receiver.type.asCQL3Type();
-            if (receiverType.isCollection())
+            if (receiverType.isCollection() || receiverType.isUDT())
                 return AssignmentTestable.TestResult.NOT_ASSIGNABLE;
 
             if (!(receiverType instanceof CQL3Type.Native))

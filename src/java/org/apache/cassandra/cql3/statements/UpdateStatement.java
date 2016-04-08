@@ -170,7 +170,7 @@ public class UpdateStatement extends ModificationStatement
                 }
                 else
                 {
-                    Operation operation = new Operation.SetValue(value).prepare(keyspace(), def);
+                    Operation operation = new Operation.SetValue(value).prepare(cfm, def);
                     operation.collectMarkerSpecification(boundNames);
                     operations.add(operation);
                 }
@@ -239,7 +239,7 @@ public class UpdateStatement extends ModificationStatement
                 }
                 else
                 {
-                    Operation operation = new Operation.SetValue(raw).prepare(keyspace(), def);
+                    Operation operation = new Operation.SetValue(raw).prepare(cfm, def);
                     operation.collectMarkerSpecification(boundNames);
                     operations.add(operation);
                 }
@@ -308,7 +308,7 @@ public class UpdateStatement extends ModificationStatement
 
                 checkFalse(def.isPrimaryKeyColumn(), "PRIMARY KEY part %s found in SET part", def.name);
 
-                Operation operation = entry.right.prepare(keyspace(), def);
+                Operation operation = entry.right.prepare(cfm, def);
                 operation.collectMarkerSpecification(boundNames);
                 operations.add(operation);
             }

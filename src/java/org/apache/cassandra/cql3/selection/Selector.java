@@ -190,7 +190,7 @@ public abstract class Selector implements AssignmentTestable
         // We should ignore the fact that the output type is frozen in our comparison as functions do not support
         // frozen types for arguments
         AbstractType<?> receiverType = receiver.type;
-        if (getType().isFrozenCollection())
+        if (getType().isFreezable() && !getType().isMultiCell())
             receiverType = receiverType.freeze();
 
         if (getType().isReversed())

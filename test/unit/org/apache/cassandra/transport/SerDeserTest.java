@@ -184,7 +184,8 @@ public class SerDeserTest
         UserType udt = new UserType("ks",
                                     bb("myType"),
                                     Arrays.asList(bb("f1"), bb("f2"), bb("f3"), bb("f4")),
-                                    Arrays.asList(LongType.instance, lt, st, mt));
+                                    Arrays.asList(LongType.instance, lt, st, mt),
+                                    true);
 
         Map<ColumnIdentifier, Term.Raw> value = new HashMap<>();
         value.put(ci("f1"), lit(42));

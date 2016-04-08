@@ -827,7 +827,7 @@ public final class LegacySchemaMigrator
                .map(LegacySchemaMigrator::parseType)
                .collect(Collectors.toList());
 
-        return new UserType(keyspaceName, bytes(typeName), names, types);
+        return new UserType(keyspaceName, bytes(typeName), names, types, true);
     }
 
     /*

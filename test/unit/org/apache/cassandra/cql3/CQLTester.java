@@ -139,6 +139,11 @@ public abstract class CQLTester
     private boolean usePrepared = USE_PREPARED_VALUES;
     private static boolean reusePrepared = REUSE_PREPARED;
 
+    protected boolean usePrepared()
+    {
+        return usePrepared;
+    }
+
     public static void prepareServer()
     {
         if (isServerPrepared)
@@ -1117,6 +1122,24 @@ public abstract class CQLTester
                 e.getMessage().contains(text));
     }
 
+    @FunctionalInterface
+    public interface CheckedFunction {
+        void apply() throws Throwable;
+    }
+
+    /**
+     * Runs the given function before and after a flush of sstables.  This is useful for checking that behavior is
+     * the same whether data is in memtables or sstables.
+     * @param runnable
+     * @throws Throwable
+     */
+    public void beforeAndAfterFlush(CheckedFunction runnable) throws Throwable
+    {
+        runnable.apply();
+        flush();
+        runnable.apply();
+    }
+
     private static String replaceValues(String query, Object[] values)
     {
         StringBuilder sb = new StringBuilder();
@@ -1327,7 +1350,7 @@ public abstract class CQLTester
         if (value instanceof ByteBuffer)
             return (ByteBuffer)value;
 
-        return type.decompose(value);
+        return type.decompose(serializeTuples(value));
     }
 
     private static String formatValue(ByteBuffer bb, AbstractType<?> type)
@@ -1354,7 +1377,19 @@ public abstract class CQLTester
 
     protected Object userType(Object... values)
     {
-        return new TupleValue(values).toByteBuffer();
+        if (values.length % 2 != 0)
+            throw new IllegalArgumentException("userType() requires an even number of arguments");
+
+        String[] fieldNames = new String[values.length / 2];
+        Object[] fieldValues = new Object[values.length / 2];
+        int fieldNum = 0;
+        for (int i = 0; i < values.length; i += 2)
+        {
+            fieldNames[fieldNum] = (String) values[i];
+            fieldValues[fieldNum] = values[i + 1];
+            fieldNum++;
+        }
+        return new UserTypeValue(fieldNames, fieldValues);
     }
 
     protected Object list(Object...values)
@@ -1468,7 +1503,7 @@ public abstract class CQLTester
 
     private static class TupleValue
     {
-        private final Object[] values;
+        protected final Object[] values;
 
         TupleValue(Object[] values)
         {
@@ -1500,6 +1535,45 @@ public abstract class CQLTester
         public String toString()
         {
             return "TupleValue" + toCQLString();
+        }
+    }
+
+    private static class UserTypeValue extends TupleValue
+    {
+        private final String[] fieldNames;
+
+        UserTypeValue(String[] fieldNames, Object[] fieldValues)
+        {
+            super(fieldValues);
+            this.fieldNames = fieldNames;
+        }
+
+        @Override
+        public String toCQLString()
+        {
+            StringBuilder sb = new StringBuilder();
+            sb.append("{");
+            boolean haveEntry = false;
+            for (int i = 0; i < values.length; i++)
+            {
+                if (values[i] != null)
+                {
+                    if (haveEntry)
+                        sb.append(", ");
+                    sb.append(ColumnIdentifier.maybeQuote(fieldNames[i]));
+                    sb.append(": ");
+                    sb.append(formatForCQL(values[i]));
+                    haveEntry = true;
+                }
+            }
+            assert haveEntry;
+            sb.append("}");
+            return sb.toString();
+        }
+
+        public String toString()
+        {
+            return "UserTypeValue" + toCQLString();
         }
     }
 }

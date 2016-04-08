@@ -74,8 +74,12 @@ public class CreateTypeStatement extends SchemaAlteringStatement
             throw new InvalidRequestException(String.format("A user type of name %s already exists", name));
 
         for (CQL3Type.Raw type : columnTypes)
+        {
             if (type.isCounter())
                 throw new InvalidRequestException("A user type cannot contain counters");
+            if (type.isUDT() && !type.isFrozen())
+                throw new InvalidRequestException("A user type cannot contain non-frozen UDTs");
+        }
     }
 
     public static void checkForDuplicateNames(UserType type) throws InvalidRequestException
@@ -109,7 +113,7 @@ public class CreateTypeStatement extends SchemaAlteringStatement
         for (CQL3Type.Raw type : columnTypes)
             types.add(type.prepare(keyspace()).getType());
 
-        return new UserType(name.getKeyspace(), name.getUserTypeName(), names, types);
+        return new UserType(name.getKeyspace(), name.getUserTypeName(), names, types, true);
     }
 
     public Event.SchemaChange announceMigration(boolean isLocalOnly) throws InvalidRequestException, ConfigurationException

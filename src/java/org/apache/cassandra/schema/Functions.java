@@ -131,7 +131,7 @@ public final class Functions implements Iterable<Function>
      */
     public static boolean typesMatch(AbstractType<?> t1, AbstractType<?> t2)
     {
-        return t1.asCQL3Type().toString().equals(t2.asCQL3Type().toString());
+        return t1.freeze().asCQL3Type().toString().equals(t2.freeze().asCQL3Type().toString());
     }
 
     public static boolean typesMatch(List<AbstractType<?>> t1, List<AbstractType<?>> t2)

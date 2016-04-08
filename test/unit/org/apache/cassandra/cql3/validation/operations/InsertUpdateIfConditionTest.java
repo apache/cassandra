@@ -384,6 +384,377 @@ public class InsertUpdateIfConditionTest extends CQLTester
         assertRows(execute("INSERT INTO %s (partition, key, owner) VALUES ('a', 'c', 'x') IF NOT EXISTS"), row(true));
     }
 
+    @Test
+    public void testWholeUDT() throws Throwable
+    {
+        String typename = createType("CREATE TYPE %s (a int, b text)");
+        String myType = KEYSPACE + '.' + typename;
+
+        for (boolean frozen : new boolean[] {false, true})
+        {
+            createTable(String.format("CREATE TABLE %%s (k int PRIMARY KEY, v %s)",
+                                      frozen
+                                      ? "frozen<" + myType + ">"
+                                      : myType));
+
+            Object v = userType("a", 0, "b", "abc");
+            execute("INSERT INTO %s (k, v) VALUES (0, ?)", v);
+
+            checkAppliesUDT("v = {a: 0, b: 'abc'}", v);
+            checkAppliesUDT("v != null", v);
+            checkAppliesUDT("v != {a: 1, b: 'abc'}", v);
+            checkAppliesUDT("v != {a: 0, b: 'def'}", v);
+            checkAppliesUDT("v > {a: -1, b: 'abc'}", v);
+            checkAppliesUDT("v > {a: 0, b: 'aaa'}", v);
+            checkAppliesUDT("v > {a: 0}", v);
+            checkAppliesUDT("v >= {a: 0, b: 'aaa'}", v);
+            checkAppliesUDT("v >= {a: 0, b: 'abc'}", v);
+            checkAppliesUDT("v < {a: 0, b: 'zzz'}", v);
+            checkAppliesUDT("v < {a: 1, b: 'abc'}", v);
+            checkAppliesUDT("v < {a: 1}", v);
+            checkAppliesUDT("v <= {a: 0, b: 'zzz'}", v);
+            checkAppliesUDT("v <= {a: 0, b: 'abc'}", v);
+            checkAppliesUDT("v IN (null, {a: 0, b: 'abc'}, {a: 1})", v);
+
+            // multiple conditions
+            checkAppliesUDT("v > {a: -1, b: 'abc'} AND v > {a: 0}", v);
+            checkAppliesUDT("v != null AND v IN ({a: 0, b: 'abc'})", v);
+
+            // should not apply
+            checkDoesNotApplyUDT("v = {a: 0, b: 'def'}", v);
+            checkDoesNotApplyUDT("v = {a: 1, b: 'abc'}", v);
+            checkDoesNotApplyUDT("v = null", v);
+            checkDoesNotApplyUDT("v != {a: 0, b: 'abc'}", v);
+            checkDoesNotApplyUDT("v > {a: 1, b: 'abc'}", v);
+            checkDoesNotApplyUDT("v > {a: 0, b: 'zzz'}", v);
+            checkDoesNotApplyUDT("v >= {a: 1, b: 'abc'}", v);
+            checkDoesNotApplyUDT("v >= {a: 0, b: 'zzz'}", v);
+            checkDoesNotApplyUDT("v < {a: -1, b: 'abc'}", v);
+            checkDoesNotApplyUDT("v < {a: 0, b: 'aaa'}", v);
+            checkDoesNotApplyUDT("v <= {a: -1, b: 'abc'}", v);
+            checkDoesNotApplyUDT("v <= {a: 0, b: 'aaa'}", v);
+            checkDoesNotApplyUDT("v IN ({a: 0}, {b: 'abc'}, {a: 0, b: 'def'}, null)", v);
+            checkDoesNotApplyUDT("v IN ()", v);
+
+            // multiple conditions
+            checkDoesNotApplyUDT("v IN () AND v IN ({a: 0, b: 'abc'})", v);
+            checkDoesNotApplyUDT("v > {a: 0, b: 'aaa'} AND v < {a: 0, b: 'aaa'}", v);
+
+            // invalid conditions
+            checkInvalidUDT("v = {a: 1, b: 'abc', c: 'foo'}", v, InvalidRequestException.class);
+            checkInvalidUDT("v = {foo: 'foo'}", v, InvalidRequestException.class);
+            checkInvalidUDT("v < {a: 1, b: 'abc', c: 'foo'}", v, InvalidRequestException.class);
+            checkInvalidUDT("v < null", v, InvalidRequestException.class);
+            checkInvalidUDT("v <= {a: 1, b: 'abc', c: 'foo'}", v, InvalidRequestException.class);
+            checkInvalidUDT("v <= null", v, InvalidRequestException.class);
+            checkInvalidUDT("v > {a: 1, b: 'abc', c: 'foo'}", v, InvalidRequestException.class);
+            checkInvalidUDT("v > null", v, InvalidRequestException.class);
+            checkInvalidUDT("v >= {a: 1, b: 'abc', c: 'foo'}", v, InvalidRequestException.class);
+            checkInvalidUDT("v >= null", v, InvalidRequestException.class);
+            checkInvalidUDT("v IN null", v, SyntaxException.class);
+            checkInvalidUDT("v IN 367", v, SyntaxException.class);
+            checkInvalidUDT("v CONTAINS KEY 123", v, SyntaxException.class);
+            checkInvalidUDT("v CONTAINS 'bar'", v, SyntaxException.class);
+
+
+            /////////////////// null suffix on stored udt ////////////////////
+            v = userType("a", 0, "b", null);
+            execute("INSERT INTO %s (k, v) VALUES (0, ?)", v);
+
+            checkAppliesUDT("v = {a: 0}", v);
+            checkAppliesUDT("v = {a: 0, b: null}", v);
+            checkAppliesUDT("v != null", v);
+            checkAppliesUDT("v != {a: 1, b: null}", v);
+            checkAppliesUDT("v != {a: 1}", v);
+            checkAppliesUDT("v != {a: 0, b: 'def'}", v);
+            checkAppliesUDT("v > {a: -1, b: 'abc'}", v);
+            checkAppliesUDT("v > {a: -1}", v);
+            checkAppliesUDT("v >= {a: 0}", v);
+            checkAppliesUDT("v >= {a: -1, b: 'abc'}", v);
+            checkAppliesUDT("v < {a: 0, b: 'zzz'}", v);
+            checkAppliesUDT("v < {a: 1, b: 'abc'}", v);
+            checkAppliesUDT("v < {a: 1}", v);
+            checkAppliesUDT("v <= {a: 0, b: 'zzz'}", v);
+            checkAppliesUDT("v <= {a: 0}", v);
+            checkAppliesUDT("v IN (null, {a: 0, b: 'abc'}, {a: 0})", v);
+
+            // multiple conditions
+            checkAppliesUDT("v > {a: -1, b: 'abc'} AND v >= {a: 0}", v);
+            checkAppliesUDT("v != null AND v IN ({a: 0}, {a: 0, b: null})", v);
+
+            // should not apply
+            checkDoesNotApplyUDT("v = {a: 0, b: 'def'}", v);
+            checkDoesNotApplyUDT("v = {a: 1}", v);
+            checkDoesNotApplyUDT("v = {b: 'abc'}", v);
+            checkDoesNotApplyUDT("v = null", v);
+            checkDoesNotApplyUDT("v != {a: 0}", v);
+            checkDoesNotApplyUDT("v != {a: 0, b: null}", v);
+            checkDoesNotApplyUDT("v > {a: 1, b: 'abc'}", v);
+            checkDoesNotApplyUDT("v > {a: 0}", v);
+            checkDoesNotApplyUDT("v >= {a: 1, b: 'abc'}", v);
+            checkDoesNotApplyUDT("v >= {a: 1}", v);
+            checkDoesNotApplyUDT("v < {a: -1, b: 'abc'}", v);
+            checkDoesNotApplyUDT("v < {a: -1}", v);
+            checkDoesNotApplyUDT("v < {a: 0}", v);
+            checkDoesNotApplyUDT("v <= {a: -1, b: 'abc'}", v);
+            checkDoesNotApplyUDT("v <= {a: -1}", v);
+            checkDoesNotApplyUDT("v IN ({a: 1}, {b: 'abc'}, {a: 0, b: 'def'}, null)", v);
+            checkDoesNotApplyUDT("v IN ()", v);
+
+            // multiple conditions
+            checkDoesNotApplyUDT("v IN () AND v IN ({a: 0})", v);
+            checkDoesNotApplyUDT("v > {a: -1} AND v < {a: 0}", v);
+
+
+            /////////////////// null prefix on stored udt ////////////////////
+            v = userType("a", null, "b", "abc");
+            execute("INSERT INTO %s (k, v) VALUES (0, ?)", v);
+
+            checkAppliesUDT("v = {a: null, b: 'abc'}", v);
+            checkAppliesUDT("v = {b: 'abc'}", v);
+            checkAppliesUDT("v != null", v);
+            checkAppliesUDT("v != {a: 0, b: 'abc'}", v);
+            checkAppliesUDT("v != {a: 0}", v);
+            checkAppliesUDT("v != {b: 'def'}", v);
+            checkAppliesUDT("v > {a: null, b: 'aaa'}", v);
+            checkAppliesUDT("v > {b: 'aaa'}", v);
+            checkAppliesUDT("v >= {a: null, b: 'aaa'}", v);
+            checkAppliesUDT("v >= {b: 'abc'}", v);
+            checkAppliesUDT("v < {a: null, b: 'zzz'}", v);
+            checkAppliesUDT("v < {a: 0, b: 'abc'}", v);
+            checkAppliesUDT("v < {a: 0}", v);
+            checkAppliesUDT("v < {b: 'zzz'}", v);
+            checkAppliesUDT("v <= {a: null, b: 'zzz'}", v);
+            checkAppliesUDT("v <= {a: 0}", v);
+            checkAppliesUDT("v <= {b: 'abc'}", v);
+            checkAppliesUDT("v IN (null, {a: null, b: 'abc'}, {a: 0})", v);
+            checkAppliesUDT("v IN (null, {a: 0, b: 'abc'}, {b: 'abc'})", v);
+
+            // multiple conditions
+            checkAppliesUDT("v > {b: 'aaa'} AND v >= {b: 'abc'}", v);
+            checkAppliesUDT("v != null AND v IN ({a: 0}, {a: null, b: 'abc'})", v);
+
+            // should not apply
+            checkDoesNotApplyUDT("v = {a: 0, b: 'def'}", v);
+            checkDoesNotApplyUDT("v = {a: 1}", v);
+            checkDoesNotApplyUDT("v = {b: 'def'}", v);
+            checkDoesNotApplyUDT("v = null", v);
+            checkDoesNotApplyUDT("v != {b: 'abc'}", v);
+            checkDoesNotApplyUDT("v != {a: null, b: 'abc'}", v);
+            checkDoesNotApplyUDT("v > {a: 1, b: 'abc'}", v);
+            checkDoesNotApplyUDT("v > {a: null, b: 'zzz'}", v);
+            checkDoesNotApplyUDT("v > {b: 'zzz'}", v);
+            checkDoesNotApplyUDT("v >= {a: null, b: 'zzz'}", v);
+            checkDoesNotApplyUDT("v >= {a: 1}", v);
+            checkDoesNotApplyUDT("v >= {b: 'zzz'}", v);
+            checkDoesNotApplyUDT("v < {a: null, b: 'aaa'}", v);
+            checkDoesNotApplyUDT("v < {b: 'aaa'}", v);
+            checkDoesNotApplyUDT("v <= {a: null, b: 'aaa'}", v);
+            checkDoesNotApplyUDT("v <= {b: 'aaa'}", v);
+            checkDoesNotApplyUDT("v IN ({a: 1}, {a: 1, b: 'abc'}, {a: null, b: 'def'}, null)", v);
+            checkDoesNotApplyUDT("v IN ()", v);
+
+            // multiple conditions
+            checkDoesNotApplyUDT("v IN () AND v IN ({b: 'abc'})", v);
+            checkDoesNotApplyUDT("v IN () AND v IN ({a: null, b: 'abc'})", v);
+            checkDoesNotApplyUDT("v > {a: -1} AND v < {a: 0}", v);
+
+
+            /////////////////// null udt ////////////////////
+            v = null;
+            execute("INSERT INTO %s (k, v) VALUES (0, ?)", v);
+
+            checkAppliesUDT("v = null", v);
+            checkAppliesUDT("v IN (null, {a: null, b: 'abc'}, {a: 0})", v);
+            checkAppliesUDT("v IN (null, {a: 0, b: 'abc'}, {b: 'abc'})", v);
+
+            // multiple conditions
+            checkAppliesUDT("v = null AND v IN (null, {a: 0}, {a: null, b: 'abc'})", v);
+
+            // should not apply
+            checkDoesNotApplyUDT("v = {a: 0, b: 'def'}", v);
+            checkDoesNotApplyUDT("v = {a: 1}", v);
+            checkDoesNotApplyUDT("v = {b: 'def'}", v);
+            checkDoesNotApplyUDT("v != null", v);
+            checkDoesNotApplyUDT("v > {a: 1, b: 'abc'}", v);
+            checkDoesNotApplyUDT("v > {a: null, b: 'zzz'}", v);
+            checkDoesNotApplyUDT("v > {b: 'zzz'}", v);
+            checkDoesNotApplyUDT("v >= {a: null, b: 'zzz'}", v);
+            checkDoesNotApplyUDT("v >= {a: 1}", v);
+            checkDoesNotApplyUDT("v >= {b: 'zzz'}", v);
+            checkDoesNotApplyUDT("v < {a: null, b: 'aaa'}", v);
+            checkDoesNotApplyUDT("v < {b: 'aaa'}", v);
+            checkDoesNotApplyUDT("v <= {a: null, b: 'aaa'}", v);
+            checkDoesNotApplyUDT("v <= {b: 'aaa'}", v);
+            checkDoesNotApplyUDT("v IN ({a: 1}, {a: 1, b: 'abc'}, {a: null, b: 'def'})", v);
+            checkDoesNotApplyUDT("v IN ()", v);
+
+            // multiple conditions
+            checkDoesNotApplyUDT("v IN () AND v IN ({b: 'abc'})", v);
+            checkDoesNotApplyUDT("v > {a: -1} AND v < {a: 0}", v);
+
+        }
+    }
+
+    @Test
+    public void testUDTField() throws Throwable
+    {
+        String typename = createType("CREATE TYPE %s (a int, b text)");
+        String myType = KEYSPACE + '.' + typename;
+
+        for (boolean frozen : new boolean[] {false, true})
+        {
+            createTable(String.format("CREATE TABLE %%s (k int PRIMARY KEY, v %s)",
+                                      frozen
+                                      ? "frozen<" + myType + ">"
+                                      : myType));
+
+            Object v = userType("a", 0, "b", "abc");
+            execute("INSERT INTO %s (k, v) VALUES (0, ?)", v);
+
+            checkAppliesUDT("v.a = 0", v);
+            checkAppliesUDT("v.b = 'abc'", v);
+            checkAppliesUDT("v.a < 1", v);
+            checkAppliesUDT("v.b < 'zzz'", v);
+            checkAppliesUDT("v.b <= 'bar'", v);
+            checkAppliesUDT("v.b > 'aaa'", v);
+            checkAppliesUDT("v.b >= 'abc'", v);
+            checkAppliesUDT("v.a != -1", v);
+            checkAppliesUDT("v.b != 'xxx'", v);
+            checkAppliesUDT("v.a != null", v);
+            checkAppliesUDT("v.b != null", v);
+            checkAppliesUDT("v.a IN (null, 0, 1)", v);
+            checkAppliesUDT("v.b IN (null, 'xxx', 'abc')", v);
+            checkAppliesUDT("v.b > 'aaa' AND v.b < 'zzz'", v);
+            checkAppliesUDT("v.a = 0 AND v.b > 'aaa'", v);
+
+            // do not apply
+            checkDoesNotApplyUDT("v.a = -1", v);
+            checkDoesNotApplyUDT("v.b = 'xxx'", v);
+            checkDoesNotApplyUDT("v.a < -1", v);
+            checkDoesNotApplyUDT("v.b < 'aaa'", v);
+            checkDoesNotApplyUDT("v.b <= 'aaa'", v);
+            checkDoesNotApplyUDT("v.b > 'zzz'", v);
+            checkDoesNotApplyUDT("v.b >= 'zzz'", v);
+            checkDoesNotApplyUDT("v.a != 0", v);
+            checkDoesNotApplyUDT("v.b != 'abc'", v);
+            checkDoesNotApplyUDT("v.a IN (null, -1)", v);
+            checkDoesNotApplyUDT("v.b IN (null, 'xxx')", v);
+            checkDoesNotApplyUDT("v.a IN ()", v);
+            checkDoesNotApplyUDT("v.b IN ()", v);
+            checkDoesNotApplyUDT("v.b != null AND v.b IN ()", v);
+
+            // invalid
+            checkInvalidUDT("v.c = null", v, InvalidRequestException.class);
+            checkInvalidUDT("v.a < null", v, InvalidRequestException.class);
+            checkInvalidUDT("v.a <= null", v, InvalidRequestException.class);
+            checkInvalidUDT("v.a > null", v, InvalidRequestException.class);
+            checkInvalidUDT("v.a >= null", v, InvalidRequestException.class);
+            checkInvalidUDT("v.a IN null", v, SyntaxException.class);
+            checkInvalidUDT("v.a IN 367", v, SyntaxException.class);
+            checkInvalidUDT("v.b IN (1, 2, 3)", v, InvalidRequestException.class);
+            checkInvalidUDT("v.a CONTAINS 367", v, SyntaxException.class);
+            checkInvalidUDT("v.a CONTAINS KEY 367", v, SyntaxException.class);
+
+
+            /////////////// null suffix on udt ////////////////
+            v = userType("a", 0, "b", null);
+            execute("INSERT INTO %s (k, v) VALUES (0, ?)", v);
+
+            checkAppliesUDT("v.a = 0", v);
+            checkAppliesUDT("v.b = null", v);
+            checkAppliesUDT("v.b != 'xxx'", v);
+            checkAppliesUDT("v.a != null", v);
+            checkAppliesUDT("v.a IN (null, 0, 1)", v);
+            checkAppliesUDT("v.b IN (null, 'xxx', 'abc')", v);
+            checkAppliesUDT("v.a = 0 AND v.b = null", v);
+
+            // do not apply
+            checkDoesNotApplyUDT("v.b = 'abc'", v);
+            checkDoesNotApplyUDT("v.a < -1", v);
+            checkDoesNotApplyUDT("v.b < 'aaa'", v);
+            checkDoesNotApplyUDT("v.b <= 'aaa'", v);
+            checkDoesNotApplyUDT("v.b > 'zzz'", v);
+            checkDoesNotApplyUDT("v.b >= 'zzz'", v);
+            checkDoesNotApplyUDT("v.a != 0", v);
+            checkDoesNotApplyUDT("v.b != null", v);
+            checkDoesNotApplyUDT("v.a IN (null, -1)", v);
+            checkDoesNotApplyUDT("v.b IN ('xxx', 'abc')", v);
+            checkDoesNotApplyUDT("v.a IN ()", v);
+            checkDoesNotApplyUDT("v.b IN ()", v);
+            checkDoesNotApplyUDT("v.b != null AND v.b IN ()", v);
+
+
+            /////////////// null prefix on udt ////////////////
+            v = userType("a", null, "b", "abc");
+            execute("INSERT INTO %s (k, v) VALUES (0, ?)", v);
+
+            checkAppliesUDT("v.a = null", v);
+            checkAppliesUDT("v.b = 'abc'", v);
+            checkAppliesUDT("v.a != 0", v);
+            checkAppliesUDT("v.b != null", v);
+            checkAppliesUDT("v.a IN (null, 0, 1)", v);
+            checkAppliesUDT("v.b IN (null, 'xxx', 'abc')", v);
+            checkAppliesUDT("v.a = null AND v.b = 'abc'", v);
+
+            // do not apply
+            checkDoesNotApplyUDT("v.a = 0", v);
+            checkDoesNotApplyUDT("v.a < -1", v);
+            checkDoesNotApplyUDT("v.b >= 'zzz'", v);
+            checkDoesNotApplyUDT("v.a != null", v);
+            checkDoesNotApplyUDT("v.b != 'abc'", v);
+            checkDoesNotApplyUDT("v.a IN (-1, 0)", v);
+            checkDoesNotApplyUDT("v.b IN (null, 'xxx')", v);
+            checkDoesNotApplyUDT("v.a IN ()", v);
+            checkDoesNotApplyUDT("v.b IN ()", v);
+            checkDoesNotApplyUDT("v.b != null AND v.b IN ()", v);
+
+
+            /////////////// null udt ////////////////
+            v = null;
+            execute("INSERT INTO %s (k, v) VALUES (0, ?)", v);
+
+            checkAppliesUDT("v.a = null", v);
+            checkAppliesUDT("v.b = null", v);
+            checkAppliesUDT("v.a != 0", v);
+            checkAppliesUDT("v.b != 'abc'", v);
+            checkAppliesUDT("v.a IN (null, 0, 1)", v);
+            checkAppliesUDT("v.b IN (null, 'xxx', 'abc')", v);
+            checkAppliesUDT("v.a = null AND v.b = null", v);
+
+            // do not apply
+            checkDoesNotApplyUDT("v.a = 0", v);
+            checkDoesNotApplyUDT("v.a < -1", v);
+            checkDoesNotApplyUDT("v.b >= 'zzz'", v);
+            checkDoesNotApplyUDT("v.a != null", v);
+            checkDoesNotApplyUDT("v.b != null", v);
+            checkDoesNotApplyUDT("v.a IN (-1, 0)", v);
+            checkDoesNotApplyUDT("v.b IN ('xxx', 'abc')", v);
+            checkDoesNotApplyUDT("v.a IN ()", v);
+            checkDoesNotApplyUDT("v.b IN ()", v);
+            checkDoesNotApplyUDT("v.b != null AND v.b IN ()", v);
+        }
+    }
+
+    void checkAppliesUDT(String condition, Object value) throws Throwable
+    {
+        assertRows(execute("UPDATE %s SET v = ? WHERE k = 0 IF " + condition, value), row(true));
+        assertRows(execute("SELECT * FROM %s"), row(0, value));
+    }
+
+    void checkDoesNotApplyUDT(String condition, Object value) throws Throwable
+    {
+        assertRows(execute("UPDATE %s SET v = ? WHERE k = 0 IF " + condition, value),
+                   row(false, value));
+        assertRows(execute("SELECT * FROM %s"), row(0, value));
+    }
+
+    void checkInvalidUDT(String condition, Object value, Class<? extends Throwable> expected) throws Throwable
+    {
+        assertInvalidThrow(expected, "UPDATE %s SET v = ?  WHERE k = 0 IF " + condition, value);
+        assertRows(execute("SELECT * FROM %s"), row(0, value));
+    }
+
     /**
      * Migrated from cql_tests.py:TestCQL.whole_list_conditional_test()
      */

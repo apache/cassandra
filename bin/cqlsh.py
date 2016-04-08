@@ -898,8 +898,7 @@ class Shell(cmd.Cmd):
         except KeyError:
             raise UserTypeNotFound("User type %r not found" % typename)
 
-        return [(field_name, field_type.cql_parameterized_type())
-                for field_name, field_type in zip(user_type.field_names, user_type.field_types)]
+        return zip(user_type.field_names, user_type.field_types)
 
     def get_userfunction_names(self, ksname=None):
         if ksname is None:

@@ -67,16 +67,26 @@ public abstract class AbstractMarker extends Term.NonTerminal
 
         public NonTerminal prepare(String keyspace, ColumnSpecification receiver) throws InvalidRequestException
         {
-            if (!(receiver.type instanceof CollectionType))
-                return new Constants.Marker(bindIndex, receiver);
-
-            switch (((CollectionType)receiver.type).kind)
+            if (receiver.type.isCollection())
             {
-                case LIST: return new Lists.Marker(bindIndex, receiver);
-                case SET:  return new Sets.Marker(bindIndex, receiver);
-                case MAP:  return new Maps.Marker(bindIndex, receiver);
+                switch (((CollectionType) receiver.type).kind)
+                {
+                    case LIST:
+                        return new Lists.Marker(bindIndex, receiver);
+                    case SET:
+                        return new Sets.Marker(bindIndex, receiver);
+                    case MAP:
+                        return new Maps.Marker(bindIndex, receiver);
+                    default:
+                        throw new AssertionError();
+                }
             }
-            throw new AssertionError();
+            else if (receiver.type.isUDT())
+            {
+                return new UserTypes.Marker(bindIndex, receiver);
+            }
+
+            return new Constants.Marker(bindIndex, receiver);
         }
 
         public AssignmentTestable.TestResult testAssignment(String keyspace, ColumnSpecification receiver)

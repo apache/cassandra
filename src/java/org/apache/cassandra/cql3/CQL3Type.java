@@ -39,7 +39,16 @@ public interface CQL3Type
 {
     static final Logger logger = LoggerFactory.getLogger(CQL3Type.class);
 
-    public boolean isCollection();
+    default boolean isCollection()
+    {
+        return false;
+    }
+
+    default boolean isUDT()
+    {
+        return false;
+    }
+
     public AbstractType<?> getType();
 
     /**
@@ -82,11 +91,6 @@ public interface CQL3Type
             this.type = type;
         }
 
-        public boolean isCollection()
-        {
-            return false;
-        }
-
         public AbstractType<?> getType()
         {
             return type;
@@ -123,11 +127,6 @@ public interface CQL3Type
         public Custom(String className) throws SyntaxException, ConfigurationException
         {
             this(TypeParser.parse(className));
-        }
-
-        public boolean isCollection()
-        {
-            return false;
         }
 
         public AbstractType<?> getType()
@@ -305,9 +304,9 @@ public interface CQL3Type
             return new UserDefined(UTF8Type.instance.compose(type.name), type);
         }
 
-        public boolean isCollection()
+        public boolean isUDT()
         {
-            return false;
+            return true;
         }
 
         public AbstractType<?> getType()
@@ -377,7 +376,10 @@ public interface CQL3Type
         @Override
         public String toString()
         {
-            return "frozen<" + ColumnIdentifier.maybeQuote(name) + '>';
+            if (type.isMultiCell())
+                return ColumnIdentifier.maybeQuote(name);
+            else
+                return "frozen<" + ColumnIdentifier.maybeQuote(name) + '>';
         }
     }
 
@@ -393,11 +395,6 @@ public interface CQL3Type
         public static Tuple create(TupleType type)
         {
             return new Tuple(type);
-        }
-
-        public boolean isCollection()
-        {
-            return false;
         }
 
         public AbstractType<?> getType()
@@ -485,12 +482,7 @@ public interface CQL3Type
     {
         protected boolean frozen = false;
 
-        protected abstract boolean supportsFreezing();
-
-        public boolean isCollection()
-        {
-            return false;
-        }
+        public abstract boolean supportsFreezing();
 
         public boolean isFrozen()
         {
@@ -503,6 +495,11 @@ public interface CQL3Type
         }
 
         public boolean isCounter()
+        {
+            return false;
+        }
+
+        public boolean isUDT()
         {
             return false;
         }
@@ -588,7 +585,7 @@ public interface CQL3Type
                 return type;
             }
 
-            protected boolean supportsFreezing()
+            public boolean supportsFreezing()
             {
                 return false;
             }
@@ -627,7 +624,7 @@ public interface CQL3Type
                 frozen = true;
             }
 
-            protected boolean supportsFreezing()
+            public boolean supportsFreezing()
             {
                 return true;
             }
@@ -652,7 +649,7 @@ public interface CQL3Type
                 assert values != null : "Got null values type for a collection";
 
                 if (!frozen && values.supportsFreezing() && !values.frozen)
-                    throw new InvalidRequestException("Non-frozen collections are not allowed inside collections: " + this);
+                    throwNestedNonFrozenError(values);
 
                 // we represent Thrift supercolumns as maps, internally, and we do allow counters in supercolumns. Thus,
                 // for internal type parsing (think schema) we have to make an exception and allow counters as (map) values
@@ -664,20 +661,29 @@ public interface CQL3Type
                     if (keys.isCounter())
                         throw new InvalidRequestException("Counters are not allowed inside collections: " + this);
                     if (!frozen && keys.supportsFreezing() && !keys.frozen)
-                        throw new InvalidRequestException("Non-frozen collections are not allowed inside collections: " + this);
+                        throwNestedNonFrozenError(keys);
                 }
 
+                AbstractType<?> valueType = values.prepare(keyspace, udts).getType();
                 switch (kind)
                 {
                     case LIST:
-                        return new Collection(ListType.getInstance(values.prepare(keyspace, udts).getType(), !frozen));
+                        return new Collection(ListType.getInstance(valueType, !frozen));
                     case SET:
-                        return new Collection(SetType.getInstance(values.prepare(keyspace, udts).getType(), !frozen));
+                        return new Collection(SetType.getInstance(valueType, !frozen));
                     case MAP:
                         assert keys != null : "Got null keys type for a collection";
-                        return new Collection(MapType.getInstance(keys.prepare(keyspace, udts).getType(), values.prepare(keyspace, udts).getType(), !frozen));
+                        return new Collection(MapType.getInstance(keys.prepare(keyspace, udts).getType(), valueType, !frozen));
                 }
                 throw new AssertionError();
+            }
+
+            private void throwNestedNonFrozenError(Raw innerType)
+            {
+                if (innerType instanceof RawCollection)
+                    throw new InvalidRequestException("Non-frozen collections are not allowed inside collections: " + this);
+                else
+                    throw new InvalidRequestException("Non-frozen UDTs are not allowed inside collections: " + this);
             }
 
             public boolean referencesUserType(String name)
@@ -721,7 +727,7 @@ public interface CQL3Type
 
             public boolean canBeNonFrozen()
             {
-                return false;
+                return true;
             }
 
             public CQL3Type prepare(String keyspace, Types udts) throws InvalidRequestException
@@ -744,9 +750,8 @@ public interface CQL3Type
                 if (type == null)
                     throw new InvalidRequestException("Unknown type " + name);
 
-                if (!frozen)
-                    throw new InvalidRequestException("Non-frozen User-Defined types are not supported, please use frozen<>");
-
+                if (frozen)
+                    type = type.freeze();
                 return new UserDefined(name.toString(), type);
             }
 
@@ -755,7 +760,12 @@ public interface CQL3Type
                 return this.name.getStringTypeName().equals(name);
             }
 
-            protected boolean supportsFreezing()
+            public boolean supportsFreezing()
+            {
+                return true;
+            }
+
+            public boolean isUDT()
             {
                 return true;
             }
@@ -776,7 +786,7 @@ public interface CQL3Type
                 this.types = types;
             }
 
-            protected boolean supportsFreezing()
+            public boolean supportsFreezing()
             {
                 return true;
             }

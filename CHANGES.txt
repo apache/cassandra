@@ -1,4 +1,6 @@
 3.6
+ * Support for non-frozen user-defined types, updating
+   individual fields of user-defined types (CASSANDRA-7423)
  * Make LZ4 compression level configurable (CASSANDRA-11051)
  * Allow per-partition LIMIT clause in CQL (CASSANDRA-7017)
  * Make custom filtering more extensible with UserExpression (CASSANDRA-11295)

@@ -164,10 +164,13 @@ public class ColumnDefinition extends ColumnSpecification implements Comparable<
 
     private static Comparator<CellPath> makeCellPathComparator(Kind kind, AbstractType<?> type)
     {
-        if (kind.isPrimaryKeyKind() || !type.isCollection() || !type.isMultiCell())
+        if (kind.isPrimaryKeyKind() || !type.isMultiCell())
             return null;
 
-        CollectionType collection = (CollectionType) type;
+        AbstractType<?> nameComparator = type.isCollection()
+                                       ? ((CollectionType) type).nameComparator()
+                                       : ((UserType) type).nameComparator();
+
 
         return new Comparator<CellPath>()
         {
@@ -184,7 +187,7 @@ public class ColumnDefinition extends ColumnSpecification implements Comparable<
 
                 // This will get more complicated once we have non-frozen UDT and nested collections
                 assert path1.size() == 1 && path2.size() == 1;
-                return collection.nameComparator().compare(path1.get(0), path2.get(0));
+                return nameComparator.compare(path1.get(0), path2.get(0));
             }
         };
     }
@@ -365,8 +368,11 @@ public class ColumnDefinition extends ColumnSpecification implements Comparable<
         if (!isComplex())
             throw new MarshalException("Only complex cells should have a cell path");
 
-        assert type instanceof CollectionType;
-        ((CollectionType)type).nameComparator().validate(path.get(0));
+        assert type.isMultiCell();
+        if (type.isCollection())
+            ((CollectionType)type).nameComparator().validate(path.get(0));
+        else
+            ((UserType)type).nameComparator().validate(path.get(0));
     }
 
     public static String toCQLString(Iterable<ColumnDefinition> defs)

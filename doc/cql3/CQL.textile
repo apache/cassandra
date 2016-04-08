@@ -870,13 +870,17 @@ bc(syntax)..
                | <identifier> '=' <identifier> ('+' | '-') (<int-term> | <set-literal> | <list-literal>)
                | <identifier> '=' <identifier> '+' <map-literal>
                | <identifier> '[' <term> ']' '=' <term>
+               | <identifier> '.' <field> '=' <term>
 
 <condition> ::= <identifier> <op> <term>
-              | <identifier> IN (<variable> | '(' ( <term> ( ',' <term> )* )? ')')
+              | <identifier> IN <in-values>
               | <identifier> '[' <term> ']' <op> <term>
-              | <identifier> '[' <term> ']' IN <term>
+              | <identifier> '[' <term> ']' IN <in-values>
+              | <identifier> '.' <field> <op> <term>
+              | <identifier> '.' <field> IN <in-values>
 
 <op> ::= '<' | '<=' | '=' | '!=' | '>=' | '>'
+<in-values> ::= (<variable> | '(' ( <term> ( ',' <term> )* )? ')')
 
 <where-clause> ::= <relation> ( AND <relation> )*
 
@@ -913,6 +917,8 @@ The @c = c + 3@ form of @<assignment>@ is used to increment/decrement counters. 
 
 The @id = id + <collection-literal>@ and @id[value1] = value2@ forms of @<assignment>@ are for collections. Please refer to the "relevant section":#collections for more details.
 
+The @id.field = <term>@ form of @<assignemt>@ is for setting the value of a single field on a non-frozen user-defined types.
+
 h4(#updateOptions). @<options>@
 
 The @UPDATE@ and @INSERT@ statements support the following options:
@@ -931,7 +937,9 @@ bc(syntax)..
                   WHERE <where-clause>
                   ( IF ( EXISTS | ( <condition> ( AND <condition> )*) ) )?
 
-<selection> ::= <identifier> ( '[' <term> ']' )?
+<selection> ::= <identifier>
+              | <identifier> '[' <term> ']'
+              | <identifier> '.' <field>
 
 <where-clause> ::= <relation> ( AND <relation> )*
 
@@ -943,11 +951,14 @@ bc(syntax)..
              | '(' <identifier> (',' <identifier>)* ')' IN <variable>
 
 <op> ::= '=' | '<' | '>' | '<=' | '>='
+<in-values> ::= (<variable> | '(' ( <term> ( ',' <term> )* )? ')')
 
 <condition> ::= <identifier> (<op> | '!=') <term>
-              | <identifier> IN (<variable> | '(' ( <term> ( ',' <term> )* )? ')')
+              | <identifier> IN <in-values>
               | <identifier> '[' <term> ']' (<op> | '!=') <term>
-              | <identifier> '[' <term> ']' IN <term>
+              | <identifier> '[' <term> ']' IN <in-values>
+              | <identifier> '.' <field> (<op> | '!=') <term>
+              | <identifier> '.' <field> IN <in-values>
 
 p. 
 __Sample:__
@@ -957,7 +968,7 @@ DELETE FROM NerdMovies USING TIMESTAMP 1240003134 WHERE movie = 'Serenity';
 
 DELETE phone FROM Users WHERE userid IN (C73DE1D3-AF08-40F3-B124-3FF3E5109F22, B70DE1D0-9908-4AE3-BE34-5573E5B09F14);
 p. 
-The @DELETE@ statement deletes columns and rows. If column names are provided directly after the @DELETE@ keyword, only those columns are deleted from the row indicated by the @<where-clause>@ (the @id[value]@ syntax in @<selection>@ is for collection, please refer to the "collection section":#collections for more details).  Otherwise, whole rows are removed. The @<where-clause>@ specifies which rows are to be deleted.  Multiple rows may be deleted with one statement by using an @IN@ clause.  A range of rows may be deleted using an inequality operator (such as @>=@).
+The @DELETE@ statement deletes columns and rows. If column names are provided directly after the @DELETE@ keyword, only those columns are deleted from the row indicated by the @<where-clause>@.  The @id[value]@ syntax in @<selection>@ is for non-frozen collections (please refer to the "collection section":#collections for more details).  The @id.field@ syntax is for the deletion of non-frozen user-defined types.  Otherwise, whole rows are removed. The @<where-clause>@ specifies which rows are to be deleted.  Multiple rows may be deleted with one statement by using an @IN@ clause.  A range of rows may be deleted using an inequality operator (such as @>=@).
 
 @DELETE@ supports the @TIMESTAMP@ option with the same semantics as the "@UPDATE@":#updateStmt statement.
 
@@ -2317,6 +2328,10 @@ h3. 3.4.2
 * "@INSERT/UPDATE options@":#updateOptions for tables having a default_time_to_live specifying a TTL of 0 will remove the TTL from the inserted or updated values
 * "@ALTER TABLE@":#alterTableStmt @ADD@ and @DROP@ now allow mutiple columns to be added/removed
 * New "@PER PARTITION LIMIT@":#selectLimit option (see "CASSANDRA-7017":https://issues.apache.org/jira/browse/CASSANDRA-7017).
+
+h3. 3.4.2
+
+* User-defined types may now be stored in a non-frozen form, allowing individual fields to be updated and deleted in "@UPDATE@ statements":#updateStmt and "@DELETE@ statements":#deleteStmt, respectively.  (CASSANDRA-7423)
 
 h3. 3.4.1
 

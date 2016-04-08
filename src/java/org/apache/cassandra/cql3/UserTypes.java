@@ -20,11 +20,17 @@ package org.apache.cassandra.cql3;
 import java.nio.ByteBuffer;
 import java.util.*;
 
+import org.apache.cassandra.config.ColumnDefinition;
 import org.apache.cassandra.cql3.functions.Function;
+import org.apache.cassandra.db.DecoratedKey;
+import org.apache.cassandra.db.marshal.TupleType;
 import org.apache.cassandra.db.marshal.UTF8Type;
 import org.apache.cassandra.db.marshal.UserType;
+import org.apache.cassandra.db.rows.CellPath;
 import org.apache.cassandra.exceptions.InvalidRequestException;
 import org.apache.cassandra.utils.ByteBufferUtil;
+
+import static org.apache.cassandra.cql3.Constants.UNSET_VALUE;
 
 /**
  * Static helper methods and classes for user types.
@@ -78,8 +84,10 @@ public abstract class UserTypes
             {
                 // We had some field that are not part of the type
                 for (ColumnIdentifier id : entries.keySet())
+                {
                     if (!ut.fieldNames().contains(id.bytes))
                         throw new InvalidRequestException(String.format("Unknown field '%s' in value of user defined type %s", id, ut.getNameAsString()));
+                }
             }
 
             DelayedValue value = new DelayedValue(((UserType)receiver.type), values);
@@ -88,7 +96,7 @@ public abstract class UserTypes
 
         private void validateAssignableTo(String keyspace, ColumnSpecification receiver) throws InvalidRequestException
         {
-            if (!(receiver.type instanceof UserType))
+            if (!receiver.type.isUDT())
                 throw new InvalidRequestException(String.format("Invalid user type literal for %s of type %s", receiver, receiver.type.asCQL3Type()));
 
             UserType ut = (UserType)receiver.type;
@@ -101,7 +109,10 @@ public abstract class UserTypes
 
                 ColumnSpecification fieldSpec = fieldSpecOf(receiver, i);
                 if (!value.testAssignment(keyspace, fieldSpec).isAssignable())
-                    throw new InvalidRequestException(String.format("Invalid user type literal for %s: field %s is not of type %s", receiver, field, fieldSpec.type.asCQL3Type()));
+                {
+                    throw new InvalidRequestException(String.format("Invalid user type literal for %s: field %s is not of type %s",
+                            receiver, field, fieldSpec.type.asCQL3Type()));
+                }
             }
         }
 
@@ -135,7 +146,52 @@ public abstract class UserTypes
         }
     }
 
-    // Same purpose than Lists.DelayedValue, except we do handle bind marker in that case
+    public static class Value extends Term.MultiItemTerminal
+    {
+        private final UserType type;
+        public final ByteBuffer[] elements;
+
+        public Value(UserType type, ByteBuffer[] elements)
+        {
+            this.type = type;
+            this.elements = elements;
+        }
+
+        public static Value fromSerialized(ByteBuffer bytes, UserType type)
+        {
+            ByteBuffer[] values = type.split(bytes);
+            if (values.length > type.size())
+            {
+                throw new InvalidRequestException(String.format(
+                        "UDT value contained too many fields (expected %s, got %s)", type.size(), values.length));
+            }
+
+            return new Value(type, type.split(bytes));
+        }
+
+        public ByteBuffer get(int protocolVersion)
+        {
+            return TupleType.buildValue(elements);
+        }
+
+        public boolean equals(UserType userType, Value v)
+        {
+            if (elements.length != v.elements.length)
+                return false;
+
+            for (int i = 0; i < elements.length; i++)
+                if (userType.fieldType(i).compare(elements[i], v.elements[i]) != 0)
+                    return false;
+
+            return true;
+        }
+
+        public List<ByteBuffer> getElements()
+        {
+            return Arrays.asList(elements);
+        }
+    }
+
     public static class DelayedValue extends Term.NonTerminal
     {
         private final UserType type;
@@ -168,26 +224,142 @@ public abstract class UserTypes
 
         private ByteBuffer[] bindInternal(QueryOptions options) throws InvalidRequestException
         {
+            if (values.size() > type.size())
+            {
+                throw new InvalidRequestException(String.format(
+                        "UDT value contained too many fields (expected %s, got %s)", type.size(), values.size()));
+            }
+
             ByteBuffer[] buffers = new ByteBuffer[values.size()];
             for (int i = 0; i < type.size(); i++)
             {
                 buffers[i] = values.get(i).bindAndGet(options);
-                // Since A UDT value is always written in its entirety Cassandra can't preserve a pre-existing value by 'not setting' the new value. Reject the query.
-                if (buffers[i] == ByteBufferUtil.UNSET_BYTE_BUFFER)
+                // Since a frozen UDT value is always written in its entirety Cassandra can't preserve a pre-existing
+                // value by 'not setting' the new value. Reject the query.
+                if (!type.isMultiCell() && buffers[i] == ByteBufferUtil.UNSET_BYTE_BUFFER)
                     throw new InvalidRequestException(String.format("Invalid unset value for field '%s' of user defined type %s", type.fieldNameAsString(i), type.getNameAsString()));
             }
             return buffers;
         }
 
-        public Constants.Value bind(QueryOptions options) throws InvalidRequestException
+        public Value bind(QueryOptions options) throws InvalidRequestException
         {
-            return new Constants.Value(bindAndGet(options));
+            return new Value(type, bindInternal(options));
         }
 
         @Override
         public ByteBuffer bindAndGet(QueryOptions options) throws InvalidRequestException
         {
             return UserType.buildValue(bindInternal(options));
+        }
+    }
+
+    public static class Marker extends AbstractMarker
+    {
+        protected Marker(int bindIndex, ColumnSpecification receiver)
+        {
+            super(bindIndex, receiver);
+            assert receiver.type.isUDT();
+        }
+
+        public Terminal bind(QueryOptions options) throws InvalidRequestException
+        {
+            ByteBuffer value = options.getValues().get(bindIndex);
+            if (value == null)
+                return null;
+            if (value == ByteBufferUtil.UNSET_BYTE_BUFFER)
+                return UNSET_VALUE;
+            return Value.fromSerialized(value, (UserType) receiver.type);
+        }
+    }
+
+    public static class Setter extends Operation
+    {
+        public Setter(ColumnDefinition column, Term t)
+        {
+            super(column, t);
+        }
+
+        public void execute(DecoratedKey partitionKey, UpdateParameters params) throws InvalidRequestException
+        {
+            Term.Terminal value = t.bind(params.options);
+            if (value == UNSET_VALUE)
+                return;
+
+            Value userTypeValue = (Value) value;
+            if (column.type.isMultiCell())
+            {
+                // setting a whole UDT at once means we overwrite all cells, so delete existing cells
+                params.setComplexDeletionTimeForOverwrite(column);
+                if (value == null)
+                    return;
+
+                Iterator<ByteBuffer> fieldNameIter = userTypeValue.type.fieldNames().iterator();
+                for (ByteBuffer buffer : userTypeValue.elements)
+                {
+                    ByteBuffer fieldName = fieldNameIter.next();
+                    if (buffer == null)
+                        continue;
+
+                    CellPath fieldPath = userTypeValue.type.cellPathForField(fieldName);
+                    params.addCell(column, fieldPath, buffer);
+                }
+            }
+            else
+            {
+                // for frozen UDTs, we're overwriting the whole cell value
+                if (value == null)
+                    params.addTombstone(column);
+                else
+                    params.addCell(column, value.get(params.options.getProtocolVersion()));
+            }
+        }
+    }
+
+    public static class SetterByField extends Operation
+    {
+        private final ColumnIdentifier field;
+
+        public SetterByField(ColumnDefinition column, ColumnIdentifier field, Term t)
+        {
+            super(column, t);
+            this.field = field;
+        }
+
+        public void execute(DecoratedKey partitionKey, UpdateParameters params) throws InvalidRequestException
+        {
+            // we should not get here for frozen UDTs
+            assert column.type.isMultiCell() : "Attempted to set an individual field on a frozen UDT";
+
+            Term.Terminal value = t.bind(params.options);
+            if (value == UNSET_VALUE)
+                return;
+
+            CellPath fieldPath = ((UserType) column.type).cellPathForField(field.bytes);
+            if (value == null)
+                params.addTombstone(column, fieldPath);
+            else
+                params.addCell(column, fieldPath, value.get(params.options.getProtocolVersion()));
+        }
+    }
+
+    public static class DeleterByField extends Operation
+    {
+        private final ColumnIdentifier field;
+
+        public DeleterByField(ColumnDefinition column, ColumnIdentifier field)
+        {
+            super(column, null);
+            this.field = field;
+        }
+
+        public void execute(DecoratedKey partitionKey, UpdateParameters params) throws InvalidRequestException
+        {
+            // we should not get here for frozen UDTs
+            assert column.type.isMultiCell() : "Attempted to delete a single field from a frozen UDT";
+
+            CellPath fieldPath = ((UserType) column.type).cellPathForField(field.bytes);
+            params.addTombstone(column, fieldPath);
         }
     }
 }

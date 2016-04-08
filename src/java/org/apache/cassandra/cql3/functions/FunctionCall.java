@@ -99,16 +99,24 @@ public class FunctionCall extends Term.NonTerminal
 
     private static Term.Terminal makeTerminal(Function fun, ByteBuffer result, int version) throws InvalidRequestException
     {
-        if (!(fun.returnType() instanceof CollectionType))
-            return new Constants.Value(result);
-
-        switch (((CollectionType)fun.returnType()).kind)
+        if (fun.returnType().isCollection())
         {
-            case LIST: return Lists.Value.fromSerialized(result, (ListType)fun.returnType(), version);
-            case SET:  return Sets.Value.fromSerialized(result, (SetType)fun.returnType(), version);
-            case MAP:  return Maps.Value.fromSerialized(result, (MapType)fun.returnType(), version);
+            switch (((CollectionType) fun.returnType()).kind)
+            {
+                case LIST:
+                    return Lists.Value.fromSerialized(result, (ListType) fun.returnType(), version);
+                case SET:
+                    return Sets.Value.fromSerialized(result, (SetType) fun.returnType(), version);
+                case MAP:
+                    return Maps.Value.fromSerialized(result, (MapType) fun.returnType(), version);
+            }
         }
-        throw new AssertionError();
+        else if (fun.returnType().isUDT())
+        {
+            return UserTypes.Value.fromSerialized(result, (UserType) fun.returnType());
+        }
+
+        return new Constants.Value(result);
     }
 
     public static class Raw extends Term.Raw

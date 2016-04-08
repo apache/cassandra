@@ -538,7 +538,8 @@ public class TypeParser
         return sb.toString();
     }
 
-    public static String stringifyUserTypeParameters(String keysace, ByteBuffer typeName, List<ByteBuffer> columnNames, List<AbstractType<?>> columnTypes)
+    public static String stringifyUserTypeParameters(String keysace, ByteBuffer typeName, List<ByteBuffer> columnNames,
+                                                     List<AbstractType<?>> columnTypes, boolean ignoreFreezing)
     {
         StringBuilder sb = new StringBuilder();
         sb.append('(').append(keysace).append(",").append(ByteBufferUtil.bytesToHex(typeName));
@@ -547,8 +548,7 @@ public class TypeParser
         {
             sb.append(',');
             sb.append(ByteBufferUtil.bytesToHex(columnNames.get(i))).append(":");
-            // omit FrozenType(...) from fields because it is currently implicit
-            sb.append(columnTypes.get(i).toString(true));
+            sb.append(columnTypes.get(i).toString(ignoreFreezing));
         }
         sb.append(')');
         return sb.toString();

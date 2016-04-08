@@ -24,6 +24,7 @@ import java.util.concurrent.ConcurrentMap;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
+import com.google.common.annotations.VisibleForTesting;
 import com.google.common.collect.MapMaker;
 
 import org.apache.cassandra.cache.IMeasurableMemory;
@@ -329,7 +330,8 @@ public class ColumnIdentifier extends Selectable implements IMeasurableMemory, C
         }
     }
 
-    static String maybeQuote(String text)
+    @VisibleForTesting
+    public static String maybeQuote(String text)
     {
         if (UNQUOTED_IDENTIFIER.matcher(text).matches())
             return text;

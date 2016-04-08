@@ -116,7 +116,7 @@ public enum DataType implements OptionCodec.Codecable<DataType>
                     fieldNames.add(UTF8Type.instance.decompose(CBUtil.readString(cb)));
                     fieldTypes.add(DataType.toType(codec.decodeOne(cb, version)));
                 }
-                return new UserType(ks, name, fieldNames, fieldTypes);
+                return new UserType(ks, name, fieldNames, fieldTypes, true);
             case TUPLE:
                 n = cb.readUnsignedShort();
                 List<AbstractType<?>> types = new ArrayList<>(n);

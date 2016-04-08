@@ -112,14 +112,14 @@ public abstract class Selection
     }
 
     /**
-     * Checks if this selection contains a collection.
+     * Checks if this selection contains a complex column.
      *
-     * @return <code>true</code> if this selection contains a collection, <code>false</code> otherwise.
+     * @return <code>true</code> if this selection contains a multicell collection or UDT, <code>false</code> otherwise.
      */
-    public boolean containsACollection()
+    public boolean containsAComplexColumn()
     {
         for (ColumnDefinition def : getColumns())
-            if (def.type.isCollection() && def.type.isMultiCell())
+            if (def.isComplex())
                 return true;
 
         return false;

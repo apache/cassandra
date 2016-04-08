@@ -429,6 +429,7 @@ deleteSelection returns [List<Operation.RawDeletion> operations]
 deleteOp returns [Operation.RawDeletion op]
     : c=cident                { $op = new Operation.ColumnDeletion(c); }
     | c=cident '[' t=term ']' { $op = new Operation.ElementDeletion(c, t); }
+    | c=cident '.' field=cident { $op = new Operation.FieldDeletion(c, field); }
     ;
 
 usingClauseDelete[Attributes.Raw attrs]
@@ -1282,7 +1283,8 @@ columnOperation[List<Pair<ColumnIdentifier.Raw, Operation.RawUpdate>> operations
 
 columnOperationDifferentiator[List<Pair<ColumnIdentifier.Raw, Operation.RawUpdate>> operations, ColumnIdentifier.Raw key]
     : '=' normalColumnOperation[operations, key]
-    | '[' k=term ']' specializedColumnOperation[operations, key, k]
+    | '[' k=term ']' collectionColumnOperation[operations, key, k]
+    | '.' field=cident udtColumnOperation[operations, key, field]
     ;
 
 normalColumnOperation[List<Pair<ColumnIdentifier.Raw, Operation.RawUpdate>> operations, ColumnIdentifier.Raw key]
@@ -1315,10 +1317,17 @@ normalColumnOperation[List<Pair<ColumnIdentifier.Raw, Operation.RawUpdate>> oper
       }
     ;
 
-specializedColumnOperation[List<Pair<ColumnIdentifier.Raw, Operation.RawUpdate>> operations, ColumnIdentifier.Raw key, Term.Raw k]
+collectionColumnOperation[List<Pair<ColumnIdentifier.Raw, Operation.RawUpdate>> operations, ColumnIdentifier.Raw key, Term.Raw k]
     : '=' t=term
       {
           addRawUpdate(operations, key, new Operation.SetElement(k, t));
+      }
+    ;
+
+udtColumnOperation[List<Pair<ColumnIdentifier.Raw, Operation.RawUpdate>> operations, ColumnIdentifier.Raw key, ColumnIdentifier.Raw field]
+    : '=' t=term
+      {
+          addRawUpdate(operations, key, new Operation.SetField(field, t));
       }
     ;
 
@@ -1335,6 +1344,13 @@ columnCondition[List<Pair<ColumnIdentifier.Raw, ColumnCondition.Raw>> conditions
             | K_IN
                 ( values=singleColumnInValues { conditions.add(Pair.create(key, ColumnCondition.Raw.collectionInCondition(element, values))); }
                 | marker=inMarker { conditions.add(Pair.create(key, ColumnCondition.Raw.collectionInCondition(element, marker))); }
+                )
+            )
+        | '.' field=cident
+            ( op=relationType t=term { conditions.add(Pair.create(key, ColumnCondition.Raw.udtFieldCondition(t, field, op))); }
+            | K_IN
+                ( values=singleColumnInValues { conditions.add(Pair.create(key, ColumnCondition.Raw.udtFieldInCondition(field, values))); }
+                | marker=inMarker { conditions.add(Pair.create(key, ColumnCondition.Raw.udtFieldInCondition(field, marker))); }
                 )
             )
         )

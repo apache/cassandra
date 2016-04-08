@@ -39,6 +39,7 @@ import org.apache.cassandra.db.filter.*;
 import org.apache.cassandra.db.marshal.CollectionType;
 import org.apache.cassandra.db.marshal.CompositeType;
 import org.apache.cassandra.db.marshal.Int32Type;
+import org.apache.cassandra.db.marshal.UserType;
 import org.apache.cassandra.db.partitions.PartitionIterator;
 import org.apache.cassandra.db.rows.ComplexColumnData;
 import org.apache.cassandra.db.rows.Row;
@@ -759,13 +760,14 @@ public class SelectStatement implements CQLStatement
     {
         if (def.isComplex())
         {
-            // Collections are the only complex types we have so far
-            assert def.type.isCollection() && def.type.isMultiCell();
+            assert def.type.isMultiCell();
             ComplexColumnData complexData = row.getComplexColumnData(def);
             if (complexData == null)
-                result.add((ByteBuffer)null);
+                result.add(null);
+            else if (def.type.isCollection())
+                result.add(((CollectionType) def.type).serializeForNativeProtocol(complexData.iterator(), protocolVersion));
             else
-                result.add(((CollectionType)def.type).serializeForNativeProtocol(def, complexData.iterator(), protocolVersion));
+                result.add(((UserType) def.type).serializeForNativeProtocol(complexData.iterator(), protocolVersion));
         }
         else
         {
@@ -883,7 +885,7 @@ public class SelectStatement implements CQLStatement
                                                  whereClause,
                                                  boundNames,
                                                  selection.containsOnlyStaticColumns(),
-                                                 selection.containsACollection(),
+                                                 selection.containsAComplexColumn(),
                                                  parameters.allowFiltering,
                                                  forView);
             }

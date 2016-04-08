@@ -147,7 +147,7 @@ public class DeleteStatement extends ModificationStatement
                 // list. However, we support having the value name for coherence with the static/sparse case
                 checkFalse(def.isPrimaryKeyColumn(), "Invalid identifier %s for deletion (should not be a PRIMARY KEY part)", def.name);
 
-                Operation op = deletion.prepare(cfm.ksName, def);
+                Operation op = deletion.prepare(cfm.ksName, def, cfm);
                 op.collectMarkerSpecification(boundNames);
                 operations.add(op);
             }

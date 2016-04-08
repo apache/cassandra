@@ -87,7 +87,7 @@ public class LegacySchemaMigratorTest
         }
 
         // make sure that we've read *exactly* the same set of keyspaces/tables/types/functions
-        assertEquals(expected, actual);
+        assertEquals(expected.diff(actual).toString(), expected, actual);
 
         // check that the build status of all indexes has been updated to use the new
         // format of index name: the index_name column of system.IndexInfo used to
@@ -311,17 +311,20 @@ public class LegacySchemaMigratorTest
         UserType udt1 = new UserType(keyspace,
                                      bytes("udt1"),
                                      new ArrayList<ByteBuffer>() {{ add(bytes("col1")); add(bytes("col2")); }},
-                                     new ArrayList<AbstractType<?>>() {{ add(UTF8Type.instance); add(Int32Type.instance); }});
+                                     new ArrayList<AbstractType<?>>() {{ add(UTF8Type.instance); add(Int32Type.instance); }},
+                                     true);
 
         UserType udt2 = new UserType(keyspace,
                                      bytes("udt2"),
                                      new ArrayList<ByteBuffer>() {{ add(bytes("col3")); add(bytes("col4")); }},
-                                     new ArrayList<AbstractType<?>>() {{ add(BytesType.instance); add(BooleanType.instance); }});
+                                     new ArrayList<AbstractType<?>>() {{ add(BytesType.instance); add(BooleanType.instance); }},
+                                     true);
 
         UserType udt3 = new UserType(keyspace,
                                      bytes("udt3"),
                                      new ArrayList<ByteBuffer>() {{ add(bytes("col5")); }},
-                                     new ArrayList<AbstractType<?>>() {{ add(AsciiType.instance); }});
+                                     new ArrayList<AbstractType<?>>() {{ add(AsciiType.instance); }},
+                                     true);
 
         return KeyspaceMetadata.create(keyspace,
                                        KeyspaceParams.simple(1),
@@ -431,12 +434,14 @@ public class LegacySchemaMigratorTest
         UserType udt1 = new UserType(keyspace,
                                      bytes("udt1"),
                                      new ArrayList<ByteBuffer>() {{ add(bytes("col1")); add(bytes("col2")); }},
-                                     new ArrayList<AbstractType<?>>() {{ add(UTF8Type.instance); add(Int32Type.instance); }});
+                                     new ArrayList<AbstractType<?>>() {{ add(UTF8Type.instance); add(Int32Type.instance); }},
+                                     true);
 
         UserType udt2 = new UserType(keyspace,
                                      bytes("udt2"),
                                      new ArrayList<ByteBuffer>() {{ add(bytes("col1")); add(bytes("col2")); }},
-                                     new ArrayList<AbstractType<?>>() {{ add(ListType.getInstance(udt1, false)); add(Int32Type.instance); }});
+                                     new ArrayList<AbstractType<?>>() {{ add(ListType.getInstance(udt1, false)); add(Int32Type.instance); }},
+                                     true);
 
         UDFunction udf1 = UDFunction.create(new FunctionName(keyspace, "udf"),
                                             ImmutableList.of(new ColumnIdentifier("col1", false), new ColumnIdentifier("col2", false)),
@@ -478,12 +483,14 @@ public class LegacySchemaMigratorTest
         UserType udt1 = new UserType(keyspace,
                                      bytes("udt1"),
                                      new ArrayList<ByteBuffer>() {{ add(bytes("col1")); add(bytes("col2")); }},
-                                     new ArrayList<AbstractType<?>>() {{ add(UTF8Type.instance); add(Int32Type.instance); }});
+                                     new ArrayList<AbstractType<?>>() {{ add(UTF8Type.instance); add(Int32Type.instance); }},
+                                     true);
 
         UserType udt2 = new UserType(keyspace,
                                      bytes("udt2"),
                                      new ArrayList<ByteBuffer>() {{ add(bytes("col1")); add(bytes("col2")); }},
-                                     new ArrayList<AbstractType<?>>() {{ add(ListType.getInstance(udt1, false)); add(Int32Type.instance); }});
+                                     new ArrayList<AbstractType<?>>() {{ add(ListType.getInstance(udt1, false)); add(Int32Type.instance); }},
+                                     true);
 
         UDFunction udf1 = UDFunction.create(new FunctionName(keyspace, "udf1"),
                                             ImmutableList.of(new ColumnIdentifier("col1", false), new ColumnIdentifier("col2", false)),

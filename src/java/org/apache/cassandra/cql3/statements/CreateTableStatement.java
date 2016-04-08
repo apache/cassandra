@@ -46,7 +46,7 @@ public class CreateTableStatement extends SchemaAlteringStatement
     private List<AbstractType<?>> keyTypes;
     private List<AbstractType<?>> clusteringTypes;
 
-    private final Map<ByteBuffer, CollectionType> collections = new HashMap<>();
+    private final Map<ByteBuffer, AbstractType> multicellColumns = new HashMap<>();
 
     private final List<ColumnIdentifier> keyAliases = new ArrayList<>();
     private final List<ColumnIdentifier> columnAliases = new ArrayList<>();
@@ -223,10 +223,24 @@ public class CreateTableStatement extends SchemaAlteringStatement
             {
                 ColumnIdentifier id = entry.getKey();
                 CQL3Type pt = entry.getValue().prepare(keyspace(), udts);
-                if (pt.isCollection() && ((CollectionType)pt.getType()).isMultiCell())
-                    stmt.collections.put(id.bytes, (CollectionType)pt.getType());
+                if (pt.getType().isMultiCell())
+                    stmt.multicellColumns.put(id.bytes, pt.getType());
                 if (entry.getValue().isCounter())
                     stmt.hasCounters = true;
+
+                // check for non-frozen UDTs or collections in a non-frozen UDT
+                if (pt.getType().isUDT() && pt.getType().isMultiCell())
+                {
+                    for (AbstractType<?> innerType : ((UserType) pt.getType()).fieldTypes())
+                    {
+                        if (innerType.isMultiCell())
+                        {
+                            assert innerType.isCollection();  // shouldn't get this far with a nested non-frozen UDT
+                            throw new InvalidRequestException("Non-frozen UDTs with nested non-frozen collections are not supported");
+                        }
+                    }
+                }
+
                 stmt.columns.put(id, pt.getType()); // we'll remove what is not a column below
             }
 
@@ -285,8 +299,8 @@ public class CreateTableStatement extends SchemaAlteringStatement
             // For COMPACT STORAGE, we reject any "feature" that we wouldn't be able to translate back to thrift.
             if (useCompactStorage)
             {
-                if (!stmt.collections.isEmpty())
-                    throw new InvalidRequestException("Non-frozen collection types are not supported with COMPACT STORAGE");
+                if (!stmt.multicellColumns.isEmpty())
+                    throw new InvalidRequestException("Non-frozen collections and UDTs are not supported with COMPACT STORAGE");
                 if (!staticColumns.isEmpty())
                     throw new InvalidRequestException("Static columns are not supported in COMPACT STORAGE tables");
 
@@ -350,8 +364,13 @@ public class CreateTableStatement extends SchemaAlteringStatement
             AbstractType type = columns.get(t);
             if (type == null)
                 throw new InvalidRequestException(String.format("Unknown definition %s referenced in PRIMARY KEY", t));
-            if (type.isCollection() && type.isMultiCell())
-                throw new InvalidRequestException(String.format("Invalid collection type for PRIMARY KEY component %s", t));
+            if (type.isMultiCell())
+            {
+                if (type.isCollection())
+                    throw new InvalidRequestException(String.format("Invalid non-frozen collection type for PRIMARY KEY component %s", t));
+                else
+                    throw new InvalidRequestException(String.format("Invalid non-frozen user-defined type for PRIMARY KEY component %s", t));
+            }
 
             columns.remove(t);
             Boolean isReversed = properties.definedOrdering.get(t);

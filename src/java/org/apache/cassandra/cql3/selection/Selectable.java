@@ -277,23 +277,23 @@ public abstract class Selectable
         {
             Selector.Factory factory = selected.newSelectorFactory(cfm, defs);
             AbstractType<?> type = factory.newInstance().getType();
-            if (!(type instanceof UserType))
+            if (!type.isUDT())
+            {
                 throw new InvalidRequestException(
                         String.format("Invalid field selection: %s of type %s is not a user type",
-                                      selected,
-                                      type.asCQL3Type()));
+                                selected,
+                                type.asCQL3Type()));
+            }
 
             UserType ut = (UserType) type;
-            for (int i = 0; i < ut.size(); i++)
+            int fieldIndex = ((UserType) type).fieldPosition(field);
+            if (fieldIndex == -1)
             {
-                if (!ut.fieldName(i).equals(field.bytes))
-                    continue;
-                return FieldSelector.newFactory(ut, i, factory);
+                throw new InvalidRequestException(String.format("%s of type %s has no field %s",
+                        selected, type.asCQL3Type(), field));
             }
-            throw new InvalidRequestException(String.format("%s of type %s has no field %s",
-                                                            selected,
-                                                            type.asCQL3Type(),
-                                                            field));
+
+            return FieldSelector.newFactory(ut, fieldIndex, factory);
         }
 
         public static class Raw implements Selectable.Raw

@@ -431,6 +431,7 @@ public class MigrationManager
 
     public static void announceTypeUpdate(UserType updatedType, boolean announceLocally)
     {
+        logger.info(String.format("Update type '%s.%s' to %s", updatedType.keyspace, updatedType.getNameAsString(), updatedType));
         announceNewType(updatedType, announceLocally);
     }
 

@@ -19,6 +19,7 @@ package org.apache.cassandra.cql3;
 
 import java.util.Collections;
 
+import org.apache.cassandra.config.CFMetaData;
 import org.apache.cassandra.config.ColumnDefinition;
 import org.apache.cassandra.cql3.functions.Function;
 import org.apache.cassandra.db.DecoratedKey;
@@ -107,12 +108,10 @@ public abstract class Operation
          * It returns an Operation which can be though as post-preparation well-typed
          * Operation.
          *
-         * @param receiver the "column" this operation applies to. Note that
-         * contrarly to the method of same name in Term.Raw, the receiver should always
-         * be a true column.
+         * @param receiver the column this operation applies to.
          * @return the prepared update operation.
          */
-        public Operation prepare(String keyspace, ColumnDefinition receiver) throws InvalidRequestException;
+        public Operation prepare(CFMetaData cfm, ColumnDefinition receiver) throws InvalidRequestException;
 
         /**
          * @return whether this operation can be applied alongside the {@code
@@ -146,7 +145,7 @@ public abstract class Operation
          * @param receiver the "column" this operation applies to.
          * @return the prepared delete operation.
          */
-        public Operation prepare(String keyspace, ColumnDefinition receiver) throws InvalidRequestException;
+        public Operation prepare(String keyspace, ColumnDefinition receiver, CFMetaData cfm) throws InvalidRequestException;
     }
 
     public static class SetValue implements RawUpdate
@@ -158,26 +157,32 @@ public abstract class Operation
             this.value = value;
         }
 
-        public Operation prepare(String keyspace, ColumnDefinition receiver) throws InvalidRequestException
+        public Operation prepare(CFMetaData cfm, ColumnDefinition receiver) throws InvalidRequestException
         {
-            Term v = value.prepare(keyspace, receiver);
+            Term v = value.prepare(cfm.ksName, receiver);
 
             if (receiver.type instanceof CounterColumnType)
                 throw new InvalidRequestException(String.format("Cannot set the value of counter column %s (counters can only be incremented/decremented, not set)", receiver.name));
 
-            if (!(receiver.type.isCollection()))
-                return new Constants.Setter(receiver, v);
-
-            switch (((CollectionType)receiver.type).kind)
+            if (receiver.type.isCollection())
             {
-                case LIST:
-                    return new Lists.Setter(receiver, v);
-                case SET:
-                    return new Sets.Setter(receiver, v);
-                case MAP:
-                    return new Maps.Setter(receiver, v);
+                switch (((CollectionType) receiver.type).kind)
+                {
+                    case LIST:
+                        return new Lists.Setter(receiver, v);
+                    case SET:
+                        return new Sets.Setter(receiver, v);
+                    case MAP:
+                        return new Maps.Setter(receiver, v);
+                    default:
+                        throw new AssertionError();
+                }
             }
-            throw new AssertionError();
+
+            if (receiver.type.isUDT())
+                return new UserTypes.Setter(receiver, v);
+
+            return new Constants.Setter(receiver, v);
         }
 
         protected String toString(ColumnSpecification column)
@@ -204,7 +209,7 @@ public abstract class Operation
             this.value = value;
         }
 
-        public Operation prepare(String keyspace, ColumnDefinition receiver) throws InvalidRequestException
+        public Operation prepare(CFMetaData cfm, ColumnDefinition receiver) throws InvalidRequestException
         {
             if (!(receiver.type instanceof CollectionType))
                 throw new InvalidRequestException(String.format("Invalid operation (%s) for non collection column %s", toString(receiver), receiver.name));
@@ -214,14 +219,14 @@ public abstract class Operation
             switch (((CollectionType)receiver.type).kind)
             {
                 case LIST:
-                    Term idx = selector.prepare(keyspace, Lists.indexSpecOf(receiver));
-                    Term lval = value.prepare(keyspace, Lists.valueSpecOf(receiver));
+                    Term idx = selector.prepare(cfm.ksName, Lists.indexSpecOf(receiver));
+                    Term lval = value.prepare(cfm.ksName, Lists.valueSpecOf(receiver));
                     return new Lists.SetterByIndex(receiver, idx, lval);
                 case SET:
                     throw new InvalidRequestException(String.format("Invalid operation (%s) for set column %s", toString(receiver), receiver.name));
                 case MAP:
-                    Term key = selector.prepare(keyspace, Maps.keySpecOf(receiver));
-                    Term mval = value.prepare(keyspace, Maps.valueSpecOf(receiver));
+                    Term key = selector.prepare(cfm.ksName, Maps.keySpecOf(receiver));
+                    Term mval = value.prepare(cfm.ksName, Maps.valueSpecOf(receiver));
                     return new Maps.SetterByKey(receiver, key, mval);
             }
             throw new AssertionError();
@@ -240,6 +245,47 @@ public abstract class Operation
         }
     }
 
+    public static class SetField implements RawUpdate
+    {
+        private final ColumnIdentifier.Raw field;
+        private final Term.Raw value;
+
+        public SetField(ColumnIdentifier.Raw field, Term.Raw value)
+        {
+            this.field = field;
+            this.value = value;
+        }
+
+        public Operation prepare(CFMetaData cfm, ColumnDefinition receiver) throws InvalidRequestException
+        {
+            if (!receiver.type.isUDT())
+                throw new InvalidRequestException(String.format("Invalid operation (%s) for non-UDT column %s", toString(receiver), receiver.name));
+            else if (!receiver.type.isMultiCell())
+                throw new InvalidRequestException(String.format("Invalid operation (%s) for frozen UDT column %s", toString(receiver), receiver.name));
+
+            ColumnIdentifier fieldIdentifier = field.prepare(cfm);
+            int fieldPosition = ((UserType) receiver.type).fieldPosition(fieldIdentifier);
+            if (fieldPosition == -1)
+                throw new InvalidRequestException(String.format("UDT column %s does not have a field named %s", receiver.name, fieldIdentifier));
+
+            Term val = value.prepare(cfm.ksName, UserTypes.fieldSpecOf(receiver, fieldPosition));
+            return new UserTypes.SetterByField(receiver, fieldIdentifier, val);
+        }
+
+        protected String toString(ColumnSpecification column)
+        {
+            return String.format("%s.%s = %s", column.name, field, value);
+        }
+
+        public boolean isCompatibleWith(RawUpdate other)
+        {
+            if (other instanceof SetField)
+                return !((SetField) other).field.equals(field);
+            else
+                return !(other instanceof SetValue);
+        }
+    }
+
     public static class Addition implements RawUpdate
     {
         private final Term.Raw value;
@@ -249,9 +295,9 @@ public abstract class Operation
             this.value = value;
         }
 
-        public Operation prepare(String keyspace, ColumnDefinition receiver) throws InvalidRequestException
+        public Operation prepare(CFMetaData cfm, ColumnDefinition receiver) throws InvalidRequestException
         {
-            Term v = value.prepare(keyspace, receiver);
+            Term v = value.prepare(cfm.ksName, receiver);
 
             if (!(receiver.type instanceof CollectionType))
             {
@@ -294,13 +340,13 @@ public abstract class Operation
             this.value = value;
         }
 
-        public Operation prepare(String keyspace, ColumnDefinition receiver) throws InvalidRequestException
+        public Operation prepare(CFMetaData cfm, ColumnDefinition receiver) throws InvalidRequestException
         {
             if (!(receiver.type instanceof CollectionType))
             {
                 if (!(receiver.type instanceof CounterColumnType))
                     throw new InvalidRequestException(String.format("Invalid operation (%s) for non counter column %s", toString(receiver), receiver.name));
-                return new Constants.Substracter(receiver, value.prepare(keyspace, receiver));
+                return new Constants.Substracter(receiver, value.prepare(cfm.ksName, receiver));
             }
             else if (!(receiver.type.isMultiCell()))
                 throw new InvalidRequestException(String.format("Invalid operation (%s) for frozen collection column %s", toString(receiver), receiver.name));
@@ -308,16 +354,16 @@ public abstract class Operation
             switch (((CollectionType)receiver.type).kind)
             {
                 case LIST:
-                    return new Lists.Discarder(receiver, value.prepare(keyspace, receiver));
+                    return new Lists.Discarder(receiver, value.prepare(cfm.ksName, receiver));
                 case SET:
-                    return new Sets.Discarder(receiver, value.prepare(keyspace, receiver));
+                    return new Sets.Discarder(receiver, value.prepare(cfm.ksName, receiver));
                 case MAP:
                     // The value for a map subtraction is actually a set
                     ColumnSpecification vr = new ColumnSpecification(receiver.ksName,
                                                                      receiver.cfName,
                                                                      receiver.name,
                                                                      SetType.getInstance(((MapType)receiver.type).getKeysType(), false));
-                    return new Sets.Discarder(receiver, value.prepare(keyspace, vr));
+                    return new Sets.Discarder(receiver, value.prepare(cfm.ksName, vr));
             }
             throw new AssertionError();
         }
@@ -342,9 +388,9 @@ public abstract class Operation
             this.value = value;
         }
 
-        public Operation prepare(String keyspace, ColumnDefinition receiver) throws InvalidRequestException
+        public Operation prepare(CFMetaData cfm, ColumnDefinition receiver) throws InvalidRequestException
         {
-            Term v = value.prepare(keyspace, receiver);
+            Term v = value.prepare(cfm.ksName, receiver);
 
             if (!(receiver.type instanceof ListType))
                 throw new InvalidRequestException(String.format("Invalid operation (%s) for non list column %s", toString(receiver), receiver.name));
@@ -379,7 +425,7 @@ public abstract class Operation
             return id;
         }
 
-        public Operation prepare(String keyspace, ColumnDefinition receiver) throws InvalidRequestException
+        public Operation prepare(String keyspace, ColumnDefinition receiver, CFMetaData cfm) throws InvalidRequestException
         {
             // No validation, deleting a column is always "well typed"
             return new Constants.Deleter(receiver);
@@ -402,7 +448,7 @@ public abstract class Operation
             return id;
         }
 
-        public Operation prepare(String keyspace, ColumnDefinition receiver) throws InvalidRequestException
+        public Operation prepare(String keyspace, ColumnDefinition receiver, CFMetaData cfm) throws InvalidRequestException
         {
             if (!(receiver.type.isCollection()))
                 throw new InvalidRequestException(String.format("Invalid deletion operation for non collection column %s", receiver.name));
@@ -422,6 +468,37 @@ public abstract class Operation
                     return new Maps.DiscarderByKey(receiver, key);
             }
             throw new AssertionError();
+        }
+    }
+
+    public static class FieldDeletion implements RawDeletion
+    {
+        private final ColumnIdentifier.Raw id;
+        private final ColumnIdentifier.Raw field;
+
+        public FieldDeletion(ColumnIdentifier.Raw id, ColumnIdentifier.Raw field)
+        {
+            this.id = id;
+            this.field = field;
+        }
+
+        public ColumnIdentifier.Raw affectedColumn()
+        {
+            return id;
+        }
+
+        public Operation prepare(String keyspace, ColumnDefinition receiver, CFMetaData cfm) throws InvalidRequestException
+        {
+            if (!receiver.type.isUDT())
+                throw new InvalidRequestException(String.format("Invalid field deletion operation for non-UDT column %s", receiver.name));
+            else if (!receiver.type.isMultiCell())
+                throw new InvalidRequestException(String.format("Frozen UDT column %s does not support field deletions", receiver.name));
+
+            ColumnIdentifier fieldIdentifier = field.prepare(cfm);
+            if (((UserType) receiver.type).fieldPosition(fieldIdentifier) == -1)
+                throw new InvalidRequestException(String.format("UDT column %s does not have a field named %s", receiver.name, fieldIdentifier));
+
+            return new UserTypes.DeleterByField(receiver, fieldIdentifier);
         }
     }
 }
