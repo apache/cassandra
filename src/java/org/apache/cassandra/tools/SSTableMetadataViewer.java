@@ -17,11 +17,7 @@
  */
 package org.apache.cassandra.tools;
 
-import java.io.DataInputStream;
-import java.io.File;
-import java.io.FileInputStream;
-import java.io.IOException;
-import java.io.PrintStream;
+import java.io.*;
 import java.nio.ByteBuffer;
 import java.util.Arrays;
 import java.util.EnumSet;
@@ -121,9 +117,9 @@ public class SSTableMetadataViewer
                     out.printf("totalRows: %s%n", stats.totalRows);
                     out.println("Estimated tombstone drop times:");
 
-                    for (Map.Entry<Double, Long> entry : stats.estimatedTombstoneDropTime.getAsMap().entrySet())
+                    for (Map.Entry<Number, long[]> entry : stats.estimatedTombstoneDropTime.getAsMap().entrySet())
                     {
-                        out.printf("%-10s:%10s%n",entry.getKey().intValue(), entry.getValue());
+                        out.printf("%-10s:%10s%n",entry.getKey().intValue(), entry.getValue()[0]);
                     }
                     printHistograms(stats, out);
                 }

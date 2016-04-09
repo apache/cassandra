@@ -39,7 +39,10 @@ public class StreamingHistogram
     public static final StreamingHistogramSerializer serializer = new StreamingHistogramSerializer();
 
     // TreeMap to hold bins of histogram.
-    private final TreeMap<Double, Long> bin;
+    // The key is a numeric type so we can avoid boxing/unboxing streams of different key types
+    // The value is a unboxed long array always of length == 1
+    // Serialized Histograms always writes with double keys for backwards compatibility
+    private final TreeMap<Number, long[]> bin;
 
     // maximum bin size for this histogram
     private final int maxBinSize;
@@ -51,22 +54,28 @@ public class StreamingHistogram
     public StreamingHistogram(int maxBinSize)
     {
         this.maxBinSize = maxBinSize;
-        bin = new TreeMap<>();
+        bin = new TreeMap<>((o1, o2) -> {
+            if (o1.getClass().equals(o2.getClass()))
+                return ((Comparable)o1).compareTo(o2);
+            else
+                return ((Double)o1.doubleValue()).compareTo(o2.doubleValue());
+        });
     }
 
     private StreamingHistogram(int maxBinSize, Map<Double, Long> bin)
     {
-        this.maxBinSize = maxBinSize;
-        this.bin = new TreeMap<>(bin);
+        this(maxBinSize);
+        for (Map.Entry<Double, Long> entry : bin.entrySet())
+            this.bin.put(entry.getKey(), new long[]{entry.getValue()});
     }
 
     /**
      * Adds new point p to this histogram.
      * @param p
      */
-    public void update(double p)
+    public void update(Number p)
     {
-        update(p, 1);
+        update(p, 1L);
     }
 
     /**
@@ -74,30 +83,31 @@ public class StreamingHistogram
      * @param p
      * @param m
      */
-    public void update(double p, long m)
+    public void update(Number p, long m)
     {
-        Long mi = bin.get(p);
+        long[] mi = bin.get(p);
         if (mi != null)
         {
             // we found the same p so increment that counter
-            bin.put(p, mi + m);
+            mi[0] += m;
         }
         else
         {
-            bin.put(p, m);
+            mi = new long[]{m};
+            bin.put(p, mi);
             // if bin size exceeds maximum bin size then trim down to max size
             while (bin.size() > maxBinSize)
             {
                 // find points p1, p2 which have smallest difference
-                Iterator<Double> keys = bin.keySet().iterator();
-                double p1 = keys.next();
-                double p2 = keys.next();
+                Iterator<Number> keys = bin.keySet().iterator();
+                double p1 = keys.next().doubleValue();
+                double p2 = keys.next().doubleValue();
                 double smallestDiff = p2 - p1;
                 double q1 = p1, q2 = p2;
                 while (keys.hasNext())
                 {
                     p1 = p2;
-                    p2 = keys.next();
+                    p2 = keys.next().doubleValue();
                     double diff = p2 - p1;
                     if (diff < smallestDiff)
                     {
@@ -107,9 +117,13 @@ public class StreamingHistogram
                     }
                 }
                 // merge those two
-                long k1 = bin.remove(q1);
-                long k2 = bin.remove(q2);
-                bin.put((q1 * k1 + q2 * k2) / (k1 + k2), k1 + k2);
+                long[] a1 = bin.remove(q1);
+                long[] a2 = bin.remove(q2);
+                long k1 = a1[0];
+                long k2 = a2[0];
+
+                a1[0] += k2;
+                bin.put((q1 * k1 + q2 * k2) / (k1 + k2), a1);
             }
         }
     }
@@ -124,8 +138,8 @@ public class StreamingHistogram
         if (other == null)
             return;
 
-        for (Map.Entry<Double, Long> entry : other.getAsMap().entrySet())
-            update(entry.getKey(), entry.getValue());
+        for (Map.Entry<Number, long[]> entry : other.getAsMap().entrySet())
+            update(entry.getKey(), entry.getValue()[0]);
     }
 
     /**
@@ -138,32 +152,32 @@ public class StreamingHistogram
     {
         double sum = 0;
         // find the points pi, pnext which satisfy pi <= b < pnext
-        Map.Entry<Double, Long> pnext = bin.higherEntry(b);
+        Map.Entry<Number, long[]> pnext = bin.higherEntry(b);
         if (pnext == null)
         {
             // if b is greater than any key in this histogram,
             // just count all appearance and return
-            for (Long value : bin.values())
-                sum += value;
+            for (long[] value : bin.values())
+                sum += value[0];
         }
         else
         {
-            Map.Entry<Double, Long> pi = bin.floorEntry(b);
+            Map.Entry<Number, long[]> pi = bin.floorEntry(b);
             if (pi == null)
                 return 0;
             // calculate estimated count mb for point b
-            double weight = (b - pi.getKey()) / (pnext.getKey() - pi.getKey());
-            double mb = pi.getValue() + (pnext.getValue() - pi.getValue()) * weight;
-            sum += (pi.getValue() + mb) * weight / 2;
+            double weight = (b - pi.getKey().doubleValue()) / (pnext.getKey().doubleValue() - pi.getKey().doubleValue());
+            double mb = pi.getValue()[0] + (pnext.getValue()[0] - pi.getValue()[0]) * weight;
+            sum += (pi.getValue()[0] + mb) * weight / 2;
 
-            sum += pi.getValue() / 2.0;
-            for (Long value : bin.headMap(pi.getKey(), false).values())
-                sum += value;
+            sum += pi.getValue()[0] / 2.0;
+            for (long[] value : bin.headMap(pi.getKey(), false).values())
+                sum += value[0];
         }
         return sum;
     }
 
-    public Map<Double, Long> getAsMap()
+    public Map<Number, long[]> getAsMap()
     {
         return Collections.unmodifiableMap(bin);
     }
@@ -173,12 +187,12 @@ public class StreamingHistogram
         public void serialize(StreamingHistogram histogram, DataOutputPlus out) throws IOException
         {
             out.writeInt(histogram.maxBinSize);
-            Map<Double, Long> entries = histogram.getAsMap();
+            Map<Number, long[]> entries = histogram.getAsMap();
             out.writeInt(entries.size());
-            for (Map.Entry<Double, Long> entry : entries.entrySet())
+            for (Map.Entry<Number, long[]> entry : entries.entrySet())
             {
-                out.writeDouble(entry.getKey());
-                out.writeLong(entry.getValue());
+                out.writeDouble(entry.getKey().doubleValue());
+                out.writeLong(entry.getValue()[0]);
             }
         }
 
@@ -198,7 +212,7 @@ public class StreamingHistogram
         public long serializedSize(StreamingHistogram histogram)
         {
             long size = TypeSizes.sizeof(histogram.maxBinSize);
-            Map<Double, Long> entries = histogram.getAsMap();
+            Map<Number, long[]> entries = histogram.getAsMap();
             size += TypeSizes.sizeof(entries.size());
             // size of entries = size * (8(double) + 8(long))
             size += entries.size() * (8L + 8L);

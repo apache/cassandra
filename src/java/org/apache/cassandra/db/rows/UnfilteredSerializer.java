@@ -21,9 +21,11 @@ import java.io.IOException;
 
 import com.google.common.collect.Collections2;
 
+import net.nicoulaj.compilecommand.annotations.Inline;
 import org.apache.cassandra.config.ColumnDefinition;
 import org.apache.cassandra.db.*;
 import org.apache.cassandra.io.util.DataInputPlus;
+import org.apache.cassandra.io.util.DataOutputBuffer;
 import org.apache.cassandra.io.util.DataOutputPlus;
 
 /**
@@ -178,11 +180,37 @@ public class UnfilteredSerializer
 
         if (header.isForSSTable())
         {
-            out.writeUnsignedVInt(serializedRowBodySize(row, header, previousUnfilteredSize, version));
-            // We write the size of the previous unfiltered to make reverse queries more efficient (and simpler).
-            // This is currently not used however and using it is tbd.
-            out.writeUnsignedVInt(previousUnfilteredSize);
+            DataOutputBuffer dob = DataOutputBuffer.RECYCLER.get();
+            try
+            {
+                serializeRowBody(row, flags, header, dob);
+
+                out.writeUnsignedVInt(dob.position() + TypeSizes.sizeofUnsignedVInt(previousUnfilteredSize));
+                // We write the size of the previous unfiltered to make reverse queries more efficient (and simpler).
+                // This is currently not used however and using it is tbd.
+                out.writeUnsignedVInt(previousUnfilteredSize);
+                out.write(dob.buffer());
+            }
+            finally
+            {
+                dob.recycle();
+            }
         }
+        else
+        {
+            serializeRowBody(row, flags, header, out);
+        }
+    }
+
+    @Inline
+    private void serializeRowBody(Row row, int flags, SerializationHeader header, DataOutputPlus out)
+    throws IOException
+    {
+        boolean isStatic = row.isStatic();
+
+        Columns headerColumns = header.columns(isStatic);
+        LivenessInfo pkLiveness = row.primaryKeyLivenessInfo();
+        Row.Deletion deletion = row.deletion();
 
         if ((flags & HAS_TIMESTAMP) != 0)
             header.writeTimestamp(pkLiveness.timestamp(), out);
@@ -194,7 +222,7 @@ public class UnfilteredSerializer
         if ((flags & HAS_DELETION) != 0)
             header.writeDeletionTime(deletion.time(), out);
 
-        if (!hasAllColumns)
+        if ((flags & HAS_ALL_COLUMNS) == 0)
             Columns.serializer.serializeSubset(Collections2.transform(row, ColumnData::column), headerColumns, out);
 
         for (ColumnData data : row)
@@ -202,7 +230,7 @@ public class UnfilteredSerializer
             if (data.column.isSimple())
                 Cell.serializer.serialize((Cell) data, out, pkLiveness, header);
             else
-                writeComplexColumn((ComplexColumnData) data, hasComplexDeletion, pkLiveness, header, out);
+                writeComplexColumn((ComplexColumnData) data, (flags & HAS_COMPLEX_DELETION) != 0, pkLiveness, header, out);
         }
     }
 

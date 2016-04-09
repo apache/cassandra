@@ -21,10 +21,11 @@ import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.nio.channels.WritableByteChannel;
 
-import org.apache.cassandra.config.Config;
-
 import com.google.common.annotations.VisibleForTesting;
 import com.google.common.base.Preconditions;
+
+import io.netty.util.Recycler;
+import org.apache.cassandra.config.Config;
 
 /**
  * An implementation of the DataOutputStream interface using a FastByteArrayOutputStream and exposing
@@ -39,6 +40,21 @@ public class DataOutputBuffer extends BufferedDataOutputStreamPlus
      */
     private static final long DOUBLING_THRESHOLD = Long.getLong(Config.PROPERTY_PREFIX + "DOB_DOUBLING_THRESHOLD_MB", 64);
 
+    public static final Recycler<DataOutputBuffer> RECYCLER = new Recycler<DataOutputBuffer>()
+    {
+        protected DataOutputBuffer newObject(Handle handle)
+        {
+            return new DataOutputBuffer(handle);
+        }
+    };
+
+    private final Recycler.Handle handle;
+
+    private DataOutputBuffer(Recycler.Handle handle)
+    {
+        this(128, handle);
+    }
+
     public DataOutputBuffer()
     {
         this(128);
@@ -46,12 +62,26 @@ public class DataOutputBuffer extends BufferedDataOutputStreamPlus
 
     public DataOutputBuffer(int size)
     {
-        super(ByteBuffer.allocate(size));
+        this(size, null);
     }
 
-    protected DataOutputBuffer(ByteBuffer buffer)
+    protected DataOutputBuffer(int size, Recycler.Handle handle)
+    {
+        this(ByteBuffer.allocate(size), handle);
+    }
+
+    protected DataOutputBuffer(ByteBuffer buffer, Recycler.Handle handle)
     {
         super(buffer);
+        this.handle = handle;
+    }
+
+    public void recycle()
+    {
+        assert handle != null;
+        buffer.rewind();
+
+        RECYCLER.recycle(this, handle);
     }
 
     @Override

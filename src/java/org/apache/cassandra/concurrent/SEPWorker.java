@@ -24,6 +24,7 @@ import java.util.concurrent.locks.LockSupport;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import io.netty.util.concurrent.FastThreadLocalThread;
 import org.apache.cassandra.utils.JVMStabilityInspector;
 
 final class SEPWorker extends AtomicReference<SEPWorker.Work> implements Runnable
@@ -45,7 +46,7 @@ final class SEPWorker extends AtomicReference<SEPWorker.Work> implements Runnabl
     {
         this.pool = pool;
         this.workerId = workerId;
-        thread = new Thread(this, pool.poolName + "-Worker-" + workerId);
+        thread = new FastThreadLocalThread(this, pool.poolName + "-Worker-" + workerId);
         thread.setDaemon(true);
         set(initialState);
         thread.start();

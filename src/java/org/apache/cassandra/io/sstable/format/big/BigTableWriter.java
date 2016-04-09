@@ -17,18 +17,12 @@
  */
 package org.apache.cassandra.io.sstable.format.big;
 
-import java.io.*;
+import java.io.File;
+import java.io.FileOutputStream;
+import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.util.Collection;
 import java.util.Map;
-
-import org.apache.cassandra.db.*;
-import org.apache.cassandra.db.lifecycle.LifecycleTransaction;
-import org.apache.cassandra.db.transform.Transformation;
-import org.apache.cassandra.io.sstable.*;
-import org.apache.cassandra.io.sstable.format.SSTableFlushObserver;
-import org.apache.cassandra.io.sstable.format.SSTableReader;
-import org.apache.cassandra.io.sstable.format.SSTableWriter;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -36,31 +30,33 @@ import org.slf4j.LoggerFactory;
 import org.apache.cassandra.cache.ChunkCache;
 import org.apache.cassandra.config.CFMetaData;
 import org.apache.cassandra.config.DatabaseDescriptor;
+import org.apache.cassandra.db.*;
+import org.apache.cassandra.db.lifecycle.LifecycleTransaction;
 import org.apache.cassandra.db.rows.*;
+import org.apache.cassandra.db.transform.Transformation;
 import org.apache.cassandra.io.FSWriteError;
 import org.apache.cassandra.io.compress.CompressedSequentialWriter;
+import org.apache.cassandra.io.sstable.*;
+import org.apache.cassandra.io.sstable.format.SSTableFlushObserver;
+import org.apache.cassandra.io.sstable.format.SSTableReader;
+import org.apache.cassandra.io.sstable.format.SSTableWriter;
 import org.apache.cassandra.io.sstable.metadata.MetadataCollector;
 import org.apache.cassandra.io.sstable.metadata.MetadataComponent;
 import org.apache.cassandra.io.sstable.metadata.MetadataType;
 import org.apache.cassandra.io.sstable.metadata.StatsMetadata;
 import org.apache.cassandra.io.util.*;
-import org.apache.cassandra.utils.ByteBufferUtil;
-import org.apache.cassandra.utils.FBUtilities;
-import org.apache.cassandra.utils.FilterFactory;
-import org.apache.cassandra.utils.IFilter;
+import org.apache.cassandra.utils.*;
 import org.apache.cassandra.utils.concurrent.Transactional;
-
-import org.apache.cassandra.utils.SyncUtil;
 
 public class BigTableWriter extends SSTableWriter
 {
     private static final Logger logger = LoggerFactory.getLogger(BigTableWriter.class);
 
+    private final ColumnIndex columnIndexWriter;
     private final IndexWriter iwriter;
     private final SegmentedFile.Builder dbuilder;
     protected final SequentialWriter dataFile;
     private DecoratedKey lastWrittenKey;
-
     private DataPosition dataMark;
     private long lastEarlyOpenLength = 0;
 
@@ -90,6 +86,8 @@ public class BigTableWriter extends SSTableWriter
             dbuilder = SegmentedFile.getBuilder(DatabaseDescriptor.getDiskAccessMode(), false);
         }
         iwriter = new IndexWriter(keyCount, dataFile);
+
+        columnIndexWriter = new ColumnIndex(header, dataFile, descriptor.version, observers, getRowIndexEntrySerializer().indexInfoSerializer());
     }
 
     public void mark()
@@ -153,29 +151,31 @@ public class BigTableWriter extends SSTableWriter
         long startPosition = beforeAppend(key);
         observers.forEach((o) -> o.startPartition(key, iwriter.indexFile.position()));
 
+        //Reuse the writer for each row
+        columnIndexWriter.reset();
+
         try (UnfilteredRowIterator collecting = Transformation.apply(iterator, new StatsCollector(metadataCollector)))
         {
-            ColumnIndex columnIndex = new ColumnIndex(header, dataFile, descriptor.version, observers,
-                                                      getRowIndexEntrySerializer().indexInfoSerializer());
-
-            columnIndex.buildRowIndex(collecting);
+            columnIndexWriter.buildRowIndex(collecting);
 
             // afterAppend() writes the partition key before the first RowIndexEntry - so we have to add it's
             // serialized size to the index-writer position
             long indexFilePosition = ByteBufferUtil.serializedSizeWithShortLength(key.getKey()) + iwriter.indexFile.position();
 
             RowIndexEntry entry = RowIndexEntry.create(startPosition, indexFilePosition,
-                                                       collecting.partitionLevelDeletion(), columnIndex.headerLength, columnIndex.columnIndexCount,
-                                                       columnIndex.indexInfoSerializedSize(),
-                                                       columnIndex.indexSamples,
-                                                       columnIndex.offsets(),
+                                                       collecting.partitionLevelDeletion(),
+                                                       columnIndexWriter.headerLength,
+                                                       columnIndexWriter.columnIndexCount,
+                                                       columnIndexWriter.indexInfoSerializedSize(),
+                                                       columnIndexWriter.indexSamples(),
+                                                       columnIndexWriter.offsets(),
                                                        getRowIndexEntrySerializer().indexInfoSerializer());
 
             long endPosition = dataFile.position();
             long rowSize = endPosition - startPosition;
             maybeLogLargePartitionWarning(key, rowSize);
             metadataCollector.addPartitionSizeInBytes(rowSize);
-            afterAppend(key, endPosition, entry, columnIndex.buffer());
+            afterAppend(key, endPosition, entry, columnIndexWriter.buffer());
             return entry;
         }
         catch (IOException e)

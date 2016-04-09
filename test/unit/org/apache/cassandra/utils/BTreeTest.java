@@ -214,14 +214,16 @@ public class BTreeTest
                 builder.add(i);
             // for sorted input, check non-resolve path works before checking resolution path
             checkResolverOutput(count, builder.build(), BTree.Dir.ASC);
-            builder.reuse();
+            builder = BTree.builder(Comparator.naturalOrder());
+            builder.setQuickResolver(resolver);
             for (int i = 0 ; i < 10 ; i++)
             {
                 // now do a few runs of randomized inputs
                 for (Accumulator j : resolverInput(count, true))
                     builder.add(j);
                 checkResolverOutput(count, builder.build(), BTree.Dir.ASC);
-                builder.reuse();
+                builder = BTree.builder(Comparator.naturalOrder());
+                builder.setQuickResolver(resolver);
             }
             for (List<Accumulator> add : splitResolverInput(count))
             {
@@ -231,7 +233,6 @@ public class BTreeTest
                     builder.addAll(new TreeSet<>(add));
             }
             checkResolverOutput(count, builder.build(), BTree.Dir.ASC);
-            builder.reuse();
         }
     }
 
@@ -278,7 +279,14 @@ public class BTreeTest
                 builder.add(i);
             // for sorted input, check non-resolve path works before checking resolution path
             Assert.assertTrue(Iterables.elementsEqual(sorted, BTree.iterable(builder.build())));
+
+            builder = BTree.builder(Comparator.naturalOrder());
+            builder.auto(false);
+            for (Accumulator i : sorted)
+                builder.add(i);
+            // check resolution path
             checkResolverOutput(count, builder.resolve(resolver).build(), BTree.Dir.ASC);
+
             builder = BTree.builder(Comparator.naturalOrder());
             builder.auto(false);
             for (int i = 0 ; i < 10 ; i++)
@@ -287,11 +295,13 @@ public class BTreeTest
                 for (Accumulator j : resolverInput(count, true))
                     builder.add(j);
                 checkResolverOutput(count, builder.sort().resolve(resolver).build(), BTree.Dir.ASC);
-                builder.reuse();
+                builder = BTree.builder(Comparator.naturalOrder());
+                builder.auto(false);
                 for (Accumulator j : resolverInput(count, true))
                     builder.add(j);
                 checkResolverOutput(count, builder.sort().reverse().resolve(resolver).build(), BTree.Dir.DESC);
-                builder.reuse();
+                builder = BTree.builder(Comparator.naturalOrder());
+                builder.auto(false);
             }
         }
     }

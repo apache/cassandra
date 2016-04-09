@@ -33,7 +33,7 @@ public class SafeMemoryWriter extends DataOutputBuffer
 
     private SafeMemoryWriter(SafeMemory memory)
     {
-        super(tailBuffer(memory).order(ByteOrder.BIG_ENDIAN));
+        super(tailBuffer(memory).order(ByteOrder.BIG_ENDIAN), null);
         this.memory = memory;
     }
 

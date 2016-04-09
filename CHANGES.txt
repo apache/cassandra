@@ -1,4 +1,5 @@
 3.8
+ * Faster streaming (CASSANDRA-9766)
 
 3.6
  * Enhanced Compaction Logging (CASSANDRA-10805)

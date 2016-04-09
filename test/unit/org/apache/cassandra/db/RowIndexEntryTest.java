@@ -28,6 +28,8 @@ import java.util.Iterator;
 import java.util.List;
 
 import com.google.common.primitives.Ints;
+import org.junit.Assert;
+import org.junit.Test;
 
 import org.apache.cassandra.Util;
 import org.apache.cassandra.cache.IMeasurableMemory;
@@ -37,12 +39,12 @@ import org.apache.cassandra.cql3.CQLTester;
 import org.apache.cassandra.db.columniterator.AbstractSSTableIterator;
 import org.apache.cassandra.db.marshal.AbstractType;
 import org.apache.cassandra.db.marshal.LongType;
+import org.apache.cassandra.db.partitions.ImmutableBTreePartition;
 import org.apache.cassandra.db.rows.AbstractUnfilteredRowIterator;
 import org.apache.cassandra.db.rows.BTreeRow;
 import org.apache.cassandra.db.rows.BufferCell;
 import org.apache.cassandra.db.rows.ColumnData;
 import org.apache.cassandra.db.rows.EncodingStats;
-import org.apache.cassandra.db.partitions.*;
 import org.apache.cassandra.db.rows.RangeTombstoneMarker;
 import org.apache.cassandra.db.rows.Row;
 import org.apache.cassandra.db.rows.Unfiltered;
@@ -66,9 +68,6 @@ import org.apache.cassandra.utils.ByteBufferUtil;
 import org.apache.cassandra.utils.FBUtilities;
 import org.apache.cassandra.utils.ObjectSizes;
 import org.apache.cassandra.utils.btree.BTree;
-
-import org.junit.Assert;
-import org.junit.Test;
 
 import static junit.framework.Assert.assertEquals;
 import static junit.framework.Assert.assertTrue;
@@ -191,7 +190,7 @@ public class RowIndexEntryTest extends CQLTester
             rieNew = RowIndexEntry.create(startPosition, 0L,
                                           deletionInfo, columnIndex.headerLength, columnIndex.columnIndexCount,
                                           columnIndex.indexInfoSerializedSize(),
-                                          columnIndex.indexSamples, columnIndex.offsets(),
+                                          columnIndex.indexSamples(), columnIndex.offsets(),
                                           rieSerializer.indexInfoSerializer());
             rieSerializer.serialize(rieNew, rieOutput, columnIndex.buffer());
             rieNewSerialized = rieOutput.buffer().duplicate();

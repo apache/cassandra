@@ -25,14 +25,13 @@ import java.util.concurrent.ArrayBlockingQueue;
 import java.util.concurrent.BlockingQueue;
 import java.util.concurrent.ThreadLocalRandom;
 import java.util.function.Supplier;
-import java.util.zip.Checksum;
 
 import com.google.common.collect.Iterators;
 import com.google.common.primitives.Ints;
-
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import io.netty.util.concurrent.FastThreadLocalThread;
 import org.apache.cassandra.io.compress.CompressionMetadata;
 import org.apache.cassandra.utils.ChecksumType;
 import org.apache.cassandra.utils.WrappedRunnable;
@@ -82,29 +81,59 @@ public class CompressedInputStream extends InputStream
         this.crcCheckChanceSupplier = crcCheckChanceSupplier;
         this.checksumType = checksumType;
 
-        new Thread(new Reader(source, info, dataBuffer)).start();
+        new FastThreadLocalThread(new Reader(source, info, dataBuffer)).start();
     }
 
+    private void decompressNextChunk() throws IOException
+    {
+        try
+        {
+            byte[] compressedWithCRC = dataBuffer.take();
+            if (compressedWithCRC == POISON_PILL)
+                throw new EOFException("No chunk available");
+            decompress(compressedWithCRC);
+        }
+        catch (InterruptedException e)
+        {
+            throw new EOFException("No chunk available");
+        }
+    }
+
+    @Override
     public int read() throws IOException
     {
         if (current >= bufferOffset + buffer.length || validBufferBytes == -1)
-        {
-            try
-            {
-                byte[] compressedWithCRC = dataBuffer.take();
-                if (compressedWithCRC == POISON_PILL)
-                    throw new EOFException("No chunk available");
-                decompress(compressedWithCRC);
-            }
-            catch (InterruptedException e)
-            {
-                throw new EOFException("No chunk available");
-            }
-        }
+            decompressNextChunk();
 
         assert current >= bufferOffset && current < bufferOffset + validBufferBytes;
 
         return ((int) buffer[(int) (current++ - bufferOffset)]) & 0xff;
+    }
+
+    @Override
+    public int read(byte[] b, int off, int len) throws IOException
+    {
+        long nextCurrent = current + len;
+
+        if (current >= bufferOffset + buffer.length || validBufferBytes == -1)
+            decompressNextChunk();
+
+        assert nextCurrent >= bufferOffset;
+
+        int read = 0;
+        while (read < len)
+        {
+            int nextLen = Math.min((len - read), (int)((bufferOffset + validBufferBytes) - current));
+
+            System.arraycopy(buffer, (int)(current - bufferOffset), b, off + read, nextLen);
+            read += nextLen;
+
+            current += nextLen;
+            if (read != len)
+                decompressNextChunk();
+        }
+
+        return len;
     }
 
     public void position(long position)

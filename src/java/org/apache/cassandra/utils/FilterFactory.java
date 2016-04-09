@@ -20,13 +20,13 @@ package org.apache.cassandra.utils;
 import java.io.DataInput;
 import java.io.IOException;
 
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+
 import org.apache.cassandra.io.util.DataOutputPlus;
 import org.apache.cassandra.utils.obs.IBitSet;
 import org.apache.cassandra.utils.obs.OffHeapBitSet;
 import org.apache.cassandra.utils.obs.OpenBitSet;
-
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
 
 public class FilterFactory
 {

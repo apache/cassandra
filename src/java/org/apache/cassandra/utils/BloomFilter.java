@@ -19,13 +19,15 @@ package org.apache.cassandra.utils;
 
 import com.google.common.annotations.VisibleForTesting;
 
+import io.netty.util.concurrent.FastThreadLocal;
+import net.nicoulaj.compilecommand.annotations.Inline;
 import org.apache.cassandra.utils.concurrent.Ref;
 import org.apache.cassandra.utils.concurrent.WrappedSharedCloseable;
 import org.apache.cassandra.utils.obs.IBitSet;
 
 public class BloomFilter extends WrappedSharedCloseable implements IFilter
 {
-    private static final ThreadLocal<long[]> reusableIndexes = new ThreadLocal<long[]>()
+    private final static FastThreadLocal<long[]> reusableIndexes = new FastThreadLocal<long[]>()
     {
         protected long[] initialValue()
         {
@@ -84,16 +86,19 @@ public class BloomFilter extends WrappedSharedCloseable implements IFilter
     // to avoid generating a lot of garbage since stack allocation currently does not support stores
     // (CASSANDRA-6609).  it returns the array so that the caller does not need to perform
     // a second threadlocal lookup.
+    @Inline
     private long[] indexes(FilterKey key)
     {
         // we use the same array both for storing the hash result, and for storing the indexes we return,
         // so that we do not need to allocate two arrays.
         long[] indexes = reusableIndexes.get();
+
         key.filterHash(indexes);
         setIndexes(indexes[1], indexes[0], hashCount, bitset.capacity(), indexes);
         return indexes;
     }
 
+    @Inline
     private void setIndexes(long base, long inc, int count, long max, long[] results)
     {
         if (oldBfHashOrder)

@@ -20,6 +20,8 @@ package org.apache.cassandra.concurrent;
 import java.util.concurrent.ThreadFactory;
 import java.util.concurrent.atomic.AtomicInteger;
 
+import io.netty.util.concurrent.FastThreadLocalThread;
+
 /**
  * This class is an implementation of the <i>ThreadFactory</i> interface. This
  * is useful to give Java threads meaningful names which is useful when using
@@ -55,7 +57,7 @@ public class NamedThreadFactory implements ThreadFactory
     public Thread newThread(Runnable runnable)
     {
         String name = id + ":" + n.getAndIncrement();
-        Thread thread = new Thread(threadGroup, runnable, name);
+        Thread thread = new FastThreadLocalThread(threadGroup, runnable, name);
         thread.setPriority(priority);
         thread.setDaemon(true);
         if (contextClassLoader != null)

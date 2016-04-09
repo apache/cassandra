@@ -50,6 +50,7 @@ import java.io.DataInput;
 import java.io.DataOutput;
 import java.io.IOException;
 
+import io.netty.util.concurrent.FastThreadLocal;
 import net.nicoulaj.compilecommand.annotations.Inline;
 
 /**
@@ -103,7 +104,7 @@ public class VIntCoding
         return Integer.numberOfLeadingZeros(~firstByte) - 24;
     }
 
-    protected static final ThreadLocal<byte[]> encodingBuffer = new ThreadLocal<byte[]>()
+    protected static final FastThreadLocal<byte[]> encodingBuffer = new FastThreadLocal<byte[]>()
     {
         @Override
         public byte[] initialValue()

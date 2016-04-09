@@ -24,6 +24,7 @@ import com.google.common.base.Function;
 import com.google.common.collect.Iterators;
 import com.google.common.collect.Ordering;
 
+import io.netty.util.Recycler;
 import org.apache.cassandra.utils.ObjectSizes;
 
 import static com.google.common.collect.Iterables.concat;
@@ -139,12 +140,9 @@ public class BTree
             return values;
         }
 
-        Queue<TreeBuilder> queue = modifier.get();
-        TreeBuilder builder = queue.poll();
-        if (builder == null)
-            builder = new TreeBuilder();
+        TreeBuilder builder = TreeBuilder.newInstance();
         Object[] btree = builder.build(source, updateF, size);
-        queue.add(builder);
+
         return btree;
     }
 
@@ -176,12 +174,9 @@ public class BTree
         if (isEmpty(btree))
             return build(updateWith, updateWithLength, updateF);
 
-        Queue<TreeBuilder> queue = modifier.get();
-        TreeBuilder builder = queue.poll();
-        if (builder == null)
-            builder = new TreeBuilder();
+
+        TreeBuilder builder = TreeBuilder.newInstance();
         btree = builder.update(btree, comparator, updateWith, updateF);
-        queue.add(builder);
         return btree;
     }
 
@@ -203,12 +198,12 @@ public class BTree
 
     public static <V> Iterator<V> iterator(Object[] btree, Dir dir)
     {
-        return new BTreeSearchIterator<V, V>(btree, null, dir);
+        return new BTreeSearchIterator<>(btree, null, dir);
     }
 
     public static <V> Iterator<V> iterator(Object[] btree, int lb, int ub, Dir dir)
     {
-        return new BTreeSearchIterator<V, V>(btree, null, dir, lb, ub);
+        return new BTreeSearchIterator<>(btree, null, dir, lb, ub);
     }
 
     public static <V> Iterable<V> iterable(Object[] btree)
@@ -771,28 +766,29 @@ public class BTree
         return 1 + lookupSizeMap(root, childIndex - 1);
     }
 
-    private static final ThreadLocal<Queue<TreeBuilder>> modifier = new ThreadLocal<Queue<TreeBuilder>>()
+    final static Recycler<Builder> builderRecycler = new Recycler<Builder>()
     {
-        @Override
-        protected Queue<TreeBuilder> initialValue()
+        protected Builder newObject(Handle handle)
         {
-            return new ArrayDeque<>();
+            return new Builder(handle);
         }
     };
 
     public static <V> Builder<V> builder(Comparator<? super V> comparator)
     {
-        return new Builder<>(comparator);
+        Builder<V> builder = builderRecycler.get();
+        builder.reuse(comparator);
+
+        return builder;
     }
 
     public static <V> Builder<V> builder(Comparator<? super V> comparator, int initialCapacity)
     {
-        return new Builder<>(comparator);
+        return builder(comparator);
     }
 
     public static class Builder<V>
     {
-
         // a user-defined bulk resolution, to be applied manually via resolve()
         public static interface Resolver
         {
@@ -817,16 +813,13 @@ public class BTree
         boolean detected = true; // true if we have managed to cheaply ensure sorted (+ filtered, if resolver == null) as we have added
         boolean auto = true; // false if the user has promised to enforce the sort order and resolve any duplicates
         QuickResolver<V> quickResolver;
+        final Recycler.Handle recycleHandle;
 
-        protected Builder(Comparator<? super V> comparator)
-        {
-            this(comparator, 16);
-        }
 
-        protected Builder(Comparator<? super V> comparator, int initialCapacity)
+        private Builder(Recycler.Handle handle)
         {
-            this.comparator = comparator;
-            this.values = new Object[initialCapacity];
+            this.recycleHandle = handle;
+            this.values = new Object[16];
         }
 
         public Builder<V> setQuickResolver(QuickResolver<V> quickResolver)
@@ -835,16 +828,19 @@ public class BTree
             return this;
         }
 
-        public void reuse()
+        public void recycle()
         {
-            reuse(comparator);
+            if (recycleHandle != null)
+                builderRecycler.recycle(this, recycleHandle);
         }
 
-        public void reuse(Comparator<? super V> comparator)
+        private void reuse(Comparator<? super V> comparator)
         {
             this.comparator = comparator;
+            quickResolver = null;
             count = 0;
             detected = true;
+            auto = true;
         }
 
         public Builder<V> auto(boolean auto)
@@ -1071,9 +1067,16 @@ public class BTree
 
         public Object[] build()
         {
-            if (auto)
-                autoEnforce();
-            return BTree.build(Arrays.asList(values).subList(0, count), UpdateFunction.noOp());
+            try
+            {
+                if (auto)
+                    autoEnforce();
+                return BTree.build(Arrays.asList(values).subList(0, count), UpdateFunction.noOp());
+            }
+            finally
+            {
+                this.recycle();
+            }
         }
     }
 
