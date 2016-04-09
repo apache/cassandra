@@ -470,30 +470,32 @@ public class TokenTree
         private long[] fetchOffsets()
         {
             short info = buffer.getShort(position);
-            short offsetShort = buffer.getShort(position + SHORT_BYTES);
-            int offsetInt = buffer.getInt(position + (2 * SHORT_BYTES) + LONG_BYTES);
+            // offset extra is unsigned short (right-most 16 bits of 48 bits allowed for an offset)
+            int offsetExtra = buffer.getShort(position + SHORT_BYTES) & 0xFFFF;
+            // is the it left-most (32-bit) base of the actual offset in the index file
+            int offsetData = buffer.getInt(position + (2 * SHORT_BYTES) + LONG_BYTES);
 
             EntryType type = EntryType.of(info & TokenTreeBuilder.ENTRY_TYPE_MASK);
 
             switch (type)
             {
                 case SIMPLE:
-                    return new long[] { offsetInt };
+                    return new long[] { offsetData };
 
                 case OVERFLOW:
-                    long[] offsets = new long[offsetShort]; // offsetShort contains count of tokens
-                    long offsetPos = (buffer.position() + (2 * (leafSize * LONG_BYTES)) + (offsetInt * LONG_BYTES));
+                    long[] offsets = new long[offsetExtra]; // offsetShort contains count of tokens
+                    long offsetPos = (buffer.position() + (2 * (leafSize * LONG_BYTES)) + (offsetData * LONG_BYTES));
 
-                    for (int i = 0; i < offsetShort; i++)
+                    for (int i = 0; i < offsetExtra; i++)
                         offsets[i] = buffer.getLong(offsetPos + (i * LONG_BYTES));
 
                     return offsets;
 
                 case FACTORED:
-                    return new long[] { (((long) offsetInt) << Short.SIZE) + offsetShort };
+                    return new long[] { (((long) offsetData) << Short.SIZE) + offsetExtra };
 
                 case PACKED:
-                    return new long[] { offsetShort, offsetInt };
+                    return new long[] { offsetExtra, offsetData };
 
                 default:
                     throw new IllegalStateException("Unknown entry type: " + type);

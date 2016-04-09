@@ -79,7 +79,7 @@ public class StaticTokenTreeBuilder extends AbstractTokenTreeBuilder
 
     public boolean isEmpty()
     {
-        return combinedTerm.getTokenIterator().getCount() == 0;
+        return tokenCount == 0;
     }
 
     public Iterator<Pair<Long, LongSet>> iterator()
@@ -100,7 +100,7 @@ public class StaticTokenTreeBuilder extends AbstractTokenTreeBuilder
 
     public long getTokenCount()
     {
-        return combinedTerm.getTokenIterator().getCount();
+        return tokenCount;
     }
 
     @Override
@@ -130,64 +130,50 @@ public class StaticTokenTreeBuilder extends AbstractTokenTreeBuilder
     {
         RangeIterator<Long, Token> tokens = combinedTerm.getTokenIterator();
 
-        tokenCount = tokens.getCount();
+        tokenCount = 0;
         treeMinToken = tokens.getMinimum();
         treeMaxToken = tokens.getMaximum();
         numBlocks = 1;
 
-        if (tokenCount <= TOKENS_PER_BLOCK)
+        root = new InteriorNode();
+        rightmostParent = (InteriorNode) root;
+        Leaf lastLeaf = null;
+        Long lastToken, firstToken = null;
+        int leafSize = 0;
+        while (tokens.hasNext())
         {
-            leftmostLeaf = new StaticLeaf(tokens, tokens.getMinimum(), tokens.getMaximum(), tokens.getCount(), true);
-            rightmostLeaf = leftmostLeaf;
-            root = leftmostLeaf;
+            Long token = tokens.next().get();
+            if (firstToken == null)
+                firstToken = token;
+
+            tokenCount++;
+            leafSize++;
+
+            // skip until the last token in the leaf
+            if (tokenCount % TOKENS_PER_BLOCK != 0 && token != treeMaxToken)
+                continue;
+
+            lastToken = token;
+            Leaf leaf = new PartialLeaf(firstToken, lastToken, leafSize);
+            if (lastLeaf == null) // first leaf created
+                leftmostLeaf = leaf;
+            else
+                lastLeaf.next = leaf;
+
+
+            rightmostParent.add(leaf);
+            lastLeaf = rightmostLeaf = leaf;
+            firstToken = null;
+            numBlocks++;
+            leafSize = 0;
         }
-        else
+
+        // if the tree is really a single leaf the empty root interior
+        // node must be discarded
+        if (root.tokenCount() == 0)
         {
-            root = new InteriorNode();
-            rightmostParent = (InteriorNode) root;
-
-            // build all the leaves except for maybe
-            // the last leaf which is not completely full .
-            // This loop relies on the fact that multiple index segments
-            // will never have token intersection for a single term,
-            // because it's impossible to encounter the same value for
-            // the same column multiple times in a single key/sstable.
-            Leaf lastLeaf = null;
-            long numFullLeaves = tokenCount / TOKENS_PER_BLOCK;
-            for (long i = 0; i < numFullLeaves; i++)
-            {
-                Long firstToken = tokens.next().get();
-                for (int j = 1; j < (TOKENS_PER_BLOCK - 1); j++)
-                    tokens.next();
-
-                Long lastToken = tokens.next().get();
-                Leaf leaf = new PartialLeaf(firstToken, lastToken, TOKENS_PER_BLOCK);
-
-                if (lastLeaf == null)
-                    leftmostLeaf = leaf;
-                else
-                    lastLeaf.next = leaf;
-
-                rightmostParent.add(leaf);
-                lastLeaf = rightmostLeaf = leaf;
-                numBlocks++;
-            }
-
-            // build the last leaf out of any remaining tokens if necessary
-            // safe downcast since TOKENS_PER_BLOCK is an int
-            int remainingTokens = (int) (tokenCount % TOKENS_PER_BLOCK);
-            if (remainingTokens != 0)
-            {
-                Long firstToken = tokens.next().get();
-                Long lastToken = firstToken;
-                while (tokens.hasNext())
-                    lastToken = tokens.next().get();
-
-                Leaf leaf = new PartialLeaf(firstToken, lastToken, remainingTokens);
-                rightmostParent.add(leaf);
-                lastLeaf.next = rightmostLeaf = leaf;
-                numBlocks++;
-            }
+            numBlocks = 1;
+            root = new StaticLeaf(combinedTerm.getTokenIterator(), treeMinToken, treeMaxToken, tokenCount, true);
         }
     }
 
