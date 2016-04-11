@@ -230,6 +230,11 @@ public class RepairRunnable extends WrappedRunnable implements ProgressEventNoti
             {
                 public void onSuccess(RepairSessionResult result)
                 {
+                    /**
+                     * If the success message below is modified, it must also be updated on
+                     * {@link org.apache.cassandra.utils.progress.jmx.LegacyJMXProgressSupport}
+                     * for backward-compatibility support.
+                     */
                     String message = String.format("Repair session %s for range %s finished", session.getId(),
                                                    session.getRanges().toString());
                     logger.info(message);
@@ -241,6 +246,11 @@ public class RepairRunnable extends WrappedRunnable implements ProgressEventNoti
 
                 public void onFailure(Throwable t)
                 {
+                    /**
+                     * If the failure message below is modified, it must also be updated on
+                     * {@link org.apache.cassandra.utils.progress.jmx.LegacyJMXProgressSupport}
+                     * for backward-compatibility support.
+                     */
                     String message = String.format("Repair session %s for range %s failed with error %s",
                                                    session.getId(), session.getRanges().toString(), t.getMessage());
                     logger.error(message, t);
