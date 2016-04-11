@@ -261,7 +261,7 @@ public class CommitLog implements CommitLogMBean
         long totalSize = size + ENTRY_OVERHEAD_SIZE;
         if (totalSize > MAX_MUTATION_SIZE)
         {
-            throw new IllegalArgumentException(String.format("Mutation of %s bytes is too large for the maxiumum size of %s",
+            throw new IllegalArgumentException(String.format("Mutation of %s bytes is too large for the maximum size of %s",
                                                              totalSize, MAX_MUTATION_SIZE));
         }
 
