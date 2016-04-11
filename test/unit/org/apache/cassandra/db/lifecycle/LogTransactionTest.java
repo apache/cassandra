@@ -832,6 +832,72 @@ public class LogTransactionTest extends AbstractTransactionalTest
     }
 
     @Test
+    public void testGetTemporaryFilesMultipleFolders() throws IOException
+    {
+        ColumnFamilyStore cfs = MockSchema.newCFS(KEYSPACE);
+
+        File origiFolder = new Directories(cfs.metadata).getDirectoryForNewSSTables();
+        File dataFolder1 = new File(origiFolder, "1");
+        File dataFolder2 = new File(origiFolder, "2");
+        Files.createDirectories(dataFolder1.toPath());
+        Files.createDirectories(dataFolder2.toPath());
+
+        SSTableReader[] sstables = { sstable(dataFolder1, cfs, 0, 128),
+                                     sstable(dataFolder1, cfs, 1, 128),
+                                     sstable(dataFolder2, cfs, 2, 128),
+                                     sstable(dataFolder2, cfs, 3, 128)
+        };
+
+        // they should all have the same number of files since they are created in the same way
+        int numSStableFiles = sstables[0].getAllFilePaths().size();
+
+        LogTransaction log = new LogTransaction(OperationType.COMPACTION);
+        assertNotNull(log);
+
+        for (File dataFolder : new File[] {dataFolder1, dataFolder2})
+        {
+            Set<File> tmpFiles = getTemporaryFiles(dataFolder);
+            assertNotNull(tmpFiles);
+            assertEquals(0, tmpFiles.size());
+        }
+
+        LogTransaction.SSTableTidier[] tidiers = { log.obsoleted(sstables[0]), log.obsoleted(sstables[2]) };
+
+        log.trackNew(sstables[1]);
+        log.trackNew(sstables[3]);
+
+        for (File dataFolder : new File[] {dataFolder1, dataFolder2})
+        {
+            Set<File> tmpFiles = getTemporaryFiles(dataFolder);
+            assertNotNull(tmpFiles);
+            assertEquals(numSStableFiles, tmpFiles.size());
+        }
+
+        log.finish();
+
+        for (File dataFolder : new File[] {dataFolder1, dataFolder2})
+        {
+            Set<File> tmpFiles = getTemporaryFiles(dataFolder);
+            assertNotNull(tmpFiles);
+            assertEquals(numSStableFiles, tmpFiles.size());
+        }
+
+        sstables[0].markObsolete(tidiers[0]);
+        sstables[2].markObsolete(tidiers[1]);
+
+        Arrays.stream(sstables).forEach(s -> s.selfRef().release());
+        LogTransaction.waitForDeletions();
+
+        for (File dataFolder : new File[] {dataFolder1, dataFolder2})
+        {
+            Set<File> tmpFiles = getTemporaryFiles(dataFolder);
+            assertNotNull(tmpFiles);
+            assertEquals(0, tmpFiles.size());
+        }
+
+    }
+
+    @Test
     public void testWrongChecksumLastLine() throws IOException
     {
         testCorruptRecord((t, s) ->

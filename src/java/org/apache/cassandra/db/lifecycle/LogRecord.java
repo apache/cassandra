@@ -252,6 +252,13 @@ final class LogRecord
         return absolutePath.isPresent() ? Paths.get(absolutePath.get()).getFileName().toString() : "";
     }
 
+    boolean isInFolder(Path folder)
+    {
+        return absolutePath.isPresent()
+               ? FileUtils.isContained(folder.toFile(), Paths.get(absolutePath.get()).toFile())
+               : false;
+    }
+
     String absolutePath()
     {
         return absolutePath.isPresent() ? absolutePath.get() : "";

@@ -8,10 +8,12 @@ import java.nio.file.Path;
 import java.util.*;
 import java.util.function.BiFunction;
 import java.util.stream.Collectors;
-import java.util.stream.Stream;
 import java.util.stream.StreamSupport;
 
 import com.google.common.annotations.VisibleForTesting;
+
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 import org.apache.cassandra.db.Directories;
 
@@ -22,6 +24,8 @@ import static org.apache.cassandra.db.Directories.*;
  */
 final class LogAwareFileLister
 {
+    private static final Logger logger = LoggerFactory.getLogger(LogAwareFileLister.class);
+
     // The folder to scan
     private final Path folder;
 
@@ -112,8 +116,8 @@ final class LogAwareFileLister
 
     void classifyFiles(LogFile txnFile)
     {
-        Map<LogRecord, Set<File>> oldFiles = txnFile.getFilesOfType(files.navigableKeySet(), LogRecord.Type.REMOVE);
-        Map<LogRecord, Set<File>> newFiles = txnFile.getFilesOfType(files.navigableKeySet(), LogRecord.Type.ADD);
+        Map<LogRecord, Set<File>> oldFiles = txnFile.getFilesOfType(folder, files.navigableKeySet(), LogRecord.Type.REMOVE);
+        Map<LogRecord, Set<File>> newFiles = txnFile.getFilesOfType(folder, files.navigableKeySet(), LogRecord.Type.ADD);
 
         if (txnFile.completed())
         { // last record present, filter regardless of disk status
@@ -121,13 +125,13 @@ final class LogAwareFileLister
             return;
         }
 
-        if (allFilesPresent(txnFile, oldFiles, newFiles))
-        {  // all files present, transaction is in progress, this will filter as aborted
+        if (allFilesPresent(oldFiles))
+        {  // all old files present, transaction is in progress, this will filter as aborted
             setTemporary(txnFile, oldFiles.values(), newFiles.values());
             return;
         }
 
-        // some files are missing, we expect the txn file to either also be missing or completed, so check
+        // some old files are missing, we expect the txn file to either also be missing or completed, so check
         // disk state again to resolve any previous races on non-atomic directory listing platforms
 
         // if txn file also gone, then do nothing (all temporary should be gone, we could remove them if any)
@@ -143,23 +147,29 @@ final class LogAwareFileLister
             return;
         }
 
-        // some files are missing and yet the txn is still there and not completed
-        // something must be wrong (see comment at the top of this file requiring txn to be
+        logger.error("Failed to classify files in {}\n" +
+                     "Some old files are missing but the txn log is still there and not completed\n" +
+                     "Files in folder:\n{}\nTxn: {}",
+                     folder,
+                     files.isEmpty()
+                        ? "\t-"
+                        : String.join("\n", files.keySet().stream().map(f -> String.format("\t%s", f)).collect(Collectors.toList())),
+                     txnFile.toString(true));
+
+        // some old files are missing and yet the txn is still there and not completed
+        // something must be wrong (see comment at the top of LogTransaction requiring txn to be
         // completed before obsoleting or aborting sstables)
         throw new RuntimeException(String.format("Failed to list directory files in %s, inconsistent disk state for transaction %s",
                                                  folder,
                                                  txnFile));
     }
 
-    /** See if all files are present or if only the last record files are missing and it's a NEW record */
-    private static boolean allFilesPresent(LogFile txnFile, Map<LogRecord, Set<File>> oldFiles, Map<LogRecord, Set<File>> newFiles)
+    /** See if all files are present */
+    private static boolean allFilesPresent(Map<LogRecord, Set<File>> oldFiles)
     {
-        LogRecord lastRecord = txnFile.getLastRecord();
-        return !Stream.concat(oldFiles.entrySet().stream(),
-                              newFiles.entrySet().stream()
-                                      .filter((e) -> e.getKey() != lastRecord))
-                      .filter((e) -> e.getKey().numFiles > e.getValue().size())
-                      .findFirst().isPresent();
+        return !oldFiles.entrySet().stream()
+                        .filter((e) -> e.getKey().numFiles > e.getValue().size())
+                        .findFirst().isPresent();
     }
 
     private void setTemporary(LogFile txnFile, Collection<Set<File>> oldFiles, Collection<Set<File>> newFiles)
