@@ -649,18 +649,6 @@ snapshot_before_compaction: false
 # lose data on truncation or drop.
 auto_snapshot: true
 
-# When executing a scan, within or across a partition, we need to keep the
-# tombstones seen in memory so we can return them to the coordinator, which
-# will use them to make sure other replicas also know about the deleted rows.
-# With workloads that generate a lot of tombstones, this can cause performance
-# problems and even exaust the server heap.
-# (http://www.datastax.com/dev/blog/cassandra-anti-patterns-queues-and-queue-like-datasets)
-# Adjust the thresholds here if you understand the dangers and want to
-# scan more tombstones anyway.  These thresholds may also be adjusted at runtime
-# using the StorageService mbean.
-tombstone_warn_threshold: 1000
-tombstone_failure_threshold: 100000
-
 # Granularity of the collation index of rows within a partition.
 # Increase if your rows are large, or if you have a very large
 # number of rows per partition.  The competing goals are these:
@@ -671,14 +659,6 @@ tombstone_failure_threshold: 100000
 #      rows (as part of the key cache), so a larger granularity means
 #      you can cache more hot rows
 column_index_size_in_kb: 64
-
-
-# Log WARN on any batch size exceeding this value. 5kb per batch by default.
-# Caution should be taken on increasing the size of this threshold as it can lead to node instability.
-batch_size_warn_threshold_in_kb: 5
-
-# Fail any batch exceeding this value. 50kb (10x warn threshold) by default.
-batch_size_fail_threshold_in_kb: 50
 
 # Number of simultaneous compactions to allow, NOT including
 # validation "compactions" for anti-entropy repair.  Simultaneous
@@ -703,9 +683,6 @@ batch_size_fail_threshold_in_kb: 50
 # Setting this to 0 disables throttling. Note that this account for all types
 # of compaction, including validation compaction.
 compaction_throughput_mb_per_sec: 16
-
-# Log a warning when compacting partitions larger than this value
-compaction_large_partition_warning_threshold_mb: 100
 
 # When compacting, the replacement sstable(s) can be opened before they
 # are completely written, and used in place of the prior sstables for
@@ -942,11 +919,6 @@ inter_dc_tcp_nodelay: false
 tracetype_query_ttl: 86400
 tracetype_repair_ttl: 604800
 
-# GC Pauses greater than gc_warn_threshold_in_ms will be logged at WARN level
-# Adjust the threshold based on your application throughput requirement
-# By default, Cassandra logs GC Pauses greater than 200 ms at INFO level
-gc_warn_threshold_in_ms: 1000
-
 # UDFs (user defined functions) are disabled by default.
 # As of Cassandra 3.0 there is a sandbox in place that should prevent execution of evil code.
 enable_user_defined_functions: false
@@ -992,3 +964,37 @@ transparent_data_encryption_options:
             store_type: JCEKS
             key_password: cassandra
 
+
+#####################
+# SAFETY THRESHOLDS #
+#####################
+
+# When executing a scan, within or across a partition, we need to keep the
+# tombstones seen in memory so we can return them to the coordinator, which
+# will use them to make sure other replicas also know about the deleted rows.
+# With workloads that generate a lot of tombstones, this can cause performance
+# problems and even exaust the server heap.
+# (http://www.datastax.com/dev/blog/cassandra-anti-patterns-queues-and-queue-like-datasets)
+# Adjust the thresholds here if you understand the dangers and want to
+# scan more tombstones anyway.  These thresholds may also be adjusted at runtime
+# using the StorageService mbean.
+tombstone_warn_threshold: 1000
+tombstone_failure_threshold: 100000
+
+# Log WARN on any batch size exceeding this value. 5kb per batch by default.
+# Caution should be taken on increasing the size of this threshold as it can lead to node instability.
+batch_size_warn_threshold_in_kb: 5
+
+# Fail any batch exceeding this value. 50kb (10x warn threshold) by default.
+batch_size_fail_threshold_in_kb: 50
+
+# Log WARN on any batches not of type LOGGED than span across more partitions than this limit
+unlogged_batch_across_partitions_warn_threshold: 10
+
+# Log a warning when compacting partitions larger than this value
+compaction_large_partition_warning_threshold_mb: 100
+
+# GC Pauses greater than gc_warn_threshold_in_ms will be logged at WARN level
+# Adjust the threshold based on your application throughput requirement
+# By default, Cassandra logs GC Pauses greater than 200 ms at INFO level
+gc_warn_threshold_in_ms: 1000
