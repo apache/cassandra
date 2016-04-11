@@ -533,13 +533,13 @@ public class CqlConfigHelper
         Optional<String> truststorePassword = getInputNativeSSLTruststorePassword(conf);
         Optional<String> keystorePassword = getInputNativeSSLKeystorePassword(conf);
         Optional<String> cipherSuites = getInputNativeSSLCipherSuites(conf);
-        
-        if (truststorePath.isPresent() && keystorePath.isPresent() && truststorePassword.isPresent() && keystorePassword.isPresent())
+
+        if (truststorePath.isPresent())
         {
             SSLContext context;
             try
             {
-                context = getSSLContext(truststorePath.get(), truststorePassword.get(), keystorePath.get(), keystorePassword.get());
+                context = getSSLContext(truststorePath, truststorePassword, keystorePath, keystorePassword);
             }
             catch (UnrecoverableKeyException | KeyManagementException |
                     NoSuchAlgorithmException | KeyStoreException | CertificateException | IOException e)
@@ -604,26 +604,46 @@ public class CqlConfigHelper
         }
     }
 
-    private static SSLContext getSSLContext(String truststorePath, String truststorePassword, String keystorePath, String keystorePassword)
-            throws NoSuchAlgorithmException, KeyStoreException, CertificateException, IOException, UnrecoverableKeyException, KeyManagementException
+    private static SSLContext getSSLContext(Optional<String> truststorePath,
+                                            Optional<String> truststorePassword,
+                                            Optional<String> keystorePath,
+                                            Optional<String> keystorePassword)
+    throws NoSuchAlgorithmException,
+           KeyStoreException,
+           CertificateException,
+           IOException,
+           UnrecoverableKeyException,
+           KeyManagementException
     {
-        SSLContext ctx;
-        try (FileInputStream tsf = new FileInputStream(truststorePath); FileInputStream ksf = new FileInputStream(keystorePath))
+        SSLContext ctx = SSLContext.getInstance("SSL");
+
+        TrustManagerFactory tmf = null;
+        if (truststorePath.isPresent())
         {
-            ctx = SSLContext.getInstance("SSL");
-
-            KeyStore ts = KeyStore.getInstance("JKS");
-            ts.load(tsf, truststorePassword.toCharArray());
-            TrustManagerFactory tmf = TrustManagerFactory.getInstance(TrustManagerFactory.getDefaultAlgorithm());
-            tmf.init(ts);
-
-            KeyStore ks = KeyStore.getInstance("JKS");
-            ks.load(ksf, keystorePassword.toCharArray());
-            KeyManagerFactory kmf = KeyManagerFactory.getInstance(KeyManagerFactory.getDefaultAlgorithm());
-            kmf.init(ks, keystorePassword.toCharArray());
-
-            ctx.init(kmf.getKeyManagers(), tmf.getTrustManagers(), new SecureRandom());
+            try (FileInputStream tsf = new FileInputStream(truststorePath.get()))
+            {
+                KeyStore ts = KeyStore.getInstance("JKS");
+                ts.load(tsf, truststorePassword.isPresent() ? truststorePassword.get().toCharArray() : null);
+                tmf = TrustManagerFactory.getInstance(TrustManagerFactory.getDefaultAlgorithm());
+                tmf.init(ts);
+            }
         }
+
+        KeyManagerFactory kmf = null;
+        if (keystorePath.isPresent())
+        {
+            try (FileInputStream ksf = new FileInputStream(keystorePath.get()))
+            {
+                KeyStore ks = KeyStore.getInstance("JKS");
+                ks.load(ksf, keystorePassword.isPresent() ? keystorePassword.get().toCharArray() : null);
+                kmf = KeyManagerFactory.getInstance(KeyManagerFactory.getDefaultAlgorithm());
+                kmf.init(ks, keystorePassword.isPresent() ? keystorePassword.get().toCharArray() : null);
+            }
+        }
+
+        ctx.init(kmf != null ? kmf.getKeyManagers() : null,
+                 tmf != null ? tmf.getTrustManagers() : null,
+                 new SecureRandom());
         return ctx;
     }
 }
