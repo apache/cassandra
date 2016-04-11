@@ -77,6 +77,17 @@ import org.apache.cassandra.utils.concurrent.Refs;
  */
 public class ActiveRepairService
 {
+    /**
+     * @deprecated this statuses are from the previous JMX notification service,
+     * which will be deprecated on 4.0. For statuses of the new notification
+     * service, see {@link org.apache.cassandra.streaming.StreamEvent.ProgressEvent}
+     */
+    @Deprecated
+    public static enum Status
+    {
+        STARTED, SESSION_SUCCESS, SESSION_FAILED, FINISHED
+    }
+
     public static CassandraVersion SUPPORTS_GLOBAL_PREPARE_FLAG_VERSION = new CassandraVersion("2.2.1");
 
     private static final Logger logger = LoggerFactory.getLogger(ActiveRepairService.class);
