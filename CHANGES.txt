@@ -1,4 +1,6 @@
 2.1.14
+ * (cqlsh) Fix potential COPY deadlock when parent process is terminating child
+   processes (CASSANDRA-11505)
  * Replace sstables on DataTracker before marking them as non-compacting during anti-compaction (CASSANDRA-11548)
  * Checking if an unlogged batch is local is inefficient (CASSANDRA-11529)
  * Fix paging for COMPACT tables without clustering columns (CASSANDRA-11467)
