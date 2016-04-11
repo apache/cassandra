@@ -17,8 +17,9 @@
  */
 package org.apache.cassandra.streaming;
 
-import java.io.IOException;
 import java.net.InetAddress;
+import java.net.InetSocketAddress;
+import java.net.SocketAddress;
 import java.util.*;
 import java.util.concurrent.ConcurrentLinkedQueue;
 
@@ -27,7 +28,7 @@ import com.google.common.util.concurrent.Futures;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import org.apache.cassandra.net.IncomingStreamingConnection;
+import io.netty.channel.Channel;
 import org.apache.cassandra.utils.FBUtilities;
 
 /**
@@ -103,12 +104,10 @@ public final class StreamResultFuture extends AbstractFuture<StreamState>
                                                                     UUID planId,
                                                                     StreamOperation streamOperation,
                                                                     InetAddress from,
-                                                                    IncomingStreamingConnection connection,
-                                                                    boolean isForOutgoing,
-                                                                    int version,
+                                                                    Channel channel,
                                                                     boolean keepSSTableLevel,
                                                                     UUID pendingRepair,
-                                                                    PreviewKind previewKind) throws IOException
+                                                                    PreviewKind previewKind)
     {
         StreamResultFuture future = StreamManager.instance.getReceivingStream(planId);
         if (future == null)
@@ -119,7 +118,7 @@ public final class StreamResultFuture extends AbstractFuture<StreamState>
             future = new StreamResultFuture(planId, streamOperation, keepSSTableLevel, pendingRepair, previewKind);
             StreamManager.instance.registerReceiving(future);
         }
-        future.attachConnection(from, sessionIndex, connection, isForOutgoing, version);
+        future.attachConnection(from, sessionIndex, channel);
         logger.info("[Stream #{}, ID#{}] Received streaming plan for {}", planId, sessionIndex, streamOperation.getDescription());
         return future;
     }
@@ -131,11 +130,18 @@ public final class StreamResultFuture extends AbstractFuture<StreamState>
         return future;
     }
 
-    private void attachConnection(InetAddress from, int sessionIndex, IncomingStreamingConnection connection, boolean isForOutgoing, int version) throws IOException
+    public StreamCoordinator getCoordinator()
     {
-        StreamSession session = coordinator.getOrCreateSessionById(from, sessionIndex, connection.socket.getInetAddress());
+        return coordinator;
+    }
+
+    private void attachConnection(InetAddress from, int sessionIndex, Channel channel)
+    {
+        SocketAddress addr = channel.remoteAddress();
+        InetAddress connecting = (addr instanceof InetSocketAddress ? ((InetSocketAddress) addr).getAddress() : from);
+        StreamSession session = coordinator.getOrCreateSessionById(from, sessionIndex, connecting);
         session.init(this);
-        session.handler.initiateOnReceivingSide(connection, isForOutgoing, version);
+        session.attach(channel);
     }
 
     public void addEventListener(StreamEventHandler listener)
@@ -206,6 +212,7 @@ public final class StreamResultFuture extends AbstractFuture<StreamState>
 
     private synchronized void maybeComplete()
     {
+        logger.warn("[Stream #{}] maybeComplete", planId);
         if (!coordinator.hasActiveSessions())
         {
             StreamState finalState = getCurrentState();
@@ -220,5 +227,10 @@ public final class StreamResultFuture extends AbstractFuture<StreamState>
                 set(finalState);
             }
         }
+    }
+
+    StreamSession getSession(InetAddress peer, int sessionIndex)
+    {
+        return coordinator.getSessionById(peer, sessionIndex);
     }
 }

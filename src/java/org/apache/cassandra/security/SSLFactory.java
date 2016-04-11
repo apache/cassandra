@@ -20,7 +20,6 @@ package org.apache.cassandra.security;
 
 import java.io.IOException;
 import java.io.InputStream;
-import java.net.InetAddress;
 import java.nio.file.Files;
 import java.nio.file.Paths;
 import java.security.KeyStore;
@@ -32,7 +31,6 @@ import java.util.List;
 import java.util.concurrent.atomic.AtomicReference;
 import javax.net.ssl.KeyManagerFactory;
 import javax.net.ssl.SSLContext;
-import javax.net.ssl.SSLParameters;
 import javax.net.ssl.SSLSocket;
 import javax.net.ssl.TrustManager;
 import javax.net.ssl.TrustManagerFactory;
@@ -78,53 +76,6 @@ public final class SSLFactory
      * A cached reference of the {@link SslContext} for peer-to-peer, internode messaging connections.
      */
     private static final AtomicReference<SslContext> serverSslContext = new AtomicReference<>();
-
-    /** Create a socket and connect */
-    public static SSLSocket getSocket(EncryptionOptions options, InetAddress address, int port, InetAddress localAddress, int localPort) throws IOException
-    {
-        SSLContext ctx = createSSLContext(options, true);
-        SSLSocket socket = (SSLSocket) ctx.getSocketFactory().createSocket(address, port, localAddress, localPort);
-        try
-        {
-            prepareSocket(socket, options);
-            return socket;
-        }
-        catch (IllegalArgumentException e)
-        {
-            socket.close();
-            throw e;
-        }
-    }
-
-    /** Create a socket and connect, using any local address */
-    public static SSLSocket getSocket(EncryptionOptions options, InetAddress address, int port) throws IOException
-    {
-        SSLContext ctx = createSSLContext(options, true);
-        SSLSocket socket = (SSLSocket) ctx.getSocketFactory().createSocket(address, port);
-        try
-        {
-            prepareSocket(socket, options);
-            return socket;
-        }
-        catch (IllegalArgumentException e)
-        {
-            socket.close();
-            throw e;
-        }
-    }
-
-    /** Sets relevant socket options specified in encryption settings */
-    private static void prepareSocket(SSLSocket socket, EncryptionOptions options)
-    {
-        String[] suites = filterCipherSuites(socket.getSupportedCipherSuites(), options.cipher_suites);
-        if(options.require_endpoint_verification)
-        {
-            SSLParameters sslParameters = socket.getSSLParameters();
-            sslParameters.setEndpointIdentificationAlgorithm("HTTPS");
-            socket.setSSLParameters(sslParameters);
-        }
-        socket.setEnabledCipherSuites(suites);
-    }
 
     /**
      * Create a JSSE {@link SSLContext}.

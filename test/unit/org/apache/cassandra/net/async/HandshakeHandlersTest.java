@@ -42,7 +42,7 @@ import org.apache.cassandra.net.MessageOut;
 import org.apache.cassandra.net.MessagingService;
 import org.apache.cassandra.schema.KeyspaceParams;
 
-import static org.apache.cassandra.net.async.InboundHandshakeHandler.State.MESSAGING_HANDSHAKE_COMPLETE;
+import static org.apache.cassandra.net.async.InboundHandshakeHandler.State.HANDSHAKE_COMPLETE;
 import static org.apache.cassandra.net.async.OutboundMessagingConnection.State.READY;
 
 public class HandshakeHandlersTest
@@ -100,7 +100,7 @@ public class HandshakeHandlersTest
             inboundChannel.writeInbound(o);
 
         Assert.assertEquals(READY, imc.getState());
-        Assert.assertEquals(MESSAGING_HANDSHAKE_COMPLETE, inboundHandshakeHandler.getState());
+        Assert.assertEquals(HANDSHAKE_COMPLETE, inboundHandshakeHandler.getState());
     }
 
     @Test

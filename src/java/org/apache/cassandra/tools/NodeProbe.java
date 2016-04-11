@@ -1076,8 +1076,6 @@ public class NodeProbe implements AutoCloseable
                 return ssProxy.getCasContentionTimeout();
             case "truncate":
                 return ssProxy.getTruncateRpcTimeout();
-            case "streamingsocket":
-                return ssProxy.getStreamingSocketTimeout();
             default:
                 throw new RuntimeException("Timeout type requires one of (" + GetTimeout.TIMEOUT_TYPES + ")");
         }
@@ -1155,11 +1153,6 @@ public class NodeProbe implements AutoCloseable
                 break;
             case "truncate":
                 ssProxy.setTruncateRpcTimeout(value);
-                break;
-            case "streamingsocket":
-                if (value > Integer.MAX_VALUE)
-                    throw new RuntimeException("streamingsocket timeout must be less than " + Integer.MAX_VALUE);
-                ssProxy.setStreamingSocketTimeout((int) value);
                 break;
             default:
                 throw new RuntimeException("Timeout type requires one of (" + GetTimeout.TIMEOUT_TYPES + ")");

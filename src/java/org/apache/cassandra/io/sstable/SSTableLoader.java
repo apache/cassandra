@@ -208,7 +208,7 @@ public class SSTableLoader implements StreamEventHandler
         for (SSTableReader sstable : sstables)
         {
             sstable.selfRef().release();
-            assert sstable.selfRef().globalCount() == 0;
+            assert sstable.selfRef().globalCount() == 0 : String.format("for sstable = %s, ref count = %d", sstable, sstable.selfRef().globalCount());
         }
     }
 

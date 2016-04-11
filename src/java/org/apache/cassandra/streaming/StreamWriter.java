@@ -19,21 +19,21 @@ package org.apache.cassandra.streaming;
 
 import java.io.File;
 import java.io.IOException;
-import java.io.OutputStream;
+import java.nio.ByteBuffer;
 import java.util.Collection;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import com.ning.compress.lzf.LZFOutputStream;
-
 import org.apache.cassandra.io.sstable.Component;
 import org.apache.cassandra.io.sstable.format.SSTableReader;
+import org.apache.cassandra.io.util.ChannelProxy;
 import org.apache.cassandra.io.util.DataIntegrityMetadata;
 import org.apache.cassandra.io.util.DataIntegrityMetadata.ChecksumValidator;
 import org.apache.cassandra.io.util.DataOutputStreamPlus;
-import org.apache.cassandra.io.util.RandomAccessReader;
+import org.apache.cassandra.io.util.FileUtils;
 import org.apache.cassandra.streaming.StreamManager.StreamRateLimiter;
+import org.apache.cassandra.streaming.compress.ByteBufCompressionDataOutputStreamPlus;
 import org.apache.cassandra.utils.FBUtilities;
 import org.apache.cassandra.utils.Pair;
 
@@ -50,11 +50,6 @@ public class StreamWriter
     protected final Collection<Pair<Long, Long>> sections;
     protected final StreamRateLimiter limiter;
     protected final StreamSession session;
-
-    private OutputStream compressedOutput;
-
-    // allocate buffer to use for transfers only once
-    private byte[] transferBuffer;
 
     public StreamWriter(SSTableReader sstable, Collection<Pair<Long, Long>> sections, StreamSession session)
     {
@@ -78,45 +73,48 @@ public class StreamWriter
         logger.debug("[Stream #{}] Start streaming file {} to {}, repairedAt = {}, totalSize = {}", session.planId(),
                      sstable.getFilename(), session.peer, sstable.getSSTableMetadata().repairedAt, totalSize);
 
-        try(RandomAccessReader file = sstable.openDataReader();
+        try(ChannelProxy proxy = sstable.getDataChannel().sharedCopy();
             ChecksumValidator validator = new File(sstable.descriptor.filenameFor(Component.CRC)).exists()
                                           ? DataIntegrityMetadata.checksumValidator(sstable.descriptor)
-                                          : null;)
+                                          : null)
         {
-            transferBuffer = validator == null ? new byte[DEFAULT_CHUNK_SIZE] : new byte[validator.chunkSize];
+            int bufferSize = validator == null ? DEFAULT_CHUNK_SIZE: validator.chunkSize;
 
             // setting up data compression stream
-            compressedOutput = new LZFOutputStream(output);
             long progress = 0L;
 
-            // stream each of the required sections of the file
-            for (Pair<Long, Long> section : sections)
+            try (DataOutputStreamPlus compressedOutput = new ByteBufCompressionDataOutputStreamPlus(output, limiter))
             {
-                long start = validator == null ? section.left : validator.chunkStart(section.left);
-                int readOffset = (int) (section.left - start);
-                // seek to the beginning of the section
-                file.seek(start);
-                if (validator != null)
-                    validator.seek(start);
-
-                // length of the section to read
-                long length = section.right - start;
-                // tracks write progress
-                long bytesRead = 0;
-                while (bytesRead < length)
+                // stream each of the required sections of the file
+                for (Pair<Long, Long> section : sections)
                 {
-                    long lastBytesRead = write(file, validator, readOffset, length, bytesRead);
-                    bytesRead += lastBytesRead;
-                    progress += (lastBytesRead - readOffset);
-                    session.progress(sstable.descriptor.filenameFor(Component.DATA), ProgressInfo.Direction.OUT, progress, totalSize);
-                    readOffset = 0;
-                }
+                    long start = validator == null ? section.left : validator.chunkStart(section.left);
+                    // if the transfer does not start on the valididator's chunk boundary, this is the number of bytes to offset by
+                    int transferOffset = (int) (section.left - start);
+                    if (validator != null)
+                        validator.seek(start);
 
-                // make sure that current section is sent
-                compressedOutput.flush();
+                    // length of the section to read
+                    long length = section.right - start;
+                    // tracks write progress
+                    long bytesRead = 0;
+                    while (bytesRead < length)
+                    {
+                        int toTransfer = (int) Math.min(bufferSize, length - bytesRead);
+                        long lastBytesRead = write(proxy, validator, compressedOutput, start, transferOffset, toTransfer, bufferSize);
+                        start += lastBytesRead;
+                        bytesRead += lastBytesRead;
+                        progress += (lastBytesRead - transferOffset);
+                        session.progress(sstable.descriptor.filenameFor(Component.DATA), ProgressInfo.Direction.OUT, progress, totalSize);
+                        transferOffset = 0;
+                    }
+
+                    // make sure that current section is sent
+                    output.flush();
+                }
+                logger.debug("[Stream #{}] Finished streaming file {} to {}, bytesTransferred = {}, totalSize = {}",
+                             session.planId(), sstable.getFilename(), session.peer, FBUtilities.prettyPrintMemory(progress), FBUtilities.prettyPrintMemory(totalSize));
             }
-            logger.debug("[Stream #{}] Finished streaming file {} to {}, bytesTransferred = {}, totalSize = {}",
-                         session.planId(), sstable.getFilename(), session.peer, FBUtilities.prettyPrintMemory(progress), FBUtilities.prettyPrintMemory(totalSize));
         }
     }
 
@@ -131,27 +129,44 @@ public class StreamWriter
     /**
      * Sequentially read bytes from the file and write them to the output stream
      *
-     * @param reader The file reader to read from
+     * @param proxy The file reader to read from
      * @param validator validator to verify data integrity
-     * @param start number of bytes to skip transfer, but include for validation.
-     * @param length The full length that should be read from {@code reader}
-     * @param bytesTransferred Number of bytes already read out of {@code length}
+     * @param start The readd offset from the beginning of the {@code proxy} file.
+     * @param transferOffset number of bytes to skip transfer, but include for validation.
+     * @param toTransfer The number of bytes to be transferred.
      *
-     * @return Number of bytes read
+     * @return Number of bytes transferred.
      *
      * @throws java.io.IOException on any I/O error
      */
-    protected long write(RandomAccessReader reader, ChecksumValidator validator, int start, long length, long bytesTransferred) throws IOException
+    protected long write(ChannelProxy proxy, ChecksumValidator validator, DataOutputStreamPlus output, long start, int transferOffset, int toTransfer, int bufferSize) throws IOException
     {
-        int toTransfer = (int) Math.min(transferBuffer.length, length - bytesTransferred);
-        int minReadable = (int) Math.min(transferBuffer.length, reader.length() - reader.getFilePointer());
+        // the count of bytes to read off disk
+        int minReadable = (int) Math.min(bufferSize, proxy.size() - start);
 
-        reader.readFully(transferBuffer, 0, minReadable);
-        if (validator != null)
-            validator.validate(transferBuffer, 0, minReadable);
+        // this buffer will hold the data from disk. as it will be compressed on the fly by
+        // ByteBufCompressionDataOutputStreamPlus.write(ByteBuffer), we can release this buffer as soon as we can.
+        ByteBuffer buffer = ByteBuffer.allocateDirect(minReadable);
+        try
+        {
+            int readCount = proxy.read(buffer, start);
+            assert readCount == minReadable : String.format("could not read required number of bytes from file to be streamed: read %d bytes, wanted %d bytes", readCount, minReadable);
+            buffer.flip();
 
-        limiter.acquire(toTransfer - start);
-        compressedOutput.write(transferBuffer, start, (toTransfer - start));
+            if (validator != null)
+            {
+                validator.validate(buffer);
+                buffer.flip();
+            }
+
+            buffer.position(transferOffset);
+            buffer.limit(transferOffset + (toTransfer - transferOffset));
+            output.write(buffer);
+        }
+        finally
+        {
+            FileUtils.clean(buffer);
+        }
 
         return toTransfer;
     }

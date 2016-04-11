@@ -18,6 +18,7 @@
 package org.apache.cassandra.streaming.messages;
 
 import java.io.IOException;
+import java.net.InetAddress;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.UUID;
@@ -29,7 +30,10 @@ import org.apache.cassandra.io.sstable.format.SSTableFormat;
 import org.apache.cassandra.io.util.DataInputPlus;
 import org.apache.cassandra.io.util.DataOutputPlus;
 import org.apache.cassandra.io.sstable.format.Version;
+import org.apache.cassandra.net.CompactEndpointSerializationHelper;
+import org.apache.cassandra.net.MessagingService;
 import org.apache.cassandra.schema.TableId;
+import org.apache.cassandra.streaming.StreamSession;
 import org.apache.cassandra.streaming.compress.CompressionInfo;
 import org.apache.cassandra.utils.Pair;
 import org.apache.cassandra.utils.UUIDSerializer;
@@ -42,6 +46,8 @@ public class FileMessageHeader
     public static FileMessageHeaderSerializer serializer = new FileMessageHeaderSerializer();
 
     public final TableId tableId;
+    public UUID planId;
+    public int sessionIndex;
     public final int sequenceNumber;
     /** SSTable version */
     public final Version version;
@@ -61,11 +67,15 @@ public class FileMessageHeader
     public final UUID pendingRepair;
     public final int sstableLevel;
     public final SerializationHeader.Component header;
+    public final InetAddress sender;
 
     /* cached size value */
     private transient final long size;
 
-    public FileMessageHeader(TableId tableId,
+    private FileMessageHeader(TableId tableId,
+                             InetAddress sender,
+                             UUID planId,
+                             int sessionIndex,
                              int sequenceNumber,
                              Version version,
                              SSTableFormat.Type format,
@@ -78,6 +88,9 @@ public class FileMessageHeader
                              SerializationHeader.Component header)
     {
         this.tableId = tableId;
+        this.sender = sender;
+        this.planId = planId;
+        this.sessionIndex = sessionIndex;
         this.sequenceNumber = sequenceNumber;
         this.version = version;
         this.format = format;
@@ -93,6 +106,9 @@ public class FileMessageHeader
     }
 
     public FileMessageHeader(TableId tableId,
+                             InetAddress sender,
+                             UUID planId,
+                             int sessionIndex,
                              int sequenceNumber,
                              Version version,
                              SSTableFormat.Type format,
@@ -105,6 +121,9 @@ public class FileMessageHeader
                              SerializationHeader.Component header)
     {
         this.tableId = tableId;
+        this.sender = sender;
+        this.planId = planId;
+        this.sessionIndex = sessionIndex;
         this.sequenceNumber = sequenceNumber;
         this.version = version;
         this.format = format;
@@ -188,11 +207,20 @@ public class FileMessageHeader
         return result;
     }
 
+    public void addSessionInfo(StreamSession session)
+    {
+        planId = session.planId();
+        sessionIndex = session.sessionIndex();
+    }
+
     static class FileMessageHeaderSerializer
     {
         public CompressionInfo serialize(FileMessageHeader header, DataOutputPlus out, int version) throws IOException
         {
             header.tableId.serialize(out);
+            CompactEndpointSerializationHelper.serialize(header.sender, out);
+            UUIDSerializer.serializer.serialize(header.planId, out, version);
+            out.writeInt(header.sessionIndex);
             out.writeInt(header.sequenceNumber);
             out.writeUTF(header.version.toString());
             out.writeUTF(header.format.name);
@@ -224,6 +252,9 @@ public class FileMessageHeader
         public FileMessageHeader deserialize(DataInputPlus in, int version) throws IOException
         {
             TableId tableId = TableId.deserialize(in);
+            InetAddress sender = CompactEndpointSerializationHelper.deserialize(in);
+            UUID planId = UUIDSerializer.serializer.deserialize(in, MessagingService.current_version);
+            int sessionIndex = in.readInt();
             int sequenceNumber = in.readInt();
             Version sstableVersion = SSTableFormat.Type.current().info.getVersion(in.readUTF());
             SSTableFormat.Type format = SSTableFormat.Type.validate(in.readUTF());
@@ -239,12 +270,15 @@ public class FileMessageHeader
             int sstableLevel = in.readInt();
             SerializationHeader.Component header =  SerializationHeader.serializer.deserialize(sstableVersion, in);
 
-            return new FileMessageHeader(tableId, sequenceNumber, sstableVersion, format, estimatedKeys, sections, compressionInfo, repairedAt, pendingRepair, sstableLevel, header);
+            return new FileMessageHeader(tableId, sender, planId, sessionIndex, sequenceNumber, sstableVersion, format, estimatedKeys, sections, compressionInfo, repairedAt, pendingRepair, sstableLevel, header);
         }
 
         public long serializedSize(FileMessageHeader header, int version)
         {
             long size = header.tableId.serializedSize();
+            size += CompactEndpointSerializationHelper.serializedSize(header.sender);
+            size += UUIDSerializer.serializer.serializedSize(header.planId, version);
+            size += TypeSizes.sizeof(header.sessionIndex);
             size += TypeSizes.sizeof(header.sequenceNumber);
             size += TypeSizes.sizeof(header.version.toString());
             size += TypeSizes.sizeof(header.format.name);

@@ -32,7 +32,7 @@ public class OutboundConnectionIdentifier
 {
     enum ConnectionType
     {
-        GOSSIP, LARGE_MESSAGE, SMALL_MESSAGE
+        GOSSIP, LARGE_MESSAGE, SMALL_MESSAGE, STREAM
     }
 
     /**
@@ -99,6 +99,15 @@ public class OutboundConnectionIdentifier
     }
 
     /**
+     * Creates an identifier for a gossip connection and using the remote "identifying" address as its connection
+     * address.
+     */
+    public static OutboundConnectionIdentifier stream(InetSocketAddress localAddr, InetSocketAddress remoteAddr)
+    {
+        return new OutboundConnectionIdentifier(localAddr, remoteAddr, ConnectionType.STREAM);
+    }
+
+    /**
      * Returns a newly created connection identifier to the same remote that this identifier, but using the provided
      * address as connection address.
      *
@@ -106,7 +115,7 @@ public class OutboundConnectionIdentifier
      * @return a newly created connection identifier that differs from this one only by using {@code remoteConnectionAddr}
      * as connection address to the remote.
      */
-    OutboundConnectionIdentifier withNewConnectionAddress(InetSocketAddress remoteConnectionAddr)
+    public OutboundConnectionIdentifier withNewConnectionAddress(InetSocketAddress remoteConnectionAddr)
     {
         return new OutboundConnectionIdentifier(localAddr, remoteAddr, remoteConnectionAddr, connectionType);
     }
@@ -114,7 +123,7 @@ public class OutboundConnectionIdentifier
     /**
      * The local node address.
      */
-    InetAddress local()
+    public InetAddress local()
     {
         return localAddr.getAddress();
     }
@@ -122,7 +131,7 @@ public class OutboundConnectionIdentifier
     /**
      * The remote node identifying address (the one to use for anything else than connecting to the node).
      */
-    InetSocketAddress remoteAddress()
+    public InetSocketAddress remoteAddress()
     {
         return remoteAddr;
     }
@@ -130,7 +139,7 @@ public class OutboundConnectionIdentifier
     /**
      * The remote node identifying address (the one to use for anything else than connecting to the node).
      */
-    InetAddress remote()
+    public  InetAddress remote()
     {
         return remoteAddr.getAddress();
     }
@@ -138,7 +147,7 @@ public class OutboundConnectionIdentifier
     /**
      * The remote node connection address (the one to use to actually connect to the remote, and only that).
      */
-    InetSocketAddress connectionAddress()
+    public InetSocketAddress connectionAddress()
     {
         return remoteConnectionAddr;
     }

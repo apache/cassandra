@@ -15,16 +15,15 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
+
 package org.apache.cassandra.streaming;
 
 import java.io.IOException;
-import java.net.InetAddress;
-import java.net.Socket;
 
-/**
- * Interface that creates connection used by streaming.
- */
+import io.netty.channel.Channel;
+import org.apache.cassandra.net.async.OutboundConnectionIdentifier;
+
 public interface StreamConnectionFactory
 {
-    Socket createConnection(InetAddress peer) throws IOException;
+    Channel createConnection(OutboundConnectionIdentifier connectionId, int protocolVersion) throws IOException;
 }

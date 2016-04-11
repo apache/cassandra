@@ -54,7 +54,7 @@ public class PreparedStatementsTest extends SchemaLoader
 
         // Currently the native server start method return before the server is fully binded to the socket, so we need
         // to wait slightly before trying to connect to it. We should fix this but in the meantime using a sleep.
-        Thread.sleep(500);
+        Thread.sleep(1500);
 
         cluster = Cluster.builder().addContactPoint("127.0.0.1")
                                    .withPort(DatabaseDescriptor.getNativeTransportPort())

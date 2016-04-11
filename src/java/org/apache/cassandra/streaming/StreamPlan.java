@@ -33,7 +33,7 @@ import static org.apache.cassandra.service.ActiveRepairService.NO_PENDING_REPAIR
  */
 public class StreamPlan
 {
-    public static final String[] EMPTY_COLUMN_FAMILIES = new String[0];
+    private static final String[] EMPTY_COLUMN_FAMILIES = new String[0];
     private final UUID planId = UUIDGen.getTimeUUID();
     private final StreamOperation streamOperation;
     private final List<StreamEventHandler> handlers = new ArrayList<>();

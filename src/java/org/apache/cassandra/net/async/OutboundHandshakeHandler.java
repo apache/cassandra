@@ -36,6 +36,7 @@ import io.netty.channel.ChannelPipeline;
 import io.netty.handler.codec.ByteToMessageDecoder;
 import io.netty.handler.timeout.IdleStateHandler;
 import io.netty.util.concurrent.Future;
+
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.net.MessagingService;
 import org.apache.cassandra.net.async.HandshakeProtocol.FirstHandshakeMessage;
@@ -95,7 +96,9 @@ public class OutboundHandshakeHandler extends ByteToMessageDecoder
     /**
      * {@inheritDoc}
      *
-     * Invoked when the channel is made active, and sends out the {@link FirstHandshakeMessage}
+     * Invoked when the channel is made active, and sends out the {@link FirstHandshakeMessage}.
+     * In the case of streaming, we do not require a full bi-directional handshake; the initial message,
+     * containing the streaming protocol version, is all that is required.
      */
     @Override
     public void channelActive(final ChannelHandlerContext ctx) throws Exception
@@ -103,6 +106,10 @@ public class OutboundHandshakeHandler extends ByteToMessageDecoder
         FirstHandshakeMessage msg = new FirstHandshakeMessage(messagingVersion, mode, params.compress);
         logger.trace("starting handshake with peer {}, msg = {}", connectionId.connectionAddress(), msg);
         ctx.writeAndFlush(msg.encode(ctx.alloc())).addListener(future -> firstHandshakeMessageListener(future, ctx));
+
+        if (mode == NettyFactory.Mode.STREAMING)
+            ctx.pipeline().remove(this);
+
         ctx.fireChannelActive();
     }
 

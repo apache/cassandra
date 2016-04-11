@@ -70,6 +70,7 @@ public class RemoveTest
     public static void setupClass() throws ConfigurationException
     {
         oldPartitioner = StorageService.instance.setPartitionerUnsafe(partitioner);
+        MessagingService.instance().listen();
     }
 
     @AfterClass
@@ -86,7 +87,6 @@ public class RemoveTest
         // create a ring of 5 nodes
         Util.createInitialRing(ss, partitioner, endpointTokens, keyTokens, hosts, hostIds, 6);
 
-        MessagingService.instance().listen();
         removalhost = hosts.get(5);
         hosts.remove(removalhost);
         removalId = hostIds.get(5);
@@ -98,7 +98,6 @@ public class RemoveTest
     {
         MessagingService.instance().clearMessageSinks();
         MessagingService.instance().clearCallbacksUnsafe();
-        MessagingService.instance().shutdown();
     }
 
     @Test(expected = UnsupportedOperationException.class)

@@ -37,8 +37,10 @@ public class StreamCoordinator
 {
     private static final Logger logger = LoggerFactory.getLogger(StreamCoordinator.class);
 
-    // Executor strictly for establishing the initial connections. Once we're connected to the other end the rest of the
-    // streaming is handled directly by the ConnectionHandler's incoming and outgoing threads.
+    /**
+     * Executor strictly for establishing the initial connections. Once we're connected to the other end the rest of the
+     * streaming is handled directly by the {@link StreamingMessageSender}'s incoming and outgoing threads.
+     */
     private static final DebuggableThreadPoolExecutor streamExecutor = DebuggableThreadPoolExecutor.createWithFixedPoolSize("StreamConnectionEstablisher",
                                                                                                                             FBUtilities.getAvailableProcessors());
     private final boolean connectSequentially;
@@ -55,8 +57,8 @@ public class StreamCoordinator
                              boolean connectSequentially, UUID pendingRepair, PreviewKind previewKind)
     {
         this.connectionsPerHost = connectionsPerHost;
-        this.factory = factory;
         this.keepSSTableLevel = keepSSTableLevel;
+        this.factory = factory;
         this.connectSequentially = connectSequentially;
         this.pendingRepair = pendingRepair;
         this.previewKind = previewKind;
@@ -161,6 +163,11 @@ public class StreamCoordinator
     public synchronized StreamSession getOrCreateSessionById(InetAddress peer, int id, InetAddress connecting)
     {
         return getOrCreateHostData(peer).getOrCreateSessionById(peer, id, connecting);
+    }
+
+    public StreamSession getSessionById(InetAddress peer, int id)
+    {
+        return getHostData(peer).getSessionById(id);
     }
 
     public synchronized void updateProgress(ProgressInfo info)
@@ -274,8 +281,8 @@ public class StreamCoordinator
 
     private class HostStreamingData
     {
-        private Map<Integer, StreamSession> streamSessions = new HashMap<>();
-        private Map<Integer, SessionInfo> sessionInfos = new HashMap<>();
+        private final Map<Integer, StreamSession> streamSessions = new HashMap<>();
+        private final Map<Integer, SessionInfo> sessionInfos = new HashMap<>();
 
         private int lastReturned = -1;
 
@@ -331,6 +338,11 @@ public class StreamCoordinator
                 streamSessions.put(id, session);
             }
             return session;
+        }
+
+        public StreamSession getSessionById(int id)
+        {
+            return streamSessions.get(id);
         }
 
         public void updateProgress(ProgressInfo info)

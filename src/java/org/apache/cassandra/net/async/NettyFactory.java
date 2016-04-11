@@ -40,6 +40,7 @@ import io.netty.util.concurrent.DefaultThreadFactory;
 import io.netty.util.concurrent.EventExecutor;
 import io.netty.util.internal.logging.InternalLoggerFactory;
 import io.netty.util.internal.logging.Slf4JLoggerFactory;
+
 import net.jpountz.lz4.LZ4Factory;
 import net.jpountz.xxhash.XXHashFactory;
 import org.apache.cassandra.auth.IInternodeAuthenticator;
@@ -69,12 +70,18 @@ public final class NettyFactory
 
     private static final int LZ4_HASH_SEED = 0x9747b28c;
 
+    /**
+     * Default seed value for xxhash.
+     */
+    public static final int XXHASH_DEFAULT_SEED = 0x9747b28c;
+
     public enum Mode { MESSAGING, STREAMING }
 
     private static final String SSL_CHANNEL_HANDLER_NAME = "ssl";
-    static final String INBOUND_COMPRESSOR_HANDLER_NAME = "inboundCompressor";
-    static final String OUTBOUND_COMPRESSOR_HANDLER_NAME = "outboundCompressor";
-    private static final String HANDSHAKE_HANDLER_NAME = "handshakeHandler";
+    public static final String INBOUND_COMPRESSOR_HANDLER_NAME = "inboundCompressor";
+    public static final String OUTBOUND_COMPRESSOR_HANDLER_NAME = "outboundCompressor";
+    public static final String HANDSHAKE_HANDLER_NAME = "handshakeHandler";
+    public static final String INBOUND_STREAM_HANDLER_NAME = "inboundStreamHandler";
 
     /** a useful addition for debugging; simply set to true to get more data in your logs */
     private static final boolean WIRETRACE = false;
@@ -113,6 +120,7 @@ public final class NettyFactory
 
     private final EventLoopGroup inboundGroup;
     private final EventLoopGroup outboundGroup;
+    public final EventLoopGroup streamingGroup;
 
     /**
      * Constructor that allows modifying the {@link NettyFactory#useEpoll} for testing purposes. Otherwise, use the
@@ -126,6 +134,7 @@ public final class NettyFactory
                                         "MessagingService-NettyAcceptor-Threads", false);
         inboundGroup = getEventLoopGroup(useEpoll, FBUtilities.getAvailableProcessors(), "MessagingService-NettyInbound-Threads", false);
         outboundGroup = getEventLoopGroup(useEpoll, FBUtilities.getAvailableProcessors(), "MessagingService-NettyOutbound-Threads", true);
+        streamingGroup = getEventLoopGroup(useEpoll, FBUtilities.getAvailableProcessors(), "Streaming-Netty-Threads", false);
     }
 
     /**
@@ -257,7 +266,8 @@ public final class NettyFactory
                 SslContext sslContext = SSLFactory.getSslContext(encryptionOptions, true, true);
                 SslHandler sslHandler = sslContext.newHandler(channel.alloc());
                 logger.trace("creating inbound netty SslContext: context={}, engine={}", sslContext.getClass().getName(), sslHandler.engine().getClass().getName());
-                pipeline.addFirst(SSL_CHANNEL_HANDLER_NAME, sslHandler);            }
+                pipeline.addFirst(SSL_CHANNEL_HANDLER_NAME, sslHandler);
+            }
 
             if (WIRETRACE)
                 pipeline.addLast("logger", new LoggingHandler(LogLevel.INFO));
@@ -279,13 +289,14 @@ public final class NettyFactory
      * Create the {@link Bootstrap} for connecting to a remote peer. This method does <b>not</b> attempt to connect to the peer,
      * and thus does not block.
      */
+    @VisibleForTesting
     public Bootstrap createOutboundBootstrap(OutboundConnectionParams params)
     {
         logger.debug("creating outbound bootstrap to peer {}, compression: {}, encryption: {}, coalesce: {}", params.connectionId.connectionAddress(),
                      params.compress, encryptionLogStatement(params.encryptionOptions),
                      params.coalescingStrategy.isPresent() ? params.coalescingStrategy.get() : CoalescingStrategies.Strategy.DISABLED);
-        Class<? extends Channel>  transport = useEpoll ? EpollSocketChannel.class : NioSocketChannel.class;
-        Bootstrap bootstrap = new Bootstrap().group(outboundGroup)
+        Class<? extends Channel> transport = useEpoll ? EpollSocketChannel.class : NioSocketChannel.class;
+        Bootstrap bootstrap = new Bootstrap().group(params.mode == Mode.MESSAGING ? outboundGroup : streamingGroup)
                               .channel(transport)
                               .option(ChannelOption.CONNECT_TIMEOUT_MILLIS, 2000)
                               .option(ChannelOption.SO_KEEPALIVE, true)
@@ -349,6 +360,7 @@ public final class NettyFactory
         acceptGroup.shutdownGracefully();
         outboundGroup.shutdownGracefully();
         inboundGroup.shutdownGracefully();
+        streamingGroup.shutdownGracefully();
     }
 
     static Lz4FrameEncoder createLz4Encoder(int protocolVersion)

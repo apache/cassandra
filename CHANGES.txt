@@ -1,4 +1,5 @@
 4.0
+ * use netty for streaming (CASSANDRA-12229)
  * Use netty for internode messaging (CASSANDRA-8457)
  * Add bytes repaired/unrepaired to nodetool tablestats (CASSANDRA-13774)
  * Don't delete incremental repair sessions if they still have sstables (CASSANDRA-13758)

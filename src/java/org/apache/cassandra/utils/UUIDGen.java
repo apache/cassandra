@@ -40,6 +40,8 @@ public class UUIDGen
     private static final long START_EPOCH = -12219292800000L;
     private static final long clockSeqAndNode = makeClockSeqAndNode();
 
+    public static final int UUID_LEN = 16;
+
     /*
      * The min and max possible lsb for a UUID.
      * Note that his is not 0 and all 1's because Cassandra TimeUUIDType
@@ -106,10 +108,10 @@ public class UUIDGen
     }
 
     /**
-     * Similar to {@link getTimeUUIDFromMicros}, but randomize (using SecureRandom) the clock and sequence.
+     * Similar to {@link #getTimeUUIDFromMicros}, but randomize (using SecureRandom) the clock and sequence.
      * <p>
      * If you can guarantee that the {@code whenInMicros} argument is unique (for this JVM instance) for
-     * every call, then you should prefer {@link getTimeUUIDFromMicros} which is faster. If you can't
+     * every call, then you should prefer {@link #getTimeUUIDFromMicros} which is faster. If you can't
      * guarantee this however, this method will ensure the returned UUID are still unique (accross calls)
      * through randomization.
      *
@@ -143,7 +145,7 @@ public class UUIDGen
 
     public static ByteBuffer toByteBuffer(UUID uuid)
     {
-        ByteBuffer buffer = ByteBuffer.allocate(16);
+        ByteBuffer buffer = ByteBuffer.allocate(UUID_LEN);
         buffer.putLong(uuid.getMostSignificantBits());
         buffer.putLong(uuid.getLeastSignificantBits());
         buffer.flip();

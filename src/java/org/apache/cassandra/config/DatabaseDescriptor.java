@@ -2060,21 +2060,6 @@ public class DatabaseDescriptor
         conf.counter_cache_keys_to_save = counterCacheKeysToSave;
     }
 
-    public static void setStreamingSocketTimeout(int value)
-    {
-        conf.streaming_socket_timeout_in_ms = value;
-    }
-
-    /**
-     * @deprecated use {@link #getStreamingKeepAlivePeriod()} instead
-     * @return streaming_socket_timeout_in_ms property
-     */
-    @Deprecated
-    public static int getStreamingSocketTimeout()
-    {
-        return conf.streaming_socket_timeout_in_ms;
-    }
-
     public static int getStreamingKeepAlivePeriod()
     {
         return conf.streaming_keep_alive_period_in_secs;

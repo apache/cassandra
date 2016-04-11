@@ -181,7 +181,7 @@ public class InboundHandshakeHandlerTest
         buf = new ThirdHandshakeMessage(MESSAGING_VERSION, addr.getAddress()).encode(PooledByteBufAllocator.DEFAULT);
         state = handler.handleMessagingStartResponse(channel.pipeline().firstContext(), buf);
 
-        Assert.assertEquals(State.MESSAGING_HANDSHAKE_COMPLETE, state);
+        Assert.assertEquals(State.HANDSHAKE_COMPLETE, state);
         Assert.assertTrue(channel.isOpen());
         Assert.assertTrue(channel.isActive());
         Assert.assertFalse(channel.outboundMessages().isEmpty());
@@ -217,7 +217,7 @@ public class InboundHandshakeHandlerTest
         buf.writeInt(MESSAGING_VERSION);
         CompactEndpointSerializationHelper.serialize(addr.getAddress(), new ByteBufOutputStream(buf));
         State state = handler.handleMessagingStartResponse(channel.pipeline().firstContext(), buf);
-        Assert.assertEquals(State.MESSAGING_HANDSHAKE_COMPLETE, state);
+        Assert.assertEquals(State.HANDSHAKE_COMPLETE, state);
         Assert.assertTrue(channel.isOpen());
         Assert.assertTrue(channel.isActive());
     }
@@ -268,9 +268,9 @@ public class InboundHandshakeHandlerTest
         handler.setHandshakeTimeout(future);
         Assert.assertFalse(future.isCancelled());
         Assert.assertTrue(channel.isOpen());
-        handler.setState(State.MESSAGING_HANDSHAKE_COMPLETE);
+        handler.setState(State.HANDSHAKE_COMPLETE);
         handler.failHandshake(channel.pipeline().firstContext());
-        Assert.assertSame(State.MESSAGING_HANDSHAKE_COMPLETE, handler.getState());
+        Assert.assertSame(State.HANDSHAKE_COMPLETE, handler.getState());
         Assert.assertTrue(channel.isOpen());
     }
 

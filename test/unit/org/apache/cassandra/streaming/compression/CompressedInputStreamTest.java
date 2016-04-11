@@ -28,12 +28,11 @@ import org.apache.cassandra.db.ClusteringComparator;
 import org.apache.cassandra.db.marshal.BytesType;
 import org.apache.cassandra.io.compress.CompressedSequentialWriter;
 import org.apache.cassandra.io.compress.CompressionMetadata;
+import org.apache.cassandra.io.util.DataInputPlus.DataInputStreamPlus;
 import org.apache.cassandra.io.util.SequentialWriterOption;
 import org.apache.cassandra.schema.CompressionParams;
 import org.apache.cassandra.io.sstable.Component;
 import org.apache.cassandra.io.sstable.Descriptor;
-import org.apache.cassandra.io.sstable.format.Version;
-import org.apache.cassandra.io.sstable.format.big.BigFormat;
 import org.apache.cassandra.io.sstable.metadata.MetadataCollector;
 import org.apache.cassandra.streaming.compress.CompressedInputStream;
 import org.apache.cassandra.streaming.compress.CompressionInfo;
@@ -174,7 +173,7 @@ public class CompressedInputStreamTest
             testException(sections, info);
             return;
         }
-        CompressedInputStream input = new CompressedInputStream(new ByteArrayInputStream(toRead), info, ChecksumType.CRC32, () -> 1.0);
+        CompressedInputStream input = new CompressedInputStream(new DataInputStreamPlus(new ByteArrayInputStream(toRead)), info, ChecksumType.CRC32, () -> 1.0);
 
         try (DataInputStream in = new DataInputStream(input))
         {
@@ -189,14 +188,14 @@ public class CompressedInputStreamTest
 
     private static void testException(List<Pair<Long, Long>> sections, CompressionInfo info) throws IOException
     {
-        CompressedInputStream input = new CompressedInputStream(new ByteArrayInputStream(new byte[0]), info, ChecksumType.CRC32, () -> 1.0);
+        CompressedInputStream input = new CompressedInputStream(new DataInputStreamPlus(new ByteArrayInputStream(new byte[0])), info, ChecksumType.CRC32, () -> 1.0);
 
         try (DataInputStream in = new DataInputStream(input))
         {
             for (int i = 0; i < sections.size(); i++)
             {
-                input.position(sections.get(i).left);
                 try {
+                    input.position(sections.get(i).left);
                     in.readLong();
                     fail("Should have thrown IOException");
                 }
@@ -208,3 +207,4 @@ public class CompressedInputStreamTest
         }
     }
 }
+

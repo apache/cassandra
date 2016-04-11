@@ -20,8 +20,11 @@ package org.apache.cassandra.io.util;
 import java.io.Closeable;
 import java.io.File;
 import java.io.IOException;
+import java.nio.ByteBuffer;
 import java.util.zip.CheckedInputStream;
 import java.util.zip.Checksum;
+
+import com.google.common.annotations.VisibleForTesting;
 
 import org.apache.cassandra.io.sstable.Component;
 import org.apache.cassandra.io.sstable.Descriptor;
@@ -57,6 +60,15 @@ public class DataIntegrityMetadata
             chunkSize = reader.readInt();
         }
 
+        @VisibleForTesting
+        protected ChecksumValidator(ChecksumType checksumType, RandomAccessReader reader, int chunkSize)
+        {
+            this.checksumType = checksumType;
+            this.reader = reader;
+            this.dataFilename = null;
+            this.chunkSize = chunkSize;
+        }
+
         public void seek(long offset)
         {
             long start = chunkStart(offset);
@@ -72,6 +84,20 @@ public class DataIntegrityMetadata
         public void validate(byte[] bytes, int start, int end) throws IOException
         {
             int current = (int) checksumType.of(bytes, start, end);
+            int actual = reader.readInt();
+            if (current != actual)
+                throw new IOException("Corrupted File : " + dataFilename);
+        }
+
+        /**
+         * validates the checksum with the bytes from the specified buffer.
+         *
+         * Upon return, the buffer's position will
+         * be updated to its limit; its limit will not have been changed.
+         */
+        public void validate(ByteBuffer buffer) throws IOException
+        {
+            int current = (int) checksumType.of(buffer);
             int actual = reader.readInt();
             if (current != actual)
                 throw new IOException("Corrupted File : " + dataFilename);

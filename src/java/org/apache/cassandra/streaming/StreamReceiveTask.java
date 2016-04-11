@@ -104,6 +104,7 @@ public class StreamReceiveTask extends StreamTask
 
         remoteSSTablesReceived++;
         assert tableId.equals(sstable.getTableId());
+        logger.debug("recevied {} of {} total files", remoteSSTablesReceived, totalFiles);
 
         Collection<SSTableReader> finished = null;
         try

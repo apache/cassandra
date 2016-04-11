@@ -15,83 +15,93 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
+
 package org.apache.cassandra.streaming;
 
 import java.io.IOException;
-import java.net.InetAddress;
-import java.net.InetSocketAddress;
-import java.net.Socket;
-import java.nio.channels.SocketChannel;
+import java.util.concurrent.TimeUnit;
 
+import javax.annotation.Nullable;
+
+import com.google.common.util.concurrent.Uninterruptibles;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import org.apache.cassandra.config.Config;
+import io.netty.bootstrap.Bootstrap;
+import io.netty.channel.Channel;
+import io.netty.channel.ChannelFuture;
+import io.netty.channel.WriteBufferWaterMark;
 import org.apache.cassandra.config.DatabaseDescriptor;
-import org.apache.cassandra.net.MessagingService;
-import org.apache.cassandra.security.SSLFactory;
-import org.apache.cassandra.utils.FBUtilities;
+import org.apache.cassandra.config.EncryptionOptions.ServerEncryptionOptions;
+import org.apache.cassandra.net.async.NettyFactory;
+import org.apache.cassandra.net.async.OutboundConnectionIdentifier;
+import org.apache.cassandra.net.async.OutboundConnectionParams;
 
 public class DefaultConnectionFactory implements StreamConnectionFactory
 {
     private static final Logger logger = LoggerFactory.getLogger(DefaultConnectionFactory.class);
 
+    private static final int DEFAULT_CHANNEL_BUFFER_SIZE = 1 << 22;
+
+    private static final long MAX_WAIT_TIME_NANOS = TimeUnit.SECONDS.toNanos(30);
     private static final int MAX_CONNECT_ATTEMPTS = 3;
 
-    /**
-     * Connect to peer and start exchanging message.
-     * When connect attempt fails, this retries for maximum of MAX_CONNECT_ATTEMPTS times.
-     *
-     * @param peer the peer to connect to.
-     * @return the created socket.
-     *
-     * @throws IOException when connection failed.
-     */
-    public Socket createConnection(InetAddress peer) throws IOException
+    @Override
+    public Channel createConnection(OutboundConnectionIdentifier connectionId, int protocolVersion) throws IOException
     {
-        int attempts = 0;
-        while (true)
-        {
-            try
-            {
-                Socket socket = newSocket(peer);
-                socket.setSoTimeout(DatabaseDescriptor.getStreamingSocketTimeout());
-                socket.setKeepAlive(true);
-                return socket;
-            }
-            catch (IOException e)
-            {
-                if (++attempts >= MAX_CONNECT_ATTEMPTS)
-                    throw e;
+        ServerEncryptionOptions encryptionOptions = DatabaseDescriptor.getServerEncryptionOptions();
 
-                long waitms = DatabaseDescriptor.getRpcTimeout() * (long)Math.pow(2, attempts);
-                logger.warn("Failed attempt {} to connect to {}. Retrying in {} ms. ({})", attempts, peer, waitms, e.getMessage());
-                try
-                {
-                    Thread.sleep(waitms);
-                }
-                catch (InterruptedException wtf)
-                {
-                    throw new IOException("interrupted", wtf);
-                }
-            }
-        }
+        if (encryptionOptions.internode_encryption == ServerEncryptionOptions.InternodeEncryption.none)
+            encryptionOptions = null;
+
+        return createConnection(connectionId, protocolVersion, encryptionOptions);
     }
 
-    // TODO this is deliberately copied from (the now former) OutboundTcpConnectionPool, for CASSANDRA-8457.
-    // to be replaced in CASSANDRA-12229 (make streaming use 8457)
-    public static Socket newSocket(InetAddress endpoint) throws IOException
+    protected Channel createConnection(OutboundConnectionIdentifier connectionId, int protocolVersion, @Nullable ServerEncryptionOptions encryptionOptions) throws IOException
     {
-        // zero means 'bind on any available port.'
-        if (MessagingService.isEncryptedConnection(endpoint))
+        // this is the amount of data to allow in memory before netty sets the channel writablility flag to false
+        int channelBufferSize = DEFAULT_CHANNEL_BUFFER_SIZE;
+        WriteBufferWaterMark waterMark = new WriteBufferWaterMark(channelBufferSize >> 2, channelBufferSize);
+
+        int sendBufferSize = DatabaseDescriptor.getInternodeSendBufferSize() > 0
+                             ? DatabaseDescriptor.getInternodeSendBufferSize()
+                             : OutboundConnectionParams.DEFAULT_SEND_BUFFER_SIZE;
+
+        OutboundConnectionParams params = OutboundConnectionParams.builder()
+                                                                  .connectionId(connectionId)
+                                                                  .encryptionOptions(encryptionOptions)
+                                                                  .mode(NettyFactory.Mode.STREAMING)
+                                                                  .protocolVersion(protocolVersion)
+                                                                  .sendBufferSize(sendBufferSize)
+                                                                  .waterMark(waterMark)
+                                                                  .build();
+
+        Bootstrap bootstrap = NettyFactory.instance.createOutboundBootstrap(params);
+
+        int connectionAttemptCount = 0;
+        long now = System.nanoTime();
+        final long end = now + MAX_WAIT_TIME_NANOS;
+        final Channel channel;
+        while (true)
         {
-            return SSLFactory.getSocket(DatabaseDescriptor.getServerEncryptionOptions(), endpoint, DatabaseDescriptor.getSSLStoragePort());
+            ChannelFuture channelFuture = bootstrap.connect();
+            channelFuture.awaitUninterruptibly(end - now, TimeUnit.MILLISECONDS);
+            if (channelFuture.isSuccess())
+            {
+                channel = channelFuture.channel();
+                break;
+            }
+
+            connectionAttemptCount++;
+            now = System.nanoTime();
+            if (connectionAttemptCount == MAX_CONNECT_ATTEMPTS || end - now <= 0)
+                throw new IOException("failed to connect to " + connectionId + " for streaming data", channelFuture.cause());
+
+            long waitms = DatabaseDescriptor.getRpcTimeout() * (long)Math.pow(2, connectionAttemptCount);
+            logger.warn("Failed attempt {} to connect to {}. Retrying in {} ms.", connectionAttemptCount, connectionId, waitms);
+            Uninterruptibles.sleepUninterruptibly(waitms, TimeUnit.MILLISECONDS);
         }
-        else
-        {
-            SocketChannel channel = SocketChannel.open();
-            channel.connect(new InetSocketAddress(endpoint, DatabaseDescriptor.getStoragePort()));
-            return channel.socket();
-        }
+
+        return channel;
     }
 }

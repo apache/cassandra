@@ -20,10 +20,14 @@ package org.apache.cassandra.streaming;
 import java.util.*;
 import java.util.concurrent.*;
 import java.util.concurrent.ScheduledFuture;
+import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
 
 import com.google.common.annotations.VisibleForTesting;
 import com.google.common.base.Throwables;
+
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 import org.apache.cassandra.concurrent.NamedThreadFactory;
 import org.apache.cassandra.io.sstable.format.SSTableReader;
@@ -37,6 +41,7 @@ import org.apache.cassandra.utils.concurrent.Ref;
  */
 public class StreamTransferTask extends StreamTask
 {
+    private static final Logger logger = LoggerFactory.getLogger(StreamTransferTask.class);
     private static final ScheduledExecutorService timeoutExecutor = Executors.newSingleThreadScheduledExecutor(new NamedThreadFactory("StreamingTransferTaskTimeouts"));
 
     private final AtomicInteger sequenceNumber = new AtomicInteger(0);
@@ -56,10 +61,10 @@ public class StreamTransferTask extends StreamTask
     public synchronized void addTransferFile(Ref<SSTableReader> ref, long estimatedKeys, List<Pair<Long, Long>> sections)
     {
         assert ref.get() != null && tableId.equals(ref.get().metadata().id);
-        OutgoingFileMessage message = new OutgoingFileMessage(ref, sequenceNumber.getAndIncrement(), estimatedKeys, sections, session.keepSSTableLevel());
+        OutgoingFileMessage message = new OutgoingFileMessage(ref, session, sequenceNumber.getAndIncrement(), estimatedKeys, sections, session.keepSSTableLevel());
         message = StreamHook.instance.reportOutgoingFile(session, ref.get(), message);
         files.put(message.header.sequenceNumber, message);
-        totalSize += message.header.size();
+                totalSize += message.header.size();
     }
 
     /**
@@ -80,6 +85,7 @@ public class StreamTransferTask extends StreamTask
             if (file != null)
                 file.complete();
 
+            logger.debug("recevied sequenceNumber {}, remaining files {}", sequenceNumber, files.keySet());
             signalComplete = files.isEmpty();
         }
 

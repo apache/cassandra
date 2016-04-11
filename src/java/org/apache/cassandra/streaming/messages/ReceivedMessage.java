@@ -18,11 +18,8 @@
 package org.apache.cassandra.streaming.messages;
 
 import java.io.*;
-import java.nio.channels.Channels;
-import java.nio.channels.ReadableByteChannel;
 
 import org.apache.cassandra.io.util.DataInputPlus;
-import org.apache.cassandra.io.util.DataInputPlus.DataInputStreamPlus;
 import org.apache.cassandra.io.util.DataOutputStreamPlus;
 import org.apache.cassandra.schema.TableId;
 import org.apache.cassandra.streaming.StreamSession;
@@ -32,9 +29,8 @@ public class ReceivedMessage extends StreamMessage
     public static Serializer<ReceivedMessage> serializer = new Serializer<ReceivedMessage>()
     {
         @SuppressWarnings("resource") // Not closing constructed DataInputPlus's as the channel needs to remain open.
-        public ReceivedMessage deserialize(ReadableByteChannel in, int version, StreamSession session) throws IOException
+        public ReceivedMessage deserialize(DataInputPlus input, int version, StreamSession session) throws IOException
         {
-            DataInputPlus input = new DataInputStreamPlus(Channels.newInputStream(in));
             return new ReceivedMessage(TableId.deserialize(input), input.readInt());
         }
 
@@ -42,6 +38,11 @@ public class ReceivedMessage extends StreamMessage
         {
             message.tableId.serialize(out);
             out.writeInt(message.sequenceNumber);
+        }
+
+        public long serializedSize(ReceivedMessage message, int version)
+        {
+            return message.tableId.serializedSize() + 4;
         }
     };
 

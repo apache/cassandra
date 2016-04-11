@@ -24,11 +24,7 @@ import java.net.InetSocketAddress;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.Optional;
-import java.util.concurrent.Delayed;
-import java.util.concurrent.ExecutionException;
 import java.util.concurrent.ScheduledFuture;
-import java.util.concurrent.TimeUnit;
-import java.util.concurrent.TimeoutException;
 import java.util.concurrent.atomic.AtomicReference;
 import javax.net.ssl.SSLHandshakeException;
 
@@ -474,46 +470,5 @@ public class OutboundMessagingConnectionTest
         omc.reconnectWithNewIp(RECONNECT_ADDR);
         Assert.assertNotSame(omc.getConnectionId(), originalId);
         Assert.assertSame(NOT_READY, omc.getState());
-    }
-
-    private static class TestScheduledFuture implements ScheduledFuture<Object>
-    {
-        private boolean cancelled = false;
-
-        public long getDelay(TimeUnit unit)
-        {
-            return 0;
-        }
-
-        public int compareTo(Delayed o)
-        {
-            return 0;
-        }
-
-        public boolean cancel(boolean mayInterruptIfRunning)
-        {
-            cancelled = true;
-            return false;
-        }
-
-        public boolean isCancelled()
-        {
-            return cancelled;
-        }
-
-        public boolean isDone()
-        {
-            return false;
-        }
-
-        public Object get() throws InterruptedException, ExecutionException
-        {
-            return null;
-        }
-
-        public Object get(long timeout, TimeUnit unit) throws InterruptedException, ExecutionException, TimeoutException
-        {
-            return null;
-        }
     }
 }

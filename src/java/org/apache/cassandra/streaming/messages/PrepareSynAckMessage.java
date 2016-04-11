@@ -15,74 +15,61 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
+
 package org.apache.cassandra.streaming.messages;
 
-import java.io.*;
-import java.nio.channels.Channels;
-import java.nio.channels.ReadableByteChannel;
+import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Collection;
 
 import org.apache.cassandra.io.util.DataInputPlus;
-import org.apache.cassandra.io.util.DataInputPlus.DataInputStreamPlus;
 import org.apache.cassandra.io.util.DataOutputStreamPlus;
-import org.apache.cassandra.streaming.StreamRequest;
 import org.apache.cassandra.streaming.StreamSession;
 import org.apache.cassandra.streaming.StreamSummary;
 
-public class PrepareMessage extends StreamMessage
+public class PrepareSynAckMessage extends StreamMessage
 {
-    public static Serializer<PrepareMessage> serializer = new Serializer<PrepareMessage>()
+    public static Serializer<PrepareSynAckMessage> serializer = new Serializer<PrepareSynAckMessage>()
     {
-        @SuppressWarnings("resource") // Not closing constructed DataInputPlus's as the channel needs to remain open.
-        public PrepareMessage deserialize(ReadableByteChannel in, int version, StreamSession session) throws IOException
+        public void serialize(PrepareSynAckMessage message, DataOutputStreamPlus out, int version, StreamSession session) throws IOException
         {
-            DataInputPlus input = new DataInputStreamPlus(Channels.newInputStream(in));
-            PrepareMessage message = new PrepareMessage();
-            // requests
-            int numRequests = input.readInt();
-            for (int i = 0; i < numRequests; i++)
-                message.requests.add(StreamRequest.serializer.deserialize(input, version));
-            // summaries
+            out.writeInt(message.summaries.size());
+            for (StreamSummary summary : message.summaries)
+                StreamSummary.serializer.serialize(summary, out, version);
+        }
+
+        public PrepareSynAckMessage deserialize(DataInputPlus input, int version, StreamSession session) throws IOException
+        {
+            PrepareSynAckMessage message = new PrepareSynAckMessage();
             int numSummaries = input.readInt();
             for (int i = 0; i < numSummaries; i++)
                 message.summaries.add(StreamSummary.serializer.deserialize(input, version));
             return message;
         }
 
-        public void serialize(PrepareMessage message, DataOutputStreamPlus out, int version, StreamSession session) throws IOException
+        public long serializedSize(PrepareSynAckMessage message, int version)
         {
-            // requests
-            out.writeInt(message.requests.size());
-            for (StreamRequest request : message.requests)
-                StreamRequest.serializer.serialize(request, out, version);
-            // summaries
-            out.writeInt(message.summaries.size());
+            long size = 4; // count of requests and count of summaries
             for (StreamSummary summary : message.summaries)
-                StreamSummary.serializer.serialize(summary, out, version);
+                size += StreamSummary.serializer.serializedSize(summary, version);
+            return size;
         }
     };
-
-    /**
-     * Streaming requests
-     */
-    public final Collection<StreamRequest> requests = new ArrayList<>();
 
     /**
      * Summaries of streaming out
      */
     public final Collection<StreamSummary> summaries = new ArrayList<>();
 
-    public PrepareMessage()
+    public PrepareSynAckMessage()
     {
-        super(Type.PREPARE);
+        super(Type.PREPARE_SYNACK);
     }
 
     @Override
     public String toString()
     {
-        final StringBuilder sb = new StringBuilder("Prepare (");
-        sb.append(requests.size()).append(" requests, ");
+        final StringBuilder sb = new StringBuilder("Prepare SYNACK (");
         int totalFile = 0;
         for (StreamSummary summary : summaries)
             totalFile += summary.files;
