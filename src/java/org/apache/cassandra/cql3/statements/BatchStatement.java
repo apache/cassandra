@@ -33,14 +33,11 @@ import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.cql3.*;
 import org.apache.cassandra.db.*;
 import org.apache.cassandra.db.composites.Composite;
-import org.apache.cassandra.dht.Range;
-import org.apache.cassandra.dht.Token;
 import org.apache.cassandra.exceptions.*;
 import org.apache.cassandra.service.ClientState;
 import org.apache.cassandra.service.ClientWarn;
 import org.apache.cassandra.service.QueryState;
 import org.apache.cassandra.service.StorageProxy;
-import org.apache.cassandra.service.StorageService;
 import org.apache.cassandra.tracing.Tracing;
 import org.apache.cassandra.transport.messages.ResultMessage;
 import org.apache.cassandra.utils.NoSpamLogger;
@@ -62,7 +59,8 @@ public class BatchStatement implements CQLStatement
     private final Attributes attrs;
     private final boolean hasConditions;
     private static final Logger logger = LoggerFactory.getLogger(BatchStatement.class);
-    private static final String unloggedBatchWarning = "Unlogged batch covering {} partition{} detected against table{} {}. You should use a logged batch for atomicity, or asynchronous writes for performance.";
+    private static final String unloggedBatchWarning = "Unlogged batch covering {} partitions detected against table{} {}. " +
+                                                       "You should use a logged batch for atomicity, or asynchronous writes for performance.";
 
     /**
      * Creates a new BatchStatement from a list of statements and a
@@ -284,49 +282,31 @@ public class BatchStatement implements CQLStatement
             Set<String> ksCfPairs = new HashSet<>();
             Set<ByteBuffer> keySet = new HashSet<>();
 
-            Map<String, Collection<Range<Token>>> localTokensByKs = new HashMap<>();
-            boolean localMutationsOnly = true;
-
             for (IMutation im : mutations)
             {
                 keySet.add(im.key());
+
                 for (ColumnFamily cf : im.getColumnFamilies())
                     ksCfPairs.add(String.format("%s.%s", cf.metadata().ksName, cf.metadata().cfName));
-
-                if (localMutationsOnly)
-                    localMutationsOnly &= isMutationLocal(localTokensByKs, im);
             }
 
-            // CASSANDRA-9303: If we only have local mutations we do not warn
-            if (localMutationsOnly)
-                return;
+            // CASSANDRA-11529: log only if we have more than a threshold of keys, this was also suggested in the
+            // original ticket that introduced this warning, CASSANDRA-9282
+            if (keySet.size() > DatabaseDescriptor.getUnloggedBatchAcrossPartitionsWarnThreshold())
+            {
+                NoSpamLogger.log(logger, NoSpamLogger.Level.WARN, 1, TimeUnit.MINUTES, unloggedBatchWarning,
+                                 keySet.size(), ksCfPairs.size() == 1 ? "" : "s", ksCfPairs);
 
-            NoSpamLogger.log(logger, NoSpamLogger.Level.WARN, 1, TimeUnit.MINUTES, unloggedBatchWarning,
-                             keySet.size(), keySet.size() == 1 ? "" : "s",
-                             ksCfPairs.size() == 1 ? "" : "s", ksCfPairs);
-
-            ClientWarn.instance.warn(MessageFormatter.arrayFormat(unloggedBatchWarning,
+                ClientWarn.instance.warn(MessageFormatter.arrayFormat(unloggedBatchWarning,
                                                                   new Object[]{
                                                                               keySet.size(),
-                                                                              keySet.size() == 1 ? "" : "s",
                                                                               ksCfPairs.size() == 1 ? "" : "s",
                                                                               ksCfPairs
                                                                   }).getMessage());
-
+            }
         }
     }
 
-    private boolean isMutationLocal(Map<String, Collection<Range<Token>>> localTokensByKs, IMutation mutation)
-    {
-        Collection<Range<Token>> localRanges = localTokensByKs.get(mutation.getKeyspaceName());
-        if (localRanges == null)
-        {
-            localRanges = StorageService.instance.getLocalRanges(mutation.getKeyspaceName());
-            localTokensByKs.put(mutation.getKeyspaceName(), localRanges);
-        }
-
-        return Range.isInRanges(StorageService.getPartitioner().getToken(mutation.key()), localRanges);
-    }
 
     public ResultMessage execute(QueryState queryState, QueryOptions options) throws RequestExecutionException, RequestValidationException
     {

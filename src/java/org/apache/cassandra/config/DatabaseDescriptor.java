@@ -871,6 +871,11 @@ public class DatabaseDescriptor
         return conf.batch_size_fail_threshold_in_kb;
     }
 
+    public static int getUnloggedBatchAcrossPartitionsWarnThreshold()
+    {
+        return conf.unlogged_batch_across_partitions_warn_threshold;
+    }
+
     public static void setBatchSizeWarnThresholdInKB(int threshold)
     {
         conf.batch_size_warn_threshold_in_kb = threshold;

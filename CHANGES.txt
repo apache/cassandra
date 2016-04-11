@@ -43,6 +43,7 @@
  * Fix paging on DISTINCT queries repeats result when first row in partition changes
    (CASSANDRA-10010)
 Merged from 2.1:
+ * Checking if an unlogged batch is local is inefficient (CASSANDRA-11529)
  * Fix paging for COMPACT tables without clustering columns (CASSANDRA-11467)
  * Add a -j parameter to scrub/cleanup/upgradesstables to state how
    many threads to use (CASSANDRA-11179)
