@@ -1,4 +1,5 @@
 3.8
+ * Remove DatabaseDescriptor dependency from FileUtils (CASSANDRA-11578)
  * Faster streaming (CASSANDRA-9766)
 
 
