@@ -1,3 +1,6 @@
+2.1.15
+ * cqlsh: COPY FROM ignores NULL values in conversion (CASSANDRA-11549)
+
 2.1.14
  * (cqlsh) Fix potential COPY deadlock when parent process is terminating child
    processes (CASSANDRA-11505)
