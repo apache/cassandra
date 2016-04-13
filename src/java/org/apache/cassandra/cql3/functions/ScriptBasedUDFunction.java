@@ -27,6 +27,7 @@ import java.util.*;
 import java.util.concurrent.ExecutorService;
 import javax.script.*;
 
+import jdk.nashorn.api.scripting.AbstractJSObject;
 import org.apache.cassandra.concurrent.NamedThreadFactory;
 import org.apache.cassandra.cql3.ColumnIdentifier;
 import org.apache.cassandra.db.marshal.AbstractType;
@@ -127,6 +128,7 @@ final class ScriptBasedUDFunction extends UDFunction
     }
 
     private final CompiledScript script;
+    private final Object udfContextBinding;
 
     ScriptBasedUDFunction(FunctionName name,
                           List<ColumnIdentifier> argNames,
@@ -155,6 +157,13 @@ final class ScriptBasedUDFunction extends UDFunction
             throw new InvalidRequestException(
                                              String.format("Failed to compile function '%s' for language %s: %s", name, language, e));
         }
+
+        // It's not always possible to simply pass a plain Java object as a binding to Nashorn and
+        // let the script execute methods on it.
+        udfContextBinding =
+            ("Oracle Nashorn".equals(((ScriptEngine) scriptEngine).getFactory().getEngineName()))
+                ? new UDFContextWrapper()
+                : udfContext;
     }
 
     protected ExecutorService executor()
@@ -173,6 +182,7 @@ final class ScriptBasedUDFunction extends UDFunction
         Bindings bindings = scriptContext.getBindings(ScriptContext.ENGINE_SCOPE);
         for (int i = 0; i < params.length; i++)
             bindings.put(argNames.get(i).toString(), params[i]);
+        bindings.put("udfContext", udfContextBinding);
 
         Object result;
         try
@@ -242,5 +252,69 @@ final class ScriptBasedUDFunction extends UDFunction
         }
 
         return decompose(protocolVersion, result);
+    }
+
+    private final class UDFContextWrapper extends AbstractJSObject
+    {
+        private final AbstractJSObject fRetUDT;
+        private final AbstractJSObject fArgUDT;
+        private final AbstractJSObject fRetTup;
+        private final AbstractJSObject fArgTup;
+
+        UDFContextWrapper()
+        {
+            fRetUDT = new AbstractJSObject()
+            {
+                public Object call(Object thiz, Object... args)
+                {
+                    return udfContext.newReturnUDTValue();
+                }
+            };
+            fArgUDT = new AbstractJSObject()
+            {
+                public Object call(Object thiz, Object... args)
+                {
+                    if (args[0] instanceof String)
+                        return udfContext.newArgUDTValue((String) args[0]);
+                    if (args[0] instanceof Number)
+                        return udfContext.newArgUDTValue(((Number) args[0]).intValue());
+                    return super.call(thiz, args);
+                }
+            };
+            fRetTup = new AbstractJSObject()
+            {
+                public Object call(Object thiz, Object... args)
+                {
+                    return udfContext.newReturnTupleValue();
+                }
+            };
+            fArgTup = new AbstractJSObject()
+            {
+                public Object call(Object thiz, Object... args)
+                {
+                    if (args[0] instanceof String)
+                        return udfContext.newArgTupleValue((String) args[0]);
+                    if (args[0] instanceof Number)
+                        return udfContext.newArgTupleValue(((Number) args[0]).intValue());
+                    return super.call(thiz, args);
+                }
+            };
+        }
+
+        public Object getMember(String name)
+        {
+            switch(name)
+            {
+                case "newReturnUDTValue":
+                    return fRetUDT;
+                case "newArgUDTValue":
+                    return fArgUDT;
+                case "newReturnTupleValue":
+                    return fRetTup;
+                case "newArgTupleValue":
+                    return fArgTup;
+            }
+            return super.getMember(name);
+        }
     }
 }

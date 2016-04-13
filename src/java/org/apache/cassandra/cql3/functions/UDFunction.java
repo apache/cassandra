@@ -75,6 +75,8 @@ public abstract class UDFunction extends AbstractFunction implements ScalarFunct
     protected final TypeCodec<Object> returnCodec;
     protected final boolean calledOnNullInput;
 
+    protected final UDFContext udfContext;
+
     //
     // Access to classes is controlled via a whitelist and a blacklist.
     //
@@ -108,6 +110,7 @@ public abstract class UDFunction extends AbstractFunction implements ScalarFunct
     "java/time/",
     "java/util/",
     "org/apache/cassandra/cql3/functions/JavaUDF.class",
+    "org/apache/cassandra/cql3/functions/UDFContext.class",
     "org/apache/cassandra/exceptions/",
     };
     // Only need to blacklist a pattern, if it would otherwise be allowed via whitelistedPatterns
@@ -206,6 +209,9 @@ public abstract class UDFunction extends AbstractFunction implements ScalarFunct
         this.argCodecs = UDHelper.codecsFor(argDataTypes);
         this.returnCodec = UDHelper.codecFor(returnDataType);
         this.calledOnNullInput = calledOnNullInput;
+        KeyspaceMetadata keyspaceMetadata = Schema.instance.getKSMetaData(name.keyspace);
+        this.udfContext = new UDFContextImpl(argNames, argCodecs, returnCodec,
+                                             keyspaceMetadata);
     }
 
     public static UDFunction create(FunctionName name,

@@ -296,15 +296,12 @@ public final class JavaBasedUDFunction extends UDFunction
             // Verify the UDF bytecode against use of probably dangerous code
             Set<String> errors = udfByteCodeVerifier.verify(targetClassLoader.classData(targetClassName));
             String validDeclare = "not allowed method declared: " + executeInternalName + '(';
-            String validCall = "call to " + targetClassName.replace('.', '/') + '.' + executeInternalName + "()";
             for (Iterator<String> i = errors.iterator(); i.hasNext();)
             {
                 String error = i.next();
                 // we generate a random name of the private, internal execute method, which is detected by the byte-code verifier
-                if (error.startsWith(validDeclare) || error.equals(validCall))
-                {
+                if (error.startsWith(validDeclare))
                     i.remove();
-                }
             }
             if (!errors.isEmpty())
                 throw new InvalidRequestException("Java UDF validation failed: " + errors);
@@ -332,9 +329,9 @@ public final class JavaBasedUDFunction extends UDFunction
                 if (nonSyntheticMethodCount != 2 || cls.getDeclaredConstructors().length != 1)
                     throw new InvalidRequestException("Check your source to not define additional Java methods or constructors");
                 MethodType methodType = MethodType.methodType(void.class)
-                                                  .appendParameterTypes(TypeCodec.class, TypeCodec[].class);
+                                                  .appendParameterTypes(TypeCodec.class, TypeCodec[].class, UDFContext.class);
                 MethodHandle ctor = MethodHandles.lookup().findConstructor(cls, methodType);
-                this.javaUDF = (JavaUDF) ctor.invokeWithArguments(returnCodec, argCodecs);
+                this.javaUDF = (JavaUDF) ctor.invokeWithArguments(returnCodec, argCodecs, udfContext);
             }
             finally
             {

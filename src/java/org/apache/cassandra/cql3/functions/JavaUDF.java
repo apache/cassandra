@@ -34,10 +34,13 @@ public abstract class JavaUDF
     private final TypeCodec<Object> returnCodec;
     private final TypeCodec<Object>[] argCodecs;
 
-    protected JavaUDF(TypeCodec<Object> returnCodec, TypeCodec<Object>[] argCodecs)
+    protected final UDFContext udfContext;
+
+    protected JavaUDF(TypeCodec<Object> returnCodec, TypeCodec<Object>[] argCodecs, UDFContext udfContext)
     {
         this.returnCodec = returnCodec;
         this.argCodecs = argCodecs;
+        this.udfContext = udfContext;
     }
 
     protected abstract ByteBuffer executeImpl(int protocolVersion, List<ByteBuffer> params);

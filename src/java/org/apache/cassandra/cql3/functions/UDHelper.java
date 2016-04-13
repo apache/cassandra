@@ -130,9 +130,15 @@ public final class UDHelper
     public static DataType driverType(AbstractType abstractType)
     {
         CQL3Type cqlType = abstractType.asCQL3Type();
+        String abstractTypeDef = cqlType.getType().toString();
+        return driverTypeFromAbstractType(abstractTypeDef);
+    }
+
+    public static DataType driverTypeFromAbstractType(String abstractTypeDef)
+    {
         try
         {
-            return (DataType) methodParseOne.invoke(cqlType.getType().toString(),
+            return (DataType) methodParseOne.invoke(abstractTypeDef,
                                                     ProtocolVersion.fromInt(Server.CURRENT_VERSION),
                                                     codecRegistry);
         }
@@ -143,7 +149,7 @@ public final class UDHelper
         }
         catch (Throwable e)
         {
-            throw new RuntimeException("cannot parse driver type " + cqlType.getType().toString(), e);
+            throw new RuntimeException("cannot parse driver type " + abstractTypeDef, e);
         }
     }
 
