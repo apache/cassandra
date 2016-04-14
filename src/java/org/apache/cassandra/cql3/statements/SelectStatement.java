@@ -596,12 +596,12 @@ public class SelectStatement implements CQLStatement
         // Whenever we support GROUP BY, we'll have to add a new DataLimits kind that knows how things are grouped and is thus
         // able to apply the user limit properly.
         // If we do post ordering we need to get all the results sorted before we can trim them.
-        if (!selection.isAggregate() && !needsPostQueryOrdering())
+        if (!selection.isAggregate())
         {
-            cqlRowLimit = userLimit;
+            if (!needsPostQueryOrdering())
+                cqlRowLimit = userLimit;
             cqlPerPartitionLimit = perPartitionLimit;
         }
-
         if (parameters.isDistinct)
             return cqlRowLimit == DataLimits.NO_LIMIT ? DataLimits.DISTINCT_NONE : DataLimits.distinctLimits(cqlRowLimit);
 
@@ -852,6 +852,9 @@ public class SelectStatement implements CQLStatement
                 checkNull(perPartitionLimit, "PER PARTITION LIMIT is not allowed with SELECT DISTINCT queries");
                 validateDistinctSelection(cfm, selection, restrictions);
             }
+
+            checkFalse(selection.isAggregate() && perPartitionLimit != null,
+                       "PER PARTITION LIMIT is not allowed with aggregate queries.");
 
             Comparator<List<ByteBuffer>> orderingComparator = null;
             boolean isReversed = false;

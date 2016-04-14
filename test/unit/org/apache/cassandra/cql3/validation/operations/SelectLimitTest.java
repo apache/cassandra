@@ -113,4 +113,116 @@ public class SelectLimitTest extends CQLTester
                    row(2, 2),
                    row(2, 3));
     }
+
+    @Test
+    public void testPerPartitionLimit() throws Throwable
+    {
+        perPartitionLimitTest(false);
+    }
+
+    @Test
+    public void testPerPartitionLimitWithCompactStorage() throws Throwable
+    {
+        perPartitionLimitTest(true);
+    }
+
+    private void perPartitionLimitTest(boolean withCompactStorage) throws Throwable
+    {
+        String query = "CREATE TABLE %s (a int, b int, c int, PRIMARY KEY (a, b))";
+
+        if (withCompactStorage)
+            createTable(query + " WITH COMPACT STORAGE");
+        else
+            createTable(query);
+
+        for (int i = 0; i < 5; i++)
+        {
+            for (int j = 0; j < 5; j++)
+            {
+                execute("INSERT INTO %s (a, b, c) VALUES (?, ?, ?)", i, j, j);
+            }
+        }
+
+        assertInvalidMessage("LIMIT must be strictly positive",
+                             "SELECT * FROM %s PER PARTITION LIMIT ?", 0);
+        assertInvalidMessage("LIMIT must be strictly positive",
+                             "SELECT * FROM %s PER PARTITION LIMIT ?", -1);
+
+        assertRowsIgnoringOrder(execute("SELECT * FROM %s PER PARTITION LIMIT ?", 2),
+                                row(0, 0, 0),
+                                row(0, 1, 1),
+                                row(1, 0, 0),
+                                row(1, 1, 1),
+                                row(2, 0, 0),
+                                row(2, 1, 1),
+                                row(3, 0, 0),
+                                row(3, 1, 1),
+                                row(4, 0, 0),
+                                row(4, 1, 1));
+
+        // Combined Per Partition and "global" limit
+        assertRowCount(execute("SELECT * FROM %s PER PARTITION LIMIT ? LIMIT ?", 2, 6),
+                       6);
+
+        // odd amount of results
+        assertRowCount(execute("SELECT * FROM %s PER PARTITION LIMIT ? LIMIT ?", 2, 5),
+                       5);
+
+        // IN query
+        assertRows(execute("SELECT * FROM %s WHERE a IN (2,3) PER PARTITION LIMIT ?", 2),
+                   row(2, 0, 0),
+                   row(2, 1, 1),
+                   row(3, 0, 0),
+                   row(3, 1, 1));
+
+        assertRows(execute("SELECT * FROM %s WHERE a IN (2,3) PER PARTITION LIMIT ? LIMIT 3", 2),
+                   row(2, 0, 0),
+                   row(2, 1, 1),
+                   row(3, 0, 0));
+
+        assertRows(execute("SELECT * FROM %s WHERE a IN (1,2,3) PER PARTITION LIMIT ? LIMIT 3", 2),
+                   row(1, 0, 0),
+                   row(1, 1, 1),
+                   row(2, 0, 0));
+
+        // with restricted partition key
+        assertRows(execute("SELECT * FROM %s WHERE a = ? PER PARTITION LIMIT ?", 2, 3),
+                   row(2, 0, 0),
+                   row(2, 1, 1),
+                   row(2, 2, 2));
+
+        // with ordering
+        assertRows(execute("SELECT * FROM %s WHERE a IN (3, 2) ORDER BY b DESC PER PARTITION LIMIT ?", 2),
+                   row(2, 4, 4),
+                   row(3, 4, 4),
+                   row(2, 3, 3),
+                   row(3, 3, 3));
+
+        assertRows(execute("SELECT * FROM %s WHERE a IN (3, 2) ORDER BY b DESC PER PARTITION LIMIT ? LIMIT ?", 3, 4),
+                   row(2, 4, 4),
+                   row(3, 4, 4),
+                   row(2, 3, 3),
+                   row(3, 3, 3));
+
+        assertRows(execute("SELECT * FROM %s WHERE a = ? ORDER BY b DESC PER PARTITION LIMIT ?", 2, 3),
+                   row(2, 4, 4),
+                   row(2, 3, 3),
+                   row(2, 2, 2));
+
+        // with filtering
+        assertRows(execute("SELECT * FROM %s WHERE a = ? AND b > ? PER PARTITION LIMIT ? ALLOW FILTERING", 2, 0, 2),
+                   row(2, 1, 1),
+                   row(2, 2, 2));
+
+        assertRows(execute("SELECT * FROM %s WHERE a = ? AND b > ? ORDER BY b DESC PER PARTITION LIMIT ? ALLOW FILTERING", 2, 2, 2),
+                   row(2, 4, 4),
+                   row(2, 3, 3));
+
+        assertInvalidMessage("PER PARTITION LIMIT is not allowed with SELECT DISTINCT queries",
+                             "SELECT DISTINCT a FROM %s PER PARTITION LIMIT ?", 3);
+        assertInvalidMessage("PER PARTITION LIMIT is not allowed with SELECT DISTINCT queries",
+                             "SELECT DISTINCT a FROM %s PER PARTITION LIMIT ? LIMIT ?", 3, 4);
+        assertInvalidMessage("PER PARTITION LIMIT is not allowed with aggregate queries.",
+                             "SELECT COUNT(*) FROM %s PER PARTITION LIMIT ?", 3);
+    }
 }
