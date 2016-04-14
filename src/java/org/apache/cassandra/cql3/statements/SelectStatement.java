@@ -204,8 +204,8 @@ public class SelectStatement implements CQLStatement
         cl.validateForRead(keyspace());
 
         int nowInSec = FBUtilities.nowInSeconds();
-        int userLimit = getLimit(limit, options);
-        int userPerPartitionLimit = getLimit(perPartitionLimit, options);
+        int userLimit = getLimit(options);
+        int userPerPartitionLimit = getPerPartitionLimit(options);
         ReadQuery query = getQuery(options, nowInSec, userLimit, userPerPartitionLimit);
 
         int pageSize = getPageSize(options);
@@ -232,7 +232,7 @@ public class SelectStatement implements CQLStatement
 
     public ReadQuery getQuery(QueryOptions options, int nowInSec) throws RequestValidationException
     {
-        return getQuery(options, nowInSec, getLimit(limit, options), getLimit(perPartitionLimit, options));
+        return getQuery(options, nowInSec, getLimit(options), getPerPartitionLimit(options));
     }
 
     public ReadQuery getQuery(QueryOptions options, int nowInSec, int userLimit, int perPartitionLimit) throws RequestValidationException
@@ -394,8 +394,8 @@ public class SelectStatement implements CQLStatement
     public ResultMessage.Rows executeInternal(QueryState state, QueryOptions options) throws RequestExecutionException, RequestValidationException
     {
         int nowInSec = FBUtilities.nowInSeconds();
-        int userLimit = getLimit(limit, options);
-        int userPerPartitionLimit = getLimit(perPartitionLimit, options);
+        int userLimit = getLimit(options);
+        int userPerPartitionLimit = getPerPartitionLimit(options);
         ReadQuery query = getQuery(options, nowInSec, userLimit, userPerPartitionLimit);
         int pageSize = getPageSize(options);
 
@@ -418,7 +418,7 @@ public class SelectStatement implements CQLStatement
 
     public ResultSet process(PartitionIterator partitions, int nowInSec) throws InvalidRequestException
     {
-        return process(partitions, QueryOptions.DEFAULT, nowInSec, getLimit(limit, QueryOptions.DEFAULT));
+        return process(partitions, QueryOptions.DEFAULT, nowInSec, getLimit(QueryOptions.DEFAULT));
     }
 
     public String keyspace()
@@ -615,7 +615,24 @@ public class SelectStatement implements CQLStatement
      * @return the limit specified by the user or <code>DataLimits.NO_LIMIT</code> if no value
      * as been specified.
      */
-    public int getLimit(Term limit, QueryOptions options)
+    public int getLimit(QueryOptions options)
+    {
+        return getLimit(limit, options);
+    }
+
+    /**
+     * Returns the per partition limit specified by the user.
+     * May be used by custom QueryHandler implementations
+     *
+     * @return the per partition limit specified by the user or <code>DataLimits.NO_LIMIT</code> if no value
+     * as been specified.
+     */
+    public int getPerPartitionLimit(QueryOptions options)
+    {
+        return getLimit(perPartitionLimit, options);
+    }
+
+    private int getLimit(Term limit, QueryOptions options)
     {
         int userLimit = DataLimits.NO_LIMIT;
 
