@@ -1,4 +1,5 @@
 3.8
+ * cassandra-stress profiles should support case sensitive schemas (CASSANDRA-11546)
  * Remove DatabaseDescriptor dependency from FileUtils (CASSANDRA-11578)
  * Faster streaming (CASSANDRA-9766)
 

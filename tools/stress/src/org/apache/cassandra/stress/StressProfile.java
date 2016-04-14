@@ -28,6 +28,7 @@ import java.io.Serializable;
 import java.net.URI;
 import java.util.*;
 import java.util.concurrent.TimeUnit;
+import java.util.regex.Pattern;
 
 import com.google.common.base.Function;
 import com.google.common.util.concurrent.Uninterruptibles;
@@ -86,6 +87,8 @@ public class StressProfile implements Serializable
     transient volatile Map<String, SchemaQuery.ArgSelect> argSelects;
     transient volatile Map<String, PreparedStatement> queryStatements;
     transient volatile Map<String, Integer> thriftQueryIds;
+
+    private static final Pattern lowercaseAlphanumeric = Pattern.compile("[a-z0-9_]+");
 
     private void init(StressYaml yaml) throws RequestValidationException
     {
@@ -243,7 +246,7 @@ public class StressProfile implements Serializable
                 TableMetadata metadata = client.getCluster()
                                                .getMetadata()
                                                .getKeyspace(keyspaceName)
-                                               .getTable(tableName);
+                                               .getTable(quoteIdentifier(tableName));
 
                 if (metadata == null)
                     throw new RuntimeException("Unable to find table " + keyspaceName + "." + tableName);
@@ -386,7 +389,7 @@ public class StressProfile implements Serializable
                     StringBuilder sb = new StringBuilder();
                     if (!isKeyOnlyTable)
                     {
-                        sb.append("UPDATE \"").append(tableName).append("\" SET ");
+                        sb.append("UPDATE ").append(quoteIdentifier(tableName)).append(" SET ");
                         //PK Columns
                         StringBuilder pred = new StringBuilder();
                         pred.append(" WHERE ");
@@ -401,21 +404,21 @@ public class StressProfile implements Serializable
                                 else
                                     pred.append(" AND ");
 
-                                pred.append(c.getName()).append(" = ?");
+                                pred.append(quoteIdentifier(c.getName())).append(" = ?");
                             } else {
                                 if (firstCol)
                                     firstCol = false;
                                 else
                                     sb.append(',');
 
-                                sb.append(c.getName()).append(" = ");
+                                sb.append(quoteIdentifier(c.getName())).append(" = ");
 
                                 switch (c.getType().getName())
                                 {
                                 case SET:
                                 case LIST:
                                 case COUNTER:
-                                    sb.append(c.getName()).append(" + ?");
+                                    sb.append(quoteIdentifier(c.getName())).append(" + ?");
                                     break;
                                 default:
                                     sb.append("?");
@@ -429,11 +432,11 @@ public class StressProfile implements Serializable
                     }
                     else
                     {
-                        sb.append("INSERT INTO \"").append(tableName).append("\" (");
+                        sb.append("INSERT INTO ").append(quoteIdentifier(tableName)).append(" (");
                         StringBuilder value = new StringBuilder();
                         for (ColumnMetadata c : tableMetaData.getPrimaryKey())
                         {
-                            sb.append(c.getName()).append(", ");
+                            sb.append(quoteIdentifier(c.getName())).append(", ");
                             value.append("?, ");
                         }
                         sb.delete(sb.lastIndexOf(","), sb.length());
@@ -691,5 +694,11 @@ public class StressProfile implements Serializable
         }
         for (Map.Entry<String, V> e : reinsert)
             map.put(e.getKey().toLowerCase(), e.getValue());
+    }
+
+    /* Quote a identifier if it contains uppercase letters */
+    private static String quoteIdentifier(String identifier)
+    {
+        return lowercaseAlphanumeric.matcher(identifier).matches() ? identifier : '\"'+identifier+ '\"';
     }
 }
