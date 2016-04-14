@@ -279,6 +279,15 @@ public final class StatementRestrictions
     }
 
     /**
+     * Checks if the restrictions contain any non-primary key restrictions
+     * @return <code>true</code> if the restrictions contain any non-primary key restrictions, <code>false</code> otherwise.
+     */
+    public boolean hasNonPrimaryKeyRestrictions()
+    {
+        return !nonPrimaryKeyRestrictions.isEmpty();
+    }
+
+    /**
      * Returns the partition key components that are not restricted.
      * @return the partition key components that are not restricted.
      */

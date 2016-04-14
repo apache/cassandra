@@ -1,4 +1,5 @@
 2.2.6
+ * Allow only DISTINCT queries with partition keys restrictions (CASSANDRA-11339)
  * CqlConfigHelper no longer requires both a keystore and truststore to work (CASSANDRA-11532)
  * Make deprecated repair methods backward-compatible with previous notification service (CASSANDRA-11430)
  * IncomingStreamingConnection version check message wrong (CASSANDRA-11462)

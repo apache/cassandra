@@ -885,6 +885,9 @@ public class SelectStatement implements CQLStatement
                                                       StatementRestrictions restrictions)
                                                       throws InvalidRequestException
         {
+            checkFalse(restrictions.hasClusteringColumnsRestriction() || restrictions.hasNonPrimaryKeyRestrictions(),
+                       "SELECT DISTINCT with WHERE clause only supports restriction by partition key.");
+
             Collection<ColumnDefinition> requestedColumns = selection.getColumns();
             for (ColumnDefinition def : requestedColumns)
                 checkFalse(!def.isPartitionKey() && !def.isStatic(),

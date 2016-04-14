@@ -1253,6 +1253,51 @@ public class SelectTest extends CQLTester
         Assert.assertEquals(9, rows.length);
     }
 
+    @Test
+    public void testSelectDistinctWithWhereClause() throws Throwable {
+        createTable("CREATE TABLE %s (k int, a int, b int, PRIMARY KEY (k, a))");
+        createIndex("CREATE INDEX ON %s (b)");
+
+        for (int i = 0; i < 10; i++)
+        {
+            execute("INSERT INTO %s (k, a, b) VALUES (?, ?, ?)", i, i, i);
+            execute("INSERT INTO %s (k, a, b) VALUES (?, ?, ?)", i, i * 10, i * 10);
+        }
+
+        String distinctQueryErrorMsg = "SELECT DISTINCT with WHERE clause only supports restriction by partition key.";
+        assertInvalidMessage(distinctQueryErrorMsg,
+                             "SELECT DISTINCT k FROM %s WHERE a >= 80 ALLOW FILTERING");
+
+        assertInvalidMessage(distinctQueryErrorMsg,
+                             "SELECT DISTINCT k FROM %s WHERE k IN (1, 2, 3) AND a = 10");
+
+        assertInvalidMessage(distinctQueryErrorMsg,
+                             "SELECT DISTINCT k FROM %s WHERE b = 5");
+
+        assertRows(execute("SELECT DISTINCT k FROM %s WHERE k = 1"),
+                   row(1));
+        assertRows(execute("SELECT DISTINCT k FROM %s WHERE k IN (5, 6, 7)"),
+                   row(5),
+                   row(6),
+                   row(7));
+
+        // With static columns
+        createTable("CREATE TABLE %s (k int, a int, s int static, b int, PRIMARY KEY (k, a))");
+        createIndex("CREATE INDEX ON %s (b)");
+        for (int i = 0; i < 10; i++)
+        {
+            execute("INSERT INTO %s (k, a, b, s) VALUES (?, ?, ?, ?)", i, i, i, i);
+            execute("INSERT INTO %s (k, a, b, s) VALUES (?, ?, ?, ?)", i, i * 10, i * 10, i * 10);
+        }
+
+        assertRows(execute("SELECT DISTINCT s FROM %s WHERE k = 5"),
+                   row(50));
+        assertRows(execute("SELECT DISTINCT s FROM %s WHERE k IN (5, 6, 7)"),
+                   row(50),
+                   row(60),
+                   row(70));
+    }
+
     /**
      * Migrated from cql_tests.py:TestCQL.bug_6327_test()
      */
