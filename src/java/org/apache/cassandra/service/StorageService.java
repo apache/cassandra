@@ -26,23 +26,8 @@ import java.lang.management.ManagementFactory;
 import java.net.InetAddress;
 import java.net.UnknownHostException;
 import java.nio.ByteBuffer;
-import java.util.ArrayList;
-import java.util.Arrays;
-import java.util.Collection;
-import java.util.Collections;
-import java.util.EnumMap;
-import java.util.HashMap;
-import java.util.HashSet;
-import java.util.Iterator;
-import java.util.LinkedHashMap;
-import java.util.LinkedList;
-import java.util.List;
-import java.util.Map;
+import java.util.*;
 import java.util.Map.Entry;
-import java.util.Set;
-import java.util.SortedMap;
-import java.util.TreeMap;
-import java.util.UUID;
 import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.ExecutorService;
@@ -52,6 +37,8 @@ import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.regex.MatchResult;
+import java.util.regex.Pattern;
 import javax.annotation.Nullable;
 import javax.management.JMX;
 import javax.management.MBeanServer;
@@ -1142,13 +1129,26 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
 
     public void rebuild(String sourceDc)
     {
+        rebuild(sourceDc, null, null);
+    }
+
+    public void rebuild(String sourceDc, String keyspace, String tokens)
+    {
         // check on going rebuild
         if (!isRebuilding.compareAndSet(false, true))
         {
             throw new IllegalStateException("Node is still rebuilding. Check nodetool netstats.");
         }
 
-        logger.info("rebuild from dc: {}", sourceDc == null ? "(any dc)" : sourceDc);
+        // check the arguments
+        if (keyspace == null && tokens != null)
+        {
+            throw new IllegalArgumentException("Cannot specify tokens without keyspace.");
+        }
+
+        logger.info("rebuild from dc: {}, {}, {}", sourceDc == null ? "(any dc)" : sourceDc,
+                    keyspace == null ? "(All keyspaces)" : keyspace,
+                    tokens == null ? "(All tokens)" : tokens);
 
         try
         {
@@ -1164,8 +1164,35 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
             if (sourceDc != null)
                 streamer.addSourceFilter(new RangeStreamer.SingleDatacenterFilter(DatabaseDescriptor.getEndpointSnitch(), sourceDc));
 
-            for (String keyspaceName : Schema.instance.getNonSystemKeyspaces())
-                streamer.addRanges(keyspaceName, getLocalRanges(keyspaceName));
+            if (keyspace == null)
+            {
+                for (String keyspaceName : Schema.instance.getNonSystemKeyspaces())
+                    streamer.addRanges(keyspaceName, getLocalRanges(keyspaceName));
+            }
+            else if (tokens == null)
+            {
+                streamer.addRanges(keyspace, getLocalRanges(keyspace));
+            }
+            else
+            {
+                Token.TokenFactory factory = getTokenFactory();
+                List<Range<Token>> ranges = new ArrayList<>();
+                Pattern rangePattern = Pattern.compile("\\(\\s*(-?\\w+)\\s*,\\s*(-?\\w+)\\s*\\]");
+                try (Scanner tokenScanner = new Scanner(tokens))
+                {
+                    while (tokenScanner.findInLine(rangePattern) != null)
+                    {
+                        MatchResult range = tokenScanner.match();
+                        Token startToken = factory.fromString(range.group(1));
+                        Token endToken = factory.fromString(range.group(2));
+                        logger.info(String.format("adding range: (%s,%s]", startToken, endToken));
+                        ranges.add(new Range<>(startToken, endToken));
+                    }
+                    if (tokenScanner.hasNext())
+                        throw new IllegalArgumentException("Unexpected string: " + tokenScanner.next());
+                }
+                streamer.addRanges(keyspace, ranges);
+            }
 
             StreamResultFuture resultFuture = streamer.fetchAsync();
             // wait for result

@@ -541,6 +541,16 @@ public interface StorageServiceMBean extends NotificationEmitter
      */
     public void rebuild(String sourceDc);
 
+    /**
+     * Same as {@link #rebuild(String)}, but only for specified keyspace and ranges.
+     *
+     * @param sourceDc Name of DC from which to select sources for streaming or null to pick any node
+     * @param keyspace Name of the keyspace which to rebuild or null to rebuild all keyspaces.
+     * @param tokens Range of tokens to rebuild or null to rebuild all token ranges. In the format of:
+     *               "(start_token_1,end_token_1],(start_token_2,end_token_2],...(start_token_n,end_token_n]"
+     */
+    public void rebuild(String sourceDc, String keyspace, String tokens);
+
     /** Starts a bulk load and blocks until it completes. */
     public void bulkLoad(String directory);
 

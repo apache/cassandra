@@ -1,4 +1,5 @@
 3.6
+ * Add support to rebuild from specific range (CASSANDRA-10409)
  * Optimize the overlapping lookup by calculating all the
    bounds in advance (CASSANDRA-11571)
  * Support json/yaml output in noetool tablestats (CASSANDRA-5977)

@@ -1118,9 +1118,9 @@ public class NodeProbe implements AutoCloseable
         return ssProxy.describeRingJMX(keyspaceName);
     }
 
-    public void rebuild(String sourceDc)
+    public void rebuild(String sourceDc, String keyspace, String tokens)
     {
-        ssProxy.rebuild(sourceDc);
+        ssProxy.rebuild(sourceDc, keyspace, tokens);
     }
 
     public List<String> sampleKeyRange()
