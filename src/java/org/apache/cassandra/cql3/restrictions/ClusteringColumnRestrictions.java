@@ -42,16 +42,28 @@ final class ClusteringColumnRestrictions extends RestrictionSetWrapper
      */
     protected final ClusteringComparator comparator;
 
+    /**
+     * <code>true</code> if filtering is allowed for this restriction, <code>false</code> otherwise
+     */
+    private final boolean allowFiltering;
+
     public ClusteringColumnRestrictions(CFMetaData cfm)
     {
-        super(new RestrictionSet());
-        this.comparator = cfm.comparator;
+        this(cfm, false);
     }
 
-    private ClusteringColumnRestrictions(ClusteringComparator comparator, RestrictionSet restrictionSet)
+    public ClusteringColumnRestrictions(CFMetaData cfm, boolean allowFiltering)
+    {
+        this(cfm.comparator, new RestrictionSet(), allowFiltering);
+    }
+
+    private ClusteringColumnRestrictions(ClusteringComparator comparator,
+                                         RestrictionSet restrictionSet,
+                                         boolean allowFiltering)
     {
         super(restrictionSet);
         this.comparator = comparator;
+        this.allowFiltering = allowFiltering;
     }
 
     public ClusteringColumnRestrictions mergeWith(Restriction restriction) throws InvalidRequestException
@@ -59,7 +71,7 @@ final class ClusteringColumnRestrictions extends RestrictionSetWrapper
         SingleRestriction newRestriction = (SingleRestriction) restriction;
         RestrictionSet newRestrictionSet = restrictions.addRestriction(newRestriction);
 
-        if (!isEmpty())
+        if (!isEmpty() && !allowFiltering)
         {
             SingleRestriction lastRestriction = restrictions.lastRestriction();
             ColumnDefinition lastRestrictionStart = lastRestriction.getFirstColumn();
@@ -76,7 +88,7 @@ final class ClusteringColumnRestrictions extends RestrictionSetWrapper
                                      newRestrictionStart.name);
         }
 
-        return new ClusteringColumnRestrictions(this.comparator, newRestrictionSet);
+        return new ClusteringColumnRestrictions(this.comparator, newRestrictionSet, allowFiltering);
     }
 
     private boolean hasMultiColumnSlice()
@@ -105,11 +117,10 @@ final class ClusteringColumnRestrictions extends RestrictionSetWrapper
     {
         MultiCBuilder builder = MultiCBuilder.create(comparator, hasIN() || hasMultiColumnSlice());
         int keyPosition = 0;
+
         for (SingleRestriction r : restrictions)
         {
-            ColumnDefinition def = r.getFirstColumn();
-
-            if (keyPosition != def.position() || r.isContains() || r.isLIKE())
+            if (handleInFilter(r, keyPosition))
                 break;
 
             if (r.isSlice())
@@ -155,6 +166,32 @@ final class ClusteringColumnRestrictions extends RestrictionSetWrapper
         return restrictions.stream().anyMatch(SingleRestriction::isSlice);
     }
 
+    /**
+     * Checks if underlying restrictions would require filtering
+     *
+     * @return <code>true</code> if any underlying restrictions require filtering, <code>false</code>
+     * otherwise
+     */
+    public final boolean needFiltering()
+    {
+        int position = 0;
+        SingleRestriction slice = null;
+        for (SingleRestriction restriction : restrictions)
+        {
+            if (handleInFilter(restriction, position))
+                return true;
+
+            if (slice != null && !slice.getFirstColumn().equals(restriction.getFirstColumn()))
+                return true;
+
+            if (slice == null && restriction.isSlice())
+                slice = restriction;
+            else
+                position = restriction.getLastColumn().position() + 1;
+        }
+        return hasContains();
+    }
+
     @Override
     public void addRowFilterTo(RowFilter filter,
                                SecondaryIndexManager indexManager,
@@ -162,18 +199,31 @@ final class ClusteringColumnRestrictions extends RestrictionSetWrapper
     {
         int position = 0;
 
+        SingleRestriction slice = null;
         for (SingleRestriction restriction : restrictions)
         {
-            ColumnDefinition columnDef = restriction.getFirstColumn();
-
             // We ignore all the clustering columns that can be handled by slices.
-            if (!(restriction.isContains() || restriction.isLIKE()) && position == columnDef.position())
+            if (handleInFilter(restriction, position) || restriction.hasSupportingIndex(indexManager))
             {
-                position = restriction.getLastColumn().position() + 1;
-                if (!restriction.hasSupportingIndex(indexManager))
-                    continue;
+                restriction.addRowFilterTo(filter, indexManager, options);
+                continue;
             }
-            restriction.addRowFilterTo(filter, indexManager, options);
+
+            if (slice != null && !slice.getFirstColumn().equals(restriction.getFirstColumn()))
+            {
+                restriction.addRowFilterTo(filter, indexManager, options);
+                continue;
+            }
+
+            if (slice == null && restriction.isSlice())
+                slice = restriction;
+            else
+                position = restriction.getLastColumn().position() + 1;
         }
     }
+
+    private boolean handleInFilter(SingleRestriction restriction, int index) {
+        return restriction.isContains() || restriction.isLIKE() || index != restriction.getFirstColumn().position();
+    }
+
 }

@@ -633,14 +633,15 @@ public class FrozenCollectionsTest extends CQLTester
         assertInvalidMessage("Cannot restrict clustering columns by a CONTAINS relation without a secondary index",
                              "SELECT * FROM %s WHERE b CONTAINS ?", 1);
 
-        assertInvalidMessage("Cannot restrict clustering columns by a CONTAINS relation without a secondary index",
-                             "SELECT * FROM %s WHERE b CONTAINS ? ALLOW FILTERING", 1);
+        assertRows(execute("SELECT * FROM %s WHERE b CONTAINS ? ALLOW FILTERING", 1),
+                   row(0, list(1, 2, 3), set(1, 2, 3), map(1, "a")),
+                   row(1, list(1, 2, 3), set(4, 5, 6), map(2, "b")));
 
         assertInvalidMessage(StatementRestrictions.REQUIRES_ALLOW_FILTERING_MESSAGE,
                              "SELECT * FROM %s WHERE d CONTAINS KEY ?", 1);
 
-        assertInvalidMessage("Cannot restrict clustering columns by a CONTAINS relation without a secondary index",
-                             "SELECT * FROM %s WHERE b CONTAINS ? AND d CONTAINS KEY ? ALLOW FILTERING", 1, 1);
+        assertRows(execute("SELECT * FROM %s WHERE b CONTAINS ? AND d CONTAINS KEY ? ALLOW FILTERING", 1, 1),
+                   row(0, list(1, 2, 3), set(1, 2, 3), map(1, "a")));
 
         // index lookup on b
         assertRows(execute("SELECT * FROM %s WHERE b=?", list(1, 2, 3)),

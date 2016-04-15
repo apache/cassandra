@@ -85,7 +85,7 @@ public final class StatementRestrictions
     /**
      * The restrictions used to build the row filter
      */
-    private final IndexRestrictions indexRestrictions = new IndexRestrictions();
+    private final IndexRestrictions filterRestrictions = new IndexRestrictions();
 
     /**
      * <code>true</code> if the secondary index need to be queried, <code>false</code> otherwise
@@ -106,15 +106,15 @@ public final class StatementRestrictions
      */
     public static StatementRestrictions empty(StatementType type, CFMetaData cfm)
     {
-        return new StatementRestrictions(type, cfm);
+        return new StatementRestrictions(type, cfm, false);
     }
 
-    private StatementRestrictions(StatementType type, CFMetaData cfm)
+    private StatementRestrictions(StatementType type, CFMetaData cfm, boolean allowFiltering)
     {
         this.type = type;
         this.cfm = cfm;
         this.partitionKeyRestrictions = new PartitionKeySingleRestrictionSet(cfm.getKeyValidatorAsClusteringComparator());
-        this.clusteringColumnsRestrictions = new ClusteringColumnRestrictions(cfm);
+        this.clusteringColumnsRestrictions = new ClusteringColumnRestrictions(cfm, allowFiltering);
         this.nonPrimaryKeyRestrictions = new RestrictionSet();
         this.notNullColumns = new HashSet<>();
     }
@@ -125,10 +125,10 @@ public final class StatementRestrictions
                                  VariableSpecifications boundNames,
                                  boolean selectsOnlyStaticColumns,
                                  boolean selectsComplexColumn,
-                                 boolean useFiltering,
-                                 boolean forView) throws InvalidRequestException
+                                 boolean allowFiltering,
+                                 boolean forView)
     {
-        this(type, cfm);
+        this(type, cfm, allowFiltering);
 
 
         ColumnFamilyStore cfs;
@@ -185,7 +185,7 @@ public final class StatementRestrictions
                 processCustomIndexExpressions(whereClause.expressions, boundNames, secondaryIndexManager);
 
             hasQueriableClusteringColumnIndex = clusteringColumnsRestrictions.hasSupportingIndex(secondaryIndexManager);
-            hasQueriableIndex = !indexRestrictions.getCustomIndexExpressions().isEmpty()
+            hasQueriableIndex = !filterRestrictions.getCustomIndexExpressions().isEmpty()
                     || hasQueriableClusteringColumnIndex
                     || partitionKeyRestrictions.hasSupportingIndex(secondaryIndexManager)
                     || nonPrimaryKeyRestrictions.hasSupportingIndex(secondaryIndexManager);
@@ -197,7 +197,7 @@ public final class StatementRestrictions
         // Some but not all of the partition key columns have been specified;
         // hence we need turn these restrictions into a row filter.
         if (usesSecondaryIndexing)
-            indexRestrictions.add(partitionKeyRestrictions);
+            filterRestrictions.add(partitionKeyRestrictions);
 
         if (selectsOnlyStaticColumns && hasClusteringColumnsRestriction())
         {
@@ -218,16 +218,18 @@ public final class StatementRestrictions
                 throw invalidRequest("Cannot restrict clustering columns when selecting only static columns");
         }
 
-        processClusteringColumnsRestrictions(hasQueriableIndex, selectsOnlyStaticColumns, selectsComplexColumn, forView);
+        processClusteringColumnsRestrictions(hasQueriableIndex,
+                                             selectsOnlyStaticColumns,
+                                             selectsComplexColumn,
+                                             forView,
+                                             allowFiltering);
 
         // Covers indexes on the first clustering column (among others).
         if (isKeyRange && hasQueriableClusteringColumnIndex)
             usesSecondaryIndexing = true;
 
-        usesSecondaryIndexing = usesSecondaryIndexing || clusteringColumnsRestrictions.hasContains();
-
-        if (usesSecondaryIndexing)
-            indexRestrictions.add(clusteringColumnsRestrictions);
+        if (usesSecondaryIndexing || clusteringColumnsRestrictions.needFiltering())
+            filterRestrictions.add(clusteringColumnsRestrictions);
 
         // Even if usesSecondaryIndexing is false at this point, we'll still have to use one if
         // there is restrictions not covered by the PK.
@@ -243,10 +245,10 @@ public final class StatementRestrictions
             }
             if (hasQueriableIndex)
                 usesSecondaryIndexing = true;
-            else if (!useFiltering)
+            else if (!allowFiltering)
                 throw invalidRequest(StatementRestrictions.REQUIRES_ALLOW_FILTERING_MESSAGE);
 
-            indexRestrictions.add(nonPrimaryKeyRestrictions);
+            filterRestrictions.add(nonPrimaryKeyRestrictions);
         }
 
         if (usesSecondaryIndexing)
@@ -274,7 +276,7 @@ public final class StatementRestrictions
     // may be used by QueryHandler implementations
     public IndexRestrictions getIndexRestrictions()
     {
-        return indexRestrictions;
+        return filterRestrictions;
     }
 
     /**
@@ -285,7 +287,7 @@ public final class StatementRestrictions
     public Set<ColumnDefinition> nonPKRestrictedColumns(boolean includeNotNullRestrictions)
     {
         Set<ColumnDefinition> columns = new HashSet<>();
-        for (Restrictions r : indexRestrictions.getRestrictions())
+        for (Restrictions r : filterRestrictions.getRestrictions())
         {
             for (ColumnDefinition def : r.getColumnDefs())
                 if (!def.isPrimaryKeyColumn())
@@ -451,7 +453,8 @@ public final class StatementRestrictions
     private void processClusteringColumnsRestrictions(boolean hasQueriableIndex,
                                                       boolean selectsOnlyStaticColumns,
                                                       boolean selectsComplexColumn,
-                                                      boolean forView) throws InvalidRequestException
+                                                      boolean forView,
+                                                      boolean allowFiltering)
     {
         checkFalse(!type.allowClusteringColumnSlices() && clusteringColumnsRestrictions.hasSlice(),
                    "Slice restrictions are not supported on the clustering columns in %s statements", type);
@@ -467,8 +470,9 @@ public final class StatementRestrictions
         {
             checkFalse(clusteringColumnsRestrictions.hasIN() && selectsComplexColumn,
                        "Cannot restrict clustering columns by IN relations when a collection is selected by the query");
-            checkFalse(clusteringColumnsRestrictions.hasContains() && !hasQueriableIndex,
+            checkFalse(clusteringColumnsRestrictions.hasContains() && !hasQueriableIndex && !allowFiltering,
                        "Cannot restrict clustering columns by a CONTAINS relation without a secondary index");
+
 
             if (hasClusteringColumnsRestriction())
             {
@@ -480,7 +484,7 @@ public final class StatementRestrictions
                     ColumnDefinition clusteringColumn = clusteringColumns.get(i);
                     ColumnDefinition restrictedColumn = restrictedColumns.get(i);
 
-                    if (!clusteringColumn.equals(restrictedColumn))
+                    if (!clusteringColumn.equals(restrictedColumn) && !allowFiltering)
                     {
                         checkTrue(hasQueriableIndex || forView,
                                   "PRIMARY KEY column \"%s\" cannot be restricted as preceding column \"%s\" is not restricted",
@@ -552,19 +556,19 @@ public final class StatementRestrictions
 
         expression.prepareValue(cfm, expressionType, boundNames);
 
-        indexRestrictions.add(expression);
+        filterRestrictions.add(expression);
     }
 
     public RowFilter getRowFilter(SecondaryIndexManager indexManager, QueryOptions options)
     {
-        if (indexRestrictions.isEmpty())
+        if (filterRestrictions.isEmpty())
             return RowFilter.NONE;
 
         RowFilter filter = RowFilter.create();
-        for (Restrictions restrictions : indexRestrictions.getRestrictions())
+        for (Restrictions restrictions : filterRestrictions.getRestrictions())
             restrictions.addRowFilterTo(filter, indexManager, options);
 
-        for (CustomIndexExpression expression : indexRestrictions.getCustomIndexExpressions())
+        for (CustomIndexExpression expression : filterRestrictions.getCustomIndexExpressions())
             expression.addToRowFilter(filter, cfm, options);
 
         return filter;
@@ -743,8 +747,8 @@ public final class StatementRestrictions
      */
     public boolean needFiltering()
     {
-        int numberOfRestrictions = indexRestrictions.getCustomIndexExpressions().size();
-        for (Restrictions restrictions : indexRestrictions.getRestrictions())
+        int numberOfRestrictions = filterRestrictions.getCustomIndexExpressions().size();
+        for (Restrictions restrictions : filterRestrictions.getRestrictions())
             numberOfRestrictions += restrictions.size();
 
         return numberOfRestrictions > 1
