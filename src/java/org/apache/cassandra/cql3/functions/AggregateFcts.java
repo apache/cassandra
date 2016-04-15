@@ -19,6 +19,7 @@ package org.apache.cassandra.cql3.functions;
 
 import java.math.BigDecimal;
 import java.math.BigInteger;
+import java.math.RoundingMode;
 import java.nio.ByteBuffer;
 import java.util.ArrayList;
 import java.util.Collection;
@@ -184,9 +185,9 @@ public abstract class AggregateFcts
                         public ByteBuffer compute(int protocolVersion)
                         {
                             if (count == 0)
-                                return ((DecimalType) returnType()).decompose(BigDecimal.ZERO);
+                                return DecimalType.instance.decompose(BigDecimal.ZERO);
 
-                            return ((DecimalType) returnType()).decompose(sum.divide(BigDecimal.valueOf(count)));
+                            return DecimalType.instance.decompose(sum.divide(BigDecimal.valueOf(count), BigDecimal.ROUND_HALF_EVEN));
                         }
 
                         public void addInput(int protocolVersion, List<ByteBuffer> values)
@@ -197,12 +198,13 @@ public abstract class AggregateFcts
                                 return;
 
                             count++;
-                            BigDecimal number = ((BigDecimal) argTypes().get(0).compose(value));
+                            BigDecimal number = DecimalType.instance.compose(value);
                             sum = sum.add(number);
                         }
                     };
                 }
             };
+
 
     /**
      * The SUM function for varint values.

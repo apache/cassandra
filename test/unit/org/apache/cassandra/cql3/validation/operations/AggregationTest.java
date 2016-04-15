@@ -18,6 +18,8 @@
 package org.apache.cassandra.cql3.validation.operations;
 
 import java.math.BigDecimal;
+import java.math.MathContext;
+import java.math.RoundingMode;
 import java.nio.ByteBuffer;
 import java.text.SimpleDateFormat;
 import java.util.Arrays;
@@ -1949,5 +1951,22 @@ public class AggregationTest extends CQLTester
             {
             }
         }
+    }
+
+    @Test
+    public void testArithmeticCorrectness() throws Throwable
+    {
+        createTable("create table %s (bucket int primary key, val decimal)");
+        execute("insert into %s (bucket, val) values (1, 0.25)");
+        execute("insert into %s (bucket, val) values (2, 0.25)");
+        execute("insert into %s (bucket, val) values (3, 0.5);");
+
+        BigDecimal a = new BigDecimal("0.25");
+        a = a.add(new BigDecimal("0.25"));
+        a = a.add(new BigDecimal("0.5"));
+        a = a.divide(new BigDecimal(3), RoundingMode.HALF_EVEN);
+
+        assertRows(execute("select avg(val) from %s where bucket in (1, 2, 3);"),
+                   row(a));
     }
 }
