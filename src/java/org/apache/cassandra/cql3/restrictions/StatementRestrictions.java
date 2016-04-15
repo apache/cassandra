@@ -68,12 +68,12 @@ public final class StatementRestrictions
     /**
      * Restrictions on partitioning columns
      */
-    private PrimaryKeyRestrictions partitionKeyRestrictions;
+    private PartitionKeyRestrictions partitionKeyRestrictions;
 
     /**
      * Restrictions on clustering columns
      */
-    private PrimaryKeyRestrictions clusteringColumnsRestrictions;
+    private ClusteringColumnRestrictions clusteringColumnsRestrictions;
 
     /**
      * Restriction on non-primary key columns (i.e. secondary index restrictions)
@@ -113,8 +113,8 @@ public final class StatementRestrictions
     {
         this.type = type;
         this.cfm = cfm;
-        this.partitionKeyRestrictions = new PrimaryKeyRestrictionSet(cfm.getKeyValidatorAsClusteringComparator(), true);
-        this.clusteringColumnsRestrictions = new PrimaryKeyRestrictionSet(cfm.comparator, false);
+        this.partitionKeyRestrictions = new PartitionKeySingleRestrictionSet(cfm.getKeyValidatorAsClusteringComparator());
+        this.clusteringColumnsRestrictions = new ClusteringColumnRestrictions(cfm);
         this.nonPrimaryKeyRestrictions = new RestrictionSet();
         this.notNullColumns = new HashSet<>();
     }
@@ -224,7 +224,7 @@ public final class StatementRestrictions
         if (isKeyRange && hasQueriableClusteringColumnIndex)
             usesSecondaryIndexing = true;
 
-        usesSecondaryIndexing = usesSecondaryIndexing || clusteringColumnsRestrictions.isContains();
+        usesSecondaryIndexing = usesSecondaryIndexing || clusteringColumnsRestrictions.hasContains();
 
         if (usesSecondaryIndexing)
             indexRestrictions.add(clusteringColumnsRestrictions);
@@ -255,12 +255,13 @@ public final class StatementRestrictions
 
     private void addRestriction(Restriction restriction)
     {
-        if (restriction.isMultiColumn())
-            clusteringColumnsRestrictions = clusteringColumnsRestrictions.mergeWith(restriction);
-        else if (restriction.isOnToken())
+        ColumnDefinition def = restriction.getFirstColumn();
+        if (def.isPartitionKey())
             partitionKeyRestrictions = partitionKeyRestrictions.mergeWith(restriction);
+        else if (def.isClusteringColumn())
+            clusteringColumnsRestrictions = clusteringColumnsRestrictions.mergeWith(restriction);
         else
-            addSingleColumnRestriction((SingleColumnRestriction) restriction);
+            nonPrimaryKeyRestrictions = nonPrimaryKeyRestrictions.addRestriction((SingleRestriction) restriction);
     }
 
     public Iterable<Function> getFunctions()
@@ -274,17 +275,6 @@ public final class StatementRestrictions
     public IndexRestrictions getIndexRestrictions()
     {
         return indexRestrictions;
-    }
-
-    private void addSingleColumnRestriction(SingleColumnRestriction restriction)
-    {
-        ColumnDefinition def = restriction.columnDef;
-        if (def.isPartitionKey())
-            partitionKeyRestrictions = partitionKeyRestrictions.mergeWith(restriction);
-        else if (def.isClusteringColumn())
-            clusteringColumnsRestrictions = clusteringColumnsRestrictions.mergeWith(restriction);
-        else
-            nonPrimaryKeyRestrictions = nonPrimaryKeyRestrictions.addRestriction(restriction);
     }
 
     /**
@@ -338,14 +328,14 @@ public final class StatementRestrictions
     }
 
     /**
-     * Checks if the restrictions on the partition key is an IN restriction.
+     * Checks if the restrictions on the partition key has IN restrictions.
      *
-     * @return <code>true</code> the restrictions on the partition key is an IN restriction, <code>false</code>
+     * @return <code>true</code> the restrictions on the partition key has an IN restriction, <code>false</code>
      * otherwise.
      */
     public boolean keyIsInRelation()
     {
-        return partitionKeyRestrictions.isIN();
+        return partitionKeyRestrictions.hasIN();
     }
 
     /**
@@ -463,7 +453,7 @@ public final class StatementRestrictions
                                                       boolean selectsComplexColumn,
                                                       boolean forView) throws InvalidRequestException
     {
-        checkFalse(!type.allowClusteringColumnSlices() && clusteringColumnsRestrictions.isSlice(),
+        checkFalse(!type.allowClusteringColumnSlices() && clusteringColumnsRestrictions.hasSlice(),
                    "Slice restrictions are not supported on the clustering columns in %s statements", type);
 
         if (!type.allowClusteringColumnSlices()
@@ -475,9 +465,9 @@ public final class StatementRestrictions
         }
         else
         {
-            checkFalse(clusteringColumnsRestrictions.isIN() && selectsComplexColumn,
+            checkFalse(clusteringColumnsRestrictions.hasIN() && selectsComplexColumn,
                        "Cannot restrict clustering columns by IN relations when a collection is selected by the query");
-            checkFalse(clusteringColumnsRestrictions.isContains() && !hasQueriableIndex,
+            checkFalse(clusteringColumnsRestrictions.hasContains() && !hasQueriableIndex,
                        "Cannot restrict clustering columns by a CONTAINS relation without a secondary index");
 
             if (hasClusteringColumnsRestriction())
@@ -504,7 +494,7 @@ public final class StatementRestrictions
             }
         }
 
-        if (clusteringColumnsRestrictions.isContains())
+        if (clusteringColumnsRestrictions.hasContains())
             usesSecondaryIndexing = true;
     }
 
@@ -732,18 +722,6 @@ public final class StatementRestrictions
     }
 
     /**
-     * Checks if the bounds (start or end) of the clustering columns are inclusive.
-     *
-     * @param bound the bound type
-     * @return <code>true</code> if the bounds (start or end) of the clustering columns are inclusive,
-     * <code>false</code> otherwise
-     */
-    public boolean areRequestedBoundsInclusive(Bound bound)
-    {
-        return clusteringColumnsRestrictions.isInclusive(bound);
-    }
-
-    /**
      * Checks if the query returns a range of columns.
      *
      * @return <code>true</code> if the query returns a range of columns, <code>false</code> otherwise.
@@ -756,7 +734,7 @@ public final class StatementRestrictions
         int numberOfClusteringColumns = cfm.isStaticCompactTable() ? 0 : cfm.clusteringColumns().size();
         // it is a range query if it has at least one the column alias for which no relation is defined or is not EQ or IN.
         return clusteringColumnsRestrictions.size() < numberOfClusteringColumns
-            || (!clusteringColumnsRestrictions.isEQ() && !clusteringColumnsRestrictions.isIN());
+            || !clusteringColumnsRestrictions.hasOnlyEqualityRestrictions();
     }
 
     /**
@@ -796,9 +774,9 @@ public final class StatementRestrictions
     {
         return !isPartitionKeyRestrictionsOnToken()
                 && !hasUnrestrictedPartitionKeyComponents()
-                && (partitionKeyRestrictions.isEQ() || partitionKeyRestrictions.isIN())
+                && (partitionKeyRestrictions.hasOnlyEqualityRestrictions())
                 && !hasUnrestrictedClusteringColumns()
-                && (clusteringColumnsRestrictions.isEQ() || clusteringColumnsRestrictions.isIN());
+                && (clusteringColumnsRestrictions.hasOnlyEqualityRestrictions());
     }
 
 }

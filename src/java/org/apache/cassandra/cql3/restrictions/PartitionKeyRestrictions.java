@@ -19,28 +19,33 @@ package org.apache.cassandra.cql3.restrictions;
 
 import java.nio.ByteBuffer;
 import java.util.List;
-import java.util.NavigableSet;
 
 import org.apache.cassandra.cql3.QueryOptions;
 import org.apache.cassandra.cql3.statements.Bound;
-import org.apache.cassandra.db.Clustering;
-import org.apache.cassandra.db.Slice;
-import org.apache.cassandra.exceptions.InvalidRequestException;
 
 /**
- * A set of restrictions on a primary key part (partition key or clustering key).
+ * A set of restrictions on the partition key.
  *
  */
-interface PrimaryKeyRestrictions extends Restriction, Restrictions
+interface PartitionKeyRestrictions extends Restrictions
 {
-    @Override
-    public PrimaryKeyRestrictions mergeWith(Restriction restriction) throws InvalidRequestException;
+    public PartitionKeyRestrictions mergeWith(Restriction restriction);
 
-    public List<ByteBuffer> values(QueryOptions options) throws InvalidRequestException;
+    public List<ByteBuffer> values(QueryOptions options);
 
-    public NavigableSet<Clustering> valuesAsClustering(QueryOptions options) throws InvalidRequestException;
+    public List<ByteBuffer> bounds(Bound b, QueryOptions options);
 
-    public List<ByteBuffer> bounds(Bound b, QueryOptions options) throws InvalidRequestException;
+    /**
+     * Checks if the specified bound is set or not.
+     * @param b the bound type
+     * @return <code>true</code> if the specified bound is set, <code>false</code> otherwise
+     */
+    public boolean hasBound(Bound b);
 
-    public NavigableSet<Slice.Bound> boundsAsClustering(Bound bound, QueryOptions options) throws InvalidRequestException;
+    /**
+     * Checks if the specified bound is inclusive or not.
+     * @param b the bound type
+     * @return <code>true</code> if the specified bound is inclusive, <code>false</code> otherwise
+     */
+    public boolean isInclusive(Bound b);
 }

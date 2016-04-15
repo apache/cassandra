@@ -28,9 +28,6 @@ import org.apache.cassandra.cql3.QueryOptions;
 import org.apache.cassandra.cql3.Term;
 import org.apache.cassandra.cql3.functions.Function;
 import org.apache.cassandra.cql3.statements.Bound;
-import org.apache.cassandra.db.Clustering;
-import org.apache.cassandra.db.MultiCBuilder;
-import org.apache.cassandra.db.Slice;
 import org.apache.cassandra.db.filter.RowFilter;
 import org.apache.cassandra.exceptions.InvalidRequestException;
 import org.apache.cassandra.index.SecondaryIndexManager;
@@ -40,14 +37,14 @@ import static org.apache.cassandra.cql3.statements.RequestValidations.invalidReq
 /**
  * <code>Restriction</code> using the token function.
  */
-public abstract class TokenRestriction extends AbstractPrimaryKeyRestrictions
+public abstract class TokenRestriction implements PartitionKeyRestrictions
 {
     /**
      * The definition of the columns to which apply the token restriction.
      */
     protected final List<ColumnDefinition> columnDefs;
 
-    final CFMetaData metadata;
+    protected final CFMetaData metadata;
 
     /**
      * Creates a new <code>TokenRestriction</code> that apply to the specified columns.
@@ -56,9 +53,23 @@ public abstract class TokenRestriction extends AbstractPrimaryKeyRestrictions
      */
     public TokenRestriction(CFMetaData metadata, List<ColumnDefinition> columnDefs)
     {
-        super(metadata.getKeyValidatorAsClusteringComparator());
         this.columnDefs = columnDefs;
         this.metadata = metadata;
+    }
+
+    public boolean isSlice()
+    {
+        return false;
+    }
+
+    public boolean hasIN()
+    {
+        return false;
+    }
+
+    public boolean hasOnlyEqualityRestrictions()
+    {
+        return false;
     }
 
     @Override
@@ -98,21 +109,15 @@ public abstract class TokenRestriction extends AbstractPrimaryKeyRestrictions
     }
 
     @Override
-    public MultiCBuilder appendTo(MultiCBuilder builder, QueryOptions options)
+    public final boolean isEmpty()
     {
-        throw new UnsupportedOperationException();
+        return getColumnDefs().isEmpty();
     }
 
     @Override
-    public NavigableSet<Clustering> valuesAsClustering(QueryOptions options) throws InvalidRequestException
+    public final int size()
     {
-        throw new UnsupportedOperationException();
-    }
-
-    @Override
-    public NavigableSet<Slice.Bound> boundsAsClustering(Bound bound, QueryOptions options) throws InvalidRequestException
-    {
-        throw new UnsupportedOperationException();
+        return getColumnDefs().size();
     }
 
     /**
@@ -126,10 +131,10 @@ public abstract class TokenRestriction extends AbstractPrimaryKeyRestrictions
     }
 
     @Override
-    public final PrimaryKeyRestrictions mergeWith(Restriction otherRestriction) throws InvalidRequestException
+    public final PartitionKeyRestrictions mergeWith(Restriction otherRestriction) throws InvalidRequestException
     {
         if (!otherRestriction.isOnToken())
-            return new TokenFilter(toPrimaryKeyRestriction(otherRestriction), this);
+            return new TokenFilter(toPartitionKeyRestrictions(otherRestriction), this);
 
         return doMergeWith((TokenRestriction) otherRestriction);
     }
@@ -138,21 +143,21 @@ public abstract class TokenRestriction extends AbstractPrimaryKeyRestrictions
      * Merges this restriction with the specified <code>TokenRestriction</code>.
      * @param otherRestriction the <code>TokenRestriction</code> to merge with.
      */
-    protected abstract PrimaryKeyRestrictions doMergeWith(TokenRestriction otherRestriction) throws InvalidRequestException;
+    protected abstract PartitionKeyRestrictions doMergeWith(TokenRestriction otherRestriction) throws InvalidRequestException;
 
     /**
-     * Converts the specified restriction into a <code>PrimaryKeyRestrictions</code>.
+     * Converts the specified restriction into a <code>PartitionKeyRestrictions</code>.
      *
      * @param restriction the restriction to convert
-     * @return a <code>PrimaryKeyRestrictions</code>
+     * @return a <code>PartitionKeyRestrictions</code>
      * @throws InvalidRequestException if a problem occurs while converting the restriction
      */
-    private PrimaryKeyRestrictions toPrimaryKeyRestriction(Restriction restriction) throws InvalidRequestException
+    private PartitionKeyRestrictions toPartitionKeyRestrictions(Restriction restriction) throws InvalidRequestException
     {
-        if (restriction instanceof PrimaryKeyRestrictions)
-            return (PrimaryKeyRestrictions) restriction;
+        if (restriction instanceof PartitionKeyRestrictions)
+            return (PartitionKeyRestrictions) restriction;
 
-        return new PrimaryKeyRestrictionSet(comparator, true).mergeWith(restriction);
+        return new PartitionKeySingleRestrictionSet(metadata.getKeyValidatorAsClusteringComparator()).mergeWith(restriction);
     }
 
     public static final class EQRestriction extends TokenRestriction
@@ -166,22 +171,34 @@ public abstract class TokenRestriction extends AbstractPrimaryKeyRestrictions
         }
 
         @Override
-        public boolean isEQ()
-        {
-            return true;
-        }
-
-        @Override
         public Iterable<Function> getFunctions()
         {
             return value.getFunctions();
         }
 
         @Override
-        protected PrimaryKeyRestrictions doMergeWith(TokenRestriction otherRestriction) throws InvalidRequestException
+        protected PartitionKeyRestrictions doMergeWith(TokenRestriction otherRestriction) throws InvalidRequestException
         {
             throw invalidRequest("%s cannot be restricted by more than one relation if it includes an Equal",
                                  Joiner.on(", ").join(ColumnDefinition.toIdentifiers(columnDefs)));
+        }
+
+        @Override
+        public List<ByteBuffer> bounds(Bound b, QueryOptions options) throws InvalidRequestException
+        {
+            return values(options);
+        }
+
+        @Override
+        public boolean hasBound(Bound b)
+        {
+            return true;
+        }
+
+        @Override
+        public boolean isInclusive(Bound b)
+        {
+            return true;
         }
 
         @Override
@@ -238,10 +255,10 @@ public abstract class TokenRestriction extends AbstractPrimaryKeyRestrictions
         }
 
         @Override
-        protected PrimaryKeyRestrictions doMergeWith(TokenRestriction otherRestriction)
+        protected PartitionKeyRestrictions doMergeWith(TokenRestriction otherRestriction)
         throws InvalidRequestException
         {
-            if (!otherRestriction.isSlice())
+            if (!(otherRestriction instanceof SliceRestriction))
                 throw invalidRequest("Columns \"%s\" cannot be restricted by both an equality and an inequality relation",
                                      getColumnNamesAsString());
 

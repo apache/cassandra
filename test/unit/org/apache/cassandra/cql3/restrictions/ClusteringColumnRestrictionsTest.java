@@ -39,14 +39,14 @@ import static java.util.Arrays.asList;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertTrue;
 
-public class PrimaryKeyRestrictionSetTest
+public class ClusteringColumnRestrictionsTest
 {
     @Test
     public void testBoundsAsClusteringWithNoRestrictions()
     {
         CFMetaData cfMetaData = newCFMetaData(Sort.ASC);
 
-        PrimaryKeyRestrictions restrictions = new PrimaryKeyRestrictionSet(cfMetaData.comparator, false);
+        ClusteringColumnRestrictions restrictions = new ClusteringColumnRestrictions(cfMetaData);
 
         SortedSet<Slice.Bound> bounds = restrictions.boundsAsClustering(Bound.START, QueryOptions.DEFAULT);
         assertEquals(1, bounds.size());
@@ -68,7 +68,7 @@ public class PrimaryKeyRestrictionSetTest
         ByteBuffer clustering_0 = ByteBufferUtil.bytes(1);
         Restriction eq = newSingleEq(cfMetaData, 0, clustering_0);
 
-        PrimaryKeyRestrictions restrictions = new PrimaryKeyRestrictionSet(cfMetaData.comparator, false);
+        ClusteringColumnRestrictions restrictions = new ClusteringColumnRestrictions(cfMetaData);
         restrictions = restrictions.mergeWith(eq);
 
         SortedSet<Slice.Bound> bounds = restrictions.boundsAsClustering(Bound.START, QueryOptions.DEFAULT);
@@ -91,7 +91,7 @@ public class PrimaryKeyRestrictionSetTest
         ByteBuffer clustering_0 = ByteBufferUtil.bytes(1);
         Restriction eq = newSingleEq(cfMetaData, 0, clustering_0);
 
-        PrimaryKeyRestrictions restrictions = new PrimaryKeyRestrictionSet(cfMetaData.comparator, false);
+        ClusteringColumnRestrictions restrictions = new ClusteringColumnRestrictions(cfMetaData);
         restrictions = restrictions.mergeWith(eq);
 
         SortedSet<Slice.Bound> bounds = restrictions.boundsAsClustering(Bound.START, QueryOptions.DEFAULT);
@@ -117,7 +117,7 @@ public class PrimaryKeyRestrictionSetTest
 
         Restriction in = newSingleIN(cfMetaData, 0, value1, value2, value3);
 
-        PrimaryKeyRestrictions restrictions = new PrimaryKeyRestrictionSet(cfMetaData.comparator, false);
+        ClusteringColumnRestrictions restrictions = new ClusteringColumnRestrictions(cfMetaData);
         restrictions = restrictions.mergeWith(in);
 
         SortedSet<Slice.Bound> bounds = restrictions.boundsAsClustering(Bound.START, QueryOptions.DEFAULT);
@@ -145,7 +145,7 @@ public class PrimaryKeyRestrictionSetTest
         ByteBuffer value2 = ByteBufferUtil.bytes(2);
 
         Restriction slice = newSingleSlice(cfMetaData, 0, Bound.START, false, value1);
-        PrimaryKeyRestrictions restrictions = new PrimaryKeyRestrictionSet(cfMetaData.comparator, false);
+        ClusteringColumnRestrictions restrictions = new ClusteringColumnRestrictions(cfMetaData);
         restrictions = restrictions.mergeWith(slice);
 
         SortedSet<Slice.Bound> bounds = restrictions.boundsAsClustering(Bound.START, QueryOptions.DEFAULT);
@@ -157,7 +157,7 @@ public class PrimaryKeyRestrictionSetTest
         assertEmptyEnd(get(bounds, 0));
 
         slice = newSingleSlice(cfMetaData, 0, Bound.START, true, value1);
-        restrictions = new PrimaryKeyRestrictionSet(cfMetaData.comparator, false);
+        restrictions = new ClusteringColumnRestrictions(cfMetaData);
         restrictions = restrictions.mergeWith(slice);
 
         bounds = restrictions.boundsAsClustering(Bound.START, QueryOptions.DEFAULT);
@@ -169,7 +169,7 @@ public class PrimaryKeyRestrictionSetTest
         assertEmptyEnd(get(bounds, 0));
 
         slice = newSingleSlice(cfMetaData, 0, Bound.END, true, value1);
-        restrictions = new PrimaryKeyRestrictionSet(cfMetaData.comparator, false);
+        restrictions = new ClusteringColumnRestrictions(cfMetaData);
         restrictions = restrictions.mergeWith(slice);
 
         bounds = restrictions.boundsAsClustering(Bound.START, QueryOptions.DEFAULT);
@@ -181,7 +181,7 @@ public class PrimaryKeyRestrictionSetTest
         assertEndBound(get(bounds, 0), true, value1);
 
         slice = newSingleSlice(cfMetaData, 0, Bound.END, false, value1);
-        restrictions = new PrimaryKeyRestrictionSet(cfMetaData.comparator, false);
+        restrictions = new ClusteringColumnRestrictions(cfMetaData);
         restrictions = restrictions.mergeWith(slice);
 
         bounds = restrictions.boundsAsClustering(Bound.START, QueryOptions.DEFAULT);
@@ -194,7 +194,7 @@ public class PrimaryKeyRestrictionSetTest
 
         slice = newSingleSlice(cfMetaData, 0, Bound.START, false, value1);
         Restriction slice2 = newSingleSlice(cfMetaData, 0, Bound.END, false, value2);
-        restrictions = new PrimaryKeyRestrictionSet(cfMetaData.comparator, false);
+        restrictions = new ClusteringColumnRestrictions(cfMetaData);
         restrictions = restrictions.mergeWith(slice).mergeWith(slice2);
 
         bounds = restrictions.boundsAsClustering(Bound.START, QueryOptions.DEFAULT);
@@ -207,7 +207,7 @@ public class PrimaryKeyRestrictionSetTest
 
         slice = newSingleSlice(cfMetaData, 0, Bound.START, true, value1);
         slice2 = newSingleSlice(cfMetaData, 0, Bound.END, true, value2);
-        restrictions = new PrimaryKeyRestrictionSet(cfMetaData.comparator, false);
+        restrictions = new ClusteringColumnRestrictions(cfMetaData);
         restrictions = restrictions.mergeWith(slice).mergeWith(slice2);
 
         bounds = restrictions.boundsAsClustering(Bound.START, QueryOptions.DEFAULT);
@@ -231,7 +231,7 @@ public class PrimaryKeyRestrictionSetTest
         ByteBuffer value2 = ByteBufferUtil.bytes(2);
 
         Restriction slice = newSingleSlice(cfMetaData, 0, Bound.START, false, value1);
-        PrimaryKeyRestrictions restrictions = new PrimaryKeyRestrictionSet(cfMetaData.comparator, false);
+        ClusteringColumnRestrictions restrictions = new ClusteringColumnRestrictions(cfMetaData);
         restrictions = restrictions.mergeWith(slice);
 
         SortedSet<Slice.Bound> bounds = restrictions.boundsAsClustering(Bound.START, QueryOptions.DEFAULT);
@@ -243,7 +243,7 @@ public class PrimaryKeyRestrictionSetTest
         assertEndBound(get(bounds, 0), false, value1);
 
         slice = newSingleSlice(cfMetaData, 0, Bound.START, true, value1);
-        restrictions = new PrimaryKeyRestrictionSet(cfMetaData.comparator, false);
+        restrictions = new ClusteringColumnRestrictions(cfMetaData);
         restrictions = restrictions.mergeWith(slice);
 
         bounds = restrictions.boundsAsClustering(Bound.START, QueryOptions.DEFAULT);
@@ -255,7 +255,7 @@ public class PrimaryKeyRestrictionSetTest
         assertEndBound(get(bounds, 0), true, value1);
 
         slice = newSingleSlice(cfMetaData, 0, Bound.END, true, value1);
-        restrictions = new PrimaryKeyRestrictionSet(cfMetaData.comparator, false);
+        restrictions = new ClusteringColumnRestrictions(cfMetaData);
         restrictions = restrictions.mergeWith(slice);
 
         bounds = restrictions.boundsAsClustering(Bound.START, QueryOptions.DEFAULT);
@@ -267,7 +267,7 @@ public class PrimaryKeyRestrictionSetTest
         assertEmptyEnd(get(bounds, 0));
 
         slice = newSingleSlice(cfMetaData, 0, Bound.END, false, value1);
-        restrictions = new PrimaryKeyRestrictionSet(cfMetaData.comparator, false);
+        restrictions = new ClusteringColumnRestrictions(cfMetaData);
         restrictions = restrictions.mergeWith(slice);
 
         bounds = restrictions.boundsAsClustering(Bound.START, QueryOptions.DEFAULT);
@@ -280,7 +280,7 @@ public class PrimaryKeyRestrictionSetTest
 
         slice = newSingleSlice(cfMetaData, 0, Bound.START, false, value1);
         Restriction slice2 = newSingleSlice(cfMetaData, 0, Bound.END, false, value2);
-        restrictions = new PrimaryKeyRestrictionSet(cfMetaData.comparator, false);
+        restrictions = new ClusteringColumnRestrictions(cfMetaData);
         restrictions = restrictions.mergeWith(slice).mergeWith(slice2);
 
         bounds = restrictions.boundsAsClustering(Bound.START, QueryOptions.DEFAULT);
@@ -293,7 +293,7 @@ public class PrimaryKeyRestrictionSetTest
 
         slice = newSingleSlice(cfMetaData, 0, Bound.START, true, value1);
         slice2 = newSingleSlice(cfMetaData, 0, Bound.END, true, value2);
-        restrictions = new PrimaryKeyRestrictionSet(cfMetaData.comparator, false);
+        restrictions = new ClusteringColumnRestrictions(cfMetaData);
         restrictions = restrictions.mergeWith(slice).mergeWith(slice2);
 
         bounds = restrictions.boundsAsClustering(Bound.START, QueryOptions.DEFAULT);
@@ -318,7 +318,7 @@ public class PrimaryKeyRestrictionSetTest
         ByteBuffer value3 = ByteBufferUtil.bytes(3);
         Restriction eq = newSingleEq(cfMetaData, 0, value1);
         Restriction in = newSingleIN(cfMetaData, 1, value1, value2, value3);
-        PrimaryKeyRestrictions restrictions = new PrimaryKeyRestrictionSet(cfMetaData.comparator, false);
+        ClusteringColumnRestrictions restrictions = new ClusteringColumnRestrictions(cfMetaData);
         restrictions = restrictions.mergeWith(eq).mergeWith(in);
 
         SortedSet<Slice.Bound> bounds = restrictions.boundsAsClustering(Bound.START, QueryOptions.DEFAULT);
@@ -349,7 +349,7 @@ public class PrimaryKeyRestrictionSetTest
         Restriction eq = newSingleEq(cfMetaData, 0, value3);
 
         Restriction slice = newSingleSlice(cfMetaData, 1, Bound.START, false, value1);
-        PrimaryKeyRestrictions restrictions = new PrimaryKeyRestrictionSet(cfMetaData.comparator, false);
+        ClusteringColumnRestrictions restrictions = new ClusteringColumnRestrictions(cfMetaData);
         restrictions = restrictions.mergeWith(eq).mergeWith(slice);
 
         SortedSet<Slice.Bound> bounds = restrictions.boundsAsClustering(Bound.START, QueryOptions.DEFAULT);
@@ -361,7 +361,7 @@ public class PrimaryKeyRestrictionSetTest
         assertEndBound(get(bounds, 0), true, value3);
 
         slice = newSingleSlice(cfMetaData, 1, Bound.START, true, value1);
-        restrictions = new PrimaryKeyRestrictionSet(cfMetaData.comparator, false);
+        restrictions = new ClusteringColumnRestrictions(cfMetaData);
         restrictions = restrictions.mergeWith(eq).mergeWith(slice);
 
         bounds = restrictions.boundsAsClustering(Bound.START, QueryOptions.DEFAULT);
@@ -373,7 +373,7 @@ public class PrimaryKeyRestrictionSetTest
         assertEndBound(get(bounds, 0), true, value3);
 
         slice = newSingleSlice(cfMetaData, 1, Bound.END, true, value1);
-        restrictions = new PrimaryKeyRestrictionSet(cfMetaData.comparator, false);
+        restrictions = new ClusteringColumnRestrictions(cfMetaData);
         restrictions = restrictions.mergeWith(eq).mergeWith(slice);
 
         bounds = restrictions.boundsAsClustering(Bound.START, QueryOptions.DEFAULT);
@@ -385,7 +385,7 @@ public class PrimaryKeyRestrictionSetTest
         assertEndBound(get(bounds, 0), true, value3, value1);
 
         slice = newSingleSlice(cfMetaData, 1, Bound.END, false, value1);
-        restrictions = new PrimaryKeyRestrictionSet(cfMetaData.comparator, false);
+        restrictions = new ClusteringColumnRestrictions(cfMetaData);
         restrictions = restrictions.mergeWith(eq).mergeWith(slice);
 
         bounds = restrictions.boundsAsClustering(Bound.START, QueryOptions.DEFAULT);
@@ -398,7 +398,7 @@ public class PrimaryKeyRestrictionSetTest
 
         slice = newSingleSlice(cfMetaData, 1, Bound.START, false, value1);
         Restriction slice2 = newSingleSlice(cfMetaData, 1, Bound.END, false, value2);
-        restrictions = new PrimaryKeyRestrictionSet(cfMetaData.comparator, false);
+        restrictions = new ClusteringColumnRestrictions(cfMetaData);
         restrictions = restrictions.mergeWith(eq).mergeWith(slice).mergeWith(slice2);
 
         bounds = restrictions.boundsAsClustering(Bound.START, QueryOptions.DEFAULT);
@@ -411,7 +411,7 @@ public class PrimaryKeyRestrictionSetTest
 
         slice = newSingleSlice(cfMetaData, 1, Bound.START, true, value1);
         slice2 = newSingleSlice(cfMetaData, 1, Bound.END, true, value2);
-        restrictions = new PrimaryKeyRestrictionSet(cfMetaData.comparator, false);
+        restrictions = new ClusteringColumnRestrictions(cfMetaData);
         restrictions = restrictions.mergeWith(eq).mergeWith(slice).mergeWith(slice2);
 
         bounds = restrictions.boundsAsClustering(Bound.START, QueryOptions.DEFAULT);
@@ -434,7 +434,7 @@ public class PrimaryKeyRestrictionSetTest
         ByteBuffer value1 = ByteBufferUtil.bytes(1);
         ByteBuffer value2 = ByteBufferUtil.bytes(2);
         Restriction eq = newMultiEq(cfMetaData, 0, value1, value2);
-        PrimaryKeyRestrictions restrictions = new PrimaryKeyRestrictionSet(cfMetaData.comparator, false);
+        ClusteringColumnRestrictions restrictions = new ClusteringColumnRestrictions(cfMetaData);
         restrictions = restrictions.mergeWith(eq);
 
         SortedSet<Slice.Bound> bounds = restrictions.boundsAsClustering(Bound.START, QueryOptions.DEFAULT);
@@ -458,7 +458,7 @@ public class PrimaryKeyRestrictionSetTest
         ByteBuffer value2 = ByteBufferUtil.bytes(2);
         ByteBuffer value3 = ByteBufferUtil.bytes(3);
         Restriction in = newMultiIN(cfMetaData, 0, asList(value1, value2), asList(value2, value3));
-        PrimaryKeyRestrictions restrictions = new PrimaryKeyRestrictionSet(cfMetaData.comparator, false);
+        ClusteringColumnRestrictions restrictions = new ClusteringColumnRestrictions(cfMetaData);
         restrictions = restrictions.mergeWith(in);
 
         SortedSet<Slice.Bound> bounds = restrictions.boundsAsClustering(Bound.START, QueryOptions.DEFAULT);
@@ -485,7 +485,7 @@ public class PrimaryKeyRestrictionSetTest
         ByteBuffer value2 = ByteBufferUtil.bytes(2);
 
         Restriction slice = newMultiSlice(cfMetaData, 0, Bound.START, false, value1);
-        PrimaryKeyRestrictions restrictions = new PrimaryKeyRestrictionSet(cfMetaData.comparator, false);
+        ClusteringColumnRestrictions restrictions = new ClusteringColumnRestrictions(cfMetaData);
         restrictions = restrictions.mergeWith(slice);
 
         SortedSet<Slice.Bound> bounds = restrictions.boundsAsClustering(Bound.START, QueryOptions.DEFAULT);
@@ -497,7 +497,7 @@ public class PrimaryKeyRestrictionSetTest
         assertEmptyEnd(get(bounds, 0));
 
         slice = newMultiSlice(cfMetaData, 0, Bound.START, true, value1);
-        restrictions = new PrimaryKeyRestrictionSet(cfMetaData.comparator, false);
+        restrictions = new ClusteringColumnRestrictions(cfMetaData);
         restrictions = restrictions.mergeWith(slice);
 
         bounds = restrictions.boundsAsClustering(Bound.START, QueryOptions.DEFAULT);
@@ -509,7 +509,7 @@ public class PrimaryKeyRestrictionSetTest
         assertEmptyEnd(get(bounds, 0));
 
         slice = newMultiSlice(cfMetaData, 0, Bound.END, true, value1);
-        restrictions = new PrimaryKeyRestrictionSet(cfMetaData.comparator, false);
+        restrictions = new ClusteringColumnRestrictions(cfMetaData);
         restrictions = restrictions.mergeWith(slice);
 
         bounds = restrictions.boundsAsClustering(Bound.START, QueryOptions.DEFAULT);
@@ -521,7 +521,7 @@ public class PrimaryKeyRestrictionSetTest
         assertEndBound(get(bounds, 0), true, value1);
 
         slice = newMultiSlice(cfMetaData, 0, Bound.END, false, value1);
-        restrictions = new PrimaryKeyRestrictionSet(cfMetaData.comparator, false);
+        restrictions = new ClusteringColumnRestrictions(cfMetaData);
         restrictions = restrictions.mergeWith(slice);
 
         bounds = restrictions.boundsAsClustering(Bound.START, QueryOptions.DEFAULT);
@@ -534,7 +534,7 @@ public class PrimaryKeyRestrictionSetTest
 
         slice = newMultiSlice(cfMetaData, 0, Bound.START, false, value1);
         Restriction slice2 = newMultiSlice(cfMetaData, 0, Bound.END, false, value2);
-        restrictions = new PrimaryKeyRestrictionSet(cfMetaData.comparator, false);
+        restrictions = new ClusteringColumnRestrictions(cfMetaData);
         restrictions = restrictions.mergeWith(slice).mergeWith(slice2);
 
         bounds = restrictions.boundsAsClustering(Bound.START, QueryOptions.DEFAULT);
@@ -547,7 +547,7 @@ public class PrimaryKeyRestrictionSetTest
 
         slice = newMultiSlice(cfMetaData, 0, Bound.START, true, value1);
         slice2 = newMultiSlice(cfMetaData, 0, Bound.END, true, value2);
-        restrictions = new PrimaryKeyRestrictionSet(cfMetaData.comparator, false);
+        restrictions = new ClusteringColumnRestrictions(cfMetaData);
         restrictions = restrictions.mergeWith(slice).mergeWith(slice2);
 
         bounds = restrictions.boundsAsClustering(Bound.START, QueryOptions.DEFAULT);
@@ -572,7 +572,7 @@ public class PrimaryKeyRestrictionSetTest
         ByteBuffer value2 = ByteBufferUtil.bytes(2);
 
         Restriction slice = newMultiSlice(cfMetaData, 0, Bound.START, false, value1);
-        PrimaryKeyRestrictions restrictions = new PrimaryKeyRestrictionSet(cfMetaData.comparator, false);
+        ClusteringColumnRestrictions restrictions = new ClusteringColumnRestrictions(cfMetaData);
         restrictions = restrictions.mergeWith(slice);
 
         SortedSet<Slice.Bound> bounds = restrictions.boundsAsClustering(Bound.START, QueryOptions.DEFAULT);
@@ -584,7 +584,7 @@ public class PrimaryKeyRestrictionSetTest
         assertEndBound(get(bounds, 0), false, value1);
 
         slice = newMultiSlice(cfMetaData, 0, Bound.START, true, value1);
-        restrictions = new PrimaryKeyRestrictionSet(cfMetaData.comparator, false);
+        restrictions = new ClusteringColumnRestrictions(cfMetaData);
         restrictions = restrictions.mergeWith(slice);
 
         bounds = restrictions.boundsAsClustering(Bound.START, QueryOptions.DEFAULT);
@@ -596,7 +596,7 @@ public class PrimaryKeyRestrictionSetTest
         assertEndBound(get(bounds, 0), true, value1);
 
         slice = newMultiSlice(cfMetaData, 0, Bound.END, true, value1);
-        restrictions = new PrimaryKeyRestrictionSet(cfMetaData.comparator, false);
+        restrictions = new ClusteringColumnRestrictions(cfMetaData);
         restrictions = restrictions.mergeWith(slice);
 
         bounds = restrictions.boundsAsClustering(Bound.START, QueryOptions.DEFAULT);
@@ -608,7 +608,7 @@ public class PrimaryKeyRestrictionSetTest
         assertEmptyEnd(get(bounds, 0));
 
         slice = newMultiSlice(cfMetaData, 0, Bound.END, false, value1);
-        restrictions = new PrimaryKeyRestrictionSet(cfMetaData.comparator, false);
+        restrictions = new ClusteringColumnRestrictions(cfMetaData);
         restrictions = restrictions.mergeWith(slice);
 
         bounds = restrictions.boundsAsClustering(Bound.START, QueryOptions.DEFAULT);
@@ -621,7 +621,7 @@ public class PrimaryKeyRestrictionSetTest
 
         slice = newMultiSlice(cfMetaData, 0, Bound.START, false, value1);
         Restriction slice2 = newMultiSlice(cfMetaData, 0, Bound.END, false, value2);
-        restrictions = new PrimaryKeyRestrictionSet(cfMetaData.comparator, false);
+        restrictions = new ClusteringColumnRestrictions(cfMetaData);
         restrictions = restrictions.mergeWith(slice).mergeWith(slice2);
 
         bounds = restrictions.boundsAsClustering(Bound.START, QueryOptions.DEFAULT);
@@ -634,7 +634,7 @@ public class PrimaryKeyRestrictionSetTest
 
         slice = newMultiSlice(cfMetaData, 0, Bound.START, true, value1);
         slice2 = newMultiSlice(cfMetaData, 0, Bound.END, true, value2);
-        restrictions = new PrimaryKeyRestrictionSet(cfMetaData.comparator, false);
+        restrictions = new ClusteringColumnRestrictions(cfMetaData);
         restrictions = restrictions.mergeWith(slice).mergeWith(slice2);
 
         bounds = restrictions.boundsAsClustering(Bound.START, QueryOptions.DEFAULT);
@@ -659,7 +659,7 @@ public class PrimaryKeyRestrictionSetTest
 
         // (clustering_0, clustering1) > (1, 2)
         Restriction slice = newMultiSlice(cfMetaData, 0, Bound.START, false, value1, value2);
-        PrimaryKeyRestrictions restrictions = new PrimaryKeyRestrictionSet(cfMetaData.comparator, false);
+        ClusteringColumnRestrictions restrictions = new ClusteringColumnRestrictions(cfMetaData);
         restrictions = restrictions.mergeWith(slice);
 
         SortedSet<Slice.Bound> bounds = restrictions.boundsAsClustering(Bound.START, QueryOptions.DEFAULT);
@@ -672,7 +672,7 @@ public class PrimaryKeyRestrictionSetTest
 
         // (clustering_0, clustering1) >= (1, 2)
         slice = newMultiSlice(cfMetaData, 0, Bound.START, true, value1, value2);
-        restrictions = new PrimaryKeyRestrictionSet(cfMetaData.comparator, false);
+        restrictions = new ClusteringColumnRestrictions(cfMetaData);
         restrictions = restrictions.mergeWith(slice);
 
         bounds = restrictions.boundsAsClustering(Bound.START, QueryOptions.DEFAULT);
@@ -685,7 +685,7 @@ public class PrimaryKeyRestrictionSetTest
 
         // (clustering_0, clustering1) <= (1, 2)
         slice = newMultiSlice(cfMetaData, 0, Bound.END, true, value1, value2);
-        restrictions = new PrimaryKeyRestrictionSet(cfMetaData.comparator, false);
+        restrictions = new ClusteringColumnRestrictions(cfMetaData);
         restrictions = restrictions.mergeWith(slice);
 
         bounds = restrictions.boundsAsClustering(Bound.START, QueryOptions.DEFAULT);
@@ -698,7 +698,7 @@ public class PrimaryKeyRestrictionSetTest
 
         // (clustering_0, clustering1) < (1, 2)
         slice = newMultiSlice(cfMetaData, 0, Bound.END, false, value1, value2);
-        restrictions = new PrimaryKeyRestrictionSet(cfMetaData.comparator, false);
+        restrictions = new ClusteringColumnRestrictions(cfMetaData);
         restrictions = restrictions.mergeWith(slice);
 
         bounds = restrictions.boundsAsClustering(Bound.START, QueryOptions.DEFAULT);
@@ -712,7 +712,7 @@ public class PrimaryKeyRestrictionSetTest
         // (clustering_0, clustering1) > (1, 2) AND (clustering_0) < (2)
         slice = newMultiSlice(cfMetaData, 0, Bound.START, false, value1, value2);
         Restriction slice2 = newMultiSlice(cfMetaData, 0, Bound.END, false, value2);
-        restrictions = new PrimaryKeyRestrictionSet(cfMetaData.comparator, false);
+        restrictions = new ClusteringColumnRestrictions(cfMetaData);
         restrictions = restrictions.mergeWith(slice).mergeWith(slice2);
 
         bounds = restrictions.boundsAsClustering(Bound.START, QueryOptions.DEFAULT);
@@ -726,7 +726,7 @@ public class PrimaryKeyRestrictionSetTest
         // (clustering_0, clustering1) >= (1, 2) AND (clustering_0, clustering1) <= (2, 1)
         slice = newMultiSlice(cfMetaData, 0, Bound.START, true, value1, value2);
         slice2 = newMultiSlice(cfMetaData, 0, Bound.END, true, value2, value1);
-        restrictions = new PrimaryKeyRestrictionSet(cfMetaData.comparator, false);
+        restrictions = new ClusteringColumnRestrictions(cfMetaData);
         restrictions = restrictions.mergeWith(slice).mergeWith(slice2);
 
         bounds = restrictions.boundsAsClustering(Bound.START, QueryOptions.DEFAULT);
@@ -751,7 +751,7 @@ public class PrimaryKeyRestrictionSetTest
 
         // (clustering_0, clustering1) > (1, 2)
         Restriction slice = newMultiSlice(cfMetaData, 0, Bound.START, false, value1, value2);
-        PrimaryKeyRestrictions restrictions = new PrimaryKeyRestrictionSet(cfMetaData.comparator, false);
+        ClusteringColumnRestrictions restrictions = new ClusteringColumnRestrictions(cfMetaData);
         restrictions = restrictions.mergeWith(slice);
 
         SortedSet<Slice.Bound> bounds = restrictions.boundsAsClustering(Bound.START, QueryOptions.DEFAULT);
@@ -764,7 +764,7 @@ public class PrimaryKeyRestrictionSetTest
 
         // (clustering_0, clustering1) >= (1, 2)
         slice = newMultiSlice(cfMetaData, 0, Bound.START, true, value1, value2);
-        restrictions = new PrimaryKeyRestrictionSet(cfMetaData.comparator, false);
+        restrictions = new ClusteringColumnRestrictions(cfMetaData);
         restrictions = restrictions.mergeWith(slice);
 
         bounds = restrictions.boundsAsClustering(Bound.START, QueryOptions.DEFAULT);
@@ -777,7 +777,7 @@ public class PrimaryKeyRestrictionSetTest
 
         // (clustering_0, clustering1) <= (1, 2)
         slice = newMultiSlice(cfMetaData, 0, Bound.END, true, value1, value2);
-        restrictions = new PrimaryKeyRestrictionSet(cfMetaData.comparator, false);
+        restrictions = new ClusteringColumnRestrictions(cfMetaData);
         restrictions = restrictions.mergeWith(slice);
 
         bounds = restrictions.boundsAsClustering(Bound.START, QueryOptions.DEFAULT);
@@ -790,7 +790,7 @@ public class PrimaryKeyRestrictionSetTest
 
         // (clustering_0, clustering1) < (1, 2)
         slice = newMultiSlice(cfMetaData, 0, Bound.END, false, value1, value2);
-        restrictions = new PrimaryKeyRestrictionSet(cfMetaData.comparator, false);
+        restrictions = new ClusteringColumnRestrictions(cfMetaData);
         restrictions = restrictions.mergeWith(slice);
 
         bounds = restrictions.boundsAsClustering(Bound.START, QueryOptions.DEFAULT);
@@ -805,7 +805,7 @@ public class PrimaryKeyRestrictionSetTest
         // (clustering_0, clustering1) > (1, 2) AND (clustering_0) < (2)
         slice = newMultiSlice(cfMetaData, 0, Bound.START, false, value1, value2);
         Restriction slice2 = newMultiSlice(cfMetaData, 0, Bound.END, false, value2);
-        restrictions = new PrimaryKeyRestrictionSet(cfMetaData.comparator, false);
+        restrictions = new ClusteringColumnRestrictions(cfMetaData);
         restrictions = restrictions.mergeWith(slice).mergeWith(slice2);
 
         bounds = restrictions.boundsAsClustering(Bound.START, QueryOptions.DEFAULT);
@@ -819,7 +819,7 @@ public class PrimaryKeyRestrictionSetTest
         // (clustering_0, clustering1) >= (1, 2) AND (clustering_0, clustering1) <= (2, 1)
         slice = newMultiSlice(cfMetaData, 0, Bound.START, true, value1, value2);
         slice2 = newMultiSlice(cfMetaData, 0, Bound.END, true, value2, value1);
-        restrictions = new PrimaryKeyRestrictionSet(cfMetaData.comparator, false);
+        restrictions = new ClusteringColumnRestrictions(cfMetaData);
         restrictions = restrictions.mergeWith(slice).mergeWith(slice2);
 
         bounds = restrictions.boundsAsClustering(Bound.START, QueryOptions.DEFAULT);
@@ -845,7 +845,7 @@ public class PrimaryKeyRestrictionSetTest
 
         // (clustering_0, clustering1) > (1, 2)
         Restriction slice = newMultiSlice(cfMetaData, 0, Bound.START, false, value1, value2);
-        PrimaryKeyRestrictions restrictions = new PrimaryKeyRestrictionSet(cfMetaData.comparator, false);
+        ClusteringColumnRestrictions restrictions = new ClusteringColumnRestrictions(cfMetaData);
         restrictions = restrictions.mergeWith(slice);
 
         SortedSet<Slice.Bound> bounds = restrictions.boundsAsClustering(Bound.START, QueryOptions.DEFAULT);
@@ -860,7 +860,7 @@ public class PrimaryKeyRestrictionSetTest
 
         // (clustering_0, clustering1) >= (1, 2)
         slice = newMultiSlice(cfMetaData, 0, Bound.START, true, value1, value2);
-        restrictions = new PrimaryKeyRestrictionSet(cfMetaData.comparator, false);
+        restrictions = new ClusteringColumnRestrictions(cfMetaData);
         restrictions = restrictions.mergeWith(slice);
 
         bounds = restrictions.boundsAsClustering(Bound.START, QueryOptions.DEFAULT);
@@ -875,7 +875,7 @@ public class PrimaryKeyRestrictionSetTest
 
         // (clustering_0, clustering1) <= (1, 2)
         slice = newMultiSlice(cfMetaData, 0, Bound.END, true, value1, value2);
-        restrictions = new PrimaryKeyRestrictionSet(cfMetaData.comparator, false);
+        restrictions = new ClusteringColumnRestrictions(cfMetaData);
         restrictions = restrictions.mergeWith(slice);
 
         bounds = restrictions.boundsAsClustering(Bound.START, QueryOptions.DEFAULT);
@@ -890,7 +890,7 @@ public class PrimaryKeyRestrictionSetTest
 
         // (clustering_0, clustering1) < (1, 2)
         slice = newMultiSlice(cfMetaData, 0, Bound.END, false, value1, value2);
-        restrictions = new PrimaryKeyRestrictionSet(cfMetaData.comparator, false);
+        restrictions = new ClusteringColumnRestrictions(cfMetaData);
         restrictions = restrictions.mergeWith(slice);
 
         bounds = restrictions.boundsAsClustering(Bound.START, QueryOptions.DEFAULT);
@@ -906,7 +906,7 @@ public class PrimaryKeyRestrictionSetTest
         // (clustering_0, clustering1) > (1, 2) AND (clustering_0) < (2)
         slice = newMultiSlice(cfMetaData, 0, Bound.START, false, value1, value2);
         Restriction slice2 = newMultiSlice(cfMetaData, 0, Bound.END, false, value2);
-        restrictions = new PrimaryKeyRestrictionSet(cfMetaData.comparator, false);
+        restrictions = new ClusteringColumnRestrictions(cfMetaData);
         restrictions = restrictions.mergeWith(slice).mergeWith(slice2);
 
         bounds = restrictions.boundsAsClustering(Bound.START, QueryOptions.DEFAULT);
@@ -922,7 +922,7 @@ public class PrimaryKeyRestrictionSetTest
         // (clustering_0) > (1) AND (clustering_0, clustering1) < (2, 1)
         slice = newMultiSlice(cfMetaData, 0, Bound.START, false, value1);
         slice2 = newMultiSlice(cfMetaData, 0, Bound.END, false, value2, value1);
-        restrictions = new PrimaryKeyRestrictionSet(cfMetaData.comparator, false);
+        restrictions = new ClusteringColumnRestrictions(cfMetaData);
         restrictions = restrictions.mergeWith(slice).mergeWith(slice2);
 
         bounds = restrictions.boundsAsClustering(Bound.START, QueryOptions.DEFAULT);
@@ -938,7 +938,7 @@ public class PrimaryKeyRestrictionSetTest
         // (clustering_0, clustering1) >= (1, 2) AND (clustering_0, clustering1) <= (2, 1)
         slice = newMultiSlice(cfMetaData, 0, Bound.START, true, value1, value2);
         slice2 = newMultiSlice(cfMetaData, 0, Bound.END, true, value2, value1);
-        restrictions = new PrimaryKeyRestrictionSet(cfMetaData.comparator, false);
+        restrictions = new ClusteringColumnRestrictions(cfMetaData);
         restrictions = restrictions.mergeWith(slice).mergeWith(slice2);
 
         bounds = restrictions.boundsAsClustering(Bound.START, QueryOptions.DEFAULT);
@@ -968,7 +968,7 @@ public class PrimaryKeyRestrictionSetTest
 
         // (clustering_0, clustering1) > (1, 2)
         Restriction slice = newMultiSlice(cfMetaData, 0, Bound.START, false, value1, value2);
-        PrimaryKeyRestrictions restrictions = new PrimaryKeyRestrictionSet(cfMetaData.comparator, false);
+        ClusteringColumnRestrictions restrictions = new ClusteringColumnRestrictions(cfMetaData);
         restrictions = restrictions.mergeWith(slice);
 
         SortedSet<Slice.Bound> bounds = restrictions.boundsAsClustering(Bound.START, QueryOptions.DEFAULT);
@@ -983,7 +983,7 @@ public class PrimaryKeyRestrictionSetTest
 
         // (clustering_0, clustering1) >= (1, 2)
         slice = newMultiSlice(cfMetaData, 0, Bound.START, true, value1, value2);
-        restrictions = new PrimaryKeyRestrictionSet(cfMetaData.comparator, false);
+        restrictions = new ClusteringColumnRestrictions(cfMetaData);
         restrictions = restrictions.mergeWith(slice);
 
         bounds = restrictions.boundsAsClustering(Bound.START, QueryOptions.DEFAULT);
@@ -998,7 +998,7 @@ public class PrimaryKeyRestrictionSetTest
 
         // (clustering_0, clustering1) <= (1, 2)
         slice = newMultiSlice(cfMetaData, 0, Bound.END, true, value1, value2);
-        restrictions = new PrimaryKeyRestrictionSet(cfMetaData.comparator, false);
+        restrictions = new ClusteringColumnRestrictions(cfMetaData);
         restrictions = restrictions.mergeWith(slice);
 
         bounds = restrictions.boundsAsClustering(Bound.START, QueryOptions.DEFAULT);
@@ -1013,7 +1013,7 @@ public class PrimaryKeyRestrictionSetTest
 
         // (clustering_0, clustering1) < (1, 2)
         slice = newMultiSlice(cfMetaData, 0, Bound.END, false, value1, value2);
-        restrictions = new PrimaryKeyRestrictionSet(cfMetaData.comparator, false);
+        restrictions = new ClusteringColumnRestrictions(cfMetaData);
         restrictions = restrictions.mergeWith(slice);
 
         bounds = restrictions.boundsAsClustering(Bound.START, QueryOptions.DEFAULT);
@@ -1029,7 +1029,7 @@ public class PrimaryKeyRestrictionSetTest
         // (clustering_0, clustering1) > (1, 2) AND (clustering_0) < (2)
         slice = newMultiSlice(cfMetaData, 0, Bound.START, false, value1, value2);
         Restriction slice2 = newMultiSlice(cfMetaData, 0, Bound.END, false, value2);
-        restrictions = new PrimaryKeyRestrictionSet(cfMetaData.comparator, false);
+        restrictions = new ClusteringColumnRestrictions(cfMetaData);
         restrictions = restrictions.mergeWith(slice).mergeWith(slice2);
 
         bounds = restrictions.boundsAsClustering(Bound.START, QueryOptions.DEFAULT);
@@ -1045,7 +1045,7 @@ public class PrimaryKeyRestrictionSetTest
         // (clustering_0, clustering1) >= (1, 2) AND (clustering_0, clustering1) <= (2, 1)
         slice = newMultiSlice(cfMetaData, 0, Bound.START, true, value1, value2);
         slice2 = newMultiSlice(cfMetaData, 0, Bound.END, true, value2, value1);
-        restrictions = new PrimaryKeyRestrictionSet(cfMetaData.comparator, false);
+        restrictions = new ClusteringColumnRestrictions(cfMetaData);
         restrictions = restrictions.mergeWith(slice).mergeWith(slice2);
 
         bounds = restrictions.boundsAsClustering(Bound.START, QueryOptions.DEFAULT);
@@ -1077,7 +1077,7 @@ public class PrimaryKeyRestrictionSetTest
 
         // (clustering_0, clustering1, clustering_2, clustering_3) > (1, 2, 3, 4)
         Restriction slice = newMultiSlice(cfMetaData, 0, Bound.START, false, value1, value2, value3, value4);
-        PrimaryKeyRestrictions restrictions = new PrimaryKeyRestrictionSet(cfMetaData.comparator, false);
+        ClusteringColumnRestrictions restrictions = new ClusteringColumnRestrictions(cfMetaData);
         restrictions = restrictions.mergeWith(slice);
 
         SortedSet<Slice.Bound> bounds = restrictions.boundsAsClustering(Bound.START, QueryOptions.DEFAULT);
@@ -1093,7 +1093,7 @@ public class PrimaryKeyRestrictionSetTest
         // clustering_0 = 1 AND (clustering_1, clustering_2, clustering_3) > (2, 3, 4)
         Restriction eq = newSingleEq(cfMetaData, 0, value1);
         slice = newMultiSlice(cfMetaData, 1, Bound.START, false, value2, value3, value4);
-        restrictions = new PrimaryKeyRestrictionSet(cfMetaData.comparator, false);
+        restrictions = new ClusteringColumnRestrictions(cfMetaData);
         restrictions = restrictions.mergeWith(slice);
         restrictions = restrictions.mergeWith(eq);
 
@@ -1110,7 +1110,7 @@ public class PrimaryKeyRestrictionSetTest
         // clustering_0 IN (1, 2) AND (clustering_1, clustering_2, clustering_3) > (2, 3, 4)
         Restriction in = newSingleIN(cfMetaData, 0, value1, value2);
         slice = newMultiSlice(cfMetaData, 1, Bound.START, false, value2, value3, value4);
-        restrictions = new PrimaryKeyRestrictionSet(cfMetaData.comparator, false);
+        restrictions = new ClusteringColumnRestrictions(cfMetaData);
         restrictions = restrictions.mergeWith(slice);
         restrictions = restrictions.mergeWith(in);
 
@@ -1130,7 +1130,7 @@ public class PrimaryKeyRestrictionSetTest
 
         // (clustering_0, clustering1) >= (1, 2)
         slice = newMultiSlice(cfMetaData, 0, Bound.START, true, value1, value2);
-        restrictions = new PrimaryKeyRestrictionSet(cfMetaData.comparator, false);
+        restrictions = new ClusteringColumnRestrictions(cfMetaData);
         restrictions = restrictions.mergeWith(slice);
 
         bounds = restrictions.boundsAsClustering(Bound.START, QueryOptions.DEFAULT);
@@ -1143,7 +1143,7 @@ public class PrimaryKeyRestrictionSetTest
 
         // (clustering_0, clustering1, clustering_2, clustering_3) >= (1, 2, 3, 4)
         slice = newMultiSlice(cfMetaData, 0, Bound.START, true, value1, value2, value3, value4);
-        restrictions = new PrimaryKeyRestrictionSet(cfMetaData.comparator, false);
+        restrictions = new ClusteringColumnRestrictions(cfMetaData);
         restrictions = restrictions.mergeWith(slice);
 
         bounds = restrictions.boundsAsClustering(Bound.START, QueryOptions.DEFAULT);
@@ -1158,7 +1158,7 @@ public class PrimaryKeyRestrictionSetTest
 
         // (clustering_0, clustering1, clustering_2, clustering_3) <= (1, 2, 3, 4)
         slice = newMultiSlice(cfMetaData, 0, Bound.END, true, value1, value2, value3, value4);
-        restrictions = new PrimaryKeyRestrictionSet(cfMetaData.comparator, false);
+        restrictions = new ClusteringColumnRestrictions(cfMetaData);
         restrictions = restrictions.mergeWith(slice);
 
         bounds = restrictions.boundsAsClustering(Bound.START, QueryOptions.DEFAULT);
@@ -1173,7 +1173,7 @@ public class PrimaryKeyRestrictionSetTest
 
         // (clustering_0, clustering1, clustering_2, clustering_3) < (1, 2, 3, 4)
         slice = newMultiSlice(cfMetaData, 0, Bound.END, false, value1, value2, value3, value4);
-        restrictions = new PrimaryKeyRestrictionSet(cfMetaData.comparator, false);
+        restrictions = new ClusteringColumnRestrictions(cfMetaData);
         restrictions = restrictions.mergeWith(slice);
 
         bounds = restrictions.boundsAsClustering(Bound.START, QueryOptions.DEFAULT);
@@ -1189,7 +1189,7 @@ public class PrimaryKeyRestrictionSetTest
         // (clustering_0, clustering1, clustering_2, clustering_3) > (1, 2, 3, 4) AND (clustering_0, clustering_1) < (2, 3)
         slice = newMultiSlice(cfMetaData, 0, Bound.START, false, value1, value2, value3, value4);
         Restriction slice2 = newMultiSlice(cfMetaData, 0, Bound.END, false, value2, value3);
-        restrictions = new PrimaryKeyRestrictionSet(cfMetaData.comparator, false);
+        restrictions = new ClusteringColumnRestrictions(cfMetaData);
         restrictions = restrictions.mergeWith(slice).mergeWith(slice2);
 
         bounds = restrictions.boundsAsClustering(Bound.START, QueryOptions.DEFAULT);
@@ -1205,7 +1205,7 @@ public class PrimaryKeyRestrictionSetTest
         // (clustering_0, clustering1, clustering_2, clustering_3) >= (1, 2, 3, 4) AND (clustering_0, clustering1, clustering_2, clustering_3) <= (4, 3, 2, 1)
         slice = newMultiSlice(cfMetaData, 0, Bound.START, true, value1, value2, value3, value4);
         slice2 = newMultiSlice(cfMetaData, 0, Bound.END, true, value4, value3, value2, value1);
-        restrictions = new PrimaryKeyRestrictionSet(cfMetaData.comparator, false);
+        restrictions = new ClusteringColumnRestrictions(cfMetaData);
         restrictions = restrictions.mergeWith(slice).mergeWith(slice2);
 
         bounds = restrictions.boundsAsClustering(Bound.START, QueryOptions.DEFAULT);
@@ -1237,7 +1237,7 @@ public class PrimaryKeyRestrictionSetTest
 
         // (clustering_0, clustering1, clustering_2, clustering_3) > (1, 2, 3, 4)
         Restriction slice = newMultiSlice(cfMetaData, 0, Bound.START, false, value1, value2, value3, value4);
-        PrimaryKeyRestrictions restrictions = new PrimaryKeyRestrictionSet(cfMetaData.comparator, false);
+        ClusteringColumnRestrictions restrictions = new ClusteringColumnRestrictions(cfMetaData);
         restrictions = restrictions.mergeWith(slice);
 
         SortedSet<Slice.Bound> bounds = restrictions.boundsAsClustering(Bound.START, QueryOptions.DEFAULT);
@@ -1258,7 +1258,7 @@ public class PrimaryKeyRestrictionSetTest
         // clustering_0 = 1 AND (clustering_1, clustering_2, clustering_3) > (2, 3, 4)
         Restriction eq = newSingleEq(cfMetaData, 0, value1);
         slice = newMultiSlice(cfMetaData, 1, Bound.START, false, value2, value3, value4);
-        restrictions = new PrimaryKeyRestrictionSet(cfMetaData.comparator, false);
+        restrictions = new ClusteringColumnRestrictions(cfMetaData);
         restrictions = restrictions.mergeWith(slice);
         restrictions = restrictions.mergeWith(eq);
 
@@ -1276,7 +1276,7 @@ public class PrimaryKeyRestrictionSetTest
 
         // (clustering_0, clustering1) >= (1, 2)
         slice = newMultiSlice(cfMetaData, 0, Bound.START, true, value1, value2);
-        restrictions = new PrimaryKeyRestrictionSet(cfMetaData.comparator, false);
+        restrictions = new ClusteringColumnRestrictions(cfMetaData);
         restrictions = restrictions.mergeWith(slice);
 
         bounds = restrictions.boundsAsClustering(Bound.START, QueryOptions.DEFAULT);
@@ -1291,7 +1291,7 @@ public class PrimaryKeyRestrictionSetTest
 
         // (clustering_0, clustering1, clustering_2, clustering_3) >= (1, 2, 3, 4)
         slice = newMultiSlice(cfMetaData, 0, Bound.START, true, value1, value2, value3, value4);
-        restrictions = new PrimaryKeyRestrictionSet(cfMetaData.comparator, false);
+        restrictions = new ClusteringColumnRestrictions(cfMetaData);
         restrictions = restrictions.mergeWith(slice);
 
         bounds = restrictions.boundsAsClustering(Bound.START, QueryOptions.DEFAULT);
@@ -1310,7 +1310,7 @@ public class PrimaryKeyRestrictionSetTest
 
         // (clustering_0, clustering1, clustering_2, clustering_3) <= (1, 2, 3, 4)
         slice = newMultiSlice(cfMetaData, 0, Bound.END, true, value1, value2, value3, value4);
-        restrictions = new PrimaryKeyRestrictionSet(cfMetaData.comparator, false);
+        restrictions = new ClusteringColumnRestrictions(cfMetaData);
         restrictions = restrictions.mergeWith(slice);
 
         bounds = restrictions.boundsAsClustering(Bound.START, QueryOptions.DEFAULT);
@@ -1329,7 +1329,7 @@ public class PrimaryKeyRestrictionSetTest
 
         // (clustering_0, clustering1, clustering_2, clustering_3) < (1, 2, 3, 4)
         slice = newMultiSlice(cfMetaData, 0, Bound.END, false, value1, value2, value3, value4);
-        restrictions = new PrimaryKeyRestrictionSet(cfMetaData.comparator, false);
+        restrictions = new ClusteringColumnRestrictions(cfMetaData);
         restrictions = restrictions.mergeWith(slice);
 
         bounds = restrictions.boundsAsClustering(Bound.START, QueryOptions.DEFAULT);
@@ -1349,7 +1349,7 @@ public class PrimaryKeyRestrictionSetTest
         // (clustering_0, clustering1, clustering_2, clustering_3) > (1, 2, 3, 4) AND (clustering_0, clustering_1) < (2, 3)
         slice = newMultiSlice(cfMetaData, 0, Bound.START, false, value1, value2, value3, value4);
         Restriction slice2 = newMultiSlice(cfMetaData, 0, Bound.END, false, value2, value3);
-        restrictions = new PrimaryKeyRestrictionSet(cfMetaData.comparator, false);
+        restrictions = new ClusteringColumnRestrictions(cfMetaData);
         restrictions = restrictions.mergeWith(slice).mergeWith(slice2);
 
         bounds = restrictions.boundsAsClustering(Bound.START, QueryOptions.DEFAULT);
@@ -1371,7 +1371,7 @@ public class PrimaryKeyRestrictionSetTest
         // (clustering_0, clustering1, clustering_2, clustering_3) >= (1, 2, 3, 4) AND (clustering_0, clustering1, clustering_2, clustering_3) <= (4, 3, 2, 1)
         slice = newMultiSlice(cfMetaData, 0, Bound.START, true, value1, value2, value3, value4);
         slice2 = newMultiSlice(cfMetaData, 0, Bound.END, true, value4, value3, value2, value1);
-        restrictions = new PrimaryKeyRestrictionSet(cfMetaData.comparator, false);
+        restrictions = new ClusteringColumnRestrictions(cfMetaData);
         restrictions = restrictions.mergeWith(slice).mergeWith(slice2);
 
         bounds = restrictions.boundsAsClustering(Bound.START, QueryOptions.DEFAULT);
@@ -1411,7 +1411,7 @@ public class PrimaryKeyRestrictionSetTest
         // clustering_0 = 1 AND (clustering_1, clustering_2) = (2, 3)
         Restriction singleEq = newSingleEq(cfMetaData, 0, value1);
         Restriction multiEq = newMultiEq(cfMetaData, 1, value2, value3);
-        PrimaryKeyRestrictions restrictions = new PrimaryKeyRestrictionSet(cfMetaData.comparator, false);
+        ClusteringColumnRestrictions restrictions = new ClusteringColumnRestrictions(cfMetaData);
         restrictions = restrictions.mergeWith(singleEq).mergeWith(multiEq);
 
         SortedSet<Slice.Bound> bounds = restrictions.boundsAsClustering(Bound.START, QueryOptions.DEFAULT);
@@ -1426,7 +1426,7 @@ public class PrimaryKeyRestrictionSetTest
         singleEq = newSingleEq(cfMetaData, 0, value1);
         Restriction singleEq2 = newSingleEq(cfMetaData, 1, value2);
         multiEq = newMultiEq(cfMetaData, 2, value3, value4);
-        restrictions = new PrimaryKeyRestrictionSet(cfMetaData.comparator, false);
+        restrictions = new ClusteringColumnRestrictions(cfMetaData);
         restrictions = restrictions.mergeWith(singleEq).mergeWith(singleEq2).mergeWith(multiEq);
 
         bounds = restrictions.boundsAsClustering(Bound.START, QueryOptions.DEFAULT);
@@ -1440,7 +1440,7 @@ public class PrimaryKeyRestrictionSetTest
         // (clustering_0, clustering_1) = (1, 2) AND clustering_2 = 3
         singleEq = newSingleEq(cfMetaData, 2, value3);
         multiEq = newMultiEq(cfMetaData, 0, value1, value2);
-        restrictions = new PrimaryKeyRestrictionSet(cfMetaData.comparator, false);
+        restrictions = new ClusteringColumnRestrictions(cfMetaData);
         restrictions = restrictions.mergeWith(singleEq).mergeWith(multiEq);
 
         bounds = restrictions.boundsAsClustering(Bound.START, QueryOptions.DEFAULT);
@@ -1455,7 +1455,7 @@ public class PrimaryKeyRestrictionSetTest
         singleEq = newSingleEq(cfMetaData, 0, value1);
         singleEq2 = newSingleEq(cfMetaData, 3, value4);
         multiEq = newMultiEq(cfMetaData, 1, value2, value3);
-        restrictions = new PrimaryKeyRestrictionSet(cfMetaData.comparator, false);
+        restrictions = new ClusteringColumnRestrictions(cfMetaData);
         restrictions = restrictions.mergeWith(singleEq).mergeWith(multiEq).mergeWith(singleEq2);
 
         bounds = restrictions.boundsAsClustering(Bound.START, QueryOptions.DEFAULT);
@@ -1484,7 +1484,7 @@ public class PrimaryKeyRestrictionSetTest
         // clustering_0 = 1 AND (clustering_1, clustering_2) IN ((2, 3), (4, 5))
         Restriction singleEq = newSingleEq(cfMetaData, 0, value1);
         Restriction multiIN = newMultiIN(cfMetaData, 1, asList(value2, value3), asList(value4, value5));
-        PrimaryKeyRestrictions restrictions = new PrimaryKeyRestrictionSet(cfMetaData.comparator, false);
+        ClusteringColumnRestrictions restrictions = new ClusteringColumnRestrictions(cfMetaData);
         restrictions = restrictions.mergeWith(singleEq).mergeWith(multiIN);
 
         SortedSet<Slice.Bound> bounds = restrictions.boundsAsClustering(Bound.START, QueryOptions.DEFAULT);
@@ -1500,7 +1500,7 @@ public class PrimaryKeyRestrictionSetTest
         // clustering_0 = 1 AND (clustering_1, clustering_2) IN ((2, 3))
         singleEq = newSingleEq(cfMetaData, 0, value1);
         multiIN = newMultiIN(cfMetaData, 1, asList(value2, value3));
-        restrictions = new PrimaryKeyRestrictionSet(cfMetaData.comparator, false);
+        restrictions = new ClusteringColumnRestrictions(cfMetaData);
         restrictions = restrictions.mergeWith(multiIN).mergeWith(singleEq);
 
         bounds = restrictions.boundsAsClustering(Bound.START, QueryOptions.DEFAULT);
@@ -1515,7 +1515,7 @@ public class PrimaryKeyRestrictionSetTest
         singleEq = newSingleEq(cfMetaData, 0, value1);
         Restriction singleEq2 = newSingleEq(cfMetaData, 1, value5);
         multiIN = newMultiIN(cfMetaData, 2, asList(value2, value3), asList(value4, value5));
-        restrictions = new PrimaryKeyRestrictionSet(cfMetaData.comparator, false);
+        restrictions = new ClusteringColumnRestrictions(cfMetaData);
         restrictions = restrictions.mergeWith(singleEq).mergeWith(multiIN).mergeWith(singleEq2);
 
         bounds = restrictions.boundsAsClustering(Bound.START, QueryOptions.DEFAULT);
@@ -1547,7 +1547,7 @@ public class PrimaryKeyRestrictionSetTest
         // clustering_0 = 1 AND (clustering_1, clustering_2) > (2, 3)
         Restriction singleEq = newSingleEq(cfMetaData, 0, value1);
         Restriction multiSlice = newMultiSlice(cfMetaData, 1, Bound.START, false, value2, value3);
-        PrimaryKeyRestrictions restrictions = new PrimaryKeyRestrictionSet(cfMetaData.comparator, false);
+        ClusteringColumnRestrictions restrictions = new ClusteringColumnRestrictions(cfMetaData);
         restrictions = restrictions.mergeWith(singleEq).mergeWith(multiSlice);
 
         SortedSet<Slice.Bound> bounds = restrictions.boundsAsClustering(Bound.START, QueryOptions.DEFAULT);
@@ -1562,7 +1562,7 @@ public class PrimaryKeyRestrictionSetTest
         singleEq = newSingleEq(cfMetaData, 0, value1);
         multiSlice = newMultiSlice(cfMetaData, 1, Bound.START, false, value2, value3);
         Restriction multiSlice2 = newMultiSlice(cfMetaData, 1, Bound.END, false, value4);
-        restrictions = new PrimaryKeyRestrictionSet(cfMetaData.comparator, false);
+        restrictions = new ClusteringColumnRestrictions(cfMetaData);
         restrictions = restrictions.mergeWith(multiSlice2).mergeWith(singleEq).mergeWith(multiSlice);
 
         bounds = restrictions.boundsAsClustering(Bound.START, QueryOptions.DEFAULT);
@@ -1577,7 +1577,7 @@ public class PrimaryKeyRestrictionSetTest
         singleEq = newSingleEq(cfMetaData, 0, value1);
         multiSlice = newMultiSlice(cfMetaData, 1, Bound.START, true, value2, value3);
         multiSlice2 = newMultiSlice(cfMetaData, 1, Bound.END, true, value4, value5);
-        restrictions = new PrimaryKeyRestrictionSet(cfMetaData.comparator, false);
+        restrictions = new ClusteringColumnRestrictions(cfMetaData);
         restrictions = restrictions.mergeWith(multiSlice2).mergeWith(singleEq).mergeWith(multiSlice);
 
         bounds = restrictions.boundsAsClustering(Bound.START, QueryOptions.DEFAULT);
@@ -1605,7 +1605,7 @@ public class PrimaryKeyRestrictionSetTest
         // (clustering_0, clustering_1) = (1, 2) AND clustering_2 > 3
         Restriction multiEq = newMultiEq(cfMetaData, 0, value1, value2);
         Restriction singleSlice = newSingleSlice(cfMetaData, 2, Bound.START, false, value3);
-        PrimaryKeyRestrictions restrictions = new PrimaryKeyRestrictionSet(cfMetaData.comparator, false);
+        ClusteringColumnRestrictions restrictions = new ClusteringColumnRestrictions(cfMetaData);
         restrictions = restrictions.mergeWith(multiEq).mergeWith(singleSlice);
 
         SortedSet<Slice.Bound> bounds = restrictions.boundsAsClustering(Bound.START, QueryOptions.DEFAULT);
@@ -1631,7 +1631,7 @@ public class PrimaryKeyRestrictionSetTest
         // (clustering_0, clustering_1) = (1, 2) AND (clustering_2, clustering_3) > (3, 4)
         Restriction multiEq = newMultiEq(cfMetaData, 0, value1, value2);
         Restriction multiSlice = newMultiSlice(cfMetaData, 2, Bound.START, false, value3, value4);
-        PrimaryKeyRestrictions restrictions = new PrimaryKeyRestrictionSet(cfMetaData.comparator, false);
+        ClusteringColumnRestrictions restrictions = new ClusteringColumnRestrictions(cfMetaData);
         restrictions = restrictions.mergeWith(multiEq).mergeWith(multiSlice);
 
         SortedSet<Slice.Bound> bounds = restrictions.boundsAsClustering(Bound.START, QueryOptions.DEFAULT);
@@ -1645,7 +1645,7 @@ public class PrimaryKeyRestrictionSetTest
         // (clustering_0, clustering_1) = (1, 2) AND (clustering_2, clustering_3) IN ((3, 4), (4, 5))
         multiEq = newMultiEq(cfMetaData, 0, value1, value2);
         Restriction multiIN = newMultiIN(cfMetaData, 2, asList(value3, value4), asList(value4, value5));
-        restrictions = new PrimaryKeyRestrictionSet(cfMetaData.comparator, false);
+        restrictions = new ClusteringColumnRestrictions(cfMetaData);
         restrictions = restrictions.mergeWith(multiEq).mergeWith(multiIN);
 
         bounds = restrictions.boundsAsClustering(Bound.START, QueryOptions.DEFAULT);
@@ -1661,7 +1661,7 @@ public class PrimaryKeyRestrictionSetTest
         // (clustering_0, clustering_1) = (1, 2) AND (clustering_2, clustering_3) = (3, 4)
         multiEq = newMultiEq(cfMetaData, 0, value1, value2);
         Restriction multiEq2 = newMultiEq(cfMetaData, 2, value3, value4);
-        restrictions = new PrimaryKeyRestrictionSet(cfMetaData.comparator, false);
+        restrictions = new ClusteringColumnRestrictions(cfMetaData);
         restrictions = restrictions.mergeWith(multiEq).mergeWith(multiEq2);
 
         bounds = restrictions.boundsAsClustering(Bound.START, QueryOptions.DEFAULT);

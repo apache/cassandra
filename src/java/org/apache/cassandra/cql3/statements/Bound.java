@@ -17,6 +17,8 @@
  */
 package org.apache.cassandra.cql3.statements;
 
+import org.apache.cassandra.config.ColumnDefinition;
+
 public enum Bound
 {
     START(0), END(1);
@@ -26,6 +28,17 @@ public enum Bound
     Bound(int idx)
     {
         this.idx = idx;
+    }
+
+    /**
+     * Reverses the bound if the column type is a reversed one.
+     *
+     * @param columnDefinition the column definition
+     * @return the bound reversed if the column type was a reversed one or the original bound
+     */
+    public Bound reverseIfNeeded(ColumnDefinition columnDefinition)
+    {
+        return columnDefinition.isReversedType() ? reverse() : this;
     }
 
     public Bound reverse()
