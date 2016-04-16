@@ -482,6 +482,8 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
         if (epStates.get(replaceAddress) == null)
             throw new RuntimeException(String.format("Cannot replace_address %s because it doesn't exist in gossip", replaceAddress));
 
+        validateEndpointSnitch(epStates.values().iterator());
+
         try
         {
             VersionedValue tokensVersionedValue = epStates.get(replaceAddress).getApplicationState(ApplicationState.TOKENS);
@@ -527,6 +529,8 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
                                                      FBUtilities.getBroadcastAddressAndPort()));
         }
 
+        validateEndpointSnitch(epStates.values().iterator());
+
         if (shouldBootstrap() && useStrictConsistency && !allowSimultaneousMoves())
         {
             for (Map.Entry<InetAddressAndPort, EndpointState> entry : epStates.entrySet())
@@ -547,6 +551,28 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
                 if (state.equals(VersionedValue.STATUS_BOOTSTRAPPING) || state.equals(VersionedValue.STATUS_LEAVING) || state.equals(VersionedValue.STATUS_MOVING))
                     throw new UnsupportedOperationException("Other bootstrapping/leaving/moving nodes detected, cannot bootstrap while cassandra.consistent.rangemovement is true");
             }
+        }
+    }
+
+    private static void validateEndpointSnitch(Iterator<EndpointState> endpointStates)
+    {
+        Set<String> datacenters = new HashSet<>();
+        Set<String> racks = new HashSet<>();
+        while (endpointStates.hasNext())
+        {
+            EndpointState state = endpointStates.next();
+            VersionedValue val = state.getApplicationState(ApplicationState.DC);
+            if (val != null)
+                datacenters.add(val.value);
+            val = state.getApplicationState(ApplicationState.RACK);
+            if (val != null)
+                racks.add(val.value);
+        }
+
+        IEndpointSnitch snitch = DatabaseDescriptor.getEndpointSnitch();
+        if (!snitch.validate(datacenters, racks))
+        {
+            throw new IllegalStateException();
         }
     }
 

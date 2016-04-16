@@ -1,4 +1,5 @@
 4.0
+ * Use standard Amazon naming for datacenter and rack in Ec2Snitch (CASSANDRA-7839)
  * Fix junit failure for SSTableReaderTest (CASSANDRA-14387)
  * Abstract write path for pluggable storage (CASSANDRA-14118)
  * nodetool describecluster should be more informative (CASSANDRA-13853)
