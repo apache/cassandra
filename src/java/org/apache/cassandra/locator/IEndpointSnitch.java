@@ -19,6 +19,7 @@ package org.apache.cassandra.locator;
 
 import java.util.Collection;
 import java.util.List;
+import java.util.Set;
 
 /**
  * This interface helps determine location of node in the datacenter relative to another node.
@@ -63,4 +64,12 @@ public interface IEndpointSnitch
      * to be faster than 2 sequential queries, one against l1 followed by one against l2.
      */
     public boolean isWorthMergingForRangeQuery(List<InetAddressAndPort> merged, List<InetAddressAndPort> l1, List<InetAddressAndPort> l2);
+
+    /**
+     * Determine if the datacenter or rack values in the current node's snitch conflict with those passed in parameters.
+     */
+    default boolean validate(Set<String> datacenters, Set<String> racks)
+    {
+        return true;
+    }
 }

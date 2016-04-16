@@ -448,4 +448,9 @@ public class DynamicEndpointSnitch extends AbstractEndpointSnitch implements ILa
         }
         return maxScore;
     }
+
+    public boolean validate(Set<String> datacenters, Set<String> racks)
+    {
+        return subsnitch.validate(datacenters, racks);
+    }
 }

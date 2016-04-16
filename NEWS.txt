@@ -141,6 +141,10 @@ Upgrading
       storage port or native port at nodes you must first upgrade the entire cluster
       and clients to 4.0 so they can handle the port not being consistent across
       the cluster.
+    - Names of AWS regions/availability zones have been cleaned up to more correctly
+      match the Amazon names. There is now a new option in conf/cassandra-rackdc.properties
+      that lets users enable the correct names for new clusters, or use the legacy
+      names for existing clusters. See conf/cassandra-rackdc.properties for details.
 
 Materialized Views
 -------------------
