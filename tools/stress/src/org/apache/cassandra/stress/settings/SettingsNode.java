@@ -33,6 +33,7 @@ public class SettingsNode implements Serializable
 {
     public final List<String> nodes;
     public final boolean isWhiteList;
+    public final String datacenter;
 
     public SettingsNode(Options options)
     {
@@ -64,8 +65,12 @@ public class SettingsNode implements Serializable
 
         }
         else
+        {
             nodes = Arrays.asList(options.list.value().split(","));
+        }
+
         isWhiteList = options.whitelist.setByUser();
+        datacenter = options.datacenter.value();
     }
 
     public Set<String> resolveAllPermitted(StressSettings settings)
@@ -135,6 +140,7 @@ public class SettingsNode implements Serializable
 
     public static final class Options extends GroupedOptions
     {
+        final OptionSimple datacenter = new OptionSimple("datacenter=", ".*", null, "Datacenter used for DCAwareRoundRobinLoadPolicy", false);
         final OptionSimple whitelist = new OptionSimple("whitelist", "", null, "Limit communications to the provided nodes", false);
         final OptionSimple file = new OptionSimple("file=", ".*", null, "Node file (one per line)", false);
         final OptionSimple list = new OptionSimple("", "[^=,]+(,[^=,]+)*", "localhost", "comma delimited list of nodes", false);
@@ -142,7 +148,7 @@ public class SettingsNode implements Serializable
         @Override
         public List<? extends Option> options()
         {
-            return Arrays.asList(whitelist, file, list);
+            return Arrays.asList(datacenter, whitelist, file, list);
         }
     }
 
