@@ -618,8 +618,10 @@ public class JsonTest extends CQLTester
         assertRows(execute("SELECT k, toJson(timeval) FROM %s WHERE k = ?", 0), row(0, "\"00:00:00.000000123\""));
 
         // ================ timestamp ================
-        execute("INSERT INTO %s (k, timestampval) VALUES (?, ?)", 0, new SimpleDateFormat("y-M-d").parse("2014-01-01"));
-        assertRows(execute("SELECT k, toJson(timestampval) FROM %s WHERE k = ?", 0), row(0, "\"2014-01-01 00:00:00.000\""));
+        SimpleDateFormat sdf = new SimpleDateFormat("y-M-d");
+        sdf.setTimeZone(TimeZone.getTimeZone("UDT"));
+        execute("INSERT INTO %s (k, timestampval) VALUES (?, ?)", 0, sdf.parse("2014-01-01"));
+        assertRows(execute("SELECT k, toJson(timestampval) FROM %s WHERE k = ?", 0), row(0, "\"2014-01-01 00:00:00.000Z\""));
 
         // ================ timeuuid ================
         execute("INSERT INTO %s (k, timeuuidval) VALUES (?, ?)", 0, UUID.fromString("6bddc89a-5644-11e4-97fc-56847afe9799"));
