@@ -1,13 +1,14 @@
 3.0.6
  * Option to specify ProtocolVersion in cassandra-stress (CASSANDRA-11410)
  * ArithmeticException in avgFunctionForDecimal (CASSANDRA-11485)
- * Allow only DISTINCT queries with partition keys or static columns restrictions (CASSANDRA-11339)
  * LogAwareFileLister should only use OLD sstable files in current folder to determine disk consistency (CASSANDRA-11470)
  * Notify indexers of expired rows during compaction (CASSANDRA-11329)
  * Properly respond with ProtocolError when a v1/v2 native protocol
    header is received (CASSANDRA-11464)
  * Validate that num_tokens and initial_token are consistent with one another (CASSANDRA-10120)
 Merged from 2.2:
+ * Always close cluster with connection in CqlRecordWriter (CASSANDRA-11553)
+ * Allow only DISTINCT queries with partition keys restrictions (CASSANDRA-11339)
  * CqlConfigHelper no longer requires both a keystore and truststore to work (CASSANDRA-11532)
  * Make deprecated repair methods backward-compatible with previous notification service (CASSANDRA-11430)
  * IncomingStreamingConnection version check message wrong (CASSANDRA-11462)
