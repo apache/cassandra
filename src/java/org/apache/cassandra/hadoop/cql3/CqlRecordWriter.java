@@ -226,7 +226,7 @@ class CqlRecordWriter extends RecordWriter<Map<String, ByteBuffer>, List<ByteBuf
         try
         {
             if (session != null)
-                session.close();
+                session.getCluster().closeAsync();
         }
         catch (Throwable t)
         {
