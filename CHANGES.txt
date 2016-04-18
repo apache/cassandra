@@ -1,4 +1,5 @@
 2.2.7
+ * Exit JVM if JMX server fails to startup (CASSANDRA-11540)
  * Produce a heap dump when exiting on OOM (CASSANDRA-9861)
  * Avoid read repairing purgeable tombstones on range slices (CASSANDRA-11427)
  * Restore ability to filter on clustering columns when using a 2i (CASSANDRA-11510)

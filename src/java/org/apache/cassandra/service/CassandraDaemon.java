@@ -98,7 +98,7 @@ public class CassandraDaemon
         logger = LoggerFactory.getLogger(CassandraDaemon.class);
     }
 
-    private static void maybeInitJmx()
+    private void maybeInitJmx()
     {
         if (System.getProperty("com.sun.management.jmxremote.port") != null)
             return;
@@ -119,7 +119,7 @@ public class CassandraDaemon
         }
         catch (IOException e)
         {
-            logger.error("Error starting local jmx server: ", e);
+            exitOrFail(1, e.getMessage(), e.getCause());
         }
     }
 
