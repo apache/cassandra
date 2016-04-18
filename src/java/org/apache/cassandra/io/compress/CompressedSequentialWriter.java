@@ -92,6 +92,17 @@ public class CompressedSequentialWriter extends SequentialWriter
         }
     }
 
+    /**
+     * Get a quick estimation on how many bytes have been written to disk
+     *
+     * It should for the most part be exactly the same as getOnDiskFilePointer()
+     */
+    @Override
+    public long getEstimatedOnDiskBytesWritten()
+    {
+        return chunkOffset;
+    }
+
     @Override
     public void flush()
     {

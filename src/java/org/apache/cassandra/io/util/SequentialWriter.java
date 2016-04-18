@@ -276,6 +276,11 @@ public class SequentialWriter extends BufferedDataOutputStreamPlus implements Tr
         return position();
     }
 
+    public long getEstimatedOnDiskBytesWritten()
+    {
+        return getOnDiskFilePointer();
+    }
+
     public long length()
     {
         try

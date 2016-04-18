@@ -212,6 +212,11 @@ public abstract class SSTableWriter extends SSTable implements Transactional
 
     public abstract long getOnDiskFilePointer();
 
+    public long getEstimatedOnDiskBytesWritten()
+    {
+        return getOnDiskFilePointer();
+    }
+
     public abstract void resetAndTruncate();
 
     public SSTableWriter setRepairedAt(long repairedAt)

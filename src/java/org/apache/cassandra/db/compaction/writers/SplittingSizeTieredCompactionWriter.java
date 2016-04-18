@@ -18,7 +18,6 @@
 package org.apache.cassandra.db.compaction.writers;
 
 import java.util.Arrays;
-import java.util.List;
 import java.util.Set;
 
 import org.slf4j.Logger;
@@ -89,7 +88,7 @@ public class SplittingSizeTieredCompactionWriter extends CompactionAwareWriter
     public boolean realAppend(UnfilteredRowIterator partition)
     {
         RowIndexEntry rie = sstableWriter.append(partition);
-        if (sstableWriter.currentWriter().getOnDiskFilePointer() > currentBytesToWrite && currentRatioIndex < ratios.length - 1) // if we underestimate how many keys we have, the last sstable might get more than we expect
+        if (sstableWriter.currentWriter().getEstimatedOnDiskBytesWritten() > currentBytesToWrite && currentRatioIndex < ratios.length - 1) // if we underestimate how many keys we have, the last sstable might get more than we expect
         {
             currentRatioIndex++;
             currentBytesToWrite = Math.round(totalSize * ratios[currentRatioIndex]);
