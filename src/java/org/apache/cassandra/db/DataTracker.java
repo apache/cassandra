@@ -222,7 +222,10 @@ public class DataTracker
 
             View newView = currentView.markCompacting(sstables);
             if (view.compareAndSet(currentView, newView))
+            {
+                notifyCompacting(sstables, true);
                 return true;
+            }
         }
     }
 
@@ -247,6 +250,8 @@ public class DataTracker
             // interrupted after the CFS is invalidated, those sstables need to be unreferenced as well, so we do that here.
             unreferenceSSTables();
         }
+
+        notifyCompacting(unmark, false);
     }
 
     public void markObsolete(Collection<SSTableReader> sstables, OperationType compactionType)
@@ -507,6 +512,13 @@ public class DataTracker
     public void notifySSTablesChanged(Collection<SSTableReader> removed, Collection<SSTableReader> added, OperationType compactionType)
     {
         INotification notification = new SSTableListChangedNotification(added, removed, compactionType);
+        for (INotificationConsumer subscriber : subscribers)
+            subscriber.handleNotification(notification, this);
+    }
+
+    public void notifyCompacting(Iterable<SSTableReader> reader, boolean compacting)
+    {
+        INotification notification = new SSTableCompactingNotification(reader, compacting);
         for (INotificationConsumer subscriber : subscribers)
             subscriber.handleNotification(notification, this);
     }

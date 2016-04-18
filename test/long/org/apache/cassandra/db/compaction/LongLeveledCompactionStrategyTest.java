@@ -19,6 +19,9 @@ package org.apache.cassandra.db.compaction;
 
 import java.nio.ByteBuffer;
 import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.Collection;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
 import java.util.concurrent.*;
@@ -28,9 +31,19 @@ import org.junit.Test;
 import org.apache.cassandra.SchemaLoader;
 import org.apache.cassandra.Util;
 import org.apache.cassandra.db.*;
+import org.apache.cassandra.dht.BytesToken;
+import org.apache.cassandra.dht.Range;
+import org.apache.cassandra.dht.Token;
 import org.apache.cassandra.io.sstable.SSTableReader;
+import org.apache.cassandra.notifications.INotification;
+import org.apache.cassandra.notifications.INotificationConsumer;
+import org.apache.cassandra.notifications.SSTableCompactingNotification;
+import org.apache.cassandra.notifications.SSTableListChangedNotification;
 import org.apache.cassandra.utils.FBUtilities;
+import org.apache.cassandra.utils.concurrent.Refs;
 
+import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertTrue;
 
 public class LongLeveledCompactionStrategyTest extends SchemaLoader
@@ -122,6 +135,94 @@ public class LongLeveledCompactionStrategyTest extends SchemaLoader
                     Set<SSTableReader> overlaps = LeveledManifest.overlapping(sstable, sstables);
                     assert overlaps.size() == 1 && overlaps.contains(sstable);
                 }
+            }
+        }
+    }
+
+    class CheckThatSSTableIsReleasedOnlyAfterCompactionFinishes implements INotificationConsumer
+    {
+        public final Set<SSTableReader> finishedCompaction = new HashSet<>();
+
+        boolean failed = false;
+
+        public void handleNotification(INotification received, Object sender)
+        {
+            if (received instanceof SSTableCompactingNotification)
+            {
+                SSTableCompactingNotification notification = (SSTableCompactingNotification) received;
+                if (!notification.compacting)
+                {
+                    for (SSTableReader reader : notification.sstables)
+                    {
+                        finishedCompaction.add(reader);
+                    }
+                }
+            }
+            if (received instanceof SSTableListChangedNotification)
+            {
+                SSTableListChangedNotification notification = (SSTableListChangedNotification) received;
+                for (SSTableReader reader : notification.removed)
+                {
+                    if (finishedCompaction.contains(reader))
+                        failed = true;
+                }
+            }
+        }
+
+        boolean isFailed()
+        {
+            return failed;
+        }
+    }
+
+    @Test
+    public void testAntiCompactionAfterLCS() throws Exception
+    {
+        testParallelLeveledCompaction();
+
+        String ksname = "Keyspace1";
+        String cfname = "StandardLeveled";
+        Keyspace keyspace = Keyspace.open(ksname);
+        ColumnFamilyStore store = keyspace.getColumnFamilyStore(cfname);
+        WrappingCompactionStrategy strategy = ((WrappingCompactionStrategy) store.getCompactionStrategy());
+
+        Collection<SSTableReader> initialSSTables = store.getUnrepairedSSTables();
+        assertEquals(store.getSSTables().size(), initialSSTables.size());
+
+        CheckThatSSTableIsReleasedOnlyAfterCompactionFinishes checker = new CheckThatSSTableIsReleasedOnlyAfterCompactionFinishes();
+        store.getDataTracker().subscribe(checker);
+
+        //anti-compact a subset of sstables
+        Range<Token> range = new Range<Token>(new BytesToken("110".getBytes()), new BytesToken("111".getBytes()), store.partitioner);
+        List<Range<Token>> ranges = Arrays.asList(range);
+        Refs<SSTableReader> refs = Refs.tryRef(initialSSTables);
+        if (refs == null)
+            throw new IllegalStateException();
+        long repairedAt = 1000;
+        CompactionManager.instance.performAnticompaction(store, ranges, refs, repairedAt);
+
+        //check that sstables were released only after compaction finished
+        assertFalse("Anti-compaction released sstable from compacting set before compaction was finished",
+                    checker.isFailed());
+
+        //check there is only one global ref count
+        for (SSTableReader sstable : store.getSSTables())
+        {
+            assertFalse(sstable.isMarkedCompacted());
+            assertEquals(1, sstable.selfRef().globalCount());
+        }
+
+        //check that compacting status was clearedd in all sstables
+        assertEquals(0, store.getDataTracker().getCompacting().size());
+
+        //make sure readers were replaced correctly on unrepaired leveled manifest after anti-compaction
+        LeveledCompactionStrategy lcs = (LeveledCompactionStrategy) strategy.getWrappedStrategies().get(1);
+        for (SSTableReader reader : initialSSTables)
+        {
+            Range<Token> sstableRange = new Range<Token>(reader.first.getToken(), reader.last.getToken());
+            if (sstableRange.intersects(range))
+            {
+                assertFalse(lcs.manifest.generations[reader.getSSTableLevel()].contains(reader));
             }
         }
     }
