@@ -42,7 +42,6 @@ import org.apache.cassandra.utils.btree.BTreeSet;
 
 import static org.apache.cassandra.cql3.statements.RequestValidations.checkFalse;
 import static org.apache.cassandra.cql3.statements.RequestValidations.checkNotNull;
-import static org.apache.cassandra.cql3.statements.RequestValidations.checkTrue;
 import static org.apache.cassandra.cql3.statements.RequestValidations.invalidRequest;
 
 /**
@@ -471,35 +470,37 @@ public final class StatementRestrictions
             checkFalse(clusteringColumnsRestrictions.hasIN() && selectsComplexColumn,
                        "Cannot restrict clustering columns by IN relations when a collection is selected by the query");
             checkFalse(clusteringColumnsRestrictions.hasContains() && !hasQueriableIndex && !allowFiltering,
-                       "Cannot restrict clustering columns by a CONTAINS relation without a secondary index");
 
+                       "Clustering columns can only be restricted with CONTAINS with a secondary index or filtering");
 
-            if (hasClusteringColumnsRestriction())
+            if (hasClusteringColumnsRestriction() && clusteringColumnsRestrictions.needFiltering())
             {
-                List<ColumnDefinition> clusteringColumns = cfm.clusteringColumns();
-                List<ColumnDefinition> restrictedColumns = new LinkedList<>(clusteringColumnsRestrictions.getColumnDefs());
-
-                for (int i = 0, m = restrictedColumns.size(); i < m; i++)
+                if (hasQueriableIndex || forView)
                 {
-                    ColumnDefinition clusteringColumn = clusteringColumns.get(i);
-                    ColumnDefinition restrictedColumn = restrictedColumns.get(i);
+                    usesSecondaryIndexing = true;
+                }
+                else
+                {
+                    List<ColumnDefinition> clusteringColumns = cfm.clusteringColumns();
+                    List<ColumnDefinition> restrictedColumns = new LinkedList<>(clusteringColumnsRestrictions.getColumnDefs());
 
-                    if (!clusteringColumn.equals(restrictedColumn) && !allowFiltering)
+                    for (int i = 0, m = restrictedColumns.size(); i < m; i++)
                     {
-                        checkTrue(hasQueriableIndex || forView,
-                                  "PRIMARY KEY column \"%s\" cannot be restricted as preceding column \"%s\" is not restricted",
-                                  restrictedColumn.name,
-                                  clusteringColumn.name);
+                        ColumnDefinition clusteringColumn = clusteringColumns.get(i);
+                        ColumnDefinition restrictedColumn = restrictedColumns.get(i);
 
-                        usesSecondaryIndexing = true; // handle gaps and non-keyrange cases.
-                        break;
+                        if (!clusteringColumn.equals(restrictedColumn) && !allowFiltering)
+                        {
+                            throw invalidRequest("PRIMARY KEY column \"%s\" cannot be restricted as preceding column \"%s\" is not restricted",
+                                                 restrictedColumn.name,
+                                                 clusteringColumn.name);
+                        }
                     }
                 }
             }
+
         }
 
-        if (clusteringColumnsRestrictions.hasContains())
-            usesSecondaryIndexing = true;
     }
 
     /**

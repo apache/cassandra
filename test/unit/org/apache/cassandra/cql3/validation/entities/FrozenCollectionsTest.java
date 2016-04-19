@@ -630,7 +630,7 @@ public class FrozenCollectionsTest extends CQLTester
                              "SELECT * FROM %s WHERE c CONTAINS KEY ?", 1);
 
         // normal indexes on frozen collections don't support CONTAINS or CONTAINS KEY
-        assertInvalidMessage("Cannot restrict clustering columns by a CONTAINS relation without a secondary index",
+        assertInvalidMessage("Clustering columns can only be restricted with CONTAINS with a secondary index or filtering",
                              "SELECT * FROM %s WHERE b CONTAINS ?", 1);
 
         assertRows(execute("SELECT * FROM %s WHERE b CONTAINS ? ALLOW FILTERING", 1),

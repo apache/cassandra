@@ -2449,6 +2449,15 @@ public class SelectTest extends CQLTester
 
         beforeAndAfterFlush(() -> {
 
+            assertRows(execute("SELECT * FROM %s WHERE a = 11 AND b = 15"),
+                       row(11, 15, 16, 17));
+
+            assertInvalidMessage("Clustering column \"c\" cannot be restricted (preceding column \"b\" is restricted by a non-EQ relation)",
+                                 "SELECT * FROM %s WHERE a = 11 AND b > 12 AND c = 15");
+
+            assertRows(execute("SELECT * FROM %s WHERE a = 11 AND b = 15 AND c > 15"),
+                       row(11, 15, 16, 17));
+
             assertRows(execute("SELECT * FROM %s WHERE a = 11 AND b > 12 AND c > 13 AND d = 17 ALLOW FILTERING"),
                        row(11, 15, 16, 17));
             assertInvalidMessage("Clustering column \"c\" cannot be restricted (preceding column \"b\" is restricted by a non-EQ relation)",
@@ -2541,6 +2550,32 @@ public class SelectTest extends CQLTester
         //-------------------------------------------------
         // Frozen collections filtering for clustering keys
         //-------------------------------------------------
+
+        // first clustering column
+        createTable("CREATE TABLE %s (a int, b frozen<list<int>>, c int, PRIMARY KEY (a, b, c))");
+        execute("INSERT INTO %s (a,b,c) VALUES (?, ?, ?)", 11, list(1, 3), 14);
+        execute("INSERT INTO %s (a,b,c) VALUES (?, ?, ?)", 21, list(2, 3), 24);
+        execute("INSERT INTO %s (a,b,c) VALUES (?, ?, ?)", 21, list(3, 3), 34);
+
+        beforeAndAfterFlush(() -> {
+
+            assertRows(execute("SELECT * FROM %s WHERE a = 21 AND b CONTAINS 2 ALLOW FILTERING"),
+                       row(21, list(2, 3), 24));
+            assertInvalidMessage("Clustering columns can only be restricted with CONTAINS with a secondary index or filtering",
+                                 "SELECT * FROM %s WHERE a = 21 AND b CONTAINS 2");
+
+            assertRows(execute("SELECT * FROM %s WHERE b CONTAINS 2 ALLOW FILTERING"),
+                       row(21, list(2, 3), 24));
+            assertInvalidMessage("Clustering columns can only be restricted with CONTAINS with a secondary index or filtering",
+                                 "SELECT * FROM %s WHERE b CONTAINS 2");
+
+            assertRows(execute("SELECT * FROM %s WHERE b CONTAINS 3 ALLOW FILTERING"),
+                       row(11, list(1, 3), 14),
+                       row(21, list(2, 3), 24),
+                       row(21, list(3, 3), 34));
+        });
+
+        // non-first clustering column
         createTable("CREATE TABLE %s (a int, b int, c frozen<list<int>>, d int, PRIMARY KEY (a, b, c))");
 
         execute("INSERT INTO %s (a,b,c,d) VALUES (?, ?, ?, ?)", 11, 12, list(1, 3), 14);
@@ -2548,6 +2583,11 @@ public class SelectTest extends CQLTester
         execute("INSERT INTO %s (a,b,c,d) VALUES (?, ?, ?, ?)", 21, 22, list(3, 3), 34);
 
         beforeAndAfterFlush(() -> {
+
+            assertRows(execute("SELECT * FROM %s WHERE a = 21 AND c CONTAINS 2 ALLOW FILTERING"),
+                       row(21, 22, list(2, 3), 24));
+            assertInvalidMessage("Clustering columns can only be restricted with CONTAINS with a secondary index or filtering",
+                                 "SELECT * FROM %s WHERE a = 21 AND c CONTAINS 2");
 
             assertRows(execute("SELECT * FROM %s WHERE b > 20 AND c CONTAINS 2 ALLOW FILTERING"),
                        row(21, 22, list(2, 3), 24));
@@ -2748,6 +2788,22 @@ public class SelectTest extends CQLTester
             assertRows(executeFilteringOnly("SELECT * FROM %s WHERE b > 12 AND c < 25 AND d CONTAINS 2"),
                        row(21, 22, 23, list(2, 4)));
         });
+    }
+
+    @Test
+    public void testCustomIndexWithFiltering() throws Throwable {
+        // Test for CASSANDRA-11310 compatibility with 2i
+        createTable("CREATE TABLE %s (a text, b int, c text, d int, PRIMARY KEY (a, b, c));");
+        createIndex("CREATE INDEX ON %s(c)");
+        
+        execute("INSERT INTO %s (a, b, c, d) VALUES (?, ?, ?, ?)", "a", 0, "b", 1);
+        execute("INSERT INTO %s (a, b, c, d) VALUES (?, ?, ?, ?)", "a", 1, "b", 2);
+        execute("INSERT INTO %s (a, b, c, d) VALUES (?, ?, ?, ?)", "a", 2, "b", 3);
+        execute("INSERT INTO %s (a, b, c, d) VALUES (?, ?, ?, ?)", "c", 3, "b", 4);
+
+        assertRows(executeFilteringOnly("SELECT * FROM %s WHERE a='a' AND b > 0 AND c = 'b'"),
+                   row("a", 1, "b", 2),
+                   row("a", 2, "b", 3));
     }
 
     private UntypedResultSet executeFilteringOnly(String statement) throws Throwable
