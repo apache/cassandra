@@ -518,25 +518,30 @@ public class LeveledManifest
         return overlapping(first, last, others);
     }
 
-    @VisibleForTesting
-    static Set<SSTableReader> overlapping(SSTableReader sstable, Iterable<SSTableReader> others)
+    private static Set<SSTableReader> overlappingWithBounds(SSTableReader sstable, Map<SSTableReader, Bounds<Token>> others)
     {
-        return overlapping(sstable.first.getToken(), sstable.last.getToken(), others);
+        return overlappingWithBounds(sstable.first.getToken(), sstable.last.getToken(), others);
     }
 
     /**
      * @return sstables from @param sstables that contain keys between @param start and @param end, inclusive.
      */
-    private static Set<SSTableReader> overlapping(Token start, Token end, Iterable<SSTableReader> sstables)
+    @VisibleForTesting
+    static Set<SSTableReader> overlapping(Token start, Token end, Iterable<SSTableReader> sstables)
+    {
+        return overlappingWithBounds(start, end, genBounds(sstables));
+    }
+
+    private static Set<SSTableReader> overlappingWithBounds(Token start, Token end, Map<SSTableReader, Bounds<Token>> sstables)
     {
         assert start.compareTo(end) <= 0;
         Set<SSTableReader> overlapped = new HashSet<>();
         Bounds<Token> promotedBounds = new Bounds<Token>(start, end);
-        for (SSTableReader candidate : sstables)
+
+        for (Map.Entry<SSTableReader, Bounds<Token>> pair : sstables.entrySet())
         {
-            Bounds<Token> candidateBounds = new Bounds<Token>(candidate.first.getToken(), candidate.last.getToken());
-            if (candidateBounds.intersects(promotedBounds))
-                overlapped.add(candidate);
+            if (pair.getValue().intersects(promotedBounds))
+                overlapped.add(pair.getKey());
         }
         return overlapped;
     }
@@ -548,6 +553,16 @@ public class LeveledManifest
             return candidate.isMarkedSuspect();
         }
     };
+
+    private static Map<SSTableReader, Bounds<Token>> genBounds(Iterable<SSTableReader> ssTableReaders)
+    {
+        Map<SSTableReader, Bounds<Token>> boundsMap = new HashMap<>();
+        for (SSTableReader sstable : ssTableReaders)
+        {
+            boundsMap.put(sstable, new Bounds<Token>(sstable.first.getToken(), sstable.last.getToken()));
+        }
+        return boundsMap;
+    }
 
     /**
      * @return highest-priority sstables to compact for the given level.
@@ -589,14 +604,14 @@ public class LeveledManifest
             // basically screwed, since we expect all or most L0 sstables to overlap with each L1 sstable.
             // So if an L1 sstable is suspect we can't do much besides try anyway and hope for the best.
             Set<SSTableReader> candidates = new HashSet<>();
-            Set<SSTableReader> remaining = new HashSet<>();
-            Iterables.addAll(remaining, Iterables.filter(getLevel(0), Predicates.not(suspectP)));
-            for (SSTableReader sstable : ageSortedSSTables(remaining))
+            Map<SSTableReader, Bounds<Token>> remaining = genBounds(Iterables.filter(getLevel(0), Predicates.not(suspectP)));
+
+            for (SSTableReader sstable : ageSortedSSTables(remaining.keySet()))
             {
                 if (candidates.contains(sstable))
                     continue;
 
-                Sets.SetView<SSTableReader> overlappedL0 = Sets.union(Collections.singleton(sstable), overlapping(sstable, remaining));
+                Sets.SetView<SSTableReader> overlappedL0 = Sets.union(Collections.singleton(sstable), overlappingWithBounds(sstable, remaining));
                 if (!Sets.intersection(overlappedL0, compactingL0).isEmpty())
                     continue;
 
@@ -649,10 +664,11 @@ public class LeveledManifest
 
         // look for a non-suspect keyspace to compact with, starting with where we left off last time,
         // and wrapping back to the beginning of the generation if necessary
+        Map<SSTableReader, Bounds<Token>> sstablesNextLevel = genBounds(getLevel(level + 1));
         for (int i = 0; i < getLevel(level).size(); i++)
         {
             SSTableReader sstable = getLevel(level).get((start + i) % getLevel(level).size());
-            Set<SSTableReader> candidates = Sets.union(Collections.singleton(sstable), overlapping(sstable, getLevel(level + 1)));
+            Set<SSTableReader> candidates = Sets.union(Collections.singleton(sstable), overlappingWithBounds(sstable, sstablesNextLevel));
             if (Iterables.any(candidates, suspectP))
                 continue;
             if (Sets.intersection(candidates, compacting).isEmpty())

@@ -128,7 +128,7 @@ public class LongLeveledCompactionStrategyTest
 
                 if (level > 0)
                 {// overlap check for levels greater than 0
-                    Set<SSTableReader> overlaps = LeveledManifest.overlapping(sstable, sstables);
+                    Set<SSTableReader> overlaps = LeveledManifest.overlapping(sstable.first.getToken(), sstable.last.getToken(), sstables);
                     assert overlaps.size() == 1 && overlaps.contains(sstable);
                 }
             }
