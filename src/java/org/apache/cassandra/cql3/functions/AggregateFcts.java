@@ -281,7 +281,7 @@ public abstract class AggregateFcts
             };
 
     /**
-     * The SUM function for int32 values.
+     * The SUM function for byte values (tinyint).
      */
     public static final AggregateFunction sumFunctionForByte =
             new NativeAggregateFunction("sum", ByteType.instance, ByteType.instance)
@@ -317,7 +317,7 @@ public abstract class AggregateFcts
             };
 
     /**
-     * AVG function for int32 values.
+     * AVG function for byte values (tinyint).
      */
     public static final AggregateFunction avgFunctionForByte =
             new NativeAggregateFunction("avg", ByteType.instance, ByteType.instance)
@@ -359,7 +359,7 @@ public abstract class AggregateFcts
             };
 
     /**
-     * The SUM function for int32 values.
+     * The SUM function for short values (smallint).
      */
     public static final AggregateFunction sumFunctionForShort =
             new NativeAggregateFunction("sum", ShortType.instance, ShortType.instance)
@@ -395,7 +395,7 @@ public abstract class AggregateFcts
             };
 
     /**
-     * AVG function for int32 values.
+     * AVG function for for short values (smallint).
      */
     public static final AggregateFunction avgFunctionForShort =
             new NativeAggregateFunction("avg", ShortType.instance, ShortType.instance)
@@ -757,7 +757,7 @@ public abstract class AggregateFcts
     };
 
     /**
-     * AVG function for counter column values.
+     * MAX function for counter column values.
      */
     public static final AggregateFunction maxFunctionForCounter =
     new NativeAggregateFunction("max", CounterColumnType.instance, CounterColumnType.instance)
