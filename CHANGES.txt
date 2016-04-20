@@ -1,5 +1,8 @@
 2.2.7
  * Always close cluster with connection in CqlRecordWriter (CASSANDRA-11553)
+Merged from 2.1:
+ * (cqlsh) Fix potential COPY deadlock when parent process is terminating child
+   processes (CASSANDRA-11505)
 
 
 2.2.6
