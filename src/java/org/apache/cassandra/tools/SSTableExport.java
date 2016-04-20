@@ -65,17 +65,17 @@ public class SSTableExport
     {
         Config.setClientMode(true);
 
-        Option optKey = new Option(KEY_OPTION, true, "Row key");
+        Option optKey = new Option(KEY_OPTION, true, "Partition key");
         // Number of times -k <key> can be passed on the command line.
         optKey.setArgs(500);
         options.addOption(optKey);
 
-        Option excludeKey = new Option(EXCLUDE_KEY_OPTION, true, "Excluded row key");
+        Option excludeKey = new Option(EXCLUDE_KEY_OPTION, true, "Excluded partition key");
         // Number of times -x <key> can be passed on the command line.
         excludeKey.setArgs(500);
         options.addOption(excludeKey);
 
-        Option optEnumerate = new Option(ENUMERATE_KEYS_OPTION, false, "enumerate keys only");
+        Option optEnumerate = new Option(ENUMERATE_KEYS_OPTION, false, "enumerate partition keys only");
         options.addOption(optEnumerate);
 
         Option debugOutput = new Option(DEBUG_OUTPUT_OPTION, false, "CQL row per line internal representation");
