@@ -588,27 +588,17 @@ public class CompactionStrategyManager implements INotificationConsumer
         readLock.lock();
         try
         {
-            for (Range<Token> range : ranges)
+            for (int i = 0; i < repairedSSTables.size(); i++)
             {
-                List<ISSTableScanner> repairedScanners = new ArrayList<>();
-                List<ISSTableScanner> unrepairedScanners = new ArrayList<>();
-
-                for (int i = 0; i < repairedSSTables.size(); i++)
-                {
-                    if (!repairedSSTables.get(i).isEmpty())
-                        repairedScanners.addAll(repaired.get(i).getScanners(repairedSSTables.get(i), range).scanners);
-                }
-                for (int i = 0; i < unrepairedSSTables.size(); i++)
-                {
-                    if (!unrepairedSSTables.get(i).isEmpty())
-                        scanners.addAll(unrepaired.get(i).getScanners(unrepairedSSTables.get(i), range).scanners);
-                }
-                for (ISSTableScanner scanner : Iterables.concat(repairedScanners, unrepairedScanners))
-                {
-                    if (!scanners.add(scanner))
-                        scanner.close();
-                }
+                if (!repairedSSTables.get(i).isEmpty())
+                    scanners.addAll(repaired.get(i).getScanners(repairedSSTables.get(i), ranges).scanners);
             }
+            for (int i = 0; i < unrepairedSSTables.size(); i++)
+            {
+                if (!unrepairedSSTables.get(i).isEmpty())
+                    scanners.addAll(unrepaired.get(i).getScanners(unrepairedSSTables.get(i), ranges).scanners);
+            }
+
             return new AbstractCompactionStrategy.ScannerList(scanners);
         }
         finally
@@ -619,7 +609,7 @@ public class CompactionStrategyManager implements INotificationConsumer
 
     public AbstractCompactionStrategy.ScannerList getScanners(Collection<SSTableReader> sstables)
     {
-        return getScanners(sstables, Collections.singleton(null));
+        return getScanners(sstables, null);
     }
 
     public Collection<Collection<SSTableReader>> groupSSTablesForAntiCompaction(Collection<SSTableReader> sstablesToGroup)
