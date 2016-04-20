@@ -347,6 +347,10 @@ public class SelectSingleColumnRelationTest extends CQLTester
 
         assertInvalidMessage("IN restrictions are not supported on indexed columns",
                              "SELECT v1 FROM %s WHERE id2 = 0 and time IN (1, 2) ALLOW FILTERING");
+
+        assertRows(execute("SELECT v1 FROM %s WHERE author > 'ted' AND time = 1 ALLOW FILTERING"), row("E"));
+        assertRows(execute("SELECT v1 FROM %s WHERE author > 'amy' AND author < 'zoe' AND time = 0 ALLOW FILTERING"),
+                           row("A"), row("D"));
     }
 
     @Test

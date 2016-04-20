@@ -22,16 +22,18 @@ import java.util.*;
 
 import com.google.common.collect.Lists;
 
-import org.apache.cassandra.db.composites.Composite;
+import org.apache.cassandra.config.CFMetaData;
 import org.apache.cassandra.config.ColumnDefinition;
 import org.apache.cassandra.cql3.QueryOptions;
 import org.apache.cassandra.cql3.functions.Function;
 import org.apache.cassandra.cql3.statements.Bound;
 import org.apache.cassandra.db.IndexExpression;
+import org.apache.cassandra.db.Keyspace;
 import org.apache.cassandra.db.composites.*;
 import org.apache.cassandra.db.composites.Composite.EOC;
 import org.apache.cassandra.db.index.SecondaryIndexManager;
 import org.apache.cassandra.exceptions.InvalidRequestException;
+
 import static org.apache.cassandra.cql3.statements.RequestValidations.checkFalse;
 import static org.apache.cassandra.cql3.statements.RequestValidations.invalidRequest;
 
@@ -65,20 +67,48 @@ final class PrimaryKeyRestrictionSet extends AbstractPrimaryKeyRestrictions
      */
     private boolean contains;
 
+
+    /**
+     * If restrictions apply to clustering columns, we need to check whether they can be satisfied by an index lookup
+     * as this affects which other restrictions can legally be specified (if an index is present, we are more lenient
+     * about what additional filtering can be performed on the results of a lookup - see CASSANDRA-11510).
+     *
+     * We don't hold a reference to the SecondaryIndexManager itself as this is not strictly a singleton (although
+     * we often treat is as one), the field would also require annotation with @Unmetered to avoid blowing up the
+     * object size (used when calculating the size of prepared statements for caching). Instead, we refer to the
+     * CFMetaData and retrieve the index manager when necessary.
+     *
+     * There are a couple of scenarios where the CFM can be null (and we make sure and test for null when we use it):
+     *  * where an empty set of restrictions are created for use in processing query results - see
+     *    SelectStatement.forSelection
+     *  * where the restrictions apply to partition keys and not clustering columns e.g.
+     *    StatementRestrictions.partitionKeyRestrictions
+     *  * in unit tests (in particular PrimaryKeyRestrictionSetTest which is primarily concerned with the correct
+     *    generation of bounds when secondary indexes are not used).
+     */
+    private final CFMetaData cfm;
+
     public PrimaryKeyRestrictionSet(CType ctype)
     {
+        this(ctype, null);
+    }
+
+    public PrimaryKeyRestrictionSet(CType ctype, CFMetaData cfm)
+    {
         super(ctype);
+        this.cfm = cfm;
         this.restrictions = new RestrictionSet();
         this.eq = true;
     }
 
     private PrimaryKeyRestrictionSet(PrimaryKeyRestrictionSet primaryKeyRestrictions,
-                                               Restriction restriction) throws InvalidRequestException
+                                     Restriction restriction) throws InvalidRequestException
     {
         super(primaryKeyRestrictions.ctype);
         this.restrictions = primaryKeyRestrictions.restrictions.addRestriction(restriction);
+        this.cfm = primaryKeyRestrictions.cfm;
 
-        if (!primaryKeyRestrictions.isEmpty())
+        if (!primaryKeyRestrictions.isEmpty() && !hasSupportingIndex(restriction))
         {
             ColumnDefinition lastRestrictionStart = primaryKeyRestrictions.restrictions.lastRestriction().getFirstColumn();
             ColumnDefinition newRestrictionStart = restriction.getFirstColumn();
@@ -102,6 +132,12 @@ final class PrimaryKeyRestrictionSet extends AbstractPrimaryKeyRestrictions
             this.in = true;
         else
             this.eq = true;
+    }
+
+    private boolean hasSupportingIndex(Restriction restriction)
+    {
+        return cfm != null
+               && restriction.hasSupportingIndex(Keyspace.open(cfm.ksName).getColumnFamilyStore(cfm.cfId).indexManager);
     }
 
     @Override
@@ -391,5 +427,34 @@ final class PrimaryKeyRestrictionSet extends AbstractPrimaryKeyRestrictions
     public ColumnDefinition getLastColumn()
     {
         return restrictions.lastColumn();
+    }
+
+    public final boolean needsFiltering()
+    {
+        // Backported from ClusteringColumnRestrictions from CASSANDRA-11310 for 3.6
+        // As that suggests, this should only be called on clustering column
+        // and not partition key restrictions.
+        int position = 0;
+        Restriction slice = null;
+        for (Restriction restriction : restrictions)
+        {
+            if (handleInFilter(restriction, position))
+                return true;
+
+            if (slice != null && !slice.getFirstColumn().equals(restriction.getFirstColumn()))
+                return true;
+
+            if (slice == null && restriction.isSlice())
+                slice = restriction;
+            else
+                position = restriction.getLastColumn().position() + 1;
+        }
+
+        return false;
+    }
+
+    private boolean handleInFilter(Restriction restriction, int index)
+    {
+        return restriction.isContains() || index != restriction.getFirstColumn().position();
     }
 }

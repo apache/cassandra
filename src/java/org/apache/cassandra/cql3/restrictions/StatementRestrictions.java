@@ -25,6 +25,7 @@ import com.google.common.collect.Iterables;
 
 import org.apache.cassandra.config.CFMetaData;
 import org.apache.cassandra.config.ColumnDefinition;
+import org.apache.cassandra.config.Schema;
 import org.apache.cassandra.cql3.*;
 import org.apache.cassandra.cql3.functions.Function;
 import org.apache.cassandra.cql3.statements.Bound;
@@ -115,7 +116,7 @@ public final class StatementRestrictions
     {
         this.cfm = cfm;
         this.partitionKeyRestrictions = new PrimaryKeyRestrictionSet(cfm.getKeyValidatorAsCType());
-        this.clusteringColumnsRestrictions = new PrimaryKeyRestrictionSet(cfm.comparator);
+        this.clusteringColumnsRestrictions = new PrimaryKeyRestrictionSet(cfm.comparator, cfm);
         this.nonPrimaryKeyRestrictions = new RestrictionSet();
 
         /*
@@ -128,9 +129,7 @@ public final class StatementRestrictions
         for (Relation relation : whereClause)
             addRestriction(relation.toRestriction(cfm, boundNames));
 
-        ColumnFamilyStore cfs = Keyspace.open(cfm.ksName).getColumnFamilyStore(cfm.cfName);
-        SecondaryIndexManager secondaryIndexManager = cfs.indexManager;
-
+        SecondaryIndexManager secondaryIndexManager = Keyspace.open(cfm.ksName).getColumnFamilyStore(cfm.cfName).indexManager;
         boolean hasQueriableClusteringColumnIndex = clusteringColumnsRestrictions.hasSupportingIndex(secondaryIndexManager);
         boolean hasQueriableIndex = hasQueriableClusteringColumnIndex
                 || partitionKeyRestrictions.hasSupportingIndex(secondaryIndexManager)
@@ -313,8 +312,14 @@ public final class StatementRestrictions
         checkFalse(clusteringColumnsRestrictions.isContains() && !hasQueriableIndex,
                    "Cannot restrict clustering columns by a CONTAINS relation without a secondary index");
 
-        if (hasClusteringColumnsRestriction())
+        if (hasClusteringColumnsRestriction() && clusteringRestrictionsNeedFiltering())
         {
+            if (hasQueriableIndex)
+            {
+                usesSecondaryIndexing = true;
+                return;
+            }
+
             List<ColumnDefinition> clusteringColumns = cfm.clusteringColumns();
             List<ColumnDefinition> restrictedColumns = new LinkedList<>(clusteringColumnsRestrictions.getColumnDefs());
 
@@ -325,19 +330,19 @@ public final class StatementRestrictions
 
                 if (!clusteringColumn.equals(restrictedColumn))
                 {
-                    checkTrue(hasQueriableIndex,
+                    throw invalidRequest(
                               "PRIMARY KEY column \"%s\" cannot be restricted as preceding column \"%s\" is not restricted",
                               restrictedColumn.name,
                               clusteringColumn.name);
-
-                    usesSecondaryIndexing = true; // handle gaps and non-keyrange cases.
-                    break;
                 }
             }
         }
+    }
 
-        if (clusteringColumnsRestrictions.isContains())
-            usesSecondaryIndexing = true;
+    public final boolean clusteringRestrictionsNeedFiltering()
+    {
+        assert clusteringColumnsRestrictions instanceof PrimaryKeyRestrictionSet;
+        return ((PrimaryKeyRestrictionSet) clusteringColumnsRestrictions).needsFiltering();
     }
 
     public List<IndexExpression> getIndexExpressions(SecondaryIndexManager indexManager,
