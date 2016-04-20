@@ -1,4 +1,5 @@
 3.10
+ * Add schema to snapshot manifest, add USING TIMESTAMP clause to ALTER TABLE statements (CASSANDRA-7190)
  * Add beta protocol flag for v5 native protocol (CASSANDRA-12142)
  * Support filtering on non-PRIMARY KEY columns in the CREATE
    MATERIALIZED VIEW statement's WHERE clause (CASSANDRA-10368)

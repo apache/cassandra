@@ -777,22 +777,24 @@ alterTableStatement returns [AlterTableStatement expr]
         TableAttributes attrs = new TableAttributes();
         Map<ColumnDefinition.Raw, ColumnDefinition.Raw> renames = new HashMap<ColumnDefinition.Raw, ColumnDefinition.Raw>();
         List<AlterTableStatementColumn> colNameList = new ArrayList<AlterTableStatementColumn>();
+        Long deleteTimestamp = null;
     }
     : K_ALTER K_COLUMNFAMILY cf=columnFamilyName
           ( K_ALTER id=cident  K_TYPE v=comparatorType  { type = AlterTableStatement.Type.ALTER; } { colNameList.add(new AlterTableStatementColumn(id,v)); }
           | K_ADD  (        (id=cident   v=comparatorType   b1=cfisStatic { colNameList.add(new AlterTableStatementColumn(id,v,b1)); })
                      | ('('  id1=cident  v1=comparatorType  b1=cfisStatic { colNameList.add(new AlterTableStatementColumn(id1,v1,b1)); }
                        ( ',' idn=cident  vn=comparatorType  bn=cfisStatic { colNameList.add(new AlterTableStatementColumn(idn,vn,bn)); } )* ')' ) ) { type = AlterTableStatement.Type.ADD; }
-          | K_DROP (         id=cident  { colNameList.add(new AlterTableStatementColumn(id)); }
-                     | ('('  id1=cident { colNameList.add(new AlterTableStatementColumn(id1)); }
-                       ( ',' idn=cident { colNameList.add(new AlterTableStatementColumn(idn)); } )* ')') ) { type = AlterTableStatement.Type.DROP; }
+          | K_DROP ( (         id=cident  { colNameList.add(new AlterTableStatementColumn(id)); }
+                      | ('('  id1=cident { colNameList.add(new AlterTableStatementColumn(id1)); }
+                        ( ',' idn=cident { colNameList.add(new AlterTableStatementColumn(idn)); } )* ')') )
+                     ( K_USING K_TIMESTAMP t=INTEGER { deleteTimestamp = Long.parseLong(Constants.Literal.integer($t.text).getText()); })? ) { type = AlterTableStatement.Type.DROP; }
           | K_WITH  properties[attrs]                 { type = AlterTableStatement.Type.OPTS; }
           | K_RENAME                                  { type = AlterTableStatement.Type.RENAME; }
                id1=cident K_TO toId1=cident { renames.put(id1, toId1); }
                ( K_AND idn=cident K_TO toIdn=cident { renames.put(idn, toIdn); } )*
           )
     {
-        $expr = new AlterTableStatement(cf, type, colNameList, attrs, renames);
+        $expr = new AlterTableStatement(cf, type, colNameList, attrs, renames, deleteTimestamp);
     }
     ;
 

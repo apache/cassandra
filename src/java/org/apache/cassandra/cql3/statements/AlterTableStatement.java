@@ -24,9 +24,7 @@ import com.google.common.collect.Iterables;
 
 import org.apache.cassandra.auth.Permission;
 import org.apache.cassandra.config.*;
-import org.apache.cassandra.cql3.CFName;
-import org.apache.cassandra.cql3.CQL3Type;
-import org.apache.cassandra.cql3.ColumnIdentifier;
+import org.apache.cassandra.cql3.*;
 import org.apache.cassandra.db.ColumnFamilyStore;
 import org.apache.cassandra.db.Keyspace;
 import org.apache.cassandra.db.marshal.AbstractType;
@@ -41,6 +39,7 @@ import org.apache.cassandra.schema.TableParams;
 import org.apache.cassandra.service.ClientState;
 import org.apache.cassandra.service.MigrationManager;
 import org.apache.cassandra.transport.Event;
+import org.apache.cassandra.utils.*;
 
 import static org.apache.cassandra.thrift.ThriftValidation.validateColumnFamily;
 
@@ -55,18 +54,21 @@ public class AlterTableStatement extends SchemaAlteringStatement
     private final TableAttributes attrs;
     private final Map<ColumnDefinition.Raw, ColumnDefinition.Raw> renames;
     private final List<AlterTableStatementColumn> colNameList;
+    private final Long deleteTimestamp;
 
     public AlterTableStatement(CFName name,
                                Type type,
                                List<AlterTableStatementColumn> colDataList,
                                TableAttributes attrs,
-                               Map<ColumnDefinition.Raw, ColumnDefinition.Raw> renames)
+                               Map<ColumnDefinition.Raw, ColumnDefinition.Raw> renames,
+                               Long deleteTimestamp)
     {
         super(name);
         this.oType = type;
         this.colNameList = colDataList;
         this.attrs = attrs;
         this.renames = renames;
+        this.deleteTimestamp = deleteTimestamp == null ? FBUtilities.timestampMicros() : deleteTimestamp;
     }
 
     public void checkAccess(ClientState state) throws UnauthorizedException, InvalidRequestException
@@ -253,15 +255,15 @@ public class AlterTableStatement extends SchemaAlteringStatement
                               for (ColumnDefinition columnDef : cfm.partitionColumns())
                               {
                                    if (columnDef.name.equals(columnName))
-                                      {
-                                        toDelete = columnDef;
-                                        break;
-                                      }
+                                   {
+                                       toDelete = columnDef;
+                                       break;
+                                   }
                                }
-                        assert toDelete != null;
-                        cfm.removeColumnDefinition(toDelete);
-                        cfm.recordColumnDrop(toDelete);
-                        break;
+                             assert toDelete != null;
+                             cfm.removeColumnDefinition(toDelete);
+                             cfm.recordColumnDrop(toDelete, deleteTimestamp);
+                             break;
                     }
 
                     // If the dropped column is required by any secondary indexes
