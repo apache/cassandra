@@ -30,12 +30,12 @@ import org.junit.Test;
 import org.apache.cassandra.config.CFMetaData;
 import org.apache.cassandra.config.ColumnDefinition;
 import org.apache.cassandra.cql3.ColumnIdentifier;
-import org.apache.cassandra.db.marshal.IntegerType;
-import org.apache.cassandra.db.marshal.MapType;
+import org.apache.cassandra.db.marshal.*;
 import org.apache.cassandra.db.rows.*;
 import org.apache.cassandra.exceptions.ConfigurationException;
 import org.apache.cassandra.SchemaLoader;
 import org.apache.cassandra.schema.KeyspaceParams;
+import org.apache.cassandra.serializers.MarshalException;
 import org.apache.cassandra.utils.ByteBufferUtil;
 import org.apache.cassandra.utils.FBUtilities;
 
@@ -53,11 +53,23 @@ public class CellTest
                                                              .addRegularColumn("m", MapType.getInstance(IntegerType.instance, IntegerType.instance, true))
                                                              .build();
 
+    private static final CFMetaData fakeMetadata = CFMetaData.createFake("fakeKS", "fakeTable");
+
     @BeforeClass
     public static void defineSchema() throws ConfigurationException
     {
         SchemaLoader.prepareServer();
         SchemaLoader.createKeyspace(KEYSPACE1, KeyspaceParams.simple(1), cfm, cfm2);
+    }
+
+    private static ColumnDefinition fakeColumn(String name, AbstractType<?> type)
+    {
+        return new ColumnDefinition(fakeMetadata.ksName,
+                                    fakeMetadata.cfName,
+                                    ColumnIdentifier.getInterned(name, false),
+                                    type,
+                                    ColumnDefinition.NO_POSITION,
+                                    ColumnDefinition.Kind.REGULAR);
     }
 
     @Test
@@ -81,6 +93,67 @@ public class CellTest
                 Assert.assertNotSame(b, a);
             }
         }
+    }
+
+    private void assertValid(Cell cell)
+    {
+        try
+        {
+            cell.validate();
+        }
+        catch (Exception e)
+        {
+            Assert.fail("Cell should be valid but got error: " + e);
+        }
+    }
+
+    private void assertInvalid(Cell cell)
+    {
+        try
+        {
+            cell.validate();
+            Assert.fail("Cell " + cell + " should be invalid");
+        }
+        catch (MarshalException e)
+        {
+            // Note that we shouldn't get anything else than a MarshalException so let other escape and fail the test
+        }
+    }
+
+    @Test
+    public void testValidate()
+    {
+        ColumnDefinition c;
+
+        // Valid cells
+        c = fakeColumn("c", Int32Type.instance);
+        assertValid(BufferCell.live(fakeMetadata, c, 0, ByteBufferUtil.EMPTY_BYTE_BUFFER));
+        assertValid(BufferCell.live(fakeMetadata, c, 0, ByteBufferUtil.bytes(4)));
+
+        assertValid(BufferCell.expiring(c, 0, 4, 4, ByteBufferUtil.EMPTY_BYTE_BUFFER));
+        assertValid(BufferCell.expiring(c, 0, 4, 4, ByteBufferUtil.bytes(4)));
+
+        assertValid(BufferCell.tombstone(c, 0, 4));
+
+        // Invalid value (we don't all empty values for smallint)
+        c = fakeColumn("c", ShortType.instance);
+        assertInvalid(BufferCell.live(fakeMetadata, c, 0, ByteBufferUtil.EMPTY_BYTE_BUFFER));
+        // But this should be valid even though the underlying value is an empty BB (catches bug #11618)
+        assertValid(BufferCell.tombstone(c, 0, 4));
+        // And of course, this should be valid with a proper value
+        assertValid(BufferCell.live(fakeMetadata, c, 0, ByteBufferUtil.bytes((short)4)));
+
+        // Invalid ttl
+        assertInvalid(BufferCell.expiring(c, 0, -4, 4, ByteBufferUtil.bytes(4)));
+        // Invalid local deletion times
+        assertInvalid(BufferCell.expiring(c, 0, 4, -4, ByteBufferUtil.bytes(4)));
+        assertInvalid(BufferCell.expiring(c, 0, 4, Cell.NO_DELETION_TIME, ByteBufferUtil.bytes(4)));
+
+        c = fakeColumn("c", MapType.getInstance(Int32Type.instance, Int32Type.instance, true));
+        // Valid cell path
+        assertValid(BufferCell.live(fakeMetadata, c, 0, ByteBufferUtil.bytes(4), CellPath.create(ByteBufferUtil.bytes(4))));
+        // Invalid cell path (int values should be 0 or 4 bytes)
+        assertInvalid(BufferCell.live(fakeMetadata, c, 0, ByteBufferUtil.bytes(4), CellPath.create(ByteBufferUtil.bytes((long)4))));
     }
 
     @Test
