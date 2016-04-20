@@ -36,6 +36,7 @@ import org.apache.cassandra.db.*;
 import org.apache.cassandra.db.marshal.*;
 import org.apache.cassandra.index.internal.CassandraIndex;
 import org.apache.cassandra.thrift.ThriftConversion;
+import org.apache.cassandra.utils.*;
 
 import static java.lang.String.format;
 import static junit.framework.Assert.assertEquals;
@@ -284,7 +285,7 @@ public class LegacySchemaMigratorTest
         for (String name : collectionColumnNames)
         {
             ColumnDefinition column = table.getColumnDefinition(bytes(name));
-            table.recordColumnDrop(column);
+            table.recordColumnDrop(column, FBUtilities.timestampMicros());
             table.removeColumnDefinition(column);
         }
 

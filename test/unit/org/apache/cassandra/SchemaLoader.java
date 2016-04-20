@@ -264,6 +264,11 @@ public class SchemaLoader
         MigrationManager.announceNewKeyspace(KeyspaceMetadata.create(name, params, Tables.of(tables)), true);
     }
 
+    public static void createKeyspace(String name, KeyspaceParams params, Tables tables, Types types)
+    {
+        MigrationManager.announceNewKeyspace(KeyspaceMetadata.create(name, params, tables, Views.none(), types, Functions.none()), true);
+    }
+
     public static ColumnDefinition integerColumn(String ksName, String cfName)
     {
         return new ColumnDefinition(ksName,

@@ -41,6 +41,7 @@ import org.apache.cassandra.schema.TableParams;
 import org.apache.cassandra.service.ClientState;
 import org.apache.cassandra.service.MigrationManager;
 import org.apache.cassandra.transport.Event;
+import org.apache.cassandra.utils.FBUtilities;
 
 import static org.apache.cassandra.thrift.ThriftValidation.validateColumnFamily;
 
@@ -57,6 +58,7 @@ public class AlterTableStatement extends SchemaAlteringStatement
     private final TableAttributes attrs;
     private final Map<ColumnIdentifier.Raw, ColumnIdentifier.Raw> renames;
     private final boolean isStatic; // Only for ALTER ADD
+    private final long deleteTimestamp;
 
     public AlterTableStatement(CFName name,
                                Type type,
@@ -64,7 +66,8 @@ public class AlterTableStatement extends SchemaAlteringStatement
                                CQL3Type.Raw validator,
                                TableAttributes attrs,
                                Map<ColumnIdentifier.Raw, ColumnIdentifier.Raw> renames,
-                               boolean isStatic)
+                               boolean isStatic,
+                               Long deleteTimestamp)
     {
         super(name);
         this.oType = type;
@@ -73,6 +76,7 @@ public class AlterTableStatement extends SchemaAlteringStatement
         this.attrs = attrs;
         this.renames = renames;
         this.isStatic = isStatic;
+        this.deleteTimestamp = deleteTimestamp == null ? FBUtilities.timestampMicros() : deleteTimestamp;
     }
 
     public void checkAccess(ClientState state) throws UnauthorizedException, InvalidRequestException
@@ -238,7 +242,7 @@ public class AlterTableStatement extends SchemaAlteringStatement
                         }
                         assert toDelete != null;
                         cfm.removeColumnDefinition(toDelete);
-                        cfm.recordColumnDrop(toDelete);
+                        cfm.recordColumnDrop(toDelete, deleteTimestamp);
                         break;
                 }
 

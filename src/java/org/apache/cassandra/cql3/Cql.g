@@ -818,18 +818,21 @@ alterTableStatement returns [AlterTableStatement expr]
         TableAttributes attrs = new TableAttributes();
         Map<ColumnIdentifier.Raw, ColumnIdentifier.Raw> renames = new HashMap<ColumnIdentifier.Raw, ColumnIdentifier.Raw>();
         boolean isStatic = false;
+        Long dropTimestamp = null;
     }
     : K_ALTER K_COLUMNFAMILY cf=columnFamilyName
           ( K_ALTER id=cident K_TYPE v=comparatorType { type = AlterTableStatement.Type.ALTER; }
           | K_ADD   id=cident v=comparatorType ({ isStatic=true; } K_STATIC)? { type = AlterTableStatement.Type.ADD; }
-          | K_DROP  id=cident                         { type = AlterTableStatement.Type.DROP; }
-          | K_WITH  properties[attrs]                 { type = AlterTableStatement.Type.OPTS; }
-          | K_RENAME                                  { type = AlterTableStatement.Type.RENAME; }
+          | K_DROP  id=cident                               { type = AlterTableStatement.Type.DROP; }
+          | K_DROP  id=cident K_USING K_TIMESTAMP t=INTEGER { type = AlterTableStatement.Type.DROP;
+                                                              dropTimestamp = Long.parseLong(Constants.Literal.integer($t.text).getText()); }
+          | K_WITH  properties[attrs]                       { type = AlterTableStatement.Type.OPTS; }
+          | K_RENAME                                        { type = AlterTableStatement.Type.RENAME; }
                id1=cident K_TO toId1=cident { renames.put(id1, toId1); }
                ( K_AND idn=cident K_TO toIdn=cident { renames.put(idn, toIdn); } )*
           )
     {
-        $expr = new AlterTableStatement(cf, type, id, v, attrs, renames, isStatic);
+        $expr = new AlterTableStatement(cf, type, id, v, attrs, renames, isStatic, dropTimestamp);
     }
     ;
 

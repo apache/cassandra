@@ -477,6 +477,12 @@ public class Directories
         return new File(snapshotDir, "manifest.json");
     }
 
+    public File getSnapshotSchemaFile(String snapshotName)
+    {
+        File snapshotDir = getSnapshotDirectory(getDirectoryForNewSSTables(), snapshotName);
+        return new File(snapshotDir, "schema.cql");
+    }
+
     public File getNewEphemeralSnapshotMarkerFile(String snapshotName)
     {
         File snapshotDir = new File(getWriteableLocationAsFile(1L), join(SNAPSHOT_SUBDIR, snapshotName));

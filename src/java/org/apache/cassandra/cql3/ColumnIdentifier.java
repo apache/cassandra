@@ -328,7 +328,7 @@ public class ColumnIdentifier extends Selectable implements IMeasurableMemory, C
         }
     }
 
-    static String maybeQuote(String text)
+    public static String maybeQuote(String text)
     {
         if (UNQUOTED_IDENTIFIER.matcher(text).matches())
             return text;
