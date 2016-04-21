@@ -653,6 +653,11 @@ public class Keyspace
         return Iterables.transform(Schema.instance.getNonSystemKeyspaces(), keyspaceTransformer);
     }
 
+    public static Iterable<Keyspace> nonLocalStrategy()
+    {
+        return Iterables.transform(Schema.instance.getNonLocalStrategyKeyspaces(), keyspaceTransformer);
+    }
+
     public static Iterable<Keyspace> system()
     {
         return Iterables.transform(Schema.SYSTEM_KEYSPACE_NAMES, keyspaceTransformer);

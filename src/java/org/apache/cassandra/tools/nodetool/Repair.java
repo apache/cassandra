@@ -84,7 +84,7 @@ public class Repair extends NodeToolCmd
     @Override
     public void execute(NodeProbe probe)
     {
-        List<String> keyspaces = parseOptionalKeyspace(args, probe);
+        List<String> keyspaces = parseOptionalKeyspace(args, probe, KeyspaceSet.NON_LOCAL_STRATEGY);
         String[] cfnames = parseOptionalTables(args);
 
         if (primaryRange && (!specificDataCenters.isEmpty() || !specificHosts.isEmpty()))

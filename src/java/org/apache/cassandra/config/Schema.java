@@ -20,6 +20,7 @@ package org.apache.cassandra.config;
 import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
 import java.util.*;
+import java.util.stream.Collectors;
 
 import com.google.common.collect.ImmutableList;
 import com.google.common.collect.ImmutableSet;
@@ -38,6 +39,7 @@ import org.apache.cassandra.db.marshal.AbstractType;
 import org.apache.cassandra.db.marshal.UserType;
 import org.apache.cassandra.index.Index;
 import org.apache.cassandra.io.sstable.Descriptor;
+import org.apache.cassandra.locator.LocalStrategy;
 import org.apache.cassandra.repair.SystemDistributedKeyspace;
 import org.apache.cassandra.schema.*;
 import org.apache.cassandra.service.MigrationManager;
@@ -345,6 +347,17 @@ public class Schema
     public List<String> getNonSystemKeyspaces()
     {
         return ImmutableList.copyOf(getNonSystemKeyspacesSet());
+    }
+
+    /**
+     * @return a collection of keyspaces that do not use LocalStrategy for replication
+     */
+    public List<String> getNonLocalStrategyKeyspaces()
+    {
+        return keyspaces.values().stream()
+                .filter(keyspace -> keyspace.params.replication.klass != LocalStrategy.class)
+                .map(keyspace -> keyspace.name)
+                .collect(Collectors.toList());
     }
 
     /**

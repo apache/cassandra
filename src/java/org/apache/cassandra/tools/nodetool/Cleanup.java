@@ -42,7 +42,7 @@ public class Cleanup extends NodeToolCmd
     @Override
     public void execute(NodeProbe probe)
     {
-        List<String> keyspaces = parseOptionalKeyspace(args, probe);
+        List<String> keyspaces = parseOptionalKeyspace(args, probe, KeyspaceSet.NON_LOCAL_STRATEGY);
         String[] tableNames = parseOptionalTables(args);
 
         for (String keyspace : keyspaces)

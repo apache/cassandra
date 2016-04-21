@@ -1166,7 +1166,7 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
 
             if (keyspace == null)
             {
-                for (String keyspaceName : Schema.instance.getNonSystemKeyspaces())
+                for (String keyspaceName : Schema.instance.getNonLocalStrategyKeyspaces())
                     streamer.addRanges(keyspaceName, getLocalRanges(keyspaceName));
             }
             else if (tokens == null)
@@ -1568,7 +1568,7 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
         // some people just want to get a visual representation of things. Allow null and set it to the first
         // non-system keyspace.
         if (keyspace == null)
-            keyspace = Schema.instance.getNonSystemKeyspaces().get(0);
+            keyspace = Schema.instance.getNonLocalStrategyKeyspaces().get(0);
 
         Map<List<String>, List<String>> map = new HashMap<>();
         for (Map.Entry<Range<Token>, Collection<InetAddress>> entry : tokenMetadata.getPendingRangesMM(keyspace).asMap().entrySet())
@@ -1629,7 +1629,7 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
         // some people just want to get a visual representation of things. Allow null and set it to the first
         // non-system keyspace.
         if (keyspace == null)
-            keyspace = Schema.instance.getNonSystemKeyspaces().get(0);
+            keyspace = Schema.instance.getNonLocalStrategyKeyspaces().get(0);
 
         List<Range<Token>> ranges = getAllRanges(sortedTokens);
         return constructRangeToEndpointMap(keyspace, ranges);
@@ -2467,7 +2467,7 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
 
         InetAddress myAddress = FBUtilities.getBroadcastAddress();
 
-        for (String keyspaceName : Schema.instance.getNonSystemKeyspaces())
+        for (String keyspaceName : Schema.instance.getNonLocalStrategyKeyspaces())
         {
             Multimap<Range<Token>, InetAddress> changedRanges = getChangedRangesForLeaving(keyspaceName, endpoint);
             Set<Range<Token>> myNewRanges = new HashSet<>();
@@ -3693,7 +3693,7 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
             throw new UnsupportedOperationException("Node in " + operationMode + " state; wait for status to become normal or restart");
 
         PendingRangeCalculatorService.instance.blockUntilFinished();
-        for (String keyspaceName : Schema.instance.getNonSystemKeyspaces())
+        for (String keyspaceName : Schema.instance.getNonLocalStrategyKeyspaces())
         {
             if (tokenMetadata.getPendingRanges(keyspaceName, FBUtilities.getBroadcastAddress()).size() > 0)
                 throw new UnsupportedOperationException("data is currently moving to this node; unable to leave the ring");
@@ -3742,7 +3742,7 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
     {
         Map<String, Multimap<Range<Token>, InetAddress>> rangesToStream = new HashMap<>();
 
-        for (String keyspaceName : Schema.instance.getNonSystemKeyspaces())
+        for (String keyspaceName : Schema.instance.getNonLocalStrategyKeyspaces())
         {
             Multimap<Range<Token>, InetAddress> rangesMM = getChangedRangesForLeaving(keyspaceName, FBUtilities.getBroadcastAddress());
 
@@ -3861,7 +3861,7 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
             throw new UnsupportedOperationException("This node has more than one token and cannot be moved thusly.");
         }
 
-        List<String> keyspacesToProcess = Schema.instance.getNonSystemKeyspaces();
+        List<String> keyspacesToProcess = Schema.instance.getNonLocalStrategyKeyspaces();
 
         PendingRangeCalculatorService.instance.blockUntilFinished();
         // checking if data is moving to this node
@@ -4122,7 +4122,7 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
         Collection<Token> tokens = tokenMetadata.getTokens(endpoint);
 
         // Find the endpoints that are going to become responsible for data
-        for (String keyspaceName : Schema.instance.getNonSystemKeyspaces())
+        for (String keyspaceName : Schema.instance.getNonLocalStrategyKeyspaces())
         {
             // if the replication factor is 1 the data is lost so we shouldn't wait for confirmation
             if (Keyspace.open(keyspaceName).getReplicationStrategy().getReplicationFactor() == 1)
@@ -4434,11 +4434,14 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
         return Collections.unmodifiableList(keyspaceNamesList);
     }
 
-
     public List<String> getNonSystemKeyspaces()
     {
-        List<String> keyspaceNamesList = new ArrayList<>(Schema.instance.getNonSystemKeyspaces());
-        return Collections.unmodifiableList(keyspaceNamesList);
+        return Collections.unmodifiableList(Schema.instance.getNonSystemKeyspaces());
+    }
+
+    public List<String> getNonLocalStrategyKeyspaces()
+    {
+        return Collections.unmodifiableList(Schema.instance.getNonLocalStrategyKeyspaces());
     }
 
     public Map<String, String> getViewBuildStatuses(String keyspace, String view)
@@ -4677,7 +4680,7 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
     public List<String> sampleKeyRange() // do not rename to getter - see CASSANDRA-4452 for details
     {
         List<DecoratedKey> keys = new ArrayList<>();
-        for (Keyspace keyspace : Keyspace.nonSystem())
+        for (Keyspace keyspace : Keyspace.nonLocalStrategy())
         {
             for (Range<Token> range : getPrimaryRangesForEndpoint(keyspace.getName(), FBUtilities.getBroadcastAddress()))
                 keys.addAll(keySamples(keyspace.getColumnFamilyStores(), range));

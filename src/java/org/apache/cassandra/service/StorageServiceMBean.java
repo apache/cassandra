@@ -452,6 +452,8 @@ public interface StorageServiceMBean extends NotificationEmitter
 
     public List<String> getNonSystemKeyspaces();
 
+    public List<String> getNonLocalStrategyKeyspaces();
+
     public Map<String, String> getViewBuildStatuses(String keyspace, String view);
 
     /**
