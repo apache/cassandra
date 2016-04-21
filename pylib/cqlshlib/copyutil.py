@@ -2128,8 +2128,7 @@ class ImportProcess(ChildProcess):
                 profile_off(pr, file_name='worker_profile_%d.txt' % (os.getpid(),))
 
         except Exception, exc:
-            if self.debug:
-                traceback.print_exc(exc)
+            self.report_error(exc)
 
         finally:
             self.close()
@@ -2218,20 +2217,25 @@ class ImportProcess(ChildProcess):
         return make_statement_with_failures if self.test_failures else make_statement
 
     def make_counter_batch_statement(self, query, conv, batch, replicas):
-        statement = BatchStatement(batch_type=BatchType.COUNTER, consistency_level=self.consistency_level)
-        statement.replicas = replicas
-        statement.keyspace = self.ks
-        for row in batch['rows']:
+        def make_full_query(r):
             where_clause = []
             set_clause = []
-            for i, value in enumerate(row):
+            for i, value in enumerate(r):
                 if i in conv.primary_key_indexes:
                     where_clause.append("%s=%s" % (self.valid_columns[i], value))
                 else:
                     set_clause.append("%s=%s+%s" % (self.valid_columns[i], self.valid_columns[i], value))
+            return query % (','.join(set_clause), ' AND '.join(where_clause))
 
-            full_query_text = query % (','.join(set_clause), ' AND '.join(where_clause))
-            statement.add(full_query_text)
+        if len(batch['rows']) == 1:
+            statement = SimpleStatement(make_full_query(batch['rows'][0]), consistency_level=self.consistency_level)
+        else:
+            statement = BatchStatement(batch_type=BatchType.COUNTER, consistency_level=self.consistency_level)
+            for row in batch['rows']:
+                statement.add(make_full_query(row))
+
+        statement.replicas = replicas
+        statement.keyspace = self.ks
         return statement
 
     def make_prepared_batch_statement(self, query, _, batch, replicas):
@@ -2245,17 +2249,25 @@ class ImportProcess(ChildProcess):
         We could optimize further by removing bound_statements altogether but we'd have to duplicate much
         more driver's code (BoundStatement.bind()).
         """
-        statement = BatchStatement(batch_type=BatchType.UNLOGGED, consistency_level=self.consistency_level)
+        if len(batch['rows']) == 1:
+            statement = query.bind(batch['rows'][0])
+        else:
+            statement = BatchStatement(batch_type=BatchType.UNLOGGED, consistency_level=self.consistency_level)
+            statement._statements_and_parameters = [(True, query.query_id, query.bind(r).values) for r in batch['rows']]
+
         statement.replicas = replicas
         statement.keyspace = self.ks
-        statement._statements_and_parameters = [(True, query.query_id, query.bind(r).values) for r in batch['rows']]
         return statement
 
     def make_non_prepared_batch_statement(self, query, _, batch, replicas):
-        statement = BatchStatement(batch_type=BatchType.UNLOGGED, consistency_level=self.consistency_level)
+        if len(batch['rows']) == 1:
+            statement = SimpleStatement(query % (','.join(batch['rows'][0]),), consistency_level=self.consistency_level)
+        else:
+            statement = BatchStatement(batch_type=BatchType.UNLOGGED, consistency_level=self.consistency_level)
+            statement._statements_and_parameters = [(False, query % (','.join(r),), ()) for r in batch['rows']]
+
         statement.replicas = replicas
         statement.keyspace = self.ks
-        statement._statements_and_parameters = [(False, query % (','.join(r),), ()) for r in batch['rows']]
         return statement
 
     def convert_rows(self, conv, chunk):
@@ -2380,7 +2392,7 @@ class ImportProcess(ChildProcess):
         if self.debug and sys.exc_info()[1] == err:
             traceback.print_exc()
         self.outmsg.send(ImportTaskError(err.__class__.__name__, err.message, rows, attempts, final))
-        if final:
+        if final and chunk is not None:
             self.update_chunk(rows, chunk)
 
     def update_chunk(self, rows, chunk):
