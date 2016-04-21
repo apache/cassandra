@@ -99,24 +99,23 @@ public abstract class ModificationStatement implements CQLStatement
 
     public Iterable<Function> getFunctions()
     {
-        Iterable<Function> functions = attrs.getFunctions();
-
+        List<Iterable<Function>> iterables = new LinkedList<>();
         for (Restriction restriction : processedKeys.values())
-                functions = Iterables.concat(functions, restriction.getFunctions());
+            iterables.add(restriction.getFunctions());
 
         if (columnOperations != null)
             for (Operation operation : columnOperations)
-                functions = Iterables.concat(functions, operation.getFunctions());
+                iterables.add(operation.getFunctions());
 
         if (columnConditions != null)
             for (ColumnCondition condition : columnConditions)
-                functions = Iterables.concat(functions, condition.getFunctions());
+                iterables.add(condition.getFunctions());
 
         if (staticConditions != null)
             for (ColumnCondition condition : staticConditions)
-                functions = Iterables.concat(functions, condition.getFunctions());
+                iterables.add(condition.getFunctions());
 
-        return functions;
+        return Iterables.concat(iterables);
     }
 
     public abstract boolean requireFullClusteringKey();
