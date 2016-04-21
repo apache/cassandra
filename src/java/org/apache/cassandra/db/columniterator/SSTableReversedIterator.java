@@ -27,6 +27,7 @@ import org.apache.cassandra.db.partitions.ImmutableBTreePartition;
 import org.apache.cassandra.db.rows.*;
 import org.apache.cassandra.io.sstable.format.SSTableReader;
 import org.apache.cassandra.io.util.FileDataInput;
+import org.apache.cassandra.io.util.SegmentedFile;
 import org.apache.cassandra.utils.btree.BTree;
 
 /**
@@ -40,9 +41,10 @@ public class SSTableReversedIterator extends AbstractSSTableIterator
                                    RowIndexEntry indexEntry,
                                    Slices slices,
                                    ColumnFilter columns,
-                                   boolean isForThrift)
+                                   boolean isForThrift,
+                                   SegmentedFile ifile)
     {
-        super(sstable, file, key, indexEntry, slices, columns, isForThrift);
+        super(sstable, file, key, indexEntry, slices, columns, isForThrift, ifile);
     }
 
     protected Reader createReaderInternal(RowIndexEntry indexEntry, FileDataInput file, boolean shouldCloseFile)
@@ -132,7 +134,7 @@ public class SSTableReversedIterator extends AbstractSSTableIterator
             return iterator.next();
         }
 
-        protected boolean stopReadingDisk()
+        protected boolean stopReadingDisk() throws IOException
         {
             return false;
         }
@@ -204,7 +206,14 @@ public class SSTableReversedIterator extends AbstractSSTableIterator
         private ReverseIndexedReader(RowIndexEntry indexEntry, FileDataInput file, boolean shouldCloseFile)
         {
             super(file, shouldCloseFile);
-            this.indexState = new IndexState(this, sstable.metadata.comparator, indexEntry, true);
+            this.indexState = new IndexState(this, sstable.metadata.comparator, indexEntry, true, ifile);
+        }
+
+        @Override
+        public void close() throws IOException
+        {
+            super.close();
+            this.indexState.close();
         }
 
         @Override
@@ -304,7 +313,7 @@ public class SSTableReversedIterator extends AbstractSSTableIterator
         }
 
         @Override
-        protected boolean stopReadingDisk()
+        protected boolean stopReadingDisk() throws IOException
         {
             return indexState.isPastCurrentBlock();
         }

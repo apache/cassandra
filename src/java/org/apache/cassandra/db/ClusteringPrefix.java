@@ -263,6 +263,17 @@ public interface ClusteringPrefix extends IMeasurableMemory, Clusterable
             }
         }
 
+        public void skip(DataInputPlus in, int version, List<AbstractType<?>> types) throws IOException
+        {
+            Kind kind = Kind.values()[in.readByte()];
+            // We shouldn't serialize static clusterings
+            assert kind != Kind.STATIC_CLUSTERING;
+            if (kind == Kind.CLUSTERING)
+                Clustering.serializer.skip(in, version, types);
+            else
+                RangeTombstone.Bound.serializer.skipValues(in, kind, version, types);
+        }
+
         public ClusteringPrefix deserialize(DataInputPlus in, int version, List<AbstractType<?>> types) throws IOException
         {
             Kind kind = Kind.values()[in.readByte()];
@@ -348,6 +359,24 @@ public interface ClusteringPrefix extends IMeasurableMemory, Clusterable
                 }
             }
             return values;
+        }
+
+        void skipValuesWithoutSize(DataInputPlus in, int size, int version, List<AbstractType<?>> types) throws IOException
+        {
+            // Callers of this method should handle the case where size = 0 (in all case we want to return a special value anyway).
+            assert size > 0;
+            int offset = 0;
+            while (offset < size)
+            {
+                long header = in.readUnsignedVInt();
+                int limit = Math.min(size, offset + 32);
+                while (offset < limit)
+                {
+                    if (!isNull(header, offset) && !isEmpty(header, offset))
+                         types.get(offset).skipValue(in);
+                    offset++;
+                }
+            }
         }
 
         /**

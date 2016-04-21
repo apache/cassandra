@@ -28,6 +28,7 @@ import org.junit.Assert;
 import org.junit.Test;
 
 import org.apache.cassandra.cache.KeyCacheKey;
+import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.config.Schema;
 import org.apache.cassandra.db.Keyspace;
 import org.apache.cassandra.index.Index;
@@ -81,7 +82,20 @@ public class KeyCacheCqlTest extends CQLTester
                                      "0123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789";
 
     @Test
-    public void testSliceQueries() throws Throwable
+    public void testSliceQueriesShallowIndexEntry() throws Throwable
+    {
+        DatabaseDescriptor.setColumnIndexCacheSize(0);
+        testSliceQueries();
+    }
+
+    @Test
+    public void testSliceQueriesIndexInfoOnHeap() throws Throwable
+    {
+        DatabaseDescriptor.setColumnIndexCacheSize(8);
+        testSliceQueries();
+    }
+
+    private void testSliceQueries() throws Throwable
     {
         createTable("CREATE TABLE %s (pk text, ck1 int, ck2 int, val text, vpk text, vck1 int, vck2 int, PRIMARY KEY (pk, ck1, ck2))");
 
@@ -165,7 +179,20 @@ public class KeyCacheCqlTest extends CQLTester
     }
 
     @Test
-    public void test2iKeyCachePaths() throws Throwable
+    public void test2iKeyCachePathsShallowIndexEntry() throws Throwable
+    {
+        DatabaseDescriptor.setColumnIndexCacheSize(0);
+        test2iKeyCachePaths();
+    }
+
+    @Test
+    public void test2iKeyCachePathsIndexInfoOnHeap() throws Throwable
+    {
+        DatabaseDescriptor.setColumnIndexCacheSize(8);
+        test2iKeyCachePaths();
+    }
+
+    private void test2iKeyCachePaths() throws Throwable
     {
         String table = createTable("CREATE TABLE %s ("
                                    + commonColumnsDef
@@ -242,7 +269,20 @@ public class KeyCacheCqlTest extends CQLTester
     }
 
     @Test
-    public void test2iKeyCachePathsSaveKeysForDroppedTable() throws Throwable
+    public void test2iKeyCachePathsSaveKeysForDroppedTableShallowIndexEntry() throws Throwable
+    {
+        DatabaseDescriptor.setColumnIndexCacheSize(0);
+        test2iKeyCachePathsSaveKeysForDroppedTable();
+    }
+
+    @Test
+    public void test2iKeyCachePathsSaveKeysForDroppedTableIndexInfoOnHeap() throws Throwable
+    {
+        DatabaseDescriptor.setColumnIndexCacheSize(8);
+        test2iKeyCachePathsSaveKeysForDroppedTable();
+    }
+
+    private void test2iKeyCachePathsSaveKeysForDroppedTable() throws Throwable
     {
         String table = createTable("CREATE TABLE %s ("
                                    + commonColumnsDef
@@ -302,7 +342,20 @@ public class KeyCacheCqlTest extends CQLTester
     }
 
     @Test
-    public void testKeyCacheNonClustered() throws Throwable
+    public void testKeyCacheNonClusteredShallowIndexEntry() throws Throwable
+    {
+        DatabaseDescriptor.setColumnIndexCacheSize(0);
+        testKeyCacheNonClustered();
+    }
+
+    @Test
+    public void testKeyCacheNonClusteredIndexInfoOnHeap() throws Throwable
+    {
+        DatabaseDescriptor.setColumnIndexCacheSize(8);
+        testKeyCacheNonClustered();
+    }
+
+    private void testKeyCacheNonClustered() throws Throwable
     {
         String table = createTable("CREATE TABLE %s ("
                                    + commonColumnsDef
@@ -335,7 +388,20 @@ public class KeyCacheCqlTest extends CQLTester
     }
 
     @Test
-    public void testKeyCacheClustered() throws Throwable
+    public void testKeyCacheClusteredShallowIndexEntry() throws Throwable
+    {
+        DatabaseDescriptor.setColumnIndexCacheSize(0);
+        testKeyCacheClustered();
+    }
+
+    @Test
+    public void testKeyCacheClusteredIndexInfoOnHeap() throws Throwable
+    {
+        DatabaseDescriptor.setColumnIndexCacheSize(8);
+        testKeyCacheClustered();
+    }
+
+    private void testKeyCacheClustered() throws Throwable
     {
         String table = createTable("CREATE TABLE %s ("
                                    + commonColumnsDef

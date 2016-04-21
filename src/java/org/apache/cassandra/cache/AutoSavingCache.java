@@ -77,8 +77,10 @@ public class AutoSavingCache<K extends CacheKey, V> extends InstrumentingCache<K
      * a minor version letter.
      *
      * Sticking with "d" is fine for 3.0 since it has never been released or used by another version
+     *
+     * "e" introduced with CASSANDRA-11206, omits IndexInfo from key-cache, stores offset into index-file
      */
-    private static final String CURRENT_VERSION = "d";
+    private static final String CURRENT_VERSION = "e";
 
     private static volatile IStreamFactory streamFactory = new IStreamFactory()
     {

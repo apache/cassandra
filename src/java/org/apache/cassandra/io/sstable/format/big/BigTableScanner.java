@@ -288,7 +288,7 @@ public class BigTableScanner implements ISSTableScanner
                             return endOfData();
 
                         currentKey = sstable.decorateKey(ByteBufferUtil.readWithShortLength(ifile));
-                        currentEntry = rowIndexEntrySerializer.deserialize(ifile);
+                        currentEntry = rowIndexEntrySerializer.deserialize(ifile, ifile.getFilePointer());
                     } while (!currentRange.contains(currentKey));
                 }
                 else
@@ -307,7 +307,7 @@ public class BigTableScanner implements ISSTableScanner
                 {
                     // we need the position of the start of the next key, regardless of whether it falls in the current range
                     nextKey = sstable.decorateKey(ByteBufferUtil.readWithShortLength(ifile));
-                    nextEntry = rowIndexEntrySerializer.deserialize(ifile);
+                    nextEntry = rowIndexEntrySerializer.deserialize(ifile, ifile.getFilePointer());
 
                     if (!currentRange.contains(nextKey))
                     {
@@ -329,7 +329,7 @@ public class BigTableScanner implements ISSTableScanner
                         {
                             if (dataRange == null)
                             {
-                                dfile.seek(currentEntry.position + currentEntry.headerOffset());
+                                dfile.seek(currentEntry.position);
                                 ByteBufferUtil.readWithShortLength(dfile); // key
                                 return new SSTableIdentityIterator(sstable, dfile, partitionKey());
                             }

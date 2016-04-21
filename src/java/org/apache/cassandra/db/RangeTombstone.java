@@ -202,6 +202,16 @@ public class RangeTombstone
                 return deserializeValues(in, kind, version, types);
             }
 
+            public void skipValues(DataInputPlus in, Kind kind, int version,
+                                                          List<AbstractType<?>> types) throws IOException
+            {
+                int size = in.readUnsignedShort();
+                if (size == 0)
+                    return;
+
+                ClusteringPrefix.serializer.skipValuesWithoutSize(in, size, version, types);
+            }
+
             public RangeTombstone.Bound deserializeValues(DataInputPlus in, Kind kind, int version,
                     List<AbstractType<?>> types) throws IOException
             {

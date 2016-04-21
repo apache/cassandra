@@ -390,7 +390,7 @@ public class KeyspaceTest extends CQLTester
         // verify that we do indeed have multiple index entries
         SSTableReader sstable = cfs.getLiveSSTables().iterator().next();
         RowIndexEntry indexEntry = sstable.getPosition(Util.dk("0"), SSTableReader.Operator.EQ);
-        assert indexEntry.columnsIndex().size() > 2;
+        assert indexEntry.columnsIndexCount() > 2;
 
         validateSliceLarge(cfs);
     }

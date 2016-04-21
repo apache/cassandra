@@ -18,6 +18,7 @@
 package org.apache.cassandra.io.sstable.format.big;
 
 import java.io.*;
+import java.nio.ByteBuffer;
 import java.util.Collection;
 import java.util.Map;
 
@@ -110,7 +111,7 @@ public class BigTableWriter extends SSTableWriter
         return (lastWrittenKey == null) ? 0 : dataFile.position();
     }
 
-    private void afterAppend(DecoratedKey decoratedKey, long dataEnd, RowIndexEntry index) throws IOException
+    private void afterAppend(DecoratedKey decoratedKey, long dataEnd, RowIndexEntry index, ByteBuffer indexInfo) throws IOException
     {
         metadataCollector.addKey(decoratedKey.getKey());
         lastWrittenKey = decoratedKey;
@@ -120,7 +121,7 @@ public class BigTableWriter extends SSTableWriter
 
         if (logger.isTraceEnabled())
             logger.trace("wrote {} at {}", decoratedKey, dataEnd);
-        iwriter.append(decoratedKey, index, dataEnd);
+        iwriter.append(decoratedKey, index, dataEnd, indexInfo);
     }
 
     /**
@@ -150,21 +151,38 @@ public class BigTableWriter extends SSTableWriter
 
         try (UnfilteredRowIterator collecting = Transformation.apply(iterator, new StatsCollector(metadataCollector)))
         {
-            ColumnIndex index = ColumnIndex.writeAndBuildIndex(collecting, dataFile, header, observers, descriptor.version);
+            ColumnIndex columnIndex = new ColumnIndex(header, dataFile, descriptor.version, observers,
+                                                      getRowIndexEntrySerializer().indexInfoSerializer());
 
-            RowIndexEntry entry = RowIndexEntry.create(startPosition, collecting.partitionLevelDeletion(), index);
+            columnIndex.buildRowIndex(collecting);
+
+            // afterAppend() writes the partition key before the first RowIndexEntry - so we have to add it's
+            // serialized size to the index-writer position
+            long indexFilePosition = ByteBufferUtil.serializedSizeWithShortLength(key.getKey()) + iwriter.indexFile.position();
+
+            RowIndexEntry entry = RowIndexEntry.create(startPosition, indexFilePosition,
+                                                       collecting.partitionLevelDeletion(), columnIndex.headerLength, columnIndex.columnIndexCount,
+                                                       columnIndex.indexInfoSerializedSize(),
+                                                       columnIndex.indexSamples,
+                                                       columnIndex.offsets(),
+                                                       getRowIndexEntrySerializer().indexInfoSerializer());
 
             long endPosition = dataFile.position();
             long rowSize = endPosition - startPosition;
             maybeLogLargePartitionWarning(key, rowSize);
             metadataCollector.addPartitionSizeInBytes(rowSize);
-            afterAppend(key, endPosition, entry);
+            afterAppend(key, endPosition, entry, columnIndex.buffer());
             return entry;
         }
         catch (IOException e)
         {
             throw new FSWriteError(e, dataFile.getPath());
         }
+    }
+
+    private RowIndexEntry.IndexSerializer<IndexInfo> getRowIndexEntrySerializer()
+    {
+        return (RowIndexEntry.IndexSerializer<IndexInfo>) rowIndexEntrySerializer;
     }
 
     private void maybeLogLargePartitionWarning(DecoratedKey key, long rowSize)
@@ -403,14 +421,14 @@ public class BigTableWriter extends SSTableWriter
             return summary.getLastReadableBoundary();
         }
 
-        public void append(DecoratedKey key, RowIndexEntry indexEntry, long dataEnd) throws IOException
+        public void append(DecoratedKey key, RowIndexEntry indexEntry, long dataEnd, ByteBuffer indexInfo) throws IOException
         {
             bf.add(key);
             long indexStart = indexFile.position();
             try
             {
                 ByteBufferUtil.writeWithShortLength(key.getKey(), indexFile);
-                rowIndexEntrySerializer.serialize(indexEntry, indexFile);
+                rowIndexEntrySerializer.serialize(indexEntry, indexFile, indexInfo);
             }
             catch (IOException e)
             {

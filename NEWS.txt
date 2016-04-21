@@ -18,6 +18,9 @@ using the provided 'sstableupgrade' tool.
 
 New features
 ------------
+   - Key cache will only hold indexed entries up to the size configured by
+     column_index_cache_size_in_kb in cassandra.yaml in memory. Larger indexed entries
+     will never go into memory. See CASSANDRA-11206 for more details.
    - For tables having a default_time_to_live specifying a TTL of 0 will remove the TTL
      from the inserted or updated values.
    - Startup is now aborted if corrupted transaction log files are found. The details

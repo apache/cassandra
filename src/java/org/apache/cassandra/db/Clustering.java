@@ -149,6 +149,12 @@ public interface Clustering extends ClusteringPrefix
             return ClusteringPrefix.serializer.valuesWithoutSizeSerializedSize(clustering, version, types);
         }
 
+        public void skip(DataInputPlus in, int version, List<AbstractType<?>> types) throws IOException
+        {
+            if (!types.isEmpty())
+                ClusteringPrefix.serializer.skipValuesWithoutSize(in, types.size(), version, types);
+        }
+
         public Clustering deserialize(DataInputPlus in, int version, List<AbstractType<?>> types) throws IOException
         {
             if (types.isEmpty())

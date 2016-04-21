@@ -18,22 +18,23 @@
 package org.apache.cassandra.db.columniterator;
 
 import java.io.IOException;
+import java.util.Comparator;
 import java.util.Iterator;
-import java.util.List;
 import java.util.NoSuchElementException;
 
 import org.apache.cassandra.config.CFMetaData;
 import org.apache.cassandra.db.*;
 import org.apache.cassandra.db.filter.ColumnFilter;
 import org.apache.cassandra.db.rows.*;
+import org.apache.cassandra.io.sstable.IndexInfo;
 import org.apache.cassandra.io.sstable.format.SSTableReader;
 import org.apache.cassandra.io.sstable.CorruptSSTableException;
-import org.apache.cassandra.io.sstable.IndexHelper;
 import org.apache.cassandra.io.util.FileDataInput;
 import org.apache.cassandra.io.util.DataPosition;
+import org.apache.cassandra.io.util.SegmentedFile;
 import org.apache.cassandra.utils.ByteBufferUtil;
 
-abstract class AbstractSSTableIterator implements UnfilteredRowIterator
+public abstract class AbstractSSTableIterator implements UnfilteredRowIterator
 {
     protected final SSTableReader sstable;
     protected final DecoratedKey key;
@@ -45,6 +46,8 @@ abstract class AbstractSSTableIterator implements UnfilteredRowIterator
     protected final Reader reader;
 
     private final boolean isForThrift;
+
+    protected final SegmentedFile ifile;
 
     private boolean isClosed;
 
@@ -59,9 +62,11 @@ abstract class AbstractSSTableIterator implements UnfilteredRowIterator
                                       RowIndexEntry indexEntry,
                                       Slices slices,
                                       ColumnFilter columnFilter,
-                                      boolean isForThrift)
+                                      boolean isForThrift,
+                                      SegmentedFile ifile)
     {
         this.sstable = sstable;
+        this.ifile = ifile;
         this.key = key;
         this.columns = columnFilter;
         this.slices = slices;
@@ -434,13 +439,13 @@ abstract class AbstractSSTableIterator implements UnfilteredRowIterator
     }
 
     // Used by indexed readers to store where they are of the index.
-    protected static class IndexState
+    public static class IndexState implements AutoCloseable
     {
         private final Reader reader;
         private final ClusteringComparator comparator;
 
         private final RowIndexEntry indexEntry;
-        private final List<IndexHelper.IndexInfo> indexes;
+        private final RowIndexEntry.IndexInfoRetriever indexInfoRetriever;
         private final boolean reversed;
 
         private int currentIndexIdx;
@@ -448,43 +453,43 @@ abstract class AbstractSSTableIterator implements UnfilteredRowIterator
         // Marks the beginning of the block corresponding to currentIndexIdx.
         private DataPosition mark;
 
-        public IndexState(Reader reader, ClusteringComparator comparator, RowIndexEntry indexEntry, boolean reversed)
+        public IndexState(Reader reader, ClusteringComparator comparator, RowIndexEntry indexEntry, boolean reversed, SegmentedFile indexFile)
         {
             this.reader = reader;
             this.comparator = comparator;
             this.indexEntry = indexEntry;
-            this.indexes = indexEntry.columnsIndex();
+            this.indexInfoRetriever = indexEntry.openWithIndex(indexFile);
             this.reversed = reversed;
-            this.currentIndexIdx = reversed ? indexEntry.columnsIndex().size() : -1;
+            this.currentIndexIdx = reversed ? indexEntry.columnsIndexCount() : -1;
         }
 
         public boolean isDone()
         {
-            return reversed ? currentIndexIdx < 0 : currentIndexIdx >= indexes.size();
+            return reversed ? currentIndexIdx < 0 : currentIndexIdx >= indexEntry.columnsIndexCount();
         }
 
         // Sets the reader to the beginning of blockIdx.
         public void setToBlock(int blockIdx) throws IOException
         {
-            if (blockIdx >= 0 && blockIdx < indexes.size())
+            if (blockIdx >= 0 && blockIdx < indexEntry.columnsIndexCount())
             {
                 reader.seekToPosition(columnOffset(blockIdx));
                 reader.deserializer.clearState();
             }
 
             currentIndexIdx = blockIdx;
-            reader.openMarker = blockIdx > 0 ? indexes.get(blockIdx - 1).endOpenMarker : null;
+            reader.openMarker = blockIdx > 0 ? index(blockIdx - 1).endOpenMarker : null;
             mark = reader.file.mark();
         }
 
-        private long columnOffset(int i)
+        private long columnOffset(int i) throws IOException
         {
-            return indexEntry.position + indexes.get(i).offset;
+            return indexEntry.position + index(i).offset;
         }
 
         public int blocksCount()
         {
-            return indexes.size();
+            return indexEntry.columnsIndexCount();
         }
 
         // Update the block idx based on the current reader position if we're past the current block.
@@ -503,7 +508,7 @@ abstract class AbstractSSTableIterator implements UnfilteredRowIterator
                 return;
             }
 
-            while (currentIndexIdx + 1 < indexes.size() && isPastCurrentBlock())
+            while (currentIndexIdx + 1 < indexEntry.columnsIndexCount() && isPastCurrentBlock())
             {
                 reader.openMarker = currentIndex().endOpenMarker;
                 ++currentIndexIdx;
@@ -526,7 +531,7 @@ abstract class AbstractSSTableIterator implements UnfilteredRowIterator
         }
 
         // Check if we've crossed an index boundary (based on the mark on the beginning of the index block).
-        public boolean isPastCurrentBlock()
+        public boolean isPastCurrentBlock() throws IOException
         {
             assert reader.deserializer != null;
             long correction = reader.deserializer.bytesReadForUnconsumedData();
@@ -538,32 +543,92 @@ abstract class AbstractSSTableIterator implements UnfilteredRowIterator
             return currentIndexIdx;
         }
 
-        public IndexHelper.IndexInfo currentIndex()
+        public IndexInfo currentIndex() throws IOException
         {
             return index(currentIndexIdx);
         }
 
-        public IndexHelper.IndexInfo index(int i)
+        public IndexInfo index(int i) throws IOException
         {
-            return indexes.get(i);
+            return indexInfoRetriever.columnsIndex(i);
         }
 
         // Finds the index of the first block containing the provided bound, starting at the provided index.
         // Will be -1 if the bound is before any block, and blocksCount() if it is after every block.
-        public int findBlockIndex(Slice.Bound bound, int fromIdx)
+        public int findBlockIndex(Slice.Bound bound, int fromIdx) throws IOException
         {
             if (bound == Slice.Bound.BOTTOM)
                 return -1;
             if (bound == Slice.Bound.TOP)
                 return blocksCount();
 
-            return IndexHelper.indexFor(bound, indexes, comparator, reversed, fromIdx);
+            return indexFor(bound, fromIdx);
+        }
+
+        public int indexFor(ClusteringPrefix name, int lastIndex) throws IOException
+        {
+            IndexInfo target = new IndexInfo(name, name, 0, 0, null);
+            /*
+            Take the example from the unit test, and say your index looks like this:
+            [0..5][10..15][20..25]
+            and you look for the slice [13..17].
+
+            When doing forward slice, we are doing a binary search comparing 13 (the start of the query)
+            to the lastName part of the index slot. You'll end up with the "first" slot, going from left to right,
+            that may contain the start.
+
+            When doing a reverse slice, we do the same thing, only using as a start column the end of the query,
+            i.e. 17 in this example, compared to the firstName part of the index slots.  bsearch will give us the
+            first slot where firstName > start ([20..25] here), so we subtract an extra one to get the slot just before.
+            */
+            int startIdx = 0;
+            int endIdx = indexEntry.columnsIndexCount() - 1;
+
+            if (reversed)
+            {
+                if (lastIndex < endIdx)
+                {
+                    endIdx = lastIndex;
+                }
+            }
+            else
+            {
+                if (lastIndex > 0)
+                {
+                    startIdx = lastIndex;
+                }
+            }
+
+            int index = binarySearch(target, comparator.indexComparator(reversed), startIdx, endIdx);
+            return (index < 0 ? -index - (reversed ? 2 : 1) : index);
+        }
+
+        private int binarySearch(IndexInfo key, Comparator<IndexInfo> c, int low, int high) throws IOException {
+            while (low <= high) {
+                int mid = (low + high) >>> 1;
+                IndexInfo midVal = index(mid);
+                int cmp = c.compare(midVal, key);
+
+                if (cmp < 0)
+                    low = mid + 1;
+                else if (cmp > 0)
+                    high = mid - 1;
+                else
+                    return mid;
+            }
+            return -(low + 1);
         }
 
         @Override
         public String toString()
         {
-            return String.format("IndexState(indexSize=%d, currentBlock=%d, reversed=%b)", indexes.size(), currentIndexIdx, reversed);
+            return String.format("IndexState(indexSize=%d, currentBlock=%d, reversed=%b)", indexEntry.columnsIndexCount(), currentIndexIdx, reversed);
+        }
+
+        @Override
+        public void close() throws IOException
+        {
+            indexInfoRetriever.close();
         }
     }
 }

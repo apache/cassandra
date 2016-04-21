@@ -151,7 +151,7 @@ public class Scrubber implements Closeable
             if (indexAvailable())
             {
                 // throw away variable so we don't have a side effect in the assert
-                long firstRowPositionFromIndex = rowIndexEntrySerializer.deserialize(indexFile).position;
+                long firstRowPositionFromIndex = rowIndexEntrySerializer.deserializePositionAndSkip(indexFile);
                 assert firstRowPositionFromIndex == 0 : firstRowPositionFromIndex;
             }
 
@@ -338,7 +338,7 @@ public class Scrubber implements Closeable
 
             nextRowPositionFromIndex = !indexAvailable()
                     ? dataFile.length()
-                    : rowIndexEntrySerializer.deserialize(indexFile).position;
+                    : rowIndexEntrySerializer.deserializePositionAndSkip(indexFile);
         }
         catch (Throwable th)
         {

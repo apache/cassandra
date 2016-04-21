@@ -823,12 +823,11 @@ public abstract class SSTableReader extends SSTable implements SelfRefCounted<SS
             try (IndexSummaryBuilder summaryBuilder = summaryLoaded ? null : new IndexSummaryBuilder(estimatedKeys, metadata.params.minIndexInterval, samplingLevel))
             {
                 long indexPosition;
-                RowIndexEntry.IndexSerializer rowIndexSerializer = descriptor.getFormat().getIndexSerializer(metadata, descriptor.version, header);
 
                 while ((indexPosition = primaryIndex.getFilePointer()) != indexSize)
                 {
                     ByteBuffer key = ByteBufferUtil.readWithShortLength(primaryIndex);
-                    /*RowIndexEntry indexEntry = */rowIndexSerializer.deserialize(primaryIndex);
+                    RowIndexEntry.Serializer.skip(primaryIndex, descriptor.version);
                     DecoratedKey decoratedKey = decorateKey(key);
                     if (first == null)
                         first = decoratedKey;
@@ -1822,7 +1821,7 @@ public abstract class SSTableReader extends SSTable implements SelfRefCounted<SS
             // this saves index summary lookup and index file iteration which whould be pretty costly
             // especially in presence of promoted column indexes
             if (isKeyCacheSetup())
-                cacheKey(key, rowIndexEntrySerializer.deserialize(in));
+                cacheKey(key, rowIndexEntrySerializer.deserialize(in, in.getFilePointer()));
         }
 
         return key;
@@ -2019,6 +2018,11 @@ public abstract class SSTableReader extends SSTable implements SelfRefCounted<SS
     public ChannelProxy getIndexChannel()
     {
         return ifile.channel;
+    }
+
+    public SegmentedFile getIndexFile()
+    {
+        return ifile;
     }
 
     /**

@@ -659,6 +659,14 @@ auto_snapshot: true
 #      rows (as part of the key cache), so a larger granularity means
 #      you can cache more hot rows
 column_index_size_in_kb: 64
+# Per sstable indexed key cache entries (the collation index in memory
+# mentioned above) exceeding this size will not be held on heap.
+# This means that only partition information is held on heap and the
+# index entries are read from disk.
+#
+# Note that this size refers to the size of the
+# serialized index information and not the size of the partition.
+column_index_cache_size_in_kb: 2
 
 # Number of simultaneous compactions to allow, NOT including
 # validation "compactions" for anti-entropy repair.  Simultaneous

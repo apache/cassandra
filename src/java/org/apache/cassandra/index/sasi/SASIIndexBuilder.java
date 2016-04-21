@@ -73,7 +73,7 @@ class SASIIndexBuilder extends SecondaryIndexBuilder
                         try
                         {
                             RowIndexEntry indexEntry = sstable.getPosition(key, SSTableReader.Operator.EQ);
-                            dataFile.seek(indexEntry.position + indexEntry.headerOffset());
+                            dataFile.seek(indexEntry.position);
                             ByteBufferUtil.readWithShortLength(dataFile); // key
 
                             try (SSTableIdentityIterator partition = new SSTableIdentityIterator(sstable, dataFile, key))
