@@ -315,7 +315,7 @@ class CopyTask(object):
         copy_options['decimalsep'] = opts.pop('decimalsep', '.')
         copy_options['thousandssep'] = opts.pop('thousandssep', '')
         copy_options['boolstyle'] = [s.strip() for s in opts.pop('boolstyle', 'True, False').split(',')]
-        copy_options['numprocesses'] = int(opts.pop('numprocesses', self.get_num_processes(cap=16)))
+        copy_options['numprocesses'] = int(opts.pop('numprocesses', self.get_num_processes(16)))
         copy_options['begintoken'] = opts.pop('begintoken', '')
         copy_options['endtoken'] = opts.pop('endtoken', '')
         copy_options['maxrows'] = int(opts.pop('maxrows', '-1'))
