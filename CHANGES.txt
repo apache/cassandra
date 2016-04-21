@@ -64,6 +64,7 @@ Merged from 3.0:
    header is received (CASSANDRA-11464)
  * Validate that num_tokens and initial_token are consistent with one another (CASSANDRA-10120)
 Merged from 2.2:
+ * cqlsh: COPY FROM should report errors correctly if workers processes crash on initialization (CASSANDRA-11474)
  * Always close cluster with connection in CqlRecordWriter (CASSANDRA-11553)
  * Allow only DISTINCT queries with partition keys restrictions (CASSANDRA-11339)
  * CqlConfigHelper no longer requires both a keystore and truststore to work (CASSANDRA-11532)

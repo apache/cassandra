@@ -2146,8 +2146,7 @@ class ImportProcess(ChildProcess):
                 profile_off(pr, file_name='worker_profile_%d.txt' % (os.getpid(),))
 
         except Exception, exc:
-            if self.debug:
-                traceback.print_exc(exc)
+            self.report_error(exc)
 
         finally:
             self.close()
@@ -2401,7 +2400,7 @@ class ImportProcess(ChildProcess):
         if self.debug and sys.exc_info()[1] == err:
             traceback.print_exc()
         self.outmsg.send(ImportTaskError(err.__class__.__name__, err.message, rows, attempts, final))
-        if final:
+        if final and chunk is not None:
             self.update_chunk(rows, chunk)
 
     def update_chunk(self, rows, chunk):
