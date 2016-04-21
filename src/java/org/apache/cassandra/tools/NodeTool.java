@@ -315,19 +315,34 @@ public class NodeTool
             return nodeClient;
         }
 
-        protected List<String> parseOptionalKeyspace(List<String> cmdArgs, NodeProbe nodeProbe)
+        protected enum KeyspaceSet
         {
-            return parseOptionalKeyspace(cmdArgs, nodeProbe, false);
+            ALL, NON_SYSTEM, NON_LOCAL_STRATEGY
         }
 
-        protected List<String> parseOptionalKeyspace(List<String> cmdArgs, NodeProbe nodeProbe, boolean includeSystemKS)
+        protected List<String> parseOptionalKeyspace(List<String> cmdArgs, NodeProbe nodeProbe)
+        {
+            return parseOptionalKeyspace(cmdArgs, nodeProbe, KeyspaceSet.NON_SYSTEM);
+        }
+
+        protected List<String> parseOptionalKeyspace(List<String> cmdArgs, NodeProbe nodeProbe, KeyspaceSet defaultKeyspaceSet)
         {
             List<String> keyspaces = new ArrayList<>();
 
+
             if (cmdArgs == null || cmdArgs.isEmpty())
-                keyspaces.addAll(includeSystemKS ? nodeProbe.getKeyspaces() : nodeProbe.getNonSystemKeyspaces());
+            {
+                if (defaultKeyspaceSet == KeyspaceSet.NON_LOCAL_STRATEGY)
+                    keyspaces.addAll(keyspaces = nodeProbe.getNonLocalStrategyKeyspaces());
+                else if (defaultKeyspaceSet == KeyspaceSet.NON_SYSTEM)
+                    keyspaces.addAll(keyspaces = nodeProbe.getNonSystemKeyspaces());
+                else
+                    keyspaces.addAll(nodeProbe.getKeyspaces());
+            }
             else
+            {
                 keyspaces.add(cmdArgs.get(0));
+            }
 
             for (String keyspace : keyspaces)
             {

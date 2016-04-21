@@ -1,4 +1,6 @@
 3.0.6
+ * Ignore all LocalStrategy keyspaces for streaming and other related
+   operations (CASSANDRA-11627)
  * Ensure columnfilter covers indexed columns for thrift 2i queries (CASSANDRA-11523)
  * Only open one sstable scanner per sstable (CASSANDRA-11412)
  * Option to specify ProtocolVersion in cassandra-stress (CASSANDRA-11410)

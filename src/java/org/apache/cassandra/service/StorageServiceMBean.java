@@ -446,6 +446,8 @@ public interface StorageServiceMBean extends NotificationEmitter
 
     public List<String> getNonSystemKeyspaces();
 
+    public List<String> getNonLocalStrategyKeyspaces();
+
     /**
      * Change endpointsnitch class and dynamic-ness (and dynamic attributes) at runtime
      * @param epSnitchClassName        the canonical path name for a class implementing IEndpointSnitch

@@ -26,6 +26,7 @@ import org.apache.cassandra.locator.AbstractReplicationStrategy;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import java.util.List;
 import java.util.concurrent.*;
 import java.util.concurrent.atomic.AtomicInteger;
 
@@ -56,12 +57,13 @@ public class PendingRangeCalculatorService
         public void run()
         {
             long start = System.currentTimeMillis();
-            for (String keyspaceName : Schema.instance.getNonSystemKeyspaces())
+            List<String> keyspaces = Schema.instance.getNonLocalStrategyKeyspaces();
+            for (String keyspaceName : keyspaces)
             {
                 calculatePendingRanges(Keyspace.open(keyspaceName).getReplicationStrategy(), keyspaceName);
             }
             PendingRangeCalculatorService.instance.finishUpdate();
-            logger.debug("finished calculation for {} keyspaces in {}ms", Schema.instance.getNonSystemKeyspaces().size(), System.currentTimeMillis() - start);
+            logger.debug("finished calculation for {} keyspaces in {}ms", keyspaces.size(), System.currentTimeMillis() - start);
         }
     }
 

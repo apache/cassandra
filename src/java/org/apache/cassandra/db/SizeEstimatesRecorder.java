@@ -72,7 +72,7 @@ public class SizeEstimatesRecorder extends MigrationListener implements Runnable
         Collection<Token> localTokens = StorageService.instance.getLocalTokens();
         Collection<Range<Token>> localRanges = metadata.getPrimaryRangesFor(localTokens);
 
-        for (Keyspace keyspace : Keyspace.nonSystem())
+        for (Keyspace keyspace : Keyspace.nonLocalStrategy())
         {
             for (ColumnFamilyStore table : keyspace.getColumnFamilyStores())
             {
