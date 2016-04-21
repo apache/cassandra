@@ -70,7 +70,8 @@ Merged from 2.2:
  * CqlConfigHelper no longer requires both a keystore and truststore to work (CASSANDRA-11532)
  * Make deprecated repair methods backward-compatible with previous notification service (CASSANDRA-11430)
  * IncomingStreamingConnection version check message wrong (CASSANDRA-11462)
-
+Merged from 2.1:
+ * cqlsh: COPY FROM ignores NULL values in conversion (CASSANDRA-11549)
 
 3.5
  * StaticTokenTreeBuilder should respect posibility of duplicate tokens (CASSANDRA-11525)

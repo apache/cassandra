@@ -1938,7 +1938,7 @@ class ImportConversion(object):
                 raise ParseError(self.get_null_primary_key_message(i))
 
         try:
-            return [conv(val) for conv, val in zip(converters, row)]
+            return [conv(val) if val != self.nullval else None for conv, val in zip(converters, row)]
         except Exception, e:
             raise ParseError(e.message)
 
