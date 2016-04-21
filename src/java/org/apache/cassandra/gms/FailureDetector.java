@@ -269,7 +269,7 @@ public class FailureDetector implements IFailureDetector, FailureDetectorMBean
         }
 
         if (logger.isTraceEnabled() && heartbeatWindow != null)
-            logger.info("Average for {} is {}", ep, heartbeatWindow.mean());
+            logger.trace("Average for {} is {}", ep, heartbeatWindow.mean());
     }
 
     public void interpret(InetAddress ep)
