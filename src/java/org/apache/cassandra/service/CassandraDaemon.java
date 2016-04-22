@@ -22,6 +22,7 @@ import java.io.IOException;
 import java.lang.management.ManagementFactory;
 import java.lang.management.MemoryPoolMXBean;
 import java.net.InetAddress;
+import java.net.URL;
 import java.net.UnknownHostException;
 import java.rmi.registry.LocateRegistry;
 import java.rmi.server.RMIServerSocketFactory;
@@ -327,8 +328,13 @@ public class CassandraDaemon
             logger.info("Trying to load metrics-reporter-config from file: {}", metricsReporterConfigFile);
             try
             {
-                String reportFileLocation = CassandraDaemon.class.getClassLoader().getResource(metricsReporterConfigFile).getFile();
-                ReporterConfig.loadFromFile(reportFileLocation).enableAll(CassandraMetricsRegistry.Metrics);
+                URL resource = CassandraDaemon.class.getClassLoader().getResource(metricsReporterConfigFile);
+                if (resource == null) {
+                    logger.warn("Failed to load metrics-reporter-config, file does not exist: {}", metricsReporterConfigFile);
+                } else {
+                    String reportFileLocation = resource.getFile();
+                    ReporterConfig.loadFromFile(reportFileLocation).enableAll(CassandraMetricsRegistry.Metrics);
+                }
             }
             catch (Exception e)
             {
