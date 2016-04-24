@@ -42,9 +42,8 @@ public class SettingsNode implements Serializable
             try
             {
                 String node;
-                List<String> tmpNodes = new ArrayList<String>();
-                BufferedReader in = new BufferedReader(new InputStreamReader(new FileInputStream(options.file.value())));
-                try
+                List<String> tmpNodes = new ArrayList<>();
+                try (BufferedReader in = new BufferedReader(new InputStreamReader(new FileInputStream(options.file.value()))))
                 {
                     while ((node = in.readLine()) != null)
                     {
@@ -52,10 +51,6 @@ public class SettingsNode implements Serializable
                             tmpNodes.add(node);
                     }
                     nodes = Arrays.asList(tmpNodes.toArray(new String[tmpNodes.size()]));
-                }
-                finally
-                {
-                    in.close();
                 }
             }
             catch(IOException ioe)
@@ -177,13 +172,6 @@ public class SettingsNode implements Serializable
 
     public static Runnable helpPrinter()
     {
-        return new Runnable()
-        {
-            @Override
-            public void run()
-            {
-                printHelp();
-            }
-        };
+        return SettingsNode::printHelp;
     }
 }
