@@ -1786,15 +1786,16 @@ class ImportConversion(object):
             level = 0
             quote = False
             for i, c in enumerate(val):
-                if c == '{' or c == '[' or c == '(':
-                    level += 1
-                elif c == '}' or c == ']' or c == ')':
-                    level -= 1
-                elif c == '\'':
+                if c == '\'':
                     quote = not quote
-                elif c == sep and level == 1 and not quote:
-                    ret.append(val[last:i])
-                    last = i + 1
+                elif not quote:
+                    if c == '{' or c == '[' or c == '(':
+                        level += 1
+                    elif c == '}' or c == ']' or c == ')':
+                        level -= 1
+                    elif c == sep and level == 1:
+                        ret.append(val[last:i])
+                        last = i + 1
             else:
                 if last < len(val) - 1:
                     ret.append(val[last:-1])

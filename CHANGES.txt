@@ -76,6 +76,7 @@ Merged from 2.2:
  * Make deprecated repair methods backward-compatible with previous notification service (CASSANDRA-11430)
  * IncomingStreamingConnection version check message wrong (CASSANDRA-11462)
 Merged from 2.1:
+ * cqlsh COPY FROM fails with []{} chars in UDT/tuple fields/values (CASSANDRA-11633)
  * clqsh: COPY FROM throws TypeError with Cython extensions enabled (CASSANDRA-11574)
  * cqlsh: COPY FROM ignores NULL values in conversion (CASSANDRA-11549)
 
