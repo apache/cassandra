@@ -48,7 +48,7 @@ public class GCInspector implements NotificationListener, GCInspectorMXBean
     private static final Logger logger = LoggerFactory.getLogger(GCInspector.class);
     final static long MIN_LOG_DURATION = 200;
     final static long GC_WARN_THRESHOLD_IN_MS = DatabaseDescriptor.getGCWarnThreshold();
-    final static long STAT_THRESHOLD = Math.min(GC_WARN_THRESHOLD_IN_MS != 0 ? GC_WARN_THRESHOLD_IN_MS : MIN_LOG_DURATION, MIN_LOG_DURATION);
+    final static long STAT_THRESHOLD = GC_WARN_THRESHOLD_IN_MS != 0 ? GC_WARN_THRESHOLD_IN_MS : MIN_LOG_DURATION;
 
     static final class State
     {
