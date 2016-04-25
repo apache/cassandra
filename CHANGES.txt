@@ -4,6 +4,7 @@
           report errors correctly if workers processes crash on initialization (CASSANDRA-11474)
  * Always close cluster with connection in CqlRecordWriter (CASSANDRA-11553)
 Merged from 2.1:
+ * cqlsh COPY FROM fails with []{} chars in UDT/tuple fields/values (CASSANDRA-11633)
  * clqsh: COPY FROM throws TypeError with Cython extensions enabled (CASSANDRA-11574)
  * cqlsh: COPY FROM ignores NULL values in conversion (CASSANDRA-11549)
  * (cqlsh) Fix potential COPY deadlock when parent process is terminating child
