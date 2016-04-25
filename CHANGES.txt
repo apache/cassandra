@@ -1,4 +1,5 @@
 2.1.15
+ * cqlsh COPY FROM fails for null values with non-prepared statements (CASSANDRA-11631)
  * Make cython optional in pylib/setup.py (CASSANDRA-11630)
  * Change order of directory searching for cassandra.in.sh to favor local one (CASSANDRA-11628)
  * cqlsh COPY FROM fails with []{} chars in UDT/tuple fields/values (CASSANDRA-11633)
