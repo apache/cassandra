@@ -28,46 +28,62 @@ import org.apache.cassandra.io.util.DataOutputPlus;
 
 /**
  * Serialize/deserialize a single Unfiltered (both on-wire and on-disk).
+ * <p>
  *
- * {@code
- * The encoded format for an unfiltered is <flags>(<row>|<marker>) where:
- *
- *   <flags> is a byte (or two) whose bits are flags used by the rest of the serialization. Each
- *       flag is defined/explained below as the "Unfiltered flags" constants. One of those flags
- *       is an extension flag, and if present, trigger the rid of another byte that contains more
- *       flags. If the extension is not set, defaults are assumed for the flags of that 2nd byte.
- *   <row> is <clustering><size>[<timestamp>][<ttl>][<deletion>]<sc1>...<sci><cc1>...<ccj> where
- *       <clustering> is the row clustering as serialized by {@code Clustering.serializer} (note
- *       that static row are an exception and don't have this).
- *       <size> is the size of the whole unfiltered on disk (it's only used for sstables and is
- *       used to efficiently skip rows).
- *       <timestamp>, <ttl> and <deletion> are the row timestamp, ttl and deletion
- *       whose presence is determined by the flags. <sci> is the simple columns of the row and <ccj> the
- *       complex ones.
- *       The columns for the row are then serialized if they differ from those in the header,
- *       and each cell then follows:
- *         * Each simple column <sci> will simply be a <cell>
- *           (which might have no value, see below),
- *         * Each <ccj> will be [<delTime>]<n><cell1>...<celln> where <delTime>
- *           is the deletion for this complex column (if flags indicates it present), <n>
- *           is the vint encoded value of n, i.e. <celln>'s 1-based index, <celli>
- *           are the <cell> for this complex column
- *   <marker> is <bound><deletion> where <bound> is the marker bound as serialized
- *       by {@code ClusteringBoundOrBoundary.serializer} and <deletion> is the marker deletion
- *       time.
- *
- *   <cell> A cell start with a 1 byte <flag>. The 2nd and third flag bits indicate if
- *       it's a deleted or expiring cell. The 4th flag indicates if the value
- *       is empty or not. The 5th and 6th indicates if the timestamp and ttl/
- *       localDeletionTime for the cell are the same than the row one (if that
- *       is the case, those are not repeated for the cell).Follows the <value>
- *       (unless it's marked empty in the flag) and a delta-encoded long <timestamp>
- *       (unless the flag tells to use the row level one).
- *       Then if it's a deleted or expiring cell a delta-encoded int <localDelTime>
- *       and if it's expiring a delta-encoded int <ttl> (unless it's an expiring cell
- *       and the ttl and localDeletionTime are indicated by the flags to be the same
- *       than the row ones, in which case none of those appears).
- * }
+ * The encoded format for an unfiltered is {@code <flags>(<row>|<marker>)} where:
+ * <ul>
+ *   <li>
+ *     {@code <flags>} is a byte (or two) whose bits are flags used by the rest
+ *     of the serialization. Each flag is defined/explained below as the
+ *     "Unfiltered flags" constants. One of those flags is an extension flag,
+ *     and if present, indicates the presence of a 2ndbyte that contains more
+ *     flags. If the extension is not set, defaults are assumed for the flags
+ *     of that 2nd byte.
+ *   </li>
+ *   <li>
+ *     {@code <row>} is
+ *        {@code <clustering><sizes>[<pkliveness>][<deletion>][<columns>]<columns_data>}
+ *     where:
+ *     <ul>
+ *       <li>{@code <clustering>} is the row clustering as serialized by
+ *           {@link Clustering.serializer} (note that static row are an
+ *           exception and don't have this). </li>
+ *       <li>{@code <sizes>} are the sizes of the whole unfiltered on disk and
+ *           of the previous unfiltered. This is only present for sstables and
+ *           is used to efficiently skip rows (both forward and backward).</li>
+ *       <li>{@code <pkliveness>} is the row primary key liveness infos, and it
+ *           contains the timestamp, ttl and local deletion time of that info,
+ *           though some/all of those can be absent based on the flags. </li>
+ *       <li>{@code deletion} is the row deletion. It's presence is determined
+ *           by the flags and if present, it conists of both the deletion
+ *           timestamp and local deletion time.</li>
+ *       <li>{@code <columns>} are the columns present in the row  encoded by
+ *           {@link Columns.serializer#serializeSubset}. It is absent if the row
+ *           contains all the columns of the {@code SerializationHeader} (which
+ *           is then indicated by a flag). </li>
+ *       <li>{@code <columns_data>} is the data for each of the column present
+ *           in the row. The encoding of each data depends on whether the data
+ *           is for a simple or complex column:
+ *           <ul>
+ *              <li>Simple columns are simply encoded as one {@code <cell>}</li>
+ *              <li>Complex columns are encoded as {@code [<delTime>]<n><cell1>...<celln>}
+ *                  where {@code <delTime>} is the deletion for this complex
+ *                  column (if flags indicates its presence), {@code <n>} is the
+ *                  vint encoded value of n, i.e. {@code <celln>}'s 1-based
+ *                  inde and {@code <celli>} are the {@code <cell>} for this
+ *                  complex column</li>
+ *           </ul>
+ *       </li>
+ *     </ul>
+ *   </li>
+ *   <li>
+ *     {@code <marker>} is {@code <bound><deletion>} where {@code <bound>} is
+ *     the marker bound as serialized by {@link ClusteringBoundOrBoundary.serializer}
+ *     and {@code <deletion>} is the marker deletion time.
+ *   </li>
+ * </ul>
+ * <p>
+ * The serialization of a {@code <cell>} is defined by {@link Cell.Serializer}.
  */
 public class UnfilteredSerializer
 {
@@ -163,6 +179,8 @@ public class UnfilteredSerializer
         if (header.isForSSTable())
         {
             out.writeUnsignedVInt(serializedRowBodySize(row, header, previousUnfilteredSize, version));
+            // We write the size of the previous unfiltered to make reverse queries more efficient (and simpler).
+            // This is currently not used however and using it is tbd.
             out.writeUnsignedVInt(previousUnfilteredSize);
         }
 
