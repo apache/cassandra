@@ -27,6 +27,7 @@ import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 import java.util.SortedSet;
+import java.util.stream.Collectors;
 
 import com.datastax.driver.core.ProtocolVersion;
 import com.datastax.driver.core.TypeCodec;
@@ -45,7 +46,6 @@ import org.apache.cassandra.cql3.statements.ParsedStatement;
 import org.apache.cassandra.cql3.statements.UpdateStatement;
 import org.apache.cassandra.db.Clustering;
 import org.apache.cassandra.db.DecoratedKey;
-import org.apache.cassandra.db.marshal.AbstractType;
 import org.apache.cassandra.db.marshal.UserType;
 import org.apache.cassandra.db.partitions.Partition;
 import org.apache.cassandra.dht.IPartitioner;
@@ -112,12 +112,15 @@ public class CQLSSTableWriter implements Closeable
     private final AbstractSSTableSimpleWriter writer;
     private final UpdateStatement insert;
     private final List<ColumnSpecification> boundNames;
+    private final List<TypeCodec> typeCodecs;
 
     private CQLSSTableWriter(AbstractSSTableSimpleWriter writer, UpdateStatement insert, List<ColumnSpecification> boundNames)
     {
         this.writer = writer;
         this.insert = insert;
         this.boundNames = boundNames;
+        this.typeCodecs = boundNames.stream().map(bn ->  UDHelper.codecFor(UDHelper.driverType(bn.type)))
+                                             .collect(Collectors.toList());
     }
 
     /**
@@ -168,9 +171,8 @@ public class CQLSSTableWriter implements Closeable
 
         for (int i = 0; i < size; i++)
         {
-            TypeCodec typeCodec = UDHelper.codecFor(UDHelper.driverType(boundNames.get(i).type));
-            rawValues.add(values.get(i) == null ? null : typeCodec.serialize(values.get(i),
-                                                                             ProtocolVersion.NEWEST_SUPPORTED));
+            Object value = values.get(i);
+            rawValues.add(value == null ? null : typeCodecs.get(i).serialize(value, ProtocolVersion.NEWEST_SUPPORTED));
         }
 
         return rawAddRow(rawValues);
@@ -205,7 +207,8 @@ public class CQLSSTableWriter implements Closeable
         {
             ColumnSpecification spec = boundNames.get(i);
             Object value = values.get(spec.name.toString());
-            rawValues.add(value == null ? null : ((AbstractType) spec.type).decompose(value));
+
+            rawValues.add(value == null ? null : typeCodecs.get(i).serialize(value, ProtocolVersion.NEWEST_SUPPORTED));
         }
         return rawAddRow(rawValues);
     }

@@ -1,4 +1,5 @@
 3.6
+ * SSTableWriter output discrepancy (CASSANDRA-11646)
  * Fix potential timeout in NativeTransportService.testConcurrentDestroys (CASSANDRA-10756)
  * Support large partitions on the 3.0 sstable format (CASSANDRA-11206)
  * JSON datetime formatting needs timezone (CASSANDRA-11137)
