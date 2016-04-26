@@ -2,7 +2,7 @@
  * Fix potential timeout in NativeTransportService.testConcurrentDestroys (CASSANDRA-10756)
  * Support large partitions on the 3.0 sstable format (CASSANDRA-11206)
  * JSON datetime formatting needs timezone (CASSANDRA-11137)
- * Add support to rebuild from specific range (CASSANDRA-10409)
+ * Add support to rebuild from specific range (CASSANDRA-10406)
  * Optimize the overlapping lookup by calculating all the
    bounds in advance (CASSANDRA-11571)
  * Support json/yaml output in noetool tablestats (CASSANDRA-5977)
