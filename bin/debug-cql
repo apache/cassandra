@@ -17,11 +17,11 @@
 
 if [ "x$CASSANDRA_INCLUDE" = "x" ]; then
     # Locations (in order) to use when searching for an include file.
-    for include in /usr/share/cassandra/cassandra.in.sh \
-                   /usr/local/share/cassandra/cassandra.in.sh \
-                   /opt/cassandra/cassandra.in.sh \
+    for include in "`dirname "$0"`/cassandra.in.sh" \
                    "$HOME/.cassandra.in.sh" \
-                   "`dirname $0`/cassandra.in.sh"; do
+                   /usr/share/cassandra/cassandra.in.sh \
+                   /usr/local/share/cassandra/cassandra.in.sh \
+                   /opt/cassandra/cassandra.in.sh; do
         if [ -r "$include" ]; then
             . "$include"
             break
