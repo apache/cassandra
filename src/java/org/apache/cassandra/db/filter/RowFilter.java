@@ -27,6 +27,7 @@ import org.apache.cassandra.config.CFMetaData;
 import org.apache.cassandra.config.ColumnDefinition;
 import org.apache.cassandra.cql3.Operator;
 import org.apache.cassandra.db.*;
+import org.apache.cassandra.db.context.*;
 import org.apache.cassandra.db.marshal.*;
 import org.apache.cassandra.db.partitions.*;
 import org.apache.cassandra.db.rows.*;
@@ -611,6 +612,27 @@ public abstract class RowFilter implements Iterable<RowFilter.Expression>
                 case LTE:
                 case GTE:
                 case GT:
+                    {
+                        assert !column.isComplex() : "Only CONTAINS and CONTAINS_KEY are supported for 'complex' types";
+
+                        // In order to support operators on Counter types, their value has to be extracted from internal
+                        // representation. See CASSANDRA-11629
+                        if (column.type.isCounter())
+                        {
+                            ByteBuffer foundValue = getValue(metadata, partitionKey, row);
+                            if (foundValue == null)
+                                return false;
+
+                            ByteBuffer counterValue = LongType.instance.decompose(CounterContext.instance().total(foundValue));
+                            return operator.isSatisfiedBy(LongType.instance, counterValue, value);
+                        }
+                        else
+                        {
+                            // Note that CQL expression are always of the form 'x < 4', i.e. the tested value is on the left.
+                            ByteBuffer foundValue = getValue(metadata, partitionKey, row);
+                            return foundValue != null && operator.isSatisfiedBy(column.type, foundValue, value);
+                        }
+                    }
                 case NEQ:
                     {
                         assert !column.isComplex() : "Only CONTAINS and CONTAINS_KEY are supported for 'complex' types";
