@@ -1235,17 +1235,9 @@ public class CompactionManager implements CompactionManagerMBean
     {
         long groupMaxDataAge = -1;
 
-        // check that compaction hasn't stolen any sstables used in previous repair sessions
-        // if we need to skip the anticompaction, it will be carried out by the next repair
         for (Iterator<SSTableReader> i = anticompactionGroup.originals().iterator(); i.hasNext();)
         {
             SSTableReader sstable = i.next();
-            if (!new File(sstable.getFilename()).exists())
-            {
-                logger.info("Skipping anticompaction for {}, required sstable was compacted and is no longer available.", sstable);
-                i.remove();
-                continue;
-            }
             if (groupMaxDataAge < sstable.maxDataAge)
                 groupMaxDataAge = sstable.maxDataAge;
         }
