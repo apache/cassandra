@@ -263,13 +263,10 @@ public final class JsonTransformer
                 json.writeEndObject();
                 objectIndenter.setCompact(false);
             }
-            else
-            {
-                json.writeFieldName("cells");
-                json.writeStartArray();
-                row.cells().forEach(c -> serializeCell(c, liveInfo));
-                json.writeEndArray();
-            }
+            json.writeFieldName("cells");
+            json.writeStartArray();
+            row.cells().forEach(c -> serializeCell(c, liveInfo));
+            json.writeEndArray();
             json.writeEndObject();
         }
         catch (IOException e)
