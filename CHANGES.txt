@@ -1,4 +1,5 @@
 2.2.7
+ * Add missing files to debian packages (CASSANDRA-11642)
  * Avoid calling Iterables::concat in loops during ModificationStatement::getFunctions (CASSANDRA-11621)
  * cqlsh: COPY FROM should use regular inserts for single statement batches and
           report errors correctly if workers processes crash on initialization (CASSANDRA-11474)
