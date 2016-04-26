@@ -23,6 +23,7 @@ Merged from 2.1:
  * cqlsh COPY FROM fails with []{} chars in UDT/tuple fields/values (CASSANDRA-11633)
  * clqsh: COPY FROM throws TypeError with Cython extensions enabled (CASSANDRA-11574)
  * cqlsh: COPY FROM ignores NULL values in conversion (CASSANDRA-11549)
+ * Validate levels when building LeveledScanner to avoid overlaps with orphaned sstables (CASSANDRA-9935)
 
 
 3.0.5

@@ -21,6 +21,11 @@ import java.nio.ByteBuffer;
 import java.util.*;
 import java.util.concurrent.*;
 
+import com.google.common.collect.Lists;
+
+import org.apache.cassandra.db.lifecycle.SSTableSet;
+import org.apache.cassandra.db.rows.UnfilteredRowIterator;
+import org.apache.cassandra.io.sstable.ISSTableScanner;
 import org.apache.cassandra.io.sstable.format.SSTableReader;
 import org.junit.BeforeClass;
 import org.junit.Test;
@@ -33,6 +38,8 @@ import org.apache.cassandra.exceptions.ConfigurationException;
 import org.apache.cassandra.schema.CompactionParams;
 import org.apache.cassandra.schema.KeyspaceParams;
 import org.apache.cassandra.utils.FBUtilities;
+
+import static org.junit.Assert.assertTrue;
 
 public class LongLeveledCompactionStrategyTest
 {
@@ -130,6 +137,63 @@ public class LongLeveledCompactionStrategyTest
                 {// overlap check for levels greater than 0
                     Set<SSTableReader> overlaps = LeveledManifest.overlapping(sstable, sstables);
                     assert overlaps.size() == 1 && overlaps.contains(sstable);
+                }
+            }
+        }
+    }
+
+    @Test
+    public void testLeveledScanner() throws Exception
+    {
+        testParallelLeveledCompaction();
+        Keyspace keyspace = Keyspace.open(KEYSPACE1);
+        ColumnFamilyStore store = keyspace.getColumnFamilyStore(CF_STANDARDLVL);
+        store.disableAutoCompaction();
+
+        LeveledCompactionStrategy lcs = (LeveledCompactionStrategy)store.getCompactionStrategyManager().getStrategies().get(1);
+
+        ByteBuffer value = ByteBuffer.wrap(new byte[10 * 1024]); // 10 KB value
+
+        // Adds 10 partitions
+        for (int r = 0; r < 10; r++)
+        {
+            DecoratedKey key = Util.dk(String.valueOf(r));
+            UpdateBuilder builder = UpdateBuilder.create(store.metadata, key);
+            for (int c = 0; c < 10; c++)
+                builder.newRow("column" + c).add("val", value);
+
+            Mutation rm = new Mutation(builder.build());
+            rm.apply();
+        }
+
+        //Flush sstable
+        store.forceBlockingFlush();
+
+        Iterable<SSTableReader> allSSTables = store.getSSTables(SSTableSet.LIVE);
+        for (SSTableReader sstable : allSSTables)
+        {
+            if (sstable.getSSTableLevel() == 0)
+            {
+                System.out.println("Mutating L0-SSTABLE level to L1 to simulate a bug: " + sstable.getFilename());
+                sstable.descriptor.getMetadataSerializer().mutateLevel(sstable.descriptor, 1);
+                sstable.reloadSSTableMetadata();
+            }
+        }
+
+        try (AbstractCompactionStrategy.ScannerList scannerList = lcs.getScanners(Lists.newArrayList(allSSTables)))
+        {
+            //Verify that leveled scanners will always iterate in ascending order (CASSANDRA-9935)
+            for (ISSTableScanner scanner : scannerList.scanners)
+            {
+                DecoratedKey lastKey = null;
+                while (scanner.hasNext())
+                {
+                    UnfilteredRowIterator row = scanner.next();
+                    if (lastKey != null)
+                    {
+                        assertTrue("row " + row.partitionKey() + " received out of order wrt " + lastKey, row.partitionKey().compareTo(lastKey) >= 0);
+                    }
+                    lastKey = row.partitionKey();
                 }
             }
         }
