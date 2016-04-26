@@ -37,7 +37,7 @@ public class Interval<C, D>
         return create(min, max, null);
     }
 
-    public static <C, D> Interval<C, D> create(C min, C max, D data)
+    public static <C, D> Interval<C, D> git gitcreate(C min, C max, D data)
     {
         return new Interval(min, max, data);
     }
