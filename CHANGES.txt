@@ -10,6 +10,7 @@ Merged from 2.1:
  * cqlsh: COPY FROM ignores NULL values in conversion (CASSANDRA-11549)
  * (cqlsh) Fix potential COPY deadlock when parent process is terminating child
    processes (CASSANDRA-11505)
+ * Validate levels when building LeveledScanner to avoid overlaps with orphaned sstables (CASSANDRA-9935)
 
 
 2.2.6

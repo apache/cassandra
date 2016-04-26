@@ -217,10 +217,23 @@ public class LeveledCompactionStrategy extends AbstractCompactionStrategy
 
     public ScannerList getScanners(Collection<SSTableReader> sstables, Range<Token> range)
     {
+        Set<SSTableReader>[] sstablesPerLevel = manifest.getSStablesPerLevelSnapshot();
+
         Multimap<Integer, SSTableReader> byLevel = ArrayListMultimap.create();
         for (SSTableReader sstable : sstables)
         {
-            byLevel.get(sstable.getSSTableLevel()).add(sstable);
+            int level = sstable.getSSTableLevel();
+            // if an sstable is not on the manifest, it was recently added or removed
+            // so we add it to level -1 and create exclusive scanners for it - see below (#9935)
+            if (level >= sstablesPerLevel.length || !sstablesPerLevel[level].contains(sstable))
+            {
+                logger.warn("Live sstable {} from level {} is not on corresponding level in the leveled manifest." +
+                            " This is not a problem per se, but may indicate an orphaned sstable due to a failed" +
+                            " compaction not cleaned up properly.",
+                             sstable.getFilename(), level);
+                level = -1;
+            }
+            byLevel.get(level).add(sstable);
         }
 
         List<ISSTableScanner> scanners = new ArrayList<ISSTableScanner>(sstables.size());

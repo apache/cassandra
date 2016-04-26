@@ -25,6 +25,7 @@ import com.google.common.base.Predicate;
 import com.google.common.base.Predicates;
 import com.google.common.collect.ImmutableSortedSet;
 import com.google.common.collect.Iterables;
+import com.google.common.collect.Lists;
 import com.google.common.collect.Sets;
 import com.google.common.primitives.Ints;
 import org.apache.cassandra.io.sstable.format.SSTableReader;
@@ -139,8 +140,6 @@ public class LeveledManifest
             generations[0].add(reader);
         }
     }
-
-
 
     public synchronized void replace(Collection<SSTableReader> removed, Collection<SSTableReader> added)
     {
@@ -479,7 +478,7 @@ public class LeveledManifest
     }
 
     @VisibleForTesting
-    public int remove(SSTableReader reader)
+    public synchronized int remove(SSTableReader reader)
     {
         int level = reader.getSSTableLevel();
         assert level >= 0 : reader + " not present in manifest: "+level;
@@ -676,6 +675,16 @@ public class LeveledManifest
         List<SSTableReader> ageSortedCandidates = new ArrayList<>(candidates);
         Collections.sort(ageSortedCandidates, SSTableReader.maxTimestampComparator);
         return ageSortedCandidates;
+    }
+
+    public synchronized Set<SSTableReader>[] getSStablesPerLevelSnapshot()
+    {
+        Set<SSTableReader>[] sstablesPerLevel = new Set[generations.length];
+        for (int i = 0; i < generations.length; i++)
+        {
+            sstablesPerLevel[i] = new HashSet<>(generations[i]);
+        }
+        return sstablesPerLevel;
     }
 
     @Override
