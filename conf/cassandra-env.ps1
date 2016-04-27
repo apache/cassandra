@@ -133,7 +133,7 @@ Function CalculateHeapSizes
         return
     }
 
-    if (($env:MAX_HEAP_SIZE -and !$env:HEAP_NEWSIZE) -or (!$env:MAX_HEAP_SIZE -and $env:HEAP_NEWSIZE))
+    if ((($env:MAX_HEAP_SIZE -and !$env:HEAP_NEWSIZE) -or (!$env:MAX_HEAP_SIZE -and $env:HEAP_NEWSIZE)) -and ($using_cms -eq $true))
     {
         echo "Please set or unset MAX_HEAP_SIZE and HEAP_NEWSIZE in pairs.  Aborting startup."
         exit 1
@@ -327,12 +327,6 @@ Function SetCassandraEnvironment
     # times. If in doubt, and if you do not particularly want to tweak, go
     # 100 MB per physical CPU core.
 
-    #$env:MAX_HEAP_SIZE="4096M"
-    #$env:HEAP_NEWSIZE="800M"
-    CalculateHeapSizes
-
-    ParseJVMInfo
-
     #GC log path has to be defined here since it needs to find CASSANDRA_HOME
     $env:JVM_OPTS="$env:JVM_OPTS -Xloggc:""$env:CASSANDRA_HOME/logs/gc.log"""
 
@@ -351,6 +345,12 @@ Function SetCassandraEnvironment
     $defined_xmx = $env:JVM_OPTS -like '*Xmx*'
     $defined_xms = $env:JVM_OPTS -like '*Xms*'
     $using_cms = $env:JVM_OPTS -like '*UseConcMarkSweepGC*'
+
+    #$env:MAX_HEAP_SIZE="4096M"
+    #$env:HEAP_NEWSIZE="800M"
+    CalculateHeapSizes
+
+    ParseJVMInfo
 
     # We only set -Xms and -Xmx if they were not defined on jvm.options file
     # If defined, both Xmx and Xms should be defined together.

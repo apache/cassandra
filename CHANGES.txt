@@ -59,6 +59,7 @@
  * (cqlsh) Show static columns in a different color (CASSANDRA-11059)
  * Allow to remove TTLs on table with default_time_to_live (CASSANDRA-11207)
 Merged from 3.0:
+ * Don't require HEAP_NEW_SIZE to be set when using G1 (CASSANDRA-11600)
  * Fix sstabledump not showing cells after tombstone marker (CASSANDRA-11654)
  * Ignore all LocalStrategy keyspaces for streaming and other related
    operations (CASSANDRA-11627)
