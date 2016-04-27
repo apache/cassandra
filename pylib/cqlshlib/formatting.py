@@ -110,11 +110,12 @@ if not DEFAULT_TIMESTAMP_FORMAT:
 class DateTimeFormat:
 
     def __init__(self, timestamp_format=DEFAULT_TIMESTAMP_FORMAT, date_format=DEFAULT_DATE_FORMAT,
-                 nanotime_format=DEFAULT_NANOTIME_FORMAT, timezone=None):
+                 nanotime_format=DEFAULT_NANOTIME_FORMAT, timezone=None, milliseconds_only=False):
         self.timestamp_format = timestamp_format
         self.date_format = date_format
         self.nanotime_format = nanotime_format
         self.timezone = timezone
+        self.milliseconds_only = milliseconds_only  # the microseconds part, .NNNNNN, wil be rounded to .NNN
 
 
 class CqlType(object):
@@ -336,6 +337,8 @@ def format_value_timestamp(val, colormap, date_time_format, quote=False, **_):
                         calendar.timegm(val.utctimetuple()),
                         microseconds=val.microsecond,
                         timezone=date_time_format.timezone)
+        if date_time_format.milliseconds_only:
+            bval = round_microseconds(bval)
     else:
         bval = str(val)
 
@@ -352,6 +355,23 @@ def strftime(time_format, seconds, microseconds=0, timezone=None):
     if timezone:
         ret_dt = ret_dt.astimezone(timezone)
     return ret_dt.strftime(time_format)
+
+microseconds_regex = re.compile("(.*)(?:\.(\d{1,6}))(.*)")
+
+
+def round_microseconds(val):
+    """
+    For COPY TO, we need to round microsecond to milliseconds because server side
+    TimestampSerializer.dateStringPatterns only parses milliseconds. If we keep microseconds,
+    users may try to import with COPY FROM a file generated with COPY TO and have problems if
+    prepared statements are disabled, see CASSANDRA-11631.
+    """
+    m = microseconds_regex.match(val)
+    if not m:
+        return val
+
+    milliseconds = int(m.group(2)) * pow(10, 3 - len(m.group(2)))
+    return '%s.%03d%s' % (m.group(1), milliseconds, '' if not m.group(3) else m.group(3))
 
 
 @formatter_for('Date')
