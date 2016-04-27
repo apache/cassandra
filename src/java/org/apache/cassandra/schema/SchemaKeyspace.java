@@ -513,8 +513,7 @@ public final class SchemaKeyspace
     public static Mutation makeUpdateTableMutation(KeyspaceMetadata keyspace,
                                                    CFMetaData oldTable,
                                                    CFMetaData newTable,
-                                                   long timestamp,
-                                                   boolean fromThrift)
+                                                   long timestamp)
     {
         Mutation mutation = makeCreateKeyspaceMutation(keyspace.name, keyspace.params, timestamp);
 
@@ -525,16 +524,7 @@ public final class SchemaKeyspace
 
         // columns that are no longer needed
         for (ColumnDefinition column : columnDiff.entriesOnlyOnLeft().values())
-        {
-            // Thrift only knows about the REGULAR ColumnDefinition type, so don't consider other type
-            // are being deleted just because they are not here.
-            if (!fromThrift ||
-                column.kind == ColumnDefinition.Kind.REGULAR ||
-                (newTable.isStaticCompactTable() && column.kind == ColumnDefinition.Kind.STATIC))
-            {
-                dropColumnFromSchemaMutation(oldTable, column, timestamp, mutation);
-            }
-        }
+            dropColumnFromSchemaMutation(oldTable, column, timestamp, mutation);
 
         // newly added columns
         for (ColumnDefinition column : columnDiff.entriesOnlyOnRight().values())

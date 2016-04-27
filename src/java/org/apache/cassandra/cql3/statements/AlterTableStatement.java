@@ -322,7 +322,7 @@ public class AlterTableStatement extends SchemaAlteringStatement
                 break;
         }
 
-        MigrationManager.announceColumnFamilyUpdate(cfm, false, isLocalOnly);
+        MigrationManager.announceColumnFamilyUpdate(cfm, isLocalOnly);
 
         if (viewUpdates != null)
         {

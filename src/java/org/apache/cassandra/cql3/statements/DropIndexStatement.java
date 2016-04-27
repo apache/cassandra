@@ -78,7 +78,7 @@ public class DropIndexStatement extends SchemaAlteringStatement
 
         CFMetaData updatedCfm = cfm.copy();
         updatedCfm.indexes(updatedCfm.getIndexes().without(indexName));
-        MigrationManager.announceColumnFamilyUpdate(updatedCfm, false, isLocalOnly);
+        MigrationManager.announceColumnFamilyUpdate(updatedCfm, isLocalOnly);
         // Dropping an index is akin to updating the CF
         // Note that we shouldn't call columnFamily() at this point because the index has been dropped and the call to lookupIndexedTable()
         // in that method would now throw.
