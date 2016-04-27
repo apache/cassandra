@@ -1,4 +1,5 @@
 3.0.6
+ * Don't require HEAP_NEW_SIZE to be set when using G1 (CASSANDRA-11600)
  * Fix sstabledump not showing cells after tombstone marker (CASSANDRA-11654)
  * Ignore all LocalStrategy keyspaces for streaming and other related
    operations (CASSANDRA-11627)
