@@ -164,7 +164,7 @@ public class SchemaKeyspaceTest
     private static void updateTable(String keyspace, CFMetaData oldTable, CFMetaData newTable)
     {
         KeyspaceMetadata ksm = Schema.instance.getKeyspaceInstance(keyspace).getMetadata();
-        Mutation mutation = SchemaKeyspace.makeUpdateTableMutation(ksm, oldTable, newTable, FBUtilities.timestampMicros(), false);
+        Mutation mutation = SchemaKeyspace.makeUpdateTableMutation(ksm, oldTable, newTable, FBUtilities.timestampMicros());
         SchemaKeyspace.mergeSchema(Collections.singleton(mutation));
     }
 

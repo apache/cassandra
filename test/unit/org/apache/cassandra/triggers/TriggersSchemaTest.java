@@ -88,7 +88,7 @@ public class TriggersSchemaTest
         CFMetaData cfm2 = Schema.instance.getCFMetaData(ksName, cfName).copy();
         TriggerMetadata td = TriggerMetadata.create(triggerName, triggerClass);
         cfm2.triggers(cfm2.getTriggers().with(td));
-        MigrationManager.announceColumnFamilyUpdate(cfm2, false);
+        MigrationManager.announceColumnFamilyUpdate(cfm2);
 
         CFMetaData cfm3 = Schema.instance.getCFMetaData(ksName, cfName);
         assertFalse(cfm3.getTriggers().isEmpty());
@@ -107,7 +107,7 @@ public class TriggersSchemaTest
 
         CFMetaData cfm2 = Schema.instance.getCFMetaData(ksName, cfName).copy();
         cfm2.triggers(cfm2.getTriggers().without(triggerName));
-        MigrationManager.announceColumnFamilyUpdate(cfm2, false);
+        MigrationManager.announceColumnFamilyUpdate(cfm2);
 
         CFMetaData cfm3 = Schema.instance.getCFMetaData(ksName, cfName).copy();
         assertTrue(cfm3.getTriggers().isEmpty());

@@ -232,7 +232,7 @@ public class CreateIndexStatement extends SchemaAlteringStatement
         logger.trace("Updating index definition for {}", indexName);
         cfm.indexes(cfm.getIndexes().with(index));
 
-        MigrationManager.announceColumnFamilyUpdate(cfm, false, isLocalOnly);
+        MigrationManager.announceColumnFamilyUpdate(cfm, isLocalOnly);
 
         // Creating an index is akin to updating the CF
         return new Event.SchemaChange(Event.SchemaChange.Change.UPDATED, Event.SchemaChange.Target.TABLE, keyspace(), columnFamily());
