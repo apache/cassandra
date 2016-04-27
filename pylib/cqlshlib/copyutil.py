@@ -1658,6 +1658,7 @@ class ImportConversion(object):
         self.thousands_sep = parent.thousands_sep
         self.boolean_styles = parent.boolean_styles
         self.date_time_format = parent.date_time_format.timestamp_format
+        self.debug = parent.debug
 
         self.table_meta = table_meta
         self.primary_key_indexes = [self.columns.index(col.name) for col in self.table_meta.primary_key]
@@ -1706,7 +1707,16 @@ class ImportConversion(object):
                 return CqlRuleSet.dequote_value(v)
 
         def convert(t, v):
-            return converters.get(t.typename, convert_unknown)(unprotect(v), ct=t)
+            v = unprotect(v)
+            if v == self.nullval:
+                return self.get_null_val()
+            return converters.get(t.typename, convert_unknown)(v, ct=t)
+
+        def convert_mandatory(t, v):
+            v = unprotect(v)
+            if v == self.nullval:
+                raise ParseError('Empty values are not allowed')
+            return converters.get(t.typename, convert_unknown)(v, ct=t)
 
         def convert_blob(v, **_):
             return bytearray.fromhex(v[2:])
@@ -1808,13 +1818,13 @@ class ImportConversion(object):
             return Time(v)
 
         def convert_tuple(val, ct=cql_type):
-            return tuple(convert(t, v) for t, v in zip(ct.subtypes, split(val)))
+            return tuple(convert_mandatory(t, v) for t, v in zip(ct.subtypes, split(val)))
 
         def convert_list(val, ct=cql_type):
-            return list(convert(ct.subtypes[0], v) for v in split(val))
+            return list(convert_mandatory(ct.subtypes[0], v) for v in split(val))
 
         def convert_set(val, ct=cql_type):
-            return frozenset(convert(ct.subtypes[0], v) for v in split(val))
+            return frozenset(convert_mandatory(ct.subtypes[0], v) for v in split(val))
 
         def convert_map(val, ct=cql_type):
             """
@@ -1826,7 +1836,7 @@ class ImportConversion(object):
             class ImmutableDict(frozenset):
                 iteritems = frozenset.__iter__
 
-            return ImmutableDict(frozenset((convert(ct.subtypes[0], v[0]), convert(ct.subtypes[1], v[1]))
+            return ImmutableDict(frozenset((convert_mandatory(ct.subtypes[0], v[0]), convert(ct.subtypes[1], v[1]))
                                  for v in [split('{%s}' % vv, sep=':') for vv in split(val)]))
 
         def convert_user_type(val, ct=cql_type):
@@ -1882,6 +1892,9 @@ class ImportConversion(object):
 
         return converters.get(cql_type.typename, convert_unknown)
 
+    def get_null_val(self):
+        return None if self.use_prepared_statements else "NULL"
+
     def convert_row(self, row):
         """
         Convert the row into a list of parsed values if using prepared statements, else simply apply the
@@ -1897,10 +1910,15 @@ class ImportConversion(object):
             if row[i] == self.nullval:
                 raise ParseError(self.get_null_primary_key_message(i))
 
-        try:
-            return [conv(val) if val != self.nullval else None for conv, val in zip(converters, row)]
-        except Exception, e:
-            raise ParseError(e.message)
+        def convert(c, v):
+            try:
+                return c(v) if v != self.nullval else self.get_null_val()
+            except Exception, e:
+                if self.debug:
+                    traceback.print_exc()
+                raise ParseError("Failed to parse %s : %s" % (val, e.message))
+
+        return [convert(conv, val) for conv, val in zip(converters, row)]
 
     def get_null_primary_key_message(self, idx):
         message = "Cannot insert null value for primary key column '%s'." % (self.columns[idx],)
