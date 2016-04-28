@@ -1,4 +1,5 @@
 2.2.7
+ * JSON datetime formatting needs timezone (CASSANDRA-11137)
  * Fix is_dense recalculation for Thrift-updated tables (CASSANDRA-11502)
  * Remove unnescessary file existence check during anticompaction (CASSANDRA-11660)
  * Add missing files to debian packages (CASSANDRA-11642)
