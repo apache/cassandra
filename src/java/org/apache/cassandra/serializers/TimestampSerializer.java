@@ -49,11 +49,11 @@ public class TimestampSerializer implements TypeSerializer<Date>
             "yyyy-MM-dd HH:mm:ssX",
             "yyyy-MM-dd HH:mm:ssXX",
             "yyyy-MM-dd HH:mm:ssXXX",
-            "yyyy-MM-dd HH:mm:ss.SSS",   // TO_JSON_FORMAT
+            "yyyy-MM-dd HH:mm:ss.SSS",
             "yyyy-MM-dd HH:mm:ss.SSS z",
             "yyyy-MM-dd HH:mm:ss.SSS zz",
             "yyyy-MM-dd HH:mm:ss.SSS zzz",
-            "yyyy-MM-dd HH:mm:ss.SSSX",
+            "yyyy-MM-dd HH:mm:ss.SSSX", // TO_JSON_FORMAT
             "yyyy-MM-dd HH:mm:ss.SSSXX",
             "yyyy-MM-dd HH:mm:ss.SSSXXX",
             "yyyy-MM-dd'T'HH:mm",
@@ -108,11 +108,14 @@ public class TimestampSerializer implements TypeSerializer<Date>
         }
     };
     
+    private static final String TO_JSON_FORMAT = dateStringPatterns[19];
     private static final ThreadLocal<SimpleDateFormat> FORMATTER_TO_JSON = new ThreadLocal<SimpleDateFormat>()
     {
         protected SimpleDateFormat initialValue()
         {
-            return new SimpleDateFormat(dateStringPatterns[15]);
+            SimpleDateFormat sdf = new SimpleDateFormat(TO_JSON_FORMAT);
+            sdf.setTimeZone(TimeZone.getTimeZone("UTC"));
+            return sdf;
         }
     };
 
