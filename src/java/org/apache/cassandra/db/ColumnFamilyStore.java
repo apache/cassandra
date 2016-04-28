@@ -2681,6 +2681,18 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
      */
     public void truncateBlocking()
     {
+        truncateBlocking(DatabaseDescriptor.isAutoSnapshot());
+    }
+
+    /**
+     * Truncate deletes the column family's data with no expensive tombstone creation,
+     * optionally snapshotting the data.
+     *
+     * @param takeSnapshot whether or not to take a snapshot <code>true</code> if snapshot should be taken,
+     *                     <code>false</code> otherwise
+     */
+    public void truncateBlocking(final boolean takeSnapshot)
+    {
         // We have two goals here:
         // - truncate should delete everything written before truncate was invoked
         // - but not delete anything that isn't part of the snapshot we create.
@@ -2695,7 +2707,7 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
         // position in the System keyspace.
         logger.trace("truncating {}", name);
 
-        if (keyspace.getMetadata().durableWrites || DatabaseDescriptor.isAutoSnapshot())
+        if (keyspace.getMetadata().durableWrites || takeSnapshot)
         {
             // flush the CF being truncated before forcing the new segment
             forceBlockingFlush();
@@ -2724,7 +2736,7 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
                 final long truncatedAt = System.currentTimeMillis();
                 data.notifyTruncated(truncatedAt);
 
-                if (DatabaseDescriptor.isAutoSnapshot())
+                if (takeSnapshot)
                     snapshot(Keyspace.getTimestampedSnapshotName(name));
 
                 ReplayPosition replayAfter = discardSSTables(truncatedAt);

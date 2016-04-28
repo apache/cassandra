@@ -402,7 +402,7 @@ public final class SystemKeyspace
     public static void discardCompactionsInProgress()
     {
         ColumnFamilyStore compactionLog = Keyspace.open(NAME).getColumnFamilyStore(COMPACTIONS_IN_PROGRESS);
-        compactionLog.truncateBlocking();
+        compactionLog.truncateBlocking(false);
     }
 
     public static void updateCompactionHistory(String ksname,
