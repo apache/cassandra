@@ -588,11 +588,16 @@ public class FBUtilities
 
     public static String prettyPrintMemory(long size)
     {
+        return prettyPrintMemory(size, false);
+    }
+
+    public static String prettyPrintMemory(long size, boolean includeSpace)
+    {
         if (size >= 1 << 30)
-            return String.format("%.3fGiB", size / (double) (1 << 30));
+            return String.format("%.3f%sGiB", size / (double) (1 << 30), includeSpace ? " " : "");
         if (size >= 1 << 20)
-            return String.format("%.3fMiB", size / (double) (1 << 20));
-        return String.format("%.3fKiB", size / (double) (1 << 10));
+            return String.format("%.3f%sMiB", size / (double) (1 << 20), includeSpace ? " " : "");
+        return String.format("%.3f%sKiB", size / (double) (1 << 10), includeSpace ? " " : "");
     }
 
     public static String prettyPrintMemoryPerSecond(long rate)

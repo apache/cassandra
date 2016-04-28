@@ -33,6 +33,7 @@ import org.apache.cassandra.stress.util.*;
 import org.apache.commons.lang3.time.DurationFormatUtils;
 import org.apache.cassandra.concurrent.NamedThreadFactory;
 import org.apache.cassandra.stress.settings.StressSettings;
+import org.apache.cassandra.utils.FBUtilities;
 
 public class StressMetrics
 {
@@ -217,22 +218,22 @@ public class StressMetrics
 
         TimingIntervals opHistory = timing.getHistory();
         TimingInterval history = opHistory.combine(settings.samples.historyCount);
-        output.println(String.format("op rate                   : %.0f %s", history.opRate(), opHistory.opRates()));
-        output.println(String.format("partition rate            : %.0f %s", history.partitionRate(), opHistory.partitionRates()));
-        output.println(String.format("row rate                  : %.0f %s", history.rowRate(), opHistory.rowRates()));
-        output.println(String.format("latency mean              : %.1f %s", history.meanLatency(), opHistory.meanLatencies()));
-        output.println(String.format("latency median            : %.1f %s", history.medianLatency(), opHistory.medianLatencies()));
-        output.println(String.format("latency 95th percentile   : %.1f %s", history.rankLatency(.95f), opHistory.rankLatencies(0.95f)));
-        output.println(String.format("latency 99th percentile   : %.1f %s", history.rankLatency(0.99f), opHistory.rankLatencies(0.99f)));
-        output.println(String.format("latency 99.9th percentile : %.1f %s", history.rankLatency(0.999f), opHistory.rankLatencies(0.999f)));
-        output.println(String.format("latency max               : %.1f %s", history.maxLatency(), opHistory.maxLatencies()));
-        output.println(String.format("Total partitions          : %d %s",   history.partitionCount, opHistory.partitionCounts()));
-        output.println(String.format("Total errors              : %d %s",   history.errorCount, opHistory.errorCounts()));
-        output.println(String.format("total gc count            : %.0f", totalGcStats.count));
-        output.println(String.format("total gc mb               : %.0f", totalGcStats.bytes / (1 << 20)));
-        output.println(String.format("total gc time (s)         : %.0f", totalGcStats.summs / 1000));
-        output.println(String.format("avg gc time(ms)           : %.0f", totalGcStats.summs / totalGcStats.count));
-        output.println(String.format("stdev gc time(ms)         : %.0f", totalGcStats.sdvms));
+        output.println(String.format("Op rate                   : %,8.0f op/s  %s", history.opRate(), opHistory.opRates()));
+        output.println(String.format("Partition rate            : %,8.0f pk/s  %s", history.partitionRate(), opHistory.partitionRates()));
+        output.println(String.format("Row rate                  : %,8.0f row/s %s", history.rowRate(), opHistory.rowRates()));
+        output.println(String.format("Latency mean              : %6.1f ms %s", history.meanLatency(), opHistory.meanLatencies()));
+        output.println(String.format("Latency median            : %6.1f ms %s", history.medianLatency(), opHistory.medianLatencies()));
+        output.println(String.format("Latency 95th percentile   : %6.1f ms %s", history.rankLatency(.95f), opHistory.rankLatencies(0.95f)));
+        output.println(String.format("Latency 99th percentile   : %6.1f ms %s", history.rankLatency(0.99f), opHistory.rankLatencies(0.99f)));
+        output.println(String.format("Latency 99.9th percentile : %6.1f ms %s", history.rankLatency(0.999f), opHistory.rankLatencies(0.999f)));
+        output.println(String.format("Latency max               : %6.1f ms %s", history.maxLatency(), opHistory.maxLatencies()));
+        output.println(String.format("Total partitions          : %,10d %s",   history.partitionCount, opHistory.partitionCounts()));
+        output.println(String.format("Total errors              : %,10d %s",   history.errorCount, opHistory.errorCounts()));
+        output.println(String.format("Total GC count            : %,1.0f", totalGcStats.count));
+        output.println(String.format("Total GC memory           : %s", FBUtilities.prettyPrintMemory((long)totalGcStats.bytes, true)));
+        output.println(String.format("Total GC time             : %,6.1f seconds", totalGcStats.summs / 1000));
+        output.println(String.format("Avg GC time               : %,6.1f ms", totalGcStats.summs / totalGcStats.count));
+        output.println(String.format("StdDev GC time            : %,6.1f ms", totalGcStats.sdvms));
         output.println("Total operation time      : " + DurationFormatUtils.formatDuration(
                 history.runTime(), "HH:mm:ss", true));
         output.println(""); // Newline is important here to separate the aggregates section from the END or the next stress iteration

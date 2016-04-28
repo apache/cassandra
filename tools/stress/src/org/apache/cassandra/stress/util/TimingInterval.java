@@ -186,16 +186,16 @@ public final class TimingInterval
     {
         switch (value)
         {
-            case OPRATE:         return String.format("%.0f", opRate());
-            case ROWRATE:        return String.format("%.0f", rowRate());
-            case ADJROWRATE:     return String.format("%.0f", adjustedRowRate());
-            case PARTITIONRATE:  return String.format("%.0f", partitionRate());
-            case MEANLATENCY:    return String.format("%.1f", meanLatency());
-            case MAXLATENCY:     return String.format("%.1f", maxLatency());
-            case MEDIANLATENCY:  return String.format("%.1f", medianLatency());
-            case RANKLATENCY:    return String.format("%.1f", rankLatency(rank));
-            case ERRORCOUNT:     return String.format("%d", errorCount);
-            case PARTITIONCOUNT: return String.format("%d", partitionCount);
+            case OPRATE:         return String.format("%,.0f", opRate());
+            case ROWRATE:        return String.format("%,.0f", rowRate());
+            case ADJROWRATE:     return String.format("%,.0f", adjustedRowRate());
+            case PARTITIONRATE:  return String.format("%,.0f", partitionRate());
+            case MEANLATENCY:    return String.format("%,.1f", meanLatency());
+            case MAXLATENCY:     return String.format("%,.1f", maxLatency());
+            case MEDIANLATENCY:  return String.format("%,.1f", medianLatency());
+            case RANKLATENCY:    return String.format("%,.1f", rankLatency(rank));
+            case ERRORCOUNT:     return String.format("%,d", errorCount);
+            case PARTITIONCOUNT: return String.format("%,d", partitionCount);
             default:             throw new IllegalStateException();
         }
     }
