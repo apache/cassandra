@@ -611,10 +611,27 @@ public class SelectStatement implements CQLStatement
 
     private CellName makeExclusiveSliceBound(Bound bound, CellNameType type, QueryOptions options) throws InvalidRequestException
     {
-        if (restrictions.areRequestedBoundsInclusive(bound))
+        // clusteringColumnBounds may reverse bound if clustering order is reversed
+        // but areRequestedBoundsInclusive checks for Restriction::isInclusive and never
+        // reverses the order. In order to avoid inconsistencies and check inclusive
+        // bounds correctly, we need to check for column order and reverse it. See CASSANDRA-10988
+        if (restrictions.areRequestedBoundsInclusive(reverseBoundIfNeeded(bound)))
             return null;
 
        return type.makeCellName(restrictions.getClusteringColumnsBounds(bound, options).get(0));
+    }
+
+    /**
+     * Reverses the specified bound if the non-compound clustering column is a reversed one.
+     * @param bound bound to reverse
+     * @return the bound reversed if the column type was a reversed one or the original bound
+     */
+    private Bound reverseBoundIfNeeded(Bound bound)
+    {
+        assert !cfm.comparator.isCompound();
+
+        List<ColumnDefinition> columnDefs = cfm.clusteringColumns();
+        return columnDefs.get(columnDefs.size() - 1).isReversedType() ? bound.reverse() : bound;
     }
 
     private Iterator<Cell> applySliceRestriction(final Iterator<Cell> cells, final QueryOptions options) throws InvalidRequestException

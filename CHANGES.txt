@@ -7,6 +7,7 @@
  * cqlsh: COPY FROM should use regular inserts for single statement batches and
    report errors correctly if workers processes crash on initialization (CASSANDRA-11474)
  * Always close cluster with connection in CqlRecordWriter (CASSANDRA-11553)
+ * Fix slice queries on ordered COMPACT tables (CASSANDRA-10988)
 Merged from 2.1:
  * cqlsh COPY FROM fails for null values with non-prepared statements (CASSANDRA-11631)
  * Make cython optional in pylib/setup.py (CASSANDRA-11630)
