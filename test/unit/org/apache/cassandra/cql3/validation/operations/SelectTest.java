@@ -2811,4 +2811,77 @@ public class SelectTest extends CQLTester
         assertInvalid(statement);
         return execute(statement + " ALLOW FILTERING");
     }
+
+    /**
+     * Check select with and without compact storage, with different column
+     * order. See CASSANDRA-10988
+     */
+    @Test
+    public void testClusteringOrderWithSlice() throws Throwable
+    {
+        for (String compactOption : new String[] { "", " COMPACT STORAGE AND" })
+        {
+            // non-compound, ASC order
+            createTable("CREATE TABLE %s (a text, b int, PRIMARY KEY (a, b)) WITH" +
+                        compactOption +
+                        " CLUSTERING ORDER BY (b ASC)");
+
+            execute("INSERT INTO %s (a, b) VALUES ('a', 2)");
+            execute("INSERT INTO %s (a, b) VALUES ('a', 3)");
+            assertRows(execute("SELECT * FROM %s WHERE a = 'a' AND b > 0"),
+                       row("a", 2),
+                       row("a", 3));
+
+            assertRows(execute("SELECT * FROM %s WHERE a = 'a' AND b > 0 ORDER BY b DESC"),
+                       row("a", 3),
+                       row("a", 2));
+
+            // non-compound, DESC order
+            createTable("CREATE TABLE %s (a text, b int, PRIMARY KEY (a, b)) WITH" +
+                        compactOption +
+                        " CLUSTERING ORDER BY (b DESC)");
+
+            execute("INSERT INTO %s (a, b) VALUES ('a', 2)");
+            execute("INSERT INTO %s (a, b) VALUES ('a', 3)");
+            assertRows(execute("SELECT * FROM %s WHERE a = 'a' AND b > 0"),
+                       row("a", 3),
+                       row("a", 2));
+
+            assertRows(execute("SELECT * FROM %s WHERE a = 'a' AND b > 0 ORDER BY b ASC"),
+                       row("a", 2),
+                       row("a", 3));
+
+            // compound, first column DESC order
+            createTable("CREATE TABLE %s (a text, b int, c int, PRIMARY KEY (a, b, c)) WITH" +
+                        compactOption +
+                        " CLUSTERING ORDER BY (b DESC)"
+            );
+
+            execute("INSERT INTO %s (a, b, c) VALUES ('a', 2, 4)");
+            execute("INSERT INTO %s (a, b, c) VALUES ('a', 3, 5)");
+            assertRows(execute("SELECT * FROM %s WHERE a = 'a' AND b > 0"),
+                       row("a", 3, 5),
+                       row("a", 2, 4));
+
+            assertRows(execute("SELECT * FROM %s WHERE a = 'a' AND b > 0 ORDER BY b ASC"),
+                       row("a", 2, 4),
+                       row("a", 3, 5));
+
+            // compound, mixed order
+            createTable("CREATE TABLE %s (a text, b int, c int, PRIMARY KEY (a, b, c)) WITH" +
+                        compactOption +
+                        " CLUSTERING ORDER BY (b ASC, c DESC)"
+            );
+
+            execute("INSERT INTO %s (a, b, c) VALUES ('a', 2, 4)");
+            execute("INSERT INTO %s (a, b, c) VALUES ('a', 3, 5)");
+            assertRows(execute("SELECT * FROM %s WHERE a = 'a' AND b > 0"),
+                       row("a", 2, 4),
+                       row("a", 3, 5));
+
+            assertRows(execute("SELECT * FROM %s WHERE a = 'a' AND b > 0 ORDER BY b ASC"),
+                       row("a", 2, 4),
+                       row("a", 3, 5));
+        }
+    }
 }
