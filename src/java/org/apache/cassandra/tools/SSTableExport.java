@@ -57,6 +57,7 @@ public class SSTableExport
     private static final String DEBUG_OUTPUT_OPTION = "d";
     private static final String EXCLUDE_KEY_OPTION = "x";
     private static final String ENUMERATE_KEYS_OPTION = "e";
+    private static final String RAW_TIMESTAMPS = "t";
 
     private static final Options options = new Options();
     private static CommandLine cmd;
@@ -80,6 +81,9 @@ public class SSTableExport
 
         Option debugOutput = new Option(DEBUG_OUTPUT_OPTION, false, "CQL row per line internal representation");
         options.addOption(debugOutput);
+
+        Option rawTimestamps = new Option(RAW_TIMESTAMPS, false, "Print raw timestamps instead of iso8601 date strings");
+        options.addOption(rawTimestamps);
     }
 
     /**
@@ -180,7 +184,10 @@ public class SSTableExport
             CFMetaData metadata = metadataFromSSTable(desc);
             if (cmd.hasOption(ENUMERATE_KEYS_OPTION))
             {
-                JsonTransformer.keysToJson(null, iterToStream(new KeyIterator(desc, metadata)), metadata, System.out);
+                JsonTransformer.keysToJson(null, iterToStream(new KeyIterator(desc, metadata)),
+                                                              cmd.hasOption(RAW_TIMESTAMPS),
+                                                              metadata,
+                                                              System.out);
             }
             else
             {
@@ -233,7 +240,7 @@ public class SSTableExport
                 }
                 else
                 {
-                    JsonTransformer.toJson(currentScanner, partitions, metadata, System.out);
+                    JsonTransformer.toJson(currentScanner, partitions, cmd.hasOption(RAW_TIMESTAMPS), metadata, System.out);
                 }
             }
         }
