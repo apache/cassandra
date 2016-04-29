@@ -25,6 +25,7 @@ import com.google.common.collect.Iterables;
 
 import org.apache.cassandra.config.CFMetaData;
 import org.apache.cassandra.config.ColumnDefinition;
+import org.apache.cassandra.config.Schema;
 import org.apache.cassandra.cql3.*;
 import org.apache.cassandra.cql3.functions.Function;
 import org.apache.cassandra.cql3.statements.Bound;
@@ -128,7 +129,12 @@ public final class StatementRestrictions
                                  boolean useFiltering,
                                  boolean forView) throws InvalidRequestException
     {
-        this(type, cfm);
+        this.type = type;
+        this.cfm = cfm;
+        this.partitionKeyRestrictions = new PrimaryKeyRestrictionSet(cfm.getKeyValidatorAsClusteringComparator(), true);
+        this.clusteringColumnsRestrictions = new PrimaryKeyRestrictionSet(cfm.comparator, false, cfm);
+        this.nonPrimaryKeyRestrictions = new RestrictionSet();
+        this.notNullColumns = new HashSet<>();
 
         /*
          * WHERE clause. For a given entity, rules are:
@@ -456,8 +462,14 @@ public final class StatementRestrictions
             checkFalse(clusteringColumnsRestrictions.isContains() && !hasQueriableIndex,
                        "Cannot restrict clustering columns by a CONTAINS relation without a secondary index");
 
-            if (hasClusteringColumnsRestriction())
+            if (hasClusteringColumnsRestriction() && clusteringRestrictionsNeedFiltering())
             {
+                if (hasQueriableIndex || forView)
+                {
+                    usesSecondaryIndexing = true;
+                    return;
+                }
+
                 List<ColumnDefinition> clusteringColumns = cfm.clusteringColumns();
                 List<ColumnDefinition> restrictedColumns = new LinkedList<>(clusteringColumnsRestrictions.getColumnDefs());
 
@@ -468,20 +480,20 @@ public final class StatementRestrictions
 
                     if (!clusteringColumn.equals(restrictedColumn))
                     {
-                        checkTrue(hasQueriableIndex || forView,
-                                  "PRIMARY KEY column \"%s\" cannot be restricted as preceding column \"%s\" is not restricted",
-                                  restrictedColumn.name,
-                                  clusteringColumn.name);
-
-                        usesSecondaryIndexing = true; // handle gaps and non-keyrange cases.
-                        break;
+                        throw invalidRequest(
+                           "PRIMARY KEY column \"%s\" cannot be restricted as preceding column \"%s\" is not restricted",
+                            restrictedColumn.name,
+                            clusteringColumn.name);
                     }
                 }
             }
         }
+    }
 
-        if (clusteringColumnsRestrictions.isContains())
-            usesSecondaryIndexing = true;
+    public final boolean clusteringRestrictionsNeedFiltering()
+    {
+        assert clusteringColumnsRestrictions instanceof PrimaryKeyRestrictionSet;
+        return ((PrimaryKeyRestrictionSet) clusteringColumnsRestrictions).needsFiltering();
     }
 
     /**
