@@ -31,22 +31,21 @@ import org.apache.cassandra.index.Index;
 import org.apache.cassandra.schema.IndexMetadata;
 
 /**
- * Pages a RangeSliceCommand whose predicate is a slice query.
+ * Pages a PartitionRangeReadCommand.
  *
  * Note: this only work for CQL3 queries for now (because thrift queries expect
  * a different limit on the rows than on the columns, which complicates it).
  */
-public class RangeSliceQueryPager extends AbstractQueryPager
+public class PartitionRangeQueryPager extends AbstractQueryPager
 {
-    private static final Logger logger = LoggerFactory.getLogger(RangeSliceQueryPager.class);
+    private static final Logger logger = LoggerFactory.getLogger(PartitionRangeQueryPager.class);
 
     private volatile DecoratedKey lastReturnedKey;
     private volatile PagingState.RowMark lastReturnedRow;
 
-    public RangeSliceQueryPager(PartitionRangeReadCommand command, PagingState state, int protocolVersion)
+    public PartitionRangeQueryPager(PartitionRangeReadCommand command, PagingState state, int protocolVersion)
     {
         super(command, protocolVersion);
-        assert !command.isNamesQuery();
 
         if (state != null)
         {
