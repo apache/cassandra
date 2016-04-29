@@ -279,11 +279,11 @@ public class SinglePartitionReadCommand extends ReadCommand
      * @param lastReturned the last row returned by the previous page. The newly created command
      * will only query row that comes after this (in query order). This can be {@code null} if this
      * is the first page.
-     * @param pageSize the size to use for the page to query.
+     * @param limits the limits to use for the page to query.
      *
      * @return the newly create command.
      */
-    public SinglePartitionReadCommand forPaging(Clustering lastReturned, int pageSize)
+    public SinglePartitionReadCommand forPaging(Clustering lastReturned, DataLimits limits)
     {
         // We shouldn't have set digest yet when reaching that point
         assert !isDigestQuery();
@@ -292,7 +292,7 @@ public class SinglePartitionReadCommand extends ReadCommand
                       nowInSec(),
                       columnFilter(),
                       rowFilter(),
-                      limits().forPaging(pageSize),
+                      limits,
                       partitionKey(),
                       lastReturned == null ? clusteringIndexFilter() : clusteringIndexFilter.forPaging(metadata().comparator, lastReturned, false));
     }

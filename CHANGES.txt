@@ -1,4 +1,5 @@
 3.6
+ * Fix PER PARTITION LIMIT for single and multi partitions queries (CASSANDRA-11603)
  * Add uncompressed chunk cache for RandomAccessReader (CASSANDRA-5863)
  * Clarify ClusteringPrefix hierarchy (CASSANDRA-11213)
  * Always perform collision check before joining ring (CASSANDRA-10134)
