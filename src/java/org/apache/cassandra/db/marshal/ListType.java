@@ -110,6 +110,15 @@ public class ListType<T> extends CollectionType<List<T>>
     }
 
     @Override
+    public AbstractType<?> freezeNestedUDTs()
+    {
+        if (elements.isUDT() && elements.isMultiCell())
+            return getInstance(elements.freeze(), isMultiCell);
+        else
+            return getInstance(elements.freezeNestedUDTs(), isMultiCell);
+    }
+
+    @Override
     public boolean isMultiCell()
     {
         return isMultiCell;

@@ -333,6 +333,19 @@ public abstract class AbstractType<T> implements Comparator<ByteBuffer>
     }
 
     /**
+     * Returns an AbstractType instance that is equivalent to this one, but with all nested UDTs explicitly frozen and
+     * all collections in UDTs explicitly frozen.
+     *
+     * This is only necessary for 2.x -> 3.x schema migrations, and can be removed in Cassandra 4.0.
+     *
+     * See CASSANDRA-11609
+     */
+    public AbstractType<?> freezeNestedUDTs()
+    {
+        return this;
+    }
+
+    /**
      * Returns {@code true} for types where empty should be handled like {@code null} like {@link Int32Type}.
      */
     public boolean isEmptyValueMeaningless()

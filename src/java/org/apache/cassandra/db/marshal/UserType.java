@@ -21,6 +21,7 @@ import java.nio.ByteBuffer;
 import java.nio.charset.CharacterCodingException;
 import java.nio.charset.StandardCharsets;
 import java.util.*;
+import java.util.stream.Collectors;
 
 import com.google.common.base.Objects;
 
@@ -300,6 +301,17 @@ public class UserType extends TupleType
             return new UserType(keyspace, name, fieldNames, fieldTypes(), false);
         else
             return this;
+    }
+
+    @Override
+    public AbstractType<?> freezeNestedUDTs()
+    {
+        // the behavior here doesn't exactly match the method name: we want to freeze everything inside of UDTs
+        List<AbstractType<?>> newTypes = fieldTypes().stream()
+                .map(subtype -> (subtype.isFreezable() && subtype.isMultiCell() ? subtype.freeze() : subtype))
+                .collect(Collectors.toList());
+
+        return new UserType(keyspace, name, fieldNames, newTypes, isMultiCell);
     }
 
     @Override
