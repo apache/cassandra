@@ -2624,6 +2624,19 @@ public class UFTest extends CQLTester
 
         assertRows(execute("SELECT " + f + "(udt) FROM %s"),
                    row(tuple("baz", 88)));
+
+        createFunction(KEYSPACE, "map",
+                       "CREATE FUNCTION %s(my_map map<text, text>)\n" +
+                       "         CALLED ON NULL INPUT\n" +
+                       "         RETURNS text\n" +
+                       "         LANGUAGE java\n" +
+                       "         AS $$\n" +
+                       "             String buffer = \"\";\n" +
+                       "             for(java.util.Map.Entry<String, String> entry: my_map.entrySet()) {\n" +
+                       "                 buffer = buffer + entry.getKey() + \": \" + entry.getValue() + \", \";\n" +
+                       "             }\n" +
+                       "             return buffer;\n" +
+                       "         $$;\n");
     }
 
     @Test
