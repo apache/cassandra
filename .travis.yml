@@ -1,0 +1,6 @@
+language: java
+script:
+  - ant clean build
+  - ant test
+jdk:
+  - oraclejdk8
