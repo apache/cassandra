@@ -20,7 +20,6 @@ package org.apache.cassandra.cql3;
 import java.nio.ByteBuffer;
 import java.util.*;
 
-import com.google.common.collect.Iterables;
 import com.google.common.collect.Iterators;
 
 import org.apache.cassandra.config.ColumnDefinition;
@@ -90,18 +89,16 @@ public class ColumnCondition
         return new ColumnCondition(column, collectionElement, inMarker, null, Operator.IN);
     }
 
-    public Iterable<Function> getFunctions()
+    public void addFunctionsTo(List<Function> functions)
     {
-        Iterable<Function> iter = Collections.emptyList();
         if (collectionElement != null)
-           iter = Iterables.concat(iter, collectionElement.getFunctions());
+           collectionElement.addFunctionsTo(functions);
         if (value != null)
-            iter = Iterables.concat(iter, value.getFunctions());
+           value.addFunctionsTo(functions);
         if (inValues != null)
             for (Term value : inValues)
                 if (value != null)
-                    iter = Iterables.concat(iter, value.getFunctions());
-        return iter;
+                    value.addFunctionsTo(functions);
     }
 
     /**

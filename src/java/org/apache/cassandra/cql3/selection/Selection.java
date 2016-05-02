@@ -154,9 +154,8 @@ public abstract class Selection
         return columns.size() - 1;
     }
 
-    public Iterable<Function> getFunctions()
+    public void addFunctionsTo(List<Function> functions)
     {
-        return Collections.emptySet();
     }
 
     private static boolean processesSelection(List<RawSelector> rawSelectors)
@@ -498,9 +497,9 @@ public abstract class Selection
         }
 
         @Override
-        public Iterable<Function> getFunctions()
+        public void addFunctionsTo(List<Function> functions)
         {
-            return factories.getFunctions();
+            factories.addFunctionsTo(functions);
         }
 
         @Override

@@ -46,9 +46,9 @@ abstract class ForwardingPrimaryKeyRestrictions implements PrimaryKeyRestriction
     protected abstract PrimaryKeyRestrictions getDelegate();
 
     @Override
-    public Iterable<Function> getFunctions()
+    public void addFunctionsTo(List<Function> functions)
     {
-        return getDelegate().getFunctions();
+        getDelegate().addFunctionsTo(functions);
     }
 
     @Override

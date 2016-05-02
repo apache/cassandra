@@ -21,7 +21,6 @@ import java.nio.ByteBuffer;
 import java.util.*;
 
 import com.google.common.base.Joiner;
-import com.google.common.collect.Iterables;
 
 import org.apache.cassandra.config.CFMetaData;
 import org.apache.cassandra.config.ColumnDefinition;
@@ -251,11 +250,11 @@ public final class StatementRestrictions
             addSingleColumnRestriction((SingleColumnRestriction) restriction);
     }
 
-    public Iterable<Function> getFunctions()
+    public void addFunctionsTo(List<Function> functions)
     {
-        return Iterables.concat(partitionKeyRestrictions.getFunctions(),
-                                clusteringColumnsRestrictions.getFunctions(),
-                                nonPrimaryKeyRestrictions.getFunctions());
+        partitionKeyRestrictions.addFunctionsTo(functions);
+        clusteringColumnsRestrictions.addFunctionsTo(functions);
+        nonPrimaryKeyRestrictions.addFunctionsTo(functions);
     }
 
     private void addSingleColumnRestriction(SingleColumnRestriction restriction)

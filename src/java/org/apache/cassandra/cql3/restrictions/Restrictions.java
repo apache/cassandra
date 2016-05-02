@@ -18,6 +18,7 @@
 package org.apache.cassandra.cql3.restrictions;
 
 import java.util.Collection;
+import java.util.List;
 
 import org.apache.cassandra.config.ColumnDefinition;
 import org.apache.cassandra.cql3.QueryOptions;
@@ -38,11 +39,11 @@ interface Restrictions
     public Collection<ColumnDefinition> getColumnDefs();
 
     /**
-     * Return an Iterable over all of the functions (both native and user-defined) used by any component
-     * of the restrictions
-     * @return functions all functions found (may contain duplicates)
+     * Adds all functions (native and user-defined) used by any component of the restriction
+     * to the specified list.
+     * @param functions the list to add to
      */
-    public Iterable<Function> getFunctions();
+    public void addFunctionsTo(List<Function> functions);
 
     /**
      * Check if the restriction is on indexed columns.

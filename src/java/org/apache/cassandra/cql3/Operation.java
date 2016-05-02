@@ -17,7 +17,7 @@
  */
 package org.apache.cassandra.cql3;
 
-import java.util.Collections;
+import java.util.List;
 
 import org.apache.cassandra.config.ColumnDefinition;
 import org.apache.cassandra.cql3.functions.Function;
@@ -55,9 +55,10 @@ public abstract class Operation
         this.t = t;
     }
 
-    public Iterable<Function> getFunctions()
+    public void addFunctionsTo(List<Function> functions)
     {
-        return t != null ? t.getFunctions() : Collections.<Function>emptySet();
+        if (t != null)
+            t.addFunctionsTo(functions);
     }
 
     /**

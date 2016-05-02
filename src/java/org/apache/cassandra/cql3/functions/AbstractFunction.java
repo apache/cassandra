@@ -20,7 +20,6 @@ package org.apache.cassandra.cql3.functions;
 import java.util.List;
 
 import com.google.common.base.Objects;
-import com.google.common.collect.ImmutableSet;
 
 import org.apache.cassandra.cql3.AssignmentTestable;
 import org.apache.cassandra.cql3.ColumnSpecification;
@@ -69,9 +68,9 @@ public abstract class AbstractFunction implements Function
             && Objects.equal(this.returnType, that.returnType);
     }
 
-    public Iterable<Function> getFunctions()
+    public void addFunctionsTo(List<Function> functions)
     {
-        return ImmutableSet.<Function>of(this);
+        functions.add(this);
     }
 
     public boolean hasReferenceTo(Function function)

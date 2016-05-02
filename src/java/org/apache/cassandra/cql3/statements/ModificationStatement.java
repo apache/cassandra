@@ -141,10 +141,17 @@ public abstract class ModificationStatement implements CQLStatement
 
     public Iterable<Function> getFunctions()
     {
-        return Iterables.concat(attrs.getFunctions(),
-                                restrictions.getFunctions(),
-                                operations.getFunctions(),
-                                conditions.getFunctions());
+        List<Function> functions = new ArrayList<>();
+        addFunctionsTo(functions);
+        return functions;
+    }
+
+    public void addFunctionsTo(List<Function> functions)
+    {
+        attrs.addFunctionsTo(functions);
+        restrictions.addFunctionsTo(functions);
+        operations.addFunctionsTo(functions);
+        conditions.addFunctionsTo(functions);
     }
 
     public abstract void addUpdateForKey(PartitionUpdate update, Clustering clustering, UpdateParameters params);

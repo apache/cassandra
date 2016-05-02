@@ -63,11 +63,11 @@ public interface Restriction
     public List<ColumnDefinition> getColumnDefs();
 
     /**
-     * Return an Iterable over all of the functions (both native and user-defined) used by any component
-     * of the restriction
-     * @return functions all functions found (may contain duplicates)
+     * Adds all functions (native and user-defined) used by any component of the restriction
+     * to the specified list.
+     * @param functions the list to add to
      */
-    public Iterable<Function> getFunctions();
+    void addFunctionsTo(List<Function> functions);
 
     /**
      * Checks if the specified bound is set or not.

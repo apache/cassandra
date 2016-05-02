@@ -29,8 +29,6 @@ import org.apache.cassandra.cql3.functions.Function;
 import org.apache.cassandra.cql3.statements.CQL3CasRequest;
 import org.apache.cassandra.db.Clustering;
 
-import static java.util.stream.StreamSupport.stream;
-
 /**
  * A set of <code>ColumnCondition</code>s.
  *
@@ -100,11 +98,10 @@ public final class ColumnConditions extends AbstractConditions
     }
 
     @Override
-    public Iterable<Function> getFunctions()
+    public void addFunctionsTo(List<Function> functions)
     {
-        return Stream.concat(columnConditions.stream(), staticConditions.stream())
-                     .flatMap(e -> stream(e.getFunctions().spliterator(), false))
-                     .collect(Collectors.toList());
+        columnConditions.forEach(p -> p.addFunctionsTo(functions));
+        staticConditions.forEach(p -> p.addFunctionsTo(functions));
     }
 
     /**

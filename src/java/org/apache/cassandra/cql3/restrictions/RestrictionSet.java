@@ -19,8 +19,6 @@ package org.apache.cassandra.cql3.restrictions;
 
 import java.util.*;
 
-import com.google.common.collect.Iterables;
-
 import org.apache.cassandra.config.ColumnDefinition;
 import org.apache.cassandra.cql3.QueryOptions;
 import org.apache.cassandra.cql3.functions.Function;
@@ -79,18 +77,18 @@ final class RestrictionSet implements Restrictions, Iterable<Restriction>
     }
 
     @Override
-    public Iterable<Function> getFunctions()
+    public void addFunctionsTo(List<Function> functions)
     {
-        com.google.common.base.Function<Restriction, Iterable<Function>> transform =
-            new com.google.common.base.Function<Restriction, Iterable<Function>>()
+        Restriction previous = null;
+        for (Restriction restriction : restrictions.values())
         {
-            public Iterable<Function> apply(Restriction restriction)
+            // For muti-column restriction, we can have multiple time the same restriction.
+            if (!restriction.equals(previous))
             {
-                return restriction.getFunctions();
+                previous = restriction;
+                restriction.addFunctionsTo(functions);
             }
-        };
-
-        return Iterables.concat(Iterables.transform(restrictions.values(), transform));
+        }
     }
 
     @Override

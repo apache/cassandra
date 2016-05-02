@@ -194,9 +194,9 @@ final class PrimaryKeyRestrictionSet extends AbstractPrimaryKeyRestrictions
     }
 
     @Override
-    public Iterable<Function> getFunctions()
+    public void addFunctionsTo(List<Function> functions)
     {
-        return restrictions.getFunctions();
+        restrictions.addFunctionsTo(functions);
     }
 
     @Override

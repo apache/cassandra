@@ -193,12 +193,10 @@ public final class CreateAggregateStatement extends SchemaAlteringStatement
         else
             state.ensureHasPermission(Permission.CREATE, FunctionResource.keyspace(functionName.keyspace));
 
-        for (Function referencedFunction : stateFunction.getFunctions())
-            state.ensureHasPermission(Permission.EXECUTE, referencedFunction);
+        state.ensureHasPermission(Permission.EXECUTE, stateFunction);
 
         if (finalFunction != null)
-            for (Function referencedFunction : finalFunction.getFunctions())
-                state.ensureHasPermission(Permission.EXECUTE, referencedFunction);
+            state.ensureHasPermission(Permission.EXECUTE, finalFunction);
     }
 
     public void validate(ClientState state) throws InvalidRequestException

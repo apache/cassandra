@@ -22,8 +22,6 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.stream.Collectors;
 
-import com.google.common.collect.Iterables;
-
 import org.apache.cassandra.cql3.*;
 import org.apache.cassandra.cql3.statements.RequestValidations;
 import org.apache.cassandra.db.marshal.*;
@@ -42,9 +40,10 @@ public class FunctionCall extends Term.NonTerminal
         this.terms = terms;
     }
 
-    public Iterable<Function> getFunctions()
+    public void addFunctionsTo(List<Function> functions)
     {
-        return Iterables.concat(Terms.getFunctions(terms), fun.getFunctions());
+        Terms.addFunctions(terms, functions);
+        fun.addFunctionsTo(functions);
     }
 
     public void collectMarkerSpecification(VariableSpecifications boundNames)

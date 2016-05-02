@@ -20,8 +20,6 @@ package org.apache.cassandra.cql3.restrictions;
 import java.nio.ByteBuffer;
 import java.util.*;
 
-import com.google.common.collect.Iterables;
-
 import org.apache.cassandra.config.ColumnDefinition;
 import org.apache.cassandra.cql3.*;
 import org.apache.cassandra.cql3.Term.Terminal;
@@ -131,9 +129,9 @@ public abstract class SingleColumnRestriction extends AbstractRestriction
         }
 
         @Override
-        public Iterable<Function> getFunctions()
+        public void addFunctionsTo(List<Function> functions)
         {
-            return value.getFunctions();
+            value.addFunctionsTo(functions);
         }
 
         @Override
@@ -249,9 +247,9 @@ public abstract class SingleColumnRestriction extends AbstractRestriction
         }
 
         @Override
-        public Iterable<Function> getFunctions()
+        public void addFunctionsTo(List<Function> functions)
         {
-            return Terms.getFunctions(values);
+            Terms.addFunctions(values, functions);
         }
 
         @Override
@@ -281,9 +279,8 @@ public abstract class SingleColumnRestriction extends AbstractRestriction
         }
 
         @Override
-        public Iterable<Function> getFunctions()
+        public void addFunctionsTo(List<Function> functions)
         {
-            return Collections.emptySet();
         }
 
         @Override
@@ -320,9 +317,9 @@ public abstract class SingleColumnRestriction extends AbstractRestriction
         }
 
         @Override
-        public Iterable<Function> getFunctions()
+        public void addFunctionsTo(List<Function> functions)
         {
-            return slice.getFunctions();
+            slice.addFunctionsTo(functions);
         }
 
         @Override
@@ -525,12 +522,12 @@ public abstract class SingleColumnRestriction extends AbstractRestriction
         }
 
         @Override
-        public Iterable<Function> getFunctions()
+        public void addFunctionsTo(List<Function> functions)
         {
-            return Iterables.concat(Terms.getFunctions(values),
-                                    Terms.getFunctions(keys),
-                                    Terms.getFunctions(entryKeys),
-                                    Terms.getFunctions(entryValues));
+            Terms.addFunctions(values, functions);
+            Terms.addFunctions(keys, functions);
+            Terms.addFunctions(entryKeys, functions);
+            Terms.addFunctions(entryValues, functions);
         }
 
         @Override
@@ -601,9 +598,8 @@ public abstract class SingleColumnRestriction extends AbstractRestriction
         }
 
         @Override
-        public Iterable<Function> getFunctions()
+        public void addFunctionsTo(List<Function> functions)
         {
-            return Collections.emptyList();
         }
 
         @Override

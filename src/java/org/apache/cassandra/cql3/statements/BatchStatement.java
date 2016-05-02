@@ -120,9 +120,9 @@ public class BatchStatement implements CQLStatement
 
     public Iterable<org.apache.cassandra.cql3.functions.Function> getFunctions()
     {
-        Iterable<org.apache.cassandra.cql3.functions.Function> functions = attrs.getFunctions();
+        List<org.apache.cassandra.cql3.functions.Function> functions = new ArrayList<>();
         for (ModificationStatement statement : statements)
-            functions = Iterables.concat(functions, statement.getFunctions());
+            statement.addFunctionsTo(functions);
         return functions;
     }
 

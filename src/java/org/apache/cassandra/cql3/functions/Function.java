@@ -44,7 +44,7 @@ public interface Function extends AssignmentTestable
      */
     public boolean isAggregate();
 
-    public Iterable<Function> getFunctions();
+    public void addFunctionsTo(List<Function> functions);
 
     public boolean hasReferenceTo(Function function);
 }

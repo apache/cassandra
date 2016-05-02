@@ -147,9 +147,9 @@ public abstract class UserTypes
             this.values = values;
         }
 
-        public Iterable<Function> getFunctions()
+        public void addFunctionsTo(List<Function> functions)
         {
-            return Terms.getFunctions(values);
+            Terms.addFunctions(values, functions);
         }
 
         public boolean containsBindMarker()

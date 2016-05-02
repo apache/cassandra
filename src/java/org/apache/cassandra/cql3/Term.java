@@ -70,7 +70,7 @@ public interface Term
      */
     public abstract boolean containsBindMarker();
 
-    Iterable<Function> getFunctions();
+    public void addFunctionsTo(List<Function> functions);
 
     /**
      * A parsed, non prepared (thus untyped) term.
@@ -131,9 +131,8 @@ public interface Term
         public void collectMarkerSpecification(VariableSpecifications boundNames) {}
         public Terminal bind(QueryOptions options) { return this; }
 
-        public Set<Function> getFunctions()
+        public void addFunctionsTo(List<Function> functions)
         {
-            return Collections.emptySet();
         }
 
         // While some NonTerminal may not have bind markers, no Term can be Terminal

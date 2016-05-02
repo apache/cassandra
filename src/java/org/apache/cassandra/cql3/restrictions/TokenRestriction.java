@@ -172,9 +172,9 @@ public abstract class TokenRestriction extends AbstractPrimaryKeyRestrictions
         }
 
         @Override
-        public Iterable<Function> getFunctions()
+        public void addFunctionsTo(List<Function> functions)
         {
-            return value.getFunctions();
+            value.addFunctionsTo(functions);
         }
 
         @Override
@@ -226,9 +226,9 @@ public abstract class TokenRestriction extends AbstractPrimaryKeyRestrictions
         }
 
         @Override
-        public Iterable<Function> getFunctions()
+        public void addFunctionsTo(List<Function> functions)
         {
-            return slice.getFunctions();
+            slice.addFunctionsTo(functions);
         }
 
         @Override

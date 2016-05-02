@@ -21,8 +21,6 @@ import java.nio.ByteBuffer;
 import java.util.Arrays;
 import java.util.List;
 
-import com.google.common.collect.Iterables;
-
 import org.apache.commons.lang3.text.StrBuilder;
 
 import org.apache.cassandra.cql3.functions.AggregateFcts;
@@ -85,9 +83,10 @@ abstract class AbstractFunctionSelector<T extends Function> extends Selector
                     mapping.addMapping(resultsColumn, tmpMapping.getMappings().values());
             }
 
-            public Iterable<Function> getFunctions()
+            public void addFunctionsTo(List<Function> functions)
             {
-                return Iterables.concat(fun.getFunctions(), factories.getFunctions());
+                fun.addFunctionsTo(functions);
+                factories.addFunctionsTo(functions);
             }
 
             public Selector newInstance() throws InvalidRequestException
