@@ -288,6 +288,17 @@ public class Config
 
     public int windows_timer_interval = 0;
 
+    /**
+     * Size of the CQL prepared statements cache in MB.
+     * Defaults to 1/256th of the heap size or 10MB, whichever is greater.
+     */
+    public Long prepared_statements_cache_size_mb = null;
+    /**
+     * Size of the Thrift prepared statements cache in MB.
+     * Defaults to 1/256th of the heap size or 10MB, whichever is greater.
+     */
+    public Long thrift_prepared_statements_cache_size_mb = null;
+
     public boolean enable_user_defined_functions = false;
     public boolean enable_scripted_user_defined_functions = false;
     /**

@@ -96,6 +96,9 @@ public class DatabaseDescriptor
     private static RequestSchedulerId requestSchedulerId;
     private static RequestSchedulerOptions requestSchedulerOptions;
 
+    private static long preparedStatementsCacheSizeInMB;
+    private static long thriftPreparedStatementsCacheSizeInMB;
+
     private static long keyCacheSizeInMB;
     private static long counterCacheSizeInMB;
     private static long indexSummaryCapacityInMB;
@@ -638,6 +641,38 @@ public class DatabaseDescriptor
                 partitioner.getTokenFactory().validate(token);
         }
 
+
+        try
+        {
+            // if prepared_statements_cache_size_mb option was set to "auto" then size of the cache should be "max(1/256 of Heap (in MB), 10MB)"
+            preparedStatementsCacheSizeInMB = (conf.prepared_statements_cache_size_mb == null)
+                                              ? Math.max(10, (int) (Runtime.getRuntime().maxMemory() / 1024 / 1024 / 256))
+                                              : conf.prepared_statements_cache_size_mb;
+
+            if (preparedStatementsCacheSizeInMB <= 0)
+                throw new NumberFormatException(); // to escape duplicating error message
+        }
+        catch (NumberFormatException e)
+        {
+            throw new ConfigurationException("prepared_statements_cache_size_mb option was set incorrectly to '"
+                                             + conf.prepared_statements_cache_size_mb + "', supported values are <integer> >= 0.", false);
+        }
+
+        try
+        {
+            // if thrift_prepared_statements_cache_size_mb option was set to "auto" then size of the cache should be "max(1/256 of Heap (in MB), 10MB)"
+            thriftPreparedStatementsCacheSizeInMB = (conf.thrift_prepared_statements_cache_size_mb == null)
+                                                    ? Math.max(10, (int) (Runtime.getRuntime().maxMemory() / 1024 / 1024 / 256))
+                                                    : conf.thrift_prepared_statements_cache_size_mb;
+
+            if (thriftPreparedStatementsCacheSizeInMB <= 0)
+                throw new NumberFormatException(); // to escape duplicating error message
+        }
+        catch (NumberFormatException e)
+        {
+            throw new ConfigurationException("thrift_prepared_statements_cache_size_mb option was set incorrectly to '"
+                                             + conf.thrift_prepared_statements_cache_size_mb + "', supported values are <integer> >= 0.", false);
+        }
 
         try
         {
@@ -1990,6 +2025,16 @@ public class DatabaseDescriptor
     public static int getWindowsTimerInterval()
     {
         return conf.windows_timer_interval;
+    }
+
+    public static long getPreparedStatementsCacheSizeMB()
+    {
+        return preparedStatementsCacheSizeInMB;
+    }
+
+    public static long getThriftPreparedStatementsCacheSizeMB()
+    {
+        return thriftPreparedStatementsCacheSizeInMB;
     }
 
     public static boolean enableUserDefinedFunctions()

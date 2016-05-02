@@ -1,4 +1,5 @@
 3.6
+ * Make prepared statement cache size configurable (CASSANDRA-11555)
  * Integrated JMX authentication and authorization (CASSANDRA-10091)
  * Add units to stress ouput (CASSANDRA-11352)
  * Fix PER PARTITION LIMIT for single and multi partitions queries (CASSANDRA-11603)

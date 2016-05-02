@@ -34,9 +34,9 @@ import org.slf4j.LoggerFactory;
 
 import com.googlecode.concurrentlinkedhashmap.ConcurrentLinkedHashMap;
 import com.googlecode.concurrentlinkedhashmap.EntryWeigher;
-import com.googlecode.concurrentlinkedhashmap.EvictionListener;
 import org.antlr.runtime.*;
 import org.apache.cassandra.concurrent.ScheduledExecutors;
+import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.config.Schema;
 import org.apache.cassandra.cql3.functions.Function;
 import org.apache.cassandra.cql3.functions.FunctionName;
@@ -65,7 +65,6 @@ public class QueryProcessor implements QueryHandler
 
     private static final Logger logger = LoggerFactory.getLogger(QueryProcessor.class);
     private static final MemoryMeter meter = new MemoryMeter().withGuessing(MemoryMeter.Guess.FALLBACK_BEST).ignoreKnownSingletons();
-    private static final long MAX_CACHE_PREPARED_MEMORY = Runtime.getRuntime().maxMemory() / 256;
 
     private static final EntryWeigher<MD5Digest, ParsedStatement.Prepared> cqlMemoryUsageWeigher = new EntryWeigher<MD5Digest, ParsedStatement.Prepared>()
     {
@@ -97,45 +96,48 @@ public class QueryProcessor implements QueryHandler
     public static final CQLMetrics metrics = new CQLMetrics();
 
     private static final AtomicInteger lastMinuteEvictionsCount = new AtomicInteger(0);
+    private static final AtomicInteger thriftLastMinuteEvictionsCount = new AtomicInteger(0);
 
     static
     {
         preparedStatements = new ConcurrentLinkedHashMap.Builder<MD5Digest, ParsedStatement.Prepared>()
-                             .maximumWeightedCapacity(MAX_CACHE_PREPARED_MEMORY)
+                             .maximumWeightedCapacity(capacityToBytes(DatabaseDescriptor.getPreparedStatementsCacheSizeMB()))
                              .weigher(cqlMemoryUsageWeigher)
-                             .listener(new EvictionListener<MD5Digest, ParsedStatement.Prepared>()
-                             {
-                                 public void onEviction(MD5Digest md5Digest, ParsedStatement.Prepared prepared)
-                                 {
-                                     metrics.preparedStatementsEvicted.inc();
-                                     lastMinuteEvictionsCount.incrementAndGet();
-                                 }
+                             .listener((md5Digest, prepared) -> {
+                                 metrics.preparedStatementsEvicted.inc();
+                                 lastMinuteEvictionsCount.incrementAndGet();
                              }).build();
 
         thriftPreparedStatements = new ConcurrentLinkedHashMap.Builder<Integer, ParsedStatement.Prepared>()
-                                   .maximumWeightedCapacity(MAX_CACHE_PREPARED_MEMORY)
+                                   .maximumWeightedCapacity(capacityToBytes(DatabaseDescriptor.getThriftPreparedStatementsCacheSizeMB()))
                                    .weigher(thriftMemoryUsageWeigher)
-                                   .listener(new EvictionListener<Integer, ParsedStatement.Prepared>()
-                                   {
-                                       public void onEviction(Integer integer, ParsedStatement.Prepared prepared)
-                                       {
-                                           metrics.preparedStatementsEvicted.inc();
-                                           lastMinuteEvictionsCount.incrementAndGet();
-                                       }
+                                   .listener((integer, prepared) -> {
+                                       metrics.preparedStatementsEvicted.inc();
+                                       thriftLastMinuteEvictionsCount.incrementAndGet();
                                    })
                                    .build();
 
-        ScheduledExecutors.scheduledTasks.scheduleAtFixedRate(new Runnable()
-        {
-            public void run()
-            {
-                long count = lastMinuteEvictionsCount.getAndSet(0);
-                if (count > 0)
-                    logger.info("{} prepared statements discarded in the last minute because cache limit reached ({})",
-                                count,
-                                FBUtilities.prettyPrintMemory(MAX_CACHE_PREPARED_MEMORY));
-            }
+        ScheduledExecutors.scheduledTasks.scheduleAtFixedRate(() -> {
+            long count = lastMinuteEvictionsCount.getAndSet(0);
+            if (count > 0)
+                logger.warn("{} prepared statements discarded in the last minute because cache limit reached ({} MB)",
+                            count,
+                            DatabaseDescriptor.getPreparedStatementsCacheSizeMB());
+            count = thriftLastMinuteEvictionsCount.getAndSet(0);
+            if (count > 0)
+                logger.warn("{} prepared Thrift statements discarded in the last minute because cache limit reached ({} MB)",
+                            count,
+                            DatabaseDescriptor.getThriftPreparedStatementsCacheSizeMB());
         }, 1, 1, TimeUnit.MINUTES);
+
+        logger.info("Initialized prepared statement caches with {} MB (native) and {} MB (Thrift)",
+                    DatabaseDescriptor.getPreparedStatementsCacheSizeMB(),
+                    DatabaseDescriptor.getThriftPreparedStatementsCacheSizeMB());
+    }
+
+    private static long capacityToBytes(long cacheSizeMB)
+    {
+        return cacheSizeMB * 1024 * 1024;
     }
 
     public static int preparedStatementsCount()
@@ -428,18 +430,24 @@ public class QueryProcessor implements QueryHandler
         // (if the keyspace is null, queryString has to have a fully-qualified keyspace so it's fine.
         long statementSize = measure(prepared.statement);
         // don't execute the statement if it's bigger than the allowed threshold
-        if (statementSize > MAX_CACHE_PREPARED_MEMORY)
-            throw new InvalidRequestException(String.format("Prepared statement of size %d bytes is larger than allowed maximum of %d bytes.",
-                                                            statementSize,
-                                                            MAX_CACHE_PREPARED_MEMORY));
         if (forThrift)
         {
+            if (statementSize > capacityToBytes(DatabaseDescriptor.getThriftPreparedStatementsCacheSizeMB()))
+                throw new InvalidRequestException(String.format("Prepared statement of size %d bytes is larger than allowed maximum of %d MB: %s...",
+                                                                statementSize,
+                                                                DatabaseDescriptor.getThriftPreparedStatementsCacheSizeMB(),
+                                                                queryString.substring(0, 200)));
             Integer statementId = computeThriftId(queryString, keyspace);
             thriftPreparedStatements.put(statementId, prepared);
             return ResultMessage.Prepared.forThrift(statementId, prepared.boundNames);
         }
         else
         {
+            if (statementSize > capacityToBytes(DatabaseDescriptor.getPreparedStatementsCacheSizeMB()))
+                throw new InvalidRequestException(String.format("Prepared statement of size %d bytes is larger than allowed maximum of %d MB: %s...",
+                                                                statementSize,
+                                                                DatabaseDescriptor.getPreparedStatementsCacheSizeMB(),
+                                                                queryString.substring(0, 200)));
             MD5Digest statementId = computeId(queryString, keyspace);
             preparedStatements.put(statementId, prepared);
             return new ResultMessage.Prepared(statementId, prepared);

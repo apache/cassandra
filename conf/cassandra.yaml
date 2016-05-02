@@ -215,6 +215,34 @@ disk_failure_policy: stop
 # ignore: ignore fatal errors and let the batches fail
 commit_failure_policy: stop
 
+# Maximum size of the native protocol prepared statement cache
+#
+# Valid values are either "auto" (omitting the value) or a value greater 0.
+#
+# Note that specifying a too large value will result in long running GCs and possbily
+# out-of-memory errors. Keep the value at a small fraction of the heap.
+#
+# If you constantly see "prepared statements discarded in the last minute because
+# cache limit reached" messages, the first step is to investigate the root cause
+# of these messages and check whether prepared statements are used correctly -
+# i.e. use bind markers for variable parts.
+#
+# Do only change the default value, if you really have more prepared statements than
+# fit in the cache. In most cases it is not neccessary to change this value.
+# Constantly re-preparing statements is a performance penalty.
+#
+# Default value ("auto") is 1/256th of the heap or 10MB, whichever is greater
+prepared_statements_cache_size_mb:
+
+# Maximum size of the Thrift prepared statement cache
+#
+# If you do not use Thrift at all, it is safe to leave this value at "auto".
+#
+# See description of 'prepared_statements_cache_size_mb' above for more information.
+#
+# Default value ("auto") is 1/256th of the heap or 10MB, whichever is greater
+thrift_prepared_statements_cache_size_mb:
+
 # Maximum size of the key cache in memory.
 #
 # Each key cache hit saves 1 seek and each row cache hit saves 2 seeks at the
