@@ -131,8 +131,6 @@ public abstract class AbstractCell extends Cell
 
     public void validate()
     {
-        column().validateCellValue(value());
-
         if (ttl() < 0)
             throw new MarshalException("A TTL should not be negative");
         if (localDeletionTime() < 0)
@@ -140,9 +138,16 @@ public abstract class AbstractCell extends Cell
         if (isExpiring() && localDeletionTime() == NO_DELETION_TIME)
             throw new MarshalException("Shoud not have a TTL without an associated local deletion time");
 
-        // If cell is a tombstone, it shouldn't have a value.
-        if (isTombstone() && value().hasRemaining())
-            throw new MarshalException("A tombstone should not have a value");
+        if (isTombstone())
+        {
+            // If cell is a tombstone, it shouldn't have a value.
+            if (value().hasRemaining())
+                throw new MarshalException("A tombstone should not have a value");
+        }
+        else
+        {
+            column().validateCellValue(value());
+        }
 
         if (path() != null)
             column().validateCellPath(path());
