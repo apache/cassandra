@@ -2791,7 +2791,8 @@ public class SelectTest extends CQLTester
     }
 
     @Test
-    public void testCustomIndexWithFiltering() throws Throwable {
+    public void testCustomIndexWithFiltering() throws Throwable
+    {
         // Test for CASSANDRA-11310 compatibility with 2i
         createTable("CREATE TABLE %s (a text, b int, c text, d int, PRIMARY KEY (a, b, c));");
         createIndex("CREATE INDEX ON %s(c)");
@@ -2804,6 +2805,41 @@ public class SelectTest extends CQLTester
         assertRows(executeFilteringOnly("SELECT * FROM %s WHERE a='a' AND b > 0 AND c = 'b'"),
                    row("a", 1, "b", 2),
                    row("a", 2, "b", 3));
+    }
+
+    @Test
+    public void testFilteringWithCounters() throws Throwable
+    {
+        for (String compactStorageClause: new String[] {"", " WITH COMPACT STORAGE"})
+        {
+            createTable("CREATE TABLE %s (a int, b int, c int, cnt counter, PRIMARY KEY (a, b, c))" + compactStorageClause);
+
+            execute("UPDATE %s SET cnt = cnt + ? WHERE a = ? AND b = ? AND c = ?", 14L, 11, 12, 13);
+            execute("UPDATE %s SET cnt = cnt + ? WHERE a = ? AND b = ? AND c = ?", 24L, 21, 22, 23);
+            execute("UPDATE %s SET cnt = cnt + ? WHERE a = ? AND b = ? AND c = ?", 27L, 21, 25, 26);
+            execute("UPDATE %s SET cnt = cnt + ? WHERE a = ? AND b = ? AND c = ?", 34L, 31, 32, 33);
+            execute("UPDATE %s SET cnt = cnt + ? WHERE a = ? AND b = ? AND c = ?", 24L, 41, 42, 43);
+
+            beforeAndAfterFlush(() -> {
+
+                assertRows(executeFilteringOnly("SELECT * FROM %s WHERE cnt = 24"),
+                           row(21, 22, 23, 24L),
+                           row(41, 42, 43, 24L));
+                assertRows(executeFilteringOnly("SELECT * FROM %s WHERE b > 22 AND cnt = 24"),
+                           row(41, 42, 43, 24L));
+                assertRows(executeFilteringOnly("SELECT * FROM %s WHERE b > 10 AND b < 25 AND cnt = 24"),
+                           row(21, 22, 23, 24L));
+                assertRows(executeFilteringOnly("SELECT * FROM %s WHERE b > 10 AND c < 25 AND cnt = 24"),
+                           row(21, 22, 23, 24L));
+                assertRows(executeFilteringOnly("SELECT * FROM %s WHERE a = 21 AND b > 10 AND cnt > 23 ORDER BY b DESC"),
+                           row(21, 25, 26, 27L),
+                           row(21, 22, 23, 24L));
+                assertRows(executeFilteringOnly("SELECT * FROM %s WHERE cnt > 20 AND cnt < 30"),
+                           row(21, 22, 23, 24L),
+                           row(21, 25, 26, 27L),
+                           row(41, 42, 43, 24L));
+            });
+        }
     }
 
     private UntypedResultSet executeFilteringOnly(String statement) throws Throwable
