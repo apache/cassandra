@@ -53,8 +53,6 @@ public class CellTest
                                                              .addRegularColumn("m", MapType.getInstance(IntegerType.instance, IntegerType.instance, true))
                                                              .build();
 
-    private static final CFMetaData fakeMetadata = CFMetaData.createFake("fakeKS", "fakeTable");
-
     @BeforeClass
     public static void defineSchema() throws ConfigurationException
     {
@@ -64,8 +62,8 @@ public class CellTest
 
     private static ColumnDefinition fakeColumn(String name, AbstractType<?> type)
     {
-        return new ColumnDefinition(fakeMetadata.ksName,
-                                    fakeMetadata.cfName,
+        return new ColumnDefinition("fakeKs",
+                                    "fakeTable",
                                     ColumnIdentifier.getInterned(name, false),
                                     type,
                                     ColumnDefinition.NO_POSITION,
@@ -127,8 +125,8 @@ public class CellTest
 
         // Valid cells
         c = fakeColumn("c", Int32Type.instance);
-        assertValid(BufferCell.live(fakeMetadata, c, 0, ByteBufferUtil.EMPTY_BYTE_BUFFER));
-        assertValid(BufferCell.live(fakeMetadata, c, 0, ByteBufferUtil.bytes(4)));
+        assertValid(BufferCell.live(c, 0, ByteBufferUtil.EMPTY_BYTE_BUFFER));
+        assertValid(BufferCell.live(c, 0, ByteBufferUtil.bytes(4)));
 
         assertValid(BufferCell.expiring(c, 0, 4, 4, ByteBufferUtil.EMPTY_BYTE_BUFFER));
         assertValid(BufferCell.expiring(c, 0, 4, 4, ByteBufferUtil.bytes(4)));
@@ -137,11 +135,11 @@ public class CellTest
 
         // Invalid value (we don't all empty values for smallint)
         c = fakeColumn("c", ShortType.instance);
-        assertInvalid(BufferCell.live(fakeMetadata, c, 0, ByteBufferUtil.EMPTY_BYTE_BUFFER));
+        assertInvalid(BufferCell.live(c, 0, ByteBufferUtil.EMPTY_BYTE_BUFFER));
         // But this should be valid even though the underlying value is an empty BB (catches bug #11618)
         assertValid(BufferCell.tombstone(c, 0, 4));
         // And of course, this should be valid with a proper value
-        assertValid(BufferCell.live(fakeMetadata, c, 0, ByteBufferUtil.bytes((short)4)));
+        assertValid(BufferCell.live(c, 0, ByteBufferUtil.bytes((short)4)));
 
         // Invalid ttl
         assertInvalid(BufferCell.expiring(c, 0, -4, 4, ByteBufferUtil.bytes(4)));
@@ -151,9 +149,9 @@ public class CellTest
 
         c = fakeColumn("c", MapType.getInstance(Int32Type.instance, Int32Type.instance, true));
         // Valid cell path
-        assertValid(BufferCell.live(fakeMetadata, c, 0, ByteBufferUtil.bytes(4), CellPath.create(ByteBufferUtil.bytes(4))));
+        assertValid(BufferCell.live(c, 0, ByteBufferUtil.bytes(4), CellPath.create(ByteBufferUtil.bytes(4))));
         // Invalid cell path (int values should be 0 or 4 bytes)
-        assertInvalid(BufferCell.live(fakeMetadata, c, 0, ByteBufferUtil.bytes(4), CellPath.create(ByteBufferUtil.bytes((long)4))));
+        assertInvalid(BufferCell.live(c, 0, ByteBufferUtil.bytes(4), CellPath.create(ByteBufferUtil.bytes((long)4))));
     }
 
     @Test
