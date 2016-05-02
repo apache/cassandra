@@ -22,6 +22,7 @@ import java.util.*;
 import java.util.concurrent.Callable;
 import java.util.concurrent.locks.ReentrantReadWriteLock;
 import java.util.stream.Collectors;
+import java.util.stream.Stream;
 
 import com.google.common.annotations.VisibleForTesting;
 import com.google.common.collect.Iterables;
@@ -61,6 +62,7 @@ import org.apache.cassandra.service.StorageService;
 public class CompactionStrategyManager implements INotificationConsumer
 {
     private static final Logger logger = LoggerFactory.getLogger(CompactionStrategyManager.class);
+    public final CompactionLogger compactionLogger;
     private final ColumnFamilyStore cfs;
     private final List<AbstractCompactionStrategy> repaired = new ArrayList<>();
     private final List<AbstractCompactionStrategy> unrepaired = new ArrayList<>();
@@ -86,6 +88,7 @@ public class CompactionStrategyManager implements INotificationConsumer
         cfs.getTracker().subscribe(this);
         logger.trace("{} subscribed to the data tracker.", this);
         this.cfs = cfs;
+        this.compactionLogger = new CompactionLogger(cfs, this);
         reload(cfs.metadata);
         params = cfs.metadata.params.compaction;
         locations = getDirectories().getWriteableLocations();
@@ -162,6 +165,10 @@ public class CompactionStrategyManager implements INotificationConsumer
         {
             writeLock.unlock();
         }
+        repaired.forEach(AbstractCompactionStrategy::startup);
+        unrepaired.forEach(AbstractCompactionStrategy::startup);
+        if (Stream.concat(repaired.stream(), unrepaired.stream()).anyMatch(cs -> cs.logAll))
+            compactionLogger.enable();
     }
 
     /**
@@ -171,7 +178,7 @@ public class CompactionStrategyManager implements INotificationConsumer
      * @param sstable
      * @return
      */
-    private AbstractCompactionStrategy getCompactionStrategyFor(SSTableReader sstable)
+    public AbstractCompactionStrategy getCompactionStrategyFor(SSTableReader sstable)
     {
         int index = getCompactionStrategyIndex(cfs, getDirectories(), sstable);
         readLock.lock();
@@ -234,6 +241,7 @@ public class CompactionStrategyManager implements INotificationConsumer
             isActive = false;
             repaired.forEach(AbstractCompactionStrategy::shutdown);
             unrepaired.forEach(AbstractCompactionStrategy::shutdown);
+            compactionLogger.disable();
         }
         finally
         {
@@ -846,5 +854,34 @@ public class CompactionStrategyManager implements INotificationConsumer
         {
             readLock.unlock();
         }
+    }
+
+    public boolean isRepaired(AbstractCompactionStrategy strategy)
+    {
+        return repaired.contains(strategy);
+    }
+
+    public List<String> getStrategyFolders(AbstractCompactionStrategy strategy)
+    {
+        Directories.DataDirectory[] locations = cfs.getDirectories().getWriteableLocations();
+        if (cfs.getPartitioner().splitter().isPresent())
+        {
+            int unrepairedIndex = unrepaired.indexOf(strategy);
+            if (unrepairedIndex > 0)
+            {
+                return Collections.singletonList(locations[unrepairedIndex].location.getAbsolutePath());
+            }
+            int repairedIndex = repaired.indexOf(strategy);
+            if (repairedIndex > 0)
+            {
+                return Collections.singletonList(locations[repairedIndex].location.getAbsolutePath());
+            }
+        }
+        List<String> folders = new ArrayList<>(locations.length);
+        for (Directories.DataDirectory location : locations)
+        {
+            folders.add(location.location.getAbsolutePath());
+        }
+        return folders;
     }
 }

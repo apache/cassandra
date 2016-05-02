@@ -18,6 +18,7 @@
 package org.apache.cassandra.db.compaction;
 
 import java.util.*;
+import java.util.concurrent.TimeUnit;
 
 import com.google.common.annotations.VisibleForTesting;
 import com.google.common.base.Predicate;
@@ -32,6 +33,9 @@ import org.apache.cassandra.exceptions.ConfigurationException;
 import org.apache.cassandra.io.sstable.format.SSTableReader;
 import org.apache.cassandra.schema.CompactionParams;
 import org.apache.cassandra.utils.Pair;
+import org.codehaus.jackson.JsonNode;
+import org.codehaus.jackson.node.JsonNodeFactory;
+import org.codehaus.jackson.node.ObjectNode;
 
 import static com.google.common.collect.Iterables.filter;
 
@@ -342,6 +346,7 @@ public class DateTieredCompactionStrategy extends AbstractCompactionStrategy
                     n += Math.ceil((double)stcsBucket.size() / cfs.getMaximumCompactionThreshold());
         }
         estimatedRemainingTasks = n;
+        cfs.getCompactionStrategyManager().compactionLogger.pending(this, n);
     }
 
 
@@ -451,6 +456,32 @@ public class DateTieredCompactionStrategy extends AbstractCompactionStrategy
         uncheckedOptions = SizeTieredCompactionStrategyOptions.validateOptions(options, uncheckedOptions);
 
         return uncheckedOptions;
+    }
+
+    public CompactionLogger.Strategy strategyLogger() {
+        return new CompactionLogger.Strategy()
+        {
+            public JsonNode sstable(SSTableReader sstable)
+            {
+                ObjectNode node = JsonNodeFactory.instance.objectNode();
+                node.put("min_timestamp", sstable.getMinTimestamp());
+                node.put("max_timestamp", sstable.getMaxTimestamp());
+                return node;
+            }
+
+            public JsonNode options()
+            {
+                ObjectNode node = JsonNodeFactory.instance.objectNode();
+                TimeUnit resolution = DateTieredCompactionStrategy.this.options.timestampResolution;
+                node.put(DateTieredCompactionStrategyOptions.TIMESTAMP_RESOLUTION_KEY,
+                         resolution.toString());
+                node.put(DateTieredCompactionStrategyOptions.BASE_TIME_KEY,
+                         resolution.toSeconds(DateTieredCompactionStrategy.this.options.baseTime));
+                node.put(DateTieredCompactionStrategyOptions.MAX_WINDOW_SIZE_KEY,
+                         resolution.toSeconds(DateTieredCompactionStrategy.this.options.maxWindowSize));
+                return node;
+            }
+        };
     }
 
     public String toString()

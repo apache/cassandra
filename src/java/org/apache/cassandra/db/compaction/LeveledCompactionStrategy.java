@@ -38,6 +38,9 @@ import org.apache.cassandra.exceptions.ConfigurationException;
 import org.apache.cassandra.io.sstable.ISSTableScanner;
 import org.apache.cassandra.io.sstable.format.SSTableReader;
 import org.apache.cassandra.utils.FBUtilities;
+import org.codehaus.jackson.JsonNode;
+import org.codehaus.jackson.node.JsonNodeFactory;
+import org.codehaus.jackson.node.ObjectNode;
 
 public class LeveledCompactionStrategy extends AbstractCompactionStrategy
 {
@@ -208,7 +211,9 @@ public class LeveledCompactionStrategy extends AbstractCompactionStrategy
 
     public int getEstimatedRemainingTasks()
     {
-        return manifest.getEstimatedTasks();
+        int n = manifest.getEstimatedTasks();
+        cfs.getCompactionStrategyManager().compactionLogger.pending(this, n);
+        return n;
     }
 
     public long getMaxSSTableBytes()
@@ -442,6 +447,26 @@ public class LeveledCompactionStrategy extends AbstractCompactionStrategy
             }
         }
         return null;
+    }
+
+    public CompactionLogger.Strategy strategyLogger()
+    {
+        return new CompactionLogger.Strategy()
+        {
+            public JsonNode sstable(SSTableReader sstable)
+            {
+                ObjectNode node = JsonNodeFactory.instance.objectNode();
+                node.put("level", sstable.getSSTableLevel());
+                node.put("min_token", sstable.first.getToken().toString());
+                node.put("max_token", sstable.last.getToken().toString());
+                return node;
+            }
+
+            public JsonNode options()
+            {
+                return null;
+            }
+        };
     }
 
     public static Map<String, String> validateOptions(Map<String, String> options) throws ConfigurationException

@@ -1163,12 +1163,13 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
             }
             memtable.cfs.replaceFlushed(memtable, sstables);
             reclaim(memtable);
-                logger.debug("Flushed to {} ({} sstables, {}), biggest {}, smallest {}",
-                             sstables,
-                             sstables.size(),
-                             FBUtilities.prettyPrintMemory(totalBytesOnDisk),
-                             FBUtilities.prettyPrintMemory(maxBytesOnDisk),
-                             FBUtilities.prettyPrintMemory(minBytesOnDisk));
+            memtable.cfs.compactionStrategyManager.compactionLogger.flush(sstables);
+            logger.debug("Flushed to {} ({} sstables, {}), biggest {}, smallest {}",
+                         sstables,
+                         sstables.size(),
+                         FBUtilities.prettyPrintMemory(totalBytesOnDisk),
+                         FBUtilities.prettyPrintMemory(maxBytesOnDisk),
+                         FBUtilities.prettyPrintMemory(minBytesOnDisk));
         }
 
         private void reclaim(final Memtable memtable)

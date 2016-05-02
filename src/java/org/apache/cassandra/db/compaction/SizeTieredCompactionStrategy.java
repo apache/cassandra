@@ -86,6 +86,7 @@ public class SizeTieredCompactionStrategy extends AbstractCompactionStrategy
         List<List<SSTableReader>> buckets = getBuckets(createSSTableAndLengthPairs(candidates), sizeTieredOptions.bucketHigh, sizeTieredOptions.bucketLow, sizeTieredOptions.minSSTableSize);
         logger.trace("Compaction buckets are {}", buckets);
         estimatedRemainingTasks = getEstimatedCompactionsByTasks(cfs, buckets);
+        cfs.getCompactionStrategyManager().compactionLogger.pending(this, estimatedRemainingTasks);
         List<SSTableReader> mostInteresting = mostInterestingBucket(buckets, minThreshold, maxThreshold);
         if (!mostInteresting.isEmpty())
             return mostInteresting;

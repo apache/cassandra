@@ -63,11 +63,13 @@ public abstract class AbstractCompactionStrategy
     // minimum interval needed to perform tombstone removal compaction in seconds, default 86400 or 1 day.
     protected static final long DEFAULT_TOMBSTONE_COMPACTION_INTERVAL = 86400;
     protected static final boolean DEFAULT_UNCHECKED_TOMBSTONE_COMPACTION_OPTION = false;
+    protected static final boolean DEFAULT_LOG_ALL_OPTION = false;
 
     protected static final String TOMBSTONE_THRESHOLD_OPTION = "tombstone_threshold";
     protected static final String TOMBSTONE_COMPACTION_INTERVAL_OPTION = "tombstone_compaction_interval";
     // disable range overlap check when deciding if an SSTable is candidate for tombstone compaction (CASSANDRA-6563)
     protected static final String UNCHECKED_TOMBSTONE_COMPACTION_OPTION = "unchecked_tombstone_compaction";
+    protected static final String LOG_ALL_OPTION = "log_all";
     protected static final String COMPACTION_ENABLED = "enabled";
     public static final String ONLY_PURGE_REPAIRED_TOMBSTONES = "only_purge_repaired_tombstones";
 
@@ -78,6 +80,7 @@ public abstract class AbstractCompactionStrategy
     protected long tombstoneCompactionInterval;
     protected boolean uncheckedTombstoneCompaction;
     protected boolean disableTombstoneCompactions = false;
+    protected boolean logAll = true;
 
     private final Directories directories;
 
@@ -110,6 +113,8 @@ public abstract class AbstractCompactionStrategy
             tombstoneCompactionInterval = optionValue == null ? DEFAULT_TOMBSTONE_COMPACTION_INTERVAL : Long.parseLong(optionValue);
             optionValue = options.get(UNCHECKED_TOMBSTONE_COMPACTION_OPTION);
             uncheckedTombstoneCompaction = optionValue == null ? DEFAULT_UNCHECKED_TOMBSTONE_COMPACTION_OPTION : Boolean.parseBoolean(optionValue);
+            optionValue = options.get(LOG_ALL_OPTION);
+            logAll = optionValue == null ? DEFAULT_LOG_ALL_OPTION : Boolean.parseBoolean(optionValue);
             if (!shouldBeEnabled())
                 this.disable();
         }
@@ -463,7 +468,16 @@ public abstract class AbstractCompactionStrategy
         if (unchecked != null)
         {
             if (!unchecked.equalsIgnoreCase("true") && !unchecked.equalsIgnoreCase("false"))
-                throw new ConfigurationException(String.format("'%s' should be either 'true' or 'false', not '%s'",UNCHECKED_TOMBSTONE_COMPACTION_OPTION, unchecked));
+                throw new ConfigurationException(String.format("'%s' should be either 'true' or 'false', not '%s'", UNCHECKED_TOMBSTONE_COMPACTION_OPTION, unchecked));
+        }
+
+        String logAll = options.get(LOG_ALL_OPTION);
+        if (logAll != null)
+        {
+            if (!logAll.equalsIgnoreCase("true") && !logAll.equalsIgnoreCase("false"))
+            {
+                throw new ConfigurationException(String.format("'%s' should either be 'true' or 'false', not %s", LOG_ALL_OPTION, logAll));
+            }
         }
 
         String compactionEnabled = options.get(COMPACTION_ENABLED);
@@ -474,10 +488,12 @@ public abstract class AbstractCompactionStrategy
                 throw new ConfigurationException(String.format("enabled should either be 'true' or 'false', not %s", compactionEnabled));
             }
         }
+
         Map<String, String> uncheckedOptions = new HashMap<String, String>(options);
         uncheckedOptions.remove(TOMBSTONE_THRESHOLD_OPTION);
         uncheckedOptions.remove(TOMBSTONE_COMPACTION_INTERVAL_OPTION);
         uncheckedOptions.remove(UNCHECKED_TOMBSTONE_COMPACTION_OPTION);
+        uncheckedOptions.remove(LOG_ALL_OPTION);
         uncheckedOptions.remove(COMPACTION_ENABLED);
         uncheckedOptions.remove(ONLY_PURGE_REPAIRED_TOMBSTONES);
         return uncheckedOptions;
@@ -519,6 +535,11 @@ public abstract class AbstractCompactionStrategy
         if (currGroup.size() != 0)
             groupedSSTables.add(currGroup);
         return groupedSSTables;
+    }
+
+    public CompactionLogger.Strategy strategyLogger()
+    {
+        return CompactionLogger.Strategy.none;
     }
 
     public SSTableMultiWriter createSSTableMultiWriter(Descriptor descriptor,

@@ -150,6 +150,7 @@ public class CompactionTask extends AbstractCompactionTask
         logger.debug("Compacting ({}) {}", taskId, ssTableLoggerMsg);
 
         long start = System.nanoTime();
+        long startTime = System.currentTimeMillis();
         long totalKeysWritten = 0;
         long estimatedKeys = 0;
         try (CompactionController controller = getCompactionController(transaction.originals()))
@@ -234,6 +235,7 @@ public class CompactionTask extends AbstractCompactionTask
                                       mergeSummary));
             logger.trace(String.format("CF Total Bytes Compacted: %s", FBUtilities.prettyPrintMemory(CompactionTask.addToTotalBytesCompacted(endsize))));
             logger.trace("Actual #keys: {}, Estimated #keys:{}, Err%: {}", totalKeysWritten, estimatedKeys, ((double)(totalKeysWritten - estimatedKeys)/totalKeysWritten));
+            cfs.getCompactionStrategyManager().compactionLogger.compaction(startTime, transaction.originals(), System.currentTimeMillis(), newSStables);
 
             // update the metrics
             cfs.metric.compactionBytesWritten.inc(endsize);
