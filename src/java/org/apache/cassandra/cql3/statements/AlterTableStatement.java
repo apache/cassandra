@@ -406,7 +406,7 @@ public class AlterTableStatement extends SchemaAlteringStatement
     @Override
     public String toString()
     {
-        return String.format("AlterTableStatement(name=%s, type=%s, column=%s, validator=%s)",
+        return String.format("AlterTableStatement(name=%s, type=%s)",
                              cfName,
                              oType);
     }
