@@ -18,7 +18,7 @@
 package org.apache.cassandra.cql3.selection;
 
 import java.nio.ByteBuffer;
-import java.util.Collections;
+import java.util.List;
 
 import org.apache.cassandra.config.CFMetaData;
 import org.apache.cassandra.cql3.AssignmentTestable;
@@ -43,9 +43,8 @@ public abstract class Selector implements AssignmentTestable
      */
     public static abstract class Factory
     {
-        public Iterable<Function> getFunctions()
+        public void addFunctionsTo(List<Function> functions)
         {
-            return Collections.emptySet();
         }
 
         /**

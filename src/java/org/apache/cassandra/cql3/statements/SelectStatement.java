@@ -125,10 +125,21 @@ public class SelectStatement implements CQLStatement
 
     public Iterable<Function> getFunctions()
     {
-        return Iterables.concat(selection.getFunctions(),
-                                restrictions.getFunctions(),
-                                limit != null ? limit.getFunctions() : Collections.<Function>emptySet(),
-                                perPartitionLimit != null ? perPartitionLimit.getFunctions() : Collections.<Function>emptySet());
+        List<Function> functions = new ArrayList<>();
+        addFunctionsTo(functions);
+        return functions;
+    }
+
+    private void addFunctionsTo(List<Function> functions)
+    {
+        selection.addFunctionsTo(functions);
+        restrictions.addFunctionsTo(functions);
+
+        if (limit != null)
+            limit.addFunctionsTo(functions);
+
+        if (perPartitionLimit != null)
+            perPartitionLimit.addFunctionsTo(functions);
     }
 
     // Note that the queried columns internally is different from the one selected by the

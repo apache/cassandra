@@ -137,9 +137,9 @@ public abstract class MultiColumnRestriction implements SingleRestriction
         }
 
         @Override
-        public Iterable<Function> getFunctions()
+        public void addFunctionsTo(List<Function> functions)
         {
-            return value.getFunctions();
+            value.addFunctionsTo(functions);
         }
 
         @Override
@@ -268,9 +268,9 @@ public abstract class MultiColumnRestriction implements SingleRestriction
         }
 
         @Override
-        public Iterable<Function> getFunctions()
+        public void addFunctionsTo(List<Function> functions)
         {
-            return Terms.getFunctions(values);
+            Terms.addFunctions(values, functions);
         }
 
         @Override
@@ -307,9 +307,8 @@ public abstract class MultiColumnRestriction implements SingleRestriction
         }
 
         @Override
-        public Iterable<Function> getFunctions()
+        public void addFunctionsTo(List<Function> functions)
         {
-            return Collections.emptySet();
         }
 
         @Override
@@ -432,9 +431,9 @@ public abstract class MultiColumnRestriction implements SingleRestriction
         }
 
         @Override
-        public Iterable<Function> getFunctions()
+        public void addFunctionsTo(List<Function> functions)
         {
-            return slice.getFunctions();
+            slice.addFunctionsTo(functions);
         }
 
         @Override
@@ -523,9 +522,8 @@ public abstract class MultiColumnRestriction implements SingleRestriction
         }
 
         @Override
-        public Iterable<Function> getFunctions()
+        public void addFunctionsTo(List<Function> functions)
         {
-            return Collections.emptyList();
         }
 
         @Override

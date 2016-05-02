@@ -19,6 +19,7 @@ package org.apache.cassandra.cql3;
 
 import java.nio.ByteBuffer;
 import java.util.Collections;
+import java.util.List;
 
 import com.google.common.collect.Iterables;
 
@@ -52,16 +53,12 @@ public class Attributes
         this.timeToLive = timeToLive;
     }
 
-    public Iterable<Function> getFunctions()
+    public void addFunctionsTo(List<Function> functions)
     {
-        if (timestamp != null && timeToLive != null)
-            return Iterables.concat(timestamp.getFunctions(), timeToLive.getFunctions());
-        else if (timestamp != null)
-            return timestamp.getFunctions();
-        else if (timeToLive != null)
-            return timeToLive.getFunctions();
-        else
-            return Collections.emptySet();
+        if (timestamp != null)
+            timestamp.addFunctionsTo(functions);
+        if (timeToLive != null)
+            timeToLive.addFunctionsTo(functions);
     }
 
     public boolean isTimestampSet()

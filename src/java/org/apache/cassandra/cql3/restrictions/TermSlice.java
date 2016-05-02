@@ -17,9 +17,7 @@
  */
 package org.apache.cassandra.cql3.restrictions;
 
-import java.util.Collections;
-
-import com.google.common.collect.Iterables;
+import java.util.List;
 
 import org.apache.cassandra.config.ColumnDefinition;
 import org.apache.cassandra.cql3.Operator;
@@ -171,15 +169,12 @@ final class TermSlice
         return supported;
     }
 
-    public Iterable<Function> getFunctions()
+    public void addFunctionsTo(List<Function> functions)
     {
-        if (hasBound(Bound.START) && hasBound(Bound.END))
-            return Iterables.concat(bound(Bound.START).getFunctions(), bound(Bound.END).getFunctions());
-        else if (hasBound(Bound.START))
-            return bound(Bound.START).getFunctions();
-        else if (hasBound(Bound.END))
-            return bound(Bound.END).getFunctions();
-        else
-            return Collections.emptySet();
+        if (hasBound(Bound.START))
+            bound(Bound.START).addFunctionsTo(functions);
+
+        if (hasBound(Bound.END))
+            bound(Bound.END).addFunctionsTo(functions);
     }
 }

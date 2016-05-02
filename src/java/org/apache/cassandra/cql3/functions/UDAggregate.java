@@ -21,7 +21,6 @@ import java.nio.ByteBuffer;
 import java.util.*;
 
 import com.google.common.base.Objects;
-import com.google.common.collect.ImmutableSet;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -101,14 +100,17 @@ public class UDAggregate extends AbstractFunction implements AggregateFunction
         return stateFunction == function || finalFunction == function;
     }
 
-    public Iterable<Function> getFunctions()
+    @Override
+    public void addFunctionsTo(List<Function> functions)
     {
-        if (stateFunction == null)
-            return Collections.emptySet();
-        if (finalFunction != null)
-            return ImmutableSet.of(this, stateFunction, finalFunction);
-        else
-            return ImmutableSet.of(this, stateFunction);
+        functions.add(this);
+        if (stateFunction != null)
+        {
+            stateFunction.addFunctionsTo(functions);
+
+            if (finalFunction != null)
+                finalFunction.addFunctionsTo(functions);
+        }
     }
 
     public boolean isAggregate()

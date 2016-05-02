@@ -232,48 +232,48 @@ final class TokenFilter implements PartitionKeyRestrictions
     @Override
     public ColumnDefinition getFirstColumn()
     {
-        return this.restrictions.getFirstColumn();
+        return restrictions.getFirstColumn();
     }
 
     @Override
     public ColumnDefinition getLastColumn()
     {
-        return this.restrictions.getLastColumn();
+        return restrictions.getLastColumn();
     }
 
     @Override
     public List<ColumnDefinition> getColumnDefs()
     {
-        return this.restrictions.getColumnDefs();
+        return restrictions.getColumnDefs();
     }
 
     @Override
-    public Iterable<Function> getFunctions()
+    public void addFunctionsTo(List<Function> functions)
     {
-        return this.restrictions.getFunctions();
+        restrictions.addFunctionsTo(functions);
     }
 
     @Override
     public boolean hasSupportingIndex(SecondaryIndexManager indexManager)
     {
-        return this.restrictions.hasSupportingIndex(indexManager);
+        return restrictions.hasSupportingIndex(indexManager);
     }
 
     @Override
     public void addRowFilterTo(RowFilter filter, SecondaryIndexManager indexManager, QueryOptions options)
     {
-        this.restrictions.addRowFilterTo(filter, indexManager, options);
+        restrictions.addRowFilterTo(filter, indexManager, options);
     }
 
     @Override
     public boolean isEmpty()
     {
-        return this.restrictions.isEmpty();
+        return restrictions.isEmpty();
     }
 
     @Override
     public int size()
     {
-        return this.restrictions.size();
+        return restrictions.size();
     }
 }

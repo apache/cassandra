@@ -19,7 +19,6 @@ package org.apache.cassandra.cql3.selection;
 
 import java.util.*;
 
-import com.google.common.collect.Iterables;
 import com.google.common.collect.Lists;
 
 import org.apache.cassandra.config.CFMetaData;
@@ -89,13 +88,9 @@ final class SelectorFactories implements Iterable<Selector.Factory>
         }
     }
 
-    public Iterable<Function> getFunctions()
+    public void addFunctionsTo(List<Function> functions)
     {
-        Iterable<Function> functions = Collections.emptySet();
-        for (Factory factory : factories)
-            if (factory != null)
-                functions = Iterables.concat(functions, factory.getFunctions());
-        return functions;
+        factories.forEach(p -> p.addFunctionsTo(functions));
     }
 
     /**

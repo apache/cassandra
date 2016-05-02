@@ -18,6 +18,7 @@
 package org.apache.cassandra.cql3;
 
 import java.util.Collections;
+import java.util.List;
 
 import org.apache.cassandra.cql3.functions.Function;
 import org.apache.cassandra.db.marshal.CollectionType;
@@ -48,9 +49,8 @@ public abstract class AbstractMarker extends Term.NonTerminal
         return true;
     }
 
-    public Iterable<Function> getFunctions()
+    public void addFunctionsTo(List<Function> functions)
     {
-        return Collections.emptySet();
     }
 
     /**

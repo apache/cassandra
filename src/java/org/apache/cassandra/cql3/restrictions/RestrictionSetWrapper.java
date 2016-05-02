@@ -53,9 +53,9 @@ class RestrictionSetWrapper implements Restrictions
         return restrictions.getColumnDefs();
     }
 
-    public Iterable<Function> getFunctions()
+    public void addFunctionsTo(List<Function> functions)
     {
-        return restrictions.getFunctions();
+        restrictions.addFunctionsTo(functions);
     }
 
     public boolean isEmpty()

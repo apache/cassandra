@@ -17,6 +17,8 @@
  */
 package org.apache.cassandra.cql3;
 
+import java.util.List;
+
 import org.apache.cassandra.config.ColumnDefinition;
 import org.apache.cassandra.cql3.functions.Function;
 import org.apache.cassandra.cql3.statements.CQL3CasRequest;
@@ -44,10 +46,10 @@ public interface Conditions
     static final Conditions IF_NOT_EXISTS_CONDITION = new IfNotExistsCondition();
 
     /**
-     * Returns the functions used by the conditions.
-     * @return the functions used by the conditions
+     * Adds the functions used by the conditions to the specified list.
+     * @param functions the list to add to
      */
-    Iterable<Function> getFunctions();
+    void addFunctionsTo(List<Function> functions);
 
     /**
      * Returns the column definitions to which apply the conditions.

@@ -17,7 +17,7 @@
  */
 package org.apache.cassandra.cql3;
 
-import java.util.Collections;
+import java.util.List;
 
 import org.apache.cassandra.config.ColumnDefinition;
 import org.apache.cassandra.cql3.functions.Function;
@@ -28,9 +28,8 @@ import org.apache.cassandra.cql3.functions.Function;
  */
 abstract class AbstractConditions implements Conditions
 {
-    public Iterable<Function> getFunctions()
+    public void addFunctionsTo(List<Function> functions)
     {
-        return Collections.emptyList();
     }
 
     public Iterable<ColumnDefinition> getColumns()

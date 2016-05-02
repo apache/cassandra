@@ -241,9 +241,9 @@ public class Tuples
             return tupleToString(elements);
         }
 
-        public Iterable<Function> getFunctions()
+        public void addFunctionsTo(List<Function> functions)
         {
-            return Terms.getFunctions(elements);
+            Terms.addFunctions(elements, functions);
         }
     }
 

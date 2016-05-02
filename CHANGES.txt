@@ -63,6 +63,7 @@
  * (cqlsh) Show static columns in a different color (CASSANDRA-11059)
  * Allow to remove TTLs on table with default_time_to_live (CASSANDRA-11207)
 Merged from 3.0:
+ * Reduce the amount of object allocations caused by the getFunctions methods (CASSANDRA-11593)
  * Potential error replaying commitlog with smallint/tinyint/date/time types (CASSANDRA-11618)
  * Fix queries with filtering on counter columns (CASSANDRA-11629)
  * Improve tombstone printing in sstabledump (CASSANDRA-11655)

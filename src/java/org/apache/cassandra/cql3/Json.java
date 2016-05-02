@@ -252,11 +252,9 @@ public class Json
         }
 
         @Override
-        public Iterable<Function> getFunctions()
+        public void addFunctionsTo(List<Function> functions)
         {
-            return Collections.emptyList();
         }
-
     }
 
     /**

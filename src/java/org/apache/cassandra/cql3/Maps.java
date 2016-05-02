@@ -23,8 +23,6 @@ import java.nio.ByteBuffer;
 import java.util.*;
 import java.util.stream.Collectors;
 
-import com.google.common.collect.Iterables;
-
 import org.apache.cassandra.config.ColumnDefinition;
 import org.apache.cassandra.cql3.functions.Function;
 import org.apache.cassandra.db.DecoratedKey;
@@ -241,10 +239,10 @@ public abstract class Maps
             return new Value(buffers);
         }
 
-        public Iterable<Function> getFunctions()
+        public void addFunctionsTo(List<Function> functions)
         {
-            return Iterables.concat(Terms.getFunctions(elements.keySet()),
-                                    Terms.getFunctions(elements.values()));
+            Terms.addFunctions(elements.keySet(), functions);
+            Terms.addFunctions(elements.values(), functions);
         }
     }
 

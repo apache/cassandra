@@ -23,8 +23,6 @@ import java.nio.ByteBuffer;
 import java.util.*;
 import java.util.stream.Collectors;
 
-import com.google.common.base.Joiner;
-
 import org.apache.cassandra.config.ColumnDefinition;
 import org.apache.cassandra.cql3.functions.Function;
 import org.apache.cassandra.db.DecoratedKey;
@@ -217,9 +215,9 @@ public abstract class Sets
             return new Value(buffers);
         }
 
-        public Iterable<Function> getFunctions()
+        public void addFunctionsTo(List<Function> functions)
         {
-            return Terms.getFunctions(elements);
+            Terms.addFunctions(elements, functions);
         }
     }
 
