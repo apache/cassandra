@@ -168,10 +168,7 @@ public class CreateViewStatement extends SchemaAlteringStatement
             if (cdef == null)
                 throw new InvalidRequestException("Unknown column name detected in CREATE MATERIALIZED VIEW statement : "+identifier);
 
-            if (cdef.isStatic())
-                ClientWarn.instance.warn(String.format("Unable to include static column '%s' in Materialized View SELECT statement", identifier));
-            else
-                included.add(identifier);
+            included.add(identifier);
         }
 
         Set<ColumnIdentifier.Raw> targetPrimaryKeys = new HashSet<>();
@@ -246,10 +243,14 @@ public class CreateViewStatement extends SchemaAlteringStatement
         for (ColumnDefinition def : cfm.allColumns())
         {
             ColumnIdentifier identifier = def.name;
+            boolean includeDef = included.isEmpty() || included.contains(identifier);
 
-            if ((included.isEmpty() || included.contains(identifier))
-                && !targetClusteringColumns.contains(identifier) && !targetPartitionKeys.contains(identifier)
-                && !def.isStatic())
+            if (includeDef && def.isStatic())
+            {
+                throw new InvalidRequestException(String.format("Unable to include static column '%s' which would be included by Materialized View SELECT * statement", identifier));
+            }
+
+            if (includeDef && !targetClusteringColumns.contains(identifier) && !targetPartitionKeys.contains(identifier))
             {
                 includedColumns.add(identifier);
             }

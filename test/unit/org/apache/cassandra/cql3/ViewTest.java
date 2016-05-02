@@ -207,13 +207,31 @@ public class ViewTest extends CQLTester
         try
         {
             createView("mv_static", "CREATE MATERIALIZED VIEW %%s AS SELECT * FROM %s WHERE sval IS NOT NULL AND k IS NOT NULL AND c IS NOT NULL PRIMARY KEY (sval,k,c)");
-            Assert.fail("MV on static should fail");
+            Assert.fail("Use of static column in a MV primary key should fail");
         }
         catch (InvalidQueryException e)
         {
         }
 
-        createView("mv_static", "CREATE MATERIALIZED VIEW %s AS SELECT * FROM %%s WHERE val IS NOT NULL AND k IS NOT NULL AND c IS NOT NULL PRIMARY KEY (val,k,c)");
+        try
+        {
+            createView("mv_static", "CREATE MATERIALIZED VIEW %%s AS SELECT val, sval FROM %s WHERE val IS NOT NULL AND  k IS NOT NULL AND c IS NOT NULL PRIMARY KEY (val, k, c)");
+            Assert.fail("Explicit select of static column in MV should fail");
+        }
+        catch (InvalidQueryException e)
+        {
+        }
+
+        try
+        {
+            createView("mv_static", "CREATE MATERIALIZED VIEW %s AS SELECT * FROM %%s WHERE val IS NOT NULL AND k IS NOT NULL AND c IS NOT NULL PRIMARY KEY (val,k,c)");
+            Assert.fail("Implicit select of static column in MV should fail");
+        }
+        catch (InvalidQueryException e)
+        {
+        }
+
+        createView("mv_static", "CREATE MATERIALIZED VIEW %s AS SELECT val,k,c FROM %%s WHERE val IS NOT NULL AND k IS NOT NULL AND c IS NOT NULL PRIMARY KEY (val,k,c)");
 
         for (int i = 0; i < 100; i++)
             updateView("INSERT into %s (k,c,sval,val)VALUES(?,?,?,?)", 0, i % 2, "bar" + i, "baz");
