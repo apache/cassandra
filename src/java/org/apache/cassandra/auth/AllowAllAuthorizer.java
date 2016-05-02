@@ -68,9 +68,4 @@ public class AllowAllAuthorizer implements IAuthorizer
     public void setup()
     {
     }
-
-    public Set<Permission> authorizeJMX(AuthenticatedUser parUser, IResource parResource)
-    {
-        return Permission.ALL;
-    }
 }
