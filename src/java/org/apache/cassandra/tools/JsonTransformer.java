@@ -361,7 +361,6 @@ public final class JsonTransformer
                     objectIndenter.setCompact(true);
                     json.writeStartObject();
                     json.writeFieldName("name");
-                    AbstractType<?> type = cd.column().type;
                     json.writeString(cd.column().name.toCQLString());
                     serializeDeletion(complexData.complexDeletion());
                     objectIndenter.setCompact(true);
