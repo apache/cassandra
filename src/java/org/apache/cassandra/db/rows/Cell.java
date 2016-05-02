@@ -229,8 +229,6 @@ public abstract class Cell extends ColumnData
                             ? column.cellPathSerializer().deserialize(in)
                             : null;
 
-            boolean isCounter = localDeletionTime == NO_DELETION_TIME && column.type.isCounter();
-
             ByteBuffer value = ByteBufferUtil.EMPTY_BYTE_BUFFER;
             if (hasValue)
             {
@@ -240,6 +238,8 @@ public abstract class Cell extends ColumnData
                 }
                 else
                 {
+                    boolean isCounter = localDeletionTime == NO_DELETION_TIME && column.type.isCounter();
+
                     value = header.getType(column).readValue(in);
                     if (isCounter)
                         value = helper.maybeClearCounterValue(value);
