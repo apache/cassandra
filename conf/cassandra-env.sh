@@ -97,7 +97,7 @@ if [ "$JVM_VERSION" \< "1.8" ] ; then
     exit 1;
 fi
 
-if [ "$JVM_VERSION" \< "1.8" ] && [ "$JVM_PATCH_VERSION" \< "40" ] ; then
+if [ "$JVM_VERSION" \< "1.8" ] && [ "$JVM_PATCH_VERSION" -lt 40 ] ; then
     echo "Cassandra 3.0 and later require Java 8u40 or later."
     exit 1;
 fi
