@@ -1,3 +1,5 @@
+3.7
+
 3.6
  * Enhanced Compaction Logging (CASSANDRA-10805)
  * Make prepared statement cache size configurable (CASSANDRA-11555)
