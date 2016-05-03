@@ -116,6 +116,12 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
         initialDirectories = replacementArray;
     }
 
+    public static Directories.DataDirectory[] getInitialDirectories()
+    {
+        Directories.DataDirectory[] src = initialDirectories;
+        return Arrays.copyOf(src, src.length);
+    }
+
     private static final Logger logger = LoggerFactory.getLogger(ColumnFamilyStore.class);
 
     private static final ExecutorService flushExecutor = new JMXEnabledThreadPoolExecutor(DatabaseDescriptor.getFlushWriters(),
