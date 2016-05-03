@@ -29,9 +29,15 @@ import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
 
 import com.google.common.util.concurrent.RateLimiter;
-import org.junit.*;
 
-import org.apache.cassandra.*;
+import org.junit.Assert;
+import org.junit.Before;
+import org.junit.BeforeClass;
+import org.junit.Test;
+
+import org.apache.cassandra.SchemaLoader;
+import org.apache.cassandra.Util;
+import org.apache.cassandra.UpdateBuilder;
 import org.apache.cassandra.config.Config.CommitLogSync;
 import org.apache.cassandra.config.*;
 import org.apache.cassandra.db.Mutation;
@@ -97,6 +103,7 @@ public class CommitLogStressTest
             initialize();
 
             CommitLogStressTest tester = new CommitLogStressTest();
+            tester.cleanDir();
             tester.testFixedSize();
         }
         catch (Throwable e)
@@ -130,12 +137,13 @@ public class CommitLogStressTest
 
         SchemaLoader.loadSchema();
         SchemaLoader.schemaDefinition(""); // leave def. blank to maintain old behaviour
+
+        CommitLog.instance.stopUnsafe(true);
     }
 
     @Before
     public void cleanDir() throws IOException
     {
-        CommitLog.instance.stopUnsafe(true);
         File dir = new File(location);
         if (dir.isDirectory())
         {
@@ -209,8 +217,6 @@ public class CommitLogStressTest
             {
                 DatabaseDescriptor.setCommitLogSync(sync);
                 CommitLog commitLog = new CommitLog(CommitLogArchiver.disabled()).start();
-                // Need to enable reserve segment creation as close to test start as possible to minimize race
-                commitLog.segmentManager.enableReserveSegmentCreation();
                 testLog(commitLog);
                 assert !failed;
             }
@@ -307,17 +313,12 @@ public class CommitLogStressTest
     private void verifySizes(CommitLog commitLog)
     {
         // Complete anything that's still left to write.
-        commitLog.executor.requestExtraSync().awaitUninterruptibly();
-        // One await() does not suffice as we may be signalled when an ongoing sync finished. Request another
-        // (which shouldn't write anything) to make sure the first we triggered completes.
-        // FIXME: The executor should give us a chance to await completion of the sync we requested.
-        commitLog.executor.requestExtraSync().awaitUninterruptibly();
-
-        // Wait for any pending deletes or segment allocations to complete.
+        commitLog.executor.syncBlocking();
+        // Wait for any concurrent segment allocations to complete.
         commitLog.segmentManager.awaitManagementTasksCompletion();
 
         long combinedSize = 0;
-        for (File f : new File(DatabaseDescriptor.getCommitLogLocation()).listFiles())
+        for (File f : new File(commitLog.segmentManager.storageDirectory).listFiles())
             combinedSize += f.length();
         Assert.assertEquals(combinedSize, commitLog.getActiveOnDiskSize());
 

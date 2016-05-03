@@ -51,8 +51,7 @@ public class CommitLogSegmentManagerCDCTest extends CQLTester
     @Before
     public void before() throws IOException
     {
-        // disable reserve segment to get more deterministic allocation/testing of CDC boundary states
-        CommitLog.instance.forceRecycleAllSegments();
+        CommitLog.instance.resetUnsafe(true);
         for (File f : new File(DatabaseDescriptor.getCDCLogLocation()).listFiles())
             FileUtils.deleteWithConfirm(f);
     }
@@ -120,7 +119,7 @@ public class CommitLogSegmentManagerCDCTest extends CQLTester
         for (int i = 0; i < 8; i++)
         {
             new RowUpdateBuilder(currentTableMetadata(), 0, i)
-                .add("data", randomizeBuffer(DatabaseDescriptor.getCommitLogSegmentSize() / 3))
+                .add("data", randomizeBuffer(DatabaseDescriptor.getCommitLogSegmentSize() / 4)) // fit 3 in a segment
                 .build().apply();
         }
 
@@ -136,7 +135,7 @@ public class CommitLogSegmentManagerCDCTest extends CQLTester
         for (int i = 0; i < 8; i++)
         {
             new RowUpdateBuilder(currentTableMetadata(), 0, i)
-                .add("data", randomizeBuffer(DatabaseDescriptor.getCommitLogSegmentSize() / 3))
+                .add("data", randomizeBuffer(DatabaseDescriptor.getCommitLogSegmentSize() / 4))
                 .build().apply();
         }
         // 4 total again, 3 CONTAINS, 1 in waiting PERMITTED
@@ -215,6 +214,6 @@ public class CommitLogSegmentManagerCDCTest extends CQLTester
     private void expectCurrentCDCState(CDCState state)
     {
         Assert.assertEquals("Received unexpected CDCState on current allocatingFrom segment.",
-            state, CommitLog.instance.segmentManager.allocatingFrom.getCDCState());
+            state, CommitLog.instance.segmentManager.allocatingFrom().getCDCState());
     }
 }

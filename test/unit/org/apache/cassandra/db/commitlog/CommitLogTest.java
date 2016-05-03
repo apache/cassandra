@@ -277,7 +277,7 @@ public class CommitLogTest
 
         // "Flush": this won't delete anything
         UUID cfid1 = rm.getColumnFamilyIds().iterator().next();
-        CommitLog.instance.sync(true);
+        CommitLog.instance.sync();
         CommitLog.instance.discardCompletedSegments(cfid1, CommitLog.instance.getCurrentPosition());
 
         assertEquals(1, CommitLog.instance.segmentManager.getActiveSegments().size());
@@ -594,7 +594,7 @@ public class CommitLogTest
         cellCount += 1;
         CommitLog.instance.add(rm2);
 
-        CommitLog.instance.sync(true);
+        CommitLog.instance.sync();
 
         SimpleCountingReplayer replayer = new SimpleCountingReplayer(CommitLog.instance, CommitLogPosition.NONE, cfs.metadata);
         List<String> activeSegments = CommitLog.instance.getActiveSegmentNames();
@@ -631,7 +631,7 @@ public class CommitLogTest
             }
         }
 
-        CommitLog.instance.sync(true);
+        CommitLog.instance.sync();
 
         SimpleCountingReplayer replayer = new SimpleCountingReplayer(CommitLog.instance, commitLogPosition, cfs.metadata);
         List<String> activeSegments = CommitLog.instance.getActiveSegmentNames();
@@ -661,6 +661,10 @@ public class CommitLogTest
         @Override
         public void handleMutation(Mutation m, int size, int entryLocation, CommitLogDescriptor desc)
         {
+            // Filter out system writes that could flake the test.
+            if (!KEYSPACE1.equals(m.getKeyspaceName()))
+                return;
+
             if (entryLocation <= filterPosition.position)
             {
                 // Skip over this mutation.

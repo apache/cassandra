@@ -530,7 +530,7 @@ public class Util
     public static void spinAssertEquals(Object expected, Supplier<Object> s, int timeoutInSeconds)
     {
         long now = System.currentTimeMillis();
-        while (System.currentTimeMillis() - now < now + (1000 * timeoutInSeconds))
+        while (System.currentTimeMillis() < now + (1000 * timeoutInSeconds))
         {
             if (s.get().equals(expected))
                 break;

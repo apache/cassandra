@@ -29,8 +29,6 @@ import java.util.concurrent.atomic.AtomicInteger;
 import java.util.zip.CRC32;
 
 import org.cliffc.high_scale_lib.NonBlockingHashMap;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
 
 import com.codahale.metrics.Timer;
 import org.apache.cassandra.config.*;
@@ -38,6 +36,7 @@ import org.apache.cassandra.db.Mutation;
 import org.apache.cassandra.db.commitlog.CommitLog.Configuration;
 import org.apache.cassandra.db.partitions.PartitionUpdate;
 import org.apache.cassandra.io.FSWriteError;
+import org.apache.cassandra.io.util.FileUtils;
 import org.apache.cassandra.utils.CLibrary;
 import org.apache.cassandra.utils.concurrent.OpOrder;
 import org.apache.cassandra.utils.concurrent.WaitQueue;
@@ -51,8 +50,6 @@ import static org.apache.cassandra.utils.FBUtilities.updateChecksumInt;
  */
 public abstract class CommitLogSegment
 {
-    private static final Logger logger = LoggerFactory.getLogger(CommitLogSegment.class);
-
     private final static long idBase;
 
     private CDCState cdcState = CDCState.PERMITTED;
@@ -117,14 +114,13 @@ public abstract class CommitLogSegment
     ByteBuffer buffer;
     private volatile boolean headerWritten;
 
-    final CommitLog commitLog;
     public final CommitLogDescriptor descriptor;
 
-    static CommitLogSegment createSegment(CommitLog commitLog, AbstractCommitLogSegmentManager manager, Runnable onClose)
+    static CommitLogSegment createSegment(CommitLog commitLog, AbstractCommitLogSegmentManager manager)
     {
         Configuration config = commitLog.configuration;
-        CommitLogSegment segment = config.useEncryption() ? new EncryptedSegment(commitLog, manager, onClose)
-                                                          : config.useCompression() ? new CompressedSegment(commitLog, manager, onClose)
+        CommitLogSegment segment = config.useEncryption() ? new EncryptedSegment(commitLog, manager)
+                                                          : config.useCompression() ? new CompressedSegment(commitLog, manager)
                                                                                     : new MemoryMappedSegment(commitLog, manager);
         segment.writeLogHeader();
         return segment;
@@ -152,7 +148,6 @@ public abstract class CommitLogSegment
      */
     CommitLogSegment(CommitLog commitLog, AbstractCommitLogSegmentManager manager)
     {
-        this.commitLog = commitLog;
         this.manager = manager;
 
         id = getNextId();
@@ -367,6 +362,18 @@ public abstract class CommitLogSegment
     public boolean isStillAllocating()
     {
         return allocatePosition.get() < endOfBuffer;
+    }
+
+    /**
+     * Discards a segment file when the log no longer requires it. The file may be left on disk if the archive script
+     * requires it. (Potentially blocking operation)
+     */
+    void discard(boolean deleteFile)
+    {
+        close();
+        if (deleteFile)
+            FileUtils.deleteWithConfirm(logFile);
+        manager.addSize(-onDiskSize());
     }
 
     /**

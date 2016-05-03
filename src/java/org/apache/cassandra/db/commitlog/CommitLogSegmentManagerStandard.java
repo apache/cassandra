@@ -39,15 +39,6 @@ public class CommitLogSegmentManagerStandard extends AbstractCommitLogSegmentMan
     }
 
     /**
-     * Initiates the shutdown process for the management thread.
-     */
-    public void shutdown()
-    {
-        run = false;
-        wakeManager();
-    }
-
-    /**
      * Reserve space in the current segment for the provided mutation or, if there isn't space available,
      * create a new segment. allocate() is blocking until allocation succeeds as it waits on a signal in advanceAllocatingFrom
      *
@@ -64,7 +55,7 @@ public class CommitLogSegmentManagerStandard extends AbstractCommitLogSegmentMan
         {
             // failed to allocate, so move to a new segment with enough room
             advanceAllocatingFrom(segment);
-            segment = allocatingFrom;
+            segment = allocatingFrom();
         }
 
         return alloc;
@@ -84,6 +75,6 @@ public class CommitLogSegmentManagerStandard extends AbstractCommitLogSegmentMan
 
     public CommitLogSegment createSegment()
     {
-        return CommitLogSegment.createSegment(commitLog, this, () -> wakeManager());
+        return CommitLogSegment.createSegment(commitLog, this);
     }
 }

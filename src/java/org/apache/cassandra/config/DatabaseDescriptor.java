@@ -1442,6 +1442,11 @@ public class DatabaseDescriptor
         return conf.commitlog_max_compression_buffers_in_pool;
     }
 
+    public static void setCommitLogMaxCompressionBuffersPerPool(int buffers)
+    {
+        conf.commitlog_max_compression_buffers_in_pool = buffers;
+    }
+
     public static int getMaxMutationSize()
     {
         return conf.max_mutation_size_in_kb * 1024;

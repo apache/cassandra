@@ -42,6 +42,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import com.google.common.base.Strings;
+import com.google.common.base.Throwables;
 
 public class CommitLogArchiver
 {
@@ -151,22 +152,32 @@ public class CommitLogArchiver
 
     /**
      * Differs from the above because it can be used on any file, rather than only
-     * managed commit log segments (and thus cannot call waitForFinalSync).
+     * managed commit log segments (and thus cannot call waitForFinalSync), and in
+     * the treatment of failures.
      *
-     * Used to archive files present in the commit log directory at startup (CASSANDRA-6904)
+     * Used to archive files present in the commit log directory at startup (CASSANDRA-6904).
+     * Since the files being already archived by normal operation could cause subsequent
+     * hard-linking or other operations to fail, we should not throw errors on failure
      */
     public void maybeArchive(final String path, final String name)
     {
         if (Strings.isNullOrEmpty(archiveCommand))
             return;
 
-        archivePending.put(name, executor.submit(new WrappedRunnable()
+        archivePending.put(name, executor.submit(new Runnable()
         {
-            protected void runMayThrow() throws IOException
+            public void run()
             {
-                String command = NAME.matcher(archiveCommand).replaceAll(Matcher.quoteReplacement(name));
-                command = PATH.matcher(command).replaceAll(Matcher.quoteReplacement(path));
-                exec(command);
+                try
+                {
+                    String command = NAME.matcher(archiveCommand).replaceAll(Matcher.quoteReplacement(name));
+                    command = PATH.matcher(command).replaceAll(Matcher.quoteReplacement(path));
+                    exec(command);
+                }
+                catch (IOException e)
+                {
+                    logger.warn("Archiving file {} failed, file may have already been archived.", name, e);
+                }
             }
         }));
     }

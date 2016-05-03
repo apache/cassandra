@@ -53,8 +53,8 @@ public class CommitLogSegmentManagerCDC extends AbstractCommitLogSegmentManager
     @Override
     void start()
     {
-        super.start();
         cdcSizeTracker.start();
+        super.start();
     }
 
     public void discard(CommitLogSegment segment, boolean delete)
@@ -78,9 +78,8 @@ public class CommitLogSegmentManagerCDC extends AbstractCommitLogSegmentManager
      */
     public void shutdown()
     {
-        run = false;
         cdcSizeTracker.shutdown();
-        wakeManager();
+        super.shutdown();
     }
 
     /**
@@ -103,7 +102,7 @@ public class CommitLogSegmentManagerCDC extends AbstractCommitLogSegmentManager
         {
             // Failed to allocate, so move to a new segment with enough room if possible.
             advanceAllocatingFrom(segment);
-            segment = allocatingFrom;
+            segment = allocatingFrom();
 
             throwIfForbidden(mutation, segment);
         }
@@ -146,7 +145,7 @@ public class CommitLogSegmentManagerCDC extends AbstractCommitLogSegmentManager
      */
     public CommitLogSegment createSegment()
     {
-        CommitLogSegment segment = CommitLogSegment.createSegment(commitLog, this, () -> wakeManager());
+        CommitLogSegment segment = CommitLogSegment.createSegment(commitLog, this);
         cdcSizeTracker.processNewSegment(segment);
         return segment;
     }
@@ -179,6 +178,8 @@ public class CommitLogSegmentManagerCDC extends AbstractCommitLogSegmentManager
          */
         public void start()
         {
+            size = 0;
+            unflushedCDCSize = 0;
             cdcSizeCalculationExecutor = new ThreadPoolExecutor(1, 1, 1000, TimeUnit.SECONDS, new SynchronousQueue<>(), new ThreadPoolExecutor.DiscardPolicy());
         }
 
@@ -245,7 +246,7 @@ public class CommitLogSegmentManagerCDC extends AbstractCommitLogSegmentManager
         {
             rateLimiter.acquire();
             calculateSize();
-            CommitLogSegment allocatingFrom = segmentManager.allocatingFrom;
+            CommitLogSegment allocatingFrom = segmentManager.allocatingFrom();
             if (allocatingFrom.getCDCState() == CDCState.FORBIDDEN)
                 processNewSegment(allocatingFrom);
         }

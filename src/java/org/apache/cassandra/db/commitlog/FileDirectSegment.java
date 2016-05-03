@@ -29,12 +29,10 @@ import org.apache.cassandra.io.FSWriteError;
 public abstract class FileDirectSegment extends CommitLogSegment
 {
     volatile long lastWrittenPos = 0;
-    private final Runnable onClose;
 
-    FileDirectSegment(CommitLog commitLog, AbstractCommitLogSegmentManager manager, Runnable onClose)
+    FileDirectSegment(CommitLog commitLog, AbstractCommitLogSegmentManager manager)
     {
         super(commitLog, manager);
-        this.onClose = onClose;
     }
 
     @Override
@@ -62,7 +60,7 @@ public abstract class FileDirectSegment extends CommitLogSegment
         }
         finally
         {
-            onClose.run();
+            manager.notifyBufferFreed();
         }
     }
 }
