@@ -27,7 +27,7 @@ public interface ExecutorLocal<T>
     ExecutorLocal[] all = { Tracing.instance, ClientWarn.instance };
 
     /**
-     * This is called when scheduling the task, and also before calling {@link ExecutorLocal#set(T)} when running on a
+     * This is called when scheduling the task, and also before calling {@link #set(Object)} when running on a
      * executor thread.
      *
      * @return The thread-local value that we want to copy across executor boundaries; may be null if not set.

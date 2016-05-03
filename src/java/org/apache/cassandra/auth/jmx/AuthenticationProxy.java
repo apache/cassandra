@@ -76,7 +76,7 @@ public final class AuthenticationProxy implements JMXAuthenticator
      *
      * @param credentials optionally these credentials may be supplied by the JMX user.
      *                    Out of the box, the JDK's {@code}RMIServerImpl{@code} is capable
-     *                    of supplying a two element String[], containing username & password.
+     *                    of supplying a two element String[], containing username and password.
      *                    If present, these credentials will be made available to configured
      *                    {@code}LoginModule{@code}s via {@code}JMXCallbackHandler{@code}.
      *

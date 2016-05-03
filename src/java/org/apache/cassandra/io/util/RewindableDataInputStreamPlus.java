@@ -33,19 +33,19 @@ import static org.apache.cassandra.utils.Throwables.merge;
  * Adds mark/reset functionality to another input stream by caching read bytes to a memory buffer and
  * spilling to disk if necessary.
  *
- * When the stream is marked via {@link this#mark()} or {@link this#mark(int)}, up to
+ * When the stream is marked via {@link #mark()} or {@link #mark(int)}, up to
  * <code>maxMemBufferSize</code> will be cached in memory (heap). If more than
  * <code>maxMemBufferSize</code> bytes are read while the stream is marked, the
  * following bytes are cached on the <code>spillFile</code> for up to <code>maxDiskBufferSize</code>.
  *
- * Please note that successive calls to {@link this#mark()} and {@link this#reset()} will write
+ * Please note that successive calls to {@link #mark()} and {@link #reset()} will write
  * sequentially to the same <code>spillFile</code> until <code>maxDiskBufferSize</code> is reached.
  * At this point, if less than <code>maxDiskBufferSize</code> bytes are currently cached on the
  * <code>spillFile</code>, the remaining bytes are written to the beginning of the file,
  * treating the <code>spillFile</code> as a circular buffer.
  *
  * If more than <code>maxMemBufferSize + maxDiskBufferSize</code> are cached while the stream is marked,
- * the following {@link this#reset()} invocation will throw a {@link IllegalStateException}.
+ * the following {@link #reset()} invocation will throw a {@link IllegalStateException}.
  *
  */
 public class RewindableDataInputStreamPlus extends FilterInputStream implements RewindableDataInput, Closeable
@@ -83,7 +83,7 @@ public class RewindableDataInputStreamPlus extends FilterInputStream implements 
     /* RewindableDataInput methods */
 
     /**
-     * Marks the current position of a stream to return to this position later via the {@link this#reset(DataPosition)} method.
+     * Marks the current position of a stream to return to this position later via the {@link #reset(DataPosition)} method.
      * @return An empty @link{DataPosition} object
      */
     public DataPosition mark()
@@ -93,7 +93,7 @@ public class RewindableDataInputStreamPlus extends FilterInputStream implements 
     }
 
     /**
-     * Rewinds to the previously marked position via the {@link this#mark()} method.
+     * Rewinds to the previously marked position via the {@link #mark()} method.
      * @param mark it's not possible to return to a custom position, so this parameter is ignored.
      * @throws IOException if an error ocurs while resetting
      */
@@ -121,7 +121,7 @@ public class RewindableDataInputStreamPlus extends FilterInputStream implements 
 
     /**
      * Marks the current position of a stream to return to this position
-     * later via the {@link this#reset()} method.
+     * later via the {@link #reset()} method.
      * @param readlimit the maximum amount of bytes to cache
      */
     public synchronized void mark(int readlimit)

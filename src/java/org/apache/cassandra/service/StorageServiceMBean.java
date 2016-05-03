@@ -194,19 +194,19 @@ public interface StorageServiceMBean extends NotificationEmitter
     public List<InetAddress> getNaturalEndpoints(String keyspaceName, ByteBuffer key);
 
     /**
-     * @deprecated use {@link #takeSnapshot(String tag, Map options, boolean keyspaces, String... entities)} instead.
+     * @deprecated use {@link #takeSnapshot(String tag, Map options, String... entities)} instead.
      */
     @Deprecated
     public void takeSnapshot(String tag, String... keyspaceNames) throws IOException;
 
     /**
-     * @deprecated use {@link #takeSnapshot(String tag, Map options, boolean keyspaces, String... entities)} instead.
+     * @deprecated use {@link #takeSnapshot(String tag, Map options, String... entities)} instead.
      */
     @Deprecated
     public void takeTableSnapshot(String keyspaceName, String tableName, String tag) throws IOException;
 
     /**
-     * @deprecated use {@link #takeSnapshot(String tag, Map options, boolean keyspaces, String... entities)} instead.
+     * @deprecated use {@link #takeSnapshot(String tag, Map options, String... entities)} instead.
      */
     @Deprecated
     public void takeMultipleTableSnapshot(String tag, String... tableList) throws IOException;

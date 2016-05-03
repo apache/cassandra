@@ -45,8 +45,8 @@ import org.slf4j.LoggerFactory;
  * manager is initialized.
  *
  * The main purposes of the manager are to provide a single location for updates to be vetted to see whether they update
- * any views {@link ViewManager#updatesAffectView(Collection, boolean)}, provide locks to prevent multiple
- * updates from creating incoherent updates in the view {@link ViewManager#acquireLockFor(ByteBuffer)}, and
+ * any views {@link #updatesAffectView(Collection, boolean)}, provide locks to prevent multiple
+ * updates from creating incoherent updates in the view {@link #acquireLockFor(int)}, and
  * to affect change on the view.
  */
 public class ViewManager

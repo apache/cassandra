@@ -23,7 +23,7 @@ import org.apache.cassandra.db.*;
 /**
  * Interface that allows to act on the result of merging multiple rows.
  *
- * More precisely, given N rows and the result of merging them, one can call {@link Rows#diff()}
+ * More precisely, given N rows and the result of merging them, one can call {@link Rows#diff(RowDiffListener, Row, Row...)}
  * with a {@code RowDiffListener} and that listener will be informed for each input row of the diff between
  * that input and merge row.
  */

@@ -711,7 +711,7 @@ public class Gossiper implements IFailureDetectionEventListener, GossiperMBean
     /**
      * Check if this node can safely be started and join the ring.
      * If the node is bootstrapping, examines gossip state for any previous status to decide whether
-     * it's safe to allow this node to start & bootstrap. If not bootstrapping, compares the host ID
+     * it's safe to allow this node to start and bootstrap. If not bootstrapping, compares the host ID
      * that the node itself has (obtained by reading from system.local or generated if not present)
      * with the host ID obtained from gossip for the endpoint address (if any). This latter case
      * prevents a non-bootstrapping, new node from being started with the same address of a
