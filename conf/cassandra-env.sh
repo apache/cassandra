@@ -99,7 +99,7 @@ if [ "$JVM_VERSION" \< "1.7" ] ; then
     exit 1;
 fi
 
-if [ "$JVM_VERSION" \< "1.8" ] && [ "$JVM_PATCH_VERSION" \< "25" ] ; then
+if [ "$JVM_VERSION" \< "1.8" ] && [ "$JVM_PATCH_VERSION" -lt 25 ] ; then
     echo "Cassandra 2.0 and later require Java 7u25 or later."
     exit 1;
 fi
