@@ -1,4 +1,5 @@
 2.2.8
+ * cqlsh copy: fixed possible race in initializing feeding thread (CASSANDRA-11701)
  * Only set broadcast_rpc_address on Ec2MultiRegionSnitch if it's not set (CASSANDRA-11357)
  * Update StorageProxy range metrics for timeouts, failures and unavailables (CASSANDRA-9507)
  * Add Sigar to classes included in clientutil.jar (CASSANDRA-11635)
