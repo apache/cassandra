@@ -151,7 +151,7 @@ public class ActiveRepairService
                 gossiper.unregister(session);
                 sessions.remove(session.getId());
             }
-        }, MoreExecutors.sameThreadExecutor());
+        }, MoreExecutors.directExecutor());
         session.start(executor);
         return session;
     }
@@ -401,7 +401,7 @@ public class ActiveRepairService
             {
                 removeParentRepairSession(parentRepairSession);
             }
-        }, MoreExecutors.sameThreadExecutor());
+        }, MoreExecutors.directExecutor());
 
         return allAntiCompactionResults;
     }

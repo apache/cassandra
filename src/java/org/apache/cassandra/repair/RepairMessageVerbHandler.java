@@ -154,7 +154,7 @@ public class RepairMessageVerbHandler implements IVerbHandler<RepairMessage>
                         {
                             MessagingService.instance().sendReply(new MessageOut(MessagingService.Verb.INTERNAL_RESPONSE), id, message.from);
                         }
-                    }, MoreExecutors.sameThreadExecutor());
+                    }, MoreExecutors.directExecutor());
                     break;
 
                 case CLEANUP:
