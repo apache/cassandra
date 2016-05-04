@@ -811,7 +811,7 @@ public abstract class Slices implements Iterable<Slice>
 
         public Iterator<Slice> iterator()
         {
-            return Iterators.emptyIterator();
+            return Collections.emptyIterator();
         }
 
         @Override

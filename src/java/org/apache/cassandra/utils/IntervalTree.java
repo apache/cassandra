@@ -114,7 +114,7 @@ public class IntervalTree<C extends Comparable<? super C>, D, I extends Interval
     public Iterator<I> iterator()
     {
         if (head == null)
-            return Iterators.<I>emptyIterator();
+            return Collections.emptyIterator();
 
         return new TreeIterator(head);
     }
