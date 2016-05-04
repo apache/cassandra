@@ -1941,8 +1941,8 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
                 for (SSTableReader reader : view.sstables)
                     if (reader.selfRef().globalCount() == 0)
                         released.add(reader);
-                logger.info("Spinning trying to capture released readers {}", released);
-                logger.info("Spinning trying to capture all readers {}", view.sstables);
+                NoSpamLogger.log(logger, NoSpamLogger.Level.WARN, 1, TimeUnit.SECONDS,
+                                 "Spinning trying to capture readers {}, released: {}, ", view.sstables, released);
                 failingSince = System.nanoTime();
             }
         }
