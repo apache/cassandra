@@ -20,6 +20,7 @@ package org.apache.cassandra.cql3.selection;
 import java.nio.ByteBuffer;
 import java.util.*;
 
+import com.google.common.base.MoreObjects;
 import com.google.common.base.Objects;
 import com.google.common.base.Predicate;
 import com.google.common.collect.Iterables;
@@ -248,13 +249,13 @@ public abstract class Selection
     @Override
     public String toString()
     {
-        return Objects.toStringHelper(this)
-                .add("columns", columns)
-                .add("columnMapping", columnMapping)
-                .add("metadata", metadata)
-                .add("collectTimestamps", collectTimestamps)
-                .add("collectTTLs", collectTTLs)
-                .toString();
+        return MoreObjects.toStringHelper(this)
+                          .add("columns", columns)
+                          .add("columnMapping", columnMapping)
+                          .add("metadata", metadata)
+                          .add("collectTimestamps", collectTimestamps)
+                          .add("collectTTLs", collectTTLs)
+                          .toString();
     }
 
     public static List<ByteBuffer> rowToJson(List<ByteBuffer> row, int protocolVersion, ResultSet.ResultMetadata metadata)

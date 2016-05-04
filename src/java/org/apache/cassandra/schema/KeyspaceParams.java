@@ -19,6 +19,7 @@ package org.apache.cassandra.schema;
 
 import java.util.Map;
 
+import com.google.common.base.MoreObjects;
 import com.google.common.base.Objects;
 
 /**
@@ -102,9 +103,9 @@ public final class KeyspaceParams
     @Override
     public String toString()
     {
-        return Objects.toStringHelper(this)
-                      .add(Option.DURABLE_WRITES.toString(), durableWrites)
-                      .add(Option.REPLICATION.toString(), replication)
-                      .toString();
+        return MoreObjects.toStringHelper(this)
+                          .add(Option.DURABLE_WRITES.toString(), durableWrites)
+                          .add(Option.REPLICATION.toString(), replication)
+                          .toString();
     }
 }

@@ -22,6 +22,7 @@ import java.util.*;
 
 import com.google.common.annotations.VisibleForTesting;
 import com.google.common.base.Function;
+import com.google.common.base.MoreObjects;
 import com.google.common.base.Objects;
 import com.google.common.collect.Collections2;
 
@@ -282,12 +283,12 @@ public class ColumnDefinition extends ColumnSpecification implements Comparable<
     @Override
     public String toString()
     {
-        return Objects.toStringHelper(this)
-                      .add("name", name)
-                      .add("type", type)
-                      .add("kind", kind)
-                      .add("position", position)
-                      .toString();
+        return MoreObjects.toStringHelper(this)
+                          .add("name", name)
+                          .add("type", type)
+                          .add("kind", kind)
+                          .add("position", position)
+                          .toString();
     }
 
     public boolean isPrimaryKeyColumn()

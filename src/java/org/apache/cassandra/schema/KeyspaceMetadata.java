@@ -23,6 +23,7 @@ import java.util.Set;
 
 import javax.annotation.Nullable;
 
+import com.google.common.base.MoreObjects;
 import com.google.common.base.Objects;
 import com.google.common.collect.Iterables;
 
@@ -154,14 +155,14 @@ public final class KeyspaceMetadata
     @Override
     public String toString()
     {
-        return Objects.toStringHelper(this)
-                      .add("name", name)
-                      .add("params", params)
-                      .add("tables", tables)
-                      .add("views", views)
-                      .add("functions", functions)
-                      .add("types", types)
-                      .toString();
+        return MoreObjects.toStringHelper(this)
+                          .add("name", name)
+                          .add("params", params)
+                          .add("tables", tables)
+                          .add("views", views)
+                          .add("functions", functions)
+                          .add("types", types)
+                          .toString();
     }
 
     public void validate()
