@@ -54,7 +54,10 @@ public final class JVMStabilityInspector
     {
         boolean isUnstable = false;
         if (t instanceof OutOfMemoryError)
+        {
             isUnstable = true;
+            HeapUtils.generateHeapDump();
+        }
 
         if (DatabaseDescriptor.getDiskFailurePolicy() == Config.DiskFailurePolicy.die)
             if (t instanceof FSError || t instanceof CorruptSSTableException)
