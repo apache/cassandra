@@ -128,7 +128,7 @@ public class CassandraDaemon
         }
         catch (IOException e)
         {
-            logger.error("Error starting JMX server: ", e);
+            exitOrFail(1, e.getMessage(), e.getCause());
         }
     }
 
