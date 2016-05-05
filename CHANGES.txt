@@ -1,4 +1,5 @@
 2.2.7
+ * cqlsh: correctly handle non-ascii chars in error messages (CASSANDRA-11626)
  * Exit JVM if JMX server fails to startup (CASSANDRA-11540)
  * Produce a heap dump when exiting on OOM (CASSANDRA-9861)
  * Avoid read repairing purgeable tombstones on range slices (CASSANDRA-11427)

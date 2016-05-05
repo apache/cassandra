@@ -76,8 +76,9 @@ def printdebugmsg(msg):
         printmsg(msg)
 
 
-def printmsg(msg, eol='\n'):
-    sys.stdout.write(msg + eol)
+def printmsg(msg, eol='\n', encoding='utf8'):
+    sys.stdout.write(msg.encode(encoding))
+    sys.stdout.write(eol)
     sys.stdout.flush()
 
 
@@ -219,6 +220,7 @@ class CopyTask(object):
         self.options = self.parse_options(opts, direction)
 
         self.num_processes = self.options.copy['numprocesses']
+        self.encoding = self.options.copy['encoding']
         self.printmsg('Using %d child processes' % (self.num_processes,))
 
         if direction == 'from':
@@ -595,7 +597,8 @@ class ExportTask(CopyTask):
         if not self.writer.open():
             return 0
 
-        self.printmsg("\nStarting copy of %s.%s with columns %s." % (self.ks, self.table, self.columns))
+        columns = u"[" + u", ".join(self.columns) + u"]"
+        self.printmsg(u"\nStarting copy of %s.%s with columns %s." % (self.ks, self.table, columns), encoding=self.encoding)
 
         params = self.make_params()
         for i in xrange(self.num_processes):
@@ -1087,7 +1090,8 @@ class ImportTask(CopyTask):
         if not self.validate_columns():
             return 0
 
-        self.printmsg("\nStarting copy of %s.%s with columns %s." % (self.ks, self.table, self.valid_columns))
+        columns = u"[" + u", ".join(self.valid_columns) + u"]"
+        self.printmsg(u"\nStarting copy of %s.%s with columns %s." % (self.ks, self.table, columns), encoding=self.encoding)
 
         try:
             params = self.make_params()
@@ -1109,7 +1113,7 @@ class ImportTask(CopyTask):
                 profile_off(pr, file_name='parent_profile_%d.txt' % (os.getpid(),))
 
         except Exception, exc:
-            shell.printerr(str(exc))
+            shell.printerr(unicode(exc))
             if shell.debug:
                 traceback.print_exc()
             return 0
@@ -1452,7 +1456,7 @@ class ExportProcess(ChildProcess):
             if print_traceback and sys.exc_info()[1] == err:
                 traceback.print_exc()
         else:
-            msg = str(err)
+            msg = unicode(err)
         return msg
 
     def report_error(self, err, token_range):
