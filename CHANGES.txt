@@ -1,5 +1,6 @@
 2.1.16
  * Reduce contention getting instances of CompositeType (CASSANDRA-10433)
+ * Improve digest calculation in the presence of overlapping tombstones (CASSANDRA-11349)
 
 2.1.15
  * Account for partition deletions in tombstone histogram (CASSANDRA-12112)
