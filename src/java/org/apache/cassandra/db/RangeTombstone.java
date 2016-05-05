@@ -152,7 +152,7 @@ public class RangeTombstone extends Interval<Composite, DeletionTime> implements
          * @return the total serialized size of said tombstones and write them to
          * {@code out} it if isn't null.
          */
-        public long writeOpenedMarkers(Composite startPos, DataOutputPlus out, OnDiskAtom.Serializer atomSerializer) throws IOException
+        public long writeOpenedMarkers(Composite startPos, DataOutputPlus out, OnDiskAtom.SerializerForWriting atomSerializer) throws IOException
         {
             long size = 0;
 
@@ -172,7 +172,7 @@ public class RangeTombstone extends Interval<Composite, DeletionTime> implements
          *
          * @return the serialized size of written tombstones
          */
-        public long writeUnwrittenTombstones(DataOutputPlus out, OnDiskAtom.Serializer atomSerializer) throws IOException
+        public long writeUnwrittenTombstones(DataOutputPlus out, OnDiskAtom.SerializerForWriting atomSerializer) throws IOException
         {
             long size = 0;
             for (RangeTombstone rt : unwrittenTombstones)
@@ -183,7 +183,7 @@ public class RangeTombstone extends Interval<Composite, DeletionTime> implements
             return size;
         }
 
-        private long writeTombstone(RangeTombstone rt, DataOutputPlus out, OnDiskAtom.Serializer atomSerializer)
+        private long writeTombstone(RangeTombstone rt, DataOutputPlus out, OnDiskAtom.SerializerForWriting atomSerializer)
                 throws IOException
         {
             long size = atomSerializer.serializedSizeForSSTable(rt);
