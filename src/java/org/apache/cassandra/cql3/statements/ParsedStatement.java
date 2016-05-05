@@ -48,6 +48,14 @@ public abstract class ParsedStatement
 
     public static class Prepared
     {
+        /**
+         * Contains the CQL statement source if the statement has been "regularly" perpared via
+         * {@link org.apache.cassandra.cql3.QueryProcessor#prepare(java.lang.String, org.apache.cassandra.service.ClientState, boolean)} /
+         * {@link QueryHandler#prepare(java.lang.String, org.apache.cassandra.service.QueryState, java.util.Map)}.
+         * Other usages of this class may or may not contain the CQL statement source.
+         */
+        public String rawCQLStatement;
+
         public final CQLStatement statement;
         public final List<ColumnSpecification> boundNames;
         public final Short[] partitionKeyBindIndexes;
@@ -57,6 +65,7 @@ public abstract class ParsedStatement
             this.statement = statement;
             this.boundNames = boundNames;
             this.partitionKeyBindIndexes = partitionKeyBindIndexes;
+            this.rawCQLStatement = "";
         }
 
         public Prepared(CQLStatement statement, VariableSpecifications names, Short[] partitionKeyBindIndexes)

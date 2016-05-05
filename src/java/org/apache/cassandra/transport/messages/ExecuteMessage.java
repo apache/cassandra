@@ -119,6 +119,7 @@ public class ExecuteMessage extends Message.Request
                     builder.put("consistency_level", options.getConsistency().name());
                 if(options.getSerialConsistency() != null)
                     builder.put("serial_consistency_level", options.getSerialConsistency().name());
+                builder.put("query", prepared.rawCQLStatement);
 
                 // TODO we don't have [typed] access to CQL bind variables here.  CASSANDRA-4560 is open to add support.
                 Tracing.instance.begin("Execute CQL3 prepared query", state.getClientAddress(), builder.build());
