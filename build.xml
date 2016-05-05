@@ -401,7 +401,7 @@
           <dependency groupId="io.netty" artifactId="netty-all" version="4.0.23.Final" />
           <dependency groupId="com.google.code.findbugs" artifactId="jsr305" version="2.0.2" />
           <dependency groupId="com.clearspring.analytics" artifactId="stream" version="2.5.2" />
-          <dependency groupId="com.datastax.cassandra" artifactId="cassandra-driver-core" version="3.0.0" classifier="shaded" />
+          <dependency groupId="com.datastax.cassandra" artifactId="cassandra-driver-core" version="3.0.1" classifier="shaded" />
           <dependency groupId="org.eclipse.jdt.core.compiler" artifactId="ecj" version="4.4.2" />
           <dependency groupId="org.caffinitas.ohc" artifactId="ohc-core" version="0.4.3" />
           <dependency groupId="org.caffinitas.ohc" artifactId="ohc-core-j8" version="0.4.3" />

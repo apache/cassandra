@@ -1,6 +1,7 @@
 3.0.7
  * Refactor Materialized View code (CASSANDRA-11475)
-
+ * Update Java Driver (CASSANDRA-11615)
+ 
 3.0.6
  * Disallow creating view with a static column (CASSANDRA-11602)
  * Reduce the amount of object allocations caused by the getFunctions methods (CASSANDRA-11593)
