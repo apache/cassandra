@@ -1,6 +1,12 @@
 3.8
  * Faster streaming (CASSANDRA-9766)
 
+
+3.7
+Merged from 2.2:
+ * cqlsh: correctly handle non-ascii chars in error messages (CASSANDRA-11626)
+
+
 3.6
  * Enhanced Compaction Logging (CASSANDRA-10805)
  * Make prepared statement cache size configurable (CASSANDRA-11555)
