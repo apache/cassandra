@@ -186,4 +186,14 @@ public class CountersTest extends CQLTester
                                  "SELECT * FROM %s WHERE b = null ALLOW FILTERING");
         }
     }
+
+    /**
+     * Test for the validation bug of #9395.
+     */
+    @Test
+    public void testProhibitReversedCounterAsPartOfPrimaryKey() throws Throwable
+    {
+        assertInvalidThrowMessage("counter type is not supported for PRIMARY KEY part a",
+                                  InvalidRequestException.class, String.format("CREATE TABLE %s.%s (a counter, b int, PRIMARY KEY (b, a)) WITH CLUSTERING ORDER BY (a desc);", KEYSPACE, createTableName()));
+    }
 }
