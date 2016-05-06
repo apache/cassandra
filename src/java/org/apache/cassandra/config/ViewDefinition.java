@@ -37,7 +37,6 @@ public class ViewDefinition
     public final UUID baseTableId;
     public final String baseTableName;
     public final boolean includeAllColumns;
-    // The order of partititon columns and clustering columns is important, so we cannot switch these two to sets
     public final CFMetaData metadata;
 
     public SelectStatement.RawStatement select;

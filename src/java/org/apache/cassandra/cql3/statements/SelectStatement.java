@@ -159,6 +159,15 @@ public class SelectStatement implements CQLStatement
         return builder.build();
     }
 
+    /**
+     * The columns to fetch internally for this SELECT statement (which can be more than the one selected by the
+     * user as it also include any restricted column in particular).
+     */
+    public ColumnFilter queriedColumns()
+    {
+        return queriedColumns;
+    }
+
     // Creates a simple select based on the given selection.
     // Note that the results select statement should not be used for actual queries, but only for processing already
     // queried data through processColumnFamily.
@@ -484,7 +493,29 @@ public class SelectStatement implements CQLStatement
     }
 
     /**
-     * Returns a read command that can be used internally to filter individual rows for materialized views.
+     * Returns the slices fetched by this SELECT, assuming an internal call (no bound values in particular).
+     * <p>
+     * Note that if the SELECT intrinsically selects rows by names, we convert them into equivalent slices for
+     * the purpose of this method. This is used for MVs to restrict what needs to be read when we want to read
+     * everything that could be affected by a given view (and so, if the view SELECT statement has restrictions
+     * on the clustering columns, we can restrict what we read).
+     */
+    public Slices clusteringIndexFilterAsSlices()
+    {
+        QueryOptions options = QueryOptions.forInternalCalls(Collections.emptyList());
+        ClusteringIndexFilter filter = makeClusteringIndexFilter(options);
+        if (filter instanceof ClusteringIndexSliceFilter)
+            return ((ClusteringIndexSliceFilter)filter).requestedSlices();
+
+        Slices.Builder builder = new Slices.Builder(cfm.comparator);
+        for (Clustering clustering: ((ClusteringIndexNamesFilter)filter).requestedRows())
+            builder.add(Slice.make(clustering));
+        return builder.build();
+    }
+
+    /**
+     * Returns a read command that can be used internally to query all the rows queried by this SELECT for a
+     * give key (used for materialized views).
      */
     public SinglePartitionReadCommand internalReadForView(DecoratedKey key, int nowInSec)
     {
@@ -492,6 +523,14 @@ public class SelectStatement implements CQLStatement
         ClusteringIndexFilter filter = makeClusteringIndexFilter(options);
         RowFilter rowFilter = getRowFilter(options);
         return SinglePartitionReadCommand.create(cfm, nowInSec, queriedColumns, rowFilter, DataLimits.NONE, key, filter);
+    }
+
+    /**
+     * The {@code RowFilter} for this SELECT, assuming an internal call (no bound values in particular).
+     */
+    public RowFilter rowFilterForInternalCalls()
+    {
+        return getRowFilter(QueryOptions.forInternalCalls(Collections.emptyList()));
     }
 
     private ReadQuery getRangeCommand(QueryOptions options, DataLimits limit, int nowInSec) throws RequestValidationException

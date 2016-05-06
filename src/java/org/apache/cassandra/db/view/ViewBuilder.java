@@ -19,6 +19,7 @@
 package org.apache.cassandra.db.view;
 
 import java.util.Collection;
+import java.util.Collections;
 import java.util.UUID;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicLong;
@@ -35,9 +36,8 @@ import org.apache.cassandra.db.compaction.CompactionInfo;
 import org.apache.cassandra.db.compaction.CompactionManager;
 import org.apache.cassandra.db.compaction.OperationType;
 import org.apache.cassandra.db.lifecycle.SSTableSet;
-import org.apache.cassandra.db.partitions.FilteredPartition;
-import org.apache.cassandra.db.partitions.PartitionIterator;
-import org.apache.cassandra.db.rows.RowIterator;
+import org.apache.cassandra.db.partitions.*;
+import org.apache.cassandra.db.rows.*;
 import org.apache.cassandra.dht.Range;
 import org.apache.cassandra.dht.Token;
 import org.apache.cassandra.io.sstable.ReducingKeyIterator;
@@ -77,28 +77,22 @@ public class ViewBuilder extends CompactionInfo.Holder
         if (!selectQuery.selectsKey(key))
             return;
 
-        QueryPager pager = view.getSelectStatement().internalReadForView(key, FBUtilities.nowInSeconds()).getPager(null, Server.CURRENT_VERSION);
+        int nowInSec = FBUtilities.nowInSeconds();
+        SinglePartitionReadCommand command = view.getSelectStatement().internalReadForView(key, nowInSec);
 
-        while (!pager.isExhausted())
+        // We're rebuilding everything from what's on disk, so we read everything, consider that as new updates
+        // and pretend that there is nothing pre-existing.
+        UnfilteredRowIterator empty = UnfilteredRowIterators.noRowsIterator(baseCfs.metadata, key, Rows.EMPTY_STATIC_ROW, DeletionTime.LIVE, false);
+
+        Collection<Mutation> mutations;
+        try (ReadExecutionController orderGroup = command.executionController();
+             UnfilteredRowIterator data = UnfilteredPartitionIterators.getOnlyElement(command.executeLocally(orderGroup), command))
         {
-           try (ReadExecutionController executionController = pager.executionController();
-                PartitionIterator partitionIterator = pager.fetchPageInternal(128, executionController))
-           {
-               if (!partitionIterator.hasNext())
-                   return;
-
-               try (RowIterator rowIterator = partitionIterator.next())
-               {
-                   FilteredPartition partition = FilteredPartition.create(rowIterator);
-                   TemporalRow.Set temporalRows = view.getTemporalRowSet(partition, null, true);
-
-                   Collection<Mutation> mutations = view.createMutations(partition, temporalRows, true);
-
-                   if (mutations != null)
-                       StorageProxy.mutateMV(key.getKey(), mutations, true, noBase);
-               }
-           }
+            mutations = baseCfs.keyspace.viewManager.forTable(baseCfs.metadata).generateViewUpdates(Collections.singleton(view), data, empty, nowInSec);
         }
+
+        if (!mutations.isEmpty())
+            StorageProxy.mutateMV(key.getKey(), mutations, true, noBase);
     }
 
     public void run()

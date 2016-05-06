@@ -192,6 +192,14 @@ public class ComplexColumnData extends ColumnData implements Iterable<Cell>
         return transformAndFilter(newDeletion, (cell) -> (Cell) cell.updateAllTimestamp(newTimestamp));
     }
 
+    public long maxTimestamp()
+    {
+        long timestamp = complexDeletion.markedForDeleteAt();
+        for (Cell cell : this)
+            timestamp = Math.max(timestamp, cell.timestamp());
+        return timestamp;
+    }
+
     // This is the partner in crime of ArrayBackedRow.setValue. The exact warning apply. The short
     // version is: "don't use that method".
     void setValue(CellPath path, ByteBuffer value)

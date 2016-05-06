@@ -137,6 +137,30 @@ public abstract class RowFilter implements Iterable<RowFilter.Expression>
     public abstract UnfilteredPartitionIterator filter(UnfilteredPartitionIterator iter, int nowInSec);
 
     /**
+     * Whether the provided row in the provided partition satisfies this filter.
+     *
+     * @param metadata the table metadata.
+     * @param partitionKey the partition key for partition to test.
+     * @param row the row to test.
+     * @param nowInSec the current time in seconds (to know what is live and what isn't).
+     * @return {@code true} if {@code row} in partition {@code partitionKey} satisfies this row filter.
+     */
+    public boolean isSatisfiedBy(CFMetaData metadata, DecoratedKey partitionKey, Row row, int nowInSec)
+    {
+        // We purge all tombstones as the expressions isSatisfiedBy methods expects it
+        Row purged = row.purge(DeletionPurger.PURGE_ALL, nowInSec);
+        if (purged == null)
+            return expressions.isEmpty();
+
+        for (Expression e : expressions)
+        {
+            if (!e.isSatisfiedBy(metadata, partitionKey, purged))
+                return false;
+        }
+        return true;
+    }
+
+    /**
      * Returns true if all of the expressions within this filter that apply to the partition key are satisfied by
      * the given key, false otherwise.
      */

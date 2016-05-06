@@ -366,6 +366,18 @@ public class BTreeRow extends AbstractRow
         return transformAndFilter(newInfo, newDeletion, (cd) -> cd.updateAllTimestamp(newTimestamp));
     }
 
+    public Row withRowDeletion(DeletionTime newDeletion)
+    {
+        // Note that:
+        //  - it is a contract with the caller that the new deletion shouldn't shadow anything in
+        //    the row, and so in particular it can't shadow the row deletion. So if there is a
+        //    already a row deletion we have nothing to do.
+        //  - we set the minLocalDeletionTime to MIN_VALUE because we know the deletion is live
+        return newDeletion.isLive() || !deletion.isLive()
+             ? this
+             : new BTreeRow(clustering, primaryKeyLivenessInfo, Deletion.regular(newDeletion), btree, Integer.MIN_VALUE);
+    }
+
     public Row purge(DeletionPurger purger, int nowInSec)
     {
         if (!hasDeletion(nowInSec))
@@ -610,6 +622,17 @@ public class BTreeRow extends AbstractRow
                 }
 
                 List<Object> buildFrom = Arrays.asList(cells).subList(lb, ub);
+                if (deletion != DeletionTime.LIVE)
+                {
+                    // Make sure we don't include any shadowed cells
+                    List<Object> filtered = new ArrayList<>(buildFrom.size());
+                    for (Object c : buildFrom)
+                    {
+                        if (((Cell)c).timestamp() >= deletion.markedForDeleteAt())
+                            filtered.add(c);
+                    }
+                    buildFrom = filtered;
+                }
                 Object[] btree = BTree.build(buildFrom, UpdateFunction.noOp());
                 return new ComplexColumnData(column, btree, deletion);
             }
@@ -665,17 +688,26 @@ public class BTreeRow extends AbstractRow
 
         public void addPrimaryKeyLivenessInfo(LivenessInfo info)
         {
-            this.primaryKeyLivenessInfo = info;
+            // The check is only required for unsorted builders, but it's worth the extra safety to have it unconditional
+            if (!deletion.deletes(info))
+                this.primaryKeyLivenessInfo = info;
         }
 
         public void addRowDeletion(Deletion deletion)
         {
             this.deletion = deletion;
+            // The check is only required for unsorted builders, but it's worth the extra safety to have it unconditional
+            if (deletion.deletes(primaryKeyLivenessInfo))
+                this.primaryKeyLivenessInfo = LivenessInfo.EMPTY;
         }
 
         public void addCell(Cell cell)
         {
             assert cell.column().isStatic() == (clustering == Clustering.STATIC_CLUSTERING) : "Column is " + cell.column() + ", clustering = " + clustering;
+            // In practice, only unsorted builder have to deal with shadowed cells, but it doesn't cost us much to deal with it unconditionally in this case
+            if (deletion.deletes(cell))
+                return;
+
             cells.add(cell);
             hasComplex |= cell.column.isComplex();
         }
