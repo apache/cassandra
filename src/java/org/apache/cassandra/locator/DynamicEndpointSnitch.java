@@ -40,6 +40,8 @@ import com.yammer.metrics.stats.ExponentiallyDecayingSample;
  */
 public class DynamicEndpointSnitch extends AbstractEndpointSnitch implements ILatencySubscriber, DynamicEndpointSnitchMBean
 {
+    private static final boolean USE_SEVERITY = !Boolean.getBoolean("cassandra.ignore_dynamic_snitch_severity");
+
     private static final double ALPHA = 0.75; // set to 0.75 to make EDS more biased to towards the newer values
     private static final int WINDOW_SIZE = 100;
 
@@ -279,7 +281,8 @@ public class DynamicEndpointSnitch extends AbstractEndpointSnitch implements ILa
             double score = entry.getValue().getSnapshot().getMedian() / maxLatency;
             // finally, add the severity without any weighting, since hosts scale this relative to their own load and the size of the task causing the severity.
             // "Severity" is basically a measure of compaction activity (CASSANDRA-3722).
-            score += StorageService.instance.getSeverity(entry.getKey());
+            if (USE_SEVERITY)
+                score += StorageService.instance.getSeverity(entry.getKey());
             // lowest score (least amount of badness) wins.
             newScores.put(entry.getKey(), score);
         }

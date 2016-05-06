@@ -1,4 +1,5 @@
 2.1.15
+ * Add option to disable use of severity in DynamicEndpointSnitch (CASSANDRA-11737)
  * cqlsh COPY FROM fails for null values with non-prepared statements (CASSANDRA-11631)
  * Make cython optional in pylib/setup.py (CASSANDRA-11630)
  * Change order of directory searching for cassandra.in.sh to favor local one (CASSANDRA-11628)
