@@ -227,10 +227,10 @@ public class CreateViewStatement extends SchemaAlteringStatement
         // This is only used as an intermediate state; this is to catch whether multiple non-PK columns are used
         boolean hasNonPKColumn = false;
         for (ColumnIdentifier.Raw raw : partitionKeys)
-            hasNonPKColumn = getColumnIdentifier(cfm, basePrimaryKeyCols, hasNonPKColumn, raw, targetPartitionKeys, restrictions);
+            hasNonPKColumn |= getColumnIdentifier(cfm, basePrimaryKeyCols, hasNonPKColumn, raw, targetPartitionKeys, restrictions);
 
         for (ColumnIdentifier.Raw raw : clusteringKeys)
-            hasNonPKColumn = getColumnIdentifier(cfm, basePrimaryKeyCols, hasNonPKColumn, raw, targetClusteringColumns, restrictions);
+            hasNonPKColumn |= getColumnIdentifier(cfm, basePrimaryKeyCols, hasNonPKColumn, raw, targetClusteringColumns, restrictions);
 
         // We need to include all of the primary key columns from the base table in order to make sure that we do not
         // overwrite values in the view. We cannot support "collapsing" the base table into a smaller number of rows in

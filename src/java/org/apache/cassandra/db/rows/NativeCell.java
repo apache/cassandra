@@ -143,6 +143,11 @@ public class NativeCell extends AbstractCell
         throw new UnsupportedOperationException();
     }
 
+    public Cell withUpdatedColumn(ColumnDefinition column)
+    {
+        return new BufferCell(column, timestamp(), ttl(), localDeletionTime(), value(), path());
+    }
+
     public long unsharedHeapSizeExcludingData()
     {
         return EMPTY_SIZE;

@@ -48,7 +48,7 @@ import org.apache.cassandra.db.commitlog.ReplayPosition;
 import org.apache.cassandra.db.compaction.*;
 import org.apache.cassandra.db.filter.ClusteringIndexFilter;
 import org.apache.cassandra.db.filter.DataLimits;
-import org.apache.cassandra.db.view.ViewManager;
+import org.apache.cassandra.db.view.TableViews;
 import org.apache.cassandra.db.lifecycle.*;
 import org.apache.cassandra.db.partitions.CachedPartition;
 import org.apache.cassandra.db.partitions.PartitionUpdate;
@@ -213,7 +213,7 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
     private final AtomicInteger fileIndexGenerator = new AtomicInteger(0);
 
     public final SecondaryIndexManager indexManager;
-    public final ViewManager.ForStore viewManager;
+    public final TableViews viewManager;
 
     /* These are locally held copies to be changed from the config during runtime */
     private volatile DefaultValue<Integer> minCompactionThreshold;
@@ -388,7 +388,7 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
         maxCompactionThreshold = new DefaultValue<>(metadata.params.compaction.maxCompactionThreshold());
         crcCheckChance = new DefaultValue<>(metadata.params.crcCheckChance);
         indexManager = new SecondaryIndexManager(this);
-        viewManager = keyspace.viewManager.forTable(metadata.cfId);
+        viewManager = keyspace.viewManager.forTable(metadata);
         metric = new TableMetrics(this);
         fileIndexGenerator.set(generation);
         sampleLatencyNanos = DatabaseDescriptor.getReadRpcTimeout() / 2;

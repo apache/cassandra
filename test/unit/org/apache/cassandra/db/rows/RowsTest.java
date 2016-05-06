@@ -239,7 +239,8 @@ public class RowsTest
                                                       BufferCell.live(m, secondToTs(now), BB1, CellPath.create(BB1)),
                                                       BufferCell.live(m, secondToTs(now), BB2, CellPath.create(BB2)));
         expectedCells.forEach(originalBuilder::addCell);
-        Row.Deletion rowDeletion = new Row.Deletion(new DeletionTime(ts, now), false);
+        // We need to use ts-1 so the deletion doesn't shadow what we've created
+        Row.Deletion rowDeletion = new Row.Deletion(new DeletionTime(ts-1, now), false);
         originalBuilder.addRowDeletion(rowDeletion);
 
         RowBuilder builder = new RowBuilder();
@@ -267,7 +268,8 @@ public class RowsTest
                                                       BufferCell.live(m, ts, BB1, CellPath.create(BB1)),
                                                       BufferCell.live(m, ts, BB2, CellPath.create(BB2)));
         expectedCells.forEach(builder::addCell);
-        Row.Deletion rowDeletion = new Row.Deletion(new DeletionTime(ts, now), false);
+        // We need to use ts-1 so the deletion doesn't shadow what we've created
+        Row.Deletion rowDeletion = new Row.Deletion(new DeletionTime(ts-1, now), false);
         builder.addRowDeletion(rowDeletion);
 
         StatsCollector collector = new StatsCollector();

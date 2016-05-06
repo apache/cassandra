@@ -71,7 +71,7 @@ public interface RowDiffListener
      * @param i the input row from which {@code original} is from.
      * @param clustering the clustering for the row that is merged.
      * @param merged the cell of the merged row. Will be {@code null} if input {@code i} had a cell but that cell is no present
-     * in the mergd result (it has been deleted/shadowed).
+     * in the merged result (it has been deleted/shadowed).
      * @param original the cell of input {@code i}. May be {@code null} if input {@code i} had cell corresponding to {@code merged}.
      */
     public void onCell(int i, Clustering clustering, Cell merged, Cell original);
