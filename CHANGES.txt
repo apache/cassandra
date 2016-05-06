@@ -1,4 +1,7 @@
 3.7
+Merged from 3.0:
+ * Refactor Materialized View code (CASSANDRA-11475)
+ * Update Java Driver (CASSANDRA-11615)
 Merged from 2.2:
  * cqlsh: correctly handle non-ascii chars in error messages (CASSANDRA-11626)
 
