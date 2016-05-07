@@ -401,7 +401,7 @@ public abstract class UnfilteredDeserializer
             {
                 this.grouper = new LegacyLayout.CellGrouper(metadata, helper);
                 this.tombstoneTracker = new TombstoneTracker(partitionDeletion);
-                this.atoms = new AtomIterator(tombstoneTracker);
+                this.atoms = new AtomIterator();
             }
 
             public boolean hasNext()
@@ -485,13 +485,11 @@ public abstract class UnfilteredDeserializer
         // the internal state of the iterator so it's cleaner to do it ourselves.
         private class AtomIterator implements PeekingIterator<LegacyLayout.LegacyAtom>
         {
-            private final TombstoneTracker tombstoneTracker;
             private boolean isDone;
             private LegacyLayout.LegacyAtom next;
 
-            private AtomIterator(TombstoneTracker tombstoneTracker)
+            private AtomIterator()
             {
-                this.tombstoneTracker = tombstoneTracker;
             }
 
             public boolean hasNext()
