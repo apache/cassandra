@@ -176,7 +176,7 @@ public class UpdateStatement extends ModificationStatement
                 }
             }
 
-            boolean applyOnlyToStaticColumns = appliesOnlyToStaticColumns(operations, conditions) && !hasClusteringColumnsSet;
+            boolean applyOnlyToStaticColumns = !hasClusteringColumnsSet && appliesOnlyToStaticColumns(operations, conditions);
 
             StatementRestrictions restrictions = new StatementRestrictions(type,
                                                                            cfm,
@@ -245,7 +245,7 @@ public class UpdateStatement extends ModificationStatement
                 }
             }
 
-            boolean applyOnlyToStaticColumns = appliesOnlyToStaticColumns(operations, conditions) && !hasClusteringColumnsSet;
+            boolean applyOnlyToStaticColumns = !hasClusteringColumnsSet && appliesOnlyToStaticColumns(operations, conditions);
 
             StatementRestrictions restrictions = new StatementRestrictions(type,
                                                                            cfm,
