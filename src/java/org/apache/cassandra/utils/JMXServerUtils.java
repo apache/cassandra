@@ -66,31 +66,17 @@ public class JMXServerUtils
         Map<String, Object> env = new HashMap<>();
 
         String urlTemplate = "service:jmx:rmi://%1$s/jndi/rmi://%1$s:%2$d/jmxrmi";
-        String url;
-        String host;
-        InetAddress serverAddress;
+        InetAddress serverAddress = null;
         if (local)
         {
             serverAddress = InetAddress.getLoopbackAddress();
-            host = serverAddress.getHostAddress();
-            System.setProperty("java.rmi.server.hostname", host);
-        }
-        else
-        {
-            // if the java.rmi.server.hostname property is set, we'll take its value
-            // and use that when creating the RMIServerSocket to which we bind the RMI
-            // registry. This allows us to effectively restrict to a single interface
-            // if required. See http://bugs.java.com/bugdatabase/view_bug.do?bug_id=4880793
-            // for more detail. If the hostname property is not set, the registry will
-            // be bound to the wildcard address
-            host = System.getProperty("java.rmi.server.hostname");
-            serverAddress = host == null ? null : InetAddress.getByName(host);
+            System.setProperty("java.rmi.server.hostname", serverAddress.getHostAddress());
         }
 
         // Configure the RMI client & server socket factories, including SSL config.
         env.putAll(configureJmxSocketFactories(serverAddress));
 
-        url = String.format(urlTemplate, (host == null ? "0.0.0.0" : serverAddress.getHostAddress()), port);
+        String url = String.format(urlTemplate, (serverAddress != null ? serverAddress.getHostAddress() : "0.0.0.0"), port);
         LocateRegistry.createRegistry(port,
                                      (RMIClientSocketFactory) env.get(RMIConnectorServer.RMI_CLIENT_SOCKET_FACTORY_ATTRIBUTE),
                                      (RMIServerSocketFactory) env.get(RMIConnectorServer.RMI_SERVER_SOCKET_FACTORY_ATTRIBUTE));
