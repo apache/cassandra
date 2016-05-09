@@ -28,6 +28,16 @@ import org.apache.cassandra.db.*;
 import org.apache.cassandra.db.rows.*;
 import org.apache.cassandra.utils.concurrent.OpOrder;
 
+/**
+ * This NativeAllocator uses global slab allocation strategy
+ * with slab size that scales exponentially from 8kb to 1Mb to
+ * serve allocation of up to 128kb.
+ * <p>
+ * </p>
+ * The slab allocation reduces heap fragmentation from small
+ * long-lived objects.
+ *
+ */
 public class NativeAllocator extends MemtableAllocator
 {
     private final static int MAX_REGION_SIZE = 1 * 1024 * 1024;
