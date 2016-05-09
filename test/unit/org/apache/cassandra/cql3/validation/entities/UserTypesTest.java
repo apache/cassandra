@@ -269,6 +269,34 @@ public class UserTypesTest extends CQLTester
     }
 
     @Test
+    public void testAlteringUserTypeNestedWithinNonFrozenMap() throws Throwable
+    {
+        String ut1 = createType("CREATE TYPE %s (a int)");
+        String columnType = KEYSPACE + "." + ut1;
+
+        createTable("CREATE TABLE %s (x int PRIMARY KEY, y map<text, frozen<" + columnType + ">>)");
+
+        execute("INSERT INTO %s (x, y) VALUES(1, {'firstValue': {a: 1}})");
+        assertRows(execute("SELECT * FROM %s"),
+                   row(1, map("firstValue", userType(1))));
+
+        flush();
+
+        execute("ALTER TYPE " + columnType + " ADD b int");
+        execute("UPDATE %s SET y['secondValue'] = {a: 2, b: 2} WHERE x = 1");
+
+        assertRows(execute("SELECT * FROM %s"),
+                   row(1, map("firstValue", userType(1),
+                              "secondValue", userType(2, 2))));
+
+        flush();
+
+        assertRows(execute("SELECT * FROM %s"),
+                   row(1, map("firstValue", userType(1),
+                              "secondValue", userType(2, 2))));
+    }
+
+    @Test
     public void testAlteringUserTypeNestedWithinSet() throws Throwable
     {
         // test frozen and non-frozen collections
