@@ -273,7 +273,22 @@ public class BufferPool
             }
 
             // allocate a large chunk
-            Chunk chunk = new Chunk(allocateDirectAligned(MACRO_CHUNK_SIZE));
+            Chunk chunk;
+            try
+            {
+                chunk = new Chunk(allocateDirectAligned(MACRO_CHUNK_SIZE));
+            }
+            catch (OutOfMemoryError oom)
+            {
+                noSpamLogger.error("Buffer pool failed to allocate chunk of {}, current size {} ({}). " +
+                                   "Attempting to continue; buffers will be allocated in on-heap memory which can degrade performance. " +
+                                   "Make sure direct memory size (-XX:MaxDirectMemorySize) is large enough to accommodate off-heap memtables and caches.",
+                                   FBUtilities.prettyPrintMemory(MACRO_CHUNK_SIZE),
+                                   FBUtilities.prettyPrintMemory(sizeInBytes()),
+                                   oom.toString());
+                return false;
+            }
+
             chunk.acquire(null);
             macroChunks.add(chunk);
             for (int i = 0 ; i < MACRO_CHUNK_SIZE ; i += CHUNK_SIZE)
