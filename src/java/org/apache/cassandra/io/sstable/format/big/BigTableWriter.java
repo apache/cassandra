@@ -87,7 +87,7 @@ public class BigTableWriter extends SSTableWriter
         }
         iwriter = new IndexWriter(keyCount, dataFile);
 
-        columnIndexWriter = new ColumnIndex(header, dataFile, descriptor.version, observers, getRowIndexEntrySerializer().indexInfoSerializer());
+        columnIndexWriter = new ColumnIndex(this.header, dataFile, descriptor.version, this.observers, getRowIndexEntrySerializer().indexInfoSerializer());
     }
 
     public void mark()
