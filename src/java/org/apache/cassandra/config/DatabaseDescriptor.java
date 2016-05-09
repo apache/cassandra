@@ -1776,6 +1776,13 @@ public class DatabaseDescriptor
 
     public static int getFileCacheSizeInMB()
     {
+        if (conf.file_cache_size_in_mb == null)
+        {
+            // In client mode the value is not set.
+            assert Config.isClientMode();
+            return 0;
+        }
+
         return conf.file_cache_size_in_mb;
     }
 
