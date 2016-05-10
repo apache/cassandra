@@ -111,6 +111,7 @@ Merged from 2.2:
  * Make deprecated repair methods backward-compatible with previous notification service (CASSANDRA-11430)
  * IncomingStreamingConnection version check message wrong (CASSANDRA-11462)
 Merged from 2.1:
+ * Add option to disable use of severity in DynamicEndpointSnitch (CASSANDRA-11737)
  * cqlsh COPY FROM fails for null values with non-prepared statements (CASSANDRA-11631)
  * Make cython optional in pylib/setup.py (CASSANDRA-11630)
  * Change order of directory searching for cassandra.in.sh to favor local one (CASSANDRA-11628)
