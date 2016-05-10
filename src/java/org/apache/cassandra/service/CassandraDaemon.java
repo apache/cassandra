@@ -97,6 +97,19 @@ public class CassandraDaemon
 
     private void maybeInitJmx()
     {
+        // If the standard com.sun.management.jmxremote.port property has been set
+        // then the JVM agent will have already started up a default JMX connector
+        // server. This behaviour is deprecated, but some clients may be relying
+        // on it, so log a warning and skip setting up the server with the settings
+        // as configured in cassandra-env.(sh|ps1)
+        // See: CASSANDRA-11540 & CASSANDRA-11725
+        if (System.getProperty("com.sun.management.jmxremote.port") != null)
+        {
+            logger.warn("JMX settings in cassandra-env.sh have been bypassed as the JMX connector server is " +
+                        "already initialized. Please refer to cassandra-env.(sh|ps1) for JMX configuration info");
+            return;
+        }
+
         System.setProperty("java.rmi.server.randomIDs", "true");
 
         // If a remote port has been specified then use that to set up a JMX

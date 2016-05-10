@@ -25,6 +25,8 @@ New features
      connections are permitted. For more details on how to enable the new options, see the
      comments in cassandra-env.sh. A new class of IResource, JMXResource, is provided for
      the purposes of GRANT/REVOKE via CQL. See CASSANDRA-10091 for more details.
+     Also, directly setting JMX remote port via the com.sun.management.jmxremote.port system
+     property at startup is deprecated. See CASSANDRA-11725 for more details.
    - JSON timestamps are now in UTC and contain the timezone information, see CASSANDRA-11137 for more details.
    - Collision checks are performed when joining the token ring, regardless of whether
      the node should bootstrap. Additionally, replace_address can legitimately be used
