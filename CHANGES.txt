@@ -15,6 +15,7 @@
  * Always close cluster with connection in CqlRecordWriter (CASSANDRA-11553)
  * Fix slice queries on ordered COMPACT tables (CASSANDRA-10988)
 Merged from 2.1:
+ * Add option to disable use of severity in DynamicEndpointSnitch (CASSANDRA-11737)
  * cqlsh COPY FROM fails for null values with non-prepared statements (CASSANDRA-11631)
  * Make cython optional in pylib/setup.py (CASSANDRA-11630)
  * Change order of directory searching for cassandra.in.sh to favor local one (CASSANDRA-11628)
