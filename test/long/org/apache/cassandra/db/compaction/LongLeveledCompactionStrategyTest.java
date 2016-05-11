@@ -45,6 +45,7 @@ public class LongLeveledCompactionStrategyTest
 {
     public static final String KEYSPACE1 = "LongLeveledCompactionStrategyTest";
     public static final String CF_STANDARDLVL = "StandardLeveled";
+    public static final String CF_STANDARDLVL2 = "StandardLeveled2";
 
     @BeforeClass
     public static void defineSchema() throws ConfigurationException
@@ -55,6 +56,8 @@ public class LongLeveledCompactionStrategyTest
         SchemaLoader.createKeyspace(KEYSPACE1,
                                     KeyspaceParams.simple(1),
                                     SchemaLoader.standardCFMD(KEYSPACE1, CF_STANDARDLVL)
+                                                .compaction(CompactionParams.lcs(leveledOptions)),
+                                    SchemaLoader.standardCFMD(KEYSPACE1, CF_STANDARDLVL2)
                                                 .compaction(CompactionParams.lcs(leveledOptions)));
     }
 
@@ -145,14 +148,32 @@ public class LongLeveledCompactionStrategyTest
     @Test
     public void testLeveledScanner() throws Exception
     {
-        testParallelLeveledCompaction();
         Keyspace keyspace = Keyspace.open(KEYSPACE1);
-        ColumnFamilyStore store = keyspace.getColumnFamilyStore(CF_STANDARDLVL);
+        ColumnFamilyStore store = keyspace.getColumnFamilyStore(CF_STANDARDLVL2);
+        ByteBuffer value = ByteBuffer.wrap(new byte[100 * 1024]); // 100 KB value, make it easy to have multiple files
+
+        // Enough data to have a level 1 and 2
+        int rows = 128;
+        int columns = 10;
+
+        // Adds enough data to trigger multiple sstable per level
+        for (int r = 0; r < rows; r++)
+        {
+            DecoratedKey key = Util.dk(String.valueOf(r));
+            UpdateBuilder builder = UpdateBuilder.create(store.metadata, key);
+            for (int c = 0; c < columns; c++)
+                builder.newRow("column" + c).add("val", value);
+
+            Mutation rm = new Mutation(builder.build());
+            rm.apply();
+            store.forceBlockingFlush();
+        }
+        LeveledCompactionStrategyTest.waitForLeveling(store);
         store.disableAutoCompaction();
         CompactionStrategyManager mgr = store.getCompactionStrategyManager();
         LeveledCompactionStrategy lcs = (LeveledCompactionStrategy) mgr.getStrategies().get(1).get(0);
 
-        ByteBuffer value = ByteBuffer.wrap(new byte[10 * 1024]); // 10 KB value
+        value = ByteBuffer.wrap(new byte[10 * 1024]); // 10 KB value
 
         // Adds 10 partitions
         for (int r = 0; r < 10; r++)
