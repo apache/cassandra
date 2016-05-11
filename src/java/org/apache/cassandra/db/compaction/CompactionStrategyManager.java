@@ -498,4 +498,9 @@ public class CompactionStrategyManager implements INotificationConsumer
             return repaired.createSSTableMultiWriter(descriptor, keyCount, repairedAt, collector, header, txn);
         }
     }
+
+    public boolean supportsEarlyOpen()
+    {
+        return repaired.supportsEarlyOpen();
+    }
 }

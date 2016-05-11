@@ -147,7 +147,7 @@ public class Scrubber implements Closeable
         List<SSTableReader> finished = new ArrayList<>();
         boolean completed = false;
         outputHandler.output(String.format("Scrubbing %s (%s bytes)", sstable, dataFile.length()));
-        try (SSTableRewriter writer = new SSTableRewriter(transaction, sstable.maxDataAge, transaction.isOffline()))
+        try (SSTableRewriter writer = SSTableRewriter.construct(cfs, transaction, false, sstable.maxDataAge, transaction.isOffline()))
         {
             nextIndexKey = indexAvailable() ? ByteBufferUtil.readWithShortLength(indexFile) : null;
             if (indexAvailable())
