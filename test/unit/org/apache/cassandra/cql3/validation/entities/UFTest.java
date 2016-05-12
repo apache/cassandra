@@ -2504,7 +2504,23 @@ public class UFTest extends CQLTester
 
         String typeName = createType("CREATE TYPE %s (txt text, i int)");
 
-        String f = createFunction(KEYSPACE, "text",
+        createFunction(KEYSPACE, "map<text,bigint>,list<text>",
+                       "CREATE FUNCTION IF NOT EXISTS %s(state map<text,bigint>, styles list<text>)\n" +
+                       "  RETURNS NULL ON NULL INPUT\n" +
+                       "  RETURNS map<text,bigint>\n" +
+                       "  LANGUAGE java\n" +
+                       "  AS $$\n" +
+                       "    for (String style : styles) {\n" +
+                       "      if (state.containsKey(style)) {\n" +
+                       "        state.put(style, state.get(style) + 1L);\n" +
+                       "      } else {\n" +
+                       "        state.put(style, 1L);\n" +
+                       "      }\n" +
+                       "    }\n" +
+                       "    return state;\n" +
+                       "  $$");
+
+        createFunction(KEYSPACE, "text",
                                   "CREATE OR REPLACE FUNCTION %s("                 +
                                   "  listText list<text>,"                         +
                                   "  setText set<text>,"                           +
