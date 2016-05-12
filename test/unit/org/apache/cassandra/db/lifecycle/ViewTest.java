@@ -213,6 +213,6 @@ public class ViewTest
         for (int i = 0 ; i < sstableCount ; i++)
             sstables.add(MockSchema.sstable(i, cfs));
         return new View(ImmutableList.copyOf(memtables), Collections.<Memtable>emptyList(), Helpers.identityMap(sstables),
-                        Collections.<SSTableReader, SSTableReader>emptyMap(), SSTableIntervalTree.build(sstables));
+                        Collections.<SSTableReader, SSTableReader>emptyMap(), Collections.<SSTableReader>emptySet(), SSTableIntervalTree.build(sstables));
     }
 }

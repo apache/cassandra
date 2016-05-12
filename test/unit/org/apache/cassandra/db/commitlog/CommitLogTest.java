@@ -706,12 +706,12 @@ public class CommitLogTest
 
         Replayer(CommitLog commitLog, ReplayPosition filterPosition)
         {
-            super(commitLog, filterPosition, null, ReplayFilter.create());
+            super(commitLog, filterPosition, Collections.emptyMap(), ReplayFilter.create());
             this.filterPosition = filterPosition;
         }
 
         @SuppressWarnings("resource")
-        void replayMutation(byte[] inputBuffer, int size, final long entryLocation, final CommitLogDescriptor desc) throws IOException
+        void replayMutation(byte[] inputBuffer, int size, final int entryLocation, final CommitLogDescriptor desc) throws IOException
         {
             if (entryLocation <= filterPosition.position)
             {

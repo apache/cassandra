@@ -297,8 +297,7 @@ public class MmappedRegionsTest
         File cf = File.createTempFile(f.getName() + ".metadata", "1");
         cf.deleteOnExit();
 
-        MetadataCollector sstableMetadataCollector = new MetadataCollector(new ClusteringComparator(BytesType.instance))
-                                                     .replayPosition(null);
+        MetadataCollector sstableMetadataCollector = new MetadataCollector(new ClusteringComparator(BytesType.instance));
         try(SequentialWriter writer = new CompressedSequentialWriter(f,
                                                                      cf.getAbsolutePath(),
                                                                      CompressionParams.snappy(),
