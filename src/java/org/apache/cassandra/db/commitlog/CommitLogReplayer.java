@@ -35,7 +35,6 @@ import com.google.common.base.Throwables;
 import com.google.common.collect.HashMultimap;
 import com.google.common.collect.Iterables;
 import com.google.common.collect.Multimap;
-import com.google.common.collect.Ordering;
 import com.google.common.util.concurrent.Uninterruptibles;
 
 import org.apache.commons.lang3.StringUtils;
@@ -48,7 +47,6 @@ import org.apache.cassandra.config.Schema;
 import org.apache.cassandra.db.*;
 import org.apache.cassandra.db.rows.SerializationHelper;
 import org.apache.cassandra.db.partitions.PartitionUpdate;
-import org.apache.cassandra.db.lifecycle.SSTableSet;
 import org.apache.cassandra.exceptions.ConfigurationException;
 import org.apache.cassandra.io.util.FileSegmentInputStream;
 import org.apache.cassandra.io.util.RebufferingInputStream;
@@ -76,7 +74,7 @@ public class CommitLogReplayer
     private final List<Future<?>> futures;
     private final Map<UUID, AtomicInteger> invalidMutations;
     private final AtomicInteger replayedCount;
-    private final Map<UUID, ReplayPosition> cfPositions;
+    private final Map<UUID, ReplayPosition.ReplayFilter> cfPersisted;
     private final ReplayPosition globalPosition;
     private final CRC32 checksum;
     private byte[] buffer;
@@ -85,7 +83,7 @@ public class CommitLogReplayer
     private final ReplayFilter replayFilter;
     private final CommitLogArchiver archiver;
 
-    CommitLogReplayer(CommitLog commitLog, ReplayPosition globalPosition, Map<UUID, ReplayPosition> cfPositions, ReplayFilter replayFilter)
+    CommitLogReplayer(CommitLog commitLog, ReplayPosition globalPosition, Map<UUID, ReplayPosition.ReplayFilter> cfPersisted, ReplayFilter replayFilter)
     {
         this.keyspacesRecovered = new NonBlockingHashSet<Keyspace>();
         this.futures = new ArrayList<Future<?>>();
@@ -95,7 +93,7 @@ public class CommitLogReplayer
         // count the number of replayed mutation. We don't really care about atomicity, but we need it to be a reference.
         this.replayedCount = new AtomicInteger();
         this.checksum = new CRC32();
-        this.cfPositions = cfPositions;
+        this.cfPersisted = cfPersisted;
         this.globalPosition = globalPosition;
         this.replayFilter = replayFilter;
         this.archiver = commitLog.archiver;
@@ -104,16 +102,11 @@ public class CommitLogReplayer
     public static CommitLogReplayer construct(CommitLog commitLog)
     {
         // compute per-CF and global replay positions
-        Map<UUID, ReplayPosition> cfPositions = new HashMap<UUID, ReplayPosition>();
-        Ordering<ReplayPosition> replayPositionOrdering = Ordering.from(ReplayPosition.comparator);
+        Map<UUID, ReplayPosition.ReplayFilter> cfPersisted = new HashMap<>();
         ReplayFilter replayFilter = ReplayFilter.create();
+        ReplayPosition globalPosition = null;
         for (ColumnFamilyStore cfs : ColumnFamilyStore.all())
         {
-            // it's important to call RP.gRP per-cf, before aggregating all the positions w/ the Ordering.min call
-            // below: gRP will return NONE if there are no flushed sstables, which is important to have in the
-            // list (otherwise we'll just start replay from the first flush position that we do have, which is not correct).
-            ReplayPosition rp = ReplayPosition.getReplayPosition(cfs.getSSTables(SSTableSet.CANONICAL));
-
             // but, if we've truncated the cf in question, then we need to need to start replay after the truncation
             ReplayPosition truncatedAt = SystemKeyspace.getTruncatedPosition(cfs.metadata.cfId);
             if (truncatedAt != null)
@@ -131,19 +124,21 @@ public class CommitLogReplayer
                                     cfs.metadata.ksName,
                                     cfs.metadata.cfName);
                         SystemKeyspace.removeTruncationRecord(cfs.metadata.cfId);
+                        truncatedAt = null;
                     }
-                }
-                else
-                {
-                    rp = replayPositionOrdering.max(Arrays.asList(rp, truncatedAt));
                 }
             }
 
-            cfPositions.put(cfs.metadata.cfId, rp);
+            ReplayPosition.ReplayFilter filter = new ReplayPosition.ReplayFilter(cfs.getSSTables(), truncatedAt);
+            if (!filter.isEmpty())
+                cfPersisted.put(cfs.metadata.cfId, filter);
+            else
+                globalPosition = ReplayPosition.NONE; // if we have no ranges for this CF, we must replay everything and filter
         }
-        ReplayPosition globalPosition = replayPositionOrdering.min(cfPositions.values());
-        logger.trace("Global replay position is {} from columnfamilies {}", globalPosition, FBUtilities.toString(cfPositions));
-        return new CommitLogReplayer(commitLog, globalPosition, cfPositions, replayFilter);
+        if (globalPosition == null)
+            globalPosition = ReplayPosition.firstNotCovered(cfPersisted.values());
+        logger.debug("Global replay position is {} from columnfamilies {}", globalPosition, FBUtilities.toString(cfPersisted));
+        return new CommitLogReplayer(commitLog, globalPosition, cfPersisted, replayFilter);
     }
 
     public void recover(File[] clogs) throws IOException
@@ -290,6 +285,19 @@ public class CommitLogReplayer
         }
     }
 
+    /**
+     * consult the known-persisted ranges for our sstables;
+     * if the position is covered by one of them it does not need to be replayed
+     *
+     * @return true iff replay is necessary
+     */
+    private boolean shouldReplay(UUID cfId, ReplayPosition position)
+    {
+        ReplayPosition.ReplayFilter filter = cfPersisted.get(cfId);
+        return filter == null || filter.shouldReplay(position);
+    }
+
+    @SuppressWarnings("resource")
     public void recover(File file, boolean tolerateTruncation) throws IOException
     {
         CommitLogDescriptor desc = CommitLogDescriptor.fromFileName(file.getName());
@@ -508,7 +516,7 @@ public class CommitLogReplayer
                                   mutationStart, errorContext);
                 continue;
             }
-            replayMutation(buffer, serializedSize, reader.getFilePointer(), desc);
+            replayMutation(buffer, serializedSize, (int) reader.getFilePointer(), desc);
         }
         return true;
     }
@@ -517,7 +525,7 @@ public class CommitLogReplayer
      * Deserializes and replays a commit log entry.
      */
     void replayMutation(byte[] inputBuffer, int size,
-            final long entryLocation, final CommitLogDescriptor desc) throws IOException
+            final int entryLocation, final CommitLogDescriptor desc) throws IOException
     {
 
         final Mutation mutation;
@@ -589,11 +597,9 @@ public class CommitLogReplayer
                     if (Schema.instance.getCF(update.metadata().cfId) == null)
                         continue; // dropped
 
-                    ReplayPosition rp = cfPositions.get(update.metadata().cfId);
-
                     // replay if current segment is newer than last flushed one or,
                     // if it is the last known segment, if we are after the replay position
-                    if (desc.id > rp.segment || (desc.id == rp.segment && entryLocation > rp.position))
+                    if (shouldReplay(update.metadata().cfId, new ReplayPosition(desc.id, entryLocation)))
                     {
                         if (newMutation == null)
                             newMutation = new Mutation(mutation.getKeyspaceName(), mutation.key());

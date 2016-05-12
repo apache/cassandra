@@ -25,6 +25,7 @@ Merged from 2.2:
    header is received (CASSANDRA-11464)
  * Validate that num_tokens and initial_token are consistent with one another (CASSANDRA-10120)
 Merged from 2.2:
+ * Fix commit log replay after out-of-order flush completion (CASSANDRA-9669)
  * cqlsh: correctly handle non-ascii chars in error messages (CASSANDRA-11626)
  * Exit JVM if JMX server fails to startup (CASSANDRA-11540)
  * Produce a heap dump when exiting on OOM (CASSANDRA-9861)
