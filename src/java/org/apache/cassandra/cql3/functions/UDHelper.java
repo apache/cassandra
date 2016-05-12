@@ -89,20 +89,19 @@ public final class UDHelper
                 // only care about classes that can be used in a data type
                 Class<?> clazz = typeToken.getRawType();
                 if (clazz == Integer.class)
-                    clazz = int.class;
+                    typeToken = TypeToken.of(int.class);
                 else if (clazz == Long.class)
-                    clazz = long.class;
+                    typeToken = TypeToken.of(long.class);
                 else if (clazz == Byte.class)
-                    clazz = byte.class;
+                    typeToken = TypeToken.of(byte.class);
                 else if (clazz == Short.class)
-                    clazz = short.class;
+                    typeToken = TypeToken.of(short.class);
                 else if (clazz == Float.class)
-                    clazz = float.class;
+                    typeToken = TypeToken.of(float.class);
                 else if (clazz == Double.class)
-                    clazz = double.class;
+                    typeToken = TypeToken.of(double.class);
                 else if (clazz == Boolean.class)
-                    clazz = boolean.class;
-                typeToken = TypeToken.of(clazz);
+                    typeToken = TypeToken.of(boolean.class);
             }
             paramTypes[i] = typeToken;
         }
