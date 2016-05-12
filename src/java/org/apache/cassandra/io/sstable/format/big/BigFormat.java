@@ -110,7 +110,7 @@ public class BigFormat implements SSTableFormat
     // we always incremented the major version.
     static class BigVersion extends Version
     {
-        public static final String current_version = "ma";
+        public static final String current_version = "mb";
         public static final String earliest_supported_version = "jb";
 
         // jb (2.0.1): switch from crc32 to adler32 for compression checksums
@@ -120,8 +120,10 @@ public class BigFormat implements SSTableFormat
         //             switch uncompressed checksums to adler32
         //             tracks presense of legacy (local and remote) counter shards
         // la (2.2.0): new file name format
+        // lb (2.2.7): commit log lower bound included
         // ma (3.0.0): swap bf hash order
         //             store rows natively
+        // mb (3.0.7, 3.7): commit log lower bound included
         //
         // NOTE: when adding a new version, please add that to LegacySSTableTest, too.
 
@@ -141,6 +143,7 @@ public class BigFormat implements SSTableFormat
          * have no 'static' bits caused by using the same upper bits for both bloom filter and token distribution.
          */
         private final boolean hasOldBfHashOrder;
+        private final boolean hasCommitLogLowerBound;
 
         /**
          * CASSANDRA-7066: compaction ancerstors are no longer used and have been removed.
@@ -180,6 +183,8 @@ public class BigFormat implements SSTableFormat
                                           : MessagingService.VERSION_21;
 
             hasBoundaries = version.compareTo("ma") < 0;
+            hasCommitLogLowerBound = (version.compareTo("lb") >= 0 && version.compareTo("ma") < 0)
+                                     || version.compareTo("mb") >= 0;
         }
 
         @Override
@@ -240,6 +245,11 @@ public class BigFormat implements SSTableFormat
         public boolean hasNewFileName()
         {
             return newFileName;
+        }
+
+        public boolean hasCommitLogLowerBound()
+        {
+            return hasCommitLogLowerBound;
         }
 
         @Override

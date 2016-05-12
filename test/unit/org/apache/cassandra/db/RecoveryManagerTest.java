@@ -65,7 +65,7 @@ public class RecoveryManagerTest
         protected Future<Integer> initiateMutation(final Mutation mutation,
                 final long segmentId,
                 final int serializedSize,
-                final long entryLocation,
+                final int entryLocation,
                 final CommitLogReplayer clr)
         {
             final Future<Integer> toWrap = super.initiateMutation(mutation,

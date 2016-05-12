@@ -70,6 +70,8 @@ public abstract class Version
 
     public abstract boolean hasBoundaries();
 
+    public abstract boolean hasCommitLogLowerBound();
+
     public String getVersion()
     {
         return version;
