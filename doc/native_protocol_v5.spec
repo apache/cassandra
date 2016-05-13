@@ -407,12 +407,15 @@ Table of Contents
 4.1.6. EXECUTE
 
   Executes a prepared query. The body of the message must be:
-    <id><query_parameters>
-  where <id> is the prepared query ID. It's the [short bytes] returned as a
-  response to a PREPARE message. As for <query_parameters>, it has the exact
-  same definition as in QUERY (see Section 4.1.4).
-
-  The response from the server will be a RESULT message.
+  <id><result_metadata_id><query_parameters>
+  where
+  - <id> is the prepared query ID. It's the [short bytes] returned as a
+      response to a PREPARE message. As for <query_parameters>, it has the exact
+      same definition as in QUERY (see Section 4.1.4).
+    - <result_metadata_id> is the ID of the resultset metadata that was sent
+      along with response to PREPARE message. If a RESULT/Rows message reports
+      changed resultset metadata with the Metadata_changed flag, the reported new
+      resultset metadata must be used in subsequent executions.
 
 
 4.1.7. BATCH
@@ -583,7 +586,7 @@ Table of Contents
     <metadata><rows_count><rows_content>
   where:
     - <metadata> is composed of:
-        <flags><columns_count>[<paging_state>][<global_table_spec>?<col_spec_1>...<col_spec_n>]
+        <flags><columns_count>[<new_metadata_id>][<paging_state>][<global_table_spec>?<col_spec_1>...<col_spec_n>]
       where:
         - <flags> is an [int]. The bits of <flags> provides information on the
           formatting of the remaining information. A flag is set if the bit
@@ -604,9 +607,16 @@ Table of Contents
                       no other information (so no <global_table_spec> nor <col_spec_i>).
                       This will only ever be the case if this was requested
                       during the query (see QUERY and RESULT messages).
+            0x0008    Metadata_changed: if set, the No_metadata flag has to be unset
+                      and <new_metadata_id> has to be supplied. This flag is to be
+                      used to avoid a roundtrip in case of metadata changes for queries
+                      that requested metadata to be skipped.
         - <columns_count> is an [int] representing the number of columns selected
           by the query that produced this result. It defines the number of <col_spec_i>
           elements in and the number of elements for each row in <rows_content>.
+        - <new_metadata_id> is [short bytes] representing the new, changed resultset
+           metadata. The new metadata ID must also be used in subsequent executions of
+           the corresponding prepared statement, if any.
         - <global_table_spec> is present if the Global_tables_spec is set in
           <flags>. It is composed of two [string] representing the
           (unique) keyspace name and table name the columns belong to.
@@ -688,9 +698,10 @@ Table of Contents
 4.2.5.4. Prepared
 
   The result to a PREPARE message. The body of a Prepared result is:
-    <id><metadata><result_metadata>
+    <id><result_metadata_id><metadata><result_metadata>
   where:
     - <id> is [short bytes] representing the prepared query ID.
+    - <result_metadata_id> is [short bytes] representing the resultset metadata ID.
     - <metadata> is composed of:
         <flags><columns_count><pk_count>[<pk_index_1>...<pk_index_n>][<global_table_spec>?<col_spec_1>...<col_spec_n>]
       where:

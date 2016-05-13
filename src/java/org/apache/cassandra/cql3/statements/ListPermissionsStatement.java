@@ -118,7 +118,8 @@ public class ListPermissionsStatement extends AuthorizationStatement
         if (details.isEmpty())
             return new ResultMessage.Void();
 
-        ResultSet result = new ResultSet(metadata);
+        ResultSet.ResultMetadata resultMetadata = new ResultSet.ResultMetadata(metadata);
+        ResultSet result = new ResultSet(resultMetadata);
         for (PermissionDetails pd : details)
         {
             result.addColumnValue(UTF8Type.instance.decompose(pd.grantee));

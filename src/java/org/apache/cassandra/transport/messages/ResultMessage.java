@@ -20,9 +20,9 @@ package org.apache.cassandra.transport.messages;
 
 import io.netty.buffer.ByteBuf;
 
+import org.apache.cassandra.cql3.ColumnSpecification;
 import org.apache.cassandra.cql3.CQLStatement;
 import org.apache.cassandra.cql3.ResultSet;
-import org.apache.cassandra.cql3.statements.SelectStatement;
 import org.apache.cassandra.cql3.statements.ParsedStatement;
 import org.apache.cassandra.transport.*;
 import org.apache.cassandra.utils.MD5Digest;
@@ -51,12 +51,12 @@ public abstract class ResultMessage extends Message.Response
 
     public enum Kind
     {
-        VOID         (1, Void.subcodec),
-        ROWS         (2, Rows.subcodec),
-        SET_KEYSPACE (3, SetKeyspace.subcodec),
-        PREPARED     (4, Prepared.subcodec),
-        SCHEMA_CHANGE(5, SchemaChange.subcodec);
 
+        VOID               (1, Void.subcodec),
+        ROWS               (2, Rows.subcodec),
+        SET_KEYSPACE       (3, SetKeyspace.subcodec),
+        PREPARED           (4, Prepared.subcodec),
+        SCHEMA_CHANGE      (5, SchemaChange.subcodec);
         public final int id;
         public final Message.Codec<ResultMessage> subcodec;
 
@@ -216,13 +216,16 @@ public abstract class ResultMessage extends Message.Response
             public ResultMessage decode(ByteBuf body, ProtocolVersion version)
             {
                 MD5Digest id = MD5Digest.wrap(CBUtil.readBytes(body));
+                MD5Digest resultMetadataId = null;
+                if (version.isGreaterOrEqualTo(ProtocolVersion.V5))
+                    resultMetadataId = MD5Digest.wrap(CBUtil.readBytes(body));
                 ResultSet.PreparedMetadata metadata = ResultSet.PreparedMetadata.codec.decode(body, version);
 
                 ResultSet.ResultMetadata resultMetadata = ResultSet.ResultMetadata.EMPTY;
                 if (version.isGreaterThan(ProtocolVersion.V1))
                     resultMetadata = ResultSet.ResultMetadata.codec.decode(body, version);
 
-                return new Prepared(id, metadata, resultMetadata);
+                return new Prepared(id, resultMetadataId, metadata, resultMetadata);
             }
 
             public void encode(ResultMessage msg, ByteBuf dest, ProtocolVersion version)
@@ -232,6 +235,9 @@ public abstract class ResultMessage extends Message.Response
                 assert prepared.statementId != null;
 
                 CBUtil.writeBytes(prepared.statementId.bytes, dest);
+                if (version.isGreaterOrEqualTo(ProtocolVersion.V5))
+                    CBUtil.writeBytes(prepared.resultMetadataId.bytes, dest);
+
                 ResultSet.PreparedMetadata.codec.encode(prepared.metadata, dest, version);
                 if (version.isGreaterThan(ProtocolVersion.V1))
                     ResultSet.ResultMetadata.codec.encode(prepared.resultMetadata, dest, version);
@@ -245,6 +251,8 @@ public abstract class ResultMessage extends Message.Response
 
                 int size = 0;
                 size += CBUtil.sizeOfBytes(prepared.statementId.bytes);
+                if (version.isGreaterOrEqualTo(ProtocolVersion.V5))
+                    size += CBUtil.sizeOfBytes(prepared.resultMetadataId.bytes);
                 size += ResultSet.PreparedMetadata.codec.encodedSize(prepared.metadata, version);
                 if (version.isGreaterThan(ProtocolVersion.V1))
                     size += ResultSet.ResultMetadata.codec.encodedSize(prepared.resultMetadata, version);
@@ -253,6 +261,7 @@ public abstract class ResultMessage extends Message.Response
         };
 
         public final MD5Digest statementId;
+        public final MD5Digest resultMetadataId;
 
         /** Describes the variables to be bound in the prepared statement */
         public final ResultSet.PreparedMetadata metadata;
@@ -260,25 +269,13 @@ public abstract class ResultMessage extends Message.Response
         /** Describes the results of executing this prepared statement */
         public final ResultSet.ResultMetadata resultMetadata;
 
-        public Prepared(MD5Digest statementId, ParsedStatement.Prepared prepared)
-        {
-            this(statementId, new ResultSet.PreparedMetadata(prepared.boundNames, prepared.partitionKeyBindIndexes), extractResultMetadata(prepared.statement));
-        }
-
-        private Prepared(MD5Digest statementId, ResultSet.PreparedMetadata metadata, ResultSet.ResultMetadata resultMetadata)
+        public Prepared(MD5Digest statementId, MD5Digest resultMetadataId, ResultSet.PreparedMetadata metadata, ResultSet.ResultMetadata resultMetadata)
         {
             super(Kind.PREPARED);
             this.statementId = statementId;
+            this.resultMetadataId = resultMetadataId;
             this.metadata = metadata;
             this.resultMetadata = resultMetadata;
-        }
-
-        private static ResultSet.ResultMetadata extractResultMetadata(CQLStatement statement)
-        {
-            if (!(statement instanceof SelectStatement))
-                return ResultSet.ResultMetadata.EMPTY;
-
-            return ((SelectStatement)statement).getResultMetadata();
         }
 
         @Override

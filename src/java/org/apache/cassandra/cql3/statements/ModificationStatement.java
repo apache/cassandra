@@ -497,6 +497,19 @@ public abstract class ModificationStatement implements CQLStatement
         conditions.addConditionsTo(request, clustering, options);
     }
 
+    private static ResultSet.ResultMetadata buildCASSuccessMetadata(String ksName, String cfName)
+    {
+        List<ColumnSpecification> specs = new ArrayList<>();
+        specs.add(casResultColumnSpecification(ksName, cfName));
+
+        return new ResultSet.ResultMetadata(specs);
+    }
+
+    private static ColumnSpecification casResultColumnSpecification(String ksName, String cfName)
+    {
+        return new ColumnSpecification(ksName, cfName, CAS_RESULT_COLUMN, BooleanType.instance);
+    }
+
     private ResultSet buildCasResultSet(RowIterator partition, QueryOptions options) throws InvalidRequestException
     {
         return buildCasResultSet(keyspace(), columnFamily(), partition, getColumnsWithConditions(), false, options);
@@ -507,8 +520,7 @@ public abstract class ModificationStatement implements CQLStatement
     {
         boolean success = partition == null;
 
-        ColumnSpecification spec = new ColumnSpecification(ksName, tableName, CAS_RESULT_COLUMN, BooleanType.instance);
-        ResultSet.ResultMetadata metadata = new ResultSet.ResultMetadata(Collections.singletonList(spec));
+        ResultSet.ResultMetadata metadata = buildCASSuccessMetadata(ksName, tableName);
         List<List<ByteBuffer>> rows = Collections.singletonList(Collections.singletonList(BooleanType.instance.decompose(success)));
 
         ResultSet rs = new ResultSet(metadata, rows);

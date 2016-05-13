@@ -281,11 +281,11 @@ public abstract class CqlOperation<V> extends PredefinedOperation
         }
 
         @Override
-        public <V> V execute(Object preparedStatementId, ByteBuffer key, List<Object> queryParams, ResultHandler<V> handler)
+        public <V> V execute(Object preparedStatement, ByteBuffer key, List<Object> queryParams, ResultHandler<V> handler)
         {
             return handler.javaDriverHandler().apply(
                     client.executePrepared(
-                            (PreparedStatement) preparedStatementId,
+                            (PreparedStatement) preparedStatement,
                             queryParams,
                             settings.command.consistencyLevel));
         }
@@ -313,11 +313,11 @@ public abstract class CqlOperation<V> extends PredefinedOperation
         }
 
         @Override
-        public <V> V execute(Object preparedStatementId, ByteBuffer key, List<Object> queryParams, ResultHandler<V> handler)
+        public <V> V execute(Object preparedStatement, ByteBuffer key, List<Object> queryParams, ResultHandler<V> handler)
         {
             return handler.simpleClientHandler().apply(
                     client.executePrepared(
-                            (byte[]) preparedStatementId,
+                            (ResultMessage.Prepared) preparedStatement,
                             toByteBufferParams(queryParams),
                             settings.command.consistencyLevel));
         }

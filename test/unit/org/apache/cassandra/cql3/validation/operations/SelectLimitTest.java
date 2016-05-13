@@ -30,11 +30,14 @@ import org.apache.cassandra.service.StorageService;
 
 public class SelectLimitTest extends CQLTester
 {
+    // This method will be ran instead of the CQLTester#setUpClass
     @BeforeClass
-    public static void setUp()
+    public static void setUpClass()
     {
         StorageService.instance.setPartitionerUnsafe(ByteOrderedPartitioner.instance);
         DatabaseDescriptor.setPartitionerUnsafe(ByteOrderedPartitioner.instance);
+
+        prepareServer();
     }
 
     /**

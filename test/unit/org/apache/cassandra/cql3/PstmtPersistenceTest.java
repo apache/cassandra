@@ -78,14 +78,14 @@ public class PstmtPersistenceTest extends CQLTester
         assertEquals(5, stmtIds.size());
         assertEquals(5, QueryProcessor.preparedStatementsCount());
 
-        Assert.assertEquals(5, numberOfStatementsOnDisk());
+        assertEquals(5, numberOfStatementsOnDisk());
 
         QueryHandler handler = ClientState.getCQLQueryHandler();
         validatePstmts(stmtIds, handler);
 
         // clear prepared statements cache
         QueryProcessor.clearPreparedStatements(true);
-        Assert.assertEquals(0, QueryProcessor.preparedStatementsCount());
+        assertEquals(0, QueryProcessor.preparedStatementsCount());
         for (MD5Digest stmtId : stmtIds)
             Assert.assertNull(handler.getPrepared(stmtId));
 

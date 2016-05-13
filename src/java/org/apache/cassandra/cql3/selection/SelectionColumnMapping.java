@@ -37,8 +37,8 @@ import org.apache.cassandra.cql3.ColumnSpecification;
  */
 public class SelectionColumnMapping implements SelectionColumns
 {
-    private final ArrayList<ColumnSpecification> columnSpecifications;
-    private final HashMultimap<ColumnSpecification, ColumnMetadata> columnMappings;
+    private final List<ColumnSpecification> columnSpecifications;
+    private final Multimap<ColumnSpecification, ColumnMetadata> columnMappings;
 
     private SelectionColumnMapping()
     {

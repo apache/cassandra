@@ -17,12 +17,12 @@
  */
 package org.apache.cassandra.cql3.statements;
 
-import java.util.Collections;
-import java.util.List;
+import java.util.*;
 
 import org.apache.cassandra.cql3.*;
 import org.apache.cassandra.cql3.functions.Function;
 import org.apache.cassandra.exceptions.RequestValidationException;
+import org.apache.cassandra.utils.*;
 
 public abstract class ParsedStatement
 {
@@ -56,8 +56,9 @@ public abstract class ParsedStatement
          */
         public String rawCQLStatement;
 
-        public final CQLStatement statement;
+        public final MD5Digest resultMetadataId;
         public final List<ColumnSpecification> boundNames;
+        public final CQLStatement statement;
         public final short[] partitionKeyBindIndexes;
 
         protected Prepared(CQLStatement statement, List<ColumnSpecification> boundNames, short[] partitionKeyBindIndexes)
@@ -65,6 +66,7 @@ public abstract class ParsedStatement
             this.statement = statement;
             this.boundNames = boundNames;
             this.partitionKeyBindIndexes = partitionKeyBindIndexes;
+            this.resultMetadataId = ResultSet.ResultMetadata.fromPrepared(this).getResultMetadataId();
             this.rawCQLStatement = "";
         }
 

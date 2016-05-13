@@ -94,7 +94,7 @@ public abstract class CQLTester
     protected static final int nativePort;
     protected static final InetAddress nativeAddr;
     private static final Map<ProtocolVersion, Cluster> clusters = new HashMap<>();
-    private static final Map<ProtocolVersion, Session> sessions = new HashMap<>();
+    protected static final Map<ProtocolVersion, Session> sessions = new HashMap<>();
 
     private static boolean isServerPrepared = false;
 
@@ -386,12 +386,18 @@ public abstract class CQLTester
             if (clusters.containsKey(version))
                 continue;
 
-            Cluster cluster = Cluster.builder()
-                                     .addContactPoints(nativeAddr)
-                                     .withClusterName("Test Cluster")
-                                     .withPort(nativePort)
-                                     .withProtocolVersion(com.datastax.driver.core.ProtocolVersion.fromInt(version.asInt()))
-                                     .build();
+            Cluster.Builder builder = Cluster.builder()
+                                             .withoutJMXReporting()
+                                             .addContactPoints(nativeAddr)
+                                             .withClusterName("Test Cluster")
+                                             .withPort(nativePort);
+
+            if (version.isBeta())
+                builder = builder.allowBetaProtocolVersion();
+            else
+                builder = builder.withProtocolVersion(com.datastax.driver.core.ProtocolVersion.fromInt(version.asInt()));
+
+            Cluster cluster = builder.build();
             clusters.put(version, cluster);
             sessions.put(version, cluster.connect());
 

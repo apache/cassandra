@@ -28,8 +28,7 @@ import com.github.benmanes.caffeine.cache.Cache;
 import com.github.benmanes.caffeine.cache.Caffeine;
 import com.google.common.annotations.VisibleForTesting;
 import com.google.common.base.Predicate;
-import com.google.common.collect.Iterables;
-import com.google.common.collect.Iterators;
+import com.google.common.collect.*;
 import com.google.common.primitives.Ints;
 import com.google.common.util.concurrent.MoreExecutors;
 import org.slf4j.Logger;
@@ -420,7 +419,10 @@ public class QueryProcessor implements QueryHandler
 
         checkTrue(queryString.equals(existing.rawCQLStatement),
                 String.format("MD5 hash collision: query with the same MD5 hash was already prepared. \n Existing: '%s'", existing.rawCQLStatement));
-        return new ResultMessage.Prepared(statementId, existing);
+
+        ResultSet.PreparedMetadata preparedMetadata = ResultSet.PreparedMetadata.fromPrepared(existing);
+        ResultSet.ResultMetadata resultMetadata = ResultSet.ResultMetadata.fromPrepared(existing);
+        return new ResultMessage.Prepared(statementId, resultMetadata.getResultMetadataId(), preparedMetadata, resultMetadata);
     }
 
     private static ResultMessage.Prepared storePreparedStatement(String queryString, String keyspace, ParsedStatement.Prepared prepared)
@@ -438,7 +440,9 @@ public class QueryProcessor implements QueryHandler
         MD5Digest statementId = computeId(queryString, keyspace);
         preparedStatements.put(statementId, prepared);
         SystemKeyspace.writePreparedStatement(keyspace, statementId, queryString);
-        return new ResultMessage.Prepared(statementId, prepared);
+        ResultSet.PreparedMetadata preparedMetadata = ResultSet.PreparedMetadata.fromPrepared(prepared);
+        ResultSet.ResultMetadata resultMetadata = ResultSet.ResultMetadata.fromPrepared(prepared);
+        return new ResultMessage.Prepared(statementId, resultMetadata.getResultMetadataId(), preparedMetadata, resultMetadata);
     }
 
     public ResultMessage processPrepared(CQLStatement statement,
@@ -464,7 +468,6 @@ public class QueryProcessor implements QueryHandler
                                                                 variables.size()));
 
             // at this point there is a match in count between markers and variables that is non-zero
-
             if (logger.isTraceEnabled())
                 for (int i = 0; i < variables.size(); i++)
                     logger.trace("[{}] '{}'", i+1, variables.get(i));

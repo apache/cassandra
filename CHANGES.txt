@@ -1,4 +1,5 @@
 4.0
+ * Add result set metadata to prepared statement MD5 hash calculation (CASSANDRA-10786)
  * Refactor GcCompactionTest to avoid boxing (CASSANDRA-13941)
  * Checksum sstable metadata (CASSANDRA-13321)
  * Expose recent histograms in JmxHistograms (CASSANDRA-13642)
