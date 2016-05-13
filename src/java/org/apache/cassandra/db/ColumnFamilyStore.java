@@ -493,6 +493,11 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
         return getCompactionStrategyManager().createSSTableMultiWriter(descriptor, keyCount, repairedAt, metadataCollector, header, indexManager.listIndexes(), txn);
     }
 
+    public boolean supportsEarlyOpen()
+    {
+        return compactionStrategyManager.supportsEarlyOpen();
+    }
+
     /** call when dropping or renaming a CF. Performs mbean housekeeping and invalidates CFS to other operations */
     public void invalidate()
     {
