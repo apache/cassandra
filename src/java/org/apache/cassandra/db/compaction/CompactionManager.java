@@ -989,7 +989,7 @@ public class CompactionManager implements CompactionManagerMBean
 
         List<SSTableReader> finished;
         int nowInSec = FBUtilities.nowInSeconds();
-        try (SSTableRewriter writer = SSTableRewriter.constructKeepingOriginals(txn, false, sstable.maxDataAge);
+        try (SSTableRewriter writer = SSTableRewriter.construct(cfs, txn, false, sstable.maxDataAge);
              ISSTableScanner scanner = cleanupStrategy.getScanner(sstable, getRateLimiter());
              CompactionController controller = new CompactionController(cfs, txn.originals(), getDefaultGcBefore(cfs, nowInSec));
              CompactionIterator ci = new CompactionIterator(OperationType.CLEANUP, Collections.singletonList(scanner), controller, nowInSec, UUIDGen.getTimeUUID(), metrics))

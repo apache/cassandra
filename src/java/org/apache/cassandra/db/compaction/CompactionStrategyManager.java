@@ -881,4 +881,9 @@ public class CompactionStrategyManager implements INotificationConsumer
         }
         return folders;
     }
+
+    public boolean supportsEarlyOpen()
+    {
+        return repaired.get(0).supportsEarlyOpen();
+    }
 }
