@@ -33,6 +33,7 @@ import org.apache.cassandra.config.CFMetaData;
 import org.apache.cassandra.config.ColumnDefinition;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.db.commitlog.CommitLog;
+import org.apache.cassandra.db.commitlog.IntervalSet;
 import org.apache.cassandra.db.commitlog.ReplayPosition;
 import org.apache.cassandra.db.compaction.OperationType;
 import org.apache.cassandra.db.filter.ClusteringIndexFilter;
@@ -193,6 +194,11 @@ public class Memtable implements Comparable<Memtable>
         return commitLogLowerBound.get();
     }
 
+    public ReplayPosition getCommitLogUpperBound()
+    {
+        return commitLogUpperBound.get();
+    }
+
     public boolean isLive()
     {
         return allocator.isLive();
@@ -331,6 +337,15 @@ public class Memtable implements Comparable<Memtable>
         return minTimestamp;
     }
 
+    /**
+     * For testing only. Give this memtable too big a size to make it always fail flushing.
+     */
+    @VisibleForTesting
+    public void makeUnflushable()
+    {
+        liveDataSize.addAndGet(1L * 1024 * 1024 * 1024 * 1024 * 1024);
+    }
+
     private long estimatedSize()
     {
         long keySize = 0;
@@ -418,8 +433,7 @@ public class Memtable implements Comparable<Memtable>
         {
             txn = LifecycleTransaction.offline(OperationType.FLUSH);
             MetadataCollector sstableMetadataCollector = new MetadataCollector(cfs.metadata.comparator)
-                                                         .commitLogLowerBound(commitLogLowerBound.get())
-                                                         .commitLogUpperBound(commitLogUpperBound.get());
+                    .commitLogIntervals(new IntervalSet(commitLogLowerBound.get(), commitLogUpperBound.get()));
 
             return new SSTableTxnWriter(txn,
                                         cfs.createSSTableMultiWriter(Descriptor.fromFilename(filename),

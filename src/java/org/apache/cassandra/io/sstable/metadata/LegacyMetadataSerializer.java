@@ -24,6 +24,7 @@ import java.util.*;
 import com.google.common.collect.Maps;
 
 import org.apache.cassandra.db.TypeSizes;
+import org.apache.cassandra.db.commitlog.IntervalSet;
 import org.apache.cassandra.db.commitlog.ReplayPosition;
 import org.apache.cassandra.io.sstable.Component;
 import org.apache.cassandra.io.sstable.Descriptor;
@@ -34,6 +35,8 @@ import org.apache.cassandra.service.ActiveRepairService;
 import org.apache.cassandra.utils.ByteBufferUtil;
 import org.apache.cassandra.utils.EstimatedHistogram;
 import org.apache.cassandra.utils.StreamingHistogram;
+
+import static org.apache.cassandra.io.sstable.metadata.StatsMetadata.replayPositionSetSerializer;
 
 /**
  * Serializer for SSTable from legacy versions
@@ -55,7 +58,7 @@ public class LegacyMetadataSerializer extends MetadataSerializer
 
         EstimatedHistogram.serializer.serialize(stats.estimatedPartitionSize, out);
         EstimatedHistogram.serializer.serialize(stats.estimatedColumnCount, out);
-        ReplayPosition.serializer.serialize(stats.commitLogUpperBound, out);
+        ReplayPosition.serializer.serialize(stats.commitLogIntervals.upperBound().orElse(ReplayPosition.NONE), out);
         out.writeLong(stats.minTimestamp);
         out.writeLong(stats.maxTimestamp);
         out.writeInt(stats.maxLocalDeletionTime);
@@ -72,7 +75,9 @@ public class LegacyMetadataSerializer extends MetadataSerializer
         for (ByteBuffer value : stats.maxClusteringValues)
             ByteBufferUtil.writeWithShortLength(value, out);
         if (version.hasCommitLogLowerBound())
-            ReplayPosition.serializer.serialize(stats.commitLogLowerBound, out);
+            ReplayPosition.serializer.serialize(stats.commitLogIntervals.lowerBound().orElse(ReplayPosition.NONE), out);
+        if (version.hasCommitLogIntervals())
+            replayPositionSetSerializer.serialize(stats.commitLogIntervals, out);
     }
 
     /**
@@ -121,6 +126,11 @@ public class LegacyMetadataSerializer extends MetadataSerializer
 
                 if (descriptor.version.hasCommitLogLowerBound())
                     commitLogLowerBound = ReplayPosition.serializer.deserialize(in);
+                IntervalSet<ReplayPosition> commitLogIntervals;
+                if (descriptor.version.hasCommitLogIntervals())
+                    commitLogIntervals = replayPositionSetSerializer.deserialize(in);
+                else
+                    commitLogIntervals = new IntervalSet<>(commitLogLowerBound, commitLogUpperBound);
 
                 if (types.contains(MetadataType.VALIDATION))
                     components.put(MetadataType.VALIDATION,
@@ -129,8 +139,7 @@ public class LegacyMetadataSerializer extends MetadataSerializer
                     components.put(MetadataType.STATS,
                                    new StatsMetadata(partitionSizes,
                                                      columnCounts,
-                                                     commitLogLowerBound,
-                                                     commitLogUpperBound,
+                                                     commitLogIntervals,
                                                      minTimestamp,
                                                      maxTimestamp,
                                                      Integer.MAX_VALUE,

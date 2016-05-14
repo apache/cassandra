@@ -19,7 +19,9 @@ package org.apache.cassandra;
  *
  */
 
+import java.io.Closeable;
 import java.io.EOFException;
+import java.io.IOError;
 import java.net.InetAddress;
 import java.net.UnknownHostException;
 import java.nio.ByteBuffer;
@@ -39,6 +41,7 @@ import org.apache.cassandra.config.ColumnDefinition;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.cql3.ColumnIdentifier;
 import org.apache.cassandra.db.*;
+import org.apache.cassandra.db.Directories.DataDirectory;
 import org.apache.cassandra.db.compaction.AbstractCompactionTask;
 import org.apache.cassandra.db.compaction.CompactionManager;
 import org.apache.cassandra.db.marshal.AbstractType;
@@ -57,7 +60,6 @@ import org.apache.cassandra.service.StorageService;
 import org.apache.cassandra.utils.ByteBufferUtil;
 import org.apache.cassandra.utils.CounterId;
 import org.apache.cassandra.utils.FBUtilities;
-import org.apache.cassandra.utils.concurrent.OpOrder;
 
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertNotNull;
@@ -650,5 +652,22 @@ public class Util
         {
             return queryStorage(cfs, orderGroup);
         }
+    }
+
+    public static Closeable markDirectoriesUnwriteable(ColumnFamilyStore cfs)
+    {
+        try
+        {
+            for ( ; ; )
+            {
+                DataDirectory dir = cfs.getDirectories().getWriteableLocation(1);
+                BlacklistedDirectories.maybeMarkUnwritable(cfs.getDirectories().getLocationForDisk(dir));
+            }
+        }
+        catch (IOError e)
+        {
+            // Expected -- marked all directories as unwritable
+        }
+        return () -> BlacklistedDirectories.clearUnwritableUnsafe();
     }
 }

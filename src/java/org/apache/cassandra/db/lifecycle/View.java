@@ -33,7 +33,6 @@ import org.apache.cassandra.io.sstable.format.SSTableReader;
 import org.apache.cassandra.utils.Interval;
 
 import static com.google.common.base.Predicates.equalTo;
-import static com.google.common.base.Predicates.in;
 import static com.google.common.base.Predicates.not;
 import static com.google.common.collect.ImmutableList.copyOf;
 import static com.google.common.collect.ImmutableList.of;
@@ -70,7 +69,6 @@ public class View
     public final List<Memtable> flushingMemtables;
     final Set<SSTableReader> compacting;
     final Set<SSTableReader> sstables;
-    final Set<SSTableReader> premature;
     // we use a Map here so that we can easily perform identity checks as well as equality checks.
     // When marking compacting, we now  indicate if we expect the sstables to be present (by default we do),
     // and we then check that not only are they all present in the live set, but that the exact instance present is
@@ -80,7 +78,7 @@ public class View
 
     final SSTableIntervalTree intervalTree;
 
-    View(List<Memtable> liveMemtables, List<Memtable> flushingMemtables, Map<SSTableReader, SSTableReader> sstables, Map<SSTableReader, SSTableReader> compacting, Set<SSTableReader> premature, SSTableIntervalTree intervalTree)
+    View(List<Memtable> liveMemtables, List<Memtable> flushingMemtables, Map<SSTableReader, SSTableReader> sstables, Map<SSTableReader, SSTableReader> compacting, SSTableIntervalTree intervalTree)
     {
         assert liveMemtables != null;
         assert flushingMemtables != null;
@@ -95,7 +93,6 @@ public class View
         this.sstables = sstablesMap.keySet();
         this.compactingMap = compacting;
         this.compacting = compactingMap.keySet();
-        this.premature = premature;
         this.intervalTree = intervalTree;
     }
 
@@ -256,7 +253,7 @@ public class View
                 assert all(mark, Helpers.idIn(view.sstablesMap));
                 return new View(view.liveMemtables, view.flushingMemtables, view.sstablesMap,
                                 replace(view.compactingMap, unmark, mark),
-                                view.premature, view.intervalTree);
+                                view.intervalTree);
             }
         };
     }
@@ -270,7 +267,7 @@ public class View
             public boolean apply(View view)
             {
                 for (SSTableReader reader : readers)
-                    if (view.compacting.contains(reader) || view.sstablesMap.get(reader) != reader || reader.isMarkedCompacted() || view.premature.contains(reader))
+                    if (view.compacting.contains(reader) || view.sstablesMap.get(reader) != reader || reader.isMarkedCompacted())
                         return false;
                 return true;
             }
@@ -287,7 +284,7 @@ public class View
             public View apply(View view)
             {
                 Map<SSTableReader, SSTableReader> sstableMap = replace(view.sstablesMap, remove, add);
-                return new View(view.liveMemtables, view.flushingMemtables, sstableMap, view.compactingMap, view.premature,
+                return new View(view.liveMemtables, view.flushingMemtables, sstableMap, view.compactingMap,
                                 SSTableIntervalTree.build(sstableMap.keySet()));
             }
         };
@@ -302,7 +299,7 @@ public class View
             {
                 List<Memtable> newLive = ImmutableList.<Memtable>builder().addAll(view.liveMemtables).add(newMemtable).build();
                 assert newLive.size() == view.liveMemtables.size() + 1;
-                return new View(newLive, view.flushingMemtables, view.sstablesMap, view.compactingMap, view.premature, view.intervalTree);
+                return new View(newLive, view.flushingMemtables, view.sstablesMap, view.compactingMap, view.intervalTree);
             }
         };
     }
@@ -321,7 +318,7 @@ public class View
                                                            filter(flushing, not(lessThan(toFlush)))));
                 assert newLive.size() == live.size() - 1;
                 assert newFlushing.size() == flushing.size() + 1;
-                return new View(newLive, newFlushing, view.sstablesMap, view.compactingMap, view.premature, view.intervalTree);
+                return new View(newLive, newFlushing, view.sstablesMap, view.compactingMap, view.intervalTree);
             }
         };
     }
@@ -338,31 +335,14 @@ public class View
 
                 if (flushed == null || flushed.isEmpty())
                     return new View(view.liveMemtables, flushingMemtables, view.sstablesMap,
-                                    view.compactingMap, view.premature, view.intervalTree);
+                                    view.compactingMap, view.intervalTree);
 
                 Map<SSTableReader, SSTableReader> sstableMap = replace(view.sstablesMap, emptySet(), flushed);
-                Map<SSTableReader, SSTableReader> compactingMap = replace(view.compactingMap, emptySet(), flushed);
-                Set<SSTableReader> premature = replace(view.premature, emptySet(), flushed);
-                return new View(view.liveMemtables, flushingMemtables, sstableMap, compactingMap, premature,
+                return new View(view.liveMemtables, flushingMemtables, sstableMap, view.compactingMap,
                                 SSTableIntervalTree.build(sstableMap.keySet()));
             }
         };
     }
-
-    static Function<View, View> permitCompactionOfFlushed(final Collection<SSTableReader> readers)
-    {
-        Set<SSTableReader> expectAndRemove = ImmutableSet.copyOf(readers);
-        return new Function<View, View>()
-        {
-            public View apply(View view)
-            {
-                Set<SSTableReader> premature = replace(view.premature, expectAndRemove, emptySet());
-                Map<SSTableReader, SSTableReader> compactingMap = replace(view.compactingMap, expectAndRemove, emptySet());
-                return new View(view.liveMemtables, view.flushingMemtables, view.sstablesMap, compactingMap, premature, view.intervalTree);
-            }
-        };
-    }
-
 
     private static <T extends Comparable<T>> Predicate<T> lessThan(final T lessThan)
     {

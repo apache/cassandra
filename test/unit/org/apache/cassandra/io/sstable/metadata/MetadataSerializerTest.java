@@ -32,6 +32,7 @@ import org.apache.cassandra.SchemaLoader;
 import org.apache.cassandra.config.CFMetaData;
 import org.apache.cassandra.db.SerializationHeader;
 import org.apache.cassandra.config.DatabaseDescriptor;
+import org.apache.cassandra.db.commitlog.IntervalSet;
 import org.apache.cassandra.db.commitlog.ReplayPosition;
 import org.apache.cassandra.dht.RandomPartitioner;
 import org.apache.cassandra.io.sstable.Component;
@@ -85,8 +86,7 @@ public class MetadataSerializerTest
 
         CFMetaData cfm = SchemaLoader.standardCFMD("ks1", "cf1");
         MetadataCollector collector = new MetadataCollector(cfm.comparator)
-                                          .commitLogLowerBound(cllb)
-                                          .commitLogUpperBound(club);
+                                          .commitLogIntervals(new IntervalSet(cllb, club));
 
         String partitioner = RandomPartitioner.class.getCanonicalName();
         double bfFpChance = 0.1;
@@ -104,6 +104,18 @@ public class MetadataSerializerTest
     public void testMaReadMb() throws IOException
     {
         testOldReadsNew("ma", "mb");
+    }
+
+    @Test
+    public void testMaReadMc() throws IOException
+    {
+        testOldReadsNew("ma", "mc");
+    }
+
+    @Test
+    public void testMbReadMc() throws IOException
+    {
+        testOldReadsNew("mb", "mc");
     }
 
     public void testOldReadsNew(String oldV, String newV) throws IOException

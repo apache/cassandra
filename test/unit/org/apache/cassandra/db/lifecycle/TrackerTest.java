@@ -300,9 +300,6 @@ public class TrackerTest
         SSTableReader reader = MockSchema.sstable(0, 10, false, cfs);
         tracker.replaceFlushed(prev2, Collections.singleton(reader));
         Assert.assertEquals(1, tracker.getView().sstables.size());
-        Assert.assertEquals(1, tracker.getView().premature.size());
-        tracker.permitCompactionOfFlushed(singleton(reader));
-        Assert.assertEquals(0, tracker.getView().premature.size());
         Assert.assertEquals(1, listener.received.size());
         Assert.assertEquals(singleton(reader), ((SSTableAddedNotification) listener.received.get(0)).added);
         listener.received.clear();
@@ -318,13 +315,14 @@ public class TrackerTest
         tracker.markFlushing(prev1);
         reader = MockSchema.sstable(0, 10, true, cfs);
         cfs.invalidate(false);
-        tracker.replaceFlushed(prev1, Collections.singleton(reader));
-        tracker.permitCompactionOfFlushed(Collections.singleton(reader));
+        tracker.replaceFlushed(prev1, singleton(reader));
         Assert.assertEquals(0, tracker.getView().sstables.size());
         Assert.assertEquals(0, tracker.getView().flushingMemtables.size());
         Assert.assertEquals(0, cfs.metric.liveDiskSpaceUsed.getCount());
-        Assert.assertEquals(reader, (((SSTableDeletingNotification) listener.received.get(0)).deleting));
-        Assert.assertEquals(1, ((SSTableListChangedNotification) listener.received.get(1)).removed.size());
+        Assert.assertEquals(3, listener.received.size());
+        Assert.assertEquals(singleton(reader), ((SSTableAddedNotification) listener.received.get(0)).added);
+        Assert.assertTrue(listener.received.get(1) instanceof SSTableDeletingNotification);
+        Assert.assertEquals(1, ((SSTableListChangedNotification) listener.received.get(2)).removed.size());
         DatabaseDescriptor.setIncrementalBackupsEnabled(backups);
     }
 

@@ -781,7 +781,7 @@ public class SSTableRewriterTest extends SSTableWriterTestBase
 
         cfs.addSSTable(writeFile(cfs, 1000));
 
-        Collection<SSTableReader> allSSTables = cfs.getSSTables();
+        Collection<SSTableReader> allSSTables = cfs.getLiveSSTables();
         assertEquals(1, allSSTables.size());
         final Token firstToken = allSSTables.iterator().next().first.getToken();
         DatabaseDescriptor.setSSTablePreempiveOpenIntervalInMB(1);
@@ -880,7 +880,7 @@ public class SSTableRewriterTest extends SSTableWriterTestBase
         truncate(cfs);
 
         cfs.addSSTable(writeFile(cfs, 100));
-        Collection<SSTableReader> allSSTables = cfs.getSSTables();
+        Collection<SSTableReader> allSSTables = cfs.getLiveSSTables();
         assertEquals(1, allSSTables.size());
         final AtomicBoolean done = new AtomicBoolean(false);
         final AtomicBoolean failed = new AtomicBoolean(false);
