@@ -1,6 +1,6 @@
 package org.apache.cassandra.stress.settings;
 /*
- * 
+ *
  * Licensed to the Apache Software Foundation (ASF) under one
  * or more contributor license agreements.  See the NOTICE file
  * distributed with this work for additional information
@@ -8,16 +8,16 @@ package org.apache.cassandra.stress.settings;
  * to you under the Apache License, Version 2.0 (the
  * "License"); you may not use this file except in compliance
  * with the License.  You may obtain a copy of the License at
- * 
+ *
  *   http://www.apache.org/licenses/LICENSE-2.0
- * 
+ *
  * Unless required by applicable law or agreed to in writing,
  * software distributed under the License is distributed on an
  * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
  * KIND, either express or implied.  See the License for the
  * specific language governing permissions and limitations
  * under the License.
- * 
+ *
  */
 
 
@@ -45,7 +45,6 @@ public class StressSettings implements Serializable
     public final SettingsPopulation generate;
     public final SettingsInsert insert;
     public final SettingsColumn columns;
-    public final SettingsSamples samples;
     public final SettingsErrors errors;
     public final SettingsLog log;
     public final SettingsMode mode;
@@ -62,7 +61,6 @@ public class StressSettings implements Serializable
                           SettingsPopulation generate,
                           SettingsInsert insert,
                           SettingsColumn columns,
-                          SettingsSamples samples,
                           SettingsErrors errors,
                           SettingsLog log,
                           SettingsMode mode,
@@ -79,7 +77,6 @@ public class StressSettings implements Serializable
         this.insert = insert;
         this.generate = generate;
         this.columns = columns;
-        this.samples = samples;
         this.errors = errors;
         this.log = log;
         this.mode = mode;
@@ -273,7 +270,6 @@ public class StressSettings implements Serializable
         SettingsTokenRange tokenRange = SettingsTokenRange.get(clArgs);
         SettingsInsert insert = SettingsInsert.get(clArgs);
         SettingsColumn columns = SettingsColumn.get(clArgs);
-        SettingsSamples samples = SettingsSamples.get(clArgs);
         SettingsErrors errors = SettingsErrors.get(clArgs);
         SettingsLog log = SettingsLog.get(clArgs);
         SettingsMode mode = SettingsMode.get(clArgs);
@@ -298,7 +294,7 @@ public class StressSettings implements Serializable
             System.exit(1);
         }
 
-        return new StressSettings(command, rate, generate, insert, columns, samples, errors, log, mode, node, schema, transport, port, sendToDaemon, graph, tokenRange);
+        return new StressSettings(command, rate, generate, insert, columns, errors, log, mode, node, schema, transport, port, sendToDaemon, graph, tokenRange);
     }
 
     private static Map<String, String[]> parseMap(String[] args)

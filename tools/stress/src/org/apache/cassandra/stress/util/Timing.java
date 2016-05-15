@@ -1,6 +1,6 @@
 package org.apache.cassandra.stress.util;
 /*
- * 
+ *
  * Licensed to the Apache Software Foundation (ASF) under one
  * or more contributor license agreements.  See the NOTICE file
  * distributed with this work for additional information
@@ -8,16 +8,16 @@ package org.apache.cassandra.stress.util;
  * to you under the Apache License, Version 2.0 (the
  * "License"); you may not use this file except in compliance
  * with the License.  You may obtain a copy of the License at
- * 
+ *
  *   http://www.apache.org/licenses/LICENSE-2.0
- * 
+ *
  * Unless required by applicable law or agreed to in writing,
  * software distributed under the License is distributed on an
  * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
  * KIND, either express or implied.  See the License for the
  * specific language governing permissions and limitations
  * under the License.
- * 
+ *
  */
 
 
@@ -38,14 +38,12 @@ public class Timing
     // Probably the CopyOnWriteArrayList could be changed to an ordinary list as well.
     private final Map<String, List<Timer>> timers = new TreeMap<>();
     private volatile TimingIntervals history;
-    private final int historySampleCount;
-    private final int reportSampleCount;
     private boolean done;
+    private boolean isFixed;
 
-    public Timing(int historySampleCount, int reportSampleCount)
+    public Timing(boolean isFixed)
     {
-        this.historySampleCount = historySampleCount;
-        this.reportSampleCount = reportSampleCount;
+        this.isFixed = isFixed;
     }
 
     // TIMING
@@ -111,20 +109,20 @@ public class Timing
                 done &= !timer.running();
             }
 
-            intervals.put(entry.getKey(), TimingInterval.merge(operationIntervals, reportSampleCount,
+            intervals.put(entry.getKey(), TimingInterval.merge(operationIntervals,
                                                               history.get(entry.getKey()).endNanos()));
         }
 
         TimingIntervals result = new TimingIntervals(intervals);
         this.done = done;
-        history = history.merge(result, historySampleCount, history.startNanos());
+        history = history.merge(result, history.startNanos());
         return new TimingResult<>(extra, result);
     }
 
     // build a new timer and add it to the set of running timers.
-    public Timer newTimer(String opType, int sampleCount)
+    public Timer newTimer(String opType)
     {
-        final Timer timer = new Timer(sampleCount);
+        final Timer timer = new Timer(isFixed);
 
         if (!timers.containsKey(opType))
             timers.put(opType, new ArrayList<Timer>());

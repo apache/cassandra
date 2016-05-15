@@ -248,18 +248,16 @@ public class TokenRangeQuery extends Operation
         timeWithRetry(new ThriftRun(client));
     }
 
-    public boolean ready(WorkManager workManager, RateLimiter rateLimiter)
+    public int ready(WorkManager workManager)
     {
         tokenRangeIterator.update();
 
         if (tokenRangeIterator.exhausted() && currentState.get() == null)
-            return false;
+            return 0;
 
         int numLeft = workManager.takePermits(1);
-        if (rateLimiter != null && numLeft > 0 )
-            rateLimiter.acquire(numLeft);
 
-        return numLeft > 0;
+        return numLeft > 0 ? 1 : 0;
     }
 
     public String key()

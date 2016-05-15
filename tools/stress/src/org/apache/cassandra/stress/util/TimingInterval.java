@@ -1,6 +1,6 @@
 package org.apache.cassandra.stress.util;
 /*
- * 
+ *
  * Licensed to the Apache Software Foundation (ASF) under one
  * or more contributor license agreements.  See the NOTICE file
  * distributed with this work for additional information
@@ -8,167 +8,193 @@ package org.apache.cassandra.stress.util;
  * to you under the Apache License, Version 2.0 (the
  * "License"); you may not use this file except in compliance
  * with the License.  You may obtain a copy of the License at
- * 
+ *
  *   http://www.apache.org/licenses/LICENSE-2.0
- * 
+ *
  * Unless required by applicable law or agreed to in writing,
  * software distributed under the License is distributed on an
  * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
  * KIND, either express or implied.  See the License for the
  * specific language governing permissions and limitations
  * under the License.
- * 
+ *
  */
 
-import java.util.*;
-import java.util.concurrent.ThreadLocalRandom;
+import org.HdrHistogram.Histogram;
 
 // represents measurements taken over an interval of time
 // used for both single timer results and merged timer results
 public final class TimingInterval
 {
+    private final Histogram responseTime;
+    private final Histogram serviceTime;
+    private final Histogram waitTime;
+
     public static final long[] EMPTY_SAMPLE = new long[0];
     // nanos
-    private final long start;
-    private final long end;
-    public final long maxLatency;
-    public final long pauseLength;
+    private final long startNs;
+    private final long endNs;
     public final long pauseStart;
-    public final long totalLatency;
 
     // discrete
     public final long partitionCount;
     public final long rowCount;
-    public final long operationCount;
     public final long errorCount;
+    public final boolean isFixed;
 
-    final SampleOfLongs sample;
 
     public String toString()
     {
-        return String.format("Start: %d end: %d maxLatency: %d pauseLength: %d pauseStart: %d totalLatency: %d" +
-                             " pCount: %d rcount: %d opCount: %d errors: %d", start, end, maxLatency, pauseLength,
-                             pauseStart, totalLatency, partitionCount, rowCount, operationCount, errorCount);
+        return String.format("Start: %d end: %d maxLatency: %d pauseStart: %d" +
+                             " pCount: %d rcount: %d opCount: %d errors: %d",
+                             startNs, endNs, getLatencyHistogram().getMaxValue(), pauseStart,
+                             partitionCount, rowCount, getLatencyHistogram().getTotalCount(), errorCount);
     }
 
     TimingInterval(long time)
     {
-        start = end = time;
-        maxLatency = totalLatency = 0;
-        partitionCount = rowCount = operationCount = errorCount = 0;
-        pauseStart = pauseLength = 0;
-        sample = new SampleOfLongs(EMPTY_SAMPLE, 1d);
+        startNs = endNs = time;
+        partitionCount = rowCount = errorCount = 0;
+        pauseStart = 0;
+        responseTime = new Histogram(3);
+        serviceTime = new Histogram(3);
+        waitTime = new Histogram(3);
+        isFixed = false;
     }
 
-    TimingInterval(long start, long end, long maxLatency, long pauseStart, long pauseLength, long partitionCount,
-                   long rowCount, long totalLatency, long operationCount, long errorCount, SampleOfLongs sample)
+    TimingInterval(long start, long end, long maxPauseStart, long partitionCount,
+                   long rowCount, long errorCount, Histogram r, Histogram s, Histogram w, boolean isFixed)
     {
-        this.start = start;
-        this.end = Math.max(end, start);
-        this.maxLatency = maxLatency;
+        this.startNs = start;
+        this.endNs = Math.max(end, start);
         this.partitionCount = partitionCount;
         this.rowCount = rowCount;
-        this.totalLatency = totalLatency;
         this.errorCount = errorCount;
-        this.operationCount = operationCount;
-        this.pauseStart = pauseStart;
-        this.pauseLength = pauseLength;
-        this.sample = sample;
+        this.pauseStart = maxPauseStart;
+        this.responseTime = r;
+        this.serviceTime = s;
+        this.waitTime = w;
+        this.isFixed = isFixed;
+
     }
 
     // merge multiple timer intervals together
-    static TimingInterval merge(Iterable<TimingInterval> intervals, int maxSamples, long start)
+    static TimingInterval merge(Iterable<TimingInterval> intervals, long start)
     {
-        ThreadLocalRandom rnd = ThreadLocalRandom.current();
-        long operationCount = 0, partitionCount = 0, rowCount = 0, errorCount = 0;
-        long maxLatency = 0, totalLatency = 0;
-        List<SampleOfLongs> latencies = new ArrayList<>();
+        long partitionCount = 0, rowCount = 0, errorCount = 0;
         long end = 0;
-        long pauseStart = 0, pauseEnd = Long.MAX_VALUE;
+        long pauseStart = 0;
+        Histogram responseTime = new Histogram(3);
+        Histogram serviceTime = new Histogram(3);
+        Histogram waitTime = new Histogram(3);
+        boolean isFixed = false;
         for (TimingInterval interval : intervals)
         {
             if (interval != null)
             {
-                end = Math.max(end, interval.end);
-                operationCount += interval.operationCount;
-                maxLatency = Math.max(interval.maxLatency, maxLatency);
-                totalLatency += interval.totalLatency;
+                end = Math.max(end, interval.endNs);
                 partitionCount += interval.partitionCount;
                 rowCount += interval.rowCount;
                 errorCount += interval.errorCount;
-                latencies.addAll(Arrays.asList(interval.sample));
-                if (interval.pauseLength > 0)
+
+                if (interval.getLatencyHistogram().getMaxValue() > serviceTime.getMaxValue())
                 {
-                    pauseStart = Math.max(pauseStart, interval.pauseStart);
-                    pauseEnd = Math.min(pauseEnd, interval.pauseStart + interval.pauseLength);
+                    pauseStart = interval.pauseStart;
                 }
+                responseTime.add(interval.responseTime);
+                serviceTime.add(interval.serviceTime);
+                waitTime.add(interval.waitTime);
+                isFixed |= interval.isFixed;
             }
         }
 
-        if (pauseEnd < pauseStart || pauseStart <= 0)
-        {
-            pauseEnd = pauseStart = 0;
-        }
 
-        return new TimingInterval(start, end, maxLatency, pauseStart, pauseEnd - pauseStart, partitionCount, rowCount,
-                                  totalLatency, operationCount, errorCount, SampleOfLongs.merge(rnd, latencies, maxSamples));
+        return new TimingInterval(start, end, pauseStart, partitionCount, rowCount,
+                                  errorCount, responseTime, serviceTime, waitTime, isFixed);
 
     }
 
     public double opRate()
     {
-        return operationCount / ((end - start) * 0.000000001d);
+        return getLatencyHistogram().getTotalCount() / ((endNs - startNs) * 0.000000001d);
     }
 
     public double adjustedRowRate()
     {
-        return rowCount / ((end - (start + pauseLength)) * 0.000000001d);
+        return rowCount / ((endNs - (startNs + getLatencyHistogram().getMaxValue())) * 0.000000001d);
     }
 
     public double partitionRate()
     {
-        return partitionCount / ((end - start) * 0.000000001d);
+        return partitionCount / ((endNs - startNs) * 0.000000001d);
     }
 
     public double rowRate()
     {
-        return rowCount / ((end - start) * 0.000000001d);
+        return rowCount / ((endNs - startNs) * 0.000000001d);
     }
 
-    public double meanLatency()
+    public double meanLatencyMs()
     {
-        return (totalLatency / (double) operationCount) * 0.000001d;
+        return getLatencyHistogram().getMean() * 0.000001d;
     }
 
-    public double maxLatency()
+    public double maxLatencyMs()
     {
-        return maxLatency * 0.000001d;
+        return getLatencyHistogram().getMaxValue() * 0.000001d;
     }
 
-    public double medianLatency()
+    public double medianLatencyMs()
     {
-        return sample.medianLatency();
+        return getLatencyHistogram().getValueAtPercentile(50.0) * 0.000001d;
     }
 
-    // 0 < rank < 1
-    public double rankLatency(float rank)
+
+    /**
+     * @param percentile between 0.0 and 100.0
+     * @return latency in milliseconds at percentile
+     */
+    public double latencyAtPercentileMs(double percentile)
     {
-        return sample.rankLatency(rank);
+        return getLatencyHistogram().getValueAtPercentile(percentile) * 0.000001d;
     }
 
-    public long runTime()
+    public long runTimeMs()
     {
-        return (end - start) / 1000000;
+        return (endNs - startNs) / 1000000;
     }
 
-    public final long endNanos()
+    public long endNanos()
     {
-        return end;
+        return endNs;
     }
 
     public long startNanos()
     {
-        return start;
+        return startNs;
+    }
+
+    public Histogram responseTime()
+    {
+        return responseTime;
+    }
+
+    public Histogram serviceTime()
+    {
+        return serviceTime;
+    }
+
+    public Histogram waitTime()
+    {
+        return waitTime;
+    }
+
+    private Histogram getLatencyHistogram()
+    {
+        if (!isFixed || responseTime.getTotalCount() == 0)
+            return serviceTime;
+        else
+            return responseTime;
     }
 
     public static enum TimingParameter
@@ -182,7 +208,7 @@ public final class TimingInterval
         return getStringValue(value, Float.NaN);
     }
 
-    String getStringValue(TimingParameter value, float rank)
+    String getStringValue(TimingParameter value, double rank)
     {
         switch (value)
         {
@@ -190,14 +216,19 @@ public final class TimingInterval
             case ROWRATE:        return String.format("%,.0f", rowRate());
             case ADJROWRATE:     return String.format("%,.0f", adjustedRowRate());
             case PARTITIONRATE:  return String.format("%,.0f", partitionRate());
-            case MEANLATENCY:    return String.format("%,.1f", meanLatency());
-            case MAXLATENCY:     return String.format("%,.1f", maxLatency());
-            case MEDIANLATENCY:  return String.format("%,.1f", medianLatency());
-            case RANKLATENCY:    return String.format("%,.1f", rankLatency(rank));
+            case MEANLATENCY:    return String.format("%,.1f", meanLatencyMs());
+            case MAXLATENCY:     return String.format("%,.1f", maxLatencyMs());
+            case MEDIANLATENCY:  return String.format("%,.1f", medianLatencyMs());
+            case RANKLATENCY:    return String.format("%,.1f", latencyAtPercentileMs(rank));
             case ERRORCOUNT:     return String.format("%,d", errorCount);
             case PARTITIONCOUNT: return String.format("%,d", partitionCount);
             default:             throw new IllegalStateException();
         }
+    }
+
+    public long operationCount()
+    {
+        return getLatencyHistogram().getTotalCount();
     }
  }
 

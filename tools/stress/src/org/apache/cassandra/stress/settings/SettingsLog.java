@@ -1,6 +1,6 @@
 package org.apache.cassandra.stress.settings;
 /*
- * 
+ *
  * Licensed to the Apache Software Foundation (ASF) under one
  * or more contributor license agreements.  See the NOTICE file
  * distributed with this work for additional information
@@ -8,16 +8,16 @@ package org.apache.cassandra.stress.settings;
  * to you under the Apache License, Version 2.0 (the
  * "License"); you may not use this file except in compliance
  * with the License.  You may obtain a copy of the License at
- * 
+ *
  *   http://www.apache.org/licenses/LICENSE-2.0
- * 
+ *
  * Unless required by applicable law or agreed to in writing,
  * software distributed under the License is distributed on an
  * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
  * KIND, either express or implied.  See the License for the
  * specific language governing permissions and limitations
  * under the License.
- * 
+ *
  */
 
 
@@ -37,6 +37,7 @@ public class SettingsLog implements Serializable
 
     public final boolean noSummary;
     public final File file;
+    public final File hdrFile;
     public final int intervalMillis;
     public final Level level;
 
@@ -48,7 +49,10 @@ public class SettingsLog implements Serializable
             file = new File(options.outputFile.value());
         else
             file = null;
-
+        if (options.hdrOutputFile.setByUser())
+            hdrFile = new File(options.hdrOutputFile.value());
+        else
+            hdrFile = null;
         String interval = options.interval.value();
         if (interval.endsWith("ms"))
             intervalMillis = Integer.parseInt(interval.substring(0, interval.length() - 2));
@@ -78,13 +82,14 @@ public class SettingsLog implements Serializable
     {
         final OptionSimple noSummmary = new OptionSimple("no-summary", "", null, "Disable printing of aggregate statistics at the end of a test", false);
         final OptionSimple outputFile = new OptionSimple("file=", ".*", null, "Log to a file", false);
+        final OptionSimple hdrOutputFile = new OptionSimple("hdrfile=", ".*", null, "Log to a file", false);
         final OptionSimple interval = new OptionSimple("interval=", "[0-9]+(ms|s|)", "1s", "Log progress every <value> seconds or milliseconds", false);
         final OptionSimple level = new OptionSimple("level=", "(minimal|normal|verbose)", "normal", "Logging level (minimal, normal or verbose)", false);
 
         @Override
         public List<? extends Option> options()
         {
-            return Arrays.asList(level, noSummmary, outputFile, interval);
+            return Arrays.asList(level, noSummmary, outputFile, hdrOutputFile, interval);
         }
     }
 

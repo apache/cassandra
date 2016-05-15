@@ -20,7 +20,7 @@ public class TimingIntervals
         this.intervals = intervals;
     }
 
-    public TimingIntervals merge(TimingIntervals with, int maxSamples, long start)
+    public TimingIntervals merge(TimingIntervals with, long start)
     {
         assert intervals.size() == with.intervals.size();
         TreeMap<String, TimingInterval> ret = new TreeMap<>();
@@ -28,7 +28,7 @@ public class TimingIntervals
         for (String opType : intervals.keySet())
         {
             assert with.intervals.containsKey(opType);
-            ret.put(opType, TimingInterval.merge(Arrays.asList(intervals.get(opType), with.intervals.get(opType)), maxSamples, start));
+            ret.put(opType, TimingInterval.merge(Arrays.asList(intervals.get(opType), with.intervals.get(opType)), start));
         }
 
         return new TimingIntervals(ret);
@@ -39,21 +39,21 @@ public class TimingIntervals
         return intervals.get(opType);
     }
 
-    public TimingInterval combine(int maxSamples)
+    public TimingInterval combine()
     {
         long start = Long.MAX_VALUE;
         for (TimingInterval ti : intervals.values())
             start = Math.min(start, ti.startNanos());
 
-        return TimingInterval.merge(intervals.values(), maxSamples, start);
+        return TimingInterval.merge(intervals.values(), start);
     }
 
     public String str(TimingInterval.TimingParameter value, String unit)
     {
-        return str(value, Float.NaN, unit);
+        return str(value, Double.NaN, unit);
     }
 
-    public String str(TimingInterval.TimingParameter value, float rank, String unit)
+    public String str(TimingInterval.TimingParameter value, double rank, String unit)
     {
         StringBuilder sb = new StringBuilder("[");
 
@@ -106,7 +106,7 @@ public class TimingIntervals
         return str(TimingInterval.TimingParameter.MEDIANLATENCY, "ms");
     }
 
-    public String rankLatencies(float rank)
+    public String latenciesAtPercentile(double rank)
     {
         return str(TimingInterval.TimingParameter.RANKLATENCY, rank, "ms");
     }

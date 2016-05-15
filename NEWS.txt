@@ -13,6 +13,21 @@ restore snapshots created with the previous major version using the
 'sstableloader' tool. You can upgrade the file format of your snapshots
 using the provided 'sstableupgrade' tool.
 
+
+3.8
+===
+
+New features
+------------
+   - A new option has been added to cassandra-stress "-rate fixed={number}/s"
+     that forces a scheduled rate of operations/sec over time. Using this, stress can
+     accurately account for coordinated ommission from the stress process.
+   - The cassandra-stress "-rate limit=" option has been renamed to "-rate throttle="
+   - hdr histograms have been added to stress runs, it's output can be saved to disk using:
+     "-log hdrfile=" option. This histogram includes response/service/wait times when used with the
+     fixed or throttle rate options.  The histogram file can be plotted on
+     http://hdrhistogram.github.io/HdrHistogram/plotFiles.html
+
 3.7
 ===
 

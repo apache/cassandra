@@ -1,4 +1,5 @@
 3.8
+ * Introduce HdrHistogram and response/service/wait separation to stress tool (CASSANDRA-11853)
  * entry-weighers in QueryProcessor should respect partitionKeyBindIndexes field (CASSANDRA-11718)
  * Support older ant versions (CASSANDRA-11807)
  * Estimate compressed on disk size when deciding if sstable size limit reached (CASSANDRA-11623)

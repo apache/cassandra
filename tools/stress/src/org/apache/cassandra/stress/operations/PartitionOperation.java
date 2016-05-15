@@ -77,14 +77,14 @@ public abstract class PartitionOperation extends Operation
         this.spec = spec;
     }
 
-    public boolean ready(WorkManager permits, RateLimiter rateLimiter)
+    public int ready(WorkManager permits)
     {
         int partitionCount = (int) spec.partitionCount.next();
         if (partitionCount <= 0)
-            return false;
+            return 0;
         partitionCount = permits.takePermits(partitionCount);
         if (partitionCount <= 0)
-            return false;
+            return 0;
 
         int i = 0;
         boolean success = true;
@@ -105,11 +105,8 @@ public abstract class PartitionOperation extends Operation
         }
         partitionCount = i;
 
-        if (rateLimiter != null)
-            rateLimiter.acquire(partitionCount);
-
         partitions = partitionCache.subList(0, partitionCount);
-        return !partitions.isEmpty();
+        return partitions.size();
     }
 
     protected boolean reset(Seed seed, PartitionIterator iterator)

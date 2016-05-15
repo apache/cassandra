@@ -1,6 +1,6 @@
 package org.apache.cassandra.stress.settings;
 /*
- * 
+ *
  * Licensed to the Apache Software Foundation (ASF) under one
  * or more contributor license agreements.  See the NOTICE file
  * distributed with this work for additional information
@@ -8,16 +8,16 @@ package org.apache.cassandra.stress.settings;
  * to you under the Apache License, Version 2.0 (the
  * "License"); you may not use this file except in compliance
  * with the License.  You may obtain a copy of the License at
- * 
+ *
  *   http://www.apache.org/licenses/LICENSE-2.0
- * 
+ *
  * Unless required by applicable law or agreed to in writing,
  * software distributed under the License is distributed on an
  * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
  * KIND, either express or implied.  See the License for the
  * specific language governing permissions and limitations
  * under the License.
- * 
+ *
  */
 
 
@@ -33,14 +33,22 @@ public class SettingsRate implements Serializable
     public final int minThreads;
     public final int maxThreads;
     public final int threadCount;
-    public final int opRateTargetPerSecond;
+    public final int opsPerSecond;
+    public final boolean isFixed;
 
     public SettingsRate(ThreadOptions options)
     {
         auto = false;
         threadCount = Integer.parseInt(options.threads.value());
-        String rateOpt = options.rate.value();
-        opRateTargetPerSecond = Integer.parseInt(rateOpt.substring(0, rateOpt.length() - 2));
+        String throttleOpt = options.throttle.value();
+        String fixedOpt = options.fixed.value();
+        int throttle = Integer.parseInt(throttleOpt.substring(0, throttleOpt.length() - 2));
+        int fixed = Integer.parseInt(fixedOpt.substring(0, fixedOpt.length() - 2));
+        if(throttle != 0 && fixed != 0)
+            throw new IllegalArgumentException("can't have both fixed and throttle set, choose one.");
+        opsPerSecond = Math.max(fixed, throttle);
+        isFixed = (opsPerSecond == fixed);
+
         minThreads = -1;
         maxThreads = -1;
     }
@@ -51,7 +59,8 @@ public class SettingsRate implements Serializable
         this.minThreads = Integer.parseInt(auto.minThreads.value());
         this.maxThreads = Integer.parseInt(auto.maxThreads.value());
         this.threadCount = -1;
-        this.opRateTargetPerSecond = 0;
+        this.opsPerSecond = 0;
+        isFixed = false;
     }
 
 
@@ -73,12 +82,13 @@ public class SettingsRate implements Serializable
     private static final class ThreadOptions extends GroupedOptions
     {
         final OptionSimple threads = new OptionSimple("threads=", "[0-9]+", null, "run this many clients concurrently", true);
-        final OptionSimple rate = new OptionSimple("limit=", "[0-9]+/s", "0/s", "limit operations per second across all clients", false);
+        final OptionSimple throttle = new OptionSimple("throttle=", "[0-9]+/s", "0/s", "throttle operations per second across all clients to a maximum rate (or less) with no implied schedule", false);
+        final OptionSimple fixed = new OptionSimple("fixed=", "[0-9]+/s", "0/s", "expect fixed rate of operations per second across all clients with implied schedule", false);
 
         @Override
         public List<? extends Option> options()
         {
-            return Arrays.asList(threads, rate);
+            return Arrays.asList(threads, throttle, fixed);
         }
     }
 

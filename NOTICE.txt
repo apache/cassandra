@@ -83,3 +83,6 @@ BSD 3-clause
 ASM
 (http://asm.ow2.org/)
 Copyright (c) 2000-2011 INRIA, France Telecom
+
+HdrHistogram
+http://hdrhistogram.org

@@ -24,24 +24,25 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
-
-import com.google.common.util.concurrent.RateLimiter;
-import com.google.common.util.concurrent.Uninterruptibles;
+import java.util.concurrent.atomic.AtomicLong;
+import java.util.concurrent.locks.LockSupport;
 
 import org.apache.cassandra.stress.operations.OpDistribution;
 import org.apache.cassandra.stress.operations.OpDistributionFactory;
+import org.apache.cassandra.stress.settings.ConnectionAPI;
 import org.apache.cassandra.stress.settings.SettingsCommand;
 import org.apache.cassandra.stress.settings.StressSettings;
 import org.apache.cassandra.stress.util.JavaDriverClient;
 import org.apache.cassandra.stress.util.ThriftClient;
 import org.apache.cassandra.transport.SimpleClient;
 
+import com.google.common.util.concurrent.Uninterruptibles;
+
 public class StressAction implements Runnable
 {
 
     private final StressSettings settings;
     private final PrintStream output;
-
     public StressAction(StressSettings settings, PrintStream out)
     {
         this.settings = settings;
@@ -58,13 +59,14 @@ public class StressAction implements Runnable
 
         if (!settings.command.noWarmup)
             warmup(settings.command.getFactory(settings));
+
         if (settings.command.truncate == SettingsCommand.TruncateWhen.ONCE)
             settings.command.truncateTables(settings);
 
         // TODO : move this to a new queue wrapper that gates progress based on a poisson (or configurable) distribution
-        RateLimiter rateLimiter = null;
-        if (settings.rate.opRateTargetPerSecond > 0)
-            rateLimiter = RateLimiter.create(settings.rate.opRateTargetPerSecond);
+        UniformRateLimiter rateLimiter = null;
+        if (settings.rate.opsPerSecond > 0)
+            rateLimiter = new UniformRateLimiter(settings.rate.opsPerSecond);
 
         boolean success;
         if (settings.rate.minThreads > 0)
@@ -85,6 +87,7 @@ public class StressAction implements Runnable
     }
 
     // type provided separately to support recursive call for mixed command with each command type it is performing
+    @SuppressWarnings("resource") // warmupOutput doesn't need closing
     private void warmup(OpDistributionFactory operations)
     {
         PrintStream warmupOutput = new PrintStream(new OutputStream() { @Override public void write(int b) throws IOException { } } );
@@ -113,7 +116,7 @@ public class StressAction implements Runnable
 
     // TODO : permit varying more than just thread count
     // TODO : vary thread count based on percentage improvement of previous increment, not by fixed amounts
-    private boolean runMulti(boolean auto, RateLimiter rateLimiter)
+    private boolean runMulti(boolean auto, UniformRateLimiter rateLimiter)
     {
         if (settings.command.targetUncertainty >= 0)
             output.println("WARNING: uncertainty mode (err<) results in uneven workload between thread runs, so should be used for high level analysis only");
@@ -166,7 +169,7 @@ public class StressAction implements Runnable
         } while (!auto || (hasAverageImprovement(results, 3, 0) && hasAverageImprovement(results, 5, settings.command.targetUncertainty)));
 
         // summarise all results
-        StressMetrics.summarise(runIds, results, output, settings.samples.historyCount);
+        StressMetrics.summarise(runIds, results, output);
         return true;
     }
 
@@ -191,7 +194,7 @@ public class StressAction implements Runnable
                               int threadCount,
                               long opCount,
                               long duration,
-                              RateLimiter rateLimiter,
+                              UniformRateLimiter rateLimiter,
                               TimeUnit durationUnits,
                               PrintStream output,
                               boolean isWarmup)
@@ -210,19 +213,34 @@ public class StressAction implements Runnable
 
         final StressMetrics metrics = new StressMetrics(output, settings.log.intervalMillis, settings);
 
+        final CountDownLatch releaseConsumers = new CountDownLatch(1);
         final CountDownLatch done = new CountDownLatch(threadCount);
+        final CountDownLatch start = new CountDownLatch(threadCount);
         final Consumer[] consumers = new Consumer[threadCount];
-        int sampleCount = settings.samples.liveCount / threadCount;
         for (int i = 0; i < threadCount; i++)
         {
-
-            consumers[i] = new Consumer(operations.get(metrics.getTiming(), sampleCount, isWarmup),
-                                        done, workManager, metrics, rateLimiter);
+            consumers[i] = new Consumer(operations.get(metrics.getTiming(), isWarmup),
+                                        done, start, releaseConsumers, workManager, metrics, rateLimiter);
         }
 
         // starting worker threadCount
         for (int i = 0; i < threadCount; i++)
             consumers[i].start();
+
+        // wait for the lot of them to get their pants on
+        try
+        {
+            start.await();
+        }
+        catch (InterruptedException e)
+        {
+            throw new RuntimeException("Unexpected interruption", e);
+        }
+        // start counting from NOW!
+        if(rateLimiter != null)
+            rateLimiter.start();
+        // release the hounds!!!
+        releaseConsumers.countDown();
 
         metrics.start();
 
@@ -264,40 +282,123 @@ public class StressAction implements Runnable
         return metrics;
     }
 
+    /**
+     * Provides a 'next operation time' for rate limited operation streams. The rate limiter is thread safe and is to be
+     * shared by all consumer threads.
+     */
+    private static class UniformRateLimiter
+    {
+        long start = Long.MIN_VALUE;
+        final long intervalNs;
+        final AtomicLong opIndex = new AtomicLong();
+
+        UniformRateLimiter(int opsPerSec)
+        {
+            intervalNs = 1000000000 / opsPerSec;
+        }
+
+        void start()
+        {
+            start = System.nanoTime();
+        }
+
+        /**
+         * @param partitionCount
+         * @return expect start time in ns for the operation
+         */
+        long acquire(int partitionCount)
+        {
+            long currOpIndex = opIndex.getAndAdd(partitionCount);
+            return start + currOpIndex * intervalNs;
+        }
+    }
+
+    /**
+     * Provides a blocking stream of operations per consumer.
+     */
+    private static class StreamOfOperations
+    {
+        private final OpDistribution operations;
+        private final UniformRateLimiter rateLimiter;
+        private final WorkManager workManager;
+
+        public StreamOfOperations(OpDistribution operations, UniformRateLimiter rateLimiter, WorkManager workManager)
+        {
+            this.operations = operations;
+            this.rateLimiter = rateLimiter;
+            this.workManager = workManager;
+        }
+
+        /**
+         * This method will block until the next operation becomes available.
+         *
+         * @return next operation or null if no more ops are coming
+         */
+        Operation nextOp()
+        {
+            Operation op = operations.next();
+            final int partitionCount = op.ready(workManager);
+            if (partitionCount == 0)
+                return null;
+            if (rateLimiter != null)
+            {
+                long intendedTime = rateLimiter.acquire(partitionCount);
+                op.intendedStartNs(intendedTime);
+                long now;
+                while ((now = System.nanoTime()) < intendedTime)
+                {
+                    LockSupport.parkNanos(intendedTime - now);
+                }
+            }
+            return op;
+        }
+
+        void close()
+        {
+            operations.closeTimers();
+        }
+
+        void abort()
+        {
+            workManager.stop();
+        }
+    }
+
     private class Consumer extends Thread
     {
-
-        private final OpDistribution operations;
+        private final StreamOfOperations opStream;
         private final StressMetrics metrics;
-        private final RateLimiter rateLimiter;
         private volatile boolean success = true;
-        private final WorkManager workManager;
         private final CountDownLatch done;
+        private final CountDownLatch start;
+        private final CountDownLatch releaseConsumers;
 
         public Consumer(OpDistribution operations,
                         CountDownLatch done,
+                        CountDownLatch start,
+                        CountDownLatch releaseConsumers,
                         WorkManager workManager,
                         StressMetrics metrics,
-                        RateLimiter rateLimiter)
+                        UniformRateLimiter rateLimiter)
         {
             this.done = done;
-            this.rateLimiter = rateLimiter;
-            this.workManager = workManager;
+            this.start = start;
+            this.releaseConsumers = releaseConsumers;
             this.metrics = metrics;
-            this.operations = operations;
+            this.opStream = new StreamOfOperations(operations, rateLimiter, workManager);
         }
 
         public void run()
         {
-            operations.initTimers();
-
             try
             {
                 SimpleClient sclient = null;
                 ThriftClient tclient = null;
                 JavaDriverClient jclient = null;
 
-                switch (settings.mode.api)
+
+                final ConnectionAPI clientType = settings.mode.api;
+                switch (clientType)
                 {
                     case JAVA_DRIVER_NATIVE:
                         jclient = settings.getJavaDriverClient();
@@ -313,15 +414,21 @@ public class StressAction implements Runnable
                         throw new IllegalStateException();
                 }
 
+                // synchronize the start of all the consumer threads
+                start.countDown();
+
+                releaseConsumers.await();
+
                 while (true)
                 {
-                    Operation op = operations.next();
-                    if (!op.ready(workManager, rateLimiter))
+                    // Assumption: All ops are thread local, operations are never shared across threads.
+                    Operation op = opStream.nextOp();
+                    if (op == null)
                         break;
 
                     try
                     {
-                        switch (settings.mode.api)
+                        switch (clientType)
                         {
                             case JAVA_DRIVER_NATIVE:
                                 op.run(jclient);
@@ -343,7 +450,7 @@ public class StressAction implements Runnable
                             e.printStackTrace(output);
 
                         success = false;
-                        workManager.stop();
+                        opStream.abort();
                         metrics.cancel();
                         return;
                     }
@@ -357,7 +464,7 @@ public class StressAction implements Runnable
             finally
             {
                 done.countDown();
-                operations.closeTimers();
+                opStream.close();
             }
         }
     }
