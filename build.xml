@@ -802,7 +802,7 @@
     </path>
     <target name="stress-build" depends="build" description="build stress tool">
     	<mkdir dir="${stress.build.classes}" />
-        <javac debug="true" debuglevel="${debuglevel}" encoding="utf-8" destdir="${stress.build.classes}" includeantruntime="true" source="${source.version}" target="${target.version}">
+        <javac compiler="modern" debug="true" debuglevel="${debuglevel}" encoding="utf-8" destdir="${stress.build.classes}" includeantruntime="true" source="${source.version}" target="${target.version}">
             <src path="${stress.build.src}" />
             <classpath>
                 <path refid="cassandra.classes" />
@@ -1135,6 +1135,7 @@
 
   <target name="build-test" depends="build" description="Compile test classes">
     <javac
+     compiler="modern"
      debug="true"
      debuglevel="${debuglevel}"
      destdir="${test.classes}"
