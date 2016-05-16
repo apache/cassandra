@@ -11,6 +11,8 @@
 
 
 2.1.14
+ * Start L0 STCS-compactions even if there is a L0 -> L1 compaction
+   going (CASSANDRA-10979)
  * (cqlsh) Fix potential COPY deadlock when parent process is terminating child
    processes (CASSANDRA-11505)
  * Replace sstables on DataTracker before marking them as non-compacting during anti-compaction (CASSANDRA-11548)
