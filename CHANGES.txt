@@ -1,6 +1,7 @@
  * Fix commit log replay after out-of-order flush completion (CASSANDRA-9669)
 
 2.2.7
+ * Add seconds to cqlsh tracing session duration (CASSANDRA-11753)
  * Prohibit Reverse Counter type as part of the PK (CASSANDRA-9395)
  * cqlsh: correctly handle non-ascii chars in error messages (CASSANDRA-11626)
  * Exit JVM if JMX server fails to startup (CASSANDRA-11540)
