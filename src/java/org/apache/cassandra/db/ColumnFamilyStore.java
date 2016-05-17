@@ -2762,27 +2762,29 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
         final long truncatedAt;
         final ReplayPosition replayAfter;
 
-        synchronized (data)
+        if (keyspace.getMetadata().durableWrites || takeSnapshot)
         {
-            if (keyspace.getMetadata().durableWrites || takeSnapshot)
+            replayAfter = forceBlockingFlush();
+        }
+        else
+        {
+            // just nuke the memtable data w/o writing to disk first
+            Future<ReplayPosition> replayAfterFuture;
+            synchronized (data)
             {
-                replayAfter = forceBlockingFlush();
-            }
-            else
-            {
-                // just nuke the memtable data w/o writing to disk first
                 final Flush flush = new Flush(true);
                 flushExecutor.execute(flush);
-                replayAfter = FBUtilities.waitOnFuture(postFlushExecutor.submit(flush.postFlush));
+                replayAfterFuture = postFlushExecutor.submit(flush.postFlush);
             }
-
-            long now = System.currentTimeMillis();
-            // make sure none of our sstables are somehow in the future (clock drift, perhaps)
-            for (ColumnFamilyStore cfs : concatWithIndexes())
-                for (SSTableReader sstable : cfs.data.getSSTables())
-                    now = Math.max(now, sstable.maxDataAge);
-            truncatedAt = now;
+            replayAfter = FBUtilities.waitOnFuture(replayAfterFuture);
         }
+
+        long now = System.currentTimeMillis();
+        // make sure none of our sstables are somehow in the future (clock drift, perhaps)
+        for (ColumnFamilyStore cfs : concatWithIndexes())
+            for (SSTableReader sstable : cfs.data.getSSTables())
+                now = Math.max(now, sstable.maxDataAge);
+        truncatedAt = now;
 
         Runnable truncateRunnable = new Runnable()
         {
