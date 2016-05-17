@@ -1,4 +1,5 @@
 2.1.15
+ * Avoid holding SSTableReaders for duration of incremental repair (CASSANDRA-11739)
  * Add message dropped tasks to nodetool netstats (CASSANDRA-11855)
  * Don't compute expensive MaxPurgeableTimestamp until we've verified there's an 
    expired tombstone (CASSANDRA-11834)

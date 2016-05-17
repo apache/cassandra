@@ -17,7 +17,6 @@
  */
 package org.apache.cassandra.service;
 
-import java.io.File;
 import java.net.InetAddress;
 import java.net.UnknownHostException;
 import java.util.*;
@@ -42,7 +41,6 @@ import org.apache.cassandra.dht.Range;
 import org.apache.cassandra.dht.Token;
 import org.apache.cassandra.gms.FailureDetector;
 import org.apache.cassandra.gms.Gossiper;
-import org.apache.cassandra.io.sstable.Component;
 import org.apache.cassandra.io.sstable.SSTableReader;
 import org.apache.cassandra.locator.TokenMetadata;
 import org.apache.cassandra.net.IAsyncCallbackWithFailure;
@@ -321,7 +319,7 @@ public class ActiveRepairService
         Set<SSTableReader> repairing = new HashSet<>();
         for (Map.Entry<UUID, ParentRepairSession> entry : parentRepairSessions.entrySet())
         {
-            Collection<SSTableReader> sstables = entry.getValue().sstableMap.get(cfId);
+            Collection<SSTableReader> sstables = entry.getValue().getActiveSSTables(cfId);
             if (sstables != null && !entry.getKey().equals(parentRepairSession))
                 repairing.addAll(sstables);
         }
@@ -384,7 +382,7 @@ public class ActiveRepairService
         List<ListenableFuture<?>> futures = new ArrayList<>();
         for (Map.Entry<UUID, ColumnFamilyStore> columnFamilyStoreEntry : prs.columnFamilyStores.entrySet())
         {
-            Refs<SSTableReader> sstables = prs.getAndReferenceSSTables(columnFamilyStoreEntry.getKey());
+            Refs<SSTableReader> sstables = prs.getActiveRepairedSSTableRefs(columnFamilyStoreEntry.getKey());
             ColumnFamilyStore cfs = columnFamilyStoreEntry.getValue();
             futures.add(CompactionManager.instance.submitAntiCompaction(cfs, prs.ranges, sstables, prs.repairedAt));
         }
@@ -428,7 +426,7 @@ public class ActiveRepairService
     {
         public final Map<UUID, ColumnFamilyStore> columnFamilyStores = new HashMap<>();
         public final Collection<Range<Token>> ranges;
-        public final Map<UUID, Set<SSTableReader>> sstableMap = new HashMap<>();
+        public final Map<UUID, Set<String>> sstableMap = new HashMap<>();
         public final long repairedAt;
 
         public ParentRepairSession(List<ColumnFamilyStore> columnFamilyStores, Collection<Range<Token>> ranges, long repairedAt)
@@ -436,39 +434,50 @@ public class ActiveRepairService
             for (ColumnFamilyStore cfs : columnFamilyStores)
             {
                 this.columnFamilyStores.put(cfs.metadata.cfId, cfs);
-                sstableMap.put(cfs.metadata.cfId, new HashSet<SSTableReader>());
+                sstableMap.put(cfs.metadata.cfId, new HashSet<String>());
             }
             this.ranges = ranges;
             this.repairedAt = repairedAt;
         }
 
-        public synchronized Refs<SSTableReader> getAndReferenceSSTables(UUID cfId)
+        @SuppressWarnings("resource")
+        public synchronized Refs<SSTableReader> getActiveRepairedSSTableRefs(UUID cfId)
         {
-            Set<SSTableReader> sstables = sstableMap.get(cfId);
-            Iterator<SSTableReader> sstableIterator = sstables.iterator();
             ImmutableMap.Builder<SSTableReader, Ref<SSTableReader>> references = ImmutableMap.builder();
-            while (sstableIterator.hasNext())
+            for (SSTableReader sstable : getActiveSSTables(cfId))
             {
-                SSTableReader sstable = sstableIterator.next();
-                if (!new File(sstable.descriptor.filenameFor(Component.DATA)).exists())
-                {
-                    sstableIterator.remove();
-                }
+                Ref<SSTableReader> ref = sstable.tryRef();
+                if (ref == null)
+                    sstableMap.get(cfId).remove(sstable.getFilename());
                 else
-                {
-                    Ref<SSTableReader> ref = sstable.tryRef();
-                    if (ref == null)
-                        sstableIterator.remove();
-                    else
-                        references.put(sstable, ref);
-                }
+                    references.put(sstable, ref);
             }
             return new Refs<>(references.build());
         }
 
+        private Set<SSTableReader> getActiveSSTables(UUID cfId)
+        {
+            Set<String> repairedSSTables = sstableMap.get(cfId);
+            Set<SSTableReader> activeSSTables = new HashSet<>();
+            Set<String> activeSSTableNames = new HashSet<>();
+            for (SSTableReader sstable : columnFamilyStores.get(cfId).getSSTables())
+            {
+                if (repairedSSTables.contains(sstable.getFilename()))
+                {
+                    activeSSTables.add(sstable);
+                    activeSSTableNames.add(sstable.getFilename());
+                }
+            }
+            sstableMap.put(cfId, activeSSTableNames);
+            return activeSSTables;
+        }
+
         public void addSSTables(UUID cfId, Collection<SSTableReader> sstables)
         {
-            sstableMap.get(cfId).addAll(sstables);
+            for (SSTableReader sstable : sstables)
+            {
+                sstableMap.get(cfId).add(sstable.getFilename());
+            }
         }
 
         @Override
