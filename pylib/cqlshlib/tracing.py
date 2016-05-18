@@ -15,7 +15,7 @@
 # limitations under the License.
 
 from cqlshlib.displaying import MAGENTA
-from datetime import datetime
+from datetime import datetime, timedelta
 from formatting import CqlType
 import time
 from cassandra.query import QueryTrace, TraceUnavailable
@@ -67,16 +67,23 @@ def make_trace_rows(trace):
         rows.append(["%s [%s]" % (event.description, event.thread_name),
                      str(datetime_from_utc_to_local(event.datetime)),
                      event.source,
-                     event.source_elapsed.microseconds if event.source_elapsed else "--",
+                     total_micro_seconds(event.source_elapsed),
                      trace.client])
     # append footer row (from sessions table).
     if trace.duration:
         finished_at = (datetime_from_utc_to_local(trace.started_at) + trace.duration)
-        rows.append(['Request complete', str(finished_at), trace.coordinator, trace.duration.microseconds, trace.client])
+        rows.append(['Request complete', str(finished_at), trace.coordinator, total_micro_seconds(trace.duration), trace.client])
     else:
         finished_at = trace.duration = "--"
 
     return rows
+
+
+def total_micro_seconds(td):
+    """
+    Convert a timedelta into total microseconds
+    """
+    return int((td.microseconds + (td.seconds + td.days * 24 * 3600) * 10**6)) if td else "--"
 
 
 def datetime_from_utc_to_local(utc_datetime):
