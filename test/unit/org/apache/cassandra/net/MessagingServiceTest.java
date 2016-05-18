@@ -20,15 +20,29 @@
  */
 package org.apache.cassandra.net;
 
+import java.io.ByteArrayInputStream;
+import java.io.ByteArrayOutputStream;
+import java.io.IOException;
+import java.net.InetAddress;
+import java.util.Arrays;
 import java.util.List;
+import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.TimeUnit;
 
+import com.codahale.metrics.Timer;
+
+import org.apache.cassandra.io.util.DataInputPlus.DataInputStreamPlus;
+import org.apache.cassandra.io.util.DataOutputStreamPlus;
+import org.apache.cassandra.io.util.WrappedDataOutputStreamPlus;
+import org.caffinitas.ohc.histo.EstimatedHistogram;
 import org.junit.Test;
 
-import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.*;
 
 public class MessagingServiceTest
 {
     private final MessagingService messagingService = MessagingService.test();
+    private final static long[] bucketOffsets = new EstimatedHistogram(160).getBucketOffsets();
 
     @Test
     public void testDroppedMessages()
@@ -54,4 +68,50 @@ public class MessagingServiceTest
         assertEquals(7500, (int)messagingService.getDroppedMessages().get(verb.toString()));
     }
 
+    private static void addDCLatency(long sentAt, long now) throws IOException
+    {
+        ByteArrayOutputStream baos = new ByteArrayOutputStream();
+        try (DataOutputStreamPlus out = new WrappedDataOutputStreamPlus(baos))
+        {
+            out.writeInt((int) sentAt);
+        }
+        DataInputStreamPlus in = new DataInputStreamPlus(new ByteArrayInputStream(baos.toByteArray()));
+        MessageIn.readTimestamp(InetAddress.getLocalHost(), in, now);
+    }
+
+    @Test
+    public void testDCLatency() throws Exception
+    {
+        int latency = 100;
+
+        ConcurrentHashMap<String, Timer> dcLatency = MessagingService.instance().metrics.dcLatency;
+        dcLatency.clear();
+
+        long now = System.currentTimeMillis();
+        long sentAt = now - latency;
+
+        assertNull(dcLatency.get("datacenter1"));
+        addDCLatency(sentAt, now);
+        assertNotNull(dcLatency.get("datacenter1"));
+        assertEquals(1, dcLatency.get("datacenter1").getCount());
+        long expectedBucket = bucketOffsets[Math.abs(Arrays.binarySearch(bucketOffsets, TimeUnit.MILLISECONDS.toNanos(latency))) - 1];
+        assertEquals(expectedBucket, dcLatency.get("datacenter1").getSnapshot().getMax());
+    }
+
+    @Test
+    public void testNegativeDCLatency() throws Exception
+    {
+        // if clocks are off should just not track anything
+        int latency = -100;
+
+        ConcurrentHashMap<String, Timer> dcLatency = MessagingService.instance().metrics.dcLatency;
+        dcLatency.clear();
+
+        long now = System.currentTimeMillis();
+        long sentAt = now - latency;
+
+        assertNull(dcLatency.get("datacenter1"));
+        addDCLatency(sentAt, now);
+        assertNull(dcLatency.get("datacenter1"));
+    }
 }

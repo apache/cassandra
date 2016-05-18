@@ -1,4 +1,5 @@
 3.8
+ * Add cross-DC latency metrics (CASSANDRA-11596)
  * Allow terms in selection clause (CASSANDRA-10783)
  * Add bind variables to trace (CASSANDRA-11719)
  * Switch counter shards' clock to timestamps (CASSANDRA-9811)

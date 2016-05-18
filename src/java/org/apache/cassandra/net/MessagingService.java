@@ -67,6 +67,7 @@ import org.apache.cassandra.io.util.FileUtils;
 import org.apache.cassandra.locator.ILatencySubscriber;
 import org.apache.cassandra.metrics.ConnectionMetrics;
 import org.apache.cassandra.metrics.DroppedMessageMetrics;
+import org.apache.cassandra.metrics.MessagingMetrics;
 import org.apache.cassandra.repair.messages.RepairMessage;
 import org.apache.cassandra.security.SSLFactory;
 import org.apache.cassandra.service.*;
@@ -100,6 +101,8 @@ public final class MessagingService implements MessagingServiceMBean
 
     private boolean allNodesAtLeast22 = true;
     private boolean allNodesAtLeast30 = true;
+
+    public final MessagingMetrics metrics = new MessagingMetrics();
 
     /* All verb handler identifiers */
     public enum Verb

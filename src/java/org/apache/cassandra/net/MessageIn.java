@@ -120,14 +120,17 @@ public class MessageIn<T>
         return new ConstructionTime();
     }
 
-    public static ConstructionTime readTimestamp(DataInputPlus input) throws IOException
+    public static ConstructionTime readTimestamp(InetAddress from, DataInputPlus input, long timestamp) throws IOException
     {
         // make sure to readInt, even if cross_node_to is not enabled
         int partial = input.readInt();
+        long crossNodeTimestamp = (timestamp & 0xFFFFFFFF00000000L) | (((partial & 0xFFFFFFFFL) << 2) >> 2);
+        if (timestamp > crossNodeTimestamp)
+        {
+            MessagingService.instance().metrics.addTimeTaken(from, timestamp - crossNodeTimestamp);
+        }
         if(DatabaseDescriptor.hasCrossNodeTimeout())
         {
-            long timestamp = System.currentTimeMillis();
-            long crossNodeTimestamp = (timestamp & 0xFFFFFFFF00000000L) | (((partial & 0xFFFFFFFFL) << 2) >> 2);
             return new ConstructionTime(crossNodeTimestamp, timestamp != crossNodeTimestamp);
         }
         else
