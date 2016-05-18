@@ -2106,34 +2106,31 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
         final long truncatedAt;
         final ReplayPosition replayAfter;
 
-        synchronized (data)
+        if (keyspace.getMetadata().params.durableWrites || DatabaseDescriptor.isAutoSnapshot())
         {
-            if (keyspace.getMetadata().params.durableWrites || DatabaseDescriptor.isAutoSnapshot())
-            {
-                replayAfter = forceBlockingFlush();
-                viewManager.forceBlockingFlush();
-            }
-            else
-            {
-                // just nuke the memtable data w/o writing to disk first
-                viewManager.dumpMemtables();
-                try
-                {
-                    replayAfter = dumpMemtable().get();
-                }
-                catch (Exception e)
-                {
-                    throw new RuntimeException(e);
-                }
-            }
-
-            long now = System.currentTimeMillis();
-            // make sure none of our sstables are somehow in the future (clock drift, perhaps)
-            for (ColumnFamilyStore cfs : concatWithIndexes())
-                for (SSTableReader sstable : cfs.data.getSSTables())
-                    now = Math.max(now, sstable.maxDataAge);
-            truncatedAt = now;
+            replayAfter = forceBlockingFlush();
+            viewManager.forceBlockingFlush();
         }
+        else
+        {
+            // just nuke the memtable data w/o writing to disk first
+            viewManager.dumpMemtables();
+            try
+            {
+                replayAfter = dumpMemtable().get();
+            }
+            catch (Exception e)
+            {
+                throw new RuntimeException(e);
+            }
+        }
+
+        long now = System.currentTimeMillis();
+        // make sure none of our sstables are somehow in the future (clock drift, perhaps)
+        for (ColumnFamilyStore cfs : concatWithIndexes())
+            for (SSTableReader sstable : cfs.data.getSSTables())
+                now = Math.max(now, sstable.maxDataAge);
+        truncatedAt = now;
 
         Runnable truncateRunnable = new Runnable()
         {
