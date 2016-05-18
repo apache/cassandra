@@ -112,7 +112,7 @@ public class SettingsPopulation implements Serializable
 
         public SequentialOptions(String defaultLimit)
         {
-            populate = new OptionSimple("seq=", "[0-9]+\\.\\.+[0-9]+[MBK]?",
+            populate = new OptionSimple("seq=", "[0-9]+[MBK]?\\.\\.+[0-9]+[MBK]?",
                     "1.." + defaultLimit,
                     "Generate all seeds in sequence", true);
         }
