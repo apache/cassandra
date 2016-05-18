@@ -3,6 +3,7 @@
  * Refactor Materialized View code (CASSANDRA-11475)
  * Update Java Driver (CASSANDRA-11615)
 Merged from 2.2:
+ * Add seconds to cqlsh tracing session duration (CASSANDRA-11753)
  * Prohibit Reversed Counter type as part of the PK (CASSANDRA-9395)
 
 3.0.6
