@@ -71,8 +71,9 @@ public class RepairMessageVerbHandler implements IVerbHandler<RepairMessage>
                         columnFamilyStores.add(columnFamilyStore);
                     }
                     ActiveRepairService.instance.registerParentRepairSession(prepareMessage.parentRepairSession,
-                            columnFamilyStores,
-                            prepareMessage.ranges);
+                                                                             message.from,
+                                                                             columnFamilyStores,
+                                                                             prepareMessage.ranges);
                     MessagingService.instance().sendReply(new MessageOut(MessagingService.Verb.INTERNAL_RESPONSE), id, message.from);
                     break;
 

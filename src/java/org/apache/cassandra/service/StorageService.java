@@ -3013,7 +3013,7 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
                 {
                     try
                     {
-                        parentSession = ActiveRepairService.instance.prepareForRepair(allNeighbors, ranges, columnFamilyStores);
+                        parentSession = ActiveRepairService.instance.prepareForRepair(FBUtilities.getBroadcastAddress(), allNeighbors, ranges, columnFamilyStores);
                     }
                     catch (Throwable t)
                     {
