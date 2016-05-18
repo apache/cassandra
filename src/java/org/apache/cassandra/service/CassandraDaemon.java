@@ -148,6 +148,8 @@ public class CassandraDaemon
      */
     protected void setup()
     {
+        FileUtils.setFSErrorHandler(new DefaultFSErrorHandler());
+
         try
         {
             logger.info("Hostname: {}", InetAddress.getLocalHost().getHostName());
