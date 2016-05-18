@@ -1,6 +1,5 @@
- * Fix commit log replay after out-of-order flush completion (CASSANDRA-9669)
-
 2.2.7
+ * Fix commit log replay after out-of-order flush completion (CASSANDRA-9669)
  * Add seconds to cqlsh tracing session duration (CASSANDRA-11753)
  * Prohibit Reverse Counter type as part of the PK (CASSANDRA-9395)
  * cqlsh: correctly handle non-ascii chars in error messages (CASSANDRA-11626)
@@ -18,16 +17,20 @@
  * Always close cluster with connection in CqlRecordWriter (CASSANDRA-11553)
  * Fix slice queries on ordered COMPACT tables (CASSANDRA-10988)
 Merged from 2.1:
+ * Don't compute expensive MaxPurgeableTimestamp until we've verified there's an 
+   expired tombstone (CASSANDRA-11834)
  * Add option to disable use of severity in DynamicEndpointSnitch (CASSANDRA-11737)
  * cqlsh COPY FROM fails for null values with non-prepared statements (CASSANDRA-11631)
  * Make cython optional in pylib/setup.py (CASSANDRA-11630)
- * Change order of directory searching for cassandra.in.sh to favor local one (CASSANDRA-11628)
+ * Change order of directory searching for cassandra.in.sh to favor local one 
+   (CASSANDRA-11628)
  * cqlsh COPY FROM fails with []{} chars in UDT/tuple fields/values (CASSANDRA-11633)
  * clqsh: COPY FROM throws TypeError with Cython extensions enabled (CASSANDRA-11574)
  * cqlsh: COPY FROM ignores NULL values in conversion (CASSANDRA-11549)
  * (cqlsh) Fix potential COPY deadlock when parent process is terminating child
    processes (CASSANDRA-11505)
- * Validate levels when building LeveledScanner to avoid overlaps with orphaned sstables (CASSANDRA-9935)
+ * Validate levels when building LeveledScanner to avoid overlaps with orphaned 
+   sstables (CASSANDRA-9935)
 
 
 2.2.6
