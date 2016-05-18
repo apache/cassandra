@@ -117,15 +117,18 @@ public class MapType<K, V> extends CollectionType<Map<K, V>>
     }
 
     @Override
-    public AbstractType<?> freezeNestedUDTs()
+    public AbstractType<?> freezeNestedMulticellTypes()
     {
-        AbstractType<?> keyType = (keys.isUDT() && keys.isMultiCell())
-                                ? keys.freeze()
-                                : keys.freezeNestedUDTs();
+        if (!isMultiCell())
+            return this;
 
-        AbstractType<?> valueType = (values.isUDT() && values.isMultiCell())
+        AbstractType<?> keyType = (keys.isFreezable() && keys.isMultiCell())
+                                ? keys.freeze()
+                                : keys.freezeNestedMulticellTypes();
+
+        AbstractType<?> valueType = (values.isFreezable() && values.isMultiCell())
                                   ? values.freeze()
-                                  : values.freezeNestedUDTs();
+                                  : values.freezeNestedMulticellTypes();
 
         return getInstance(keyType, valueType, isMultiCell);
     }

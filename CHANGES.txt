@@ -10,6 +10,8 @@ Merged from 2.2:
  * cqlsh: correctly handle non-ascii chars in error messages (CASSANDRA-11626)
 
 3.6
+ * Correctly migrate schema for frozen UDTs during 2.x -> 3.x upgrades
+   (does not affect any released versions) (CASSANDRA-11613)
  * Allow server startup if JMX is configured directly (CASSANDRA-11725)
  * Prevent direct memory OOM on buffer pool allocations (CASSANDRA-11710)
  * Enhanced Compaction Logging (CASSANDRA-10805)
