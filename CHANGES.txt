@@ -1,4 +1,5 @@
 2.1.15
+ * Updated cqlsh Python driver to fix DESCRIBE problem for legacy tables (CASSANDRA-11055)
  * cqlsh: apply current keyspace to source command (CASSANDRA-11152)
  * Backport CASSANDRA-11578 (CASSANDRA-11750)
  * Clear out parent repair session if repair coordinator dies (CASSANDRA-11824)
