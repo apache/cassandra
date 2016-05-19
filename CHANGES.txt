@@ -9,6 +9,7 @@
 
 3.7
 Merged from 3.0:
+ * Use CFS.initialDirectories when clearing snapshots (CASSANDRA-11705)
  * Allow compaction strategies to disable early open (CASSANDRA-11754)
  * Refactor Materialized View code (CASSANDRA-11475)
  * Update Java Driver (CASSANDRA-11615)
