@@ -296,7 +296,7 @@ public class Directories
     {
         if (directory != null)
         {
-            for (DataDirectory dataDirectory : dataDirectories)
+            for (DataDirectory dataDirectory : paths)
             {
                 if (directory.getAbsolutePath().startsWith(dataDirectory.location.getAbsolutePath()))
                     return dataDirectory;
@@ -464,7 +464,7 @@ public class Directories
     public DataDirectory[] getWriteableLocations()
     {
         List<DataDirectory> nonBlacklistedDirs = new ArrayList<>();
-        for (DataDirectory dir : dataDirectories)
+        for (DataDirectory dir : paths)
         {
             if (!BlacklistedDirectories.isUnwritable(dir.location))
                 nonBlacklistedDirs.add(dir);
