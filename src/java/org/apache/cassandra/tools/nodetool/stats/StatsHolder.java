@@ -71,6 +71,7 @@ public class StatsHolder
                 mpTable.put("local_write_count", table.localWriteCount);
                 mpTable.put("local_write_latency_ms", String.format("%01.3f", table.localWriteLatencyMs));
                 mpTable.put("pending_flushes", table.pendingFlushes);
+                mpTable.put("percent_repaired", table.percentRepaired);
                 mpTable.put("bloom_filter_false_positives", table.bloomFilterFalsePositives);
                 mpTable.put("bloom_filter_false_ratio", String.format("%01.5f", table.bloomFilterFalseRatio));
                 mpTable.put("bloom_filter_space_used", table.bloomFilterSpaceUsed);

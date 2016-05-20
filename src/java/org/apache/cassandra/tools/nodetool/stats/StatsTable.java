@@ -56,6 +56,7 @@ public class StatsTable
     public long compactedPartitionMinimumBytes;
     public long compactedPartitionMaximumBytes;
     public long compactedPartitionMeanBytes;
+    public double percentRepaired;
     public double averageLiveCellsPerSliceLastFiveMinutes;
     public long maximumLiveCellsPerSliceLastFiveMinutes;
     public double averageTombstonesPerSliceLastFiveMinutes;

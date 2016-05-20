@@ -131,6 +131,7 @@ public class TableStats extends NodeToolCmd
                 Long indexSummaryOffHeapSize = null;
                 Long compressionMetadataOffHeapSize = null;
                 Long offHeapSize = null;
+                Double percentRepaired = null;
 
                 try
                 {
@@ -139,6 +140,7 @@ public class TableStats extends NodeToolCmd
                     indexSummaryOffHeapSize = (Long) probe.getColumnFamilyMetric(keyspaceName, tableName, "IndexSummaryOffHeapMemoryUsed");
                     compressionMetadataOffHeapSize = (Long) probe.getColumnFamilyMetric(keyspaceName, tableName, "CompressionMetadataOffHeapMemoryUsed");
                     offHeapSize = memtableOffHeapSize + bloomFilterOffHeapSize + indexSummaryOffHeapSize + compressionMetadataOffHeapSize;
+                    percentRepaired = (Double) probe.getColumnFamilyMetric(keyspaceName, tableName, "PercentRepaired");
                 }
                 catch (RuntimeException e)
                 {
@@ -155,6 +157,10 @@ public class TableStats extends NodeToolCmd
                     statsTable.offHeapUsed = true;
                     statsTable.offHeapMemoryUsedTotal = format(offHeapSize, humanReadable);
 
+                }
+                if (percentRepaired != null)
+                {
+                    statsTable.percentRepaired = Math.round(100 * percentRepaired) / 100.0;
                 }
                 statsTable.sstableCompressionRatio = probe.getColumnFamilyMetric(keyspaceName, tableName, "CompressionRatio");
                 statsTable.numberOfKeysEstimate = probe.getColumnFamilyMetric(keyspaceName, tableName, "EstimatedPartitionCount");

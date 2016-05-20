@@ -5,6 +5,7 @@
  * Remove DatabaseDescriptor dependency from FileUtils (CASSANDRA-11578)
  * Faster streaming (CASSANDRA-9766)
  * Add prepared query parameter to trace for "Execute CQL3 prepared query" session (CASSANDRA-11425)
+ * Add repaired percentage metric (CASSANDRA-11503)
 
 
 3.7

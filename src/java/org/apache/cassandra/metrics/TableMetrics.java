@@ -26,12 +26,16 @@ import com.codahale.metrics.*;
 import com.codahale.metrics.Timer;
 import com.google.common.collect.Iterables;
 import com.google.common.collect.Maps;
+
+import org.apache.cassandra.config.Schema;
 import org.apache.cassandra.db.ColumnFamilyStore;
 import org.apache.cassandra.db.Keyspace;
 import org.apache.cassandra.db.Memtable;
 import org.apache.cassandra.db.lifecycle.SSTableSet;
+import org.apache.cassandra.index.SecondaryIndexManager;
 import org.apache.cassandra.io.compress.CompressionMetadata;
 import org.apache.cassandra.io.sstable.format.SSTableReader;
+import org.apache.cassandra.repair.SystemDistributedKeyspace;
 import org.apache.cassandra.utils.EstimatedHistogram;
 import org.apache.cassandra.utils.TopKSampler;
 
@@ -139,6 +143,8 @@ public class TableMetrics
     public final LatencyMetrics casPropose;
     /** CAS Commit metrics */
     public final LatencyMetrics casCommit;
+    /** percent of the data that is repaired */
+    public final Gauge<Double> percentRepaired;
 
     public final Timer coordinatorReadLatency;
     public final Timer coordinatorScanLatency;
@@ -159,6 +165,40 @@ public class TableMetrics
     public final static LatencyMetrics globalReadLatency = new LatencyMetrics(globalFactory, globalAliasFactory, "Read");
     public final static LatencyMetrics globalWriteLatency = new LatencyMetrics(globalFactory, globalAliasFactory, "Write");
     public final static LatencyMetrics globalRangeLatency = new LatencyMetrics(globalFactory, globalAliasFactory, "Range");
+
+    public final static Gauge<Double> globalPercentRepaired = Metrics.register(globalFactory.createMetricName("PercentRepaired"),
+            new Gauge<Double>()
+    {
+        public Double getValue()
+        {
+            double repaired = 0;
+            double total = 0;
+            for (String keyspace : Schema.instance.getNonSystemKeyspaces())
+            {
+                Keyspace k = Schema.instance.getKeyspaceInstance(keyspace);
+                if (SystemDistributedKeyspace.NAME.equals(k.getName()))
+                    continue;
+                if (k.getReplicationStrategy().getReplicationFactor() < 2)
+                    continue;
+
+                for (ColumnFamilyStore cf : k.getColumnFamilyStores())
+                {
+                    if (!SecondaryIndexManager.isIndexColumnFamily(cf.name))
+                    {
+                        for (SSTableReader sstable : cf.getSSTables(SSTableSet.CANONICAL))
+                        {
+                            if (sstable.isRepaired())
+                            {
+                                repaired += sstable.uncompressedLength();
+                            }
+                            total += sstable.uncompressedLength();
+                        }
+                    }
+                }
+            }
+            return total > 0 ? (repaired / total) * 100 : 100.0;
+        }
+    });
 
     public final Map<Sampler, TopKSampler<ByteBuffer>> samplers;
     /**
@@ -341,6 +381,23 @@ public class TableMetrics
             {
                 return computeCompressionRatio(Iterables.concat(Iterables.transform(Keyspace.all(),
                                                                                     p -> p.getAllSSTables(SSTableSet.CANONICAL))));
+            }
+        });
+        percentRepaired = createTableGauge("PercentRepaired", new Gauge<Double>()
+        {
+            public Double getValue()
+            {
+                double repaired = 0;
+                double total = 0;
+                for (SSTableReader sstable : cfs.getSSTables(SSTableSet.CANONICAL))
+                {
+                    if (sstable.isRepaired())
+                    {
+                        repaired += sstable.uncompressedLength();
+                    }
+                    total += sstable.uncompressedLength();
+                }
+                return total > 0 ? (repaired / total) * 100 : 100.0;
             }
         });
         readLatency = new LatencyMetrics(factory, "Read", cfs.keyspace.metric.readLatency, globalReadLatency);
