@@ -708,10 +708,12 @@ public class NodeTool
                 System.out.printf("%-25s", "Pool Name");
                 System.out.printf("%10s", "Active");
                 System.out.printf("%10s", "Pending");
-                System.out.printf("%15s%n", "Completed");
+                System.out.printf("%15s", "Completed");
+                System.out.printf("%10s%n", "Dropped");
 
                 int pending;
                 long completed;
+                long dropped;
 
                 pending = 0;
                 for (int n : ms.getCommandPendingTasks().values())
@@ -719,7 +721,10 @@ public class NodeTool
                 completed = 0;
                 for (long n : ms.getCommandCompletedTasks().values())
                     completed += n;
-                System.out.printf("%-25s%10s%10s%15s%n", "Commands", "n/a", pending, completed);
+                dropped = 0;
+                for (long n : ms.getCommandDroppedTasks().values())
+                    dropped += n;
+                System.out.printf("%-25s%10s%10s%15s%10s%n", "Commands", "n/a", pending, completed, dropped);
 
                 pending = 0;
                 for (int n : ms.getResponsePendingTasks().values())
@@ -727,7 +732,7 @@ public class NodeTool
                 completed = 0;
                 for (long n : ms.getResponseCompletedTasks().values())
                     completed += n;
-                System.out.printf("%-25s%10s%10s%15s%n", "Responses", "n/a", pending, completed);
+                System.out.printf("%-25s%10s%10s%15s%10s%n", "Responses", "n/a", pending, completed, "n/a");
             }
         }
     }
