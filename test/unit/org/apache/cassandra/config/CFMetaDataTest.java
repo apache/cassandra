@@ -26,18 +26,11 @@ import org.apache.cassandra.cql3.UntypedResultSet;
 import org.apache.cassandra.db.ColumnFamilyStore;
 import org.apache.cassandra.db.Keyspace;
 import org.apache.cassandra.db.Mutation;
-import org.apache.cassandra.db.marshal.AsciiType;
-import org.apache.cassandra.db.marshal.Int32Type;
-import org.apache.cassandra.db.marshal.UTF8Type;
+import org.apache.cassandra.db.marshal.*;
 import org.apache.cassandra.db.partitions.PartitionUpdate;
 import org.apache.cassandra.db.rows.UnfilteredRowIterators;
 import org.apache.cassandra.exceptions.ConfigurationException;
-import org.apache.cassandra.schema.CompressionParams;
-import org.apache.cassandra.schema.KeyspaceMetadata;
-import org.apache.cassandra.schema.KeyspaceParams;
-import org.apache.cassandra.schema.SchemaKeyspace;
-import org.apache.cassandra.schema.TableParams;
-import org.apache.cassandra.schema.Types;
+import org.apache.cassandra.schema.*;
 import org.apache.cassandra.thrift.CfDef;
 import org.apache.cassandra.thrift.ColumnDef;
 import org.apache.cassandra.thrift.IndexType;
@@ -192,5 +185,81 @@ public class CFMetaDataTest
         assertFalse(CFMetaData.isNameValid(" "));
         assertFalse(CFMetaData.isNameValid("@"));
         assertFalse(CFMetaData.isNameValid("!"));
+    }
+
+    private static Set<String> primitiveTypes = new HashSet<String>(Arrays.asList(new String[] { "ascii", "bigint", "blob", "boolean", "date",
+                                                                                                 "decimal", "double", "float", "inet", "int",
+                                                                                                 "smallint", "text", "time", "timestamp",
+                                                                                                 "timeuuid", "tinyint", "uuid", "varchar",
+                                                                                                 "varint" }));
+
+    @Test
+    public void typeCompatibilityTest() throws Throwable
+    {
+        Map<String, Set<String>> compatibilityMap = new HashMap<>();
+        compatibilityMap.put("bigint", new HashSet<>(Arrays.asList(new String[] {"timestamp"})));
+        compatibilityMap.put("blob", new HashSet<>(Arrays.asList(new String[] {"ascii", "bigint", "boolean", "date", "decimal", "double",
+                                                                               "float", "inet", "int", "smallint", "text", "time", "timestamp",
+                                                                               "timeuuid", "tinyint", "uuid", "varchar", "varint"})));
+        compatibilityMap.put("date", new HashSet<>(Arrays.asList(new String[] {"int"})));
+        compatibilityMap.put("time", new HashSet<>(Arrays.asList(new String[] {"bigint"})));
+        compatibilityMap.put("text", new HashSet<>(Arrays.asList(new String[] {"ascii", "varchar"})));
+        compatibilityMap.put("timestamp", new HashSet<>(Arrays.asList(new String[] {"bigint"})));
+        compatibilityMap.put("varchar", new HashSet<>(Arrays.asList(new String[] {"ascii", "text"})));
+        compatibilityMap.put("varint", new HashSet<>(Arrays.asList(new String[] {"bigint", "int", "timestamp"})));
+        compatibilityMap.put("uuid", new HashSet<>(Arrays.asList(new String[] {"timeuuid"})));
+
+        for (String sourceTypeString: primitiveTypes)
+        {
+            AbstractType sourceType = CQLTypeParser.parse("KEYSPACE", sourceTypeString, Types.none());
+            for (String destinationTypeString: primitiveTypes)
+            {
+                AbstractType destinationType = CQLTypeParser.parse("KEYSPACE", destinationTypeString, Types.none());
+
+                if (compatibilityMap.get(destinationTypeString) != null &&
+                    compatibilityMap.get(destinationTypeString).contains(sourceTypeString) ||
+                    sourceTypeString.equals(destinationTypeString))
+                {
+                    assertTrue(sourceTypeString + " should be compatible with " + destinationTypeString,
+                               destinationType.isValueCompatibleWith(sourceType));
+                }
+                else
+                {
+                    assertFalse(sourceTypeString + " should not be compatible with " + destinationTypeString,
+                                destinationType.isValueCompatibleWith(sourceType));
+                }
+            }
+        }
+    }
+
+    @Test
+    public void clusteringColumnTypeCompatibilityTest() throws Throwable
+    {
+        Map<String, Set<String>> compatibilityMap = new HashMap<>();
+        compatibilityMap.put("blob", new HashSet<>(Arrays.asList(new String[] {"ascii", "text", "varchar"})));
+        compatibilityMap.put("text", new HashSet<>(Arrays.asList(new String[] {"ascii", "varchar"})));
+        compatibilityMap.put("varchar", new HashSet<>(Arrays.asList(new String[] {"ascii", "text" })));
+
+        for (String sourceTypeString: primitiveTypes)
+        {
+            AbstractType sourceType = CQLTypeParser.parse("KEYSPACE", sourceTypeString, Types.none());
+            for (String destinationTypeString: primitiveTypes)
+            {
+                AbstractType destinationType = CQLTypeParser.parse("KEYSPACE", destinationTypeString, Types.none());
+
+                if (compatibilityMap.get(destinationTypeString) != null &&
+                    compatibilityMap.get(destinationTypeString).contains(sourceTypeString) ||
+                    sourceTypeString.equals(destinationTypeString))
+                {
+                    assertTrue(sourceTypeString + " should be compatible with " + destinationTypeString,
+                               destinationType.isCompatibleWith(sourceType));
+                }
+                else
+                {
+                    assertFalse(sourceTypeString + " should not be compatible with " + destinationTypeString,
+                                destinationType.isCompatibleWith(sourceType));
+                }
+            }
+        }
     }
 }
