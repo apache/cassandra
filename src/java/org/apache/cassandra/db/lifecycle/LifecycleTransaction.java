@@ -30,6 +30,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import org.apache.cassandra.config.CFMetaData;
+import org.apache.cassandra.db.ColumnFamilyStore;
 import org.apache.cassandra.db.Directories;
 import org.apache.cassandra.db.compaction.OperationType;
 import org.apache.cassandra.io.sstable.SSTable;
@@ -525,9 +526,14 @@ public class LifecycleTransaction extends Transactional.AbstractTransactional
         log.untrackNew(table);
     }
 
-    public static boolean removeUnfinishedLeftovers(CFMetaData metadata)
+    public static boolean removeUnfinishedLeftovers(ColumnFamilyStore cfs)
     {
-        return LogTransaction.removeUnfinishedLeftovers(metadata);
+        return LogTransaction.removeUnfinishedLeftovers(cfs.getDirectories().getCFDirectories());
+    }
+
+    public static boolean removeUnfinishedLeftovers(CFMetaData cfMetaData)
+    {
+        return LogTransaction.removeUnfinishedLeftovers(cfMetaData);
     }
 
     /**

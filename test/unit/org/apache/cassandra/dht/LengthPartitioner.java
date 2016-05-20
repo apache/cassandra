@@ -20,6 +20,7 @@ package org.apache.cassandra.dht;
 import java.math.BigInteger;
 import java.nio.ByteBuffer;
 import java.util.*;
+import java.util.concurrent.ThreadLocalRandom;
 
 import org.apache.cassandra.config.CFMetaData;
 import org.apache.cassandra.config.Schema;
@@ -69,7 +70,12 @@ public class LengthPartitioner implements IPartitioner
 
     public BigIntegerToken getRandomToken()
     {
-        return new BigIntegerToken(BigInteger.valueOf(new Random().nextInt(15)));
+        return getRandomToken(ThreadLocalRandom.current());
+    }
+
+    public BigIntegerToken getRandomToken(Random random)
+    {
+        return new BigIntegerToken(BigInteger.valueOf(random.nextInt(15)));
     }
 
     private final Token.TokenFactory tokenFactory = new Token.TokenFactory() {

@@ -75,7 +75,7 @@ public class CqlBulkRecordWriter extends RecordWriter<Object, List<ByteBuffer>>
     protected final Configuration conf;
     protected final int maxFailures;
     protected final int bufferSize;
-    protected Closeable writer;
+    protected CQLSSTableWriter writer;
     protected SSTableLoader loader;
     protected Progressable progress;
     protected TaskAttemptContext context;
@@ -174,7 +174,7 @@ public class CqlBulkRecordWriter extends RecordWriter<Object, List<ByteBuffer>>
             ExternalClient externalClient = new ExternalClient(conf);
             externalClient.setTableMetadata(CFMetaData.compile(schema, keyspace));
 
-            loader = new SSTableLoader(outputDir, externalClient, new NullOutputHandler())
+            loader = new SSTableLoader(writer.getInnermostDirectory(), externalClient, new NullOutputHandler())
             {
                 @Override
                 public void onSuccess(StreamState finalState)

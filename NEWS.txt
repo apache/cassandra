@@ -19,6 +19,8 @@ using the provided 'sstableupgrade' tool.
 
 New features
 ------------
+   - A new compaction-stress tool has been added to test the throughput of compaction
+     for any cassandra-stress user schema.  see compaction-stress help for how to use.
    - Compaction can now take into account overlapping tables that don't take part
      in the compaction to look for deleted or overwritten data in the compacted tables.
      Then such data is found, it can be safely discarded, which in turn should enable

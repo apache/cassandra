@@ -21,15 +21,27 @@ package org.apache.cassandra.stress.operations.userdefined;
  */
 
 
+import java.io.File;
 import java.io.IOException;
 import java.util.ArrayList;
+import java.util.Collection;
 import java.util.List;
+import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
+import java.util.stream.Collectors;
+
+import com.google.common.util.concurrent.Uninterruptibles;
 
 import com.datastax.driver.core.BatchStatement;
 import com.datastax.driver.core.BoundStatement;
 import com.datastax.driver.core.PreparedStatement;
 import com.datastax.driver.core.Statement;
+import org.apache.cassandra.config.CFMetaData;
+import org.apache.cassandra.db.ColumnFamilyStore;
 import org.apache.cassandra.db.ConsistencyLevel;
+import org.apache.cassandra.io.sstable.CQLSSTableWriter;
+import org.apache.cassandra.stress.WorkManager;
 import org.apache.cassandra.stress.generate.*;
 import org.apache.cassandra.stress.settings.StressSettings;
 import org.apache.cassandra.stress.util.JavaDriverClient;
@@ -39,12 +51,27 @@ import org.apache.cassandra.stress.util.Timer;
 public class SchemaInsert extends SchemaStatement
 {
 
+    private final String tableSchema;
+    private final String insertStatement;
     private final BatchStatement.Type batchType;
 
     public SchemaInsert(Timer timer, StressSettings settings, PartitionGenerator generator, SeedManager seedManager, Distribution batchSize, RatioDistribution useRatio, RatioDistribution rowPopulation, Integer thriftId, PreparedStatement statement, ConsistencyLevel cl, BatchStatement.Type batchType)
     {
-        super(timer, settings, new DataSpec(generator, seedManager, batchSize, useRatio, rowPopulation), statement, thriftId, cl);
+        super(timer, settings, new DataSpec(generator, seedManager, batchSize, useRatio, rowPopulation), statement, statement.getVariables().asList().stream().map(d -> d.getName()).collect(Collectors.toList()), thriftId, cl);
         this.batchType = batchType;
+        this.insertStatement = null;
+        this.tableSchema = null;
+    }
+
+    /**
+     * Special constructor for offline use
+     */
+    public SchemaInsert(Timer timer, StressSettings settings, PartitionGenerator generator, SeedManager seedManager, RatioDistribution useRatio, RatioDistribution rowPopulation, Integer thriftId, String statement, String tableSchema)
+    {
+        super(timer, settings, new DataSpec(generator, seedManager, new DistributionFixed(1), useRatio, rowPopulation), null, generator.getColumnNames(), thriftId, ConsistencyLevel.ONE);
+        this.batchType = BatchStatement.Type.UNLOGGED;
+        this.insertStatement = statement;
+        this.tableSchema = tableSchema;
     }
 
     private class JavaDriverRun extends Runner
@@ -113,6 +140,31 @@ public class SchemaInsert extends SchemaStatement
         }
     }
 
+    private class OfflineRun extends Runner
+    {
+        final CQLSSTableWriter writer;
+
+        OfflineRun(CQLSSTableWriter writer)
+        {
+            this.writer = writer;
+        }
+
+        public boolean run() throws Exception
+        {
+            for (PartitionIterator iterator : partitions)
+            {
+                while (iterator.hasNext())
+                {
+                    Row row = iterator.next();
+                    writer.rawAddRow(thriftRowArgs(row));
+                    rowCount += 1;
+                }
+            }
+
+            return true;
+        }
+    }
+
     @Override
     public void run(JavaDriverClient client) throws IOException
     {
@@ -130,4 +182,27 @@ public class SchemaInsert extends SchemaStatement
         timeWithRetry(new ThriftRun(client));
     }
 
+    public CQLSSTableWriter createWriter(ColumnFamilyStore cfs, int bufferSize, boolean makeRangeAware)
+    {
+        return CQLSSTableWriter.builder()
+                               .withCfs(cfs)
+                               .withBufferSizeInMB(bufferSize)
+                               .forTable(tableSchema)
+                               .using(insertStatement)
+                               .rangeAware(makeRangeAware)
+                               .build();
+    }
+
+    public void runOffline(CQLSSTableWriter writer, WorkManager workManager) throws Exception
+    {
+        OfflineRun offline = new OfflineRun(writer);
+
+        while (true)
+        {
+            if (ready(workManager) == 0)
+                break;
+
+            offline.run();
+        }
+    }
 }

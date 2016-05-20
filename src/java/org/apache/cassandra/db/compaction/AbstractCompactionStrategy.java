@@ -126,7 +126,7 @@ public abstract class AbstractCompactionStrategy
             uncheckedTombstoneCompaction = DEFAULT_UNCHECKED_TOMBSTONE_COMPACTION_OPTION;
         }
 
-        directories = new Directories(cfs.metadata, Directories.dataDirectories);
+        directories = cfs.getDirectories();
     }
 
     public Directories getDirectories()

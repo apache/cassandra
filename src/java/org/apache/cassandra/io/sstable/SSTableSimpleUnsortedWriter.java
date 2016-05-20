@@ -19,6 +19,7 @@ package org.apache.cassandra.io.sstable;
 
 import java.io.File;
 import java.io.IOException;
+import java.util.Collection;
 import java.util.Map;
 import java.util.TreeMap;
 import java.util.concurrent.BlockingQueue;
@@ -34,6 +35,7 @@ import org.apache.cassandra.db.rows.Row;
 import org.apache.cassandra.db.rows.EncodingStats;
 import org.apache.cassandra.db.rows.UnfilteredSerializer;
 import org.apache.cassandra.db.partitions.PartitionUpdate;
+import org.apache.cassandra.dht.IPartitioner;
 import org.apache.cassandra.utils.JVMStabilityInspector;
 
 /**
@@ -60,11 +62,11 @@ class SSTableSimpleUnsortedWriter extends AbstractSSTableSimpleWriter
     private final BlockingQueue<Buffer> writeQueue = new SynchronousQueue<Buffer>();
     private final DiskWriter diskWriter = new DiskWriter();
 
-    SSTableSimpleUnsortedWriter(File directory, CFMetaData metadata, PartitionColumns columns, long bufferSizeInMB)
+    SSTableSimpleUnsortedWriter(ColumnFamilyStore cfs, IPartitioner partitioner, PartitionColumns columns, long bufferSizeInMB)
     {
-        super(directory, metadata, columns);
+        super(cfs, partitioner, columns);
         this.bufferSize = bufferSizeInMB * 1024L * 1024L;
-        this.header = new SerializationHeader(true, metadata, columns, EncodingStats.NO_STATS);
+        this.header = new SerializationHeader(true, cfs.metadata, columns, EncodingStats.NO_STATS);
         diskWriter.start();
     }
 
@@ -110,7 +112,7 @@ class SSTableSimpleUnsortedWriter extends AbstractSSTableSimpleWriter
 
     private PartitionUpdate createPartitionUpdate(DecoratedKey key)
     {
-        return new PartitionUpdate(metadata, key, columns, 4)
+        return new PartitionUpdate(cfs.metadata, key, columns, 4)
         {
             @Override
             public void add(Row row)
@@ -204,7 +206,7 @@ class SSTableSimpleUnsortedWriter extends AbstractSSTableSimpleWriter
                     if (b == SENTINEL)
                         return;
 
-                        try (SSTableTxnWriter writer = createWriter())
+                    try (SSTableTxnWriter writer = createWriter())
                     {
                         for (Map.Entry<DecoratedKey, PartitionUpdate> entry : b.entrySet())
                             writer.append(entry.getValue().unfilteredIterator());

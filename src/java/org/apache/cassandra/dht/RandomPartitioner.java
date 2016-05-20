@@ -91,6 +91,14 @@ public class RandomPartitioner implements IPartitioner
         return new BigIntegerToken(token);
     }
 
+    public BigIntegerToken getRandomToken(Random random)
+    {
+        BigInteger token = FBUtilities.hashToBigInteger(GuidGenerator.guidAsBytes(random));
+        if ( token.signum() == -1 )
+            token = token.multiply(BigInteger.valueOf(-1L));
+        return new BigIntegerToken(token);
+    }
+
     private final Token.TokenFactory tokenFactory = new Token.TokenFactory() {
         public ByteBuffer toByteArray(Token token)
         {

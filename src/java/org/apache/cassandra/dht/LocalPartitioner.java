@@ -21,6 +21,7 @@ import java.nio.ByteBuffer;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
+import java.util.Random;
 
 import org.apache.cassandra.db.DecoratedKey;
 import org.apache.cassandra.db.CachedHashDecoratedKey;
@@ -60,6 +61,11 @@ public class LocalPartitioner implements IPartitioner
     }
 
     public LocalToken getRandomToken()
+    {
+        throw new UnsupportedOperationException();
+    }
+
+    public LocalToken getRandomToken(Random random)
     {
         throw new UnsupportedOperationException();
     }

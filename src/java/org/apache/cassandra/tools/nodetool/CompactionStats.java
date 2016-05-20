@@ -67,12 +67,15 @@ public class CompactionStats extends NodeToolCmd
             }
         }
         System.out.println();
+        reportCompactionTable(cm.getCompactions(), probe.getCompactionThroughput(), humanReadable);
+    }
+
+    public static void reportCompactionTable(List<Map<String,String>> compactions, int compactionThroughput, boolean humanReadable)
+    {
         long remainingBytes = 0;
         TableBuilder table = new TableBuilder();
-        List<Map<String, String>> compactions = cm.getCompactions();
         if (!compactions.isEmpty())
         {
-            int compactionThroughput = probe.getCompactionThroughput();
             table.add("id", "compaction type", "keyspace", "table", "completed", "total", "unit", "progress");
             for (Map<String, String> c : compactions)
             {
@@ -101,4 +104,5 @@ public class CompactionStats extends NodeToolCmd
             System.out.printf("%25s%10s%n", "Active compaction remaining time : ", remainingTime);
         }
     }
+
 }

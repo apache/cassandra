@@ -137,7 +137,7 @@ public class MockSchema
     {
         String cfname = "mockcf" + (id.incrementAndGet());
         CFMetaData metadata = newCFMetaData(ksname, cfname);
-        return new ColumnFamilyStore(ks, cfname, 0, metadata, new Directories(metadata), false, false);
+        return new ColumnFamilyStore(ks, cfname, 0, metadata, new Directories(metadata), false, false, false);
     }
 
     public static CFMetaData newCFMetaData(String ksname, String cfname)

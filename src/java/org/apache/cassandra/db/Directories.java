@@ -180,6 +180,12 @@ public class Directories
     {
         this(metadata, dataDirectories);
     }
+
+    public Directories(final CFMetaData metadata, Collection<DataDirectory> paths)
+    {
+        this(metadata, paths.toArray(new DataDirectory[paths.size()]));
+    }
+
     /**
      * Create Directories of given ColumnFamily.
      * SSTable directories are created under data_directories defined in cassandra.yaml if not exist at this time.
@@ -918,6 +924,19 @@ public class Directories
             result += getTrueAllocatedSizeIn(snapshotDir);
         }
         return result;
+    }
+
+    /**
+     * @return Raw size on disk for all directories
+     */
+    public long getRawDiretoriesSize()
+    {
+        long totalAllocatedSize = 0L;
+
+        for (File path : dataPaths)
+            totalAllocatedSize += FileUtils.folderSize(path);
+
+        return totalAllocatedSize;
     }
 
     public long getTrueAllocatedSizeIn(File input)
