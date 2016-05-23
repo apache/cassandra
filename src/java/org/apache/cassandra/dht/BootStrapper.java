@@ -65,6 +65,7 @@ public class BootStrapper
 
         RangeStreamer streamer = new RangeStreamer(tokenMetadata, tokens, address, "Bootstrap");
         streamer.addSourceFilter(new RangeStreamer.FailureDetectorSourceFilter(FailureDetector.instance));
+        streamer.addSourceFilter(new RangeStreamer.ExcludeLocalNodeFilter());
 
         for (String keyspaceName : Schema.instance.getNonSystemKeyspaces())
         {

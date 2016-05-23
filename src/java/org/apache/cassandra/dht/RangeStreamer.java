@@ -105,6 +105,17 @@ public class RangeStreamer
         }
     }
 
+    /**
+     * Source filter which excludes the current node from source calculations
+     */
+    public static class ExcludeLocalNodeFilter implements ISourceFilter
+    {
+        public boolean shouldInclude(InetAddress endpoint)
+        {
+            return !FBUtilities.getBroadcastAddress().equals(endpoint);
+        }
+    }
+
     public RangeStreamer(TokenMetadata metadata, Collection<Token> tokens, InetAddress address, String description)
     {
         this.metadata = metadata;
@@ -153,10 +164,12 @@ public class RangeStreamer
     private boolean useStrictSourcesForRanges(String keyspaceName)
     {
         AbstractReplicationStrategy strat = Keyspace.open(keyspaceName).getReplicationStrategy();
-        return !DatabaseDescriptor.isReplacing()
-                && useStrictConsistency
-                && tokens != null
-                && metadata.getAllEndpoints().size() != strat.getReplicationFactor();
+        return isNotReplacingAndUsesStrictConsistency() && tokens != null && metadata.getAllEndpoints().size() != strat.getReplicationFactor();
+    }
+
+    private static boolean isNotReplacingAndUsesStrictConsistency()
+    {
+        return !DatabaseDescriptor.isReplacing() && useStrictConsistency;
     }
 
     /**
@@ -265,17 +278,17 @@ public class RangeStreamer
             outer:
             for (InetAddress address : rangesWithSources.get(range))
             {
+                for (ISourceFilter filter : sourceFilters)
+                {
+                    if (!filter.shouldInclude(address))
+                        continue outer;
+                }
+
                 if (address.equals(FBUtilities.getBroadcastAddress()))
                 {
                     // If localhost is a source, we have found one, but we don't add it to the map to avoid streaming locally
                     foundSource = true;
                     continue;
-                }
-
-                for (ISourceFilter filter : sourceFilters)
-                {
-                    if (!filter.shouldInclude(address))
-                        continue outer;
                 }
 
                 rangeFetchMapMap.put(address, range);
@@ -284,7 +297,20 @@ public class RangeStreamer
             }
 
             if (!foundSource)
-                throw new IllegalStateException("unable to find sufficient sources for streaming range " + range + " in keyspace " + keyspace);
+            {
+                AbstractReplicationStrategy strat = Keyspace.open(keyspace).getReplicationStrategy();
+                if (strat != null && strat.getReplicationFactor() == 1)
+                {
+                    if (isNotReplacingAndUsesStrictConsistency())
+                        throw new IllegalStateException("Unable to find sufficient sources for streaming range " + range + " in keyspace " + keyspace + " with RF=1." +
+                                                        "If you want to ignore this, consider using system property -Dcassandra.consistent.rangemovement=false.");
+                    else
+                        logger.warn("Unable to find sufficient sources for streaming range " + range + " in keyspace " + keyspace + " with RF=1. " +
+                                    "Keyspace might be missing data.");
+                }
+                else
+                    throw new IllegalStateException("Unable to find sufficient sources for streaming range " + range + " in keyspace " + keyspace);
+            }
         }
 
         return rangeFetchMapMap;
