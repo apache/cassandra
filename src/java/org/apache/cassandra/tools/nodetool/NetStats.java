@@ -90,10 +90,12 @@ public class NetStats extends NodeToolCmd
             System.out.printf("%-25s", "Pool Name");
             System.out.printf("%10s", "Active");
             System.out.printf("%10s", "Pending");
-            System.out.printf("%15s%n", "Completed");
+            System.out.printf("%15s", "Completed");
+            System.out.printf("%10s%n", "Dropped");
 
             int pending;
             long completed;
+            long dropped;
 
             pending = 0;
             for (int n : ms.getLargeMessagePendingTasks().values())
@@ -101,7 +103,10 @@ public class NetStats extends NodeToolCmd
             completed = 0;
             for (long n : ms.getLargeMessageCompletedTasks().values())
                 completed += n;
-            System.out.printf("%-25s%10s%10s%15s%n", "Large messages", "n/a", pending, completed);
+            dropped = 0;
+            for (long n : ms.getLargeMessageDroppedTasks().values())
+                dropped += n;
+            System.out.printf("%-25s%10s%10s%15s%10s%n", "Large messages", "n/a", pending, completed, dropped);
 
             pending = 0;
             for (int n : ms.getSmallMessagePendingTasks().values())
@@ -109,7 +114,10 @@ public class NetStats extends NodeToolCmd
             completed = 0;
             for (long n : ms.getSmallMessageCompletedTasks().values())
                 completed += n;
-            System.out.printf("%-25s%10s%10s%15s%n", "Small messages", "n/a", pending, completed);
+            dropped = 0;
+            for (long n : ms.getSmallMessageDroppedTasks().values())
+                dropped += n;
+            System.out.printf("%-25s%10s%10s%15s%10s%n", "Small messages", "n/a", pending, completed, dropped);
 
             pending = 0;
             for (int n : ms.getGossipMessagePendingTasks().values())
@@ -117,7 +125,10 @@ public class NetStats extends NodeToolCmd
             completed = 0;
             for (long n : ms.getGossipMessageCompletedTasks().values())
                 completed += n;
-            System.out.printf("%-25s%10s%10s%15s%n", "Gossip messages", "n/a", pending, completed);
+            dropped = 0;
+            for (long n : ms.getGossipMessageDroppedTasks().values())
+                dropped += n;
+            System.out.printf("%-25s%10s%10s%15s%10s%n", "Gossip messages", "n/a", pending, completed, dropped);
         }
     }
 }
