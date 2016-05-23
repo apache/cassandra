@@ -314,6 +314,11 @@ public class Schema
         return getCFMetaData(descriptor.ksname, descriptor.cfname);
     }
 
+    public int getNumberOfTables()
+    {
+        return cfIdMap.size();
+    }
+
     public ViewDefinition getView(String keyspaceName, String viewName)
     {
         assert keyspaceName != null;

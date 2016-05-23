@@ -26,15 +26,18 @@ import java.util.Map;
 public class StatsHolder
 {
     public List<StatsKeyspace> keyspaces;
+    public final int numberOfTables;
 
-    public StatsHolder()
+    public StatsHolder(int numberOfTables)
     {
         keyspaces = new ArrayList<>();
+        this.numberOfTables = numberOfTables;
     }
 
-    public Map<String, HashMap<String, Object>> convert2Map()
+    public Map<String, Object> convert2Map()
     {
-        HashMap<String, HashMap<String, Object>> mpRet = new HashMap<>();
+        HashMap<String, Object> mpRet = new HashMap<>();
+        mpRet.put("total_number_of_tables", numberOfTables);
         for (StatsKeyspace keyspace : keyspaces)
         {
             // store each keyspace's metrics to map

@@ -95,7 +95,7 @@ public class TableStats extends NodeToolCmd
         filter.verifyTables();
 
         // get metrics of keyspace
-        StatsHolder holder = new StatsHolder();
+        StatsHolder holder = new StatsHolder(probe.getNumberOfTables());
         for (Map.Entry<String, Collection<ColumnFamilyStoreMBean>> entry : selectedTableMbeans.asMap().entrySet())
         {
             String keyspaceName = entry.getKey();

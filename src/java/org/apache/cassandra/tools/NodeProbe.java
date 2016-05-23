@@ -1203,6 +1203,11 @@ public class NodeProbe implements AutoCloseable
         return ThreadPoolMetrics.getJmxThreadPools(mbeanServerConn);
     }
 
+    public int getNumberOfTables()
+    {
+        return spProxy.getNumberOfTables();
+    }
+
     /**
      * Retrieve ColumnFamily metrics
      * @param ks Keyspace for which stats are to be displayed or null for the global value

@@ -59,6 +59,9 @@ public enum TableStatsPrinter
         @Override
         public void printFormat(StatsHolder data, PrintStream out)
         {
+            out.println("Total number of tables: " + data.numberOfTables);
+            out.println("----------------");
+
             List<StatsKeyspace> keyspaces = data.keyspaces;
             for (StatsKeyspace keyspace : keyspaces)
             {

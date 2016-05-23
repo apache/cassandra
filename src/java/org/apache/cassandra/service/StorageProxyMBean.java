@@ -61,4 +61,6 @@ public interface StorageProxyMBean
 
     /** Returns each live node's schema version */
     public Map<String, List<String>> getSchemaVersions();
+
+    public int getNumberOfTables();
 }
