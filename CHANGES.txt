@@ -1,4 +1,5 @@
 2.2.7
+ * Enable client encryption in sstableloader with cli options (CASSANDRA-11708)
  * Possible memory leak in NIODataInputStream (CASSANDRA-11867)
  * Fix commit log replay after out-of-order flush completion (CASSANDRA-9669)
  * Add seconds to cqlsh tracing session duration (CASSANDRA-11753)
