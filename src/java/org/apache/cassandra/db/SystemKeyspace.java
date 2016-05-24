@@ -294,11 +294,10 @@ public final class SystemKeyspace
 
     public static void finishStartup()
     {
-        persistLocalMetadata();
         LegacySchemaTables.saveSystemKeyspaceSchema();
     }
 
-    private static void persistLocalMetadata()
+    public static void persistLocalMetadata()
     {
         String req = "INSERT INTO system.%s (" +
                      "key," +
