@@ -17,37 +17,45 @@
  */
 package org.apache.cassandra.cql3.statements;
 
+import org.apache.cassandra.config.ColumnDefinition;
 import org.apache.cassandra.cql3.CQL3Type;
 import org.apache.cassandra.cql3.ColumnIdentifier;
 
-public class AlterTableStatementColumn {
+public class AlterTableStatementColumn
+{
     private final CQL3Type.Raw dataType;
-    private final ColumnIdentifier.Raw colName;
+    private final ColumnDefinition.Raw colName;
     private final Boolean isStatic;
 
-    public AlterTableStatementColumn(ColumnIdentifier.Raw colName, CQL3Type.Raw dataType, boolean isStatic) {
+    public AlterTableStatementColumn(ColumnDefinition.Raw colName, CQL3Type.Raw dataType, boolean isStatic)
+    {
         this.dataType = dataType;
         this.colName = colName;
         this.isStatic = isStatic;
     }
 
-    public AlterTableStatementColumn(ColumnIdentifier.Raw colName, CQL3Type.Raw dataType) {
+    public AlterTableStatementColumn(ColumnDefinition.Raw colName, CQL3Type.Raw dataType)
+    {
         this(colName, dataType,false );
     }
 
-    public AlterTableStatementColumn(ColumnIdentifier.Raw colName) {
+    public AlterTableStatementColumn(ColumnDefinition.Raw colName)
+    {
         this(colName, null, false);
     }
 
-    public CQL3Type.Raw getColumnType() {
+    public CQL3Type.Raw getColumnType()
+    {
         return dataType;
     }
 
-    public ColumnIdentifier.Raw getColumnName() {
+    public ColumnDefinition.Raw getColumnName()
+    {
         return colName;
     }
 
-    public Boolean getStaticType() {
+    public Boolean getStaticType()
+    {
         return isStatic;
     }
 }

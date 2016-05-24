@@ -139,8 +139,8 @@ public class ViewDefinition
 
         // convert whereClause to Relations, rename ids in Relations, then convert back to whereClause
         List<Relation> relations = whereClauseToRelations(whereClause);
-        ColumnIdentifier.Raw fromRaw = new ColumnIdentifier.Literal(from.toString(), true);
-        ColumnIdentifier.Raw toRaw = new ColumnIdentifier.Literal(to.toString(), true);
+        ColumnDefinition.Raw fromRaw = ColumnDefinition.Raw.forQuoted(from.toString());
+        ColumnDefinition.Raw toRaw = ColumnDefinition.Raw.forQuoted(to.toString());
         List<Relation> newRelations = relations.stream()
                 .map(r -> r.renameIdentifier(fromRaw, toRaw))
                 .collect(Collectors.toList());

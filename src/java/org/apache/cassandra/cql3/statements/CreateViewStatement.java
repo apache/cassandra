@@ -51,8 +51,8 @@ public class CreateViewStatement extends SchemaAlteringStatement
     private final CFName baseName;
     private final List<RawSelector> selectClause;
     private final WhereClause whereClause;
-    private final List<ColumnIdentifier.Raw> partitionKeys;
-    private final List<ColumnIdentifier.Raw> clusteringKeys;
+    private final List<ColumnDefinition.Raw> partitionKeys;
+    private final List<ColumnDefinition.Raw> clusteringKeys;
     public final CFProperties properties = new CFProperties();
     private final boolean ifNotExists;
 
@@ -60,8 +60,8 @@ public class CreateViewStatement extends SchemaAlteringStatement
                                CFName baseName,
                                List<RawSelector> selectClause,
                                WhereClause whereClause,
-                               List<ColumnIdentifier.Raw> partitionKeys,
-                               List<ColumnIdentifier.Raw> clusteringKeys,
+                               List<ColumnDefinition.Raw> partitionKeys,
+                               List<ColumnDefinition.Raw> clusteringKeys,
                                boolean ifNotExists)
     {
         super(viewName);
@@ -159,30 +159,26 @@ public class CreateViewStatement extends SchemaAlteringStatement
                 throw new InvalidRequestException("Cannot use function when defining a materialized view");
             if (selectable instanceof Selectable.WritetimeOrTTL.Raw)
                 throw new InvalidRequestException("Cannot use function when defining a materialized view");
-            ColumnIdentifier identifier = (ColumnIdentifier) selectable.prepare(cfm);
             if (selector.alias != null)
-                throw new InvalidRequestException(String.format("Cannot alias column '%s' as '%s' when defining a materialized view", identifier.toString(), selector.alias.toString()));
+                throw new InvalidRequestException("Cannot use alias when defining a materialized view");
 
-            ColumnDefinition cdef = cfm.getColumnDefinition(identifier);
+            Selectable s = selectable.prepare(cfm);
+            if (s instanceof Term.Raw)
+                throw new InvalidRequestException("Cannot use terms in selection when defining a materialized view");
 
-            if (cdef == null)
-                throw new InvalidRequestException("Unknown column name detected in CREATE MATERIALIZED VIEW statement : "+identifier);
-
-            included.add(identifier);
+            ColumnDefinition cdef = (ColumnDefinition)s;
+            included.add(cdef.name);
         }
 
-        Set<ColumnIdentifier.Raw> targetPrimaryKeys = new HashSet<>();
-        for (ColumnIdentifier.Raw identifier : Iterables.concat(partitionKeys, clusteringKeys))
+        Set<ColumnDefinition.Raw> targetPrimaryKeys = new HashSet<>();
+        for (ColumnDefinition.Raw identifier : Iterables.concat(partitionKeys, clusteringKeys))
         {
             if (!targetPrimaryKeys.add(identifier))
                 throw new InvalidRequestException("Duplicate entry found in PRIMARY KEY: "+identifier);
 
-            ColumnDefinition cdef = cfm.getColumnDefinition(identifier.prepare(cfm));
+            ColumnDefinition cdef = identifier.prepare(cfm);
 
-            if (cdef == null)
-                throw new InvalidRequestException("Unknown column name detected in CREATE MATERIALIZED VIEW statement : "+identifier);
-
-            if (cfm.getColumnDefinition(identifier.prepare(cfm)).type.isMultiCell())
+            if (cdef.type.isMultiCell())
                 throw new InvalidRequestException(String.format("Cannot use MultiCell column '%s' in PRIMARY KEY of materialized view", identifier));
 
             if (cdef.isStatic())
@@ -190,7 +186,7 @@ public class CreateViewStatement extends SchemaAlteringStatement
         }
 
         // build the select statement
-        Map<ColumnIdentifier.Raw, Boolean> orderings = Collections.emptyMap();
+        Map<ColumnDefinition.Raw, Boolean> orderings = Collections.emptyMap();
         SelectStatement.Parameters parameters = new SelectStatement.Parameters(orderings, false, true, false);
         SelectStatement.RawStatement rawSelect = new SelectStatement.RawStatement(baseName, parameters, selectClause, whereClause, null, null);
 
@@ -226,10 +222,10 @@ public class CreateViewStatement extends SchemaAlteringStatement
 
         // This is only used as an intermediate state; this is to catch whether multiple non-PK columns are used
         boolean hasNonPKColumn = false;
-        for (ColumnIdentifier.Raw raw : partitionKeys)
+        for (ColumnDefinition.Raw raw : partitionKeys)
             hasNonPKColumn |= getColumnIdentifier(cfm, basePrimaryKeyCols, hasNonPKColumn, raw, targetPartitionKeys, restrictions);
 
-        for (ColumnIdentifier.Raw raw : clusteringKeys)
+        for (ColumnDefinition.Raw raw : clusteringKeys)
             hasNonPKColumn |= getColumnIdentifier(cfm, basePrimaryKeyCols, hasNonPKColumn, raw, targetClusteringColumns, restrictions);
 
         // We need to include all of the primary key columns from the base table in order to make sure that we do not
@@ -307,25 +303,24 @@ public class CreateViewStatement extends SchemaAlteringStatement
     private static boolean getColumnIdentifier(CFMetaData cfm,
                                                Set<ColumnIdentifier> basePK,
                                                boolean hasNonPKColumn,
-                                               ColumnIdentifier.Raw raw,
+                                               ColumnDefinition.Raw raw,
                                                List<ColumnIdentifier> columns,
                                                StatementRestrictions restrictions)
     {
-        ColumnIdentifier identifier = raw.prepare(cfm);
-        ColumnDefinition def = cfm.getColumnDefinition(identifier);
+        ColumnDefinition def = raw.prepare(cfm);
 
-        boolean isPk = basePK.contains(identifier);
+        boolean isPk = basePK.contains(def.name);
         if (!isPk && hasNonPKColumn)
-            throw new InvalidRequestException(String.format("Cannot include more than one non-primary key column '%s' in materialized view partition key", identifier));
+            throw new InvalidRequestException(String.format("Cannot include more than one non-primary key column '%s' in materialized view partition key", def.name));
 
         // We don't need to include the "IS NOT NULL" filter on a non-composite partition key
         // because we will never allow a single partition key to be NULL
-        boolean isSinglePartitionKey = cfm.getColumnDefinition(identifier).isPartitionKey()
+        boolean isSinglePartitionKey = def.isPartitionKey()
                                        && cfm.partitionKeyColumns().size() == 1;
         if (!isSinglePartitionKey && !restrictions.isRestricted(def))
-            throw new InvalidRequestException(String.format("Primary key column '%s' is required to be filtered by 'IS NOT NULL'", identifier));
+            throw new InvalidRequestException(String.format("Primary key column '%s' is required to be filtered by 'IS NOT NULL'", def.name));
 
-        columns.add(identifier);
+        columns.add(def.name);
         return !isPk;
     }
 }

@@ -68,36 +68,36 @@ public class IndexTarget
 
     public static class Raw
     {
-        private final ColumnIdentifier.Raw column;
+        private final ColumnDefinition.Raw column;
         private final Type type;
 
-        private Raw(ColumnIdentifier.Raw column, Type type)
+        private Raw(ColumnDefinition.Raw column, Type type)
         {
             this.column = column;
             this.type = type;
         }
 
-        public static Raw simpleIndexOn(ColumnIdentifier.Raw c)
+        public static Raw simpleIndexOn(ColumnDefinition.Raw c)
         {
             return new Raw(c, Type.SIMPLE);
         }
 
-        public static Raw valuesOf(ColumnIdentifier.Raw c)
+        public static Raw valuesOf(ColumnDefinition.Raw c)
         {
             return new Raw(c, Type.VALUES);
         }
 
-        public static Raw keysOf(ColumnIdentifier.Raw c)
+        public static Raw keysOf(ColumnDefinition.Raw c)
         {
             return new Raw(c, Type.KEYS);
         }
 
-        public static Raw keysAndValuesOf(ColumnIdentifier.Raw c)
+        public static Raw keysAndValuesOf(ColumnDefinition.Raw c)
         {
             return new Raw(c, Type.KEYS_AND_VALUES);
         }
 
-        public static Raw fullCollection(ColumnIdentifier.Raw c)
+        public static Raw fullCollection(ColumnDefinition.Raw c)
         {
             return new Raw(c, Type.FULL);
         }
@@ -109,13 +109,9 @@ public class IndexTarget
             // same syntax as an index on a regular column (i.e. the 'values' in
             // 'CREATE INDEX on table(values(collection));' is optional). So we correct the target type
             // when the target column is a collection & the target type is SIMPLE.
-            ColumnIdentifier colId = column.prepare(cfm);
-            ColumnDefinition columnDef = cfm.getColumnDefinition(colId);
-            if (columnDef == null)
-                throw new InvalidRequestException("No column definition found for column " + colId);
-
+            ColumnDefinition columnDef = column.prepare(cfm);
             Type actualType = (type == Type.SIMPLE && columnDef.type.isCollection()) ? Type.VALUES : type;
-            return new IndexTarget(colId, actualType);
+            return new IndexTarget(columnDef.name, actualType);
         }
     }
 

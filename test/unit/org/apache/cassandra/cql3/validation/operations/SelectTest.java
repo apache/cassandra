@@ -1159,11 +1159,11 @@ public class SelectTest extends CQLTester
         assertEquals(ByteBuffer.wrap(new byte[4]), rs.one().getBlob(rs.metadata().get(0).name.toString()));
 
         // test that select throws a meaningful exception for aliases in where clause
-        assertInvalidMessage("Aliases aren't allowed in the where clause",
+        assertInvalidMessage("Undefined column name user_id",
                              "SELECT id AS user_id, name AS user_name FROM %s WHERE user_id = 0");
 
         // test that select throws a meaningful exception for aliases in order by clause
-        assertInvalidMessage("Aliases are not allowed in order by clause",
+        assertInvalidMessage("Undefined column name user_name",
                              "SELECT id AS user_id, name AS user_name FROM %s WHERE id IN (0) ORDER BY user_name");
     }
 
@@ -1401,11 +1401,11 @@ public class SelectTest extends CQLTester
         for (int i = 0; i < 5; i++)
             execute("INSERT INTO %s (id, name) VALUES (?, ?) USING TTL 10 AND TIMESTAMP 0", i, Integer.toString(i));
 
-        assertInvalidMessage("Aliases aren't allowed in the where clause",
+        assertInvalidMessage("Undefined column name user_id",
                              "SELECT id AS user_id, name AS user_name FROM %s WHERE user_id = 0");
 
         // test that select throws a meaningful exception for aliases in order by clause
-        assertInvalidMessage("Aliases are not allowed in order by clause",
+        assertInvalidMessage("Undefined column name user_name",
                              "SELECT id AS user_id, name AS user_name FROM %s WHERE id IN (0) ORDER BY user_name");
 
     }

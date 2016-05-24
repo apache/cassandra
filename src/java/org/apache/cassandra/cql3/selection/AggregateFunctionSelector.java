@@ -41,10 +41,10 @@ final class AggregateFunctionSelector extends AbstractFunctionSelector<Aggregate
         {
             Selector s = argSelectors.get(i);
             s.addInput(protocolVersion, rs);
-            args.set(i, s.getOutput(protocolVersion));
+            setArg(i, s.getOutput(protocolVersion));
             s.reset();
         }
-        this.aggregate.addInput(protocolVersion, args);
+        this.aggregate.addInput(protocolVersion, args());
     }
 
     public ByteBuffer getOutput(int protocolVersion) throws InvalidRequestException

@@ -24,6 +24,7 @@ import javax.annotation.Nullable;
 
 import com.google.common.collect.*;
 
+import org.apache.cassandra.cql3.FieldIdentifier;
 import org.apache.cassandra.cql3.CQL3Type;
 import org.apache.cassandra.db.marshal.AbstractType;
 import org.apache.cassandra.db.marshal.UserType;
@@ -303,9 +304,9 @@ public final class Types implements Iterable<UserType>
 
             UserType prepare(String keyspace, Types types)
             {
-                List<ByteBuffer> preparedFieldNames =
+                List<FieldIdentifier> preparedFieldNames =
                     fieldNames.stream()
-                              .map(ByteBufferUtil::bytes)
+                              .map(t -> FieldIdentifier.forInternalString(t))
                               .collect(toList());
 
                 List<AbstractType<?>> preparedFieldTypes =

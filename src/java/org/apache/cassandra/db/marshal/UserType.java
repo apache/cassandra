@@ -47,11 +47,11 @@ public class UserType extends TupleType
 
     public final String keyspace;
     public final ByteBuffer name;
-    private final List<ByteBuffer> fieldNames;
+    private final List<FieldIdentifier> fieldNames;
     private final List<String> stringFieldNames;
     private final boolean isMultiCell;
 
-    public UserType(String keyspace, ByteBuffer name, List<ByteBuffer> fieldNames, List<AbstractType<?>> fieldTypes, boolean isMultiCell)
+    public UserType(String keyspace, ByteBuffer name, List<FieldIdentifier> fieldNames, List<AbstractType<?>> fieldTypes, boolean isMultiCell)
     {
         super(fieldTypes, false);
         assert fieldNames.size() == fieldTypes.size();
@@ -61,17 +61,8 @@ public class UserType extends TupleType
         this.stringFieldNames = new ArrayList<>(fieldNames.size());
         this.isMultiCell = isMultiCell;
 
-        for (ByteBuffer fieldName : fieldNames)
-        {
-            try
-            {
-                stringFieldNames.add(ByteBufferUtil.string(fieldName, StandardCharsets.UTF_8));
-            }
-            catch (CharacterCodingException ex)
-            {
-                throw new AssertionError("Got non-UTF8 field name for user-defined type: " + ByteBufferUtil.bytesToHex(fieldName), ex);
-            }
-        }
+        for (FieldIdentifier fieldName : fieldNames)
+            stringFieldNames.add(fieldName.toString());
     }
 
     public static UserType getInstance(TypeParser parser) throws ConfigurationException, SyntaxException
@@ -79,11 +70,11 @@ public class UserType extends TupleType
         Pair<Pair<String, ByteBuffer>, List<Pair<ByteBuffer, AbstractType>>> params = parser.getUserTypeParameters();
         String keyspace = params.left.left;
         ByteBuffer name = params.left.right;
-        List<ByteBuffer> columnNames = new ArrayList<>(params.right.size());
+        List<FieldIdentifier> columnNames = new ArrayList<>(params.right.size());
         List<AbstractType<?>> columnTypes = new ArrayList<>(params.right.size());
         for (Pair<ByteBuffer, AbstractType> p : params.right)
         {
-            columnNames.add(p.left);
+            columnNames.add(new FieldIdentifier(p.left));
             columnTypes.add(p.right);
         }
 
@@ -118,7 +109,7 @@ public class UserType extends TupleType
         return types;
     }
 
-    public ByteBuffer fieldName(int i)
+    public FieldIdentifier fieldName(int i)
     {
         return fieldNames.get(i);
     }
@@ -128,7 +119,7 @@ public class UserType extends TupleType
         return stringFieldNames.get(i);
     }
 
-    public List<ByteBuffer> fieldNames()
+    public List<FieldIdentifier> fieldNames()
     {
         return fieldNames;
     }
@@ -138,23 +129,15 @@ public class UserType extends TupleType
         return UTF8Type.instance.compose(name);
     }
 
-    public short fieldPosition(ColumnIdentifier field)
+    public int fieldPosition(FieldIdentifier fieldName)
     {
-        return fieldPosition(field.bytes);
+        return fieldNames.indexOf(fieldName);
     }
 
-    public short fieldPosition(ByteBuffer fieldName)
-    {
-        for (short i = 0; i < fieldNames.size(); i++)
-            if (fieldName.equals(fieldNames.get(i)))
-                return i;
-        return -1;
-    }
-
-    public CellPath cellPathForField(ByteBuffer fieldName)
+    public CellPath cellPathForField(FieldIdentifier fieldName)
     {
         // we use the field position instead of the field name to allow for field renaming in ALTER TYPE statements
-        return CellPath.create(ByteBufferUtil.bytes(fieldPosition(fieldName)));
+        return CellPath.create(ByteBufferUtil.bytes((short)fieldPosition(fieldName)));
     }
 
     public ShortType nameComparator()

@@ -676,6 +676,11 @@ public abstract class CQLTester
         return currentTable == null ? query : String.format(query, KEYSPACE + "." + currentTable);
     }
 
+    protected ResultMessage.Prepared prepare(String query) throws Throwable
+    {
+        return QueryProcessor.prepare(formatQuery(query), ClientState.forInternalCalls(), false);
+    }
+
     protected UntypedResultSet execute(String query, Object... values) throws Throwable
     {
         query = formatQuery(query);

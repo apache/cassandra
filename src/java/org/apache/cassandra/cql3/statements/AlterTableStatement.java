@@ -53,14 +53,14 @@ public class AlterTableStatement extends SchemaAlteringStatement
 
     public final Type oType;
     private final TableAttributes attrs;
-    private final Map<ColumnIdentifier.Raw, ColumnIdentifier.Raw> renames;
+    private final Map<ColumnDefinition.Raw, ColumnDefinition.Raw> renames;
     private final List<AlterTableStatementColumn> colNameList;
 
     public AlterTableStatement(CFName name,
                                Type type,
                                List<AlterTableStatementColumn> colDataList,
                                TableAttributes attrs,
-                               Map<ColumnIdentifier.Raw, ColumnIdentifier.Raw> renames)
+                               Map<ColumnDefinition.Raw, ColumnDefinition.Raw> renames)
     {
         super(name);
         this.oType = type;
@@ -91,7 +91,7 @@ public class AlterTableStatement extends SchemaAlteringStatement
         CQL3Type.Raw dataType = null;
         boolean isStatic = false;
         CQL3Type validator = null;
-        ColumnIdentifier.Raw rawColumnName = null;
+        ColumnDefinition.Raw rawColumnName = null;
 
         List<ViewDefinition> viewUpdates = null;
         Iterable<ViewDefinition> views = View.findAll(keyspace(), columnFamily());
@@ -101,11 +101,10 @@ public class AlterTableStatement extends SchemaAlteringStatement
             case ADD:
                 for (AlterTableStatementColumn colData : colNameList)
                 {
-                    columnName = null;
                     rawColumnName = colData.getColumnName();
                     if (rawColumnName != null)
                     {
-                        columnName = rawColumnName.prepare(cfm);
+                        columnName = rawColumnName.getIdentifier(cfm);
                         def =  cfm.getColumnDefinition(columnName);
                         dataType = colData.getColumnType();
                         isStatic = colData.getStaticType();
@@ -191,7 +190,7 @@ public class AlterTableStatement extends SchemaAlteringStatement
                 rawColumnName = colNameList.get(0).getColumnName();
                 if (rawColumnName != null)
                 {
-                    columnName = rawColumnName.prepare(cfm);
+                    columnName = rawColumnName.getIdentifier(cfm);
                     def = cfm.getColumnDefinition(columnName);
                     dataType = colNameList.get(0).getColumnType();
                     validator = dataType == null ? null : dataType.prepare(keyspace());
@@ -234,7 +233,7 @@ public class AlterTableStatement extends SchemaAlteringStatement
                     rawColumnName = colData.getColumnName();
                     if (rawColumnName != null)
                     {
-                        columnName = rawColumnName.prepare(cfm);
+                        columnName = rawColumnName.getIdentifier(cfm);
                         def = cfm.getColumnDefinition(columnName);
                     }
                     assert columnName != null;
@@ -322,10 +321,10 @@ public class AlterTableStatement extends SchemaAlteringStatement
 
                 break;
             case RENAME:
-                for (Map.Entry<ColumnIdentifier.Raw, ColumnIdentifier.Raw> entry : renames.entrySet())
+                for (Map.Entry<ColumnDefinition.Raw, ColumnDefinition.Raw> entry : renames.entrySet())
                 {
-                    ColumnIdentifier from = entry.getKey().prepare(cfm);
-                    ColumnIdentifier to = entry.getValue().prepare(cfm);
+                    ColumnIdentifier from = entry.getKey().getIdentifier(cfm);
+                    ColumnIdentifier to = entry.getValue().getIdentifier(cfm);
                     cfm.renameColumn(from, to);
 
                     // If the view includes a renamed column, it must be renamed in the view table and the definition.
@@ -334,8 +333,8 @@ public class AlterTableStatement extends SchemaAlteringStatement
                         if (!view.includes(from)) continue;
 
                         ViewDefinition viewCopy = view.copy();
-                        ColumnIdentifier viewFrom = entry.getKey().prepare(viewCopy.metadata);
-                        ColumnIdentifier viewTo = entry.getValue().prepare(viewCopy.metadata);
+                        ColumnIdentifier viewFrom = entry.getKey().getIdentifier(viewCopy.metadata);
+                        ColumnIdentifier viewTo = entry.getValue().getIdentifier(viewCopy.metadata);
                         viewCopy.renameColumn(viewFrom, viewTo);
 
                         if (viewUpdates == null)

@@ -853,10 +853,7 @@ bc(syntax)..
 
 <names-list> ::= '(' <identifier> ( ',' <identifier> )* ')'
 
-<value-list> ::= '(' <term-or-literal> ( ',' <term-or-literal> )* ')'
-
-<term-or-literal> ::= <term>
-                    | <collection-literal>
+<value-list> ::= '(' <term> ( ',' <term> )* ')'
 
 <option> ::= TIMESTAMP <integer>
            | TTL <integer>
@@ -1070,13 +1067,14 @@ bc(syntax)..
                   ( ALLOW FILTERING )?
 
 <select-clause> ::= DISTINCT? <selection-list>
-                  | COUNT '(' ( '*' | '1' ) ')' (AS <identifier>)?
 
 <selection-list> ::= <selector> (AS <identifier>)? ( ',' <selector> (AS <identifier>)? )*
                    | '*'
 
 <selector> ::= <identifier>
+             | <term>
              | WRITETIME '(' <identifier> ')'
+             | COUNT '(' '*' ')'
              | TTL '(' <identifier> ')'
              | CAST '(' <selector> AS <type> ')'
              | <function> '(' (<selector> (',' <selector>)*)? ')'

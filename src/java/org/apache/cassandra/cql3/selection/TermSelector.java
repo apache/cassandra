@@ -19,95 +19,74 @@ package org.apache.cassandra.cql3.selection;
 
 import java.nio.ByteBuffer;
 
+import org.apache.cassandra.config.CFMetaData;
 import org.apache.cassandra.config.ColumnDefinition;
+import org.apache.cassandra.cql3.AssignmentTestable;
+import org.apache.cassandra.cql3.ColumnIdentifier;
 import org.apache.cassandra.cql3.ColumnSpecification;
 import org.apache.cassandra.cql3.QueryOptions;
-import org.apache.cassandra.cql3.selection.Selection.ResultSetBuilder;
+import org.apache.cassandra.cql3.Term;
 import org.apache.cassandra.db.marshal.AbstractType;
 import org.apache.cassandra.exceptions.InvalidRequestException;
 
-public final class SimpleSelector extends Selector
+/**
+ * Selector representing a simple term (literals or bound variables).
+ * <p>
+ * Note that we know the term does not include function calls for instance (this is actually enforced by the parser), those
+ * being dealt with by their own Selector.
+ */
+public class TermSelector extends Selector
 {
-    private final String columnName;
-    private final int idx;
+    private final ByteBuffer value;
     private final AbstractType<?> type;
-    private ByteBuffer current;
-    private boolean isSet;
 
-    public static Factory newFactory(final ColumnDefinition def, final int idx)
+    public static Factory newFactory(final String name, final Term term, final AbstractType<?> type)
     {
         return new Factory()
         {
-            @Override
             protected String getColumnName()
             {
-                return def.name.toString();
+                return name;
             }
 
-            @Override
             protected AbstractType<?> getReturnType()
             {
-                return def.type;
+                return type;
             }
 
             protected void addColumnMapping(SelectionColumnMapping mapping, ColumnSpecification resultColumn)
             {
-               mapping.addMapping(resultColumn, def);
+               mapping.addMapping(resultColumn, (ColumnDefinition)null);
             }
 
-            @Override
             public Selector newInstance(QueryOptions options)
             {
-                return new SimpleSelector(def.name.toString(), idx, def.type);
-            }
-
-            @Override
-            public boolean isSimpleSelectorFactory(int index)
-            {
-                return index == idx;
+                return new TermSelector(term.bindAndGet(options), type);
             }
         };
     }
 
-    @Override
-    public void addInput(int protocolVersion, ResultSetBuilder rs) throws InvalidRequestException
+    private TermSelector(ByteBuffer value, AbstractType<?> type)
     {
-        if (!isSet)
-        {
-            isSet = true;
-            current = rs.current.get(idx);
-        }
+        this.value = value;
+        this.type = type;
     }
 
-    @Override
+    public void addInput(int protocolVersion, Selection.ResultSetBuilder rs) throws InvalidRequestException
+    {
+    }
+
     public ByteBuffer getOutput(int protocolVersion) throws InvalidRequestException
     {
-        return current;
+        return value;
     }
 
-    @Override
-    public void reset()
-    {
-        isSet = false;
-        current = null;
-    }
-
-    @Override
     public AbstractType<?> getType()
     {
         return type;
     }
 
-    @Override
-    public String toString()
+    public void reset()
     {
-        return columnName;
-    }
-
-    private SimpleSelector(String columnName, int idx, AbstractType<?> type)
-    {
-        this.columnName = columnName;
-        this.idx = idx;
-        this.type = type;
     }
 }

@@ -47,11 +47,11 @@ import static org.apache.cassandra.cql3.statements.RequestValidations.invalidReq
  */
 public final class TokenRelation extends Relation
 {
-    private final List<ColumnIdentifier.Raw> entities;
+    private final List<ColumnDefinition.Raw> entities;
 
     private final Term.Raw value;
 
-    public TokenRelation(List<ColumnIdentifier.Raw> entities, Operator type, Term.Raw value)
+    public TokenRelation(List<ColumnDefinition.Raw> entities, Operator type, Term.Raw value)
     {
         this.entities = entities;
         this.relationType = type;
@@ -128,12 +128,12 @@ public final class TokenRelation extends Relation
         return term;
     }
 
-    public Relation renameIdentifier(ColumnIdentifier.Raw from, ColumnIdentifier.Raw to)
+    public Relation renameIdentifier(ColumnDefinition.Raw from, ColumnDefinition.Raw to)
     {
         if (!entities.contains(from))
             return this;
 
-        List<ColumnIdentifier.Raw> newEntities = entities.stream().map(e -> e.equals(from) ? to : e).collect(Collectors.toList());
+        List<ColumnDefinition.Raw> newEntities = entities.stream().map(e -> e.equals(from) ? to : e).collect(Collectors.toList());
         return new TokenRelation(newEntities, operator(), value);
     }
 
@@ -152,11 +152,9 @@ public final class TokenRelation extends Relation
      */
     private List<ColumnDefinition> getColumnDefinitions(CFMetaData cfm) throws InvalidRequestException
     {
-        List<ColumnDefinition> columnDefs = new ArrayList<>();
-        for ( ColumnIdentifier.Raw raw : entities)
-        {
-            columnDefs.add(toColumnDefinition(cfm, raw));
-        }
+        List<ColumnDefinition> columnDefs = new ArrayList<>(entities.size());
+        for ( ColumnDefinition.Raw raw : entities)
+            columnDefs.add(raw.prepare(cfm));
         return columnDefs;
     }
 

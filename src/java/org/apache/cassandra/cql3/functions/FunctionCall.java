@@ -189,6 +189,16 @@ public class FunctionCall extends Term.NonTerminal
             }
         }
 
+        public AbstractType<?> getExactTypeIfKnown(String keyspace)
+        {
+            // We could implement this, but the method is only used in selection clause, where FunctionCall is not used 
+            // we use a Selectable.WithFunction instead). And if that method is later used in other places, better to
+            // let that future patch make sure this can be implemented properly (note in particular we don't have access
+            // to the receiver type, which FunctionResolver.get() takes) rather than provide an implementation that may
+            // not work in all cases.
+            throw new UnsupportedOperationException();
+        }
+
         public String getText()
         {
             return name + terms.stream().map(Term.Raw::getText).collect(Collectors.joining(", ", "(", ")"));

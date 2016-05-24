@@ -28,6 +28,7 @@ import org.slf4j.LoggerFactory;
 
 import org.apache.cassandra.config.*;
 import org.apache.cassandra.cql3.ColumnIdentifier;
+import org.apache.cassandra.cql3.FieldIdentifier;
 import org.apache.cassandra.cql3.QueryProcessor;
 import org.apache.cassandra.cql3.UntypedResultSet;
 import org.apache.cassandra.cql3.functions.FunctionName;
@@ -823,10 +824,10 @@ public final class LegacySchemaMigrator
                               SystemKeyspace.LEGACY_USERTYPES);
         UntypedResultSet.Row row = query(query, keyspaceName, typeName).one();
 
-        List<ByteBuffer> names =
+        List<FieldIdentifier> names =
             row.getList("field_names", UTF8Type.instance)
                .stream()
-               .map(ByteBufferUtil::bytes)
+               .map(t -> FieldIdentifier.forInternalString(t))
                .collect(Collectors.toList());
 
         List<AbstractType<?>> types =

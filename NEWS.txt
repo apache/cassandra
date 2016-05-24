@@ -38,6 +38,16 @@ Deprecation
      cause increased compaction load for a while after the migration so make sure you run
      tests before migrating. Read CASSANDRA-9666 for background on this.
 
+Upgrading
+---------
+    - The name "json" and "distinct" are not valid anymore a user-defined function
+      names (they are still valid as column name however). In the unlikely case where
+      you had defined functions with such names, you will need to recreate
+      those under a different name, change your code to use the new names and
+      drop the old versions, and this _before_ upgrade (see CASSANDRA-10783 for more
+      details).
+
+
 3.7
 ===
 

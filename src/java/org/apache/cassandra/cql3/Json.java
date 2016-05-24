@@ -24,6 +24,7 @@ import java.util.*;
 import org.apache.cassandra.config.CFMetaData;
 import org.apache.cassandra.config.ColumnDefinition;
 import org.apache.cassandra.cql3.functions.Function;
+import org.apache.cassandra.db.marshal.AbstractType;
 import org.apache.cassandra.db.marshal.UTF8Type;
 import org.apache.cassandra.exceptions.InvalidRequestException;
 import org.apache.cassandra.serializers.MarshalException;
@@ -180,6 +181,11 @@ public class Json
             return TestResult.NOT_ASSIGNABLE;
         }
 
+        public AbstractType<?> getExactTypeIfKnown(String keyspace)
+        {
+            return null;
+        }
+
         public String getText()
         {
             return term.toString();
@@ -210,6 +216,11 @@ public class Json
         public TestResult testAssignment(String keyspace, ColumnSpecification receiver)
         {
             return TestResult.WEAKLY_ASSIGNABLE;
+        }
+
+        public AbstractType<?> getExactTypeIfKnown(String keyspace)
+        {
+            return null;
         }
 
         public String getText()

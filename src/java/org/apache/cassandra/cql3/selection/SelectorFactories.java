@@ -23,6 +23,8 @@ import com.google.common.collect.Lists;
 
 import org.apache.cassandra.config.CFMetaData;
 import org.apache.cassandra.config.ColumnDefinition;
+import org.apache.cassandra.cql3.QueryOptions;
+import org.apache.cassandra.cql3.VariableSpecifications;
 import org.apache.cassandra.cql3.functions.Function;
 import org.apache.cassandra.cql3.selection.Selector.Factory;
 import org.apache.cassandra.db.marshal.AbstractType;
@@ -57,29 +59,40 @@ final class SelectorFactories implements Iterable<Selector.Factory>
      * Creates a new <code>SelectorFactories</code> instance and collect the column definitions.
      *
      * @param selectables the <code>Selectable</code>s for which the factories must be created
+     * @param expectedTypes the returned types expected for each of the {@code selectables}, if there
+     * is any such expectations, or {@code null} otherwise. This will be {@code null} when called on
+     * the top-level selectables, but may not be for selectable nested within a function for instance
+     * (as the argument selectable will be expected to be of the type expected by the function).
      * @param cfm the Column Family Definition
      * @param defs the collector parameter for the column definitions
+     * @param boundNames the collector for the specification of bound markers in the selection
      * @return a new <code>SelectorFactories</code> instance
      * @throws InvalidRequestException if a problem occurs while creating the factories
      */
     public static SelectorFactories createFactoriesAndCollectColumnDefinitions(List<Selectable> selectables,
+                                                                               List<AbstractType<?>> expectedTypes,
                                                                                CFMetaData cfm,
-                                                                               List<ColumnDefinition> defs)
+                                                                               List<ColumnDefinition> defs,
+                                                                               VariableSpecifications boundNames)
                                                                                throws InvalidRequestException
     {
-        return new SelectorFactories(selectables, cfm, defs);
+        return new SelectorFactories(selectables, expectedTypes, cfm, defs, boundNames);
     }
 
     private SelectorFactories(List<Selectable> selectables,
+                              List<AbstractType<?>> expectedTypes,
                               CFMetaData cfm,
-                              List<ColumnDefinition> defs)
+                              List<ColumnDefinition> defs,
+                              VariableSpecifications boundNames)
                               throws InvalidRequestException
     {
         factories = new ArrayList<>(selectables.size());
 
-        for (Selectable selectable : selectables)
+        for (int i = 0; i < selectables.size(); i++)
         {
-            Factory factory = selectable.newSelectorFactory(cfm, defs);
+            Selectable selectable = selectables.get(i);
+            AbstractType<?> expectedType = expectedTypes == null ? null : expectedTypes.get(i);
+            Factory factory = selectable.newSelectorFactory(cfm, expectedType, defs, boundNames);
             containsWritetimeFactory |= factory.isWritetimeSelectorFactory();
             containsTTLFactory |= factory.isTTLSelectorFactory();
             if (factory.isAggregateSelectorFactory())
@@ -148,15 +161,15 @@ final class SelectorFactories implements Iterable<Selector.Factory>
 
     /**
      * Creates a list of new <code>Selector</code> instances.
+     *
+     * @param options the query options for the query being executed.
      * @return a list of new <code>Selector</code> instances.
      */
-    public List<Selector> newInstances() throws InvalidRequestException
+    public List<Selector> newInstances(QueryOptions options) throws InvalidRequestException
     {
         List<Selector> selectors = new ArrayList<>(factories.size());
         for (Selector.Factory factory : factories)
-        {
-            selectors.add(factory.newInstance());
-        }
+            selectors.add(factory.newInstance(options));
         return selectors;
     }
 

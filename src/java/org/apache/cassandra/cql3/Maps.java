@@ -27,7 +27,7 @@ import org.apache.cassandra.config.ColumnDefinition;
 import org.apache.cassandra.cql3.functions.Function;
 import org.apache.cassandra.db.DecoratedKey;
 import org.apache.cassandra.db.rows.*;
-import org.apache.cassandra.db.marshal.MapType;
+import org.apache.cassandra.db.marshal.*;
 import org.apache.cassandra.exceptions.InvalidRequestException;
 import org.apache.cassandra.serializers.CollectionSerializer;
 import org.apache.cassandra.serializers.MarshalException;
@@ -125,6 +125,23 @@ public abstract class Maps
                     res = AssignmentTestable.TestResult.WEAKLY_ASSIGNABLE;
             }
             return res;
+        }
+
+        @Override
+        public AbstractType<?> getExactTypeIfKnown(String keyspace)
+        {
+            AbstractType<?> keyType = null;
+            AbstractType<?> valueType = null;
+            for (Pair<Term.Raw, Term.Raw> entry : entries)
+            {
+                if (keyType == null)
+                    keyType = entry.left.getExactTypeIfKnown(keyspace);
+                if (valueType == null)
+                    valueType = entry.right.getExactTypeIfKnown(keyspace);
+                if (keyType != null && valueType != null)
+                    return MapType.getInstance(keyType, valueType, false);
+            }
+            return null;
         }
 
         public String getText()

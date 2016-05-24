@@ -97,10 +97,10 @@ public class InsertTest extends CQLTester
                              "INSERT INTO %s (partitionKey, clustering, clustering, value) VALUES (0, 0, 0, 2)");
 
         // unknown identifiers
-        assertInvalidMessage("Unknown identifier clusteringx",
+        assertInvalidMessage("Undefined column name clusteringx",
                              "INSERT INTO %s (partitionKey, clusteringx, value) VALUES (0, 0, 2)");
 
-        assertInvalidMessage("Unknown identifier valuex",
+        assertInvalidMessage("Undefined column name valuex",
                              "INSERT INTO %s (partitionKey, clustering, valuex) VALUES (0, 0, 2)");
     }
 
@@ -145,10 +145,10 @@ public class InsertTest extends CQLTester
                              "INSERT INTO %s (partitionKey, clustering, clustering, value) VALUES (0, 0, 0, 2)");
 
         // unknown identifiers
-        assertInvalidMessage("Unknown identifier clusteringx",
+        assertInvalidMessage("Undefined column name clusteringx",
                              "INSERT INTO %s (partitionKey, clusteringx, value) VALUES (0, 0, 2)");
 
-        assertInvalidMessage("Unknown identifier valuex",
+        assertInvalidMessage("Undefined column name valuex",
                              "INSERT INTO %s (partitionKey, clustering, valuex) VALUES (0, 0, 2)");
     }
 
@@ -190,10 +190,10 @@ public class InsertTest extends CQLTester
                              "INSERT INTO %s (partitionKey, clustering_1, clustering_1, clustering_2, value) VALUES (0, 0, 0, 0, 2)");
 
         // unknown identifiers
-        assertInvalidMessage("Unknown identifier clustering_1x",
+        assertInvalidMessage("Undefined column name clustering_1x",
                              "INSERT INTO %s (partitionKey, clustering_1x, clustering_2, value) VALUES (0, 0, 0, 2)");
 
-        assertInvalidMessage("Unknown identifier valuex",
+        assertInvalidMessage("Undefined column name valuex",
                              "INSERT INTO %s (partitionKey, clustering_1, clustering_2, valuex) VALUES (0, 0, 0, 2)");
     }
 
@@ -243,10 +243,10 @@ public class InsertTest extends CQLTester
                              "INSERT INTO %s (partitionKey, clustering_1, clustering_1, clustering_2, value) VALUES (0, 0, 0, 0, 2)");
 
         // unknown identifiers
-        assertInvalidMessage("Unknown identifier clustering_1x",
+        assertInvalidMessage("Undefined column name clustering_1x",
                              "INSERT INTO %s (partitionKey, clustering_1x, clustering_2, value) VALUES (0, 0, 0, 2)");
 
-        assertInvalidMessage("Unknown identifier valuex",
+        assertInvalidMessage("Undefined column name valuex",
                              "INSERT INTO %s (partitionKey, clustering_1, clustering_2, valuex) VALUES (0, 0, 0, 2)");
     }
 

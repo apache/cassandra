@@ -100,7 +100,7 @@ public class SelectStatement implements CQLStatement
     private final ColumnFilter queriedColumns;
 
     // Used by forSelection below
-    private static final Parameters defaultParameters = new Parameters(Collections.<ColumnIdentifier.Raw, Boolean>emptyMap(), false, false, false);
+    private static final Parameters defaultParameters = new Parameters(Collections.<ColumnDefinition.Raw, Boolean>emptyMap(), false, false, false);
 
     public SelectStatement(CFMetaData cfm,
                            int boundTerms,
@@ -386,7 +386,7 @@ public class SelectStatement implements CQLStatement
             ClientWarn.instance.warn("Aggregation query used on multiple partition keys (IN restriction)");
         }
 
-        Selection.ResultSetBuilder result = selection.resultSetBuilder(parameters.isJson);
+        Selection.ResultSetBuilder result = selection.resultSetBuilder(options, parameters.isJson);
         while (!pager.isExhausted())
         {
             try (PartitionIterator iter = pager.fetchPage(pageSize))
@@ -400,7 +400,7 @@ public class SelectStatement implements CQLStatement
                 }
             }
         }
-        return new ResultMessage.Rows(result.build(options.getProtocolVersion()));
+        return new ResultMessage.Rows(result.build());
     }
 
     private ResultMessage.Rows processResults(PartitionIterator partitions,
@@ -732,7 +732,7 @@ public class SelectStatement implements CQLStatement
                               int nowInSec,
                               int userLimit) throws InvalidRequestException
     {
-        Selection.ResultSetBuilder result = selection.resultSetBuilder(parameters.isJson);
+        Selection.ResultSetBuilder result = selection.resultSetBuilder(options, parameters.isJson);
         while (partitions.hasNext())
         {
             try (RowIterator partition = partitions.next())
@@ -741,7 +741,7 @@ public class SelectStatement implements CQLStatement
             }
         }
 
-        ResultSet cqlRows = result.build(options.getProtocolVersion());
+        ResultSet cqlRows = result.build();
 
         orderResults(cqlRows);
 
@@ -779,7 +779,7 @@ public class SelectStatement implements CQLStatement
         {
             if (!staticRow.isEmpty() && (!restrictions.hasClusteringColumnsRestriction() || cfm.isStaticCompactTable()))
             {
-                result.newRow(protocolVersion);
+                result.newRow();
                 for (ColumnDefinition def : selection.getColumns())
                 {
                     switch (def.kind)
@@ -801,7 +801,7 @@ public class SelectStatement implements CQLStatement
         while (partition.hasNext())
         {
             Row row = partition.next();
-            result.newRow(protocolVersion);
+            result.newRow();
             // Respect selection order
             for (ColumnDefinition def : selection.getColumns())
             {
@@ -894,7 +894,7 @@ public class SelectStatement implements CQLStatement
 
             Selection selection = selectClause.isEmpty()
                                   ? Selection.wildcard(cfm)
-                                  : Selection.fromSelectors(cfm, selectClause);
+                                  : Selection.fromSelectors(cfm, selectClause, boundNames);
 
             StatementRestrictions restrictions = prepareRestrictions(cfm, boundNames, selection, forView);
 
@@ -949,23 +949,14 @@ public class SelectStatement implements CQLStatement
                                                           Selection selection,
                                                           boolean forView) throws InvalidRequestException
         {
-            try
-            {
-                return new StatementRestrictions(StatementType.SELECT,
-                                                 cfm,
-                                                 whereClause,
-                                                 boundNames,
-                                                 selection.containsOnlyStaticColumns(),
-                                                 selection.containsAComplexColumn(),
-                                                 parameters.allowFiltering,
-                                                 forView);
-            }
-            catch (UnrecognizedEntityException e)
-            {
-                if (containsAlias(e.entity))
-                    throw invalidRequest("Aliases aren't allowed in the where clause ('%s')", e.relation);
-                throw e;
-            }
+            return new StatementRestrictions(StatementType.SELECT,
+                                             cfm,
+                                             whereClause,
+                                             boundNames,
+                                             selection.containsOnlyStaticColumns(),
+                                             selection.containsAComplexColumn(),
+                                             parameters.allowFiltering,
+                                             forView);
         }
 
         /** Returns a Term for the limit or null if no limit is set */
@@ -1011,12 +1002,6 @@ public class SelectStatement implements CQLStatement
                           "SELECT DISTINCT queries must request all the partition key columns (missing %s)", def.name);
         }
 
-        private void handleUnrecognizedOrderingColumn(ColumnIdentifier column) throws InvalidRequestException
-        {
-            checkFalse(containsAlias(column), "Aliases are not allowed in order by clause ('%s')", column);
-            checkFalse(true, "Order by on unknown column %s", column);
-        }
-
         private Comparator<List<ByteBuffer>> getOrderingComparator(CFMetaData cfm,
                                                                    Selection selection,
                                                                    StatementRestrictions restrictions)
@@ -1030,10 +1015,9 @@ public class SelectStatement implements CQLStatement
             List<Integer> idToSort = new ArrayList<Integer>();
             List<Comparator<ByteBuffer>> sorters = new ArrayList<Comparator<ByteBuffer>>();
 
-            for (ColumnIdentifier.Raw raw : parameters.orderings.keySet())
+            for (ColumnDefinition.Raw raw : parameters.orderings.keySet())
             {
-                ColumnIdentifier identifier = raw.prepare(cfm);
-                ColumnDefinition orderingColumn = cfm.getColumnDefinition(identifier);
+                ColumnDefinition orderingColumn = raw.prepare(cfm);
                 idToSort.add(orderingIndexes.get(orderingColumn.name));
                 sorters.add(orderingColumn.type);
             }
@@ -1048,12 +1032,9 @@ public class SelectStatement implements CQLStatement
             // even if we don't
             // ultimately ship them to the client (CASSANDRA-4911).
             Map<ColumnIdentifier, Integer> orderingIndexes = new HashMap<>();
-            for (ColumnIdentifier.Raw raw : parameters.orderings.keySet())
+            for (ColumnDefinition.Raw raw : parameters.orderings.keySet())
             {
-                ColumnIdentifier column = raw.prepare(cfm);
-                final ColumnDefinition def = cfm.getColumnDefinition(column);
-                if (def == null)
-                    handleUnrecognizedOrderingColumn(column);
+                final ColumnDefinition def = raw.prepare(cfm);
                 int index = selection.getResultSetIndex(def);
                 if (index < 0)
                     index = selection.addColumnForOrdering(def);
@@ -1066,17 +1047,13 @@ public class SelectStatement implements CQLStatement
         {
             Boolean[] reversedMap = new Boolean[cfm.clusteringColumns().size()];
             int i = 0;
-            for (Map.Entry<ColumnIdentifier.Raw, Boolean> entry : parameters.orderings.entrySet())
+            for (Map.Entry<ColumnDefinition.Raw, Boolean> entry : parameters.orderings.entrySet())
             {
-                ColumnIdentifier column = entry.getKey().prepare(cfm);
+                ColumnDefinition def = entry.getKey().prepare(cfm);
                 boolean reversed = entry.getValue();
 
-                ColumnDefinition def = cfm.getColumnDefinition(column);
-                if (def == null)
-                    handleUnrecognizedOrderingColumn(column);
-
                 checkTrue(def.isClusteringColumn(),
-                          "Order by is currently only supported on the clustered columns of the PRIMARY KEY, got %s", column);
+                          "Order by is currently only supported on the clustered columns of the PRIMARY KEY, got %s", def.name);
 
                 checkTrue(i++ == def.position(),
                           "Order by currently only support the ordering of columns following their declared order in the PRIMARY KEY");
@@ -1116,17 +1093,6 @@ public class SelectStatement implements CQLStatement
             }
         }
 
-        private boolean containsAlias(final ColumnIdentifier name)
-        {
-            return Iterables.any(selectClause, new Predicate<RawSelector>()
-                                               {
-                                                   public boolean apply(RawSelector raw)
-                                                   {
-                                                       return name.equals(raw.alias);
-                                                   }
-                                               });
-        }
-
         private ColumnSpecification limitReceiver()
         {
             return new ColumnSpecification(keyspace(), columnFamily(), new ColumnIdentifier("[limit]", true), Int32Type.instance);
@@ -1152,12 +1118,12 @@ public class SelectStatement implements CQLStatement
     public static class Parameters
     {
         // Public because CASSANDRA-9858
-        public final Map<ColumnIdentifier.Raw, Boolean> orderings;
+        public final Map<ColumnDefinition.Raw, Boolean> orderings;
         public final boolean isDistinct;
         public final boolean allowFiltering;
         public final boolean isJson;
 
-        public Parameters(Map<ColumnIdentifier.Raw, Boolean> orderings,
+        public Parameters(Map<ColumnDefinition.Raw, Boolean> orderings,
                           boolean isDistinct,
                           boolean allowFiltering,
                           boolean isJson)

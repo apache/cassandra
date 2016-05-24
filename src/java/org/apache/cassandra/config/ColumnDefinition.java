@@ -27,11 +27,16 @@ import com.google.common.base.Objects;
 import com.google.common.collect.Collections2;
 
 import org.apache.cassandra.cql3.*;
+import org.apache.cassandra.cql3.selection.Selectable;
+import org.apache.cassandra.cql3.selection.Selector;
+import org.apache.cassandra.cql3.selection.SimpleSelector;
 import org.apache.cassandra.db.rows.*;
 import org.apache.cassandra.db.marshal.*;
+import org.apache.cassandra.exceptions.InvalidRequestException;
 import org.apache.cassandra.serializers.MarshalException;
+import org.apache.cassandra.utils.ByteBufferUtil;
 
-public class ColumnDefinition extends ColumnSpecification implements Comparable<ColumnDefinition>
+public class ColumnDefinition extends ColumnSpecification implements Selectable, Comparable<ColumnDefinition>
 {
     public static final Comparator<Object> asymmetricColumnDataComparator =
         (a, b) -> ((ColumnData) a).column().compareTo((ColumnDefinition) b);
@@ -280,8 +285,14 @@ public class ColumnDefinition extends ColumnSpecification implements Comparable<
         }
         return result;
     }
+
     @Override
     public String toString()
+    {
+        return name.toString();
+    }
+
+    public String debugString()
     {
         return MoreObjects.toStringHelper(this)
                           .add("name", name)
@@ -419,4 +430,193 @@ public class ColumnDefinition extends ColumnSpecification implements Comparable<
              ? ((CollectionType)type).valueComparator()
              : type;
     }
+
+    public Selector.Factory newSelectorFactory(CFMetaData cfm, AbstractType<?> expectedType, List<ColumnDefinition> defs, VariableSpecifications boundNames) throws InvalidRequestException
+    {
+        return SimpleSelector.newFactory(this, addAndGetIndex(this, defs));
+    }
+
+    public AbstractType<?> getExactTypeIfKnown(String keyspace)
+    {
+        return type;
+    }
+
+    /**
+     * Because Thrift-created tables may have a non-text comparator, we cannot determine the proper 'key' until
+     * we know the comparator. ColumnDefinition.Raw is a placeholder that can be converted to a real ColumnIdentifier
+     * once the comparator is known with prepare(). This should only be used with identifiers that are actual
+     * column names. See CASSANDRA-8178 for more background.
+     */
+    public static abstract class Raw extends Selectable.Raw
+    {
+        /**
+         * Creates a {@code ColumnDefinition.Raw} from an unquoted identifier string.
+         */
+        public static Raw forUnquoted(String text)
+        {
+            return new Literal(text, false);
+        }
+
+        /**
+         * Creates a {@code ColumnDefinition.Raw} from a quoted identifier string.
+         */
+        public static Raw forQuoted(String text)
+        {
+            return new Literal(text, true);
+        }
+
+        /**
+         * Creates a {@code ColumnDefinition.Raw} from a pre-existing {@code ColumnDefinition}
+         * (useful in the rare cases where we already have the column but need
+         * a {@code ColumnDefinition.Raw} for typing purposes).
+         */
+        public static Raw forColumn(ColumnDefinition column)
+        {
+            return new ForColumn(column);
+        }
+
+        /**
+         * Get the identifier corresponding to this raw column, without assuming this is an
+         * existing column (unlike {@link #prepare}).
+         */
+        public abstract ColumnIdentifier getIdentifier(CFMetaData cfm);
+
+        public abstract String rawText();
+
+        @Override
+        public abstract ColumnDefinition prepare(CFMetaData cfm);
+
+        @Override
+        public boolean processesSelection()
+        {
+            return false;
+        }
+
+        @Override
+        public final int hashCode()
+        {
+            return toString().hashCode();
+        }
+
+        @Override
+        public final boolean equals(Object o)
+        {
+            if(!(o instanceof Raw))
+                return false;
+
+            Raw that = (Raw)o;
+            return this.toString().equals(that.toString());
+        }
+
+        private static class Literal extends Raw
+        {
+            private final String text;
+
+            public Literal(String rawText, boolean keepCase)
+            {
+                this.text =  keepCase ? rawText : rawText.toLowerCase(Locale.US);
+            }
+
+            public ColumnIdentifier getIdentifier(CFMetaData cfm)
+            {
+                if (!cfm.isStaticCompactTable())
+                    return ColumnIdentifier.getInterned(text, true);
+
+                AbstractType<?> thriftColumnNameType = cfm.thriftColumnNameType();
+                if (thriftColumnNameType instanceof UTF8Type)
+                    return ColumnIdentifier.getInterned(text, true);
+
+                // We have a Thrift-created table with a non-text comparator. Check if we have a match column, otherwise assume we should use
+                // thriftColumnNameType
+                ByteBuffer bufferName = ByteBufferUtil.bytes(text);
+                for (ColumnDefinition def : cfm.allColumns())
+                {
+                    if (def.name.bytes.equals(bufferName))
+                        return def.name;
+                }
+                return ColumnIdentifier.getInterned(thriftColumnNameType.fromString(text), text);
+            }
+
+            public ColumnDefinition prepare(CFMetaData cfm)
+            {
+                if (!cfm.isStaticCompactTable())
+                    return find(cfm);
+
+                AbstractType<?> thriftColumnNameType = cfm.thriftColumnNameType();
+                if (thriftColumnNameType instanceof UTF8Type)
+                    return find(cfm);
+
+                // We have a Thrift-created table with a non-text comparator. Check if we have a match column, otherwise assume we should use
+                // thriftColumnNameType
+                ByteBuffer bufferName = ByteBufferUtil.bytes(text);
+                for (ColumnDefinition def : cfm.allColumns())
+                {
+                    if (def.name.bytes.equals(bufferName))
+                        return def;
+                }
+                return find(thriftColumnNameType.fromString(text), cfm);
+            }
+
+            private ColumnDefinition find(CFMetaData cfm)
+            {
+                return find(ByteBufferUtil.bytes(text), cfm);
+            }
+
+            private ColumnDefinition find(ByteBuffer id, CFMetaData cfm)
+            {
+                ColumnDefinition def = cfm.getColumnDefinition(id);
+                if (def == null)
+                    throw new InvalidRequestException(String.format("Undefined column name %s", toString()));
+                return def;
+            }
+
+            public String rawText()
+            {
+                return text;
+            }
+
+            @Override
+            public String toString()
+            {
+                return ColumnIdentifier.maybeQuote(text);
+            }
+        }
+
+        // Use internally in the rare case where we need a ColumnDefinition.Raw for type-checking but
+        // actually already have the column itself.
+        private static class ForColumn extends Raw
+        {
+            private final ColumnDefinition column;
+
+            private ForColumn(ColumnDefinition column)
+            {
+                this.column = column;
+            }
+
+            public ColumnIdentifier getIdentifier(CFMetaData cfm)
+            {
+                return column.name;
+            }
+
+            public ColumnDefinition prepare(CFMetaData cfm)
+            {
+                assert cfm.getColumnDefinition(column.name) != null; // Sanity check that we're not doing something crazy
+                return column;
+            }
+
+            public String rawText()
+            {
+                return column.name.toString();
+            }
+
+            @Override
+            public String toString()
+            {
+                return column.name.toCQLString();
+            }
+        }
+    }
+
+
+
 }

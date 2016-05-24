@@ -629,11 +629,11 @@ public class CQL3TypeLiteralTest
     static UserType randomUserType(int level)
     {
         int typeCount = 2 + randInt(5);
-        List<ByteBuffer> names = new ArrayList<>();
+        List<FieldIdentifier> names = new ArrayList<>();
         List<AbstractType<?>> types = new ArrayList<>();
         for (int i = 0; i < typeCount; i++)
         {
-            names.add(UTF8Type.instance.fromString('f' + randLetters(i)));
+            names.add(FieldIdentifier.forQuoted('f' + randLetters(i)));
             types.add(randomNestedType(level));
         }
         return new UserType("ks", UTF8Type.instance.fromString("u" + randInt(1000000)), names, types, true);

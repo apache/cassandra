@@ -23,9 +23,7 @@ import java.util.*;
 import org.apache.cassandra.config.ColumnDefinition;
 import org.apache.cassandra.cql3.functions.Function;
 import org.apache.cassandra.db.DecoratedKey;
-import org.apache.cassandra.db.marshal.TupleType;
-import org.apache.cassandra.db.marshal.UTF8Type;
-import org.apache.cassandra.db.marshal.UserType;
+import org.apache.cassandra.db.marshal.*;
 import org.apache.cassandra.db.rows.CellPath;
 import org.apache.cassandra.exceptions.InvalidRequestException;
 import org.apache.cassandra.utils.ByteBufferUtil;
@@ -44,15 +42,15 @@ public abstract class UserTypes
         UserType ut = (UserType)column.type;
         return new ColumnSpecification(column.ksName,
                                        column.cfName,
-                                       new ColumnIdentifier(column.name + "." + UTF8Type.instance.compose(ut.fieldName(field)), true),
+                                       new ColumnIdentifier(column.name + "." + ut.fieldName(field), true),
                                        ut.fieldType(field));
     }
 
     public static class Literal extends Term.Raw
     {
-        public final Map<ColumnIdentifier, Term.Raw> entries;
+        public final Map<FieldIdentifier, Term.Raw> entries;
 
-        public Literal(Map<ColumnIdentifier, Term.Raw> entries)
+        public Literal(Map<FieldIdentifier, Term.Raw> entries)
         {
             this.entries = entries;
         }
@@ -67,7 +65,7 @@ public abstract class UserTypes
             int foundValues = 0;
             for (int i = 0; i < ut.size(); i++)
             {
-                ColumnIdentifier field = new ColumnIdentifier(ut.fieldName(i), UTF8Type.instance);
+                FieldIdentifier field = ut.fieldName(i);
                 Term.Raw raw = entries.get(field);
                 if (raw == null)
                     raw = Constants.NULL_LITERAL;
@@ -83,9 +81,9 @@ public abstract class UserTypes
             if (foundValues != entries.size())
             {
                 // We had some field that are not part of the type
-                for (ColumnIdentifier id : entries.keySet())
+                for (FieldIdentifier id : entries.keySet())
                 {
-                    if (!ut.fieldNames().contains(id.bytes))
+                    if (!ut.fieldNames().contains(id))
                         throw new InvalidRequestException(String.format("Unknown field '%s' in value of user defined type %s", id, ut.getNameAsString()));
                 }
             }
@@ -102,7 +100,7 @@ public abstract class UserTypes
             UserType ut = (UserType)receiver.type;
             for (int i = 0; i < ut.size(); i++)
             {
-                ColumnIdentifier field = new ColumnIdentifier(ut.fieldName(i), UTF8Type.instance);
+                FieldIdentifier field = ut.fieldName(i);
                 Term.Raw value = entries.get(field);
                 if (value == null)
                     continue;
@@ -129,14 +127,19 @@ public abstract class UserTypes
             }
         }
 
+        public AbstractType<?> getExactTypeIfKnown(String keyspace)
+        {
+            return null;
+        }
+
         public String getText()
         {
             StringBuilder sb = new StringBuilder();
             sb.append("{");
-            Iterator<Map.Entry<ColumnIdentifier, Term.Raw>> iter = entries.entrySet().iterator();
+            Iterator<Map.Entry<FieldIdentifier, Term.Raw>> iter = entries.entrySet().iterator();
             while (iter.hasNext())
             {
-                Map.Entry<ColumnIdentifier, Term.Raw> entry = iter.next();
+                Map.Entry<FieldIdentifier, Term.Raw> entry = iter.next();
                 sb.append(entry.getKey()).append(": ").append(entry.getValue().getText());
                 if (iter.hasNext())
                     sb.append(", ");
@@ -294,10 +297,11 @@ public abstract class UserTypes
                 if (value == null)
                     return;
 
-                Iterator<ByteBuffer> fieldNameIter = userTypeValue.type.fieldNames().iterator();
+                Iterator<FieldIdentifier> fieldNameIter = userTypeValue.type.fieldNames().iterator();
                 for (ByteBuffer buffer : userTypeValue.elements)
                 {
-                    ByteBuffer fieldName = fieldNameIter.next();
+                    assert fieldNameIter.hasNext();
+                    FieldIdentifier fieldName = fieldNameIter.next();
                     if (buffer == null)
                         continue;
 
@@ -318,9 +322,9 @@ public abstract class UserTypes
 
     public static class SetterByField extends Operation
     {
-        private final ColumnIdentifier field;
+        private final FieldIdentifier field;
 
-        public SetterByField(ColumnDefinition column, ColumnIdentifier field, Term t)
+        public SetterByField(ColumnDefinition column, FieldIdentifier field, Term t)
         {
             super(column, t);
             this.field = field;
@@ -335,7 +339,7 @@ public abstract class UserTypes
             if (value == UNSET_VALUE)
                 return;
 
-            CellPath fieldPath = ((UserType) column.type).cellPathForField(field.bytes);
+            CellPath fieldPath = ((UserType) column.type).cellPathForField(field);
             if (value == null)
                 params.addTombstone(column, fieldPath);
             else
@@ -345,9 +349,9 @@ public abstract class UserTypes
 
     public static class DeleterByField extends Operation
     {
-        private final ColumnIdentifier field;
+        private final FieldIdentifier field;
 
-        public DeleterByField(ColumnDefinition column, ColumnIdentifier field)
+        public DeleterByField(ColumnDefinition column, FieldIdentifier field)
         {
             super(column, null);
             this.field = field;
@@ -358,7 +362,7 @@ public abstract class UserTypes
             // we should not get here for frozen UDTs
             assert column.type.isMultiCell() : "Attempted to delete a single field from a frozen UDT";
 
-            CellPath fieldPath = ((UserType) column.type).cellPathForField(field.bytes);
+            CellPath fieldPath = ((UserType) column.type).cellPathForField(field);
             params.addTombstone(column, fieldPath);
         }
     }

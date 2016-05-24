@@ -262,12 +262,12 @@ public class View
             if (rel.isMultiColumn())
             {
                 sb.append(((MultiColumnRelation) rel).getEntities().stream()
-                        .map(ColumnIdentifier.Raw::toCQLString)
+                        .map(ColumnDefinition.Raw::toString)
                         .collect(Collectors.joining(", ", "(", ")")));
             }
             else
             {
-                sb.append(((SingleColumnRelation) rel).getEntity().toCQLString());
+                sb.append(((SingleColumnRelation) rel).getEntity());
             }
 
             sb.append(" ").append(rel.operator()).append(" ");

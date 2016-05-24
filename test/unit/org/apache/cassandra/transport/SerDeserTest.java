@@ -148,6 +148,11 @@ public class SerDeserTest
         return UTF8Type.instance.decompose(str);
     }
 
+    private static FieldIdentifier field(String field)
+    {
+        return FieldIdentifier.forQuoted(field);
+    }
+
     private static ColumnIdentifier ci(String name)
     {
         return new ColumnIdentifier(name, false);
@@ -175,6 +180,7 @@ public class SerDeserTest
         udtSerDeserTest(4);
     }
 
+
     public void udtSerDeserTest(int version) throws Exception
     {
         ListType<?> lt = ListType.getInstance(Int32Type.instance, true);
@@ -183,15 +189,15 @@ public class SerDeserTest
 
         UserType udt = new UserType("ks",
                                     bb("myType"),
-                                    Arrays.asList(bb("f1"), bb("f2"), bb("f3"), bb("f4")),
+                                    Arrays.asList(field("f1"), field("f2"), field("f3"), field("f4")),
                                     Arrays.asList(LongType.instance, lt, st, mt),
                                     true);
 
-        Map<ColumnIdentifier, Term.Raw> value = new HashMap<>();
-        value.put(ci("f1"), lit(42));
-        value.put(ci("f2"), new Lists.Literal(Arrays.<Term.Raw>asList(lit(3), lit(1))));
-        value.put(ci("f3"), new Sets.Literal(Arrays.<Term.Raw>asList(lit("foo"), lit("bar"))));
-        value.put(ci("f4"), new Maps.Literal(Arrays.<Pair<Term.Raw, Term.Raw>>asList(
+        Map<FieldIdentifier, Term.Raw> value = new HashMap<>();
+        value.put(field("f1"), lit(42));
+        value.put(field("f2"), new Lists.Literal(Arrays.<Term.Raw>asList(lit(3), lit(1))));
+        value.put(field("f3"), new Sets.Literal(Arrays.<Term.Raw>asList(lit("foo"), lit("bar"))));
+        value.put(field("f4"), new Maps.Literal(Arrays.<Pair<Term.Raw, Term.Raw>>asList(
                                    Pair.<Term.Raw, Term.Raw>create(lit("foo"), lit(24)),
                                    Pair.<Term.Raw, Term.Raw>create(lit("bar"), lit(12)))));
 

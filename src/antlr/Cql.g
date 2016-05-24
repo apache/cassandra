@@ -40,6 +40,7 @@ import Parser,Lexer;
     import java.util.Set;
 
     import org.apache.cassandra.auth.*;
+    import org.apache.cassandra.config.ColumnDefinition;
     import org.apache.cassandra.cql3.*;
     import org.apache.cassandra.cql3.restrictions.CustomIndexExpression;
     import org.apache.cassandra.cql3.statements.*;

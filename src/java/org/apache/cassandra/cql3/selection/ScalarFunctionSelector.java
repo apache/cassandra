@@ -54,10 +54,10 @@ final class ScalarFunctionSelector extends AbstractFunctionSelector<ScalarFuncti
         for (int i = 0, m = argSelectors.size(); i < m; i++)
         {
             Selector s = argSelectors.get(i);
-            args.set(i, s.getOutput(protocolVersion));
+            setArg(i, s.getOutput(protocolVersion));
             s.reset();
         }
-        return fun.execute(protocolVersion, args);
+        return fun.execute(protocolVersion, args());
     }
 
     ScalarFunctionSelector(Function fun, List<Selector> argSelectors)

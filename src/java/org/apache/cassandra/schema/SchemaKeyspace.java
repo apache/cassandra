@@ -433,7 +433,7 @@ public final class SchemaKeyspace
     {
         RowUpdateBuilder adder = new RowUpdateBuilder(Types, timestamp, mutation)
                                  .clustering(type.getNameAsString())
-                                 .frozenList("field_names", type.fieldNames().stream().map(SchemaKeyspace::bbToString).collect(toList()))
+                                 .frozenList("field_names", type.fieldNames().stream().map(FieldIdentifier::toString).collect(toList()))
                                  .frozenList("field_types", type.fieldTypes().stream().map(AbstractType::asCQL3Type).map(CQL3Type::toString).collect(toList()));
 
         adder.build();

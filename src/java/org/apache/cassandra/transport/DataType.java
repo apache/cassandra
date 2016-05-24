@@ -28,8 +28,9 @@ import com.google.common.annotations.VisibleForTesting;
 
 import io.netty.buffer.ByteBuf;
 
-import org.apache.cassandra.exceptions.RequestValidationException;
+import org.apache.cassandra.cql3.FieldIdentifier;
 import org.apache.cassandra.db.marshal.*;
+import org.apache.cassandra.exceptions.RequestValidationException;
 import org.apache.cassandra.utils.Pair;
 
 public enum DataType implements OptionCodec.Codecable<DataType>
@@ -111,11 +112,11 @@ public enum DataType implements OptionCodec.Codecable<DataType>
                 String ks = CBUtil.readString(cb);
                 ByteBuffer name = UTF8Type.instance.decompose(CBUtil.readString(cb));
                 int n = cb.readUnsignedShort();
-                List<ByteBuffer> fieldNames = new ArrayList<>(n);
+                List<FieldIdentifier> fieldNames = new ArrayList<>(n);
                 List<AbstractType<?>> fieldTypes = new ArrayList<>(n);
                 for (int i = 0; i < n; i++)
                 {
-                    fieldNames.add(UTF8Type.instance.decompose(CBUtil.readString(cb)));
+                    fieldNames.add(FieldIdentifier.forInternalString(CBUtil.readString(cb)));
                     fieldTypes.add(DataType.toType(codec.decodeOne(cb, version)));
                 }
                 return new UserType(ks, name, fieldNames, fieldTypes, true);
@@ -163,7 +164,7 @@ public enum DataType implements OptionCodec.Codecable<DataType>
                 cb.writeShort(udt.size());
                 for (int i = 0; i < udt.size(); i++)
                 {
-                    CBUtil.writeString(UTF8Type.instance.compose(udt.fieldName(i)), cb);
+                    CBUtil.writeString(udt.fieldName(i).toString(), cb);
                     codec.writeOne(DataType.fromType(udt.fieldType(i), version), cb, version);
                 }
                 break;
@@ -203,7 +204,7 @@ public enum DataType implements OptionCodec.Codecable<DataType>
                 size += 2;
                 for (int i = 0; i < udt.size(); i++)
                 {
-                    size += CBUtil.sizeOfString(UTF8Type.instance.compose(udt.fieldName(i)));
+                    size += CBUtil.sizeOfString(udt.fieldName(i).toString());
                     size += codec.oneSerializedSize(DataType.fromType(udt.fieldType(i), version), version);
                 }
                 return size;
