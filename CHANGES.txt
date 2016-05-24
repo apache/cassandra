@@ -11,6 +11,8 @@ Merged from 2.2:
  * Fix commit log replay after out-of-order flush completion (CASSANDRA-9669)
  * Prohibit Reversed Counter type as part of the PK (CASSANDRA-9395)
  * cqlsh: correctly handle non-ascii chars in error messages (CASSANDRA-11626)
+Merged from 2.1:
+ * Avoid holding SSTableReaders for duration of incremental repair (CASSANDRA-11739)
 
 
 3.6
