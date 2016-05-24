@@ -7,6 +7,8 @@ Merged from 2.2:
  * Add message dropped tasks to nodetool netstats (CASSANDRA-11855)
  * Add seconds to cqlsh tracing session duration (CASSANDRA-11753)
  * Prohibit Reversed Counter type as part of the PK (CASSANDRA-9395)
+Merged from 2.1:
+ * Avoid holding SSTableReaders for duration of incremental repair (CASSANDRA-11739)
 
 
 3.0.6
