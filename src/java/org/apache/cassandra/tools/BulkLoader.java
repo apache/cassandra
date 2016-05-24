@@ -85,7 +85,7 @@ public class BulkLoader
                         options.storagePort,
                         options.sslStoragePort,
                         options.serverEncOptions,
-                        buildSSLOptions((EncryptionOptions.ClientEncryptionOptions)options.encOptions)),
+                        buildSSLOptions(options.clientEncOptions)),
                 handler,
                 options.connectionsPerHost);
         DatabaseDescriptor.setStreamThroughputOutboundMegabitsPerSec(options.throttle);
@@ -322,7 +322,7 @@ public class BulkLoader
         public int interDcThrottle = 0;
         public int storagePort;
         public int sslStoragePort;
-        public EncryptionOptions encOptions = new EncryptionOptions.ClientEncryptionOptions();
+        public EncryptionOptions.ClientEncryptionOptions clientEncOptions = new EncryptionOptions.ClientEncryptionOptions();
         public int connectionsPerHost = 1;
         public EncryptionOptions.ServerEncryptionOptions serverEncOptions = new EncryptionOptions.ServerEncryptionOptions();
 
@@ -454,7 +454,7 @@ public class BulkLoader
                 opts.sslStoragePort = config.ssl_storage_port;
                 opts.throttle = config.stream_throughput_outbound_megabits_per_sec;
                 opts.interDcThrottle = config.inter_dc_stream_throughput_outbound_megabits_per_sec;
-                opts.encOptions = config.client_encryption_options;
+                opts.clientEncOptions = config.client_encryption_options;
                 opts.serverEncOptions = config.server_encryption_options;
 
                 if (cmd.hasOption(THROTTLE_MBITS))
@@ -467,46 +467,52 @@ public class BulkLoader
                     opts.interDcThrottle = Integer.parseInt(cmd.getOptionValue(INTER_DC_THROTTLE_MBITS));
                 }
 
+                if (cmd.hasOption(SSL_TRUSTSTORE) || cmd.hasOption(SSL_TRUSTSTORE_PW) ||
+                    cmd.hasOption(SSL_KEYSTORE) || cmd.hasOption(SSL_KEYSTORE_PW))
+                {
+                    opts.clientEncOptions.enabled = true;
+                }
+
                 if (cmd.hasOption(SSL_TRUSTSTORE))
                 {
-                    opts.encOptions.truststore = cmd.getOptionValue(SSL_TRUSTSTORE);
+                    opts.clientEncOptions.truststore = cmd.getOptionValue(SSL_TRUSTSTORE);
                 }
 
                 if (cmd.hasOption(SSL_TRUSTSTORE_PW))
                 {
-                    opts.encOptions.truststore_password = cmd.getOptionValue(SSL_TRUSTSTORE_PW);
+                    opts.clientEncOptions.truststore_password = cmd.getOptionValue(SSL_TRUSTSTORE_PW);
                 }
 
                 if (cmd.hasOption(SSL_KEYSTORE))
                 {
-                    opts.encOptions.keystore = cmd.getOptionValue(SSL_KEYSTORE);
+                    opts.clientEncOptions.keystore = cmd.getOptionValue(SSL_KEYSTORE);
                     // if a keystore was provided, lets assume we'll need to use it
-                    opts.encOptions.require_client_auth = true;
+                    opts.clientEncOptions.require_client_auth = true;
                 }
 
                 if (cmd.hasOption(SSL_KEYSTORE_PW))
                 {
-                    opts.encOptions.keystore_password = cmd.getOptionValue(SSL_KEYSTORE_PW);
+                    opts.clientEncOptions.keystore_password = cmd.getOptionValue(SSL_KEYSTORE_PW);
                 }
 
                 if (cmd.hasOption(SSL_PROTOCOL))
                 {
-                    opts.encOptions.protocol = cmd.getOptionValue(SSL_PROTOCOL);
+                    opts.clientEncOptions.protocol = cmd.getOptionValue(SSL_PROTOCOL);
                 }
 
                 if (cmd.hasOption(SSL_ALGORITHM))
                 {
-                    opts.encOptions.algorithm = cmd.getOptionValue(SSL_ALGORITHM);
+                    opts.clientEncOptions.algorithm = cmd.getOptionValue(SSL_ALGORITHM);
                 }
 
                 if (cmd.hasOption(SSL_STORE_TYPE))
                 {
-                    opts.encOptions.store_type = cmd.getOptionValue(SSL_STORE_TYPE);
+                    opts.clientEncOptions.store_type = cmd.getOptionValue(SSL_STORE_TYPE);
                 }
 
                 if (cmd.hasOption(SSL_CIPHER_SUITES))
                 {
-                    opts.encOptions.cipher_suites = cmd.getOptionValue(SSL_CIPHER_SUITES).split(",");
+                    opts.clientEncOptions.cipher_suites = cmd.getOptionValue(SSL_CIPHER_SUITES).split(",");
                 }
 
                 return opts;
