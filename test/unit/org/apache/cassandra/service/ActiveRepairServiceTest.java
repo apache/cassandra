@@ -21,30 +21,39 @@ package org.apache.cassandra.service;
 import java.net.InetAddress;
 import java.util.*;
 
+import com.google.common.base.Predicate;
 import com.google.common.collect.Sets;
 import org.junit.Before;
 import org.junit.BeforeClass;
 import org.junit.Test;
 
 import org.apache.cassandra.SchemaLoader;
+import org.apache.cassandra.Util;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.config.KSMetaData;
 import org.apache.cassandra.db.ColumnFamilyStore;
+import org.apache.cassandra.db.DecoratedKey;
 import org.apache.cassandra.db.Keyspace;
+import org.apache.cassandra.db.Mutation;
+import org.apache.cassandra.db.compaction.OperationType;
 import org.apache.cassandra.dht.Range;
 import org.apache.cassandra.dht.Token;
 import org.apache.cassandra.exceptions.ConfigurationException;
+import org.apache.cassandra.io.sstable.format.SSTableReader;
 import org.apache.cassandra.locator.AbstractReplicationStrategy;
 import org.apache.cassandra.locator.SimpleStrategy;
 import org.apache.cassandra.locator.TokenMetadata;
+import org.apache.cassandra.utils.ByteBufferUtil;
 import org.apache.cassandra.utils.FBUtilities;
+import org.apache.cassandra.utils.concurrent.Refs;
 
 import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertFalse;
 
 public class ActiveRepairServiceTest
 {
     public static final String KEYSPACE5 = "Keyspace5";
-    public static final String CF_STANDRAD1 = "Standard1";
+    public static final String CF_STANDARD1 = "Standard1";
     public static final String CF_COUNTER = "Counter1";
 
     public String cfname;
@@ -61,7 +70,7 @@ public class ActiveRepairServiceTest
                                     SimpleStrategy.class,
                                     KSMetaData.optsWithRF(2),
                                     SchemaLoader.standardCFMD(KEYSPACE5, CF_COUNTER),
-                                    SchemaLoader.standardCFMD(KEYSPACE5, CF_STANDRAD1));
+                                    SchemaLoader.standardCFMD(KEYSPACE5, CF_STANDARD1));
     }
 
     @Before
@@ -214,5 +223,67 @@ public class ActiveRepairServiceTest
             endpoints.add(endpoint);
         }
         return endpoints;
+    }
+
+    @Test
+    public void testGetActiveRepairedSSTableRefs()
+    {
+        ColumnFamilyStore store = prepareColumnFamilyStore();
+        Set<SSTableReader> original = store.getUnrepairedSSTables();
+
+        UUID prsId = UUID.randomUUID();
+        ActiveRepairService.instance.registerParentRepairSession(prsId, Collections.singletonList(store), null, true, false);
+        ActiveRepairService.ParentRepairSession prs = ActiveRepairService.instance.getParentRepairSession(prsId);
+
+        //add all sstables to parent repair session
+        prs.addSSTables(store.metadata.cfId, original);
+
+        //retrieve all sstable references from parent repair sessions
+        Refs<SSTableReader> refs = prs.getActiveRepairedSSTableRefs(store.metadata.cfId);
+        Set<SSTableReader> retrieved = Sets.newHashSet(refs.iterator());
+        assertEquals(original, retrieved);
+        refs.release();
+
+        //remove 1 sstable from data data tracker
+        Set<SSTableReader> newLiveSet = new HashSet<>(original);
+        Iterator<SSTableReader> it = newLiveSet.iterator();
+        final SSTableReader removed = it.next();
+        it.remove();
+        store.getTracker().dropSSTables(new Predicate<SSTableReader>()
+        {
+            public boolean apply(SSTableReader reader)
+            {
+                return removed.equals(reader);
+            }
+        }, OperationType.COMPACTION, null);
+
+        //retrieve sstable references from parent repair session again - removed sstable must not be present
+        refs = prs.getActiveRepairedSSTableRefs(store.metadata.cfId);
+        retrieved = Sets.newHashSet(refs.iterator());
+        assertEquals(newLiveSet, retrieved);
+        assertFalse(retrieved.contains(removed));
+        refs.release();
+    }
+
+    private ColumnFamilyStore prepareColumnFamilyStore()
+    {
+        Keyspace keyspace = Keyspace.open(KEYSPACE5);
+        ColumnFamilyStore store = keyspace.getColumnFamilyStore(CF_STANDARD1);
+        store.disableAutoCompaction();
+        long timestamp = System.currentTimeMillis();
+        //create 10 sstables
+        for (int i = 0; i < 10; i++)
+        {
+            DecoratedKey key = Util.dk(Integer.toString(i));
+            Mutation rm = new Mutation(KEYSPACE5, key.getKey());
+            for (int j = 0; j < 10; j++)
+                rm.add("Standard1", Util.cellname(Integer.toString(j)),
+                       ByteBufferUtil.EMPTY_BYTE_BUFFER,
+                       timestamp,
+                       0);
+            rm.apply();
+            store.forceBlockingFlush();
+        }
+        return store;
     }
 }
