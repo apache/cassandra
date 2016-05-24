@@ -62,7 +62,7 @@ public class BulkLoader
                         options.storagePort,
                         options.sslStoragePort,
                         options.serverEncOptions,
-                        buildSSLOptions((EncryptionOptions.ClientEncryptionOptions)options.encOptions)),
+                        buildSSLOptions(options.clientEncOptions)),
                         handler,
                         options.connectionsPerHost);
         DatabaseDescriptor.setStreamThroughputOutboundMegabitsPerSec(options.throttle);
