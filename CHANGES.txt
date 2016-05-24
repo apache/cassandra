@@ -6,6 +6,7 @@ Merged from 3.0:
  * Refactor Materialized View code (CASSANDRA-11475)
  * Update Java Driver (CASSANDRA-11615)
 Merged from 2.2:
+ * Enable client encryption in sstableloader with cli options (CASSANDRA-11708)
  * Possible memory leak in NIODataInputStream (CASSANDRA-11867)
  * Add message dropped tasks to nodetool netstats (CASSANDRA-11855)
  * Add seconds to cqlsh tracing session duration (CASSANDRA-11753)
