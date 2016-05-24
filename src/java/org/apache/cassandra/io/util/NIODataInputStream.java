@@ -44,7 +44,7 @@ import com.google.common.base.Preconditions;
 public class NIODataInputStream extends InputStream implements DataInput, Closeable
 {
     private final ReadableByteChannel rbc;
-    private final ByteBuffer buf;
+    private ByteBuffer buf;
 
 
     public NIODataInputStream(ReadableByteChannel rbc, int bufferSize)
@@ -277,7 +277,9 @@ public class NIODataInputStream extends InputStream implements DataInput, Closea
     @Override
     public void close() throws IOException
     {
-            rbc.close();
+        rbc.close();
+        FileUtils.clean(buf);
+        buf = null;
     }
 
     @Override
