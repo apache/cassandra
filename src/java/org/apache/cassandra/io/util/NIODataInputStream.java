@@ -17,7 +17,6 @@
  */
 package org.apache.cassandra.io.util;
 
-import java.io.Closeable;
 import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.nio.channels.ReadableByteChannel;
@@ -50,17 +49,12 @@ public class NIODataInputStream extends RebufferingInputStream
         return buffer;
     }
 
-    public NIODataInputStream(ReadableByteChannel channel, ByteBuffer buffer)
+    public NIODataInputStream(ReadableByteChannel channel, int bufferSize)
     {
-        super(buffer);
+        super(makeBuffer(bufferSize));
 
         Preconditions.checkNotNull(channel);
         this.channel = channel;
-    }
-
-    public NIODataInputStream(ReadableByteChannel channel, int bufferSize)
-    {
-        this(channel, makeBuffer(bufferSize));
     }
 
     @Override
@@ -79,6 +73,8 @@ public class NIODataInputStream extends RebufferingInputStream
     {
         channel.close();
         super.close();
+        FileUtils.clean(buffer);
+        buffer = null;
     }
 
     @Override
