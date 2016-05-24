@@ -355,9 +355,18 @@ public class UnfilteredSerializer
         }
         else
         {
-            assert !isStatic(extendedFlags); // deserializeStaticRow should be used for that.
+            // deserializeStaticRow should be used for that.
+            if (isStatic(extendedFlags))
+                throw new IOException("Corrupt flags value for unfiltered partition (isStatic flag set): " + flags);
+
             builder.newRow(Clustering.serializer.deserialize(in, helper.version, header.clusteringTypes()));
-            return deserializeRowBody(in, header, helper, flags, extendedFlags, builder);
+            Row row = deserializeRowBody(in, header, helper, flags, extendedFlags, builder);
+            // we do not write empty rows because Rows.collectStats(), called by BTW.applyToRow(), asserts that rows are not empty
+            // if we don't throw here, then later the very same assertion in Rows.collectStats() will fail compactions
+            // see BlackListingCompactionsTest and CASSANDRA-9530 for details
+            if (row.isEmpty())
+                throw new IOException("Corrupt empty row found in unfiltered partition");
+            return row;
         }
     }
 

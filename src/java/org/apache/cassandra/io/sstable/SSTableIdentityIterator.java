@@ -99,6 +99,11 @@ public class SSTableIdentityIterator extends AbstractIterator<Unfiltered> implem
         {
             return iterator.hasNext() ? iterator.next() : endOfData();
         }
+        catch (IndexOutOfBoundsException e)
+        {
+            sstable.markSuspect();
+            throw new CorruptSSTableException(e, filename);
+        }
         catch (IOError e)
         {
             if (e.getCause() instanceof IOException)

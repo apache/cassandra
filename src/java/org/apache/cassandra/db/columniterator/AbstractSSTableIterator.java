@@ -339,7 +339,7 @@ abstract class AbstractSSTableIterator implements SliceableUnfilteredRowIterator
             {
                 return hasNextInternal();
             }
-            catch (IOException e)
+            catch (IOException | IndexOutOfBoundsException e)
             {
                 try
                 {

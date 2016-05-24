@@ -27,9 +27,11 @@ import java.util.Comparator;
 import java.util.List;
 import java.util.Map;
 
+import com.google.common.annotations.VisibleForTesting;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.cql3.CQL3Type;
 import org.apache.cassandra.cql3.Term;
 import org.apache.cassandra.db.TypeSizes;
@@ -41,11 +43,9 @@ import org.apache.cassandra.utils.FastByteOperations;
 import org.github.jamm.Unmetered;
 import org.apache.cassandra.io.util.DataOutputPlus;
 import org.apache.cassandra.io.util.DataInputPlus;
-import org.apache.cassandra.io.util.FileUtils;
 import org.apache.cassandra.utils.ByteBufferUtil;
 
 import static org.apache.cassandra.db.marshal.AbstractType.ComparisonType.CUSTOM;
-import static org.apache.cassandra.db.marshal.AbstractType.ComparisonType.NOT_COMPARABLE;
 
 /**
  * Specifies a Comparator for a specific type of ByteBuffer.
@@ -62,7 +62,7 @@ public abstract class AbstractType<T> implements Comparator<ByteBuffer>
 
     public final Comparator<ByteBuffer> reverseComparator;
 
-    public static enum ComparisonType
+    public enum ComparisonType
     {
         /**
          * This type should never be compared
@@ -82,10 +82,23 @@ public abstract class AbstractType<T> implements Comparator<ByteBuffer>
 
     public final ComparisonType comparisonType;
     public final boolean isByteOrderComparable;
+
+    /**
+     * The maximum size of values for this type, used when some values are not of fixed length,
+     * that is valueLengthIfFixed() returns -1.
+     */
+    public int maxValueSize;
+
     protected AbstractType(ComparisonType comparisonType)
+    {
+        this(comparisonType, DatabaseDescriptor.getMaxValueSize());
+    }
+
+    protected AbstractType(ComparisonType comparisonType, int maxValueSize)
     {
         this.comparisonType = comparisonType;
         this.isByteOrderComparable = comparisonType == ComparisonType.BYTE_ORDER;
+        this.maxValueSize = maxValueSize;
         reverseComparator = (o1, o2) -> AbstractType.this.compare(o2, o1);
         try
         {
@@ -99,6 +112,17 @@ public abstract class AbstractType<T> implements Comparator<ByteBuffer>
         {
             throw new IllegalStateException();
         }
+    }
+
+    /**
+     * Change the maximum value size, this should only be called for testing.
+     * Unfortunately, ensuring we use a type created with a different maxValueSize
+     * is too hard at the moment, due to the pervasive use of the type's singleton instances.
+     */
+    @VisibleForTesting
+    public void setMaxValueSize(int maxValueSize)
+    {
+        this.maxValueSize = maxValueSize;
     }
 
     public static List<String> asCQLTypeStringList(List<AbstractType<?>> abstractTypes)
@@ -357,7 +381,7 @@ public abstract class AbstractType<T> implements Comparator<ByteBuffer>
     }
 
     /**
-    * The length of values for this type if all values are of fixed length, -1 otherwise.
+     * The length of values for this type if all values are of fixed length, -1 otherwise.
      */
     protected int valueLengthIfFixed()
     {
@@ -385,10 +409,22 @@ public abstract class AbstractType<T> implements Comparator<ByteBuffer>
     public ByteBuffer readValue(DataInputPlus in) throws IOException
     {
         int length = valueLengthIfFixed();
+
         if (length >= 0)
             return ByteBufferUtil.read(in, length);
         else
-            return ByteBufferUtil.readWithVIntLength(in);
+        {
+            int l = (int)in.readUnsignedVInt();
+            if (l < 0)
+                throw new IOException("Corrupt (negative) value length encountered");
+
+            if (l > maxValueSize)
+                throw new IOException(String.format("Corrupt value length %d encountered, as it exceeds the maximum of %d, " +
+                                                    "which is set via max_value_size_in_mb in cassandra.yaml",
+                                                    l, maxValueSize));
+
+            return ByteBufferUtil.read(in, l);
+        }
     }
 
     public void skipValue(DataInputPlus in) throws IOException
