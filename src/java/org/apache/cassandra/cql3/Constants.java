@@ -196,6 +196,7 @@ public abstract class Constants
                         case FLOAT:
                         case INT:
                         case SMALLINT:
+                        case TIME:
                         case TIMESTAMP:
                         case TINYINT:
                         case VARINT:
