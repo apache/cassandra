@@ -1,3 +1,7 @@
+3.0.8
+ * Add TimeWindowCompactionStrategy (CASSANDRA-9666)
+
+
 3.0.7
  * Fix legacy serialization of Thrift-generated non-compound range tombstones
    when communicating with 2.x nodes (CASSANDRA-11930)

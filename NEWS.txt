@@ -24,6 +24,19 @@ Upgrading
      value of native_transport_max_frame_size_in_mb. SSTables will be considered corrupt if
      they contain values whose size exceeds this limit. See CASSANDRA-9530 for more details.
 
+Deprecation
+-----------
+   - DateTieredCompactionStrategy has been deprecated - new tables should use
+     TimeWindowCompactionStrategy. Note that migrating an existing DTCS-table to TWCS might
+     cause increased compaction load for a while after the migration so make sure you run
+     tests before migrating. Read CASSANDRA-9666 for background on this.
+
+New features
+------------
+   - TimeWindowCompactionStrategy has been added. This has proven to be a better approach
+     to time series compaction and new tables should use this instead of DTCS. See
+     CASSANDRA-9666 for details.
+
 3.0.6
 =====
 

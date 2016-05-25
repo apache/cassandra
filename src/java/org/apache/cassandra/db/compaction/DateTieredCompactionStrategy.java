@@ -35,6 +35,10 @@ import org.apache.cassandra.utils.Pair;
 
 import static com.google.common.collect.Iterables.filter;
 
+/**
+ * @deprecated in favour of {@link TimeWindowCompactionStrategy}
+ */
+@Deprecated
 public class DateTieredCompactionStrategy extends AbstractCompactionStrategy
 {
     private static final Logger logger = LoggerFactory.getLogger(DateTieredCompactionStrategy.class);
