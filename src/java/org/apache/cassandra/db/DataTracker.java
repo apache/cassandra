@@ -32,6 +32,7 @@ import org.slf4j.LoggerFactory;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.db.compaction.OperationType;
 import org.apache.cassandra.dht.AbstractBounds;
+import org.apache.cassandra.dht.IPartitioner;
 import org.apache.cassandra.io.sstable.IndexSummary;
 import org.apache.cassandra.io.sstable.SSTableReader;
 import org.apache.cassandra.io.util.FileUtils;
@@ -810,9 +811,14 @@ public class DataTracker
 
         public List<SSTableReader> sstablesInBounds(AbstractBounds<RowPosition> rowBounds)
         {
+            return sstablesInBounds(rowBounds, intervalTree, liveMemtables.get(0).cfs.partitioner);
+        }
+
+        public static List<SSTableReader> sstablesInBounds(AbstractBounds<RowPosition> rowBounds, SSTableIntervalTree intervalTree, IPartitioner partitioner)
+        {
             if (intervalTree.isEmpty())
                 return Collections.emptyList();
-            RowPosition stopInTree = rowBounds.right.isMinimum(liveMemtables.get(0).cfs.partitioner) ? intervalTree.max() : rowBounds.right;
+            RowPosition stopInTree = rowBounds.right.isMinimum(partitioner) ? intervalTree.max() : rowBounds.right;
             return intervalTree.search(Interval.<RowPosition, SSTableReader>create(rowBounds.left, stopInTree));
         }
     }

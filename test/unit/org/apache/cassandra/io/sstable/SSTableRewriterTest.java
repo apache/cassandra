@@ -21,13 +21,16 @@ import java.io.File;
 import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.util.*;
+import java.util.concurrent.ExecutionException;
 import java.util.concurrent.ThreadLocalRandom;
+import java.util.concurrent.atomic.AtomicInteger;
 
 import com.google.common.collect.Sets;
 import org.junit.Test;
 
 import org.apache.cassandra.SchemaLoader;
 import org.apache.cassandra.Util;
+import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.db.*;
 import org.apache.cassandra.db.compaction.AbstractCompactedRow;
 import org.apache.cassandra.db.compaction.AbstractCompactionStrategy;
@@ -39,7 +42,11 @@ import org.apache.cassandra.dht.Range;
 import org.apache.cassandra.dht.Token;
 import org.apache.cassandra.io.sstable.metadata.MetadataCollector;
 import org.apache.cassandra.metrics.StorageMetrics;
+import org.apache.cassandra.notifications.INotification;
+import org.apache.cassandra.notifications.INotificationConsumer;
+import org.apache.cassandra.notifications.SSTableListChangedNotification;
 import org.apache.cassandra.service.StorageService;
+import org.apache.cassandra.streaming.StreamSession;
 import org.apache.cassandra.utils.ByteBufferUtil;
 import org.apache.cassandra.utils.Pair;
 
@@ -764,6 +771,71 @@ public class SSTableRewriterTest extends SchemaLoader
         }
         writer.abort();
         cfs.getDataTracker().unmarkCompacting(sstables);
+        truncate(cfs);
+    }
+
+    @Test
+    public void testSSTableSectionsForRanges() throws IOException, InterruptedException, ExecutionException
+    {
+        Keyspace keyspace = Keyspace.open(KEYSPACE);
+        final ColumnFamilyStore cfs = keyspace.getColumnFamilyStore(CF);
+        truncate(cfs);
+
+        cfs.addSSTable(writeFile(cfs, 1000));
+
+        Collection<SSTableReader> allSSTables = cfs.getSSTables();
+        assertEquals(1, allSSTables.size());
+        final Token firstToken = allSSTables.iterator().next().first.getToken();
+        DatabaseDescriptor.setSSTablePreempiveOpenIntervalInMB(1);
+
+        List<StreamSession.SSTableStreamingSections> sectionsBeforeRewrite = StreamSession.getSSTableSectionsForRanges(
+            Collections.singleton(new Range<Token>(firstToken, firstToken)),
+            Collections.singleton(cfs), 0L, false);
+        assertEquals(1, sectionsBeforeRewrite.size());
+        for (StreamSession.SSTableStreamingSections section : sectionsBeforeRewrite)
+            section.ref.release();
+        final AtomicInteger checkCount = new AtomicInteger();
+        // needed since we get notified when compaction is done as well - we can't get sections for ranges for obsoleted sstables
+        INotificationConsumer consumer = new INotificationConsumer()
+                {
+                    public void handleNotification(INotification notification, Object sender)
+                    {
+                        if (notification instanceof SSTableListChangedNotification)
+                        {
+                            Collection<SSTableReader> added = ((SSTableListChangedNotification) notification).added;
+                            Collection<SSTableReader> removed = ((SSTableListChangedNotification) notification).removed;
+                            // note that we need to check if added.equals(removed) because once the compaction is done the old sstable will have
+                            // selfRef().globalCount() == 0 and we cant get the SectionsForRanges then. During incremental opening we always add and remove the same
+                            // sstable (note that the sstables are x.equal(y) but not x == y since the new one will be a new instance with a moved starting point
+                            // In this case we must avoid trying to call getSSTableSectionsForRanges since we are in the notification
+                            // method and trying to reference an sstable with globalcount == 0 puts it into a loop, and this blocks the tracker from removing the
+                            // unreferenced sstable.
+                            if (added.isEmpty() || !added.iterator().next().getColumnFamilyName().equals(cfs.getColumnFamilyName()) || !added.equals(removed))
+                                return;
+
+                            // at no point must the rewrite process hide
+                            // sections returned by getSSTableSectionsForRanges
+                            Set<Range<Token>> range = Collections.singleton(new Range<Token>(firstToken, firstToken));
+                            List<StreamSession.SSTableStreamingSections> sections = StreamSession.getSSTableSectionsForRanges(range, Collections.singleton(cfs), 0L, false);
+                            assertEquals(1, sections.size());
+                            for (StreamSession.SSTableStreamingSections section : sections)
+                                section.ref.release();
+                            checkCount.incrementAndGet();
+                        }
+                    }
+                };
+        cfs.getDataTracker().subscribe(consumer);
+        try
+        {
+            cfs.forceMajorCompaction();
+            // reset
+        }
+        finally
+        {
+            DatabaseDescriptor.setSSTablePreempiveOpenIntervalInMB(50);
+            cfs.getDataTracker().unsubscribe(consumer);
+        }
+        assertTrue(checkCount.get() >= 2);
         truncate(cfs);
     }
 

@@ -27,6 +27,7 @@ import java.util.concurrent.atomic.AtomicBoolean;
 
 import javax.annotation.Nullable;
 
+import com.google.common.annotations.VisibleForTesting;
 import com.google.common.base.Function;
 import com.google.common.collect.*;
 import org.slf4j.Logger;
@@ -38,6 +39,8 @@ import org.apache.cassandra.db.DataTracker;
 import org.apache.cassandra.db.Keyspace;
 import org.apache.cassandra.db.RowPosition;
 import org.apache.cassandra.dht.AbstractBounds;
+import org.apache.cassandra.dht.Bounds;
+import org.apache.cassandra.dht.IPartitioner;
 import org.apache.cassandra.dht.Range;
 import org.apache.cassandra.dht.Token;
 import org.apache.cassandra.gms.*;
@@ -295,7 +298,8 @@ public class StreamSession implements IEndpointStateChangeSubscriber
         return stores;
     }
 
-    private List<SSTableStreamingSections> getSSTableSectionsForRanges(Collection<Range<Token>> ranges, Collection<ColumnFamilyStore> stores, long overriddenRepairedAt, final boolean isIncremental)
+    @VisibleForTesting
+    public static List<SSTableStreamingSections> getSSTableSectionsForRanges(Collection<Range<Token>> ranges, Collection<ColumnFamilyStore> stores, long overriddenRepairedAt, final boolean isIncremental)
     {
         Refs<SSTableReader> refs = new Refs<>();
         try
@@ -303,30 +307,23 @@ public class StreamSession implements IEndpointStateChangeSubscriber
             for (ColumnFamilyStore cfStore : stores)
             {
                 final List<AbstractBounds<RowPosition>> rowBoundsList = new ArrayList<>(ranges.size());
+                final IPartitioner partitioner = cfStore.partitioner;
                 for (Range<Token> range : ranges)
                     rowBoundsList.add(range.toRowBounds());
                 refs.addAll(cfStore.selectAndReference(new Function<DataTracker.View, List<SSTableReader>>()
                 {
                     public List<SSTableReader> apply(DataTracker.View view)
                     {
-                        Map<SSTableReader, SSTableReader> permittedInstances = new HashMap<>();
-                        for (SSTableReader reader : ColumnFamilyStore.CANONICAL_SSTABLES.apply(view))
-                            permittedInstances.put(reader, reader);
-
+                        DataTracker.SSTableIntervalTree intervalTree = DataTracker.buildIntervalTree(ColumnFamilyStore.CANONICAL_SSTABLES.apply(view));
                         Set<SSTableReader> sstables = Sets.newHashSet();
                         for (AbstractBounds<RowPosition> rowBounds : rowBoundsList)
                         {
-                            // sstableInBounds may contain early opened sstables
-                            for (SSTableReader sstable : view.sstablesInBounds(rowBounds))
+                            for (SSTableReader sstable : DataTracker.View.sstablesInBounds(rowBounds, intervalTree, partitioner))
                             {
-                                if (isIncremental && sstable.isRepaired())
-                                    continue;
-                                sstable = permittedInstances.get(sstable);
-                                if (sstable != null)
+                                if (!isIncremental || !sstable.isRepaired())
                                     sstables.add(sstable);
                             }
                         }
-
                         return ImmutableList.copyOf(sstables);
                     }
                 }).refs);
