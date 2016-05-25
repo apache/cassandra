@@ -6,10 +6,11 @@
 Merged from 2.2:
  * Enable client encryption in sstableloader with cli options (CASSANDRA-11708)
  * Possible memory leak in NIODataInputStream (CASSANDRA-11867)
- * Add message dropped tasks to nodetool netstats (CASSANDRA-11855)
  * Add seconds to cqlsh tracing session duration (CASSANDRA-11753)
  * Prohibit Reversed Counter type as part of the PK (CASSANDRA-9395)
 Merged from 2.1:
+ * Do not consider local node a valid source during replace (CASSANDRA-11848)
+ * Add message dropped tasks to nodetool netstats (CASSANDRA-11855)
  * Avoid holding SSTableReaders for duration of incremental repair (CASSANDRA-11739)
 
 

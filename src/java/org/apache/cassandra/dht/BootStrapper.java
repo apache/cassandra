@@ -75,6 +75,7 @@ public class BootStrapper extends ProgressEventNotifierSupport
                                                    DatabaseDescriptor.getEndpointSnitch(),
                                                    stateStore);
         streamer.addSourceFilter(new RangeStreamer.FailureDetectorSourceFilter(FailureDetector.instance));
+        streamer.addSourceFilter(new RangeStreamer.ExcludeLocalNodeFilter());
 
         for (String keyspaceName : Schema.instance.getNonLocalStrategyKeyspaces())
         {
