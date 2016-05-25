@@ -19,6 +19,7 @@
  * Always close cluster with connection in CqlRecordWriter (CASSANDRA-11553)
  * Fix slice queries on ordered COMPACT tables (CASSANDRA-10988)
 Merged from 2.1:
+ * Do not consider local node a valid source during replace (CASSANDRA-11848)
  * Avoid holding SSTableReaders for duration of incremental repair (CASSANDRA-11739)
  * Add message dropped tasks to nodetool netstats (CASSANDRA-11855)
  * Don't compute expensive MaxPurgeableTimestamp until we've verified there's an 
