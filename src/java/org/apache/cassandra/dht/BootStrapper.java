@@ -76,6 +76,7 @@ public class BootStrapper extends ProgressEventNotifierSupport
                                                    stateStore,
                                                    true);
         streamer.addSourceFilter(new RangeStreamer.FailureDetectorSourceFilter(FailureDetector.instance));
+        streamer.addSourceFilter(new RangeStreamer.ExcludeLocalNodeFilter());
 
         for (String keyspaceName : Schema.instance.getNonLocalStrategyKeyspaces())
         {
