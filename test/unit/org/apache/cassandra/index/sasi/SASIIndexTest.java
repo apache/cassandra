@@ -76,7 +76,12 @@ import org.junit.*;
 
 public class SASIIndexTest
 {
-    private static final IPartitioner PARTITIONER = new Murmur3Partitioner();
+    private static final IPartitioner PARTITIONER;
+
+    static {
+        System.setProperty("cassandra.config", "cassandra-murmur.yaml");
+        PARTITIONER = Murmur3Partitioner.instance;
+    }
 
     private static final String KS_NAME = "sasi";
     private static final String CF_NAME = "test_cf";
@@ -87,7 +92,6 @@ public class SASIIndexTest
     @BeforeClass
     public static void loadSchema() throws ConfigurationException
     {
-        System.setProperty("cassandra.config", "cassandra-murmur.yaml");
         SchemaLoader.loadSchema();
         MigrationManager.announceNewKeyspace(KeyspaceMetadata.create(KS_NAME,
                                                                      KeyspaceParams.simpleTransient(1),

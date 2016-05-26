@@ -59,7 +59,7 @@ public abstract class Rows
     }
 
     /**
-     * Collect statistics ont a given row.
+     * Collect statistics on a given row.
      *
      * @param row the row for which to collect stats.
      * @param collector the stats collector.

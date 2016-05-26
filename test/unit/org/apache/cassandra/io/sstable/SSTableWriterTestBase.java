@@ -31,6 +31,7 @@ import org.junit.AfterClass;
 import org.junit.BeforeClass;
 
 import org.apache.cassandra.SchemaLoader;
+import org.apache.cassandra.config.ColumnDefinition;
 import org.apache.cassandra.config.Config;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.db.ColumnFamilyStore;
@@ -54,6 +55,7 @@ public class SSTableWriterTestBase extends SchemaLoader
 
     protected static final String KEYSPACE = "SSTableRewriterTest";
     protected static final String CF = "Standard1";
+    protected static final String CF_SMALL_MAX_VALUE = "Standard_SmallMaxValue";
 
     private static Config.DiskAccessMode standardMode;
     private static Config.DiskAccessMode indexMode;
@@ -73,7 +75,13 @@ public class SSTableWriterTestBase extends SchemaLoader
         SchemaLoader.prepareServer();
         SchemaLoader.createKeyspace(KEYSPACE,
                                     KeyspaceParams.simple(1),
-                                    SchemaLoader.standardCFMD(KEYSPACE, CF));
+                                    SchemaLoader.standardCFMD(KEYSPACE, CF),
+                                    SchemaLoader.standardCFMD(KEYSPACE, CF_SMALL_MAX_VALUE));
+
+        Keyspace keyspace = Keyspace.open(KEYSPACE);
+        ColumnFamilyStore cfs = keyspace.getColumnFamilyStore(CF_SMALL_MAX_VALUE);
+        for (ColumnDefinition cd : cfs.metadata.allColumns())
+            cd.type.setMaxValueSize(1024 * 1024); // set max value size to 1MB
     }
 
     @AfterClass
