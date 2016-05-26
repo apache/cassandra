@@ -675,10 +675,12 @@ request_timeout_in_ms: 10000
 cross_node_timeout: false
 
 # Set socket timeout for streaming operation.
-# The stream session is failed if no data is received by any of the
-# participants within that period.
-# Default value is 3600000, which means streams timeout after an hour.
-# streaming_socket_timeout_in_ms: 3600000
+# The stream session is failed if no data/ack is received by any of the participants
+# within that period, which means this should also be sufficient to stream a large
+# sstable or rebuild table indexes.
+# Default value is 86400000ms, which means stale streams timeout after 24 hours.
+# A value of zero means stream sockets should never time out.
+# streaming_socket_timeout_in_ms: 86400000
 
 # phi value that must be reached for a host to be marked down.
 # most users should never need to adjust this.

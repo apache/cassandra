@@ -20,6 +20,7 @@ package org.apache.cassandra.streaming;
 import java.io.IOException;
 import java.net.InetAddress;
 import java.net.Socket;
+import java.net.SocketTimeoutException;
 import java.util.*;
 import java.util.concurrent.*;
 import java.util.concurrent.atomic.AtomicBoolean;
@@ -521,7 +522,17 @@ public class StreamSession implements IEndpointStateChangeSubscriber
      */
     public void onError(Throwable e)
     {
-        logger.error("[Stream #{}] Streaming error occurred", planId(), e);
+        if (e instanceof SocketTimeoutException)
+        {
+            logger.error("[Stream #{}] Streaming socket timed out. This means the session peer stopped responding or " +
+                         "is still processing received data. If there is no sign of failure in the other end or a very " +
+                         "dense table is being transferred you may want to increase streaming_socket_timeout_in_ms " +
+                         "property. Current value is {}ms.", planId(), DatabaseDescriptor.getStreamingSocketTimeout(), e);
+        }
+        else
+        {
+            logger.error("[Stream #{}] Streaming error occurred", planId(), e);
+        }
         // send session failure message
         if (handler.isOutgoingConnected())
             handler.sendMessage(new SessionFailedMessage());
