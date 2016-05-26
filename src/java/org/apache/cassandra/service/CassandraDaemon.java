@@ -149,6 +149,8 @@ public class CassandraDaemon
      */
     protected void setup()
     {
+        FileUtils.setFSErrorHandler(new DefaultFSErrorHandler());
+
         // Delete any failed snapshot deletions on Windows - see CASSANDRA-9658
         if (FBUtilities.isWindows())
             WindowsFailedSnapshotTracker.deleteOldSnapshots();
