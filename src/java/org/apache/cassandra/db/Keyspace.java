@@ -451,7 +451,8 @@ public class Keyspace
                     for (int j = 0; j < i; j++)
                         locks[j].unlock();
 
-                    if ((System.currentTimeMillis() - mutation.createdAt) > DatabaseDescriptor.getWriteRpcTimeout())
+                    // avoid throwing a WTE during commitlog replay
+                    if (!isClReplay && (System.currentTimeMillis() - mutation.createdAt) > DatabaseDescriptor.getWriteRpcTimeout())
                     {
                         logger.trace("Could not acquire lock for {} and table {}", ByteBufferUtil.bytesToHex(mutation.key().getKey()), columnFamilyStores.get(cfid).name);
                         Tracing.trace("Could not acquire MV lock");
@@ -464,12 +465,9 @@ public class Keyspace
                     {
                         // This view update can't happen right now. so rather than keep this thread busy
                         // we will re-apply ourself to the queue and try again later
-                        StageManager.getStage(Stage.MUTATION).execute(() -> {
-                            if (writeCommitLog)
-                                apply(mutation, true, true, isClReplay, mark);
-                            else
-                                apply(mutation, false, true, isClReplay, mark);
-                        });
+                        StageManager.getStage(Stage.MUTATION).execute(() ->
+                            apply(mutation, writeCommitLog, true, isClReplay, mark)
+                        );
 
                         return mark;
                     }
