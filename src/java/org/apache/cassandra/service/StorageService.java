@@ -3978,6 +3978,12 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
         StorageProxy.instance.verifyNoHintsInProgress();
 
         setMode(Mode.DRAINING, "flushing column families", false);
+
+        // disable autocompaction - we don't want to start any new compactions while we are draining
+        for (Keyspace keyspace : Keyspace.all())
+            for (ColumnFamilyStore cfs : keyspace.getColumnFamilyStores())
+                cfs.disableAutoCompaction();
+
         // count CFs first, since forceFlush could block for the flushWriter to get a queue slot empty
         totalCFs = 0;
         for (Keyspace keyspace : Keyspace.nonSystem())
