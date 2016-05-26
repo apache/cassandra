@@ -65,7 +65,7 @@ public abstract class RebufferingInputStream extends InputStream implements Data
     {
         int read = read(b, off, len);
         if (read < len)
-            throw new EOFException();
+            throw new EOFException("EOF after " + read + " bytes out of " + len);
     }
 
     @Override

@@ -11,6 +11,7 @@
 3.7
  * Don't use static dataDirectories field in Directories instances (CASSANDRA-11647)
 Merged from 3.0:
+ * Prevent OOM failures on SSTable corruption, improve tests for corruption detection (CASSANDRA-9530)
  * Use CFS.initialDirectories when clearing snapshots (CASSANDRA-11705)
  * Allow compaction strategies to disable early open (CASSANDRA-11754)
  * Refactor Materialized View code (CASSANDRA-11475)

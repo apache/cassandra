@@ -28,26 +28,33 @@ import org.junit.After;
 import org.junit.BeforeClass;
 import org.junit.Test;
 
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertNotNull;
 
 import org.apache.cassandra.SchemaLoader;
 import org.apache.cassandra.Util;
 import org.apache.cassandra.cache.ChunkCache;
+import org.apache.cassandra.config.*;
 import org.apache.cassandra.db.*;
 import org.apache.cassandra.exceptions.ConfigurationException;
 import org.apache.cassandra.io.sstable.format.SSTableReader;
 import org.apache.cassandra.io.util.FileUtils;
-import org.apache.cassandra.schema.KeyspaceParams;
+import org.apache.cassandra.schema.*;
 
-import static org.junit.Assert.assertEquals;
-import static org.junit.Assert.assertNotNull;
 import static org.junit.Assert.assertTrue;
 
 public class BlacklistingCompactionsTest
 {
+    private static final Logger logger = LoggerFactory.getLogger(BlacklistingCompactionsTest.class);
+
+    private static Random random;
+
     private static final String KEYSPACE1 = "BlacklistingCompactionsTest";
-    private static final String CF_STANDARD1 = "Standard1";
+    private static final String STANDARD_STCS = "Standard_STCS";
+    private static final String STANDARD_LCS = "Standard_LCS";
 
     @After
     public void leakDetect() throws InterruptedException
@@ -61,10 +68,26 @@ public class BlacklistingCompactionsTest
     @BeforeClass
     public static void defineSchema() throws ConfigurationException
     {
+        long seed = System.nanoTime();
+        //long seed = 754271160974509L; // CASSANDRA-9530: use this seed to reproduce compaction failures if reading empty rows
+        logger.info("Seed {}", seed);
+        random = new Random(seed);
+
         SchemaLoader.prepareServer();
         SchemaLoader.createKeyspace(KEYSPACE1,
                                     KeyspaceParams.simple(1),
-                                    SchemaLoader.standardCFMD(KEYSPACE1, CF_STANDARD1));
+                                    SchemaLoader.standardCFMD(KEYSPACE1, STANDARD_STCS).compaction(CompactionParams.DEFAULT),
+                                    SchemaLoader.standardCFMD(KEYSPACE1, STANDARD_LCS).compaction(CompactionParams.lcs(Collections.emptyMap())));
+
+        Keyspace keyspace = Keyspace.open(KEYSPACE1);
+        for (String tableName : new String[] {STANDARD_STCS, STANDARD_LCS})
+        {
+            final ColumnFamilyStore cfs = keyspace.getColumnFamilyStore(tableName);
+
+            for (ColumnDefinition cd : cfs.metadata.allColumns())
+                cd.type.setMaxValueSize(1024 * 1024); // set max value size to 1MB
+        }
+
         closeStdErr();
     }
 
@@ -81,20 +104,20 @@ public class BlacklistingCompactionsTest
     @Test
     public void testBlacklistingWithSizeTieredCompactionStrategy() throws Exception
     {
-        testBlacklisting(SizeTieredCompactionStrategy.class.getCanonicalName());
+        testBlacklisting(STANDARD_STCS);
     }
 
     @Test
     public void testBlacklistingWithLeveledCompactionStrategy() throws Exception
     {
-        testBlacklisting(LeveledCompactionStrategy.class.getCanonicalName());
+        testBlacklisting(STANDARD_LCS);
     }
 
-    public void testBlacklisting(String compactionStrategy) throws Exception
+    private void testBlacklisting(String tableName) throws Exception
     {
         // this test does enough rows to force multiple block indexes to be used
         Keyspace keyspace = Keyspace.open(KEYSPACE1);
-        final ColumnFamilyStore cfs = keyspace.getColumnFamilyStore("Standard1");
+        final ColumnFamilyStore cfs = keyspace.getColumnFamilyStore(tableName);
 
         final int ROWS_PER_SSTABLE = 10;
         final int SSTABLES = cfs.metadata.params.minIndexInterval * 2 / ROWS_PER_SSTABLE;
@@ -143,11 +166,11 @@ public class BlacklistingCompactionsTest
                 raf = new RandomAccessFile(sstable.getFilename(), "rw");
                 assertNotNull(raf);
                 assertTrue(raf.length() > corruptionSize);
-                raf.seek(new Random().nextInt((int)(raf.length() - corruptionSize)));
+                raf.seek(random.nextInt((int)(raf.length() - corruptionSize)));
                 // We want to write something large enough that the corruption cannot get undetected
                 // (even without compression)
                 byte[] corruption = new byte[corruptionSize];
-                Arrays.fill(corruption, (byte)0xFF);
+                random.nextBytes(corruption);
                 raf.write(corruption);
                 if (ChunkCache.instance != null)
                     ChunkCache.instance.invalidateFile(sstable.getFilename());

@@ -330,7 +330,7 @@ public class BigTableScanner implements ISSTableScanner
                             if (dataRange == null)
                             {
                                 dfile.seek(currentEntry.position);
-                                ByteBufferUtil.readWithShortLength(dfile); // key
+                                ByteBufferUtil.skipShortLength(dfile); // key
                                 return new SSTableIdentityIterator(sstable, dfile, partitionKey());
                             }
 

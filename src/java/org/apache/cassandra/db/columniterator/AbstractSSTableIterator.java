@@ -365,7 +365,7 @@ public abstract class AbstractSSTableIterator implements UnfilteredRowIterator
             {
                 return hasNextInternal();
             }
-            catch (IOException e)
+            catch (IOException | IndexOutOfBoundsException e)
             {
                 try
                 {

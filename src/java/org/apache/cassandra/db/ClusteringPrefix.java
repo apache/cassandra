@@ -449,7 +449,9 @@ public interface ClusteringPrefix extends IMeasurableMemory, Clusterable
 
         public void prepare(int flags, int extendedFlags) throws IOException
         {
-            assert !UnfilteredSerializer.isStatic(extendedFlags) : "Flags = " + flags;
+            if (UnfilteredSerializer.isStatic(extendedFlags))
+                throw new IOException("Corrupt flags value for clustering prefix (isStatic flag set): " + flags);
+
             this.nextIsRow = UnfilteredSerializer.kind(flags) == Unfiltered.Kind.ROW;
             this.nextKind = nextIsRow ? Kind.CLUSTERING : ClusteringPrefix.Kind.values()[in.readByte()];
             this.nextSize = nextIsRow ? comparator.size() : in.readUnsignedShort();
