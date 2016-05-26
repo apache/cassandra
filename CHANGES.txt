@@ -14,6 +14,7 @@ Merged from 2.2:
  * Prohibit Reversed Counter type as part of the PK (CASSANDRA-9395)
  * cqlsh: correctly handle non-ascii chars in error messages (CASSANDRA-11626)
 Merged from 2.1:
+ * Clear out parent repair session if repair coordinator dies (CASSANDRA-11824)
  * Set default streaming_socket_timeout_in_ms to 24 hours (CASSANDRA-11840)
  * Do not consider local node a valid source during replace (CASSANDRA-11848)
  * Add message dropped tasks to nodetool netstats (CASSANDRA-11855)

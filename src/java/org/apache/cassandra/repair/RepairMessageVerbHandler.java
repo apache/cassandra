@@ -72,11 +72,12 @@ public class RepairMessageVerbHandler implements IVerbHandler<RepairMessage>
                         columnFamilyStores.add(columnFamilyStore);
                     }
                     ActiveRepairService.instance.registerParentRepairSession(prepareMessage.parentRepairSession,
-                            columnFamilyStores,
-                            prepareMessage.ranges,
-                            prepareMessage.isIncremental,
-                            prepareMessage.timestamp,
-                            prepareMessage.isGlobal);
+                                                                             message.from,
+                                                                             columnFamilyStores,
+                                                                             prepareMessage.ranges,
+                                                                             prepareMessage.isIncremental,
+                                                                             prepareMessage.timestamp,
+                                                                             prepareMessage.isGlobal);
                     MessagingService.instance().sendReply(new MessageOut(MessagingService.Verb.INTERNAL_RESPONSE), id, message.from);
                     break;
 
