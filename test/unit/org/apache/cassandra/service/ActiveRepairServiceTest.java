@@ -226,7 +226,7 @@ public class ActiveRepairServiceTest
         Set<SSTableReader> original = store.getLiveSSTables();
 
         UUID prsId = UUID.randomUUID();
-        ActiveRepairService.instance.registerParentRepairSession(prsId, Collections.singletonList(store), null, true, 0, false);
+        ActiveRepairService.instance.registerParentRepairSession(prsId, FBUtilities.getBroadcastAddress(), Collections.singletonList(store), null, true, 0, false);
         ActiveRepairService.ParentRepairSession prs = ActiveRepairService.instance.getParentRepairSession(prsId);
 
         //add all sstables to parent repair session
