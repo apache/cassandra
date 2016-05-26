@@ -55,7 +55,6 @@ import org.apache.cassandra.tracing.Tracing;
 import org.apache.cassandra.transport.Server;
 import org.apache.cassandra.transport.messages.ResultMessage;
 import org.apache.cassandra.utils.*;
-import org.github.jamm.MemoryMeter;
 
 public class QueryProcessor implements QueryHandler
 {
@@ -64,25 +63,6 @@ public class QueryProcessor implements QueryHandler
     public static final QueryProcessor instance = new QueryProcessor();
 
     private static final Logger logger = LoggerFactory.getLogger(QueryProcessor.class);
-    private static final MemoryMeter meter = new MemoryMeter().withGuessing(MemoryMeter.Guess.FALLBACK_BEST).ignoreKnownSingletons();
-
-    private static final EntryWeigher<MD5Digest, ParsedStatement.Prepared> cqlMemoryUsageWeigher = new EntryWeigher<MD5Digest, ParsedStatement.Prepared>()
-    {
-        @Override
-        public int weightOf(MD5Digest key, ParsedStatement.Prepared value)
-        {
-            return Ints.checkedCast(measure(key) + measure(value.rawCQLStatement) + measure(value.statement) + measure(value.boundNames));
-        }
-    };
-
-    private static final EntryWeigher<Integer, ParsedStatement.Prepared> thriftMemoryUsageWeigher = new EntryWeigher<Integer, ParsedStatement.Prepared>()
-    {
-        @Override
-        public int weightOf(Integer key, ParsedStatement.Prepared value)
-        {
-            return Ints.checkedCast(measure(key) + measure(value.rawCQLStatement) + measure(value.statement) + measure(value.boundNames));
-        }
-    };
 
     private static final ConcurrentLinkedHashMap<MD5Digest, ParsedStatement.Prepared> preparedStatements;
     private static final ConcurrentLinkedHashMap<Integer, ParsedStatement.Prepared> thriftPreparedStatements;
@@ -102,7 +82,7 @@ public class QueryProcessor implements QueryHandler
     {
         preparedStatements = new ConcurrentLinkedHashMap.Builder<MD5Digest, ParsedStatement.Prepared>()
                              .maximumWeightedCapacity(capacityToBytes(DatabaseDescriptor.getPreparedStatementsCacheSizeMB()))
-                             .weigher(cqlMemoryUsageWeigher)
+                             .weigher(QueryProcessor::measure)
                              .listener((md5Digest, prepared) -> {
                                  metrics.preparedStatementsEvicted.inc();
                                  lastMinuteEvictionsCount.incrementAndGet();
@@ -110,7 +90,7 @@ public class QueryProcessor implements QueryHandler
 
         thriftPreparedStatements = new ConcurrentLinkedHashMap.Builder<Integer, ParsedStatement.Prepared>()
                                    .maximumWeightedCapacity(capacityToBytes(DatabaseDescriptor.getThriftPreparedStatementsCacheSizeMB()))
-                                   .weigher(thriftMemoryUsageWeigher)
+                                   .weigher(QueryProcessor::measure)
                                    .listener((integer, prepared) -> {
                                        metrics.preparedStatementsEvicted.inc();
                                        thriftLastMinuteEvictionsCount.incrementAndGet();
@@ -429,7 +409,7 @@ public class QueryProcessor implements QueryHandler
     {
         // Concatenate the current keyspace so we don't mix prepared statements between keyspace (#5352).
         // (if the keyspace is null, queryString has to have a fully-qualified keyspace so it's fine.
-        long statementSize = measure(prepared.statement);
+        long statementSize = ObjectSizes.measureDeep(prepared.statement);
         // don't execute the statement if it's bigger than the allowed threshold
         if (forThrift)
         {
@@ -544,9 +524,9 @@ public class QueryProcessor implements QueryHandler
         }
     }
 
-    private static long measure(Object key)
+    private static int measure(Object key, ParsedStatement.Prepared value)
     {
-        return meter.measureDeep(key);
+        return Ints.checkedCast(ObjectSizes.measureDeep(key) + ObjectSizes.measureDeep(value));
     }
 
     /**
