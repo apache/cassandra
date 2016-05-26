@@ -58,9 +58,9 @@ public abstract class ParsedStatement
 
         public final CQLStatement statement;
         public final List<ColumnSpecification> boundNames;
-        public final Short[] partitionKeyBindIndexes;
+        public final short[] partitionKeyBindIndexes;
 
-        protected Prepared(CQLStatement statement, List<ColumnSpecification> boundNames, Short[] partitionKeyBindIndexes)
+        protected Prepared(CQLStatement statement, List<ColumnSpecification> boundNames, short[] partitionKeyBindIndexes)
         {
             this.statement = statement;
             this.boundNames = boundNames;
@@ -68,7 +68,7 @@ public abstract class ParsedStatement
             this.rawCQLStatement = "";
         }
 
-        public Prepared(CQLStatement statement, VariableSpecifications names, Short[] partitionKeyBindIndexes)
+        public Prepared(CQLStatement statement, VariableSpecifications names, short[] partitionKeyBindIndexes)
         {
             this(statement, names.getSpecifications(), partitionKeyBindIndexes);
         }

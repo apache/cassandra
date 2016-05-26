@@ -231,7 +231,7 @@ public class SerDeserTest
         for (int i = 0; i < 3; i++)
             columnNames.add(new ColumnSpecification("ks", "cf", new ColumnIdentifier("col" + i, false), Int32Type.instance));
 
-        ResultSet.PreparedMetadata meta = new ResultSet.PreparedMetadata(columnNames, new Short[]{2, 1});
+        ResultSet.PreparedMetadata meta = new ResultSet.PreparedMetadata(columnNames, new short[]{2, 1});
         ByteBuf buf = Unpooled.buffer(meta.codec.encodedSize(meta, Server.VERSION_4));
         meta.codec.encode(meta, buf, Server.VERSION_4);
         ResultSet.PreparedMetadata decodedMeta = meta.codec.decode(buf, Server.VERSION_4);

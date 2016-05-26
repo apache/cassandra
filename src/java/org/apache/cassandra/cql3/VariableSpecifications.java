@@ -63,9 +63,10 @@ public class VariableSpecifications
      *
      * Callers of this method should ensure that all statements operate on the same table.
      */
-    public Short[] getPartitionKeyBindIndexes(CFMetaData cfm)
+    public short[] getPartitionKeyBindIndexes(CFMetaData cfm)
     {
-        Short[] partitionKeyPositions = new Short[cfm.partitionKeyColumns().size()];
+        short[] partitionKeyPositions = new short[cfm.partitionKeyColumns().size()];
+        boolean[] set = new boolean[partitionKeyPositions.length];
         for (int i = 0; i < targetColumns.length; i++)
         {
             ColumnDefinition targetColumn = targetColumns[i];
@@ -73,14 +74,13 @@ public class VariableSpecifications
             {
                 assert targetColumn.ksName.equals(cfm.ksName) && targetColumn.cfName.equals(cfm.cfName);
                 partitionKeyPositions[targetColumn.position()] = (short) i;
+                set[targetColumn.position()] = true;
             }
         }
 
-        for (Short bindIndex : partitionKeyPositions)
-        {
-            if (bindIndex == null)
+        for (boolean b : set)
+            if (!b)
                 return null;
-        }
 
         return partitionKeyPositions;
     }

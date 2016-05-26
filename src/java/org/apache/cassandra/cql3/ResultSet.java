@@ -438,16 +438,16 @@ public class ResultSet
 
         private final EnumSet<Flag> flags;
         public final List<ColumnSpecification> names;
-        private final Short[] partitionKeyBindIndexes;
+        private final short[] partitionKeyBindIndexes;
 
-        public PreparedMetadata(List<ColumnSpecification> names, Short[] partitionKeyBindIndexes)
+        public PreparedMetadata(List<ColumnSpecification> names, short[] partitionKeyBindIndexes)
         {
             this(EnumSet.noneOf(Flag.class), names, partitionKeyBindIndexes);
             if (!names.isEmpty() && ColumnSpecification.allInSameTable(names))
                 flags.add(Flag.GLOBAL_TABLES_SPEC);
         }
 
-        private PreparedMetadata(EnumSet<Flag> flags, List<ColumnSpecification> names, Short[] partitionKeyBindIndexes)
+        private PreparedMetadata(EnumSet<Flag> flags, List<ColumnSpecification> names, short[] partitionKeyBindIndexes)
         {
             this.flags = flags;
             this.names = names;
@@ -506,13 +506,13 @@ public class ResultSet
 
                 EnumSet<Flag> flags = Flag.deserialize(iflags);
 
-                Short[] partitionKeyBindIndexes = null;
+                short[] partitionKeyBindIndexes = null;
                 if (version >= Server.VERSION_4)
                 {
                     int numPKNames = body.readInt();
                     if (numPKNames > 0)
                     {
-                        partitionKeyBindIndexes = new Short[numPKNames];
+                        partitionKeyBindIndexes = new short[numPKNames];
                         for (int i = 0; i < numPKNames; i++)
                             partitionKeyBindIndexes[i] = body.readShort();
                     }
