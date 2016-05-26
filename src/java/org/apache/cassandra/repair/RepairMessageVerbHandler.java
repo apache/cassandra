@@ -82,10 +82,11 @@ public class RepairMessageVerbHandler implements IVerbHandler<RepairMessage>
                                        message.payload.messageType.equals(RepairMessage.Type.PREPARE_GLOBAL_MESSAGE);
                     logger.debug("Received prepare message: global message = {}, peerVersion = {},", message.payload.messageType.equals(RepairMessage.Type.PREPARE_GLOBAL_MESSAGE), peerVersion);
                     ActiveRepairService.instance.registerParentRepairSession(prepareMessage.parentRepairSession,
-                            columnFamilyStores,
-                            prepareMessage.ranges,
-                            prepareMessage.isIncremental,
-                            isGlobal);
+                                                                             message.from,
+                                                                             columnFamilyStores,
+                                                                             prepareMessage.ranges,
+                                                                             prepareMessage.isIncremental,
+                                                                             isGlobal);
                     MessagingService.instance().sendReply(new MessageOut(MessagingService.Verb.INTERNAL_RESPONSE), id, message.from);
                     break;
 
