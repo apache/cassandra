@@ -13,6 +13,7 @@
 3.7
  * Don't use static dataDirectories field in Directories instances (CASSANDRA-11647)
 Merged from 3.0:
+ * cqlsh: Suppress stack trace from Read/WriteFailures (CASSANDRA-11032)
  * Remove unneeded code to repair index summaries that have
    been improperly down-sampled (CASSANDRA-11127)
  * Avoid WriteTimeoutExceptions during commit log replay due to materialized
