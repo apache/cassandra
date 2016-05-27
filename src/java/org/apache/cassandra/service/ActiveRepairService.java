@@ -425,7 +425,7 @@ public class ActiveRepairService implements IEndpointStateChangeSubscriber, IFai
         List<ListenableFuture<?>> futures = new ArrayList<>();
         for (Map.Entry<UUID, ColumnFamilyStore> columnFamilyStoreEntry : prs.columnFamilyStores.entrySet())
         {
-            Refs<SSTableReader> sstables = prs.getActiveRepairedSSTableRefs(columnFamilyStoreEntry.getKey());
+            Refs<SSTableReader> sstables = prs.getActiveRepairedSSTableRefsForAntiCompaction(columnFamilyStoreEntry.getKey());
             ColumnFamilyStore cfs = columnFamilyStoreEntry.getValue();
             futures.add(CompactionManager.instance.submitAntiCompaction(cfs, prs.ranges, sstables, prs.repairedAt));
         }
@@ -465,6 +465,18 @@ public class ActiveRepairService implements IEndpointStateChangeSubscriber, IFai
         }
     }
 
+    /**
+     * We keep a ParentRepairSession around for the duration of the entire repair, for example, on a 256 token vnode rf=3 cluster
+     * we would have 768 RepairSession but only one ParentRepairSession. We use the PRS to avoid anticompacting the sstables
+     * 768 times, instead we take all repaired ranges at the end of the repair and anticompact once.
+     *
+     * We do an optimistic marking of sstables - when we start an incremental repair we mark all unrepaired sstables as
+     * repairing (@see markSSTablesRepairing), then while the repair is ongoing compactions might remove those sstables,
+     * and when it is time for anticompaction we will only anticompact the sstables that are still on disk.
+     *
+     * Note that validation and streaming do not care about which sstables we have marked as repairing - they operate on
+     * all unrepaired sstables (if it is incremental), otherwise we would not get a correct repair.
+     */
     public static class ParentRepairSession
     {
         public final Map<UUID, ColumnFamilyStore> columnFamilyStores = new HashMap<>();
@@ -480,13 +492,16 @@ public class ActiveRepairService implements IEndpointStateChangeSubscriber, IFai
          * request, we need to fail the coordinator as well.
          */
         public final boolean failed;
+        /**
+         * Indicates whether we have marked sstables as repairing. Can only be done once per table per ParentRepairSession
+         */
+        private final Set<UUID> marked = new HashSet<>();
 
         public ParentRepairSession(InetAddress coordinator, List<ColumnFamilyStore> columnFamilyStores, Collection<Range<Token>> ranges, long repairedAt, boolean failed)
         {
             this.coordinator = coordinator;
             for (ColumnFamilyStore cfs : columnFamilyStores)
             {
-
                 this.columnFamilyStores.put(cfs.metadata.cfId, cfs);
                 sstableMap.put(cfs.metadata.cfId, new HashSet<String>());
             }
@@ -500,9 +515,18 @@ public class ActiveRepairService implements IEndpointStateChangeSubscriber, IFai
             this(coordinator, columnFamilyStores, ranges, repairedAt, false);
         }
 
+        /**
+         * Gets the repairing sstables for anticompaction.
+         *
+         * Note that validation and streaming uses the real unrepaired sstables.
+         *
+         * @param cfId
+         * @return
+         */
         @SuppressWarnings("resource")
-        public synchronized Refs<SSTableReader> getActiveRepairedSSTableRefs(UUID cfId)
+        public synchronized Refs<SSTableReader> getActiveRepairedSSTableRefsForAntiCompaction(UUID cfId)
         {
+            assert marked.contains(cfId);
             ImmutableMap.Builder<SSTableReader, Ref<SSTableReader>> references = ImmutableMap.builder();
             for (SSTableReader sstable : getActiveSSTables(cfId))
             {
@@ -513,6 +537,30 @@ public class ActiveRepairService implements IEndpointStateChangeSubscriber, IFai
                     references.put(sstable, ref);
             }
             return new Refs<>(references.build());
+        }
+
+        /**
+         * Marks all the unrepaired sstables as repairing unless we have already done so.
+         *
+         * Any of these sstables that are still on disk are then anticompacted once the streaming and validation phases are done.
+         *
+         * @param cfId
+         * @param parentSessionId used to check that we don't start multiple inc repair sessions over the same sstables
+         */
+        public synchronized void markSSTablesRepairing(UUID cfId, UUID parentSessionId)
+        {
+            if (!marked.contains(cfId))
+            {
+                List<SSTableReader> sstables = columnFamilyStores.get(cfId).select(ColumnFamilyStore.UNREPAIRED_SSTABLES).sstables;
+                Set<SSTableReader> currentlyRepairing = ActiveRepairService.instance.currentlyRepairing(cfId, parentSessionId);
+                if (!Sets.intersection(currentlyRepairing, Sets.newHashSet(sstables)).isEmpty())
+                {
+                    logger.error("Cannot start multiple repair sessions over the same sstables");
+                    throw new RuntimeException("Cannot start multiple repair sessions over the same sstables");
+                }
+                addSSTables(cfId, sstables);
+                marked.add(cfId);
+            }
         }
 
         private Set<SSTableReader> getActiveSSTables(UUID cfId)
@@ -534,12 +582,10 @@ public class ActiveRepairService implements IEndpointStateChangeSubscriber, IFai
             return activeSSTables;
         }
 
-        public void addSSTables(UUID cfId, Collection<SSTableReader> sstables)
+        private void addSSTables(UUID cfId, Collection<SSTableReader> sstables)
         {
             for (SSTableReader sstable : sstables)
-            {
                 sstableMap.get(cfId).add(sstable.getFilename());
-            }
         }
 
         public ParentRepairSession asFailed()
@@ -556,6 +602,7 @@ public class ActiveRepairService implements IEndpointStateChangeSubscriber, IFai
                     ", repairedAt=" + repairedAt +
                     '}';
         }
+
     }
 
     /*

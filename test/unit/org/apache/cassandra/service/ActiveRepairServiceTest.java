@@ -42,6 +42,7 @@ import org.apache.cassandra.utils.concurrent.Refs;
 
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
+import static org.junit.Assert.assertTrue;
 
 public class ActiveRepairServiceTest extends SchemaLoader
 {
@@ -58,12 +59,9 @@ public class ActiveRepairServiceTest extends SchemaLoader
         UUID prsId = UUID.randomUUID();
         ActiveRepairService.instance.registerParentRepairSession(prsId, FBUtilities.getBroadcastAddress(), Collections.singletonList(store), null);
         ActiveRepairService.ParentRepairSession prs = ActiveRepairService.instance.getParentRepairSession(prsId);
-
-        //add all sstables to parent repair session
-        prs.addSSTables(store.metadata.cfId, original);
-
+        prs.markSSTablesRepairing(store.metadata.cfId, prsId);
         //retrieve all sstable references from parent repair sessions
-        Refs<SSTableReader> refs = prs.getActiveRepairedSSTableRefs(store.metadata.cfId);
+        Refs<SSTableReader> refs = prs.getActiveRepairedSSTableRefsForAntiCompaction(store.metadata.cfId);
         Set<SSTableReader> retrieved = Sets.newHashSet(refs.iterator());
         assertEquals(original, retrieved);
         refs.release();
@@ -76,11 +74,46 @@ public class ActiveRepairServiceTest extends SchemaLoader
         store.getDataTracker().replaceWithNewInstances(Collections.singleton(removed), Collections.EMPTY_SET);
 
         //retrieve sstable references from parent repair session again - removed sstable must not be present
-        refs = prs.getActiveRepairedSSTableRefs(store.metadata.cfId);
+        refs = prs.getActiveRepairedSSTableRefsForAntiCompaction(store.metadata.cfId);
         retrieved = Sets.newHashSet(refs.iterator());
         assertEquals(newLiveSet, retrieved);
         assertFalse(retrieved.contains(removed));
         refs.release();
+    }
+
+    @Test
+    public void testAddingMoreSSTables()
+    {
+        ColumnFamilyStore store = prepareColumnFamilyStore();
+        Set<SSTableReader> original = store.getUnrepairedSSTables();
+        UUID prsId = UUID.randomUUID();
+        ActiveRepairService.instance.registerParentRepairSession(prsId, FBUtilities.getBroadcastAddress(), Collections.singletonList(store), null);
+        ActiveRepairService.ParentRepairSession prs = ActiveRepairService.instance.getParentRepairSession(prsId);
+        prs.markSSTablesRepairing(store.metadata.cfId, prsId);
+        try (Refs<SSTableReader> refs = prs.getActiveRepairedSSTableRefsForAntiCompaction(store.metadata.cfId))
+        {
+            Set<SSTableReader> retrieved = Sets.newHashSet(refs.iterator());
+            assertEquals(original, retrieved);
+        }
+        createSSTables(store, 2);
+        boolean exception = false;
+        try
+        {
+            UUID newPrsId = UUID.randomUUID();
+            ActiveRepairService.instance.registerParentRepairSession(newPrsId, FBUtilities.getBroadcastAddress(), Collections.singletonList(store), null);
+            ActiveRepairService.instance.getParentRepairSession(newPrsId).markSSTablesRepairing(store.metadata.cfId, newPrsId);
+        }
+        catch (Throwable t)
+        {
+            exception = true;
+        }
+        assertTrue(exception);
+
+        try (Refs<SSTableReader> refs = prs.getActiveRepairedSSTableRefsForAntiCompaction(store.metadata.cfId))
+        {
+            Set<SSTableReader> retrieved = Sets.newHashSet(refs.iterator());
+            assertEquals(original, retrieved);
+        }
     }
 
     private ColumnFamilyStore prepareColumnFamilyStore()
@@ -89,9 +122,14 @@ public class ActiveRepairServiceTest extends SchemaLoader
         ColumnFamilyStore store = keyspace.getColumnFamilyStore(CF);
         store.truncateBlocking();
         store.disableAutoCompaction();
+        createSSTables(store, 10);
+        return store;
+    }
+
+    private void createSSTables(ColumnFamilyStore cfs, int count)
+    {
         long timestamp = System.currentTimeMillis();
-        //create 10 sstables
-        for (int i = 0; i < 10; i++)
+        for (int i = 0; i < count; i++)
         {
             DecoratedKey key = Util.dk(Integer.toString(i));
             Mutation rm = new Mutation(KEYSPACE1, key.getKey());
@@ -101,8 +139,7 @@ public class ActiveRepairServiceTest extends SchemaLoader
                        timestamp,
                        0);
             rm.apply();
-            store.forceBlockingFlush();
+            cfs.forceBlockingFlush();
         }
-        return store;
     }
 }
