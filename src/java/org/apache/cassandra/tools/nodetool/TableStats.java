@@ -185,7 +185,15 @@ public class TableStats extends NodeToolCmd
                 if (offHeapSize != null)
                     System.out.println("\t\tOff heap memory used (total): " + format(offHeapSize, humanReadable));
                 System.out.println("\t\tSSTable Compression Ratio: " + probe.getColumnFamilyMetric(keyspaceName, tableName, "CompressionRatio"));
-                System.out.println("\t\tNumber of keys (estimate): " + probe.getColumnFamilyMetric(keyspaceName, tableName, "EstimatedRowCount"));
+
+                Object estimatedRowCount = probe.getColumnFamilyMetric(keyspaceName, tableName, "EstimatedRowCount");
+                if (Long.valueOf(-1L).equals(estimatedRowCount))
+                {
+                    estimatedRowCount = 0L;
+                }
+
+                System.out.println("\t\tNumber of keys (estimate): " + estimatedRowCount);
+
                 System.out.println("\t\tMemtable cell count: " + probe.getColumnFamilyMetric(keyspaceName, tableName, "MemtableColumnsCount"));
                 System.out.println("\t\tMemtable data size: " + format((Long) probe.getColumnFamilyMetric(keyspaceName, tableName, "MemtableLiveDataSize"), humanReadable));
                 if (memtableOffHeapSize != null)
