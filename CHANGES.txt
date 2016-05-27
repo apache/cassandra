@@ -1,4 +1,5 @@
 3.6
+ * Fix sstables not being protected from removal during index build (CASSANDRA-11905)
  * Correctly migrate schema for frozen UDTs during 2.x -> 3.x upgrades
    (does not affect any released versions) (CASSANDRA-11613)
  * Allow server startup if JMX is configured directly (CASSANDRA-11725)
