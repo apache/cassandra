@@ -35,6 +35,7 @@ import org.apache.cassandra.config.Config;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.db.*;
 import org.apache.cassandra.io.FSWriteError;
+import org.apache.cassandra.io.sstable.SSTableDeletingTask;
 import org.apache.cassandra.io.util.DataOutputByteBuffer;
 import org.apache.cassandra.metrics.CommitLogMetrics;
 import org.apache.cassandra.net.MessagingService;
@@ -101,7 +102,7 @@ public class CommitLog implements CommitLogMBean
                 // we used to try to avoid instantiating commitlog (thus creating an empty segment ready for writes)
                 // until after recover was finished.  this turns out to be fragile; it is less error-prone to go
                 // ahead and allow writes before recover(), and just skip active segments when we do.
-                return CommitLogDescriptor.isValid(name) && !instance.allocator.manages(name);
+                return CommitLogDescriptor.isValid(name) && CommitLogSegment.shouldReplay(name);
             }
         };
 
@@ -367,11 +368,21 @@ public class CommitLog implements CommitLogMBean
 
     /**
      * FOR TESTING PURPOSES. See CommitLogAllocator.
+     *
+     * There is a race at the moment, even if this method
+     * is synchronized we can still create an allocation
+     * on a segment that will be closed in this method,
+     * therefore causing {@link Allocation#awaitDiskSync()} to hang
+     * forever. This typically happens because of the mutations created
+     * by {@link org.apache.cassandra.io.sstable.SSTableReader.GlobalTidy},
+     * that's why we wait for all deletions to complete firtst.
      */
-    public void resetUnsafe()
+    public synchronized void resetUnsafe()
     {
+        SSTableDeletingTask.waitForDeletions();
         sync(true);
         allocator.resetUnsafe();
+        CommitLogSegment.resetReplayLimit();
     }
 
     /**

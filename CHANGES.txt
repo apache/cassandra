@@ -1,4 +1,5 @@
 2.1.17
+ * Fix RecoveryManagerTruncateTest (CASSANDRA-12802)
  * Don't skip sstables based on maxLocalDeletionTime (CASSANDRA-12765)
 
 

@@ -61,6 +61,7 @@ public class CommitLogSegment
 
     private final static long idBase;
     private final static AtomicInteger nextId = new AtomicInteger(1);
+    private static long replayLimitId;
     static
     {
         long maxId = Long.MIN_VALUE;
@@ -69,7 +70,7 @@ public class CommitLogSegment
             if (CommitLogDescriptor.isValid(file.getName()))
                 maxId = Math.max(CommitLogDescriptor.fromFileName(file.getName()).id, maxId);
         }
-        idBase = Math.max(System.currentTimeMillis(), maxId + 1);
+        replayLimitId = idBase = Math.max(System.currentTimeMillis(), maxId + 1);
     }
 
     // The commit log entry overhead in bytes (int: length + int: head checksum + int: tail checksum)
@@ -201,6 +202,19 @@ public class CommitLogSegment
             opGroup.close();
             throw t;
         }
+    }
+
+    static boolean shouldReplay(String name)
+    {
+        return CommitLogDescriptor.fromFileName(name).id < replayLimitId;
+    }
+
+    /**
+     * FOR TESTING PURPOSES.
+     */
+    static void resetReplayLimit()
+    {
+        replayLimitId = getNextId();
     }
 
     // allocate bytes in the segment, or return -1 if not enough space
