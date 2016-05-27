@@ -13,6 +13,8 @@
 3.7
  * Don't use static dataDirectories field in Directories instances (CASSANDRA-11647)
 Merged from 3.0:
+ * Remove unneeded code to repair index summaries that have
+   been improperly down-sampled (CASSANDRA-11127)
  * Avoid WriteTimeoutExceptions during commit log replay due to materialized
    view lock contention (CASSANDRA-11891)
  * Prevent OOM failures on SSTable corruption, improve tests for corruption detection (CASSANDRA-9530)
