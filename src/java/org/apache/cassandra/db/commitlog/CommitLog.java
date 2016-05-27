@@ -134,11 +134,6 @@ public class CommitLog implements CommitLogMBean
         if (allocator.createReserveSegments)
             return 0;
 
-        // Allocator could be in the process of initial startup with 0 active and available segments. We need to wait for
-        // the allocation manager to finish allocation and add it to available segments so we don't get an invalid response
-        // on allocator.manages(...) below by grabbing a file off the filesystem before it's added to the CLQ.
-        allocator.allocatingFrom();
-
         FilenameFilter unmanagedFilesFilter = new FilenameFilter()
         {
             public boolean accept(File dir, String name)
@@ -146,7 +141,7 @@ public class CommitLog implements CommitLogMBean
                 // we used to try to avoid instantiating commitlog (thus creating an empty segment ready for writes)
                 // until after recover was finished.  this turns out to be fragile; it is less error-prone to go
                 // ahead and allow writes before recover(), and just skip active segments when we do.
-                return CommitLogDescriptor.isValid(name) && !allocator.manages(name);
+                return CommitLogDescriptor.isValid(name) && CommitLogSegment.shouldReplay(name);
             }
         };
 
@@ -439,6 +434,7 @@ public class CommitLog implements CommitLogMBean
             throw new RuntimeException(e);
         }
         allocator.stopUnsafe(deleteSegments);
+        CommitLogSegment.resetReplayLimit();
     }
 
     /**
