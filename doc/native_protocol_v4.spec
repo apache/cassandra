@@ -65,7 +65,7 @@ Table of Contents
   Each frame contains a fixed size header (9 bytes) followed by a variable size
   body. The header is described in Section 2. The content of the body depends
   on the header opcode value (the body can in particular be empty for some
-  opcode values). The list of allowed opcodes is defined in Section 2.3 and the
+  opcode values). The list of allowed opcodes is defined in Section 2.4 and the
   details of each corresponding message are described Section 4.
 
   The protocol distinguishes two types of frames: requests and responses. Requests
