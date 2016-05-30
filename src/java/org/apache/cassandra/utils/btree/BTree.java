@@ -838,6 +838,7 @@ public class BTree
         {
             this.comparator = comparator;
             quickResolver = null;
+            Arrays.fill(values, 0, count, null);
             count = 0;
             detected = true;
             auto = true;

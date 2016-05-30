@@ -40,6 +40,13 @@ public class DataOutputBuffer extends BufferedDataOutputStreamPlus
      */
     private static final long DOUBLING_THRESHOLD = Long.getLong(Config.PROPERTY_PREFIX + "DOB_DOUBLING_THRESHOLD_MB", 64);
 
+    /*
+     * Only recycle OutputBuffers up to 1Mb. Larger buffers will be trimmed back to this size.
+     */
+    private static final int MAX_RECYCLE_BUFFER_SIZE = 1024 * 1024;
+
+    private static final int DEFAULT_INITIAL_BUFFER_SIZE = 128;
+
     public static final Recycler<DataOutputBuffer> RECYCLER = new Recycler<DataOutputBuffer>()
     {
         protected DataOutputBuffer newObject(Handle handle)
@@ -52,12 +59,12 @@ public class DataOutputBuffer extends BufferedDataOutputStreamPlus
 
     private DataOutputBuffer(Recycler.Handle handle)
     {
-        this(128, handle);
+        this(DEFAULT_INITIAL_BUFFER_SIZE, handle);
     }
 
     public DataOutputBuffer()
     {
-        this(128);
+        this(DEFAULT_INITIAL_BUFFER_SIZE);
     }
 
     public DataOutputBuffer(int size)
@@ -79,8 +86,13 @@ public class DataOutputBuffer extends BufferedDataOutputStreamPlus
     public void recycle()
     {
         assert handle != null;
-        buffer.rewind();
 
+        // Avoid throwing away instances that are too large, trim large buffers to default size instead.
+        // See CASSANDRA-11838 for details.
+        if (buffer().capacity() > MAX_RECYCLE_BUFFER_SIZE)
+            buffer = ByteBuffer.allocate(DEFAULT_INITIAL_BUFFER_SIZE);
+
+        buffer.rewind();
         RECYCLER.recycle(this, handle);
     }
 
