@@ -1298,8 +1298,11 @@ public class SASIIndexTest
 
         // to make sure that query doesn't fail in normal conditions
 
-        Set<String> rows = getKeys(new QueryPlan(store, command, DatabaseDescriptor.getRangeRpcTimeout()).execute(ReadExecutionController.empty()));
-        Assert.assertTrue(rows.toString(), Arrays.equals(new String[] { "key1", "key2", "key3", "key4" }, rows.toArray(new String[rows.size()])));
+        try (ReadExecutionController controller = command.executionController())
+        {
+            Set<String> rows = getKeys(new QueryPlan(store, command, DatabaseDescriptor.getRangeRpcTimeout()).execute(controller));
+            Assert.assertTrue(rows.toString(), Arrays.equals(new String[] { "key1", "key2", "key3", "key4" }, rows.toArray(new String[rows.size()])));
+        }
     }
 
     @Test

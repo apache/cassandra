@@ -110,7 +110,7 @@ public class QueryController
                                                                                      key,
                                                                                      command.clusteringIndexFilter(key));
 
-            return partition.queryMemtableAndDisk(cfs, executionController.baseReadOpOrderGroup());
+            return partition.queryMemtableAndDisk(cfs, executionController);
         }
         finally
         {

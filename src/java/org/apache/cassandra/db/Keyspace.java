@@ -562,10 +562,11 @@ public class Keyspace
                                                                                       FBUtilities.nowInSeconds(),
                                                                                       key);
 
-        try (OpOrder.Group opGroup = cfs.keyspace.writeOrder.start();
-             UnfilteredRowIterator partition = cmd.queryMemtableAndDisk(cfs, opGroup))
+        try (ReadExecutionController controller = cmd.executionController();
+             UnfilteredRowIterator partition = cmd.queryMemtableAndDisk(cfs, controller);
+             OpOrder.Group writeGroup = cfs.keyspace.writeOrder.start())
         {
-            cfs.indexManager.indexPartition(partition, opGroup, indexes, cmd.nowInSec());
+            cfs.indexManager.indexPartition(partition, writeGroup, indexes, cmd.nowInSec());
         }
     }
 

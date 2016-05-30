@@ -809,8 +809,8 @@ public final class LegacySchemaMigrator
         DecoratedKey key = store.metadata.decorateKey(AsciiType.instance.fromString(keyspaceName));
         SinglePartitionReadCommand command = SinglePartitionReadCommand.create(store.metadata, nowInSec, key, slices);
 
-        try (OpOrder.Group op = store.readOrdering.start();
-             RowIterator partition = UnfilteredRowIterators.filter(command.queryMemtableAndDisk(store, op), nowInSec))
+        try (ReadExecutionController controller = command.executionController();
+             RowIterator partition = UnfilteredRowIterators.filter(command.queryMemtableAndDisk(store, controller), nowInSec))
         {
             return partition.next().primaryKeyLivenessInfo().timestamp();
         }

@@ -605,7 +605,7 @@ public class SSTableReaderTest
                                              .build();
         Index.Searcher searcher = indexedCFS.indexManager.getBestIndexFor(rc).searcherFor(rc);
         assertNotNull(searcher);
-        try (ReadExecutionController executionController = ReadExecutionController.forCommand(rc))
+        try (ReadExecutionController executionController = rc.executionController())
         {
             assertEquals(1, Util.size(UnfilteredPartitionIterators.filter(searcher.search(executionController), rc.nowInSec())));
         }

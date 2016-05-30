@@ -110,16 +110,22 @@ public class SinglePartitionSliceCommandTest
         cmd = ReadCommand.legacyReadCommandSerializer.deserialize(in, MessagingService.VERSION_21);
 
         logger.debug("ReadCommand: {}", cmd);
-        UnfilteredPartitionIterator partitionIterator = cmd.executeLocally(ReadExecutionController.empty());
-        ReadResponse response = ReadResponse.createDataResponse(partitionIterator, cmd);
+        try (ReadExecutionController controller = cmd.executionController();
+             UnfilteredPartitionIterator partitionIterator = cmd.executeLocally(controller))
+        {
+            ReadResponse response = ReadResponse.createDataResponse(partitionIterator, cmd);
 
-        logger.debug("creating response: {}", response);
-        partitionIterator = response.makeIterator(cmd);
-        assert partitionIterator.hasNext();
-        UnfilteredRowIterator partition = partitionIterator.next();
-
-        LegacyLayout.LegacyUnfilteredPartition rowIter = LegacyLayout.fromUnfilteredRowIterator(cmd, partition);
-        Assert.assertEquals(Collections.emptyList(), rowIter.cells);
+            logger.debug("creating response: {}", response);
+            try (UnfilteredPartitionIterator pIter = response.makeIterator(cmd))
+            {
+                assert pIter.hasNext();
+                try (UnfilteredRowIterator partition = pIter.next())
+                {
+                    LegacyLayout.LegacyUnfilteredPartition rowIter = LegacyLayout.fromUnfilteredRowIterator(cmd, partition);
+                    Assert.assertEquals(Collections.emptyList(), rowIter.cells);
+                }
+            }
+        }
     }
 
     private void checkForS(UnfilteredPartitionIterator pi)

@@ -58,7 +58,7 @@ public abstract class CassandraIndexSearcher implements Index.Searcher
         ColumnFamilyStore indexCfs = index.getBackingTable().get();
         CFMetaData indexCfm = indexCfs.metadata;
         return SinglePartitionReadCommand.create(indexCfm, command.nowInSec(), indexKey, ColumnFilter.all(indexCfm), filter)
-                                         .queryMemtableAndDisk(indexCfs, executionController.indexReadOpOrderGroup());
+                                         .queryMemtableAndDisk(indexCfs, executionController.indexReadController());
     }
 
     private ClusteringIndexFilter makeIndexFilter(ReadCommand command)

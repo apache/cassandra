@@ -166,8 +166,7 @@ public class CompositesSearcher extends CassandraIndexSearcher
                     @SuppressWarnings("resource") // We close right away if empty, and if it's assign to next it will be called either
                     // by the next caller of next, or through closing this iterator is this come before.
                     UnfilteredRowIterator dataIter =
-                        filterStaleEntries(dataCmd.queryMemtableAndDisk(index.baseCfs,
-                                                                        executionController.baseReadOpOrderGroup()),
+                        filterStaleEntries(dataCmd.queryMemtableAndDisk(index.baseCfs, executionController),
                                            indexKey.getKey(),
                                            entries,
                                            executionController.writeOpOrderGroup(),

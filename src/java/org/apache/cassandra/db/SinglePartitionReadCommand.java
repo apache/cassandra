@@ -481,16 +481,12 @@ public class SinglePartitionReadCommand extends ReadCommand
      * It is publicly exposed because there is a few places where that is exactly what we want,
      * but it should be used only where you know you don't need thoses things.
      * <p>
-     * Also note that one must have "started" a {@code OpOrder.Group} on the queried table, and that is
-     * to enforce that that it is required as parameter, even though it's not explicitlly used by the method.
+     * Also note that one must have created a {@code ReadExecutionController} on the queried table and we require it as
+     * a parameter to enforce that fact, even though it's not explicitlly used by the method.
      */
-    public UnfilteredRowIterator queryMemtableAndDisk(ColumnFamilyStore cfs, OpOrder.Group readOp)
-    {
-        return queryMemtableAndDisk(cfs, ReadExecutionController.forReadOp(readOp));
-    }
-
     public UnfilteredRowIterator queryMemtableAndDisk(ColumnFamilyStore cfs, ReadExecutionController executionController)
     {
+        assert executionController != null && executionController.validForReadOn(cfs);
         Tracing.trace("Executing single-partition query on {}", cfs.name);
 
         return queryMemtableAndDiskInternal(cfs);
