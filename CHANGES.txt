@@ -55,7 +55,7 @@ Merged from 2.1:
  * Always perform collision check before joining ring (CASSANDRA-10134)
  * SSTableWriter output discrepancy (CASSANDRA-11646)
  * Fix potential timeout in NativeTransportService.testConcurrentDestroys (CASSANDRA-10756)
- * Support large partitions on the 3.0 sstable format (CASSANDRA-11206)
+ * Support large partitions on the 3.0 sstable format (CASSANDRA-11206,11763)
  * Add support to rebuild from specific range (CASSANDRA-10406)
  * Optimize the overlapping lookup by calculating all the
    bounds in advance (CASSANDRA-11571)

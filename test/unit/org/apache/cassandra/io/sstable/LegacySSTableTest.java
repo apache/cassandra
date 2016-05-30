@@ -36,6 +36,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import org.apache.cassandra.SchemaLoader;
+import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.cql3.QueryProcessor;
 import org.apache.cassandra.cql3.UntypedResultSet;
 import org.apache.cassandra.db.ColumnFamilyStore;
@@ -126,14 +127,31 @@ public class LegacySSTableTest
     @Test
     public void testLoadLegacyCqlTables() throws Exception
     {
+        DatabaseDescriptor.setColumnIndexCacheSize(99999);
+        CacheService.instance.invalidateKeyCache();
+        doTestLegacyCqlTables();
+    }
+
+    @Test
+    public void testLoadLegacyCqlTablesShallow() throws Exception
+    {
+        DatabaseDescriptor.setColumnIndexCacheSize(0);
+        CacheService.instance.invalidateKeyCache();
+        doTestLegacyCqlTables();
+    }
+
+    private void doTestLegacyCqlTables() throws Exception
+    {
         for (String legacyVersion : legacyVersions)
         {
             logger.info("Loading legacy version: {}", legacyVersion);
+            truncateLegacyTables(legacyVersion);
             loadLegacyTables(legacyVersion);
             CacheService.instance.invalidateKeyCache();
             long startCount = CacheService.instance.keyCache.size();
             verifyReads(legacyVersion);
             verifyCache(legacyVersion, startCount);
+            compactLegacyTables(legacyVersion);
         }
     }
 
@@ -173,6 +191,30 @@ public class LegacySSTableTest
                                                                sstable.estimatedKeysForRanges(ranges), sstable.getSSTableMetadata().repairedAt));
         new StreamPlan("LegacyStreamingTest").transferFiles(FBUtilities.getBroadcastAddress(), details)
                                              .execute().get();
+    }
+
+    private static void truncateLegacyTables(String legacyVersion) throws Exception
+    {
+        for (int compact = 0; compact <= 1; compact++)
+        {
+            logger.info("Truncating legacy version {}{}", legacyVersion, getCompactNameSuffix(compact));
+            Keyspace.open("legacy_tables").getColumnFamilyStore(String.format("legacy_%s_simple%s", legacyVersion, getCompactNameSuffix(compact))).truncateBlocking();
+            Keyspace.open("legacy_tables").getColumnFamilyStore(String.format("legacy_%s_simple_counter%s", legacyVersion, getCompactNameSuffix(compact))).truncateBlocking();
+            Keyspace.open("legacy_tables").getColumnFamilyStore(String.format("legacy_%s_clust%s", legacyVersion, getCompactNameSuffix(compact))).truncateBlocking();
+            Keyspace.open("legacy_tables").getColumnFamilyStore(String.format("legacy_%s_clust_counter%s", legacyVersion, getCompactNameSuffix(compact))).truncateBlocking();
+        }
+    }
+
+    private static void compactLegacyTables(String legacyVersion) throws Exception
+    {
+        for (int compact = 0; compact <= 1; compact++)
+        {
+            logger.info("Compacting legacy version {}{}", legacyVersion, getCompactNameSuffix(compact));
+            Keyspace.open("legacy_tables").getColumnFamilyStore(String.format("legacy_%s_simple%s", legacyVersion, getCompactNameSuffix(compact))).forceMajorCompaction();
+            Keyspace.open("legacy_tables").getColumnFamilyStore(String.format("legacy_%s_simple_counter%s", legacyVersion, getCompactNameSuffix(compact))).forceMajorCompaction();
+            Keyspace.open("legacy_tables").getColumnFamilyStore(String.format("legacy_%s_clust%s", legacyVersion, getCompactNameSuffix(compact))).forceMajorCompaction();
+            Keyspace.open("legacy_tables").getColumnFamilyStore(String.format("legacy_%s_clust_counter%s", legacyVersion, getCompactNameSuffix(compact))).forceMajorCompaction();
+        }
     }
 
     private static void loadLegacyTables(String legacyVersion) throws Exception
