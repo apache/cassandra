@@ -24,7 +24,6 @@ import java.util.concurrent.locks.ReentrantReadWriteLock;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
-import com.google.common.annotations.VisibleForTesting;
 import com.google.common.collect.Iterables;
 import org.apache.cassandra.index.Index;
 import com.google.common.primitives.Ints;
@@ -67,7 +66,7 @@ public class CompactionStrategyManager implements INotificationConsumer
     private final List<AbstractCompactionStrategy> repaired = new ArrayList<>();
     private final List<AbstractCompactionStrategy> unrepaired = new ArrayList<>();
     private volatile boolean enabled = true;
-    public volatile boolean isActive = true;
+    private volatile boolean isActive = true;
     private volatile CompactionParams params;
     private final ReentrantReadWriteLock lock = new ReentrantReadWriteLock();
     private final ReentrantReadWriteLock.ReadLock readLock = lock.readLock();
@@ -103,14 +102,15 @@ public class CompactionStrategyManager implements INotificationConsumer
      */
     public AbstractCompactionTask getNextBackgroundTask(int gcBefore)
     {
-        if (!isEnabled())
-            return null;
-
-        maybeReload(cfs.metadata);
-        List<AbstractCompactionStrategy> strategies = new ArrayList<>();
         readLock.lock();
         try
         {
+            if (!isEnabled())
+                return null;
+
+            maybeReload(cfs.metadata);
+            List<AbstractCompactionStrategy> strategies = new ArrayList<>();
+
             strategies.addAll(repaired);
             strategies.addAll(unrepaired);
             Collections.sort(strategies, (o1, o2) -> Ints.compare(o2.getEstimatedRemainingTasks(), o1.getEstimatedRemainingTasks()));
@@ -133,9 +133,22 @@ public class CompactionStrategyManager implements INotificationConsumer
         return enabled && isActive;
     }
 
+    public boolean isActive()
+    {
+        return isActive;
+    }
+
     public void resume()
     {
-        isActive = true;
+        writeLock.lock();
+        try
+        {
+            isActive = true;
+        }
+        finally
+        {
+            writeLock.unlock();
+        }
     }
 
     /**
@@ -145,7 +158,16 @@ public class CompactionStrategyManager implements INotificationConsumer
       */
     public void pause()
     {
-        isActive = false;
+        writeLock.lock();
+        try
+        {
+            isActive = false;
+        }
+        finally
+        {
+            writeLock.unlock();
+        }
+
     }
 
     private void startup()
