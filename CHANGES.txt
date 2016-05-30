@@ -1,4 +1,5 @@
 3.7
+ * Support multiple folders for user defined compaction tasks (CASSANDRA-11765)
  * Fix race in CompactionStrategyManager's pause/resume (CASSANDRA-11922)
 Merged from 3.0:
  * Fix Directories instantiations where CFS.initialDirectories should be used (CASSANDRA-11849)

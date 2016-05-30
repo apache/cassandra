@@ -731,19 +731,56 @@ public class CompactionStrategyManager implements INotificationConsumer
         }, false, false);
     }
 
-    public AbstractCompactionTask getUserDefinedTask(Collection<SSTableReader> sstables, int gcBefore)
+    /**
+     * Return a list of compaction tasks corresponding to the sstables requested. Split the sstables according
+     * to whether they are repaired or not, and by disk location. Return a task per disk location and repair status
+     * group.
+     *
+     * @param sstables the sstables to compact
+     * @param gcBefore gc grace period, throw away tombstones older than this
+     * @return a list of compaction tasks corresponding to the sstables requested
+     */
+    public List<AbstractCompactionTask> getUserDefinedTasks(Collection<SSTableReader> sstables, int gcBefore)
     {
         maybeReload(cfs.metadata);
-        validateForCompaction(sstables, cfs, getDirectories());
+        List<AbstractCompactionTask> ret = new ArrayList<>();
+
         readLock.lock();
         try
         {
-            return getCompactionStrategyFor(sstables.iterator().next()).getUserDefinedTask(sstables, gcBefore);
+            Map<Integer, List<SSTableReader>> repairedSSTables = sstables.stream()
+                                                                         .filter(s -> !s.isMarkedSuspect() && s.isRepaired())
+                                                                         .collect(Collectors.groupingBy((s) -> getCompactionStrategyIndex(cfs, getDirectories(), s)));
+
+            Map<Integer, List<SSTableReader>> unrepairedSSTables = sstables.stream()
+                                                                           .filter(s -> !s.isMarkedSuspect() && !s.isRepaired())
+                                                                           .collect(Collectors.groupingBy((s) -> getCompactionStrategyIndex(cfs, getDirectories(), s)));
+
+
+            for (Map.Entry<Integer, List<SSTableReader>> group : repairedSSTables.entrySet())
+                ret.add(repaired.get(group.getKey()).getUserDefinedTask(group.getValue(), gcBefore));
+
+            for (Map.Entry<Integer, List<SSTableReader>> group : unrepairedSSTables.entrySet())
+                ret.add(unrepaired.get(group.getKey()).getUserDefinedTask(group.getValue(), gcBefore));
+
+            return ret;
         }
         finally
         {
             readLock.unlock();
         }
+    }
+
+    /**
+     * @deprecated use {@link #getUserDefinedTasks(Collection, int)} instead.
+     */
+    @Deprecated()
+    public AbstractCompactionTask getUserDefinedTask(Collection<SSTableReader> sstables, int gcBefore)
+    {
+        validateForCompaction(sstables, cfs, getDirectories());
+        List<AbstractCompactionTask> tasks = getUserDefinedTasks(sstables, gcBefore);
+        assert tasks.size() == 1;
+        return tasks.get(0);
     }
 
     public int getEstimatedRemainingTasks()

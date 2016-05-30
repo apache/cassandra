@@ -228,8 +228,9 @@ public class Util
     public static void compact(ColumnFamilyStore cfs, Collection<SSTableReader> sstables)
     {
         int gcBefore = cfs.gcBefore(FBUtilities.nowInSeconds());
-        AbstractCompactionTask task = cfs.getCompactionStrategyManager().getUserDefinedTask(sstables, gcBefore);
-        task.execute(null);
+        List<AbstractCompactionTask> tasks = cfs.getCompactionStrategyManager().getUserDefinedTasks(sstables, gcBefore);
+        for (AbstractCompactionTask task : tasks)
+            task.execute(null);
     }
 
     public static void expectEOF(Callable<?> callable)

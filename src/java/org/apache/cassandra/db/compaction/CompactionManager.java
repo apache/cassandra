@@ -800,9 +800,12 @@ public class CompactionManager implements CompactionManagerMBean
                 }
                 else
                 {
-                    AbstractCompactionTask task = cfs.getCompactionStrategyManager().getUserDefinedTask(sstables, gcBefore);
-                    if (task != null)
-                        task.execute(metrics);
+                    List<AbstractCompactionTask> tasks = cfs.getCompactionStrategyManager().getUserDefinedTasks(sstables, gcBefore);
+                    for (AbstractCompactionTask task : tasks)
+                    {
+                        if (task != null)
+                            task.execute(metrics);
+                    }
                 }
             }
         };
