@@ -984,7 +984,7 @@ public class JsonTest extends CQLTester
     public void testJsonThreadSafety() throws Throwable
     {
         int numThreads = 10;
-        final int numRows = 10000;
+        final int numRows = 5000;
 
         createTable("CREATE TABLE %s (" +
                 "k text PRIMARY KEY, " +
@@ -1025,9 +1025,9 @@ public class JsonTest extends CQLTester
             futures.add(executor.submit(worker));
 
         for (Future future : futures)
-            future.get(10, TimeUnit.SECONDS);
+            future.get(30, TimeUnit.SECONDS);
 
         executor.shutdown();
-        Assert.assertTrue(executor.awaitTermination(10, TimeUnit.SECONDS));
+        Assert.assertTrue(executor.awaitTermination(30, TimeUnit.SECONDS));
     }
 }
