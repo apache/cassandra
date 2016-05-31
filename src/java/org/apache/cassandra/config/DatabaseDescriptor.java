@@ -917,6 +917,11 @@ public class DatabaseDescriptor
         return conf.max_value_size_in_mb * 1024 * 1024;
     }
 
+    public static void setMaxValueSize(int maxValueSizeInBytes)
+    {
+        conf.max_value_size_in_mb = maxValueSizeInBytes / 1024 / 1024;
+    }
+
     /**
      * Creates all storage-related directories.
      */

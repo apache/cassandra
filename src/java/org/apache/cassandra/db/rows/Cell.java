@@ -21,7 +21,7 @@ import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.util.Comparator;
 
-import org.apache.cassandra.config.ColumnDefinition;
+import org.apache.cassandra.config.*;
 import org.apache.cassandra.db.*;
 import org.apache.cassandra.io.util.DataOutputPlus;
 import org.apache.cassandra.io.util.DataInputPlus;
@@ -242,7 +242,7 @@ public abstract class Cell extends ColumnData
                 {
                     boolean isCounter = localDeletionTime == NO_DELETION_TIME && column.type.isCounter();
 
-                    value = header.getType(column).readValue(in);
+                    value = header.getType(column).readValue(in, DatabaseDescriptor.getMaxValueSize());
                     if (isCounter)
                         value = helper.maybeClearCounterValue(value);
                 }
