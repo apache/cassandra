@@ -20,8 +20,7 @@ package org.apache.cassandra.db.rows;
 import java.io.IOException;
 import java.nio.ByteBuffer;
 
-import org.apache.cassandra.config.CFMetaData;
-import org.apache.cassandra.config.ColumnDefinition;
+import org.apache.cassandra.config.*;
 import org.apache.cassandra.db.*;
 import org.apache.cassandra.db.context.CounterContext;
 import org.apache.cassandra.db.marshal.ByteType;
@@ -300,7 +299,7 @@ public class BufferCell extends AbstractCell
                 }
                 else
                 {
-                    value = header.getType(column).readValue(in);
+                    value = header.getType(column).readValue(in, DatabaseDescriptor.getMaxValueSize());
                     if (isCounter)
                         value = helper.maybeClearCounterValue(value);
                 }

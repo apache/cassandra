@@ -1,4 +1,5 @@
 3.0.7
+ * Avoid referencing DatabaseDescriptor in AbstractType (CASSANDRA-11912)
  * Fix sstables not being protected from removal during index build (CASSANDRA-11905)
  * cqlsh: Suppress stack trace from Read/WriteFailures (CASSANDRA-11032)
  * Remove unneeded code to repair index summaries that have

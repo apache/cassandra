@@ -23,7 +23,7 @@ import java.security.MessageDigest;
 import java.util.*;
 
 import org.apache.cassandra.cache.IMeasurableMemory;
-import org.apache.cassandra.config.CFMetaData;
+import org.apache.cassandra.config.*;
 import org.apache.cassandra.db.rows.*;
 import org.apache.cassandra.db.marshal.AbstractType;
 import org.apache.cassandra.io.util.DataInputPlus;
@@ -343,7 +343,7 @@ public interface ClusteringPrefix extends IMeasurableMemory, Clusterable
                 {
                     values[offset] = isNull(header, offset)
                                 ? null
-                                : (isEmpty(header, offset) ? ByteBufferUtil.EMPTY_BYTE_BUFFER : types.get(offset).readValue(in));
+                                : (isEmpty(header, offset) ? ByteBufferUtil.EMPTY_BYTE_BUFFER : types.get(offset).readValue(in, DatabaseDescriptor.getMaxValueSize()));
                     offset++;
                 }
             }
@@ -479,7 +479,7 @@ public interface ClusteringPrefix extends IMeasurableMemory, Clusterable
             int i = deserializedSize++;
             nextValues[i] = Serializer.isNull(nextHeader, i)
                           ? null
-                          : (Serializer.isEmpty(nextHeader, i) ? ByteBufferUtil.EMPTY_BYTE_BUFFER : serializationHeader.clusteringTypes().get(i).readValue(in));
+                          : (Serializer.isEmpty(nextHeader, i) ? ByteBufferUtil.EMPTY_BYTE_BUFFER : serializationHeader.clusteringTypes().get(i).readValue(in, DatabaseDescriptor.getMaxValueSize()));
             return true;
         }
 

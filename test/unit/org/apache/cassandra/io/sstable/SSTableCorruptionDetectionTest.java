@@ -63,6 +63,7 @@ public class SSTableCorruptionDetectionTest extends SSTableWriterTestBase
     private static final String keyspace = "SSTableCorruptionDetectionTest";
     private static final String table = "corrupted_table";
 
+    private static int maxValueSize;
     private static Random random;
     private static SSTableWriter writer;
     private static LifecycleTransaction txn;
@@ -88,8 +89,8 @@ public class SSTableCorruptionDetectionTest extends SSTableWriterTestBase
         cfs = Keyspace.open(keyspace).getColumnFamilyStore(table);
         cfs.disableAutoCompaction();
 
-        for (ColumnDefinition cd : cfs.metadata.allColumns())
-            cd.type.setMaxValueSize(1024 * 1024);
+        maxValueSize = DatabaseDescriptor.getMaxValueSize();
+        DatabaseDescriptor.setMaxValueSize(1024 * 1024);
 
         long seed = System.nanoTime();
         logger.info("Seed {}", seed);
@@ -123,6 +124,8 @@ public class SSTableCorruptionDetectionTest extends SSTableWriterTestBase
     @AfterClass
     public static void tearDown()
     {
+        DatabaseDescriptor.setMaxValueSize(maxValueSize);
+
         txn.abort();
         writer.close();
     }

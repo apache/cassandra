@@ -25,6 +25,7 @@ import java.io.RandomAccessFile;
 import java.util.*;
 
 import org.junit.After;
+import org.junit.AfterClass;
 import org.junit.BeforeClass;
 import org.junit.Test;
 
@@ -54,6 +55,7 @@ public class BlacklistingCompactionsTest
     private static final String KEYSPACE1 = "BlacklistingCompactionsTest";
     private static final String STANDARD_STCS = "Standard_STCS";
     private static final String STANDARD_LCS = "Standard_LCS";
+    private static int maxValueSize;
 
     @After
     public void leakDetect() throws InterruptedException
@@ -78,16 +80,15 @@ public class BlacklistingCompactionsTest
                                     SchemaLoader.standardCFMD(KEYSPACE1, STANDARD_STCS).compaction(CompactionParams.DEFAULT),
                                     SchemaLoader.standardCFMD(KEYSPACE1, STANDARD_LCS).compaction(CompactionParams.lcs(Collections.emptyMap())));
 
-        Keyspace keyspace = Keyspace.open(KEYSPACE1);
-        for (String tableName : new String[] {STANDARD_STCS, STANDARD_LCS})
-        {
-            final ColumnFamilyStore cfs = keyspace.getColumnFamilyStore(tableName);
-
-            for (ColumnDefinition cd : cfs.metadata.allColumns())
-                cd.type.setMaxValueSize(1024 * 1024); // set max value size to 1MB
-        }
-
+        maxValueSize = DatabaseDescriptor.getMaxValueSize();
+        DatabaseDescriptor.setMaxValueSize(1024 * 1024);
         closeStdErr();
+    }
+
+    @AfterClass
+    public static void tearDown()
+    {
+        DatabaseDescriptor.setMaxValueSize(maxValueSize);
     }
 
     public static void closeStdErr()
