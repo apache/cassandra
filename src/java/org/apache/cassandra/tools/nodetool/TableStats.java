@@ -157,7 +157,13 @@ public class TableStats extends NodeToolCmd
 
                 }
                 statsTable.sstableCompressionRatio = probe.getColumnFamilyMetric(keyspaceName, tableName, "CompressionRatio");
-                statsTable.numberOfKeysEstimate = probe.getColumnFamilyMetric(keyspaceName, tableName, "EstimatedPartitionCount");
+                Object estimatedPartitionCount = probe.getColumnFamilyMetric(keyspaceName, tableName, "EstimatedPartitionCount");
+                if (Long.valueOf(-1L).equals(estimatedPartitionCount))
+                {
+                    estimatedPartitionCount = 0L;
+                }
+                statsTable.numberOfKeysEstimate = estimatedPartitionCount;
+
                 statsTable.memtableCellCount = probe.getColumnFamilyMetric(keyspaceName, tableName, "MemtableColumnsCount");
                 statsTable.memtableDataSize = format((Long) probe.getColumnFamilyMetric(keyspaceName, tableName, "MemtableLiveDataSize"), humanReadable);
                 if (memtableOffHeapSize != null)
