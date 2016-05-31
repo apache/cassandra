@@ -883,11 +883,14 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
      */
     public ListenableFuture<ReplayPosition> forceFlush()
     {
-        Memtable current = data.getView().getCurrentMemtable();
-        for (ColumnFamilyStore cfs : concatWithIndexes())
-            if (!cfs.data.getView().getCurrentMemtable().isClean())
-                return switchMemtableIfCurrent(current);
-        return waitForFlushes();
+        synchronized (data)
+        {
+            Memtable current = data.getView().getCurrentMemtable();
+            for (ColumnFamilyStore cfs : concatWithIndexes())
+                if (!cfs.data.getView().getCurrentMemtable().isClean())
+                    return switchMemtableIfCurrent(current);
+            return waitForFlushes();
+        }
     }
 
     /**
