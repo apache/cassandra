@@ -173,7 +173,7 @@ public class CompactionTask extends AbstractCompactionTask
                     collector.beginCompaction(ci);
                 long lastCheckObsoletion = start;
 
-                if (!controller.cfs.getCompactionStrategyManager().isActive)
+                if (!controller.cfs.getCompactionStrategyManager().isActive())
                     throw new CompactionInterruptedException(ci.getCompactionInfo());
 
                 try (CompactionAwareWriter writer = getCompactionAwareWriter(cfs, getDirectories(), transaction, actuallyCompact))
