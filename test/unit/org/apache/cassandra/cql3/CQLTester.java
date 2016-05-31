@@ -51,6 +51,7 @@ import org.apache.cassandra.dht.Murmur3Partitioner;
 import org.apache.cassandra.exceptions.*;
 import org.apache.cassandra.io.util.FileUtils;
 import org.apache.cassandra.serializers.TypeSerializer;
+import org.apache.cassandra.utils.FBUtilities;
 
 /**
  * Base class for CQL tests.
@@ -63,6 +64,7 @@ public abstract class CQLTester
     private static final boolean USE_PREPARED_VALUES = Boolean.valueOf(System.getProperty("cassandra.test.use_prepared", "true"));
     protected static final long ROW_CACHE_SIZE_IN_MB = Integer.valueOf(System.getProperty("cassandra.test.row_cache_size_in_mb", "0"));
     private static final AtomicInteger seqNumber = new AtomicInteger();
+    protected static final ByteBuffer TOO_BIG = ByteBuffer.allocate(FBUtilities.MAX_UNSIGNED_SHORT + 1024);
 
     static
     {

@@ -1081,7 +1081,12 @@ public class SelectStatement implements CQLStatement
     private List<Composite> getRequestedBound(Bound b, QueryOptions options) throws InvalidRequestException
     {
         assert isColumnRange();
-        return buildBound(b, cfm.clusteringColumns(), columnRestrictions, isReversed, cfm.comparator, options);
+        List<Composite> bound = buildBound(b, cfm.clusteringColumns(), columnRestrictions, isReversed, cfm.comparator, options);
+        for (Composite c : bound) {
+            if (!c.isEmpty())
+                QueryProcessor.validateComposite(c, cfm.comparator);
+        }
+        return bound;
     }
 
     /**

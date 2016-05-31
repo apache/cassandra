@@ -28,6 +28,7 @@ import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.cql3.UntypedResultSet;
 import org.apache.cassandra.cql3.CQLTester;
 import org.apache.cassandra.dht.Murmur3Partitioner;
+import org.apache.cassandra.exceptions.InvalidRequestException;
 
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertTrue;
@@ -1234,5 +1235,33 @@ public class SelectTest extends CQLTester
 
         assertRows(execute("SELECT * FROM %s WHERE a=1 AND b=2 ORDER BY b DESC"),
                    row(1, 2, 3, 3));
+    }
+
+    @Test
+    public void testOverlyLargeSelectPK() throws Throwable
+    {
+        createTable("CREATE TABLE %s (a text, b text, PRIMARY KEY ((a), b))");
+
+        assertInvalidThrow(InvalidRequestException.class,
+                           "SELECT * FROM %s WHERE a = ?", new String(TOO_BIG.array()));
+    }
+
+    @Test
+    public void testOverlyLargeSelectCK() throws Throwable
+    {
+        createTable("CREATE TABLE %s (a text, b text, PRIMARY KEY ((a), b))");
+
+        assertInvalidThrow(InvalidRequestException.class,
+                           "SELECT * FROM %s WHERE a = 'foo' AND b = ?", new String(TOO_BIG.array()));
+    }
+
+    @Test
+    public void testOverlyLargeSelectKeyIn() throws Throwable
+    {
+        createTable("CREATE TABLE %s (a text, b text, c text, d text, PRIMARY KEY ((a, b, c), d))");
+
+        assertInvalidThrow(InvalidRequestException.class,
+                           "SELECT * FROM %s WHERE a = 'foo' AND b= 'bar' AND c IN (?, ?)",
+                           new String(TOO_BIG.array()), new String(TOO_BIG.array()));
     }
 }
