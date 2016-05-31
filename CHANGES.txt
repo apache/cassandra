@@ -1,4 +1,5 @@
 2.2.7
+ * cqlsh: fix tab completion for case-sensitive identifiers (CASSANDRA-11664)
  * Avoid showing estimated key as -1 in tablestats (CASSANDRA-11587)
  * Fix possible race condition in CommitLog.recover (CASSANDRA-11743)
  * Enable client encryption in sstableloader with cli options (CASSANDRA-11708)
