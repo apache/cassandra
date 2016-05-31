@@ -27,6 +27,7 @@ Merged from 3.0:
  * Refactor Materialized View code (CASSANDRA-11475)
  * Update Java Driver (CASSANDRA-11615)
 Merged from 2.2:
+ * Avoid showing estimated key as -1 in tablestats (CASSANDRA-11587)
  * Fix possible race condition in CommitLog.recover (CASSANDRA-11743)
  * Enable client encryption in sstableloader with cli options (CASSANDRA-11708)
  * Possible memory leak in NIODataInputStream (CASSANDRA-11867)
