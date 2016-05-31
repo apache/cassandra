@@ -1,5 +1,6 @@
 3.7
 Merged from 3.0:
+ * Avoid referencing DatabaseDescriptor in AbstractType (CASSANDRA-11912)
  * Don't use static dataDirectories field in Directories instances (CASSANDRA-11647)
  * Fix sstables not being protected from removal during index build (CASSANDRA-11905)
  * cqlsh: Suppress stack trace from Read/WriteFailures (CASSANDRA-11032)

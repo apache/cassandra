@@ -27,11 +27,9 @@ import java.util.Comparator;
 import java.util.List;
 import java.util.Map;
 
-import com.google.common.annotations.VisibleForTesting;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.cql3.CQL3Type;
 import org.apache.cassandra.cql3.Term;
 import org.apache.cassandra.db.TypeSizes;
@@ -83,22 +81,10 @@ public abstract class AbstractType<T> implements Comparator<ByteBuffer>
     public final ComparisonType comparisonType;
     public final boolean isByteOrderComparable;
 
-    /**
-     * The maximum size of values for this type, used when some values are not of fixed length,
-     * that is valueLengthIfFixed() returns -1.
-     */
-    public int maxValueSize;
-
     protected AbstractType(ComparisonType comparisonType)
-    {
-        this(comparisonType, DatabaseDescriptor.getMaxValueSize());
-    }
-
-    protected AbstractType(ComparisonType comparisonType, int maxValueSize)
     {
         this.comparisonType = comparisonType;
         this.isByteOrderComparable = comparisonType == ComparisonType.BYTE_ORDER;
-        this.maxValueSize = maxValueSize;
         reverseComparator = (o1, o2) -> AbstractType.this.compare(o2, o1);
         try
         {
@@ -112,17 +98,6 @@ public abstract class AbstractType<T> implements Comparator<ByteBuffer>
         {
             throw new IllegalStateException();
         }
-    }
-
-    /**
-     * Change the maximum value size, this should only be called for testing.
-     * Unfortunately, ensuring we use a type created with a different maxValueSize
-     * is too hard at the moment, due to the pervasive use of the type's singleton instances.
-     */
-    @VisibleForTesting
-    public void setMaxValueSize(int maxValueSize)
-    {
-        this.maxValueSize = maxValueSize;
     }
 
     public static List<String> asCQLTypeStringList(List<AbstractType<?>> abstractTypes)
@@ -430,6 +405,11 @@ public abstract class AbstractType<T> implements Comparator<ByteBuffer>
     }
 
     public ByteBuffer readValue(DataInputPlus in) throws IOException
+    {
+        return readValue(in, Integer.MAX_VALUE);
+    }
+
+    public ByteBuffer readValue(DataInputPlus in, int maxValueSize) throws IOException
     {
         int length = valueLengthIfFixed();
 
