@@ -55,6 +55,17 @@ public class CustomIndexTest extends CQLTester
     }
 
     @Test
+    public void testTruncateWithNonCfsCustomIndex() throws Throwable
+    {
+        // deadlocks and times out the test in the face of the synchronisation
+        // issues described in the comments on CASSANDRA-9669
+        createTable("CREATE TABLE %s (a int, b int, c int, PRIMARY KEY (a))");
+        createIndex("CREATE CUSTOM INDEX b_index ON %s(b) USING 'org.apache.cassandra.index.StubIndex'");
+        execute("INSERT INTO %s (a, b, c) VALUES (?, ?, ?)", 0, 1, 2);
+        getCurrentColumnFamilyStore().truncateBlocking();
+    }
+
+    @Test
     public void indexControlsIfIncludedInBuildOnNewSSTables() throws Throwable
     {
         createTable("CREATE TABLE %s (a int, b int, PRIMARY KEY (a))");

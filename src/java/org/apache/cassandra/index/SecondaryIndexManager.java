@@ -486,10 +486,10 @@ public class SecondaryIndexManager implements IndexRegistry
      */
     public void flushAllNonCFSBackedIndexesBlocking()
     {
-        Set<Index> customIndexers = indexes.values().stream()
-                                                    .filter(index -> !(index.getBackingTable().isPresent()))
-                                                    .collect(Collectors.toSet());
-        flushIndexesBlocking(customIndexers);
+        executeAllBlocking(indexes.values()
+                                  .stream()
+                                  .filter(index -> !index.getBackingTable().isPresent()),
+                           Index::getBlockingFlushTask);
     }
 
     /**
