@@ -1914,6 +1914,7 @@ class Shell(cmd.Cmd):
         subshell = Shell(self.hostname, self.port,
                          color=self.color, encoding=self.encoding, stdin=f,
                          tty=False, use_conn=self.conn, cqlver=self.cql_version,
+                         keyspace=self.current_keyspace,
                          display_timestamp_format=self.display_timestamp_format,
                          display_date_format=self.display_date_format,
                          display_nanotime_format=self.display_nanotime_format,
