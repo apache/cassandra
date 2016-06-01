@@ -19,6 +19,7 @@ Merged from 2.2:
  * Add seconds to cqlsh tracing session duration (CASSANDRA-11753)
  * Prohibit Reversed Counter type as part of the PK (CASSANDRA-9395)
 Merged from 2.1:
+ * cqlsh: apply current keyspace to source command (CASSANDRA-11152)
  * Backport CASSANDRA-11578 (CASSANDRA-11750)
  * Clear out parent repair session if repair coordinator dies (CASSANDRA-11824)
  * Set default streaming_socket_timeout_in_ms to 24 hours (CASSANDRA-11840)
