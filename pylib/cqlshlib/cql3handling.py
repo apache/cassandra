@@ -90,6 +90,12 @@ class Cql3ParsingRuleSet(CqlParsingRuleSet):
             return str(value)
         return "'%s'" % value.replace("'", "''")
 
+    @classmethod
+    def escape_name(cls, name):
+        if name is None:
+            return 'NULL'
+        return "'%s'" % name.replace("'", "''")
+
     @staticmethod
     def dequote_name(name):
         name = name.strip()
