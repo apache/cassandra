@@ -1,6 +1,7 @@
 3.7
  * Fix race in CompactionStrategyManager's pause/resume (CASSANDRA-11922)
 Merged from 3.0:
+ * Fix Directories instantiations where CFS.initialDirectories should be used (CASSANDRA-11849)
  * Avoid referencing DatabaseDescriptor in AbstractType (CASSANDRA-11912)
  * Don't use static dataDirectories field in Directories instances (CASSANDRA-11647)
  * Fix sstables not being protected from removal during index build (CASSANDRA-11905)

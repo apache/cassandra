@@ -598,7 +598,7 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
      */
     public static void scrubDataDirectories(CFMetaData metadata) throws StartupException
     {
-        Directories directories = new Directories(metadata);
+        Directories directories = new Directories(metadata, initialDirectories);
 
          // clear ephemeral snapshots that were not properly cleared last session (CASSANDRA-7357)
         clearEphemeralSnapshots(directories);

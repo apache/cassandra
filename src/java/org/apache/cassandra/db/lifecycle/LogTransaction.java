@@ -33,6 +33,7 @@ import org.slf4j.LoggerFactory;
 
 import org.apache.cassandra.concurrent.ScheduledExecutors;
 import org.apache.cassandra.config.CFMetaData;
+import org.apache.cassandra.db.ColumnFamilyStore;
 import org.apache.cassandra.db.Directories;
 import org.apache.cassandra.db.SystemKeyspace;
 import org.apache.cassandra.db.compaction.OperationType;
@@ -395,7 +396,7 @@ class LogTransaction extends Transactional.AbstractTransactional implements Tran
      */
     static boolean removeUnfinishedLeftovers(CFMetaData metadata)
     {
-        return removeUnfinishedLeftovers(new Directories(metadata).getCFDirectories());
+        return removeUnfinishedLeftovers(new Directories(metadata, ColumnFamilyStore.getInitialDirectories()).getCFDirectories());
     }
 
     @VisibleForTesting
