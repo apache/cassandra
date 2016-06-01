@@ -20,6 +20,7 @@ package org.apache.cassandra.tools;
 
 import org.apache.cassandra.config.CFMetaData;
 import org.apache.cassandra.config.Schema;
+import org.apache.cassandra.db.ColumnFamilyStore;
 import org.apache.cassandra.db.Directories;
 import org.apache.cassandra.db.lifecycle.LifecycleTransaction;
 import org.apache.cassandra.utils.OutputHandler;
@@ -81,7 +82,7 @@ public class StandaloneSSTableUtil
 
     private static void listFiles(Options options, CFMetaData metadata, OutputHandler handler) throws IOException
     {
-        Directories directories = new Directories(metadata);
+        Directories directories = new Directories(metadata, ColumnFamilyStore.getInitialDirectories());
 
         for (File dir : directories.getCFDirectories())
         {
