@@ -19,6 +19,9 @@
 package org.apache.cassandra.db;
 
 import java.io.IOException;
+import java.util.Arrays;
+import java.util.Collection;
+import java.util.Collections;
 import java.util.Date;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.Future;
@@ -30,18 +33,24 @@ import java.util.concurrent.atomic.AtomicReference;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import org.apache.cassandra.OrderedJUnit4ClassRunner;
 import org.apache.cassandra.Util;
 import org.apache.cassandra.config.ColumnDefinition;
+import org.apache.cassandra.config.DatabaseDescriptor;
+import org.apache.cassandra.config.ParameterizedClass;
 import org.apache.cassandra.db.rows.*;
 import org.apache.cassandra.db.context.CounterContext;
 import org.apache.cassandra.exceptions.ConfigurationException;
+import org.apache.cassandra.io.compress.DeflateCompressor;
+import org.apache.cassandra.io.compress.LZ4Compressor;
+import org.apache.cassandra.io.compress.SnappyCompressor;
 
 import org.junit.Assert;
 import org.junit.Before;
 import org.junit.BeforeClass;
 import org.junit.Test;
 import org.junit.runner.RunWith;
+import org.junit.runners.Parameterized;
+import org.junit.runners.Parameterized.Parameters;
 
 import static org.junit.Assert.assertEquals;
 
@@ -49,72 +58,15 @@ import org.apache.cassandra.SchemaLoader;
 import org.apache.cassandra.db.commitlog.CommitLog;
 import org.apache.cassandra.db.commitlog.CommitLogArchiver;
 import org.apache.cassandra.schema.KeyspaceParams;
+import org.apache.cassandra.security.EncryptionContext;
+import org.apache.cassandra.security.EncryptionContextGenerator;
 import org.apache.cassandra.utils.ByteBufferUtil;
 import org.apache.cassandra.db.commitlog.CommitLogReplayer;
 
-@RunWith(OrderedJUnit4ClassRunner.class)
+@RunWith(Parameterized.class)
 public class RecoveryManagerTest
 {
     private static Logger logger = LoggerFactory.getLogger(RecoveryManagerTest.class);
-    static final Semaphore blocker = new Semaphore(0);
-    static final Semaphore blocked = new Semaphore(0);
-    static CommitLogReplayer.MutationInitiator originalInitiator = null;
-    static final CommitLogReplayer.MutationInitiator mockInitiator = new CommitLogReplayer.MutationInitiator()
-    {
-        @Override
-        protected Future<Integer> initiateMutation(final Mutation mutation,
-                final long segmentId,
-                final int serializedSize,
-                final int entryLocation,
-                final CommitLogReplayer clr)
-        {
-            final Future<Integer> toWrap = super.initiateMutation(mutation,
-                                                                  segmentId,
-                                                                  serializedSize,
-                                                                  entryLocation,
-                                                                  clr);
-            return new Future<Integer>()
-            {
-
-                @Override
-                public boolean cancel(boolean mayInterruptIfRunning)
-                {
-                    throw new UnsupportedOperationException();
-                }
-
-                @Override
-                public boolean isCancelled()
-                {
-                    throw new UnsupportedOperationException();
-                }
-
-                @Override
-                public boolean isDone()
-                {
-                    return blocker.availablePermits() > 0 && toWrap.isDone();
-                }
-
-                @Override
-                public Integer get() throws InterruptedException, ExecutionException
-                {
-                    System.out.println("Got blocker once");
-                    blocked.release();
-                    blocker.acquire();
-                    return toWrap.get();
-                }
-
-                @Override
-                public Integer get(long timeout, TimeUnit unit)
-                        throws InterruptedException, ExecutionException, TimeoutException
-                {
-                    blocked.release();
-                    blocker.tryAcquire(1, timeout, unit);
-                    return toWrap.get(timeout, unit);
-                }
-
-            };
-        }
-    };
 
     private static final String KEYSPACE1 = "RecoveryManagerTest1";
     private static final String CF_STANDARD1 = "Standard1";
@@ -122,6 +74,29 @@ public class RecoveryManagerTest
 
     private static final String KEYSPACE2 = "RecoveryManagerTest2";
     private static final String CF_STANDARD3 = "Standard3";
+
+    public RecoveryManagerTest(ParameterizedClass commitLogCompression, EncryptionContext encryptionContext)
+    {
+        DatabaseDescriptor.setCommitLogCompression(commitLogCompression);
+        DatabaseDescriptor.setEncryptionContext(encryptionContext);
+    }
+
+    @Parameters()
+    public static Collection<Object[]> generateData()
+    {
+        return Arrays.asList(new Object[][]{
+            {null, EncryptionContextGenerator.createDisabledContext()}, // No compression, no encryption
+            {null, EncryptionContextGenerator.createContext(true)}, // Encryption
+            {new ParameterizedClass(LZ4Compressor.class.getName(), Collections.emptyMap()), EncryptionContextGenerator.createDisabledContext()},
+            {new ParameterizedClass(SnappyCompressor.class.getName(), Collections.emptyMap()), EncryptionContextGenerator.createDisabledContext()},
+            {new ParameterizedClass(DeflateCompressor.class.getName(), Collections.emptyMap()), EncryptionContextGenerator.createDisabledContext()}});
+    }
+
+    @Before
+    public void setUp() throws IOException
+    {
+        CommitLog.instance.resetUnsafe(true);
+    }
 
     @BeforeClass
     public static void defineSchema() throws ConfigurationException
@@ -139,6 +114,7 @@ public class RecoveryManagerTest
     @Before
     public void clearData()
     {
+        // clear data
         Keyspace.open(KEYSPACE1).getColumnFamilyStore(CF_STANDARD1).truncateBlocking();
         Keyspace.open(KEYSPACE1).getColumnFamilyStore(CF_COUNTER1).truncateBlocking();
         Keyspace.open(KEYSPACE2).getColumnFamilyStore(CF_STANDARD3).truncateBlocking();
@@ -156,6 +132,7 @@ public class RecoveryManagerTest
         long originalMaxOutstanding = CommitLogReplayer.MAX_OUTSTANDING_REPLAY_BYTES;
         CommitLogReplayer.MAX_OUTSTANDING_REPLAY_BYTES = 1;
         CommitLogReplayer.MutationInitiator originalInitiator = CommitLogReplayer.mutationInitiator;
+        MockInitiator mockInitiator = new MockInitiator();
         CommitLogReplayer.mutationInitiator = mockInitiator;
         try
         {
@@ -194,10 +171,10 @@ public class RecoveryManagerTest
                 }
             };
             t.start();
-            Assert.assertTrue(blocked.tryAcquire(1, 20, TimeUnit.SECONDS));
+            Assert.assertTrue(mockInitiator.blocked.tryAcquire(1, 20, TimeUnit.SECONDS));
             Thread.sleep(100);
             Assert.assertTrue(t.isAlive());
-            blocker.release(Integer.MAX_VALUE);
+            mockInitiator.blocker.release(Integer.MAX_VALUE);
             t.join(20 * 1000);
 
             if (err.get() != null)
@@ -273,8 +250,8 @@ public class RecoveryManagerTest
     @Test
     public void testRecoverPIT() throws Exception
     {
-        ColumnFamilyStore cfs = Keyspace.open(KEYSPACE1).getColumnFamilyStore(CF_STANDARD1);
         CommitLog.instance.resetUnsafe(true);
+        ColumnFamilyStore cfs = Keyspace.open(KEYSPACE1).getColumnFamilyStore(CF_STANDARD1);
         Date date = CommitLogArchiver.format.parse("2112:12:12 12:12:12");
         long timeMS = date.getTime() - 5000;
 
@@ -301,8 +278,8 @@ public class RecoveryManagerTest
     @Test
     public void testRecoverPITUnordered() throws Exception
     {
-        ColumnFamilyStore cfs = Keyspace.open(KEYSPACE1).getColumnFamilyStore(CF_STANDARD1);
         CommitLog.instance.resetUnsafe(true);
+        ColumnFamilyStore cfs = Keyspace.open(KEYSPACE1).getColumnFamilyStore(CF_STANDARD1);
         Date date = CommitLogArchiver.format.parse("2112:12:12 12:12:12");
         long timeMS = date.getTime();
 
@@ -332,4 +309,64 @@ public class RecoveryManagerTest
 
         assertEquals(2, Util.getAll(Util.cmd(cfs).build()).size());
     }
+
+    private static class MockInitiator extends CommitLogReplayer.MutationInitiator
+    {
+        final Semaphore blocker = new Semaphore(0);
+        final Semaphore blocked = new Semaphore(0);
+
+        @Override
+        protected Future<Integer> initiateMutation(final Mutation mutation,
+                final long segmentId,
+                final int serializedSize,
+                final int entryLocation,
+                final CommitLogReplayer clr)
+        {
+            final Future<Integer> toWrap = super.initiateMutation(mutation,
+                                                                  segmentId,
+                                                                  serializedSize,
+                                                                  entryLocation,
+                                                                  clr);
+            return new Future<Integer>()
+            {
+
+                @Override
+                public boolean cancel(boolean mayInterruptIfRunning)
+                {
+                    throw new UnsupportedOperationException();
+                }
+
+                @Override
+                public boolean isCancelled()
+                {
+                    throw new UnsupportedOperationException();
+                }
+
+                @Override
+                public boolean isDone()
+                {
+                    return blocker.availablePermits() > 0 && toWrap.isDone();
+                }
+
+                @Override
+                public Integer get() throws InterruptedException, ExecutionException
+                {
+                    System.out.println("Got blocker once");
+                    blocked.release();
+                    blocker.acquire();
+                    return toWrap.get();
+                }
+
+                @Override
+                public Integer get(long timeout, TimeUnit unit)
+                        throws InterruptedException, ExecutionException, TimeoutException
+                {
+                    blocked.release();
+                    blocker.tryAcquire(1, timeout, unit);
+                    return toWrap.get(timeout, unit);
+                }
+
+            };
+        }
+    };
 }

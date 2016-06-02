@@ -26,6 +26,7 @@ Merged from 2.2:
  * Prohibit Reversed Counter type as part of the PK (CASSANDRA-9395)
  * cqlsh: correctly handle non-ascii chars in error messages (CASSANDRA-11626)
 Merged from 2.1:
+ * Run CommitLog tests with different compression settings (CASSANDRA-9039)
  * cqlsh: apply current keyspace to source command (CASSANDRA-11152)
  * Clear out parent repair session if repair coordinator dies (CASSANDRA-11824)
  * Set default streaming_socket_timeout_in_ms to 24 hours (CASSANDRA-11840)

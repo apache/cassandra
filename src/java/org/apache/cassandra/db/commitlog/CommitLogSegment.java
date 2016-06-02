@@ -46,6 +46,7 @@ import org.apache.cassandra.config.CFMetaData;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.config.Schema;
 import org.apache.cassandra.db.Mutation;
+import org.apache.cassandra.db.commitlog.CommitLog.Configuration;
 import org.apache.cassandra.db.partitions.PartitionUpdate;
 import org.apache.cassandra.io.FSWriteError;
 import org.apache.cassandra.io.util.FileUtils;
@@ -122,9 +123,10 @@ public abstract class CommitLogSegment
 
     static CommitLogSegment createSegment(CommitLog commitLog, Runnable onClose)
     {
-        CommitLogSegment segment = commitLog.encryptionContext.isEnabled() ? new EncryptedSegment(commitLog, commitLog.encryptionContext, onClose) :
-               commitLog.compressor != null ? new CompressedSegment(commitLog, onClose) :
-                                              new MemoryMappedSegment(commitLog);
+        Configuration config = commitLog.configuration;
+        CommitLogSegment segment = config.useEncryption() ? new EncryptedSegment(commitLog, onClose)
+                                                          : config.useCompression() ? new CompressedSegment(commitLog, onClose)
+                                                                                    : new MemoryMappedSegment(commitLog);
         segment.writeLogHeader();
         return segment;
     }
@@ -137,7 +139,8 @@ public abstract class CommitLogSegment
      */
     static boolean usesBufferPool(CommitLog commitLog)
     {
-        return commitLog.encryptionContext.isEnabled() || commitLog.compressor != null;
+        Configuration config = commitLog.configuration;
+        return config.useEncryption() || config.useCompression();
     }
 
     static long getNextId()
@@ -152,7 +155,9 @@ public abstract class CommitLogSegment
     {
         this.commitLog = commitLog;
         id = getNextId();
-        descriptor = new CommitLogDescriptor(id, commitLog.compressorClass, commitLog.encryptionContext);
+        descriptor = new CommitLogDescriptor(id,
+                                             commitLog.configuration.getCompressorClass(),
+                                             commitLog.configuration.getEncryptionContext());
         logFile = new File(commitLog.location, descriptor.fileName());
 
         try

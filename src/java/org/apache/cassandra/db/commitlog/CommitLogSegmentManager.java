@@ -21,11 +21,9 @@ import java.io.File;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
-import java.util.HashSet;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.Set;
 import java.util.UUID;
 import java.util.concurrent.BlockingQueue;
 import java.util.concurrent.ConcurrentLinkedQueue;
@@ -488,13 +486,16 @@ public class CommitLogSegmentManager
             throw new RuntimeException(e);
         }
 
-        for (CommitLogSegment segment : activeSegments)
-            closeAndDeleteSegmentUnsafe(segment, deleteSegments);
-        activeSegments.clear();
+        synchronized (this)
+        {
+            for (CommitLogSegment segment : activeSegments)
+                closeAndDeleteSegmentUnsafe(segment, deleteSegments);
+            activeSegments.clear();
 
-        for (CommitLogSegment segment : availableSegments)
-            closeAndDeleteSegmentUnsafe(segment, deleteSegments);
-        availableSegments.clear();
+            for (CommitLogSegment segment : availableSegments)
+                closeAndDeleteSegmentUnsafe(segment, deleteSegments);
+            availableSegments.clear();
+        }
 
         allocatingFrom = null;
 

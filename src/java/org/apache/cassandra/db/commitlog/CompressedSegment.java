@@ -47,7 +47,7 @@ public class CompressedSegment extends FileDirectSegment
     CompressedSegment(CommitLog commitLog, Runnable onClose)
     {
         super(commitLog, onClose);
-        this.compressor = commitLog.compressor;
+        this.compressor = commitLog.configuration.getCompressor();
     }
 
     ByteBuffer allocate(int size)
@@ -57,7 +57,7 @@ public class CompressedSegment extends FileDirectSegment
 
     ByteBuffer createBuffer(CommitLog commitLog)
     {
-        return createBuffer(commitLog.compressor.preferredBufferType());
+        return createBuffer(commitLog.configuration.getCompressor().preferredBufferType());
     }
 
     @Override
