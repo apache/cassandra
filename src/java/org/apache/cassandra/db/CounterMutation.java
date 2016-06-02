@@ -211,7 +211,7 @@ public class CounterMutation implements IMutation
 
     private void updateWithCurrentValue(PartitionUpdate.CounterMark mark, ClockAndCount currentValue, ColumnFamilyStore cfs)
     {
-        long clock = currentValue.clock + 1L;
+        long clock = Math.max(FBUtilities.timestampMicros(), currentValue.clock + 1L);
         long count = currentValue.count + CounterContext.instance().total(mark.value());
 
         mark.setValue(CounterContext.instance().createGlobal(CounterId.getLocalId(), clock, count));

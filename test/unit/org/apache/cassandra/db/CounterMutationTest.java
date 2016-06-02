@@ -150,11 +150,11 @@ public class CounterMutationTest
         CBuilder cb = CBuilder.create(cfsOne.metadata.comparator);
         cb.add("cc");
 
-        assertEquals(ClockAndCount.create(1L, 1L), cfsOne.getCachedCounter(Util.dk("key1").getKey(), cb.build(), c1cfs1, null));
-        assertEquals(ClockAndCount.create(1L, -1L), cfsOne.getCachedCounter(Util.dk("key1").getKey(), cb.build(), c2cfs1, null));
+        assertEquals(1L, cfsOne.getCachedCounter(Util.dk("key1").getKey(), cb.build(), c1cfs1, null).count);
+        assertEquals(-1L, cfsOne.getCachedCounter(Util.dk("key1").getKey(), cb.build(), c2cfs1, null).count);
 
-        assertEquals(ClockAndCount.create(1L, 2L), cfsTwo.getCachedCounter(Util.dk("key1").getKey(), cb.build(), c1cfs2, null));
-        assertEquals(ClockAndCount.create(1L, -2L), cfsTwo.getCachedCounter(Util.dk("key1").getKey(), cb.build(), c2cfs2, null));
+        assertEquals(2L, cfsTwo.getCachedCounter(Util.dk("key1").getKey(), cb.build(), c1cfs2, null).count);
+        assertEquals(-2L, cfsTwo.getCachedCounter(Util.dk("key1").getKey(), cb.build(), c2cfs2, null).count);
     }
 
     @Test

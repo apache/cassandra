@@ -169,10 +169,10 @@ public class CounterCacheTest
         Clustering c2 = CBuilder.create(cfs.metadata.comparator).add(ByteBufferUtil.bytes(2)).build();
         ColumnDefinition cd = cfs.metadata.getColumnDefinition(ByteBufferUtil.bytes("c"));
 
-        assertEquals(ClockAndCount.create(1L, 1L), cfs.getCachedCounter(bytes(1), c1, cd, null));
-        assertEquals(ClockAndCount.create(1L, 2L), cfs.getCachedCounter(bytes(1), c2, cd, null));
-        assertEquals(ClockAndCount.create(1L, 1L), cfs.getCachedCounter(bytes(2), c1, cd, null));
-        assertEquals(ClockAndCount.create(1L, 2L), cfs.getCachedCounter(bytes(2), c2, cd, null));
+        assertEquals(1L, cfs.getCachedCounter(bytes(1), c1, cd, null).count);
+        assertEquals(2L, cfs.getCachedCounter(bytes(1), c2, cd, null).count);
+        assertEquals(1L, cfs.getCachedCounter(bytes(2), c1, cd, null).count);
+        assertEquals(2L, cfs.getCachedCounter(bytes(2), c2, cd, null).count);
     }
 
     @Test
