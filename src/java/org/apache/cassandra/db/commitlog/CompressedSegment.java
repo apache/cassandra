@@ -69,7 +69,7 @@ public class CompressedSegment extends CommitLogSegment
     CompressedSegment(CommitLog commitLog, Runnable onClose)
     {
         super(commitLog);
-        this.compressor = commitLog.compressor;
+        this.compressor = commitLog.configuration.getCompressor();
         this.onClose = onClose;
         try
         {
@@ -94,7 +94,9 @@ public class CompressedSegment extends CommitLogSegment
         if (buf == null)
         {
             // this.compressor is not yet set, so we must use the commitLog's one.
-            buf = commitLog.compressor.preferredBufferType().allocate(DatabaseDescriptor.getCommitLogSegmentSize());
+            buf = commitLog.configuration.getCompressor()
+                                         .preferredBufferType()
+                                         .allocate(DatabaseDescriptor.getCommitLogSegmentSize());
         } else
             buf.clear();
         return buf;

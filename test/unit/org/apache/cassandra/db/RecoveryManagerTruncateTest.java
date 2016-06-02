@@ -19,25 +19,59 @@
 package org.apache.cassandra.db;
 
 import java.io.IOException;
+import java.util.Arrays;
+import java.util.Collection;
+import java.util.Collections;
+
+import org.junit.Before;
+import org.junit.BeforeClass;
+import org.junit.Test;
+import org.junit.runner.RunWith;
+import org.junit.runners.Parameterized;
+import org.junit.runners.Parameterized.Parameters;
 
 import org.apache.cassandra.SchemaLoader;
 import org.apache.cassandra.Util;
+import org.apache.cassandra.config.DatabaseDescriptor;
+import org.apache.cassandra.config.ParameterizedClass;
 import org.apache.cassandra.db.commitlog.CommitLog;
 import org.apache.cassandra.exceptions.ConfigurationException;
+import org.apache.cassandra.io.compress.DeflateCompressor;
+import org.apache.cassandra.io.compress.LZ4Compressor;
+import org.apache.cassandra.io.compress.SnappyCompressor;
 import org.apache.cassandra.schema.KeyspaceParams;
 
-import org.junit.BeforeClass;
-import org.junit.Test;
-
-import static org.junit.Assert.*;
+import static org.junit.Assert.assertTrue;
 
 /**
  * Test for the truncate operation.
  */
+@RunWith(Parameterized.class)
 public class RecoveryManagerTruncateTest
 {
     private static final String KEYSPACE1 = "RecoveryManagerTruncateTest";
     private static final String CF_STANDARD1 = "Standard1";
+
+    public RecoveryManagerTruncateTest(ParameterizedClass commitLogCompression)
+    {
+        DatabaseDescriptor.setCommitLogCompression(commitLogCompression);
+    }
+
+    @Before
+    public void setUp() throws IOException
+    {
+        CommitLog.instance.resetUnsafe(true);
+    }
+
+    @Parameters()
+    public static Collection<Object[]> generateData()
+    {
+        return Arrays.asList(new Object[][] {
+                { null }, // No compression
+                { new ParameterizedClass(LZ4Compressor.class.getName(), Collections.emptyMap()) },
+                { new ParameterizedClass(SnappyCompressor.class.getName(), Collections.emptyMap()) },
+                { new ParameterizedClass(DeflateCompressor.class.getName(), Collections.emptyMap()) } });
+    }
 
     @BeforeClass
     public static void defineSchema() throws ConfigurationException

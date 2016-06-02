@@ -219,7 +219,7 @@ public class CommitLogStressTest
     {
         System.out.format("\nTesting commit log size %.0fmb, compressor %s, sync %s%s%s\n",
                           mb(DatabaseDescriptor.getCommitLogSegmentSize()),
-                          commitLog.compressor != null ? commitLog.compressor.getClass().getSimpleName() : "none",
+                          commitLog.configuration.getCompressorName(),
                           commitLog.executor.getClass().getSimpleName(),
                           randomSize ? " random size" : "",
                           discardedRun ? " with discarded run" : "");
