@@ -72,9 +72,7 @@ public class CommitLog implements CommitLogMBean
     final CommitLogMetrics metrics;
     final AbstractCommitLogService executor;
 
-    final ICompressor compressor;
-    public ParameterizedClass compressorClass;
-    public EncryptionContext encryptionContext;
+    volatile Configuration configuration;
     final public String location;
 
     private static CommitLog construct()
@@ -96,13 +94,11 @@ public class CommitLog implements CommitLogMBean
     @VisibleForTesting
     CommitLog(String location, CommitLogArchiver archiver)
     {
-        compressorClass = DatabaseDescriptor.getCommitLogCompression();
         this.location = location;
-        ICompressor compressor = compressorClass != null ? CompressionParams.createCompressor(compressorClass) : null;
+        this.configuration = new Configuration(DatabaseDescriptor.getCommitLogCompression(),
+                                               DatabaseDescriptor.getEncryptionContext());
         DatabaseDescriptor.createAllDirectories();
-        encryptionContext = DatabaseDescriptor.getEncryptionContext();
 
-        this.compressor = compressor;
         this.archiver = archiver;
         metrics = new CommitLogMetrics();
 
@@ -146,7 +142,8 @@ public class CommitLog implements CommitLogMBean
         };
 
         // submit all existing files in the commit log dir for archiving prior to recovery - CASSANDRA-6904
-        for (File file : new File(DatabaseDescriptor.getCommitLogLocation()).listFiles(unmanagedFilesFilter))
+        File[] listFiles = new File(DatabaseDescriptor.getCommitLogLocation()).listFiles(unmanagedFilesFilter);
+        for (File file : listFiles)
         {
             archiver.maybeArchive(file.getPath(), file.getName());
             archiver.maybeWaitForArchiving(file.getName());
@@ -416,7 +413,17 @@ public class CommitLog implements CommitLogMBean
     public int resetUnsafe(boolean deleteSegments) throws IOException
     {
         stopUnsafe(deleteSegments);
+        resetConfiguration();
         return restartUnsafe();
+    }
+
+    /**
+     * FOR TESTING PURPOSES.
+     */
+    public void resetConfiguration()
+    {
+        configuration = new Configuration(DatabaseDescriptor.getCommitLogCompression(),
+                                          DatabaseDescriptor.getEncryptionContext());
     }
 
     /**
@@ -490,6 +497,85 @@ public class CommitLog implements CommitLogMBean
                 return true;
             default:
                 throw new AssertionError(DatabaseDescriptor.getCommitFailurePolicy());
+        }
+    }
+
+    public static final class Configuration
+    {
+        /**
+         * The compressor class.
+         */
+        private final ParameterizedClass compressorClass;
+
+        /**
+         * The compressor used to compress the segments.
+         */
+        private final ICompressor compressor;
+
+        /**
+         * The encryption context used to encrypt the segments.
+         */
+        private EncryptionContext encryptionContext;
+
+        public Configuration(ParameterizedClass compressorClass, EncryptionContext encryptionContext)
+        {
+            this.compressorClass = compressorClass;
+            this.compressor = compressorClass != null ? CompressionParams.createCompressor(compressorClass) : null;
+            this.encryptionContext = encryptionContext;
+        }
+
+        /**
+         * Checks if the segments must be compressed.
+         * @return <code>true</code> if the segments must be compressed, <code>false</code> otherwise.
+         */
+        public boolean useCompression()
+        {
+            return compressor != null;
+        }
+
+        /**
+         * Checks if the segments must be encrypted.
+         * @return <code>true</code> if the segments must be encrypted, <code>false</code> otherwise.
+         */
+        public boolean useEncryption()
+        {
+            return encryptionContext.isEnabled();
+        }
+
+        /**
+         * Returns the compressor used to compress the segments.
+         * @return the compressor used to compress the segments
+         */
+        public ICompressor getCompressor()
+        {
+            return compressor;
+        }
+
+        /**
+         * Returns the compressor class.
+         * @return the compressor class
+         */
+        public ParameterizedClass getCompressorClass()
+        {
+            return compressorClass;
+        }
+
+        /**
+         * Returns the compressor name.
+         * @return the compressor name.
+         */
+        public String getCompressorName()
+        {
+            return useCompression() ? compressor.getClass().getSimpleName() : "none";
+        }
+
+        /**
+         * Returns the encryption context used to encrypt the segments.
+         * @return the encryption context used to encrypt the segments
+         */
+        public EncryptionContext getEncryptionContext()
+        {
+            return encryptionContext;
         }
     }
 }

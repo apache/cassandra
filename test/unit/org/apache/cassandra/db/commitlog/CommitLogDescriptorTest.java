@@ -15,6 +15,7 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
+
 package org.apache.cassandra.db.commitlog;
 
 import java.io.IOException;
@@ -125,6 +126,7 @@ public class CommitLogDescriptorTest
                                                                21,
                                                                new ParameterizedClass("LZ4Compressor", params),
                                                                neverEnabledEncryption);
+
             ByteBuffer buf = ByteBuffer.allocate(1024000);
             CommitLogDescriptor.writeHeader(buf, desc);
             Assert.fail("Parameter object too long should fail on writing descriptor.");
@@ -307,5 +309,4 @@ public class CommitLogDescriptorTest
         CommitLogDescriptor desc2 = new CommitLogDescriptor(CommitLogDescriptor.current_version, 1, compression, enabledEncryption);
         Assert.assertEquals(desc1, desc2);
     }
-
 }

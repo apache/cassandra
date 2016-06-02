@@ -229,8 +229,8 @@ public class CommitLogStressTest
     public void testLog(CommitLog commitLog) throws IOException, InterruptedException {
         System.out.format("\nTesting commit log size %.0fmb, compressor: %s, encryption enabled: %b, sync %s%s%s\n",
                            mb(DatabaseDescriptor.getCommitLogSegmentSize()),
-                           commitLog.compressor != null ? commitLog.compressor.getClass().getSimpleName() : "none",
-                           commitLog.encryptionContext.isEnabled(),
+                           commitLog.configuration.getCompressorName(),
+                           commitLog.configuration.useEncryption(),
                            commitLog.executor.getClass().getSimpleName(),
                            randomSize ? " random size" : "",
                            discardedRun ? " with discarded run" : "");
@@ -295,14 +295,14 @@ public class CommitLogStressTest
 
         if (hash == repl.hash && cells == repl.cells)
             System.out.format("Test success. compressor = %s, encryption enabled = %b; discarded = %d, skipped = %d\n",
-                              commitLog.compressor != null ? commitLog.compressor.getClass().getSimpleName() : "none",
-                              commitLog.encryptionContext.isEnabled(),
+                              commitLog.configuration.getCompressorName(),
+                              commitLog.configuration.useEncryption(),
                               repl.discarded, repl.skipped);
         else
         {
             System.out.format("Test failed (compressor = %s, encryption enabled = %b). Cells %d, expected %d, diff %d; discarded = %d, skipped = %d -  hash %d expected %d.\n",
-                              commitLog.compressor != null ? commitLog.compressor.getClass().getSimpleName() : "none",
-                              commitLog.encryptionContext.isEnabled(),
+                              commitLog.configuration.getCompressorName(),
+                              commitLog.configuration.useEncryption(),
                               repl.cells, cells, cells - repl.cells, repl.discarded, repl.skipped,
                               repl.hash, hash);
             failed = true;
