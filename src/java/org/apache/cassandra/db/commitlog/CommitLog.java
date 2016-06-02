@@ -70,8 +70,7 @@ public class CommitLog implements CommitLogMBean
     final CommitLogMetrics metrics;
     final AbstractCommitLogService executor;
 
-    final ICompressor compressor;
-    public ParameterizedClass compressorClass;
+    volatile Configuration configuration;
     final public String location;
 
     static private CommitLog construct()
@@ -93,12 +92,10 @@ public class CommitLog implements CommitLogMBean
     @VisibleForTesting
     CommitLog(String location, CommitLogArchiver archiver)
     {
-        compressorClass = DatabaseDescriptor.getCommitLogCompression();
         this.location = location;
-        ICompressor compressor = compressorClass != null ? CompressionParameters.createCompressor(compressorClass) : null;
+        this.configuration = new Configuration(DatabaseDescriptor.getCommitLogCompression());
         DatabaseDescriptor.createAllDirectories();
 
-        this.compressor = compressor;
         this.archiver = archiver;
         metrics = new CommitLogMetrics();
 
@@ -412,6 +409,7 @@ public class CommitLog implements CommitLogMBean
     public int resetUnsafe(boolean deleteSegments) throws IOException
     {
         stopUnsafe(deleteSegments);
+        resetConfiguration();
         return restartUnsafe();
     }
 
@@ -431,6 +429,14 @@ public class CommitLog implements CommitLogMBean
         }
         allocator.stopUnsafe(deleteSegments);
         CommitLogSegment.resetReplayLimit();
+    }
+
+    /**
+     * FOR TESTING PURPOSES.
+     */
+    public void resetConfiguration()
+    {
+        this.configuration = new Configuration(DatabaseDescriptor.getCommitLogCompression());
     }
 
     /**
@@ -486,6 +492,61 @@ public class CommitLog implements CommitLogMBean
                 return true;
             default:
                 throw new AssertionError(DatabaseDescriptor.getCommitFailurePolicy());
+        }
+    }
+
+    public static final class Configuration
+    {
+        /**
+         * The compressor class.
+         */
+        private final ParameterizedClass compressorClass;
+
+        /**
+         * The compressor used to compress the segments.
+         */
+        private final ICompressor compressor;
+
+        public Configuration(ParameterizedClass compressorClass)
+        {
+            this.compressorClass = compressorClass;
+            this.compressor = compressorClass != null ? CompressionParameters.createCompressor(compressorClass) : null;
+        }
+
+        /**
+         * Checks if the segments must be compressed.
+         * @return <code>true</code> if the segments must be compressed, <code>false</code> otherwise.
+         */
+        public boolean useCompression()
+        {
+            return compressor != null;
+        }
+
+        /**
+         * Returns the compressor used to compress the segments.
+         * @return the compressor used to compress the segments
+         */
+        public ICompressor getCompressor()
+        {
+            return compressor;
+        }
+
+        /**
+         * Returns the compressor class.
+         * @return the compressor class
+         */
+        public ParameterizedClass getCompressorClass()
+        {
+            return compressorClass;
+        }
+
+        /**
+         * Returns the compressor name.
+         * @return the compressor name.
+         */
+        public String getCompressorName()
+        {
+            return useCompression() ? compressor.getClass().getSimpleName() : "none";
         }
     }
 }

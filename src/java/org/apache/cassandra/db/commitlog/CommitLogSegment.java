@@ -119,7 +119,8 @@ public abstract class CommitLogSegment
 
     static CommitLogSegment createSegment(CommitLog commitLog)
     {
-        return commitLog.compressor != null ? new CompressedSegment(commitLog) : new MemoryMappedSegment(commitLog);
+        return commitLog.configuration.useCompression() ? new CompressedSegment(commitLog)
+                                                        : new MemoryMappedSegment(commitLog);
     }
 
     static long getNextId()
@@ -136,7 +137,7 @@ public abstract class CommitLogSegment
     {
         this.commitLog = commitLog;
         id = getNextId();
-        descriptor = new CommitLogDescriptor(id, commitLog.compressorClass);
+        descriptor = new CommitLogDescriptor(id, commitLog.configuration.getCompressorClass());
         logFile = new File(commitLog.location, descriptor.fileName());
 
         try
