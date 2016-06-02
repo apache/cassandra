@@ -136,7 +136,7 @@ public class View
         return Iterables.concat(sstables, filterOut(compacting, sstables));
     }
 
-    private Iterable<SSTableReader> select(SSTableSet sstableSet, Iterable<SSTableReader> sstables)
+    public Iterable<SSTableReader> select(SSTableSet sstableSet, Iterable<SSTableReader> sstables)
     {
         switch (sstableSet)
         {
@@ -182,7 +182,7 @@ public class View
      * Returns the sstables that have any partition between {@code left} and {@code right}, when both bounds are taken inclusively.
      * The interval formed by {@code left} and {@code right} shouldn't wrap.
      */
-    public Iterable<SSTableReader> sstablesInBounds(SSTableSet sstableSet, PartitionPosition left, PartitionPosition right)
+    public Iterable<SSTableReader> liveSSTablesInBounds(PartitionPosition left, PartitionPosition right)
     {
         assert !AbstractBounds.strictlyWrapsAround(left, right);
 
@@ -190,7 +190,7 @@ public class View
             return Collections.emptyList();
 
         PartitionPosition stopInTree = right.isMinimum() ? intervalTree.max() : right;
-        return select(sstableSet, intervalTree.search(Interval.create(left, stopInTree)));
+        return select(SSTableSet.LIVE, intervalTree.search(Interval.create(left, stopInTree)));
     }
 
     public static List<SSTableReader> sstablesInBounds(PartitionPosition left, PartitionPosition right, SSTableIntervalTree intervalTree)
@@ -228,14 +228,14 @@ public class View
      * @return a ViewFragment containing the sstables and memtables that may need to be merged
      * for rows within @param rowBounds, inclusive, according to the interval tree.
      */
-    public static Function<View, Iterable<SSTableReader>> select(SSTableSet sstableSet, AbstractBounds<PartitionPosition> rowBounds)
+    public static Function<View, Iterable<SSTableReader>> selectLive(AbstractBounds<PartitionPosition> rowBounds)
     {
         // Note that View.sstablesInBounds always includes it's bound while rowBounds may not. This is ok however
         // because the fact we restrict the sstables returned by this function is an optimization in the first
         // place and the returned sstables will (almost) never cover *exactly* rowBounds anyway. It's also
         // *very* unlikely that a sstable is included *just* because we consider one of the bound inclusively
         // instead of exclusively, so the performance impact is negligible in practice.
-        return (view) -> view.sstablesInBounds(sstableSet, rowBounds.left, rowBounds.right);
+        return (view) -> view.liveSSTablesInBounds(rowBounds.left, rowBounds.right);
     }
 
     // METHODS TO CONSTRUCT FUNCTIONS FOR MODIFYING A VIEW:

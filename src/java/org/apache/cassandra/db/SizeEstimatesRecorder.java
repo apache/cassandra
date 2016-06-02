@@ -103,8 +103,9 @@ public class SizeEstimatesRecorder extends MigrationListener implements Runnable
             {
                 while (refs == null)
                 {
-                    ColumnFamilyStore.ViewFragment view = table.select(View.select(SSTableSet.CANONICAL, Range.makeRowRange(range)));
-                    refs = Refs.tryRef(view.sstables);
+                    // note that this is not guaranteed to return all sstables within the ranges, but for an estimated size, that should be fine
+                    Iterable<SSTableReader> canonicalSSTables = table.getTracker().getView().select(SSTableSet.CANONICAL, table.select(View.selectLive(Range.makeRowRange(range))).sstables);
+                    refs = Refs.tryRef(canonicalSSTables);
                 }
 
                 // calculate the estimates.

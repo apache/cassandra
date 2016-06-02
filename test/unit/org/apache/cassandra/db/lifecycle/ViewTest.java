@@ -71,7 +71,7 @@ public class ViewTest
                             continue;
 
                         AbstractBounds<PartitionPosition> bounds = AbstractBounds.bounds(min, minInc, max, maxInc);
-                        List<SSTableReader> r = ImmutableList.copyOf(initialView.sstablesInBounds(SSTableSet.LIVE,bounds.left, bounds.right));
+                        List<SSTableReader> r = ImmutableList.copyOf(initialView.liveSSTablesInBounds(bounds.left, bounds.right));
                         Assert.assertEquals(String.format("%d(%s) %d(%s)", i, minInc, j, maxInc), j - i + (minInc ? 0 : -1) + (maxInc ? 1 : 0), r.size());
                     }
                 }
