@@ -465,11 +465,10 @@ public final class SystemKeyspace
 
     public static void finishStartup()
     {
-        persistLocalMetadata();
         SchemaKeyspace.saveSystemKeyspacesSchema();
     }
 
-    private static void persistLocalMetadata()
+    public static void persistLocalMetadata()
     {
         String req = "INSERT INTO system.%s (" +
                      "key," +
