@@ -16,6 +16,7 @@ Merged from 3.0:
  * Refactor Materialized View code (CASSANDRA-11475)
  * Update Java Driver (CASSANDRA-11615)
 Merged from 2.2:
+ * Persist local metadata earlier in startup sequence (CASSANDRA-11742)
  * cqlsh: fix tab completion for case-sensitive identifiers (CASSANDRA-11664)
  * Avoid showing estimated key as -1 in tablestats (CASSANDRA-11587)
  * Fix possible race condition in CommitLog.recover (CASSANDRA-11743)

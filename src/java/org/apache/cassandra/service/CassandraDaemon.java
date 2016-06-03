@@ -203,6 +203,10 @@ public class CassandraDaemon
             exitOrFail(3, e.getMessage(), e.getCause());
         }
 
+        // We need to persist this as soon as possible after startup checks.
+        // This should be the first write to SystemKeyspace (CASSANDRA-11742)
+        SystemKeyspace.persistLocalMetadata();
+
         maybeInitJmx();
 
         Thread.setDefaultUncaughtExceptionHandler(new Thread.UncaughtExceptionHandler()
