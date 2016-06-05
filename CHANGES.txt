@@ -1,4 +1,6 @@
 3.0.7
+ * Fix legacy serialization of Thrift-generated non-compound range tombstones
+   when communicating with 2.x nodes (CASSANDRA-11930)
  * Fix Directories instantiations where CFS.initialDirectories should be used (CASSANDRA-11849)
  * Avoid referencing DatabaseDescriptor in AbstractType (CASSANDRA-11912)
  * Fix sstables not being protected from removal during index build (CASSANDRA-11905)
