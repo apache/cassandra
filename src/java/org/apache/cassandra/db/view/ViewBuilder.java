@@ -72,7 +72,6 @@ public class ViewBuilder extends CompactionInfo.Holder
 
     private void buildKey(DecoratedKey key)
     {
-        AtomicLong noBase = new AtomicLong(Long.MAX_VALUE);
         ReadQuery selectQuery = view.getReadQuery();
         if (!selectQuery.selectsKey(key))
             return;
@@ -92,7 +91,10 @@ public class ViewBuilder extends CompactionInfo.Holder
         }
 
         if (!mutations.isEmpty())
+        {
+            AtomicLong noBase = new AtomicLong(Long.MAX_VALUE);
             StorageProxy.mutateMV(key.getKey(), mutations, true, noBase);
+        }
     }
 
     public void run()
