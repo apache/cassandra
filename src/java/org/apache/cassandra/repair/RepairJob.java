@@ -85,7 +85,7 @@ public class RepairJob extends AbstractFuture<RepairResult> implements Runnable
             ListenableFuture<List<InetAddress>> allSnapshotTasks = Futures.allAsList(snapshotTasks);
             validations = Futures.transform(allSnapshotTasks, new AsyncFunction<List<InetAddress>, List<TreeResponse>>()
             {
-                public ListenableFuture<List<TreeResponse>> apply(List<InetAddress> endpoints) throws Exception
+                public ListenableFuture<List<TreeResponse>> apply(List<InetAddress> endpoints)
                 {
                     if (parallelismDegree == RepairParallelism.SEQUENTIAL)
                         return sendSequentialValidationRequest(endpoints);
@@ -103,7 +103,7 @@ public class RepairJob extends AbstractFuture<RepairResult> implements Runnable
         // When all validations complete, submit sync tasks
         ListenableFuture<List<SyncStat>> syncResults = Futures.transform(validations, new AsyncFunction<List<TreeResponse>, List<SyncStat>>()
         {
-            public ListenableFuture<List<SyncStat>> apply(List<TreeResponse> trees) throws Exception
+            public ListenableFuture<List<SyncStat>> apply(List<TreeResponse> trees)
             {
                 InetAddress local = FBUtilities.getLocalAddress();
 

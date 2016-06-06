@@ -114,7 +114,7 @@ public class StartupChecks
 
     public static final StartupCheck checkJemalloc = new StartupCheck()
     {
-        public void execute() throws StartupException
+        public void execute()
         {
             if (FBUtilities.isWindows())
                 return;
@@ -258,7 +258,7 @@ public class StartupChecks
 
             FileVisitor<Path> sstableVisitor = new SimpleFileVisitor<Path>()
             {
-                public FileVisitResult visitFile(Path file, BasicFileAttributes attrs) throws IOException
+                public FileVisitResult visitFile(Path file, BasicFileAttributes attrs)
                 {
                     if (!Descriptor.isValidFile(file.getFileName().toString()))
                         return FileVisitResult.CONTINUE;

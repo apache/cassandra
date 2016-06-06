@@ -271,7 +271,7 @@ public class RepairRunnable extends WrappedRunnable implements ProgressEventNoti
         ListenableFuture anticompactionResult = Futures.transform(allSessions, new AsyncFunction<List<RepairSessionResult>, Object>()
         {
             @SuppressWarnings("unchecked")
-            public ListenableFuture apply(List<RepairSessionResult> results) throws Exception
+            public ListenableFuture apply(List<RepairSessionResult> results)
             {
                 // filter out null(=failed) results and get successful ranges
                 for (RepairSessionResult sessionResult : results)

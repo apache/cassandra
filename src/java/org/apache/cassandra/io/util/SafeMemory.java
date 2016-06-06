@@ -84,7 +84,7 @@ public class SafeMemory extends Memory implements SharedCloseable
             this.size = size;
         }
 
-        public void tidy() throws Exception
+        public void tidy()
         {
             /** see {@link Memory#Memory(long)} re: null pointers*/
             if (peer != 0)

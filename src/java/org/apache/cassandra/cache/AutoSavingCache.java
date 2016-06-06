@@ -154,7 +154,7 @@ public class AutoSavingCache<K extends CacheKey, V> extends InstrumentingCache<K
         ListenableFuture<Integer> cacheLoad = es.submit(new Callable<Integer>()
         {
             @Override
-            public Integer call() throws Exception
+            public Integer call()
             {
                 return loadSaved();
             }

@@ -279,7 +279,7 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
             logger.trace("scheduling flush in {} ms", period);
             WrappedRunnable runnable = new WrappedRunnable()
             {
-                protected void runMayThrow() throws Exception
+                protected void runMayThrow()
                 {
                     synchronized (data)
                     {
@@ -1205,7 +1205,7 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
             readBarrier.issue();
             reclaimExecutor.execute(new WrappedRunnable()
             {
-                public void runMayThrow() throws InterruptedException, ExecutionException
+                public void runMayThrow()
                 {
                     readBarrier.await();
                     memtable.setDiscarded();
@@ -2232,7 +2232,7 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
     {
         Callable<LifecycleTransaction> callable = new Callable<LifecycleTransaction>()
         {
-            public LifecycleTransaction call() throws Exception
+            public LifecycleTransaction call()
             {
                 assert data.getCompacting().isEmpty() : data.getCompacting();
                 Iterable<SSTableReader> sstables = getPermittedToCompactSSTables();

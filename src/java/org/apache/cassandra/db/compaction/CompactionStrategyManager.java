@@ -701,7 +701,7 @@ public class CompactionStrategyManager implements INotificationConsumer
         return cfs.runWithCompactionsDisabled(new Callable<Collection<AbstractCompactionTask>>()
         {
             @Override
-            public Collection<AbstractCompactionTask> call() throws Exception
+            public Collection<AbstractCompactionTask> call()
             {
                 List<AbstractCompactionTask> tasks = new ArrayList<>();
                 readLock.lock();

@@ -46,7 +46,7 @@ public class AsyncRepairCallback implements IAsyncCallback<ReadResponse>
         {
             StageManager.getStage(Stage.READ_REPAIR).execute(new WrappedRunnable()
             {
-                protected void runMayThrow() throws DigestMismatchException, IOException
+                protected void runMayThrow()
                 {
                     repairResolver.resolve();
                 }

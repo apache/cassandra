@@ -2110,10 +2110,6 @@ public class CassandraServer implements Cassandra.Iface
         {
             throw new TimedOutException();
         }
-        catch (IOException e)
-        {
-            throw (UnavailableException) new UnavailableException().initCause(e);
-        }
         finally
         {
             Tracing.instance.stopSession();

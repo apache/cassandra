@@ -2670,7 +2670,7 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
     }
 
     // TODO
-    public final void deliverHints(String host) throws UnknownHostException
+    public final void deliverHints(String host)
     {
         throw new UnsupportedOperationException();
     }

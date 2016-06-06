@@ -62,12 +62,12 @@ public class Verifier implements Closeable
     private final OutputHandler outputHandler;
     private FileDigestValidator validator;
 
-    public Verifier(ColumnFamilyStore cfs, SSTableReader sstable, boolean isOffline) throws IOException
+    public Verifier(ColumnFamilyStore cfs, SSTableReader sstable, boolean isOffline)
     {
         this(cfs, sstable, new OutputHandler.LogOutput(), isOffline);
     }
 
-    public Verifier(ColumnFamilyStore cfs, SSTableReader sstable, OutputHandler outputHandler, boolean isOffline) throws IOException
+    public Verifier(ColumnFamilyStore cfs, SSTableReader sstable, OutputHandler outputHandler, boolean isOffline)
     {
         this.cfs = cfs;
         this.sstable = sstable;

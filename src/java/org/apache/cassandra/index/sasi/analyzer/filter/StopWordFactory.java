@@ -52,7 +52,7 @@ public class StopWordFactory
     private static final LoadingCache<String, Set<String>> STOP_WORDS_CACHE = CacheBuilder.newBuilder()
             .build(new CacheLoader<String, Set<String>>()
             {
-                public Set<String> load(String s) throws Exception
+                public Set<String> load(String s)
                 {
                     return getStopWordsFromResource(s);
                 }

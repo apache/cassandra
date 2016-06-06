@@ -226,7 +226,7 @@ public class NodeProbe implements AutoCloseable
                 mbeanServerConn, ManagementFactory.RUNTIME_MXBEAN_NAME, RuntimeMXBean.class);
     }
 
-    private RMIClientSocketFactory getRMIClientSocketFactory() throws IOException
+    private RMIClientSocketFactory getRMIClientSocketFactory()
     {
         if (Boolean.parseBoolean(System.getProperty("ssl.enable")))
             return new SslRMIClientSocketFactory();

@@ -87,7 +87,7 @@ public abstract class DataOutputStreamPlus extends OutputStream implements DataO
             }
 
             @Override
-            public void close() throws IOException
+            public void close()
             {
             }
 

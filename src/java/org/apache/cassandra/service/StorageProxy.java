@@ -2362,9 +2362,8 @@ public class StorageProxy implements StorageProxyMBean
      * @param cfname
      * @throws UnavailableException If some of the hosts in the ring are down.
      * @throws TimeoutException
-     * @throws IOException
      */
-    public static void truncateBlocking(String keyspace, String cfname) throws UnavailableException, TimeoutException, IOException
+    public static void truncateBlocking(String keyspace, String cfname) throws UnavailableException, TimeoutException
     {
         logger.debug("Starting a blocking truncate operation on keyspace {}, CF {}", keyspace, cfname);
         if (isAnyStorageHostDown())

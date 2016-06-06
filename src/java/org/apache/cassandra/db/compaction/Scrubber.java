@@ -78,7 +78,7 @@ public class Scrubber implements Closeable
     };
     private final SortedSet<Partition> outOfOrder = new TreeSet<>(partitionComparator);
 
-    public Scrubber(ColumnFamilyStore cfs, LifecycleTransaction transaction, boolean skipCorrupted, boolean checkData) throws IOException
+    public Scrubber(ColumnFamilyStore cfs, LifecycleTransaction transaction, boolean skipCorrupted, boolean checkData)
     {
         this(cfs, transaction, skipCorrupted, new OutputHandler.LogOutput(), checkData);
     }
@@ -88,7 +88,7 @@ public class Scrubber implements Closeable
                     LifecycleTransaction transaction,
                     boolean skipCorrupted,
                     OutputHandler outputHandler,
-                    boolean checkData) throws IOException
+                    boolean checkData)
     {
         this.cfs = cfs;
         this.transaction = transaction;

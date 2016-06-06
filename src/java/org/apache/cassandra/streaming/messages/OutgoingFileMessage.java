@@ -38,7 +38,7 @@ public class OutgoingFileMessage extends StreamMessage
 {
     public static Serializer<OutgoingFileMessage> serializer = new Serializer<OutgoingFileMessage>()
     {
-        public OutgoingFileMessage deserialize(ReadableByteChannel in, int version, StreamSession session) throws IOException
+        public OutgoingFileMessage deserialize(ReadableByteChannel in, int version, StreamSession session)
         {
             throw new UnsupportedOperationException("Not allowed to call deserialize on an outgoing file");
         }

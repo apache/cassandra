@@ -409,7 +409,7 @@ public class CompactionManager implements CompactionManagerMBean
             }
 
             @Override
-            public void execute(LifecycleTransaction txn) throws IOException
+            public void execute(LifecycleTransaction txn)
             {
                 AbstractCompactionTask task = cfs.getCompactionStrategyManager().getCompactionTask(txn, NO_GC, Long.MAX_VALUE);
                 task.setUserDefined(true);
@@ -515,7 +515,7 @@ public class CompactionManager implements CompactionManagerMBean
             }
 
             @Override
-            public void execute(LifecycleTransaction txn) throws IOException
+            public void execute(LifecycleTransaction txn)
             {
                 logger.debug("Relocating {}", txn.originals());
                 AbstractCompactionTask task = cfs.getCompactionStrategyManager().getCompactionTask(txn, NO_GC, Long.MAX_VALUE);
@@ -673,7 +673,7 @@ public class CompactionManager implements CompactionManagerMBean
                 nonEmptyTasks++;
             Runnable runnable = new WrappedRunnable()
             {
-                protected void runMayThrow() throws IOException
+                protected void runMayThrow()
                 {
                     task.execute(metrics);
                 }
@@ -775,7 +775,7 @@ public class CompactionManager implements CompactionManagerMBean
     {
         Runnable runnable = new WrappedRunnable()
         {
-            protected void runMayThrow() throws IOException
+            protected void runMayThrow()
             {
                 // look up the sstables now that we're on the compaction executor, so we don't try to re-compact
                 // something that was already being compacted earlier.

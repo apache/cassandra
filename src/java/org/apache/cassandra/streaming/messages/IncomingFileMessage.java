@@ -72,7 +72,7 @@ public class IncomingFileMessage extends StreamMessage
             }
         }
 
-        public void serialize(IncomingFileMessage message, DataOutputStreamPlus out, int version, StreamSession session) throws IOException
+        public void serialize(IncomingFileMessage message, DataOutputStreamPlus out, int version, StreamSession session)
         {
             throw new UnsupportedOperationException("Not allowed to call serialize on an incoming file");
         }

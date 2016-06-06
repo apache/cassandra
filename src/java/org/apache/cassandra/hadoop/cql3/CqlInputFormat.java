@@ -213,7 +213,7 @@ public class CqlInputFormat extends org.apache.hadoop.mapreduce.InputFormat<Long
                 metadata.newToken(partitioner.getTokenFactory().toString(range.right)));
     }
 
-    private Map<TokenRange, Long> getSubSplits(String keyspace, String cfName, TokenRange range, Configuration conf, Session session) throws IOException
+    private Map<TokenRange, Long> getSubSplits(String keyspace, String cfName, TokenRange range, Configuration conf, Session session)
     {
         int splitSize = ConfigHelper.getInputSplitSize(conf);
         int splitSizeMb = ConfigHelper.getInputSplitSizeInMb(conf);

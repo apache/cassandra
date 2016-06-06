@@ -52,7 +52,7 @@ public class TraceStateImpl extends TraceState
     {
         StageManager.getStage(Stage.TRACING).execute(new WrappedRunnable()
         {
-            protected void runMayThrow() throws Exception
+            protected void runMayThrow()
             {
                 mutateWithCatch(mutation);
             }

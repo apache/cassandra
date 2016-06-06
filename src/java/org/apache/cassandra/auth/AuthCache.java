@@ -178,7 +178,7 @@ public class AuthCache<K, V> implements AuthCacheMBean
                            .maximumSize(getMaxEntries())
                            .build(new CacheLoader<K, V>()
                            {
-                               public V load(K k) throws Exception
+                               public V load(K k)
                                {
                                    return loadFunction.apply(k);
                                }
