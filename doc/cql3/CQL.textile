@@ -346,7 +346,7 @@ Table creation supports the following other @<property>@:
 
 h4(#compactionOptions). Compaction options
 
-The @compaction@ property must at least define the @'class'@ sub-option, that defines the compaction strategy class to use. The default supported class are @'SizeTieredCompactionStrategy'@, @'LeveledCompactionStrategy'@ and @'DateTieredCompactionStrategy'@. Custom strategy can be provided by specifying the full class name as a "string constant":#constants. The rest of the sub-options depends on the chosen class. The sub-options supported by the default classes are:
+The @compaction@ property must at least define the @'class'@ sub-option, that defines the compaction strategy class to use. The default supported class are @'SizeTieredCompactionStrategy'@, @'LeveledCompactionStrategy'@, @'DateTieredCompactionStrategy'@ and @'TimeWindowCompactionStrategy'@. Custom strategy can be provided by specifying the full class name as a "string constant":#constants. The rest of the sub-options depends on the chosen class. The sub-options supported by the default classes are:
 
 |_. option                         |_. supported compaction strategy |_. default    |_. description |
 | @enabled@                        | _all_                           | true         | A boolean denoting whether compaction should be enabled or not.|
@@ -362,6 +362,9 @@ The @compaction@ property must at least define the @'class'@ sub-option, that de
 | @timestamp_resolution@           | DateTieredCompactionStrategy    | MICROSECONDS | The timestamp resolution used when inserting data, could be MILLISECONDS, MICROSECONDS etc (should be understandable by Java TimeUnit) - don't change this unless you do mutations with USING TIMESTAMP <non_microsecond_timestamps> (or equivalent directly in the client)|
 | @base_time_seconds@              | DateTieredCompactionStrategy    | 60           | The base size of the time windows. |
 | @max_sstable_age_days@           | DateTieredCompactionStrategy    | 365          | SSTables only containing data that is older than this will never be compacted. |
+| @timestamp_resolution@           | TimeWindowCompactionStrategy    | MICROSECONDS | The timestamp resolution used when inserting data, could be MILLISECONDS, MICROSECONDS etc (should be understandable by Java TimeUnit) - don't change this unless you do mutations with USING TIMESTAMP <non_microsecond_timestamps> (or equivalent directly in the client)|
+| @compaction_window_unit@         | TimeWindowCompactionStrategy    | DAYS         | The Java TimeUnit used for the window size, set in conjunction with @compaction_window_size@. Must be one of DAYS, HOURS, MINUTES |
+| @compaction_window_size@         | TimeWindowCompactionStrategy    | 1            | The number of @compaction_window_unit@ units that make up a time window. |
 
 
 h4(#compressionOptions). Compression options

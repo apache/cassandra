@@ -27,6 +27,16 @@ New features
      "-log hdrfile=" option. This histogram includes response/service/wait times when used with the
      fixed or throttle rate options.  The histogram file can be plotted on
      http://hdrhistogram.github.io/HdrHistogram/plotFiles.html
+   - TimeWindowCompactionStrategy has been added. This has proven to be a better approach
+     to time series compaction and new tables should use this instead of DTCS. See
+     CASSANDRA-9666 for details.
+
+Deprecation
+-----------
+   - DateTieredCompactionStrategy has been deprecated - new tables should use
+     TimeWindowCompactionStrategy. Note that migrating an existing DTCS-table to TWCS might
+     cause increased compaction load for a while after the migration so make sure you run
+     tests before migrating. Read CASSANDRA-9666 for background on this.
 
 3.7
 ===
