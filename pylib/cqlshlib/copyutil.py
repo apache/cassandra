@@ -59,6 +59,7 @@ PROFILE_ON = False
 STRACE_ON = False
 DEBUG = False  # This may be set to True when initializing the task
 IS_LINUX = platform.system() == 'Linux'
+IS_WINDOWS = platform.system() == 'Windows'
 
 CopyOptions = namedtuple('CopyOptions', 'copy dialect unrecognized')
 
@@ -437,9 +438,13 @@ class CopyTask(object):
     def make_params(self):
         """
         Return a dictionary of parameters to be used by the worker processes.
-        On Windows this dictionary must be pickle-able.
+        On Windows this dictionary must be pickle-able, therefore we do not pass the
+        parent connection since it may not be pickle-able. Also, on Windows child
+        processes are spawned and not forked, and therefore we don't need to shutdown
+        the parent connection anyway, see CASSANDRA-11749 for more details.
         """
         shell = self.shell
+
         return dict(ks=self.ks,
                     table=self.table,
                     local_dc=self.local_dc,
@@ -450,6 +455,7 @@ class CopyTask(object):
                     port=shell.port,
                     ssl=shell.ssl,
                     auth_provider=shell.auth_provider,
+                    parent_cluster=shell.conn if not IS_WINDOWS else None,
                     cql_version=shell.conn.cql_version,
                     config_file=self.config_file,
                     protocol_version=self.protocol_version,
@@ -1112,7 +1118,8 @@ class ImportTask(CopyTask):
                 self.processes.append(ImportProcess(self.update_params(params, i)))
 
             feeder = FeedingProcess(self.outmsg.channels[-1], self.inmsg.channels[-1],
-                                    self.outmsg.channels[:-1], self.fname, self.options)
+                                    self.outmsg.channels[:-1], self.fname, self.options,
+                                    self.shell.conn if not IS_WINDOWS else None)
             self.processes.append(feeder)
 
             self.start_processes()
@@ -1219,7 +1226,7 @@ class FeedingProcess(mp.Process):
     """
     A process that reads from import sources and sends chunks to worker processes.
     """
-    def __init__(self, inmsg, outmsg, worker_channels, fname, options):
+    def __init__(self, inmsg, outmsg, worker_channels, fname, options, parent_cluster):
         mp.Process.__init__(self, target=self.run)
         self.inmsg = inmsg
         self.outmsg = outmsg
@@ -1230,6 +1237,15 @@ class FeedingProcess(mp.Process):
         self.num_worker_processes = options.copy['numprocesses']
         self.max_pending_chunks = options.copy['maxpendingchunks']
         self.chunk_id = 0
+        self.parent_cluster = parent_cluster
+
+    def on_fork(self):
+        """
+        Release any parent connections after forking, see CASSANDRA-11749 for details.
+        """
+        if self.parent_cluster:
+            printdebugmsg("Closing parent cluster sockets")
+            self.parent_cluster.shutdown()
 
     def run(self):
         pr = profile_on() if PROFILE_ON else None
@@ -1246,6 +1262,9 @@ class FeedingProcess(mp.Process):
         here we throttle using the ingest rate in the feeding process because of memory usage concerns.
         When finished we send back to the parent process the total number of rows sent.
         """
+
+        self.on_fork()
+
         reader = self.reader
         reader.start()
         channels = self.worker_channels
@@ -1321,6 +1340,7 @@ class ChildProcess(mp.Process):
         self.connect_timeout = params['connect_timeout']
         self.cql_version = params['cql_version']
         self.auth_provider = params['auth_provider']
+        self.parent_cluster = params['parent_cluster']
         self.ssl = params['ssl']
         self.protocol_version = params['protocol_version']
         self.config_file = params['config_file']
@@ -1337,6 +1357,14 @@ class ChildProcess(mp.Process):
             self.test_failures = json.loads(os.environ.get('CQLSH_COPY_TEST_FAILURES', ''))
         else:
             self.test_failures = None
+
+    def on_fork(self):
+        """
+        Release any parent connections after forking, see CASSANDRA-11749 for details.
+        """
+        if self.parent_cluster:
+            printdebugmsg("Closing parent cluster sockets")
+            self.parent_cluster.shutdown()
 
     def close(self):
         printdebugmsg("Closing queues...")
@@ -1464,6 +1492,9 @@ class ExportProcess(ChildProcess):
         we can signal a global error by sending (None, error).
         We terminate when the inbound queue is closed.
         """
+
+        self.on_fork()
+
         while True:
             if self.num_requests() > self.max_requests:
                 time.sleep(0.001)  # 1 millisecond
@@ -2164,6 +2195,7 @@ class ImportProcess(ChildProcess):
         try:
             pr = profile_on() if PROFILE_ON else None
 
+            self.on_fork()
             self.inner_run(*self.make_params())
 
             if pr:
