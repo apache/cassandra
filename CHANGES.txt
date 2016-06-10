@@ -1,4 +1,5 @@
 3.8
+ * Add bind variables to trace (CASSANDRA-11719)
  * Switch counter shards' clock to timestamps (CASSANDRA-9811)
  * Introduce HdrHistogram and response/service/wait separation to stress tool (CASSANDRA-11853)
  * entry-weighers in QueryProcessor should respect partitionKeyBindIndexes field (CASSANDRA-11718)

@@ -23,6 +23,7 @@ import com.google.common.collect.ImmutableMap;
 import io.netty.buffer.ByteBuf;
 
 import org.apache.cassandra.cql3.CQLStatement;
+import org.apache.cassandra.cql3.ColumnSpecification;
 import org.apache.cassandra.cql3.QueryHandler;
 import org.apache.cassandra.cql3.QueryOptions;
 import org.apache.cassandra.cql3.statements.ParsedStatement;
@@ -121,7 +122,21 @@ public class ExecuteMessage extends Message.Request
                     builder.put("serial_consistency_level", options.getSerialConsistency().name());
                 builder.put("query", prepared.rawCQLStatement);
 
-                // TODO we don't have [typed] access to CQL bind variables here.  CASSANDRA-4560 is open to add support.
+                for(int i=0;i<prepared.boundNames.size();i++)
+                {
+                    ColumnSpecification cs = prepared.boundNames.get(i);
+                    String boundName = cs.name.toString();
+                    String boundValue = cs.type.asCQL3Type().toCQLLiteral(options.getValues().get(i), options.getProtocolVersion());
+                    if ( boundValue.length() > 1000 )
+                    {
+                        boundValue = boundValue.substring(0, 1000) + "...'";
+                    }
+
+                    //Here we prefix boundName with the index to avoid possible collission in builder keys due to
+                    //having multiple boundValues for the same variable
+                    builder.put("bound_var_" + Integer.toString(i) + "_" + boundName, boundValue);
+                }
+
                 Tracing.instance.begin("Execute CQL3 prepared query", state.getClientAddress(), builder.build());
             }
 
