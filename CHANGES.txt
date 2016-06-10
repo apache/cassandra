@@ -1,4 +1,5 @@
 2.2.7
+ * StorageService shutdown hook should use a volatile variable (CASSANDRA-11984)
  * Persist local metadata earlier in startup sequence (CASSANDRA-11742)
  * Run CommitLog tests with different compression settings (CASSANDRA-9039)
  * cqlsh: fix tab completion for case-sensitive identifiers (CASSANDRA-11664)
