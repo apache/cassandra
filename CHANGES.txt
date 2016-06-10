@@ -12,7 +12,8 @@
  * Add repaired percentage metric (CASSANDRA-11503)
 Merged from 3.0:
  * Add TimeWindowCompactionStrategy (CASSANDRA-9666)
-
+Merged from 2.2:
+ * StorageService shutdown hook should use a volatile variable (CASSANDRA-11984)
 
 3.7
  * Support multiple folders for user defined compaction tasks (CASSANDRA-11765)

@@ -214,7 +214,7 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
     public volatile VersionedValue.VersionedValueFactory valueFactory = new VersionedValue.VersionedValueFactory(tokenMetadata.partitioner);
 
     private Thread drainOnShutdown = null;
-    private boolean inShutdownHook = false;
+    private volatile boolean inShutdownHook = false;
 
     public static final StorageService instance = new StorageService();
 
