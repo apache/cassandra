@@ -2,6 +2,9 @@
  * Add TimeWindowCompactionStrategy (CASSANDRA-9666)
 Merged from 2.2:
  * StorageService shutdown hook should use a volatile variable (CASSANDRA-11984)
+Merged from 2.1:
+ * cqlsh COPY FROM: shutdown parent cluster after forking, to avoid corrupting SSL connections (CASSANDRA-11749)
+
 
 3.0.7
  * Fix legacy serialization of Thrift-generated non-compound range tombstones
