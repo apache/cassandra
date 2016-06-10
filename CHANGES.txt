@@ -1,6 +1,7 @@
 3.0.8
  * Add TimeWindowCompactionStrategy (CASSANDRA-9666)
-
+Merged from 2.2:
+ * StorageService shutdown hook should use a volatile variable (CASSANDRA-11984)
 
 3.0.7
  * Fix legacy serialization of Thrift-generated non-compound range tombstones
