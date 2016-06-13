@@ -136,6 +136,11 @@ public class View
       */
     public List<SSTableReader> sstablesInBounds(RowPosition left, RowPosition right)
     {
+        return sstablesInBounds(left, right, intervalTree);
+    }
+
+    public static List<SSTableReader> sstablesInBounds(RowPosition left, RowPosition right, SSTableIntervalTree intervalTree)
+    {
         assert !AbstractBounds.strictlyWrapsAround(left, right);
 
         if (intervalTree.isEmpty())

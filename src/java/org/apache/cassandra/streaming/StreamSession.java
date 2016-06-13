@@ -25,9 +25,11 @@ import java.util.*;
 import java.util.concurrent.*;
 import java.util.concurrent.atomic.AtomicBoolean;
 
+import com.google.common.annotations.VisibleForTesting;
 import com.google.common.base.Function;
 import com.google.common.collect.*;
 
+import org.apache.cassandra.db.lifecycle.SSTableIntervalTree;
 import org.apache.cassandra.db.lifecycle.View;
 import org.apache.cassandra.io.sstable.format.SSTableReader;
 import org.slf4j.Logger;
@@ -37,6 +39,8 @@ import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.db.ColumnFamilyStore;
 import org.apache.cassandra.db.Keyspace;
 import org.apache.cassandra.db.RowPosition;
+import org.apache.cassandra.dht.AbstractBounds;
+import org.apache.cassandra.dht.Bounds;
 import org.apache.cassandra.dht.Range;
 import org.apache.cassandra.dht.Token;
 import org.apache.cassandra.gms.*;
@@ -279,7 +283,7 @@ public class StreamSession implements IEndpointStateChangeSubscriber
             flushSSTables(stores);
 
         List<Range<Token>> normalizedRanges = Range.normalize(ranges);
-        List<SSTableStreamingSections> sections = getSSTableSectionsForRanges(normalizedRanges, stores, repairedAt);
+        List<SSTableStreamingSections> sections = getSSTableSectionsForRanges(normalizedRanges, stores, repairedAt, isIncremental);
         try
         {
             addTransferFiles(sections);
@@ -307,7 +311,8 @@ public class StreamSession implements IEndpointStateChangeSubscriber
         return stores;
     }
 
-    private List<SSTableStreamingSections> getSSTableSectionsForRanges(Collection<Range<Token>> ranges, Collection<ColumnFamilyStore> stores, long overriddenRepairedAt)
+    @VisibleForTesting
+    public static List<SSTableStreamingSections> getSSTableSectionsForRanges(Collection<Range<Token>> ranges, Collection<ColumnFamilyStore> stores, long overriddenRepairedAt, final boolean isIncremental)
     {
         Refs<SSTableReader> refs = new Refs<>();
         try
@@ -321,10 +326,7 @@ public class StreamSession implements IEndpointStateChangeSubscriber
                 {
                     public List<SSTableReader> apply(View view)
                     {
-                        Map<SSTableReader, SSTableReader> permittedInstances = new HashMap<>();
-                        for (SSTableReader reader : ColumnFamilyStore.CANONICAL_SSTABLES.apply(view))
-                            permittedInstances.put(reader, reader);
-
+                        SSTableIntervalTree intervalTree = SSTableIntervalTree.build(ColumnFamilyStore.CANONICAL_SSTABLES.apply(view));
                         Set<SSTableReader> sstables = Sets.newHashSet();
                         for (Range<RowPosition> keyRange : keyRanges)
                         {
@@ -334,13 +336,9 @@ public class StreamSession implements IEndpointStateChangeSubscriber
                             // sort after all keys having the token. That "fake" key cannot however be equal to any real key, so that even
                             // including keyRange.left will still exclude any key having the token of the original token range, and so we're
                             // still actually selecting what we wanted.
-                            for (SSTableReader sstable : view.sstablesInBounds(keyRange.left, keyRange.right))
+                            for (SSTableReader sstable : View.sstablesInBounds(keyRange.left, keyRange.right, intervalTree))
                             {
-                                // sstableInBounds may contain early opened sstables
-                                if (isIncremental && sstable.isRepaired())
-                                    continue;
-                                sstable = permittedInstances.get(sstable);
-                                if (sstable != null)
+                                if (!isIncremental || !sstable.isRepaired())
                                     sstables.add(sstable);
                             }
                         }
