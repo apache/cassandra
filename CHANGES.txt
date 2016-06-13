@@ -18,6 +18,7 @@ Merged from 3.0:
  * Allow compaction strategies to disable early open (CASSANDRA-11754)
  * Refactor Materialized View code (CASSANDRA-11475)
  * Update Java Driver (CASSANDRA-11615)
+ * Avoid missing sstables when getting the canonical sstables (CASSANDRA-11996)
 Merged from 2.2:
  * Persist local metadata earlier in startup sequence (CASSANDRA-11742)
  * cqlsh: fix tab completion for case-sensitive identifiers (CASSANDRA-11664)
