@@ -1722,6 +1722,10 @@ public class DatabaseDescriptor
     {
         return FBUtilities.isWindows() ? -1 : conf.sstable_preemptive_open_interval_in_mb;
     }
+    public static void setSSTablePreempiveOpenIntervalInMB(int mb)
+    {
+        conf.sstable_preemptive_open_interval_in_mb = mb;
+    }
 
     public static boolean getTrickleFsync()
     {
