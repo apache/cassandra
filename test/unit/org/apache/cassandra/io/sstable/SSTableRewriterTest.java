@@ -759,7 +759,7 @@ public class SSTableRewriterTest extends SSTableWriterTestBase
                 if (!checked && writer.currentWriter().getFilePointer() > 15000000)
                 {
                     checked = true;
-                    ColumnFamilyStore.ViewFragment viewFragment = cfs.select(View.select(SSTableSet.CANONICAL));
+                    ColumnFamilyStore.ViewFragment viewFragment = cfs.select(View.selectFunction(SSTableSet.CANONICAL));
                     // canonical view should have only one SSTable which is not opened early.
                     assertEquals(1, viewFragment.sstables.size());
                     SSTableReader sstable = viewFragment.sstables.get(0);
@@ -870,6 +870,45 @@ public class SSTableRewriterTest extends SSTableWriterTestBase
         }
         truncateCF();
         validateCFS(cfs);
+    }
+
+    @Test
+    public void testCanonicalSSTables() throws ExecutionException, InterruptedException
+    {
+        Keyspace keyspace = Keyspace.open(KEYSPACE);
+        final ColumnFamilyStore cfs = keyspace.getColumnFamilyStore(CF);
+        truncate(cfs);
+
+        cfs.addSSTable(writeFile(cfs, 100));
+        Collection<SSTableReader> allSSTables = cfs.getSSTables();
+        assertEquals(1, allSSTables.size());
+        final AtomicBoolean done = new AtomicBoolean(false);
+        final AtomicBoolean failed = new AtomicBoolean(false);
+        Runnable r = () -> {
+            while (!done.get())
+            {
+                Iterable<SSTableReader> sstables = cfs.getSSTables(SSTableSet.CANONICAL);
+                if (Iterables.size(sstables) != 1)
+                {
+                    failed.set(true);
+                    return;
+                }
+            }
+        };
+        Thread t = new Thread(r);
+        try
+        {
+            t.start();
+            cfs.forceMajorCompaction();
+        }
+        finally
+        {
+            done.set(true);
+            t.join(20);
+        }
+        assertFalse(failed.get());
+
+
     }
 
     private void validateKeys(Keyspace ks)
