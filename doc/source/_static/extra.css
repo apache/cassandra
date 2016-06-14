@@ -1,0 +1,19 @@
+div:not(.highlight) > pre {
+    background: #fff;
+    border: 1px solid #e1e4e5;
+    color: #404040;
+    margin: 1px 0 24px 0;
+    overflow-x: auto;
+    padding: 12px 12px;
+    font-size: 12px;
+}
+
+a.reference.internal code.literal {
+    border: none;
+    font-size: 12px;
+    color: #2980B9;
+}
+
+a.reference.internal:visited code.literal {
+    color: #9B59B6;
+}

@@ -67,6 +67,8 @@
     <property name="test.microbench.src" value="${test.dir}/microbench"/>
     <property name="dist.dir" value="${build.dir}/dist"/>
     <property name="tmp.dir" value="${java.io.tmpdir}"/>
+
+    <property name="doc.dir" value="${basedir}/doc"/>
 	
     <property name="source.version" value="1.8"/>
     <property name="target.version" value="1.8"/>
@@ -247,6 +249,17 @@
                 <include name="doc/cql3/*.textile"/>
             </fileset>
         </wikitext-to-html>
+    </target>
+
+    <target name="gen-doc" depends="maven-ant-tasks-init" description="Generate documentation">
+        <exec executable="make" osfamily="unix" dir="${doc.dir}">
+            <arg value="html"/>
+        </exec>
+        <exec executable="cmd" osfamily="dos" dir="${doc.dir}">
+            <arg value="/c"/>
+            <arg value="make.bat"/>
+            <arg value="html"/>
+        </exec>
     </target>
 
     <!--
