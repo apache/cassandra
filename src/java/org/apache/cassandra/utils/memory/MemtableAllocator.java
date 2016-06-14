@@ -183,7 +183,7 @@ public abstract class MemtableAllocator
                     acquired(size);
                     return;
                 }
-                WaitQueue.Signal signal = opGroup.isBlockingSignal(parent.hasRoom().register());
+                WaitQueue.Signal signal = opGroup.isBlockingSignal(parent.hasRoom().register(parent.blockedTimerContext()));
                 boolean allocated = parent.tryAllocate(size);
                 if (allocated || opGroup.isBlocking())
                 {
