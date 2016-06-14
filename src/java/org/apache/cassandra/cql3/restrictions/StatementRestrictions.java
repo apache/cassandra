@@ -782,10 +782,10 @@ public final class StatementRestrictions
     public boolean hasAllPKColumnsRestrictedByEqualities()
     {
         return !isPartitionKeyRestrictionsOnToken()
-                && !hasUnrestrictedPartitionKeyComponents()
-                && (partitionKeyRestrictions.isEQ() || partitionKeyRestrictions.isIN())
-                && !hasUnrestrictedClusteringColumns()
-                && (clusteringColumnsRestrictions.isEQ() || clusteringColumnsRestrictions.isIN());
+               && !hasUnrestrictedPartitionKeyComponents()
+               && (partitionKeyRestrictions.isEQ() || partitionKeyRestrictions.isIN())
+               && !hasUnrestrictedClusteringColumns()
+               && (clusteringColumnsRestrictions.isEQ() || clusteringColumnsRestrictions.isIN());
     }
 
 }
