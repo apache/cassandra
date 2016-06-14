@@ -211,6 +211,16 @@ public abstract class ModificationStatement implements CQLStatement
         return ifExists;
     }
 
+    public boolean hasStaticConditions()
+    {
+        return staticConditions != null && !staticConditions.isEmpty();
+    }
+
+    public boolean hasRegularConditions()
+    {
+        return columnConditions != null && !columnConditions.isEmpty();
+    }
+
     private void addKeyValues(ColumnDefinition def, Restriction values) throws InvalidRequestException
     {
         if (def.kind == ColumnDefinition.Kind.CLUSTERING_COLUMN)
@@ -364,7 +374,7 @@ public abstract class ModificationStatement implements CQLStatement
      * Checks that the modification only apply to static columns.
      * @return <code>true</code> if the modification only apply to static columns, <code>false</code> otherwise.
      */
-    private boolean appliesOnlyToStaticColumns()
+    protected boolean appliesOnlyToStaticColumns()
     {
         return setsStaticColumns && !appliesToRegularColumns();
     }
@@ -373,7 +383,7 @@ public abstract class ModificationStatement implements CQLStatement
      * Checks that the modification apply to regular columns.
      * @return <code>true</code> if the modification apply to regular columns, <code>false</code> otherwise.
      */
-    private boolean appliesToRegularColumns()
+    protected boolean appliesToRegularColumns()
     {
         // If we have regular operations, this applies to regular columns.
         // Otherwise, if the statement is a DELETE and columnOperations is empty, this means we have no operations,
