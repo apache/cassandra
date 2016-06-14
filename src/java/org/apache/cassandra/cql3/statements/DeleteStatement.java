@@ -51,15 +51,6 @@ public class DeleteStatement extends ModificationStatement
     {
         List<Operation> deletions = getOperations();
 
-        if (prefix.size() < cfm.clusteringColumns().size() && !deletions.isEmpty())
-        {
-            // In general, we can't delete specific columns if not all clustering columns have been specified.
-            // However, if we delete only static colums, it's fine since we won't really use the prefix anyway.
-            for (Operation deletion : deletions)
-                if (!deletion.column.isStatic())
-                    throw new InvalidRequestException(String.format("Primary key column '%s' must be specified in order to delete column '%s'", getFirstEmptyKey().name, deletion.column.name));
-        }
-
         if (deletions.isEmpty())
         {
             // We delete the slice selected by the prefix.
@@ -89,19 +80,39 @@ public class DeleteStatement extends ModificationStatement
 
     protected void validateWhereClauseForConditions() throws InvalidRequestException
     {
-        Iterator<ColumnDefinition> iterator = Iterators.concat(cfm.partitionKeyColumns().iterator(), cfm.clusteringColumns().iterator());
+        boolean onlyHasConditionsOnStaticColumns = hasStaticConditions() && !hasRegularConditions();
+
+        // In general, we can't delete specific columns if not all clustering columns have been specified.
+        // However, if we delete only static colums, it's fine since we won't really use the prefix anyway.
+        Iterator<ColumnDefinition> iterator = appliesOnlyToStaticColumns()
+                                              ? cfm.partitionKeyColumns().iterator()
+                                              : Iterators.concat(cfm.partitionKeyColumns().iterator(), cfm.clusteringColumns().iterator());
         while (iterator.hasNext())
         {
             ColumnDefinition def = iterator.next();
             Restriction restriction = processedKeys.get(def.name);
             if (restriction == null || !(restriction.isEQ() || restriction.isIN()))
             {
+                if (onlyHasConditionsOnStaticColumns)
+                {
+                    for (Operation oper : getOperations())
+                    {
+                        if (!oper.column.isStatic())
+                        {
+                            throw new InvalidRequestException(String.format("Primary key column '%s' must be specified in order to delete column '%s'",
+                                                                            def.name,
+                                                                            oper.column.name));
+                        }
+                    }
+                }
+
                 throw new InvalidRequestException(
-                        String.format("DELETE statements must restrict all PRIMARY KEY columns with equality relations in order " +
-                                      "to use IF conditions, but column '%s' is not restricted", def.name));
+                        String.format("DELETE statements must restrict all %s KEY columns with equality relations in order " +
+                                      "to use IF conditions%s, but column '%s' is not restricted",
+                                      onlyHasConditionsOnStaticColumns ? "PARTITION" : "PRIMARY",
+                                      onlyHasConditionsOnStaticColumns ? " on static columns" : "", def.name));
             }
         }
-
     }
 
     public static class Parsed extends ModificationStatement.Parsed

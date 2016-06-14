@@ -25,6 +25,7 @@
  * Always close cluster with connection in CqlRecordWriter (CASSANDRA-11553)
  * Fix slice queries on ordered COMPACT tables (CASSANDRA-10988)
 Merged from 2.1:
+ * Allow LWT operation on static column with only partition keys (CASSANDRA-10532)
  * Create interval tree over canonical sstables to avoid missing sstables during streaming (CASSANDRA-11886)
  * cqlsh COPY FROM: shutdown parent cluster after forking, to avoid corrupting SSL connections (CASSANDRA-11749)
  * cqlsh: apply current keyspace to source command (CASSANDRA-11152)
