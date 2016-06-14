@@ -35,7 +35,7 @@ console:
         - "^org.apache.cassandra.metrics.ClientRequest.+" # includes ClientRequestMetrics
         - "^org.apache.cassandra.metrics.CommitLog.+"
         - "^org.apache.cassandra.metrics.Compaction.+"
-        - "^org.apache.cassandra.metrics.DroppedMetrics.+"
+        - "^org.apache.cassandra.metrics.DroppedMessage.+"
         - "^org.apache.cassandra.metrics.ReadRepair.+"
         - "^org.apache.cassandra.metrics.Storage.+"
         - "^org.apache.cassandra.metrics.ThreadPools.+"
