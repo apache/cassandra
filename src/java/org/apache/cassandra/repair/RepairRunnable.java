@@ -147,12 +147,17 @@ public class RepairRunnable extends WrappedRunnable implements ProgressEventNoti
 
         final Set<InetAddress> allNeighbors = new HashSet<>();
         Map<Range, Set<InetAddress>> rangeToNeighbors = new HashMap<>();
+
+        //pre-calculate output of getLocalRanges and pass it to getNeighbors to increase performance and prevent
+        //calculation multiple times
+        Collection<Range<Token>> keyspaceLocalRanges = storageService.getLocalRanges(keyspace);
+
         try
         {
             for (Range<Token> range : options.getRanges())
             {
-                    Set<InetAddress> neighbors = ActiveRepairService.getNeighbors(keyspace, range,
-                                                                                  options.getDataCenters(),
+                    Set<InetAddress> neighbors = ActiveRepairService.getNeighbors(keyspace, keyspaceLocalRanges,
+                                                                                  range, options.getDataCenters(),
                                                                                   options.getHosts());
                     rangeToNeighbors.put(range, neighbors);
                     allNeighbors.addAll(neighbors);
