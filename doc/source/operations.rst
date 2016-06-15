@@ -19,11 +19,6 @@
 Operating Cassandra
 ===================
 
-Replication Strategies
-----------------------
-
-.. todo:: todo
-
 Snitch
 ------
 
@@ -264,12 +259,12 @@ tombstone that has not been propagated to all replicas and that could cause dele
 
 To be able to drop an actual tombstone the following needs to be true;
 
--  The tombstone must be older than ``gc_grace_seconds``
--  If partition X contains the tombstone, the sstable containing the partition plus all sstables containing data older
+- The tombstone must be older than ``gc_grace_seconds``
+- If partition X contains the tombstone, the sstable containing the partition plus all sstables containing data older
   than the tombstone containing X must be included in the same compaction. We don't need to care if the partition is in
   an sstable if we can guarantee that all data in that sstable is newer than the tombstone. If the tombstone is older
   than the data it cannot shadow that data.
--  If the option ``only_purge_repaired_tombstones`` is enabled, tombstones are only removed if the data has also been
+- If the option ``only_purge_repaired_tombstones`` is enabled, tombstones are only removed if the data has also been
   repaired.
 
 TTL
@@ -538,9 +533,9 @@ The primary motivation for TWCS is to separate data on disk by timestamp and to 
 more efficiently. One potential way this optimal behavior can be subverted is if data is written to SSTables out of
 order, with new data and old data in the same SSTable. Out of order data can appear in two ways:
 
--  If the user mixes old data and new data in the traditional write path, the data will be comingled in the memtables
+- If the user mixes old data and new data in the traditional write path, the data will be comingled in the memtables
   and flushed into the same SSTable, where it will remain comingled.
--  If the user's read requests for old data cause read repairs that pull old data into the current memtable, that data
+- If the user's read requests for old data cause read repairs that pull old data into the current memtable, that data
   will be comingled and flushed into the same SSTable.
 
 While TWCS tries to minimize the impact of comingled data, users should attempt to avoid this behavior.  Specifically,

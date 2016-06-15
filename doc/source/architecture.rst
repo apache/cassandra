@@ -40,6 +40,8 @@ Token Ring/Ranges
 
 .. todo:: todo
 
+.. _replication-strategy:
+
 Replication
 ^^^^^^^^^^^
 
