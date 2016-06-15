@@ -285,15 +285,11 @@ public class UserTypesTest extends CQLTester
         execute("ALTER TYPE " + columnType + " ADD b int");
         execute("UPDATE %s SET y['secondValue'] = {a: 2, b: 2} WHERE x = 1");
 
-        assertRows(execute("SELECT * FROM %s"),
-                   row(1, map("firstValue", userType("a", 1),
-                              "secondValue", userType("a", 2, "b", 2))));
-
-        flush();
-
-        assertRows(execute("SELECT * FROM %s"),
-                   row(1, map("firstValue", userType("a", 1),
-                              "secondValue", userType("a", 2, "b", 2))));
+        beforeAndAfterFlush(() ->
+                            assertRows(execute("SELECT * FROM %s"),
+                                       row(1, map("firstValue", userType("a", 1),
+                                                  "secondValue", userType("a", 2, "b", 2))))
+        );
     }
 
     @Test
