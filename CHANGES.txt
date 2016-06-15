@@ -1,4 +1,5 @@
 2.1.15
+ * Cache local ranges when calculating repair neighbors (CASSANDRA-11933)
  * Allow LWT operation on static column with only partition keys (CASSANDRA-10532)
  * Create interval tree over canonical sstables to avoid missing sstables during streaming (CASSANDRA-11886)
  * cqlsh COPY FROM: shutdown parent cluster after forking, to avoid corrupting SSL connections (CASSANDRA-11749)

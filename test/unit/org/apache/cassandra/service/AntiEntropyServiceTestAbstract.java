@@ -123,7 +123,7 @@ public abstract class AntiEntropyServiceTestAbstract extends SchemaLoader
         Set<InetAddress> neighbors = new HashSet<InetAddress>();
         for (Range<Token> range : ranges)
         {
-            neighbors.addAll(ActiveRepairService.getNeighbors(keyspaceName, range, null, null));
+            neighbors.addAll(ActiveRepairService.getNeighbors(keyspaceName, ranges, range, null, null));
         }
         assertEquals(expected, neighbors);
     }
@@ -146,7 +146,7 @@ public abstract class AntiEntropyServiceTestAbstract extends SchemaLoader
         Set<InetAddress> neighbors = new HashSet<InetAddress>();
         for (Range<Token> range : ranges)
         {
-            neighbors.addAll(ActiveRepairService.getNeighbors(keyspaceName, range, null, null));
+            neighbors.addAll(ActiveRepairService.getNeighbors(keyspaceName, ranges, range, null, null));
         }
         assertEquals(expected, neighbors);
     }
@@ -168,7 +168,7 @@ public abstract class AntiEntropyServiceTestAbstract extends SchemaLoader
         Set<InetAddress> neighbors = new HashSet<InetAddress>();
         for (Range<Token> range : ranges)
         {
-            neighbors.addAll(ActiveRepairService.getNeighbors(keyspaceName, range, Arrays.asList(DatabaseDescriptor.getLocalDataCenter()), null));
+            neighbors.addAll(ActiveRepairService.getNeighbors(keyspaceName, ranges, range, Arrays.asList(DatabaseDescriptor.getLocalDataCenter()), null));
         }
         assertEquals(expected, neighbors);
     }
@@ -196,7 +196,7 @@ public abstract class AntiEntropyServiceTestAbstract extends SchemaLoader
         Set<InetAddress> neighbors = new HashSet<InetAddress>();
         for (Range<Token> range : ranges)
         {
-            neighbors.addAll(ActiveRepairService.getNeighbors(keyspaceName, range, Arrays.asList(DatabaseDescriptor.getLocalDataCenter()), null));
+            neighbors.addAll(ActiveRepairService.getNeighbors(keyspaceName, ranges, range, Arrays.asList(DatabaseDescriptor.getLocalDataCenter()), null));
         }
         assertEquals(expected, neighbors);
     }
@@ -218,7 +218,8 @@ public abstract class AntiEntropyServiceTestAbstract extends SchemaLoader
         expected.remove(FBUtilities.getBroadcastAddress());
         Collection<String> hosts = Arrays.asList(FBUtilities.getBroadcastAddress().getCanonicalHostName(),expected.get(0).getCanonicalHostName());
 
-       assertEquals(expected.get(0), ActiveRepairService.getNeighbors(keyspaceName, StorageService.instance.getLocalRanges(keyspaceName).iterator().next(), null, hosts).iterator().next());
+        Collection<Range<Token>> ranges = StorageService.instance.getLocalRanges(keyspaceName);
+        assertEquals(expected.get(0), ActiveRepairService.getNeighbors(keyspaceName, ranges, ranges.iterator().next(), null, hosts).iterator().next());
     }
 
     @Test(expected = IllegalArgumentException.class)
@@ -227,7 +228,8 @@ public abstract class AntiEntropyServiceTestAbstract extends SchemaLoader
         addTokens(2 * Keyspace.open(keyspaceName).getReplicationStrategy().getReplicationFactor());
         //Dont give local endpoint
         Collection<String> hosts = Arrays.asList("127.0.0.3");
-        ActiveRepairService.getNeighbors(keyspaceName, StorageService.instance.getLocalRanges(keyspaceName).iterator().next(), null, hosts);
+        Collection<Range<Token>> ranges = StorageService.instance.getLocalRanges(keyspaceName);
+        ActiveRepairService.getNeighbors(keyspaceName, ranges, ranges.iterator().next(), null, hosts);
     }
 
     Set<InetAddress> addTokens(int max) throws Throwable

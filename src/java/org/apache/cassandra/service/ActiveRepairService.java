@@ -164,7 +164,8 @@ public class ActiveRepairService implements IEndpointStateChangeSubscriber, IFai
     RepairFuture submitArtificialRepairSession(RepairJobDesc desc)
     {
         Set<InetAddress> neighbours = new HashSet<>();
-        neighbours.addAll(ActiveRepairService.getNeighbors(desc.keyspace, desc.range, null, null));
+        Collection<Range<Token>> keyspaceLocalRanges = StorageService.instance.getLocalRanges(desc.keyspace);
+        neighbours.addAll(ActiveRepairService.getNeighbors(desc.keyspace, keyspaceLocalRanges, desc.range, null, null));
         RepairSession session = new RepairSession(desc.parentSessionId, desc.sessionId, desc.range, desc.keyspace, RepairParallelism.PARALLEL, neighbours, new String[]{desc.columnFamily});
         sessions.put(session.getId(), session);
         RepairFuture futureTask = new RepairFuture(session);
@@ -176,17 +177,18 @@ public class ActiveRepairService implements IEndpointStateChangeSubscriber, IFai
      * Return all of the neighbors with whom we share the provided range.
      *
      * @param keyspaceName keyspace to repair
+     * @param keyspaceLocalRanges local-range for given keyspaceName
      * @param toRepair token to repair
      * @param dataCenters the data centers to involve in the repair
      *
      * @return neighbors with whom we share the provided range
      */
-    public static Set<InetAddress> getNeighbors(String keyspaceName, Range<Token> toRepair, Collection<String> dataCenters, Collection<String> hosts)
+    public static Set<InetAddress> getNeighbors(String keyspaceName, Collection<Range<Token>> keyspaceLocalRanges, Range<Token> toRepair, Collection<String> dataCenters, Collection<String> hosts)
     {
         StorageService ss = StorageService.instance;
         Map<Range<Token>, List<InetAddress>> replicaSets = ss.getRangeToAddressMap(keyspaceName);
         Range<Token> rangeSuperSet = null;
-        for (Range<Token> range : ss.getLocalRanges(keyspaceName))
+        for (Range<Token> range : keyspaceLocalRanges)
         {
             if (range.contains(toRepair))
             {

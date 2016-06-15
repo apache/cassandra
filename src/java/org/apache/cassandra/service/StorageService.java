@@ -2978,13 +2978,17 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
                     return;
                 }
 
+                //pre-calculate output of getLocalRanges and pass it to getNeighbors to increase performance and prevent
+                //calculation multiple times
+                Collection<Range<Token>> keyspaceLocalRanges = getLocalRanges(keyspace);
+
                 Set<InetAddress> allNeighbors = new HashSet<>();
                 Map<Range, Set<InetAddress>> rangeToNeighbors = new HashMap<>();
                 for (Range<Token> range : ranges)
                 {
                     try
                     {
-                        Set<InetAddress> neighbors = ActiveRepairService.getNeighbors(keyspace, range, dataCenters, hosts);
+                        Set<InetAddress> neighbors = ActiveRepairService.getNeighbors(keyspace, keyspaceLocalRanges, range, dataCenters, hosts);
                         rangeToNeighbors.put(range, neighbors);
                         allNeighbors.addAll(neighbors);
                     }
