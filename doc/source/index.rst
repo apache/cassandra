@@ -29,6 +29,7 @@ Contents:
    getting_started
    architecture
    cql
+   cqlsh
    operations
    troubleshooting
    faq
