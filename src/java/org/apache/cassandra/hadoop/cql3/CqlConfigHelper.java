@@ -529,13 +529,14 @@ public class CqlConfigHelper
     public static Optional<SSLOptions> getSSLOptions(Configuration conf)
     {
         Optional<String> truststorePath = getInputNativeSSLTruststorePath(conf);
-        Optional<String> keystorePath = getInputNativeSSLKeystorePath(conf);
-        Optional<String> truststorePassword = getInputNativeSSLTruststorePassword(conf);
-        Optional<String> keystorePassword = getInputNativeSSLKeystorePassword(conf);
-        Optional<String> cipherSuites = getInputNativeSSLCipherSuites(conf);
 
         if (truststorePath.isPresent())
         {
+            Optional<String> keystorePath = getInputNativeSSLKeystorePath(conf);
+            Optional<String> truststorePassword = getInputNativeSSLTruststorePassword(conf);
+            Optional<String> keystorePassword = getInputNativeSSLKeystorePassword(conf);
+            Optional<String> cipherSuites = getInputNativeSSLCipherSuites(conf);
+
             SSLContext context;
             try
             {
