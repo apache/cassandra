@@ -239,7 +239,7 @@ public class TimeWindowCompactionStrategy extends AbstractCompactionStrategy
                 maxTimestamp = bounds.left;
         }
 
-        logger.trace("buckets {}, max timestamp", buckets, maxTimestamp);
+        logger.trace("buckets {}, max timestamp {}", buckets, maxTimestamp);
         return Pair.create(buckets, maxTimestamp);
     }
 
