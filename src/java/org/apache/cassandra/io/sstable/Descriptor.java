@@ -278,10 +278,11 @@ public class Descriptor
 
         // version
         nexttok = tokenStack.pop();
-        Version version = fmt.info.getVersion(nexttok);
 
-        if (!version.validate(nexttok))
+        if (!Version.validate(nexttok))
             throw new UnsupportedOperationException("SSTable " + name + " is too old to open.  Upgrade to 2.0 first, and run upgradesstables");
+
+        Version version = fmt.info.getVersion(nexttok);
 
         // ks/cf names
         String ksname, cfname;
