@@ -309,5 +309,10 @@ public class EncryptionUtils
         {
             // nop
         }
+
+        public void setPosition(long sourcePosition)
+        {
+            this.currentPosition = sourcePosition;
+        }
     }
 }

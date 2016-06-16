@@ -24,6 +24,7 @@ import javax.crypto.Cipher;
 import com.google.common.annotations.VisibleForTesting;
 
 import org.apache.cassandra.security.EncryptionUtils;
+import org.apache.cassandra.hints.CompressedChecksummedDataInput.Position;
 import org.apache.cassandra.io.FSReadError;
 import org.apache.cassandra.io.compress.ICompressor;
 import org.apache.cassandra.io.util.ChannelProxy;
@@ -42,6 +43,7 @@ public class EncryptedChecksummedDataInput extends ChecksummedDataInput
     private final ICompressor compressor;
 
     private final EncryptionUtils.ChannelProxyReadChannel readChannel;
+    private long sourcePosition;
 
     protected EncryptedChecksummedDataInput(ChannelProxy channel, Cipher cipher, ICompressor compressor, long filePosition)
     {
@@ -49,6 +51,7 @@ public class EncryptedChecksummedDataInput extends ChecksummedDataInput
         this.cipher = cipher;
         this.compressor = compressor;
         readChannel = new EncryptionUtils.ChannelProxyReadChannel(channel, filePosition);
+        this.sourcePosition = filePosition;
         assert cipher != null;
         assert compressor != null;
     }
@@ -59,17 +62,60 @@ public class EncryptedChecksummedDataInput extends ChecksummedDataInput
      */
     public boolean isEOF()
     {
-        return getSourcePosition() == channel.size() && buffer.remaining() == 0;
+        return readChannel.getCurrentPosition() == channel.size() && buffer.remaining() == 0;
     }
 
     public long getSourcePosition()
     {
-        return readChannel.getCurrentPosition();
+        return sourcePosition;
+    }
+
+    static class Position extends ChecksummedDataInput.Position
+    {
+        final long bufferStart;
+        final int bufferPosition;
+
+        public Position(long sourcePosition, long bufferStart, int bufferPosition)
+        {
+            super(sourcePosition);
+            this.bufferStart = bufferStart;
+            this.bufferPosition = bufferPosition;
+        }
+
+        @Override
+        public long subtract(InputPosition o)
+        {
+            Position other = (Position) o;
+            return bufferStart - other.bufferStart + bufferPosition - other.bufferPosition;
+        }
+    }
+
+    public InputPosition getSeekPosition()
+    {
+        return new Position(sourcePosition, bufferOffset, buffer.position());
+    }
+
+    public void seek(InputPosition p)
+    {
+        Position pos = (Position) p;
+        bufferOffset = pos.bufferStart;
+        readChannel.setPosition(pos.sourcePosition);
+        buffer.position(0).limit(0);
+        resetCrc();
+        reBuffer();
+        buffer.position(pos.bufferPosition);
+        assert sourcePosition == pos.sourcePosition;
+        assert bufferOffset == pos.bufferStart;
+        assert buffer.position() == pos.bufferPosition;
     }
 
     @Override
     protected void readBuffer()
     {
+        this.sourcePosition = readChannel.getCurrentPosition();
+        if (isEOF())
+            return;
+
         try
         {
             ByteBuffer byteBuffer = reusableBuffers.get();

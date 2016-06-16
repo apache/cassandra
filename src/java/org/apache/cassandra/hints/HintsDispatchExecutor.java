@@ -23,6 +23,8 @@ import java.util.Map;
 import java.util.UUID;
 import java.util.concurrent.*;
 import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.function.BooleanSupplier;
+import java.util.function.Function;
 import java.util.function.Supplier;
 
 import com.google.common.util.concurrent.RateLimiter;
@@ -48,12 +50,14 @@ final class HintsDispatchExecutor
     private final File hintsDirectory;
     private final ExecutorService executor;
     private final AtomicBoolean isPaused;
+    private final Function<InetAddress, Boolean> isAlive;
     private final Map<UUID, Future> scheduledDispatches;
 
-    HintsDispatchExecutor(File hintsDirectory, int maxThreads, AtomicBoolean isPaused)
+    HintsDispatchExecutor(File hintsDirectory, int maxThreads, AtomicBoolean isPaused, Function<InetAddress, Boolean> isAlive)
     {
         this.hintsDirectory = hintsDirectory;
         this.isPaused = isPaused;
+        this.isAlive = isAlive;
 
         scheduledDispatches = new ConcurrentHashMap<>();
         executor = new JMXEnabledThreadPoolExecutor(1,
@@ -72,6 +76,14 @@ final class HintsDispatchExecutor
     {
         scheduledDispatches.clear();
         executor.shutdownNow();
+        try
+        {
+            executor.awaitTermination(1, TimeUnit.MINUTES);
+        }
+        catch (InterruptedException e)
+        {
+            throw new AssertionError(e);
+        }
     }
 
     boolean isScheduled(HintsStore store)
@@ -249,9 +261,10 @@ final class HintsDispatchExecutor
         private boolean deliver(HintsDescriptor descriptor, InetAddress address)
         {
             File file = new File(hintsDirectory, descriptor.fileName());
-            Long offset = store.getDispatchOffset(descriptor).orElse(null);
+            InputPosition offset = store.getDispatchOffset(descriptor);
 
-            try (HintsDispatcher dispatcher = HintsDispatcher.create(file, rateLimiter, address, descriptor.hostId, isPaused))
+            BooleanSupplier shouldAbort = () -> !isAlive.apply(address) || isPaused.get();
+            try (HintsDispatcher dispatcher = HintsDispatcher.create(file, rateLimiter, address, descriptor.hostId, shouldAbort))
             {
                 if (offset != null)
                     dispatcher.seek(offset);
@@ -265,7 +278,7 @@ final class HintsDispatchExecutor
                 }
                 else
                 {
-                    store.markDispatchOffset(descriptor, dispatcher.dispatchOffset());
+                    store.markDispatchOffset(descriptor, dispatcher.dispatchPosition());
                     store.offerFirst(descriptor);
                     logger.info("Finished hinted handoff of file {} to endpoint {}, partially", descriptor.fileName(), hostId);
                     return false;

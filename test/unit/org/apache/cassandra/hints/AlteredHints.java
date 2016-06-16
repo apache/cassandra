@@ -107,9 +107,11 @@ public abstract class AlteredHints
         {
             Assert.assertTrue(looksLegit(reader.getInput()));
             List<Hint> deserialized = new ArrayList<>(hintNum);
+            List<InputPosition> pagePositions = new ArrayList<>(hintNum);
 
             for (HintsReader.Page page: reader)
             {
+                pagePositions.add(page.position);
                 Iterator<Hint> iterator = page.hintsIterator();
                 while (iterator.hasNext())
                 {
@@ -123,6 +125,21 @@ public abstract class AlteredHints
             {
                 HintsTestUtil.assertHintsEqual(expected, deserialized.get(hintNum));
                 hintNum++;
+            }
+
+            // explicitely seek to each page by iterating collected page positions and check if hints still match as expected
+            int hintOffset = 0;
+            for (InputPosition pos : pagePositions)
+            {
+                reader.seek(pos);
+                HintsReader.Page page = reader.iterator().next();
+                Iterator<Hint> iterator = page.hintsIterator();
+                while (iterator.hasNext())
+                {
+                    Hint seekedHint = iterator.next();
+                    HintsTestUtil.assertHintsEqual(hints.get(hintOffset), seekedHint);
+                    hintOffset++;
+                }
             }
         }
     }

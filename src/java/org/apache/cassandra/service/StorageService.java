@@ -570,7 +570,7 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
         drainOnShutdown = new Thread(new WrappedRunnable()
         {
             @Override
-            public void runMayThrow() throws InterruptedException
+            public void runMayThrow() throws InterruptedException, ExecutionException
             {
                 inShutdownHook = true;
                 ExecutorService viewMutationStage = StageManager.getStage(Stage.VIEW_MUTATION);
