@@ -92,7 +92,7 @@ public class SSTableMetadataViewer
                     out.printf("TTL max: %s%n", stats.maxTTL);
 
                     if (validation != null && header != null)
-                        printMinMaxToken(descriptor, FBUtilities.newPartitioner(validation.partitioner), header.getKeyType(), out);
+                        printMinMaxToken(descriptor, FBUtilities.newPartitioner(descriptor), header.getKeyType(), out);
 
                     if (header != null && header.getClusteringTypes().size() == stats.minClusteringValues.size())
                     {

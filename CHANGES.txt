@@ -1,4 +1,5 @@
 3.8
+ * SSTable tools mishandling LocalPartitioner (CASSANDRA-12002)
  * When SEPWorker assigned work, set thread name to match pool (CASSANDRA-11966)
  * Add cross-DC latency metrics (CASSANDRA-11596)
  * Allow terms in selection clause (CASSANDRA-10783)
