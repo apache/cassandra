@@ -277,7 +277,7 @@ public class RewindableDataInputStreamPlus extends FilterInputStream implements 
             if (len > 0 && diskTailAvailable > 0)
             {
                 int readFromTail = diskTailAvailable < len? diskTailAvailable : len;
-                getIfNotClosed(spillBuffer).read(b, off, readFromTail);
+                readFromTail = getIfNotClosed(spillBuffer).read(b, off, readFromTail);
                 readBytes += readFromTail;
                 diskTailAvailable -= readFromTail;
                 off += readFromTail;
@@ -288,7 +288,7 @@ public class RewindableDataInputStreamPlus extends FilterInputStream implements 
             if (len > 0 && diskHeadAvailable > 0)
             {
                 int readFromHead = diskHeadAvailable < len? diskHeadAvailable : len;
-                getIfNotClosed(spillBuffer).read(b, off, readFromHead);
+                readFromHead = getIfNotClosed(spillBuffer).read(b, off, readFromHead);
                 readBytes += readFromHead;
                 diskHeadAvailable -= readFromHead;
                 off += readFromHead;
