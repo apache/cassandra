@@ -121,7 +121,7 @@ public final class AuthenticationProxy implements JMXAuthenticator
      * prompting is necessary because the credentials are already available to
      * this class (via its enclosing class).
      */
-    private final class JMXCallbackHandler implements CallbackHandler
+    private static final class JMXCallbackHandler implements CallbackHandler
     {
         private char[] username;
         private char[] password;
