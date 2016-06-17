@@ -38,8 +38,8 @@ public final class CLibrary
 {
     private static final Logger logger = LoggerFactory.getLogger(CLibrary.class);
 
-    private static final int MCL_CURRENT = 1;
-    private static final int MCL_FUTURE = 2;
+    private static final int MCL_CURRENT;
+    private static final int MCL_FUTURE;
 
     private static final int ENOMEM = 12;
 
@@ -79,6 +79,30 @@ public final class CLibrary
         {
             logger.warn("Obsolete version of JNA present; unable to register C library. Upgrade to JNA 3.2.7 or later");
             jnaAvailable = false;
+        }
+
+        if (System.getProperty("os.arch").toLowerCase().contains("ppc"))
+        {
+            if (System.getProperty("os.name").toLowerCase().contains("linux"))
+            {
+               MCL_CURRENT = 0x2000;
+               MCL_FUTURE = 0x4000;
+            }
+            else if (System.getProperty("os.name").toLowerCase().contains("aix"))
+            {
+                MCL_CURRENT = 0x100;
+                MCL_FUTURE = 0x200;
+            }
+            else
+            {
+                MCL_CURRENT = 1;
+                MCL_FUTURE = 2;
+            }
+        }
+        else
+        {
+            MCL_CURRENT = 1;
+            MCL_FUTURE = 2;
         }
     }
 
