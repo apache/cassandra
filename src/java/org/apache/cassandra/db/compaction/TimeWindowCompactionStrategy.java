@@ -189,16 +189,16 @@ public class TimeWindowCompactionStrategy extends AbstractCompactionStrategy
         switch(windowTimeUnit)
         {
             case MINUTES:
-                lowerTimestamp = timestampInSeconds - ((timestampInSeconds) % (60 * windowTimeSize));
+                lowerTimestamp = timestampInSeconds - ((timestampInSeconds) % (60L * windowTimeSize));
                 upperTimestamp = (lowerTimestamp + (60L * (windowTimeSize - 1L))) + 59L;
                 break;
             case HOURS:
-                lowerTimestamp = timestampInSeconds - ((timestampInSeconds) % (3600 * windowTimeSize));
+                lowerTimestamp = timestampInSeconds - ((timestampInSeconds) % (3600L * windowTimeSize));
                 upperTimestamp = (lowerTimestamp + (3600L * (windowTimeSize - 1L))) + 3599L;
                 break;
             case DAYS:
             default:
-                lowerTimestamp = timestampInSeconds - ((timestampInSeconds) % (86400 * windowTimeSize));
+                lowerTimestamp = timestampInSeconds - ((timestampInSeconds) % (86400L * windowTimeSize));
                 upperTimestamp = (lowerTimestamp + (86400L * (windowTimeSize - 1L))) + 86399L;
                 break;
         }
