@@ -25,6 +25,7 @@
  * Always close cluster with connection in CqlRecordWriter (CASSANDRA-11553)
  * Fix slice queries on ordered COMPACT tables (CASSANDRA-10988)
 Merged from 2.1:
+ * Support mlockall on IBM POWER arch (CASSANDRA-11576)
  * Cache local ranges when calculating repair neighbors (CASSANDRA-11933)
  * Allow LWT operation on static column with only partition keys (CASSANDRA-10532)
  * Create interval tree over canonical sstables to avoid missing sstables during streaming (CASSANDRA-11886)
