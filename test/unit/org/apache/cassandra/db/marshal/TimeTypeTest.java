@@ -48,14 +48,14 @@ public class TimeTypeTest
 
         b1 = TimeSerializer.instance.serialize(0L);
         b2 = TimeSerializer.instance.serialize(10000000L);
-        assert TimeType.instance.compare(b1, b2) == -1 : "Failed < comparison on 0";
+        assert TimeType.instance.compare(b1, b2) < 0 : "Failed < comparison on 0";
 
         b1 = TimeSerializer.instance.serialize(0L);
         b2 = TimeSerializer.instance.serialize(TimeUnit.DAYS.toNanos(1));
-        assert TimeType.instance.compare(b1, b2) == -1 : "Failed < comparison against max range.";
+        assert TimeType.instance.compare(b1, b2) < 0 : "Failed < comparison against max range.";
 
         b1 = TimeSerializer.instance.serialize(TimeUnit.DAYS.toNanos(1));
         b2 = TimeSerializer.instance.serialize(0L);
-        assert TimeType.instance.compare(b1, b2) == 1 : "Failed > comparison against max range.";
+        assert TimeType.instance.compare(b1, b2) > 0 : "Failed > comparison against max range.";
     }
 }
