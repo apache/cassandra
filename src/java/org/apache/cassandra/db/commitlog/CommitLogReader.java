@@ -315,7 +315,7 @@ public class CommitLogReader
             catch (EOFException eof)
             {
                 if (handler.shouldSkipSegmentOnError(new CommitLogReadException(
-                                                String.format("Unexpected end of segment", mutationStart, statusTracker.errorContext),
+                                                String.format("Unexpected end of segment at %d in %s", mutationStart, statusTracker.errorContext),
                                                 CommitLogReadErrorReason.EOF,
                                                 statusTracker.tolerateErrorsInSection)))
                 {
