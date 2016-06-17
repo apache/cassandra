@@ -100,6 +100,10 @@ public class CompactionMetrics implements CompactionManager.CompactionExecutorSt
                 for (CompactionInfo.Holder compaction : compactions)
                 {
                     CFMetaData metaData = compaction.getCompactionInfo().getCFMetaData();
+                    if (metaData == null)
+                    {
+                        continue;
+                    }
                     if (!resultMap.containsKey(metaData.ksName))
                     {
                         resultMap.put(metaData.ksName, new HashMap<>());
