@@ -24,6 +24,7 @@ import io.netty.buffer.ByteBuf;
 import org.apache.cassandra.auth.AuthenticatedUser;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.exceptions.AuthenticationException;
+import org.apache.cassandra.metrics.AuthMetrics;
 import org.apache.cassandra.service.QueryState;
 import org.apache.cassandra.transport.CBUtil;
 import org.apache.cassandra.transport.Message;
@@ -76,9 +77,11 @@ public class CredentialsMessage extends Message.Request
         {
             AuthenticatedUser user = DatabaseDescriptor.getAuthenticator().legacyAuthenticate(credentials);
             state.getClientState().login(user);
+            AuthMetrics.instance.markSuccess();
         }
         catch (AuthenticationException e)
         {
+            AuthMetrics.instance.markFailure();
             return ErrorMessage.fromException(e);
         }
 

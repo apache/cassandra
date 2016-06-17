@@ -34,6 +34,7 @@ import io.netty.channel.nio.NioEventLoopGroup;
 import io.netty.util.concurrent.EventExecutor;
 import io.netty.util.concurrent.Future;
 import org.apache.cassandra.config.DatabaseDescriptor;
+import org.apache.cassandra.metrics.AuthMetrics;
 import org.apache.cassandra.metrics.ClientMetrics;
 import org.apache.cassandra.transport.RequestThreadPoolExecutor;
 import org.apache.cassandra.transport.Server;
@@ -115,6 +116,8 @@ public class NativeTransportService
                 ret += server.getConnectedClients();
             return ret;
         });
+
+        AuthMetrics.init();
 
         initialized = true;
     }

@@ -1,4 +1,5 @@
 3.10
+ * Expose metrics for successful/failed authentication attempts (CASSANDRA-10635)
  * Prepend snapshot name with "truncated" or "dropped" when a snapshot
    is taken before truncating or dropping a table (CASSANDRA-12178)
  * Optimize RestrictionSet (CASSANDRA-12153)

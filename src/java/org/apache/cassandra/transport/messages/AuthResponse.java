@@ -23,6 +23,7 @@ import io.netty.buffer.ByteBuf;
 import org.apache.cassandra.auth.AuthenticatedUser;
 import org.apache.cassandra.auth.IAuthenticator;
 import org.apache.cassandra.exceptions.AuthenticationException;
+import org.apache.cassandra.metrics.AuthMetrics;
 import org.apache.cassandra.service.QueryState;
 import org.apache.cassandra.transport.*;
 
@@ -77,6 +78,7 @@ public class AuthResponse extends Message.Request
             {
                 AuthenticatedUser user = negotiator.getAuthenticatedUser();
                 queryState.getClientState().login(user);
+                AuthMetrics.instance.markSuccess();
                 // authentication is complete, send a ready message to the client
                 return new AuthSuccess(challenge);
             }
@@ -87,6 +89,7 @@ public class AuthResponse extends Message.Request
         }
         catch (AuthenticationException e)
         {
+            AuthMetrics.instance.markFailure();
             return ErrorMessage.fromException(e);
         }
     }

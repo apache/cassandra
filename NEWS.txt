@@ -32,6 +32,10 @@ New features
    - Snapshots that are automatically taken before a table is dropped or truncated
      will have a "dropped" or "truncated" prefix on their snapshot tag name.
 
+   - Metrics are exposed for successful and failed authentication attempts.
+     These can be located using the object names org.apache.cassandra.metrics:type=Client,name=AuthSuccess
+     and org.apache.cassandra.metrics:type=Client,name=AuthFailure respectively.
+
 Upgrading
 ---------
    - Nothing specific to 3.10 but please see previous versions upgrading section,
