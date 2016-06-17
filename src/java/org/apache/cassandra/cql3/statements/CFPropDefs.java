@@ -26,6 +26,7 @@ import org.apache.cassandra.db.compaction.AbstractCompactionStrategy;
 import org.apache.cassandra.exceptions.ConfigurationException;
 import org.apache.cassandra.exceptions.SyntaxException;
 import org.apache.cassandra.io.compress.CompressionParameters;
+import org.apache.cassandra.utils.BloomCalculations;
 
 public class CFPropDefs extends PropertyDefinitions
 {
@@ -211,7 +212,17 @@ public class CFPropDefs extends PropertyDefinitions
             cfm.compactionStrategyOptions(new HashMap<>(getCompactionOptions()));
         }
 
-        cfm.bloomFilterFpChance(getDouble(KW_BF_FP_CHANCE, cfm.getBloomFilterFpChance()));
+        double bloomFilterFpChance = getDouble(KW_BF_FP_CHANCE, cfm.getBloomFilterFpChance());
+        double minBloomFilterFpChanceValue = BloomCalculations.minSupportedBloomFilterFpChance();
+        if (bloomFilterFpChance <=  minBloomFilterFpChanceValue || bloomFilterFpChance > 1)
+        {
+            throw new ConfigurationException(String.format(
+                    "%s must be larger than %s and less than or equal to 1.0 (got %s)",
+                    KW_BF_FP_CHANCE,
+                    minBloomFilterFpChanceValue,
+                    bloomFilterFpChance));
+        }
+        cfm.bloomFilterFpChance(bloomFilterFpChance);
 
         if (!getCompressionOptions().isEmpty())
             cfm.compressionParameters(CompressionParameters.create(getCompressionOptions()));

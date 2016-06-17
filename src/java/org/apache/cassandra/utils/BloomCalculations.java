@@ -26,8 +26,8 @@ package org.apache.cassandra.utils;
  * Filter class by helping to choose correct values of 'bits per element' and
  * 'number of hash functions, k'.
  */
-class BloomCalculations {
-
+public class BloomCalculations
+{
     private static final int minBuckets = 2;
     private static final int minK = 1;
 
@@ -181,5 +181,16 @@ class BloomCalculations {
             throw new UnsupportedOperationException("Cannot compute probabilities for " + numElements + " elements.");
         }
         return Math.min(BloomCalculations.probs.length - 1, (int)v);
+    }
+
+    /**
+     * Retrieves the minimum supported BloomFilterFpChance value
+     * @return Minimum supported value for BloomFilterFpChance
+     */
+    public static double minSupportedBloomFilterFpChance()
+    {
+        int maxBuckets = probs.length - 1;
+        int maxK = probs[maxBuckets].length - 1;
+        return probs[maxBuckets][maxK];
     }
 }
