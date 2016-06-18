@@ -30,6 +30,7 @@ import org.apache.cassandra.utils.JVMStabilityInspector;
 final class SEPWorker extends AtomicReference<SEPWorker.Work> implements Runnable
 {
     private static final Logger logger = LoggerFactory.getLogger(SEPWorker.class);
+    private static final boolean SET_THREAD_NAME = Boolean.parseBoolean(System.getProperty("cassandra.set_sep_thread_name", "true"));
 
     final Long workerId;
     final Thread thread;
@@ -89,6 +90,8 @@ final class SEPWorker extends AtomicReference<SEPWorker.Work> implements Runnabl
                 assigned = get().assigned;
                 if (assigned == null)
                     continue;
+                if (SET_THREAD_NAME)
+                    Thread.currentThread().setName(assigned.name + "-" + workerId);
                 task = assigned.tasks.poll();
 
                 // if we do have tasks assigned, nobody will change our state so we can simply set it to WORKING

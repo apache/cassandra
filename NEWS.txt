@@ -19,6 +19,8 @@ using the provided 'sstableupgrade' tool.
 
 New features
 ------------
+   - Shared pool threads are now named according to the stage they are executing
+     tasks for. Thread names mentioned in traced queries change accordingly.
    - A new option has been added to cassandra-stress "-rate fixed={number}/s"
      that forces a scheduled rate of operations/sec over time. Using this, stress can
      accurately account for coordinated ommission from the stress process.

@@ -34,6 +34,7 @@ public class SEPExecutor extends AbstractLocalAwareExecutorService
     private final SharedExecutorPool pool;
 
     public final int maxWorkers;
+    public final String name;
     private final int maxTasksQueued;
     private final SEPMetrics metrics;
 
@@ -55,6 +56,7 @@ public class SEPExecutor extends AbstractLocalAwareExecutorService
     SEPExecutor(SharedExecutorPool pool, int maxWorkers, int maxTasksQueued, String jmxPath, String name)
     {
         this.pool = pool;
+        this.name = name;
         this.maxWorkers = maxWorkers;
         this.maxTasksQueued = maxTasksQueued;
         this.permits.set(combine(0, maxWorkers));
