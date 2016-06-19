@@ -18,7 +18,7 @@
 package org.apache.cassandra.metrics;
 
 /**
- * Metrics for {@link HintsService}.
+ * Metrics for {@link org.apache.cassandra.hints.HintsService}.
  */
 public final class HintsServiceMetrics
 {

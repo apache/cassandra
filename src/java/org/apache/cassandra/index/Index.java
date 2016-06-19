@@ -75,7 +75,7 @@ import org.apache.cassandra.utils.concurrent.OpOrder;
  * scheduling its execution can rest with SecondaryIndexManager. For instance, a task like reloading index metadata
  * following potential updates caused by modifications to the base table may be performed in a blocking way. In
  * contrast, adding a new index may require it to be built from existing SSTable data, a potentially expensive task
- * which should be performed asyncronously.
+ * which should be performed asynchronously.
  *
  * Index Selection:
  * There are two facets to index selection, write time and read time selection. The former is concerned with
@@ -108,7 +108,7 @@ import org.apache.cassandra.utils.concurrent.OpOrder;
  * whether any of them are supported by a registered Index. supportsExpression is used to filter out Indexes which
  * cannot support a given Expression. After filtering, the set of candidate indexes are ranked according to the result
  * of getEstimatedResultRows and the most selective (i.e. the one expected to return the smallest number of results) is
- * chosen. A Searcher instance is then obtained from the searcherFor method & used to perform the actual Index lookup.
+ * chosen. A Searcher instance is then obtained from the searcherFor method and used to perform the actual Index lookup.
  * Finally, Indexes can define a post processing step to be performed on the coordinator, after results (partitions from
  * the primary table) have been received from replicas and reconciled. This post processing is defined as a
  * java.util.functions.BiFunction<PartitionIterator, RowFilter, PartitionIterator>, that is a function which takes as

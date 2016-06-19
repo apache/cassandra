@@ -48,7 +48,7 @@ import org.apache.cassandra.io.util.DataOutputPlus;
  *     where:
  *     <ul>
  *       <li>{@code <clustering>} is the row clustering as serialized by
- *           {@link Clustering.serializer} (note that static row are an
+ *           {@link org.apache.cassandra.db.Clustering.Serializer} (note that static row are an
  *           exception and don't have this). </li>
  *       <li>{@code <sizes>} are the sizes of the whole unfiltered on disk and
  *           of the previous unfiltered. This is only present for sstables and
@@ -60,7 +60,7 @@ import org.apache.cassandra.io.util.DataOutputPlus;
  *           by the flags and if present, it conists of both the deletion
  *           timestamp and local deletion time.</li>
  *       <li>{@code <columns>} are the columns present in the row  encoded by
- *           {@link Columns.serializer#serializeSubset}. It is absent if the row
+ *           {@link org.apache.cassandra.db.Columns.Serializer#serializeSubset}. It is absent if the row
  *           contains all the columns of the {@code SerializationHeader} (which
  *           is then indicated by a flag). </li>
  *       <li>{@code <columns_data>} is the data for each of the column present
@@ -80,7 +80,7 @@ import org.apache.cassandra.io.util.DataOutputPlus;
  *   </li>
  *   <li>
  *     {@code <marker>} is {@code <bound><deletion>} where {@code <bound>} is
- *     the marker bound as serialized by {@link ClusteringBoundOrBoundary.serializer}
+ *     the marker bound as serialized by {@link org.apache.cassandra.db.ClusteringBoundOrBoundary.Serializer}
  *     and {@code <deletion>} is the marker deletion time.
  *   </li>
  * </ul>

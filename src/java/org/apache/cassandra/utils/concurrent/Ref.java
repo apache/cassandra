@@ -68,13 +68,14 @@ import static org.apache.cassandra.utils.Throwables.merge;
  * This class' functionality is achieved by what may look at first glance like a complex web of references,
  * but boils down to:
  *
+ * {@code
  * Target --> selfRef --> [Ref.State] <--> Ref.GlobalState --> Tidy
  *                                             ^
  *                                             |
  * Ref ----------------------------------------
  *                                             |
  * Global -------------------------------------
- *
+ * }
  * So that, if Target is collected, Impl is collected and, hence, so is selfRef.
  *
  * Once ref or selfRef are collected, the paired Ref.State's release method is called, which if it had

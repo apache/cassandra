@@ -1011,7 +1011,7 @@ public abstract class RowFilter implements Iterable<RowFilter.Expression>
      * registered before sending or receiving any messages containing expressions of that type.
      * Use of custom filtering expressions in a mixed version cluster should be handled with caution
      * as the order in which types are registered is significant: if continuity of use during upgrades
-     * is important, new types should registered last & obsoleted types should still be registered (
+     * is important, new types should registered last and obsoleted types should still be registered (
      * or dummy implementations registered in their place) to preserve consistent identifiers across
      * the cluster).
      *

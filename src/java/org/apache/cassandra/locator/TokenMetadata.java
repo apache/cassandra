@@ -126,7 +126,7 @@ public class TokenMetadata
     }
 
     /**
-     * To be used by tests only (via {@link StorageService.setPartitionerUnsafe}).
+     * To be used by tests only (via {@link org.apache.cassandra.service.StorageService#setPartitionerUnsafe}).
      */
     @VisibleForTesting
     public TokenMetadata cloneWithNewPartitioner(IPartitioner newPartitioner)

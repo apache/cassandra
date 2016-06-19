@@ -561,7 +561,7 @@ public class SecondaryIndexManager implements IndexRegistry
      * Delete all data from all indexes for this partition.
      * For when cleanup rips a partition out entirely.
      *
-     * TODO : improve cleanup transaction to batch updates & perform them async
+     * TODO : improve cleanup transaction to batch updates and perform them async
      */
     public void deletePartition(UnfilteredRowIterator partition, int nowInSec)
     {

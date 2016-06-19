@@ -81,9 +81,6 @@ public class View
 
     /**
      * This updates the columns stored which are dependent on the base CFMetaData.
-     *
-     * @return true if the view contains only columns which are part of the base's primary key; false if there is at
-     *         least one column which is not.
      */
     public void updateDefinition(ViewDefinition definition)
     {
