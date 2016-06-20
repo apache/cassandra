@@ -662,7 +662,9 @@ public final class LegacySchemaMigrator
                                                               boolean isStaticCompactTable,
                                                               boolean needsUpgrade)
     {
-        ColumnDefinition.Kind kind = deserializeKind(row.getString("type"));
+        String rawKind = row.getString("type");
+
+        ColumnDefinition.Kind kind = deserializeKind(rawKind);
         if (needsUpgrade && isStaticCompactTable && kind == ColumnDefinition.Kind.REGULAR)
             kind = ColumnDefinition.Kind.STATIC;
 
@@ -678,7 +680,7 @@ public final class LegacySchemaMigrator
         // we need to use the comparator fromString method
         AbstractType<?> comparator = isCQLTable
                                      ? UTF8Type.instance
-                                     : CompactTables.columnDefinitionComparator(kind, isSuper, rawComparator, rawSubComparator);
+                                     : CompactTables.columnDefinitionComparator(rawKind, isSuper, rawComparator, rawSubComparator);
         ColumnIdentifier name = ColumnIdentifier.getInterned(comparator.fromString(row.getString("column_name")), comparator);
 
         AbstractType<?> validator = parseType(row.getString("validator"));

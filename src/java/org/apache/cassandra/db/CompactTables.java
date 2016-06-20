@@ -91,12 +91,15 @@ public abstract class CompactTables
         return columns.regulars.getSimple(0);
     }
 
-    public static AbstractType<?> columnDefinitionComparator(ColumnDefinition.Kind kind, boolean isSuper, AbstractType<?> rawComparator, AbstractType<?> rawSubComparator)
+    public static AbstractType<?> columnDefinitionComparator(String kind, boolean isSuper, AbstractType<?> rawComparator, AbstractType<?> rawSubComparator)
     {
+        if ("compact_value".equals(kind))
+            return UTF8Type.instance;
+
         if (isSuper)
-            return kind == ColumnDefinition.Kind.REGULAR ? rawSubComparator : UTF8Type.instance;
-        else
-            return kind == ColumnDefinition.Kind.STATIC ? rawComparator : UTF8Type.instance;
+            return "regular".equals(kind) ? rawSubComparator : UTF8Type.instance;
+
+        return "static".equals(kind) ? rawComparator : UTF8Type.instance;
     }
 
     public static boolean hasEmptyCompactValue(CFMetaData metadata)
