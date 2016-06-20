@@ -1,4 +1,5 @@
 2.2.7
+ * RandomAccessReader: call isEOF() only when rebuffering, not for every read operation (CASSANDRA-12013)
  * Don't send erroneous NEW_NODE notifications on restart (CASSANDRA-11038)
  * StorageService shutdown hook should use a volatile variable (CASSANDRA-11984)
  * Persist local metadata earlier in startup sequence (CASSANDRA-11742)

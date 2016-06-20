@@ -295,11 +295,13 @@ public class RandomAccessReader extends AbstractDataInput implements FileDataInp
         if (buffer == null)
             throw new AssertionError("Attempted to read from closed RAR");
 
-        if (isEOF())
-            return -1; // required by RandomAccessFile
-
         if (!buffer.hasRemaining())
+        {
+            if (isEOF())
+                return -1; // required by RandomAccessFile
+
             reBuffer();
+        }
 
         return (int)buffer.get() & 0xff;
     }
@@ -321,11 +323,13 @@ public class RandomAccessReader extends AbstractDataInput implements FileDataInp
         if (length == 0)
             return 0;
 
-        if (isEOF())
-            return -1;
-
         if (!buffer.hasRemaining())
+        {
+            if (isEOF())
+                return -1;
+
             reBuffer();
+        }
 
         int toCopy = Math.min(length, buffer.remaining());
         buffer.get(buff, offset, toCopy);
@@ -340,10 +344,13 @@ public class RandomAccessReader extends AbstractDataInput implements FileDataInp
             ByteBuffer result = ByteBuffer.allocate(length);
             while (result.hasRemaining())
             {
-                if (isEOF())
-                    throw new EOFException();
                 if (!buffer.hasRemaining())
+                {
+                    if (isEOF())
+                        throw new EOFException();
+
                     reBuffer();
+                }
                 ByteBufferUtil.put(buffer, result);
             }
             result.flip();
