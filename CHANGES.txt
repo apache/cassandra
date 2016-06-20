@@ -18,6 +18,7 @@
 Merged from 3.0:
  * Add TimeWindowCompactionStrategy (CASSANDRA-9666)
 Merged from 2.2:
+ * Don't send erroneous NEW_NODE notifications on restart (CASSANDRA-11038)
  * StorageService shutdown hook should use a volatile variable (CASSANDRA-11984)
 Merged from 2.1:
  * Cache local ranges when calculating repair neighbors (CASSANDRA-11934)

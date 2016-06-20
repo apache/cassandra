@@ -21,9 +21,7 @@ import java.io.IOException;
 import java.net.InetAddress;
 import java.net.InetSocketAddress;
 import java.net.UnknownHostException;
-import java.util.EnumMap;
-import java.util.List;
-import java.util.Map;
+import java.util.*;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.atomic.AtomicBoolean;
 import javax.net.ssl.SSLContext;
@@ -37,11 +35,11 @@ import io.netty.buffer.ByteBuf;
 import io.netty.channel.*;
 import io.netty.channel.epoll.EpollEventLoopGroup;
 import io.netty.channel.epoll.EpollServerSocketChannel;
-import io.netty.handler.codec.ByteToMessageDecoder;
 import io.netty.channel.group.ChannelGroup;
 import io.netty.channel.group.DefaultChannelGroup;
 import io.netty.channel.nio.NioEventLoopGroup;
 import io.netty.channel.socket.nio.NioServerSocketChannel;
+import io.netty.handler.codec.ByteToMessageDecoder;
 import io.netty.handler.ssl.SslHandler;
 import io.netty.util.Version;
 import io.netty.util.concurrent.EventExecutor;
@@ -457,9 +455,13 @@ public class Server implements CassandraDaemon.Server
     {
         private final Server server;
 
-        // We keep track of the latest events we have sent to avoid sending duplicates
-        // since StorageService may send duplicate notifications (CASSANDRA-7816, CASSANDRA-8236)
+        // We keep track of the latest status change events we have sent to avoid sending duplicates
+        // since StorageService may send duplicate notifications (CASSANDRA-7816, CASSANDRA-8236, CASSANDRA-9156)
         private final Map<InetAddress, LatestEvent> latestEvents = new ConcurrentHashMap<>();
+        // We also want to delay delivering a NEW_NODE notification until the new node has set its RPC ready
+        // state. This tracks the endpoints which have joined, but not yet signalled they're ready for clients
+        private final Set<InetAddress> endpointsPendingJoinedNotification = ConcurrentHashMap.newKeySet();
+
 
         private static final InetAddress bindAll;
         static {
@@ -522,7 +524,10 @@ public class Server implements CassandraDaemon.Server
 
         public void onJoinCluster(InetAddress endpoint)
         {
-            onTopologyChange(endpoint, Event.TopologyChange.newNode(getRpcAddress(endpoint), server.socket.getPort()));
+            if (!StorageService.instance.isRpcReady(endpoint))
+                endpointsPendingJoinedNotification.add(endpoint);
+            else
+                onTopologyChange(endpoint, Event.TopologyChange.newNode(getRpcAddress(endpoint), server.socket.getPort()));
         }
 
         public void onLeaveCluster(InetAddress endpoint)
@@ -537,6 +542,9 @@ public class Server implements CassandraDaemon.Server
 
         public void onUp(InetAddress endpoint)
         {
+            if (endpointsPendingJoinedNotification.remove(endpoint))
+                onJoinCluster(endpoint);
+
             onStatusChange(endpoint, Event.StatusChange.nodeUp(getRpcAddress(endpoint), server.socket.getPort()));
         }
 
