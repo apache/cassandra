@@ -25,6 +25,7 @@ import com.google.common.base.Objects;
 import com.google.common.collect.ImmutableMap;
 
 import org.apache.cassandra.exceptions.ConfigurationException;
+import org.apache.cassandra.utils.BloomCalculations;
 
 import static java.lang.String.format;
 
@@ -137,10 +138,12 @@ public final class TableParams
         compaction.validate();
         compression.validate();
 
-        if (bloomFilterFpChance <= 0 || bloomFilterFpChance > 1)
+        double minBloomFilterFpChanceValue = BloomCalculations.minSupportedBloomFilterFpChance();
+        if (bloomFilterFpChance <=  minBloomFilterFpChanceValue || bloomFilterFpChance > 1)
         {
-            fail("%s must be larger than 0.0 and less than or equal to 1.0 (got %s)",
+            fail("%s must be larger than %s and less than or equal to 1.0 (got %s)",
                  Option.BLOOM_FILTER_FP_CHANCE,
+                 minBloomFilterFpChanceValue,
                  bloomFilterFpChance);
         }
 
