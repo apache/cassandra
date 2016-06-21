@@ -26,6 +26,8 @@ import java.nio.ByteBuffer;
 import java.nio.channels.FileChannel;
 import java.util.Collections;
 import java.util.Random;
+import java.util.function.BiFunction;
+
 import javax.crypto.Cipher;
 
 import org.junit.Assert;
@@ -106,15 +108,61 @@ public class SegmentReaderTest
         }
     }
 
-    private ByteBuffer readBytes(DataInput input, int len) throws IOException
+    private ByteBuffer readBytes(FileDataInput input, int len)
     {
         byte[] buf = new byte[len];
-        input.readFully(buf);
+        try
+        {
+            input.readFully(buf);
+        }
+        catch (IOException e)
+        {
+            throw new RuntimeException(e);
+        }
+        return ByteBuffer.wrap(buf);
+    }
+
+    private ByteBuffer readBytesSeek(FileDataInput input, int len)
+    {
+        byte[] buf = new byte[len];
+
+        /// divide output buffer into 5
+        int[] offsets = new int[] { 0, len / 5, 2 * len / 5, 3 * len / 5, 4 * len / 5, len };
+        
+        //seek offset
+        long inputStart = input.getFilePointer();
+
+        for (int i = 0; i < offsets.length - 1; i++)
+        {
+            try
+            {
+                // seek to beginning of offet
+                input.seek(inputStart + offsets[i]);
+                //read this segment
+                input.readFully(buf, offsets[i], offsets[i + 1] - offsets[i]);
+            }
+            catch (IOException e)
+            {
+                throw new RuntimeException(e);
+            }
+        }
         return ByteBuffer.wrap(buf);
     }
 
     @Test
-    public void encryptedSegmenter() throws IOException
+    public void encryptedSegmenterRead() throws IOException
+    {
+        underlyingEncryptedSegmenterTest((s, t) -> readBytes(s, t));
+    }
+
+    @Test
+    public void encryptedSegmenterSeek() throws IOException
+    {
+        underlyingEncryptedSegmenterTest((s, t) -> readBytesSeek(s, t));
+    }
+
+    public void underlyingEncryptedSegmenterTest(BiFunction<FileDataInput, Integer, ByteBuffer> readFun)
+            throws IOException
     {
         EncryptionContext context = EncryptionContextGenerator.createContext(true);
         CipherFactory cipherFactory = new CipherFactory(context.getTransparentDataEncryptionOptions());
@@ -140,7 +188,7 @@ public class SegmentReaderTest
 
             // EncryptedSegmenter includes the Sync header length in the syncSegment.endPosition (value)
             Assert.assertEquals(plainTextLength, syncSegment.endPosition - CommitLogSegment.SYNC_MARKER_SIZE);
-            ByteBuffer fileBuffer = readBytes(syncSegment.input, plainTextLength);
+            ByteBuffer fileBuffer = readFun.apply(syncSegment.input, plainTextLength);
             plainTextBuffer.position(0);
             Assert.assertEquals(plainTextBuffer, fileBuffer);
         }
