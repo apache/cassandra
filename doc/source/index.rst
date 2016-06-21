@@ -31,6 +31,7 @@ Contents:
    cql
    cqlsh
    operations
+   cassandra_config_file
    troubleshooting
    faq
    contactus

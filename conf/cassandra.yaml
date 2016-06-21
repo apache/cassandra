@@ -35,20 +35,22 @@ num_tokens: 256
 # Only supported with the Murmur3Partitioner.
 # allocate_tokens_for_keyspace: KEYSPACE
 
-# initial_token allows you to specify tokens manually.  While you can use # it with
+# initial_token allows you to specify tokens manually.  While you can use it with
 # vnodes (num_tokens > 1, above) -- in which case you should provide a 
-# comma-separated list -- it's primarily used when adding nodes # to legacy clusters 
+# comma-separated list -- it's primarily used when adding nodes to legacy clusters 
 # that do not have vnodes enabled.
 # initial_token:
 
 # See http://wiki.apache.org/cassandra/HintedHandoff
 # May either be "true" or "false" to enable globally
 hinted_handoff_enabled: true
+
 # When hinted_handoff_enabled is true, a black list of data centers that will not
 # perform hinted handoff
-#hinted_handoff_disabled_datacenters:
+# hinted_handoff_disabled_datacenters:
 #    - DC1
 #    - DC2
+
 # this defines the maximum amount of time a dead host will have hints
 # generated.  After it has been dead this long, new hints for it will not be
 # created until it has been seen alive and gone down again.
@@ -193,26 +195,44 @@ partitioner: org.apache.cassandra.dht.Murmur3Partitioner
 # If not set, the default directory is $CASSANDRA_HOME/data/commitlog.
 # commitlog_directory: /var/lib/cassandra/commitlog
 
-# policy for data disk failures:
-# die: shut down gossip and client transports and kill the JVM for any fs errors or
-#      single-sstable errors, so the node can be replaced.
-# stop_paranoid: shut down gossip and client transports even for single-sstable errors,
-#                kill the JVM for errors during startup.
-# stop: shut down gossip and client transports, leaving the node effectively dead, but
-#       can still be inspected via JMX, kill the JVM for errors during startup.
-# best_effort: stop using the failed disk and respond to requests based on
-#              remaining available sstables.  This means you WILL see obsolete
-#              data at CL.ONE!
-# ignore: ignore fatal errors and let requests fail, as in pre-1.2 Cassandra
+# Policy for data disk failures:
+#
+# die
+#   shut down gossip and client transports and kill the JVM for any fs errors or
+#   single-sstable errors, so the node can be replaced.
+#
+# stop_paranoid
+#   shut down gossip and client transports even for single-sstable errors,
+#   kill the JVM for errors during startup.
+#
+# stop
+#   shut down gossip and client transports, leaving the node effectively dead, but
+#   can still be inspected via JMX, kill the JVM for errors during startup.
+#
+# best_effort
+#    stop using the failed disk and respond to requests based on
+#    remaining available sstables.  This means you WILL see obsolete
+#    data at CL.ONE!
+#
+# ignore
+#    ignore fatal errors and let requests fail, as in pre-1.2 Cassandra
 disk_failure_policy: stop
 
-# policy for commit disk failures:
-# die: shut down gossip and Thrift and kill the JVM, so the node can be replaced.
-# stop: shut down gossip and Thrift, leaving the node effectively dead, but
-#       can still be inspected via JMX.
-# stop_commit: shutdown the commit log, letting writes collect but
-#              continuing to service reads, as in pre-2.0.5 Cassandra
-# ignore: ignore fatal errors and let the batches fail
+# Policy for commit disk failures:
+#
+# die
+#   shut down gossip and Thrift and kill the JVM, so the node can be replaced.
+#
+# stop
+#   shut down gossip and Thrift, leaving the node effectively dead, but
+#   can still be inspected via JMX.
+#
+# stop_commit
+#   shutdown the commit log, letting writes collect but
+#   continuing to service reads, as in pre-2.0.5 Cassandra
+#
+# ignore
+#   ignore fatal errors and let the batches fail
 commit_failure_policy: stop
 
 # Maximum size of the native protocol prepared statement cache
@@ -272,11 +292,14 @@ key_cache_save_period: 14400
 # Disabled by default, meaning all keys are going to be saved
 # key_cache_keys_to_save: 100
 
-# Row cache implementation class name.
-# Available implementations:
-#   org.apache.cassandra.cache.OHCProvider                Fully off-heap row cache implementation (default).
-#   org.apache.cassandra.cache.SerializingCacheProvider   This is the row cache implementation availabile
-#                                                         in previous releases of Cassandra.
+# Row cache implementation class name. Available implementations:
+#
+# org.apache.cassandra.cache.OHCProvider
+#   Fully off-heap row cache implementation (default).
+#
+# org.apache.cassandra.cache.SerializingCacheProvider
+#   This is the row cache implementation availabile
+#   in previous releases of Cassandra.
 # row_cache_class_name: org.apache.cassandra.cache.OHCProvider
 
 # Maximum size of the row cache in memory.
@@ -371,7 +394,7 @@ commitlog_segment_size_in_mb: 32
 # Compression to apply to the commit log. If omitted, the commit log
 # will be written uncompressed.  LZ4, Snappy, and Deflate compressors
 # are supported.
-#commitlog_compression:
+# commitlog_compression:
 #   - class_name: LZ4Compressor
 #     parameters:
 #         -
@@ -448,9 +471,15 @@ concurrent_materialized_view_writes: 32
 
 # Specify the way Cassandra allocates and manages memtable memory.
 # Options are:
-#   heap_buffers:    on heap nio buffers
-#   offheap_buffers: off heap (direct) nio buffers
-#   offheap_objects: off heap objects
+#
+# heap_buffers
+#   on heap nio buffers
+#
+# offheap_buffers
+#   off heap (direct) nio buffers
+#
+# offheap_objects
+#    off heap objects
 memtable_allocation_type: heap_buffers
 
 # Total space to use for commit logs on disk.
@@ -508,8 +537,7 @@ ssl_storage_port: 7001
 # Address or interface to bind to and tell other Cassandra nodes to connect to.
 # You _must_ change this if you want multiple nodes to be able to communicate!
 #
-# Set listen_address OR listen_interface, not both. Interfaces must correspond
-# to a single address, IP aliasing is not supported.
+# Set listen_address OR listen_interface, not both.
 #
 # Leaving it blank leaves it up to InetAddress.getLocalHost(). This
 # will always do the Right Thing _if_ the node is properly configured
@@ -518,12 +546,16 @@ ssl_storage_port: 7001
 #
 # Setting listen_address to 0.0.0.0 is always wrong.
 #
+listen_address: localhost
+
+# Set listen_address OR listen_interface, not both. Interfaces must correspond
+# to a single address, IP aliasing is not supported.
+# listen_interface: eth0
+
 # If you choose to specify the interface by name and the interface has an ipv4 and an ipv6 address
 # you can specify which should be chosen using listen_interface_prefer_ipv6. If false the first ipv4
 # address will be used. If true the first ipv6 address will be used. Defaults to false preferring
 # ipv4. If there is only one address it will be selected regardless of ipv4/ipv6.
-listen_address: localhost
-# listen_interface: eth0
 # listen_interface_prefer_ipv6: false
 
 # Address to broadcast to other Cassandra nodes
@@ -582,8 +614,7 @@ start_rpc: false
 # The address or interface to bind the Thrift RPC service and native transport
 # server to.
 #
-# Set rpc_address OR rpc_interface, not both. Interfaces must correspond
-# to a single address, IP aliasing is not supported.
+# Set rpc_address OR rpc_interface, not both.
 #
 # Leaving rpc_address blank has the same effect as on listen_address
 # (i.e. it will be based on the configured hostname of the node).
@@ -592,13 +623,16 @@ start_rpc: false
 # set broadcast_rpc_address to a value other than 0.0.0.0.
 #
 # For security reasons, you should not expose this port to the internet.  Firewall it if needed.
-#
+rpc_address: localhost
+
+# Set rpc_address OR rpc_interface, not both. Interfaces must correspond
+# to a single address, IP aliasing is not supported.
+# rpc_interface: eth1
+
 # If you choose to specify the interface by name and the interface has an ipv4 and an ipv6 address
 # you can specify which should be chosen using rpc_interface_prefer_ipv6. If false the first ipv4
 # address will be used. If true the first ipv6 address will be used. Defaults to false preferring
 # ipv4. If there is only one address it will be selected regardless of ipv4/ipv6.
-rpc_address: localhost
-# rpc_interface: eth1
 # rpc_interface_prefer_ipv6: false
 
 # port for Thrift to listen for clients on
@@ -615,16 +649,18 @@ rpc_keepalive: true
 
 # Cassandra provides two out-of-the-box options for the RPC Server:
 #
-# sync  -> One thread per thrift connection. For a very large number of clients, memory
-#          will be your limiting factor. On a 64 bit JVM, 180KB is the minimum stack size
-#          per thread, and that will correspond to your use of virtual memory (but physical memory
-#          may be limited depending on use of stack space).
+# sync
+#   One thread per thrift connection. For a very large number of clients, memory
+#   will be your limiting factor. On a 64 bit JVM, 180KB is the minimum stack size
+#   per thread, and that will correspond to your use of virtual memory (but physical memory
+#   may be limited depending on use of stack space).
 #
-# hsha  -> Stands for "half synchronous, half asynchronous." All thrift clients are handled
-#          asynchronously using a small number of threads that does not vary with the amount
-#          of thrift clients (and thus scales well to many clients). The rpc requests are still
-#          synchronous (one thread per active request). If hsha is selected then it is essential
-#          that rpc_max_threads is changed from the default value of unlimited.
+# hsha
+#   Stands for "half synchronous, half asynchronous." All thrift clients are handled
+#   asynchronously using a small number of threads that does not vary with the amount
+#   of thrift clients (and thus scales well to many clients). The rpc requests are still
+#   synchronous (one thread per active request). If hsha is selected then it is essential
+#   that rpc_max_threads is changed from the default value of unlimited.
 #
 # The default is sync because on Windows hsha is about 30% slower.  On Linux,
 # sync/hsha performance is about the same, with hsha of course using less memory.
@@ -653,13 +689,17 @@ rpc_server_type: sync
 # Uncomment to set socket buffer size for internode communication
 # Note that when setting this, the buffer size is limited by net.core.wmem_max
 # and when not setting it it is defined by net.ipv4.tcp_wmem
-# See:
+# See also:
 # /proc/sys/net/core/wmem_max
 # /proc/sys/net/core/rmem_max
 # /proc/sys/net/ipv4/tcp_wmem
 # /proc/sys/net/ipv4/tcp_wmem
-# and: man tcp
+# and 'man tcp'
 # internode_send_buff_size_in_bytes:
+
+# Uncomment to set socket buffer size for internode communication
+# Note that when setting this, the buffer size is limited by net.core.wmem_max
+# and when not setting it it is defined by net.ipv4.tcp_wmem
 # internode_recv_buff_size_in_bytes:
 
 # Frame size for thrift (maximum message length).
@@ -686,13 +726,15 @@ auto_snapshot: true
 # Granularity of the collation index of rows within a partition.
 # Increase if your rows are large, or if you have a very large
 # number of rows per partition.  The competing goals are these:
-#   1) a smaller granularity means more index entries are generated
-#      and looking up rows withing the partition by collation column
-#      is faster
-#   2) but, Cassandra will keep the collation index in memory for hot
-#      rows (as part of the key cache), so a larger granularity means
-#      you can cache more hot rows
+#
+# - a smaller granularity means more index entries are generated
+#   and looking up rows withing the partition by collation column
+#   is faster
+# - but, Cassandra will keep the collation index in memory for hot
+#   rows (as part of the key cache), so a larger granularity means
+#   you can cache more hot rows
 column_index_size_in_kb: 64
+
 # Per sstable indexed key cache entries (the collation index in memory
 # mentioned above) exceeding this size will not be held on heap.
 # This means that only partition information is held on heap and the
@@ -788,6 +830,7 @@ cross_node_timeout: false
 
 # endpoint_snitch -- Set this to a class that implements
 # IEndpointSnitch.  The snitch has two functions:
+#
 # - it teaches Cassandra enough about your network topology to route
 #   requests efficiently
 # - it allows Cassandra to spread replicas around your cluster to avoid
@@ -803,34 +846,40 @@ cross_node_timeout: false
 # IF THE RACK A REPLICA IS PLACED IN CHANGES AFTER THE REPLICA HAS BEEN
 # ADDED TO A RING, THE NODE MUST BE DECOMMISSIONED AND REBOOTSTRAPPED.
 #
-# Out of the box, Cassandra provides
-#  - SimpleSnitch:
+# Out of the box, Cassandra provides:
+#
+# SimpleSnitch:
 #    Treats Strategy order as proximity. This can improve cache
 #    locality when disabling read repair.  Only appropriate for
 #    single-datacenter deployments.
-#  - GossipingPropertyFileSnitch
+#
+# GossipingPropertyFileSnitch
 #    This should be your go-to snitch for production use.  The rack
 #    and datacenter for the local node are defined in
 #    cassandra-rackdc.properties and propagated to other nodes via
 #    gossip.  If cassandra-topology.properties exists, it is used as a
 #    fallback, allowing migration from the PropertyFileSnitch.
-#  - PropertyFileSnitch:
+#
+# PropertyFileSnitch:
 #    Proximity is determined by rack and data center, which are
 #    explicitly configured in cassandra-topology.properties.
-#  - Ec2Snitch:
+#
+# Ec2Snitch:
 #    Appropriate for EC2 deployments in a single Region. Loads Region
 #    and Availability Zone information from the EC2 API. The Region is
 #    treated as the datacenter, and the Availability Zone as the rack.
 #    Only private IPs are used, so this will not work across multiple
 #    Regions.
-#  - Ec2MultiRegionSnitch:
+#
+# Ec2MultiRegionSnitch:
 #    Uses public IPs as broadcast_address to allow cross-region
 #    connectivity.  (Thus, you should set seed addresses to the public
 #    IP as well.) You will need to open the storage_port or
 #    ssl_storage_port on the public IP firewall.  (For intra-Region
 #    traffic, Cassandra will switch to the private IP after
 #    establishing a connection.)
-#  - RackInferringSnitch:
+#
+# RackInferringSnitch:
 #    Proximity is determined by rack and data center, which are
 #    assumed to correspond to the 3rd and 2nd octet of each node's IP
 #    address, respectively.  Unless this happens to match your
@@ -870,20 +919,26 @@ dynamic_snitch_badness_threshold: 0.1
 request_scheduler: org.apache.cassandra.scheduler.NoScheduler
 
 # Scheduler Options vary based on the type of scheduler
-# NoScheduler - Has no options
+#
+# NoScheduler
+#   Has no options
+#
 # RoundRobin
-#  - throttle_limit -- The throttle_limit is the number of in-flight
-#                      requests per client.  Requests beyond 
-#                      that limit are queued up until
-#                      running requests can complete.
-#                      The value of 80 here is twice the number of
-#                      concurrent_reads + concurrent_writes.
-#  - default_weight -- default_weight is optional and allows for
-#                      overriding the default which is 1.
-#  - weights -- Weights are optional and will default to 1 or the
-#               overridden default_weight. The weight translates into how
-#               many requests are handled during each turn of the
-#               RoundRobin, based on the scheduler id.
+#   throttle_limit
+#     The throttle_limit is the number of in-flight
+#     requests per client.  Requests beyond 
+#     that limit are queued up until
+#     running requests can complete.
+#     The value of 80 here is twice the number of
+#     concurrent_reads + concurrent_writes.
+#   default_weight
+#     default_weight is optional and allows for
+#     overriding the default which is 1.
+#   weights
+#     Weights are optional and will default to 1 or the
+#     overridden default_weight. The weight translates into how
+#     many requests are handled during each turn of the
+#     RoundRobin, based on the scheduler id.
 #
 # request_scheduler_options:
 #    throttle_limit: 80
@@ -905,7 +960,7 @@ request_scheduler: org.apache.cassandra.scheduler.NoScheduler
 # FIPS compliant settings can be configured at JVM level and should not
 # involve changing encryption settings here:
 # https://docs.oracle.com/javase/8/docs/technotes/guides/security/jsse/FIPS.html
-# NOTE: No custom encryption options are enabled at the moment
+# *NOTE* No custom encryption options are enabled at the moment
 # The available internode options are : all, none, dc, rack
 #
 # If set to dc cassandra will encrypt the traffic between the DCs
@@ -948,9 +1003,16 @@ client_encryption_options:
 
 # internode_compression controls whether traffic between nodes is
 # compressed.
-# can be:  all  - all traffic is compressed
-#          dc   - traffic between different datacenters is compressed
-#          none - nothing is compressed.
+# Can be:
+#
+# all
+#   all traffic is compressed
+#
+# dc
+#   traffic between different datacenters is compressed
+#
+# none
+#   nothing is compressed.
 internode_compression: dc
 
 # Enable or disable tcp_nodelay for inter-dc communication.
