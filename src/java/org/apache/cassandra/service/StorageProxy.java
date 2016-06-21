@@ -232,12 +232,15 @@ public class StorageProxy implements StorageProxyMBean
                                                                   ? ConsistencyLevel.LOCAL_QUORUM
                                                                   : ConsistencyLevel.QUORUM);
                 ColumnFamily current = rows.get(0).cf;
+                if (current == null)
+                    current = ArrayBackedSortedColumns.factory.create(metadata);
+
                 if (!request.appliesTo(current))
                 {
                     Tracing.trace("CAS precondition does not match current values {}", current);
                     // We should not return null as this means success
                     casWriteMetrics.conditionNotMet.inc();
-                    return current == null ? ArrayBackedSortedColumns.factory.create(metadata) : current;
+                    return current;
                 }
 
                 // finish the paxos round w/ the desired updates

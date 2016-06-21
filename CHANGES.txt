@@ -1,3 +1,4 @@
+<<<<<<< HEAD
 2.2.7
  * RandomAccessReader: call isEOF() only when rebuffering, not for every read operation (CASSANDRA-12013)
  * Don't send erroneous NEW_NODE notifications on restart (CASSANDRA-11038)
@@ -27,6 +28,10 @@
  * Always close cluster with connection in CqlRecordWriter (CASSANDRA-11553)
  * Fix slice queries on ordered COMPACT tables (CASSANDRA-10988)
 Merged from 2.1:
+=======
+2.1.15
+ * Remove distinction between non-existing static columns and existing but null in LWTs (CASSANDRA-9842)
+>>>>>>> asf/cassandra-2.1
  * Support mlockall on IBM POWER arch (CASSANDRA-11576)
  * Cache local ranges when calculating repair neighbors (CASSANDRA-11933)
  * Allow LWT operation on static column with only partition keys (CASSANDRA-10532)

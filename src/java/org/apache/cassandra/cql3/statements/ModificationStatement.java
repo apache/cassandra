@@ -702,10 +702,11 @@ public abstract class ModificationStatement implements CQLStatement
 
         Row row = readCommand.getRow(keyspace);
         ColumnFamily current = row.cf;
+        if (current == null)
+            current = ArrayBackedSortedColumns.factory.create(metadata);
+
         if (!request.appliesTo(current))
         {
-            if (current == null)
-                current = ArrayBackedSortedColumns.factory.create(metadata);
             return current;
         }
 
