@@ -1,4 +1,5 @@
 2.1.15
+ * Remove distinction between non-existing static columns and existing but null in LWTs (CASSANDRA-9842)
  * Support mlockall on IBM POWER arch (CASSANDRA-11576)
  * Cache local ranges when calculating repair neighbors (CASSANDRA-11933)
  * Allow LWT operation on static column with only partition keys (CASSANDRA-10532)
