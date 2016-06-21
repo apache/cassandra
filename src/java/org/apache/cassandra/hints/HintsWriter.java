@@ -74,7 +74,8 @@ class HintsWriter implements AutoCloseable
 
         CRC32 crc = new CRC32();
 
-        try (DataOutputBuffer dob = new DataOutputBuffer())
+        DataOutputBuffer dob = null;
+        try (DataOutputBuffer ignored = dob = DataOutputBuffer.RECYCLER.get())
         {
             // write the descriptor
             descriptor.serialize(dob);
@@ -86,6 +87,10 @@ class HintsWriter implements AutoCloseable
         {
             channel.close();
             throw e;
+        }
+        finally
+        {
+            dob.recycle();
         }
 
         if (descriptor.isEncrypted())

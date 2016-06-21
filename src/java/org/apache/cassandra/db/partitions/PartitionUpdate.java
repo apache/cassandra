@@ -274,7 +274,7 @@ public class PartitionUpdate extends AbstractBTreePartition
         try (DataOutputBuffer out = new DataOutputBuffer())
         {
             serializer.serialize(update, out, version);
-            return ByteBuffer.wrap(out.getData(), 0, out.getLength());
+            return out.asNewBuffer();
         }
         catch (IOException e)
         {

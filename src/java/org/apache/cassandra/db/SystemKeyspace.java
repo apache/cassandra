@@ -640,15 +640,20 @@ public final class SystemKeyspace
 
     private static Map<UUID, ByteBuffer> truncationAsMapEntry(ColumnFamilyStore cfs, long truncatedAt, CommitLogPosition position)
     {
-        try (DataOutputBuffer out = new DataOutputBuffer())
+        DataOutputBuffer out = null;
+        try (DataOutputBuffer ignored = out = DataOutputBuffer.RECYCLER.get())
         {
             CommitLogPosition.serializer.serialize(position, out);
             out.writeLong(truncatedAt);
-            return singletonMap(cfs.metadata.cfId, ByteBuffer.wrap(out.getData(), 0, out.getLength()));
+            return singletonMap(cfs.metadata.cfId, out.asNewBuffer());
         }
         catch (IOException e)
         {
             throw new RuntimeException(e);
+        }
+        finally
+        {
+            out.recycle();
         }
     }
 

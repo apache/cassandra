@@ -231,6 +231,11 @@ public class DataOutputBuffer extends BufferedDataOutputStreamPlus
         return getLength();
     }
 
+    public ByteBuffer asNewBuffer()
+    {
+        return ByteBuffer.wrap(getData(), 0, getLength());
+    }
+
     public byte[] toByteArray()
     {
         ByteBuffer buffer = buffer();
