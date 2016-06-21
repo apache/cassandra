@@ -27,6 +27,7 @@ import org.apache.cassandra.schema.SchemaKeyspace;
 
 import static java.lang.String.format;
 import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertThat;
 import static org.junit.Assert.assertTrue;
 
 public class InsertUpdateIfConditionTest extends CQLTester
@@ -1394,5 +1395,294 @@ public class InsertUpdateIfConditionTest extends CQLTester
                                    SchemaKeyspace.TYPES),
                             KEYSPACE,
                             "mytype"));
+    }
+
+    @Test
+    public void testConditionalUpdatesOnStaticColumns() throws Throwable
+    {
+        createTable("CREATE TABLE %s (a int, b int, s int static, d text, PRIMARY KEY (a, b))");
+
+        // pre-existing row
+        execute("INSERT INTO %s (a, b, s, d) values (6, 6, 100, 'a')");
+        assertRows(execute("UPDATE %s SET s = 6 WHERE a = 6 IF s = 100"),
+                   row(true));
+        assertRows(execute("SELECT * FROM %s WHERE a = 6"),
+                   row(6, 6, 6, "a"));
+
+        // pre-existing row with null in the static column
+        execute("INSERT INTO %s (a, b, d) values (7, 7, 'a')");
+        assertRows(execute("UPDATE %s SET s = 7 WHERE a = 7 IF s = NULL"),
+                   row(true));
+        assertRows(execute("SELECT * FROM %s WHERE a = 7"),
+                   row(7, 7, 7, "a"));
+
+        // deleting row before CAS
+        execute("DELETE FROM %s WHERE a = 8;");
+        assertRows(execute("UPDATE %s SET s = 8 WHERE a = 8 IF s = NULL"),
+                   row(true));
+        assertRows(execute("SELECT * FROM %s WHERE a = 8"),
+                   row(8, null, 8, null));
+    }
+
+    @Test
+    public void testConditionalUpdatesWithNullValues() throws Throwable
+    {
+        createTable("CREATE TABLE %s (a int, b int, s int static, d text, PRIMARY KEY (a, b))");
+
+        // pre-populate, leave out static column
+        for (int i = 1; i <= 5; i++)
+            execute("INSERT INTO %s (a, b) VALUES (?, ?)", i, i);
+
+        conditionalUpdatesWithNonExistingOrNullValues();
+
+        // rejected: IN doesn't contain null
+        assertRows(execute("UPDATE %s SET s = 30 WHERE a = 3 IF s IN (10,20,30)"),
+                   row(false));
+        assertRows(execute("SELECT * FROM %s WHERE a = 3"),
+                   row(3, 3, null, null));
+
+        // rejected: comparing number with NULL always returns false
+        for (String operator: new String[] { ">", "<", ">=", "<=", "="})
+        {
+            assertRows(execute("UPDATE %s SET s = 50 WHERE a = 5 IF s " + operator + " 3"),
+                       row(false));
+            assertRows(execute("SELECT * FROM %s WHERE a = 5"),
+                       row(5, 5, null, null));
+        }
+
+    }
+
+    @Test
+    public void testConditionalUpdatesWithNonExistingValues() throws Throwable
+    {
+        createTable("CREATE TABLE %s (a int, b int, s int static, d text, PRIMARY KEY (a, b))");
+
+        conditionalUpdatesWithNonExistingOrNullValues();
+
+        // rejected: IN doesn't contain null
+        assertRows(execute("UPDATE %s SET s = 3 WHERE a = 3 IF s IN (10,20,30)"),
+                   row(false));
+        assertEmpty(execute("SELECT a, s, d FROM %s WHERE a = 3"));
+
+        // rejected: comparing number with NULL always returns false
+        for (String operator : new String[]{ ">", "<", ">=", "<=", "=" })
+        {
+            assertRows(execute("UPDATE %s SET s = 50 WHERE a = 5 IF s " + operator + " 3"),
+                       row(false));
+            assertEmpty(execute("SELECT * FROM %s WHERE a = 5"));
+        }
+    }
+
+    private void conditionalUpdatesWithNonExistingOrNullValues() throws Throwable
+    {
+        assertRows(execute("UPDATE %s SET s = 1 WHERE a = 1 IF s = NULL"),
+                   row(true));
+        assertRows(execute("SELECT a, s, d FROM %s WHERE a = 1"),
+                   row(1, 1, null));
+
+        assertRows(execute("UPDATE %s SET s = 2 WHERE a = 2 IF s IN (10,20,NULL)"),
+                   row(true));
+        assertRows(execute("SELECT a, s, d FROM %s WHERE a = 2"),
+                   row(2, 2, null));
+
+        assertRows(execute("UPDATE %s SET s = 4 WHERE a = 4 IF s != 4"),
+                   row(true));
+        assertRows(execute("SELECT a, s, d FROM %s WHERE a = 4"),
+                   row(4, 4, null));
+    }
+
+    @Test
+    public void testConditionalUpdatesWithNullValuesWithBatch() throws Throwable
+    {
+        createTable("CREATE TABLE %s (a int, b int, s int static, d text, PRIMARY KEY (a, b))");
+
+        // pre-populate, leave out static column
+        for (int i = 1; i <= 6; i++)
+            execute("INSERT INTO %s (a, b) VALUES (?, ?)", i, i);
+
+        testConditionalUpdatesWithNonExistingOrNullValuesWithBatch();
+
+        // rejected: comparing number with null value always returns false
+        for (String operator: new String[] { ">", "<", ">=", "<=", "="})
+        {
+            assertRows(execute("BEGIN BATCH\n"
+                               + "INSERT INTO %1$s (a, b, s, d) values (3, 3, 40, 'a');\n"
+                               + "UPDATE %1$s SET s = 30 WHERE a = 3 IF s " + operator + " 5;\n"
+                               + "APPLY BATCH"),
+                       row(false));
+            assertRows(execute("SELECT * FROM %s WHERE a = 3"),
+                       row(3, 3, null, null));
+        }
+
+        // rejected: IN doesn't contain null
+        assertRows(execute("BEGIN BATCH\n"
+                           + "INSERT INTO %1$s (a, b, s, d) values (6, 6, 70, 'a');\n"
+                           + "UPDATE %1$s SET s = 60 WHERE a = 6 IF s IN (1,2,3);\n"
+                           + "APPLY BATCH"),
+                   row(false));
+        assertRows(execute("SELECT * FROM %s WHERE a = 6"),
+                   row(6, 6, null, null));
+
+    }
+
+    @Test
+    public void testConditionalUpdatesWithNonExistingValuesWithBatch() throws Throwable
+    {
+        createTable("CREATE TABLE %s (a int, b int, s int static, d text, PRIMARY KEY (a, b))");
+
+        testConditionalUpdatesWithNonExistingOrNullValuesWithBatch();
+
+        // rejected: comparing number with non-existing value always returns false
+        for (String operator: new String[] { ">", "<", ">=", "<=", "="})
+        {
+            assertRows(execute("BEGIN BATCH\n"
+                               + "INSERT INTO %1$s (a, b, s, d) values (3, 3, 3, 'a');\n"
+                               + "UPDATE %1$s SET s = 3 WHERE a = 3 IF s " + operator + " 5;\n"
+                               + "APPLY BATCH"),
+                       row(false));
+            assertEmpty(execute("SELECT * FROM %s WHERE a = 3"));
+        }
+
+        // rejected: IN doesn't contain null
+        assertRows(execute("BEGIN BATCH\n"
+                           + "INSERT INTO %1$s (a, b, s, d) values (6, 6, 6, 'a');\n"
+                           + "UPDATE %1$s SET s = 7 WHERE a = 6 IF s IN (1,2,3);\n"
+                           + "APPLY BATCH"),
+                   row(false));
+        assertEmpty(execute("SELECT * FROM %s WHERE a = 6"));
+    }
+
+    private void testConditionalUpdatesWithNonExistingOrNullValuesWithBatch() throws Throwable
+    {
+        // applied: null is indistiguishable from empty value, lwt condition is executed before INSERT
+        assertRows(execute("BEGIN BATCH\n"
+                           + "INSERT INTO %1$s (a, b, d) values (2, 2, 'a');\n"
+                           + "UPDATE %1$s SET s = 2 WHERE a = 2 IF s = null;\n"
+                           + "APPLY BATCH"),
+                   row(true));
+        assertRows(execute("SELECT * FROM %s WHERE a = 2"),
+                   row(2, 2, 2, "a"));
+
+        // applied: lwt condition is executed before INSERT, update is applied after it
+        assertRows(execute("BEGIN BATCH\n"
+                           + "INSERT INTO %1$s (a, b, s, d) values (4, 4, 4, 'a');\n"
+                           + "UPDATE %1$s SET s = 5 WHERE a = 4 IF s = null;\n"
+                           + "APPLY BATCH"),
+                   row(true));
+        assertRows(execute("SELECT * FROM %s WHERE a = 4"),
+                   row(4, 4, 5, "a"));
+
+        assertRows(execute("BEGIN BATCH\n"
+                           + "INSERT INTO %1$s (a, b, s, d) values (5, 5, 5, 'a');\n"
+                           + "UPDATE %1$s SET s = 6 WHERE a = 5 IF s IN (1,2,null);\n"
+                           + "APPLY BATCH"),
+                   row(true));
+        assertRows(execute("SELECT * FROM %s WHERE a = 5"),
+                   row(5, 5, 6, "a"));
+
+        assertRows(execute("BEGIN BATCH\n"
+                           + "INSERT INTO %1$s (a, b, s, d) values (7, 7, 7, 'a');\n"
+                           + "UPDATE %1$s SET s = 8 WHERE a = 7 IF s != 7;\n"
+                           + "APPLY BATCH"),
+                   row(true));
+        assertRows(execute("SELECT * FROM %s WHERE a = 7"),
+                   row(7, 7, 8, "a"));
+    }
+
+    @Test
+    public void testConditionalDeleteWithNullValues() throws Throwable
+    {
+        createTable("CREATE TABLE %s (a int, b int, s1 int static, s2 int static, v int, PRIMARY KEY (a, b))");
+
+        for (int i = 1; i <= 5; i++)
+            execute("INSERT INTO %s (a, b, s1, s2, v) VALUES (?, ?, ?, ?, ?)", i, i, i, null, i);
+
+        assertRows(execute("DELETE s1 FROM %s WHERE a = 1 IF s2 = NULL"),
+                   row(true));
+        assertRows(execute("SELECT * FROM %s WHERE a = 1"),
+                   row(1, 1, null, null, 1));
+
+        // rejected: IN doesn't contain null
+        assertRows(execute("DELETE s1 FROM %s WHERE a = 2 IF s2 IN (10,20,30)"),
+                   row(false));
+        assertRows(execute("SELECT * FROM %s WHERE a = 2"),
+                   row(2, 2, 2, null, 2));
+
+        assertRows(execute("DELETE s1 FROM %s WHERE a = 3 IF s2 IN (NULL,20,30)"),
+                   row(true));
+        assertRows(execute("SELECT * FROM %s WHERE a = 3"),
+                   row(3, 3, null, null, 3));
+
+        assertRows(execute("DELETE s1 FROM %s WHERE a = 4 IF s2 != 4"),
+                   row(true));
+        assertRows(execute("SELECT * FROM %s WHERE a = 4"),
+                   row(4, 4, null, null, 4));
+
+        // rejected: comparing number with NULL always returns false
+        for (String operator : new String[]{ ">", "<", ">=", "<=", "=" })
+        {
+            assertRows(execute("DELETE s1 FROM %s WHERE a = 5 IF s2 " + operator + " 3"),
+                       row(false));
+            assertRows(execute("SELECT * FROM %s WHERE a = 5"),
+                       row(5, 5, 5, null, 5));
+        }
+    }
+
+    @Test
+    public void testConditionalDeletesWithNonExistingValuesWithBatch() throws Throwable
+    {
+        createTable("CREATE TABLE %s (a int, b int, s1 int static, s2 int static, v int, PRIMARY KEY (a, b))");
+
+        // applied: null is indistiguishable from empty value, lwt condition is executed before INSERT
+        assertRows(execute("BEGIN BATCH\n"
+                           + "INSERT INTO %1$s (a, b, s1, v) values (2, 2, 2, 2);\n"
+                           + "DELETE s1 FROM %1$s WHERE a = 2 IF s2 = null;\n"
+                           + "APPLY BATCH"),
+                   row(true));
+        assertRows(execute("SELECT * FROM %s WHERE a = 2"),
+                   row(2, 2, null, null, 2));
+
+        // rejected: comparing number with non-existing value always returns false
+        for (String operator: new String[] { ">", "<", ">=", "<=", "="})
+        {
+            assertRows(execute("BEGIN BATCH\n"
+                               + "INSERT INTO %1$s (a, b, s1, v) values (3, 3, 3, 3);\n"
+                               + "DELETE s1 FROM %1$s WHERE a = 3 IF s2 " + operator + " 5;\n"
+                               + "APPLY BATCH"),
+                       row(false));
+            assertEmpty(execute("SELECT * FROM %s WHERE a = 3"));
+        }
+
+        // rejected: IN doesn't contain null
+        assertRows(execute("BEGIN BATCH\n"
+                           + "INSERT INTO %1$s (a, b, s1, v) values (6, 6, 6, 6);\n"
+                           + "DELETE s1 FROM %1$s WHERE a = 6 IF s2 IN (1,2,3);\n"
+                           + "APPLY BATCH"),
+                   row(false));
+        assertEmpty(execute("SELECT * FROM %s WHERE a = 6"));
+
+        assertRows(execute("BEGIN BATCH\n"
+                           + "INSERT INTO %1$s (a, b, s1, v) values (4, 4, 4, 4);\n"
+                           + "DELETE s1 FROM %1$s WHERE a = 4 IF s2 = null;\n"
+                           + "APPLY BATCH"),
+                   row(true));
+        assertRows(execute("SELECT * FROM %s WHERE a = 4"),
+                   row(4, 4, null, null, 4));
+
+        assertRows(execute("BEGIN BATCH\n"
+                           + "INSERT INTO %1$s (a, b, s1, v) VALUES (5, 5, 5, 5);\n"
+                           + "DELETE s1 FROM %1$s WHERE a = 5 IF s1 IN (1,2,null);\n"
+                           + "APPLY BATCH"),
+                   row(true));
+        assertRows(execute("SELECT * FROM %s WHERE a = 5"),
+                   row(5, 5, null, null, 5));
+
+        assertRows(execute("BEGIN BATCH\n"
+                           + "INSERT INTO %1$s (a, b, s1, v) values (7, 7, 7, 7);\n"
+                           + "DELETE s1 FROM %1$s WHERE a = 7 IF s2 != 7;\n"
+                           + "APPLY BATCH"),
+                   row(true));
+        assertRows(execute("SELECT * FROM %s WHERE a = 7"),
+                   row(7, 7, null, null, 7));
     }
 }
