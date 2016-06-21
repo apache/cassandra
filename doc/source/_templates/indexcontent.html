@@ -1,0 +1,33 @@
+{% extends "defindex.html" %}
+{% block tables %}
+<p><strong>{% trans %}Main documentation parts:{% endtrans %}</strong></p>
+  <table class="contentstable" align="center"><tr>
+    <td width="50%">
+      <p class="biglink"><a class="biglink" href="{{ pathto("getting_started/index") }}">{% trans %}Getting started{% endtrans %}</a><br/>
+         <span class="linkdescr">{% trans %}Newbie friendly starting point{% endtrans %}</span></p>
+      <p class="biglink"><a class="biglink" href="{{ pathto("architecture/index") }}">{% trans %}Cassandra Architecture{% endtrans %}</a><br/>
+         <span class="linkdescr">{% trans %}Cassandra's big picture{% endtrans %}</span></p>
+      <p class="biglink"><a class="biglink" href="{{ pathto("data_modeling/index") }}">{% trans %}Data Modeling{% endtrans %}</a><br/>
+         <span class="linkdescr">{% trans %}Or how to make square pegs fit round holes{% endtrans %}</span></p>
+      <p class="biglink"><a class="biglink" href="{{ pathto("cql/index") }}">{% trans %}Cassandra Query Language{% endtrans %}</a><br/>
+         <span class="linkdescr">{% trans %}CQL reference documentation{% endtrans %}</span></p>
+      <p class="biglink"><a class="biglink" href="{{ pathto("configuration/index") }}">{% trans %}Configuration{% endtrans %}</a><br/>
+         <span class="linkdescr">{% trans %}Cassandra's handles and knobs{% endtrans %}</span></p>
+    </td><td width="50%" class="rightcolumn">
+      <p class="biglink"><a class="biglink" href="{{ pathto("operating/index") }}">{% trans %}Operating Cassandra{% endtrans %}</a><br/>
+         <span class="linkdescr">{% trans %}The operator's corner{% endtrans %}</span></p>
+      <p class="biglink"><a class="biglink" href="{{ pathto("tooling/index") }}">{% trans %}Cassandra's Tools{% endtrans %}</a><br/>
+         <span class="linkdescr">{% trans %}cqlsh, nodetool, ...{% endtrans %}</span></p>
+      <p class="biglink"><a class="biglink" href="{{ pathto("troubleshooting/index") }}">{% trans %}Troubleshooting{% endtrans %}</a><br/>
+         <span class="linkdescr">{% trans %}What to look for when you have a problem{% endtrans %}</span></p>
+      <p class="biglink"><a class="biglink" href="{{ pathto("faq/index") }}">{% trans %}FAQs{% endtrans %}</a><br/>
+         <span class="linkdescr">{% trans %}Frequently Asked Questions (with answers!){% endtrans %}</span></p>
+    </td></tr>
+  </table>
+
+<p><strong>{% trans %}Meta informations:{% endtrans %}</strong></p>
+
+<p class="biglink"><a class="biglink" href="{{ pathto("bugs") }}">{% trans %}Reporting bugs{% endtrans %}</a></p>
+<p class="biglink"><a class="biglink" href="{{ pathto("contactus") }}">{% trans %}Contact us{% endtrans %}</a></p>
+
+{% endblock %}

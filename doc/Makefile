@@ -14,7 +14,7 @@ ALLSPHINXOPTS   = -d $(BUILDDIR)/doctrees $(PAPEROPT_$(PAPER)) $(SPHINXOPTS) sou
 # the i18n builder cannot share the environment and doctrees with the others
 I18NSPHINXOPTS  = $(PAPEROPT_$(PAPER)) $(SPHINXOPTS) source
 
-MAKE_CASSANDRA_YAML = python convert_yaml_to_rst.py ../conf/cassandra.yaml source/cassandra_config_file.rst
+MAKE_CASSANDRA_YAML = python convert_yaml_to_rst.py ../conf/cassandra.yaml source/configuration/cassandra_config_file.rst
 
 .PHONY: help
 help:

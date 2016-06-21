@@ -58,7 +58,7 @@ def convert(yaml_file, dest_file):
         lines = f.readlines()[7:]
 
     with open(dest_file, 'w') as outfile:
-        outfile.write("Cassandra Config File\n")
+        outfile.write("Cassandra Configuration File\n")
         outfile.write("=====================\n")
 
         # since comments preceed an option, this holds all of the comment

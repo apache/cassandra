@@ -14,14 +14,6 @@
 .. See the License for the specific language governing permissions and
 .. limitations under the License.
 
-Architecture
-============
-
-Overview
---------
-
-.. todo:: todo
-
 Dynamo
 ------
 
@@ -143,75 +135,3 @@ still useful guarantee: reads are guaranteed to see the latest write from within
 
 If this type of strong consistency isn't required, lower consistency levels like ``ONE`` may be used to improve
 throughput, latency, and availability.
-
-Storage Engine
---------------
-
-.. _commit-log:
-
-CommitLog
-^^^^^^^^^
-
-.. todo:: todo
-
-.. _memtables:
-
-Memtables
-^^^^^^^^^
-
-Memtables are in-memory structures where Cassandra buffers writes.  In general, there is one active memtable per table.
-Eventually, memtables are flushed onto disk and become immutable `SSTables`_.  This can be triggered in several
-ways:
-
-- The memory usage of the memtables exceeds the configured threshold  (see ``memtable_cleanup_threshold``)
-- The :ref:`commit-log` approaches its maximum size, and forces memtable flushes in order to allow commitlog segments to
-  be freed
-
-Memtables may be stored entirely on-heap or partially off-heap, depending on ``memtable_allocation_type``.
-
-SSTables
-^^^^^^^^
-
-SSTables are the immutable data files that Cassandra uses for persisting data on disk.
-
-As SSTables are flushed to disk from :ref:`memtables` or are streamed from other nodes, Cassandra triggers compactions
-which combine multiple SSTables into one.  Once the new SSTable has been written, the old SSTables can be removed.
-
-Each SSTable is comprised of multiple components stored in separate files:
-
-``Data.db``
-  The actual data, i.e. the contents of rows.
-
-``Index.db``
-  An index from partition keys to positions in the ``Data.db`` file.  For wide partitions, this may also include an
-  index to rows within a partition.
-
-``Summary.db``
-  A sampling of (by default) every 128th entry in the ``Index.db`` file.
-
-``Filter.db``
-  A Bloom Filter of the partition keys in the SSTable.
-
-``CompressionInfo.db``
-  Metadata about the offsets and lengths of compression chunks in the ``Data.db`` file.
-
-``Statistics.db``
-  Stores metadata about the SSTable, including information about timestamps, tombstones, clustering keys, compaction,
-  repair, compression, TTLs, and more.
-
-``Digest.crc32``
-  A CRC-32 digest of the ``Data.db`` file.
-
-``TOC.txt``
-  A plain text list of the component files for the SSTable.
-
-Within the ``Data.db`` file, rows are organized by partition.  These partitions are sorted in token order (i.e. by a
-hash of the partition key when the default partitioner, ``Murmur3Partition``, is used).  Within a partition, rows are
-stored in the order of their clustering keys.
-
-SSTables can be optionally compressed using block-based compression.
-
-Guarantees
-----------
-
-.. todo:: todo

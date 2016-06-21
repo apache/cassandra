@@ -2,8 +2,8 @@
 
 .. _cqlsh:
 
-cqlsh
-=====
+cqlsh: the CQL shell
+--------------------
 
 cqlsh is a command line shell for interacting with Cassandra through CQL (the Cassandra Query Language).  It is shipped
 with every Cassandra package, and can be found in the bin/ directory alongside the cassandra executable.  cqlsh utilizes
@@ -11,7 +11,7 @@ the Python native protocol driver, and connects to the single node specified on 
 
 
 Compatibility
--------------
+^^^^^^^^^^^^^
 
 cqlsh is compatible with Python 2.7.
 
@@ -20,24 +20,26 @@ In some cases, cqlsh make work with older or newer versions of Cassandra, but th
 
 
 Optional Dependencies
----------------------
+^^^^^^^^^^^^^^^^^^^^^
 
 cqlsh ships with all essential dependencies.  However, there are some optional dependencies that can be installed to
 improve the capabilities of cqlsh.
 
 pytz
-^^^^
+~~~~
+
 By default, cqlsh displays all timestamps with a UTC timezone.  To support display of timestamps with another timezone,
 the `pytz <http://pytz.sourceforge.net/>`__ library must be installed.  See the ``timezone`` option in cqlshrc_ for
 specifying a timezone to use.
 
 cython
-^^^^^^
+~~~~~~
+
 The performance of cqlsh's ``COPY`` operations can be improved by installing `cython <http://cython.org/>`__.  This will
 compile the python modules that are central to the performance of ``COPY``.
 
 cqlshrc
--------
+^^^^^^^
 
 The ``cqlshrc`` file holds configuration options for cqlsh.  By default this is in the user's home directory at
 ``~/.cassandra/cqlsh``, but a custom location can be specified with the ``--cqlshrc`` option.
@@ -47,7 +49,8 @@ can also view the latest version of `cqlshrc online <https://github.com/apache/c
 
 
 Command Line Options
---------------------
+^^^^^^^^^^^^^^^^^^^^
+
 Usage:
 
 ``cqlsh [options] [host [port]]``
@@ -105,13 +108,13 @@ Options:
 
 
 Special Commands
-----------------
+^^^^^^^^^^^^^^^^
 
 In addition to supporting regular CQL statements, cqlsh also supports a number of special commands that are not part of
 CQL.  These are detailed below.
 
 ``CONSISTENCY``
-^^^^^^^^^^^^^^^
+~~~~~~~~~~~~~~~
 
 `Usage`: ``CONSISTENCY <consistency level>``
 
@@ -129,7 +132,7 @@ Sets the consistency level for operations to follow.  Valid arguments include:
 - ``LOCAL_SERIAL``
 
 ``SERIAL CONSISTENCY``
-^^^^^^^^^^^^^^^^^^^^^^
+~~~~~~~~~~~~~~~~~~~~~~
 
 `Usage`: ``SERIAL CONSISTENCY <consistency level>``
 
@@ -147,14 +150,14 @@ write is ``ANY``, then only a read with a consistency level of ``SERIAL`` is gua
 consistency ``ALL`` is not guaranteed to be enough).
 
 ``SHOW VERSION``
-^^^^^^^^^^^^^^^^
+~~~~~~~~~~~~~~~~
 Prints the cqlsh, Cassandra, CQL, and native protocol versions in use.  Example::
 
     cqlsh> SHOW VERSION
     [cqlsh 5.0.1 | Cassandra 3.8 | CQL spec 3.4.2 | Native protocol v4]
 
 ``SHOW HOST``
-^^^^^^^^^^^^^
+~~~~~~~~~~~~~
 
 Prints the IP address and port of the Cassandra node that cqlsh is connected to in addition to the cluster name.
 Example::
@@ -163,7 +166,7 @@ Example::
     Connected to Prod_Cluster at 192.0.0.1:9042.
 
 ``SHOW SESSION``
-^^^^^^^^^^^^^^^^
+~~~~~~~~~~~~~~~~
 
 Pretty prints a specific tracing session.
 
@@ -183,7 +186,7 @@ Example usage::
 
 
 ``SOURCE``
-^^^^^^^^^^
+~~~~~~~~~~
 
 Reads the contents of a file and executes each line as a CQL statement or special cqlsh command.
 
@@ -194,7 +197,7 @@ Example usage::
     cqlsh> SOURCE '/home/thobbs/commands.cql'
 
 ``CAPTURE``
-^^^^^^^^^^^
+~~~~~~~~~~~
 
 Begins capturing command output and appending it to a specified file.  Output will not be shown at the console while it
 is captured.
@@ -216,12 +219,14 @@ To stop capturing output and show it in the cqlsh session again, use ``CAPTURE O
 To inspect the current capture configuration, use ``CAPTURE`` with no arguments.
 
 ``HELP``
-^^^^^^^^
+~~~~~~~~
+
 Gives information about cqlsh commands. To see available topics, enter ``HELP`` without any arguments. To see help on a
 topic, use ``HELP <topic>``.  Also see the ``--browser`` argument for controlling what browser is used to display help.
 
 ``TRACING``
-^^^^^^^^^^^
+~~~~~~~~~~~
+
 Enables or disables tracing for queries.  When tracing is enabled, once a query completes, a trace of the events during
 the query will be printed.
 
@@ -231,7 +236,8 @@ the query will be printed.
     TRACING OFF
 
 ``PAGING``
-^^^^^^^^^^
+~~~~~~~~~~
+
 Enables paging, disables paging, or sets the page size for read queries.  When paging is enabled, only one page of data
 will be fetched at a time and a prompt will appear to fetch the next page.  Generally, it's a good idea to leave paging
 enabled in an interactive session to avoid fetching and printing large amounts of data at once.
@@ -243,7 +249,7 @@ enabled in an interactive session to avoid fetching and printing large amounts o
     PAGING <page size in rows>
 
 ``EXPAND``
-^^^^^^^^^^
+~~~~~~~~~~
 
 Enables or disables vertical printing of rows.  Enabling ``EXPAND`` is useful when many columns are fetched, or the
 contents of a single column are large.
@@ -254,7 +260,7 @@ contents of a single column are large.
     EXPAND OFF
 
 ``LOGIN``
-^^^^^^^^^
+~~~~~~~~~
 
 Authenticate as a specified Cassandra user for the current session.
 
@@ -263,7 +269,8 @@ Authenticate as a specified Cassandra user for the current session.
     LOGIN <username> [<password>]
 
 ``EXIT``
-^^^^^^^^^
+~~~~~~~~~
+
 Ends the current session and terminates the cqlsh process.
 
 `Usage`::
@@ -272,7 +279,7 @@ Ends the current session and terminates the cqlsh process.
     QUIT
 
 ``CLEAR``
-^^^^^^^^^
+~~~~~~~~~
 
 Clears the console.
 
@@ -282,7 +289,7 @@ Clears the console.
     CLS
 
 ``DESCRIBE``
-^^^^^^^^^^^^
+~~~~~~~~~~~~
 
 Prints a description (typically a series of DDL statements) of a schema element or the cluster.  This is useful for
 dumping all or portions of the schema.
@@ -317,7 +324,8 @@ The ``DESCRIBE SCHEMA`` command prints the DDL statements needed to recreate the
 useful for dumping the schema in order to clone a cluster or restore from a backup.
 
 ``COPY TO``
-^^^^^^^^^^^
+~~~~~~~~~~~
+
 Copies data from a table to a CSV file.
 
 `Usage`::
@@ -334,7 +342,7 @@ can also the special value ``STDOUT`` (without single quotes) to print the CSV t
 See :ref:`shared-copy-options` for options that apply to both ``COPY TO`` and ``COPY FROM``.
 
 Options for ``COPY TO``
-~~~~~~~~~~~~~~~~~~~~~~~
+```````````````````````
 
 ``MAXREQUESTS``
   The maximum number token ranges to fetch simultaneously. Defaults to 6.
@@ -358,7 +366,7 @@ Options for ``COPY TO``
   The encoding used for characters. Defaults to ``utf8``.
 
 ``COPY FROM``
-^^^^^^^^^^^^^
+~~~~~~~~~~~~~
 Copies data from a CSV file to table.
 
 `Usage`::
@@ -376,7 +384,7 @@ CSV data from stdin.
 See :ref:`shared-copy-options` for options that apply to both ``COPY TO`` and ``COPY FROM``.
 
 Options for ``COPY TO``
-~~~~~~~~~~~~~~~~~~~~~~~
+```````````````````````
 
 ``INGESTRATE``
   The maximum number of rows to process per second. Defaults to 100000.
@@ -412,7 +420,7 @@ Options for ``COPY TO``
 .. _shared-copy-options:
 
 Shared COPY Options
-~~~~~~~~~~~~~~~~~~~
+```````````````````
 
 Options that are common to both ``COPY TO`` and ``COPY FROM``.
 

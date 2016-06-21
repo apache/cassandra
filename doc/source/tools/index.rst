@@ -14,27 +14,13 @@
 .. See the License for the specific language governing permissions and
 .. limitations under the License.
 
-Welcome to Apache Cassandra's documentation!
-============================================
+Cassandra Tools
+===============
 
-This is the official documentation for `Apache Cassandra <http://cassandra.apache.org>`__ |version|.  If you would like
-to contribute to this documentation, you are welcome to do so by submitting your contribution like any other patch
-following `these instructions <https://wiki.apache.org/cassandra/HowToContribute>`__.
-
-Contents:
+This section describes the command line tools provided with Apache Cassandra.
 
 .. toctree::
-   :maxdepth: 2
+   :maxdepth: 1
 
-   getting_started/index
-   architecture/index
-   data_modeling/index
-   cql/index
-   configuration/index
-   operating/index
-   tools/index
-   troubleshooting/index
-   faq/index
-
-   bugs
-   contactus
+   cqlsh
+   nodetool

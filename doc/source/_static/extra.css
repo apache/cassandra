@@ -33,3 +33,11 @@ a.reference.internal:visited code.literal {
     max-width: 100%;
     overflow: visible;
 }
+
+table.contentstable {
+    margin: 0;
+}
+
+td.rightcolumn {
+    padding-left: 30px;
+}
