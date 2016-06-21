@@ -1,4 +1,5 @@
 2.2.7
+ * Allow nodetool info to run with readonly JMX access (CASSANDRA-11755)
  * Validate bloom_filter_fp_chance against lowest supported
    value when the table is created (CASSANDRA-11920)
  * RandomAccessReader: call isEOF() only when rebuffering, not for every read operation (CASSANDRA-12013)
