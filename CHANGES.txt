@@ -1,5 +1,6 @@
 3.9
 Merged from 2.1:
+ * Avoid stalling paxos when the paxos state expires (CASSANDRA-12043)
  * Remove finished incoming streaming connections from MessagingService (CASSANDRA-11854)
 
 
