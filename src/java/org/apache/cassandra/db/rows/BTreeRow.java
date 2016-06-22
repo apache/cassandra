@@ -19,6 +19,7 @@ package org.apache.cassandra.db.rows;
 
 import java.nio.ByteBuffer;
 import java.util.*;
+import java.util.function.Consumer;
 import java.util.function.Predicate;
 
 import com.google.common.base.Function;
@@ -32,9 +33,7 @@ import org.apache.cassandra.db.*;
 import org.apache.cassandra.db.filter.ColumnFilter;
 import org.apache.cassandra.db.marshal.AbstractType;
 import org.apache.cassandra.db.partitions.PartitionUpdate;
-import org.apache.cassandra.utils.AbstractIterator;
-import org.apache.cassandra.utils.ByteBufferUtil;
-import org.apache.cassandra.utils.ObjectSizes;
+import org.apache.cassandra.utils.*;
 import org.apache.cassandra.utils.btree.BTree;
 import org.apache.cassandra.utils.btree.BTreeSearchIterator;
 import org.apache.cassandra.utils.btree.UpdateFunction;
@@ -168,16 +167,23 @@ public class BTreeRow extends AbstractRow
         return cd.column().isSimple() ? minDeletionTime((Cell) cd) : minDeletionTime((ComplexColumnData)cd);
     }
 
+    public void apply(Consumer<ColumnData> function, boolean reversed)
+    {
+        BTree.apply(btree, function, reversed);
+    }
+
+    public void apply(Consumer<ColumnData> funtion, com.google.common.base.Predicate<ColumnData> stopCondition, boolean reversed)
+    {
+        BTree.apply(btree, funtion, stopCondition, reversed);
+    }
+
     private static int minDeletionTime(Object[] btree, LivenessInfo info, DeletionTime rowDeletion)
     {
-        int min = Math.min(minDeletionTime(info), minDeletionTime(rowDeletion));
-        for (ColumnData cd : BTree.<ColumnData>iterable(btree))
-        {
-            min = Math.min(min, minDeletionTime(cd));
-            if (min == Integer.MIN_VALUE)
-                break;
-        }
-        return min;
+        //we have to wrap this for the lambda
+        final WrappedInt min = new WrappedInt(Math.min(minDeletionTime(info), minDeletionTime(rowDeletion)));
+
+        BTree.<ColumnData>apply(btree, cd -> min.set( Math.min(min.get(), minDeletionTime(cd)) ), cd -> min.get() == Integer.MIN_VALUE, false);
+        return min.get();
     }
 
     public Clustering clustering()
@@ -324,17 +330,26 @@ public class BTreeRow extends AbstractRow
 
     public boolean hasComplexDeletion()
     {
+        final WrappedBoolean result = new WrappedBoolean(false);
+
         // We start by the end cause we know complex columns sort before simple ones
-        for (ColumnData cd : BTree.<ColumnData>iterable(btree, BTree.Dir.DESC))
-        {
-            if (cd.column().isSimple())
-                return false;
+        apply(c -> {}, cd -> {
+            if (cd.column.isSimple())
+            {
+                result.set(false);
+                return true;
+            }
 
             if (!((ComplexColumnData) cd).complexDeletion().isLive())
+            {
+                result.set(true);
                 return true;
-        }
+            }
 
-        return false;
+            return false;
+        }, true);
+
+        return result.get();
     }
 
     public Row markCounterLocalToBeCleared()

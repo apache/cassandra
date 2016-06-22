@@ -26,6 +26,7 @@ import org.apache.cassandra.config.ColumnDefinition;
 import org.apache.cassandra.db.*;
 import org.apache.cassandra.db.partitions.PartitionStatisticsCollector;
 import org.apache.cassandra.utils.MergeIterator;
+import org.apache.cassandra.utils.WrappedInt;
 
 /**
  * Static utilities to work on Row objects.
@@ -72,14 +73,15 @@ public abstract class Rows
         collector.update(row.primaryKeyLivenessInfo());
         collector.update(row.deletion().time());
 
-        int columnCount = 0;
-        int cellCount = 0;
-        for (ColumnData cd : row)
-        {
+        //we have to wrap these for the lambda
+        final WrappedInt columnCount = new WrappedInt(0);
+        final WrappedInt cellCount = new WrappedInt(0);
+
+        row.apply(cd -> {
             if (cd.column().isSimple())
             {
-                ++columnCount;
-                ++cellCount;
+                columnCount.increment();
+                cellCount.increment();
                 Cells.collectStats((Cell) cd, collector);
             }
             else
@@ -88,18 +90,18 @@ public abstract class Rows
                 collector.update(complexData.complexDeletion());
                 if (complexData.hasCells())
                 {
-                    ++columnCount;
+                    columnCount.increment();
                     for (Cell cell : complexData)
                     {
-                        ++cellCount;
+                        cellCount.increment();
                         Cells.collectStats(cell, collector);
                     }
                 }
             }
+        }, false);
 
-        }
-        collector.updateColumnSetPerRow(columnCount);
-        return cellCount;
+        collector.updateColumnSetPerRow(columnCount.get());
+        return cellCount.get();
     }
 
     /**

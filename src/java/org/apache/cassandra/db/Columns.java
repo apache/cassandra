@@ -19,6 +19,7 @@ package org.apache.cassandra.db;
 
 import java.io.IOException;
 import java.util.*;
+import java.util.function.Consumer;
 import java.util.function.Predicate;
 import java.nio.ByteBuffer;
 import java.security.MessageDigest;
@@ -364,6 +365,16 @@ public class Columns extends AbstractCollection<ColumnDefinition> implements Col
     {
         for (ColumnDefinition c : this)
             digest.update(c.name.bytes.duplicate());
+    }
+
+    /**
+     * Apply a function to each column definition in forwards or reversed order.
+     * @param function
+     * @param reversed
+     */
+    public void apply(Consumer<ColumnDefinition> function, boolean reversed)
+    {
+        BTree.apply(columns, function, reversed);
     }
 
     @Override

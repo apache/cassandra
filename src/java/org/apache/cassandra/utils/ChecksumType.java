@@ -22,6 +22,8 @@ import java.util.zip.Checksum;
 import java.util.zip.CRC32;
 import java.util.zip.Adler32;
 
+import io.netty.util.concurrent.FastThreadLocal;
+
 public enum ChecksumType
 {
     Adler32
@@ -60,12 +62,13 @@ public enum ChecksumType
     public abstract Checksum newInstance();
     public abstract void update(Checksum checksum, ByteBuffer buf);
 
-    private ThreadLocal<Checksum> instances = ThreadLocal.withInitial(this::newInstance);
-
-    public Checksum threadLocalInstance()
+    private FastThreadLocal<Checksum> instances = new FastThreadLocal<Checksum>()
     {
-        return instances.get();
-    }
+        protected Checksum initialValue() throws Exception
+        {
+            return newInstance();
+        }
+    };
 
     public long of(ByteBuffer buf)
     {

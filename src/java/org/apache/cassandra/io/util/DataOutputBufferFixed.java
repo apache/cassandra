@@ -38,12 +38,12 @@ public class DataOutputBufferFixed extends DataOutputBuffer
 
     public DataOutputBufferFixed(int size)
     {
-        super(size, null);
+        super(size);
     }
 
     public DataOutputBufferFixed(ByteBuffer buffer)
     {
-        super(buffer, null);
+        super(buffer);
     }
 
     @Override

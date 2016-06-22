@@ -27,6 +27,7 @@ import java.util.concurrent.TimeUnit;
 
 import com.google.common.base.Throwables;
 
+import com.datastax.shaded.netty.util.concurrent.FastThreadLocalThread;
 import org.apache.cassandra.config.CFMetaData;
 import org.apache.cassandra.db.*;
 import org.apache.cassandra.db.rows.Row;
@@ -189,7 +190,7 @@ class SSTableSimpleUnsortedWriter extends AbstractSSTableSimpleWriter
     //// typedef
     static class Buffer extends TreeMap<DecoratedKey, PartitionUpdate> {}
 
-    private class DiskWriter extends Thread
+    private class DiskWriter extends FastThreadLocalThread
     {
         volatile Throwable exception = null;
 

@@ -19,6 +19,9 @@ package org.apache.cassandra.db.rows;
 
 import java.util.*;
 import java.security.MessageDigest;
+import java.util.function.Consumer;
+
+import com.google.common.base.Predicate;
 
 import org.apache.cassandra.config.CFMetaData;
 import org.apache.cassandra.config.ColumnDefinition;
@@ -249,6 +252,16 @@ public interface Row extends Unfiltered, Collection<ColumnData>
     public long unsharedHeapSizeExcludingData();
 
     public String toString(CFMetaData metadata, boolean fullDetails);
+
+    /**
+     * Apply a function to every column in a row
+     */
+    public void apply(Consumer<ColumnData> function, boolean reverse);
+
+    /**
+     * Apply a funtion to every column in a row until a stop condition is reached
+     */
+    public void apply(Consumer<ColumnData> function, Predicate<ColumnData> stopCondition, boolean reverse);
 
     /**
      * A row deletion/tombstone.

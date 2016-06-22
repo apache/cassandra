@@ -47,6 +47,7 @@ import org.apache.cassandra.cql3.statements.CFStatement;
 import org.apache.cassandra.cql3.statements.CreateTableStatement;
 import org.apache.cassandra.db.*;
 import org.apache.cassandra.db.compaction.AbstractCompactionStrategy;
+import org.apache.cassandra.db.filter.ColumnFilter;
 import org.apache.cassandra.db.marshal.*;
 import org.apache.cassandra.dht.IPartitioner;
 import org.apache.cassandra.exceptions.ConfigurationException;
@@ -121,6 +122,9 @@ public final class CFMetaData
     private volatile ColumnDefinition compactValueColumn;
 
     public final DataResource resource;
+
+    //For hot path serialization it's often easier to store this info here
+    private volatile ColumnFilter allColumnFilter;
 
     /*
      * All of these methods will go away once CFMetaData becomes completely immutable.
@@ -294,9 +298,12 @@ public final class CFMetaData
         this.clusteringColumns = clusteringColumns;
         this.partitionColumns = partitionColumns;
 
-        this.serializers = new Serializers(this);
-        this.resource = DataResource.table(ksName, cfName);
+        //This needs to happen before serializers are set
+        //because they use comparator.subtypes()
         rebuild();
+
+        this.resource = DataResource.table(ksName, cfName);
+        this.serializers = new Serializers(this);
     }
 
     // This rebuild informations that are intrinsically duplicate of the table definition but
@@ -323,11 +330,18 @@ public final class CFMetaData
 
         if (isCompactTable())
             this.compactValueColumn = CompactTables.getCompactValueColumn(partitionColumns, isSuper());
+
+        this.allColumnFilter = ColumnFilter.all(this);
     }
 
     public Indexes getIndexes()
     {
         return indexes;
+    }
+
+    public ColumnFilter getAllColumnFilter()
+    {
+        return allColumnFilter;
     }
 
     public static CFMetaData create(String ksName,

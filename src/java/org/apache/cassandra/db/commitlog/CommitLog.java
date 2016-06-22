@@ -38,6 +38,7 @@ import org.apache.cassandra.exceptions.WriteTimeoutException;
 import org.apache.cassandra.io.FSWriteError;
 import org.apache.cassandra.io.compress.ICompressor;
 import org.apache.cassandra.io.util.BufferedDataOutputStreamPlus;
+import org.apache.cassandra.io.util.DataOutputBuffer;
 import org.apache.cassandra.io.util.DataOutputBufferFixed;
 import org.apache.cassandra.io.util.FileUtils;
 import org.apache.cassandra.metrics.CommitLogMetrics;
@@ -243,43 +244,56 @@ public class CommitLog implements CommitLogMBean
     {
         assert mutation != null;
 
-        int size = (int) Mutation.serializer.serializedSize(mutation, MessagingService.current_version);
-
-        int totalSize = size + ENTRY_OVERHEAD_SIZE;
-        if (totalSize > MAX_MUTATION_SIZE)
+        DataOutputBuffer dob = DataOutputBuffer.scratchBuffer.get();
+        try
         {
-            throw new IllegalArgumentException(String.format("Mutation of %s is too large for the maximum size of %s",
-                                                             FBUtilities.prettyPrintMemory(totalSize),
-                                                             FBUtilities.prettyPrintMemory(MAX_MUTATION_SIZE)));
-        }
+            Mutation.serializer.serialize(mutation, dob, MessagingService.current_version);
+            int size = dob.getLength();
 
-        Allocation alloc = segmentManager.allocate(mutation, totalSize);
+            int totalSize = size + ENTRY_OVERHEAD_SIZE;
+            if (totalSize > MAX_MUTATION_SIZE)
+            {
+                throw new IllegalArgumentException(String.format("Mutation of %s is too large for the maximum size of %s",
+                                                                 FBUtilities.prettyPrintMemory(totalSize),
+                                                                 FBUtilities.prettyPrintMemory(MAX_MUTATION_SIZE)));
+            }
 
-        CRC32 checksum = new CRC32();
-        final ByteBuffer buffer = alloc.getBuffer();
-        try (BufferedDataOutputStreamPlus dos = new DataOutputBufferFixed(buffer))
-        {
-            // checksummed length
-            dos.writeInt(size);
-            updateChecksumInt(checksum, size);
-            buffer.putInt((int) checksum.getValue());
+            Allocation alloc = segmentManager.allocate(mutation, totalSize);
 
-            // checksummed mutation
-            Mutation.serializer.serialize(mutation, dos, MessagingService.current_version);
-            updateChecksum(checksum, buffer, buffer.position() - size, size);
-            buffer.putInt((int) checksum.getValue());
+            CRC32 checksum = new CRC32();
+            final ByteBuffer buffer = alloc.getBuffer();
+            try (BufferedDataOutputStreamPlus dos = new DataOutputBufferFixed(buffer))
+            {
+                // checksummed length
+                dos.writeInt(size);
+                updateChecksumInt(checksum, size);
+                buffer.putInt((int) checksum.getValue());
+
+                // checksummed mutation
+                dos.write(dob.getData(), 0, size);
+                updateChecksum(checksum, buffer, buffer.position() - size, size);
+                buffer.putInt((int) checksum.getValue());
+            }
+            catch (IOException e)
+            {
+                throw new FSWriteError(e, alloc.getSegment().getPath());
+            }
+            finally
+            {
+                alloc.markWritten();
+            }
+
+            executor.finishWriteFor(alloc);
+            return alloc.getCommitLogPosition();
         }
         catch (IOException e)
         {
-            throw new FSWriteError(e, alloc.getSegment().getPath());
+            throw new FSWriteError(e, segmentManager.allocatingFrom().getPath());
         }
         finally
         {
-            alloc.markWritten();
+            dob.recycle();
         }
-
-        executor.finishWriteFor(alloc);
-        return alloc.getCommitLogPosition();
     }
 
     /**

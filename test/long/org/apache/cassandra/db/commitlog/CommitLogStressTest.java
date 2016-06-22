@@ -35,6 +35,7 @@ import org.junit.Before;
 import org.junit.BeforeClass;
 import org.junit.Test;
 
+import io.netty.util.concurrent.FastThreadLocalThread;
 import org.apache.cassandra.SchemaLoader;
 import org.apache.cassandra.Util;
 import org.apache.cassandra.UpdateBuilder;
@@ -408,7 +409,8 @@ public class CommitLogStressTest
         return slice;
     }
 
-    public class CommitlogThread extends Thread {
+    public class CommitlogThread extends FastThreadLocalThread
+    {
         final AtomicLong counter = new AtomicLong();
         int hash = 0;
         int cells = 0;

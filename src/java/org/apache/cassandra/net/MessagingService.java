@@ -153,6 +153,8 @@ public final class MessagingService implements MessagingServiceMBean
         ;
     }
 
+    public static final Verb[] verbValues = Verb.values();
+
     public static final EnumMap<MessagingService.Verb, Stage> verbStages = new EnumMap<MessagingService.Verb, Stage>(MessagingService.Verb.class)
     {{
         put(Verb.MUTATION, Stage.MUTATION);

@@ -31,6 +31,7 @@ import com.google.common.collect.ImmutableMap;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import io.netty.util.concurrent.FastThreadLocal;
 import org.apache.cassandra.concurrent.ExecutorLocal;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.db.marshal.TimeUUIDType;
@@ -84,7 +85,7 @@ public abstract class Tracing implements ExecutorLocal<TraceState>
 
     private final InetAddress localAddress = FBUtilities.getLocalAddress();
 
-    private final ThreadLocal<TraceState> state = new ThreadLocal<>();
+    private final FastThreadLocal<TraceState> state = new FastThreadLocal<>();
 
     protected final ConcurrentMap<UUID, TraceState> sessions = new ConcurrentHashMap<>();
 

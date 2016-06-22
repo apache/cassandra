@@ -21,6 +21,7 @@ import java.util.*;
 import java.util.concurrent.ThreadLocalRandom;
 
 import com.google.common.collect.Iterables;
+import com.google.common.collect.Lists;
 import org.junit.Test;
 
 import junit.framework.Assert;
@@ -126,6 +127,30 @@ public class BTreeTest
     {
         for (int i = 0; i < 20 ; i++)
             checkResult(i, BTree.update(BTree.build(seq(i), noOp), CMP, seq(i), updateF));
+    }
+
+    @Test
+    public void testApplyForwards()
+    {
+        List<Integer> input = seq(71);
+        Object[] btree = BTree.build(input, noOp);
+
+        final List<Integer> result = new ArrayList<>();
+        BTree.<Integer>apply(btree, i -> result.add(i), false);
+
+        org.junit.Assert.assertArrayEquals(input.toArray(),result.toArray());
+    }
+
+    @Test
+    public void testApplyReverse()
+    {
+        List<Integer> input = seq(71);
+        Object[] btree = BTree.build(input, noOp);
+
+        final List<Integer> result = new ArrayList<>();
+        BTree.<Integer>apply(btree, i -> result.add(i), true);
+
+        org.junit.Assert.assertArrayEquals(Lists.reverse(input).toArray(),result.toArray());
     }
 
     /**

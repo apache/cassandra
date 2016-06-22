@@ -118,6 +118,7 @@
 # resize them at runtime.
 -XX:+UseTLAB
 -XX:+ResizeTLAB
+-XX:+UseNUMA
 
 # http://www.evanjones.ca/jvm-mmap-pause.html
 -XX:+PerfDisableSharedMem
