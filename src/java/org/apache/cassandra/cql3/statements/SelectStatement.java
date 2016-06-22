@@ -312,8 +312,12 @@ public class SelectStatement implements CQLStatement
 
     public ResultMessage.Rows executeInternal(QueryState state, QueryOptions options) throws RequestExecutionException, RequestValidationException
     {
+        return executeInternal(state, options, System.currentTimeMillis());
+    }
+
+    public ResultMessage.Rows executeInternal(QueryState state, QueryOptions options, long now) throws RequestExecutionException, RequestValidationException
+    {
         int limit = getLimit(options);
-        long now = System.currentTimeMillis();
         Pageable command = getPageableCommand(options, limit, now);
 
         int pageSize = options.getPageSize();

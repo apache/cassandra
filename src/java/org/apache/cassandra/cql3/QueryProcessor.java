@@ -296,7 +296,7 @@ public class QueryProcessor implements QueryHandler
         return QueryOptions.forInternalCalls(boundValues);
     }
 
-    private static ParsedStatement.Prepared prepareInternal(String query) throws RequestValidationException
+    public static ParsedStatement.Prepared prepareInternal(String query) throws RequestValidationException
     {
         ParsedStatement.Prepared prepared = internalStatements.get(query);
         if (prepared != null)
@@ -363,6 +363,32 @@ public class QueryProcessor implements QueryHandler
                 return UntypedResultSet.create(((ResultMessage.Rows)result).result);
             else
                 return null;
+        }
+        catch (RequestExecutionException e)
+        {
+            throw new RuntimeException(e);
+        }
+        catch (RequestValidationException e)
+        {
+            throw new RuntimeException("Error validating query " + query, e);
+        }
+    }
+
+    /**
+     * A special version of executeInternal that takes the time used as "now" for the query in argument.
+     * Note that this only make sense for Selects so this only accept SELECT statements and is only useful in rare
+     * cases.
+     */
+    public static UntypedResultSet executeInternalWithNow(long now, String query, Object... values)
+    {
+        try
+        {
+            ParsedStatement.Prepared prepared = prepareInternal(query);
+            assert prepared.statement instanceof SelectStatement;
+            SelectStatement select = (SelectStatement)prepared.statement;
+            ResultMessage result = select.executeInternal(internalQueryState(), makeInternalOptions(prepared, values), now);
+            assert result instanceof ResultMessage.Rows;
+            return UntypedResultSet.create(((ResultMessage.Rows)result).result);
         }
         catch (RequestExecutionException e)
         {

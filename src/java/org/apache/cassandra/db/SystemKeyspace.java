@@ -896,10 +896,10 @@ public class SystemKeyspace
         return new Row(key, cf);
     }
 
-    public static PaxosState loadPaxosState(ByteBuffer key, CFMetaData metadata)
+    public static PaxosState loadPaxosState(ByteBuffer key, CFMetaData metadata, long now)
     {
         String req = "SELECT * FROM system.%s WHERE row_key = ? AND cf_id = ?";
-        UntypedResultSet results = executeInternal(String.format(req, PAXOS_CF), key, metadata.cfId);
+        UntypedResultSet results = QueryProcessor.executeInternalWithNow(now, String.format(req, PAXOS_CF), key, metadata.cfId);
         if (results.isEmpty())
             return new PaxosState(key, metadata);
         UntypedResultSet.Row row = results.one();
@@ -939,7 +939,7 @@ public class SystemKeyspace
                         proposal.update.id());
     }
 
-    private static int paxosTtl(CFMetaData metadata)
+    public static int paxosTtl(CFMetaData metadata)
     {
         // keep paxos state around for at least 3h
         return Math.max(3 * 3600, metadata.getGcGraceSeconds());
