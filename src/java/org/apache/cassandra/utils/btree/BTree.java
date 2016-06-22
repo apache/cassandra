@@ -831,17 +831,27 @@ public class BTree
         public void recycle()
         {
             if (recycleHandle != null)
+            {
+                this.cleanup();
                 builderRecycler.recycle(this, recycleHandle);
+            }
         }
 
-        private void reuse(Comparator<? super V> comparator)
+        /**
+         * Cleans up the Builder instance before recycling it.
+         */
+        private void cleanup()
         {
-            this.comparator = comparator;
             quickResolver = null;
             Arrays.fill(values, 0, count, null);
             count = 0;
             detected = true;
             auto = true;
+        }
+
+        private void reuse(Comparator<? super V> comparator)
+        {
+            this.comparator = comparator;
         }
 
         public Builder<V> auto(boolean auto)

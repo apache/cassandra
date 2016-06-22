@@ -87,13 +87,11 @@ public class DataOutputBuffer extends BufferedDataOutputStreamPlus
     {
         assert handle != null;
 
-        // Avoid throwing away instances that are too large, trim large buffers to default size instead.
-        // See CASSANDRA-11838 for details.
-        if (buffer().capacity() > MAX_RECYCLE_BUFFER_SIZE)
-            buffer = ByteBuffer.allocate(DEFAULT_INITIAL_BUFFER_SIZE);
-
-        buffer.rewind();
-        RECYCLER.recycle(this, handle);
+        if (buffer().capacity() <= MAX_RECYCLE_BUFFER_SIZE)
+        {
+            buffer.rewind();
+            RECYCLER.recycle(this, handle);
+        }
     }
 
     @Override
