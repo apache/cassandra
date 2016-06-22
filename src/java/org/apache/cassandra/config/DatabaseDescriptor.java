@@ -593,7 +593,7 @@ public class DatabaseDescriptor
             }
         }
 
-        if (conf.cdc_enabled != null)
+        if (conf.cdc_enabled == true)
         {
             logger.info("cdc_enabled is true. Starting casssandra node with Change-Data-Capture enabled.");
         }
