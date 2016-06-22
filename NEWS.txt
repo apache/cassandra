@@ -48,6 +48,13 @@ Upgrading
       those under a different name, change your code to use the new names and
       drop the old versions, and this _before_ upgrade (see CASSANDRA-10783 for more
       details).
+    - Due to changes in schema migration handling and the storage format after 3.0, you will
+      see error messages such as:
+         "java.lang.RuntimeException: Unknown column cdc during deserialization"
+      in your system logs on a mixed-version cluster during upgrades. This error message
+      is harmless and due to the 3.8 nodes having cdc added to their schema tables while
+      the <3.8 nodes do not. This message should cease once all nodes are upgraded to 3.8.
+      As always, refrain from schema changes during cluster upgrades.
 
 Deprecation
 -----------
