@@ -27,6 +27,7 @@ import io.netty.channel.*;
 import io.netty.handler.codec.ByteToMessageDecoder;
 import io.netty.handler.codec.MessageToMessageDecoder;
 import io.netty.handler.codec.MessageToMessageEncoder;
+import io.netty.util.Attribute;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.exceptions.InvalidRequestException;
 import org.apache.cassandra.transport.messages.ErrorMessage;
@@ -223,12 +224,13 @@ public class Frame
             idx += bodyLength;
             buffer.readerIndex(idx);
 
-            Connection connection = ctx.channel().attr(Connection.attributeKey).get();
+            Attribute<Connection> attrConn = ctx.channel().attr(Connection.attributeKey);
+            Connection connection = attrConn.get();
             if (connection == null)
             {
                 // First message seen on this channel, attach the connection object
                 connection = factory.newConnection(ctx.channel(), version);
-                ctx.channel().attr(Connection.attributeKey).set(connection);
+                attrConn.set(connection);
             }
             else if (connection.getVersion() != version)
             {
