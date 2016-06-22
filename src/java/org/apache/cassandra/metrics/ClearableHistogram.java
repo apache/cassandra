@@ -26,14 +26,14 @@ import com.codahale.metrics.Histogram;
  */
 public class ClearableHistogram extends Histogram
 {
-    private final EstimatedHistogramReservoir reservoirRef;
+    private final DecayingEstimatedHistogramReservoir reservoirRef;
 
     /**
      * Creates a new {@link com.codahale.metrics.Histogram} with the given reservoir.
      *
      * @param reservoir the reservoir to create a histogram from
      */
-    public ClearableHistogram(EstimatedHistogramReservoir reservoir)
+    public ClearableHistogram(DecayingEstimatedHistogramReservoir reservoir)
     {
         super(reservoir);
 

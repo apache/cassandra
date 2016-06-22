@@ -1,4 +1,5 @@
 2.2.8
+ * Add decay to histograms and timers used for metrics (CASSANDRA-11752)
  * Fix hanging stream session (CASSANDRA-10992)
  * Add byteman support for testing (CASSANDRA-12377)
  * Fix INSERT JSON, fromJson() support of smallint, tinyint types (CASSANDRA-12371)
