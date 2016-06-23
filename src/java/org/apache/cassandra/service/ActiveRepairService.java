@@ -544,9 +544,14 @@ public class ActiveRepairService implements IEndpointStateChangeSubscriber, IFai
         public synchronized Refs<SSTableReader> getActiveRepairedSSTableRefsForAntiCompaction(UUID cfId, UUID parentSessionId)
         {
             assert marked.contains(cfId);
+            if (!columnFamilyStores.containsKey(cfId))
+                throw new RuntimeException("Not possible to get sstables for anticompaction for " + cfId);
             boolean isSnapshotRepair = columnFamilyStores.get(cfId).snapshotExists(parentSessionId.toString());
             ImmutableMap.Builder<SSTableReader, Ref<SSTableReader>> references = ImmutableMap.builder();
-            for (SSTableReader sstable : isSnapshotRepair ? getSSTablesForSnapshotRepair(cfId, parentSessionId) : getActiveSSTables(cfId))
+            Iterable<SSTableReader> sstables = isSnapshotRepair ? getSSTablesForSnapshotRepair(cfId, parentSessionId) : getActiveSSTables(cfId);
+            // we check this above - if columnFamilyStores contains the cfId sstables will not be null
+            assert sstables != null;
+            for (SSTableReader sstable : sstables)
             {
                 Ref<SSTableReader> ref = sstable.tryRef();
                 if (ref == null)
@@ -571,6 +576,8 @@ public class ActiveRepairService implements IEndpointStateChangeSubscriber, IFai
         {
             Set<SSTableReader> activeSSTables = new HashSet<>();
             ColumnFamilyStore cfs = columnFamilyStores.get(cfId);
+            if (cfs == null)
+                return null;
 
             Set<Integer> snapshotGenerations = new HashSet<>();
             try (Refs<SSTableReader> snapshottedSSTables = cfs.getSnapshotSSTableReader(parentSessionId.toString()))
@@ -643,6 +650,9 @@ public class ActiveRepairService implements IEndpointStateChangeSubscriber, IFai
 
         private Set<SSTableReader> getActiveSSTables(UUID cfId)
         {
+            if (!columnFamilyStores.containsKey(cfId))
+                return null;
+
             Set<String> repairedSSTables = sstableMap.get(cfId);
             Set<SSTableReader> activeSSTables = new HashSet<>();
             Set<String> activeSSTableNames = new HashSet<>();
