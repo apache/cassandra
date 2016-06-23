@@ -87,7 +87,7 @@ public class PasswordAuthenticator implements IAuthenticator
         {
             String hash = cache.get(username);
             if (!BCrypt.checkpw(password, hash))
-                throw new AuthenticationException("Username and/or password are incorrect");
+                throw new AuthenticationException(String.format("Provided username %s and/or password are incorrect", username));
 
             return new AuthenticatedUser(username);
         }
@@ -95,13 +95,13 @@ public class PasswordAuthenticator implements IAuthenticator
         {
             // the credentials were somehow invalid - either a non-existent role, or one without a defined password
             if (e.getCause() instanceof NoSuchCredentialsException)
-                throw new AuthenticationException("Username and/or password are incorrect");
+                throw new AuthenticationException(String.format("Provided username %s and/or password are incorrect", username));
 
             // an unanticipated exception occured whilst querying the credentials table
             if (e.getCause() instanceof RequestExecutionException)
             {
                 logger.trace("Error performing internal authentication", e);
-                throw new AuthenticationException(e.getMessage());
+                throw new AuthenticationException(String.format("Error during authentication of user %s : %s", username, e.getMessage()));
             }
 
             throw new RuntimeException(e);
@@ -180,7 +180,7 @@ public class PasswordAuthenticator implements IAuthenticator
 
         String password = credentials.get(PASSWORD_KEY);
         if (password == null)
-            throw new AuthenticationException(String.format("Required key '%s' is missing", PASSWORD_KEY));
+            throw new AuthenticationException(String.format("Required key '%s' is missing for provided username %s", PASSWORD_KEY, username));
 
         return authenticate(username, password);
     }

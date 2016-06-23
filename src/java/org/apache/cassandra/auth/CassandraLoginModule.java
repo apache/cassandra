@@ -145,7 +145,7 @@ public class CassandraLoginModule implements LoginModule
         AuthenticatedUser user = authenticator.legacyAuthenticate(credentials);
         // Only actual users should be allowed to authenticate for JMX
         if (user.isAnonymous() || user.isSystem())
-            throw new AuthenticationException("Invalid user");
+            throw new AuthenticationException(String.format("Invalid user %s", user.getName()));
 
         // The LOGIN privilege is required to authenticate - c.f. ClientState::login
         if (!DatabaseDescriptor.getRoleManager().canLogin(user.getPrimaryRole()))
