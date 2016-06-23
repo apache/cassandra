@@ -2,6 +2,7 @@
  * Fix upgrading schema with super columns with non-text subcomparators (CASSANDRA-12023)
  * Add TimeWindowCompactionStrategy (CASSANDRA-9666)
 Merged from 2.2:
+ * Allow nodetool info to run with readonly JMX access (CASSANDRA-11755)
  * Validate bloom_filter_fp_chance against lowest supported
    value when the table is created (CASSANDRA-11920)
  * Don't send erroneous NEW_NODE notifications on restart (CASSANDRA-11038)
