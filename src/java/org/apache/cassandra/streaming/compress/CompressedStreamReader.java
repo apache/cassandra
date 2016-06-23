@@ -44,6 +44,8 @@ import org.apache.cassandra.utils.ByteBufferUtil;
 import org.apache.cassandra.utils.BytesReadTracker;
 import org.apache.cassandra.utils.Pair;
 
+import static org.apache.cassandra.utils.Throwables.extractIOExceptionCause;
+
 /**
  * StreamReader that reads from streamed compressed SSTable
  */
@@ -132,11 +134,9 @@ public class CompressedStreamReader extends StreamReader
                     e.addSuppressed(e2);
                 }
             }
-            drain(cis, in.getBytesRead());
-            if (e instanceof IOException)
-                throw (IOException) e;
-            else
-                throw Throwables.propagate(e);
+            if (extractIOExceptionCause(e).isPresent())
+                throw e;
+            throw Throwables.propagate(e);
         }
     }
 

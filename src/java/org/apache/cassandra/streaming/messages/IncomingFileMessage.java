@@ -22,12 +22,16 @@ import java.io.IOException;
 import java.nio.channels.Channels;
 import java.nio.channels.ReadableByteChannel;
 
+import com.google.common.base.Optional;
+
 import org.apache.cassandra.io.sstable.format.SSTableWriter;
 import org.apache.cassandra.io.util.DataOutputStreamPlus;
 import org.apache.cassandra.streaming.StreamReader;
 import org.apache.cassandra.streaming.StreamSession;
 import org.apache.cassandra.streaming.compress.CompressedStreamReader;
 import org.apache.cassandra.utils.JVMStabilityInspector;
+
+import static org.apache.cassandra.utils.Throwables.extractIOExceptionCause;
 
 /**
  * IncomingFileMessage is used to receive the part(or whole) of a SSTable data file.
@@ -48,26 +52,10 @@ public class IncomingFileMessage extends StreamMessage
             {
                 return new IncomingFileMessage(reader.read(in), header);
             }
-            catch (IOException eof)
-            {
-                // Reading from remote failed(i.e. reached EOF before reading expected length of data).
-                // This can be caused by network/node failure thus we are not retrying
-                throw eof;
-            }
             catch (Throwable t)
             {
-                // Throwable can be Runtime error containing IOException.
-                // In that case we don't want to retry.
-                Throwable cause = t;
-                while ((cause = cause.getCause()) != null)
-                {
-                   if (cause instanceof IOException)
-                       throw (IOException) cause;
-                }
                 JVMStabilityInspector.inspectThrowable(t);
-                // Otherwise, we can retry
-                session.doRetry(header, t);
-                return null;
+                throw t;
             }
         }
 
