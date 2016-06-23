@@ -266,7 +266,7 @@ while true; do
 done
 
 if [ "x$allow_root" != "xyes" ] ; then
-    if [ "`id -u`" = "1" ] || [ "`id -g`" = "0" ] ; then
+    if [ "`id -u`" = "0" ] || [ "`id -g`" = "0" ] ; then
         echo "Running Cassandra as root user or group is not recommended - please start Cassandra using a different system user."
         echo "If you really want to force running Cassandra as root, use -R command line option."
         exit 1
