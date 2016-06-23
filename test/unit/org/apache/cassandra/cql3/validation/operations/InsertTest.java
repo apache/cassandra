@@ -24,6 +24,7 @@ import org.junit.Test;
 import org.apache.cassandra.cql3.CQLTester;
 import org.apache.cassandra.cql3.UntypedResultSet;
 import org.apache.cassandra.cql3.UntypedResultSet.Row;
+import org.apache.cassandra.exceptions.InvalidRequestException;
 
 public class InsertTest extends CQLTester
 {
@@ -162,10 +163,10 @@ public class InsertTest extends CQLTester
     private void testInsertWithTwoClusteringColumns(boolean forceFlush) throws Throwable
     {
         createTable("CREATE TABLE %s (partitionKey int," +
-                                      "clustering_1 int," +
-                                      "clustering_2 int," +
-                                      "value int," +
-                                      " PRIMARY KEY (partitionKey, clustering_1, clustering_2))");
+                    "clustering_1 int," +
+                    "clustering_2 int," +
+                    "value int," +
+                    " PRIMARY KEY (partitionKey, clustering_1, clustering_2))");
 
         execute("INSERT INTO %s (partitionKey, clustering_1, clustering_2) VALUES (0, 0, 0)");
         execute("INSERT INTO %s (partitionKey, clustering_1, clustering_2, value) VALUES (0, 0, 1, 1)");
@@ -260,11 +261,11 @@ public class InsertTest extends CQLTester
     private void testInsertWithAStaticColumn(boolean forceFlush) throws Throwable
     {
         createTable("CREATE TABLE %s (partitionKey int," +
-                                      "clustering_1 int," +
-                                      "clustering_2 int," +
-                                      "value int," +
-                                      "staticValue text static," +
-                                      " PRIMARY KEY (partitionKey, clustering_1, clustering_2))");
+                    "clustering_1 int," +
+                    "clustering_2 int," +
+                    "value int," +
+                    "staticValue text static," +
+                    " PRIMARY KEY (partitionKey, clustering_1, clustering_2))");
 
         execute("INSERT INTO %s (partitionKey, clustering_1, clustering_2, staticValue) VALUES (0, 0, 0, 'A')");
         execute("INSERT INTO %s (partitionKey, staticValue) VALUES (1, 'B')");
@@ -313,5 +314,23 @@ public class InsertTest extends CQLTester
         Assert.assertEquals(1, resultSet.size());
         row = resultSet.one();
         Assert.assertTrue(row.getInt("ttl(b)") >= (9 * secondsPerMinute));
+    }
+
+    @Test
+    public void testPKInsertWithValueOver64K() throws Throwable
+    {
+        createTable("CREATE TABLE %s (a text, b text, PRIMARY KEY (a, b))");
+
+        assertInvalidThrow(InvalidRequestException.class,
+                           "INSERT INTO %s (a, b) VALUES (?, 'foo')", new String(TOO_BIG.array()));
+    }
+
+    @Test
+    public void testCKInsertWithValueOver64K() throws Throwable
+    {
+        createTable("CREATE TABLE %s (a text, b text, PRIMARY KEY (a, b))");
+
+        assertInvalidThrow(InvalidRequestException.class,
+                           "INSERT INTO %s (a, b) VALUES ('foo', ?)", new String(TOO_BIG.array()));
     }
 }
