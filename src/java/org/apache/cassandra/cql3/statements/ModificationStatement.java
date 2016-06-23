@@ -673,7 +673,17 @@ public abstract class ModificationStatement implements CQLStatement
                 else
                 {
                     for (Clustering clustering : clusterings)
+                    {
+                       for (ByteBuffer c : clustering.getRawValues())
+                       {
+                           if (c != null && c.remaining() > FBUtilities.MAX_UNSIGNED_SHORT)
+                               throw new InvalidRequestException(String.format("Key length of %d is longer than maximum of %d",
+                                                                               clustering.dataSize(),
+                                                                               FBUtilities.MAX_UNSIGNED_SHORT));
+                       }
+
                         addUpdateForKey(upd, clustering, params);
+                    }
                 }
             }
         }
