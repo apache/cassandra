@@ -53,6 +53,8 @@ public class UUIDGen
     private static final long MIN_CLOCK_SEQ_AND_NODE = 0x8080808080808080L;
     private static final long MAX_CLOCK_SEQ_AND_NODE = 0x7f7f7f7f7f7f7f7fL;
 
+    private static final SecureRandom secureRandom = new SecureRandom();
+
     // placement of this singleton is important.  It needs to be instantiated *AFTER* the other statics.
     private static final UUIDGen instance = new UUIDGen();
 
@@ -84,11 +86,41 @@ public class UUIDGen
         return new UUID(createTime(fromUnixTimestamp(when)), clockSeqAndNode);
     }
 
+    /**
+     * Returns a version 1 UUID using the provided timestamp and the local clock and sequence.
+     * <p>
+     * Note that this method is generally only safe to use if you can guarantee that the provided
+     * parameter is unique across calls (otherwise the returned UUID won't be unique accross calls).
+     *
+     * @param whenInMicros a unix time in microseconds.
+     * @return a new UUID {@code id} such that {@code microsTimestamp(id) == whenInMicros}. Please not that
+     * multiple calls to this method with the same value of {@code whenInMicros} will return the <b>same</b>
+     * UUID.
+     */
     public static UUID getTimeUUIDFromMicros(long whenInMicros)
     {
         long whenInMillis = whenInMicros / 1000;
         long nanos = (whenInMicros - (whenInMillis * 1000)) * 10;
         return getTimeUUID(whenInMillis, nanos);
+    }
+
+    /**
+     * Similar to {@link getTimeUUIDFromMicros}, but randomize (using SecureRandom) the clock and sequence.
+     * <p>
+     * If you can guarantee that the {@code whenInMicros} argument is unique (for this JVM instance) for
+     * every call, then you should prefer {@link getTimeUUIDFromMicros} which is faster. If you can't
+     * guarantee this however, this method will ensure the returned UUID are still unique (accross calls)
+     * through randomization.
+     *
+     * @param whenInMicros a unix time in microseconds.
+     * @return a new UUID {@code id} such that {@code microsTimestamp(id) == whenInMicros}. The UUID returned
+     * by different calls will be unique even if {@code whenInMicros} is not.
+     */
+    public static UUID getRandomTimeUUIDFromMicros(long whenInMicros)
+    {
+        long whenInMillis = whenInMicros / 1000;
+        long nanos = (whenInMicros - (whenInMillis * 1000)) * 10;
+        return new UUID(createTime(fromUnixTimestamp(whenInMillis, nanos)), secureRandom.nextLong());
     }
 
     public static UUID getTimeUUID(long when, long nanos)
