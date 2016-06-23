@@ -326,8 +326,8 @@ public class RangeStreamer
                         throw new IllegalStateException("Unable to find sufficient sources for streaming range " + range + " in keyspace " + keyspace + " with RF=1." +
                                                         "If you want to ignore this, consider using system property -Dcassandra.consistent.rangemovement=false.");
                     else
-                        logger.warn("Unable to find sufficient sources for streaming range " + range + " in keyspace " + keyspace + " with RF=1. " +
-                                    "Keyspace might be missing data.");
+                        logger.warn("Unable to find sufficient sources for streaming range {} in keyspace {} with RF=1. " +
+                                    "Keyspace might be missing data.", range, keyspace);
                 }
                 else
                     throw new IllegalStateException("Unable to find sufficient sources for streaming range " + range + " in keyspace " + keyspace);

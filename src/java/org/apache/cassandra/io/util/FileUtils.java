@@ -456,7 +456,7 @@ public final class FileUtils
                 deleteRecursiveOnExit(new File(dir, child));
         }
 
-        logger.trace("Scheduling deferred deletion of file: " + dir);
+        logger.trace("Scheduling deferred deletion of file: {}", dir);
         dir.deleteOnExit();
     }
 

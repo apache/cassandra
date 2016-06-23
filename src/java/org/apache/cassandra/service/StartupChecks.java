@@ -160,7 +160,7 @@ public class StartupChecks
             }
             else
             {
-                logger.info("JMX is enabled to receive remote connections on port: " + jmxPort);
+                logger.info("JMX is enabled to receive remote connections on port: {}", jmxPort);
             }
         }
     };
