@@ -116,8 +116,10 @@ public class ClientState
     // The remote address of the client - null for internal clients.
     private final InetSocketAddress remoteAddress;
 
-    // The biggest timestamp that was returned by getTimestamp/assigned to a query. This is global to the VM
-    // for the sake of paxos (see #9649).
+    // The biggest timestamp that was returned by getTimestamp/assigned to a query. This is global to ensure that the
+    // timestamp assigned are strictly monotonic on a node, which is likely what user expect intuitively (more likely,
+    // most new user will intuitively expect timestamp to be strictly monotonic cluster-wise, but while that last part
+    // is unrealistic expectation, doing it node-wise is easy).
     private static final AtomicLong lastTimestampMicros = new AtomicLong(0);
 
     /**
@@ -170,17 +172,59 @@ public class ClientState
     }
 
     /**
-     * This is the same than {@link #getTimestamp()} but this guarantees that the returned timestamp
-     * will not be smaller than the provided {@code minTimestampToUse}.
+     * Returns a timestamp suitable for paxos given the timestamp of the last known commit (or in progress update).
+     * <p>
+     * Paxos ensures that the timestamp it uses for commits respects the serial order of those commits. It does so
+     * by having each replica reject any proposal whose timestamp is not strictly greater than the last proposal it
+     * accepted. So in practice, which timestamp we use for a given proposal doesn't affect correctness but it does
+     * affect the chance of making progress (if we pick a timestamp lower than what has been proposed before, our
+     * new proposal will just get rejected).
+     * <p>
+     * As during the prepared phase replica send us the last propose they accepted, a first option would be to take
+     * the maximum of those last accepted proposal timestamp plus 1 (and use a default value, say 0, if it's the
+     * first known proposal for the partition). This would most work (giving commits the timestamp 0, 1, 2, ...
+     * in the order they are commited) up to 2 important caveats:
+     *   1) it would give a very poor experience when Paxos and non-Paxos updates are mixed in the same partition,
+     *      since paxos operations wouldn't be using microseconds timestamps. And while you shouldn't theoretically
+     *      mix the 2 kind of operations, this would still be pretty unintuitive. And what if you started writing
+     *      normal updates and realize later you should switch to Paxos to enforce a property you want?
+     *   2) this wouldn't actually be safe due to the expiration set on the Paxos state table.
+     * <p>
+     * So instead, we initially chose to use the current time in microseconds as for normal update. Which works in
+     * general but mean that clock skew creates unavailability periods for Paxos updates (either a node has his clock
+     * in the past and he may no be able to get commit accepted until its clock catch up, or a node has his clock in
+     * the future and then once one of its commit his accepted, other nodes ones won't be until they catch up). This
+     * is ok for small clock skew (few ms) but can be pretty bad for large one.
+     * <p>
+     * Hence our current solution: we mix both approaches. That is, we compare the timestamp of the last known
+     * accepted proposal and the local time. If the local time is greater, we use it, thus keeping paxos timestamps
+     * locked to the current time in general (making mixing Paxos and non-Paxos more friendly, and behaving correctly
+     * when the paxos state expire (as long as your maximum clock skew is lower than the Paxos state expiration
+     * time)). Otherwise (the local time is lower than the last proposal, meaning that this last proposal was done
+     * with a clock in the future compared to the local one), we use the last proposal timestamp plus 1, ensuring
+     * progress.
+     *
+     * @param minTimestampToUse the max timestamp of the last proposal accepted by replica having responded
+     * to the prepare phase of the paxos round this is for. In practice, that's the minimum timestamp this method
+     * may return.
+     * @return a timestamp suitable for a Paxos proposal (using the reasoning described above). Note that
+     * contrarily to the {@link #getTimestamp()} method, the return value is not guaranteed to be unique (nor
+     * monotonic) across calls since it can return it's argument (so if the same argument is passed multiple times,
+     * it may be returned multiple times). Note that we still ensure Paxos "ballot" are unique (for different
+     * proposal) by (securely) randomizing the non-timestamp part of the UUID.
      */
-    public long getTimestamp(long minTimestampToUse)
+    public long getTimestampForPaxos(long minTimestampToUse)
     {
         while (true)
         {
             long current = Math.max(System.currentTimeMillis() * 1000, minTimestampToUse);
             long last = lastTimestampMicros.get();
             long tstamp = last >= current ? last + 1 : current;
-            if (lastTimestampMicros.compareAndSet(last, tstamp))
+            // Note that if we ended up picking minTimestampMicrosToUse (it was "in the future"), we don't
+            // want to change the local clock, otherwise a single node in the future could corrupt the clock
+            // of all nodes and for all inserts (since non-paxos inserts also use lastTimestampMicros).
+            // See CASSANDRA-11991
+            if (tstamp == minTimestampToUse || lastTimestampMicros.compareAndSet(last, tstamp))
                 return tstamp;
         }
     }
