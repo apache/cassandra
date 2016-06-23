@@ -800,26 +800,12 @@ public class NodeProbe implements AutoCloseable
 
     public String getDataCenter()
     {
-        try
-        {
-            return getEndpointSnitchInfoProxy().getDatacenter(getEndpoint());
-        }
-        catch (UnknownHostException e)
-        {
-            return "Unknown";
-        }
+        return getEndpointSnitchInfoProxy().getDatacenter();
     }
 
     public String getRack()
     {
-        try
-        {
-            return getEndpointSnitchInfoProxy().getRack(getEndpoint());
-        }
-        catch (UnknownHostException e)
-        {
-            return "Unknown";
-        }
+        return getEndpointSnitchInfoProxy().getRack();
     }
 
     public List<String> getKeyspaces()
