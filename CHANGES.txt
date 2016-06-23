@@ -10,6 +10,7 @@ Merged from 2.2:
  * Don't send erroneous NEW_NODE notifications on restart (CASSANDRA-11038)
  * StorageService shutdown hook should use a volatile variable (CASSANDRA-11984)
 Merged from 2.1:
+ * Don't try to get sstables for non-repairing column families (CASSANDRA-12077)
  * Avoid marking too many sstables as repaired (CASSANDRA-11696)
  * Prevent select statements with clustering key > 64k (CASSANDRA-11882)
  * Fix clock skew corrupting other nodes with paxos (CASSANDRA-11991)
