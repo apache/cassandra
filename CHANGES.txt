@@ -17,6 +17,7 @@
  * Add repaired percentage metric (CASSANDRA-11503)
  * Add Change-Data-Capture (CASSANDRA-8844)
 Merged from 3.0:
+ * Add a metrics timer to MemtablePool and use it to track time spent blocked on memory in MemtableAllocator (CASSANDRA-11327)
  * Fix upgrading schema with super columns with non-text subcomparators (CASSANDRA-12023)
  * Add TimeWindowCompactionStrategy (CASSANDRA-9666)
 Merged from 2.2:
