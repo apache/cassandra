@@ -292,8 +292,9 @@ public class OutboundTcpConnection extends Thread
             if (flush)
                 out.flush();
         }
-        catch (Exception e)
+        catch (Throwable e)
         {
+            JVMStabilityInspector.inspectThrowable(e);
             disconnect();
             if (e instanceof IOException || e.getCause() instanceof IOException)
             {

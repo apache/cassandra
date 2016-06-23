@@ -528,7 +528,12 @@ public final class StatementRestrictions
     public List<Composite> getClusteringColumnsBoundsAsComposites(Bound b,
                                                                   QueryOptions options) throws InvalidRequestException
     {
-        return clusteringColumnsRestrictions.boundsAsComposites(b, options);
+        List<Composite> bounds = clusteringColumnsRestrictions.boundsAsComposites(b, options);
+        for (Composite c : bounds) {
+            if (!c.isEmpty())
+                QueryProcessor.validateComposite(c, cfm.comparator);
+        }
+        return bounds;
     }
 
     /**

@@ -21,6 +21,7 @@ package org.apache.cassandra.cql3.validation.operations;
 import org.junit.Test;
 
 import org.apache.cassandra.cql3.CQLTester;
+import org.apache.cassandra.exceptions.InvalidRequestException;
 
 public class InsertTest extends CQLTester
 {
@@ -55,5 +56,23 @@ public class InsertTest extends CQLTester
         assertRows(execute("SELECT ttl(i) FROM %s"),
                    row(new Object[]{ null })
         );
+    }
+
+    @Test
+    public void testOverlyLargeInsertPK() throws Throwable
+    {
+        createTable("CREATE TABLE %s (a text, b text, PRIMARY KEY ((a), b))");
+
+        assertInvalidThrow(InvalidRequestException.class,
+                           "INSERT INTO %s (a, b) VALUES (?, 'foo')", new String(TOO_BIG.array()));
+    }
+
+    @Test
+    public void testOverlyLargeInsertCK() throws Throwable
+    {
+        createTable("CREATE TABLE %s (a text, b text, PRIMARY KEY ((a), b))");
+
+        assertInvalidThrow(InvalidRequestException.class,
+                           "INSERT INTO %s (a, b) VALUES ('foo', ?)", new String(TOO_BIG.array()));
     }
 }

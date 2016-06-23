@@ -25,6 +25,7 @@ import org.junit.Test;
 import junit.framework.Assert;
 import org.apache.cassandra.cql3.UntypedResultSet;
 import org.apache.cassandra.cql3.restrictions.StatementRestrictions;
+import org.apache.cassandra.exceptions.InvalidRequestException;
 import org.apache.cassandra.utils.ByteBufferUtil;
 import org.apache.cassandra.cql3.CQLTester;
 
@@ -36,7 +37,6 @@ import static org.junit.Assert.assertTrue;
  */
 public class SelectTest extends CQLTester
 {
-    private static final ByteBuffer TOO_BIG = ByteBuffer.allocate(1024 * 65);
 
     @Test
     public void testSingleClustering() throws Throwable
@@ -2249,5 +2249,33 @@ public class SelectTest extends CQLTester
                        row("a", 2, 4),
                        row("a", 3, 5));
         }
+    }
+
+    @Test
+    public void testOverlyLargeSelectPK() throws Throwable
+    {
+        createTable("CREATE TABLE %s (a text, b text, PRIMARY KEY ((a), b))");
+
+        assertInvalidThrow(InvalidRequestException.class,
+                           "SELECT * FROM %s WHERE a = ?", new String(TOO_BIG.array()));
+    }
+
+    @Test
+    public void testOverlyLargeSelectCK() throws Throwable
+    {
+        createTable("CREATE TABLE %s (a text, b text, PRIMARY KEY ((a), b))");
+
+        assertInvalidThrow(InvalidRequestException.class,
+                           "SELECT * FROM %s WHERE a = 'foo' AND b = ?", new String(TOO_BIG.array()));
+    }
+
+    @Test
+    public void testOverlyLargeSelectKeyIn() throws Throwable
+    {
+        createTable("CREATE TABLE %s (a text, b text, c text, d text, PRIMARY KEY ((a, b, c), d))");
+
+        assertInvalidThrow(InvalidRequestException.class,
+                           "SELECT * FROM %s WHERE a = 'foo' AND b= 'bar' AND c IN (?, ?)",
+                           new String(TOO_BIG.array()), new String(TOO_BIG.array()));
     }
 }

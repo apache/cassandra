@@ -81,6 +81,7 @@ public abstract class CQLTester
     protected static final boolean USE_PREPARED_VALUES = Boolean.valueOf(System.getProperty("cassandra.test.use_prepared", "true"));
     protected static final long ROW_CACHE_SIZE_IN_MB = Integer.valueOf(System.getProperty("cassandra.test.row_cache_size_in_mb", "0"));
     private static final AtomicInteger seqNumber = new AtomicInteger();
+    protected static final ByteBuffer TOO_BIG = ByteBuffer.allocate(1024 * 65);
 
     private static org.apache.cassandra.transport.Server server;
     protected static final int nativePort;
