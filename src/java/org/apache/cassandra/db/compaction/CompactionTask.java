@@ -160,6 +160,7 @@ public class CompactionTask extends AbstractCompactionTask
             Collection<SSTableReader> newSStables;
 
             long[] mergedRowCounts;
+            long totalSourceCQLRows;
 
             // SSTableScanners need to be closed before markCompactedSSTablesReplaced call as scanners contain references
             // to both ifile and dfile and SSTR will throw deletion errors on Windows if it tries to delete before scanner is closed.
@@ -203,6 +204,8 @@ public class CompactionTask extends AbstractCompactionTask
                         collector.finishCompaction(ci);
 
                     mergedRowCounts = ci.getMergedRowCounts();
+
+                    totalSourceCQLRows = ci.getTotalSourceCQLRows();
                 }
             }
 
@@ -219,8 +222,11 @@ public class CompactionTask extends AbstractCompactionTask
                 newSSTableNames.append(reader.descriptor.baseFilename()).append(",");
 
             long totalSourceRows = 0;
+            for (int i = 0; i < mergedRowCounts.length; i++)
+                totalSourceRows += mergedRowCounts[i] * (i + 1);
+
             String mergeSummary = updateCompactionHistory(cfs.keyspace.getName(), cfs.getColumnFamilyName(), mergedRowCounts, startsize, endsize);
-            logger.debug(String.format("Compacted (%s) %d sstables to [%s] to level=%d.  %s to %s (~%d%% of original) in %,dms.  Throughput = %s.  %,d total partitions merged to %,d.  Partition merge counts were {%s}",
+            logger.debug(String.format("Compacted (%s) %d sstables to [%s] to level=%d.  %s to %s (~%d%% of original) in %,dms.  Read Throughput = %s, Write Throughput = %s, Row Throughput = ~%,d/s.  %,d total partitions merged to %,d.  Partition merge counts were {%s}",
                                       taskId,
                                       transaction.originals().size(),
                                       newSSTableNames.toString(),
@@ -229,7 +235,9 @@ public class CompactionTask extends AbstractCompactionTask
                                       FBUtilities.prettyPrintMemory(endsize),
                                       (int) (ratio * 100),
                                       dTime,
+                                      FBUtilities.prettyPrintMemoryPerSecond(startsize, durationInNano),
                                       FBUtilities.prettyPrintMemoryPerSecond(endsize, durationInNano),
+                                      (int) totalSourceCQLRows / (TimeUnit.NANOSECONDS.toSeconds(durationInNano) + 1),
                                       totalSourceRows,
                                       totalKeysWritten,
                                       mergeSummary));

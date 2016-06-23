@@ -63,6 +63,7 @@ public class CompactionIterator extends CompactionInfo.Holder implements Unfilte
 
     private final long totalBytes;
     private long bytesRead;
+    private long totalSourceCQLRows;
 
     /*
      * counters for merged rows.
@@ -134,6 +135,11 @@ public class CompactionIterator extends CompactionInfo.Holder implements Unfilte
     public long[] getMergedRowCounts()
     {
         return mergeCounters;
+    }
+
+    public long getTotalSourceCQLRows()
+    {
+        return totalSourceCQLRows;
     }
 
     private UnfilteredPartitionIterators.MergeListener listener()
@@ -287,6 +293,7 @@ public class CompactionIterator extends CompactionInfo.Holder implements Unfilte
         @Override
         protected void updateProgress()
         {
+            totalSourceCQLRows++;
             if ((++compactedUnfiltered) % UNFILTERED_TO_UPDATE_PROGRESS == 0)
                 updateBytesRead();
         }

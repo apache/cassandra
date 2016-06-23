@@ -1,4 +1,5 @@
 3.8
+ * Improve details in compaction log message (CASSANDRA-12080)
  * Allow unset values in CQLSSTableWriter (CASSANDRA-11911)
  * Chunk cache to request compressor-compatible buffers if pool space is exhausted (CASSANDRA-11993)
  * Remove DatabaseDescriptor dependencies from SequentialWriter (CASSANDRA-11579)
