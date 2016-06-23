@@ -25,6 +25,7 @@ import org.junit.Test;
 import junit.framework.Assert;
 import org.apache.cassandra.cql3.UntypedResultSet;
 import org.apache.cassandra.cql3.restrictions.StatementRestrictions;
+import org.apache.cassandra.exceptions.InvalidRequestException;
 import org.apache.cassandra.utils.ByteBufferUtil;
 import org.apache.cassandra.cql3.CQLTester;
 
@@ -36,7 +37,6 @@ import static org.junit.Assert.assertTrue;
  */
 public class SelectTest extends CQLTester
 {
-    private static final ByteBuffer TOO_BIG = ByteBuffer.allocate(1024 * 65);
 
     @Test
     public void testSingleClustering() throws Throwable
@@ -1272,7 +1272,7 @@ public class SelectTest extends CQLTester
                              "SELECT DISTINCT k FROM %s WHERE k IN (1, 2, 3) AND a = 10");
 
         assertInvalidMessage(distinctQueryErrorMsg,
-                            "SELECT DISTINCT k FROM %s WHERE b = 5");
+                             "SELECT DISTINCT k FROM %s WHERE b = 5");
 
         assertRows(execute("SELECT DISTINCT k FROM %s WHERE k = 1"),
                    row(1));
@@ -2253,6 +2253,23 @@ public class SelectTest extends CQLTester
 
         dropIndex("DROP INDEX %s.test");
         assertEmpty(execute("SELECT * FROM %s WHERE c = ?  ALLOW FILTERING", TOO_BIG));
+    }
+
+    @Test
+    public void testPKQueryWithValueOver64K() throws Throwable
+    {
+        createTable("CREATE TABLE %s (a text, b text, PRIMARY KEY (a, b))");
+
+        assertInvalidThrow(InvalidRequestException.class,
+                           "SELECT * FROM %s WHERE a = ?", new String(TOO_BIG.array()));
+    }
+
+    @Test
+    public void testCKQueryWithValueOver64K() throws Throwable
+    {
+        createTable("CREATE TABLE %s (a text, b text, PRIMARY KEY (a, b))");
+
+        execute("SELECT * FROM %s WHERE a = 'foo' AND b = ?", new String(TOO_BIG.array()));
     }
 
     @Test
