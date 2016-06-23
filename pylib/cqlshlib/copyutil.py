@@ -2452,7 +2452,7 @@ class ImportProcess(ChildProcess):
             future.add_callbacks(callback=self.result_callback, callback_args=(batch, chunk),
                                  errback=self.err_callback, errback_args=(batch, chunk, replicas))
 
-    def report_error(self, err, chunk, rows=None, attempts=1, final=True):
+    def report_error(self, err, chunk=None, rows=None, attempts=1, final=True):
         if self.debug and sys.exc_info()[1] == err:
             traceback.print_exc()
         self.outmsg.send(ImportTaskError(err.__class__.__name__, err.message, rows, attempts, final))
