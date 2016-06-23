@@ -30,6 +30,7 @@
  * Fix slice queries on ordered COMPACT tables (CASSANDRA-10988)
 Merged from 2.1:
 2.1.15
+ * Fix clock skew corrupting other nodes with paxos (CASSANDRA-11991)
  * Remove distinction between non-existing static columns and existing but null in LWTs (CASSANDRA-9842)
  * Support mlockall on IBM POWER arch (CASSANDRA-11576)
  * Cache local ranges when calculating repair neighbors (CASSANDRA-11933)
