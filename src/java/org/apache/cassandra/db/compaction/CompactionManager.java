@@ -1068,9 +1068,16 @@ public class CompactionManager implements CompactionManagerMBean
         try
         {
 
-            String snapshotName = validator.desc.sessionId.toString();
             int gcBefore;
+            UUID parentRepairSessionId = validator.desc.parentSessionId;
+            String snapshotName;
+            boolean isGlobalSnapshotValidation = cfs.snapshotExists(parentRepairSessionId.toString());
+            if (isGlobalSnapshotValidation)
+                snapshotName = parentRepairSessionId.toString();
+            else
+                snapshotName = validator.desc.sessionId.toString();
             boolean isSnapshotValidation = cfs.snapshotExists(snapshotName);
+
             if (isSnapshotValidation)
             {
                 // If there is a snapshot created for the session then read from there.
@@ -1130,7 +1137,9 @@ public class CompactionManager implements CompactionManagerMBean
                 }
                 finally
                 {
-                    if (isSnapshotValidation)
+                    // we can only clear the snapshot if we are not doing a global snapshot validation (we then clear it once anticompaction
+                    // is done).
+                    if (isSnapshotValidation && !isGlobalSnapshotValidation)
                     {
                         cfs.clearSnapshot(snapshotName);
                     }
@@ -1166,6 +1175,12 @@ public class CompactionManager implements CompactionManagerMBean
         if (prs == null)
             return null;
         Set<SSTableReader> sstablesToValidate = new HashSet<>();
+
+        if (prs.isGlobal)
+            prs.markSSTablesRepairing(cfs.metadata.cfId, validator.desc.parentSessionId);
+
+        // note that we always grab all existing sstables for this - if we were to just grab the ones that
+        // were marked as repairing, we would miss any ranges that were compacted away and this would cause us to overstream
         try (ColumnFamilyStore.RefViewFragment sstableCandidates = cfs.selectAndReference(prs.isIncremental ? ColumnFamilyStore.UNREPAIRED_SSTABLES : ColumnFamilyStore.CANONICAL_SSTABLES))
         {
             for (SSTableReader sstable : sstableCandidates.sstables)
@@ -1176,17 +1191,6 @@ public class CompactionManager implements CompactionManagerMBean
                 }
             }
 
-            if (prs.isGlobal)
-            {
-                Set<SSTableReader> currentlyRepairing = ActiveRepairService.instance.currentlyRepairing(cfs.metadata.cfId, validator.desc.parentSessionId);
-
-                if (!Sets.intersection(currentlyRepairing, sstablesToValidate).isEmpty())
-                {
-                    logger.error("Cannot start multiple repair sessions over the same sstables");
-                    throw new RuntimeException("Cannot start multiple repair sessions over the same sstables");
-                }
-            }
-
             sstables = Refs.tryRef(sstablesToValidate);
             if (sstables == null)
             {
@@ -1194,8 +1198,6 @@ public class CompactionManager implements CompactionManagerMBean
                 throw new RuntimeException("Could not reference sstables");
             }
         }
-        if (prs.isGlobal)
-            prs.addSSTables(cfs.metadata.cfId, sstablesToValidate);
 
         return sstables;
     }
