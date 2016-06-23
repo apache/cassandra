@@ -25,6 +25,7 @@ import java.io.*;
 import java.nio.ByteBuffer;
 import java.util.*;
 import java.util.concurrent.*;
+import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
 
 import com.google.common.util.concurrent.RateLimiter;
@@ -33,7 +34,6 @@ import org.junit.*;
 import org.apache.cassandra.*;
 import org.apache.cassandra.config.Config.CommitLogSync;
 import org.apache.cassandra.config.*;
-import org.apache.cassandra.db.Keyspace;
 import org.apache.cassandra.db.Mutation;
 import org.apache.cassandra.db.marshal.UTF8Type;
 import org.apache.cassandra.db.partitions.PartitionUpdate;
@@ -135,6 +135,7 @@ public class CommitLogStressTest
     @Before
     public void cleanDir() throws IOException
     {
+        CommitLog.instance.stopUnsafe(true);
         File dir = new File(location);
         if (dir.isDirectory())
         {
@@ -208,6 +209,8 @@ public class CommitLogStressTest
             {
                 DatabaseDescriptor.setCommitLogSync(sync);
                 CommitLog commitLog = new CommitLog(CommitLogArchiver.disabled()).start();
+                // Need to enable reserve segment creation as close to test start as possible to minimize race
+                commitLog.segmentManager.enableReserveSegmentCreation();
                 testLog(commitLog);
                 assert !failed;
             }
@@ -226,8 +229,7 @@ public class CommitLogStressTest
                            commitLog.executor.getClass().getSimpleName(),
                            randomSize ? " random size" : "",
                            discardedRun ? " with discarded run" : "");
-        CommitLog.instance.segmentManager.enableReserveSegmentCreation();
-        
+
         final List<CommitlogThread> threads = new ArrayList<>();
         ScheduledExecutorService scheduled = startThreads(commitLog, threads);
 
@@ -310,8 +312,9 @@ public class CommitLogStressTest
         // (which shouldn't write anything) to make sure the first we triggered completes.
         // FIXME: The executor should give us a chance to await completion of the sync we requested.
         commitLog.executor.requestExtraSync().awaitUninterruptibly();
+
         // Wait for any pending deletes or segment allocations to complete.
-        CommitLog.instance.segmentManager.awaitManagementTasksCompletion();
+        commitLog.segmentManager.awaitManagementTasksCompletion();
 
         long combinedSize = 0;
         for (File f : new File(DatabaseDescriptor.getCommitLogLocation()).listFiles())
@@ -320,7 +323,7 @@ public class CommitLogStressTest
 
         List<String> logFileNames = commitLog.getActiveSegmentNames();
         Map<String, Double> ratios = commitLog.getActiveSegmentCompressionRatios();
-        Collection<CommitLogSegment> segments = CommitLog.instance.segmentManager.getActiveSegments();
+        Collection<CommitLogSegment> segments = commitLog.segmentManager.getActiveSegments();
 
         for (CommitLogSegment segment : segments)
         {
@@ -411,6 +414,7 @@ public class CommitLogStressTest
         int dataSize = 0;
         final CommitLog commitLog;
         final Random random;
+        final AtomicInteger threadID = new AtomicInteger(0);
 
         volatile CommitLogPosition clsp;
 
@@ -422,6 +426,7 @@ public class CommitLogStressTest
 
         public void run()
         {
+            Thread.currentThread().setName("CommitLogThread-" + threadID.getAndIncrement());
             RateLimiter rl = rateLimit != 0 ? RateLimiter.create(rateLimit) : null;
             final Random rand = random != null ? random : ThreadLocalRandom.current();
             while (!stop)
@@ -441,7 +446,6 @@ public class CommitLogStressTest
                     dataSize += sz;
                 }
 
-                Keyspace ks = Keyspace.open("Keyspace1");
                 clsp = commitLog.add(new Mutation(builder.build()));
                 counter.incrementAndGet();
             }

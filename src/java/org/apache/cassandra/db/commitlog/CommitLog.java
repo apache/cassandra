@@ -109,6 +109,7 @@ public class CommitLog implements CommitLogMBean
         segmentManager = DatabaseDescriptor.isCDCEnabled()
                          ? new CommitLogSegmentManagerCDC(this, DatabaseDescriptor.getCommitLogLocation())
                          : new CommitLogSegmentManagerStandard(this, DatabaseDescriptor.getCommitLogLocation());
+
         // register metrics
         metrics.attach(executor, segmentManager);
     }

@@ -75,15 +75,12 @@ public abstract class AbstractCommitLogSegmentManager
      */
     volatile boolean createReserveSegments = false;
 
-    // Used by tests to determine if segment manager is active or not.
-    volatile boolean processingTask = false;
-
     private Thread managerThread;
     protected volatile boolean run = true;
     protected final CommitLog commitLog;
 
     private static final SimpleCachedBufferPool bufferPool =
-        new SimpleCachedBufferPool(DatabaseDescriptor.getCommitLogMaxCompressionBuffersPerPool(), DatabaseDescriptor.getCommitLogSegmentSize());
+        new SimpleCachedBufferPool(DatabaseDescriptor.getCommitLogMaxCompressionBuffersInPool(), DatabaseDescriptor.getCommitLogSegmentSize());
 
     AbstractCommitLogSegmentManager(final CommitLog commitLog, String storageDirectory)
     {
@@ -103,7 +100,6 @@ public abstract class AbstractCommitLogSegmentManager
                     try
                     {
                         Runnable task = segmentManagementTasks.poll();
-                        processingTask = true;
                         if (task == null)
                         {
                             // if we have no more work to do, check if we should create a new segment
@@ -139,7 +135,6 @@ public abstract class AbstractCommitLogSegmentManager
                             // queue rather than looping, grabbing another null, and repeating the above work.
                             try
                             {
-                                processingTask = false;
                                 task = segmentManagementTasks.take();
                             }
                             catch (InterruptedException e)
@@ -148,7 +143,6 @@ public abstract class AbstractCommitLogSegmentManager
                             }
                         }
                         task.run();
-                        processingTask = false;
                     }
                     catch (Throwable t)
                     {
@@ -507,8 +501,12 @@ public abstract class AbstractCommitLogSegmentManager
     // Used by tests only.
     void awaitManagementTasksCompletion()
     {
-        while (segmentManagementTasks.size() > 0 || processingTask)
+        while (!segmentManagementTasks.isEmpty())
             Thread.yield();
+        // The last management task is not yet complete. Wait a while for it.
+        Uninterruptibles.sleepUninterruptibly(100, TimeUnit.MILLISECONDS);
+        // TODO: If this functionality is required by anything other than tests, signalling must be used to ensure
+        // waiting completes correctly.
     }
 
     /**

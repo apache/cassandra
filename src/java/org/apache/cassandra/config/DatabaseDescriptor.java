@@ -1417,7 +1417,7 @@ public class DatabaseDescriptor
     * (one segment in compression, one written to, one in reserve); delays in compression may cause the log to use
     * more, depending on how soon the sync policy stops all writing threads.
     */
-    public static int getCommitLogMaxCompressionBuffersPerPool()
+    public static int getCommitLogMaxCompressionBuffersInPool()
     {
         return conf.commitlog_max_compression_buffers_in_pool;
     }
