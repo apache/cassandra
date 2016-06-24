@@ -17,10 +17,12 @@
  */
 package org.apache.cassandra.service;
 
+import java.io.Closeable;
 import java.io.File;
 import java.io.IOException;
 import java.lang.management.ManagementFactory;
 import java.lang.management.MemoryPoolMXBean;
+import java.lang.reflect.Constructor;
 import java.net.InetAddress;
 import java.net.URL;
 import java.net.UnknownHostException;
@@ -40,6 +42,7 @@ import org.slf4j.LoggerFactory;
 
 import com.addthis.metrics3.reporter.config.ReporterConfig;
 import com.codahale.metrics.Meter;
+import com.codahale.metrics.MetricRegistry;
 import com.codahale.metrics.MetricRegistryListener;
 import com.codahale.metrics.SharedMetricRegistries;
 import org.apache.cassandra.batchlog.LegacyBatchlogMigrator;
@@ -362,6 +365,38 @@ public class CassandraDaemon
             catch (Exception e)
             {
                 logger.warn("Failed to load metrics-reporter-config, metric sinks will not be activated", e);
+            }
+        }
+
+        // Alternative metrics
+        String metricsExporterClass = System.getProperty("cassandra.metricsExporter");
+        if (metricsExporterClass != null)
+        {
+            logger.info("Trying to initialize metrics-exporter {}", metricsExporterClass);
+            try
+            {
+                Constructor<?> ctor = Class.forName(metricsExporterClass).getConstructor(MetricRegistry.class);
+                Object metricsExporter = ctor.newInstance(CassandraMetricsRegistry.Metrics);
+                if (metricsExporter.getClass().isAssignableFrom(Closeable.class))
+                {
+                    Runtime.getRuntime().addShutdownHook(new Thread() {
+                        public void run()
+                        {
+                            try
+                            {
+                                ((Closeable)metricsExporter).close();
+                            }
+                            catch (IOException e)
+                            {
+                                e.printStackTrace();
+                            }
+                        }
+                    });
+                }
+            }
+            catch (Exception e)
+            {
+                logger.warn("Failed to initialize metrics-exporter", e);
             }
         }
 

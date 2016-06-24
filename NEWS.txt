@@ -19,6 +19,11 @@ using the provided 'sstableupgrade' tool.
 
 New features
 ------------
+   - Support for alternative metrics exporters has been added. To use them, the appropiate
+     libraries need to be placed in the lib directory. Cassandra will load the class given in
+     the system property cassandra.metricsExporter and instantiate it by calling the constructor
+     taking an instance of com.codahale.metrics.MetricRegistry. If the provided class implements
+     java.io.Closeable, its close() method will be called on shutdown.
    - Shared pool threads are now named according to the stage they are executing
      tasks for. Thread names mentioned in traced queries change accordingly.
    - A new option has been added to cassandra-stress "-rate fixed={number}/s"
