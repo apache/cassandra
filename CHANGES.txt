@@ -1,5 +1,4 @@
 3.8
- * Allow metrics export for prometheus in its native format (CASSANDRA-11967)
  * Move skip_stop_words filter before stemming (CASSANDRA-12078)
  * Support seek() in EncryptedFileSegmentInputStream (CASSANDRA-11957)
  * SSTable tools mishandling LocalPartitioner (CASSANDRA-12002)
