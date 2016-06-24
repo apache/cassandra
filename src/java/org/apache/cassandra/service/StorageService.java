@@ -29,6 +29,8 @@ import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.regex.MatchResult;
 import java.util.regex.Pattern;
+import java.util.stream.StreamSupport;
+
 import javax.annotation.Nullable;
 import javax.management.*;
 import javax.management.openmbean.TabularData;
@@ -38,7 +40,9 @@ import com.google.common.annotations.VisibleForTesting;
 import com.google.common.base.Predicate;
 import com.google.common.collect.*;
 import com.google.common.util.concurrent.*;
+
 import org.apache.commons.lang3.StringUtils;
+
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -858,7 +862,8 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
         }
 
         boolean dataAvailable = true; // make this to false when bootstrap streaming failed
-        if (shouldBootstrap())
+        boolean bootstrap = shouldBootstrap();
+        if (bootstrap)
         {
             if (SystemKeyspace.bootstrapInProgress())
                 logger.warn("Detected previous bootstrap failure; retrying");
@@ -1000,8 +1005,7 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
         {
             if (dataAvailable)
             {
-                finishJoiningRing();
-
+                finishJoiningRing(bootstrap);
                 // remove the existing info about the replaced node.
                 if (!current.isEmpty())
                 {
@@ -1034,7 +1038,13 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
         Gossiper.instance.addLocalApplicationState(ApplicationState.RACK, StorageService.instance.valueFactory.rack(rack));
     }
 
-    public synchronized void joinRing() throws IOException
+    public void joinRing() throws IOException
+    {
+        SystemKeyspace.BootstrapState state = SystemKeyspace.getBootstrapState();
+        joinRing(state.equals(SystemKeyspace.BootstrapState.IN_PROGRESS));
+    }
+
+    private synchronized void joinRing(boolean resumedBootstrap) throws IOException
     {
         if (!joined)
         {
@@ -1051,15 +1061,23 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
         else if (isSurveyMode)
         {
             logger.info("Leaving write survey mode and joining ring at operator request");
-            finishJoiningRing();
+            finishJoiningRing(resumedBootstrap);
             isSurveyMode = false;
         }
     }
 
-    private void finishJoiningRing()
+    private void executePreJoinTasks(boolean bootstrap)
+    {
+        StreamSupport.stream(ColumnFamilyStore.all().spliterator(), false)
+                .filter(cfs -> Schema.instance.getUserKeyspaces().contains(cfs.keyspace.getName()))
+                .forEach(cfs -> cfs.indexManager.executePreJoinTasksBlocking(bootstrap));
+    }
+
+    private void finishJoiningRing(boolean didBootstrap)
     {
         // start participating in the ring.
         SystemKeyspace.setBootstrapState(SystemKeyspace.BootstrapState.COMPLETED);
+        executePreJoinTasks(didBootstrap);
         setTokens(bootstrapTokens);
 
         assert tokenMetadata.sortedTokens().size() > 0;
@@ -1506,7 +1524,7 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
                     try
                     {
                         progressSupport.progress("bootstrap", ProgressEvent.createNotification("Joining ring..."));
-                        joinRing();
+                        joinRing(true);
                     }
                     catch (IOException ignore)
                     {

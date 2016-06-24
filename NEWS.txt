@@ -18,6 +18,8 @@ using the provided 'sstableupgrade' tool.
 
 New features
 ------------
+   - An Index implementation may now provide a task which runs prior to joining
+     the ring. See CASSANDRA-12039
    - Filtering on partition key columns is now also supported for queries without
      secondary indexes.
    - A slow query log has been added: slow queries will be logged at DEBUG level.

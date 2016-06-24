@@ -51,6 +51,7 @@ public class StubIndex implements Index
     public List<Row> rowsInserted = new ArrayList<>();
     public List<Row> rowsDeleted = new ArrayList<>();
     public List<Pair<Row,Row>> rowsUpdated = new ArrayList<>();
+    public volatile boolean preJoinInvocation;
     private IndexMetadata indexMetadata;
     private ColumnFamilyStore baseCfs;
 
@@ -169,6 +170,14 @@ public class StubIndex implements Index
     public Callable<?> getTruncateTask(long truncatedAt)
     {
         return null;
+    }
+
+    public Callable<?> getPreJoinTask(boolean hadBootstrap)
+    {
+        return () -> {
+            preJoinInvocation = true;
+            return null;
+        };
     }
 
     public Callable<?> getInvalidateTask()

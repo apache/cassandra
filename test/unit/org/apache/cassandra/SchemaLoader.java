@@ -88,6 +88,7 @@ public class SchemaLoader
         String ks4 = testName + "Keyspace4";
         String ks5 = testName + "Keyspace5";
         String ks6 = testName + "Keyspace6";
+        String ks7 = testName + "Keyspace7";
         String ks_kcs = testName + "KeyCacheSpace";
         String ks_rcs = testName + "RowCacheSpace";
         String ks_ccs = testName + "CounterCacheSpace";
@@ -191,10 +192,16 @@ public class SchemaLoader
         schema.add(KeyspaceMetadata.create(ks5,
                 KeyspaceParams.simple(2),
                 Tables.of(standardCFMD(ks5, "Standard1"))));
+
         // Keyspace 6
         schema.add(KeyspaceMetadata.create(ks6,
                 KeyspaceParams.simple(1),
                 Tables.of(keysIndexCFMD(ks6, "Indexed1", true))));
+
+        // Keyspace 7
+        schema.add(KeyspaceMetadata.create(ks7,
+                KeyspaceParams.simple(1),
+                Tables.of(customIndexCFMD(ks7, "Indexed1"))));
 
         // KeyCacheSpace
         schema.add(KeyspaceMetadata.create(ks_kcs,
@@ -455,6 +462,7 @@ public class SchemaLoader
 
         return cfm.compression(getCompressionParameters());
     }
+
     public static CFMetaData keysIndexCFMD(String ksName, String cfName, boolean withIndex) throws ConfigurationException
     {
         CFMetaData cfm = CFMetaData.Builder.createDense(ksName, cfName, false, false)
@@ -475,6 +483,30 @@ public class SchemaLoader
                                                          "birthdate_composite_index",
                                                          IndexMetadata.Kind.KEYS,
                                                          Collections.EMPTY_MAP)));
+
+
+        return cfm.compression(getCompressionParameters());
+    }
+
+    public static CFMetaData customIndexCFMD(String ksName, String cfName) throws ConfigurationException
+    {
+        CFMetaData cfm = CFMetaData.Builder.createDense(ksName, cfName, false, false)
+                                           .addPartitionKey("key", AsciiType.instance)
+                                           .addClusteringColumn("c1", AsciiType.instance)
+                                           .addRegularColumn("value", LongType.instance)
+                                           .build();
+
+            cfm.indexes(
+                cfm.getIndexes()
+                .with(IndexMetadata.fromIndexTargets(cfm,
+                                                     Collections.singletonList(
+                                                             new IndexTarget(new ColumnIdentifier("value", true),
+                                                                             IndexTarget.Type.VALUES)),
+                                                     "value_index",
+                                                     IndexMetadata.Kind.CUSTOM,
+                                                     Collections.singletonMap(
+                                                             IndexTarget.CUSTOM_INDEX_OPTION_NAME,
+                                                             StubIndex.class.getName()))));
 
 
         return cfm.compression(getCompressionParameters());

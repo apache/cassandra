@@ -253,6 +253,17 @@ public interface Index
     public Callable<?> getTruncateTask(long truncatedAt);
 
     /**
+     * Return a task to be executed before the node enters NORMAL state and finally joins the ring.
+     *
+     * @param hadBootstrap If the node had bootstrap before joining.
+     * @return task to be executed by the index manager before joining the ring.
+     */
+    default public Callable<?> getPreJoinTask(boolean hadBootstrap)
+    {
+        return null;
+    }
+
+    /**
      * Return true if this index can be built or rebuilt when the index manager determines it is necessary. Returning
      * false enables the index implementation (or some other component) to control if and when SSTable data is
      * incorporated into the index.

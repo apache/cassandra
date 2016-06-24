@@ -1,4 +1,5 @@
 3.10
+ * Add a blocking task to Index, run before joining the ring (CASSANDRA-12039)
  * Fix NPE when using CQLSSTableWriter (CASSANDRA-12667)
  * Support optional backpressure strategies at the coordinator (CASSANDRA-9318)
  * Make randompartitioner work with new vnode allocation (CASSANDRA-12647)
