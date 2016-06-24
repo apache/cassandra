@@ -16,46 +16,42 @@
 
 .. highlight:: sql
 
+.. _cql-triggers:
+
 Triggers
 --------
+
+.. _create-trigger-statement:
 
 CREATE TRIGGER
 ^^^^^^^^^^^^^^
 
-*Syntax:*
+Creating a new trigger uses the ``CREATE TRIGGER`` statement:
 
-| bc(syntax)..
-|  ::= CREATE TRIGGER ( IF NOT EXISTS )? ( )?
-|  ON 
-|  USING 
+.. productionlist::
+   create_trigger_statement: CREATE TRIGGER [ IF NOT EXISTS ] `trigger_name`
+                           :     ON `table_name`
+                           :     USING `string`
 
-*Sample:*
+For instance::
 
-| bc(sample).
-| CREATE TRIGGER myTrigger ON myTable USING
-  ‘org.apache.cassandra.triggers.InvertedIndex’;
+    CREATE TRIGGER myTrigger ON myTable USING 'org.apache.cassandra.triggers.InvertedIndex';
 
-The actual logic that makes up the trigger can be written in any Java
-(JVM) language and exists outside the database. You place the trigger
-code in a ``lib/triggers`` subdirectory of the Cassandra installation
-directory, it loads during cluster startup, and exists on every node
-that participates in a cluster. The trigger defined on a table fires
-before a requested DML statement occurs, which ensures the atomicity of
-the transaction.
+The actual logic that makes up the trigger can be written in any Java (JVM) language and exists outside the database.
+You place the trigger code in a ``lib/triggers`` subdirectory of the Cassandra installation directory, it loads during
+cluster startup, and exists on every node that participates in a cluster. The trigger defined on a table fires before a
+requested DML statement occurs, which ensures the atomicity of the transaction.
+
+.. _drop-trigger-statement:
 
 DROP TRIGGER
 ^^^^^^^^^^^^
 
-*Syntax:*
+Dropping a trigger uses the ``DROP TRIGGER`` statement:
 
-| bc(syntax)..
-|  ::= DROP TRIGGER ( IF EXISTS )? ( )?
-|  ON 
-| p.
-| *Sample:*
+.. productionlist::
+   drop_trigger_statement: DROP TRIGGER [ IF EXISTS ] `trigger_name` ON `table_name`
 
-| bc(sample).
-| DROP TRIGGER myTrigger ON myTable;
+For instance::
 
-``DROP TRIGGER`` statement removes the registration of a trigger created
-using ``CREATE TRIGGER``.
+    DROP TRIGGER myTrigger ON myTable;

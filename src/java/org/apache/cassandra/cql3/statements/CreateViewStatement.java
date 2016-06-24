@@ -250,13 +250,16 @@ public class CreateViewStatement extends SchemaAlteringStatement
                 throw new InvalidRequestException(String.format("Unable to include static column '%s' which would be included by Materialized View SELECT * statement", identifier));
             }
 
-            if (includeDef && !targetClusteringColumns.contains(identifier) && !targetPartitionKeys.contains(identifier))
+            boolean defInTargetPrimaryKey = targetClusteringColumns.contains(identifier)
+                                            || targetPartitionKeys.contains(identifier);
+
+            if (includeDef && !defInTargetPrimaryKey)
             {
                 includedColumns.add(identifier);
             }
             if (!def.isPrimaryKeyColumn()) continue;
 
-            if (!targetClusteringColumns.contains(identifier) && !targetPartitionKeys.contains(identifier))
+            if (!defInTargetPrimaryKey)
             {
                 if (missingClusteringColumns)
                     columnNames.append(',');
@@ -320,7 +323,7 @@ public class CreateViewStatement extends SchemaAlteringStatement
 
         // We don't need to include the "IS NOT NULL" filter on a non-composite partition key
         // because we will never allow a single partition key to be NULL
-        boolean isSinglePartitionKey = cfm.getColumnDefinition(identifier).isPartitionKey()
+        boolean isSinglePartitionKey = def.isPartitionKey()
                                        && cfm.partitionKeyColumns().size() == 1;
         if (!isSinglePartitionKey && !restrictions.isRestricted(def))
             throw new InvalidRequestException(String.format("Primary key column '%s' is required to be filtered by 'IS NOT NULL'", identifier));

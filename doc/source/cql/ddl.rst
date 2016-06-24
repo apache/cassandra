@@ -76,7 +76,6 @@ For instance::
                 AND durable_writes = false;
 
 
-.. _create-keyspace-options:
 The supported ``options`` are:
 
 =================== ========== =========== ========= ===================================================================
@@ -127,9 +126,9 @@ An ``ALTER KEYSPACE`` statement allows to modify the options of a keyspace:
 For instance::
 
     ALTER KEYSPACE Excelsior
-              WITH replication = {’class’: ‘SimpleStrategy’, ‘replication_factor’ : 4};
+              WITH replication = {'class': 'SimpleStrategy', 'replication_factor' : 4};
 
-The supported options are the same than for :ref:`creating a keyspace <create-keyspace-options>`.
+The supported options are the same than for :ref:`creating a keyspace <create-keyspace-statement>`.
 
 .. _drop-keyspace-statement:
 
@@ -182,7 +181,7 @@ For instance::
         common_name text,
         population varint,
         average_size int
-    ) WITH comment=‘Important biological records’
+    ) WITH comment='Important biological records'
        AND read_repair_chance = 1.0;
 
     CREATE TABLE timeline (
@@ -192,7 +191,7 @@ For instance::
         body text,
         posted_by text,
         PRIMARY KEY (userid, posted_month, posted_time)
-    ) WITH compaction = { ‘class’ : ‘LeveledCompactionStrategy’ };
+    ) WITH compaction = { 'class' : 'LeveledCompactionStrategy' };
 
     CREATE TABLE loads (
         machine inet,
@@ -373,7 +372,7 @@ retrieval of a range of rows within a partition (for instance, in the example ab
 > 1 and b <= 3``) very efficient.
 
 
-.. _create-table-options
+.. _create-table-options:
 
 Table options
 ~~~~~~~~~~~~~
@@ -385,7 +384,7 @@ Amongst those options, two important ones cannot be changed after creation and i
 against the table: the ``COMPACT STORAGE`` option and the ``CLUSTERING ORDER`` option. Those, as well as the other
 options of a table are described in the following sections.
 
-.. _compact-storage:
+.. _compact-tables:
 
 Compact tables
 ``````````````
@@ -393,7 +392,7 @@ Compact tables
 .. warning:: Since Cassandra 3.0, compact tables have the exact same layout internally than non compact ones (for the
    same schema obviously), and declaring a table compact **only** creates artificial limitations on the table definition
    and usage that are necessary to ensure backward compatibility with the deprecated Thrift API. And as ``COMPACT
-   STORAGE`` cannot, as of Cassandra |3.8|, be removed, it is strongly discouraged to create new table with the
+   STORAGE`` cannot, as of Cassandra |version|, be removed, it is strongly discouraged to create new table with the
    ``COMPACT STORAGE`` option.
 
 A *compact* table is one defined with the ``COMPACT STORAGE`` option. This option is mainly targeted towards backward
@@ -445,116 +444,108 @@ Other table options
 
 A table supports the following options:
 
-+----------------------------------+------------+---------------+---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------+
-| option                           | kind       | default       | description                                                                                                                                                                                                                     |
-+==================================+============+===============+=================================================================================================================================================================================================================================+
-| ``comment``                      | *simple*   | none          | A free-form, human-readable comment.                                                                                                                                                                                            |
-+----------------------------------+------------+---------------+---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------+
-| ``read_repair_chance``           | *simple*   | 0.1           | The probability with which to query extra nodes (e.g. more nodes than required by the consistency level) for the purpose of read repairs.                                                                                       |
-+----------------------------------+------------+---------------+---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------+
-| ``dclocal_read_repair_chance``   | *simple*   | 0             | The probability with which to query extra nodes (e.g. more nodes than required by the consistency level) belonging to the same data center than the read coordinator for the purpose of read repairs.                           |
-+----------------------------------+------------+---------------+---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------+
-| ``gc_grace_seconds``             | *simple*   | 864000        | Time to wait before garbage collecting tombstones (deletion markers).                                                                                                                                                           |
-+----------------------------------+------------+---------------+---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------+
-| ``bloom_filter_fp_chance``       | *simple*   | 0.00075       | The target probability of false positive of the sstable bloom filters. Said bloom filters will be sized to provide the provided probability (thus lowering this value impact the size of bloom filters in-memory and on-disk)   |
-+----------------------------------+------------+---------------+---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------+
-| ``default_time_to_live``         | *simple*   | 0             | The default expiration time (“TTL”) in seconds for a table.                                                                                                                                                                     |
-+----------------------------------+------------+---------------+---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------+
-| ``compaction``                   | *map*      | *see below*   | Compaction options, see “below”:#compactionOptions.                                                                                                                                                                             |
-+----------------------------------+------------+---------------+---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------+
-| ``compression``                  | *map*      | *see below*   | Compression options, see “below”:#compressionOptions.                                                                                                                                                                           |
-+----------------------------------+------------+---------------+---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------+
-| ``caching``                      | *map*      | *see below*   | Caching options, see “below”:#cachingOptions.                                                                                                                                                                                   |
-+----------------------------------+------------+---------------+---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------+
++--------------------------------+----------+-------------+-----------------------------------------------------------+
+| option                         | kind     | default     | description                                               |
++================================+==========+=============+===========================================================+
+| ``comment``                    | *simple* | none        | A free-form, human-readable comment.                      |
++--------------------------------+----------+-------------+-----------------------------------------------------------+
+| ``read_repair_chance``         | *simple* | 0.1         | The probability with which to query extra nodes (e.g.     |
+|                                |          |             | more nodes than required by the consistency level) for    |
+|                                |          |             | the purpose of read repairs.                              |
++--------------------------------+----------+-------------+-----------------------------------------------------------+
+| ``dclocal_read_repair_chance`` | *simple* | 0           | The probability with which to query extra nodes (e.g.     |
+|                                |          |             | more nodes than required by the consistency level)        |
+|                                |          |             | belonging to the same data center than the read           |
+|                                |          |             | coordinator for the purpose of read repairs.              |
++--------------------------------+----------+-------------+-----------------------------------------------------------+
+| ``gc_grace_seconds``           | *simple* | 864000      | Time to wait before garbage collecting tombstones         |
+|                                |          |             | (deletion markers).                                       |
++--------------------------------+----------+-------------+-----------------------------------------------------------+
+| ``bloom_filter_fp_chance``     | *simple* | 0.00075     | The target probability of false positive of the sstable   |
+|                                |          |             | bloom filters. Said bloom filters will be sized to provide|
+|                                |          |             | the provided probability (thus lowering this value impact |
+|                                |          |             | the size of bloom filters in-memory and on-disk)          |
++--------------------------------+----------+-------------+-----------------------------------------------------------+
+| ``default_time_to_live``       | *simple* | 0           | The default expiration time (“TTL”) in seconds for a      |
+|                                |          |             | table.                                                    |
++--------------------------------+----------+-------------+-----------------------------------------------------------+
+| ``compaction``                 | *map*    | *see below* | :ref:`Compaction options <cql-compaction-options>`.       |
++--------------------------------+----------+-------------+-----------------------------------------------------------+
+| ``compression``                | *map*    | *see below* | :ref:`Compression options <cql-compression-options>`.     |
++--------------------------------+----------+-------------+-----------------------------------------------------------+
+| ``caching``                    | *map*    | *see below* | :ref:`Caching options <cql-caching-options>`.             |
++--------------------------------+----------+-------------+-----------------------------------------------------------+
+
+.. _cql-compaction-options:
 
 Compaction options
 ##################
 
-The ``compaction`` property must at least define the ``'class'``
-sub-option, that defines the compaction strategy class to use. The
-default supported class are ``'SizeTieredCompactionStrategy'``,
-``'LeveledCompactionStrategy'``, ``'DateTieredCompactionStrategy'`` and
-``'TimeWindowCompactionStrategy'``. Custom strategy can be provided by
-specifying the full class name as a `string constant <#constants>`__.
-The rest of the sub-options depends on the chosen class. The sub-options
-supported by the default classes are:
+The ``compaction`` options must at least define the ``'class'`` sub-option, that defines the compaction strategy class
+to use. The default supported class are ``'SizeTieredCompactionStrategy'`` (:ref:`STCS <STCS>`),
+``'LeveledCompactionStrategy'`` (:ref:`LCS <LCS>`) and ``'TimeWindowCompactionStrategy'`` (:ref:`TWCS <TWCS>`) (the
+``'DateTieredCompactionStrategy'`` is also supported but is deprecated and ``'TimeWindowCompactionStrategy'`` should be
+preferred instead). Custom strategy can be provided by specifying the full class name as a :ref:`string constant
+<constants>`.
 
-+--------------------------------------+---------------------------------+----------------+----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------+
-| option                               | supported compaction strategy   | default        | description                                                                                                                                                                                                                                                                                                                            |
-+======================================+=================================+================+========================================================================================================================================================================================================================================================================================================================================+
-| ``enabled``                          | *all*                           | true           | A boolean denoting whether compaction should be enabled or not.                                                                                                                                                                                                                                                                        |
-+--------------------------------------+---------------------------------+----------------+----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------+
-| ``tombstone_threshold``              | *all*                           | 0.2            | A ratio such that if a sstable has more than this ratio of gcable tombstones over all contained columns, the sstable will be compacted (with no other sstables) for the purpose of purging those tombstones.                                                                                                                           |
-+--------------------------------------+---------------------------------+----------------+----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------+
-| ``tombstone_compaction_interval``    | *all*                           | 1 day          | The minimum time to wait after an sstable creation time before considering it for “tombstone compaction”, where “tombstone compaction” is the compaction triggered if the sstable has more gcable tombstones than ``tombstone_threshold``.                                                                                             |
-+--------------------------------------+---------------------------------+----------------+----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------+
-| ``unchecked_tombstone_compaction``   | *all*                           | false          | Setting this to true enables more aggressive tombstone compactions - single sstable tombstone compactions will run without checking how likely it is that they will be successful.                                                                                                                                                     |
-+--------------------------------------+---------------------------------+----------------+----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------+
-| ``min_sstable_size``                 | SizeTieredCompactionStrategy    | 50MB           | The size tiered strategy groups SSTables to compact in buckets. A bucket groups SSTables that differs from less than 50% in size. However, for small sizes, this would result in a bucketing that is too fine grained. ``min_sstable_size`` defines a size threshold (in bytes) below which all SSTables belong to one unique bucket   |
-+--------------------------------------+---------------------------------+----------------+----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------+
-| ``min_threshold``                    | SizeTieredCompactionStrategy    | 4              | Minimum number of SSTables needed to start a minor compaction.                                                                                                                                                                                                                                                                         |
-+--------------------------------------+---------------------------------+----------------+----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------+
-| ``max_threshold``                    | SizeTieredCompactionStrategy    | 32             | Maximum number of SSTables processed by one minor compaction.                                                                                                                                                                                                                                                                          |
-+--------------------------------------+---------------------------------+----------------+----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------+
-| ``bucket_low``                       | SizeTieredCompactionStrategy    | 0.5            | Size tiered consider sstables to be within the same bucket if their size is within [average\_size \* ``bucket_low``, average\_size \* ``bucket_high`` ] (i.e the default groups sstable whose sizes diverges by at most 50%)                                                                                                           |
-+--------------------------------------+---------------------------------+----------------+----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------+
-| ``bucket_high``                      | SizeTieredCompactionStrategy    | 1.5            | Size tiered consider sstables to be within the same bucket if their size is within [average\_size \* ``bucket_low``, average\_size \* ``bucket_high`` ] (i.e the default groups sstable whose sizes diverges by at most 50%).                                                                                                          |
-+--------------------------------------+---------------------------------+----------------+----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------+
-| ``sstable_size_in_mb``               | LeveledCompactionStrategy       | 5MB            | The target size (in MB) for sstables in the leveled strategy. Note that while sstable sizes should stay less or equal to ``sstable_size_in_mb``, it is possible to exceptionally have a larger sstable as during compaction, data for a given partition key are never split into 2 sstables                                            |
-+--------------------------------------+---------------------------------+----------------+----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------+
-| ``timestamp_resolution``             | DateTieredCompactionStrategy    | MICROSECONDS   | The timestamp resolution used when inserting data, could be MILLISECONDS, MICROSECONDS etc (should be understandable by Java TimeUnit) - don’t change this unless you do mutations with USING TIMESTAMP (or equivalent directly in the client)                                                                                         |
-+--------------------------------------+---------------------------------+----------------+----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------+
-| ``base_time_seconds``                | DateTieredCompactionStrategy    | 60             | The base size of the time windows.                                                                                                                                                                                                                                                                                                     |
-+--------------------------------------+---------------------------------+----------------+----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------+
-| ``max_sstable_age_days``             | DateTieredCompactionStrategy    | 365            | SSTables only containing data that is older than this will never be compacted.                                                                                                                                                                                                                                                         |
-+--------------------------------------+---------------------------------+----------------+----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------+
-| ``timestamp_resolution``             | TimeWindowCompactionStrategy    | MICROSECONDS   | The timestamp resolution used when inserting data, could be MILLISECONDS, MICROSECONDS etc (should be understandable by Java TimeUnit) - don’t change this unless you do mutations with USING TIMESTAMP (or equivalent directly in the client)                                                                                         |
-+--------------------------------------+---------------------------------+----------------+----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------+
-| ``compaction_window_unit``           | TimeWindowCompactionStrategy    | DAYS           | The Java TimeUnit used for the window size, set in conjunction with ``compaction_window_size``. Must be one of DAYS, HOURS, MINUTES                                                                                                                                                                                                    |
-+--------------------------------------+---------------------------------+----------------+----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------+
-| ``compaction_window_size``           | TimeWindowCompactionStrategy    | 1              | The number of ``compaction_window_unit`` units that make up a time window.                                                                                                                                                                                                                                                             |
-+--------------------------------------+---------------------------------+----------------+----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------+
+All default strategies support a number of :ref:`common options <compaction-options>`, as well as options specific to
+the strategy chosen (see the section corresponding to your strategy for details: :ref:`STCS <stcs-options>`, :ref:`LCS
+<lcs-options>` and :ref:`TWCS <TWCS>`).
+
+.. _cql-compression-options:
 
 Compression options
 ###################
 
-For the ``compression`` property, the following sub-options are
+The ``compression`` options define if and how the sstables of the table are compressed. The following sub-options are
 available:
 
-+------------------------+-----------------+-----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------+
-| option                 | default         | description                                                                                                                                                                                                                                                                                                                                                                                                           |
-+========================+=================+=======================================================================================================================================================================================================================================================================================================================================================================================================================+
-| ``class``              | LZ4Compressor   | The compression algorithm to use. Default compressor are: LZ4Compressor, SnappyCompressor and DeflateCompressor. Use ``'enabled' : false`` to disable compression. Custom compressor can be provided by specifying the full class name as a “string constant”:#constants.                                                                                                                                             |
-+------------------------+-----------------+-----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------+
-| ``enabled``            | true            | By default compression is enabled. To disable it, set ``enabled`` to ``false``                                                                                                                                                                                                                                                                                                                                        |
-+------------------------+-----------------+-----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------+
-|`` chunk_length_in_kb``  | 64KB            | On disk SSTables are compressed by block (to allow random reads). This defines the size (in KB) of said block. Bigger values may improve the compression rate, but increases the minimum size of data to be read from disk for a read                                                                                                                                                                                 |
-+------------------------+-----------------+-----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------+
-| ``crc_check_chance``   | 1.0             | When compression is enabled, each compressed block includes a checksum of that block for the purpose of detecting disk bitrot and avoiding the propagation of corruption to other replica. This option defines the probability with which those checksums are checked during read. By default they are always checked. Set to 0 to disable checksum checking and to 0.5 for instance to check them every other read   |
-+------------------------+-----------------+-----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------+
+========================= =============== =============================================================================
+ Option                    Default         Description
+========================= =============== =============================================================================
+ ``class``                 LZ4Compressor   The compression algorithm to use. Default compressor are: LZ4Compressor,
+                                           SnappyCompressor and DeflateCompressor. Use ``'enabled' : false`` to disable
+                                           compression. Custom compressor can be provided by specifying the full class
+                                           name as a “string constant”:#constants.
+ ``enabled``               true            Enable/disable sstable compression.
+ ``chunk_length_in_kb``    64KB            On disk SSTables are compressed by block (to allow random reads). This
+                                           defines the size (in KB) of said block. Bigger values may improve the
+                                           compression rate, but increases the minimum size of data to be read from disk
+                                           for a read
+ ``crc_check_chance``      1.0             When compression is enabled, each compressed block includes a checksum of
+                                           that block for the purpose of detecting disk bitrot and avoiding the
+                                           propagation of corruption to other replica. This option defines the
+                                           probability with which those checksums are checked during read. By default
+                                           they are always checked. Set to 0 to disable checksum checking and to 0.5 for
+                                           instance to check them every other read   |
+========================= =============== =============================================================================
+
+.. _cql-caching-options:
 
 Caching options
 ###############
 
-For the ``caching`` property, the following sub-options are available:
+The ``caching`` options allows to configure both the *key cache* and the *row cache* for the table. The following
+sub-options are available:
 
-+--------------------------+-----------+----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------+
-| option                   | default   | description                                                                                                                                                                                                                                                                |
-+==========================+===========+============================================================================================================================================================================================================================================================================+
-| ``keys``                 | ALL       | Whether to cache keys (“key cache”) for this table. Valid values are: ``ALL`` and ``NONE``.                                                                                                                                                                                |
-+--------------------------+-----------+----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------+
-| ``rows_per_partition``   | NONE      | The amount of rows to cache per partition (“row cache”). If an integer ``n`` is specified, the first ``n`` queried rows of a partition will be cached. Other possible options are ``ALL``, to cache all rows of a queried partition, or ``NONE`` to disable row caching.   |
-+--------------------------+-----------+----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------+
+======================== ========= ====================================================================================
+ Option                   Default   Description
+======================== ========= ====================================================================================
+ ``keys``                 ALL       Whether to cache keys (“key cache”) for this table. Valid values are: ``ALL`` and
+                                    ``NONE``.
+ ``rows_per_partition``   NONE      The amount of rows to cache per partition (“row cache”). If an integer ``n`` is
+                                    specified, the first ``n`` queried rows of a partition will be cached. Other
+                                    possible options are ``ALL``, to cache all rows of a queried partition, or ``NONE``
+                                    to disable row caching.
+======================== ========= ====================================================================================
 
 Other considerations:
 #####################
 
--  When `inserting <#insertStmt>`__ / `updating <#updateStmt>`__ a given
-   row, not all columns needs to be defined (except for those part of
-   the key), and missing columns occupy no space on disk. Furthermore,
-   adding new columns (see \ ``ALTER TABLE``\ ) is a constant time
-   operation. There is thus no need to try to anticipate future usage
-   (or to cry when you haven’t) when creating a table.
+- Adding new columns (see ``ALTER TABLE`` below) is a constant time operation. There is thus no need to try to
+  anticipate future usage when creating a table.
+
+.. _alter-table-statement:
 
 ALTER TABLE
 ^^^^^^^^^^^
@@ -575,7 +566,7 @@ For instance::
     ALTER TABLE addamsFamily ADD gravesite varchar;
 
     ALTER TABLE addamsFamily
-           WITH comment = ‘A most excellent and useful table’
+           WITH comment = 'A most excellent and useful table'
            AND read_repair_chance = 0.2;
 
 The ``ALTER TABLE`` statement can:
@@ -587,10 +578,12 @@ The ``ALTER TABLE`` statement can:
   compatibility table <alter-table-type-compatibility>` below for detail on which type changes are accepted.
 - Add new column(s) to the table (through the ``ADD`` instruction). Note that the primary key of a table cannot be
   changed and thus newly added column will, by extension, never be part of the primary key. Also note that :ref:`compact
-  tables <compact-tables>` have restrictions regarding column addition.
+  tables <compact-tables>` have restrictions regarding column addition. Note that this is constant (in the amount of
+  data the cluster contains) time operation.
 - Remove column(s) from the table. This drops both the column and all its content, but note that while the column
   becomes immediately unavailable, its content is only removed lazily during compaction. Please also see the warnings
-  below.
+  below. Due to lazy removal, the altering itself is a constant (in the amount of data removed or contained in the
+  cluster) time operation.
 - Change some of the table options (through the ``WITH`` instruction). The :ref:`supported options
   <create-table-options>` are the same that when creating a table (outside of ``COMPACT STORAGE`` and ``CLUSTERING
   ORDER`` that cannot be changed after creation). Note that setting any ``compaction`` sub-options has the effect of
@@ -603,7 +596,7 @@ The ``ALTER TABLE`` statement can:
    convention. Please be aware that if you do so, dropping a column will not work correctly.
 
 .. warning:: Once a column is dropped, it is allowed to re-add a column with the same name than the dropped one
-   **unless* the type of the dropped column was a (non-frozen) column (due to an internal technical limitation).
+   **unless** the type of the dropped column was a (non-frozen) column (due to an internal technical limitation).
 
 .. _alter-table-type-compatibility:
 
@@ -648,35 +641,32 @@ Clustering columns have stricter requirements, only the following conversions ar
 | ascii, text            | varchar           |
 +------------------------+-------------------+
 
+.. _drop-table-statement:
+
 DROP TABLE
 ^^^^^^^^^^
 
-*Syntax:*
+Dropping a table uses the ``DROP TABLE`` statement:
 
-bc(syntax). ::= DROP TABLE ( IF EXISTS )?
+.. productionlist::
+   drop_table_statement: DROP TABLE [ IF EXISTS ] `table_name`
 
-*Sample:*
+Dropping a table results in the immediate, irreversible removal of the table, including all data it contains.
 
-bc(sample). DROP TABLE worldSeriesAttendees;
+If the table does not exist, the statement will return an error, unless ``IF EXISTS`` is used in which case the
+operation is a no-op.
 
-The ``DROP TABLE`` statement results in the immediate, irreversible
-removal of a table, including all data contained in it. As for table
-creation, ``DROP COLUMNFAMILY`` is allowed as an alias for
-``DROP TABLE``.
-
-If the table does not exist, the statement will return an error, unless
-``IF EXISTS`` is used in which case the operation is a no-op.
+.. _truncate-statement:
 
 TRUNCATE
 ^^^^^^^^
 
-*Syntax:*
+A table can be truncated using the ``TRUNCATE`` statement:
 
-bc(syntax). ::= TRUNCATE ( TABLE \| COLUMNFAMILY )?
+.. productionlist::
+   truncate_statement: TRUNCATE [ TABLE ] `table_name`
 
-*Sample:*
+Note that ``TRUNCATE TABLE foo`` is allowed for consistency with other DDL statements but tables are the only object
+that can be truncated currently and so the ``TABLE`` keyword can be omitted.
 
-bc(sample). TRUNCATE superImportantData;
-
-The ``TRUNCATE`` statement permanently removes all data from a table.
-
+Truncating a table permanently removes all existing data from the table, but without removing the table itself.

@@ -16,6 +16,8 @@
 
 .. highlight:: sql
 
+.. _UUID: https://en.wikipedia.org/wiki/Universally_unique_identifier
+
 .. _data-types:
 
 Data Types
@@ -279,7 +281,7 @@ A ``set`` is a (sorted) collection of unique values. You can define and insert a
                 VALUES ('cat.jpg', 'jsmith', { 'pet', 'cute' });
 
     // Replace the existing set entirely
-    UPDATE images SET tags = { 'kitten', 'cat’, 'lol' } WHERE id = 'jsmith';
+    UPDATE images SET tags = { 'kitten', 'cat', 'lol' } WHERE id = 'jsmith';
 
 Further, sets support:
 
@@ -450,7 +452,7 @@ An existing user-defined type can be modified using an ``ALTER TYPE`` statement:
 You can:
 
 - modify the type of particular field (``ALTER TYPE address ALTER zip TYPE bigint``). The restrictions for such change
-  are the same than when :ref:`altering the type of column <alter-table>`.
+  are the same than when :ref:`altering the type of column <alter-table-statement>`.
 - add a new field to the type (``ALTER TYPE address ADD country text``). That new field will be ``null`` for any values
   of the type created before the addition.
 - rename the fields of the type (``ALTER TYPE address RENAME zip TO zipcode``).

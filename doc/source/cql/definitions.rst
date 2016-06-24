@@ -14,6 +14,8 @@
 .. See the License for the specific language governing permissions and
 .. limitations under the License.
 
+.. _UUID: https://en.wikipedia.org/wiki/Universally_unique_identifier
+
 Definitions
 -----------
 
@@ -126,8 +128,8 @@ A term is thus one of:
 - A :ref:`constant <constants>`.
 - A literal for either :ref:`a collection <collections>`, :ref:`a user-defined type <udts>` or :ref:`a tuple <tuples>`
   (see the linked sections for details).
-- A function call: see :ref:`the section on functions <functions>` for details on which :ref:`native function
-  <native-functions>` exists and how to define your own :ref:`user-defined ones <user-defined-functions>`.
+- A function call: see :ref:`the section on functions <cql-functions>` for details on which :ref:`native function
+  <native-functions>` exists and how to define your own :ref:`user-defined ones <udfs>`.
 - A *type hint*: see the :ref:`related section <type-hints>` for details.
 - A bind marker, which denotes a variable to be bound at execution time. See the section on :ref:`prepared-statements`
   for details. A bind marker can be either anonymous (``?``) or named (``:some_name``). The latter form provides a more
@@ -155,11 +157,13 @@ CQL consists of statements that can be divided in the following categories:
 
 - :ref:`data-definition` statements, to define and change how the data is stored (keyspaces and tables).
 - :ref:`data-manipulation` statements, for selecting, inserting and deleting data.
-- :ref:`index-and-views` statements.
-- :ref:`roles-and-permissions` statements.
-- :ref:`udfs` statements.
+- :ref:`secondary-indexes` statements.
+- :ref:`materialized-views` statements.
+- :ref:`cql-roles` statements.
+- :ref:`cql-permissions` statements.
+- :ref:`User-Defined Functions <udfs>` statements.
 - :ref:`udts` statements.
-- :ref:`triggers` statements.
+- :ref:`cql-triggers` statements.
 
 All the statements are listed below and are described in the rest of this documentation (see links above):
 
@@ -167,7 +171,8 @@ All the statements are listed below and are described in the rest of this docume
    cql_statement: `statement` [ ';' ]
    statement: `ddl_statement`
             : | `dml_statement`
-            : | `index_or_view_statement`
+            : | `secondary_index_statement`
+            : | `materialized_view_statement`
             : | `role_or_permission_statement`
             : | `udf_statement`
             : | `udt_statement`
@@ -185,10 +190,10 @@ All the statements are listed below and are described in the rest of this docume
                  : | `update_statement`
                  : | `delete_statement`
                  : | `batch_statement`
-    index_or_view_statement: `create_index_statement`
-                           : | `drop_index_statement`
-                           : | `create_materialized_view_statement`
-                           : | `drop_materialized_view_statement`
+    secondary_index_statement: `create_index_statement`
+                             : | `drop_index_statement`
+    materialized_view_statement: `create_materialized_view_statement`
+                               : | `drop_materialized_view_statement`
     role_or_permission_statement: `create_role_statement`
                                 : | `alter_role_statement`
                                 : | `drop_role_statement`

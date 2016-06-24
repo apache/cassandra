@@ -21,53 +21,47 @@
 Security
 --------
 
-.. _roles:
+.. _cql-roles:
 
 Database Roles
 ^^^^^^^^^^^^^^
 
+.. _create-role-statement:
+
 CREATE ROLE
 ~~~~~~~~~~~
 
-*Syntax:*
+Creating a role uses the ``CREATE ROLE`` statement:
 
-| bc(syntax)..
-|  ::= CREATE ROLE ( IF NOT EXISTS )? ( WITH ( AND )\* )?
+.. productionlist::
+   create_role_statement: CREATE ROLE [ IF NOT EXISTS ] `role_name`
+                        :     [ WITH `role_options` ]
+   role_options: `role_option` ( AND `role_option` )*
+   role_option: PASSWORD '=' `string`
+              :| LOGIN '=' `boolean`
+              :| SUPERUSER '=' `boolean`
+              :| OPTIONS '=' `map_literal`
 
-|  ::= PASSWORD = 
-|  \| LOGIN = 
-|  \| SUPERUSER = 
-|  \| OPTIONS = 
-| p.
+For instance::
 
-*Sample:*
+    CREATE ROLE new_role;
+    CREATE ROLE alice WITH PASSWORD = 'password_a' AND LOGIN = true;
+    CREATE ROLE bob WITH PASSWORD = 'password_b' AND LOGIN = true AND SUPERUSER = true;
+    CREATE ROLE carlos WITH OPTIONS = { 'custom_option1' : 'option1_value', 'custom_option2' : 99 };
 
-| bc(sample).
-| CREATE ROLE new\_role;
-| CREATE ROLE alice WITH PASSWORD = ‘password\_a’ AND LOGIN = true;
-| CREATE ROLE bob WITH PASSWORD = ‘password\_b’ AND LOGIN = true AND
-  SUPERUSER = true;
-| CREATE ROLE carlos WITH OPTIONS = { ‘custom\_option1’ :
-  ‘option1\_value’, ‘custom\_option2’ : 99 };
+By default roles do not possess ``LOGIN`` privileges or ``SUPERUSER`` status.
 
-By default roles do not possess ``LOGIN`` privileges or ``SUPERUSER``
-status.
+:ref:`Permissions <cql-permissions>` on database resources are granted to roles; types of resources include keyspaces,
+tables, functions and roles themselves. Roles may be granted to other roles to create hierarchical permissions
+structures; in these hierarchies, permissions and ``SUPERUSER`` status are inherited, but the ``LOGIN`` privilege is
+not.
 
-`Permissions <#permissions>`__ on database resources are granted to
-roles; types of resources include keyspaces, tables, functions and roles
-themselves. Roles may be granted to other roles to create hierarchical
-permissions structures; in these hierarchies, permissions and
-``SUPERUSER`` status are inherited, but the ``LOGIN`` privilege is not.
+If a role has the ``LOGIN`` privilege, clients may identify as that role when connecting. For the duration of that
+connection, the client will acquire any roles and privileges granted to that role.
 
-If a role has the ``LOGIN`` privilege, clients may identify as that role
-when connecting. For the duration of that connection, the client will
-acquire any roles and privileges granted to that role.
-
-Only a client with with the ``CREATE`` permission on the database roles
-resource may issue ``CREATE ROLE`` requests (see the `relevant
-section <#permissions>`__ below), unless the client is a ``SUPERUSER``.
-Role management in Cassandra is pluggable and custom implementations may
-support only a subset of the listed options.
+Only a client with with the ``CREATE`` permission on the database roles resource may issue ``CREATE ROLE`` requests (see
+the :ref:`relevant section <cql-permissions>` below), unless the client is a ``SUPERUSER``. Role management in Cassandra
+is pluggable and custom implementations may support only a subset of the listed options.
 
 Role names should be quoted if they contain non-alphanumeric characters.
 
@@ -76,562 +70,428 @@ Role names should be quoted if they contain non-alphanumeric characters.
 Setting credentials for internal authentication
 ```````````````````````````````````````````````
 
-| Use the ``WITH PASSWORD`` clause to set a password for internal
-  authentication, enclosing the password in single quotation marks.
-| If internal authentication has not been set up or the role does not
-  have ``LOGIN`` privileges, the ``WITH PASSWORD`` clause is not
-  necessary.
+Use the ``WITH PASSWORD`` clause to set a password for internal authentication, enclosing the password in single
+quotation marks.
+
+If internal authentication has not been set up or the role does not have ``LOGIN`` privileges, the ``WITH PASSWORD``
+clause is not necessary.
 
 Creating a role conditionally
 `````````````````````````````
 
-Attempting to create an existing role results in an invalid query
-condition unless the ``IF NOT EXISTS`` option is used. If the option is
-used and the role exists, the statement is a no-op.
+Attempting to create an existing role results in an invalid query condition unless the ``IF NOT EXISTS`` option is used.
+If the option is used and the role exists, the statement is a no-op::
 
-| bc(sample).
-| CREATE ROLE other\_role;
-| CREATE ROLE IF NOT EXISTS other\_role;
+    CREATE ROLE other_role;
+    CREATE ROLE IF NOT EXISTS other_role;
+
+
+.. _alter-role-statement:
 
 ALTER ROLE
 ~~~~~~~~~~
 
-*Syntax:*
+Altering a role options uses the ``ALTER ROLE`` statement:
 
-| bc(syntax)..
-|  ::= ALTER ROLE ( WITH ( AND )\* )?
+.. productionlist::
+   alter_role_statement: ALTER ROLE `role_name` WITH `role_options`
 
-|  ::= PASSWORD = 
-|  \| LOGIN = 
-|  \| SUPERUSER = 
-|  \| OPTIONS = 
-| p.
+For instance::
 
-*Sample:*
-
-| bc(sample).
-| ALTER ROLE bob WITH PASSWORD = ‘PASSWORD\_B’ AND SUPERUSER = false;
+    ALTER ROLE bob WITH PASSWORD = 'PASSWORD_B' AND SUPERUSER = false;
 
 Conditions on executing ``ALTER ROLE`` statements:
 
--  A client must have ``SUPERUSER`` status to alter the ``SUPERUSER``
-   status of another role
--  A client cannot alter the ``SUPERUSER`` status of any role it
-   currently holds
--  A client can only modify certain properties of the role with which it
-   identified at login (e.g. ``PASSWORD``)
--  To modify properties of a role, the client must be granted ``ALTER``
-   `permission <#permissions>`__ on that role
+-  A client must have ``SUPERUSER`` status to alter the ``SUPERUSER`` status of another role
+-  A client cannot alter the ``SUPERUSER`` status of any role it currently holds
+-  A client can only modify certain properties of the role with which it identified at login (e.g. ``PASSWORD``)
+-  To modify properties of a role, the client must be granted ``ALTER`` :ref:`permission <cql-permissions>` on that role
+
+.. _drop-role-statement:
 
 DROP ROLE
 ~~~~~~~~~
 
-*Syntax:*
+Dropping a role uses the ``DROP ROLE`` statement:
 
-| bc(syntax)..
-|  ::= DROP ROLE ( IF EXISTS )? 
-| p.
+.. productionlist::
+   drop_role_statement: DROP ROLE [ IF EXISTS ] `role_name`
 
-*Sample:*
+``DROP ROLE`` requires the client to have ``DROP`` :ref:`permission <cql-permissions>` on the role in question. In
+addition, client may not ``DROP`` the role with which it identified at login. Finally, only a client with ``SUPERUSER``
+status may ``DROP`` another ``SUPERUSER`` role.
 
-| bc(sample).
-| DROP ROLE alice;
-| DROP ROLE IF EXISTS bob;
+Attempting to drop a role which does not exist results in an invalid query condition unless the ``IF EXISTS`` option is
+used. If the option is used and the role does not exist the statement is a no-op.
 
-| ``DROP ROLE`` requires the client to have ``DROP``
-  `permission <#permissions>`__ on the role in question. In addition,
-  client may not ``DROP`` the role with which it identified at login.
-  Finaly, only a client with ``SUPERUSER`` status may ``DROP`` another
-  ``SUPERUSER`` role.
-| Attempting to drop a role which does not exist results in an invalid
-  query condition unless the ``IF EXISTS`` option is used. If the option
-  is used and the role does not exist the statement is a no-op.
+.. _grant-role-statement:
 
 GRANT ROLE
 ~~~~~~~~~~
 
-*Syntax:*
+Granting a role to another uses the ``GRANT ROLE`` statement:
 
-| bc(syntax).
-|  ::= GRANT TO 
+.. productionlist::
+   grant_role_statement: GRANT `role_name` TO `role_name`
 
-*Sample:*
+For instance::
 
-| bc(sample).
-| GRANT report\_writer TO alice;
+    GRANT report_writer TO alice;
 
-| This statement grants the ``report_writer`` role to ``alice``. Any
-  permissions granted to ``report_writer`` are also acquired by
-  ``alice``.
-| Roles are modelled as a directed acyclic graph, so circular grants are
-  not permitted. The following examples result in error conditions:
+This statement grants the ``report_writer`` role to ``alice``. Any permissions granted to ``report_writer`` are also
+acquired by ``alice``.
 
-| bc(sample).
-| GRANT role\_a TO role\_b;
-| GRANT role\_b TO role\_a;
+Roles are modelled as a directed acyclic graph, so circular grants are not permitted. The following examples result in
+error conditions::
 
-| bc(sample).
-| GRANT role\_a TO role\_b;
-| GRANT role\_b TO role\_c;
-| GRANT role\_c TO role\_a;
+    GRANT role_a TO role_b;
+    GRANT role_b TO role_a;
+
+    GRANT role_a TO role_b;
+    GRANT role_b TO role_c;
+    GRANT role_c TO role_a;
+
+.. _revoke-role-statement:
 
 REVOKE ROLE
 ~~~~~~~~~~~
 
-*Syntax:*
+Revoking a role uses the ``REVOKE ROLE`` statement:
 
-| bc(syntax).
-|  ::= REVOKE FROM 
+.. productionlist::
+   revoke_role_statement: REVOKE `role_name` FROM `role_name`
 
-*Sample:*
+For instance::
 
-| bc(sample).
-| REVOKE report\_writer FROM alice;
+    REVOKE report_writer FROM alice;
 
-This statement revokes the ``report_writer`` role from ``alice``. Any
-permissions that ``alice`` has acquired via the ``report_writer`` role
-are also revoked.
+This statement revokes the ``report_writer`` role from ``alice``. Any permissions that ``alice`` has acquired via the
+``report_writer`` role are also revoked.
+
+.. _list-roles-statement:
 
 LIST ROLES
 ~~~~~~~~~~
 
-*Syntax:*
+All the known roles (in the system or granted to specific role) can be listed using the ``LIST ROLES`` statement:
 
-| bc(syntax).
-|  ::= LIST ROLES ( OF )? ( NORECURSIVE )?
+.. productionlist::
+   list_roles_statement: LIST ROLES [ OF `role_name` ] [ NORECURSIVE ]
 
-*Sample:*
+For instance::
 
-| bc(sample).
-| LIST ROLES;
+    LIST ROLES;
 
-Return all known roles in the system, this requires ``DESCRIBE``
-permission on the database roles resource.
+returns all known roles in the system, this requires ``DESCRIBE`` permission on the database roles resource. And::
 
-| bc(sample).
-| LIST ROLES OF ``alice``;
+    LIST ROLES OF alice;
 
-Enumerate all roles granted to ``alice``, including those transitively
-aquired.
+enumerates all roles granted to ``alice``, including those transitively acquired. But::
 
-| bc(sample).
-| LIST ROLES OF ``bob`` NORECURSIVE
+    LIST ROLES OF bob NORECURSIVE
 
-List all roles directly granted to ``bob``.
+lists all roles directly granted to ``bob`` without including any of the transitively acquired ones.
+
+Users
+^^^^^
+
+Prior to the introduction of roles in Cassandra 2.2, authentication and authorization were based around the concept of a
+``USER``. For backward compatibility, the legacy syntax has been preserved with ``USER`` centric statements becoming
+synonyms for the ``ROLE`` based equivalents. In other words, creating/updating a user is just a different syntax for
+creating/updating a role.
+
+.. _create-user-statement:
 
 CREATE USER
 ~~~~~~~~~~~
 
-Prior to the introduction of roles in Cassandra 2.2, authentication and
-authorization were based around the concept of a ``USER``. For backward
-compatibility, the legacy syntax has been preserved with ``USER``
-centric statments becoming synonyms for the ``ROLE`` based equivalents.
+Creating a user uses the ``CREATE USER`` statement:
 
-*Syntax:*
+.. productionlist::
+   create_user_statement: CREATE USER [ IF NOT EXISTS ] `role_name` [ WITH PASSWORD `string` ] [ `user_option` ]
+   user_option: SUPERUSER | NOSUPERUSER
 
-| bc(syntax)..
-|  ::= CREATE USER ( IF NOT EXISTS )? ( WITH PASSWORD )? ()?
+For instance::
 
-|  ::= SUPERUSER
-|  \| NOSUPERUSER
-| p.
+    CREATE USER alice WITH PASSWORD 'password_a' SUPERUSER;
+    CREATE USER bob WITH PASSWORD 'password_b' NOSUPERUSER;
 
-*Sample:*
+``CREATE USER`` is equivalent to ``CREATE ROLE`` where the ``LOGIN`` option is ``true``. So, the following pairs of
+statements are equivalent::
 
-| bc(sample).
-| CREATE USER alice WITH PASSWORD ‘password\_a’ SUPERUSER;
-| CREATE USER bob WITH PASSWORD ‘password\_b’ NOSUPERUSER;
+    CREATE USER alice WITH PASSWORD 'password_a' SUPERUSER;
+    CREATE ROLE alice WITH PASSWORD = 'password_a' AND LOGIN = true AND SUPERUSER = true;
 
-``CREATE USER`` is equivalent to ``CREATE ROLE`` where the ``LOGIN``
-option is ``true``. So, the following pairs of statements are
-equivalent:
+    CREATE USER IF EXISTS alice WITH PASSWORD 'password_a' SUPERUSER;
+    CREATE ROLE IF EXISTS alice WITH PASSWORD = 'password_a' AND LOGIN = true AND SUPERUSER = true;
 
-| bc(sample)..
-| CREATE USER alice WITH PASSWORD ‘password\_a’ SUPERUSER;
-| CREATE ROLE alice WITH PASSWORD = ‘password\_a’ AND LOGIN = true AND
-  SUPERUSER = true;
+    CREATE USER alice WITH PASSWORD 'password_a' NOSUPERUSER;
+    CREATE ROLE alice WITH PASSWORD = 'password_a' AND LOGIN = true AND SUPERUSER = false;
 
-| CREATE USER IF EXISTS alice WITH PASSWORD ‘password\_a’ SUPERUSER;
-| CREATE ROLE IF EXISTS alice WITH PASSWORD = ‘password\_a’ AND LOGIN =
-  true AND SUPERUSER = true;
+    CREATE USER alice WITH PASSWORD 'password_a' NOSUPERUSER;
+    CREATE ROLE alice WITH PASSWORD = 'password_a' WITH LOGIN = true;
 
-| CREATE USER alice WITH PASSWORD ‘password\_a’ NOSUPERUSER;
-| CREATE ROLE alice WITH PASSWORD = ‘password\_a’ AND LOGIN = true AND
-  SUPERUSER = false;
+    CREATE USER alice WITH PASSWORD 'password_a';
+    CREATE ROLE alice WITH PASSWORD = 'password_a' WITH LOGIN = true;
 
-| CREATE USER alice WITH PASSWORD ‘password\_a’ NOSUPERUSER;
-| CREATE ROLE alice WITH PASSWORD = ‘password\_a’ WITH LOGIN = true;
-
-| CREATE USER alice WITH PASSWORD ‘password\_a’;
-| CREATE ROLE alice WITH PASSWORD = ‘password\_a’ WITH LOGIN = true;
-| p.
+.. _alter-user-statement:
 
 ALTER USER
 ~~~~~~~~~~
 
-*Syntax:*
+Altering the options of a user uses the ``ALTER USER`` statement:
 
-| bc(syntax)..
-|  ::= ALTER USER ( WITH PASSWORD )? ( )?
+.. productionlist::
+   alter_user_statement: ALTER USER `role_name` [ WITH PASSWORD `string` ] [ `user_option` ]
 
-|  ::= SUPERUSER
-|  \| NOSUPERUSER
-| p.
+For instance::
 
-| bc(sample).
-| ALTER USER alice WITH PASSWORD ‘PASSWORD\_A’;
-| ALTER USER bob SUPERUSER;
+    ALTER USER alice WITH PASSWORD 'PASSWORD_A';
+    ALTER USER bob SUPERUSER;
+
+.. _drop-user-statement:
 
 DROP USER
 ~~~~~~~~~
 
-*Syntax:*
+Dropping a user uses the ``DROP USER`` statement:
 
-| bc(syntax)..
-|  ::= DROP USER ( IF EXISTS )? 
-| p.
+.. productionlist::
+   drop_user_statement: DROP USER [ IF EXISTS ] `role_name`
 
-*Sample:*
-
-| bc(sample).
-| DROP USER alice;
-| DROP USER IF EXISTS bob;
+.. _list-users-statement:
 
 LIST USERS
 ~~~~~~~~~~
 
-*Syntax:*
+Existing users can be listed using the ``LIST USERS`` statement:
 
-| bc(syntax).
-|  ::= LIST USERS;
+.. productionlist::
+   list_users_statement: LIST USERS
 
-*Sample:*
+Note that this statement is equivalent to::
 
-| bc(sample).
-| LIST USERS;
-
-This statement is equivalent to
-
-| bc(sample).
-| LIST ROLES;
+    LIST ROLES;
 
 but only roles with the ``LOGIN`` privilege are included in the output.
 
 Data Control
 ^^^^^^^^^^^^
 
-.. _permissions:
+.. _cql-permissions:
 
 Permissions
 ~~~~~~~~~~~
 
-Permissions on resources are granted to roles; there are several
-different types of resources in Cassandra and each type is modelled
-hierarchically:
+Permissions on resources are granted to roles; there are several different types of resources in Cassandra and each type
+is modelled hierarchically:
 
--  The hierarchy of Data resources, Keyspaces and Tables has the
-   structure ``ALL KEYSPACES`` [STRIKEOUT:> ``KEYSPACE``]> ``TABLE``
--  Function resources have the structure ``ALL FUNCTIONS`` [STRIKEOUT:>
-   ``KEYSPACE``]> ``FUNCTION``
--  Resources representing roles have the structure ``ALL ROLES`` ->
-   ``ROLE``
--  Resources representing JMX ObjectNames, which map to sets of
-   MBeans/MXBeans, have the structure ``ALL MBEANS`` -> ``MBEAN``
+- The hierarchy of Data resources, Keyspaces and Tables has the structure ``ALL KEYSPACES`` -> ``KEYSPACE`` ->
+  ``TABLE``.
+- Function resources have the structure ``ALL FUNCTIONS`` -> ``KEYSPACE`` -> ``FUNCTION``
+- Resources representing roles have the structure ``ALL ROLES`` -> ``ROLE``
+- Resources representing JMX ObjectNames, which map to sets of MBeans/MXBeans, have the structure ``ALL MBEANS`` ->
+  ``MBEAN``
 
-Permissions can be granted at any level of these hierarchies and they
-flow downwards. So granting a permission on a resource higher up the
-chain automatically grants that same permission on all resources lower
-down. For example, granting ``SELECT`` on a ``KEYSPACE`` automatically
-grants it on all ``TABLES`` in that ``KEYSPACE``. Likewise, granting a
-permission on ``ALL FUNCTIONS`` grants it on every defined function,
-regardless of which keyspace it is scoped in. It is also possible to
-grant permissions on all functions scoped to a particular keyspace.
+Permissions can be granted at any level of these hierarchies and they flow downwards. So granting a permission on a
+resource higher up the chain automatically grants that same permission on all resources lower down. For example,
+granting ``SELECT`` on a ``KEYSPACE`` automatically grants it on all ``TABLES`` in that ``KEYSPACE``. Likewise, granting
+a permission on ``ALL FUNCTIONS`` grants it on every defined function, regardless of which keyspace it is scoped in. It
+is also possible to grant permissions on all functions scoped to a particular keyspace.
 
-Modifications to permissions are visible to existing client sessions;
-that is, connections need not be re-established following permissions
-changes.
+Modifications to permissions are visible to existing client sessions; that is, connections need not be re-established
+following permissions changes.
 
 The full set of available permissions is:
 
--  ``CREATE``
--  ``ALTER``
--  ``DROP``
--  ``SELECT``
--  ``MODIFY``
--  ``AUTHORIZE``
--  ``DESCRIBE``
--  ``EXECUTE``
+- ``CREATE``
+- ``ALTER``
+- ``DROP``
+- ``SELECT``
+- ``MODIFY``
+- ``AUTHORIZE``
+- ``DESCRIBE``
+- ``EXECUTE``
 
-Not all permissions are applicable to every type of resource. For
-instance, ``EXECUTE`` is only relevant in the context of functions or
-mbeans; granting ``EXECUTE`` on a resource representing a table is
-nonsensical. Attempting to ``GRANT`` a permission on resource to which
-it cannot be applied results in an error response. The following
-illustrates which permissions can be granted on which types of resource,
-and which statements are enabled by that permission.
+Not all permissions are applicable to every type of resource. For instance, ``EXECUTE`` is only relevant in the context
+of functions or mbeans; granting ``EXECUTE`` on a resource representing a table is nonsensical. Attempting to ``GRANT``
+a permission on resource to which it cannot be applied results in an error response. The following illustrates which
+permissions can be granted on which types of resource, and which statements are enabled by that permission.
 
-+-----------------+---------------------------------+----------------------------------------------------------------------------------------------------------------------------------------------------------------------+
-| permission      | resource                        | operations                                                                                                                                                           |
-+=================+=================================+======================================================================================================================================================================+
-| ``CREATE``      | ``ALL KEYSPACES``               | ``CREATE KEYSPACE`` <br> ``CREATE TABLE`` in any keyspace                                                                                                            |
-+-----------------+---------------------------------+----------------------------------------------------------------------------------------------------------------------------------------------------------------------+
-| ``CREATE``      | ``KEYSPACE``                    | ``CREATE TABLE`` in specified keyspace                                                                                                                               |
-+-----------------+---------------------------------+----------------------------------------------------------------------------------------------------------------------------------------------------------------------+
-| ``CREATE``      | ``ALL FUNCTIONS``               | ``CREATE FUNCTION`` in any keyspace <br> ``CREATE AGGREGATE`` in any keyspace                                                                                        |
-+-----------------+---------------------------------+----------------------------------------------------------------------------------------------------------------------------------------------------------------------+
-| ``CREATE``      | ``ALL FUNCTIONS IN KEYSPACE``   | ``CREATE FUNCTION`` in keyspace <br> ``CREATE AGGREGATE`` in keyspace                                                                                                |
-+-----------------+---------------------------------+----------------------------------------------------------------------------------------------------------------------------------------------------------------------+
-| ``CREATE``      | ``ALL ROLES``                   | ``CREATE ROLE``                                                                                                                                                      |
-+-----------------+---------------------------------+----------------------------------------------------------------------------------------------------------------------------------------------------------------------+
-| ``ALTER``       | ``ALL KEYSPACES``               | ``ALTER KEYSPACE`` <br> ``ALTER TABLE`` in any keyspace                                                                                                              |
-+-----------------+---------------------------------+----------------------------------------------------------------------------------------------------------------------------------------------------------------------+
-| ``ALTER``       | ``KEYSPACE``                    | ``ALTER KEYSPACE`` <br> ``ALTER TABLE`` in keyspace                                                                                                                  |
-+-----------------+---------------------------------+----------------------------------------------------------------------------------------------------------------------------------------------------------------------+
-| ``ALTER``       | ``TABLE``                       | ``ALTER TABLE``                                                                                                                                                      |
-+-----------------+---------------------------------+----------------------------------------------------------------------------------------------------------------------------------------------------------------------+
-| ``ALTER``       | ``ALL FUNCTIONS``               | ``CREATE FUNCTION`` replacing any existing <br> ``CREATE AGGREGATE`` replacing any existing                                                                          |
-+-----------------+---------------------------------+----------------------------------------------------------------------------------------------------------------------------------------------------------------------+
-| ``ALTER``       | ``ALL FUNCTIONS IN KEYSPACE``   | ``CREATE FUNCTION`` replacing existing in keyspace <br> ``CREATE AGGREGATE`` replacing any existing in keyspace                                                      |
-+-----------------+---------------------------------+----------------------------------------------------------------------------------------------------------------------------------------------------------------------+
-| ``ALTER``       | ``FUNCTION``                    | ``CREATE FUNCTION`` replacing existing <br> ``CREATE AGGREGATE`` replacing existing                                                                                  |
-+-----------------+---------------------------------+----------------------------------------------------------------------------------------------------------------------------------------------------------------------+
-| ``ALTER``       | ``ALL ROLES``                   | ``ALTER ROLE`` on any role                                                                                                                                           |
-+-----------------+---------------------------------+----------------------------------------------------------------------------------------------------------------------------------------------------------------------+
-| ``ALTER``       | ``ROLE``                        | ``ALTER ROLE``                                                                                                                                                       |
-+-----------------+---------------------------------+----------------------------------------------------------------------------------------------------------------------------------------------------------------------+
-| ``DROP``        | ``ALL KEYSPACES``               | ``DROP KEYSPACE`` <br> ``DROP TABLE`` in any keyspace                                                                                                                |
-+-----------------+---------------------------------+----------------------------------------------------------------------------------------------------------------------------------------------------------------------+
-| ``DROP``        | ``KEYSPACE``                    | ``DROP TABLE`` in specified keyspace                                                                                                                                 |
-+-----------------+---------------------------------+----------------------------------------------------------------------------------------------------------------------------------------------------------------------+
-| ``DROP``        | ``TABLE``                       | ``DROP TABLE``                                                                                                                                                       |
-+-----------------+---------------------------------+----------------------------------------------------------------------------------------------------------------------------------------------------------------------+
-| ``DROP``        | ``ALL FUNCTIONS``               | ``DROP FUNCTION`` in any keyspace <br> ``DROP AGGREGATE`` in any existing                                                                                            |
-+-----------------+---------------------------------+----------------------------------------------------------------------------------------------------------------------------------------------------------------------+
-| ``DROP``        | ``ALL FUNCTIONS IN KEYSPACE``   | ``DROP FUNCTION`` in keyspace <br> ``DROP AGGREGATE`` in existing                                                                                                    |
-+-----------------+---------------------------------+----------------------------------------------------------------------------------------------------------------------------------------------------------------------+
-| ``DROP``        | ``FUNCTION``                    | ``DROP FUNCTION``                                                                                                                                                    |
-+-----------------+---------------------------------+----------------------------------------------------------------------------------------------------------------------------------------------------------------------+
-| ``DROP``        | ``ALL ROLES``                   | ``DROP ROLE`` on any role                                                                                                                                            |
-+-----------------+---------------------------------+----------------------------------------------------------------------------------------------------------------------------------------------------------------------+
-| ``DROP``        | ``ROLE``                        | ``DROP ROLE``                                                                                                                                                        |
-+-----------------+---------------------------------+----------------------------------------------------------------------------------------------------------------------------------------------------------------------+
-| ``SELECT``      | ``ALL KEYSPACES``               | ``SELECT`` on any table                                                                                                                                              |
-+-----------------+---------------------------------+----------------------------------------------------------------------------------------------------------------------------------------------------------------------+
-| ``SELECT``      | ``KEYSPACE``                    | ``SELECT`` on any table in keyspace                                                                                                                                  |
-+-----------------+---------------------------------+----------------------------------------------------------------------------------------------------------------------------------------------------------------------+
-| ``SELECT``      | ``TABLE``                       | ``SELECT`` on specified table                                                                                                                                        |
-+-----------------+---------------------------------+----------------------------------------------------------------------------------------------------------------------------------------------------------------------+
-| ``SELECT``      | ``ALL MBEANS``                  | Call getter methods on any mbean                                                                                                                                     |
-+-----------------+---------------------------------+----------------------------------------------------------------------------------------------------------------------------------------------------------------------+
-| ``SELECT``      | ``MBEANS``                      | Call getter methods on any mbean matching a wildcard pattern                                                                                                         |
-+-----------------+---------------------------------+----------------------------------------------------------------------------------------------------------------------------------------------------------------------+
-| ``SELECT``      | ``MBEAN``                       | Call getter methods on named mbean                                                                                                                                   |
-+-----------------+---------------------------------+----------------------------------------------------------------------------------------------------------------------------------------------------------------------+
-| ``MODIFY``      | ``ALL KEYSPACES``               | ``INSERT`` on any table <br> ``UPDATE`` on any table <br> ``DELETE`` on any table <br> ``TRUNCATE`` on any table                                                     |
-+-----------------+---------------------------------+----------------------------------------------------------------------------------------------------------------------------------------------------------------------+
-| ``MODIFY``      | ``KEYSPACE``                    | ``INSERT`` on any table in keyspace <br> ``UPDATE`` on any table in keyspace <br>   ``DELETE`` on any table in keyspace <br> ``TRUNCATE`` on any table in keyspace   |
-+-----------------+---------------------------------+----------------------------------------------------------------------------------------------------------------------------------------------------------------------+
-| ``MODIFY``      | ``TABLE``                       | ``INSERT`` <br> ``UPDATE`` <br> ``DELETE`` <br> ``TRUNCATE``                                                                                                         |
-+-----------------+---------------------------------+----------------------------------------------------------------------------------------------------------------------------------------------------------------------+
-| ``MODIFY``      | ``ALL MBEANS``                  | Call setter methods on any mbean                                                                                                                                     |
-+-----------------+---------------------------------+----------------------------------------------------------------------------------------------------------------------------------------------------------------------+
-| ``MODIFY``      | ``MBEANS``                      | Call setter methods on any mbean matching a wildcard pattern                                                                                                         |
-+-----------------+---------------------------------+----------------------------------------------------------------------------------------------------------------------------------------------------------------------+
-| ``MODIFY``      | ``MBEAN``                       | Call setter methods on named mbean                                                                                                                                   |
-+-----------------+---------------------------------+----------------------------------------------------------------------------------------------------------------------------------------------------------------------+
-| ``AUTHORIZE``   | ``ALL KEYSPACES``               | ``GRANT PERMISSION`` on any table <br> ``REVOKE PERMISSION`` on any table                                                                                            |
-+-----------------+---------------------------------+----------------------------------------------------------------------------------------------------------------------------------------------------------------------+
-| ``AUTHORIZE``   | ``KEYSPACE``                    | ``GRANT PERMISSION`` on table in keyspace <br> ``REVOKE PERMISSION`` on table in keyspace                                                                            |
-+-----------------+---------------------------------+----------------------------------------------------------------------------------------------------------------------------------------------------------------------+
-| ``AUTHORIZE``   | ``TABLE``                       | ``GRANT PERMISSION`` <br> ``REVOKE PERMISSION``                                                                                                                      |
-+-----------------+---------------------------------+----------------------------------------------------------------------------------------------------------------------------------------------------------------------+
-| ``AUTHORIZE``   | ``ALL FUNCTIONS``               | ``GRANT PERMISSION`` on any function <br> ``REVOKE PERMISSION`` on any function                                                                                      |
-+-----------------+---------------------------------+----------------------------------------------------------------------------------------------------------------------------------------------------------------------+
-| ``AUTHORIZE``   | ``ALL FUNCTIONS IN KEYSPACE``   | ``GRANT PERMISSION`` in keyspace <br> ``REVOKE PERMISSION`` in keyspace                                                                                              |
-+-----------------+---------------------------------+----------------------------------------------------------------------------------------------------------------------------------------------------------------------+
-| ``AUTHORIZE``   | ``ALL FUNCTIONS IN KEYSPACE``   | ``GRANT PERMISSION`` in keyspace <br> ``REVOKE PERMISSION`` in keyspace                                                                                              |
-+-----------------+---------------------------------+----------------------------------------------------------------------------------------------------------------------------------------------------------------------+
-| ``AUTHORIZE``   | ``FUNCTION``                    | ``GRANT PERMISSION`` <br> ``REVOKE PERMISSION``                                                                                                                      |
-+-----------------+---------------------------------+----------------------------------------------------------------------------------------------------------------------------------------------------------------------+
-| ``AUTHORIZE``   | ``ALL MBEANS``                  | ``GRANT PERMISSION`` on any mbean <br> ``REVOKE PERMISSION`` on any mbean                                                                                            |
-+-----------------+---------------------------------+----------------------------------------------------------------------------------------------------------------------------------------------------------------------+
-| ``AUTHORIZE``   | ``MBEANS``                      | ``GRANT PERMISSION`` on any mbean matching a wildcard pattern <br> ``REVOKE PERMISSION`` on any mbean matching a wildcard pattern                                    |
-+-----------------+---------------------------------+----------------------------------------------------------------------------------------------------------------------------------------------------------------------+
-| ``AUTHORIZE``   | ``MBEAN``                       | ``GRANT PERMISSION`` on named mbean <br> ``REVOKE PERMISSION`` on named mbean                                                                                        |
-+-----------------+---------------------------------+----------------------------------------------------------------------------------------------------------------------------------------------------------------------+
-| ``AUTHORIZE``   | ``ALL ROLES``                   | ``GRANT ROLE`` grant any role <br> ``REVOKE ROLE`` revoke any role                                                                                                   |
-+-----------------+---------------------------------+----------------------------------------------------------------------------------------------------------------------------------------------------------------------+
-| ``AUTHORIZE``   | ``ROLES``                       | ``GRANT ROLE`` grant role <br> ``REVOKE ROLE`` revoke role                                                                                                           |
-+-----------------+---------------------------------+----------------------------------------------------------------------------------------------------------------------------------------------------------------------+
-| ``DESCRIBE``    | ``ALL ROLES``                   | ``LIST ROLES`` all roles or only roles granted to another, specified role                                                                                            |
-+-----------------+---------------------------------+----------------------------------------------------------------------------------------------------------------------------------------------------------------------+
-| ``DESCRIBE``    | @ALL MBEANS                     | Retrieve metadata about any mbean from the platform’s MBeanServer                                                                                                    |
-+-----------------+---------------------------------+----------------------------------------------------------------------------------------------------------------------------------------------------------------------+
-| ``DESCRIBE``    | @MBEANS                         | Retrieve metadata about any mbean matching a wildcard patter from the platform’s MBeanServer                                                                         |
-+-----------------+---------------------------------+----------------------------------------------------------------------------------------------------------------------------------------------------------------------+
-| ``DESCRIBE``    | @MBEAN                          | Retrieve metadata about a named mbean from the platform’s MBeanServer                                                                                                |
-+-----------------+---------------------------------+----------------------------------------------------------------------------------------------------------------------------------------------------------------------+
-| ``EXECUTE``     | ``ALL FUNCTIONS``               | ``SELECT``, ``INSERT``, ``UPDATE`` using any function <br> use of any function in ``CREATE AGGREGATE``                                                               |
-+-----------------+---------------------------------+----------------------------------------------------------------------------------------------------------------------------------------------------------------------+
-| ``EXECUTE``     | ``ALL FUNCTIONS IN KEYSPACE``   | ``SELECT``, ``INSERT``, ``UPDATE`` using any function in keyspace <br> use of any function in keyspace in ``CREATE AGGREGATE``                                       |
-+-----------------+---------------------------------+----------------------------------------------------------------------------------------------------------------------------------------------------------------------+
-| ``EXECUTE``     | ``FUNCTION``                    | ``SELECT``, ``INSERT``, ``UPDATE`` using function <br> use of function in ``CREATE AGGREGATE``                                                                       |
-+-----------------+---------------------------------+----------------------------------------------------------------------------------------------------------------------------------------------------------------------+
-| ``EXECUTE``     | ``ALL MBEANS``                  | Execute operations on any mbean                                                                                                                                      |
-+-----------------+---------------------------------+----------------------------------------------------------------------------------------------------------------------------------------------------------------------+
-| ``EXECUTE``     | ``MBEANS``                      | Execute operations on any mbean matching a wildcard pattern                                                                                                          |
-+-----------------+---------------------------------+----------------------------------------------------------------------------------------------------------------------------------------------------------------------+
-| ``EXECUTE``     | ``MBEAN``                       | Execute operations on named mbean                                                                                                                                    |
-+-----------------+---------------------------------+----------------------------------------------------------------------------------------------------------------------------------------------------------------------+
+=============== =============================== =======================================================================
+ Permission      Resource                        Operations
+=============== =============================== =======================================================================
+ ``CREATE``      ``ALL KEYSPACES``               ``CREATE KEYSPACE`` and ``CREATE TABLE`` in any keyspace
+ ``CREATE``      ``KEYSPACE``                    ``CREATE TABLE`` in specified keyspace
+ ``CREATE``      ``ALL FUNCTIONS``               ``CREATE FUNCTION`` in any keyspace and ``CREATE AGGREGATE`` in any
+                                                 keyspace
+ ``CREATE``      ``ALL FUNCTIONS IN KEYSPACE``   ``CREATE FUNCTION`` and ``CREATE AGGREGATE`` in specified keyspace
+ ``CREATE``      ``ALL ROLES``                   ``CREATE ROLE``
+ ``ALTER``       ``ALL KEYSPACES``               ``ALTER KEYSPACE`` and ``ALTER TABLE`` in any keyspace
+ ``ALTER``       ``KEYSPACE``                    ``ALTER KEYSPACE`` and ``ALTER TABLE`` in specified keyspace
+ ``ALTER``       ``TABLE``                       ``ALTER TABLE``
+ ``ALTER``       ``ALL FUNCTIONS``               ``CREATE FUNCTION`` and ``CREATE AGGREGATE``: replacing any existing
+ ``ALTER``       ``ALL FUNCTIONS IN KEYSPACE``   ``CREATE FUNCTION`` and ``CREATE AGGREGATE``: replacing existing in
+                                                 specified keyspace
+ ``ALTER``       ``FUNCTION``                    ``CREATE FUNCTION`` and ``CREATE AGGREGATE``: replacing existing
+ ``ALTER``       ``ALL ROLES``                   ``ALTER ROLE`` on any role
+ ``ALTER``       ``ROLE``                        ``ALTER ROLE``
+ ``DROP``        ``ALL KEYSPACES``               ``DROP KEYSPACE`` and ``DROP TABLE`` in any keyspace
+ ``DROP``        ``KEYSPACE``                    ``DROP TABLE`` in specified keyspace
+ ``DROP``        ``TABLE``                       ``DROP TABLE``
+ ``DROP``        ``ALL FUNCTIONS``               ``DROP FUNCTION`` and ``DROP AGGREGATE`` in any keyspace
+ ``DROP``        ``ALL FUNCTIONS IN KEYSPACE``   ``DROP FUNCTION`` and ``DROP AGGREGATE`` in specified keyspace
+ ``DROP``        ``FUNCTION``                    ``DROP FUNCTION``
+ ``DROP``        ``ALL ROLES``                   ``DROP ROLE`` on any role
+ ``DROP``        ``ROLE``                        ``DROP ROLE``
+ ``SELECT``      ``ALL KEYSPACES``               ``SELECT`` on any table
+ ``SELECT``      ``KEYSPACE``                    ``SELECT`` on any table in specified keyspace
+ ``SELECT``      ``TABLE``                       ``SELECT`` on specified table
+ ``SELECT``      ``ALL MBEANS``                  Call getter methods on any mbean
+ ``SELECT``      ``MBEANS``                      Call getter methods on any mbean matching a wildcard pattern
+ ``SELECT``      ``MBEAN``                       Call getter methods on named mbean
+ ``MODIFY``      ``ALL KEYSPACES``               ``INSERT``, ``UPDATE``, ``DELETE`` and ``TRUNCATE`` on any table
+ ``MODIFY``      ``KEYSPACE``                    ``INSERT``, ``UPDATE``, ``DELETE`` and ``TRUNCATE`` on any table in
+                                                 specified keyspace
+ ``MODIFY``      ``TABLE``                       ``INSERT``, ``UPDATE``, ``DELETE`` and ``TRUNCATE`` on specified table
+ ``MODIFY``      ``ALL MBEANS``                  Call setter methods on any mbean
+ ``MODIFY``      ``MBEANS``                      Call setter methods on any mbean matching a wildcard pattern
+ ``MODIFY``      ``MBEAN``                       Call setter methods on named mbean
+ ``AUTHORIZE``   ``ALL KEYSPACES``               ``GRANT PERMISSION`` and ``REVOKE PERMISSION`` on any table
+ ``AUTHORIZE``   ``KEYSPACE``                    ``GRANT PERMISSION`` and ``REVOKE PERMISSION`` on any table in
+                                                 specified keyspace
+ ``AUTHORIZE``   ``TABLE``                       ``GRANT PERMISSION`` and ``REVOKE PERMISSION`` on specified table
+ ``AUTHORIZE``   ``ALL FUNCTIONS``               ``GRANT PERMISSION`` and ``REVOKE PERMISSION`` on any function
+ ``AUTHORIZE``   ``ALL FUNCTIONS IN KEYSPACE``   ``GRANT PERMISSION`` and ``REVOKE PERMISSION`` in specified keyspace
+ ``AUTHORIZE``   ``FUNCTION``                    ``GRANT PERMISSION`` and ``REVOKE PERMISSION`` on specified function
+ ``AUTHORIZE``   ``ALL MBEANS``                  ``GRANT PERMISSION`` and ``REVOKE PERMISSION`` on any mbean
+ ``AUTHORIZE``   ``MBEANS``                      ``GRANT PERMISSION`` and ``REVOKE PERMISSION`` on any mbean matching
+                                                 a wildcard pattern
+ ``AUTHORIZE``   ``MBEAN``                       ``GRANT PERMISSION`` and ``REVOKE PERMISSION`` on named mbean
+ ``AUTHORIZE``   ``ALL ROLES``                   ``GRANT ROLE`` and ``REVOKE ROLE`` on any role
+ ``AUTHORIZE``   ``ROLES``                       ``GRANT ROLE`` and ``REVOKE ROLE`` on specified roles
+ ``DESCRIBE``    ``ALL ROLES``                   ``LIST ROLES`` on all roles or only roles granted to another,
+                                                 specified role
+ ``DESCRIBE``    ``ALL MBEANS``                  Retrieve metadata about any mbean from the platform's MBeanServer
+ ``DESCRIBE``    ``MBEANS``                      Retrieve metadata about any mbean matching a wildcard patter from the
+                                                 platform's MBeanServer
+ ``DESCRIBE``    ``MBEAN``                       Retrieve metadata about a named mbean from the platform's MBeanServer
+ ``EXECUTE``     ``ALL FUNCTIONS``               ``SELECT``, ``INSERT`` and ``UPDATE`` using any function, and use of
+                                                 any function in ``CREATE AGGREGATE``
+ ``EXECUTE``     ``ALL FUNCTIONS IN KEYSPACE``   ``SELECT``, ``INSERT`` and ``UPDATE`` using any function in specified
+                                                 keyspace and use of any function in keyspace in ``CREATE AGGREGATE``
+ ``EXECUTE``     ``FUNCTION``                    ``SELECT``, ``INSERT`` and ``UPDATE`` using specified function and use
+                                                 of the function in ``CREATE AGGREGATE``
+ ``EXECUTE``     ``ALL MBEANS``                  Execute operations on any mbean
+ ``EXECUTE``     ``MBEANS``                      Execute operations on any mbean matching a wildcard pattern
+ ``EXECUTE``     ``MBEAN``                       Execute operations on named mbean
+=============== =============================== =======================================================================
+
+.. _grant-permission-statement:
 
 GRANT PERMISSION
 ~~~~~~~~~~~~~~~~
 
-*Syntax:*
+Granting a permission uses the ``GRANT PERMISSION`` statement:
 
-| bc(syntax)..
-|  ::= GRANT ( ALL ( PERMISSIONS )? \| ( PERMISSION )? ) ON TO 
+.. productionlist::
+   grant_permission_statement: GRANT `permissions` ON `resource` TO `role_name`
+   permissions: ALL [ PERMISSIONS ] | `permission` [ PERMISSION ]
+   permission: CREATE | ALTER | DROP | SELECT | MODIFY | AUTHORIZE | DESCRIBE | EXECUTE
+   resource: ALL KEYSPACES
+           :| KEYSPACE `keyspace_name`
+           :| [ TABLE ] `table_name`
+           :| ALL ROLES
+           :| ROLE `role_name`
+           :| ALL FUNCTIONS [ IN KEYSPACE `keyspace_name` ]
+           :| FUNCTION `function_name` '(' [ `cql_type` ( ',' `cql_type` )* ] ')'
+           :| ALL MBEANS
+           :| ( MBEAN | MBEANS ) `string`
 
- ::= CREATE \| ALTER \| DROP \| SELECT \| MODIFY \| AUTHORIZE \| DESCRIBE \| EXECUTE
+For instance::
 
-|  ::= ALL KEYSPACES
-|  \| KEYSPACE 
-|  \| ( TABLE )? 
-|  \| ALL ROLES
-|  \| ROLE 
-|  \| ALL FUNCTIONS ( IN KEYSPACE )?
-|  \| FUNCTION 
-|  \| ALL MBEANS
-|  \| ( MBEAN \| MBEANS ) 
-| p.
+    GRANT SELECT ON ALL KEYSPACES TO data_reader;
 
-*Sample:*
+This gives any user with the role ``data_reader`` permission to execute ``SELECT`` statements on any table across all
+keyspaces::
 
-| bc(sample).
-| GRANT SELECT ON ALL KEYSPACES TO data\_reader;
+    GRANT MODIFY ON KEYSPACE keyspace1 TO data_writer;
 
-This gives any user with the role ``data_reader`` permission to execute
-``SELECT`` statements on any table across all keyspaces
+This give any user with the role ``data_writer`` permission to perform ``UPDATE``, ``INSERT``, ``UPDATE``, ``DELETE``
+and ``TRUNCATE`` queries on all tables in the ``keyspace1`` keyspace::
 
-| bc(sample).
-| GRANT MODIFY ON KEYSPACE keyspace1 TO data\_writer;
+    GRANT DROP ON keyspace1.table1 TO schema_owner;
 
-This give any user with the role ``data_writer`` permission to perform
-``UPDATE``, ``INSERT``, ``UPDATE``, ``DELETE`` and ``TRUNCATE`` queries
-on all tables in the ``keyspace1`` keyspace
+This gives any user with the ``schema_owner`` role permissions to ``DROP`` ``keyspace1.table1``::
 
-| bc(sample).
-| GRANT DROP ON keyspace1.table1 TO schema\_owner;
+    GRANT EXECUTE ON FUNCTION keyspace1.user_function( int ) TO report_writer;
 
-This gives any user with the ``schema_owner`` role permissions to
-``DROP`` ``keyspace1.table1``.
+This grants any user with the ``report_writer`` role permission to execute ``SELECT``, ``INSERT`` and ``UPDATE`` queries
+which use the function ``keyspace1.user_function( int )``::
 
-| bc(sample).
-| GRANT EXECUTE ON FUNCTION keyspace1.user\_function( int ) TO
-  report\_writer;
+    GRANT DESCRIBE ON ALL ROLES TO role_admin;
 
-This grants any user with the ``report_writer`` role permission to
-execute ``SELECT``, ``INSERT`` and ``UPDATE`` queries which use the
-function ``keyspace1.user_function( int )``
-
-| bc(sample).
-| GRANT DESCRIBE ON ALL ROLES TO role\_admin;
-
-This grants any user with the ``role_admin`` role permission to view any
-and all roles in the system with a ``LIST ROLES`` statement
+This grants any user with the ``role_admin`` role permission to view any and all roles in the system with a ``LIST
+ROLES`` statement
 
 .. _grant-all:
 
 GRANT ALL
 `````````
 
-When the ``GRANT ALL`` form is used, the appropriate set of permissions
-is determined automatically based on the target resource.
+When the ``GRANT ALL`` form is used, the appropriate set of permissions is determined automatically based on the target
+resource.
 
 Automatic Granting
 ``````````````````
 
-When a resource is created, via a ``CREATE KEYSPACE``, ``CREATE TABLE``,
-``CREATE FUNCTION``, ``CREATE AGGREGATE`` or ``CREATE ROLE`` statement,
-the creator (the role the database user who issues the statement is
-identified as), is automatically granted all applicable permissions on
-the new resource.
+When a resource is created, via a ``CREATE KEYSPACE``, ``CREATE TABLE``, ``CREATE FUNCTION``, ``CREATE AGGREGATE`` or
+``CREATE ROLE`` statement, the creator (the role the database user who issues the statement is identified as), is
+automatically granted all applicable permissions on the new resource.
+
+.. _revoke-permission-statement:
 
 REVOKE PERMISSION
 ~~~~~~~~~~~~~~~~~
 
-*Syntax:*
+Revoking a permission from a role uses the ``REVOKE PERMISSION`` statement:
 
-| bc(syntax)..
-|  ::= REVOKE ( ALL ( PERMISSIONS )? \| ( PERMISSION )? ) ON FROM 
+.. productionlist::
+   revoke_permission_statement: REVOKE `permissions` ON `resource` FROM `role_name`
 
- ::= CREATE \| ALTER \| DROP \| SELECT \| MODIFY \| AUTHORIZE \| DESCRIBE \| EXECUTE
+For instance::
 
-|  ::= ALL KEYSPACES
-|  \| KEYSPACE 
-|  \| ( TABLE )? 
-|  \| ALL ROLES
-|  \| ROLE 
-|  \| ALL FUNCTIONS ( IN KEYSPACE )?
-|  \| FUNCTION 
-|  \| ALL MBEANS
-|  \| ( MBEAN \| MBEANS ) 
-| p.
+    REVOKE SELECT ON ALL KEYSPACES FROM data_reader;
+    REVOKE MODIFY ON KEYSPACE keyspace1 FROM data_writer;
+    REVOKE DROP ON keyspace1.table1 FROM schema_owner;
+    REVOKE EXECUTE ON FUNCTION keyspace1.user_function( int ) FROM report_writer;
+    REVOKE DESCRIBE ON ALL ROLES FROM role_admin;
 
-*Sample:*
-
-| bc(sample)..
-| REVOKE SELECT ON ALL KEYSPACES FROM data\_reader;
-| REVOKE MODIFY ON KEYSPACE keyspace1 FROM data\_writer;
-| REVOKE DROP ON keyspace1.table1 FROM schema\_owner;
-| REVOKE EXECUTE ON FUNCTION keyspace1.user\_function( int ) FROM
-  report\_writer;
-| REVOKE DESCRIBE ON ALL ROLES FROM role\_admin;
-| p.
+.. _list-permissions-statement:
 
 LIST PERMISSIONS
 ~~~~~~~~~~~~~~~~
 
-*Syntax:*
+Listing granted permissions uses the ``LIST PERMISSIONS`` statement:
 
-| bc(syntax)..
-|  ::= LIST ( ALL ( PERMISSIONS )? \| )
-|  ( ON )?
-|  ( OF ( NORECURSIVE )? )?
+.. productionlist::
+   list_permissions_statement: LIST `permissions` [ ON `resource` ] [ OF `role_name` [ NORECURSIVE ] ]
 
-|  ::= ALL KEYSPACES
-|  \| KEYSPACE 
-|  \| ( TABLE )? 
-|  \| ALL ROLES
-|  \| ROLE 
-|  \| ALL FUNCTIONS ( IN KEYSPACE )?
-|  \| FUNCTION 
-|  \| ALL MBEANS
-|  \| ( MBEAN \| MBEANS ) 
-| p.
+For instance::
 
-*Sample:*
+    LIST ALL PERMISSIONS OF alice;
 
-| bc(sample).
-| LIST ALL PERMISSIONS OF alice;
+Show all permissions granted to ``alice``, including those acquired transitively from any other roles::
 
-Show all permissions granted to ``alice``, including those acquired
-transitively from any other roles.
+    LIST ALL PERMISSIONS ON keyspace1.table1 OF bob;
 
-| bc(sample).
-| LIST ALL PERMISSIONS ON keyspace1.table1 OF bob;
+Show all permissions on ``keyspace1.table1`` granted to ``bob``, including those acquired transitively from any other
+roles. This also includes any permissions higher up the resource hierarchy which can be applied to ``keyspace1.table1``.
+For example, should ``bob`` have ``ALTER`` permission on ``keyspace1``, that would be included in the results of this
+query. Adding the ``NORECURSIVE`` switch restricts the results to only those permissions which were directly granted to
+``bob`` or one of ``bob``'s roles::
 
-Show all permissions on ``keyspace1.table1`` granted to ``bob``,
-including those acquired transitively from any other roles. This also
-includes any permissions higher up the resource hierarchy which can be
-applied to ``keyspace1.table1``. For example, should ``bob`` have
-``ALTER`` permission on ``keyspace1``, that would be included in the
-results of this query. Adding the ``NORECURSIVE`` switch restricts the
-results to only those permissions which were directly granted to ``bob``
-or one of ``bob``\ ’s roles.
+    LIST SELECT PERMISSIONS OF carlos;
 
-| bc(sample).
-| LIST SELECT PERMISSIONS OF carlos;
-
-Show any permissions granted to ``carlos`` or any of ``carlos``\ ’s
-roles, limited to ``SELECT`` permissions on any resource.
+Show any permissions granted to ``carlos`` or any of ``carlos``'s roles, limited to ``SELECT`` permissions on any
+resource.

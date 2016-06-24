@@ -75,7 +75,7 @@ permissions management. Role management is an extension point in Cassandra and m
 ``role_manager`` setting in ``cassandra.yaml``. The default setting uses ``CassandraRoleManager``, an implementation
 which stores role information in the tables of the ``system_auth`` keyspace.
 
-See also the :ref:`CQL documentation on roles <roles>`.
+See also the :ref:`CQL documentation on roles <cql-roles>`.
 
 Authentication
 ^^^^^^^^^^^^^^
@@ -156,8 +156,8 @@ fully enabled throughout the cluster.
 Note that using ``PasswordAuthenticator`` also requires the use of :ref:`CassandraRoleManager <operation-roles>`.
 
 See also: :ref:`setting-credentials-for-internal-authentication`, :ref:`CREATE ROLE <create-role-statement>`,
-:ref:`ALTER ROLE <alter-role-statement>`, :ref:`ALTER KEYSPACE <calter-keyspace-statement>` and :ref:`GRANT PERMISSION
-<create-permission-statement>`,
+:ref:`ALTER ROLE <alter-role-statement>`, :ref:`ALTER KEYSPACE <alter-keyspace-statement>` and :ref:`GRANT PERMISSION
+<grant-permission-statement>`,
 
 Authorization
 ^^^^^^^^^^^^^
@@ -317,7 +317,7 @@ to switch to integrated auth once the node has joined the ring and initial setup
 
 With this option, the same database roles used for CQL authentication can be used to control access to JMX, so updates
 can be managed centrally using just ``cqlsh``. Furthermore, fine grained control over exactly which operations are
-permitted on particular MBeans can be acheived via :ref:`GRANT PERMISSION <cgrant-permission-statement>`.
+permitted on particular MBeans can be acheived via :ref:`GRANT PERMISSION <grant-permission-statement>`.
 
 To enable integrated authentication, edit ``cassandra-env.sh`` to uncomment these lines:
 
@@ -373,7 +373,7 @@ granting the same permission for all table level MBeans in that keyspace to the 
 Adding/removing roles and granting/revoking of permissions is handled dynamically once the initial setup is complete, so
 no further restarts are required if permissions are altered.
 
-See also: :ref:`Permissions <permissions>`.
+See also: :ref:`Permissions <cql-permissions>`.
 
 .. _jmx-with-ssl:
 

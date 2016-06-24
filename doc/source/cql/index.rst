@@ -14,8 +14,6 @@
 .. See the License for the specific language governing permissions and
 .. limitations under the License.
 
-.. _UUID: https://en.wikipedia.org/wiki/Universally_unique_identifier
-
 The Cassandra Query Language (CQL)
 ==================================
 

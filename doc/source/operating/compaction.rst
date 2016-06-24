@@ -223,6 +223,8 @@ There is a number of common options for all the compaction strategies;
 ``max_threshold`` (default: 32)
     Upper limit of number of sstables before a compaction is triggered. Not used for ``LeveledCompactionStrategy``.
 
+Further, see the section on each strategy for specific additional options.
+
 Compaction nodetool commands
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
@@ -267,6 +269,8 @@ More detailed compaction logging
 Enable with the compaction option ``log_all`` and a more detailed compaction log file will be produced in your log
 directory.
 
+.. _STCS:
+
 Size Tiered Compaction Strategy
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
@@ -304,6 +308,8 @@ Defragmentation
 
 Defragmentation is done when many sstables are touched during a read.  The result of the read is put in to the memtable
 so that the next read will not have to touch as many sstables. This can cause writes on a read-only-cluster.
+
+.. _LCS:
 
 Leveled Compaction Strategy
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^
@@ -370,7 +376,7 @@ LCS options
 LCS also support the ``cassandra.disable_stcs_in_l0`` startup option (``-Dcassandra.disable_stcs_in_l0=true``) to avoid
 doing STCS in L0.
 
-.. _twcs:
+.. _TWCS:
 
 Time Window CompactionStrategy
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^

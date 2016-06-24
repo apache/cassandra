@@ -59,7 +59,7 @@ def convert(yaml_file, dest_file):
 
     with open(dest_file, 'w') as outfile:
         outfile.write("Cassandra Configuration File\n")
-        outfile.write("=====================\n")
+        outfile.write("============================\n")
 
         # since comments preceed an option, this holds all of the comment
         # lines we've seen since the last option
