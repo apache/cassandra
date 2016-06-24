@@ -1,4 +1,5 @@
 3.8
+ * Chunk cache to request compressor-compatible buffers if pool space is exhausted (CASSANDRA-11993)
  * Remove DatabaseDescriptor dependencies from SequentialWriter (CASSANDRA-11579)
  * Move skip_stop_words filter before stemming (CASSANDRA-12078)
  * Support seek() in EncryptedFileSegmentInputStream (CASSANDRA-11957)

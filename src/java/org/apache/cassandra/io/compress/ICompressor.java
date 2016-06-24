@@ -49,7 +49,7 @@ public interface ICompressor
     public BufferType preferredBufferType();
 
     /**
-     * Checks if the given buffer would be supported by the compressor. If a type is supported the compressor must be
+     * Checks if the given buffer would be supported by the compressor. If a type is supported, the compressor must be
      * able to use it in combination with all other supported types.
      *
      * Direct and memory-mapped buffers must be supported by all compressors.
