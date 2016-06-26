@@ -25,6 +25,8 @@ import java.util.Locale;
 
 import org.junit.Test;
 
+import org.apache.cassandra.serializers.UTF8Serializer;
+
 import static org.junit.Assert.assertEquals;
 
 public class StandardAnalyzerTest
@@ -151,7 +153,36 @@ public class StandardAnalyzerTest
         while (tokenizer.hasNext())
             tokens.add(tokenizer.next());
 
-        assertEquals(40249, tokens.size());
+        assertEquals(37739, tokens.size());
+    }
+
+    @Test
+    public void testSkipStopWordBeforeStemmingFrench() throws Exception
+    {
+        InputStream is = StandardAnalyzerTest.class.getClassLoader()
+               .getResourceAsStream("tokenization/french_skip_stop_words_before_stemming.txt");
+
+        StandardTokenizerOptions options = new StandardTokenizerOptions.OptionsBuilder().stemTerms(true)
+                .ignoreStopTerms(true).useLocale(Locale.FRENCH)
+                .alwaysLowerCaseTerms(true).build();
+        StandardAnalyzer tokenizer = new StandardAnalyzer();
+        tokenizer.init(options);
+
+        List<ByteBuffer> tokens = new ArrayList<>();
+        List<String> words = new ArrayList<>();
+        tokenizer.reset(is);
+        while (tokenizer.hasNext())
+        {
+            final ByteBuffer nextToken = tokenizer.next();
+            tokens.add(nextToken);
+            words.add(UTF8Serializer.instance.deserialize(nextToken.duplicate()));
+        }
+
+        assertEquals(4, tokens.size());
+        assertEquals("dans", words.get(0));
+        assertEquals("plui", words.get(1));
+        assertEquals("chanson", words.get(2));
+        assertEquals("connu", words.get(3));
     }
 
     @Test

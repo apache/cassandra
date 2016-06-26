@@ -37,7 +37,7 @@ public class StemmingFilters
 
         public String process(String input) throws Exception
         {
-            if (stemmer == null)
+            if (input == null || stemmer == null)
                 return input;
             stemmer.setCurrent(input);
             return (stemmer.stem()) ? stemmer.getCurrent() : input;
