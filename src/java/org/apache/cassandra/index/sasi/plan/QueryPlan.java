@@ -19,16 +19,19 @@ package org.apache.cassandra.index.sasi.plan;
 
 import java.util.*;
 
-import org.apache.cassandra.config.CFMetaData;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+
+import org.apache.cassandra.config.*;
 import org.apache.cassandra.db.*;
-import org.apache.cassandra.db.partitions.UnfilteredPartitionIterator;
+import org.apache.cassandra.db.partitions.*;
 import org.apache.cassandra.db.rows.*;
-import org.apache.cassandra.dht.AbstractBounds;
+import org.apache.cassandra.dht.*;
+import org.apache.cassandra.exceptions.*;
+import org.apache.cassandra.index.sasi.disk.*;
 import org.apache.cassandra.index.sasi.disk.Token;
-import org.apache.cassandra.index.sasi.plan.Operation.OperationType;
-import org.apache.cassandra.exceptions.RequestTimeoutException;
-import org.apache.cassandra.io.util.FileUtils;
-import org.apache.cassandra.utils.AbstractIterator;
+import org.apache.cassandra.index.sasi.plan.Operation.*;
+import org.apache.cassandra.utils.btree.*;
 
 public class QueryPlan
 {
@@ -68,14 +71,16 @@ public class QueryPlan
         return new ResultIterator(analyze(), controller, executionController);
     }
 
-    private static class ResultIterator extends AbstractIterator<UnfilteredRowIterator> implements UnfilteredPartitionIterator
+    private static class ResultIterator implements UnfilteredPartitionIterator
     {
         private final AbstractBounds<PartitionPosition> keyRange;
         private final Operation operationTree;
         private final QueryController controller;
         private final ReadExecutionController executionController;
 
-        private Iterator<DecoratedKey> currentKeys = null;
+        private Iterator<RowKey> currentKeys = null;
+        private UnfilteredRowIterator nextPartition = null;
+        private DecoratedKey lastPartitionKey = null;
 
         public ResultIterator(Operation operationTree, QueryController controller, ReadExecutionController executionController)
         {
@@ -87,70 +92,135 @@ public class QueryPlan
                 operationTree.skipTo((Long) keyRange.left.getToken().getTokenValue());
         }
 
-        protected UnfilteredRowIterator computeNext()
+        public boolean hasNext()
+        {
+            return prepareNext();
+        }
+
+        public UnfilteredRowIterator next()
+        {
+            if (nextPartition == null)
+                prepareNext();
+
+            UnfilteredRowIterator toReturn = nextPartition;
+            nextPartition = null;
+            return toReturn;
+        }
+
+        private boolean prepareNext()
         {
             if (operationTree == null)
-                return endOfData();
+                return false;
+
+            if (nextPartition != null)
+                nextPartition.close();
 
             for (;;)
             {
                 if (currentKeys == null || !currentKeys.hasNext())
                 {
                     if (!operationTree.hasNext())
-                         return endOfData();
+                        return false;
 
                     Token token = operationTree.next();
                     currentKeys = token.iterator();
                 }
 
-                while (currentKeys.hasNext())
+                CFMetaData metadata = controller.metadata();
+                BTreeSet.Builder<Clustering> clusterings = BTreeSet.builder(metadata.comparator);
+                // results have static clustering, the whole partition has to be read
+                boolean fetchWholePartition = false;
+
+                while (true)
                 {
-                    DecoratedKey key = currentKeys.next();
-
-                    if (!keyRange.right.isMinimum() && keyRange.right.compareTo(key) < 0)
-                        return endOfData();
-
-                    try (UnfilteredRowIterator partition = controller.getPartition(key, executionController))
+                    if (!currentKeys.hasNext())
                     {
-                        Row staticRow = partition.staticRow();
-                        List<Unfiltered> clusters = new ArrayList<>();
+                        // No more keys for this token.
+                        // If no clusterings were collected yet, exit this inner loop so the operation
+                        // tree iterator can move on to the next token.
+                        // If some clusterings were collected, build an iterator for those rows
+                        // and return.
+                        if ((clusterings.isEmpty() && !fetchWholePartition) || lastPartitionKey == null)
+                            break;
 
-                        while (partition.hasNext())
+                        UnfilteredRowIterator partition = fetchPartition(lastPartitionKey, clusterings.build(), fetchWholePartition);
+                        // Prepare for next partition, reset partition key and clusterings
+                        lastPartitionKey = null;
+                        clusterings = BTreeSet.builder(metadata.comparator);
+
+                        if (partition.isEmpty())
                         {
-                            Unfiltered row = partition.next();
-                            if (operationTree.satisfiedBy(row, staticRow, true))
-                                clusters.add(row);
+                            partition.close();
+                            continue;
                         }
 
-                        if (!clusters.isEmpty())
-                            return new PartitionIterator(partition, clusters);
+                        nextPartition = partition;
+                        return true;
                     }
+
+                    RowKey fullKey = currentKeys.next();
+                    DecoratedKey key = fullKey.decoratedKey;
+
+                    if (!keyRange.right.isMinimum() && keyRange.right.compareTo(key) < 0)
+                        return false;
+
+                    if (lastPartitionKey != null && metadata.getKeyValidator().compare(lastPartitionKey.getKey(), key.getKey()) != 0)
+                    {
+                        UnfilteredRowIterator partition = fetchPartition(lastPartitionKey, clusterings.build(), fetchWholePartition);
+
+                        if (partition.isEmpty())
+                            partition.close();
+                        else
+                        {
+                            nextPartition = partition;
+                            return true;
+                        }
+                    }
+
+                    lastPartitionKey = key;
+
+                    // We fetch whole partition for versions before AC and in case static column index is queried in AC
+                    if (fullKey.clustering == null || fullKey.clustering.clustering().kind() == ClusteringPrefix.Kind.STATIC_CLUSTERING)
+                        fetchWholePartition = true;
+                    else
+                        clusterings.add(fullKey.clustering);
+
                 }
             }
         }
 
-        private static class PartitionIterator extends AbstractUnfilteredRowIterator
+        private UnfilteredRowIterator fetchPartition(DecoratedKey key, NavigableSet<Clustering> clusterings, boolean fetchWholePartition)
         {
-            private final Iterator<Unfiltered> rows;
+            if (fetchWholePartition)
+                clusterings = null;
 
-            public PartitionIterator(UnfilteredRowIterator partition, Collection<Unfiltered> content)
+            try (UnfilteredRowIterator partition = controller.getPartition(key, clusterings, executionController))
             {
-                super(partition.metadata(),
-                      partition.partitionKey(),
-                      partition.partitionLevelDeletion(),
-                      partition.columns(),
-                      partition.staticRow(),
-                      partition.isReverseOrder(),
-                      partition.stats());
+                Row staticRow = partition.staticRow();
+                List<Unfiltered> clusters = new ArrayList<>();
 
-                rows = content.iterator();
-            }
+                while (partition.hasNext())
+                {
+                    Unfiltered row = partition.next();
+                    if (operationTree.satisfiedBy(row, staticRow, true))
+                        clusters.add(row);
+                }
 
-            @Override
-            protected Unfiltered computeNext()
-            {
-                return rows.hasNext() ? rows.next() : endOfData();
+                if (!clusters.isEmpty())
+                    return new PartitionIterator(partition, clusters);
+                else
+                    return UnfilteredRowIterators.noRowsIterator(partition.metadata(),
+                                                                 partition.partitionKey(),
+                                                                 Rows.EMPTY_STATIC_ROW,
+                                                                 partition.partitionLevelDeletion(),
+                                                                 partition.isReverseOrder());
             }
+        }
+
+        public void close()
+        {
+            if (nextPartition != null)
+                nextPartition.close();
         }
 
         public boolean isForThrift()
@@ -163,10 +233,28 @@ public class QueryPlan
             return controller.metadata();
         }
 
-        public void close()
+        private static class PartitionIterator extends AbstractUnfilteredRowIterator
         {
-            FileUtils.closeQuietly(operationTree);
-            controller.finish();
+            private final Iterator<Unfiltered> rows;
+
+            public PartitionIterator(UnfilteredRowIterator partition, Collection<Unfiltered> filteredRows)
+            {
+                super(partition.metadata(),
+                      partition.partitionKey(),
+                      partition.partitionLevelDeletion(),
+                      partition.columns(),
+                      partition.staticRow(),
+                      partition.isReverseOrder(),
+                      partition.stats());
+
+                rows = filteredRows.iterator();
+            }
+
+            @Override
+            protected Unfiltered computeNext()
+            {
+                return rows.hasNext() ? rows.next() : endOfData();
+            }
         }
     }
 }

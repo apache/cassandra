@@ -19,22 +19,21 @@ package org.apache.cassandra.index.sasi.disk;
 
 import java.io.IOException;
 import java.util.*;
+import java.util.stream.*;
 
-import org.apache.cassandra.db.DecoratedKey;
-import org.apache.cassandra.index.sasi.utils.AbstractIterator;
-import org.apache.cassandra.index.sasi.utils.CombinedValue;
-import org.apache.cassandra.index.sasi.utils.MappedBuffer;
-import org.apache.cassandra.index.sasi.utils.RangeIterator;
-import org.apache.cassandra.utils.MergeIterator;
-
-import com.carrotsearch.hppc.LongOpenHashSet;
-import com.carrotsearch.hppc.LongSet;
 import com.google.common.annotations.VisibleForTesting;
-import com.google.common.base.Function;
 import com.google.common.collect.Iterators;
 import org.apache.commons.lang3.builder.HashCodeBuilder;
 
-import static org.apache.cassandra.index.sasi.disk.TokenTreeBuilder.EntryType;
+import com.carrotsearch.hppc.cursors.LongObjectCursor;
+import org.apache.cassandra.index.sasi.*;
+import org.apache.cassandra.index.sasi.disk.Descriptor.*;
+import org.apache.cassandra.index.sasi.utils.AbstractIterator;
+import org.apache.cassandra.index.sasi.utils.*;
+import org.apache.cassandra.utils.*;
+
+import static org.apache.cassandra.index.sasi.disk.Descriptor.Version.*;
+import static org.apache.cassandra.index.sasi.disk.TokenTreeBuilder.*;
 
 // Note: all of the seek-able offsets contained in TokenTree should be sizeof(long)
 // even if currently only lower int portion of them if used, because that makes
@@ -42,9 +41,6 @@ import static org.apache.cassandra.index.sasi.disk.TokenTreeBuilder.EntryType;
 // without any on-disk format changes and/or re-indexing if one day we'll have a need to.
 public class TokenTree
 {
-    private static final int LONG_BYTES = Long.SIZE / 8;
-    private static final int SHORT_BYTES = Short.SIZE / 8;
-
     private final Descriptor descriptor;
     private final MappedBuffer file;
     private final long startPos;
@@ -66,8 +62,7 @@ public class TokenTree
 
         file.position(startPos + TokenTreeBuilder.SHARED_HEADER_BYTES);
 
-        if (!validateMagic())
-            throw new IllegalArgumentException("invalid token tree");
+        validateMagic();
 
         tokenCount = file.getLong();
         treeMinToken = file.getLong();
@@ -79,12 +74,12 @@ public class TokenTree
         return tokenCount;
     }
 
-    public RangeIterator<Long, Token> iterator(Function<Long, DecoratedKey> keyFetcher)
+    public RangeIterator<Long, Token> iterator(KeyFetcher keyFetcher)
     {
         return new TokenTreeIterator(file.duplicate(), keyFetcher);
     }
 
-    public OnDiskToken get(final long searchToken, Function<Long, DecoratedKey> keyFetcher)
+    public OnDiskToken get(final long searchToken, KeyFetcher keyFetcher)
     {
         seekToLeaf(searchToken, file);
         long leafStart = file.position();
@@ -95,21 +90,24 @@ public class TokenTree
 
         file.position(leafStart + TokenTreeBuilder.BLOCK_HEADER_BYTES);
 
-        OnDiskToken token = OnDiskToken.getTokenAt(file, tokenIndex, leafSize, keyFetcher);
+        OnDiskToken token = getTokenAt(file, tokenIndex, leafSize, keyFetcher);
+
         return token.get().equals(searchToken) ? token : null;
     }
 
-    private boolean validateMagic()
+    private void validateMagic()
     {
-        switch (descriptor.version.toString())
-        {
-            case Descriptor.VERSION_AA:
-                return true;
-            case Descriptor.VERSION_AB:
-                return TokenTreeBuilder.AB_MAGIC == file.getShort();
-            default:
-                return false;
-        }
+        if (descriptor.version == aa)
+            return;
+
+        short magic = file.getShort();
+        if (descriptor.version == Version.ab && magic == TokenTreeBuilder.AB_MAGIC)
+            return;
+
+        if (descriptor.version == Version.ac && magic == TokenTreeBuilder.AC_MAGIC)
+            return;
+
+        throw new IllegalArgumentException("invalid token tree. Written magic: '" + ByteBufferUtil.bytesToHex(ByteBufferUtil.bytes(magic)) + "'");
     }
 
     // finds leaf that *could* contain token
@@ -136,18 +134,16 @@ public class TokenTree
             long minToken = file.getLong();
             long maxToken = file.getLong();
 
-            long seekBase = blockStart + TokenTreeBuilder.BLOCK_HEADER_BYTES;
+            long seekBase = blockStart + BLOCK_HEADER_BYTES;
             if (minToken > token)
             {
                 // seek to beginning of child offsets to locate first child
-                file.position(seekBase + tokenCount * LONG_BYTES);
-                blockStart = (startPos + (int) file.getLong());
+                file.position(seekBase + tokenCount * TOKEN_BYTES);
             }
             else if (maxToken < token)
             {
                 // seek to end of child offsets to locate last child
-                file.position(seekBase + (2 * tokenCount) * LONG_BYTES);
-                blockStart = (startPos + (int) file.getLong());
+                file.position(seekBase + (2 * tokenCount) * TOKEN_BYTES);
             }
             else
             {
@@ -158,12 +154,11 @@ public class TokenTree
 
                 // file pointer is now at beginning of offsets
                 if (offsetIndex == tokenCount)
-                    file.position(file.position() + (offsetIndex * LONG_BYTES));
+                    file.position(file.position() + (offsetIndex * TOKEN_BYTES));
                 else
-                    file.position(file.position() + ((tokenCount - offsetIndex - 1) + offsetIndex) * LONG_BYTES);
-
-                blockStart = (startPos + (int) file.getLong());
+                    file.position(file.position() + ((tokenCount - offsetIndex - 1) + offsetIndex) * TOKEN_BYTES);
             }
+            blockStart = (startPos + (int) file.getLong());
         }
     }
 
@@ -172,8 +167,7 @@ public class TokenTree
         short offsetIndex = 0;
         for (int i = 0; i < tokenCount; i++)
         {
-            long readToken = file.getLong();
-            if (searchToken < readToken)
+            if (searchToken < file.getLong())
                 break;
 
             offsetIndex++;
@@ -193,10 +187,7 @@ public class TokenTree
         while (start <= end)
         {
             middle = start + ((end - start) >> 1);
-
-            // each entry is 16 bytes wide, token is in bytes 4-11
-            long token = file.getLong(base + (middle * (2 * LONG_BYTES) + 4));
-
+            long token = file.getLong(base + middle * LEAF_ENTRY_BYTES + (descriptor.version.compareTo(Version.ac) < 0 ? LEGACY_TOKEN_OFFSET_BYTES : TOKEN_OFFSET_BYTES));
             if (token == searchToken)
                 break;
 
@@ -209,9 +200,9 @@ public class TokenTree
         return (short) middle;
     }
 
-    public class TokenTreeIterator extends RangeIterator<Long, Token>
+    private class TokenTreeIterator extends RangeIterator<Long, Token>
     {
-        private final Function<Long, DecoratedKey> keyFetcher;
+        private final KeyFetcher keyFetcher;
         private final MappedBuffer file;
 
         private long currentLeafStart;
@@ -224,7 +215,7 @@ public class TokenTree
         protected boolean firstIteration = true;
         private boolean lastLeaf;
 
-        TokenTreeIterator(MappedBuffer file, Function<Long, DecoratedKey> keyFetcher)
+        TokenTreeIterator(MappedBuffer file, KeyFetcher keyFetcher)
         {
             super(treeMinToken, treeMaxToken, tokenCount);
 
@@ -314,13 +305,13 @@ public class TokenTree
 
         private Token getTokenAt(int idx)
         {
-            return OnDiskToken.getTokenAt(file, idx, leafSize, keyFetcher);
+            return TokenTree.this.getTokenAt(file, idx, leafSize, keyFetcher);
         }
 
         private long getTokenPosition(int idx)
         {
-            // skip 4 byte entry header to get position pointing directly at the entry's token
-            return OnDiskToken.getEntryPosition(idx, file) + (2 * SHORT_BYTES);
+            // skip entry header to get position pointing directly at the entry's token
+            return TokenTree.this.getEntryPosition(idx, file, descriptor) + (descriptor.version.compareTo(Version.ac) < 0 ? LEGACY_TOKEN_OFFSET_BYTES : TOKEN_OFFSET_BYTES);
         }
 
         private void seekToNextLeaf()
@@ -347,15 +338,15 @@ public class TokenTree
         }
     }
 
-    public static class OnDiskToken extends Token
+    public class OnDiskToken extends Token
     {
         private final Set<TokenInfo> info = new HashSet<>(2);
-        private final Set<DecoratedKey> loadedKeys = new TreeSet<>(DecoratedKey.comparator);
+        private final Set<RowKey> loadedKeys = new TreeSet<>(RowKey.COMPARATOR);
 
-        public OnDiskToken(MappedBuffer buffer, long position, short leafSize, Function<Long, DecoratedKey> keyFetcher)
+        private OnDiskToken(MappedBuffer buffer, long position, short leafSize, KeyFetcher keyFetcher)
         {
-            super(buffer.getLong(position + (2 * SHORT_BYTES)));
-            info.add(new TokenInfo(buffer, position, leafSize, keyFetcher));
+            super(buffer.getLong(position + (descriptor.version.compareTo(Version.ac) < 0 ? LEGACY_TOKEN_OFFSET_BYTES : TOKEN_OFFSET_BYTES)));
+            info.add(new TokenInfo(buffer, position, leafSize, keyFetcher, descriptor));
         }
 
         public void merge(CombinedValue<Long> other)
@@ -377,9 +368,9 @@ public class TokenTree
             }
         }
 
-        public Iterator<DecoratedKey> iterator()
+        public Iterator<RowKey> iterator()
         {
-            List<Iterator<DecoratedKey>> keys = new ArrayList<>(info.size());
+            List<Iterator<RowKey>> keys = new ArrayList<>(info.size());
 
             for (TokenInfo i : info)
                 keys.add(i.iterator());
@@ -387,68 +378,72 @@ public class TokenTree
             if (!loadedKeys.isEmpty())
                 keys.add(loadedKeys.iterator());
 
-            return MergeIterator.get(keys, DecoratedKey.comparator, new MergeIterator.Reducer<DecoratedKey, DecoratedKey>()
+            return MergeIterator.get(keys, RowKey.COMPARATOR, new MergeIterator.Reducer<RowKey, RowKey>()
             {
-                DecoratedKey reduced = null;
+                RowKey reduced = null;
 
                 public boolean trivialReduceIsTrivial()
                 {
                     return true;
                 }
 
-                public void reduce(int idx, DecoratedKey current)
+                public void reduce(int idx, RowKey current)
                 {
                     reduced = current;
                 }
 
-                protected DecoratedKey getReduced()
+                protected RowKey getReduced()
                 {
                     return reduced;
                 }
             });
         }
 
-        public LongSet getOffsets()
+        public KeyOffsets getOffsets()
         {
-            LongSet offsets = new LongOpenHashSet(4);
+            KeyOffsets offsets = new KeyOffsets();
             for (TokenInfo i : info)
             {
-                for (long offset : i.fetchOffsets())
-                    offsets.add(offset);
+                for (LongObjectCursor<long[]> offset : i.fetchOffsets())
+                    offsets.put(offset.key, offset.value);
             }
 
             return offsets;
         }
+    }
 
-        public static OnDiskToken getTokenAt(MappedBuffer buffer, int idx, short leafSize, Function<Long, DecoratedKey> keyFetcher)
-        {
-            return new OnDiskToken(buffer, getEntryPosition(idx, buffer), leafSize, keyFetcher);
-        }
+    private OnDiskToken getTokenAt(MappedBuffer buffer, int idx, short leafSize, KeyFetcher keyFetcher)
+    {
+        return new OnDiskToken(buffer, getEntryPosition(idx, buffer, descriptor), leafSize, keyFetcher);
+    }
 
-        private static long getEntryPosition(int idx, MappedBuffer file)
-        {
-            // info (4 bytes) + token (8 bytes) + offset (4 bytes) = 16 bytes
-            return file.position() + (idx * (2 * LONG_BYTES));
-        }
+    private long getEntryPosition(int idx, MappedBuffer file, Descriptor descriptor)
+    {
+        if (descriptor.version.compareTo(Version.ac) < 0)
+            return file.position() + (idx * LEGACY_LEAF_ENTRY_BYTES);
+
+        // skip n entries, to the entry with the given index
+        return file.position() + (idx * LEAF_ENTRY_BYTES);
     }
 
     private static class TokenInfo
     {
         private final MappedBuffer buffer;
-        private final Function<Long, DecoratedKey> keyFetcher;
-
+        private final KeyFetcher keyFetcher;
+        private final Descriptor descriptor;
         private final long position;
         private final short leafSize;
 
-        public TokenInfo(MappedBuffer buffer, long position, short leafSize, Function<Long, DecoratedKey> keyFetcher)
+        public TokenInfo(MappedBuffer buffer, long position, short leafSize, KeyFetcher keyFetcher, Descriptor descriptor)
         {
             this.keyFetcher = keyFetcher;
             this.buffer = buffer;
             this.position = position;
             this.leafSize = leafSize;
+            this.descriptor = descriptor;
         }
 
-        public Iterator<DecoratedKey> iterator()
+        public Iterator<RowKey> iterator()
         {
             return new KeyIterator(keyFetcher, fetchOffsets());
         }
@@ -465,59 +460,154 @@ public class TokenTree
 
             TokenInfo o = (TokenInfo) other;
             return keyFetcher == o.keyFetcher && position == o.position;
+
         }
 
-        private long[] fetchOffsets()
+        /**
+         * Legacy leaf storage format (used for reading data formats before AC):
+         *
+         *    [(short) leaf type][(short) offset extra bytes][(long) token][(int) offsetData]
+         *
+         * Many pairs can be encoded into long+int.
+         *
+         * Simple entry: offset fits into (int)
+         *
+         *    [(short) leaf type][(short) offset extra bytes][(long) token][(int) offsetData]
+         *
+         * FactoredOffset: a single offset, offset fits into (long)+(int) bits:
+         *
+         *    [(short) leaf type][(short) 16 bytes of remained offset][(long) token][(int) top 32 bits of offset]
+         *
+         * PackedCollisionEntry: packs the two offset entries into int and a short (if both of them fit into
+         * (long) and one of them fits into (int))
+         *
+         *    [(short) leaf type][(short) 16 the offset that'd fit into short][(long) token][(int) 32 bits of offset that'd fit into int]
+         *
+         * Otherwise, the rest gets packed into limited-size overflow collision entry
+         *
+         *    [(short) leaf type][(short) count][(long) token][(int) start index]
+         */
+        private KeyOffsets fetchOffsetsLegacy()
         {
             short info = buffer.getShort(position);
             // offset extra is unsigned short (right-most 16 bits of 48 bits allowed for an offset)
-            int offsetExtra = buffer.getShort(position + SHORT_BYTES) & 0xFFFF;
+            int offsetExtra = buffer.getShort(position + Short.BYTES) & 0xFFFF;
             // is the it left-most (32-bit) base of the actual offset in the index file
-            int offsetData = buffer.getInt(position + (2 * SHORT_BYTES) + LONG_BYTES);
+            int offsetData = buffer.getInt(position + (2 * Short.BYTES) + Long.BYTES);
 
             EntryType type = EntryType.of(info & TokenTreeBuilder.ENTRY_TYPE_MASK);
 
+            KeyOffsets rowOffsets = new KeyOffsets();
             switch (type)
             {
                 case SIMPLE:
-                    return new long[] { offsetData };
-
+                    rowOffsets.put(offsetData, KeyOffsets.NO_OFFSET);
+                    break;
                 case OVERFLOW:
-                    long[] offsets = new long[offsetExtra]; // offsetShort contains count of tokens
-                    long offsetPos = (buffer.position() + (2 * (leafSize * LONG_BYTES)) + (offsetData * LONG_BYTES));
+                    long offsetPos = (buffer.position() + (2 * (leafSize * Long.BYTES)) + (offsetData * Long.BYTES));
 
                     for (int i = 0; i < offsetExtra; i++)
-                        offsets[i] = buffer.getLong(offsetPos + (i * LONG_BYTES));
-
-                    return offsets;
-
+                    {
+                        long offset = buffer.getLong(offsetPos + (i * Long.BYTES));;
+                        rowOffsets.put(offset, KeyOffsets.NO_OFFSET);
+                    }
+                    break;
                 case FACTORED:
-                    return new long[] { (((long) offsetData) << Short.SIZE) + offsetExtra };
-
+                    long offset = (((long) offsetData) << Short.SIZE) + offsetExtra;
+                    rowOffsets.put(offset, KeyOffsets.NO_OFFSET);
+                    break;
                 case PACKED:
-                    return new long[] { offsetExtra, offsetData };
-
+                    rowOffsets.put(offsetExtra, KeyOffsets.NO_OFFSET);
+                    rowOffsets.put(offsetData, KeyOffsets.NO_OFFSET);
                 default:
                     throw new IllegalStateException("Unknown entry type: " + type);
             }
+            return rowOffsets;
+        }
+
+        private KeyOffsets fetchOffsets()
+        {
+            if (descriptor.version.compareTo(Version.ac) < 0)
+                return fetchOffsetsLegacy();
+
+            short info = buffer.getShort(position);
+            EntryType type = EntryType.of(info & TokenTreeBuilder.ENTRY_TYPE_MASK);
+
+            KeyOffsets rowOffsets = new KeyOffsets();
+            long baseOffset = position + LEAF_ENTRY_TYPE_BYTES + TOKEN_BYTES;
+            switch (type)
+            {
+                case SIMPLE:
+                    long partitionOffset = buffer.getLong(baseOffset);
+                    long rowOffset = buffer.getLong(baseOffset + LEAF_PARTITON_OFFSET_BYTES);
+
+                    rowOffsets.put(partitionOffset, rowOffset);
+                    break;
+                case PACKED:
+                    long partitionOffset1 = buffer.getInt(baseOffset);
+                    long rowOffset1 = buffer.getInt(baseOffset + LEAF_PARTITON_OFFSET_PACKED_BYTES);
+
+                    long partitionOffset2 = buffer.getInt(baseOffset + LEAF_PARTITON_OFFSET_PACKED_BYTES + LEAF_ROW_OFFSET_PACKED_BYTES);
+                    long rowOffset2 = buffer.getInt(baseOffset + 2 * LEAF_PARTITON_OFFSET_PACKED_BYTES + LEAF_ROW_OFFSET_PACKED_BYTES);
+
+                    rowOffsets.put(partitionOffset1, rowOffset1);
+                    rowOffsets.put(partitionOffset2, rowOffset2);
+                    break;
+                case OVERFLOW:
+                    long collisionOffset = buffer.getLong(baseOffset);
+                    long count = buffer.getLong(baseOffset + LEAF_PARTITON_OFFSET_BYTES);
+
+                    // Skip leaves and collision offsets that do not belong to current token
+                    long offsetPos = buffer.position() + leafSize *  LEAF_ENTRY_BYTES + collisionOffset * COLLISION_ENTRY_BYTES;
+
+                    for (int i = 0; i < count; i++)
+                    {
+                        long currentPartitionOffset = buffer.getLong(offsetPos + i * COLLISION_ENTRY_BYTES);
+                        long currentRowOffset = buffer.getLong(offsetPos + i * COLLISION_ENTRY_BYTES + LEAF_PARTITON_OFFSET_BYTES);
+
+                        rowOffsets.put(currentPartitionOffset, currentRowOffset);
+                    }
+                    break;
+                default:
+                    throw new IllegalStateException("Unknown entry type: " + type);
+            }
+
+
+            return rowOffsets;
         }
     }
 
-    private static class KeyIterator extends AbstractIterator<DecoratedKey>
+    private static class KeyIterator extends AbstractIterator<RowKey>
     {
-        private final Function<Long, DecoratedKey> keyFetcher;
-        private final long[] offsets;
-        private int index = 0;
+        private final KeyFetcher keyFetcher;
+        private final Iterator<LongObjectCursor<long[]>> offsets;
+        private long currentPatitionKey;
+        private PrimitiveIterator.OfLong currentCursor = null;
 
-        public KeyIterator(Function<Long, DecoratedKey> keyFetcher, long[] offsets)
+        public KeyIterator(KeyFetcher keyFetcher, KeyOffsets offsets)
         {
             this.keyFetcher = keyFetcher;
-            this.offsets = offsets;
+            this.offsets = offsets.iterator();
         }
 
-        public DecoratedKey computeNext()
+        public RowKey computeNext()
         {
-            return index < offsets.length ? keyFetcher.apply(offsets[index++]) : endOfData();
+            if (currentCursor != null && currentCursor.hasNext())
+            {
+                return keyFetcher.getRowKey(currentPatitionKey, currentCursor.nextLong());
+            }
+            else if (offsets.hasNext())
+            {
+                LongObjectCursor<long[]> cursor = offsets.next();
+                currentPatitionKey = cursor.key;
+                currentCursor = LongStream.of(cursor.value).iterator();
+
+                return keyFetcher.getRowKey(currentPatitionKey, currentCursor.nextLong());
+            }
+            else
+            {
+                return endOfData();
+            }
         }
     }
 }

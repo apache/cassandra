@@ -22,11 +22,14 @@ import java.nio.ByteBuffer;
 import java.util.*;
 import java.util.concurrent.Callable;
 import java.util.concurrent.ThreadLocalRandom;
+import java.util.function.Supplier;
 
+import com.carrotsearch.hppc.cursors.LongObjectCursor;
 import org.apache.cassandra.SchemaLoader;
 import org.apache.cassandra.config.CFMetaData;
 import org.apache.cassandra.config.ColumnDefinition;
 import org.apache.cassandra.db.Clustering;
+import org.apache.cassandra.db.ClusteringComparator;
 import org.apache.cassandra.db.ColumnFamilyStore;
 import org.apache.cassandra.db.DecoratedKey;
 import org.apache.cassandra.db.Keyspace;
@@ -35,6 +38,9 @@ import org.apache.cassandra.db.marshal.LongType;
 import org.apache.cassandra.db.rows.BTreeRow;
 import org.apache.cassandra.db.rows.BufferCell;
 import org.apache.cassandra.db.rows.Row;
+import org.apache.cassandra.dht.IPartitioner;
+import org.apache.cassandra.dht.Murmur3Partitioner;
+import org.apache.cassandra.index.sasi.KeyFetcher;
 import org.apache.cassandra.index.sasi.SASIIndex;
 import org.apache.cassandra.index.sasi.utils.RangeIterator;
 import org.apache.cassandra.db.marshal.Int32Type;
@@ -70,6 +76,8 @@ public class PerSSTableIndexWriterTest extends SchemaLoader
                                                                      Tables.of(SchemaLoader.sasiCFMD(KS_NAME, CF_NAME))));
     }
 
+    private static final ClusteringComparator CLUSTERING_COMPARATOR = new ClusteringComparator(LongType.instance);
+
     @Test
     public void testPartialIndexWrites() throws Exception
     {
@@ -86,19 +94,20 @@ public class PerSSTableIndexWriterTest extends SchemaLoader
         Descriptor descriptor = Descriptor.fromFilename(cfs.getSSTablePath(directory));
         PerSSTableIndexWriter indexWriter = (PerSSTableIndexWriter) sasi.getFlushObserver(descriptor, OperationType.FLUSH);
 
-        SortedMap<DecoratedKey, Row> expectedKeys = new TreeMap<>(DecoratedKey.comparator);
+        SortedMap<RowKey, Row> expectedKeys = new TreeMap<>();
 
         for (int i = 0; i < maxKeys; i++)
         {
             ByteBuffer key = ByteBufferUtil.bytes(String.format(keyFormat, i));
-            expectedKeys.put(cfs.metadata.partitioner.decorateKey(key),
-                             BTreeRow.singleCellRow(Clustering.EMPTY,
+            Clustering clustering = Clustering.make(ByteBufferUtil.bytes(i * 1L));
+            expectedKeys.put(new RowKey(cfs.metadata.partitioner.decorateKey(key), clustering, CLUSTERING_COMPARATOR),
+                             BTreeRow.singleCellRow(clustering,
                                                     BufferCell.live(column, timestamp, Int32Type.instance.decompose(i))));
         }
 
         indexWriter.begin();
 
-        Iterator<Map.Entry<DecoratedKey, Row>> keyIterator = expectedKeys.entrySet().iterator();
+        Iterator<Map.Entry<RowKey, Row>> keyIterator = expectedKeys.entrySet().iterator();
         long position = 0;
 
         Set<String> segments = new HashSet<>();
@@ -110,10 +119,11 @@ public class PerSSTableIndexWriterTest extends SchemaLoader
                 if (!keyIterator.hasNext())
                     break outer;
 
-                Map.Entry<DecoratedKey, Row> key = keyIterator.next();
+                Map.Entry<RowKey, Row> key = keyIterator.next();
 
-                indexWriter.startPartition(key.getKey(), position++);
-                indexWriter.nextUnfilteredCluster(key.getValue());
+                indexWriter.startPartition(key.getKey().decoratedKey, position);
+                indexWriter.nextUnfilteredCluster(key.getValue(), position);
+                position++;
             }
 
             PerSSTableIndexWriter.Index index = indexWriter.getIndex(column);
@@ -134,15 +144,12 @@ public class PerSSTableIndexWriterTest extends SchemaLoader
         for (String segment : segments)
             Assert.assertFalse(new File(segment).exists());
 
-        OnDiskIndex index = new OnDiskIndex(new File(indexFile), Int32Type.instance, keyPosition -> {
-            ByteBuffer key = ByteBufferUtil.bytes(String.format(keyFormat, keyPosition));
-            return cfs.metadata.partitioner.decorateKey(key);
-        });
+        OnDiskIndex index = new OnDiskIndex(new File(indexFile), Int32Type.instance, new FakeKeyFetcher(cfs, keyFormat));
 
         Assert.assertEquals(0, UTF8Type.instance.compare(index.minKey(), ByteBufferUtil.bytes(String.format(keyFormat, 0))));
         Assert.assertEquals(0, UTF8Type.instance.compare(index.maxKey(), ByteBufferUtil.bytes(String.format(keyFormat, maxKeys - 1))));
 
-        Set<DecoratedKey> actualKeys = new HashSet<>();
+        Set<RowKey> actualKeys = new HashSet<>();
         int count = 0;
         for (OnDiskIndex.DataTerm term : index)
         {
@@ -150,7 +157,7 @@ public class PerSSTableIndexWriterTest extends SchemaLoader
 
             while (tokens.hasNext())
             {
-                for (DecoratedKey key : tokens.next())
+                for (RowKey key : tokens.next())
                     actualKeys.add(key);
             }
 
@@ -158,8 +165,8 @@ public class PerSSTableIndexWriterTest extends SchemaLoader
         }
 
         Assert.assertEquals(expectedKeys.size(), actualKeys.size());
-        for (DecoratedKey key : expectedKeys.keySet())
-            Assert.assertTrue(actualKeys.contains(key));
+        for (RowKey key : expectedKeys.keySet())
+            Assert.assertTrue("Key was not present : " + key, actualKeys.contains(key));
 
         FileUtils.closeQuietly(index);
     }
@@ -183,11 +190,14 @@ public class PerSSTableIndexWriterTest extends SchemaLoader
         indexWriter.begin();
         indexWriter.indexes.put(column, indexWriter.newIndex(sasi.getIndex()));
 
-        populateSegment(cfs.metadata, indexWriter.getIndex(column), new HashMap<Long, Set<Integer>>()
+        populateSegment(cfs.metadata, indexWriter.getIndex(column), new HashMap<Long, KeyOffsets>()
         {{
-            put(now,     new HashSet<>(Arrays.asList(0, 1)));
-            put(now + 1, new HashSet<>(Arrays.asList(2, 3)));
-            put(now + 2, new HashSet<>(Arrays.asList(4, 5, 6, 7, 8, 9)));
+            put(now,     new KeyOffsets() {{ put(0, 0); put(1, 1); }});
+            put(now + 1, new KeyOffsets() {{ put(2, 2); put(3, 3); }});
+            put(now + 2, new KeyOffsets() {{
+                put(4, 4); put(5, 5); put(6, 6);
+                put(7, 7); put(8, 8); put(9, 9);
+            }});
         }});
 
         Callable<OnDiskIndex> segmentBuilder = indexWriter.getIndex(column).scheduleSegmentFlush(false);
@@ -197,15 +207,21 @@ public class PerSSTableIndexWriterTest extends SchemaLoader
         PerSSTableIndexWriter.Index index = indexWriter.getIndex(column);
         Random random = ThreadLocalRandom.current();
 
+        Supplier<KeyOffsets> offsetSupplier = () -> new KeyOffsets() {{
+            put(random.nextInt(), random.nextInt());
+            put(random.nextInt(), random.nextInt());
+            put(random.nextInt(), random.nextInt());
+        }};
+
         Set<String> segments = new HashSet<>();
         // now let's test multiple correct segments with yield incorrect final segment
         for (int i = 0; i < 3; i++)
         {
-            populateSegment(cfs.metadata, index, new HashMap<Long, Set<Integer>>()
+            populateSegment(cfs.metadata, index, new HashMap<Long, KeyOffsets>()
             {{
-                put(now,     new HashSet<>(Arrays.asList(random.nextInt(), random.nextInt(), random.nextInt())));
-                put(now + 1, new HashSet<>(Arrays.asList(random.nextInt(), random.nextInt(), random.nextInt())));
-                put(now + 2, new HashSet<>(Arrays.asList(random.nextInt(), random.nextInt(), random.nextInt())));
+                put(now,     offsetSupplier.get());
+                put(now + 1, offsetSupplier.get());
+                put(now + 2, offsetSupplier.get());
             }});
 
             try
@@ -236,16 +252,56 @@ public class PerSSTableIndexWriterTest extends SchemaLoader
         Assert.assertFalse(new File(index.outputFile).exists());
     }
 
-    private static void populateSegment(CFMetaData metadata, PerSSTableIndexWriter.Index index, Map<Long, Set<Integer>> data)
+    private static void populateSegment(CFMetaData metadata, PerSSTableIndexWriter.Index index, Map<Long, KeyOffsets> data)
     {
-        for (Map.Entry<Long, Set<Integer>> value : data.entrySet())
+        for (Map.Entry<Long, KeyOffsets> value : data.entrySet())
         {
             ByteBuffer term = LongType.instance.decompose(value.getKey());
-            for (Integer keyPos : value.getValue())
+            for (LongObjectCursor<long[]> cursor : value.getValue())
             {
-                ByteBuffer key = ByteBufferUtil.bytes(String.format("key%06d", keyPos));
-                index.add(term, metadata.partitioner.decorateKey(key), ThreadLocalRandom.current().nextInt(Integer.MAX_VALUE - 1));
+                ByteBuffer key = ByteBufferUtil.bytes(String.format("key%06d", cursor.key));
+                for (long rowOffset : cursor.value)
+                {
+                    index.add(term,
+                              metadata.partitioner.decorateKey(key),
+                              ThreadLocalRandom.current().nextInt(Integer.MAX_VALUE - 1),
+                              ThreadLocalRandom.current().nextInt(Integer.MAX_VALUE - 1));
+                }
             }
         }
     }
+
+    private final class FakeKeyFetcher implements KeyFetcher
+    {
+        private final ColumnFamilyStore cfs;
+        private final String keyFormat;
+
+        public FakeKeyFetcher(ColumnFamilyStore cfs, String keyFormat)
+        {
+            this.cfs = cfs;
+            this.keyFormat = keyFormat;
+        }
+
+        public DecoratedKey getPartitionKey(long keyPosition)
+        {
+            ByteBuffer key = ByteBufferUtil.bytes(String.format(keyFormat, keyPosition));
+            return cfs.metadata.partitioner.decorateKey(key);
+        }
+
+        public Clustering getClustering(long offset)
+        {
+            return Clustering.make(ByteBufferUtil.bytes(offset));
+        }
+
+        public RowKey getRowKey(long partitionOffset, long rowOffset)
+        {
+            return new RowKey(getPartitionKey(partitionOffset), getClustering(rowOffset), CLUSTERING_COMPARATOR);
+        }
+    }
+
+    public IPartitioner getPartitioner()
+    {
+        return Murmur3Partitioner.instance;
+    }
+
 }

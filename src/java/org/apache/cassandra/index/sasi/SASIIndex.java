@@ -46,6 +46,7 @@ import org.apache.cassandra.index.sasi.conf.ColumnIndex;
 import org.apache.cassandra.index.sasi.conf.IndexMode;
 import org.apache.cassandra.index.sasi.disk.OnDiskIndexBuilder.Mode;
 import org.apache.cassandra.index.sasi.disk.PerSSTableIndexWriter;
+import org.apache.cassandra.index.sasi.disk.RowKey;
 import org.apache.cassandra.index.sasi.plan.QueryPlan;
 import org.apache.cassandra.index.transactions.IndexTransaction;
 import org.apache.cassandra.io.sstable.Descriptor;
@@ -182,6 +183,14 @@ public class SASIIndex implements Index, INotificationConsumer
         return getTruncateTask(FBUtilities.timestampMicros());
     }
 
+    public Callable<?> getTruncateTask(Collection<SSTableReader> sstablesToRebuild)
+    {
+        return () -> {
+            index.dropData(sstablesToRebuild);
+            return null;
+        };
+    }
+
     public Callable<?> getTruncateTask(long truncatedAt)
     {
         return () -> {
@@ -252,7 +261,7 @@ public class SASIIndex implements Index, INotificationConsumer
             public void insertRow(Row row)
             {
                 if (isNewData())
-                    adjustMemtableSize(index.index(key, row), opGroup);
+                    adjustMemtableSize(index.index(new RowKey(key, row.clustering(), baseCfs.getComparator()), row), opGroup);
             }
 
             public void updateRow(Row oldRow, Row newRow)

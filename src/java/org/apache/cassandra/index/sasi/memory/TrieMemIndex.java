@@ -23,9 +23,8 @@ import java.util.List;
 import java.util.concurrent.ConcurrentSkipListSet;
 
 import org.apache.cassandra.config.ColumnDefinition;
-import org.apache.cassandra.db.DecoratedKey;
 import org.apache.cassandra.index.sasi.conf.ColumnIndex;
-import org.apache.cassandra.index.sasi.disk.OnDiskIndexBuilder;
+import org.apache.cassandra.index.sasi.disk.*;
 import org.apache.cassandra.index.sasi.disk.Token;
 import org.apache.cassandra.index.sasi.plan.Expression;
 import org.apache.cassandra.index.sasi.plan.Expression.Op;
@@ -38,7 +37,7 @@ import com.googlecode.concurrenttrees.radix.ConcurrentRadixTree;
 import com.googlecode.concurrenttrees.suffix.ConcurrentSuffixTree;
 import com.googlecode.concurrenttrees.radix.node.concrete.SmartArrayBasedNodeFactory;
 import com.googlecode.concurrenttrees.radix.node.Node;
-import org.apache.cassandra.utils.FBUtilities;
+import org.apache.cassandra.utils.*;
 
 
 import org.slf4j.Logger;
@@ -71,7 +70,7 @@ public class TrieMemIndex extends MemIndex
         }
     }
 
-    public long add(DecoratedKey key, ByteBuffer value)
+    public long add(RowKey key, ByteBuffer value)
     {
         AbstractAnalyzer analyzer = columnIndex.getAnalyzer();
         analyzer.reset(value.duplicate());
@@ -85,7 +84,7 @@ public class TrieMemIndex extends MemIndex
             {
                 logger.info("Can't add term of column {} to index for key: {}, term size {}, max allowed size {}, use analyzed = true (if not yet set) for that column.",
                             columnIndex.getColumnName(),
-                            keyValidator.getString(key.getKey()),
+                            keyValidator.getString(key.decoratedKey.getKey()),
                             FBUtilities.prettyPrintMemory(term.remaining()),
                             FBUtilities.prettyPrintMemory(OnDiskIndexBuilder.MAX_TERM_SIZE));
                 continue;
@@ -113,13 +112,13 @@ public class TrieMemIndex extends MemIndex
             definition = column;
         }
 
-        public long add(String value, DecoratedKey key)
+        public long add(String value, RowKey key)
         {
             long overhead = CSLM_OVERHEAD;
-            ConcurrentSkipListSet<DecoratedKey> keys = get(value);
+            ConcurrentSkipListSet<RowKey> keys = get(value);
             if (keys == null)
             {
-                ConcurrentSkipListSet<DecoratedKey> newKeys = new ConcurrentSkipListSet<>(DecoratedKey.comparator);
+                ConcurrentSkipListSet<RowKey> newKeys = new ConcurrentSkipListSet<>();
                 keys = putIfAbsent(value, newKeys);
                 if (keys == null)
                 {
@@ -141,10 +140,10 @@ public class TrieMemIndex extends MemIndex
         {
             ByteBuffer prefix = expression.lower == null ? null : expression.lower.value;
 
-            Iterable<ConcurrentSkipListSet<DecoratedKey>> search = search(expression.getOp(), definition.cellValueType().getString(prefix));
+            Iterable<ConcurrentSkipListSet<RowKey>> search = search(expression.getOp(), definition.cellValueType().getString(prefix));
 
             RangeUnionIterator.Builder<Long, Token> builder = RangeUnionIterator.builder();
-            for (ConcurrentSkipListSet<DecoratedKey> keys : search)
+            for (ConcurrentSkipListSet<RowKey> keys : search)
             {
                 if (!keys.isEmpty())
                     builder.add(new KeyRangeIterator(keys));
@@ -153,14 +152,14 @@ public class TrieMemIndex extends MemIndex
             return builder.build();
         }
 
-        protected abstract ConcurrentSkipListSet<DecoratedKey> get(String value);
-        protected abstract Iterable<ConcurrentSkipListSet<DecoratedKey>> search(Op operator, String value);
-        protected abstract ConcurrentSkipListSet<DecoratedKey> putIfAbsent(String value, ConcurrentSkipListSet<DecoratedKey> key);
+        protected abstract ConcurrentSkipListSet<RowKey> get(String value);
+        protected abstract Iterable<ConcurrentSkipListSet<RowKey>> search(Op operator, String value);
+        protected abstract ConcurrentSkipListSet<RowKey> putIfAbsent(String value, ConcurrentSkipListSet<RowKey> key);
     }
 
     protected static class ConcurrentPrefixTrie extends ConcurrentTrie
     {
-        private final ConcurrentRadixTree<ConcurrentSkipListSet<DecoratedKey>> trie;
+        private final ConcurrentRadixTree<ConcurrentSkipListSet<RowKey>> trie;
 
         private ConcurrentPrefixTrie(ColumnDefinition column)
         {
@@ -168,23 +167,23 @@ public class TrieMemIndex extends MemIndex
             trie = new ConcurrentRadixTree<>(NODE_FACTORY);
         }
 
-        public ConcurrentSkipListSet<DecoratedKey> get(String value)
+        public ConcurrentSkipListSet<RowKey> get(String value)
         {
             return trie.getValueForExactKey(value);
         }
 
-        public ConcurrentSkipListSet<DecoratedKey> putIfAbsent(String value, ConcurrentSkipListSet<DecoratedKey> newKeys)
+        public ConcurrentSkipListSet<RowKey> putIfAbsent(String value, ConcurrentSkipListSet<RowKey> newKeys)
         {
             return trie.putIfAbsent(value, newKeys);
         }
 
-        public Iterable<ConcurrentSkipListSet<DecoratedKey>> search(Op operator, String value)
+        public Iterable<ConcurrentSkipListSet<RowKey>> search(Op operator, String value)
         {
             switch (operator)
             {
                 case EQ:
                 case MATCH:
-                    ConcurrentSkipListSet<DecoratedKey> keys = trie.getValueForExactKey(value);
+                    ConcurrentSkipListSet<RowKey> keys = trie.getValueForExactKey(value);
                     return keys == null ? Collections.emptyList() : Collections.singletonList(keys);
 
                 case PREFIX:
@@ -198,7 +197,7 @@ public class TrieMemIndex extends MemIndex
 
     protected static class ConcurrentSuffixTrie extends ConcurrentTrie
     {
-        private final ConcurrentSuffixTree<ConcurrentSkipListSet<DecoratedKey>> trie;
+        private final ConcurrentSuffixTree<ConcurrentSkipListSet<RowKey>> trie;
 
         private ConcurrentSuffixTrie(ColumnDefinition column)
         {
@@ -206,23 +205,23 @@ public class TrieMemIndex extends MemIndex
             trie = new ConcurrentSuffixTree<>(NODE_FACTORY);
         }
 
-        public ConcurrentSkipListSet<DecoratedKey> get(String value)
+        public ConcurrentSkipListSet<RowKey> get(String value)
         {
             return trie.getValueForExactKey(value);
         }
 
-        public ConcurrentSkipListSet<DecoratedKey> putIfAbsent(String value, ConcurrentSkipListSet<DecoratedKey> newKeys)
+        public ConcurrentSkipListSet<RowKey> putIfAbsent(String value, ConcurrentSkipListSet<RowKey> newKeys)
         {
             return trie.putIfAbsent(value, newKeys);
         }
 
-        public Iterable<ConcurrentSkipListSet<DecoratedKey>> search(Op operator, String value)
+        public Iterable<ConcurrentSkipListSet<RowKey>> search(Op operator, String value)
         {
             switch (operator)
             {
                 case EQ:
                 case MATCH:
-                    ConcurrentSkipListSet<DecoratedKey> keys = trie.getValueForExactKey(value);
+                    ConcurrentSkipListSet<RowKey> keys = trie.getValueForExactKey(value);
                     return keys == null ? Collections.emptyList() : Collections.singletonList(keys);
 
                 case SUFFIX:

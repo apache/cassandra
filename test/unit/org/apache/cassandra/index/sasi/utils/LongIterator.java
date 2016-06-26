@@ -26,6 +26,8 @@ import java.util.List;
 import com.carrotsearch.hppc.LongOpenHashSet;
 import com.carrotsearch.hppc.LongSet;
 import org.apache.cassandra.db.DecoratedKey;
+import org.apache.cassandra.index.sasi.disk.KeyOffsets;
+import org.apache.cassandra.index.sasi.disk.RowKey;
 import org.apache.cassandra.index.sasi.disk.Token;
 
 public class LongIterator extends RangeIterator<Long, Token>
@@ -82,13 +84,13 @@ public class LongIterator extends RangeIterator<Long, Token>
         }
 
         @Override
-        public LongSet getOffsets()
+        public KeyOffsets getOffsets()
         {
-            return new LongOpenHashSet(4);
+            return new KeyOffsets(4);
         }
 
         @Override
-        public Iterator<DecoratedKey> iterator()
+        public Iterator<RowKey> iterator()
         {
             return Collections.emptyIterator();
         }
