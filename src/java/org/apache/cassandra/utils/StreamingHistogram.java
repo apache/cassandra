@@ -58,7 +58,7 @@ public class StreamingHistogram
             if (o1.getClass().equals(o2.getClass()))
                 return ((Comparable)o1).compareTo(o2);
             else
-                return ((Double)o1.doubleValue()).compareTo(o2.doubleValue());
+            	return Double.compare(o1.doubleValue(), o2.doubleValue());
         });
     }
 
