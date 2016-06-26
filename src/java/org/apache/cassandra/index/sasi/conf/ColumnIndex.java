@@ -30,8 +30,7 @@ import com.google.common.annotations.VisibleForTesting;
 
 import org.apache.cassandra.config.ColumnDefinition;
 import org.apache.cassandra.cql3.Operator;
-import org.apache.cassandra.db.DecoratedKey;
-import org.apache.cassandra.db.Memtable;
+import org.apache.cassandra.db.*;
 import org.apache.cassandra.db.marshal.AbstractType;
 import org.apache.cassandra.db.marshal.AsciiType;
 import org.apache.cassandra.db.marshal.UTF8Type;
@@ -49,7 +48,7 @@ import org.apache.cassandra.index.sasi.utils.RangeUnionIterator;
 import org.apache.cassandra.io.sstable.Component;
 import org.apache.cassandra.io.sstable.format.SSTableReader;
 import org.apache.cassandra.schema.IndexMetadata;
-import org.apache.cassandra.utils.FBUtilities;
+import org.apache.cassandra.utils.*;
 
 public class ColumnIndex
 {
@@ -99,7 +98,7 @@ public class ColumnIndex
         return keyValidator;
     }
 
-    public long index(DecoratedKey key, Row row)
+    public long index(Pair<DecoratedKey, ClusteringPrefix> key, Row row)
     {
         return getCurrentMemtable().index(key, getValueOf(column, row, FBUtilities.nowInSeconds()));
     }

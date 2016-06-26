@@ -23,7 +23,7 @@ import java.util.*;
 import java.util.stream.Collectors;
 
 import org.apache.cassandra.db.DecoratedKey;
-import org.apache.cassandra.index.sasi.Term;
+import org.apache.cassandra.index.sasi.*;
 import org.apache.cassandra.index.sasi.plan.Expression;
 import org.apache.cassandra.index.sasi.plan.Expression.Op;
 import org.apache.cassandra.index.sasi.utils.MappedBuffer;
@@ -106,7 +106,7 @@ public class OnDiskIndex implements Iterable<OnDiskIndex.DataTerm>, Closeable
     protected final long indexSize;
     protected final boolean hasMarkedPartials;
 
-    protected final Function<Long, DecoratedKey> keyFetcher;
+    protected final KeyFetcher keyFetcher;
 
     protected final String indexPath;
 
@@ -116,7 +116,7 @@ public class OnDiskIndex implements Iterable<OnDiskIndex.DataTerm>, Closeable
     protected final ByteBuffer minTerm, maxTerm, minKey, maxKey;
 
     @SuppressWarnings("resource")
-    public OnDiskIndex(File index, AbstractType<?> cmp, Function<Long, DecoratedKey> keyReader)
+    public OnDiskIndex(File index, AbstractType<?> cmp, KeyFetcher keyReader)
     {
         keyFetcher = keyReader;
 
@@ -134,7 +134,6 @@ public class OnDiskIndex implements Iterable<OnDiskIndex.DataTerm>, Closeable
 
             minTerm = ByteBufferUtil.readWithShortLength(backingFile);
             maxTerm = ByteBufferUtil.readWithShortLength(backingFile);
-
             minKey = ByteBufferUtil.readWithShortLength(backingFile);
             maxKey = ByteBufferUtil.readWithShortLength(backingFile);
 
@@ -635,9 +634,11 @@ public class OnDiskIndex implements Iterable<OnDiskIndex.DataTerm>, Closeable
         {
             final long blockEnd = FBUtilities.align(content.position(), OnDiskIndexBuilder.BLOCK_SIZE);
 
+            // ([int] -1 for sparse, offset for non-sparse)
             if (isSparse())
                 return new PrefetchedTokensIterator(getSparseTokens());
 
+            // offset size
             long offset = blockEnd + 4 + content.getInt(getDataOffset() + 1);
             return new TokenTree(descriptor, indexFile.duplicate().position(offset)).iterator(keyFetcher);
         }

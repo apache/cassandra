@@ -24,9 +24,10 @@ import java.util.*;
 
 import com.google.common.collect.Iterators;
 import com.google.common.collect.PeekingIterator;
-import org.apache.cassandra.db.BufferDecoratedKey;
-import org.apache.cassandra.db.DecoratedKey;
+
+import org.apache.cassandra.db.*;
 import org.apache.cassandra.dht.Murmur3Partitioner;
+import org.apache.cassandra.index.sasi.*;
 import org.apache.cassandra.index.sasi.disk.TokenTreeBuilder.EntryType;
 import org.apache.cassandra.index.sasi.utils.CombinedTerm;
 import org.apache.cassandra.index.sasi.utils.CombinedValue;
@@ -34,32 +35,38 @@ import org.apache.cassandra.index.sasi.utils.MappedBuffer;
 import org.apache.cassandra.index.sasi.utils.RangeIterator;
 import org.apache.cassandra.db.marshal.LongType;
 import org.apache.cassandra.index.sasi.utils.RangeUnionIterator;
-import org.apache.cassandra.io.util.FileUtils;
-import org.apache.cassandra.io.util.SequentialWriterOption;
-import org.apache.cassandra.utils.MurmurHash;
-import org.apache.cassandra.io.util.RandomAccessReader;
-import org.apache.cassandra.io.util.SequentialWriter;
+import org.apache.cassandra.io.util.*;
+import org.apache.cassandra.utils.*;
 
 import junit.framework.Assert;
 import org.junit.Test;
 import org.apache.commons.lang3.builder.HashCodeBuilder;
-import com.carrotsearch.hppc.LongOpenHashSet;
-import com.carrotsearch.hppc.LongSet;
-import com.carrotsearch.hppc.cursors.LongCursor;
-import com.google.common.base.Function;
 
 public class TokenTreeTest
 {
-    private static final Function<Long, DecoratedKey> KEY_CONVERTER = new KeyConverter();
+    private static final KeyFetcher KEY_CONVERTER = new KeyConverter();
 
-    static LongSet singleOffset = new LongOpenHashSet() {{ add(1); }};
-    static LongSet bigSingleOffset = new LongOpenHashSet() {{ add(2147521562L); }};
-    static LongSet shortPackableCollision = new LongOpenHashSet() {{ add(2L); add(3L); }}; // can pack two shorts
-    static LongSet intPackableCollision = new LongOpenHashSet() {{ add(6L); add(((long) Short.MAX_VALUE) + 1); }}; // can pack int & short
-    static LongSet multiCollision =  new LongOpenHashSet() {{ add(3L); add(4L); add(5L); }}; // can't pack
-    static LongSet unpackableCollision = new LongOpenHashSet() {{ add(((long) Short.MAX_VALUE) + 1); add(((long) Short.MAX_VALUE) + 2); }}; // can't pack
+    static Set<RowOffset> singleOffset = new HashSet<RowOffset>() {{ add( new RowOffset(1, 10)); }};
+    static Set<RowOffset>  bigSingleOffset = new HashSet<RowOffset>() {{ add(new RowOffset(2147521562L, 10)); }};
+    static Set<RowOffset>  shortPackableCollision = new HashSet<RowOffset>() {{
+        add(new RowOffset(2L, 10));
+        add(new RowOffset(3L, 10));
+    }}; // can pack two shorts
+    static Set<RowOffset>  intPackableCollision = new HashSet<RowOffset>() {{
+        add(new RowOffset(6L, 10));
+        add(new RowOffset(((long) Short.MAX_VALUE) + 1, 10));
+    }}; // can pack int & short
+    static Set<RowOffset>  multiCollision =  new HashSet<RowOffset>() {{
+        add(new RowOffset(3L, 10));
+        add(new RowOffset(4L, 10));
+        add(new RowOffset(5L, 10));
+    }}; // can't pack
+    static Set<RowOffset>  unpackableCollision = new HashSet<RowOffset>() {{
+        add(new RowOffset(((long) Short.MAX_VALUE) + 1, 10));
+        add(new RowOffset(((long) Short.MAX_VALUE) + 2, 10));
+    }}; // can't pack
 
-    final static SortedMap<Long, LongSet> simpleTokenMap = new TreeMap<Long, LongSet>()
+    final static SortedMap<Long, Set<RowOffset>> simpleTokenMap = new TreeMap<Long, Set<RowOffset>>()
     {{
             put(1L, bigSingleOffset); put(3L, shortPackableCollision); put(4L, intPackableCollision); put(6L, singleOffset);
             put(9L, multiCollision); put(10L, unpackableCollision); put(12L, singleOffset); put(13L, singleOffset);
@@ -71,18 +78,18 @@ public class TokenTreeTest
             put(121L, singleOffset); put(122L, singleOffset); put(123L, singleOffset); put(125L, singleOffset);
     }};
 
-    final static SortedMap<Long, LongSet> bigTokensMap = new TreeMap<Long, LongSet>()
+    final static SortedMap<Long, Set<RowOffset>> bigTokensMap = new TreeMap<Long, Set<RowOffset>>()
     {{
             for (long i = 0; i < 1000000; i++)
                 put(i, singleOffset);
     }};
 
-    final static SortedMap<Long, LongSet> collidingTokensMap = new TreeMap<Long, LongSet>()
+    final static SortedMap<Long, Set<RowOffset>> collidingTokensMap = new TreeMap<Long, Set<RowOffset>>()
     {{
             put(1L, singleOffset); put(7L, singleOffset); put(8L, singleOffset);
     }};
 
-    final static SortedMap<Long, LongSet> tokens = bigTokensMap;
+    final static SortedMap<Long, Set<RowOffset>> tokens = bigTokensMap;
 
     final static SequentialWriterOption DEFAULT_OPT = SequentialWriterOption.newBuilder().bufferSize(4096).build();
 
@@ -97,7 +104,6 @@ public class TokenTreeTest
     {
         testSerializedSize(new StaticTokenTreeBuilder(new FakeCombinedTerm(tokens)));
     }
-
 
     public void testSerializedSize(final TokenTreeBuilder builder) throws Exception
     {
@@ -129,7 +135,7 @@ public class TokenTreeTest
     }
 
 
-    public void buildSerializeAndIterate(TokenTreeBuilder builder, SortedMap<Long, LongSet> tokenMap) throws Exception
+    public void buildSerializeAndIterate(TokenTreeBuilder builder, SortedMap<Long, Set<RowOffset>> tokenMap) throws Exception
     {
 
         builder.finish();
@@ -146,11 +152,11 @@ public class TokenTreeTest
         final TokenTree tokenTree = new TokenTree(new MappedBuffer(reader));
 
         final Iterator<Token> tokenIterator = tokenTree.iterator(KEY_CONVERTER);
-        final Iterator<Map.Entry<Long, LongSet>> listIterator = tokenMap.entrySet().iterator();
+        final Iterator<Map.Entry<Long, Set<RowOffset>>> listIterator = tokenMap.entrySet().iterator();
         while (tokenIterator.hasNext() && listIterator.hasNext())
         {
             Token treeNext = tokenIterator.next();
-            Map.Entry<Long, LongSet> listNext = listIterator.next();
+            Map.Entry<Long, Set<RowOffset>> listNext = listIterator.next();
 
             Assert.assertEquals(listNext.getKey(), treeNext.get());
             Assert.assertEquals(convert(listNext.getValue()), convert(treeNext));
@@ -184,11 +190,12 @@ public class TokenTreeTest
         for (long i = 0; i <= tokMax; i++)
         {
             TokenTree.OnDiskToken result = tokenTree.get(i, KEY_CONVERTER);
+
             Assert.assertNotNull("failed to find object for token " + i, result);
 
-            LongSet found = result.getOffsets();
+            Set<RowOffset> found = result.getOffsets();
             Assert.assertEquals(1, found.size());
-            Assert.assertEquals(i, found.toArray()[0]);
+            Assert.assertEquals(i, ((RowOffset)found.toArray()[0]).partitionOffset);
         }
 
         Assert.assertNull("found missing object", tokenTree.get(tokMax + 10, KEY_CONVERTER));
@@ -206,7 +213,7 @@ public class TokenTreeTest
         buildSerializeIterateAndSkip(new StaticTokenTreeBuilder(new FakeCombinedTerm(tokens)), tokens);
     }
 
-    public void buildSerializeIterateAndSkip(TokenTreeBuilder builder, SortedMap<Long, LongSet> tokens) throws Exception
+    public void buildSerializeIterateAndSkip(TokenTreeBuilder builder, SortedMap<Long, Set<RowOffset>> tokens) throws Exception
     {
         builder.finish();
         final File treeFile = File.createTempFile("token-tree-iterate-test2", "tt");
@@ -265,7 +272,7 @@ public class TokenTreeTest
         skipPastEnd(new StaticTokenTreeBuilder(new FakeCombinedTerm(simpleTokenMap)), simpleTokenMap);
     }
 
-    public void skipPastEnd(TokenTreeBuilder builder, SortedMap<Long, LongSet> tokens) throws Exception
+    public void skipPastEnd(TokenTreeBuilder builder, SortedMap<Long, Set<RowOffset>> tokens) throws Exception
     {
         builder.finish();
         final File treeFile = File.createTempFile("token-tree-skip-past-test", "tt");
@@ -283,6 +290,7 @@ public class TokenTreeTest
         tokenTree.skipTo(tokens.lastKey() + 10);
     }
 
+    // TODO: (ifesdjeen) add tests for clustering ordering
     @Test
     public void testTokenMergeDyanmic() throws Exception
     {
@@ -331,8 +339,8 @@ public class TokenTreeTest
             }
 
             final Set<Long> offsets = new TreeSet<>();
-            for (DecoratedKey key : tokenA)
-                 offsets.add(LongType.instance.compose(key.getKey()));
+            for (Pair<DecoratedKey, ClusteringPrefix> key : tokenA)
+                 offsets.add(LongType.instance.compose(key.left.getKey()));
 
             Set<Long> expected = new TreeSet<>();
             {
@@ -352,7 +360,6 @@ public class TokenTreeTest
     {
         Assert.assertEquals(EntryType.SIMPLE, EntryType.of(EntryType.SIMPLE.ordinal()));
         Assert.assertEquals(EntryType.PACKED, EntryType.of(EntryType.PACKED.ordinal()));
-        Assert.assertEquals(EntryType.FACTORED, EntryType.of(EntryType.FACTORED.ordinal()));
         Assert.assertEquals(EntryType.OVERFLOW, EntryType.of(EntryType.OVERFLOW.ordinal()));
     }
 
@@ -363,7 +370,7 @@ public class TokenTreeTest
         testMergingOfEqualTokenTrees(bigTokensMap);
     }
 
-    public void testMergingOfEqualTokenTrees(SortedMap<Long, LongSet> tokensMap) throws Exception
+    public void testMergingOfEqualTokenTrees(SortedMap<Long, Set<RowOffset>> tokensMap) throws Exception
     {
         TokenTreeBuilder tokensA = new DynamicTokenTreeBuilder(tokensMap);
         TokenTreeBuilder tokensB = new DynamicTokenTreeBuilder(tokensMap);
@@ -387,22 +394,22 @@ public class TokenTreeTest
         Assert.assertEquals(tokensMap.size(), c.getCount());
 
         Iterator<Token> tokenIterator = c.iterator(KEY_CONVERTER);
-        Iterator<Map.Entry<Long, LongSet>> listIterator = tokensMap.entrySet().iterator();
+        Iterator<Map.Entry<Long, Set<RowOffset>>> listIterator = tokensMap.entrySet().iterator();
         while (tokenIterator.hasNext() && listIterator.hasNext())
         {
             Token treeNext = tokenIterator.next();
-            Map.Entry<Long, LongSet> listNext = listIterator.next();
+            Map.Entry<Long, Set<RowOffset>> listNext = listIterator.next();
 
             Assert.assertEquals(listNext.getKey(), treeNext.get());
             Assert.assertEquals(convert(listNext.getValue()), convert(treeNext));
         }
 
-        for (Map.Entry<Long, LongSet> entry : tokensMap.entrySet())
+        for (Map.Entry<Long, Set<RowOffset>> entry : tokensMap.entrySet())
         {
             TokenTree.OnDiskToken result = c.get(entry.getKey(), KEY_CONVERTER);
             Assert.assertNotNull("failed to find object for token " + entry.getKey(), result);
 
-            LongSet found = result.getOffsets();
+            Set<RowOffset> found = result.getOffsets();
             Assert.assertEquals(entry.getValue(), found);
 
         }
@@ -427,9 +434,9 @@ public class TokenTreeTest
 
     private static class EntrySetSkippableIterator extends RangeIterator<Long, TokenWithOffsets>
     {
-        private final PeekingIterator<Map.Entry<Long, LongSet>> elements;
+        private final PeekingIterator<Map.Entry<Long, Set<RowOffset>>> elements;
 
-        EntrySetSkippableIterator(SortedMap<Long, LongSet> elms)
+        EntrySetSkippableIterator(SortedMap<Long, Set<RowOffset>> elms)
         {
             super(elms.firstKey(), elms.lastKey(), elms.size());
             elements = Iterators.peekingIterator(elms.entrySet().iterator());
@@ -441,7 +448,7 @@ public class TokenTreeTest
             if (!elements.hasNext())
                 return endOfData();
 
-            Map.Entry<Long, LongSet> next = elements.next();
+            Map.Entry<Long, Set<RowOffset>> next = elements.next();
             return new TokenWithOffsets(next.getKey(), next.getValue());
         }
 
@@ -468,9 +475,9 @@ public class TokenTreeTest
 
     public static class FakeCombinedTerm extends CombinedTerm
     {
-        private final SortedMap<Long, LongSet> tokens;
+        private final SortedMap<Long, Set<RowOffset>> tokens;
 
-        public FakeCombinedTerm(SortedMap<Long, LongSet> tokens)
+        public FakeCombinedTerm(SortedMap<Long, Set<RowOffset>> tokens)
         {
             super(null, null);
             this.tokens = tokens;
@@ -484,9 +491,9 @@ public class TokenTreeTest
 
     public static class TokenMapIterator extends RangeIterator<Long, Token>
     {
-        public final Iterator<Map.Entry<Long, LongSet>> iterator;
+        public final Iterator<Map.Entry<Long, Set<RowOffset>>> iterator;
 
-        public TokenMapIterator(SortedMap<Long, LongSet> tokens)
+        public TokenMapIterator(SortedMap<Long, Set<RowOffset>> tokens)
         {
             super(tokens.firstKey(), tokens.lastKey(), tokens.size());
             iterator = tokens.entrySet().iterator();
@@ -497,7 +504,7 @@ public class TokenTreeTest
             if (!iterator.hasNext())
                 return endOfData();
 
-            Map.Entry<Long, LongSet> entry = iterator.next();
+            Map.Entry<Long, Set<RowOffset>> entry = iterator.next();
             return new TokenWithOffsets(entry.getKey(), entry.getValue());
         }
 
@@ -514,16 +521,16 @@ public class TokenTreeTest
 
     public static class TokenWithOffsets extends Token
     {
-        private final LongSet offsets;
+        private final Set<RowOffset> offsets;
 
-        public TokenWithOffsets(long token, final LongSet offsets)
+        public TokenWithOffsets(long token, final Set<RowOffset> offsets)
         {
             super(token);
             this.offsets = offsets;
         }
 
         @Override
-        public LongSet getOffsets()
+        public Set<RowOffset> getOffsets()
         {
             return offsets;
         }
@@ -561,21 +568,22 @@ public class TokenTreeTest
         }
 
         @Override
-        public Iterator<DecoratedKey> iterator()
+        public Iterator<Pair<DecoratedKey, ClusteringPrefix>> iterator()
         {
-            List<DecoratedKey> keys = new ArrayList<>(offsets.size());
-            for (LongCursor offset : offsets)
-                 keys.add(dk(offset.value));
+            List<Pair<DecoratedKey, ClusteringPrefix>> keys = new ArrayList<>(offsets.size());
+            for (RowOffset offset : offsets)
+                 keys.add(Pair.create(dk(offset.partitionOffset), null)); // TODO (ifesdjeen) ?
 
             return keys.iterator();
         }
     }
 
-    private static Set<DecoratedKey> convert(LongSet offsets)
+    // TODO: (ifesdjeen) test right part, too
+    private static Set<DecoratedKey> convert(Set<RowOffset> offsets)
     {
         Set<DecoratedKey> keys = new HashSet<>();
-        for (LongCursor offset : offsets)
-            keys.add(KEY_CONVERTER.apply(offset.value));
+        for (RowOffset offset : offsets)
+            keys.add(KEY_CONVERTER.getPartitionKey(offset.partitionOffset));
 
         return keys;
     }
@@ -583,27 +591,40 @@ public class TokenTreeTest
     private static Set<DecoratedKey> convert(Token results)
     {
         Set<DecoratedKey> keys = new HashSet<>();
-        for (DecoratedKey key : results)
-            keys.add(key);
+        for (Pair<DecoratedKey, ClusteringPrefix> key : results)
+            keys.add(key.left);
 
         return keys;
     }
 
-    private static LongSet convert(long... values)
+    private static Set<RowOffset> convert(long... values)
     {
-        LongSet result = new LongOpenHashSet(values.length);
+        Set<RowOffset> result = new HashSet<>(values.length);
         for (long v : values)
-            result.add(v);
+            result.add(new RowOffset(v, v + 5));
 
         return result;
     }
 
-    private static class KeyConverter implements Function<Long, DecoratedKey>
+    // TODO: (ifesdjeen) ABSTRACT!
+    private static class KeyConverter extends KeyFetcher
     {
+        KeyConverter()
+        {
+            super(null);
+        }
+
         @Override
-        public DecoratedKey apply(Long offset)
+        public DecoratedKey getPartitionKey(Long offset)
         {
             return dk(offset);
+        }
+
+        @Override
+        public ClusteringPrefix getClustering(Long offset)
+        {
+            // TODO: (ifesdjeen) test for clusterings, too
+            return null;
         }
     }
 
@@ -618,17 +639,21 @@ public class TokenTreeTest
 
     private static TokenTree generateTree(final long minToken, final long maxToken, boolean isStatic) throws IOException
     {
-        final SortedMap<Long, LongSet> toks = new TreeMap<Long, LongSet>()
+        final SortedMap<Long, Set<RowOffset>> toks = new TreeMap<Long, Set<RowOffset>>()
         {{
                 for (long i = minToken; i <= maxToken; i++)
                 {
-                    LongSet offsetSet = new LongOpenHashSet();
-                    offsetSet.add(i);
+                    Set<RowOffset> offsetSet = new HashSet<>();
+                    offsetSet.add(new RowOffset(i, i + 5));
                     put(i, offsetSet);
                 }
         }};
 
-        final TokenTreeBuilder builder = isStatic ? new StaticTokenTreeBuilder(new FakeCombinedTerm(toks)) : new DynamicTokenTreeBuilder(toks);
+        System.out.println("toks = " + toks);
+        System.out.println("isStatic = " + isStatic);
+
+        // final TokenTreeBuilder builder = isStatic ? new StaticTokenTreeBuilder(new FakeCombinedTerm(toks)) : new DynamicTokenTreeBuilder(toks);
+        final TokenTreeBuilder builder = new DynamicTokenTreeBuilder(toks);
         builder.finish();
         final File treeFile = File.createTempFile("token-tree-get-test", "tt");
         treeFile.deleteOnExit();

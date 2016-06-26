@@ -24,8 +24,7 @@ import com.google.common.collect.Sets;
 
 import org.apache.cassandra.config.CFMetaData;
 import org.apache.cassandra.db.*;
-import org.apache.cassandra.db.filter.DataLimits;
-import org.apache.cassandra.db.filter.RowFilter;
+import org.apache.cassandra.db.filter.*;
 import org.apache.cassandra.db.rows.UnfilteredRowIterator;
 import org.apache.cassandra.index.Index;
 import org.apache.cassandra.index.sasi.SASIIndex;
@@ -42,7 +41,7 @@ import org.apache.cassandra.index.sasi.utils.RangeUnionIterator;
 import org.apache.cassandra.db.marshal.AbstractType;
 import org.apache.cassandra.io.sstable.format.SSTableReader;
 import org.apache.cassandra.io.util.FileUtils;
-import org.apache.cassandra.utils.Pair;
+import org.apache.cassandra.utils.*;
 
 public class QueryController
 {
@@ -94,21 +93,22 @@ public class QueryController
         return index.isPresent() ? ((SASIIndex) index.get()).getIndex() : null;
     }
 
-
-    public UnfilteredRowIterator getPartition(DecoratedKey key, ReadExecutionController executionController)
+    public UnfilteredRowIterator getPartition(DecoratedKey key, ClusteringPrefix clusteringPrefix, ReadExecutionController executionController)
     {
         if (key == null)
             throw new NullPointerException();
         try
         {
-            SinglePartitionReadCommand partition = SinglePartitionReadCommand.create(command.isForThrift(),
-                                                                                     cfs.metadata,
+
+            // TODO (ifesdjeen) here we have nulls in case of clustering, can we optimise/improve?
+            ClusteringBound start = clusteringPrefix == null ? ClusteringBound.BOTTOM : ClusteringBound.create(cfs.getComparator(), true, true, clusteringPrefix.getRawValues());
+            ClusteringBound end = clusteringPrefix == null ? ClusteringBound.TOP : ClusteringBound.create(cfs.getComparator(), false, true, clusteringPrefix.getRawValues());
+
+            // TODO (ifesdjeen) probably that's incorrect as we'll query all rows
+            SinglePartitionReadCommand partition = SinglePartitionReadCommand.create(cfs.metadata,
                                                                                      command.nowInSec(),
-                                                                                     command.columnFilter(),
-                                                                                     command.rowFilter().withoutExpressions(),
-                                                                                     DataLimits.NONE,
                                                                                      key,
-                                                                                     command.clusteringIndexFilter(key));
+                                                                                     Slice.make(start, end));
 
             return partition.queryMemtableAndDisk(cfs, executionController);
         }

@@ -18,28 +18,29 @@
 package org.apache.cassandra.index.sasi.memory;
 
 import java.io.IOException;
-import java.util.Iterator;
-import java.util.SortedSet;
-import java.util.TreeSet;
+import java.util.*;
 import java.util.concurrent.ConcurrentSkipListSet;
 
-import org.apache.cassandra.db.DecoratedKey;
-import org.apache.cassandra.index.sasi.disk.Token;
+import org.apache.cassandra.db.*;
+import org.apache.cassandra.index.sasi.disk.*;
 import org.apache.cassandra.index.sasi.utils.AbstractIterator;
 import org.apache.cassandra.index.sasi.utils.CombinedValue;
 import org.apache.cassandra.index.sasi.utils.RangeIterator;
 
 import com.carrotsearch.hppc.LongOpenHashSet;
 import com.carrotsearch.hppc.LongSet;
+import org.apache.cassandra.utils.*;
+
 import com.google.common.collect.PeekingIterator;
+import org.apache.commons.lang.NotImplementedException;
 
 public class KeyRangeIterator extends RangeIterator<Long, Token>
 {
     private final DKIterator iterator;
 
-    public KeyRangeIterator(ConcurrentSkipListSet<DecoratedKey> keys)
+    public KeyRangeIterator(ConcurrentSkipListSet<Pair<DecoratedKey, ClusteringPrefix>> keys)
     {
-        super((Long) keys.first().getToken().getTokenValue(), (Long) keys.last().getToken().getTokenValue(), keys.size());
+        super((Long) keys.first().left.getToken().getTokenValue(), (Long) keys.last().left.getToken().getTokenValue(), keys.size());
         this.iterator = new DKIterator(keys.iterator());
     }
 
@@ -52,8 +53,9 @@ public class KeyRangeIterator extends RangeIterator<Long, Token>
     {
         while (iterator.hasNext())
         {
-            DecoratedKey key = iterator.peek();
-            if (Long.compare((long) key.getToken().getTokenValue(), nextToken) >= 0)
+            Pair<DecoratedKey, ClusteringPrefix> key = iterator.peek();
+            // TODO: (ifesdjeen) fix comparison
+            if (Long.compare((long) key.left.getToken().getTokenValue(), nextToken) >= 0)
                 break;
 
             // consume smaller key
@@ -64,16 +66,16 @@ public class KeyRangeIterator extends RangeIterator<Long, Token>
     public void close() throws IOException
     {}
 
-    private static class DKIterator extends AbstractIterator<DecoratedKey> implements PeekingIterator<DecoratedKey>
+    private static class DKIterator extends AbstractIterator<Pair<DecoratedKey, ClusteringPrefix>> implements PeekingIterator<Pair<DecoratedKey, ClusteringPrefix>>
     {
-        private final Iterator<DecoratedKey> keys;
+        private final Iterator<Pair<DecoratedKey, ClusteringPrefix>> keys;
 
-        public DKIterator(Iterator<DecoratedKey> keys)
+        public DKIterator(Iterator<Pair<DecoratedKey, ClusteringPrefix>> keys)
         {
             this.keys = keys;
         }
 
-        protected DecoratedKey computeNext()
+        protected Pair<DecoratedKey, ClusteringPrefix> computeNext()
         {
             return keys.hasNext() ? keys.next() : endOfData();
         }
@@ -81,25 +83,21 @@ public class KeyRangeIterator extends RangeIterator<Long, Token>
 
     private static class DKToken extends Token
     {
-        private final SortedSet<DecoratedKey> keys;
+        private final SortedSet<Pair<DecoratedKey, ClusteringPrefix>> keys;
 
-        public DKToken(final DecoratedKey key)
+        public DKToken(Pair<DecoratedKey, ClusteringPrefix> key)
         {
-            super((long) key.getToken().getTokenValue());
+            super((long) key.left.getToken().getTokenValue());
 
-            keys = new TreeSet<DecoratedKey>(DecoratedKey.comparator)
+            keys = new TreeSet<Pair<DecoratedKey, ClusteringPrefix>>(TokenTree.OnDiskToken.comparator)
             {{
                 add(key);
             }};
         }
 
-        public LongSet getOffsets()
+        public Set<RowOffset> getOffsets()
         {
-            LongSet offsets = new LongOpenHashSet(4);
-            for (DecoratedKey key : keys)
-                offsets.add((long) key.getToken().getTokenValue());
-
-            return offsets;
+            throw new IllegalStateException("DecoratedKey tokens are used in memtables and do not have on-disk offsets");
         }
 
         public void merge(CombinedValue<Long> other)
@@ -116,12 +114,12 @@ public class KeyRangeIterator extends RangeIterator<Long, Token>
             }
             else
             {
-                for (DecoratedKey key : o)
+                for (Pair<DecoratedKey, ClusteringPrefix> key : o)
                     keys.add(key);
             }
         }
 
-        public Iterator<DecoratedKey> iterator()
+        public Iterator<Pair<DecoratedKey, ClusteringPrefix>> iterator()
         {
             return keys.iterator();
         }

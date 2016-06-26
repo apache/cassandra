@@ -15,35 +15,20 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
+
 package org.apache.cassandra.index.sasi.disk;
 
-import java.util.*;
+import java.nio.ByteBuffer;
 
-import com.google.common.primitives.Longs;
-
-import org.apache.cassandra.db.*;
-import org.apache.cassandra.index.sasi.utils.CombinedValue;
-import org.apache.cassandra.utils.*;
-
-public abstract class Token implements CombinedValue<Long>, Iterable<Pair<DecoratedKey, ClusteringPrefix>>
+public class RowOffset
 {
-    protected final long token;
+    public final long partitionOffset;
+    public final long rowOffset;
 
-    public Token(long token)
+    public RowOffset(long partitionOffset, long rowOffset)
     {
-        this.token = token;
-    }
-
-    public Long get()
-    {
-        return token;
-    }
-
-    public abstract Set<RowOffset> getOffsets();
-
-    public int compareTo(CombinedValue<Long> o)
-    {
-        return Longs.compare(token, ((Token) o).token);
+        this.partitionOffset = partitionOffset;
+        this.rowOffset = rowOffset;
     }
 
     public boolean equals(Object o)
@@ -51,13 +36,31 @@ public abstract class Token implements CombinedValue<Long>, Iterable<Pair<Decora
         if (this == o) return true;
         if (o == null || getClass() != o.getClass()) return false;
 
-        Token pairs = (Token) o;
+        RowOffset rowOffset1 = (RowOffset) o;
 
-        return token == pairs.token;
+        if (partitionOffset != rowOffset1.partitionOffset) return false;
+        return rowOffset == rowOffset1.rowOffset;
     }
 
     public int hashCode()
     {
-        return (int) (token ^ (token >>> 32));
+        int result = (int) (partitionOffset ^ (partitionOffset >>> 32));
+        result = 31 * result + (int) (rowOffset ^ (rowOffset >>> 32));
+        return result;
+    }
+
+    public void serialize(ByteBuffer buffer)
+    {
+        buffer.putLong(partitionOffset);
+        buffer.putLong(rowOffset);
+    }
+
+    public String toString()
+    {
+        return "RowOffset{" +
+               "partitionOffset=" + partitionOffset +
+               ", rowOffset=" + rowOffset +
+               '}';
     }
 }
+

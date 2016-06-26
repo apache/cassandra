@@ -29,7 +29,7 @@ import com.carrotsearch.hppc.cursors.LongCursor;
 
 public class DynamicTokenTreeBuilder extends AbstractTokenTreeBuilder
 {
-    private final SortedMap<Long, LongSet> tokens = new TreeMap<>();
+    private final SortedMap<Long, Set<RowOffset>> tokens = new TreeMap<>();
 
 
     public DynamicTokenTreeBuilder()
@@ -40,54 +40,54 @@ public class DynamicTokenTreeBuilder extends AbstractTokenTreeBuilder
         add(data);
     }
 
-    public DynamicTokenTreeBuilder(SortedMap<Long, LongSet> data)
+    public DynamicTokenTreeBuilder(SortedMap<Long, Set<RowOffset>> data)
     {
         add(data);
     }
 
-    public void add(Long token, long keyPosition)
+    public void add(Long token, long partitionOffset, long rowOffset)
     {
-        LongSet found = tokens.get(token);
+        Set<RowOffset> found = tokens.get(token);
         if (found == null)
-            tokens.put(token, (found = new LongOpenHashSet(2)));
+            tokens.put(token, (found = new HashSet<RowOffset>(2)));
 
-        found.add(keyPosition);
+        found.add(new RowOffset(partitionOffset, rowOffset));
     }
 
-    public void add(Iterator<Pair<Long, LongSet>> data)
+    public void add(Iterator<Pair<Long, Set<RowOffset>>> data)
     {
         while (data.hasNext())
         {
-            Pair<Long, LongSet> entry = data.next();
-            for (LongCursor l : entry.right)
-                add(entry.left, l.value);
+            Pair<Long, Set<RowOffset>> entry = data.next();
+            for (RowOffset l : entry.right)
+                add(entry.left, l.partitionOffset, l.rowOffset);
         }
     }
 
-    public void add(SortedMap<Long, LongSet> data)
+    public void add(SortedMap<Long, Set<RowOffset>> data)
     {
-        for (Map.Entry<Long, LongSet> newEntry : data.entrySet())
+        for (Map.Entry<Long, Set<RowOffset>> newEntry : data.entrySet())
         {
-            LongSet found = tokens.get(newEntry.getKey());
+            Set<RowOffset> found = tokens.get(newEntry.getKey());
             if (found == null)
-                tokens.put(newEntry.getKey(), (found = new LongOpenHashSet(4)));
+                tokens.put(newEntry.getKey(), (found = new HashSet<RowOffset>(4)));
 
-            for (LongCursor offset : newEntry.getValue())
-                found.add(offset.value);
+            for (RowOffset offset : newEntry.getValue())
+                found.add(offset);
         }
     }
 
-    public Iterator<Pair<Long, LongSet>> iterator()
+    public Iterator<Pair<Long, Set<RowOffset>>> iterator()
     {
-        final Iterator<Map.Entry<Long, LongSet>> iterator = tokens.entrySet().iterator();
-        return new AbstractIterator<Pair<Long, LongSet>>()
+        final Iterator<Map.Entry<Long, Set<RowOffset>>> iterator = tokens.entrySet().iterator();
+        return new AbstractIterator<Pair<Long, Set<RowOffset>>>()
         {
-            protected Pair<Long, LongSet> computeNext()
+            protected Pair<Long, Set<RowOffset>> computeNext()
             {
                 if (!iterator.hasNext())
                     return endOfData();
 
-                Map.Entry<Long, LongSet> entry = iterator.next();
+                Map.Entry<Long, Set<RowOffset>> entry = iterator.next();
                 return Pair.create(entry.getKey(), entry.getValue());
             }
         };
@@ -161,9 +161,9 @@ public class DynamicTokenTreeBuilder extends AbstractTokenTreeBuilder
 
     private class DynamicLeaf extends Leaf
     {
-        private final SortedMap<Long, LongSet> tokens;
+        private final SortedMap<Long, Set<RowOffset>> tokens;
 
-        DynamicLeaf(SortedMap<Long, LongSet> data)
+        DynamicLeaf(SortedMap<Long, Set<RowOffset>> data)
         {
             super(data.firstKey(), data.lastKey());
             tokens = data;
@@ -181,9 +181,10 @@ public class DynamicTokenTreeBuilder extends AbstractTokenTreeBuilder
 
         protected void serializeData(ByteBuffer buf)
         {
-            for (Map.Entry<Long, LongSet> entry : tokens.entrySet())
+            for (Map.Entry<Long, Set<RowOffset>> entry : tokens.entrySet())
                 createEntry(entry.getKey(), entry.getValue()).serialize(buf);
         }
 
     }
+
 }

@@ -23,33 +23,55 @@ import java.util.*;
 import org.apache.cassandra.io.util.DataOutputPlus;
 import org.apache.cassandra.utils.Pair;
 
-import com.carrotsearch.hppc.LongSet;
-
-public interface TokenTreeBuilder extends Iterable<Pair<Long, LongSet>>
+public interface TokenTreeBuilder extends Iterable<Pair<Long, Set<RowOffset>>>
 {
-    int BLOCK_BYTES = 4096;
-    int BLOCK_HEADER_BYTES = 64;
-    int OVERFLOW_TRAILER_BYTES = 64;
-    int OVERFLOW_TRAILER_CAPACITY = OVERFLOW_TRAILER_BYTES / 8;
-    int TOKENS_PER_BLOCK = (BLOCK_BYTES - BLOCK_HEADER_BYTES - OVERFLOW_TRAILER_BYTES) / 16;
-    long MAX_OFFSET = (1L << 47) - 1; // 48 bits for (signed) offset
-    byte LAST_LEAF_SHIFT = 1;
-    byte SHARED_HEADER_BYTES = 19;
-    byte ENTRY_TYPE_MASK = 0x03;
-    short AB_MAGIC = 0x5A51;
+    /**
+     * Entry Format
+     *
+     *     ([short] type)([long] token)([long] partition offset)([long] row offset)
+     *
+     * TODO (ifesdjeen): describe overflow entry
+     */
+    final int ENTRY_TOKEN_OFFSET = 2;
+    final int ENTRY_BYTES = 2 + 8 + 8 + 8;
+
+    final int BLOCK_BYTES = 4096;
+    final int BLOCK_HEADER_BYTES = 64;
+
+    /**
+      * Overflow trailer capacity is currently 8 overflow items. Each overflow item consists of two longs.
+      */
+    // TODO: technically we could improve it as the overflow item has to fit into int + short.
+    final int OVERFLOW_TRAILER_CAPACITY = 8;
+    final int OVERFLOW_TRAILER_BYTES = OVERFLOW_TRAILER_CAPACITY * 8 * 2;
+
+    final int TOKENS_PER_BLOCK = (BLOCK_BYTES - BLOCK_HEADER_BYTES - OVERFLOW_TRAILER_BYTES) / ENTRY_BYTES;
+
+    // TODO: maybe add factored entries
+    final long MAX_OFFSET = (1L << 47) - 1; // 48 bits for (signed) offset
+    final byte LAST_LEAF_SHIFT = 1;
+
+
+    /**
+     * Shared header format
+     *     ([byte] info byte) ([short] token count) ([long] min node token) ([long] max node token)
+     **/
+    final byte SHARED_HEADER_BYTES = 8 + 8 + 2 + 1;
+    final byte ENTRY_TYPE_MASK = 0x03;
+    final short AB_MAGIC = 0x5A51;
 
     // note: ordinal positions are used here, do not change order
+    // TODO (ifesdjeen): optimise entries?
     enum EntryType
     {
-        SIMPLE, FACTORED, PACKED, OVERFLOW;
+        SIMPLE,
+        PACKED,
+        OVERFLOW;
 
         public static EntryType of(int ordinal)
         {
             if (ordinal == SIMPLE.ordinal())
                 return SIMPLE;
-
-            if (ordinal == FACTORED.ordinal())
-                return FACTORED;
 
             if (ordinal == PACKED.ordinal())
                 return PACKED;
@@ -61,9 +83,9 @@ public interface TokenTreeBuilder extends Iterable<Pair<Long, LongSet>>
         }
     }
 
-    void add(Long token, long keyPosition);
-    void add(SortedMap<Long, LongSet> data);
-    void add(Iterator<Pair<Long, LongSet>> data);
+    void add(Long token, long partitionOffset, long rowOffset);
+    void add(SortedMap<Long, Set<RowOffset>> data);
+    void add(Iterator<Pair<Long, Set<RowOffset>>> data);
     void add(TokenTreeBuilder ttb);
 
     boolean isEmpty();
