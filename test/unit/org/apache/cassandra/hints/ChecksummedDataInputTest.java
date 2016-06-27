@@ -77,7 +77,7 @@ public class ChecksummedDataInputTest
         // save the buffer to file to create a RAR
         File file = File.createTempFile("testReadMethods", "1");
         file.deleteOnExit();
-        try (SequentialWriter writer = SequentialWriter.open(file))
+        try (SequentialWriter writer = new SequentialWriter(file))
         {
             writer.write(buffer);
             writer.writeInt((int) crc.getValue());
@@ -152,7 +152,7 @@ public class ChecksummedDataInputTest
         // save the buffer to file to create a RAR
         File file = File.createTempFile("testResetCrc", "1");
         file.deleteOnExit();
-        try (SequentialWriter writer = SequentialWriter.open(file))
+        try (SequentialWriter writer = new SequentialWriter(file))
         {
             writer.write(buffer);
             writer.finish();
@@ -208,7 +208,7 @@ public class ChecksummedDataInputTest
         // save the buffer to file to create a RAR
         File file = File.createTempFile("testFailedCrc", "1");
         file.deleteOnExit();
-        try (SequentialWriter writer = SequentialWriter.open(file))
+        try (SequentialWriter writer = new SequentialWriter(file))
         {
             writer.write(buffer);
             writer.finish();

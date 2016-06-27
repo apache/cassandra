@@ -31,7 +31,6 @@ import org.apache.cassandra.index.sasi.sa.TermIterator;
 import org.apache.cassandra.index.sasi.sa.SuffixSA;
 import org.apache.cassandra.db.marshal.*;
 import org.apache.cassandra.io.FSWriteError;
-import org.apache.cassandra.io.compress.BufferType;
 import org.apache.cassandra.io.util.*;
 import org.apache.cassandra.utils.ByteBufferUtil;
 import org.apache.cassandra.utils.FBUtilities;
@@ -130,6 +129,10 @@ public class OnDiskIndexBuilder
     public static final int MAX_TERM_SIZE = 1024;
     public static final int SUPER_BLOCK_SIZE = 64;
     public static final int IS_PARTIAL_BIT = 15;
+
+    private static final SequentialWriterOption WRITER_OPTION = SequentialWriterOption.newBuilder()
+                                                                                      .bufferSize(BLOCK_SIZE)
+                                                                                      .build();
 
     private final List<MutableLevel<InMemoryPointerTerm>> levels = new ArrayList<>();
     private MutableLevel<InMemoryDataTerm> dataLevel;
@@ -263,7 +266,7 @@ public class OnDiskIndexBuilder
 
         try
         {
-            out = new SequentialWriter(file, BLOCK_SIZE, BufferType.ON_HEAP);
+            out = new SequentialWriter(file, WRITER_OPTION);
 
             out.writeUTF(descriptor.version.toString());
 

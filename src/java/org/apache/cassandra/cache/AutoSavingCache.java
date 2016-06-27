@@ -84,6 +84,11 @@ public class AutoSavingCache<K extends CacheKey, V> extends InstrumentingCache<K
 
     private static volatile IStreamFactory streamFactory = new IStreamFactory()
     {
+        private final SequentialWriterOption writerOption = SequentialWriterOption.newBuilder()
+                                                                    .trickleFsync(DatabaseDescriptor.getTrickleFsync())
+                                                                    .trickleFsyncByteInterval(DatabaseDescriptor.getTrickleFsyncIntervalInKb() * 1024)
+                                                                    .finishOnClose(true).build();
+
         public InputStream getInputStream(File dataPath, File crcPath) throws IOException
         {
             return new ChecksummedRandomAccessReader.Builder(dataPath, crcPath).build();
@@ -91,7 +96,7 @@ public class AutoSavingCache<K extends CacheKey, V> extends InstrumentingCache<K
 
         public OutputStream getOutputStream(File dataPath, File crcPath)
         {
-            return SequentialWriter.open(dataPath, crcPath).finishOnClose();
+            return new ChecksummedSequentialWriter(dataPath, crcPath, null, writerOption);
         }
     };
 

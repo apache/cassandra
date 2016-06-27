@@ -34,8 +34,8 @@ import org.apache.cassandra.index.sasi.utils.MappedBuffer;
 import org.apache.cassandra.index.sasi.utils.RangeIterator;
 import org.apache.cassandra.db.marshal.LongType;
 import org.apache.cassandra.index.sasi.utils.RangeUnionIterator;
-import org.apache.cassandra.io.compress.BufferType;
 import org.apache.cassandra.io.util.FileUtils;
+import org.apache.cassandra.io.util.SequentialWriterOption;
 import org.apache.cassandra.utils.MurmurHash;
 import org.apache.cassandra.io.util.RandomAccessReader;
 import org.apache.cassandra.io.util.SequentialWriter;
@@ -84,6 +84,8 @@ public class TokenTreeTest
 
     final static SortedMap<Long, LongSet> tokens = bigTokensMap;
 
+    final static SequentialWriterOption DEFAULT_OPT = SequentialWriterOption.newBuilder().bufferSize(4096).build();
+
     @Test
     public void testSerializedSizeDynamic() throws Exception
     {
@@ -103,7 +105,7 @@ public class TokenTreeTest
         final File treeFile = File.createTempFile("token-tree-size-test", "tt");
         treeFile.deleteOnExit();
 
-        try (SequentialWriter writer = new SequentialWriter(treeFile, 4096, BufferType.ON_HEAP))
+        try (SequentialWriter writer = new SequentialWriter(treeFile, DEFAULT_OPT))
         {
             builder.write(writer);
             writer.sync();
@@ -134,7 +136,7 @@ public class TokenTreeTest
         final File treeFile = File.createTempFile("token-tree-iterate-test1", "tt");
         treeFile.deleteOnExit();
 
-        try (SequentialWriter writer = new SequentialWriter(treeFile, 4096, BufferType.ON_HEAP))
+        try (SequentialWriter writer = new SequentialWriter(treeFile, DEFAULT_OPT))
         {
             builder.write(writer);
             writer.sync();
@@ -210,7 +212,7 @@ public class TokenTreeTest
         final File treeFile = File.createTempFile("token-tree-iterate-test2", "tt");
         treeFile.deleteOnExit();
 
-        try (SequentialWriter writer = new SequentialWriter(treeFile, 4096, BufferType.ON_HEAP))
+        try (SequentialWriter writer = new SequentialWriter(treeFile, DEFAULT_OPT))
         {
             builder.write(writer);
             writer.sync();
@@ -269,7 +271,7 @@ public class TokenTreeTest
         final File treeFile = File.createTempFile("token-tree-skip-past-test", "tt");
         treeFile.deleteOnExit();
 
-        try (SequentialWriter writer = new SequentialWriter(treeFile, 4096, BufferType.ON_HEAP))
+        try (SequentialWriter writer = new SequentialWriter(treeFile, DEFAULT_OPT))
         {
             builder.write(writer);
             writer.sync();
@@ -413,7 +415,7 @@ public class TokenTreeTest
         final File treeFile = File.createTempFile("token-tree-", "db");
         treeFile.deleteOnExit();
 
-        try (SequentialWriter writer = new SequentialWriter(treeFile, 4096, BufferType.ON_HEAP))
+        try (SequentialWriter writer = new SequentialWriter(treeFile, DEFAULT_OPT))
         {
             builder.write(writer);
             writer.sync();
@@ -631,7 +633,7 @@ public class TokenTreeTest
         final File treeFile = File.createTempFile("token-tree-get-test", "tt");
         treeFile.deleteOnExit();
 
-        try (SequentialWriter writer = new SequentialWriter(treeFile, 4096, BufferType.ON_HEAP))
+        try (SequentialWriter writer = new SequentialWriter(treeFile, DEFAULT_OPT))
         {
             builder.write(writer);
             writer.sync();

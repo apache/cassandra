@@ -29,11 +29,7 @@ import org.apache.cassandra.db.marshal.BytesType;
 import org.apache.cassandra.exceptions.ConfigurationException;
 import org.apache.cassandra.io.sstable.CorruptSSTableException;
 import org.apache.cassandra.io.sstable.metadata.MetadataCollector;
-import org.apache.cassandra.io.util.ChannelProxy;
-import org.apache.cassandra.io.util.DataPosition;
-import org.apache.cassandra.io.util.MmappedRegions;
-import org.apache.cassandra.io.util.RandomAccessReader;
-import org.apache.cassandra.io.util.SequentialWriter;
+import org.apache.cassandra.io.util.*;
 import org.apache.cassandra.schema.CompressionParams;
 import org.apache.cassandra.utils.ChecksumType;
 import org.apache.cassandra.utils.SyncUtil;
@@ -78,7 +74,10 @@ public class CompressedRandomAccessReaderTest
         {
 
             MetadataCollector sstableMetadataCollector = new MetadataCollector(new ClusteringComparator(BytesType.instance));
-            try(CompressedSequentialWriter writer = new CompressedSequentialWriter(f, filename + ".metadata", CompressionParams.snappy(32), sstableMetadataCollector))
+            try(CompressedSequentialWriter writer = new CompressedSequentialWriter(f, filename + ".metadata",
+                                                                                   null, SequentialWriterOption.DEFAULT,
+                                                                                   CompressionParams.snappy(32),
+                                                                                   sstableMetadataCollector))
             {
 
                 for (int i = 0; i < 20; i++)
@@ -122,8 +121,10 @@ public class CompressedRandomAccessReaderTest
         {
             MetadataCollector sstableMetadataCollector = new MetadataCollector(new ClusteringComparator(BytesType.instance));
             try(SequentialWriter writer = compressed
-                ? new CompressedSequentialWriter(f, filename + ".metadata", CompressionParams.snappy(), sstableMetadataCollector)
-                : SequentialWriter.open(f))
+                ? new CompressedSequentialWriter(f, filename + ".metadata",
+                                                 null, SequentialWriterOption.DEFAULT,
+                                                 CompressionParams.snappy(), sstableMetadataCollector)
+                : new SequentialWriter(f))
             {
                 writer.write("The quick ".getBytes());
                 DataPosition mark = writer.mark();
@@ -192,7 +193,9 @@ public class CompressedRandomAccessReaderTest
         assertTrue(metadata.createNewFile());
 
         MetadataCollector sstableMetadataCollector = new MetadataCollector(new ClusteringComparator(BytesType.instance));
-        try (SequentialWriter writer = new CompressedSequentialWriter(file, metadata.getPath(), CompressionParams.snappy(), sstableMetadataCollector))
+        try (SequentialWriter writer = new CompressedSequentialWriter(file, metadata.getPath(),
+                                                                      null, SequentialWriterOption.DEFAULT,
+                                                                      CompressionParams.snappy(), sstableMetadataCollector))
         {
             writer.write(CONTENT.getBytes());
             writer.finish();

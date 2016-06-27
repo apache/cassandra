@@ -19,20 +19,25 @@ package org.apache.cassandra.io.util;
 
 import java.io.File;
 import java.nio.ByteBuffer;
-
-import org.apache.cassandra.io.compress.BufferType;
+import java.util.Optional;
 
 public class ChecksummedSequentialWriter extends SequentialWriter
 {
-    private final SequentialWriter crcWriter;
-    private final DataIntegrityMetadata.ChecksumWriter crcMetadata;
+    private static final SequentialWriterOption CRC_WRITER_OPTION = SequentialWriterOption.newBuilder()
+                                                                                          .bufferSize(8 * 1024)
+                                                                                          .build();
 
-    public ChecksummedSequentialWriter(File file, int bufferSize, File crcPath)
+    private final SequentialWriter crcWriter;
+    private final ChecksumWriter crcMetadata;
+    private final Optional<File> digestFile;
+
+    public ChecksummedSequentialWriter(File file, File crcPath, File digestFile, SequentialWriterOption option)
     {
-        super(file, bufferSize, BufferType.ON_HEAP);
-        crcWriter = new SequentialWriter(crcPath, 8 * 1024, BufferType.ON_HEAP);
-        crcMetadata = new DataIntegrityMetadata.ChecksumWriter(crcWriter);
+        super(file, option);
+        crcWriter = new SequentialWriter(crcPath, CRC_WRITER_OPTION);
+        crcMetadata = new ChecksumWriter(crcWriter);
         crcMetadata.writeChunkSize(buffer.capacity());
+        this.digestFile = Optional.ofNullable(digestFile);
     }
 
     @Override
@@ -63,9 +68,8 @@ public class ChecksummedSequentialWriter extends SequentialWriter
         protected void doPrepare()
         {
             syncInternal();
-            if (descriptor != null)
-                crcMetadata.writeFullChecksum(descriptor);
-            crcWriter.setDescriptor(descriptor).prepareToCommit();
+            digestFile.ifPresent(crcMetadata::writeFullChecksum);
+            crcWriter.prepareToCommit();
         }
     }
 

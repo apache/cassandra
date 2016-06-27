@@ -57,12 +57,7 @@ import org.apache.cassandra.io.sstable.IndexInfo;
 import org.apache.cassandra.io.sstable.format.SSTableFlushObserver;
 import org.apache.cassandra.io.sstable.format.Version;
 import org.apache.cassandra.io.sstable.format.big.BigFormat;
-import org.apache.cassandra.io.util.DataInputBuffer;
-import org.apache.cassandra.io.util.DataInputPlus;
-import org.apache.cassandra.io.util.DataOutputBuffer;
-import org.apache.cassandra.io.util.DataOutputPlus;
-import org.apache.cassandra.io.util.SegmentedFile;
-import org.apache.cassandra.io.util.SequentialWriter;
+import org.apache.cassandra.io.util.*;
 import org.apache.cassandra.serializers.LongSerializer;
 import org.apache.cassandra.utils.ByteBufferUtil;
 import org.apache.cassandra.utils.FBUtilities;
@@ -166,13 +161,14 @@ public class RowIndexEntryTest extends CQLTester
 
         DoubleSerializer() throws IOException
         {
+            SequentialWriterOption option = SequentialWriterOption.newBuilder().bufferSize(1024).build();
             File f = File.createTempFile("RowIndexEntryTest-", "db");
-            dataWriterNew = new SequentialWriter(f, 1024, BufferType.ON_HEAP);
+            dataWriterNew = new SequentialWriter(f, option);
             columnIndex = new org.apache.cassandra.db.ColumnIndex(header, dataWriterNew, version, Collections.emptyList(),
                                                                   rieSerializer.indexInfoSerializer());
 
             f = File.createTempFile("RowIndexEntryTest-", "db");
-            dataWriterOld = new SequentialWriter(f, 1024, BufferType.ON_HEAP);
+            dataWriterOld = new SequentialWriter(f, option);
         }
 
         public void close() throws Exception
@@ -424,7 +420,7 @@ public class RowIndexEntryTest extends CQLTester
 
         File tempFile = File.createTempFile("row_index_entry_test", null);
         tempFile.deleteOnExit();
-        SequentialWriter writer = SequentialWriter.open(tempFile);
+        SequentialWriter writer = new SequentialWriter(tempFile);
         ColumnIndex columnIndex = RowIndexEntryTest.ColumnIndex.writeAndBuildIndex(partition.unfilteredIterator(), writer, header, Collections.emptySet(), BigFormat.latestVersion);
         Pre_C_11206_RowIndexEntry withIndex = Pre_C_11206_RowIndexEntry.create(0xdeadbeef, DeletionTime.LIVE, columnIndex);
         IndexInfo.Serializer indexSerializer = cfs.metadata.serializers().indexInfoSerializer(BigFormat.latestVersion, header);

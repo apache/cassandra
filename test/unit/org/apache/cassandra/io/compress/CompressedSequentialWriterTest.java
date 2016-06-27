@@ -27,6 +27,7 @@ import java.util.*;
 import static org.apache.commons.io.FileUtils.readFileToByteArray;
 import static org.junit.Assert.assertEquals;
 
+import com.google.common.io.Files;
 import org.junit.After;
 import org.junit.Test;
 
@@ -37,10 +38,7 @@ import org.apache.cassandra.db.marshal.AbstractType;
 import org.apache.cassandra.db.marshal.BytesType;
 import org.apache.cassandra.db.marshal.UTF8Type;
 import org.apache.cassandra.io.sstable.metadata.MetadataCollector;
-import org.apache.cassandra.io.util.ChannelProxy;
-import org.apache.cassandra.io.util.DataPosition;
-import org.apache.cassandra.io.util.RandomAccessReader;
-import org.apache.cassandra.io.util.SequentialWriterTest;
+import org.apache.cassandra.io.util.*;
 import org.apache.cassandra.schema.CompressionParams;
 import org.apache.cassandra.utils.ChecksumType;
 
@@ -92,7 +90,10 @@ public class CompressedSequentialWriterTest extends SequentialWriterTest
 
             byte[] dataPre = new byte[bytesToTest];
             byte[] rawPost = new byte[bytesToTest];
-            try (CompressedSequentialWriter writer = new CompressedSequentialWriter(f, filename + ".metadata", compressionParameters, sstableMetadataCollector);)
+            try (CompressedSequentialWriter writer = new CompressedSequentialWriter(f, filename + ".metadata",
+                                                                                    null, SequentialWriterOption.DEFAULT,
+                                                                                    compressionParameters,
+                                                                                    sstableMetadataCollector))
             {
                 Random r = new Random(42);
 
@@ -159,6 +160,49 @@ public class CompressedSequentialWriterTest extends SequentialWriterTest
         writers.clear();
     }
 
+    @Test
+    @Override
+    public void resetAndTruncateTest()
+    {
+        File tempFile = new File(Files.createTempDir(), "reset.txt");
+        File offsetsFile = FileUtils.createTempFile("compressedsequentialwriter.offset", "test");
+        final int bufferSize = 48;
+        final int writeSize = 64;
+        byte[] toWrite = new byte[writeSize];
+        try (SequentialWriter writer = new CompressedSequentialWriter(tempFile, offsetsFile.getPath(),
+                                                                      null, SequentialWriterOption.DEFAULT,
+                                                                      CompressionParams.lz4(bufferSize),
+                                                                      new MetadataCollector(new ClusteringComparator(UTF8Type.instance))))
+        {
+            // write bytes greather than buffer
+            writer.write(toWrite);
+            long flushedOffset = writer.getLastFlushOffset();
+            assertEquals(writeSize, writer.position());
+            // mark thi position
+            DataPosition pos = writer.mark();
+            // write another
+            writer.write(toWrite);
+            // another buffer should be flushed
+            assertEquals(flushedOffset * 2, writer.getLastFlushOffset());
+            assertEquals(writeSize * 2, writer.position());
+            // reset writer
+            writer.resetAndTruncate(pos);
+            // current position and flushed size should be changed
+            assertEquals(writeSize, writer.position());
+            assertEquals(flushedOffset, writer.getLastFlushOffset());
+            // write another byte less than buffer
+            writer.write(new byte[]{0});
+            assertEquals(writeSize + 1, writer.position());
+            // flush off set should not be increase
+            assertEquals(flushedOffset, writer.getLastFlushOffset());
+            writer.finish();
+        }
+        catch (IOException e)
+        {
+            Assert.fail();
+        }
+    }
+
     protected TestableTransaction newTest() throws IOException
     {
         TestableCSW sw = new TestableCSW();
@@ -178,8 +222,8 @@ public class CompressedSequentialWriterTest extends SequentialWriterTest
 
         private TestableCSW(File file, File offsetsFile) throws IOException
         {
-            this(file, offsetsFile, new CompressedSequentialWriter(file,
-                                                                   offsetsFile.getPath(),
+            this(file, offsetsFile, new CompressedSequentialWriter(file, offsetsFile.getPath(),
+                                                                   null, SequentialWriterOption.DEFAULT,
                                                                    CompressionParams.lz4(BUFFER_SIZE),
                                                                    new MetadataCollector(new ClusteringComparator(UTF8Type.instance))));
 

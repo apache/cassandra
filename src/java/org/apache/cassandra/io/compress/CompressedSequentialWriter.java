@@ -17,29 +17,27 @@
  */
 package org.apache.cassandra.io.compress;
 
-import static org.apache.cassandra.utils.Throwables.merge;
-
 import java.io.DataOutputStream;
 import java.io.EOFException;
 import java.io.File;
 import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.nio.channels.Channels;
+import java.util.Optional;
 import java.util.zip.CRC32;
 
 import org.apache.cassandra.io.FSReadError;
 import org.apache.cassandra.io.FSWriteError;
 import org.apache.cassandra.io.sstable.CorruptSSTableException;
 import org.apache.cassandra.io.sstable.metadata.MetadataCollector;
-import org.apache.cassandra.io.util.DataIntegrityMetadata;
-import org.apache.cassandra.io.util.DataPosition;
-import org.apache.cassandra.io.util.FileUtils;
-import org.apache.cassandra.io.util.SequentialWriter;
+import org.apache.cassandra.io.util.*;
 import org.apache.cassandra.schema.CompressionParams;
+
+import static org.apache.cassandra.utils.Throwables.merge;
 
 public class CompressedSequentialWriter extends SequentialWriter
 {
-    private final DataIntegrityMetadata.ChecksumWriter crcMetadata;
+    private final ChecksumWriter crcMetadata;
 
     // holds offset in the file where current chunk should be written
     // changed only by flush() method where data buffer gets compressed and stored to the file
@@ -60,14 +58,34 @@ public class CompressedSequentialWriter extends SequentialWriter
     private final MetadataCollector sstableMetadataCollector;
 
     private final ByteBuffer crcCheckBuffer = ByteBuffer.allocate(4);
+    private final Optional<File> digestFile;
 
+    /**
+     * Create CompressedSequentialWriter without digest file.
+     *
+     * @param file File to write
+     * @param offsetsPath File name to write compression metadata
+     * @param digestFile File to write digest
+     * @param option Write option (buffer size and type will be set the same as compression params)
+     * @param parameters Compression mparameters
+     * @param sstableMetadataCollector Metadata collector
+     */
     public CompressedSequentialWriter(File file,
                                       String offsetsPath,
+                                      File digestFile,
+                                      SequentialWriterOption option,
                                       CompressionParams parameters,
                                       MetadataCollector sstableMetadataCollector)
     {
-        super(file, parameters.chunkLength(), parameters.getSstableCompressor().preferredBufferType());
+        super(file, SequentialWriterOption.newBuilder()
+                            .bufferSize(option.bufferSize())
+                            .bufferType(option.bufferType())
+                            .bufferSize(parameters.chunkLength())
+                            .bufferType(parameters.getSstableCompressor().preferredBufferType())
+                            .finishOnClose(option.finishOnClose())
+                            .build());
         this.compressor = parameters.getSstableCompressor();
+        this.digestFile = Optional.ofNullable(digestFile);
 
         // buffer for compression should be the same size as buffer itself
         compressed = compressor.preferredBufferType().allocate(compressor.initialCompressedBufferLength(buffer.capacity()));
@@ -76,7 +94,7 @@ public class CompressedSequentialWriter extends SequentialWriter
         metadataWriter = CompressionMetadata.Writer.open(parameters, offsetsPath);
 
         this.sstableMetadataCollector = sstableMetadataCollector;
-        crcMetadata = new DataIntegrityMetadata.ChecksumWriter(new DataOutputStream(Channels.newOutputStream(channel)));
+        crcMetadata = new ChecksumWriter(new DataOutputStream(Channels.newOutputStream(channel)));
     }
 
     @Override
@@ -287,8 +305,7 @@ public class CompressedSequentialWriter extends SequentialWriter
         protected void doPrepare()
         {
             syncInternal();
-            if (descriptor != null)
-                crcMetadata.writeFullChecksum(descriptor);
+            digestFile.ifPresent(crcMetadata::writeFullChecksum);
             sstableMetadataCollector.addCompressionRatio(compressedSize, uncompressedSize);
             metadataWriter.finalizeLength(current(), chunkCount).prepareToCommit();
         }

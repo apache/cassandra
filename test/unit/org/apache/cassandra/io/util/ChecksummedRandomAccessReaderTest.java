@@ -27,10 +27,6 @@ import java.util.concurrent.ThreadLocalRandom;
 import org.junit.Test;
 
 import static org.junit.Assert.*;
-import org.apache.cassandra.io.util.ChecksummedRandomAccessReader;
-import org.apache.cassandra.io.util.ChecksummedSequentialWriter;
-import org.apache.cassandra.io.util.RandomAccessReader;
-import org.apache.cassandra.io.util.SequentialWriter;
 
 public class ChecksummedRandomAccessReaderTest
 {
@@ -43,9 +39,11 @@ public class ChecksummedRandomAccessReaderTest
         final byte[] expected = new byte[70 * 1024];   // bit more than crc chunk size, so we can test rebuffering.
         ThreadLocalRandom.current().nextBytes(expected);
 
-        SequentialWriter writer = ChecksummedSequentialWriter.open(data, crc);
-        writer.write(expected);
-        writer.finish();
+        try (SequentialWriter writer = new ChecksummedSequentialWriter(data, crc, null, SequentialWriterOption.DEFAULT))
+        {
+            writer.write(expected);
+            writer.finish();
+        }
 
         assert data.exists();
 
@@ -69,9 +67,11 @@ public class ChecksummedRandomAccessReaderTest
         final byte[] dataBytes = new byte[70 * 1024];   // bit more than crc chunk size
         ThreadLocalRandom.current().nextBytes(dataBytes);
 
-        SequentialWriter writer = ChecksummedSequentialWriter.open(data, crc);
-        writer.write(dataBytes);
-        writer.finish();
+        try (SequentialWriter writer = new ChecksummedSequentialWriter(data, crc, null, SequentialWriterOption.DEFAULT))
+        {
+            writer.write(dataBytes);
+            writer.finish();
+        }
 
         assert data.exists();
 
@@ -101,9 +101,11 @@ public class ChecksummedRandomAccessReaderTest
         final byte[] expected = new byte[5 * 1024];
         Arrays.fill(expected, (byte) 0);
 
-        SequentialWriter writer = ChecksummedSequentialWriter.open(data, crc);
-        writer.write(expected);
-        writer.finish();
+        try (SequentialWriter writer = new ChecksummedSequentialWriter(data, crc, null, SequentialWriterOption.DEFAULT))
+        {
+            writer.write(expected);
+            writer.finish();
+        }
 
         assert data.exists();
 
