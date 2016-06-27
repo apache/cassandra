@@ -296,10 +296,9 @@ public class SSTableExportTest extends SchemaLoader
         JSONObject serializedDeletionInfo = (JSONObject) meta.get("deletionInfo");
         assertNotNull("expecing deletionInfo to be present", serializedDeletionInfo);
 
-        assertEquals(
-                "unexpected serialization format for topLevelDeletion",
-                "{\"markedForDeleteAt\":0,\"localDeletionTime\":0}",
-                serializedDeletionInfo.toJSONString());
+        assertEquals("unexpected serialization format for topLevelDeletion",
+                     JSONValue.parse("{\"markedForDeleteAt\":0,\"localDeletionTime\":0}"),
+                     serializedDeletionInfo);
 
         // check the colums are what we put in
         JSONArray cols = (JSONArray) row.get("cells");
