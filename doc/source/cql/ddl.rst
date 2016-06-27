@@ -50,6 +50,11 @@ Further, a table is always part of a keyspace and a table name can be provided f
 part of. If is is not fully-qualified, the table is assumed to be in the *current* keyspace (see :ref:`USE statement
 <use-statement>`).
 
+Further, the valid names for columns is simply defined as:
+
+.. productionlist::
+   column_name: `identifier`
+
 We also define the notion of statement options for use in the following section:
 
 .. productionlist::
@@ -164,15 +169,15 @@ Creating a new table uses the ``CREATE TABLE`` statement:
                          :     ( ',' `column_definition` )*
                          :     [ ',' PRIMARY KEY '(' `primary_key` ')' ]
                          : ')' [ WITH `table_options` ]
-   column_definition: `identifier` `cql_type` [ STATIC ] [ PRIMARY KEY]
+   column_definition: `column_name` `cql_type` [ STATIC ] [ PRIMARY KEY]
    primary_key: `partition_key` [ ',' `clustering_columns` ]
-   partition_key: `identifier`
-                : | '(' `identifier` ( ',' `identifier` )* ')'
-   clustering_columns: `identifier` ( ',' `identifier` )*
+   partition_key: `column_name`
+                : | '(' `column_name` ( ',' `column_name` )* ')'
+   clustering_columns: `column_name` ( ',' `column_name` )*
    table_options: COMPACT STORAGE [ AND `table_options` ]
                    : | CLUSTERING ORDER BY '(' `clustering_order` ')' [ AND `table_options` ]
                    : | `options`
-   clustering_order: `identifier` (ASC | DESC) ( ',' `identifier` (ASC | DESC) )*
+   clustering_order: `column_name` (ASC | DESC) ( ',' `column_name` (ASC | DESC) )*
 
 For instance::
 
@@ -554,9 +559,9 @@ Altering an existing table uses the ``ALTER TABLE`` statement:
 
 .. productionlist::
    alter_table_statement: ALTER TABLE `table_name` `alter_table_instruction`
-   alter_table_instruction: ALTER `identifier` TYPE `cql_type`
-                          : | ADD `identifier` `cql_type` ( ',' `identifier` `cql_type` )*
-                          : | DROP `identifier` ( `identifier` )*
+   alter_table_instruction: ALTER `column_name` TYPE `cql_type`
+                          : | ADD `column_name` `cql_type` ( ',' `column_name` `cql_type` )*
+                          : | DROP `column_name` ( `column_name` )*
                           : | WITH `options`
 
 For instance::
@@ -631,15 +636,15 @@ CQL data types may be converted only as the following table.
 
 Clustering columns have stricter requirements, only the following conversions are allowed:
 
-+------------------------+-------------------+
-| Existing type          | Can be altered to |
-+========================+===================+
-| ascii, text, varchar   | blob              |
-+------------------------+-------------------+
-| ascii, varchar         | text              |
-+------------------------+-------------------+
-| ascii, text            | varchar           |
-+------------------------+-------------------+
++------------------------+----------------------+
+| Existing type          | Can be altered to    |
++========================+======================+
+| ascii, text, varchar   | blob                 |
++------------------------+----------------------+
+| ascii, varchar         | text                 |
++------------------------+----------------------+
+| ascii, text            | varchar              |
++------------------------+----------------------+
 
 .. _drop-table-statement:
 

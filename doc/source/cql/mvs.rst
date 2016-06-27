@@ -21,6 +21,12 @@
 Materialized Views
 ------------------
 
+Materialized views names are defined by:
+
+.. productionlist::
+   view_name: re('[a-zA-Z_0-9]+')
+
+
 .. _create-materialized-view-statement:
 
 CREATE MATERIALIZED VIEW

@@ -21,6 +21,12 @@
 Triggers
 --------
 
+Triggers are identified by a name defined by:
+
+.. productionlist::
+   trigger_name: `identifier`
+
+
 .. _create-trigger-statement:
 
 CREATE TRIGGER

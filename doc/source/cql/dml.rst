@@ -39,17 +39,17 @@ Querying data from data is done using a ``SELECT`` statement:
                    : [ LIMIT (`integer` | `bind_marker`) ]
                    : [ ALLOW FILTERING ]
    select_clause: `selector` [ AS `identifier` ] ( ',' `selector` [ AS `identifier` ] )
-   selector: `identifier`
+   selector: `column_name`
            : | `term`
            : | CAST '(' `selector` AS `cql_type` ')'
            : | `function_name` '(' [ `selector` ( ',' `selector` )* ] ')'
            : | COUNT '(' '*' ')'
    where_clause: `relation` ( AND `relation` )*
-   relation: `identifier` `operator` `term`
-           : '(' `identifier` ( ',' `identifier` )* ')' `operator` `tuple_literal`
-           : TOKEN '(' `identifier` ( ',' `identifier` )* ')' `operator` `term`
+   relation: `column_name` `operator` `term`
+           : '(' `column_name` ( ',' `column_name` )* ')' `operator` `tuple_literal`
+           : TOKEN '(' `column_name` ( ',' `column_name` )* ')' `operator` `term`
    operator: '=' | '<' | '>' | '<=' | '>=' | '!=' | IN | CONTAINS | CONTAINS KEY
-   ordering_clause: `identifier` [ ASC | DESC ] ( ',' `identifier` [ ASC | DESC ] )*
+   ordering_clause: `column_name` [ ASC | DESC ] ( ',' `column_name` [ ASC | DESC ] )*
 
 For instance::
 
@@ -295,7 +295,8 @@ Inserting data for a row is done using an ``INSERT`` statement:
                    : [ IF NOT EXISTS ]
                    : [ USING `update_parameter` ( AND `update_parameter` )* ]
    names_values: `names` VALUES `tuple_literal`
-   names: '(' `identifier` ( ',' `identifier` )* ')'
+   json_clause: JSON `string`
+   names: '(' `column_name` ( ',' `column_name` )* ')'
 
 For instance::
 

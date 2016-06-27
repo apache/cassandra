@@ -21,6 +21,14 @@
 Secondary Indexes
 -----------------
 
+CQL supports creating secondary indexes on tables, allowing queries on the table to use those indexes. A secondary index
+is identified by a name defined by:
+
+.. productionlist::
+   index_name: re('[a-zA-Z_0-9]+')
+
+
+
 .. _create-index-statement:
 
 CREATE INDEX
