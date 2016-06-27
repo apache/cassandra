@@ -1,3 +1,6 @@
+2.2.8
+ * MemoryUtil.getShort() should return an unsigned short also for architectures not supporting unaligned memory accesses (CASSANDRA-11973)
+
 2.2.7
  * Allow nodetool info to run with readonly JMX access (CASSANDRA-11755)
  * Validate bloom_filter_fp_chance against lowest supported
