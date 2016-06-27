@@ -101,6 +101,8 @@ import org.apache.cassandra.utils.Pair;
  */
 public class CQLSSTableWriter implements Closeable
 {
+    public static final ByteBuffer UNSET_VALUE = ByteBufferUtil.UNSET_BYTE_BUFFER;
+
     static
     {
         Config.setClientMode(true);
@@ -172,7 +174,7 @@ public class CQLSSTableWriter implements Closeable
         for (int i = 0; i < size; i++)
         {
             Object value = values.get(i);
-            rawValues.add(value == null ? null : typeCodecs.get(i).serialize(value, ProtocolVersion.NEWEST_SUPPORTED));
+            rawValues.add(serialize(value, typeCodecs.get(i)));
         }
 
         return rawAddRow(rawValues);
@@ -207,8 +209,7 @@ public class CQLSSTableWriter implements Closeable
         {
             ColumnSpecification spec = boundNames.get(i);
             Object value = values.get(spec.name.toString());
-
-            rawValues.add(value == null ? null : typeCodecs.get(i).serialize(value, ProtocolVersion.NEWEST_SUPPORTED));
+            rawValues.add(serialize(value, typeCodecs.get(i)));
         }
         return rawAddRow(rawValues);
     }
@@ -324,6 +325,13 @@ public class CQLSSTableWriter implements Closeable
         writer.close();
     }
 
+    private ByteBuffer serialize(Object value, TypeCodec codec)
+    {
+        if (value == null || value == UNSET_VALUE)
+            return (ByteBuffer) value;
+
+        return codec.serialize(value, ProtocolVersion.NEWEST_SUPPORTED);
+    }
     /**
      * A Builder for a CQLSSTableWriter object.
      */

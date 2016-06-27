@@ -38,9 +38,9 @@ import org.apache.cassandra.cql3.*;
 import org.apache.cassandra.cql3.functions.UDHelper;
 import org.apache.cassandra.db.Keyspace;
 import org.apache.cassandra.dht.*;
+import org.apache.cassandra.exceptions.*;
 import org.apache.cassandra.service.StorageService;
-import org.apache.cassandra.utils.FBUtilities;
-import org.apache.cassandra.utils.OutputHandler;
+import org.apache.cassandra.utils.*;
 import com.datastax.driver.core.DataType;
 import com.datastax.driver.core.ProtocolVersion;
 import com.datastax.driver.core.TypeCodec;
@@ -48,6 +48,7 @@ import com.datastax.driver.core.UDTValue;
 import com.datastax.driver.core.UserType;
 
 import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.fail;
 
 public class CQLSSTableWriterTest
 {
@@ -427,6 +428,109 @@ public class CQLSSTableWriterTest
 
             cnt++;
         }
+    }
+
+    @Test
+    public void testUnsetValues() throws Exception
+    {
+        final String KS = "cql_keyspace5";
+        final String TABLE = "table5";
+
+        final String schema = "CREATE TABLE " + KS + "." + TABLE + " ("
+                              + "  k int,"
+                              + "  c1 int,"
+                              + "  c2 int,"
+                              + "  v text,"
+                              + "  PRIMARY KEY (k, c1, c2)"
+                              + ")";
+
+        File tempdir = Files.createTempDir();
+        File dataDir = new File(tempdir.getAbsolutePath() + File.separator + KS + File.separator + TABLE);
+        assert dataDir.mkdirs();
+
+        CQLSSTableWriter writer = CQLSSTableWriter.builder()
+                                                  .inDirectory(dataDir)
+                                                  .forTable(schema)
+                                                  .using("INSERT INTO " + KS + "." + TABLE + " (k, c1, c2, v) " +
+                                                         "VALUES (?, ?, ?, ?)")
+                                                  .build();
+
+        try
+        {
+            writer.addRow(1, 1, 1);
+            fail("Passing less arguments then expected in prepared statement should not work.");
+        }
+        catch (InvalidRequestException e)
+        {
+            assertEquals("Invalid number of arguments, expecting 4 values but got 3",
+                         e.getMessage());
+        }
+
+        try
+        {
+            writer.addRow(1, 1, CQLSSTableWriter.UNSET_VALUE, "1");
+            fail("Unset values should not work with clustering columns.");
+        }
+        catch (InvalidRequestException e)
+        {
+            assertEquals("Invalid unset value for column c2",
+                         e.getMessage());
+        }
+
+        try
+        {
+            writer.addRow(ImmutableMap.<String, Object>builder().put("k", 1).put("c1", 1).put("v", CQLSSTableWriter.UNSET_VALUE).build());
+            fail("Unset or null clustering columns should not be allowed.");
+        }
+        catch (InvalidRequestException e)
+        {
+            assertEquals("Invalid null value in condition for column c2",
+                         e.getMessage());
+        }
+
+        writer.addRow(1, 1, 1, CQLSSTableWriter.UNSET_VALUE);
+        writer.addRow(2, 2, 2, null);
+        writer.addRow(Arrays.asList(3, 3, 3, CQLSSTableWriter.UNSET_VALUE));
+        writer.addRow(ImmutableMap.<String, Object>builder()
+                                  .put("k", 4)
+                                  .put("c1", 4)
+                                  .put("c2", 4)
+                                  .put("v", CQLSSTableWriter.UNSET_VALUE)
+                                  .build());
+        writer.addRow(Arrays.asList(3, 3, 3, CQLSSTableWriter.UNSET_VALUE));
+        writer.addRow(5, 5, 5, "5");
+
+        writer.close();
+        loadSSTables(dataDir, KS);
+
+        UntypedResultSet resultSet = QueryProcessor.executeInternal("SELECT * FROM " + KS + "." + TABLE);
+        Iterator<UntypedResultSet.Row> iter = resultSet.iterator();
+        UntypedResultSet.Row r1 = iter.next();
+        assertEquals(1, r1.getInt("k"));
+        assertEquals(1, r1.getInt("c1"));
+        assertEquals(1, r1.getInt("c2"));
+        assertEquals(false, r1.has("v"));
+        UntypedResultSet.Row r2 = iter.next();
+        assertEquals(2, r2.getInt("k"));
+        assertEquals(2, r2.getInt("c1"));
+        assertEquals(2, r2.getInt("c2"));
+        assertEquals(false, r2.has("v"));
+        UntypedResultSet.Row r3 = iter.next();
+        assertEquals(3, r3.getInt("k"));
+        assertEquals(3, r3.getInt("c1"));
+        assertEquals(3, r3.getInt("c2"));
+        assertEquals(false, r3.has("v"));
+        UntypedResultSet.Row r4 = iter.next();
+        assertEquals(4, r4.getInt("k"));
+        assertEquals(4, r4.getInt("c1"));
+        assertEquals(4, r4.getInt("c2"));
+        assertEquals(false, r3.has("v"));
+        UntypedResultSet.Row r5 = iter.next();
+        assertEquals(5, r5.getInt("k"));
+        assertEquals(5, r5.getInt("c1"));
+        assertEquals(5, r5.getInt("c2"));
+        assertEquals(true, r5.has("v"));
+        assertEquals("5", r5.getString("v"));
     }
 
     private static void loadSSTables(File dataDir, String ks) throws ExecutionException, InterruptedException
