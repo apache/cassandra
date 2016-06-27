@@ -246,13 +246,16 @@ public class CreateViewStatement extends SchemaAlteringStatement
                 throw new InvalidRequestException(String.format("Unable to include static column '%s' which would be included by Materialized View SELECT * statement", identifier));
             }
 
-            if (includeDef && !targetClusteringColumns.contains(identifier) && !targetPartitionKeys.contains(identifier))
+            boolean defInTargetPrimaryKey = targetClusteringColumns.contains(identifier)
+                                            || targetPartitionKeys.contains(identifier);
+
+            if (includeDef && !defInTargetPrimaryKey)
             {
                 includedColumns.add(identifier);
             }
             if (!def.isPrimaryKeyColumn()) continue;
 
-            if (!targetClusteringColumns.contains(identifier) && !targetPartitionKeys.contains(identifier))
+            if (!defInTargetPrimaryKey)
             {
                 if (missingClusteringColumns)
                     columnNames.append(',');

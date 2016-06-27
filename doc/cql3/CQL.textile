@@ -1676,7 +1676,9 @@ Show any permissions granted to @carlos@ or any of @carlos@'s roles, limited to 
 
 h2(#types). Data Types
 
-CQL supports a rich set of data types for columns defined in a table, including collection types. On top of those native and collection types, users can also provide custom types (through a JAVA class extending @AbstractType@ loadable by Cassandra). The syntax of types is thus:
+CQL supports a rich set of data types for columns defined in a table, including collection types. On top of those native
+and collection types, users can also provide custom types (through a JAVA class extending @AbstractType@ loadable by
+Cassandra). The syntax of types is thus:
 
 bc(syntax).. 
 <type> ::= <native-type>
