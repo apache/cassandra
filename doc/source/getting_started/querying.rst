@@ -17,9 +17,18 @@
 Inserting and querying
 ----------------------
 
-cqlsh is a command line shell for interacting with Cassandra through CQL (the Cassandra Query Language). It is shipped
-with every Cassandra package, and can be found in the bin/ directory alongside the cassandra executable. cqlsh utilizes
-the Python native protocol driver, and connects to the single node specified on the command line. For example::
+The API to Cassandra is :ref:`CQL <cql>`, the Cassandra Query Language. To use CQL, you will need to connect to the
+cluster, which can be done:
+
+- either using cqlsh,
+- or through a client driver for Cassandra.
+
+CQLSH
+^^^^^
+
+cqlsh is a command line shell for interacting with Cassandra through CQL. It is shipped with every Cassandra package,
+and can be found in the bin/ directory alongside the cassandra executable. It connects to the single node specified on
+the command line. For example::
 
     $ bin/cqlsh localhost
     Connected to Test Cluster at localhost:9042.
@@ -34,5 +43,10 @@ the Python native protocol driver, and connects to the single node specified on 
     (1 rows)
     cqlsh>
 
-
 See the :ref:`cqlsh section <cqlsh>` for full documentation.
+
+Client drivers
+^^^^^^^^^^^^^^
+
+A lot of client drivers are provided by the Community and a list of known drivers is provided in :ref:`the next section
+<client-drivers>`. You should refer to the documentation of each drivers for more information on how to use them.

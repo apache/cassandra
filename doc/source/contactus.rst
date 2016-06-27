@@ -19,6 +19,8 @@ Contact us
 
 You can get in touch with the Cassandra community either via the mailing lists or the freenode IRC channels.
 
+.. _mailing-lists:
+
 Mailing lists
 -------------
 
@@ -36,6 +38,8 @@ The following mailing lists are available:
 Subscribe by sending an email to the email address in the Subscribe links above. Follow the instructions in the welcome
 email to confirm your subscription. Make sure to keep the welcome email as it contains instructions on how to
 unsubscribe.
+
+.. _irc-channels:
 
 IRC
 ---
