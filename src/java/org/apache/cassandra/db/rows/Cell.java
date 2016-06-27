@@ -145,11 +145,11 @@ public abstract class Cell extends ColumnData
 
     public interface Serializer
     {
-        public void serialize(Cell cell, DataOutputPlus out, LivenessInfo rowLiveness, SerializationHeader header) throws IOException;
+        public void serialize(Cell cell, ColumnDefinition column, DataOutputPlus out, LivenessInfo rowLiveness, SerializationHeader header) throws IOException;
 
         public Cell deserialize(DataInputPlus in, LivenessInfo rowLiveness, ColumnDefinition column, SerializationHeader header, SerializationHelper helper) throws IOException;
 
-        public long serializedSize(Cell cell, LivenessInfo rowLiveness, SerializationHeader header);
+        public long serializedSize(Cell cell, ColumnDefinition column, LivenessInfo rowLiveness, SerializationHeader header);
 
         // Returns if the skipped cell was an actual cell (i.e. it had its presence flag).
         public boolean skip(DataInputPlus in, ColumnDefinition column, SerializationHeader header) throws IOException;

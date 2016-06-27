@@ -25,6 +25,7 @@ import org.apache.cassandra.config.ColumnDefinition;
 import org.apache.cassandra.db.*;
 import org.apache.cassandra.io.util.DataInputPlus;
 import org.apache.cassandra.io.util.DataOutputPlus;
+import org.apache.cassandra.utils.SearchIterator;
 
 /**
  * Serialize/deserialize a single Unfiltered (both on-wire and on-disk).
@@ -177,16 +178,25 @@ public class UnfilteredSerializer
         if (!hasAllColumns)
             Columns.serializer.serializeSubset(Collections2.transform(row, ColumnData::column), headerColumns, out);
 
+        SearchIterator<ColumnDefinition, ColumnDefinition> si = headerColumns.iterator();
         for (ColumnData data : row)
         {
+            // We can obtain the column for data directly from data.column(). However, if the cell/complex data
+            // originates from a sstable, the column we'll get will have the type used when the sstable was serialized,
+            // and if that type have been recently altered, that may not be the type we want to serialize the column
+            // with. So we use the ColumnDefinition from the "header" which is "current". Also see #11810 for what
+            // happens if we don't do that.
+            ColumnDefinition column = si.next(data.column());
+            assert column != null;
+
             if (data.column.isSimple())
-                Cell.serializer.serialize((Cell) data, out, pkLiveness, header);
+                Cell.serializer.serialize((Cell) data, column, out, pkLiveness, header);
             else
-                writeComplexColumn((ComplexColumnData) data, hasComplexDeletion, pkLiveness, header, out);
+                writeComplexColumn((ComplexColumnData) data, column, hasComplexDeletion, pkLiveness, header, out);
         }
     }
 
-    private void writeComplexColumn(ComplexColumnData data, boolean hasComplexDeletion, LivenessInfo rowLiveness, SerializationHeader header, DataOutputPlus out)
+    private void writeComplexColumn(ComplexColumnData data, ColumnDefinition column, boolean hasComplexDeletion, LivenessInfo rowLiveness, SerializationHeader header, DataOutputPlus out)
     throws IOException
     {
         if (hasComplexDeletion)
@@ -194,7 +204,7 @@ public class UnfilteredSerializer
 
         out.writeUnsignedVInt(data.cellsCount());
         for (Cell cell : data)
-            Cell.serializer.serialize(cell, out, rowLiveness, header);
+            Cell.serializer.serialize(cell, column, out, rowLiveness, header);
     }
 
     private void serialize(RangeTombstoneMarker marker, SerializationHeader header, DataOutputPlus out, long previousUnfilteredSize, int version)
@@ -274,18 +284,22 @@ public class UnfilteredSerializer
         if (!hasAllColumns)
             size += Columns.serializer.serializedSubsetSize(Collections2.transform(row, ColumnData::column), header.columns(isStatic));
 
+        SearchIterator<ColumnDefinition, ColumnDefinition> si = headerColumns.iterator();
         for (ColumnData data : row)
         {
+            ColumnDefinition column = si.next(data.column());
+            assert column != null;
+
             if (data.column.isSimple())
-                size += Cell.serializer.serializedSize((Cell) data, pkLiveness, header);
+                size += Cell.serializer.serializedSize((Cell) data, column, pkLiveness, header);
             else
-                size += sizeOfComplexColumn((ComplexColumnData) data, hasComplexDeletion, pkLiveness, header);
+                size += sizeOfComplexColumn((ComplexColumnData) data, column, hasComplexDeletion, pkLiveness, header);
         }
 
         return size;
     }
 
-    private long sizeOfComplexColumn(ComplexColumnData data, boolean hasComplexDeletion, LivenessInfo rowLiveness, SerializationHeader header)
+    private long sizeOfComplexColumn(ComplexColumnData data, ColumnDefinition column, boolean hasComplexDeletion, LivenessInfo rowLiveness, SerializationHeader header)
     {
         long size = 0;
 
@@ -294,7 +308,7 @@ public class UnfilteredSerializer
 
         size += TypeSizes.sizeofUnsignedVInt(data.cellsCount());
         for (Cell cell : data)
-            size += Cell.serializer.serializedSize(cell, rowLiveness, header);
+            size += Cell.serializer.serializedSize(cell, column, rowLiveness, header);
 
         return size;
     }
