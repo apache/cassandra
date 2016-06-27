@@ -1021,7 +1021,7 @@
     </target>
 
     <!-- creates release tarballs -->
-    <target name="artifacts" depends="jar,javadoc"
+    <target name="artifacts" depends="jar,javadoc,gen-doc"
             description="Create Cassandra release artifacts">
       <mkdir dir="${dist.dir}"/>
       <!-- fix the control linefeed so that builds on windows works on linux -->
@@ -1041,8 +1041,14 @@
       </copy>
       <copy todir="${dist.dir}/doc">
         <fileset dir="doc">
-          <exclude name="cql3/CQL.textile"/>
+          <include name="cql3/CQL.html" />
+          <include name="cql3/CQL.css" />
+          <include name="SASI.md" />
         </fileset>
+      </copy>
+      <copy todir="${dist.dir}/doc/html">
+        <fileset dir="doc" />
+        <globmapper from="build/html/*" to="*"/>
       </copy>
       <copy todir="${dist.dir}/bin">
         <fileset dir="bin"/>
