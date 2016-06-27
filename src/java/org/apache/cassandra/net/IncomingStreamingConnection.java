@@ -40,7 +40,7 @@ public class IncomingStreamingConnection extends Thread implements Closeable
     private static final Logger logger = LoggerFactory.getLogger(IncomingStreamingConnection.class);
 
     private final int version;
-    private final Socket socket;
+    public final Socket socket;
     private final Set<Closeable> group;
 
     public IncomingStreamingConnection(int version, Socket socket, Set<Closeable> group)
@@ -71,7 +71,7 @@ public class IncomingStreamingConnection extends Thread implements Closeable
             // The receiving side distinguish two connections by looking at StreamInitMessage#isForOutgoing.
             // Note: we cannot use the same socket for incoming and outgoing streams because we want to
             // parallelize said streams and the socket is blocking, so we might deadlock.
-            StreamResultFuture.initReceivingSide(init.sessionIndex, init.planId, init.description, init.from, socket, init.isForOutgoing, version);
+            StreamResultFuture.initReceivingSide(init.sessionIndex, init.planId, init.description, init.from, this, init.isForOutgoing, version);
         }
         catch (IOException e)
         {
