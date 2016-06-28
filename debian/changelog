@@ -1,3 +1,9 @@
+cassandra (3.8) unstable; urgency=medium
+
+  * New release
+
+ -- Jake Luciani <jake@apache.org>  Mon, 27 Jun 2016 20:40:40 -0400
+
 cassandra (3.6) unstable; urgency=medium
 
   * New release
