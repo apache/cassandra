@@ -40,6 +40,7 @@ import org.slf4j.LoggerFactory;
 import org.apache.cassandra.io.util.DataOutputStreamPlus;
 import org.apache.cassandra.io.util.BufferedDataOutputStreamPlus;
 import org.apache.cassandra.io.util.WrappedDataOutputStreamPlus;
+import org.apache.cassandra.net.IncomingStreamingConnection;
 import org.apache.cassandra.streaming.messages.StreamInitMessage;
 import org.apache.cassandra.streaming.messages.StreamMessage;
 import org.apache.cassandra.utils.FBUtilities;
@@ -93,16 +94,16 @@ public class ConnectionHandler
     /**
      * Set up outgoing message handler on receiving side.
      *
-     * @param socket socket to use for {@link org.apache.cassandra.streaming.ConnectionHandler.OutgoingMessageHandler}.
+     * @param connection Incoming connection to use for {@link OutgoingMessageHandler}.
      * @param version Streaming message version
      * @throws IOException
      */
-    public void initiateOnReceivingSide(Socket socket, boolean isForOutgoing, int version) throws IOException
+    public void initiateOnReceivingSide(IncomingStreamingConnection connection, boolean isForOutgoing, int version) throws IOException
     {
         if (isForOutgoing)
-            outgoing.start(socket, version);
+            outgoing.start(connection, version);
         else
-            incoming.start(socket, version);
+            incoming.start(connection, version);
     }
 
     public ListenableFuture<?> close()
@@ -160,6 +161,7 @@ public class ConnectionHandler
         protected Socket socket;
 
         private final AtomicReference<SettableFuture<?>> closeFuture = new AtomicReference<>();
+        private IncomingStreamingConnection incomingConnection;
 
         protected MessageHandler(StreamSession session)
         {
@@ -201,6 +203,12 @@ public class ConnectionHandler
             out.flush();
         }
 
+        public void start(IncomingStreamingConnection connection, int protocolVersion)
+        {
+            this.incomingConnection = connection;
+            start(connection.socket, protocolVersion);
+        }
+
         public void start(Socket socket, int protocolVersion)
         {
             this.socket = socket;
@@ -228,15 +236,26 @@ public class ConnectionHandler
             closeFuture.get().set(null);
 
             // We can now close the socket
-            try
+            if (incomingConnection != null)
             {
-                socket.close();
+                //this will close the underlying socket and remove it
+                //from active MessagingService connections (CASSANDRA-11854)
+                incomingConnection.close();
             }
-            catch (IOException e)
+            else
             {
-                // Erroring out while closing shouldn't happen but is not really a big deal, so just log
-                // it at DEBUG and ignore otherwise.
-                logger.debug("Unexpected error while closing streaming connection", e);
+                //this is an outgoing connection not registered in the MessagingService
+                //so we can close the socket directly
+                try
+                {
+                    socket.close();
+                }
+                catch (IOException e)
+                {
+                    // Erroring out while closing shouldn't happen but is not really a big deal, so just log
+                    // it at DEBUG and ignore otherwise.
+                    logger.debug("Unexpected error while closing streaming connection", e);
+                }
             }
         }
     }
