@@ -17,6 +17,8 @@
 Dynamo
 ------
 
+.. _gossip:
+
 Gossip
 ^^^^^^
 

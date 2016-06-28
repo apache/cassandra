@@ -16,24 +16,9 @@
 
 .. highlight:: none
 
-Operating Cassandra
-===================
+.. _bulk-loading:
 
-.. toctree::
-   :maxdepth: 2
+Bulk Loading
+------------
 
-   snitch
-   topo_changes
-   repair
-   read_repair
-   hints
-   compaction
-   bloom_filters
-   compression
-   cdc
-   backups
-   bulk_loading
-   metrics
-   security
-   hardware
-
+.. todo:: TODO

@@ -46,7 +46,12 @@ extensions = [
     'sphinx.ext.todo',
     'sphinx.ext.mathjax',
     'sphinx.ext.ifconfig',
+    'sphinx.ext.extlinks',
 ]
+
+extlinks = {
+    'jira': ( 'https://issues.apache.org/jira/browse/CASSANDRA-%s', 'CASSANDRA-')
+}
 
 # Add any paths that contain templates here, relative to this directory.
 templates_path = ['_templates']

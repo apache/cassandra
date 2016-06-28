@@ -58,6 +58,8 @@ def convert(yaml_file, dest_file):
         lines = f.readlines()[7:]
 
     with open(dest_file, 'w') as outfile:
+        outfile.write(".. _cassandra-yaml:\n")
+        outfile.write("\n")
         outfile.write("Cassandra Configuration File\n")
         outfile.write("============================\n")
 

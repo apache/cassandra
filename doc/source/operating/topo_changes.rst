@@ -16,6 +16,8 @@
 
 .. highlight:: none
 
+.. _topology-changes:
+
 Adding, replacing, moving and removing nodes
 --------------------------------------------
 
