@@ -241,6 +241,7 @@ JVM_OPTS="$JVM_OPTS -XX:+PrintGCApplicationStoppedTime"
 JVM_OPTS="$JVM_OPTS -XX:+PrintPromotionFailure"
 #JVM_OPTS="$JVM_OPTS -XX:PrintFLSStatistics=1"
 
+mkdir -p ${CASSANDRA_HOME}/logs/
 JVM_OPTS="$JVM_OPTS -Xloggc:${CASSANDRA_HOME}/logs/gc.log"
 JVM_OPTS="$JVM_OPTS -XX:+UseGCLogFileRotation"
 JVM_OPTS="$JVM_OPTS -XX:NumberOfGCLogFiles=10"
