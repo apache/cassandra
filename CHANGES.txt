@@ -30,6 +30,7 @@
  * Always close cluster with connection in CqlRecordWriter (CASSANDRA-11553)
  * Fix slice queries on ordered COMPACT tables (CASSANDRA-10988)
 Merged from 2.1:
+ * Remove finished incoming streaming connections from MessagingService (CASSANDRA-11854)
  * Don't try to get sstables for non-repairing column families (CASSANDRA-12077)
  * Prevent select statements with clustering key > 64k (CASSANDRA-11882)
  * Avoid marking too many sstables as repaired (CASSANDRA-11696)

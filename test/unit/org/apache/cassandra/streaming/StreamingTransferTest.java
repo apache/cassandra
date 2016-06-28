@@ -58,6 +58,7 @@ import org.apache.cassandra.dht.Range;
 import org.apache.cassandra.dht.Token;
 import org.apache.cassandra.io.sstable.SSTableUtils;
 import org.apache.cassandra.locator.SimpleStrategy;
+import org.apache.cassandra.net.MessagingService;
 import org.apache.cassandra.service.StorageService;
 import org.apache.cassandra.utils.ByteBufferUtil;
 import org.apache.cassandra.utils.CounterId;
@@ -238,11 +239,33 @@ public class StreamingTransferTest
         // wrapped range
         ranges.add(new Range<Token>(p.getToken(ByteBufferUtil.bytes("key1")), p.getToken(ByteBufferUtil.bytes("key0"))));
         new StreamPlan("StreamingTransferTest").transferRanges(LOCAL, cfs.keyspace.getName(), ranges, cfs.getColumnFamilyName()).execute().get();
+        verifyConnectionsAreClosed();
     }
 
     private void transfer(SSTableReader sstable, List<Range<Token>> ranges) throws Exception
     {
         new StreamPlan("StreamingTransferTest").transferFiles(LOCAL, makeStreamingDetails(ranges, Refs.tryRef(Arrays.asList(sstable)))).execute().get();
+        verifyConnectionsAreClosed();
+    }
+
+    /**
+     * Test that finished incoming connections are removed from MessagingService (CASSANDRA-11854)
+     */
+    private void verifyConnectionsAreClosed() throws InterruptedException
+    {
+        //after stream session is finished, message handlers may take several milliseconds to be closed
+        outer:
+        for (int i = 0; i <= 10; i++)
+        {
+            for (MessagingService.SocketThread socketThread : MessagingService.instance().getSocketThreads())
+                if (!socketThread.connections.isEmpty())
+                {
+                    Thread.sleep(100);
+                    continue outer;
+                }
+            return;
+        }
+        fail("Streaming connections remain registered in MessagingService");
     }
 
     private Collection<StreamSession.SSTableStreamingSections> makeStreamingDetails(List<Range<Token>> ranges, Refs<SSTableReader> sstables)
