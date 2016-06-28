@@ -327,6 +327,7 @@ Function SetCassandraEnvironment
     # times. If in doubt, and if you do not particularly want to tweak, go
     # 100 MB per physical CPU core.
 
+    New-Item -Force -ItemType directory -Path $env:CASSANDRA_HOME/logs/
     #GC log path has to be defined here since it needs to find CASSANDRA_HOME
     $env:JVM_OPTS="$env:JVM_OPTS -Xloggc:""$env:CASSANDRA_HOME/logs/gc.log"""
 
