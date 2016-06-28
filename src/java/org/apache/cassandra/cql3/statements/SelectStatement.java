@@ -403,7 +403,11 @@ public class SelectStatement implements CQLStatement
 
     public ResultMessage.Rows executeInternal(QueryState state, QueryOptions options) throws RequestExecutionException, RequestValidationException
     {
-        int nowInSec = FBUtilities.nowInSeconds();
+        return executeInternal(state, options, FBUtilities.nowInSeconds());
+    }
+
+    public ResultMessage.Rows executeInternal(QueryState state, QueryOptions options, int nowInSec) throws RequestExecutionException, RequestValidationException
+    {
         int userLimit = getLimit(options);
         ReadQuery query = getQuery(options, nowInSec, userLimit);
         int pageSize = getPageSize(options);

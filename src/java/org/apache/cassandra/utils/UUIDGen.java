@@ -25,9 +25,11 @@ import java.security.SecureRandom;
 import java.util.Collection;
 import java.util.Random;
 import java.util.UUID;
+import java.util.concurrent.TimeUnit;
 
 import com.google.common.annotations.VisibleForTesting;
 import com.google.common.base.Charsets;
+import com.google.common.primitives.Ints;
 
 
 /**
@@ -199,6 +201,15 @@ public class UUIDGen
     public static long unixTimestamp(UUID uuid)
     {
         return (uuid.timestamp() / 10000) + START_EPOCH;
+    }
+
+    /**
+     * @param uuid
+     * @return seconds since Unix epoch
+     */
+    public static int unixTimestampInSec(UUID uuid)
+    {
+        return Ints.checkedCast(TimeUnit.MILLISECONDS.toSeconds(unixTimestamp(uuid)));
     }
 
     /**
