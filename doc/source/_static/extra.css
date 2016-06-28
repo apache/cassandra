@@ -41,3 +41,12 @@ table.contentstable {
 td.rightcolumn {
     padding-left: 30px;
 }
+
+div#wipwarning {
+    font-size: 14px;
+    border: 1px solid #ecc;
+    color: #f66;
+    background: #ffe8e8;
+    padding: 10px 30px;
+    margin-bottom: 30px;
+}
