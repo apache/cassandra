@@ -273,13 +273,6 @@ if [ "x$allow_root" != "xyes" ] ; then
     fi
 fi
 
-# see CASSANDRA-7254
-"$JAVA" -cp "$CLASSPATH" $JVM_OPTS 2>&1 | grep -q 'Error: Exception thrown by the agent : java.lang.NullPointerException'
-if [ $? -ne "1" ]; then 
-    echo Unable to bind JMX, is Cassandra already running?
-    exit 1;
-fi
-
 # Start up the service
 launch_service "$pidfile" "$foreground" "$properties" "$classname"
 

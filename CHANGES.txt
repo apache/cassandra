@@ -1,3 +1,6 @@
+3.10
+ * Remove pre-startup check for open JMX port (CASSANDRA-12074)
+
 3.9
 Merged from 2.1:
  * Avoid stalling paxos when the paxos state expires (CASSANDRA-12043)
