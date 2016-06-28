@@ -1,3 +1,8 @@
+3.9
+Merged from 2.1:
+ * Remove finished incoming streaming connections from MessagingService (CASSANDRA-11854)
+
+
 3.8
  * Improve details in compaction log message (CASSANDRA-12080)
  * Allow unset values in CQLSSTableWriter (CASSANDRA-11911)
