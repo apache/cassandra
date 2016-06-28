@@ -46,6 +46,7 @@ import org.apache.cassandra.db.partitions.*;
 import org.apache.cassandra.dht.IPartitioner;
 import org.apache.cassandra.dht.Range;
 import org.apache.cassandra.dht.Token;
+import org.apache.cassandra.net.MessagingService;
 import org.apache.cassandra.io.sstable.format.SSTableReader;
 import org.apache.cassandra.schema.KeyspaceParams;
 import org.apache.cassandra.service.StorageService;
@@ -229,11 +230,33 @@ public class StreamingTransferTest
         // wrapped range
         ranges.add(new Range<Token>(p.getToken(ByteBufferUtil.bytes("key1")), p.getToken(ByteBufferUtil.bytes("key0"))));
         new StreamPlan("StreamingTransferTest").transferRanges(LOCAL, cfs.keyspace.getName(), ranges, cfs.getColumnFamilyName()).execute().get();
+        verifyConnectionsAreClosed();
     }
 
     private void transfer(SSTableReader sstable, List<Range<Token>> ranges) throws Exception
     {
         new StreamPlan("StreamingTransferTest").transferFiles(LOCAL, makeStreamingDetails(ranges, Refs.tryRef(Arrays.asList(sstable)))).execute().get();
+        verifyConnectionsAreClosed();
+    }
+
+    /**
+     * Test that finished incoming connections are removed from MessagingService (CASSANDRA-11854)
+     */
+    private void verifyConnectionsAreClosed() throws InterruptedException
+    {
+        //after stream session is finished, message handlers may take several milliseconds to be closed
+        outer:
+        for (int i = 0; i <= 10; i++)
+        {
+            for (MessagingService.SocketThread socketThread : MessagingService.instance().getSocketThreads())
+                if (!socketThread.connections.isEmpty())
+                {
+                    Thread.sleep(100);
+                    continue outer;
+                }
+            return;
+        }
+        fail("Streaming connections remain registered in MessagingService");
     }
 
     private Collection<StreamSession.SSTableStreamingSections> makeStreamingDetails(List<Range<Token>> ranges, Refs<SSTableReader> sstables)
@@ -305,7 +328,7 @@ public class StreamingTransferTest
         updates = new RowUpdateBuilder(cfs.metadata, FBUtilities.timestampMicros(), key);
         updates.clustering(6)
                 .add("val", ByteBuffer.wrap(new byte[DatabaseDescriptor.getColumnIndexSize()]))
-                .build()
+               .build()
                 .apply();
 
         // add RangeTombstones
