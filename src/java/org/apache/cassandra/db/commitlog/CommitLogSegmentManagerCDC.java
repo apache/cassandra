@@ -155,7 +155,7 @@ public class CommitLogSegmentManagerCDC extends AbstractCommitLogSegmentManager
      */
     private class CDCSizeTracker extends DirectorySizeCalculator
     {
-        private final RateLimiter rateLimiter = RateLimiter.create(1000 / DatabaseDescriptor.getCDCDiskCheckInterval());
+        private final RateLimiter rateLimiter = RateLimiter.create(1000.0 / DatabaseDescriptor.getCDCDiskCheckInterval());
         private ExecutorService cdcSizeCalculationExecutor;
         private CommitLogSegmentManagerCDC segmentManager;
         private AtomicLong unflushedCDCSize = new AtomicLong(0);
