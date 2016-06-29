@@ -1,3 +1,7 @@
+3.0.9
+Merged from 2.2:
+ * MemoryUtil.getShort() should return an unsigned short also for architectures not supporting unaligned memory accesses (CASSANDRA-11973)
+
 3.0.8
  * Fix potential race in schema during new table creation (CASSANDRA-12083)
  * cqlsh: fix error handling in rare COPY FROM failure scenario (CASSANDRA-12070)
