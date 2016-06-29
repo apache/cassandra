@@ -14,7 +14,7 @@
 .. See the License for the specific language governing permissions and
 .. limitations under the License.
 
-.. highlight:: sql
+.. highlight:: cql
 
 .. _cql-functions:
 
@@ -38,6 +38,11 @@ functions.
    enabled, the execution of user-defined functions is sandboxed and a "rogue" function should not be allowed to do
    evil, but no sandbox is perfect so using user-defined functions is opt-in). See the ``enable_user_defined_functions``
    in ``cassandra.yaml`` to enable them.
+
+A function is identifier by its name:
+
+.. productionlist::
+   function_name: [ `keyspace_name` '.' ] `name`
 
 .. _scalar-functions:
 
@@ -236,15 +241,15 @@ User-defined functions can be used in ``SELECT``, ``INSERT`` and ``UPDATE`` stat
 The implicitly available ``udfContext`` field (or binding for script UDFs) provides the necessary functionality to
 create new UDT and tuple values::
 
-    CREATE TYPE custom\_type (txt text, i int);
+    CREATE TYPE custom_type (txt text, i int);
     CREATE FUNCTION fct\_using\_udt ( somearg int )
         RETURNS NULL ON NULL INPUT
-        RETURNS custom\_type
+        RETURNS custom_type
         LANGUAGE java
         AS $$
             UDTValue udt = udfContext.newReturnUDTValue();
-            udt.setString(“txt”, “some string”);
-            udt.setInt(“i”, 42);
+            udt.setString("txt", "some string");
+            udt.setInt("i", 42);
             return udt;
         $$;
 
@@ -447,25 +452,25 @@ statement)::
         CALLED ON NULL INPUT
         RETURNS tuple
         LANGUAGE java
-        AS '
+        AS $$
             if (val != null) {
                 state.setInt(0, state.getInt(0)+1);
                 state.setLong(1, state.getLong(1)+val.intValue());
             }
             return state;
-        ';
+        $$;
 
     CREATE OR REPLACE FUNCTION averageFinal (state tuple<int,bigint>)
         CALLED ON NULL INPUT
         RETURNS double
         LANGUAGE java
-        AS '
+        AS $$
             double r = 0;
             if (state.getInt(0) == 0) return null;
             r = state.getLong(1);
             r /= state.getInt(0);
-            return Double.valueOf®;
-        ';
+            return Double.valueOf(r);
+        $$;
 
     CREATE OR REPLACE AGGREGATE average(int)
         SFUNC averageState

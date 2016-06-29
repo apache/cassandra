@@ -16,6 +16,8 @@
 
 .. _UUID: https://en.wikipedia.org/wiki/Universally_unique_identifier
 
+.. highlight:: cql
+
 Definitions
 -----------
 
@@ -145,7 +147,7 @@ Multi-line comments are also supported through enclosure within ``/*`` and ``*/`
 
 ::
 
-    — This is a comment
+    -- This is a comment
     // This is a comment too
     /* This is
        a multi-line comment */

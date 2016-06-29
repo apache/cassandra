@@ -14,7 +14,7 @@
 .. See the License for the specific language governing permissions and
 .. limitations under the License.
 
-.. highlight:: sql
+.. highlight:: cql
 
 .. _cql-security:
 
@@ -25,6 +25,11 @@ Security
 
 Database Roles
 ^^^^^^^^^^^^^^
+
+CQL uses database roles to represent users and group of users. Syntactically, a role is defined by:
+
+.. productionlist::
+   role_name: `identifier` | `string`
 
 .. _create-role-statement:
 

@@ -14,7 +14,7 @@
 .. See the License for the specific language governing permissions and
 .. limitations under the License.
 
-.. highlight:: sql
+.. highlight:: cql
 
 .. _data-manipulation:
 
@@ -202,7 +202,7 @@ The tuple notation may also be used for ``IN`` clauses on clustering columns::
 
     SELECT * FROM posts
      WHERE userid = 'john doe'
-       AND (blog_title, posted_at) IN (('John''s Blog', '2012-01-01), ('Extreme Chess', '2014-06-01'))
+       AND (blog_title, posted_at) IN (('John''s Blog', '2012-01-01'), ('Extreme Chess', '2014-06-01'))
 
 The ``CONTAINS`` operator may only be used on collection columns (lists, sets, and maps). In the case of maps,
 ``CONTAINS`` applies to the map values. The ``CONTAINS KEY`` operator may only be used on map columns and applies to the

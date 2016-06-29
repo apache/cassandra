@@ -14,7 +14,7 @@
 .. See the License for the specific language governing permissions and
 .. limitations under the License.
 
-.. highlight:: sql
+.. highlight:: cql
 
 .. _materialized-views:
 
@@ -46,7 +46,7 @@ For instance::
         SELECT * FROM monkeySpecies
         WHERE population IS NOT NULL AND species IS NOT NULL
         PRIMARY KEY (population, species)
-        WITH comment=‘Allow query by population instead of species’;
+        WITH comment='Allow query by population instead of species';
 
 The ``CREATE MATERIALIZED VIEW`` statement creates a new materialized view. Each such view is a set of *rows* which
 corresponds to rows which are present in the underlying, or base, table specified in the ``SELECT`` statement. A

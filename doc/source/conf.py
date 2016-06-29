@@ -21,7 +21,7 @@
 #
 # This file is execfile()d with the current directory set to its containing
 # dir.
-import re
+import re, sys, os
 
 # Finds out the version (so we don't have to manually edit that file every
 # time we change the version)
@@ -32,6 +32,10 @@ with open(cassandra_build_file) as f:
         raise RuntimeException("Problem finding version in build.xml file, this shouldn't happen.")
     cassandra_version = m.group(1)
 
+def setup(sphinx):
+    sys.path.insert(0, os.path.abspath('./source/_util'))
+    from cql import CQLLexer
+    sphinx.add_lexer("cql", CQLLexer())
 
 
 # -- General configuration ------------------------------------------------
