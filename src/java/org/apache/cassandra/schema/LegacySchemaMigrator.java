@@ -284,10 +284,25 @@ public final class LegacySchemaMigrator
         AbstractType<?> subComparator = tableRow.has("subcomparator") ? TypeParser.parse(tableRow.getString("subcomparator")) : null;
 
         boolean isSuper = "super".equals(tableRow.getString("type").toLowerCase());
-        boolean isDense = tableRow.has("is_dense")
-                        ? tableRow.getBoolean("is_dense")
-                        : calculateIsDense(rawComparator, columnRows);
         boolean isCompound = rawComparator instanceof CompositeType;
+
+        /*
+         * Determine whether or not the table is *really* dense
+         * We cannot trust is_dense value of true (see CASSANDRA-11502, that fixed the issue for 2.2 only, and not retroactively),
+         * but we can trust is_dense value of false.
+         */
+        Boolean rawIsDense = tableRow.has("is_dense") ? tableRow.getBoolean("is_dense") : null;
+        boolean isDense;
+        if (rawIsDense != null && !rawIsDense)
+            isDense = false;
+        else
+            isDense = calculateIsDense(rawComparator, columnRows);
+
+        // now, if switched to sparse, remove redundant compact_value column and the last clustering column,
+        // directly copying CASSANDRA-11502 logic. See CASSANDRA-11315.
+        Iterable<UntypedResultSet.Row> filteredColumnRows = !isDense && (rawIsDense == null || rawIsDense)
+                                                          ? filterOutRedundantRowsForSparse(columnRows, isSuper, isCompound)
+                                                          : columnRows;
 
         // We don't really use the default validator but as we have it for backward compatibility, we use it to know if it's a counter table
         AbstractType<?> defaultValidator = TypeParser.parse(tableRow.getString("default_validator"));
@@ -311,9 +326,9 @@ public final class LegacySchemaMigrator
         // previous versions, they may not have the expected schema, so detect if we need to upgrade and do
         // it in createColumnsFromColumnRows.
         // We can remove this once we don't support upgrade from versions < 3.0.
-        boolean needsUpgrade = !isCQLTable && checkNeedsUpgrade(columnRows, isSuper, isStaticCompactTable);
+        boolean needsUpgrade = !isCQLTable && checkNeedsUpgrade(filteredColumnRows, isSuper, isStaticCompactTable);
 
-        List<ColumnDefinition> columnDefs = createColumnsFromColumnRows(columnRows,
+        List<ColumnDefinition> columnDefs = createColumnsFromColumnRows(filteredColumnRows,
                                                                         ksName,
                                                                         cfName,
                                                                         rawComparator,
@@ -322,7 +337,6 @@ public final class LegacySchemaMigrator
                                                                         isCQLTable,
                                                                         isStaticCompactTable,
                                                                         needsUpgrade);
-
 
         if (needsUpgrade)
         {
@@ -348,7 +362,7 @@ public final class LegacySchemaMigrator
                                            DatabaseDescriptor.getPartitioner());
 
         Indexes indexes = createIndexesFromColumnRows(cfm,
-                                                      columnRows,
+                                                      filteredColumnRows,
                                                       ksName,
                                                       cfName,
                                                       rawComparator,
@@ -374,7 +388,7 @@ public final class LegacySchemaMigrator
      * information for table just created through thrift, nor for table prior to CASSANDRA-7744, so this
      * method does its best to infer whether the table is dense or not based on other elements.
      */
-    public static boolean calculateIsDense(AbstractType<?> comparator, UntypedResultSet columnRows)
+    private static boolean calculateIsDense(AbstractType<?> comparator, UntypedResultSet columnRows)
     {
         /*
          * As said above, this method is only here because we need to deal with thrift upgrades.
@@ -395,25 +409,44 @@ public final class LegacySchemaMigrator
          * in which case it should not be dense. However, we can limit our margin of error by assuming we are
          * in the latter case only if the comparator is exactly CompositeType(UTF8Type).
          */
-        boolean hasRegular = false;
-        int maxClusteringIdx = -1;
-
         for (UntypedResultSet.Row columnRow : columnRows)
-        {
-            switch (columnRow.getString("type"))
-            {
-                case "clustering_key":
-                    maxClusteringIdx = Math.max(maxClusteringIdx, columnRow.has("component_index") ? columnRow.getInt("component_index") : 0);
-                    break;
-                case "regular":
-                    hasRegular = true;
-                    break;
-            }
-        }
+            if ("regular".equals(columnRow.getString("type")))
+                return false;
+
+        int maxClusteringIdx = -1;
+        for (UntypedResultSet.Row columnRow : columnRows)
+            if ("clustering_key".equals(columnRow.getString("type")))
+                maxClusteringIdx = Math.max(maxClusteringIdx, columnRow.has("component_index") ? columnRow.getInt("component_index") : 0);
 
         return maxClusteringIdx >= 0
-               ? maxClusteringIdx == comparator.componentsCount() - 1
-               : !hasRegular && !isCQL3OnlyPKComparator(comparator);
+             ? maxClusteringIdx == comparator.componentsCount() - 1
+             : !isCQL3OnlyPKComparator(comparator);
+    }
+
+    private static Iterable<UntypedResultSet.Row> filterOutRedundantRowsForSparse(UntypedResultSet columnRows, boolean isSuper, boolean isCompound)
+    {
+        Collection<UntypedResultSet.Row> filteredRows = new ArrayList<>();
+        for (UntypedResultSet.Row columnRow : columnRows)
+        {
+            String kind = columnRow.getString("type");
+
+            if ("compact_value".equals(kind))
+                continue;
+
+            if ("clustering_key".equals(kind))
+            {
+                int position = columnRow.has("component_index") ? columnRow.getInt("component_index") : 0;
+                if (isSuper && position != 0)
+                    continue;
+
+                if (!isSuper && !isCompound)
+                    continue;
+            }
+
+            filteredRows.add(columnRow);
+        }
+
+        return filteredRows;
     }
 
     private static boolean isCQL3OnlyPKComparator(AbstractType<?> comparator)
@@ -507,7 +540,7 @@ public final class LegacySchemaMigrator
     }
 
     // Should only be called on compact tables
-    private static boolean checkNeedsUpgrade(UntypedResultSet defs, boolean isSuper, boolean isStaticCompactTable)
+    private static boolean checkNeedsUpgrade(Iterable<UntypedResultSet.Row> defs, boolean isSuper, boolean isStaticCompactTable)
     {
         if (isSuper)
         {
@@ -527,7 +560,7 @@ public final class LegacySchemaMigrator
         return !hasRegularColumns(defs);
     }
 
-    private static boolean hasRegularColumns(UntypedResultSet columnRows)
+    private static boolean hasRegularColumns(Iterable<UntypedResultSet.Row> columnRows)
     {
         for (UntypedResultSet.Row row : columnRows)
         {
@@ -581,7 +614,7 @@ public final class LegacySchemaMigrator
         }
     }
 
-    private static boolean hasKind(UntypedResultSet defs, ColumnDefinition.Kind kind)
+    private static boolean hasKind(Iterable<UntypedResultSet.Row> defs, ColumnDefinition.Kind kind)
     {
         for (UntypedResultSet.Row row : defs)
             if (deserializeKind(row.getString("type")) == kind)
@@ -620,7 +653,7 @@ public final class LegacySchemaMigrator
         }
     }
 
-    private static List<ColumnDefinition> createColumnsFromColumnRows(UntypedResultSet rows,
+    private static List<ColumnDefinition> createColumnsFromColumnRows(Iterable<UntypedResultSet.Row> rows,
                                                                       String keyspace,
                                                                       String table,
                                                                       AbstractType<?> rawComparator,
@@ -689,7 +722,7 @@ public final class LegacySchemaMigrator
     }
 
     private static Indexes createIndexesFromColumnRows(CFMetaData cfm,
-                                                       UntypedResultSet rows,
+                                                       Iterable<UntypedResultSet.Row> rows,
                                                        String keyspace,
                                                        String table,
                                                        AbstractType<?> rawComparator,
