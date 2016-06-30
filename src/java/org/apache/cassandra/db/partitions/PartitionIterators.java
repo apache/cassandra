@@ -78,17 +78,6 @@ public abstract class PartitionIterators
         return MorePartitions.extend(iterators.get(0), new Extend());
     }
 
-    public static void digest(PartitionIterator iterator, MessageDigest digest)
-    {
-        while (iterator.hasNext())
-        {
-            try (RowIterator partition = iterator.next())
-            {
-                RowIterators.digest(partition, digest);
-            }
-        }
-    }
-
     public static PartitionIterator singletonIterator(RowIterator iterator)
     {
         return new SingletonPartitionIterator(iterator);
