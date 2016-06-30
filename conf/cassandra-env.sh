@@ -218,55 +218,66 @@ if [ "x$LOCAL_JMX" = "x" ]; then
     LOCAL_JMX=yes
 fi
 
-# Specifies the default port over which Cassandra will be available for
-# JMX connections.
+configure_jmx()
+{
+  JMX_PORT=$1
+
+  if [ "$LOCAL_JMX" = "yes" ]; then
+    JVM_OPTS="$JVM_OPTS -Dcassandra.jmx.local.port=$JMX_PORT"
+    JVM_OPTS="$JVM_OPTS -Dcom.sun.management.jmxremote.authenticate=false"
+  else
+    JVM_OPTS="$JVM_OPTS -Dcassandra.jmx.remote.port=$JMX_PORT"
+    # if ssl is enabled the same port cannot be used for both jmx and rmi so either
+    # pick another value for this property or comment out to use a random port (though see CASSANDRA-7087 for origins)
+    JVM_OPTS="$JVM_OPTS -Dcom.sun.management.jmxremote.rmi.port=$JMX_PORT"
+
+    # turn on JMX authentication. See below for further options
+    JVM_OPTS="$JVM_OPTS -Dcom.sun.management.jmxremote.authenticate=true"
+
+    # jmx ssl options
+    # Consider using the jmx_encryption_options section of jmx_server_options in cassandra.yaml instead
+    # to prevent sensitive information being exposed.
+    # In case jmx ssl options are configured in both the places - this file and cassandra.yaml, and
+    # if com.sun.management.jmxremote.ssl is configured to be true here and encryption_options are marked enabled in
+    # cassandra.yaml, then we will get exception at the startup
+    #JVM_OPTS="$JVM_OPTS -Dcom.sun.management.jmxremote.ssl=true"
+    #JVM_OPTS="$JVM_OPTS -Dcom.sun.management.jmxremote.ssl.need.client.auth=true"
+    #JVM_OPTS="$JVM_OPTS -Dcom.sun.management.jmxremote.ssl.enabled.protocols=<enabled-protocols>"
+    #JVM_OPTS="$JVM_OPTS -Dcom.sun.management.jmxremote.ssl.enabled.cipher.suites=<enabled-cipher-suites>"
+    #JVM_OPTS="$JVM_OPTS -Djavax.net.ssl.keyStore=/path/to/keystore"
+    #JVM_OPTS="$JVM_OPTS -Djavax.net.ssl.keyStorePassword=<keystore-password>"
+    #JVM_OPTS="$JVM_OPTS -Djavax.net.ssl.trustStore=/path/to/truststore"
+    #JVM_OPTS="$JVM_OPTS -Djavax.net.ssl.trustStorePassword=<truststore-password>"
+  fi
+
+  # jmx authentication and authorization options. By default, auth is only
+  # activated for remote connections but they can also be enabled for local only JMX
+  ## Basic file based authn & authz
+  JVM_OPTS="$JVM_OPTS -Dcom.sun.management.jmxremote.password.file=/etc/cassandra/jmxremote.password"
+  #JVM_OPTS="$JVM_OPTS -Dcom.sun.management.jmxremote.access.file=/etc/cassandra/jmxremote.access"
+  ## Custom auth settings which can be used as alternatives to JMX's out of the box auth utilities.
+  ## JAAS login modules can be used for authentication by uncommenting these two properties.
+  ## Cassandra ships with a LoginModule implementation - org.apache.cassandra.auth.CassandraLoginModule -
+  ## which delegates to the IAuthenticator configured in cassandra.yaml. See the sample JAAS configuration
+  ## file cassandra-jaas.config
+  #JVM_OPTS="$JVM_OPTS -Dcassandra.jmx.remote.login.config=CassandraLogin"
+  #JVM_OPTS="$JVM_OPTS -Djava.security.auth.login.config=$CASSANDRA_CONF/cassandra-jaas.config"
+
+  ## Cassandra also ships with a helper for delegating JMX authz calls to the configured IAuthorizer,
+  ## uncomment this to use it. Requires one of the two authentication options to be enabled
+  #JVM_OPTS="$JVM_OPTS -Dcassandra.jmx.authorizer=org.apache.cassandra.auth.jmx.AuthorizationProxy"
+}
+
+# If this function call is commented out, then Cassandra will start with no system properties for JMX set whatsoever.
+# We will be expecting the settings in jmx_server_options and jmx_encryption_options respectively instead.
+# The argument specifies the default port over which Cassandra will be available for JMX connections.
+#
+# If you comment out configure_jmx method call, then JMX_PORT variable will not be set, which means
+# nodetool which sources this file will not see it either and port from cassandra.yaml will be parsed instead,
+# if not found there either, it defaults to 7199.
+#
 # For security reasons, you should not expose this port to the internet.  Firewall it if needed.
-JMX_PORT="7199"
-
-if [ "$LOCAL_JMX" = "yes" ]; then
-  JVM_OPTS="$JVM_OPTS -Dcassandra.jmx.local.port=$JMX_PORT"
-  JVM_OPTS="$JVM_OPTS -Dcom.sun.management.jmxremote.authenticate=false"
-else
-  JVM_OPTS="$JVM_OPTS -Dcassandra.jmx.remote.port=$JMX_PORT"
-  # if ssl is enabled the same port cannot be used for both jmx and rmi so either
-  # pick another value for this property or comment out to use a random port (though see CASSANDRA-7087 for origins)
-  JVM_OPTS="$JVM_OPTS -Dcom.sun.management.jmxremote.rmi.port=$JMX_PORT"
-
-  # turn on JMX authentication. See below for further options
-  JVM_OPTS="$JVM_OPTS -Dcom.sun.management.jmxremote.authenticate=true"
-
-  # jmx ssl options
-  # Consider using the jmx_encryption_options section of cassandra.yaml instead
-  # to prevent sensitive information being exposed.
-  # In case jmx ssl options are configured in both the places - this file and cassandra.yaml, and
-  # if com.sun.management.jmxremote.ssl is configured to be true here and encryption_options are marked enabled in
-  # cassandra.yaml, then we will get exception at the startup
-  #JVM_OPTS="$JVM_OPTS -Dcom.sun.management.jmxremote.ssl=true"
-  #JVM_OPTS="$JVM_OPTS -Dcom.sun.management.jmxremote.ssl.need.client.auth=true"
-  #JVM_OPTS="$JVM_OPTS -Dcom.sun.management.jmxremote.ssl.enabled.protocols=<enabled-protocols>"
-  #JVM_OPTS="$JVM_OPTS -Dcom.sun.management.jmxremote.ssl.enabled.cipher.suites=<enabled-cipher-suites>"
-  #JVM_OPTS="$JVM_OPTS -Djavax.net.ssl.keyStore=/path/to/keystore"
-  #JVM_OPTS="$JVM_OPTS -Djavax.net.ssl.keyStorePassword=<keystore-password>"
-  #JVM_OPTS="$JVM_OPTS -Djavax.net.ssl.trustStore=/path/to/truststore"
-  #JVM_OPTS="$JVM_OPTS -Djavax.net.ssl.trustStorePassword=<truststore-password>"
-fi
-
-# jmx authentication and authorization options. By default, auth is only
-# activated for remote connections but they can also be enabled for local only JMX
-## Basic file based authn & authz
-JVM_OPTS="$JVM_OPTS -Dcom.sun.management.jmxremote.password.file=/etc/cassandra/jmxremote.password"
-#JVM_OPTS="$JVM_OPTS -Dcom.sun.management.jmxremote.access.file=/etc/cassandra/jmxremote.access"
-## Custom auth settings which can be used as alternatives to JMX's out of the box auth utilities.
-## JAAS login modules can be used for authentication by uncommenting these two properties.
-## Cassandra ships with a LoginModule implementation - org.apache.cassandra.auth.CassandraLoginModule -
-## which delegates to the IAuthenticator configured in cassandra.yaml. See the sample JAAS configuration
-## file cassandra-jaas.config
-#JVM_OPTS="$JVM_OPTS -Dcassandra.jmx.remote.login.config=CassandraLogin"
-#JVM_OPTS="$JVM_OPTS -Djava.security.auth.login.config=$CASSANDRA_CONF/cassandra-jaas.config"
-
-## Cassandra also ships with a helper for delegating JMX authz calls to the configured IAuthorizer,
-## uncomment this to use it. Requires one of the two authentication options to be enabled
-#JVM_OPTS="$JVM_OPTS -Dcassandra.jmx.authorizer=org.apache.cassandra.auth.jmx.AuthorizationProxy"
+configure_jmx 7199
 
 # To use mx4j, an HTML interface for JMX, add mx4j-tools.jar to the lib/
 # directory.

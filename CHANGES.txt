@@ -1,4 +1,5 @@
 5.1
+ * Enable JMX server configuration to be in cassandra.yaml (CASSANDRA-11695)
  * Parallelized UCS compactions (CASSANDRA-18802)
  * Avoid prepared statement invalidation race when committing schema changes (CASSANDRA-20116)
  * Restore optimization in MultiCBuilder around building one clustering (CASSANDRA-20129)

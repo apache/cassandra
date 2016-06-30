@@ -35,6 +35,7 @@ import com.google.common.util.concurrent.Uninterruptibles;
 import org.slf4j.Logger;
 
 import org.apache.cassandra.config.EncryptionOptions;
+import org.apache.cassandra.config.JMXServerOptions;
 import org.apache.cassandra.distributed.api.IInstance;
 import org.apache.cassandra.distributed.api.IInstanceConfig;
 import org.apache.cassandra.distributed.shared.JMXUtil;
@@ -91,12 +92,24 @@ public class IsolatedJmx
             ((MBeanWrapper.DelegatingMbeanWrapper) MBeanWrapper.instance).setDelegate(wrapper);
 
             // CASSANDRA-18508: Sensitive JMX SSL configuration options can be easily exposed
-            Map<String, Object> encryptionOptionsMap = (Map<String, Object>) config.getParams().get("jmx_encryption_options");
-            EncryptionOptions jmxEncryptionOptions = getJmxEncryptionOptions(encryptionOptionsMap);
+            Map<String, Object> jmxServerOptionsMap = (Map<String, Object>) config.getParams().get("jmx_server_options");
+            EncryptionOptions jmxEncryptionOptions;
+            if (jmxServerOptionsMap == null)
+            {
+                JMXServerOptions parsingSystemProperties = JMXServerOptions.createParsingSystemProperties();
+                jmxEncryptionOptions = parsingSystemProperties.jmx_encryption_options;
+                jmxEncryptionOptions.applyConfig();
+            }
+            else
+            {
+                jmxEncryptionOptions = getJmxEncryptionOptions(jmxServerOptionsMap);
+            }
+
             // Here the `localOnly` is always passed as true as it is for the local isolated JMX testing
             // However if the `jmxEncryptionOptions` are provided or JMX SSL configuration is set it will configure
             // the socket factories appropriately.
-            Map<String, Object> socketFactories = new IsolatedJmxSocketFactory().configure(addr, true, jmxEncryptionOptions);
+            JMXServerOptions jmxServerOptions = JMXServerOptions.create(true, true, jmxPort, jmxEncryptionOptions);
+            Map<String, Object> socketFactories = new IsolatedJmxSocketFactory().configure(addr, jmxServerOptions, jmxServerOptions.jmx_encryption_options);
             serverSocketFactory = (RMICloseableServerSocketFactory) socketFactories.get(RMIConnectorServer.RMI_SERVER_SOCKET_FACTORY_ATTRIBUTE);
             clientSocketFactory = (RMICloseableClientSocketFactory) socketFactories.get(RMIConnectorServer.RMI_CLIENT_SOCKET_FACTORY_ATTRIBUTE);
             Map<String, Object> env = new HashMap<>(socketFactories);
@@ -148,12 +161,17 @@ public class IsolatedJmx
     /**
      * Builds {@code EncryptionOptions} from the map based SSL configuration properties.
      *
-     * @param encryptionOptionsMap of SSL configuration properties
+     * @param jmxServerOptionsMap of jmx server configuration properties
      * @return EncryptionOptions built object
      */
     @SuppressWarnings("unchecked")
-    private EncryptionOptions getJmxEncryptionOptions(Map<String, Object> encryptionOptionsMap)
+    private EncryptionOptions getJmxEncryptionOptions(Map<String, Object> jmxServerOptionsMap)
     {
+        if (jmxServerOptionsMap == null)
+            return null;
+
+        Map<String, Object> encryptionOptionsMap = (Map<String, Object>) jmxServerOptionsMap.get("jmx_encryption_options");
+
         if (encryptionOptionsMap == null)
         {
             return null;

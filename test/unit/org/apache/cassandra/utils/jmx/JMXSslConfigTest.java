@@ -30,10 +30,15 @@ import org.junit.BeforeClass;
 import org.junit.Test;
 
 import org.apache.cassandra.config.DatabaseDescriptor;
+import org.apache.cassandra.config.JMXServerOptions;
 import org.apache.cassandra.distributed.shared.WithProperties;
 import org.apache.cassandra.utils.JMXServerUtils;
 
 import static org.apache.cassandra.config.CassandraRelevantProperties.CASSANDRA_CONFIG;
+import static org.apache.cassandra.config.CassandraRelevantProperties.JAVAX_NET_SSL_KEYSTORE;
+import static org.apache.cassandra.config.CassandraRelevantProperties.JAVAX_NET_SSL_KEYSTOREPASSWORD;
+import static org.apache.cassandra.config.CassandraRelevantProperties.JAVAX_NET_SSL_TRUSTSTORE;
+import static org.apache.cassandra.config.CassandraRelevantProperties.JAVAX_NET_SSL_TRUSTSTOREPASSWORD;
 import static org.apache.cassandra.config.CassandraRelevantProperties.JAVAX_RMI_SSL_CLIENT_ENABLED_CIPHER_SUITES;
 import static org.apache.cassandra.config.CassandraRelevantProperties.JAVAX_RMI_SSL_CLIENT_ENABLED_PROTOCOLS;
 
@@ -68,10 +73,15 @@ public class JMXSslConfigTest
         String enabledProtocols = "TLSv1.2,TLSv1.3,TLSv1.1";
         String cipherSuites = "TLS_ECDHE_ECDSA_WITH_AES_256_GCM_SHA384,TLS_ECDHE_ECDSA_WITH_AES_128_GCM_SHA256";
 
-        try (WithProperties ignored = JMXSslPropertiesUtil.use(true, true, enabledProtocols,
-                                                               cipherSuites))
+        try (WithProperties ignored = JMXSslPropertiesUtil.use(true, true, enabledProtocols, cipherSuites)
+                                      .set(JAVAX_NET_SSL_KEYSTORE, "test/conf/cassandra_ssl_test.keystore")
+                                      .set(JAVAX_NET_SSL_TRUSTSTORE, "test/conf/cassandra_ssl_test.truststore")
+                                      .set(JAVAX_NET_SSL_KEYSTOREPASSWORD, "cassandra")
+                                      .set(JAVAX_NET_SSL_TRUSTSTOREPASSWORD, "cassandra"))
         {
-            Map<String, Object> env = JMXServerUtils.configureJmxSocketFactories(serverAddress, false);
+            JMXServerOptions options = JMXServerOptions.createParsingSystemProperties();
+            options.jmx_encryption_options.applyConfig();
+            Map<String, Object> env = JMXServerUtils.configureJmxSocketFactories(serverAddress, options);
             Assert.assertNotNull("ServerSocketFactory must not be null", env.get(RMIConnectorServer.RMI_SERVER_SOCKET_FACTORY_ATTRIBUTE));
             Assert.assertTrue("RMI_SERVER_SOCKET_FACTORY must be of SslRMIServerSocketFactory type", env.get(RMIConnectorServer.RMI_SERVER_SOCKET_FACTORY_ATTRIBUTE) instanceof SslRMIServerSocketFactory);
             Assert.assertNotNull("ClientSocketFactory must not be null", env.get(RMIConnectorServer.RMI_CLIENT_SOCKET_FACTORY_ATTRIBUTE));
@@ -90,7 +100,8 @@ public class JMXSslConfigTest
         InetAddress serverAddress = InetAddress.getLoopbackAddress();
         try (WithProperties ignored = JMXSslPropertiesUtil.use(false))
         {
-            Map<String, Object> env = JMXServerUtils.configureJmxSocketFactories(serverAddress, true);
+            JMXServerOptions options = JMXServerOptions.fromDescriptor(true, true, 7199);
+            Map<String, Object> env = JMXServerUtils.configureJmxSocketFactories(serverAddress, options);
 
             Assert.assertNull("ClientSocketFactory must be null", env.get(RMIConnectorServer.RMI_CLIENT_SOCKET_FACTORY_ATTRIBUTE));
             Assert.assertNull("com.sun.jndi.rmi.factory.socket must not be set in the env", env.get("com.sun.jndi.rmi.factory.socket"));

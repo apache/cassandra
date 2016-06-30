@@ -48,6 +48,7 @@ import org.apache.cassandra.auth.AuthCacheService;
 import org.apache.cassandra.concurrent.ScheduledExecutors;
 import org.apache.cassandra.config.CassandraRelevantProperties;
 import org.apache.cassandra.config.DatabaseDescriptor;
+import org.apache.cassandra.config.JMXServerOptions;
 import org.apache.cassandra.cql3.QueryProcessor;
 import org.apache.cassandra.db.ColumnFamilyStore;
 import org.apache.cassandra.db.Keyspace;
@@ -91,8 +92,6 @@ import org.apache.cassandra.utils.logging.VirtualTableAppender;
 
 import static java.util.concurrent.TimeUnit.NANOSECONDS;
 import static org.apache.cassandra.config.CassandraRelevantProperties.CASSANDRA_FOREGROUND;
-import static org.apache.cassandra.config.CassandraRelevantProperties.CASSANDRA_JMX_LOCAL_PORT;
-import static org.apache.cassandra.config.CassandraRelevantProperties.CASSANDRA_JMX_REMOTE_PORT;
 import static org.apache.cassandra.config.CassandraRelevantProperties.CASSANDRA_PID_FILE;
 import static org.apache.cassandra.config.CassandraRelevantProperties.COM_SUN_MANAGEMENT_JMXREMOTE_PORT;
 import static org.apache.cassandra.config.CassandraRelevantProperties.JAVA_CLASS_PATH;
@@ -153,42 +152,24 @@ public class CassandraDaemon
         // then the JVM agent will have already started up a default JMX connector
         // server. This behaviour is deprecated, but some clients may be relying
         // on it, so log a warning and skip setting up the server with the settings
-        // as configured in cassandra-env.(sh|ps1)
+        // as configured in cassandra.yaml or cassandra-env.sh.
         // See: CASSANDRA-11540 & CASSANDRA-11725
         if (COM_SUN_MANAGEMENT_JMXREMOTE_PORT.isPresent())
         {
-            logger.warn("JMX settings in cassandra-env.sh have been bypassed as the JMX connector server is " +
-                        "already initialized. Please refer to cassandra-env.(sh|ps1) for JMX configuration info");
+            logger.warn("JMX settings in cassandra.yaml or cassandra-env.sh have been bypassed as the JMX connector server is " +
+                        "already initialized. Please refer to cassandra.yaml or cassandra-env.sh for JMX configuration info");
             return;
         }
 
         JAVA_RMI_SERVER_RANDOM_ID.setBoolean(true);
 
-        // If a remote port has been specified then use that to set up a JMX
-        // connector server which can be accessed remotely. Otherwise, look
-        // for the local port property and create a server which is bound
-        // only to the loopback address. Auth options are applied to both
-        // remote and local-only servers, but currently SSL is only
-        // available for remote.
-        // If neither is remote nor local port is set in cassandra-env.(sh|ps)
-        // then JMX is effectively  disabled.
-        boolean localOnly = false;
-        String jmxPort = CASSANDRA_JMX_REMOTE_PORT.getString();
-
-        if (jmxPort == null)
-        {
-            localOnly = true;
-            jmxPort = CASSANDRA_JMX_LOCAL_PORT.getString();
-        }
-
-        if (jmxPort == null)
+        JMXServerOptions jmxServerOptions = DatabaseDescriptor.getJmxServerOptions();
+        if (!jmxServerOptions.enabled)
             return;
 
         try
         {
-            jmxServer = JMXServerUtils.createJMXServer(Integer.parseInt(jmxPort), localOnly);
-            if (jmxServer == null)
-                return;
+            jmxServer = JMXServerUtils.createJMXServer(jmxServerOptions);
         }
         catch (IOException e)
         {

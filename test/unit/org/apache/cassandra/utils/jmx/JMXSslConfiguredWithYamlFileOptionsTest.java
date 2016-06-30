@@ -31,9 +31,8 @@ import org.junit.BeforeClass;
 import org.junit.Test;
 
 import org.apache.cassandra.config.DatabaseDescriptor;
-import org.apache.cassandra.config.EncryptionOptions;
+import org.apache.cassandra.config.JMXServerOptions;
 import org.apache.cassandra.distributed.shared.WithProperties;
-import org.apache.cassandra.exceptions.ConfigurationException;
 import org.apache.cassandra.utils.JMXServerUtils;
 
 import static org.apache.cassandra.config.CassandraRelevantProperties.CASSANDRA_CONFIG;
@@ -66,15 +65,15 @@ public class JMXSslConfiguredWithYamlFileOptionsTest
     @Test
     public void testYamlFileJmxEncryptionOptions() throws SSLException
     {
-        EncryptionOptions jmxEncryptionOptions = DatabaseDescriptor.getJmxEncryptionOptions();
-        String expectedProtocols = StringUtils.join(jmxEncryptionOptions.getAcceptedProtocols(), ",");
-        String expectedCipherSuites = StringUtils.join(jmxEncryptionOptions.cipherSuitesArray(), ",");
+        JMXServerOptions serverOptions = DatabaseDescriptor.getJmxServerOptions();
+        String expectedProtocols = StringUtils.join(serverOptions.jmx_encryption_options.getAcceptedProtocols(), ",");
+        String expectedCipherSuites = StringUtils.join(serverOptions.jmx_encryption_options.cipherSuitesArray(), ",");
 
         InetAddress serverAddress = InetAddress.getLoopbackAddress();
 
         try (WithProperties ignored = JMXSslPropertiesUtil.use(false))
         {
-            Map<String, Object> env = JMXServerUtils.configureJmxSocketFactories(serverAddress, false);
+            Map<String, Object> env = JMXServerUtils.configureJmxSocketFactories(serverAddress, serverOptions);
             Assert.assertTrue("com.sun.management.jmxremote.ssl must be true", COM_SUN_MANAGEMENT_JMXREMOTE_SSL.getBoolean());
             Assert.assertNotNull("ServerSocketFactory must not be null", env.get(RMIConnectorServer.RMI_SERVER_SOCKET_FACTORY_ATTRIBUTE));
             Assert.assertTrue("RMI_SERVER_SOCKET_FACTORY must be of JMXSslRMIServerSocketFactory type", env.get(RMIConnectorServer.RMI_SERVER_SOCKET_FACTORY_ATTRIBUTE) instanceof SslRMIServerSocketFactory);
@@ -82,23 +81,6 @@ public class JMXSslConfiguredWithYamlFileOptionsTest
             Assert.assertNotNull("com.sun.jndi.rmi.factory.socket must be set in the env", env.get("com.sun.jndi.rmi.factory.socket"));
             Assert.assertEquals("javax.rmi.ssl.client.enabledProtocols must match", expectedProtocols, JAVAX_RMI_SSL_CLIENT_ENABLED_PROTOCOLS.getString());
             Assert.assertEquals("javax.rmi.ssl.client.enabledCipherSuites must match", expectedCipherSuites, JAVAX_RMI_SSL_CLIENT_ENABLED_CIPHER_SUITES.getString());
-        }
-    }
-
-    /**
-     * Tests for the error scenario when the JMX SSL configuration is provided as
-     * system configuration as well as encryption_options.
-     *
-     * @throws SSLException
-     */
-    @Test(expected = ConfigurationException.class)
-    public void testDuplicateConfig() throws SSLException
-    {
-        InetAddress serverAddress = InetAddress.getLoopbackAddress();
-
-        try (WithProperties ignored = JMXSslPropertiesUtil.use(true))
-        {
-            JMXServerUtils.configureJmxSocketFactories(serverAddress, false);
         }
     }
 }

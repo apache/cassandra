@@ -32,6 +32,7 @@ import com.datastax.driver.core.Row;
 import org.apache.cassandra.config.Config;
 import org.apache.cassandra.config.DurationSpec;
 import org.apache.cassandra.config.EncryptionOptions.ServerEncryptionOptions.InternodeEncryption;
+import org.apache.cassandra.config.JMXServerOptions;
 import org.apache.cassandra.config.ParameterizedClass;
 import org.apache.cassandra.cql3.CQLTester;
 import org.apache.cassandra.security.SSLFactory;
@@ -52,7 +53,8 @@ public class SettingsTableTest extends CQLTester
         config = new Config();
         config.client_encryption_options.applyConfig();
         config.server_encryption_options.applyConfig();
-        config.jmx_encryption_options.applyConfig();
+        config.jmx_server_options = new JMXServerOptions();
+        config.jmx_server_options.jmx_encryption_options.applyConfig();
         config.sstable_preemptive_open_interval = null;
         config.index_summary_resize_interval = null;
         config.cache_load_timeout = new DurationSpec.IntSecondsBound(0);

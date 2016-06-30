@@ -1721,14 +1721,59 @@ client_encryption_options:
 # JMX SSL.
 # Similar to `client/server_encryption_options`, you can specify PEM-based
 # key material or customize the SSL configuration using `ssl_context_factory` in `jmx_encryption_options`.
-#jmx_encryption_options:
-#  enabled: true
-#  cipher_suites: [TLS_ECDHE_ECDSA_WITH_AES_256_GCM_SHA384,TLS_ECDHE_ECDSA_WITH_AES_128_GCM_SHA256]
-#  accepted_protocols: [TLSv1.2,TLSv1.3,TLSv1.1]
-#  keystore: conf/cassandra_ssl.keystore
-#  keystore_password: cassandra
-#  truststore: conf/cassandra_ssl.truststore
-#  truststore_password: cassandra
+# If you uncomment this section, please be sure that you comment out configure_jmx function call in cassandra-env.sh
+# as it is errorneous to have JMX set by two ways, both in cassandra-env.sh and in this yaml.
+#jmx_server_options:
+  # enabled: true
+  # remote: false
+  # jmx_port: 7199
+  #
+  # Port used by the RMI registry when remote connections are enabled.
+  # To simplify firewall configs, this can be set to the same as the JMX server port (port). See CASSANDRA-7087.
+  # However, if ssl is enabled the same port cannot be used for both jmx and rmi so either
+  # pick another value for this property. Alternatively, comment out or set to 0 to use a random
+  # port (pre-CASSANDRA-7087 behaviour)
+  # rmi_port: 7199
+  #
+  # jmx ssl options - only apply when remote connections are enabled
+  #
+  # jmx_encryption_options:
+  #   enabled: true
+  #   cipher_suites: [TLS_ECDHE_ECDSA_WITH_AES_256_GCM_SHA384,TLS_ECDHE_ECDSA_WITH_AES_128_GCM_SHA256]
+  #   accepted_protocols: [TLSv1.2,TLSv1.3,TLSv1.1]
+  #   keystore: conf/cassandra_ssl.keystore
+  #   keystore_password: cassandra
+  #   truststore: conf/cassandra_ssl.truststore
+  #   truststore_password: cassandra
+  #
+  # jmx authentication and authorization options.
+  # authenticate: false
+  #
+  # Options for basic file based authentication & authorization
+  # password_file: /etc/cassandra/jmxremote.password
+  # access_file: /etc/cassandra/jmxremote.access
+  #
+  # Custom auth settings which can be used as alternatives to JMX's out of the box auth utilities.
+  # JAAS login modules can be used for authentication using this property.Cassandra ships with a
+  # LoginModule implementation - org.apache.cassandra.auth.CassandraLoginModule - which delegates
+  # to the IAuthenticator configured in cassandra.yaml.
+  #
+  # login_config_name refers to the Application Name in the JAAS configuration under which the
+  # desired LoginModule(s) are configured.
+  # The location of the JAAS config file may be set using the standard JVM mechanism, by setting
+  # the system property "java.security.auth.login.config". If this property is set, it's value
+  # will be used to locate the config file. For convenience, if the property is not already set
+  # at startup, a value can be supplied here via the login_config_file setting.
+  #
+  # The Application Name specified must be present in the JAAS config or an error will be thrown
+  # when authentication is attempted.
+  # See the sample JAAS configuration file conf/cassandra-jaas.config
+  # login_config_name: CassandraLogin
+  # login_config_file: conf/cassandra-jaas.config
+  #
+  # Cassandra also ships with a helper for delegating JMX authz calls to the configured IAuthorizer,
+  # uncomment this to use it. Requires one of the two authentication options to be enabled
+  # authorizer: org.apache.cassandra.auth.jmx.AuthorizationProxy
 
 # internode_compression controls whether traffic between nodes is
 # compressed.

@@ -470,7 +470,12 @@ public class EncryptionOptions
     public String[] acceptedProtocolsArray()
     {
         List<String> ap = getAcceptedProtocols();
-        return ap == null ?  new String[0] : ap.toArray(new String[0]);
+        return ap == null ? null : ap.toArray(new String[0]);
+    }
+
+    public List<String> getCipherSuites()
+    {
+        return sslContextFactoryInstance == null ? null : sslContextFactoryInstance.getCipherSuites();
     }
 
     public String[] cipherSuitesArray()
