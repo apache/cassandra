@@ -356,7 +356,7 @@ public class SSTableReversedIterator extends AbstractSSTableIterator
         {
             deletionInfo = deletionBuilder.build();
             built = new ImmutableBTreePartition(metadata, partitionKey, columns, Rows.EMPTY_STATIC_ROW, rowBuilder.build(),
-                                                DeletionInfo.LIVE, EncodingStats.NO_STATS);
+                                                deletionInfo, EncodingStats.NO_STATS);
             deletionBuilder = null;
         }
     }
