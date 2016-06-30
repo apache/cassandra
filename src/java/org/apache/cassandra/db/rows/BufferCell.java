@@ -125,5 +125,4 @@ public class BufferCell extends AbstractCell
     {
         return EMPTY_SIZE + ObjectSizes.sizeOnHeapExcludingData(value) + (path == null ? 0 : path.unsharedHeapSizeExcludingData());
     }
-
 }

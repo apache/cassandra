@@ -171,7 +171,7 @@ public abstract class Cell extends ColumnData
         private final static int USE_ROW_TIMESTAMP_MASK      = 0x08; // Wether the cell has the same timestamp than the row this is a cell of.
         private final static int USE_ROW_TTL_MASK            = 0x10; // Wether the cell has the same ttl than the row this is a cell of.
 
-        public void serialize(Cell cell, DataOutputPlus out, LivenessInfo rowLiveness, SerializationHeader header) throws IOException
+        public void serialize(Cell cell, ColumnDefinition column, DataOutputPlus out, LivenessInfo rowLiveness, SerializationHeader header) throws IOException
         {
             assert cell != null;
             boolean hasValue = cell.value().hasRemaining();
@@ -203,11 +203,11 @@ public abstract class Cell extends ColumnData
             if (isExpiring && !useRowTTL)
                 header.writeTTL(cell.ttl(), out);
 
-            if (cell.column().isComplex())
-                cell.column().cellPathSerializer().serialize(cell.path(), out);
+            if (column.isComplex())
+                column.cellPathSerializer().serialize(cell.path(), out);
 
             if (hasValue)
-                header.getType(cell.column()).writeValue(cell.value(), out);
+                header.getType(column).writeValue(cell.value(), out);
         }
 
         public Cell deserialize(DataInputPlus in, LivenessInfo rowLiveness, ColumnDefinition column, SerializationHeader header, SerializationHelper helper) throws IOException
@@ -251,7 +251,7 @@ public abstract class Cell extends ColumnData
             return new BufferCell(column, timestamp, ttl, localDeletionTime, value, path);
         }
 
-        public long serializedSize(Cell cell, LivenessInfo rowLiveness, SerializationHeader header)
+        public long serializedSize(Cell cell, ColumnDefinition column, LivenessInfo rowLiveness, SerializationHeader header)
         {
             long size = 1; // flags
             boolean hasValue = cell.value().hasRemaining();
@@ -268,11 +268,11 @@ public abstract class Cell extends ColumnData
             if (isExpiring && !useRowTTL)
                 size += header.ttlSerializedSize(cell.ttl());
 
-            if (cell.column().isComplex())
-                size += cell.column().cellPathSerializer().serializedSize(cell.path());
+            if (column.isComplex())
+                size += column.cellPathSerializer().serializedSize(cell.path());
 
             if (hasValue)
-                size += header.getType(cell.column()).writtenLength(cell.value());
+                size += header.getType(column).writtenLength(cell.value());
 
             return size;
         }

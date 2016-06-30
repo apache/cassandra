@@ -128,6 +128,7 @@ public abstract class CQLTester
 
     public static ResultMessage lastSchemaChangeResult;
 
+    private List<String> keyspaces = new ArrayList<>();
     private List<String> tables = new ArrayList<>();
     private List<String> types = new ArrayList<>();
     private List<String> functions = new ArrayList<>();
@@ -271,10 +272,12 @@ public abstract class CQLTester
         usePrepared = USE_PREPARED_VALUES;
         reusePrepared = REUSE_PREPARED;
 
+        final List<String> keyspacesToDrop = copy(keyspaces);
         final List<String> tablesToDrop = copy(tables);
         final List<String> typesToDrop = copy(types);
         final List<String> functionsToDrop = copy(functions);
         final List<String> aggregatesToDrop = copy(aggregates);
+        keyspaces = null;
         tables = null;
         types = null;
         functions = null;
@@ -298,6 +301,9 @@ public abstract class CQLTester
 
                     for (int i = typesToDrop.size() - 1; i >= 0; i--)
                         schemaChange(String.format("DROP TYPE IF EXISTS %s.%s", KEYSPACE, typesToDrop.get(i)));
+
+                    for (int i = keyspacesToDrop.size() - 1; i >= 0; i--)
+                        schemaChange(String.format("DROP KEYSPACE IF EXISTS %s", keyspacesToDrop.get(i)));
 
                     // Dropping doesn't delete the sstables. It's not a huge deal but it's cleaner to cleanup after us
                     // Thas said, we shouldn't delete blindly before the TransactionLogs.SSTableTidier for the table we drop
@@ -522,6 +528,22 @@ public abstract class CQLTester
         schemaChange(fullQuery);
     }
 
+    protected String createKeyspace(String query)
+    {
+        String currentKeyspace = createKeyspaceName();
+        String fullQuery = String.format(query, currentKeyspace);
+        logger.info(fullQuery);
+        schemaChange(fullQuery);
+        return currentKeyspace;
+    }
+
+    protected String createKeyspaceName()
+    {
+        String currentKeyspace = "keyspace_" + seqNumber.getAndIncrement();
+        keyspaces.add(currentKeyspace);
+        return currentKeyspace;
+    }
+
     protected String createTable(String query)
     {
         String currentTable = createTableName();
@@ -540,8 +562,7 @@ public abstract class CQLTester
 
     protected void createTableMayThrow(String query) throws Throwable
     {
-        String currentTable = "table_" + seqNumber.getAndIncrement();
-        tables.add(currentTable);
+        String currentTable = createTableName();
         String fullQuery = formatQuery(query);
         logger.info(fullQuery);
         QueryProcessor.executeOnceInternal(fullQuery);
@@ -860,6 +881,16 @@ public abstract class CQLTester
      */
     public static void assertRowsIgnoringOrder(UntypedResultSet result, Object[]... rows)
     {
+        assertRowsIgnoringOrderInternal(result, false, rows);
+    }
+
+    public static void assertRowsIgnoringOrderAndExtra(UntypedResultSet result, Object[]... rows)
+    {
+        assertRowsIgnoringOrderInternal(result, true, rows);
+    }
+
+    private static void assertRowsIgnoringOrderInternal(UntypedResultSet result, boolean ignoreExtra, Object[]... rows)
+    {
         if (result == null)
         {
             if (rows.length > 0)
@@ -890,7 +921,7 @@ public abstract class CQLTester
 
         com.google.common.collect.Sets.SetView<List<ByteBuffer>> extra = com.google.common.collect.Sets.difference(actualRows, expectedRows);
         com.google.common.collect.Sets.SetView<List<ByteBuffer>> missing = com.google.common.collect.Sets.difference(expectedRows, actualRows);
-        if (!extra.isEmpty() || !missing.isEmpty())
+        if ((!ignoreExtra && !extra.isEmpty()) || !missing.isEmpty())
         {
             List<String> extraRows = makeRowStrings(extra, meta);
             List<String> missingRows = makeRowStrings(missing, meta);
@@ -911,7 +942,7 @@ public abstract class CQLTester
                 Assert.fail("Missing " + missing.size() + " row(s) in result: \n    " + missingRows.stream().collect(Collectors.joining("\n    ")));
         }
 
-        assert expectedRows.size() == actualRows.size();
+        assert ignoreExtra || expectedRows.size() == actualRows.size();
     }
 
     private static List<String> makeRowStrings(Iterable<List<ByteBuffer>> rows, List<ColumnSpecification> meta)
