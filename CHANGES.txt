@@ -1,5 +1,8 @@
 2.2.8
  * MemoryUtil.getShort() should return an unsigned short also for architectures not supporting unaligned memory accesses (CASSANDRA-11973)
+Merged from 2.1:
+ * Account for partition deletions in tombstone histogram (CASSANDRA-12112)
+
 
 2.2.7
  * Allow nodetool info to run with readonly JMX access (CASSANDRA-11755)
