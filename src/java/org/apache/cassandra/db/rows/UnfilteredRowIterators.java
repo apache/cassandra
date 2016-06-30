@@ -118,7 +118,19 @@ public abstract class UnfilteredRowIterators
 
         digest.update(iterator.partitionKey().getKey().duplicate());
         iterator.partitionLevelDeletion().digest(digest);
-        iterator.columns().digest(digest);
+        iterator.columns().regulars.digest(digest);
+        // When serializing an iterator, we skip the static columns if the iterator has not static row, even if the
+        // columns() object itself has some (the columns() is a superset of what the iterator actually contains, and
+        // will correspond to the queried columns pre-serialization). So we must avoid taking the satic column names
+        // into account if there is no static row or we'd have a digest mismatch between depending on whether the digest
+        // is computed on an iterator that has been serialized or not (see CASSANDRA-12090)
+        // TODO: in practice we could completely skip digesting the columns since they are more informative of what the
+        // iterator may contain, and digesting the actual content is enough. And in fact, that would be more correct
+        // (since again, the columns could be different without the information represented by the iterator being
+        // different), but removing them entirely is stricly speaking a breaking change (it would create mismatches on
+        // upgrade) so we can only do on the next protocol version bump.
+        if (iterator.staticRow() != Rows.EMPTY_STATIC_ROW)
+            iterator.columns().statics.digest(digest);
         FBUtilities.updateWithBoolean(digest, iterator.isReverseOrder());
         iterator.staticRow().digest(digest);
 

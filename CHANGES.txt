@@ -1,4 +1,5 @@
 3.0.9
+ * Avoid digest mismatch with empty but static rows (CASSANDRA-12090)
  * Fix EOF exception when altering column type (CASSANDRA-11820)
 Merged from 2.2:
  * MemoryUtil.getShort() should return an unsigned short also for architectures not supporting unaligned memory accesses (CASSANDRA-11973)
