@@ -26,6 +26,8 @@ import org.apache.cassandra.cql3.CQLTester;
 import org.apache.cassandra.cql3.UntypedResultSet;
 import org.apache.cassandra.db.ColumnFamilyStore;
 import org.apache.cassandra.db.Keyspace;
+import org.apache.cassandra.io.sstable.SSTableReader;
+
 import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertTrue;
 import static org.junit.Assert.fail;
@@ -187,6 +189,19 @@ public class CompactionsCQLTest extends CQLTester
         getCurrentColumnFamilyStore().setCompactionParameters(localOptions);
         assertTrue(getCurrentColumnFamilyStore().getCompactionStrategy().isEnabled());
 
+    }
+
+    @Test
+    public void testTopLevelDeletion() throws Throwable
+    {
+        createTable("CREATE TABLE %s (id int PRIMARY KEY, id2 text)");
+        execute("delete from %s where id = 22");
+        getCurrentColumnFamilyStore().forceBlockingFlush();
+        for (SSTableReader sstable : getCurrentColumnFamilyStore().getSSTables())
+            assertFalse(sstable.getSSTableMetadata().estimatedTombstoneDropTime.getAsMap().isEmpty());
+        getCurrentColumnFamilyStore().forceMajorCompaction();
+        for (SSTableReader sstable : getCurrentColumnFamilyStore().getSSTables())
+            assertFalse(sstable.getSSTableMetadata().estimatedTombstoneDropTime.getAsMap().isEmpty());
     }
 
 

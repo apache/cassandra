@@ -234,6 +234,8 @@ public class LazilyCompactedRow extends AbstractCompactedRow
             minTimestampTracker.update(maxRowTombstone.isLive() ? Long.MAX_VALUE : maxRowTombstone.markedForDeleteAt);
             maxTimestampTracker.update(maxRowTombstone.markedForDeleteAt);
             maxDeletionTimeTracker.update(maxRowTombstone.isLive() ? Integer.MIN_VALUE : maxRowTombstone.localDeletionTime);
+            if (!maxRowTombstone.isLive())
+                tombstones.update(maxRowTombstone.localDeletionTime);
         }
 
         /**
