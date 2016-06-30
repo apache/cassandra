@@ -31,7 +31,7 @@ import org.junit.BeforeClass;
 import org.junit.Test;
 
 import org.apache.cassandra.config.DatabaseDescriptor;
-import org.apache.cassandra.config.EncryptionOptions;
+import org.apache.cassandra.config.JMXServerOptions;
 import org.apache.cassandra.distributed.shared.WithProperties;
 import org.apache.cassandra.utils.JMXServerUtils;
 
@@ -63,15 +63,15 @@ public class JMXSslPEMConfigTest
     @Test
     public void testPEMBasedJmxSslConfig() throws SSLException
     {
-        EncryptionOptions jmxEncryptionOptions = DatabaseDescriptor.getJmxEncryptionOptions();
-        String expectedProtocols = StringUtils.join(jmxEncryptionOptions.getAcceptedProtocols(), ",");
-        String expectedCipherSuites = StringUtils.join(jmxEncryptionOptions.cipherSuitesArray(), ",");
+        JMXServerOptions serverOptions = DatabaseDescriptor.getJmxServerOptions();
+        String expectedProtocols = StringUtils.join(serverOptions.jmx_encryption_options.getAcceptedProtocols(), ",");
+        String expectedCipherSuites = StringUtils.join(serverOptions.jmx_encryption_options.cipherSuitesArray(), ",");
 
         InetAddress serverAddress = InetAddress.getLoopbackAddress();
 
         try (WithProperties ignored = JMXSslPropertiesUtil.use(false))
         {
-            Map<String, Object> env = JMXServerUtils.configureJmxSocketFactories(serverAddress, false);
+            Map<String, Object> env = JMXServerUtils.configureJmxSocketFactories(serverAddress, serverOptions);
             Assert.assertTrue("com.sun.management.jmxremote.ssl must be true", COM_SUN_MANAGEMENT_JMXREMOTE_SSL.getBoolean());
             Assert.assertNotNull("ServerSocketFactory must not be null", env.get(RMIConnectorServer.RMI_SERVER_SOCKET_FACTORY_ATTRIBUTE));
             Assert.assertTrue("RMI_SERVER_SOCKET_FACTORY must be of JMXSslRMIServerSocketFactory type", env.get(RMIConnectorServer.RMI_SERVER_SOCKET_FACTORY_ATTRIBUTE) instanceof SslRMIServerSocketFactory);

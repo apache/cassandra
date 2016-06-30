@@ -146,6 +146,8 @@ public enum CassandraRelevantProperties
     COM_SUN_MANAGEMENT_JMXREMOTE_PASSWORD_FILE("com.sun.management.jmxremote.password.file"),
     /** Port number to enable JMX RMI connections - com.sun.management.jmxremote.port */
     COM_SUN_MANAGEMENT_JMXREMOTE_PORT("com.sun.management.jmxremote.port"),
+    /** Enables SSL sockets for the RMI registry from which clients obtain the JMX connector stub */
+    COM_SUN_MANAGEMENT_JMXREMOTE_REGISTRY_SSL("com.sun.management.jmxremote.registry.ssl"),
     /**
      * The port number to which the RMI connector will be bound - com.sun.management.jmxremote.rmi.port.
      * An Integer object that represents the value of the second argument is returned
@@ -287,6 +289,10 @@ public enum CassandraRelevantProperties
     IO_NETTY_EVENTLOOP_THREADS("io.netty.eventLoopThreads"),
     IO_NETTY_TRANSPORT_ESTIMATE_SIZE_ON_SUBMIT("io.netty.transport.estimateSizeOnSubmit"),
     IO_NETTY_TRANSPORT_NONATIVE("io.netty.transport.noNative"),
+    JAVAX_NET_SSL_KEYSTORE("javax.net.ssl.keyStore"),
+    JAVAX_NET_SSL_KEYSTOREPASSWORD("javax.net.ssl.keyStorePassword"),
+    JAVAX_NET_SSL_TRUSTSTORE("javax.net.ssl.trustStore"),
+    JAVAX_NET_SSL_TRUSTSTOREPASSWORD("javax.net.ssl.trustStorePassword"),
     JAVAX_RMI_SSL_CLIENT_ENABLED_CIPHER_SUITES("javax.rmi.ssl.client.enabledCipherSuites"),
     JAVAX_RMI_SSL_CLIENT_ENABLED_PROTOCOLS("javax.rmi.ssl.client.enabledProtocols"),
     /** Java class path. */

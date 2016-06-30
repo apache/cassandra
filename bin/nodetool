@@ -52,6 +52,19 @@ if [ -f "$CASSANDRA_CONF/cassandra-env.sh" ]; then
     JVM_OPTS="$JVM_OPTS_SAVE"
 fi
 
+# In case JMX_PORT is not set (when configure_jmx in cassandra-env.sh is commented out),
+# try to parse it from cassandra.yaml.
+if [ "x$JMX_PORT" = "x" ]; then
+    if [ -f "$CASSANDRA_CONF/cassandra.yaml" ]; then
+        JMX_PORT=`grep jmx_port $CASSANDRA_CONF/cassandra.yaml | cut -d ':' -f 2 | tr -d '[[:space:]]'`
+    fi
+fi
+
+# If, by any chance, it is not there either, set it to default.
+if [ "x$JMX_PORT" = "x" ]; then
+    JMX_PORT=7199
+fi
+
 # JMX Port passed via cmd line args (-p 9999 / --port 9999 / --port=9999)
 # should override the value from cassandra-env.sh
 ARGS=""

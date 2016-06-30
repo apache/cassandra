@@ -960,8 +960,19 @@ public class DatabaseDescriptor
         if (conf.client_encryption_options != null)
             conf.client_encryption_options.applyConfig();
 
-        if (conf.jmx_encryption_options != null)
-            conf.jmx_encryption_options.applyConfig();
+        if (conf.jmx_server_options == null)
+        {
+            conf.jmx_server_options = JMXServerOptions.createParsingSystemProperties();
+        }
+        else if (JMXServerOptions.isEnabledBySystemProperties())
+        {
+            throw new ConfigurationException("Configure either jmx_server_options in cassandra.yaml and comment out " +
+                                             "configure_jmx function call in cassandra-env.sh or keep cassandra-env.sh " +
+                                             "to call configure_jmx function but you have to keep jmx_server_options " +
+                                             "in cassandra.yaml commented out.");
+        }
+
+        conf.jmx_server_options.jmx_encryption_options.applyConfig();
 
         if (conf.snapshot_links_per_second < 0)
             throw new ConfigurationException("snapshot_links_per_second must be >= 0");
@@ -1310,7 +1321,7 @@ public class DatabaseDescriptor
             SSLFactory.validateSslContext("Internode messaging", conf.server_encryption_options, REQUIRED, true);
             SSLFactory.validateSslContext("Native transport", conf.client_encryption_options, conf.client_encryption_options.getClientAuth(), true);
             // For JMX SSL the validation is pretty much the same as the Native transport
-            SSLFactory.validateSslContext("JMX transport", conf.jmx_encryption_options, conf.jmx_encryption_options.getClientAuth(), true);
+            SSLFactory.validateSslContext("JMX transport", conf.jmx_server_options.jmx_encryption_options, conf.jmx_server_options.jmx_encryption_options.getClientAuth(), true);
             SSLFactory.initHotReloading(conf.server_encryption_options, conf.client_encryption_options, false);
             /*
             For JMX SSL, the hot reloading of the SSLContext is out of scope for CASSANDRA-18508.
@@ -3663,9 +3674,9 @@ public class DatabaseDescriptor
         return conf.client_encryption_options;
     }
 
-    public static EncryptionOptions getJmxEncryptionOptions()
+    public static JMXServerOptions getJmxServerOptions()
     {
-        return conf.jmx_encryption_options;
+        return conf.jmx_server_options;
     }
 
     @VisibleForTesting

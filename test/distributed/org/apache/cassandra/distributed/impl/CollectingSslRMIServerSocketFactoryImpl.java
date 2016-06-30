@@ -57,16 +57,6 @@ class CollectingSslRMIServerSocketFactoryImpl implements RMICloseableServerSocke
         this.sslSocketFactory = sslContext.getSocketFactory();
     }
 
-    public CollectingSslRMIServerSocketFactoryImpl(InetAddress bindAddress, String[] enabledCipherSuites,
-                                                   String[] enabledProtocols, boolean needClientAuth)
-    {
-        this.bindAddress = bindAddress;
-        this.enabledCipherSuites = enabledCipherSuites;
-        this.enabledProtocols = enabledProtocols;
-        this.needClientAuth = needClientAuth;
-        this.sslSocketFactory = getDefaultSSLSocketFactory();
-    }
-
     public String[] getEnabledCipherSuites()
     {
         return enabledCipherSuites;

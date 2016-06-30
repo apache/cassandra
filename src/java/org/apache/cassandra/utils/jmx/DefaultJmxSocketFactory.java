@@ -55,15 +55,6 @@ public final class DefaultJmxSocketFactory extends AbstractJmxSocketFactory
 
     @Override
     public void configureSslServerSocketFactory(Map<String, Object> env, InetAddress serverAddress, String[] enabledCipherSuites,
-                                                String[] enabledProtocols, boolean needClientAuth)
-    {
-        SslRMIServerSocketFactory serverFactory = new SslRMIServerSocketFactory(enabledCipherSuites, enabledProtocols, needClientAuth);
-        env.put(RMIConnectorServer.RMI_SERVER_SOCKET_FACTORY_ATTRIBUTE, serverFactory);
-        logJmxSslConfig(serverFactory);
-    }
-
-    @Override
-    public void configureSslServerSocketFactory(Map<String, Object> env, InetAddress serverAddress, String[] enabledCipherSuites,
                                                 String[] enabledProtocols, boolean needClientAuth, SSLContext sslContext)
     {
         SslRMIServerSocketFactory serverFactory = new SslRMIServerSocketFactory(sslContext, enabledCipherSuites, enabledProtocols, needClientAuth);

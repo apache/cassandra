@@ -37,7 +37,13 @@ import org.apache.cassandra.distributed.shared.WithProperties;
 import org.apache.cassandra.distributed.test.AbstractEncryptionOptionsImpl;
 import org.apache.cassandra.utils.jmx.JMXSslPropertiesUtil;
 
+import static java.util.Map.of;
+import static org.apache.cassandra.config.CassandraRelevantProperties.CASSANDRA_JMX_LOCAL_PORT;
 import static org.apache.cassandra.config.CassandraRelevantProperties.COM_SUN_MANAGEMENT_JMXREMOTE_SSL_ENABLED_CIPHER_SUITES;
+import static org.apache.cassandra.config.CassandraRelevantProperties.JAVAX_NET_SSL_KEYSTORE;
+import static org.apache.cassandra.config.CassandraRelevantProperties.JAVAX_NET_SSL_KEYSTOREPASSWORD;
+import static org.apache.cassandra.config.CassandraRelevantProperties.JAVAX_NET_SSL_TRUSTSTORE;
+import static org.apache.cassandra.config.CassandraRelevantProperties.JAVAX_NET_SSL_TRUSTSTOREPASSWORD;
 
 /**
  * Distributed tests for JMX SSL configuration via the system properties OR the encryption options in the cassandra.yaml.
@@ -62,7 +68,9 @@ public class JMXSslConfigDistributedTest extends AbstractEncryptionOptionsImpl
                                                                             .build();
 
             try (Cluster cluster = builder().withNodes(1).withConfig(c -> {
-                c.with(Feature.JMX).set("jmx_encryption_options", encryptionOptionsMap);
+                c.with(Feature.JMX).set("jmx_server_options", of("enabled",
+                                                                 true,
+                                                                 "jmx_encryption_options", encryptionOptionsMap));
             }).start())
             {
                 Map<String, Object> jmxEnv = new HashMap<>();
@@ -85,7 +93,8 @@ public class JMXSslConfigDistributedTest extends AbstractEncryptionOptionsImpl
                                                                             .build();
 
             try (Cluster cluster = builder().withNodes(1).withConfig(c -> {
-                c.with(Feature.JMX).set("jmx_encryption_options", encryptionOptionsMap);
+                c.with(Feature.JMX).set("jmx_server_options", of("enabled", true,
+                                                                 "jmx_encryption_options", encryptionOptionsMap));
             }).start())
             {
                 Map<String, Object> jmxEnv = new HashMap<>();
@@ -99,8 +108,8 @@ public class JMXSslConfigDistributedTest extends AbstractEncryptionOptionsImpl
     public void testSystemSettings() throws Throwable
     {
         COM_SUN_MANAGEMENT_JMXREMOTE_SSL_ENABLED_CIPHER_SUITES.reset();
-        try (WithProperties withProperties = JMXSslPropertiesUtil.use(true, false,
-                                                                      "TLSv1.2,TLSv1.3,TLSv1.1"))
+        try (WithProperties withProperties = JMXSslPropertiesUtil.use(true, false, "TLSv1.2,TLSv1.3,TLSv1.1")
+                                                                 .set(CASSANDRA_JMX_LOCAL_PORT, 7199))
         {
             setKeystoreProperties(withProperties);
             try (Cluster cluster = builder().withNodes(1).withConfig(c -> {
@@ -120,13 +129,11 @@ public class JMXSslConfigDistributedTest extends AbstractEncryptionOptionsImpl
     public void testInvalidKeystorePath() throws Throwable
     {
         try (Cluster cluster = builder().withNodes(1).withConfig(c -> {
-            c.with(Feature.JMX).set("jmx_encryption_options",
-                                    ImmutableMap.<String, Object>builder()
-                                                .put("enabled", true)
-                                                .put("keystore", "/path/to/bad/keystore/that/should/not/exist")
-                                                .put("keystore_password", "cassandra")
-                                                .put("accepted_protocols", Arrays.asList("TLSv1.2", "TLSv1.3", "TLSv1.1"))
-                                                .build());
+            c.with(Feature.JMX).set("jmx_server_options", of("enabled", true,
+                                                             "jmx_encryption_options", of("enabled", true,
+                                                                                          "keystore", "/path/to/bad/keystore/that/should/not/exist",
+                                                                                          "keystore_password", "cassandra",
+                                                                                          "accepted_protocols", Arrays.asList("TLSv1.2", "TLSv1.3", "TLSv1.1"))));
         }).createWithoutStarting())
         {
             assertCannotStartDueToConfigurationException(cluster);
@@ -141,12 +148,11 @@ public class JMXSslConfigDistributedTest extends AbstractEncryptionOptionsImpl
     public void testDisabledEncryptionOptions() throws Throwable
     {
         try (Cluster cluster = builder().withNodes(1).withConfig(c -> {
-            c.with(Feature.JMX).set("jmx_encryption_options",
-                                    ImmutableMap.builder()
-                                                .put("enabled", false)
-                                                .put("keystore", "/path/to/bad/keystore/that/should/not/exist")
-                                                .put("keystore_password", "cassandra")
-                                                .build());
+            c.with(Feature.JMX).set("jmx_server_options", of("enabled", true,
+                                                             "jmx_encryption_options",
+                                                             of("enabled", false,
+                                                                "keystore", "/path/to/bad/keystore/that/should/not/exist",
+                                                                "keystore_password", "cassandra")));
         }).start())
         {
             JMXTestsUtil.testAllValidGetters(cluster, null);
@@ -155,10 +161,10 @@ public class JMXSslConfigDistributedTest extends AbstractEncryptionOptionsImpl
 
     private void setKeystoreProperties(WithProperties properties)
     {
-        properties.with("javax.net.ssl.trustStore", (String) validFileBasedKeystores.get("truststore"),
-                        "javax.net.ssl.trustStorePassword", (String) validFileBasedKeystores.get("truststore_password"),
-                        "javax.net.ssl.keyStore", (String) validFileBasedKeystores.get("keystore"),
-                        "javax.net.ssl.keyStorePassword", (String) validFileBasedKeystores.get("keystore_password"));
+        properties.with(JAVAX_NET_SSL_TRUSTSTORE.getKey(), (String) validFileBasedKeystores.get("truststore"),
+                        JAVAX_NET_SSL_TRUSTSTOREPASSWORD.getKey(), (String) validFileBasedKeystores.get("truststore_password"),
+                        JAVAX_NET_SSL_KEYSTORE.getKey(), (String) validFileBasedKeystores.get("keystore"),
+                        JAVAX_NET_SSL_KEYSTOREPASSWORD.getKey(), (String) validFileBasedKeystores.get("keystore_password"));
     }
 
     @SuppressWarnings("unchecked")

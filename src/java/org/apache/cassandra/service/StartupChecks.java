@@ -54,6 +54,7 @@ import net.jpountz.lz4.LZ4Factory;
 import org.apache.cassandra.config.CassandraRelevantProperties;
 import org.apache.cassandra.config.Config;
 import org.apache.cassandra.config.DatabaseDescriptor;
+import org.apache.cassandra.config.JMXServerOptions;
 import org.apache.cassandra.config.StartupChecksOptions;
 import org.apache.cassandra.cql3.QueryProcessor;
 import org.apache.cassandra.cql3.UntypedResultSet;
@@ -74,7 +75,6 @@ import org.apache.cassandra.utils.FBUtilities;
 import org.apache.cassandra.utils.JavaUtils;
 import org.apache.cassandra.utils.NativeLibrary;
 
-import static org.apache.cassandra.config.CassandraRelevantProperties.CASSANDRA_JMX_LOCAL_PORT;
 import static org.apache.cassandra.config.CassandraRelevantProperties.COM_SUN_MANAGEMENT_JMXREMOTE_PORT;
 import static org.apache.cassandra.config.CassandraRelevantProperties.IGNORE_KERNEL_BUG_1057843_CHECK;
 import static org.apache.cassandra.config.CassandraRelevantProperties.JAVA_VERSION;
@@ -312,17 +312,21 @@ public class StartupChecks
         {
             if (options.isDisabled(getStartupCheckType()))
                 return;
-            String jmxPort = CassandraRelevantProperties.CASSANDRA_JMX_REMOTE_PORT.getString();
-            if (jmxPort == null)
+
+            JMXServerOptions jmxServerOptions = DatabaseDescriptor.getJmxServerOptions();
+            if (!jmxServerOptions.enabled)
             {
-                logger.warn("JMX is not enabled to receive remote connections. Please see cassandra-env.sh for more info.");
-                jmxPort = CassandraRelevantProperties.CASSANDRA_JMX_LOCAL_PORT.toString();
-                if (jmxPort == null)
-                    logger.error(CASSANDRA_JMX_LOCAL_PORT.getKey() + " missing from cassandra-env.sh, unable to start local JMX service.");
+                logger.warn("JMX connection server is not enabled for either local or remote connections. " +
+                            "Please see jmx_server_options in cassandra.yaml for more info");
+            }
+            if (!jmxServerOptions.remote)
+            {
+                logger.warn("JMX is not enabled to receive remote connections. " +
+                            "Please see jmx_server_options in cassandra.yaml for more info.");
             }
             else
             {
-                logger.info("JMX is enabled to receive remote connections on port: {}", jmxPort);
+                logger.info("JMX is enabled to receive remote connections on port: {}", jmxServerOptions.jmx_port);
             }
         }
     };

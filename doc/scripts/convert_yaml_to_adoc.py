@@ -49,7 +49,7 @@ COMPLEX_OPTIONS = (
     'hints_compression',
     'server_encryption_options',
     'client_encryption_options',
-    'jmx_encryption_options',
+    'jmx_server_options',
     'transparent_data_encryption_options',
     'hinted_handoff_disabled_datacenters',
     'startup_checks',

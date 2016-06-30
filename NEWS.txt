@@ -88,7 +88,6 @@ New features
       generate a password of configured password strength policy upon role creation or alteration
       when 'GENERATED PASSWORD' clause is used. Character sets supported are: English, Cyrillic, modern Cyrillic,
       German, Polish and Czech.
-    - JMX SSL configuration can be now done in cassandra.yaml via jmx_encryption_options section instead of cassandra-env.sh
     - There is new MBean of name org.apache.cassandra.service.snapshot:type=SnapshotManager which exposes user-facing
       snapshot operations. Snapshot-related methods on StorageServiceMBean are still present and functional
       but marked as deprecated.
@@ -102,6 +101,12 @@ New features
       compactions. To avoid the possibility of starving background compactions from resources, the number of threads
       used for major compactions is limited to half the available compaction threads by default, and can be controlled
       by a new --jobs / -j option of nodetool compact.
+    - It is possible to configure JMX server in cassandra.yaml in jmx_server_options configuration section.
+      JMX SSL configuration can be configured via jmx_encryption_options in jmx_server_options. The old way of
+      configuring JMX is still present and default, but new way is preferable as it will e.g. not leak credentials for
+      JMX to JVM parameters. You have to opt-in to use the configuration via cassandra.yaml by uncommenting
+      the respective configuration sections and by commenting out `configure_jmx` function call in cassandra-env.sh.
+      Enabling both ways of configuring JMX will result in a node failing to start.
 
 
 Upgrading

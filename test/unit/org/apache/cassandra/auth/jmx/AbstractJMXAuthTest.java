@@ -19,14 +19,16 @@
 package org.apache.cassandra.auth.jmx;
 
 import java.lang.reflect.Field;
-import java.nio.file.Paths;
 import java.rmi.server.RMISocketFactory;
 import java.util.HashMap;
 import java.util.Map;
 import javax.management.JMX;
 import javax.management.MBeanServerConnection;
 import javax.management.ObjectName;
-import javax.management.remote.*;
+import javax.management.remote.JMXConnector;
+import javax.management.remote.JMXConnectorFactory;
+import javax.management.remote.JMXConnectorServer;
+import javax.management.remote.JMXServiceURL;
 import javax.security.auth.Subject;
 import javax.security.auth.callback.CallbackHandler;
 import javax.security.auth.login.LoginException;
@@ -34,75 +36,34 @@ import javax.security.auth.spi.LoginModule;
 
 import com.google.common.collect.ImmutableSet;
 import org.junit.Before;
-import org.junit.BeforeClass;
+import org.junit.Ignore;
 import org.junit.Test;
 
-import org.apache.cassandra.auth.*;
+import org.apache.cassandra.auth.AuthenticatedUser;
+import org.apache.cassandra.auth.CassandraPrincipal;
+import org.apache.cassandra.auth.IAuthorizer;
+import org.apache.cassandra.auth.JMXResource;
+import org.apache.cassandra.auth.Permission;
+import org.apache.cassandra.auth.RoleResource;
+import org.apache.cassandra.auth.StubAuthorizer;
 import org.apache.cassandra.config.DatabaseDescriptor;
+import org.apache.cassandra.config.JMXServerOptions;
 import org.apache.cassandra.cql3.CQLTester;
 import org.apache.cassandra.db.ColumnFamilyStoreMBean;
 import org.apache.cassandra.utils.JMXServerUtils;
 
-import static org.apache.cassandra.config.CassandraRelevantProperties.CASSANDRA_JMX_AUTHORIZER;
-import static org.apache.cassandra.config.CassandraRelevantProperties.CASSANDRA_JMX_REMOTE_LOGIN_CONFIG;
-import static org.apache.cassandra.config.CassandraRelevantProperties.COM_SUN_MANAGEMENT_JMXREMOTE_AUTHENTICATE;
-import static org.apache.cassandra.config.CassandraRelevantProperties.JAVA_SECURITY_AUTH_LOGIN_CONFIG;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.fail;
 
-public class JMXAuthTest extends CQLTester
+@Ignore
+public abstract class AbstractJMXAuthTest extends CQLTester
 {
     private static JMXConnectorServer jmxServer;
     private static MBeanServerConnection connection;
+
     private RoleResource role;
     private String tableName;
     private JMXResource tableMBean;
-
-    @FunctionalInterface
-    private interface MBeanAction
-    {
-        void execute();
-    }
-
-    @BeforeClass
-    public static void setupClass() throws Exception
-    {
-        setupAuthorizer();
-        setupJMXServer();
-    }
-
-    private static void setupAuthorizer()
-    {
-        try
-        {
-            IAuthorizer authorizer = new StubAuthorizer();
-            Field authorizerField = DatabaseDescriptor.class.getDeclaredField("authorizer");
-            authorizerField.setAccessible(true);
-            authorizerField.set(null, authorizer);
-            DatabaseDescriptor.setPermissionsValidity(0);
-        }
-        catch (IllegalAccessException | NoSuchFieldException e)
-        {
-            throw new RuntimeException(e);
-        }
-    }
-
-    private static void setupJMXServer() throws Exception
-    {
-        String config = Paths.get(ClassLoader.getSystemResource("auth/cassandra-test-jaas.conf").toURI()).toString();
-        COM_SUN_MANAGEMENT_JMXREMOTE_AUTHENTICATE.setBoolean(true);
-        JAVA_SECURITY_AUTH_LOGIN_CONFIG.setString(config);
-        CASSANDRA_JMX_REMOTE_LOGIN_CONFIG.setString("TestLogin");
-        CASSANDRA_JMX_AUTHORIZER.setString(NoSuperUserAuthorizationProxy.class.getName());
-        jmxServer = JMXServerUtils.createJMXServer(9999, "localhost", true);
-        jmxServer.start();
-
-        JMXServiceURL jmxUrl = new JMXServiceURL("service:jmx:rmi:///jndi/rmi://localhost:9999/jmxrmi");
-        Map<String, Object> env = new HashMap<>();
-        env.put("com.sun.jndi.rmi.factory.socket", RMISocketFactory.getDefaultSocketFactory());
-        JMXConnector jmxc = JMXConnectorFactory.connect(jmxUrl, env);
-        connection = jmxc.getMBeanServerConnection();
-    }
 
     @Before
     public void setup() throws Throwable
@@ -193,6 +154,42 @@ public class JMXAuthTest extends CQLTester
         assertPermissionOnResource(Permission.EXECUTE, JMXResource.root(), proxy::estimateKeys);
     }
 
+
+    protected static void setupJMXServer(JMXServerOptions jmxServerOptions) throws Exception
+    {
+        jmxServerOptions.jmx_encryption_options.applyConfig();
+        jmxServer = JMXServerUtils.createJMXServer(jmxServerOptions, "localhost");
+        jmxServer.start();
+
+        JMXServiceURL jmxUrl = new JMXServiceURL("service:jmx:rmi:///jndi/rmi://localhost:9999/jmxrmi");
+        Map<String, Object> env = new HashMap<>();
+        env.put("com.sun.jndi.rmi.factory.socket", RMISocketFactory.getDefaultSocketFactory());
+        JMXConnector jmxc = JMXConnectorFactory.connect(jmxUrl, env);
+        connection = jmxc.getMBeanServerConnection();
+    }
+
+    protected static void setupAuthorizer()
+    {
+        try
+        {
+            IAuthorizer authorizer = new StubAuthorizer();
+            Field authorizerField = DatabaseDescriptor.class.getDeclaredField("authorizer");
+            authorizerField.setAccessible(true);
+            authorizerField.set(null, authorizer);
+            DatabaseDescriptor.setPermissionsValidity(0);
+        }
+        catch (IllegalAccessException | NoSuchFieldException e)
+        {
+            throw new RuntimeException(e);
+        }
+    }
+
+    @FunctionalInterface
+    private interface MBeanAction
+    {
+        void execute();
+    }
+
     private void assertPermissionOnResource(Permission permission,
                                             JMXResource resource,
                                             MBeanAction action)
@@ -238,12 +235,14 @@ public class JMXAuthTest extends CQLTester
         private CassandraPrincipal principal;
         private Subject subject;
 
-        public StubLoginModule(){}
+        public StubLoginModule()
+        {
+        }
 
         public void initialize(Subject subject, CallbackHandler callbackHandler, Map<String, ?> sharedState, Map<String, ?> options)
         {
             this.subject = subject;
-            principal = new CassandraPrincipal((String)options.get("role_name"));
+            principal = new CassandraPrincipal((String) options.get("role_name"));
         }
 
         public boolean login() throws LoginException

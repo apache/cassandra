@@ -29,6 +29,7 @@ import org.junit.BeforeClass;
 import org.junit.Test;
 
 import org.apache.cassandra.config.DatabaseDescriptor;
+import org.apache.cassandra.config.JMXServerOptions;
 import org.apache.cassandra.distributed.shared.WithProperties;
 import org.apache.cassandra.utils.JMXServerUtils;
 
@@ -62,7 +63,7 @@ public class JMXSslDisabledEncryptionOptionsTest
      * disabled mode.
      * 1. local only JMX server
      * 2. System properties set for remote JMX SSL
-     * 3. jmx_encryption_options in the cassandra.yaml
+     * 3. jmx_encryption_options in the cassa JMX SSL configuration. ndra.yaml
      */
     @Test
     public void testDisabledJmxSslConfigs() throws SSLException
@@ -71,7 +72,7 @@ public class JMXSslDisabledEncryptionOptionsTest
 
         try (WithProperties ignored = JMXSslPropertiesUtil.use(false))
         {
-            Map<String, Object> env = JMXServerUtils.configureJmxSocketFactories(serverAddress, false);
+            Map<String, Object> env = JMXServerUtils.configureJmxSocketFactories(serverAddress, JMXServerOptions.fromDescriptor(true, false, 7199));
             Assert.assertTrue("no properties must be set", env.isEmpty());
             Assert.assertFalse("com.sun.management.jmxremote.ssl must be false", COM_SUN_MANAGEMENT_JMXREMOTE_SSL.getBoolean());
             Assert.assertNull("javax.rmi.ssl.client.enabledProtocols must be null", JAVAX_RMI_SSL_CLIENT_ENABLED_PROTOCOLS.getString());
@@ -90,7 +91,7 @@ public class JMXSslDisabledEncryptionOptionsTest
 
         try (WithProperties ignored = JMXSslPropertiesUtil.use(false))
         {
-            Map<String, Object> env = JMXServerUtils.configureJmxSocketFactories(serverAddress, true);
+            Map<String, Object> env = JMXServerUtils.configureJmxSocketFactories(serverAddress, JMXServerOptions.fromDescriptor(true, true, 7199));
             Assert.assertFalse("com.sun.management.jmxremote.ssl must be false", COM_SUN_MANAGEMENT_JMXREMOTE_SSL.getBoolean());
             Assert.assertNull("com.sun.jndi.rmi.factory.socket must be null", env.get("com.sun.jndi.rmi.factory.socket"));
             Assert.assertNotNull("ServerSocketFactory must not be null", env.get(RMIConnectorServer.RMI_SERVER_SOCKET_FACTORY_ATTRIBUTE));

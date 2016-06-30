@@ -48,14 +48,16 @@ seed_provider:
           - seeds: "127.0.0.1:7012"
 endpoint_snitch: org.apache.cassandra.locator.SimpleSnitch
 dynamic_snitch: true
-jmx_encryption_options:
+jmx_server_options:
     enabled: true
-    cipher_suites: [TLS_ECDHE_ECDSA_WITH_AES_256_GCM_SHA384,TLS_ECDHE_ECDSA_WITH_AES_128_GCM_SHA256]
-    accepted_protocols: [TLSv1.2,TLSv1.3,TLSv1.1]
-    keystore: test/conf/cassandra_ssl_test.keystore
-    keystore_password: cassandra
-    truststore: test/conf/cassandra_ssl_test.truststore
-    truststore_password: cassandra
+    jmx_encryption_options:
+        enabled: true
+        cipher_suites: [TLS_ECDHE_ECDSA_WITH_AES_256_GCM_SHA384,TLS_ECDHE_ECDSA_WITH_AES_128_GCM_SHA256]
+        accepted_protocols: [TLSv1.2,TLSv1.3,TLSv1.1]
+        keystore: test/conf/cassandra_ssl_test.keystore
+        keystore_password: cassandra
+        truststore: test/conf/cassandra_ssl_test.truststore
+        truststore_password: cassandra
 incremental_backups: true
 concurrent_compactors: 4
 compaction_throughput: 0MiB/s
