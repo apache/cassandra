@@ -137,7 +137,6 @@ public class CassandraDaemon
             jmxServer = JMXServerUtils.createJMXServer(Integer.parseInt(jmxPort), localOnly);
             if (jmxServer == null)
                 return;
-            jmxServer.start();
         }
         catch (IOException e)
         {

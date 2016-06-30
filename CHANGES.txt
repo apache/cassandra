@@ -1,8 +1,10 @@
 3.9
+ * Fix SSL JMX requiring truststore containing server cert (CASSANDRA-12109)
 Merged from 3.0:
  * Fix problem with undeleteable rows on upgrade to new sstable format (CASSANDRA-12144)
 Merged from 2.2:
  * Fixed cqlshlib.test.remove_test_db (CASSANDRA-12214)
+
 
 3.8
  * Fix hdr logging for single operation workloads (CASSANDRA-12145)
