@@ -425,7 +425,6 @@ Function SetCassandraEnvironment
     $env:JVM_OPTS="$env:JVM_OPTS -XX:+PrintPromotionFailure"
     # $env:JVM_OPTS="$env:JVM_OPTS -XX:PrintFLSStatistics=1"
 
-    New-Item -Force -ItemType directory -Path $env:CASSANDRA_HOME/logs/
     $env:JVM_OPTS="$env:JVM_OPTS -Xloggc:""$env:CASSANDRA_HOME/logs/gc.log"""
     $env:JVM_OPTS="$env:JVM_OPTS -XX:+UseGCLogFileRotation"
     $env:JVM_OPTS="$env:JVM_OPTS -XX:NumberOfGCLogFiles=10"
