@@ -102,10 +102,7 @@ public class FastByteOperations
          */
         static ByteOperations getBest()
         {
-            String arch = System.getProperty("os.arch");
-            boolean unaligned = arch.equals("i386") || arch.equals("x86")
-                                || arch.equals("amd64") || arch.equals("x86_64") || arch.equals("s390x");
-            if (!unaligned)
+            if (!Architecture.IS_UNALIGNED)
                 return new PureJavaOperations();
             try
             {
