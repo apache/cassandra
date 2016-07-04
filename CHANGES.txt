@@ -1,4 +1,5 @@
 2.1.16
+ * cannot use cql since upgrading python to 2.7.11+ (CASSANDRA-11850)
  * Fix filtering on clustering columns when 2i is used (CASSANDRA-11907)
  * Improve digest calculation in the presence of overlapping tombstones (CASSANDRA-11349)
 
