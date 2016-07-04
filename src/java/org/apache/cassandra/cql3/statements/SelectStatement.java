@@ -1582,6 +1582,7 @@ public class SelectStatement implements CQLStatement
 
             int numberOfRestrictionsEvaluatedWithSlices = 0;
 
+            Restriction lastSliceRestriction = null;
             for (ColumnDefinition def : cfm.clusteringColumns())
             {
                 // Remove clustering column restrictions that can be handled by slices; the remainder will be
@@ -1589,10 +1590,17 @@ public class SelectStatement implements CQLStatement
                 Boolean indexed = stmt.restrictedColumns.get(def);
                 if (indexed == null)
                     break;
-                if (!(indexed && stmt.usesSecondaryIndexing) && stmt.columnRestrictions[def.position()].canEvaluateWithSlices())
+
+                Restriction restriction = stmt.columnRestrictions[def.position()];
+                if (lastSliceRestriction != null && !restriction.equals(lastSliceRestriction))
+                    break;
+
+                if (!(indexed && stmt.usesSecondaryIndexing) && restriction.canEvaluateWithSlices())
                 {
                     stmt.restrictedColumns.remove(def);
                     numberOfRestrictionsEvaluatedWithSlices++;
+                    if (restriction.isSlice())
+                        lastSliceRestriction = restriction;
                 }
             }
 
