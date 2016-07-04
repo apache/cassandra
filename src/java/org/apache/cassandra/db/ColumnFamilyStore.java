@@ -125,7 +125,15 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
 
     private static final Logger logger = LoggerFactory.getLogger(ColumnFamilyStore.class);
 
-    private static final ExecutorService flushExecutor = new JMXEnabledThreadPoolExecutor(1,
+    /*
+    We keep a pool of threads for each data directory, size of each pool is memtable_flush_writers.
+    When flushing we start a Flush runnable in the flushExecutor. Flush calculates how to split the
+    memtable ranges over the existing data directories and creates a FlushRunnable for each of the directories.
+    The FlushRunnables are executed in the perDiskflushExecutors and the Flush will block until all FlushRunnables
+    are finished. By having flushExecutor size the same size as each of the perDiskflushExecutors we make sure we can
+    have that many flushes going at the same time.
+    */
+    private static final ExecutorService flushExecutor = new JMXEnabledThreadPoolExecutor(DatabaseDescriptor.getFlushWriters(),
                                                                                           StageManager.KEEPALIVE,
                                                                                           TimeUnit.SECONDS,
                                                                                           new LinkedBlockingQueue<Runnable>(),
