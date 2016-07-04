@@ -3,6 +3,9 @@
  * Fix EOF exception when altering column type (CASSANDRA-11820)
 Merged from 2.2:
  * MemoryUtil.getShort() should return an unsigned short also for architectures not supporting unaligned memory accesses (CASSANDRA-11973)
+Merged from 2.1:
+ * Fix filtering on clustering columns when 2i is used (CASSANDRA-11907)
+
 
 3.0.8
  * Fix potential race in schema during new table creation (CASSANDRA-12083)

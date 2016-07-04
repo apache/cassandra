@@ -24,7 +24,6 @@ import com.google.common.base.Joiner;
 
 import org.apache.cassandra.config.CFMetaData;
 import org.apache.cassandra.config.ColumnDefinition;
-import org.apache.cassandra.config.Schema;
 import org.apache.cassandra.cql3.*;
 import org.apache.cassandra.cql3.functions.Function;
 import org.apache.cassandra.cql3.statements.Bound;
@@ -42,7 +41,6 @@ import org.apache.cassandra.utils.btree.BTreeSet;
 
 import static org.apache.cassandra.cql3.statements.RequestValidations.checkFalse;
 import static org.apache.cassandra.cql3.statements.RequestValidations.checkNotNull;
-import static org.apache.cassandra.cql3.statements.RequestValidations.checkTrue;
 import static org.apache.cassandra.cql3.statements.RequestValidations.invalidRequest;
 
 /**
@@ -125,13 +123,13 @@ public final class StatementRestrictions
                                  VariableSpecifications boundNames,
                                  boolean selectsOnlyStaticColumns,
                                  boolean selectACollection,
-                                 boolean useFiltering,
+                                 boolean allowFiltering,
                                  boolean forView) throws InvalidRequestException
     {
         this.type = type;
         this.cfm = cfm;
         this.partitionKeyRestrictions = new PrimaryKeyRestrictionSet(cfm.getKeyValidatorAsClusteringComparator(), true);
-        this.clusteringColumnsRestrictions = new PrimaryKeyRestrictionSet(cfm.comparator, false, cfm);
+        this.clusteringColumnsRestrictions = new PrimaryKeyRestrictionSet(cfm.comparator, false);
         this.nonPrimaryKeyRestrictions = new RestrictionSet();
         this.notNullColumns = new HashSet<>();
 
@@ -230,7 +228,7 @@ public final class StatementRestrictions
             }
             if (hasQueriableIndex)
                 usesSecondaryIndexing = true;
-            else if (!useFiltering)
+            else if (!allowFiltering)
                 throw invalidRequest(StatementRestrictions.REQUIRES_ALLOW_FILTERING_MESSAGE);
 
             indexRestrictions.add(nonPrimaryKeyRestrictions);
@@ -444,6 +442,8 @@ public final class StatementRestrictions
                                                       boolean selectACollection,
                                                       boolean forView) throws InvalidRequestException
     {
+        validateClusteringRestrictions(hasQueriableIndex);
+
         checkFalse(!type.allowClusteringColumnSlices() && clusteringColumnsRestrictions.isSlice(),
                    "Slice restrictions are not supported on the clustering columns in %s statements", type);
 
@@ -486,6 +486,37 @@ public final class StatementRestrictions
                     }
                 }
             }
+        }
+    }
+
+    /**
+     * Validates whether or not restrictions are allowed for execution when secondary index is not used.
+     */
+    public final void validateClusteringRestrictions(boolean hasQueriableIndex)
+    {
+        assert clusteringColumnsRestrictions instanceof PrimaryKeyRestrictionSet;
+
+        // If there's a queriable index, filtering will take care of clustering restrictions
+        if (hasQueriableIndex)
+            return;
+
+        Iterator<Restriction> iter = ((PrimaryKeyRestrictionSet) clusteringColumnsRestrictions).iterator();
+        Restriction previousRestriction = null;
+        while (iter.hasNext())
+        {
+            Restriction restriction = iter.next();
+
+            if (previousRestriction != null)
+            {
+                ColumnDefinition lastRestrictionStart = previousRestriction.getFirstColumn();
+                ColumnDefinition newRestrictionStart = restriction.getFirstColumn();
+
+                if (previousRestriction.isSlice() && newRestrictionStart.position() > lastRestrictionStart.position())
+                    throw invalidRequest("Clustering column \"%s\" cannot be restricted (preceding column \"%s\" is restricted by a non-EQ relation)",
+                                         newRestrictionStart.name,
+                                         lastRestrictionStart.name);
+            }
+            previousRestriction = restriction;
         }
     }
 
