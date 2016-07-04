@@ -25,7 +25,6 @@ import com.google.common.collect.Iterables;
 
 import org.apache.cassandra.config.CFMetaData;
 import org.apache.cassandra.config.ColumnDefinition;
-import org.apache.cassandra.config.Schema;
 import org.apache.cassandra.cql3.*;
 import org.apache.cassandra.cql3.functions.Function;
 import org.apache.cassandra.cql3.statements.Bound;
@@ -40,7 +39,6 @@ import org.apache.cassandra.utils.ByteBufferUtil;
 import static org.apache.cassandra.config.ColumnDefinition.toIdentifiers;
 import static org.apache.cassandra.cql3.statements.RequestValidations.checkFalse;
 import static org.apache.cassandra.cql3.statements.RequestValidations.checkNotNull;
-import static org.apache.cassandra.cql3.statements.RequestValidations.checkTrue;
 import static org.apache.cassandra.cql3.statements.RequestValidations.invalidRequest;
 
 /**
@@ -112,11 +110,11 @@ public final class StatementRestrictions
                                  VariableSpecifications boundNames,
                                  boolean selectsOnlyStaticColumns,
                                  boolean selectACollection,
-                                 boolean useFiltering)
+                                 boolean allowFiltering)
     {
         this.cfm = cfm;
         this.partitionKeyRestrictions = new PrimaryKeyRestrictionSet(cfm.getKeyValidatorAsCType());
-        this.clusteringColumnsRestrictions = new PrimaryKeyRestrictionSet(cfm.comparator, cfm);
+        this.clusteringColumnsRestrictions = new PrimaryKeyRestrictionSet(cfm.comparator);
         this.nonPrimaryKeyRestrictions = new RestrictionSet();
 
         /*
@@ -168,7 +166,7 @@ public final class StatementRestrictions
                     throw invalidRequest("Predicates on non-primary-key columns (%s) are not yet supported for non secondary index queries",
                                          Joiner.on(", ").join(toIdentifiers(nonPrimaryKeyRestrictions.getColumnDefs())));
 
-                if (!useFiltering)
+                if (!allowFiltering)
                     throw invalidRequest(REQUIRES_ALLOW_FILTERING_MESSAGE);
             }
             usesSecondaryIndexing = true;
@@ -307,6 +305,8 @@ public final class StatementRestrictions
     private void processClusteringColumnsRestrictions(boolean hasQueriableIndex,
                                                       boolean selectACollection) throws InvalidRequestException
     {
+        validateClusteringRestrictions(hasQueriableIndex);
+
         checkFalse(clusteringColumnsRestrictions.isIN() && selectACollection,
                    "Cannot restrict clustering columns by IN relations when a collection is selected by the query");
         checkFalse(clusteringColumnsRestrictions.isContains() && !hasQueriableIndex,
@@ -336,6 +336,38 @@ public final class StatementRestrictions
                               clusteringColumn.name);
                 }
             }
+        }
+    }
+
+    /**
+     * Validates whether or not restrictions are allowed for execution when secondary index is not used.
+     */
+    public final void validateClusteringRestrictions(boolean hasQueriableIndex)
+    {
+        assert clusteringColumnsRestrictions instanceof PrimaryKeyRestrictionSet;
+
+        // If there's a queriable index, filtering will take care of clustering restrictions
+        if (hasQueriableIndex)
+            return;
+
+        Iterator<Restriction> iter = ((PrimaryKeyRestrictionSet)clusteringColumnsRestrictions).iterator();
+        Restriction previousRestriction = null;
+
+        while (iter.hasNext())
+        {
+            Restriction restriction = iter.next();
+
+            if (previousRestriction != null)
+            {
+                ColumnDefinition lastRestrictionStart = previousRestriction.getFirstColumn();
+                ColumnDefinition newRestrictionStart = restriction.getFirstColumn();
+
+                if (previousRestriction.isSlice() && newRestrictionStart.position() > lastRestrictionStart.position())
+                    throw invalidRequest("Clustering column \"%s\" cannot be restricted (preceding column \"%s\" is restricted by a non-EQ relation)",
+                                         newRestrictionStart.name,
+                                         lastRestrictionStart.name);
+            }
+            previousRestriction = restriction;
         }
     }
 

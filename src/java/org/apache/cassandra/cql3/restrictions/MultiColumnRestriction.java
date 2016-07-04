@@ -475,7 +475,7 @@ public abstract class MultiColumnRestriction extends AbstractRestriction
                                                SecondaryIndexManager indexManager,
                                                QueryOptions options) throws InvalidRequestException
         {
-            throw invalidRequest("Slice restrictions are not supported on indexed columns");
+            throw invalidRequest("Multi-column slice restrictions cannot be used for filtering.");
         }
 
         @Override
