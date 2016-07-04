@@ -645,6 +645,41 @@ public class SchemaLoader
         return cfm;
     }
 
+    public static CFMetaData fullTextSearchSASICFMD(String ksName, String cfName)
+    {
+        CFMetaData cfm = CFMetaData.Builder.create(ksName, cfName)
+                                           .addPartitionKey("song_id", UUIDType.instance)
+                                           .addRegularColumn("title", UTF8Type.instance)
+                                           .addRegularColumn("artist", UTF8Type.instance)
+                                           .build();
+
+        Indexes indexes = cfm.getIndexes();
+        indexes = indexes.with(IndexMetadata.fromSchemaMetadata("title", IndexMetadata.Kind.CUSTOM, new HashMap<String, String>()
+        {{
+            put(IndexTarget.CUSTOM_INDEX_OPTION_NAME, SASIIndex.class.getName());
+            put(IndexTarget.TARGET_OPTION_NAME, "title");
+            put("mode", OnDiskIndexBuilder.Mode.CONTAINS.toString());
+            put("analyzer_class", "org.apache.cassandra.index.sasi.analyzer.StandardAnalyzer");
+            put("tokenization_enable_stemming", "true");
+            put("tokenization_locale", "en");
+            put("tokenization_skip_stop_words", "true");
+            put("tokenization_normalize_lowercase", "true");
+        }}));
+
+        indexes = indexes.with(IndexMetadata.fromSchemaMetadata("artist", IndexMetadata.Kind.CUSTOM, new HashMap<String, String>()
+        {{
+            put(IndexTarget.CUSTOM_INDEX_OPTION_NAME, SASIIndex.class.getName());
+            put(IndexTarget.TARGET_OPTION_NAME, "artist");
+            put("mode", OnDiskIndexBuilder.Mode.CONTAINS.toString());
+            put("analyzer_class", "org.apache.cassandra.index.sasi.analyzer.NonTokenizingAnalyzer");
+            put("case_sensitive", "false");
+
+        }}));
+
+        cfm.indexes(indexes);
+        return cfm;
+    }
+
     public static CompressionParams getCompressionParameters()
     {
         return getCompressionParameters(null);

@@ -756,6 +756,13 @@ public class OnDiskIndex implements Iterable<OnDiskIndex.DataTerm>, Closeable
                 {
                     DataTerm currentTerm = currentBlock.getTerm(nextOffset());
 
+                    // we need to step over all of the partial terms, in PREFIX mode,
+                    // encountered by the query until upper-bound tells us to stop
+                    if (e.getOp() == Op.PREFIX && currentTerm.isPartial())
+                        continue;
+
+                    // haven't reached the start of the query range yet, let's
+                    // keep skip the current term until lower bound is satisfied
                     if (checkLower && !e.isLowerSatisfiedBy(currentTerm))
                         continue;
 
