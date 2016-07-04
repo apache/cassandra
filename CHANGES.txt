@@ -2,6 +2,7 @@
  * Remove pre-startup check for open JMX port (CASSANDRA-12074)
 
 3.9
+ * Increase size of flushExecutor thread pool (CASSANDRA-12071)
 Merged from 3.0:
  * Avoid digest mismatch with empty but static rows (CASSANDRA-12090)
  * Fix EOF exception when altering column type (CASSANDRA-11820)
