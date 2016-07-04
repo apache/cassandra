@@ -898,6 +898,33 @@ public class SelectMultiColumnRelationTest extends CQLTester
     }
 
     @Test
+    public void testMultiColumnRestrictionsWithIndex() throws Throwable
+    {
+        createTable("CREATE TABLE %s (a int, b int, c int, d int, e int, v int, PRIMARY KEY (a, b, c, d, e))");
+        createIndex("CREATE INDEX ON %s (v)");
+        for (int i = 1; i <= 5; i++)
+        {
+            execute("INSERT INTO %s (a,b,c,d,e,v) VALUES (?,?,?,?,?,?)", 0, i, 0, 0, 0, 0);
+            execute("INSERT INTO %s (a,b,c,d,e,v) VALUES (?,?,?,?,?,?)", 0, i, i, 0, 0, 0);
+            execute("INSERT INTO %s (a,b,c,d,e,v) VALUES (?,?,?,?,?,?)", 0, i, i, i, 0, 0);
+            execute("INSERT INTO %s (a,b,c,d,e,v) VALUES (?,?,?,?,?,?)", 0, i, i, i, i, 0);
+            execute("INSERT INTO %s (a,b,c,d,e,v) VALUES (?,?,?,?,?,?)", 0, i, i, i, i, i);
+        }
+
+        String errorMsg = "Multi-column slice restrictions cannot be used for filtering.";
+        assertInvalidMessage(errorMsg,
+                             "SELECT * FROM %s WHERE a = 0 AND (c,d) < (2,2) AND v = 0 ALLOW FILTERING");
+        assertInvalidMessage(errorMsg,
+                             "SELECT * FROM %s WHERE a = 0 AND (d,e) < (2,2) AND b = 1 AND v = 0 ALLOW FILTERING");
+        assertInvalidMessage(errorMsg,
+                             "SELECT * FROM %s WHERE a = 0 AND b = 1 AND (d,e) < (2,2) AND v = 0 ALLOW FILTERING");
+        assertInvalidMessage(errorMsg,
+                             "SELECT * FROM %s WHERE a = 0 AND b > 1 AND (d,e) < (2,2) AND v = 0 ALLOW FILTERING");
+        assertInvalidMessage(errorMsg,
+                             "SELECT * FROM %s WHERE a = 0 AND (b,c) > (1,0) AND (d,e) < (2,2) AND v = 0 ALLOW FILTERING");
+    }
+
+    @Test
     public void testMultiplePartitionKeyAndMultiClusteringWithIndex() throws Throwable
     {
         createTable("CREATE TABLE %s (a int, b int, c int, d int, e int, f int, PRIMARY KEY ((a, b), c, d, e))");

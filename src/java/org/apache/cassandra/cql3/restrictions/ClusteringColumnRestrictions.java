@@ -175,18 +175,13 @@ final class ClusteringColumnRestrictions extends RestrictionSetWrapper
     public final boolean needFiltering()
     {
         int position = 0;
-        SingleRestriction slice = null;
+
         for (SingleRestriction restriction : restrictions)
         {
             if (handleInFilter(restriction, position))
                 return true;
 
-            if (slice != null && !slice.getFirstColumn().equals(restriction.getFirstColumn()))
-                return true;
-
-            if (slice == null && restriction.isSlice())
-                slice = restriction;
-            else
+            if (!restriction.isSlice())
                 position = restriction.getLastColumn().position() + 1;
         }
         return hasContains();
@@ -199,7 +194,6 @@ final class ClusteringColumnRestrictions extends RestrictionSetWrapper
     {
         int position = 0;
 
-        SingleRestriction slice = null;
         for (SingleRestriction restriction : restrictions)
         {
             // We ignore all the clustering columns that can be handled by slices.
@@ -209,15 +203,7 @@ final class ClusteringColumnRestrictions extends RestrictionSetWrapper
                 continue;
             }
 
-            if (slice != null && !slice.getFirstColumn().equals(restriction.getFirstColumn()))
-            {
-                restriction.addRowFilterTo(filter, indexManager, options);
-                continue;
-            }
-
-            if (slice == null && restriction.isSlice())
-                slice = restriction;
-            else
+            if (!restriction.isSlice())
                 position = restriction.getLastColumn().position() + 1;
         }
     }
