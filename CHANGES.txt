@@ -2,6 +2,7 @@
  * Remove pre-startup check for open JMX port (CASSANDRA-12074)
 
 3.9
+ * Fix SASI PREFIX search in CONTAINS mode with partial terms (CASSANDRA-12073)
  * Increase size of flushExecutor thread pool (CASSANDRA-12071)
 Merged from 3.0:
  * Avoid digest mismatch with empty but static rows (CASSANDRA-12090)

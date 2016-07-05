@@ -88,6 +88,7 @@ public class SASIIndexTest
     private static final String CLUSTERING_CF_NAME_1 = "clustering_test_cf_1";
     private static final String CLUSTERING_CF_NAME_2 = "clustering_test_cf_2";
     private static final String STATIC_CF_NAME = "static_sasi_test_cf";
+    private static final String FTS_CF_NAME = "full_text_search_sasi_test_cf";
 
     @BeforeClass
     public static void loadSchema() throws ConfigurationException
@@ -98,7 +99,8 @@ public class SASIIndexTest
                                                                      Tables.of(SchemaLoader.sasiCFMD(KS_NAME, CF_NAME),
                                                                                SchemaLoader.clusteringSASICFMD(KS_NAME, CLUSTERING_CF_NAME_1),
                                                                                SchemaLoader.clusteringSASICFMD(KS_NAME, CLUSTERING_CF_NAME_2, "location"),
-                                                                               SchemaLoader.staticSASICFMD(KS_NAME, STATIC_CF_NAME))));
+                                                                               SchemaLoader.staticSASICFMD(KS_NAME, STATIC_CF_NAME),
+                                                                               SchemaLoader.fullTextSearchSASICFMD(KS_NAME, FTS_CF_NAME))));
     }
 
     @After
@@ -414,6 +416,32 @@ public class SASIIndexTest
                 buildExpression(firstName, Operator.LIKE_CONTAINS, UTF8Type.instance.decompose("do it.")));
 
         Assert.assertEquals(rows.toString(), Arrays.asList("key0", "key1"), Lists.newArrayList(rows));
+    }
+
+    @Test
+    public void testPrefixSearchWithContainsMode() throws Exception
+    {
+        testPrefixSearchWithContainsMode(false);
+        cleanupData();
+        testPrefixSearchWithContainsMode(true);
+    }
+
+    private void testPrefixSearchWithContainsMode(boolean forceFlush) throws Exception
+    {
+        ColumnFamilyStore store = Keyspace.open(KS_NAME).getColumnFamilyStore(FTS_CF_NAME);
+
+        executeCQL(FTS_CF_NAME, "INSERT INTO %s.%s (song_id, title, artist) VALUES(?, ?, ?)", UUID.fromString("1a4abbcd-b5de-4c69-a578-31231e01ff09"), "Poker Face", "Lady Gaga");
+        executeCQL(FTS_CF_NAME, "INSERT INTO %s.%s (song_id, title, artist) VALUES(?, ?, ?)", UUID.fromString("9472a394-359b-4a06-b1d5-b6afce590598"), "Forgetting the Way Home", "Our Lady of Bells");
+        executeCQL(FTS_CF_NAME, "INSERT INTO %s.%s (song_id, title, artist) VALUES(?, ?, ?)", UUID.fromString("4f8dc18e-54e6-4e16-b507-c5324b61523b"), "Zamki na piasku", "Lady Pank");
+        executeCQL(FTS_CF_NAME, "INSERT INTO %s.%s (song_id, title, artist) VALUES(?, ?, ?)", UUID.fromString("eaf294fa-bad5-49d4-8f08-35ba3636a706"), "Koncertowa", "Lady Pank");
+
+
+        if (forceFlush)
+            store.forceBlockingFlush();
+
+        final UntypedResultSet results = executeCQL(FTS_CF_NAME, "SELECT * FROM %s.%s WHERE artist LIKE 'lady%%'");
+        Assert.assertNotNull(results);
+        Assert.assertEquals(3, results.size());
     }
 
     @Test
