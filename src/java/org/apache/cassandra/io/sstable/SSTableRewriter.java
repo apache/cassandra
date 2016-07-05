@@ -135,17 +135,14 @@ public class SSTableRewriter extends Transactional.AbstractTransactional impleme
         RowIndexEntry index = writer.append(partition);
         if (!transaction.isOffline() && index != null)
         {
-            boolean save = false;
             for (SSTableReader reader : transaction.originals())
             {
                 if (reader.getCachedPosition(key, false) != null)
                 {
-                    save = true;
+                    cachedKeys.put(key, index);
                     break;
                 }
             }
-            if (save)
-                cachedKeys.put(key, index);
         }
         return index;
     }
@@ -230,13 +227,19 @@ public class SSTableRewriter extends Transactional.AbstractTransactional impleme
         if (preemptiveOpenInterval == Long.MAX_VALUE)
             return;
 
-        final List<DecoratedKey> invalidateKeys = new ArrayList<>();
-        invalidateKeys.addAll(cachedKeys.keySet());
         newReader.setupOnline();
-        for (Map.Entry<DecoratedKey, RowIndexEntry> cacheKey : cachedKeys.entrySet())
-            newReader.cacheKey(cacheKey.getKey(), cacheKey.getValue());
+        List<DecoratedKey> invalidateKeys = null;
+        if (!cachedKeys.isEmpty())
+        {
+            invalidateKeys = new ArrayList<>(cachedKeys.size());
+            for (Map.Entry<DecoratedKey, RowIndexEntry> cacheKey : cachedKeys.entrySet())
+            {
+                invalidateKeys.add(cacheKey.getKey());
+                newReader.cacheKey(cacheKey.getKey(), cacheKey.getValue());
+            }
+        }
 
-        cachedKeys = new HashMap<>();
+        cachedKeys.clear();
         for (SSTableReader sstable : transaction.originals())
         {
             // we call getCurrentReplacement() to support multiple rewriters operating over the same source readers at once.
@@ -247,12 +250,15 @@ public class SSTableRewriter extends Transactional.AbstractTransactional impleme
             if (latest.first.compareTo(lowerbound) > 0)
                 continue;
 
-            Runnable runOnClose = new InvalidateKeys(latest, invalidateKeys);
+            Runnable runOnClose = invalidateKeys != null ? new InvalidateKeys(latest, invalidateKeys) : null;
             if (lowerbound.compareTo(latest.last) >= 0)
             {
                 if (!transaction.isObsolete(latest))
                 {
-                    latest.runOnClose(runOnClose);
+                    if (runOnClose != null)
+                    {
+                        latest.runOnClose(runOnClose);
+                    }
                     transaction.obsolete(latest);
                 }
                 continue;

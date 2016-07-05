@@ -1065,7 +1065,8 @@ public abstract class SSTableReader extends SSTable implements SelfRefCounted<SS
 
             if (ifile != null)
                 ifile.dropPageCache(ifilePosition);
-            andThen.run();
+            if (andThen != null)
+                andThen.run();
         }
     }
 
