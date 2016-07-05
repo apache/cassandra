@@ -100,22 +100,22 @@ public class SSTableFlushObserverTest
             final long now = System.currentTimeMillis();
 
             ByteBuffer key = UTF8Type.instance.fromString("key1");
-            expected.putAll(key, Arrays.asList(BufferCell.live(getColumn(cfm, "first_name"), now,UTF8Type.instance.fromString("jack")),
-                                               BufferCell.live(getColumn(cfm, "age"), now, Int32Type.instance.decompose(27)),
+            expected.putAll(key, Arrays.asList(BufferCell.live(getColumn(cfm, "age"), now, Int32Type.instance.decompose(27)),
+                                               BufferCell.live(getColumn(cfm, "first_name"), now,UTF8Type.instance.fromString("jack")),
                                                BufferCell.live(getColumn(cfm, "height"), now, LongType.instance.decompose(183L))));
 
             writer.append(new RowIterator(cfm, key.duplicate(), Collections.singletonList(buildRow(expected.get(key)))));
 
             key = UTF8Type.instance.fromString("key2");
-            expected.putAll(key, Arrays.asList(BufferCell.live(getColumn(cfm, "first_name"), now,UTF8Type.instance.fromString("jim")),
-                                               BufferCell.live(getColumn(cfm, "age"), now, Int32Type.instance.decompose(30)),
+            expected.putAll(key, Arrays.asList(BufferCell.live(getColumn(cfm, "age"), now, Int32Type.instance.decompose(30)),
+                                               BufferCell.live(getColumn(cfm, "first_name"), now,UTF8Type.instance.fromString("jim")),
                                                BufferCell.live(getColumn(cfm, "height"), now, LongType.instance.decompose(180L))));
 
             writer.append(new RowIterator(cfm, key, Collections.singletonList(buildRow(expected.get(key)))));
 
             key = UTF8Type.instance.fromString("key3");
-            expected.putAll(key, Arrays.asList(BufferCell.live(getColumn(cfm, "first_name"), now,UTF8Type.instance.fromString("ken")),
-                                               BufferCell.live(getColumn(cfm, "age"), now, Int32Type.instance.decompose(30)),
+            expected.putAll(key, Arrays.asList(BufferCell.live(getColumn(cfm, "age"), now, Int32Type.instance.decompose(30)),
+                                               BufferCell.live(getColumn(cfm, "first_name"), now,UTF8Type.instance.fromString("ken")),
                                                BufferCell.live(getColumn(cfm, "height"), now, LongType.instance.decompose(178L))));
 
             writer.append(new RowIterator(cfm, key, Collections.singletonList(buildRow(expected.get(key)))));
