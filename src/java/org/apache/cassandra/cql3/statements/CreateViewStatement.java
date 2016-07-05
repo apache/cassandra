@@ -314,7 +314,7 @@ public class CreateViewStatement extends SchemaAlteringStatement
 
         boolean isPk = basePK.contains(def.name);
         if (!isPk && hasNonPKColumn)
-            throw new InvalidRequestException(String.format("Cannot include more than one non-primary key column '%s' in materialized view partition key", def.name));
+            throw new InvalidRequestException(String.format("Cannot include more than one non-primary key column '%s' in materialized view primary key", def.name));
 
         // We don't need to include the "IS NOT NULL" filter on a non-composite partition key
         // because we will never allow a single partition key to be NULL
