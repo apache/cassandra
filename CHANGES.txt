@@ -5,6 +5,9 @@
  * Fix SASI PREFIX search in CONTAINS mode with partial terms (CASSANDRA-12073)
  * Increase size of flushExecutor thread pool (CASSANDRA-12071)
 Merged from 3.0:
+ * Fix column ordering of results with static columns for Thrift requests in
+   a mixed 2.x/3.x cluster, also fix potential non-resolved duplication of
+   those static columns in query results (CASSANDRA-12123)
  * Avoid digest mismatch with empty but static rows (CASSANDRA-12090)
  * Fix EOF exception when altering column type (CASSANDRA-11820)
 Merged from 2.2:
