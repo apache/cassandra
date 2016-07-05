@@ -68,11 +68,19 @@ public class ColumnIndex
         private final ByteBuffer key;
         private final DeletionInfo deletionInfo; // only used for serializing and calculating row header size
 
-        private final OnDiskAtom.Serializer atomSerializer;
+        private final OnDiskAtom.SerializerForWriting atomSerializer;
 
         public Builder(ColumnFamily cf,
                        ByteBuffer key,
                        DataOutputPlus output)
+        {
+            this(cf, key, output, cf.getComparator().onDiskAtomSerializer());
+        }
+
+        public Builder(ColumnFamily cf,
+                ByteBuffer key,
+                DataOutputPlus output,
+                OnDiskAtom.SerializerForWriting serializer)
         {
             assert cf != null;
             assert key != null;
@@ -84,7 +92,7 @@ public class ColumnIndex
             this.result = new ColumnIndex(new ArrayList<IndexHelper.IndexInfo>());
             this.output = output;
             this.tombstoneTracker = new RangeTombstone.Tracker(cf.getComparator());
-            this.atomSerializer = cf.getComparator().onDiskAtomSerializer();
+            this.atomSerializer = serializer;
         }
 
         /**

@@ -152,7 +152,7 @@ public class LazilyCompactedRow extends AbstractCompactedRow
         return RowIndexEntry.create(currentPosition, emptyColumnFamily.deletionInfo().getTopLevelDeletion(), columnsIndex);
     }
 
-    public void update(MessageDigest digest)
+    public void update(final MessageDigest digest)
     {
         assert !closed;
 
@@ -160,8 +160,23 @@ public class LazilyCompactedRow extends AbstractCompactedRow
         // blindly updating everything wouldn't be correct
         try (DataOutputBuffer out = new DataOutputBuffer())
         {
+            OnDiskAtom.SerializerForWriting serializer = new OnDiskAtom.SerializerForWriting()
+            {
+                @Override
+                public void serializeForSSTable(OnDiskAtom atom, DataOutputPlus out) throws IOException
+                {
+                    atom.updateDigest(digest);
+                }
+
+                @Override
+                public long serializedSizeForSSTable(OnDiskAtom atom)
+                {
+                    return 0;
+                }
+            };
+
             // initialize indexBuilder for the benefit of its tombstoneTracker, used by our reducing iterator
-            indexBuilder = new ColumnIndex.Builder(emptyColumnFamily, key.getKey(), out);
+            indexBuilder = new ColumnIndex.Builder(emptyColumnFamily, key.getKey(), out, serializer);
 
             DeletionTime.serializer.serialize(emptyColumnFamily.deletionInfo().getTopLevelDeletion(), out);
 
@@ -173,14 +188,13 @@ public class LazilyCompactedRow extends AbstractCompactedRow
             {
                 digest.update(out.getData(), 0, out.getLength());
             }
+            indexBuilder.buildForCompaction(merger);
         }
         catch (IOException e)
         {
             throw new AssertionError(e);
         }
 
-        while (merger.hasNext())
-            merger.next().updateDigest(digest);
         close();
     }
 

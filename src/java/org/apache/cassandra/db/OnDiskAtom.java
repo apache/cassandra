@@ -43,7 +43,13 @@ public interface OnDiskAtom
     public void validateFields(CFMetaData metadata) throws MarshalException;
     public void updateDigest(MessageDigest digest);
 
-    public static class Serializer implements ISSTableSerializer<OnDiskAtom>
+    public interface SerializerForWriting
+    {
+        public void serializeForSSTable(OnDiskAtom atom, DataOutputPlus out) throws IOException;
+        public long serializedSizeForSSTable(OnDiskAtom atom);
+    }
+
+    public static class Serializer implements ISSTableSerializer<OnDiskAtom>, SerializerForWriting
     {
         private final CellNameType type;
 
