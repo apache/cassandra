@@ -38,6 +38,7 @@ import org.apache.cassandra.io.util.DataInputPlus;
 import org.apache.cassandra.io.util.DataOutputPlus;
 import org.apache.cassandra.io.util.DataOutputBuffer;
 import org.apache.cassandra.net.MessagingService;
+import org.apache.cassandra.thrift.ThriftResultsMerger;
 import org.apache.cassandra.utils.ByteBufferUtil;
 import org.apache.cassandra.utils.FBUtilities;
 
@@ -267,15 +268,16 @@ public abstract class ReadResponse
                 {
                     ImmutableBTreePartition partition = toReturn.get(idx++);
 
-
                     ClusteringIndexFilter filter = command.clusteringIndexFilter(partition.partitionKey());
 
                     // Pre-3.0, we didn't have a way to express exclusivity for non-composite comparators, so all slices were
                     // inclusive on both ends. If we have exclusive slice ends, we need to filter the results here.
                     if (!command.metadata().isCompound())
-                        return filter.filter(partition.sliceableUnfilteredIterator(command.columnFilter(), filter.isReversed()));
+                        return ThriftResultsMerger.maybeWrap(
+                                filter.filter(partition.sliceableUnfilteredIterator(command.columnFilter(), filter.isReversed())), command.nowInSec());
 
-                    return partition.unfilteredIterator(command.columnFilter(), Slices.ALL, filter.isReversed());
+                    return ThriftResultsMerger.maybeWrap(
+                            partition.unfilteredIterator(command.columnFilter(), Slices.ALL, filter.isReversed()), command.nowInSec());
                 }
             };
         }
