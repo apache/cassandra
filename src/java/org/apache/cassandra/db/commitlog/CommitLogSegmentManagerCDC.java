@@ -153,7 +153,7 @@ public class CommitLogSegmentManagerCDC extends AbstractCommitLogSegmentManager
      *      Arrays.stream(path.listFiles()).mapToLong(File::length).sum();
      * However this solution is 375% slower on Windows. Revisit this and split logic to per-OS
      */
-    private class CDCSizeTracker extends DirectorySizeCalculator
+    private static class CDCSizeTracker extends DirectorySizeCalculator
     {
         private final RateLimiter rateLimiter = RateLimiter.create(1000.0 / DatabaseDescriptor.getCDCDiskCheckInterval());
         private ExecutorService cdcSizeCalculationExecutor;

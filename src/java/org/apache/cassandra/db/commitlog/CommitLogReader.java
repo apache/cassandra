@@ -470,7 +470,7 @@ public class CommitLogReader
         }
     }
 
-    private class ReadStatusTracker
+    private static class ReadStatusTracker
     {
         private int mutationsLeft;
         public String errorContext = "";
