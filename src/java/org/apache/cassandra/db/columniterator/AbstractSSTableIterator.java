@@ -31,7 +31,7 @@ import org.apache.cassandra.io.sstable.format.SSTableReader;
 import org.apache.cassandra.io.sstable.CorruptSSTableException;
 import org.apache.cassandra.io.util.FileDataInput;
 import org.apache.cassandra.io.util.DataPosition;
-import org.apache.cassandra.io.util.SegmentedFile;
+import org.apache.cassandra.io.util.FileHandle;
 import org.apache.cassandra.utils.ByteBufferUtil;
 
 public abstract class AbstractSSTableIterator implements UnfilteredRowIterator
@@ -47,7 +47,7 @@ public abstract class AbstractSSTableIterator implements UnfilteredRowIterator
 
     private final boolean isForThrift;
 
-    protected final SegmentedFile ifile;
+    protected final FileHandle ifile;
 
     private boolean isClosed;
 
@@ -63,7 +63,7 @@ public abstract class AbstractSSTableIterator implements UnfilteredRowIterator
                                       Slices slices,
                                       ColumnFilter columnFilter,
                                       boolean isForThrift,
-                                      SegmentedFile ifile)
+                                      FileHandle ifile)
     {
         this.sstable = sstable;
         this.ifile = ifile;
@@ -453,7 +453,7 @@ public abstract class AbstractSSTableIterator implements UnfilteredRowIterator
         // Marks the beginning of the block corresponding to currentIndexIdx.
         private DataPosition mark;
 
-        public IndexState(Reader reader, ClusteringComparator comparator, RowIndexEntry indexEntry, boolean reversed, SegmentedFile indexFile)
+        public IndexState(Reader reader, ClusteringComparator comparator, RowIndexEntry indexEntry, boolean reversed, FileHandle indexFile)
         {
             this.reader = reader;
             this.comparator = comparator;

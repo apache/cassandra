@@ -184,7 +184,7 @@ public class ChunkCache
         return instance.wrap(file);
     }
 
-    public void invalidatePosition(SegmentedFile dfile, long position)
+    public void invalidatePosition(FileHandle dfile, long position)
     {
         if (!(dfile.rebuffererFactory() instanceof CachingRebufferer))
             return;

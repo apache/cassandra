@@ -15,12 +15,17 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
+
 package org.apache.cassandra.io.util;
 
-import org.apache.cassandra.io.compress.CompressionMetadata;
-
-public interface ICompressedFile
+public class SpinningDiskOptimizationStrategy implements DiskOptimizationStrategy
 {
-    ChannelProxy channel();
-    CompressionMetadata getMetadata();
+    /**
+     * For spinning disks always add one page.
+     */
+    @Override
+    public int bufferSize(long recordSize)
+    {
+        return roundBufferSize(recordSize + 4096);
+    }
 }

@@ -18,44 +18,14 @@
 
 package org.apache.cassandra.io.util;
 
-public abstract class AbstractReaderFileProxy implements ReaderFileProxy
+@SuppressWarnings("serial")
+public class CorruptFileException extends RuntimeException
 {
-    protected final ChannelProxy channel;
-    protected final long fileLength;
+    public final String filePath;
 
-    protected AbstractReaderFileProxy(ChannelProxy channel, long fileLength)
+    public CorruptFileException(Exception cause, String filePath)
     {
-        this.channel = channel;
-        this.fileLength = fileLength >= 0 ? fileLength : channel.size();
-    }
-
-    @Override
-    public ChannelProxy channel()
-    {
-        return channel;
-    }
-
-    @Override
-    public long fileLength()
-    {
-        return fileLength;
-    }
-
-    @Override
-    public String toString()
-    {
-        return getClass().getSimpleName() + "(filePath='" + channel + "')";
-    }
-
-    @Override
-    public void close()
-    {
-        // nothing in base class
-    }
-
-    @Override
-    public double getCrcCheckChance()
-    {
-        return 0; // Only valid for compressed files.
+        super(cause);
+        this.filePath = filePath;
     }
 }

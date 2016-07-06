@@ -15,6 +15,7 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
+
 package org.apache.cassandra.io.util;
 
 import java.io.IOException;
@@ -24,190 +25,58 @@ import java.util.concurrent.ThreadLocalRandom;
 import com.google.common.annotations.VisibleForTesting;
 import com.google.common.primitives.Ints;
 
-import org.apache.cassandra.cache.ChunkCache;
-import org.apache.cassandra.config.Config;
-import org.apache.cassandra.config.Config.DiskAccessMode;
-import org.apache.cassandra.io.compress.*;
+import org.apache.cassandra.io.compress.BufferType;
+import org.apache.cassandra.io.compress.CompressionMetadata;
+import org.apache.cassandra.io.compress.CorruptBlockException;
 import org.apache.cassandra.io.sstable.CorruptSSTableException;
-import org.apache.cassandra.config.DatabaseDescriptor;
-import org.apache.cassandra.utils.concurrent.Ref;
 
-public class CompressedSegmentedFile extends SegmentedFile implements ICompressedFile
+public abstract class CompressedChunkReader extends AbstractReaderFileProxy implements ChunkReader
 {
-    public final CompressionMetadata metadata;
+    final CompressionMetadata metadata;
 
-    public CompressedSegmentedFile(ChannelProxy channel, CompressionMetadata metadata, Config.DiskAccessMode mode)
+    protected CompressedChunkReader(ChannelProxy channel, CompressionMetadata metadata)
     {
-        this(channel,
-             metadata,
-             mode == DiskAccessMode.mmap
-             ? MmappedRegions.map(channel, metadata)
-             : null);
-    }
-
-    public CompressedSegmentedFile(ChannelProxy channel, CompressionMetadata metadata, MmappedRegions regions)
-    {
-        this(channel, metadata, regions, createRebufferer(channel, metadata, regions));
-    }
-
-    private static RebuffererFactory createRebufferer(ChannelProxy channel, CompressionMetadata metadata, MmappedRegions regions)
-    {
-        return ChunkCache.maybeWrap(chunkReader(channel, metadata, regions));
-    }
-
-    public static ChunkReader chunkReader(ChannelProxy channel, CompressionMetadata metadata, MmappedRegions regions)
-    {
-        return regions != null
-               ? new Mmap(channel, metadata, regions)
-               : new Standard(channel, metadata);
-    }
-
-    public CompressedSegmentedFile(ChannelProxy channel, CompressionMetadata metadata, MmappedRegions regions, RebuffererFactory rebufferer)
-    {
-        super(new Cleanup(channel, metadata, regions, rebufferer), channel, rebufferer, metadata.compressedFileLength);
+        super(channel, metadata.dataLength);
         this.metadata = metadata;
-    }
-
-    private CompressedSegmentedFile(CompressedSegmentedFile copy)
-    {
-        super(copy);
-        this.metadata = copy.metadata;
-    }
-
-    public ChannelProxy channel()
-    {
-        return channel;
-    }
-
-    private static final class Cleanup extends SegmentedFile.Cleanup
-    {
-        final CompressionMetadata metadata;
-
-        protected Cleanup(ChannelProxy channel, CompressionMetadata metadata, MmappedRegions regions, ReaderFileProxy rebufferer)
-        {
-            super(channel, rebufferer);
-            this.metadata = metadata;
-        }
-        public void tidy()
-        {
-            if (ChunkCache.instance != null)
-            {
-                ChunkCache.instance.invalidateFile(name());
-            }
-            metadata.close();
-
-            super.tidy();
-        }
-    }
-
-    public CompressedSegmentedFile sharedCopy()
-    {
-        return new CompressedSegmentedFile(this);
-    }
-
-    public void addTo(Ref.IdentityCollection identities)
-    {
-        super.addTo(identities);
-        metadata.addTo(identities);
-    }
-
-    public static class Builder extends SegmentedFile.Builder
-    {
-        final CompressedSequentialWriter writer;
-        final Config.DiskAccessMode mode;
-
-        public Builder(CompressedSequentialWriter writer)
-        {
-            this.writer = writer;
-            this.mode = DatabaseDescriptor.getDiskAccessMode();
-        }
-
-        protected CompressionMetadata metadata(String path, long overrideLength)
-        {
-            if (writer == null)
-                return CompressionMetadata.create(path);
-
-            return writer.open(overrideLength);
-        }
-
-        public SegmentedFile complete(ChannelProxy channel, int bufferSize, long overrideLength)
-        {
-            return new CompressedSegmentedFile(channel, metadata(channel.filePath(), overrideLength), mode);
-        }
-    }
-
-    public void dropPageCache(long before)
-    {
-        if (before >= metadata.dataLength)
-            super.dropPageCache(0);
-        super.dropPageCache(metadata.chunkFor(before).offset);
-    }
-
-    public CompressionMetadata getMetadata()
-    {
-        return metadata;
-    }
-
-    public long dataLength()
-    {
-        return metadata.dataLength;
+        assert Integer.bitCount(metadata.chunkLength()) == 1; //must be a power of two
     }
 
     @VisibleForTesting
-    public abstract static class CompressedChunkReader extends AbstractReaderFileProxy implements ChunkReader
+    public double getCrcCheckChance()
     {
-        final CompressionMetadata metadata;
-
-        public CompressedChunkReader(ChannelProxy channel, CompressionMetadata metadata)
-        {
-            super(channel, metadata.dataLength);
-            this.metadata = metadata;
-            assert Integer.bitCount(metadata.chunkLength()) == 1; //must be a power of two
-        }
-
-        @VisibleForTesting
-        public double getCrcCheckChance()
-        {
-            return metadata.parameters.getCrcCheckChance();
-        }
-
-        @Override
-        public String toString()
-        {
-            return String.format("CompressedChunkReader.%s(%s - %s, chunk length %d, data length %d)",
-                                 getClass().getSimpleName(),
-                                 channel.filePath(),
-                                 metadata.compressor().getClass().getSimpleName(),
-                                 metadata.chunkLength(),
-                                 metadata.dataLength);
-        }
-
-        @Override
-        public int chunkSize()
-        {
-            return metadata.chunkLength();
-        }
-
-        @Override
-        public boolean alignmentRequired()
-        {
-            return true;
-        }
-
-        @Override
-        public BufferType preferredBufferType()
-        {
-            return metadata.compressor().preferredBufferType();
-        }
-
-        @Override
-        public Rebufferer instantiateRebufferer()
-        {
-            return BufferManagingRebufferer.on(this);
-        }
+        return metadata.parameters.getCrcCheckChance();
     }
 
-    static class Standard extends CompressedChunkReader
+    @Override
+    public String toString()
+    {
+        return String.format("CompressedChunkReader.%s(%s - %s, chunk length %d, data length %d)",
+                             getClass().getSimpleName(),
+                             channel.filePath(),
+                             metadata.compressor().getClass().getSimpleName(),
+                             metadata.chunkLength(),
+                             metadata.dataLength);
+    }
+
+    @Override
+    public int chunkSize()
+    {
+        return metadata.chunkLength();
+    }
+
+    @Override
+    public BufferType preferredBufferType()
+    {
+        return metadata.compressor().preferredBufferType();
+    }
+
+    @Override
+    public Rebufferer instantiateRebufferer()
+    {
+        return new BufferManagingRebufferer.Aligned(this);
+    }
+
+    public static class Standard extends CompressedChunkReader
     {
         // we read the raw compressed bytes into this buffer, then uncompressed them into the provided one.
         private final ThreadLocal<ByteBuffer> compressedHolder;
@@ -277,7 +146,7 @@ public class CompressedSegmentedFile extends SegmentedFile implements ICompresse
 
                     compressed.clear().limit(Integer.BYTES);
                     if (channel.read(compressed, chunk.offset + chunk.length) != Integer.BYTES
-                        || compressed.getInt(0) != checksum)
+                                || compressed.getInt(0) != checksum)
                         throw new CorruptBlockException(channel.filePath(), chunk);
                 }
             }
@@ -288,7 +157,7 @@ public class CompressedSegmentedFile extends SegmentedFile implements ICompresse
         }
     }
 
-    static class Mmap extends CompressedChunkReader
+    public static class Mmap extends CompressedChunkReader
     {
         protected final MmappedRegions regions;
 

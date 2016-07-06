@@ -17,48 +17,35 @@
  */
 package org.apache.cassandra.io.util;
 
-import java.io.*;
-import java.nio.ByteBuffer;
+import java.io.File;
+import java.io.IOException;
 import java.nio.ByteOrder;
 
-import com.google.common.annotations.VisibleForTesting;
 import com.google.common.primitives.Ints;
-import com.google.common.util.concurrent.RateLimiter;
 
 import org.apache.cassandra.io.compress.BufferType;
-import org.apache.cassandra.io.compress.CompressionMetadata;
 import org.apache.cassandra.io.util.Rebufferer.BufferHolder;
-import org.apache.cassandra.utils.memory.BufferPool;
 
 public class RandomAccessReader extends RebufferingInputStream implements FileDataInput
 {
     // The default buffer size when the client doesn't specify it
     public static final int DEFAULT_BUFFER_SIZE = 4096;
 
-    // The maximum buffer size, we will never buffer more than this size. Further,
-    // when the limiter is not null, i.e. when throttling is enabled, we read exactly
-    // this size, since when throttling the intention is to eventually read everything,
-    // see CASSANDRA-8630
-    // NOTE: this size is chosen both for historical consistency, as a reasonable upper bound,
-    //       and because our BufferPool currently has a maximum allocation size of this.
-    public static final int MAX_BUFFER_SIZE = 1 << 16; // 64k
-
     // offset of the last file mark
-    protected long markedPointer;
+    private long markedPointer;
 
-    @VisibleForTesting
     final Rebufferer rebufferer;
-    BufferHolder bufferHolder = Rebufferer.EMPTY;
+    private BufferHolder bufferHolder = Rebufferer.EMPTY;
 
-    protected RandomAccessReader(Rebufferer rebufferer)
+    /**
+     * Only created through Builder
+     *
+     * @param rebufferer Rebufferer to use
+     */
+    RandomAccessReader(Rebufferer rebufferer)
     {
         super(Rebufferer.EMPTY.buffer());
         this.rebufferer = rebufferer;
-    }
-
-    public static ByteBuffer allocateBuffer(int size, BufferType bufferType)
-    {
-        return BufferPool.get(size, bufferType).order(ByteOrder.BIG_ENDIAN);
     }
 
     /**
@@ -72,7 +59,7 @@ public class RandomAccessReader extends RebufferingInputStream implements FileDa
         reBufferAt(current());
     }
 
-    public void reBufferAt(long position)
+    private void reBufferAt(long position)
     {
         bufferHolder.release();
         bufferHolder = rebufferer.rebuffer(position);
@@ -188,11 +175,11 @@ public class RandomAccessReader extends RebufferingInputStream implements FileDa
     /**
      * Class to hold a mark to the position of the file
      */
-    protected static class BufferedRandomAccessFileMark implements DataPosition
+    private static class BufferedRandomAccessFileMark implements DataPosition
     {
         final long pointer;
 
-        public BufferedRandomAccessFileMark(long pointer)
+        private BufferedRandomAccessFileMark(long pointer)
         {
             this.pointer = pointer;
         }
@@ -283,139 +270,14 @@ public class RandomAccessReader extends RebufferingInputStream implements FileDa
         return rebufferer.getCrcCheckChance();
     }
 
-    protected static Rebufferer instantiateRebufferer(RebuffererFactory fileRebufferer, RateLimiter limiter)
-    {
-        Rebufferer rebufferer = fileRebufferer.instantiateRebufferer();
-
-        if (limiter != null)
-            rebufferer = new LimitingRebufferer(rebufferer, limiter, MAX_BUFFER_SIZE);
-
-        return rebufferer;
-    }
-
-    public static RandomAccessReader build(SegmentedFile file, RateLimiter limiter)
-    {
-        return new RandomAccessReader(instantiateRebufferer(file.rebuffererFactory(), limiter));
-    }
-
-    public static Builder builder(ChannelProxy channel)
-    {
-        return new Builder(channel);
-    }
-
-    public static class Builder
-    {
-        // The NIO file channel or an empty channel
-        public final ChannelProxy channel;
-
-        // The size of the buffer for buffered readers
-        protected int bufferSize;
-
-        // The type of the buffer for buffered readers
-        public BufferType bufferType;
-
-        // The buffer
-        public ByteBuffer buffer;
-
-        // An optional limiter that will throttle the amount of data we read
-        public RateLimiter limiter;
-
-        // The mmap segments for mmap readers
-        public MmappedRegions regions;
-
-        // Compression for compressed readers
-        public CompressionMetadata compression;
-
-        public Builder(ChannelProxy channel)
-        {
-            this.channel = channel;
-            this.bufferSize = DEFAULT_BUFFER_SIZE;
-            this.bufferType = BufferType.OFF_HEAP;
-        }
-
-        /** The buffer size is typically already page aligned but if that is not the case
-         * make sure that it is a multiple of the page size, 4096. Also limit it to the maximum
-         * buffer size unless we are throttling, in which case we may as well read the maximum
-         * directly since the intention is to read the full file, see CASSANDRA-8630.
-         * */
-        private int adjustedBufferSize()
-        {
-            if (limiter != null)
-                return MAX_BUFFER_SIZE;
-
-            // should already be a page size multiple but if that's not case round it up
-            int wholePageSize = (bufferSize + 4095) & ~4095;
-            return Math.min(MAX_BUFFER_SIZE, wholePageSize);
-        }
-
-        protected Rebufferer createRebufferer()
-        {
-            return instantiateRebufferer(chunkReader(), limiter);
-        }
-
-        public RebuffererFactory chunkReader()
-        {
-            if (compression != null)
-                return CompressedSegmentedFile.chunkReader(channel, compression, regions);
-            if (regions != null)
-                return new MmapRebufferer(channel, -1, regions);
-
-            int adjustedSize = adjustedBufferSize();
-            return new SimpleChunkReader(channel, -1, bufferType, adjustedSize);
-        }
-
-        public Builder bufferSize(int bufferSize)
-        {
-            if (bufferSize <= 0)
-                throw new IllegalArgumentException("bufferSize must be positive");
-
-            this.bufferSize = bufferSize;
-            return this;
-        }
-
-        public Builder bufferType(BufferType bufferType)
-        {
-            this.bufferType = bufferType;
-            return this;
-        }
-
-        public Builder regions(MmappedRegions regions)
-        {
-            this.regions = regions;
-            return this;
-        }
-
-        public Builder compression(CompressionMetadata metadata)
-        {
-            this.compression = metadata;
-            return this;
-        }
-
-        public Builder limiter(RateLimiter limiter)
-        {
-            this.limiter = limiter;
-            return this;
-        }
-
-        public RandomAccessReader build()
-        {
-            return new RandomAccessReader(createRebufferer());
-        }
-
-        public RandomAccessReader buildWithChannel()
-        {
-            return new RandomAccessReaderWithOwnChannel(createRebufferer());
-        }
-    }
-
     // A wrapper of the RandomAccessReader that closes the channel when done.
     // For performance reasons RAR does not increase the reference count of
     // a channel but assumes the owner will keep it open and close it,
     // see CASSANDRA-9379, this thin class is just for those cases where we do
     // not have a shared channel.
-    public static class RandomAccessReaderWithOwnChannel extends RandomAccessReader
+    static class RandomAccessReaderWithOwnChannel extends RandomAccessReader
     {
-        protected RandomAccessReaderWithOwnChannel(Rebufferer rebufferer)
+        RandomAccessReaderWithOwnChannel(Rebufferer rebufferer)
         {
             super(rebufferer);
         }
@@ -441,14 +303,26 @@ public class RandomAccessReader extends RebufferingInputStream implements FileDa
         }
     }
 
+    /**
+     * Open a RandomAccessReader (not compressed, not mmapped, no read throttling) that will own its channel.
+     *
+     * @param file File to open for reading
+     * @return new RandomAccessReader that owns the channel opened in this method.
+     */
     @SuppressWarnings("resource")
     public static RandomAccessReader open(File file)
     {
-        return new Builder(new ChannelProxy(file)).buildWithChannel();
-    }
-
-    public static RandomAccessReader open(ChannelProxy channel)
-    {
-        return new Builder(channel).build();
+        ChannelProxy channel = new ChannelProxy(file);
+        try
+        {
+            ChunkReader reader = new SimpleChunkReader(channel, -1, BufferType.OFF_HEAP, DEFAULT_BUFFER_SIZE);
+            Rebufferer rebufferer = reader.instantiateRebufferer();
+            return new RandomAccessReaderWithOwnChannel(rebufferer);
+        }
+        catch (Throwable t)
+        {
+            channel.close();
+            throw t;
+        }
     }
 }

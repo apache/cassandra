@@ -91,6 +91,11 @@ public class MmappedRegions extends SharedCloseableImpl
         return new MmappedRegions(channel, null, 0);
     }
 
+    /**
+     * @param channel file to map. the MmappedRegions instance will hold shared copy of given channel.
+     * @param metadata
+     * @return new instance
+     */
     public static MmappedRegions map(ChannelProxy channel, CompressionMetadata metadata)
     {
         if (metadata == null)

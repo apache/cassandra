@@ -38,7 +38,7 @@ public interface Rebufferer extends ReaderFileProxy
      */
     void closeReader();
 
-    public interface BufferHolder
+    interface BufferHolder
     {
         /**
          * Returns a useable buffer (i.e. one whose position and limit can be freely modified). Its limit will be set
@@ -59,7 +59,7 @@ public interface Rebufferer extends ReaderFileProxy
         void release();
     }
 
-    static final BufferHolder EMPTY = new BufferHolder()
+    BufferHolder EMPTY = new BufferHolder()
     {
         final ByteBuffer EMPTY_BUFFER = ByteBuffer.allocate(0);
 

@@ -27,7 +27,7 @@ class SimpleChunkReader extends AbstractReaderFileProxy implements ChunkReader
     private final int bufferSize;
     private final BufferType bufferType;
 
-    public SimpleChunkReader(ChannelProxy channel, long fileLength, BufferType bufferType, int bufferSize)
+    SimpleChunkReader(ChannelProxy channel, long fileLength, BufferType bufferType, int bufferSize)
     {
         super(channel, fileLength);
         this.bufferSize = bufferSize;
@@ -55,15 +55,9 @@ class SimpleChunkReader extends AbstractReaderFileProxy implements ChunkReader
     }
 
     @Override
-    public boolean alignmentRequired()
-    {
-        return false;
-    }
-
-    @Override
     public Rebufferer instantiateRebufferer()
     {
-        return BufferManagingRebufferer.on(this);
+        return new BufferManagingRebufferer.Unaligned(this);
     }
 
     @Override

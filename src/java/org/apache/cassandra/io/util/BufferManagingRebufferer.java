@@ -21,6 +21,7 @@
 package org.apache.cassandra.io.util;
 
 import java.nio.ByteBuffer;
+import java.nio.ByteOrder;
 
 import org.apache.cassandra.utils.memory.BufferPool;
 
@@ -36,19 +37,12 @@ public abstract class BufferManagingRebufferer implements Rebufferer, Rebufferer
     protected final ByteBuffer buffer;
     protected long offset = 0;
 
-    public static BufferManagingRebufferer on(ChunkReader wrapped)
-    {
-        return wrapped.alignmentRequired()
-             ? new Aligned(wrapped)
-             : new Unaligned(wrapped);
-    }
-
     abstract long alignedPosition(long position);
 
-    public BufferManagingRebufferer(ChunkReader wrapped)
+    protected BufferManagingRebufferer(ChunkReader wrapped)
     {
         this.source = wrapped;
-        buffer = RandomAccessReader.allocateBuffer(wrapped.chunkSize(), wrapped.preferredBufferType());
+        buffer = BufferPool.get(wrapped.chunkSize(), wrapped.preferredBufferType()).order(ByteOrder.BIG_ENDIAN);
         buffer.limit(0);
     }
 

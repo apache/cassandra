@@ -46,7 +46,10 @@ import org.apache.cassandra.dht.IPartitioner;
 import org.apache.cassandra.exceptions.ConfigurationException;
 import org.apache.cassandra.io.FSWriteError;
 import org.apache.cassandra.io.sstable.format.SSTableFormat;
+import org.apache.cassandra.io.util.DiskOptimizationStrategy;
 import org.apache.cassandra.io.util.FileUtils;
+import org.apache.cassandra.io.util.SpinningDiskOptimizationStrategy;
+import org.apache.cassandra.io.util.SsdDiskOptimizationStrategy;
 import org.apache.cassandra.locator.*;
 import org.apache.cassandra.net.MessagingService;
 import org.apache.cassandra.scheduler.IRequestScheduler;
@@ -108,6 +111,8 @@ public class DatabaseDescriptor
     private static EncryptionContext encryptionContext;
     private static boolean hasLoggedConfig;
 
+    private static DiskOptimizationStrategy diskOptimizationStrategy;
+
     public static void forceStaticInitialization() {}
     static
     {
@@ -123,6 +128,15 @@ public class DatabaseDescriptor
             else
             {
                 applyConfig(loadConfig());
+            }
+            switch (conf.disk_optimization_strategy)
+            {
+                case ssd:
+                    diskOptimizationStrategy = new SsdDiskOptimizationStrategy(conf.disk_optimization_page_cross_chance);
+                    break;
+                case spinning:
+                    diskOptimizationStrategy = new SpinningDiskOptimizationStrategy();
+                    break;
             }
         }
         catch (Exception e)
@@ -1862,31 +1876,14 @@ public class DatabaseDescriptor
         return conf.buffer_pool_use_heap_if_exhausted;
     }
 
-    public static Config.DiskOptimizationStrategy getDiskOptimizationStrategy()
+    public static DiskOptimizationStrategy getDiskOptimizationStrategy()
     {
-        return conf.disk_optimization_strategy;
-    }
-
-    @VisibleForTesting
-    public static void setDiskOptimizationStrategy(Config.DiskOptimizationStrategy strategy)
-    {
-        conf.disk_optimization_strategy = strategy;
+        return diskOptimizationStrategy;
     }
 
     public static double getDiskOptimizationEstimatePercentile()
     {
         return conf.disk_optimization_estimate_percentile;
-    }
-
-    public static double getDiskOptimizationPageCrossChance()
-    {
-        return conf.disk_optimization_page_cross_chance;
-    }
-
-    @VisibleForTesting
-    public static void setDiskOptimizationPageCrossChance(double chance)
-    {
-        conf.disk_optimization_page_cross_chance = chance;
     }
 
     public static long getTotalCommitlogSpaceInMB()

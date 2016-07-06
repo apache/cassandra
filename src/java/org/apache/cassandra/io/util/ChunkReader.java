@@ -44,11 +44,6 @@ public interface ChunkReader extends RebuffererFactory
     int chunkSize();
 
     /**
-     * If true, positions passed to this rebufferer must be aligned to chunkSize.
-     */
-    boolean alignmentRequired();
-
-    /**
      * Specifies type of buffer the caller should attempt to give.
      * This is not guaranteed to be fulfilled.
      */

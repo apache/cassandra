@@ -33,7 +33,7 @@ import org.apache.cassandra.io.util.DataInputPlus;
 import org.apache.cassandra.io.util.DataOutputBuffer;
 import org.apache.cassandra.io.util.DataOutputPlus;
 import org.apache.cassandra.io.util.FileDataInput;
-import org.apache.cassandra.io.util.SegmentedFile;
+import org.apache.cassandra.io.util.FileHandle;
 import org.apache.cassandra.io.util.TrackedDataInputPlus;
 import org.apache.cassandra.metrics.DefaultNameFactory;
 import org.apache.cassandra.metrics.MetricNameFactory;
@@ -229,7 +229,7 @@ public class RowIndexEntry<T> implements IMeasurableMemory
         return new RowIndexEntry<>(dataFilePosition);
     }
 
-    public IndexInfoRetriever openWithIndex(SegmentedFile indexFile)
+    public IndexInfoRetriever openWithIndex(FileHandle indexFile)
     {
         return null;
     }
@@ -480,7 +480,7 @@ public class RowIndexEntry<T> implements IMeasurableMemory
         }
 
         @Override
-        public IndexInfoRetriever openWithIndex(SegmentedFile indexFile)
+        public IndexInfoRetriever openWithIndex(FileHandle indexFile)
         {
             int fieldsSize = (int) DeletionTime.serializer.serializedSize(deletionTime)
                              + TypeSizes.sizeof(0); // columnIndexCount
@@ -715,7 +715,7 @@ public class RowIndexEntry<T> implements IMeasurableMemory
         }
 
         @Override
-        public IndexInfoRetriever openWithIndex(SegmentedFile indexFile)
+        public IndexInfoRetriever openWithIndex(FileHandle indexFile)
         {
             indexEntrySizeHistogram.update(serializedSize(deletionTime, headerLength, columnsIndex.length) + indexedPartSize);
             indexInfoCountHistogram.update(columnsIndex.length);
@@ -879,7 +879,7 @@ public class RowIndexEntry<T> implements IMeasurableMemory
         }
 
         @Override
-        public IndexInfoRetriever openWithIndex(SegmentedFile indexFile)
+        public IndexInfoRetriever openWithIndex(FileHandle indexFile)
         {
             indexEntrySizeHistogram.update(indexedPartSize + fieldsSerializedSize);
             indexInfoCountHistogram.update(columnsIndexCount);

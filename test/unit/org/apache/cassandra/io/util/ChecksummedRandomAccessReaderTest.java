@@ -47,15 +47,15 @@ public class ChecksummedRandomAccessReaderTest
 
         assert data.exists();
 
-        RandomAccessReader reader = new ChecksummedRandomAccessReader.Builder(data, crc).build();
-        byte[] b = new byte[expected.length];
-        reader.readFully(b);
+        try (RandomAccessReader reader = ChecksummedRandomAccessReader.open(data, crc))
+        {
+            byte[] b = new byte[expected.length];
+            reader.readFully(b);
 
-        assertArrayEquals(expected, b);
+            assertArrayEquals(expected, b);
 
-        assertTrue(reader.isEOF());
-
-        reader.close();
+            assertTrue(reader.isEOF());
+        }
     }
 
     @Test
@@ -75,24 +75,24 @@ public class ChecksummedRandomAccessReaderTest
 
         assert data.exists();
 
-        RandomAccessReader reader = new ChecksummedRandomAccessReader.Builder(data, crc).build();
+        try (RandomAccessReader reader = ChecksummedRandomAccessReader.open(data, crc))
+        {
 
-        final int seekPosition = 66000;
-        reader.seek(seekPosition);
+            final int seekPosition = 66000;
+            reader.seek(seekPosition);
 
-        byte[] b = new byte[dataBytes.length - seekPosition];
-        reader.readFully(b);
+            byte[] b = new byte[dataBytes.length - seekPosition];
+            reader.readFully(b);
 
-        byte[] expected = Arrays.copyOfRange(dataBytes, seekPosition, dataBytes.length);
+            byte[] expected = Arrays.copyOfRange(dataBytes, seekPosition, dataBytes.length);
 
-        assertArrayEquals(expected, b);
+            assertArrayEquals(expected, b);
 
-        assertTrue(reader.isEOF());
-
-        reader.close();
+            assertTrue(reader.isEOF());
+        }
     }
 
-    @Test(expected = ChecksummedRandomAccessReader.CorruptFileException.class)
+    @Test(expected = CorruptFileException.class)
     public void corruptionDetection() throws IOException
     {
         final File data = File.createTempFile("corruptionDetection", "data");
@@ -116,14 +116,14 @@ public class ChecksummedRandomAccessReaderTest
             dataFile.write((byte) 5);
         }
 
-        RandomAccessReader reader = new ChecksummedRandomAccessReader.Builder(data, crc).build();
-        byte[] b = new byte[expected.length];
-        reader.readFully(b);
+        try (RandomAccessReader reader = ChecksummedRandomAccessReader.open(data, crc))
+        {
+            byte[] b = new byte[expected.length];
+            reader.readFully(b);
 
-        assertArrayEquals(expected, b);
+            assertArrayEquals(expected, b);
 
-        assertTrue(reader.isEOF());
-
-        reader.close();
+            assertTrue(reader.isEOF());
+        }
     }
 }

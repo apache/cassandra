@@ -1,4 +1,4 @@
-/**
+/*
  * Licensed to the Apache Software Foundation (ASF) under one
  * or more contributor license agreements.  See the NOTICE file
  * distributed with this work for additional information
@@ -70,39 +70,38 @@ public class CompressedRandomAccessReaderTest
     {
         File f = File.createTempFile("compressed6791_", "3");
         String filename = f.getAbsolutePath();
-        try(ChannelProxy channel = new ChannelProxy(f))
+        MetadataCollector sstableMetadataCollector = new MetadataCollector(new ClusteringComparator(BytesType.instance));
+        try(CompressedSequentialWriter writer = new CompressedSequentialWriter(f, filename + ".metadata",
+                                                                               null, SequentialWriterOption.DEFAULT,
+                                                                               CompressionParams.snappy(32),
+                                                                               sstableMetadataCollector))
         {
 
-            MetadataCollector sstableMetadataCollector = new MetadataCollector(new ClusteringComparator(BytesType.instance));
-            try(CompressedSequentialWriter writer = new CompressedSequentialWriter(f, filename + ".metadata",
-                                                                                   null, SequentialWriterOption.DEFAULT,
-                                                                                   CompressionParams.snappy(32),
-                                                                                   sstableMetadataCollector))
-            {
+            for (int i = 0; i < 20; i++)
+                writer.write("x".getBytes());
 
-                for (int i = 0; i < 20; i++)
-                    writer.write("x".getBytes());
+            DataPosition mark = writer.mark();
+            // write enough garbage to create new chunks:
+            for (int i = 0; i < 40; ++i)
+                writer.write("y".getBytes());
 
-                DataPosition mark = writer.mark();
-                // write enough garbage to create new chunks:
-                for (int i = 0; i < 40; ++i)
-                    writer.write("y".getBytes());
+            writer.resetAndTruncate(mark);
 
-                writer.resetAndTruncate(mark);
+            for (int i = 0; i < 20; i++)
+                writer.write("x".getBytes());
+            writer.finish();
+        }
 
-                for (int i = 0; i < 20; i++)
-                    writer.write("x".getBytes());
-                writer.finish();
-            }
-
-            try(RandomAccessReader reader = RandomAccessReader.builder(channel)
-                                            .compression(new CompressionMetadata(filename + ".metadata", f.length(), ChecksumType.CRC32))
-                                            .build())
-            {
-                String res = reader.readLine();
-                assertEquals(res, "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx");
-                assertEquals(40, res.length());
-            }
+        try (FileHandle.Builder builder = new FileHandle.Builder(filename)
+                                                              .withCompressionMetadata(new CompressionMetadata(filename + ".metadata",
+                                                                                                               f.length(),
+                                                                                                               ChecksumType.CRC32));
+             FileHandle fh = builder.complete();
+             RandomAccessReader reader = fh.createReader())
+        {
+            String res = reader.readLine();
+            assertEquals(res, "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx");
+            assertEquals(40, res.length());
         }
         finally
         {
@@ -117,56 +116,39 @@ public class CompressedRandomAccessReaderTest
     private static void testResetAndTruncate(File f, boolean compressed, boolean usemmap, int junkSize) throws IOException
     {
         final String filename = f.getAbsolutePath();
-        try(ChannelProxy channel = new ChannelProxy(f))
-        {
-            MetadataCollector sstableMetadataCollector = new MetadataCollector(new ClusteringComparator(BytesType.instance));
-            try(SequentialWriter writer = compressed
+        MetadataCollector sstableMetadataCollector = new MetadataCollector(new ClusteringComparator(BytesType.instance));
+        try(SequentialWriter writer = compressed
                 ? new CompressedSequentialWriter(f, filename + ".metadata",
-                                                 null, SequentialWriterOption.DEFAULT,
-                                                 CompressionParams.snappy(), sstableMetadataCollector)
+                null, SequentialWriterOption.DEFAULT,
+                CompressionParams.snappy(), sstableMetadataCollector)
                 : new SequentialWriter(f))
+        {
+            writer.write("The quick ".getBytes());
+            DataPosition mark = writer.mark();
+            writer.write("blue fox jumps over the lazy dog".getBytes());
+
+            // write enough to be sure to change chunk
+            for (int i = 0; i < junkSize; ++i)
             {
-                writer.write("The quick ".getBytes());
-                DataPosition mark = writer.mark();
-                writer.write("blue fox jumps over the lazy dog".getBytes());
-
-                // write enough to be sure to change chunk
-                for (int i = 0; i < junkSize; ++i)
-                {
-                    writer.write((byte) 1);
-                }
-
-                writer.resetAndTruncate(mark);
-                writer.write("brown fox jumps over the lazy dog".getBytes());
-                writer.finish();
-            }
-            assert f.exists();
-
-            CompressionMetadata compressionMetadata = compressed ? new CompressionMetadata(filename + ".metadata", f.length(), ChecksumType.CRC32) : null;
-            RandomAccessReader.Builder builder = RandomAccessReader.builder(channel);
-            if (compressed)
-                builder.compression(compressionMetadata);
-
-            MmappedRegions regions = null;
-            if (usemmap)
-            {
-                regions = compressed
-                        ? MmappedRegions.map(channel, compressionMetadata)
-                        : MmappedRegions.map(channel, f.length());
-                builder.regions(regions);
+                writer.write((byte) 1);
             }
 
-            try(RandomAccessReader reader = builder.build())
-            {
-                String expected = "The quick brown fox jumps over the lazy dog";
-                assertEquals(expected.length(), reader.length());
-                byte[] b = new byte[expected.length()];
-                reader.readFully(b);
-                assert new String(b).equals(expected) : "Expecting '" + expected + "', got '" + new String(b) + '\'';
-            }
+            writer.resetAndTruncate(mark);
+            writer.write("brown fox jumps over the lazy dog".getBytes());
+            writer.finish();
+        }
+        assert f.exists();
 
-            if (regions != null)
-                regions.close();
+        CompressionMetadata compressionMetadata = compressed ? new CompressionMetadata(filename + ".metadata", f.length(), ChecksumType.CRC32) : null;
+        try (FileHandle.Builder builder = new FileHandle.Builder(filename).mmapped(usemmap).withCompressionMetadata(compressionMetadata);
+             FileHandle fh = builder.complete();
+             RandomAccessReader reader = fh.createReader())
+        {
+            String expected = "The quick brown fox jumps over the lazy dog";
+            assertEquals(expected.length(), reader.length());
+            byte[] b = new byte[expected.length()];
+            reader.readFully(b);
+            assert new String(b).equals(expected) : "Expecting '" + expected + "', got '" + new String(b) + '\'';
         }
         finally
         {
@@ -201,69 +183,68 @@ public class CompressedRandomAccessReaderTest
             writer.finish();
         }
 
-        try(ChannelProxy channel = new ChannelProxy(file))
-        {
-            // open compression metadata and get chunk information
-            CompressionMetadata meta = new CompressionMetadata(metadata.getPath(), file.length(), ChecksumType.CRC32);
-            CompressionMetadata.Chunk chunk = meta.chunkFor(0);
+        // open compression metadata and get chunk information
+        CompressionMetadata meta = new CompressionMetadata(metadata.getPath(), file.length(), ChecksumType.CRC32);
+        CompressionMetadata.Chunk chunk = meta.chunkFor(0);
 
-            try(RandomAccessReader reader = RandomAccessReader.builder(channel).compression(meta).build())
-            {// read and verify compressed data
-                assertEquals(CONTENT, reader.readLine());
+        try (FileHandle.Builder builder = new FileHandle.Builder(file.getPath()).withCompressionMetadata(meta);
+             FileHandle fh = builder.complete();
+             RandomAccessReader reader = fh.createReader())
+        {// read and verify compressed data
+            assertEquals(CONTENT, reader.readLine());
 
-                Random random = new Random();
-                RandomAccessFile checksumModifier = null;
+            Random random = new Random();
+            RandomAccessFile checksumModifier = null;
 
-                try
+            try
+            {
+                checksumModifier = new RandomAccessFile(file, "rw");
+                byte[] checksum = new byte[4];
+
+                // seek to the end of the compressed chunk
+                checksumModifier.seek(chunk.length);
+                // read checksum bytes
+                checksumModifier.read(checksum);
+                // seek back to the chunk end
+                checksumModifier.seek(chunk.length);
+
+                // lets modify one byte of the checksum on each iteration
+                for (int i = 0; i < checksum.length; i++)
                 {
-                    checksumModifier = new RandomAccessFile(file, "rw");
-                    byte[] checksum = new byte[4];
+                    checksumModifier.write(random.nextInt());
+                    SyncUtil.sync(checksumModifier); // making sure that change was synced with disk
 
-                    // seek to the end of the compressed chunk
-                    checksumModifier.seek(chunk.length);
-                    // read checksum bytes
-                    checksumModifier.read(checksum);
-                    // seek back to the chunk end
-                    checksumModifier.seek(chunk.length);
-
-                    // lets modify one byte of the checksum on each iteration
-                    for (int i = 0; i < checksum.length; i++)
+                    try (final RandomAccessReader r = fh.createReader())
                     {
-                        checksumModifier.write(random.nextInt());
-                        SyncUtil.sync(checksumModifier); // making sure that change was synced with disk
-
-                        try (final RandomAccessReader r = RandomAccessReader.builder(channel).compression(meta).build())
+                        Throwable exception = null;
+                        try
                         {
-                            Throwable exception = null;
-                            try
-                            {
-                                r.readLine();
-                            }
-                            catch (Throwable t)
-                            {
-                                exception = t;
-                            }
-                            assertNotNull(exception);
-                            assertSame(exception.getClass(), CorruptSSTableException.class);
-                            assertSame(exception.getCause().getClass(), CorruptBlockException.class);
+                            r.readLine();
                         }
-                    }
-
-                    // lets write original checksum and check if we can read data
-                    updateChecksum(checksumModifier, chunk.length, checksum);
-
-                    try (RandomAccessReader cr = RandomAccessReader.builder(channel).compression(meta).build())
-                    {
-                        // read and verify compressed data
-                        assertEquals(CONTENT, cr.readLine());
-                        // close reader
+                        catch (Throwable t)
+                        {
+                            exception = t;
+                        }
+                        assertNotNull(exception);
+                        assertSame(exception.getClass(), CorruptSSTableException.class);
+                        assertSame(exception.getCause().getClass(), CorruptBlockException.class);
                     }
                 }
-                finally
+
+                // lets write original checksum and check if we can read data
+                updateChecksum(checksumModifier, chunk.length, checksum);
+
+                try (RandomAccessReader cr = fh.createReader())
                 {
-                    if (checksumModifier != null)
-                        checksumModifier.close();
+                    // read and verify compressed data
+                    assertEquals(CONTENT, cr.readLine());
+                    // close reader
                 }
+            }
+            finally
+            {
+                if (checksumModifier != null)
+                    checksumModifier.close();
             }
         }
     }

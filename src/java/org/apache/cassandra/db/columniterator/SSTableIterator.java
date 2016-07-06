@@ -25,7 +25,7 @@ import org.apache.cassandra.db.filter.ColumnFilter;
 import org.apache.cassandra.db.rows.*;
 import org.apache.cassandra.io.sstable.format.SSTableReader;
 import org.apache.cassandra.io.util.FileDataInput;
-import org.apache.cassandra.io.util.SegmentedFile;
+import org.apache.cassandra.io.util.FileHandle;
 
 /**
  *  A Cell Iterator over SSTable
@@ -39,7 +39,7 @@ public class SSTableIterator extends AbstractSSTableIterator
                            Slices slices,
                            ColumnFilter columns,
                            boolean isForThrift,
-                           SegmentedFile ifile)
+                           FileHandle ifile)
     {
         super(sstable, file, key, indexEntry, slices, columns, isForThrift, ifile);
     }
