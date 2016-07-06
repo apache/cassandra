@@ -93,13 +93,10 @@ public abstract class CompactTables
 
     public static AbstractType<?> columnDefinitionComparator(String kind, boolean isSuper, AbstractType<?> rawComparator, AbstractType<?> rawSubComparator)
     {
-        if ("compact_value".equals(kind))
+        if (!"regular".equals(kind))
             return UTF8Type.instance;
 
-        if (isSuper)
-            return "regular".equals(kind) ? rawSubComparator : UTF8Type.instance;
-
-        return "static".equals(kind) ? rawComparator : UTF8Type.instance;
+        return isSuper ? rawSubComparator : rawComparator;
     }
 
     public static boolean hasEmptyCompactValue(CFMetaData metadata)
