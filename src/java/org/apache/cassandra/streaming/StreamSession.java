@@ -214,7 +214,7 @@ public class StreamSession implements IEndpointStateChangeSubscriber
     public LifecycleTransaction getTransaction(UUID cfId)
     {
         assert receivers.containsKey(cfId);
-        return receivers.get(cfId).txn;
+        return receivers.get(cfId).getTransaction();
     }
 
     /**
@@ -281,8 +281,9 @@ public class StreamSession implements IEndpointStateChangeSubscriber
      * @param flushTables flush tables?
      * @param repairedAt the time the repair started.
      */
-    public void addTransferRanges(String keyspace, Collection<Range<Token>> ranges, Collection<String> columnFamilies, boolean flushTables, long repairedAt)
+    public synchronized void addTransferRanges(String keyspace, Collection<Range<Token>> ranges, Collection<String> columnFamilies, boolean flushTables, long repairedAt)
     {
+        failIfFinished();
         Collection<ColumnFamilyStore> stores = getColumnFamilyStores(keyspace, columnFamilies);
         if (flushTables)
             flushSSTables(stores);
@@ -298,6 +299,12 @@ public class StreamSession implements IEndpointStateChangeSubscriber
             for (SSTableStreamingSections release : sections)
                 release.ref.release();
         }
+    }
+
+    private void failIfFinished()
+    {
+        if (state() == State.COMPLETE || state() == State.FAILED)
+            throw new RuntimeException(String.format("Stream %s is finished with state %s", planId(), state().name()));
     }
 
     private Collection<ColumnFamilyStore> getColumnFamilyStores(String keyspace, Collection<String> columnFamilies)
@@ -371,8 +378,9 @@ public class StreamSession implements IEndpointStateChangeSubscriber
         }
     }
 
-    public void addTransferFiles(Collection<SSTableStreamingSections> sstableDetails)
+    public synchronized void addTransferFiles(Collection<SSTableStreamingSections> sstableDetails)
     {
+        failIfFinished();
         Iterator<SSTableStreamingSections> iter = sstableDetails.iterator();
         while (iter.hasNext())
         {
@@ -745,8 +753,9 @@ public class StreamSession implements IEndpointStateChangeSubscriber
         FBUtilities.waitOnFutures(flushes);
     }
 
-    private void prepareReceiving(StreamSummary summary)
+    private synchronized void prepareReceiving(StreamSummary summary)
     {
+        failIfFinished();
         if (summary.files > 0)
             receivers.put(summary.cfId, new StreamReceiveTask(this, summary.cfId, summary.files, summary.totalSize));
     }

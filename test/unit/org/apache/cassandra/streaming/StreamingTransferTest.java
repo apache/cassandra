@@ -229,14 +229,38 @@ public class StreamingTransferTest
         List<Range<Token>> ranges = new ArrayList<>();
         // wrapped range
         ranges.add(new Range<Token>(p.getToken(ByteBufferUtil.bytes("key1")), p.getToken(ByteBufferUtil.bytes("key0"))));
-        new StreamPlan("StreamingTransferTest").transferRanges(LOCAL, cfs.keyspace.getName(), ranges, cfs.getColumnFamilyName()).execute().get();
+        StreamPlan streamPlan = new StreamPlan("StreamingTransferTest").transferRanges(LOCAL, cfs.keyspace.getName(), ranges, cfs.getColumnFamilyName());
+        streamPlan.execute().get();
         verifyConnectionsAreClosed();
+
+        //cannot add ranges after stream session is finished
+        try
+        {
+            streamPlan.transferRanges(LOCAL, cfs.keyspace.getName(), ranges, cfs.getColumnFamilyName());
+            fail("Should have thrown exception");
+        }
+        catch (RuntimeException e)
+        {
+            //do nothing
+        }
     }
 
     private void transfer(SSTableReader sstable, List<Range<Token>> ranges) throws Exception
     {
-        new StreamPlan("StreamingTransferTest").transferFiles(LOCAL, makeStreamingDetails(ranges, Refs.tryRef(Arrays.asList(sstable)))).execute().get();
+        StreamPlan streamPlan = new StreamPlan("StreamingTransferTest").transferFiles(LOCAL, makeStreamingDetails(ranges, Refs.tryRef(Arrays.asList(sstable))));
+        streamPlan.execute().get();
         verifyConnectionsAreClosed();
+
+        //cannot add files after stream session is finished
+        try
+        {
+            streamPlan.transferFiles(LOCAL, makeStreamingDetails(ranges, Refs.tryRef(Arrays.asList(sstable))));
+            fail("Should have thrown exception");
+        }
+        catch (RuntimeException e)
+        {
+            //do nothing
+        }
     }
 
     /**
@@ -328,7 +352,7 @@ public class StreamingTransferTest
         updates = new RowUpdateBuilder(cfs.metadata, FBUtilities.timestampMicros(), key);
         updates.clustering(6)
                 .add("val", ByteBuffer.wrap(new byte[DatabaseDescriptor.getColumnIndexSize()]))
-               .build()
+                .build()
                 .apply();
 
         // add RangeTombstones
