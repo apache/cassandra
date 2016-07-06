@@ -2,6 +2,7 @@
  * Fix SASI PREFIX search in CONTAINS mode with partial terms (CASSANDRA-12073)
  * Increase size of flushExecutor thread pool (CASSANDRA-12071)
 Merged from 3.0:
+ * Improve streaming synchronization and fault tolerance (CASSANDRA-11414)
  * Avoid potential race when rebuilding CFMetaData (CASSANDRA-12098)
  * Avoid missing sstables when getting the canonical sstables (CASSANDRA-11996)
  * Always select the live sstables when getting sstables in bounds (CASSANDRA-11944)
