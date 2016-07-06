@@ -372,5 +372,6 @@ public class DateTieredCompactionStrategyTest extends SchemaLoader
         AbstractCompactionTask task = dtcs.getNextBackgroundTask(0);
         assertEquals(20, task.transaction.originals().size());
         task.transaction.abort();
+        cfs.truncateBlocking();
     }
 }
