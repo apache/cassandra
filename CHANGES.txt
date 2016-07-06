@@ -1,4 +1,5 @@
 3.0.9
+ * Faster startup by only scanning each directory for temporary files once (CASSANDRA-12114)
  * Respond with v1/v2 protocol header when responding to driver that attempts
    to connect with too low of a protocol version (CASSANDRA-11464)
  * NullPointerExpception when reading/compacting table (CASSANDRA-11988)
