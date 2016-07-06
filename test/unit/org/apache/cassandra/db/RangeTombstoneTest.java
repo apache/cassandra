@@ -39,6 +39,7 @@ import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.config.IndexType;
 import org.apache.cassandra.db.columniterator.OnDiskAtomIterator;
 import org.apache.cassandra.db.compaction.CompactionManager;
+import org.apache.cassandra.db.compaction.LeveledCompactionStrategy;
 import org.apache.cassandra.db.compaction.SizeTieredCompactionStrategy;
 import org.apache.cassandra.db.composites.CellName;
 import org.apache.cassandra.db.composites.CellNames;
@@ -540,6 +541,45 @@ public class RangeTombstoneTest extends SchemaLoader
             cnt++;
         }
         assertEquals(2, cnt);
+    }
+
+    @Test
+    public void testCompactionOfRangeTombstonesCoveredByRowTombstone() throws Exception
+    {
+        long testTimeStamp = 1451606400L; // 01/01/2016 : 00:00:00 GMT
+        Keyspace table = Keyspace.open(KSNAME);
+        ColumnFamilyStore cfs = table.getColumnFamilyStore(CFNAME);
+        ByteBuffer key = ByteBufferUtil.bytes("k4");
+
+        // remove any existing sstables before starting
+        cfs.truncateBlocking();
+        cfs.disableAutoCompaction();
+        cfs.setCompactionStrategyClass(LeveledCompactionStrategy.class.getCanonicalName());
+
+        Mutation rm = new Mutation(KSNAME, key);
+        for (int i = 1; i < 11; i += 2, testTimeStamp += i * 10)
+            add(rm, i, testTimeStamp);
+        rm.apply();
+        cfs.forceBlockingFlush();
+
+        rm = new Mutation(KSNAME, key);
+        ColumnFamily cf = rm.addOrGet(CFNAME);
+
+        // Write the covering row tombstone
+        cf.delete(new DeletionTime(++testTimeStamp, (int) testTimeStamp));
+
+        // Create range tombstones covered by row tombstone above.
+        for (int i = 1; i < 11; i += 2, testTimeStamp -= i * 5)
+            delete(cf, 0, 7, testTimeStamp);
+        rm.apply();
+        cfs.forceBlockingFlush();
+
+        // there should be 2 sstables
+        assertEquals(2, cfs.getSSTables().size());
+
+        // compact down to nothing
+        CompactionManager.instance.performMaximal(cfs);
+        assertEquals(0, cfs.getSSTables().size());
     }
 
     @Test
