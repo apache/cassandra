@@ -233,6 +233,9 @@ public class ConnectionHandler
 
         protected void signalCloseDone()
         {
+            if (closeFuture == null)
+                close();
+
             closeFuture.get().set(null);
 
             // We can now close the socket
@@ -293,11 +296,6 @@ public class ConnectionHandler
                         session.messageReceived(message);
                     }
                 }
-            }
-            catch (SocketException e)
-            {
-                // socket is closed
-                close();
             }
             catch (Throwable t)
             {

@@ -18,8 +18,6 @@
 package org.apache.cassandra.streaming;
 
 import java.io.File;
-import java.io.IOError;
-import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.List;
