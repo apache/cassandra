@@ -350,15 +350,6 @@ Function SetCassandraEnvironment
     #$env:HEAP_NEWSIZE="800M"
     CalculateHeapSizes
 
-    # Direct memory used for native-protocol network I/O is no longer
-    # managed by the JVM. Instead, Netty allows three options to
-    # manage it via the system property io.netty.maxDirectMemory:
-    #     == 0  behavior as before, uses JVM to manage direct memory (slowest).
-    #     < 0   manages direct memory directly, max direct memory as -XX:MaxDirectMemorySize.
-    #     > 0   manages direct memory directly, max direct memory as specified.
-    #           Note, that appreviations like 2g or 500m are NOT accepted.
-    #$env:JVM_OPTS="$env:JVM_OPTS -Dio.netty.maxDirectMemory=2147483648"
-
     ParseJVMInfo
 
     # We only set -Xms and -Xmx if they were not defined on jvm.options file

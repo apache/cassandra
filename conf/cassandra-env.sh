@@ -167,15 +167,6 @@ USING_G1=$?
 # Set this to control the amount of arenas per-thread in glibc
 #export MALLOC_ARENA_MAX=4
 
-# Direct memory used for native-protocol network I/O is no longer
-# managed by the JVM. Instead, Netty allows three options to
-# manage it via the system property io.netty.maxDirectMemory:
-#     == 0  behavior as before, uses JVM to manage direct memory (slowest).
-#     < 0   manages direct memory directly, max direct memory as -XX:MaxDirectMemorySize.
-#     > 0   manages direct memory directly, max direct memory as specified.
-#           Note, that appreviations like 2g or 500m are NOT accepted.
-#export JVM_OPTS="$JVM_OPTS -Dio.netty.maxDirectMemory=2147483648"
-
 # only calculate the size if it's not set manually
 if [ "x$MAX_HEAP_SIZE" = "x" ] && [ "x$HEAP_NEWSIZE" = "x" -o $USING_G1 -eq 0 ]; then
     calculate_heap_sizes
