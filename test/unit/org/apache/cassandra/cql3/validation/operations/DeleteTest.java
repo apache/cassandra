@@ -1105,4 +1105,30 @@ public class DeleteTest extends CQLTester
         compact();
         assertRows(execute("SELECT * FROM %s"), row(0, null));
     }
+
+    @Test
+    public void testDeleteAndReverseQueries() throws Throwable
+    {
+        // This test insert rows in one sstable and a range tombstone covering some of those rows in another, and it
+        // validates we correctly get only the non-removed rows when doing reverse queries.
+
+        createTable("CREATE TABLE %s (k text, i int, PRIMARY KEY (k, i))");
+
+        for (int i = 0; i < 10; i++)
+            execute("INSERT INTO %s(k, i) values (?, ?)", "a", i);
+
+        flush();
+
+        execute("DELETE FROM %s WHERE k = ? AND i >= ? AND i <= ?", "a", 2, 7);
+
+        assertRows(execute("SELECT i FROM %s WHERE k = ? ORDER BY i DESC", "a"),
+            row(9), row(8), row(1), row(0)
+        );
+
+        flush();
+
+        assertRows(execute("SELECT i FROM %s WHERE k = ? ORDER BY i DESC", "a"),
+            row(9), row(8), row(1), row(0)
+        );
+    }
 }
