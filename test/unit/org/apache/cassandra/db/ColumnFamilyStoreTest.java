@@ -66,6 +66,7 @@ import org.apache.cassandra.db.composites.CellNameType;
 import org.apache.cassandra.db.composites.CellNames;
 import org.apache.cassandra.db.composites.Composites;
 import org.apache.cassandra.db.filter.ColumnSlice;
+import org.apache.cassandra.db.filter.ExtendedFilter;
 import org.apache.cassandra.db.filter.IDiskAtomFilter;
 import org.apache.cassandra.db.filter.NamesQueryFilter;
 import org.apache.cassandra.db.filter.QueryFilter;
@@ -94,7 +95,6 @@ import org.apache.cassandra.utils.ByteBufferUtil;
 import org.apache.cassandra.utils.FBUtilities;
 import org.apache.cassandra.utils.Pair;
 import org.apache.cassandra.utils.WrappedRunnable;
-import org.apache.thrift.TException;
 
 import static org.apache.cassandra.Util.cellname;
 import static org.apache.cassandra.Util.column;
@@ -243,6 +243,38 @@ public class ColumnFamilyStoreTest
         };
 
         KeyspaceTest.reTest(store, r);
+    }
+
+    @Test
+    public void testFilterWithNullCF() throws Exception
+    {
+        Keyspace keyspace = Keyspace.open(KEYSPACE1);
+        ColumnFamilyStore cfs = keyspace.getColumnFamilyStore(CF_STANDARD1);
+        final Row row = new Row(Util.dk("key1"), null);
+
+        ColumnFamilyStore.AbstractScanIterator iterator = new ColumnFamilyStore.AbstractScanIterator()
+        {
+            Iterator<Row> it = Collections.singletonList(row).iterator();
+
+            protected Row computeNext()
+            {
+                return it.hasNext() ? it.next() : endOfData();
+            }
+
+            @Override
+            public void close()
+            {
+            }
+        };
+
+        ExtendedFilter filter = ExtendedFilter.create(
+                cfs,
+                DataRange.allData(DatabaseDescriptor.getPartitioner()), null, 1, true, System.currentTimeMillis());
+
+        List<Row> list = cfs.filter(iterator, filter);
+        assert 1 == list.size();
+        assert list.get(0).key == row.key;
+        assert null == list.get(0).cf;
     }
 
     @Test
@@ -571,7 +603,7 @@ public class ColumnFamilyStoreTest
         cfs.truncateBlocking();
 
         ByteBuffer rowKey = ByteBufferUtil.bytes("k1");
-        CellName colName = cellname("birthdate"); 
+        CellName colName = cellname("birthdate");
         ByteBuffer val1 = ByteBufferUtil.bytes(1L);
         ByteBuffer val2 = ByteBufferUtil.bytes(2L);
 
@@ -635,7 +667,7 @@ public class ColumnFamilyStoreTest
 
         ByteBuffer rowKey = ByteBufferUtil.bytes("k1");
         ByteBuffer clusterKey = ByteBufferUtil.bytes("ck1");
-        ByteBuffer colName = ByteBufferUtil.bytes("col1"); 
+        ByteBuffer colName = ByteBufferUtil.bytes("col1");
 
         CellNameType baseComparator = cfs.getComparator();
         CellName compositeName = baseComparator.makeCellName(clusterKey, colName);
@@ -2291,7 +2323,7 @@ public class ColumnFamilyStoreTest
         });
         System.err.println("Row key: " + rowKey + " Cols: " + transformed);
     }
-    
+
     @Test
     public void testRebuildSecondaryIndex() throws IOException
     {
@@ -2303,19 +2335,19 @@ public class ColumnFamilyStoreTest
 
         rm.apply();
         assertTrue(Arrays.equals("k1".getBytes(), PerRowSecondaryIndexTest.TestIndex.LAST_INDEXED_KEY.array()));
-        
+
         Keyspace.open("PerRowSecondaryIndex").getColumnFamilyStore("Indexed1").forceBlockingFlush();
-        
+
         PerRowSecondaryIndexTest.TestIndex.reset();
-        
+
         ColumnFamilyStore.rebuildSecondaryIndex("PerRowSecondaryIndex", "Indexed1", PerRowSecondaryIndexTest.TestIndex.class.getSimpleName());
         assertTrue(Arrays.equals("k1".getBytes(), PerRowSecondaryIndexTest.TestIndex.LAST_INDEXED_KEY.array()));
-        
+
         PerRowSecondaryIndexTest.TestIndex.reset();
         PerRowSecondaryIndexTest.TestIndex.ACTIVE = false;
         ColumnFamilyStore.rebuildSecondaryIndex("PerRowSecondaryIndex", "Indexed1", PerRowSecondaryIndexTest.TestIndex.class.getSimpleName());
         assertNull(PerRowSecondaryIndexTest.TestIndex.LAST_INDEXED_KEY);
-        
+
         PerRowSecondaryIndexTest.TestIndex.reset();
     }
 }
