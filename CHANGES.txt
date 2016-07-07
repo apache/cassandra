@@ -3,6 +3,8 @@
  * Increase size of flushExecutor thread pool (CASSANDRA-12071)
 Merged from 3.0:
  * Fix reverse queries ignoring range tombstones (CASSANDRA-11733)
+2.2.8
+ * Use dedicated thread for JMX notifications (CASSANDRA-12146)
  * Improve streaming synchronization and fault tolerance (CASSANDRA-11414)
  * Avoid potential race when rebuilding CFMetaData (CASSANDRA-12098)
  * Avoid missing sstables when getting the canonical sstables (CASSANDRA-11996)
