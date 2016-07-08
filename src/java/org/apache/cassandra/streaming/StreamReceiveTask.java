@@ -136,7 +136,7 @@ public class StreamReceiveTask extends StreamTask
     public synchronized LifecycleTransaction getTransaction()
     {
         if (done)
-            throw new RuntimeException(String.format("Stream receive task {} of cf {} already finished.", session.planId(), cfId));
+            throw new RuntimeException(String.format("Stream receive task %s of cf %s already finished.", session.planId(), cfId));
         return txn;
     }
 
