@@ -80,7 +80,7 @@ public final class Stress
             }
             catch (IllegalArgumentException e)
             {
-                System.out.printf("%s\n", e.getMessage());
+                System.out.printf("%s%n", e.getMessage());
                 printHelpMessage();
                 return 1;
             }

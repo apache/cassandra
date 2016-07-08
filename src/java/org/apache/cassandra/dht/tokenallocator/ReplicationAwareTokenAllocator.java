@@ -772,7 +772,7 @@ class ReplicationAwareTokenAllocator<Unit> implements TokenAllocator<Unit>
         BaseTokenInfo<?, ?> token = tokens;
         do
         {
-            System.out.format("%s%s: rs %s rt %s size %.2e\n", lead, token, token.replicationStart, token.replicationThreshold, token.replicatedOwnership);
+            System.out.format("%s%s: rs %s rt %s size %.2e%n", lead, token, token.replicationStart, token.replicationThreshold, token.replicatedOwnership);
             token = token.next;
         } while (token != null && token != tokens);
     }
