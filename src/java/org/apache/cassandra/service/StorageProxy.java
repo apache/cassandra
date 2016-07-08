@@ -1284,8 +1284,7 @@ public class StorageProxy implements StorageProxyMBean
         InetAddress target = iter.next();
 
         // Add the other destinations of the same message as a FORWARD_HEADER entry
-        DataOutputBuffer out = null;
-        try (DataOutputBuffer ignored = out = DataOutputBuffer.RECYCLER.get())
+        try(DataOutputBuffer out = new DataOutputBuffer())
         {
             out.writeInt(targets.size() - 1);
             while (iter.hasNext())
@@ -1310,10 +1309,6 @@ public class StorageProxy implements StorageProxyMBean
         {
             // DataOutputBuffer is in-memory, doesn't throw IOException
             throw new AssertionError(e);
-        }
-        finally
-        {
-            out.recycle();
         }
     }
 
