@@ -235,11 +235,10 @@ public class CompactionStrategyManager implements INotificationConsumer
         if (!cfs.getPartitioner().splitter().isPresent())
             return 0;
 
-        List<PartitionPosition> boundaries = StorageService.getDiskBoundaries(cfs, locations.getWriteableLocations());
+        Directories.DataDirectory[] directories = locations.getWriteableLocations();
+        List<PartitionPosition> boundaries = StorageService.getDiskBoundaries(cfs, directories);
         if (boundaries == null)
         {
-            Directories.DataDirectory[] directories = locations.getWriteableLocations();
-
             // try to figure out location based on sstable directory:
             for (int i = 0; i < directories.length; i++)
             {
