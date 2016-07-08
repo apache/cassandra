@@ -191,15 +191,18 @@ public class StressMetrics
         rowRateUncertainty.update(current.adjustedRowRate());
         if (current.operationCount() != 0)
         {
-            if (result.intervals.intervals().size() > 1)
+            // if there's a single operation we only print the total
+            final boolean logPerOpSummaryLine = result.intervals.intervals().size() > 1;
+
+            for (Map.Entry<String, TimingInterval> type : result.intervals.intervals().entrySet())
             {
-                for (Map.Entry<String, TimingInterval> type : result.intervals.intervals().entrySet())
+                final String opName = type.getKey();
+                final TimingInterval opInterval = type.getValue();
+                if (logPerOpSummaryLine)
                 {
-                    final String opName = type.getKey();
-                    final TimingInterval opInterval = type.getValue();
                     printRow("", opName, opInterval, timing.getHistory().get(type.getKey()), result.extra, rowRateUncertainty, output);
-                    logHistograms(opName, opInterval);
                 }
+                logHistograms(opName, opInterval);
             }
 
             printRow("", "total", current, history, result.extra, rowRateUncertainty, output);
