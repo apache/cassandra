@@ -48,6 +48,8 @@ public class ColumnIndex
     // used, until the row-index-entry reaches config column_index_cache_size_in_kb
     private final List<IndexInfo> indexSamples = new ArrayList<>();
 
+    private DataOutputBuffer reusableBuffer;
+
     public int columnIndexCount;
     private int[] indexOffsets;
 
@@ -95,6 +97,8 @@ public class ColumnIndex
         this.firstClustering = null;
         this.lastClustering = null;
         this.openMarker = null;
+        if (this.buffer != null)
+            this.reusableBuffer = this.buffer;
         this.buffer = null;
     }
 
@@ -195,7 +199,7 @@ public class ColumnIndex
             indexSamplesSerializedSize += idxSerializer.serializedSize(cIndexInfo);
             if (indexSamplesSerializedSize + columnIndexCount * TypeSizes.sizeof(0) > DatabaseDescriptor.getColumnIndexCacheSize())
             {
-                buffer = new DataOutputBuffer(DatabaseDescriptor.getColumnIndexCacheSize() * 2);
+                buffer = useBuffer();
                 for (IndexInfo indexSample : indexSamples)
                 {
                     idxSerializer.serialize(indexSample, buffer);
@@ -213,6 +217,16 @@ public class ColumnIndex
         }
 
         firstClustering = null;
+    }
+
+    private DataOutputBuffer useBuffer()
+    {
+        if (reusableBuffer != null) {
+            buffer = reusableBuffer;
+            buffer.clear();
+        }
+        // don't use the standard RECYCLER as that only recycles up to 1MB and requires proper cleanup
+        return new DataOutputBuffer(DatabaseDescriptor.getColumnIndexCacheSize() * 2);
     }
 
     private void add(Unfiltered unfiltered) throws IOException

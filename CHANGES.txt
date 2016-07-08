@@ -1,4 +1,5 @@
 3.10
+ * Reuse DataOutputBuffer from ColumnIndex (CASSANDRA-11970)
  * Remove DatabaseDescriptor dependency from SegmentedFile (CASSANDRA-11580)
  * Add supplied username to authentication error messages (CASSANDRA-12076)
  * Remove pre-startup check for open JMX port (CASSANDRA-12074)

@@ -175,6 +175,11 @@ public class DataOutputBuffer extends BufferedDataOutputStreamPlus
         return new GrowingChannel();
     }
 
+    public void clear()
+    {
+        buffer.clear();
+    }
+
     @VisibleForTesting
     final class GrowingChannel implements WritableByteChannel
     {
