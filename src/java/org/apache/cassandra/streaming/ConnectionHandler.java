@@ -235,7 +235,7 @@ public class ConnectionHandler
 
         protected void signalCloseDone()
         {
-            if (closeFuture == null)
+            if (!isClosed())
                 close();
 
             closeFuture.get().set(null);
