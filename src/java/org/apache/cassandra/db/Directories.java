@@ -920,7 +920,7 @@ public class Directories
         if (!input.isDirectory())
             return 0;
 
-        SSTableSizeSummer visitor = new SSTableSizeSummer(sstableLister(Directories.OnTxnErr.THROW).listFiles());
+        SSTableSizeSummer visitor = new SSTableSizeSummer(input, sstableLister(Directories.OnTxnErr.THROW).listFiles());
         try
         {
             Files.walkFileTree(input.toPath(), visitor);
@@ -1006,9 +1006,11 @@ public class Directories
     
     private class SSTableSizeSummer extends DirectorySizeCalculator
     {
-        SSTableSizeSummer(List<File> files)
+        private final HashSet<File> toSkip;
+        SSTableSizeSummer(File path, List<File> files)
         {
-            super(files);
+            super(path);
+            toSkip = new HashSet<>(files);
         }
 
         @Override
@@ -1019,8 +1021,7 @@ public class Directories
             return pair != null
                     && pair.left.ksname.equals(metadata.ksName)
                     && pair.left.cfname.equals(metadata.cfName)
-                    && !visited.contains(fileName)
-                    && !alive.contains(fileName);
+                    && !toSkip.contains(fileName);
         }
     }
 }

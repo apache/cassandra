@@ -20,9 +20,11 @@ package org.apache.cassandra.db.commitlog;
 
 import java.io.File;
 import java.io.IOException;
+import java.nio.file.FileVisitResult;
 import java.nio.file.Files;
+import java.nio.file.Path;
+import java.nio.file.attribute.BasicFileAttributes;
 import java.util.concurrent.*;
-import java.util.concurrent.atomic.AtomicLong;
 
 import com.google.common.annotations.VisibleForTesting;
 import com.google.common.util.concurrent.RateLimiter;
@@ -35,6 +37,7 @@ import org.apache.cassandra.db.commitlog.CommitLogSegment.CDCState;
 import org.apache.cassandra.exceptions.WriteTimeoutException;
 import org.apache.cassandra.io.util.FileUtils;
 import org.apache.cassandra.utils.DirectorySizeCalculator;
+import org.apache.cassandra.utils.NoSpamLogger;
 
 public class CommitLogSegmentManagerCDC extends AbstractCommitLogSegmentManager
 {
@@ -116,6 +119,12 @@ public class CommitLogSegmentManagerCDC extends AbstractCommitLogSegmentManager
         if (mutation.trackedByCDC() && segment.getCDCState() == CDCState.FORBIDDEN)
         {
             cdcSizeTracker.submitOverflowSizeRecalculation();
+            NoSpamLogger.log(logger,
+                             NoSpamLogger.Level.WARN,
+                             10,
+                             TimeUnit.SECONDS,
+                             "Rejecting Mutation containing CDC-enabled table. Free up space in {}.",
+                             DatabaseDescriptor.getCDCLogLocation());
             throw new WriteTimeoutException(WriteType.CDC, ConsistencyLevel.LOCAL_ONE, 0, 1);
         }
     }
@@ -148,17 +157,16 @@ public class CommitLogSegmentManagerCDC extends AbstractCommitLogSegmentManager
      *
      * Allows atomic increment/decrement of unflushed size, however only allows increment on flushed and requires a full
      * directory walk to determine any potential deletions by CDC consumer.
-     *
-     * TODO: linux performs approximately 25% better with the following one-liner instead of this walker:
-     *      Arrays.stream(path.listFiles()).mapToLong(File::length).sum();
-     * However this solution is 375% slower on Windows. Revisit this and split logic to per-OS
      */
     private static class CDCSizeTracker extends DirectorySizeCalculator
     {
         private final RateLimiter rateLimiter = RateLimiter.create(1000.0 / DatabaseDescriptor.getCDCDiskCheckInterval());
         private ExecutorService cdcSizeCalculationExecutor;
         private CommitLogSegmentManagerCDC segmentManager;
-        private AtomicLong unflushedCDCSize = new AtomicLong(0);
+        private volatile long unflushedCDCSize;
+
+        // Used instead of size during walk to remove chance of over-allocation
+        private volatile long sizeInProgress = 0;
 
         CDCSizeTracker(CommitLogSegmentManagerCDC segmentManager, File path)
         {
@@ -193,7 +201,7 @@ public class CommitLogSegmentManagerCDC extends AbstractCommitLogSegmentManager
                                     ? CDCState.FORBIDDEN
                                     : CDCState.PERMITTED);
                 if (segment.getCDCState() == CDCState.PERMITTED)
-                    unflushedCDCSize.addAndGet(defaultSegmentSize());
+                    unflushedCDCSize += defaultSegmentSize();
             }
 
             // Take this opportunity to kick off a recalc to pick up any consumer file deletion.
@@ -207,9 +215,9 @@ public class CommitLogSegmentManagerCDC extends AbstractCommitLogSegmentManager
             {
                 // Add to flushed size before decrementing unflushed so we don't have a window of false generosity
                 if (segment.getCDCState() == CDCState.CONTAINS)
-                    size.addAndGet(segment.onDiskSize());
+                    size += segment.onDiskSize();
                 if (segment.getCDCState() != CDCState.FORBIDDEN)
-                    unflushedCDCSize.addAndGet(-defaultSegmentSize());
+                    unflushedCDCSize -= defaultSegmentSize();
             }
 
             // Take this opportunity to kick off a recalc to pick up any consumer file deletion.
@@ -251,14 +259,10 @@ public class CommitLogSegmentManagerCDC extends AbstractCommitLogSegmentManager
         {
             try
             {
-                // Since we don't synchronize around either rebuilding our file list or walking the tree and adding to
-                // size, it's possible we could have changes take place underneath us and end up with a slightly incorrect
-                // view of our flushed size by the time this walking completes. Given that there's a linear growth in
-                // runtime on both rebuildFileList and walkFileTree (about 50% for each one on runtime), and that the
-                // window for this race should be very small, this is an acceptable trade-off since it will be resolved
-                // on the next segment creation / deletion with a subsequent call to submitOverflowSizeRecalculation.
-                rebuildFileList();
+                // The Arrays.stream approach is considerably slower on Windows than linux
+                sizeInProgress = 0;
                 Files.walkFileTree(path.toPath(), this);
+                size = sizeInProgress;
             }
             catch (IOException ie)
             {
@@ -266,14 +270,21 @@ public class CommitLogSegmentManagerCDC extends AbstractCommitLogSegmentManager
             }
         }
 
-        private long addFlushedSize(long toAdd)
+        @Override
+        public FileVisitResult visitFile(Path file, BasicFileAttributes attrs) throws IOException
         {
-            return size.addAndGet(toAdd);
+            sizeInProgress += attrs.size();
+            return FileVisitResult.CONTINUE;
+        }
+
+        private void addFlushedSize(long toAdd)
+        {
+            size += toAdd;
         }
 
         private long totalCDCSizeOnDisk()
         {
-            return unflushedCDCSize.get() + size.get();
+            return unflushedCDCSize + size;
         }
 
         public void shutdown()

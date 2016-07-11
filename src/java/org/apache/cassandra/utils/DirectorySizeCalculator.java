@@ -24,39 +24,19 @@ import java.nio.file.FileVisitResult;
 import java.nio.file.Path;
 import java.nio.file.SimpleFileVisitor;
 import java.nio.file.attribute.BasicFileAttributes;
-import java.util.List;
-import java.util.Set;
-import java.util.concurrent.atomic.AtomicLong;
-
-import com.google.common.collect.ImmutableSet;
-
-import static com.google.common.collect.Sets.newHashSet;
 
 /**
  * Walks directory recursively, summing up total contents of files within.
  */
 public class DirectorySizeCalculator extends SimpleFileVisitor<Path>
 {
-    protected final AtomicLong size = new AtomicLong(0);
-    protected Set<String> visited = newHashSet(); //count each file only once
-    protected Set<String> alive = newHashSet();
+    protected volatile long size = 0;
     protected final File path;
 
     public DirectorySizeCalculator(File path)
     {
         super();
         this.path = path;
-        rebuildFileList();
-    }
-
-    public DirectorySizeCalculator(List<File> files)
-    {
-        super();
-        this.path = null;
-        ImmutableSet.Builder<String> builder = ImmutableSet.builder();
-        for (File file : files)
-            builder.add(file.getName());
-        alive = builder.build();
     }
 
     public boolean isAcceptable(Path file)
@@ -64,24 +44,11 @@ public class DirectorySizeCalculator extends SimpleFileVisitor<Path>
         return true;
     }
 
-    public void rebuildFileList()
-    {
-        assert path != null;
-        ImmutableSet.Builder<String> builder = ImmutableSet.builder();
-        for (File file : path.listFiles())
-            builder.add(file.getName());
-        size.set(0);
-        alive = builder.build();
-    }
-
     @Override
     public FileVisitResult visitFile(Path file, BasicFileAttributes attrs) throws IOException
     {
         if (isAcceptable(file))
-        {
-            size.addAndGet(attrs.size());
-            visited.add(file.toFile().getName());
-        }
+            size += attrs.size();
         return FileVisitResult.CONTINUE;
     }
 
@@ -93,6 +60,6 @@ public class DirectorySizeCalculator extends SimpleFileVisitor<Path>
 
     public long getAllocatedSize()
     {
-        return size.get();
+        return size;
     }
 }

@@ -48,11 +48,7 @@ public class CompressedSegment extends FileDirectSegment
     {
         super(commitLog, manager, onClose);
         this.compressor = commitLog.configuration.getCompressor();
-    }
-
-    ByteBuffer allocate(int size)
-    {
-        return compressor.preferredBufferType().allocate(size);
+        manager.getBufferPool().setPreferredReusableBufferType(compressor.preferredBufferType());
     }
 
     ByteBuffer createBuffer(CommitLog commitLog)
@@ -71,14 +67,7 @@ public class CompressedSegment extends FileDirectSegment
         try
         {
             int neededBufferSize = compressor.initialCompressedBufferLength(length) + COMPRESSED_MARKER_SIZE;
-            ByteBuffer compressedBuffer = manager.getBufferPool().getThreadLocalReusableBuffer();
-            if (compressor.preferredBufferType() != BufferType.typeOf(compressedBuffer) ||
-                compressedBuffer.capacity() < neededBufferSize)
-            {
-                FileUtils.clean(compressedBuffer);
-                compressedBuffer = allocate(neededBufferSize);
-                manager.getBufferPool().setThreadLocalReusableBuffer(compressedBuffer);
-            }
+            ByteBuffer compressedBuffer = manager.getBufferPool().getThreadLocalReusableBuffer(neededBufferSize);
 
             ByteBuffer inputBuffer = buffer.duplicate();
             inputBuffer.limit(contentStart + length).position(contentStart);

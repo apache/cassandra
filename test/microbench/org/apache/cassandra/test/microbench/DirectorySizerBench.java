@@ -99,7 +99,6 @@ public class DirectorySizerBench
     @Benchmark
     public void countFiles(final Blackhole bh) throws IOException
     {
-        sizer.rebuildFileList();
         Files.walkFileTree(tempDir.toPath(), sizer);
     }
 }

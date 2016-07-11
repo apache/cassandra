@@ -190,7 +190,8 @@ public class CommitLogReader
                 ReadStatusTracker statusTracker = new ReadStatusTracker(mutationLimit, tolerateTruncation);
                 for (CommitLogSegmentReader.SyncSegment syncSegment : segmentReader)
                 {
-                    statusTracker.tolerateErrorsInSection &= syncSegment.toleratesErrorsInSection;
+                    // Only tolerate truncation if we allow in both global and segment
+                    statusTracker.tolerateErrorsInSection = tolerateTruncation & syncSegment.toleratesErrorsInSection;
 
                     // Skip segments that are completely behind the desired minPosition
                     if (desc.id == minPosition.segmentId && syncSegment.endPosition < minPosition.position)

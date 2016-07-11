@@ -57,6 +57,8 @@ public class SimpleCachedBufferPool
      */
     private final int bufferSize;
 
+    private BufferType preferredReusableBufferType = BufferType.ON_HEAP;
+
     public SimpleCachedBufferPool(int maxBufferPoolSize, int bufferSize)
     {
         this.maxBufferPoolSize = maxBufferPoolSize;
@@ -75,14 +77,19 @@ public class SimpleCachedBufferPool
         return bufferType.allocate(bufferSize);
     }
 
-    public ByteBuffer getThreadLocalReusableBuffer()
+    public ByteBuffer getThreadLocalReusableBuffer(int size)
     {
-        return reusableBufferHolder.get();
+        ByteBuffer result = reusableBufferHolder.get();
+        if (result.capacity() < size || BufferType.typeOf(result) != preferredReusableBufferType) {
+            FileUtils.clean(result);
+            result = preferredReusableBufferType.allocate(size);
+            reusableBufferHolder.set(result);
+        }
+        return result;
     }
 
-    public void setThreadLocalReusableBuffer(ByteBuffer buffer)
-    {
-        reusableBufferHolder.set(buffer);
+    public void setPreferredReusableBufferType(BufferType type) {
+        preferredReusableBufferType = type;
     }
 
     public void releaseBuffer(ByteBuffer buffer)

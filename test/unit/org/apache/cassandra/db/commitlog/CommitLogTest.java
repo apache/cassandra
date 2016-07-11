@@ -508,19 +508,6 @@ public class CommitLogTest
         runExpecting(() -> testRecovery(new CommitLogDescriptor(4, commitLogCompression, encryptionContext), logData), expected);
     }
 
-    protected void testRecovery(byte[] logData) throws Exception
-    {
-        Pair<File, Integer> pair = tmpFile();
-        try (RandomAccessFile raf = new RandomAccessFile(pair.left, "rw"))
-        {
-            raf.seek(pair.right);
-            raf.write(logData);
-            raf.close();
-
-            CommitLog.instance.recoverFiles(pair.left); //CASSANDRA-1119 / CASSANDRA-1179 throw on failure*/
-        }
-    }
-
     @Test
     public void testTruncateWithoutSnapshot() throws ExecutionException, InterruptedException, IOException
     {

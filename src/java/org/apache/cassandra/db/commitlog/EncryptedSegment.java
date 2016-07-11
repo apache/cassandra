@@ -25,12 +25,12 @@ import javax.crypto.Cipher;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.io.FSWriteError;
 import org.apache.cassandra.io.compress.BufferType;
 import org.apache.cassandra.io.compress.ICompressor;
 import org.apache.cassandra.security.EncryptionUtils;
 import org.apache.cassandra.security.EncryptionContext;
-import org.apache.cassandra.utils.ByteBufferUtil;
 import org.apache.cassandra.utils.Hex;
 import org.apache.cassandra.utils.SyncUtil;
 
@@ -79,6 +79,8 @@ public class EncryptedSegment extends FileDirectSegment
             throw new FSWriteError(e, logFile);
         }
         logger.debug("created a new encrypted commit log segment: {}", logFile);
+        // Keep reusable buffers on-heap regardless of compression preference so we avoid copy off/on repeatedly during decryption
+        manager.getBufferPool().setPreferredReusableBufferType(BufferType.ON_HEAP);
     }
 
     protected Map<String, String> additionalHeaderParameters()
@@ -108,7 +110,7 @@ public class EncryptedSegment extends FileDirectSegment
         {
             ByteBuffer inputBuffer = buffer.duplicate();
             inputBuffer.limit(contentStart + length).position(contentStart);
-            ByteBuffer buffer = manager.getBufferPool().getThreadLocalReusableBuffer();
+            ByteBuffer buffer = manager.getBufferPool().getThreadLocalReusableBuffer(DatabaseDescriptor.getCommitLogSegmentSize());
 
             // save space for the sync marker at the beginning of this section
             final long syncMarkerPosition = lastWrittenPos;
@@ -132,21 +134,17 @@ public class EncryptedSegment extends FileDirectSegment
 
             lastWrittenPos = channel.position();
 
-            // rewind to the beginning of the section and write out the sync marker,
-            // reusing the one of the existing buffers
-            buffer = ByteBufferUtil.ensureCapacity(buffer, ENCRYPTED_SECTION_HEADER_SIZE, true);
+            // rewind to the beginning of the section and write out the sync marker
+            buffer.position(0).limit(ENCRYPTED_SECTION_HEADER_SIZE);
             writeSyncMarker(buffer, 0, (int) syncMarkerPosition, (int) lastWrittenPos);
             buffer.putInt(SYNC_MARKER_SIZE, length);
-            buffer.position(0).limit(ENCRYPTED_SECTION_HEADER_SIZE);
+            buffer.rewind();
             manager.addSize(buffer.limit());
 
             channel.position(syncMarkerPosition);
             channel.write(buffer);
 
             SyncUtil.force(channel, true);
-
-            if (manager.getBufferPool().getThreadLocalReusableBuffer().capacity() < buffer.capacity())
-                manager.getBufferPool().setThreadLocalReusableBuffer(buffer);
         }
         catch (Exception e)
         {
