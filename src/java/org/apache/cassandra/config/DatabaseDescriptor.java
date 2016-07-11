@@ -366,6 +366,11 @@ public class DatabaseDescriptor
         }
         paritionerName = partitioner.getClass().getCanonicalName();
 
+        if (config.gc_log_threshold_in_ms < 0)
+        {
+            throw new ConfigurationException("gc_log_threshold_in_ms must be a positive integer");
+        }
+
         if (conf.gc_warn_threshold_in_ms < 0)
         {
             throw new ConfigurationException("gc_warn_threshold_in_ms must be a positive integer");
@@ -1977,6 +1982,11 @@ public class DatabaseDescriptor
     public static void setUserFunctionTimeoutPolicy(Config.UserFunctionTimeoutPolicy userFunctionTimeoutPolicy)
     {
         conf.user_function_timeout_policy = userFunctionTimeoutPolicy;
+    }
+
+    public static long getGCLogThreshold()
+    {
+        return conf.gc_log_threshold_in_ms;
     }
 
     public static long getGCWarnThreshold()

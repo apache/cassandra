@@ -924,9 +924,14 @@ inter_dc_tcp_nodelay: false
 tracetype_query_ttl: 86400
 tracetype_repair_ttl: 604800
 
-# GC Pauses greater than gc_warn_threshold_in_ms will be logged at WARN level
-# Adjust the threshold based on your application throughput requirement
 # By default, Cassandra logs GC Pauses greater than 200 ms at INFO level
+# This threshold can be adjusted to minimize logging if necessary
+# gc_log_threshold_in_ms: 200
+
+# GC Pauses greater than gc_warn_threshold_in_ms will be logged at WARN level
+# If unset, all GC Pauses greater than gc_log_threshold_in_ms will log at
+# INFO level
+# Adjust the threshold based on your application throughput requirement
 gc_warn_threshold_in_ms: 1000
 
 # UDFs (user defined functions) are disabled by default.
