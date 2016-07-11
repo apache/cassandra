@@ -2,9 +2,6 @@
  * Fix migration of static thrift column names with non-text comparators (CASSANDRA-12147)
  * Fix upgrading sparse tables that are incorrectly marked as dense (CASSANDRA-11315)
  * Fix reverse queries ignoring range tombstones (CASSANDRA-11733)
-2.2.8
- * Use dedicated thread for JMX notifications (CASSANDRA-12146)
- * Improve streaming synchronization and fault tolerance (CASSANDRA-11414)
  * Avoid potential race when rebuilding CFMetaData (CASSANDRA-12098)
  * Avoid missing sstables when getting the canonical sstables (CASSANDRA-11996)
  * Always select the live sstables when getting sstables in bounds (CASSANDRA-11944)
@@ -14,6 +11,9 @@
  * Avoid digest mismatch with empty but static rows (CASSANDRA-12090)
  * Fix EOF exception when altering column type (CASSANDRA-11820)
 Merged from 2.2:
+ * Synchronize ThriftServer::stop() (CASSANDRA-12105)
+ * Use dedicated thread for JMX notifications (CASSANDRA-12146)
+ * Improve streaming synchronization and fault tolerance (CASSANDRA-11414)
  * MemoryUtil.getShort() should return an unsigned short also for architectures not supporting unaligned memory accesses (CASSANDRA-11973)
 Merged from 2.1:
  * Fix filtering on clustering columns when 2i is used (CASSANDRA-11907)
