@@ -1,4 +1,5 @@
 2.2.8
+ * Synchronize ThriftServer::stop() (CASSANDRA-12105)
  * Use dedicated thread for JMX notifications (CASSANDRA-12146)
  * NPE when trying to remove purgable tombstones from result (CASSANDRA-12143)
  * Improve streaming synchronization and fault tolerance (CASSANDRA-11414)

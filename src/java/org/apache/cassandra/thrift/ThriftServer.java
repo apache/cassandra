@@ -60,7 +60,7 @@ public class ThriftServer implements CassandraDaemon.Server
         }
     }
 
-    public void stop()
+    public synchronized void stop()
     {
         if (server != null)
         {
