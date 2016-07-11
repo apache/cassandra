@@ -12,6 +12,7 @@
  * Increase size of flushExecutor thread pool (CASSANDRA-12071)
 Merged from 3.0:
 3.0.9
+ * Fix migration of static thrift column names with non-text comparators (CASSANDRA-12147)
  * Fix upgrading sparse tables that are incorrectly marked as dense (CASSANDRA-11315)
  * Fix reverse queries ignoring range tombstones (CASSANDRA-11733)
 2.2.8
