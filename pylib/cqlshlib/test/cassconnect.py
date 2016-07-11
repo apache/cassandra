@@ -24,15 +24,13 @@ from .run_cqlsh import run_cqlsh, call_cqlsh
 
 test_keyspace_init = os.path.join(rundir, 'test_keyspace_init.cql')
 
-def get_cassandra_connection(cql_version=cqlsh.DEFAULT_CQLVER):
-    if cql_version is None:
-        cql_version = cqlsh.DEFAULT_CQLVER
+def get_cassandra_connection(cql_version=None):
     conn = cql((TEST_HOST,), TEST_PORT, cql_version=cql_version, load_balancing_policy=policy)
     # until the cql lib does this for us
     conn.cql_version = cql_version
     return conn
 
-def get_cassandra_cursor(cql_version=cqlsh.DEFAULT_CQLVER):
+def get_cassandra_cursor(cql_version=None):
     return get_cassandra_connection(cql_version=cql_version).cursor()
 
 TEST_KEYSPACES_CREATED = []
@@ -83,7 +81,7 @@ def remove_test_db():
         c.execute('DROP KEYSPACE %s' % quote_name(TEST_KEYSPACES_CREATED.pop(-1)))
 
 @contextlib.contextmanager
-def cassandra_connection(cql_version=cqlsh.DEFAULT_CQLVER):
+def cassandra_connection(cql_version=None):
     """
     Make a Cassandra CQL connection with the given CQL version and get a cursor
     for it, and optionally connect to a given keyspace.

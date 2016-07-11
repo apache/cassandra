@@ -1,4 +1,5 @@
 3.10
+ * cqlsh does not automatically downgrade CQL version (CASSANDRA-12150)
  * Omit (de)serialization of state variable in UDAs (CASSANDRA-9613)
  * Create a system table to expose prepared statements (CASSANDRA-8831)
  * Reuse DataOutputBuffer from ColumnIndex (CASSANDRA-11970)

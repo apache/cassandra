@@ -177,7 +177,6 @@ from cqlshlib.util import get_file_encoding_bomsize, trim_if_present
 DEFAULT_HOST = '127.0.0.1'
 DEFAULT_PORT = 9042
 DEFAULT_SSL = False
-DEFAULT_CQLVER = '3.4.2'
 DEFAULT_PROTOCOL_VERSION = 4
 DEFAULT_CONNECT_TIMEOUT_SECONDS = 5
 DEFAULT_REQUEST_TIMEOUT_SECONDS = 10
@@ -219,8 +218,9 @@ parser.add_option('--debug', action='store_true',
 parser.add_option("--encoding", help="Specify a non-default encoding for output." +
                   " (Default: %s)" % (UTF8,))
 parser.add_option("--cqlshrc", help="Specify an alternative cqlshrc file location.")
-parser.add_option('--cqlversion', default=DEFAULT_CQLVER,
-                  help='Specify a particular CQL version (default: %default).'
+parser.add_option('--cqlversion', default=None,
+                  help='Specify a particular CQL version, '
+                       'by default the highest version supported by the server will be used.'
                        ' Examples: "3.0.3", "3.1.0"')
 parser.add_option("-e", "--execute", help='Execute the statement and quit.')
 parser.add_option("--connect-timeout", default=DEFAULT_CONNECT_TIMEOUT_SECONDS, dest='connect_timeout',
@@ -662,7 +662,7 @@ class Shell(cmd.Cmd):
     def __init__(self, hostname, port, color=False,
                  username=None, password=None, encoding=None, stdin=None, tty=True,
                  completekey=DEFAULT_COMPLETEKEY, browser=None, use_conn=None,
-                 cqlver=DEFAULT_CQLVER, keyspace=None,
+                 cqlver=None, keyspace=None,
                  tracing_enabled=False, expand_enabled=False,
                  display_nanotime_format=DEFAULT_NANOTIME_FORMAT,
                  display_timestamp_format=DEFAULT_TIMESTAMP_FORMAT,
@@ -701,7 +701,6 @@ class Shell(cmd.Cmd):
                                 control_connection_timeout=connect_timeout,
                                 connect_timeout=connect_timeout)
         self.owns_connection = not use_conn
-        self.set_expanded_cql_version(cqlver)
 
         if keyspace:
             self.session = self.conn.connect(keyspace)
@@ -730,6 +729,7 @@ class Shell(cmd.Cmd):
         self.session.row_factory = ordered_dict_factory
         self.session.default_consistency_level = cassandra.ConsistencyLevel.ONE
         self.get_connection_versions()
+        self.set_expanded_cql_version(self.connection_versions['cql'])
 
         self.current_keyspace = keyspace
 
@@ -2456,7 +2456,7 @@ def read_options(cmdlineargs, environment):
     optvalues.encoding = option_with_default(configs.get, 'ui', 'encoding', UTF8)
 
     optvalues.tty = option_with_default(configs.getboolean, 'ui', 'tty', sys.stdin.isatty())
-    optvalues.cqlversion = option_with_default(configs.get, 'cql', 'version', DEFAULT_CQLVER)
+    optvalues.cqlversion = option_with_default(configs.get, 'cql', 'version', None)
     optvalues.connect_timeout = option_with_default(configs.getint, 'connection', 'timeout', DEFAULT_CONNECT_TIMEOUT_SECONDS)
     optvalues.request_timeout = option_with_default(configs.getint, 'connection', 'request_timeout', DEFAULT_REQUEST_TIMEOUT_SECONDS)
     optvalues.execute = None
@@ -2500,11 +2500,11 @@ def read_options(cmdlineargs, environment):
         else:
             options.color = should_use_color()
 
-    options.cqlversion, cqlvertup = full_cql_version(options.cqlversion)
-    if cqlvertup[0] < 3:
-        parser.error('%r is not a supported CQL version.' % options.cqlversion)
-    else:
-        options.cqlmodule = cql3handling
+    if options.cqlversion is not None:
+        options.cqlversion, cqlvertup = full_cql_version(options.cqlversion)
+        if cqlvertup[0] < 3:
+            parser.error('%r is not a supported CQL version.' % options.cqlversion)
+    options.cqlmodule = cql3handling
 
     try:
         port = int(port)

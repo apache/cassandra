@@ -24,6 +24,11 @@ New features
      previously prepared statements - i.e. in many cases clients do not need to
      re-prepare statements against restarted nodes.
 
+   - cqlsh can now connect to older Cassandra versions by downgrading the native
+     protocol version. Please note that this is currently not part of our release
+     testing and, as a consequence, it is not guaranteed to work in all cases.
+     See CASSANDRA-12150 for more details.
+
 Upgrading
 ---------
    - Nothing specific to 3.10 but please see previous versions upgrading section,
