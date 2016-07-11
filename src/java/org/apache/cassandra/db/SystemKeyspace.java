@@ -97,6 +97,7 @@ public final class SystemKeyspace
     public static final String AVAILABLE_RANGES = "available_ranges";
     public static final String VIEWS_BUILDS_IN_PROGRESS = "views_builds_in_progress";
     public static final String BUILT_VIEWS = "built_views";
+    public static final String PREPARED_STATEMENTS = "prepared_statements";
 
     @Deprecated public static final String LEGACY_HINTS = "hints";
     @Deprecated public static final String LEGACY_BATCHLOG = "batchlog";
@@ -264,6 +265,15 @@ public final class SystemKeyspace
                 + "view_name text,"
                 + "status_replicated boolean,"
                 + "PRIMARY KEY ((keyspace_name), view_name))");
+
+    private static final CFMetaData PreparedStatements =
+        compile(PREPARED_STATEMENTS,
+                "prepared statements",
+                "CREATE TABLE %s ("
+                + "prepared_id blob,"
+                + "logged_keyspace text,"
+                + "query_string text,"
+                + "PRIMARY KEY ((prepared_id)))");
 
     @Deprecated
     public static final CFMetaData LegacyHints =
@@ -435,6 +445,7 @@ public final class SystemKeyspace
                          BuiltViews,
                          LegacyHints,
                          LegacyBatchlog,
+                         PreparedStatements,
                          LegacyKeyspaces,
                          LegacyColumnfamilies,
                          LegacyColumns,
@@ -1412,4 +1423,31 @@ public final class SystemKeyspace
         }
     }
 
+    public static void writePreparedStatement(String loggedKeyspace, MD5Digest key, String cql)
+    {
+        executeInternal(String.format("INSERT INTO %s.%s"
+                                      + " (logged_keyspace, prepared_id, query_string) VALUES (?, ?, ?)",
+                                      NAME, PREPARED_STATEMENTS),
+                        loggedKeyspace, key.byteBuffer(), cql);
+        logger.debug("stored prepared statement for logged keyspace '{}': '{}'", loggedKeyspace, cql);
+    }
+
+    public static void removePreparedStatement(MD5Digest key)
+    {
+        executeInternal(String.format("DELETE FROM %s.%s"
+                                      + " WHERE prepared_id = ?",
+                                      NAME, PREPARED_STATEMENTS),
+                        key.byteBuffer());
+    }
+
+    public static List<Pair<String, String>> loadPreparedStatements()
+    {
+        String query = String.format("SELECT logged_keyspace, query_string FROM %s.%s", NAME, PREPARED_STATEMENTS);
+        UntypedResultSet resultSet = executeOnceInternal(query);
+        List<Pair<String, String>> r = new ArrayList<>();
+        for (UntypedResultSet.Row row : resultSet)
+            r.add(Pair.create(row.has("logged_keyspace") ? row.getString("logged_keyspace") : null,
+                              row.getString("query_string")));
+        return r;
+    }
 }

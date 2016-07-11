@@ -33,7 +33,6 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import com.googlecode.concurrentlinkedhashmap.ConcurrentLinkedHashMap;
-import com.googlecode.concurrentlinkedhashmap.EntryWeigher;
 import org.antlr.runtime.*;
 import org.apache.cassandra.concurrent.ScheduledExecutors;
 import org.apache.cassandra.config.DatabaseDescriptor;
@@ -138,6 +137,33 @@ public class QueryProcessor implements QueryHandler
             state.setKeyspace(SystemKeyspace.NAME);
             this.queryState = new QueryState(state);
         }
+    }
+
+    public static void preloadPreparedStatement()
+    {
+        ClientState clientState = ClientState.forInternalCalls();
+        int count = 0;
+        for (Pair<String, String> useKeyspaceAndCQL : SystemKeyspace.loadPreparedStatements())
+        {
+            try
+            {
+                clientState.setKeyspace(useKeyspaceAndCQL.left);
+                prepare(useKeyspaceAndCQL.right, clientState, false);
+                count++;
+            }
+            catch (RequestValidationException e)
+            {
+                logger.warn("prepared statement recreation error: {}", useKeyspaceAndCQL.right, e);
+            }
+        }
+        logger.info("Preloaded {} prepared statements", count);
+    }
+
+    @VisibleForTesting
+    public static void clearPrepraredStatements()
+    {
+        preparedStatements.clear();
+        thriftPreparedStatements.clear();
     }
 
     private static QueryState internalQueryState()
@@ -446,6 +472,7 @@ public class QueryProcessor implements QueryHandler
                                                                 queryString.substring(0, 200)));
             MD5Digest statementId = computeId(queryString, keyspace);
             preparedStatements.put(statementId, prepared);
+            SystemKeyspace.writePreparedStatement(keyspace, statementId, queryString);
             return new ResultMessage.Prepared(statementId, prepared);
         }
     }
@@ -555,14 +582,50 @@ public class QueryProcessor implements QueryHandler
 
     private static class MigrationSubscriber extends MigrationListener
     {
-        private void removeInvalidPreparedStatements(String ksName, String cfName)
+        private static void removeInvalidPreparedStatements(String ksName, String cfName)
         {
             removeInvalidPreparedStatements(internalStatements.values().iterator(), ksName, cfName);
-            removeInvalidPreparedStatements(preparedStatements.values().iterator(), ksName, cfName);
+            removeInvalidPersistentPreparedStatements(preparedStatements.entrySet().iterator(), ksName, cfName);
             removeInvalidPreparedStatements(thriftPreparedStatements.values().iterator(), ksName, cfName);
         }
 
-        private void removeInvalidPreparedStatements(Iterator<ParsedStatement.Prepared> iterator, String ksName, String cfName)
+        private static void removeInvalidPreparedStatementsForFunction(String ksName, String functionName)
+        {
+            Predicate<Function> matchesFunction = f -> ksName.equals(f.name().keyspace) && functionName.equals(f.name().name);
+
+            for (Iterator<Map.Entry<MD5Digest, ParsedStatement.Prepared>> iter = preparedStatements.entrySet().iterator();
+                 iter.hasNext();)
+            {
+                Map.Entry<MD5Digest, ParsedStatement.Prepared> pstmt = iter.next();
+                if (Iterables.any(pstmt.getValue().statement.getFunctions(), matchesFunction))
+                {
+                    SystemKeyspace.removePreparedStatement(pstmt.getKey());
+                    iter.remove();
+                }
+            }
+
+
+            Iterators.removeIf(internalStatements.values().iterator(),
+                               statement -> Iterables.any(statement.statement.getFunctions(), matchesFunction));
+
+            Iterators.removeIf(thriftPreparedStatements.values().iterator(),
+                               statement -> Iterables.any(statement.statement.getFunctions(), matchesFunction));
+        }
+
+        private static void removeInvalidPersistentPreparedStatements(Iterator<Map.Entry<MD5Digest, ParsedStatement.Prepared>> iterator,
+                                                                      String ksName, String cfName)
+        {
+            while (iterator.hasNext())
+            {
+                Map.Entry<MD5Digest, ParsedStatement.Prepared> entry = iterator.next();
+                if (shouldInvalidate(ksName, cfName, entry.getValue().statement)) {
+                    SystemKeyspace.removePreparedStatement(entry.getKey());
+                    iterator.remove();
+                }
+            }
+        }
+
+        private static void removeInvalidPreparedStatements(Iterator<ParsedStatement.Prepared> iterator, String ksName, String cfName)
         {
             while (iterator.hasNext())
             {
@@ -571,7 +634,7 @@ public class QueryProcessor implements QueryHandler
             }
         }
 
-        private boolean shouldInvalidate(String ksName, String cfName, CQLStatement statement)
+        private static boolean shouldInvalidate(String ksName, String cfName, CQLStatement statement)
         {
             String statementKsName;
             String statementCfName;
@@ -621,7 +684,7 @@ public class QueryProcessor implements QueryHandler
             // in case there are other overloads, we have to remove all overloads since argument type
             // matching may change (due to type casting)
             if (Schema.instance.getKSMetaData(ksName).functions.get(new FunctionName(ksName, functionName)).size() > 1)
-                removeAllInvalidPreparedStatementsForFunction(ksName, functionName);
+                removeInvalidPreparedStatementsForFunction(ksName, functionName);
         }
 
         public void onUpdateColumnFamily(String ksName, String cfName, boolean affectsStatements)
@@ -637,7 +700,7 @@ public class QueryProcessor implements QueryHandler
             // the new definition is picked (the function is resolved at preparation time).
             // TODO: if the function has multiple overload, we could invalidate only the statement refering to the overload
             // that was updated. This requires a few changes however and probably doesn't matter much in practice.
-            removeAllInvalidPreparedStatementsForFunction(ksName, functionName);
+            removeInvalidPreparedStatementsForFunction(ksName, functionName);
         }
 
         public void onUpdateAggregate(String ksName, String aggregateName, List<AbstractType<?>> argTypes)
@@ -646,7 +709,7 @@ public class QueryProcessor implements QueryHandler
             // the new definition is picked (the function is resolved at preparation time).
             // TODO: if the function has multiple overload, we could invalidate only the statement refering to the overload
             // that was updated. This requires a few changes however and probably doesn't matter much in practice.
-            removeAllInvalidPreparedStatementsForFunction(ksName, aggregateName);
+            removeInvalidPreparedStatementsForFunction(ksName, aggregateName);
         }
 
         public void onDropKeyspace(String ksName)
@@ -663,27 +726,12 @@ public class QueryProcessor implements QueryHandler
 
         public void onDropFunction(String ksName, String functionName, List<AbstractType<?>> argTypes)
         {
-            removeAllInvalidPreparedStatementsForFunction(ksName, functionName);
+            removeInvalidPreparedStatementsForFunction(ksName, functionName);
         }
 
         public void onDropAggregate(String ksName, String aggregateName, List<AbstractType<?>> argTypes)
         {
-            removeAllInvalidPreparedStatementsForFunction(ksName, aggregateName);
-        }
-
-        private static void removeAllInvalidPreparedStatementsForFunction(String ksName, String functionName)
-        {
-            removeInvalidPreparedStatementsForFunction(internalStatements.values().iterator(), ksName, functionName);
-            removeInvalidPreparedStatementsForFunction(preparedStatements.values().iterator(), ksName, functionName);
-            removeInvalidPreparedStatementsForFunction(thriftPreparedStatements.values().iterator(), ksName, functionName);
-        }
-
-        private static void removeInvalidPreparedStatementsForFunction(Iterator<ParsedStatement.Prepared> statements,
-                                                                       final String ksName,
-                                                                       final String functionName)
-        {
-            Predicate<Function> matchesFunction = f -> ksName.equals(f.name().keyspace) && functionName.equals(f.name().name);
-            Iterators.removeIf(statements, statement -> Iterables.any(statement.statement.getFunctions(), matchesFunction));
+            removeInvalidPreparedStatementsForFunction(ksName, aggregateName);
         }
     }
 }

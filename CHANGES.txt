@@ -1,4 +1,5 @@
 3.10
+ * Create a system table to expose prepared statements (CASSANDRA-8831)
  * Reuse DataOutputBuffer from ColumnIndex (CASSANDRA-11970)
  * Remove DatabaseDescriptor dependency from SegmentedFile (CASSANDRA-11580)
  * Add supplied username to authentication error messages (CASSANDRA-12076)
