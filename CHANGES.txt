@@ -11,6 +11,8 @@
  * Fix SASI PREFIX search in CONTAINS mode with partial terms (CASSANDRA-12073)
  * Increase size of flushExecutor thread pool (CASSANDRA-12071)
 Merged from 3.0:
+3.0.9
+ * Fix upgrading sparse tables that are incorrectly marked as dense (CASSANDRA-11315)
  * Fix reverse queries ignoring range tombstones (CASSANDRA-11733)
 2.2.8
  * Use dedicated thread for JMX notifications (CASSANDRA-12146)
