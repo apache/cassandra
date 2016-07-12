@@ -752,11 +752,11 @@ public abstract class SSTableReader extends SSTable implements SelfRefCounted<SS
                 builtSummary = true;
             }
 
-            long indexFileLength = new File(descriptor.filenameFor(Component.PRIMARY_INDEX)).length();
             int dataBufferSize = optimizationStrategy.bufferSize(sstableMetadata.estimatedPartitionSize.percentile(DatabaseDescriptor.getDiskOptimizationEstimatePercentile()));
 
             if (components.contains(Component.PRIMARY_INDEX))
             {
+                long indexFileLength = new File(descriptor.filenameFor(Component.PRIMARY_INDEX)).length();
                 int indexBufferSize = optimizationStrategy.bufferSize(indexFileLength / indexSummary.size());
                 ifile = ibuilder.bufferSize(indexBufferSize).complete();
             }
