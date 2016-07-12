@@ -84,7 +84,7 @@ public class MetadataSerializer implements IMetadataSerializer
         if (!statsFile.exists())
         {
             logger.trace("No sstable stats for {}", descriptor);
-            components = Maps.newHashMap();
+            components = new EnumMap<>(MetadataType.class);
             components.put(MetadataType.STATS, MetadataCollector.defaultStatsMetadata());
         }
         else
@@ -104,7 +104,7 @@ public class MetadataSerializer implements IMetadataSerializer
 
     public Map<MetadataType, MetadataComponent> deserialize(Descriptor descriptor, FileDataInput in, EnumSet<MetadataType> types) throws IOException
     {
-        Map<MetadataType, MetadataComponent> components = Maps.newHashMap();
+        Map<MetadataType, MetadataComponent> components = new EnumMap<>(MetadataType.class);
         // read number of components
         int numComponents = in.readInt();
         // read toc
