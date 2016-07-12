@@ -353,6 +353,11 @@ public final class MessagingService implements MessagingServiceMBean
         messageSinks.add(sink);
     }
 
+    public void removeMessageSink(IMessageSink sink)
+    {
+        messageSinks.remove(sink);
+    }
+
     public void clearMessageSinks()
     {
         messageSinks.clear();
