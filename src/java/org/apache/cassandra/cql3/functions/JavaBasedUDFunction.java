@@ -191,7 +191,7 @@ public final class JavaBasedUDFunction extends UDFunction
 
         // javaParamTypes is just the Java representation for argTypes resp. argDataTypes
         TypeToken<?>[] javaParamTypes = UDHelper.typeTokens(argCodecs, calledOnNullInput);
-        // javaReturnType is just the Java representation for returnType resp. returnDataType
+        // javaReturnType is just the Java representation for returnType resp. returnTypeCodec
         TypeToken<?> javaReturnType = returnCodec.getJavaType();
 
         // put each UDF in a separate package to prevent cross-UDF code access
@@ -222,7 +222,10 @@ public final class JavaBasedUDFunction extends UDFunction
                         s = body;
                         break;
                     case "arguments":
-                        s = generateArguments(javaParamTypes, argNames);
+                        s = generateArguments(javaParamTypes, argNames, false);
+                        break;
+                    case "arguments_aggregate":
+                        s = generateArguments(javaParamTypes, argNames, true);
                         break;
                     case "argument_list":
                         s = generateArgumentList(javaParamTypes, argNames);
@@ -326,7 +329,7 @@ public final class JavaBasedUDFunction extends UDFunction
                     }
                 }
 
-                if (nonSyntheticMethodCount != 2 || cls.getDeclaredConstructors().length != 1)
+                if (nonSyntheticMethodCount != 3 || cls.getDeclaredConstructors().length != 1)
                     throw new InvalidRequestException("Check your source to not define additional Java methods or constructors");
                 MethodType methodType = MethodType.methodType(void.class)
                                                   .appendParameterTypes(TypeCodec.class, TypeCodec[].class, UDFContext.class);
@@ -364,6 +367,10 @@ public final class JavaBasedUDFunction extends UDFunction
         return javaUDF.executeImpl(protocolVersion, params);
     }
 
+    protected Object executeAggregateUserDefined(int protocolVersion, Object firstParam, List<ByteBuffer> params)
+    {
+        return javaUDF.executeAggregateImpl(protocolVersion, firstParam, params);
+    }
 
     private static int countNewlines(StringBuilder javaSource)
     {
@@ -417,22 +424,48 @@ public final class JavaBasedUDFunction extends UDFunction
         return code.toString();
     }
 
-    private static String generateArguments(TypeToken<?>[] paramTypes, List<ColumnIdentifier> argNames)
+    /**
+     * Generate Java source code snippet for the arguments part to call the UDF implementation function -
+     * i.e. the {@code private #return_type# #execute_internal_name#(#argument_list#)} function
+     * (see {@code JavaSourceUDF.txt} template file for details).
+     * <p>
+     * This method generates the arguments code snippet for both {@code executeImpl} and
+     * {@code executeAggregateImpl}. General signature for both is the {@code protocolVersion} and
+     * then all UDF arguments. For aggregation UDF calls the first argument is always unserialized as
+     * that is the state variable.
+     * </p>
+     * <p>
+     * An example output for {@code executeImpl}:
+     * {@code (double) super.compose_double(protocolVersion, 0, params.get(0)), (double) super.compose_double(protocolVersion, 1, params.get(1))}
+     * </p>
+     * <p>
+     * Similar output for {@code executeAggregateImpl}:
+     * {@code firstParam, (double) super.compose_double(protocolVersion, 1, params.get(1))}
+     * </p>
+     */
+    private static String generateArguments(TypeToken<?>[] paramTypes, List<ColumnIdentifier> argNames, boolean forAggregate)
     {
         StringBuilder code = new StringBuilder(64 * paramTypes.length);
         for (int i = 0; i < paramTypes.length; i++)
         {
             if (i > 0)
+                // add separator, if not the first argument
                 code.append(",\n");
 
+            // add comment only if trace is enabled
             if (logger.isTraceEnabled())
                 code.append("            /* parameter '").append(argNames.get(i)).append("' */\n");
 
-            code
-                // cast to Java type
-                .append("            (").append(javaSourceName(paramTypes[i])).append(") ")
+            // cast to Java type
+            code.append("            (").append(javaSourceName(paramTypes[i])).append(") ");
+
+            if (forAggregate && i == 0)
+                // special case for aggregations where the state variable (1st arg to state + final function and
+                // return value from state function) is not re-serialized
+                code.append("firstParam");
+            else
                 // generate object representation of input parameter (call UDFunction.compose)
-                .append(composeMethod(paramTypes[i])).append("(protocolVersion, ").append(i).append(", params.get(").append(i).append("))");
+                code.append(composeMethod(paramTypes[i])).append("(protocolVersion, ").append(i).append(", params.get(").append(forAggregate ? i - 1 : i).append("))");
         }
         return code.toString();
     }

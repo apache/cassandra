@@ -25,6 +25,14 @@ public final class #class_name# extends JavaUDF
         return super.decompose(protocolVersion, result);
     }
 
+    protected Object executeAggregateImpl(int protocolVersion, Object firstParam, List<ByteBuffer> params)
+    {
+        #return_type# result = #execute_internal_name#(
+#arguments_aggregate#
+        );
+        return result;
+    }
+
     private #return_type# #execute_internal_name#(#argument_list#)
     {
 #body#

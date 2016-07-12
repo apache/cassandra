@@ -45,6 +45,8 @@ public abstract class JavaUDF
 
     protected abstract ByteBuffer executeImpl(int protocolVersion, List<ByteBuffer> params);
 
+    protected abstract Object executeAggregateImpl(int protocolVersion, Object firstParam, List<ByteBuffer> params);
+
     protected Object compose(int protocolVersion, int argIndex, ByteBuffer value)
     {
         return UDFunction.compose(argCodecs, protocolVersion, argIndex, value);

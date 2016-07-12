@@ -28,6 +28,7 @@ import java.util.Enumeration;
 import java.util.HashSet;
 import java.util.List;
 import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.Callable;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
@@ -258,12 +259,22 @@ public abstract class UDFunction extends AbstractFunction implements ScalarFunct
                 return Executors.newSingleThreadExecutor();
             }
 
+            protected Object executeAggregateUserDefined(int protocolVersion, Object firstParam, List<ByteBuffer> parameters)
+            {
+                throw broken();
+            }
+
             public ByteBuffer executeUserDefined(int protocolVersion, List<ByteBuffer> parameters)
             {
-                throw new InvalidRequestException(String.format("Function '%s' exists but hasn't been loaded successfully "
-                                                                + "for the following reason: %s. Please see the server log for details",
-                                                                this,
-                                                                reason.getMessage()));
+                throw broken();
+            }
+
+            private InvalidRequestException broken()
+            {
+                return new InvalidRequestException(String.format("Function '%s' exists but hasn't been loaded successfully "
+                                                                 + "for the following reason: %s. Please see the server log for details",
+                                                                 this,
+                                                                 reason.getMessage()));
             }
         };
     }
@@ -295,6 +306,44 @@ public abstract class UDFunction extends AbstractFunction implements ScalarFunct
         catch (Throwable t)
         {
             logger.trace("Invocation of user-defined function '{}' failed", this, t);
+            if (t instanceof VirtualMachineError)
+                throw (VirtualMachineError) t;
+            throw FunctionExecutionException.create(this, t);
+        }
+    }
+
+    /**
+     * Like {@link #execute(int, List)} but the first parameter is already in non-serialized form.
+     * Remaining parameters (2nd paramters and all others) are in {@code parameters}.
+     * This is used to prevent superfluous (de)serialization of the state of aggregates.
+     * Means: scalar functions of aggregates are called using this variant.
+     */
+    public final Object executeForAggregate(int protocolVersion, Object firstParam, List<ByteBuffer> parameters)
+    {
+        assertUdfsEnabled(language);
+
+        if (!calledOnNullInput && firstParam == null || !isCallableWrtNullable(parameters))
+            return null;
+
+        long tStart = System.nanoTime();
+        parameters = makeEmptyParametersNull(parameters);
+
+        try
+        {
+            // Using async UDF execution is expensive (adds about 100us overhead per invocation on a Core-i7 MBPr).
+            Object result = DatabaseDescriptor.enableUserDefinedFunctionsThreads()
+                                ? executeAggregateAsync(protocolVersion, firstParam, parameters)
+                                : executeAggregateUserDefined(protocolVersion, firstParam, parameters);
+            Tracing.trace("Executed UDF {} in {}\u03bcs", name(), (System.nanoTime() - tStart) / 1000);
+            return result;
+        }
+        catch (InvalidRequestException e)
+        {
+            throw e;
+        }
+        catch (Throwable t)
+        {
+            logger.debug("Invocation of user-defined function '{}' failed", this, t);
             if (t instanceof VirtualMachineError)
                 throw (VirtualMachineError) t;
             throw FunctionExecutionException.create(this, t);
@@ -344,10 +393,31 @@ public abstract class UDFunction extends AbstractFunction implements ScalarFunct
     {
         ThreadIdAndCpuTime threadIdAndCpuTime = new ThreadIdAndCpuTime();
 
-        Future<ByteBuffer> future = executor().submit(() -> {
+        return async(threadIdAndCpuTime, () -> {
             threadIdAndCpuTime.setup();
             return executeUserDefined(protocolVersion, parameters);
         });
+    }
+
+    /**
+     * Like {@link #executeAsync(int, List)} but the first parameter is already in non-serialized form.
+     * Remaining parameters (2nd paramters and all others) are in {@code parameters}.
+     * This is used to prevent superfluous (de)serialization of the state of aggregates.
+     * Means: scalar functions of aggregates are called using this variant.
+     */
+    private Object executeAggregateAsync(int protocolVersion, Object firstParam, List<ByteBuffer> parameters)
+    {
+        ThreadIdAndCpuTime threadIdAndCpuTime = new ThreadIdAndCpuTime();
+
+        return async(threadIdAndCpuTime, () -> {
+            threadIdAndCpuTime.setup();
+            return executeAggregateUserDefined(protocolVersion, firstParam, parameters);
+        });
+    }
+
+    private <T> T async(ThreadIdAndCpuTime threadIdAndCpuTime, Callable<T> callable)
+    {
+        Future<T> future = executor().submit(callable);
 
         try
         {
@@ -444,6 +514,8 @@ public abstract class UDFunction extends AbstractFunction implements ScalarFunct
     }
 
     protected abstract ByteBuffer executeUserDefined(int protocolVersion, List<ByteBuffer> parameters);
+
+    protected abstract Object executeAggregateUserDefined(int protocolVersion, Object firstParam, List<ByteBuffer> parameters);
 
     public boolean isAggregate()
     {

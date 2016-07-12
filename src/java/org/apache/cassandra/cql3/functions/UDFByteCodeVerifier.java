@@ -108,6 +108,13 @@ public final class UDFByteCodeVerifier
                     // the executeImpl method - ByteBuffer executeImpl(int protocolVersion, List<ByteBuffer> params)
                     return new ExecuteImplVisitor(errors);
                 }
+                if ("executeAggregateImpl".equals(name) && "(ILjava/lang/Object;Ljava/util/List;)Ljava/lang/Object;".equals(desc))
+                {
+                    if (Opcodes.ACC_PROTECTED != access)
+                        errors.add("executeAggregateImpl not protected");
+                    // the executeImpl method - ByteBuffer executeImpl(int protocolVersion, List<ByteBuffer> params)
+                    return new ExecuteImplVisitor(errors);
+                }
                 if ("<clinit>".equals(name))
                 {
                     errors.add("static initializer declared");

@@ -18,7 +18,6 @@
 package org.apache.cassandra.cql3.validation.operations;
 
 import java.math.BigDecimal;
-import java.math.MathContext;
 import java.math.RoundingMode;
 import java.nio.ByteBuffer;
 import java.text.SimpleDateFormat;
@@ -40,6 +39,8 @@ import ch.qos.logback.classic.LoggerContext;
 import ch.qos.logback.classic.spi.TurboFilterList;
 import ch.qos.logback.classic.turbo.ReconfigureOnChangeFilter;
 import ch.qos.logback.classic.turbo.TurboFilter;
+import com.datastax.driver.core.Session;
+import com.datastax.driver.core.TupleValue;
 import org.apache.cassandra.config.Schema;
 import org.apache.cassandra.cql3.CQLTester;
 import org.apache.cassandra.cql3.QueryProcessor;
@@ -48,7 +49,6 @@ import org.apache.cassandra.cql3.UntypedResultSet.Row;
 import org.apache.cassandra.cql3.functions.UDAggregate;
 import org.apache.cassandra.db.SystemKeyspace;
 import org.apache.cassandra.db.marshal.AbstractType;
-import org.apache.cassandra.db.marshal.DynamicCompositeType;
 import org.apache.cassandra.db.marshal.TypeParser;
 import org.apache.cassandra.exceptions.FunctionExecutionException;
 import org.apache.cassandra.exceptions.InvalidRequestException;
@@ -1883,6 +1883,7 @@ public class AggregationTest extends CQLTester
                    row(finalFunc, initCond));
     }
 
+    @Test
     public void testCustomTypeInitcond() throws Throwable
     {
         try
@@ -1965,5 +1966,59 @@ public class AggregationTest extends CQLTester
 
         assertRows(execute("select avg(val) from %s where bucket in (1, 2, 3);"),
                    row(a));
+    }
+
+    @Test
+    public void testSameStateInstance() throws Throwable
+    {
+        // CASSANDRA-9613 removes the neccessity to re-serialize the state variable for each
+        // UDA state function and final function call.
+        //
+        // To test that the same state object instance is used during each invocation of the
+        // state and final function, this test uses a trick:
+        // it puts the identity hash code of the state variable to a tuple. The test then
+        // just asserts that the identity hash code is the same for all invocations
+        // of the state function and the final function.
+
+        String sf = createFunction(KEYSPACE,
+                                  "tuple<int,int,int,int>, int",
+                                  "CREATE FUNCTION %s(s tuple<int,int,int,int>, i int) " +
+                                  "CALLED ON NULL INPUT " +
+                                  "RETURNS tuple<int,int,int,int> " +
+                                  "LANGUAGE java " +
+                                  "AS 's.setInt(i, System.identityHashCode(s)); return s;'");
+
+        String ff = createFunction(KEYSPACE,
+                                  "tuple<int,int,int,int>",
+                                  "CREATE FUNCTION %s(s tuple<int,int,int,int>) " +
+                                  "CALLED ON NULL INPUT " +
+                                  "RETURNS tuple<int,int,int,int> " +
+                                  "LANGUAGE java " +
+                                  "AS 's.setInt(3, System.identityHashCode(s)); return s;'");
+
+        String a = createAggregate(KEYSPACE,
+                                   "int",
+                                   "CREATE AGGREGATE %s(int) " +
+                                   "SFUNC " + shortFunctionName(sf) + ' ' +
+                                   "STYPE tuple<int,int,int,int> " +
+                                   "FINALFUNC " + shortFunctionName(ff) + ' ' +
+                                   "INITCOND (0,1,2)");
+
+        createTable("CREATE TABLE %s (a int primary key, b int)");
+        execute("INSERT INTO %s (a, b) VALUES (0, 0)");
+        execute("INSERT INTO %s (a, b) VALUES (1, 1)");
+        execute("INSERT INTO %s (a, b) VALUES (2, 2)");
+        try (Session s = sessionNet())
+        {
+            com.datastax.driver.core.Row row = s.execute("SELECT " + a + "(b) FROM " + KEYSPACE + '.' + currentTable()).one();
+            TupleValue tuple = row.getTupleValue(0);
+            int h0 = tuple.getInt(0);
+            int h1 = tuple.getInt(1);
+            int h2 = tuple.getInt(2);
+            int h3 = tuple.getInt(3);
+            assertEquals(h0, h1);
+            assertEquals(h0, h2);
+            assertEquals(h0, h3);
+        }
     }
 }

@@ -35,6 +35,11 @@ public final class CallClone extends JavaUDF
         super(returnDataType, argDataTypes, udfContext);
     }
 
+    protected Object executeAggregateImpl(int protocolVersion, Object firstParam, List<ByteBuffer> params)
+    {
+        throw new UnsupportedOperationException();
+    }
+
     protected ByteBuffer executeImpl(int protocolVersion, List<ByteBuffer> params)
     {
         try

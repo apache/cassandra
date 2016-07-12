@@ -177,6 +177,29 @@ final class ScriptBasedUDFunction extends UDFunction
         for (int i = 0; i < params.length; i++)
             params[i] = compose(protocolVersion, i, parameters.get(i));
 
+        Object result = executeScriptInternal(params);
+
+        return decompose(protocolVersion, result);
+    }
+
+    /**
+     * Like {@link #executeUserDefined(int, List)} but the first parameter is already in non-serialized form.
+     * Remaining parameters (2nd paramters and all others) are in {@code parameters}.
+     * This is used to prevent superfluous (de)serialization of the state of aggregates.
+     * Means: scalar functions of aggregates are called using this variant.
+     */
+    protected Object executeAggregateUserDefined(int protocolVersion, Object firstParam, List<ByteBuffer> parameters)
+    {
+        Object[] params = new Object[argTypes.size()];
+        params[0] = firstParam;
+        for (int i = 1; i < params.length; i++)
+            params[i] = compose(protocolVersion, i, parameters.get(i - 1));
+
+        return executeScriptInternal(params);
+    }
+
+    private Object executeScriptInternal(Object[] params)
+    {
         ScriptContext scriptContext = new SimpleScriptContext();
         scriptContext.setAttribute("javax.script.filename", this.name.toString(), ScriptContext.ENGINE_SCOPE);
         Bindings bindings = scriptContext.getBindings(ScriptContext.ENGINE_SCOPE);
@@ -251,7 +274,7 @@ final class ScriptBasedUDFunction extends UDFunction
             }
         }
 
-        return decompose(protocolVersion, result);
+        return result;
     }
 
     private final class UDFContextWrapper extends AbstractJSObject
