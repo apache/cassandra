@@ -441,6 +441,10 @@ public class DatabaseDescriptor
             conf.cdc_raw_directory = storagedirFor("cdc_raw");
         }
 
+        // Windows memory-mapped CommitLog files is incompatible with CDC as we hard-link files in cdc_raw. Confirm we don't have both enabled.
+        if (FBUtilities.isWindows && conf.cdc_enabled && conf.commitlog_compression == null)
+            throw new ConfigurationException("Cannot enable cdc on Windows with uncompressed commitlog.");
+
         if (conf.commitlog_total_space_in_mb == null)
         {
             int preferredSize = 8192;

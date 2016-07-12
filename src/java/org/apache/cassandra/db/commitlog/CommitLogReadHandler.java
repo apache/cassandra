@@ -69,7 +69,7 @@ public interface CommitLogReadHandler
      *
      * @param m deserialized mutation
      * @param size serialized size of the mutation
-     * @param entryLocation filePointer offset inside the CommitLogSegment for the record
+     * @param entryLocation filePointer offset inside the CommitLogSegment for the end of the record
      * @param desc CommitLogDescriptor for mutation being processed
      */
     void handleMutation(Mutation m, int size, int entryLocation, CommitLogDescriptor desc);

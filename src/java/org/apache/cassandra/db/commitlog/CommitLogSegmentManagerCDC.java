@@ -32,9 +32,9 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import org.apache.cassandra.config.DatabaseDescriptor;
-import org.apache.cassandra.db.*;
+import org.apache.cassandra.db.Mutation;
 import org.apache.cassandra.db.commitlog.CommitLogSegment.CDCState;
-import org.apache.cassandra.exceptions.WriteTimeoutException;
+import org.apache.cassandra.exceptions.CDCWriteException;
 import org.apache.cassandra.io.util.FileUtils;
 import org.apache.cassandra.utils.DirectorySizeCalculator;
 import org.apache.cassandra.utils.NoSpamLogger;
@@ -64,12 +64,20 @@ public class CommitLogSegmentManagerCDC extends AbstractCommitLogSegmentManager
 
         cdcSizeTracker.processDiscardedSegment(segment);
 
-        if (segment.getCDCState() == CDCState.CONTAINS)
-            FileUtils.renameWithConfirm(segment.logFile.getAbsolutePath(), DatabaseDescriptor.getCDCLogLocation() + File.separator + segment.logFile.getName());
-        else
+        if (delete)
+            FileUtils.deleteWithConfirm(segment.logFile);
+
+        if (segment.getCDCState() != CDCState.CONTAINS)
         {
-            if (delete)
-                FileUtils.deleteWithConfirm(segment.logFile);
+            // Always delete hard-link from cdc folder if this segment didn't contain CDC data. Note: File may not exist
+            // if processing discard during startup.
+            File cdcLink = segment.getCDCFile();
+            if (cdcLink.exists())
+                FileUtils.deleteWithConfirm(cdcLink);
+
+            File cdcIndexFile = segment.getCDCIndexFile();
+            if (cdcIndexFile.exists())
+                FileUtils.deleteWithConfirm(cdcIndexFile);
         }
     }
 
@@ -89,10 +97,10 @@ public class CommitLogSegmentManagerCDC extends AbstractCommitLogSegmentManager
      * @param mutation Mutation to allocate in segment manager
      * @param size total size (overhead + serialized) of mutation
      * @return the created Allocation object
-     * @throws WriteTimeoutException If segment disallows CDC mutations, we throw WTE
+     * @throws CDCWriteException If segment disallows CDC mutations, we throw
      */
     @Override
-    public CommitLogSegment.Allocation allocate(Mutation mutation, int size) throws WriteTimeoutException
+    public CommitLogSegment.Allocation allocate(Mutation mutation, int size) throws CDCWriteException
     {
         CommitLogSegment segment = allocatingFrom();
         CommitLogSegment.Allocation alloc;
@@ -113,30 +121,20 @@ public class CommitLogSegmentManagerCDC extends AbstractCommitLogSegmentManager
         return alloc;
     }
 
-    private void throwIfForbidden(Mutation mutation, CommitLogSegment segment) throws WriteTimeoutException
+    private void throwIfForbidden(Mutation mutation, CommitLogSegment segment) throws CDCWriteException
     {
         if (mutation.trackedByCDC() && segment.getCDCState() == CDCState.FORBIDDEN)
         {
             cdcSizeTracker.submitOverflowSizeRecalculation();
+            String logMsg = String.format("Rejecting mutation to keyspace %s. Free up space in %s by processing CDC logs.",
+                mutation.getKeyspaceName(), DatabaseDescriptor.getCDCLogLocation());
             NoSpamLogger.log(logger,
                              NoSpamLogger.Level.WARN,
                              10,
                              TimeUnit.SECONDS,
-                             "Rejecting Mutation containing CDC-enabled table. Free up space in {}.",
-                             DatabaseDescriptor.getCDCLogLocation());
-            throw new WriteTimeoutException(WriteType.CDC, ConsistencyLevel.LOCAL_ONE, 0, 1);
+                             logMsg);
+            throw new CDCWriteException(logMsg);
         }
-    }
-
-    /**
-     * Move files to cdc_raw after replay, since recovery will flush to SSTable and these mutations won't be available
-     * in the CL subsystem otherwise.
-     */
-    void handleReplayedSegment(final File file)
-    {
-        logger.trace("Moving (Unopened) segment {} to cdc_raw directory after replay", file);
-        FileUtils.renameWithConfirm(file.getAbsolutePath(), DatabaseDescriptor.getCDCLogLocation() + File.separator + file.getName());
-        cdcSizeTracker.addFlushedSize(file.length());
     }
 
     /**
@@ -146,8 +144,20 @@ public class CommitLogSegmentManagerCDC extends AbstractCommitLogSegmentManager
     public CommitLogSegment createSegment()
     {
         CommitLogSegment segment = CommitLogSegment.createSegment(commitLog, this);
+
+        // Hard link file in cdc folder for realtime tracking
+        FileUtils.createHardLink(segment.logFile, segment.getCDCFile());
+
         cdcSizeTracker.processNewSegment(segment);
         return segment;
+    }
+
+    /**
+     * For use after replay when replayer hard-links / adds tracking of replayed segments
+     */
+    public void addCDCSize(long size)
+    {
+        cdcSizeTracker.addSize(size);
     }
 
     /**
@@ -162,7 +172,6 @@ public class CommitLogSegmentManagerCDC extends AbstractCommitLogSegmentManager
         private final RateLimiter rateLimiter = RateLimiter.create(1000.0 / DatabaseDescriptor.getCDCDiskCheckInterval());
         private ExecutorService cdcSizeCalculationExecutor;
         private CommitLogSegmentManagerCDC segmentManager;
-        private volatile long unflushedCDCSize;
 
         // Used instead of size during walk to remove chance of over-allocation
         private volatile long sizeInProgress = 0;
@@ -179,7 +188,6 @@ public class CommitLogSegmentManagerCDC extends AbstractCommitLogSegmentManager
         public void start()
         {
             size = 0;
-            unflushedCDCSize = 0;
             cdcSizeCalculationExecutor = new ThreadPoolExecutor(1, 1, 1000, TimeUnit.SECONDS, new SynchronousQueue<>(), new ThreadPoolExecutor.DiscardPolicy());
         }
 
@@ -202,7 +210,7 @@ public class CommitLogSegmentManagerCDC extends AbstractCommitLogSegmentManager
                                     ? CDCState.FORBIDDEN
                                     : CDCState.PERMITTED);
                 if (segment.getCDCState() == CDCState.PERMITTED)
-                    unflushedCDCSize += defaultSegmentSize();
+                    size += defaultSegmentSize();
             }
 
             // Take this opportunity to kick off a recalc to pick up any consumer file deletion.
@@ -218,7 +226,7 @@ public class CommitLogSegmentManagerCDC extends AbstractCommitLogSegmentManager
                 if (segment.getCDCState() == CDCState.CONTAINS)
                     size += segment.onDiskSize();
                 if (segment.getCDCState() != CDCState.FORBIDDEN)
-                    unflushedCDCSize -= defaultSegmentSize();
+                    size -= defaultSegmentSize();
             }
 
             // Take this opportunity to kick off a recalc to pick up any consumer file deletion.
@@ -278,19 +286,20 @@ public class CommitLogSegmentManagerCDC extends AbstractCommitLogSegmentManager
             return FileVisitResult.CONTINUE;
         }
 
-        private void addFlushedSize(long toAdd)
+
+        public void shutdown()
+        {
+            cdcSizeCalculationExecutor.shutdown();
+        }
+
+        private void addSize(long toAdd)
         {
             size += toAdd;
         }
 
         private long totalCDCSizeOnDisk()
         {
-            return unflushedCDCSize + size;
-        }
-
-        public void shutdown()
-        {
-            cdcSizeCalculationExecutor.shutdown();
+            return size;
         }
     }
 

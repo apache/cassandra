@@ -96,6 +96,14 @@ public class CommitLogReader
     }
 
     /**
+     * Reads all mutations from passed in file from minPosition
+     */
+    public void readCommitLogSegment(CommitLogReadHandler handler, File file, CommitLogPosition minPosition, boolean tolerateTruncation) throws IOException
+    {
+        readCommitLogSegment(handler, file, minPosition, ALL_MUTATIONS, tolerateTruncation);
+    }
+
+    /**
      * Reads passed in file fully, up to mutationLimit count
      */
     @VisibleForTesting
@@ -357,7 +365,7 @@ public class CommitLogReader
      * @param inputBuffer raw byte array w/Mutation data
      * @param size deserialized size of mutation
      * @param minPosition We need to suppress replay of mutations that are before the required minPosition
-     * @param entryLocation filePointer offset of mutation within CommitLogSegment
+     * @param entryLocation filePointer offset of end of mutation within CommitLogSegment
      * @param desc CommitLogDescriptor being worked on
      */
     @VisibleForTesting

@@ -219,6 +219,11 @@ public class CommitLogDescriptor
         return FILENAME_PREFIX + version + SEPARATOR + id + FILENAME_EXTENSION;
     }
 
+    public String cdcIndexFileName()
+    {
+        return FILENAME_PREFIX + version + SEPARATOR + id + "_cdc.idx";
+    }
+
     /**
      * @param   filename  the filename to check
      * @return true if filename could be a commit log based on it's filename

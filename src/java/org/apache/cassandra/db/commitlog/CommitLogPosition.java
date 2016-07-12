@@ -40,6 +40,7 @@ public class CommitLogPosition implements Comparable<CommitLogPosition>
     public static final CommitLogPosition NONE = new CommitLogPosition(-1, 0);
 
     public final long segmentId;
+    // Indicates the end position of the mutation in the CommitLog
     public final int position;
 
     public static final Comparator<CommitLogPosition> comparator = new Comparator<CommitLogPosition>()

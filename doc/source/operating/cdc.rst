@@ -23,18 +23,26 @@ Overview
 ^^^^^^^^
 
 Change data capture (CDC) provides a mechanism to flag specific tables for archival as well as rejecting writes to those
-tables once a configurable size-on-disk for the combined flushed and unflushed CDC-log is reached. An operator can
-enable CDC on a table by setting the table property ``cdc=true`` (either when :ref:`creating the table
-<create-table-statement>` or :ref:`altering it <alter-table-statement>`), after which any CommitLogSegments containing
-data for a CDC-enabled table are moved to the directory specified in ``cassandra.yaml`` on segment discard. A threshold
-of total disk space allowed is specified in the yaml at which time newly allocated CommitLogSegments will not allow CDC
-data until a consumer parses and removes data from the destination archival directory.
+tables once a configurable size-on-disk for the CDC log is reached. An operator can enable CDC on a table by setting the
+table property ``cdc=true`` (either when :ref:`creating the table <create-table-statement>` or
+:ref:`altering it <alter-table-statement>`). Upon CommitLogSegment creation, a hard-link to the segment is created in the
+directory specified in ``cassandra.yaml``. On segment fsync to disk, if CDC data is present anywhere in the segment a
+<segment_name>_cdc.idx file is also created with the integer offset of how much data in the original segment is persisted
+to disk. Upon final segment flush, a second line with the human-readable word "COMPLETED" will be added to the _cdc.idx
+file indicating that Cassandra has completed all processing on the file.
+
+We we use an index file rather than just encouraging clients to parse the log realtime off a memory mapped handle as data
+can be reflected in a kernel buffer that is not yet persisted to disk. Parsing only up to the listed offset in the _cdc.idx
+file will ensure that you only parse CDC data for data that is durable.
+
+A threshold of total disk space allowed is specified in the yaml at which time newly allocated CommitLogSegments will
+not allow CDC data until a consumer parses and removes files from the specified cdc_raw directory.
 
 Configuration
 ^^^^^^^^^^^^^
 
-Enabling or disable CDC on a table
-~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+Enabling or disabling CDC on a table
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 CDC is enable or disable through the `cdc` table property, for instance::
 
@@ -64,7 +72,7 @@ The following `cassandra.yaml` are available for CDC:
 
 Reading CommitLogSegments
 ^^^^^^^^^^^^^^^^^^^^^^^^^
-This implementation included a refactor of CommitLogReplayer into `CommitLogReader.java
+Use a `CommitLogReader.java
 <https://github.com/apache/cassandra/blob/e31e216234c6b57a531cae607e0355666007deb2/src/java/org/apache/cassandra/db/commitlog/CommitLogReader.java>`__.
 Usage is `fairly straightforward
 <https://github.com/apache/cassandra/blob/e31e216234c6b57a531cae607e0355666007deb2/src/java/org/apache/cassandra/db/commitlog/CommitLogReplayer.java#L132-L140>`__
@@ -78,12 +86,11 @@ Warnings
 
 **Do not enable CDC without some kind of consumption process in-place.**
 
-The initial implementation of Change Data Capture does not include a parser (see :ref:`reading-commitlogsegments` above)
-so, if CDC is enabled on a node and then on a table, the ``cdc_free_space_in_mb`` will fill up and then writes to
+If CDC is enabled on a node and then on a table, the ``cdc_free_space_in_mb`` will fill up and then writes to
 CDC-enabled tables will be rejected unless some consumption process is in place.
 
 Further Reading
 ^^^^^^^^^^^^^^^
 
-- `Design doc <https://docs.google.com/document/d/1ZxCWYkeZTquxsvf5hdPc0fiUnUHna8POvgt6TIzML4Y/edit>`__
 - `JIRA ticket <https://issues.apache.org/jira/browse/CASSANDRA-8844>`__
+- `JIRA ticket <https://issues.apache.org/jira/browse/CASSANDRA-12148>`__

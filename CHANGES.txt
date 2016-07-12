@@ -25,6 +25,7 @@
  * Upgrade SLF4J from 1.7.7 to 1.7.25 (CASSANDRA-12996)
  * Default for start_native_transport now true if not set in config (CASSANDRA-13656)
  * Don't add localhost to the graph when calculating where to stream from (CASSANDRA-13583)
+ * Make CDC availability more deterministic via hard-linking (CASSANDRA-12148)
  * Allow skipping equality-restricted clustering columns in ORDER BY clause (CASSANDRA-10271)
  * Use common nowInSec for validation compactions (CASSANDRA-13671)
  * Improve handling of IR prepare failures (CASSANDRA-13672)

@@ -25,7 +25,11 @@ New features
    - Support for arithmetic operations on number has been added. See CASSANDRA-11935
    - Preview expected streaming required for a repair (nodetool repair --preview), and validate the
      consistency of repaired data between nodes (nodetool repair --validate). See CASSANDRA-13257
-   - Support for selecting Map values and Set elements has been added for SELECT queries. See CASSANDRA-7396 
+   - Support for selecting Map values and Set elements has been added for SELECT queries. See CASSANDRA-7396
+   - Change-Data-Capture has been modified to make CommitLogSegments available
+     immediately upon creation via hard-linking the files. This means that incomplete
+     segments will be available in cdc_raw rather than fully flushed. See documentation
+     and CASSANDRA-12148 for more detail.
 
 Upgrading
 ---------

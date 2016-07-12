@@ -1,1 +1,4 @@
 cdc_enabled: true
+# Compression enabled since uncompressed + cdc isn't compatible w/Windows
+commitlog_compression:
+  - class_name: LZ4Compressor

@@ -34,17 +34,20 @@ import org.slf4j.LoggerFactory;
 
 import org.apache.cassandra.concurrent.Stage;
 import org.apache.cassandra.concurrent.StageManager;
-import org.apache.cassandra.schema.TableId;
-import org.apache.cassandra.schema.TableMetadataRef;
 import org.apache.cassandra.config.Config;
-import org.apache.cassandra.schema.Schema;
-import org.apache.cassandra.schema.SchemaConstants;
+import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.db.ColumnFamilyStore;
 import org.apache.cassandra.db.Keyspace;
 import org.apache.cassandra.db.Mutation;
 import org.apache.cassandra.db.SystemKeyspace;
 import org.apache.cassandra.db.partitions.PartitionUpdate;
 import org.apache.cassandra.io.sstable.format.SSTableReader;
+import org.apache.cassandra.io.util.FileUtils;
+import org.apache.cassandra.io.util.RandomAccessReader;
+import org.apache.cassandra.schema.Schema;
+import org.apache.cassandra.schema.SchemaConstants;
+import org.apache.cassandra.schema.TableId;
+import org.apache.cassandra.schema.TableMetadataRef;
 import org.apache.cassandra.utils.FBUtilities;
 import org.apache.cassandra.utils.WrappedRunnable;
 
@@ -70,6 +73,9 @@ public class CommitLogReplayer implements CommitLogReadHandler
 
     private final ReplayFilter replayFilter;
     private final CommitLogArchiver archiver;
+
+    @VisibleForTesting
+    protected boolean sawCDCMutation;
 
     @VisibleForTesting
     protected CommitLogReader commitLogReader;
@@ -130,13 +136,51 @@ public class CommitLogReplayer implements CommitLogReadHandler
 
     public void replayPath(File file, boolean tolerateTruncation) throws IOException
     {
+        sawCDCMutation = false;
         commitLogReader.readCommitLogSegment(this, file, globalPosition, CommitLogReader.ALL_MUTATIONS, tolerateTruncation);
+        if (sawCDCMutation)
+            handleCDCReplayCompletion(file);
     }
 
     public void replayFiles(File[] clogs) throws IOException
     {
-        commitLogReader.readAllFiles(this, clogs, globalPosition);
+        for (int i = 0; i < clogs.length; i++)
+        {
+            sawCDCMutation = false;
+            commitLogReader.readCommitLogSegment(this, clogs[i], globalPosition, i == clogs.length - 1);
+            if (sawCDCMutation)
+                handleCDCReplayCompletion(clogs[i]);
+        }
     }
+
+
+    /**
+     * Upon replay completion, CDC needs to hard-link files in the CDC folder and calculate index files so consumers can
+     * begin their work.
+     */
+    private void handleCDCReplayCompletion(File f) throws IOException
+    {
+        // Can only reach this point if CDC is enabled, thus we have a CDCSegmentManager
+        ((CommitLogSegmentManagerCDC)CommitLog.instance.segmentManager).addCDCSize(f.length());
+
+        File dest = new File(DatabaseDescriptor.getCDCLogLocation(), f.getName());
+
+        // If hard link already exists, assume it's from a previous node run. If people are mucking around in the cdc_raw
+        // directory that's on them.
+        if (!dest.exists())
+            FileUtils.createHardLink(f, dest);
+
+        // The reader has already verified we can deserialize the descriptor.
+        CommitLogDescriptor desc;
+        try(RandomAccessReader reader = RandomAccessReader.open(f))
+        {
+            desc = CommitLogDescriptor.readHeader(reader, DatabaseDescriptor.getEncryptionContext());
+            assert desc != null;
+            assert f.length() < Integer.MAX_VALUE;
+            CommitLogSegment.writeCDCIndexFile(desc, (int)f.length(), true);
+        }
+    }
+
 
     /**
      * Flushes all keyspaces associated with this replayer in parallel, blocking until their flushes are complete.
@@ -366,6 +410,9 @@ public class CommitLogReplayer implements CommitLogReadHandler
 
     public void handleMutation(Mutation m, int size, int entryLocation, CommitLogDescriptor desc)
     {
+        if (DatabaseDescriptor.isCDCEnabled() && m.trackedByCDC())
+            sawCDCMutation = true;
+
         pendingMutationBytes += size;
         futures.offer(mutationInitiator.initiateMutation(m,
                                                          desc.id,
