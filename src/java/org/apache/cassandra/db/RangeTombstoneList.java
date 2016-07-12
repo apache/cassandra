@@ -549,7 +549,7 @@ public class RangeTombstoneList implements Iterable<RangeTombstone>, IMeasurable
                     ClusteringBound newEnd = start.invert();
                     if (!Slice.isEmpty(comparator, starts[i], newEnd))
                     {
-                        addInternal(i, starts[i], start.invert(), markedAts[i], delTimes[i]);
+                        addInternal(i, starts[i], newEnd, markedAts[i], delTimes[i]);
                         i++;
                         setInternal(i, start, ends[i], markedAts[i], delTimes[i]);
                     }
