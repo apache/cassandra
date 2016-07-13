@@ -1,4 +1,5 @@
 3.9
+ * cqlsh: Fix handling of $$-escaped strings (CASSANDRA-12189)
  * Fix SSL JMX requiring truststore containing server cert (CASSANDRA-12109)
 Merged from 3.0:
  * NullPointerExpception when reading/compacting table (CASSANDRA-11988)
