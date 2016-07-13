@@ -606,14 +606,8 @@ public class TokenTreeTest
         return result;
     }
 
-    // TODO: (ifesdjeen) ABSTRACT!
-    private static class KeyConverter extends KeyFetcher
+    private static class KeyConverter implements KeyFetcher
     {
-        KeyConverter()
-        {
-            super(null);
-        }
-
         @Override
         public DecoratedKey getPartitionKey(Long offset)
         {

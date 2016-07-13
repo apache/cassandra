@@ -24,61 +24,61 @@ import org.apache.cassandra.db.*;
 import org.apache.cassandra.io.*;
 import org.apache.cassandra.io.sstable.format.*;
 
-/**
- * KeyFetcher, fetches clustering and partition key from the sstable.
- *
- * Currently, clustering key is fetched from the data file of the sstable and partition key is
- * read from the index file. Reading from index file helps us to warm up key cache in this case.
- */
-public class KeyFetcher
+
+public interface KeyFetcher
 {
-    private final SSTableReader sstable;
+    public Clustering getClustering(Long offset);
+    public DecoratedKey getPartitionKey(Long offset);
 
-    public KeyFetcher(SSTableReader reader)
+    /**
+     * Fetches clustering and partition key from the sstable.
+     *
+     * Currently, clustering key is fetched from the data file of the sstable and partition key is
+     * read from the index file. Reading from index file helps us to warm up key cache in this case.
+     */
+    public class SSTableKeyFetcher implements KeyFetcher
     {
-        sstable = reader;
-    }
+        private final SSTableReader sstable;
 
-    public ClusteringPrefix getClustering(Long offset)
-    {
-        try
+        public SSTableKeyFetcher(SSTableReader reader)
         {
-            Clustering clustering = sstable.clusteringAt(offset);
-
-            // TODO: (ifesdjeen) use clustering, not prefix, or maybe start reading out here even,
-            // alternative path would be to use order-preserving clustering hash in Token, although that'd
-            // make everything heavier.
-            if (clustering != null)
-                return clustering.clustering();
-            else
-                return null;
+            sstable = reader;
         }
-        catch (IOException e)
+
+        public Clustering getClustering(Long offset)
         {
-            throw new FSReadError(new IOException("Failed to read clustering from " + sstable.descriptor, e), sstable.getFilename());
+            try
+            {
+                return sstable.clusteringAt(offset);
+            }
+            catch (IOException e)
+            {
+                throw new FSReadError(new IOException("Failed to read clustering from " + sstable.descriptor, e), sstable.getFilename());
+            }
         }
-    }
 
-    public DecoratedKey getPartitionKey(Long offset)
-    {
-        try
+        public DecoratedKey getPartitionKey(Long offset)
         {
-            return sstable.keyAt(offset);
+            try
+            {
+                return sstable.keyAt(offset);
+            }
+            catch (IOException e)
+            {
+                throw new FSReadError(new IOException("Failed to read key from " + sstable.descriptor, e), sstable.getFilename());
+            }
         }
-        catch (IOException e)
+
+        public int hashCode()
         {
-            throw new FSReadError(new IOException("Failed to read key from " + sstable.descriptor, e), sstable.getFilename());
+            return sstable.descriptor.hashCode();
+        }
+
+        public boolean equals(Object other)
+        {
+            return other instanceof SSTableKeyFetcher
+                   && sstable.descriptor.equals(((SSTableKeyFetcher) other).sstable.descriptor);
         }
     }
 
-    public int hashCode()
-    {
-        return sstable.descriptor.hashCode();
-    }
-
-    public boolean equals(Object other)
-    {
-        return other instanceof KeyFetcher
-               && sstable.descriptor.equals(((KeyFetcher) other).sstable.descriptor);
-    }
 }

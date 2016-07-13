@@ -256,14 +256,13 @@ public class PerSSTableIndexWriterTest extends SchemaLoader
         }
     }
 
-    private final class FakeKeyFetcher extends KeyFetcher
+    private final class FakeKeyFetcher implements KeyFetcher
     {
         private final ColumnFamilyStore cfs;
         private final String keyFormat;
 
         public FakeKeyFetcher(ColumnFamilyStore cfs, String keyFormat)
         {
-            super(null);
             this.cfs = cfs;
             this.keyFormat = keyFormat;
         }

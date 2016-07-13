@@ -917,14 +917,8 @@ public class OnDiskIndexTest
         }
     }
 
-    // TODO: (ifesdjeen) abstract and resue with tokentreetest
-    private static class KeyConverter extends KeyFetcher
+    private static class KeyConverter implements KeyFetcher
     {
-        KeyConverter()
-        {
-            super(null);
-        }
-
         @Override
         public DecoratedKey getPartitionKey(Long offset)
         {
