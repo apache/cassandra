@@ -621,7 +621,7 @@ public class TokenTreeTest
         }
 
         @Override
-        public ClusteringPrefix getClustering(Long offset)
+        public Clustering getClustering(Long offset)
         {
             // TODO: (ifesdjeen) test for clusterings, too
             return null;

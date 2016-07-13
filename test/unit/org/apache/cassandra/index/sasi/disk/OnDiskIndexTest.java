@@ -932,7 +932,7 @@ public class OnDiskIndexTest
         }
 
         @Override
-        public ClusteringPrefix getClustering(Long offset)
+        public Clustering getClustering(Long offset)
         {
             return null;
         }

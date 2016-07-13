@@ -23,10 +23,6 @@ import java.util.*;
 import org.apache.cassandra.utils.AbstractIterator;
 import org.apache.cassandra.utils.Pair;
 
-import com.carrotsearch.hppc.LongOpenHashSet;
-import com.carrotsearch.hppc.LongSet;
-import com.carrotsearch.hppc.cursors.LongCursor;
-
 public class DynamicTokenTreeBuilder extends AbstractTokenTreeBuilder
 {
     private final SortedMap<Long, Set<RowOffset>> tokens = new TreeMap<>();

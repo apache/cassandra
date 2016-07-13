@@ -274,7 +274,7 @@ public class PerSSTableIndexWriterTest extends SchemaLoader
             return cfs.metadata.partitioner.decorateKey(key);
         }
 
-        public ClusteringPrefix getClustering(Long offset)
+        public Clustering getClustering(Long offset)
         {
             return Clustering.make(ByteBufferUtil.bytes(String.format(keyFormat, offset)));
         }
