@@ -34,13 +34,14 @@ import org.apache.cassandra.utils.*;
 import com.google.common.collect.PeekingIterator;
 import org.apache.commons.lang.NotImplementedException;
 
+// TODO: might be range iterator can take rowkey as a first argument?
 public class KeyRangeIterator extends RangeIterator<Long, Token>
 {
     private final DKIterator iterator;
 
-    public KeyRangeIterator(ConcurrentSkipListSet<Pair<DecoratedKey, ClusteringPrefix>> keys)
+    public KeyRangeIterator(ConcurrentSkipListSet<RowKey> keys)
     {
-        super((Long) keys.first().left.getToken().getTokenValue(), (Long) keys.last().left.getToken().getTokenValue(), keys.size());
+        super((Long) keys.first().decoratedKey.getToken().getTokenValue(), (Long) keys.last().decoratedKey.getToken().getTokenValue(), keys.size());
         this.iterator = new DKIterator(keys.iterator());
     }
 
@@ -53,9 +54,9 @@ public class KeyRangeIterator extends RangeIterator<Long, Token>
     {
         while (iterator.hasNext())
         {
-            Pair<DecoratedKey, ClusteringPrefix> key = iterator.peek();
+            RowKey key = iterator.peek();
             // TODO: (ifesdjeen) fix comparison
-            if (Long.compare((long) key.left.getToken().getTokenValue(), nextToken) >= 0)
+            if (Long.compare((long) key.decoratedKey.getToken().getTokenValue(), nextToken) >= 0)
                 break;
 
             // consume smaller key
@@ -66,16 +67,16 @@ public class KeyRangeIterator extends RangeIterator<Long, Token>
     public void close() throws IOException
     {}
 
-    private static class DKIterator extends AbstractIterator<Pair<DecoratedKey, ClusteringPrefix>> implements PeekingIterator<Pair<DecoratedKey, ClusteringPrefix>>
+    private static class DKIterator extends AbstractIterator<RowKey> implements PeekingIterator<RowKey>
     {
-        private final Iterator<Pair<DecoratedKey, ClusteringPrefix>> keys;
+        private final Iterator<RowKey> keys;
 
-        public DKIterator(Iterator<Pair<DecoratedKey, ClusteringPrefix>> keys)
+        public DKIterator(Iterator<RowKey> keys)
         {
             this.keys = keys;
         }
 
-        protected Pair<DecoratedKey, ClusteringPrefix> computeNext()
+        protected RowKey computeNext()
         {
             return keys.hasNext() ? keys.next() : endOfData();
         }
@@ -83,13 +84,13 @@ public class KeyRangeIterator extends RangeIterator<Long, Token>
 
     private static class DKToken extends Token
     {
-        private final SortedSet<Pair<DecoratedKey, ClusteringPrefix>> keys;
+        private final SortedSet<RowKey> keys;
 
-        public DKToken(Pair<DecoratedKey, ClusteringPrefix> key)
+        public DKToken(RowKey key)
         {
-            super((long) key.left.getToken().getTokenValue());
+            super((long) key.decoratedKey.getToken().getTokenValue());
 
-            keys = new TreeSet<Pair<DecoratedKey, ClusteringPrefix>>(TokenTree.OnDiskToken.comparator)
+            keys = new TreeSet<RowKey>(TokenTree.OnDiskToken.comparator)
             {{
                 add(key);
             }};
@@ -114,12 +115,12 @@ public class KeyRangeIterator extends RangeIterator<Long, Token>
             }
             else
             {
-                for (Pair<DecoratedKey, ClusteringPrefix> key : o)
+                for (RowKey key : o)
                     keys.add(key);
             }
         }
 
-        public Iterator<Pair<DecoratedKey, ClusteringPrefix>> iterator()
+        public Iterator<RowKey> iterator()
         {
             return keys.iterator();
         }

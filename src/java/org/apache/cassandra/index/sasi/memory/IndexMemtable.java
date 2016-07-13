@@ -22,7 +22,7 @@ import java.nio.ByteBuffer;
 import org.apache.cassandra.db.*;
 import org.apache.cassandra.db.marshal.AbstractType;
 import org.apache.cassandra.index.sasi.conf.ColumnIndex;
-import org.apache.cassandra.index.sasi.disk.Token;
+import org.apache.cassandra.index.sasi.disk.*;
 import org.apache.cassandra.index.sasi.plan.Expression;
 import org.apache.cassandra.index.sasi.utils.RangeIterator;
 import org.apache.cassandra.index.sasi.utils.TypeUtil;
@@ -42,7 +42,7 @@ public class IndexMemtable
         this.index = MemIndex.forColumn(columnIndex.keyValidator(), columnIndex);
     }
 
-    public long index(Pair<DecoratedKey, ClusteringPrefix> key, ByteBuffer value)
+    public long index(RowKey key, ByteBuffer value)
     {
         if (value == null || value.remaining() == 0)
             return 0;
@@ -55,7 +55,7 @@ public class IndexMemtable
             {
                 logger.error("Can't add column {} to index for key: {}, value size {}, validator: {}.",
                              index.columnIndex.getColumnName(),
-                             index.columnIndex.keyValidator().getString(key.left.getKey()),
+                             index.columnIndex.keyValidator().getString(key.decoratedKey.getKey()),
                              FBUtilities.prettyPrintMemory(size),
                              validator);
                 return 0;

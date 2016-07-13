@@ -339,8 +339,8 @@ public class TokenTreeTest
             }
 
             final Set<Long> offsets = new TreeSet<>();
-            for (Pair<DecoratedKey, ClusteringPrefix> key : tokenA)
-                 offsets.add(LongType.instance.compose(key.left.getKey()));
+            for (RowKey key : tokenA)
+                 offsets.add(LongType.instance.compose(key.decoratedKey.getKey()));
 
             Set<Long> expected = new TreeSet<>();
             {
@@ -568,11 +568,11 @@ public class TokenTreeTest
         }
 
         @Override
-        public Iterator<Pair<DecoratedKey, ClusteringPrefix>> iterator()
+        public Iterator<RowKey> iterator()
         {
-            List<Pair<DecoratedKey, ClusteringPrefix>> keys = new ArrayList<>(offsets.size());
+            List<RowKey> keys = new ArrayList<>(offsets.size());
             for (RowOffset offset : offsets)
-                 keys.add(Pair.create(dk(offset.partitionOffset), null)); // TODO (ifesdjeen) ?
+                 keys.add(new RowKey(dk(offset.partitionOffset), null)); // TODO (ifesdjeen) ?
 
             return keys.iterator();
         }
@@ -591,8 +591,8 @@ public class TokenTreeTest
     private static Set<DecoratedKey> convert(Token results)
     {
         Set<DecoratedKey> keys = new HashSet<>();
-        for (Pair<DecoratedKey, ClusteringPrefix> key : results)
-            keys.add(key.left);
+        for (RowKey key : results)
+            keys.add(key.decoratedKey);
 
         return keys;
     }

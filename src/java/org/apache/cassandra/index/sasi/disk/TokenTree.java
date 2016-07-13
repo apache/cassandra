@@ -357,15 +357,15 @@ public class TokenTree
         private final Set<TokenInfo> info = new HashSet<>(2);
 
         // TODO (ifesdjeen): clustering comparison sohuld be done by taking into account the CFM. Current implementation is just a quick hack as we "control" data, POC only
-        public static final Comparator<Pair<DecoratedKey, ClusteringPrefix>> comparator = new Comparator<Pair<DecoratedKey, ClusteringPrefix>>()
+        public static final Comparator<RowKey> comparator = new Comparator<RowKey>()
         {
-            public int compare(Pair<DecoratedKey, ClusteringPrefix> o1, Pair<DecoratedKey, ClusteringPrefix> o2)
+            public int compare(RowKey o1, RowKey o2)
             {
-                int cmp = o1.left.compareTo(o2.left);
-                if (cmp == 0 && o1.right != null && o2.right != null && o1.right.kind() == ClusteringPrefix.Kind.CLUSTERING && o2.right.kind() == ClusteringPrefix.Kind.CLUSTERING)
+                int cmp = o1.decoratedKey.compareTo(o2.decoratedKey);
+                if (cmp == 0 && o1.clustering != null && o2.clustering != null && o1.clustering.kind() == ClusteringPrefix.Kind.CLUSTERING && o2.clustering.kind() == ClusteringPrefix.Kind.CLUSTERING)
                 {
-                    ByteBuffer[] bbs1 = o1.right.getRawValues();
-                    ByteBuffer[] bbs2 = o2.right.getRawValues();
+                    ByteBuffer[] bbs1 = o1.clustering.getRawValues();
+                    ByteBuffer[] bbs2 = o2.clustering.getRawValues();
 
                     for (int i = 0; i < bbs1.length; i++)
                     {
@@ -385,7 +385,7 @@ public class TokenTree
         };
 
         // TODO: (ifesdjeen) FIX COMPARATOR
-        private final Set<Pair<DecoratedKey, ClusteringPrefix>> loadedKeys = new TreeSet<>(OnDiskToken.comparator);
+        private final Set<RowKey> loadedKeys = new TreeSet<>(OnDiskToken.comparator);
 
         public OnDiskToken(MappedBuffer buffer, long position, short leafSize, KeyFetcher keyFetcher)
         {
@@ -413,9 +413,9 @@ public class TokenTree
             }
         }
 
-        public Iterator<Pair<DecoratedKey, ClusteringPrefix>> iterator()
+        public Iterator<RowKey> iterator()
         {
-            List<Iterator<Pair<DecoratedKey, ClusteringPrefix>>> keys = new ArrayList<>(info.size());
+            List<Iterator<RowKey>> keys = new ArrayList<>(info.size());
 
             for (TokenInfo i : info)
                 keys.add(i.iterator());
@@ -423,21 +423,21 @@ public class TokenTree
             if (!loadedKeys.isEmpty())
                 keys.add(loadedKeys.iterator());
 
-            return MergeIterator.get(keys, comparator, new MergeIterator.Reducer<Pair<DecoratedKey, ClusteringPrefix>, Pair<DecoratedKey, ClusteringPrefix>>()
+            return MergeIterator.get(keys, comparator, new MergeIterator.Reducer<RowKey, RowKey>()
             {
-                Pair<DecoratedKey, ClusteringPrefix> reduced = null;
+                RowKey reduced = null;
 
                 public boolean trivialReduceIsTrivial()
                 {
                     return true;
                 }
 
-                public void reduce(int idx, Pair<DecoratedKey, ClusteringPrefix> current)
+                public void reduce(int idx, RowKey current)
                 {
                     reduced = current;
                 }
 
-                protected Pair<DecoratedKey,ClusteringPrefix> getReduced()
+                protected RowKey getReduced()
                 {
                     return reduced;
                 }
@@ -484,7 +484,7 @@ public class TokenTree
             this.leafSize = leafSize;
         }
 
-        public Iterator<Pair<DecoratedKey, ClusteringPrefix>> iterator()
+        public Iterator<RowKey> iterator()
         {
             return new KeyIterator(keyFetcher, fetchOffsets());
         }
@@ -557,7 +557,7 @@ public class TokenTree
         }
     }
 
-    private static class KeyIterator extends AbstractIterator<Pair<DecoratedKey, ClusteringPrefix>>
+    private static class KeyIterator extends AbstractIterator<RowKey>
     {
         private final KeyFetcher keyFetcher;
         private final List<RowOffset> offsets;
@@ -570,7 +570,7 @@ public class TokenTree
             this.offsets = offsets;
         }
 
-        public Pair<DecoratedKey, ClusteringPrefix> computeNext()
+        public RowKey computeNext()
         {
             if (index < offsets.size())
             {
@@ -578,7 +578,7 @@ public class TokenTree
                 DecoratedKey decoratedKey = keyFetcher.getPartitionKey(offset.partitionOffset);
                 ClusteringPrefix clusteringPrefix = keyFetcher.getClustering(offset.rowOffset);
 
-                return Pair.create(decoratedKey, clusteringPrefix);
+                return new RowKey(decoratedKey, clusteringPrefix);
             }
             else
             {

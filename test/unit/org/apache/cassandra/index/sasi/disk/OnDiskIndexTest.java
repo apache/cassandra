@@ -760,7 +760,7 @@ public class OnDiskIndexTest
         while (tokens.hasNext())
         {
             Token token = tokens.next();
-            Iterator<Pair<DecoratedKey, ClusteringPrefix>> keys = token.iterator();
+            Iterator<RowKey> keys = token.iterator();
 
             // each of the values should have exactly a single key
             Assert.assertTrue(keys.hasNext());
@@ -832,9 +832,9 @@ public class OnDiskIndexTest
 
         while (results.hasNext())
         {
-            for (Pair<DecoratedKey, ClusteringPrefix> key: results.next())
+            for (RowKey key: results.next())
                 // TODO: (ifesdjeen) check clusering prefix, too
-                keys.add(key.left);
+                keys.add(key.decoratedKey);
         }
 
         return keys;

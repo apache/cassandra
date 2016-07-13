@@ -38,8 +38,7 @@ import org.apache.cassandra.db.rows.Cell;
 import org.apache.cassandra.db.rows.Row;
 import org.apache.cassandra.index.sasi.analyzer.AbstractAnalyzer;
 import org.apache.cassandra.index.sasi.conf.view.View;
-import org.apache.cassandra.index.sasi.disk.OnDiskIndexBuilder;
-import org.apache.cassandra.index.sasi.disk.Token;
+import org.apache.cassandra.index.sasi.disk.*;
 import org.apache.cassandra.index.sasi.memory.IndexMemtable;
 import org.apache.cassandra.index.sasi.plan.Expression;
 import org.apache.cassandra.index.sasi.plan.Expression.Op;
@@ -98,7 +97,7 @@ public class ColumnIndex
         return keyValidator;
     }
 
-    public long index(Pair<DecoratedKey, ClusteringPrefix> key, Row row)
+    public long index(RowKey key, Row row)
     {
         return getCurrentMemtable().index(key, getValueOf(column, row, FBUtilities.nowInSeconds()));
     }

@@ -35,7 +35,7 @@ public class SkipListMemIndex extends MemIndex
 {
     public static final int CSLM_OVERHEAD = 128; // average overhead of CSLM
 
-    private final ConcurrentSkipListMap<ByteBuffer, ConcurrentSkipListSet<Pair<DecoratedKey, ClusteringPrefix>>> index;
+    private final ConcurrentSkipListMap<ByteBuffer, ConcurrentSkipListSet<RowKey>> index;
 
     public SkipListMemIndex(AbstractType<?> keyValidator, ColumnIndex columnIndex)
     {
@@ -43,15 +43,15 @@ public class SkipListMemIndex extends MemIndex
         index = new ConcurrentSkipListMap<>(columnIndex.getValidator());
     }
 
-    public long add(Pair<DecoratedKey, ClusteringPrefix> key, ByteBuffer value)
+    public long add(RowKey key, ByteBuffer value)
     {
         long overhead = CSLM_OVERHEAD; // DKs are shared
-        ConcurrentSkipListSet<Pair<DecoratedKey, ClusteringPrefix>> keys = index.get(value);
+        ConcurrentSkipListSet<RowKey> keys = index.get(value);
 
         if (keys == null)
         {
             // TODO: (ifesdjeen) fix comparator
-            ConcurrentSkipListSet<Pair<DecoratedKey, ClusteringPrefix>> newKeys = new ConcurrentSkipListSet<>(TokenTree.OnDiskToken.comparator);
+            ConcurrentSkipListSet<RowKey> newKeys = new ConcurrentSkipListSet<>(TokenTree.OnDiskToken.comparator);
             keys = index.putIfAbsent(value, newKeys);
             if (keys == null)
             {
@@ -71,7 +71,7 @@ public class SkipListMemIndex extends MemIndex
         ByteBuffer max = expression.upper == null ? null : expression.upper.value;
 
         // TODO: (ifesdjeen) setup search bounds
-        SortedMap<ByteBuffer, ConcurrentSkipListSet<Pair<DecoratedKey, ClusteringPrefix>>> search;
+        SortedMap<ByteBuffer, ConcurrentSkipListSet<RowKey>> search;
 
         if (min == null && max == null)
         {

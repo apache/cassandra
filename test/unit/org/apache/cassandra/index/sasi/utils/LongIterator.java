@@ -86,7 +86,7 @@ public class LongIterator extends RangeIterator<Long, Token>
         }
 
         @Override
-        public Iterator<Pair<DecoratedKey, ClusteringPrefix>> iterator()
+        public Iterator<RowKey> iterator()
         {
             return Collections.emptyIterator();
         }

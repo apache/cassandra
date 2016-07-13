@@ -25,7 +25,7 @@ import org.apache.cassandra.db.*;
 import org.apache.cassandra.index.sasi.utils.CombinedValue;
 import org.apache.cassandra.utils.*;
 
-public abstract class Token implements CombinedValue<Long>, Iterable<Pair<DecoratedKey, ClusteringPrefix>>
+public abstract class Token implements CombinedValue<Long>, Iterable<RowKey>
 {
     protected final long token;
 

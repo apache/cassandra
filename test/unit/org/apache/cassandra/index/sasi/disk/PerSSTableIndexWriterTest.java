@@ -146,9 +146,9 @@ public class PerSSTableIndexWriterTest extends SchemaLoader
 
             while (tokens.hasNext())
             {
-                for (Pair<DecoratedKey, ClusteringPrefix> key : tokens.next())
+                for (RowKey key : tokens.next())
                     // TODO: check clustering prefix
-                    actualKeys.add(key.left);
+                    actualKeys.add(key.decoratedKey);
             }
 
             Assert.assertEquals(count++, (int) Int32Type.instance.compose(term.getTerm()));
