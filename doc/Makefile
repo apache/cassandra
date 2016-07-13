@@ -19,10 +19,13 @@ YAML_DOC_OUTPUT=source/configuration/cassandra_config_file.rst
 
 MAKE_CASSANDRA_YAML = python convert_yaml_to_rst.py $(YAML_DOC_INPUT) $(YAML_DOC_OUTPUT)
 
+WEB_SITE_PRESENCE_FILE='source/.build_for_website'
+
 .PHONY: help
 help:
 	@echo "Please use \`make <target>' where <target> is one of"
 	@echo "  html       to make standalone HTML files"
+	@echo "  website    to make HTML files for the Cassandra website"
 	@echo "  dirhtml    to make HTML files named index.html in directories"
 	@echo "  singlehtml to make a single large HTML file"
 	@echo "  pickle     to make pickle files"
@@ -58,6 +61,15 @@ clean:
 html:
 	$(MAKE_CASSANDRA_YAML)
 	$(SPHINXBUILD) -b html $(ALLSPHINXOPTS) $(BUILDDIR)/html
+	@echo
+	@echo "Build finished. The HTML pages are in $(BUILDDIR)/html."
+
+.PHONY: website
+website: clean
+	@touch $(WEB_SITE_PRESENCE_FILE)
+	$(MAKE_CASSANDRA_YAML)
+	$(SPHINXBUILD) -b html $(ALLSPHINXOPTS) $(BUILDDIR)/html
+	@rm $(WEB_SITE_PRESENCE_FILE)
 	@echo
 	@echo "Build finished. The HTML pages are in $(BUILDDIR)/html."
 

@@ -65,10 +65,10 @@ The metric names are all appended with the specific ``Keyspace`` and ``Table`` n
 Reported name format:
 
 **Metric Name**
-    ``org.apache.cassandra.metrics.Table.{{MetricName}}.{{Keyspace}}.{{Table}}``
+    ``org.apache.cassandra.metrics.Table.<MetricName>.<Keyspace>.<Table>``
 
 **JMX MBean**
-    ``org.apache.cassandra.metrics:type=Table keyspace={{Keyspace} scope={{Table}} name={{MetricName}}``
+    ``org.apache.cassandra.metrics:type=Table keyspace=<Keyspace> scope=<Table> name=<MetricName>``
 
 .. NOTE::
     There is a special table called '``all``' without a keyspace. This represents the aggregation of metrics across
@@ -140,10 +140,10 @@ These metrics are the same as the ``Table Metrics`` above, only they are aggrega
 Reported name format:
 
 **Metric Name**
-    ``org.apache.cassandra.metrics.keyspace.{{MetricName}}.{{Keyspace}}``
+    ``org.apache.cassandra.metrics.keyspace.<MetricName>.<Keyspace>``
 
 **JMX MBean**
-    ``org.apache.cassandra.metrics:type=Keyspace scope={{Keyspace}} name={{MetricName}}``
+    ``org.apache.cassandra.metrics:type=Keyspace scope=<Keyspace> name=<MetricName>``
 
 ThreadPool Metrics
 ^^^^^^^^^^^^^^^^^^
@@ -158,10 +158,10 @@ specific type.
 Reported name format:
 
 **Metric Name**
-    ``org.apache.cassandra.metrics.ThreadPools.{{MetricName}}.{{Path}}.{{ThreadPoolName}}``
+    ``org.apache.cassandra.metrics.ThreadPools.<MetricName>.<Path>.<ThreadPoolName>``
 
 **JMX MBean**
-    ``org.apache.cassandra.metrics:type=ThreadPools scope={{ThreadPoolName}} type={{Type}} name={{MetricName}}``
+    ``org.apache.cassandra.metrics:type=ThreadPools scope=<ThreadPoolName> type=<Type> name=<MetricName>``
 
 ===================== ============== ===========
 Name                  Type           Description
@@ -216,10 +216,10 @@ Different types of client requests are broken down by ``RequestType``.
 Reported name format:
 
 **Metric Name**
-    ``org.apache.cassandra.metrics.ClientRequest.{{MetricName}}.{{RequestType}}``
+    ``org.apache.cassandra.metrics.ClientRequest.<MetricName>.<RequestType>``
 
 **JMX MBean**
-    ``org.apache.cassandra.metrics:type=ClientRequest scope={{RequestType}} name={{MetricName}}``
+    ``org.apache.cassandra.metrics:type=ClientRequest scope=<RequestType> name=<MetricName>``
 
 
 :RequestType: CASRead
@@ -310,10 +310,10 @@ Cassandra caches have metrics to track the effectivness of the caches. Though th
 Reported name format:
 
 **Metric Name**
-    ``org.apache.cassandra.metrics.Cache.{{MetricName}}.{{CacheName}}``
+    ``org.apache.cassandra.metrics.Cache.<MetricName>.<CacheName>``
 
 **JMX MBean**
-    ``org.apache.cassandra.metrics:type=Cache scope={{CacheName}} name={{MetricName}}``
+    ``org.apache.cassandra.metrics:type=Cache scope=<CacheName> name=<MetricName>``
 
 ========================== ============== ===========
 Name                       Type           Description
@@ -353,10 +353,10 @@ Metrics specific to CQL prepared statement caching.
 Reported name format:
 
 **Metric Name**
-    ``org.apache.cassandra.metrics.CQL.{{MetricName}}``
+    ``org.apache.cassandra.metrics.CQL.<MetricName>``
 
 **JMX MBean**
-    ``org.apache.cassandra.metrics:type=CQL name={{MetricName}}``
+    ``org.apache.cassandra.metrics:type=CQL name=<MetricName>``
 
 ========================== ============== ===========
 Name                       Type           Description
@@ -378,10 +378,10 @@ Dropped writes are stored and retried by ``Hinted Handoff``
 Reported name format:
 
 **Metric Name**
-    ``org.apache.cassandra.metrics.DroppedMessages.{{MetricName}}.{{Type}}``
+    ``org.apache.cassandra.metrics.DroppedMessages.<MetricName>.<Type>``
 
 **JMX MBean**
-    ``org.apache.cassandra.metrics:type=DroppedMetrics scope={{Type}} name={{MetricName}}``
+    ``org.apache.cassandra.metrics:type=DroppedMetrics scope=<Type> name=<MetricName>``
 
 ========================== ============== ===========
 Name                       Type           Description
@@ -419,10 +419,10 @@ These metrics are specific to a peer endpoint, with the source node being the no
 Reported name format:
 
 **Metric Name**
-    ``org.apache.cassandra.metrics.Streaming.{{MetricName}}.{{PeerIP}}``
+    ``org.apache.cassandra.metrics.Streaming.<MetricName>.<PeerIP>``
 
 **JMX MBean**
-    ``org.apache.cassandra.metrics:type=Streaming scope={{PeerIP}} name={{MetricName}}``
+    ``org.apache.cassandra.metrics:type=Streaming scope=<PeerIP> name=<MetricName>``
 
 ========================== ============== ===========
 Name                       Type           Description
@@ -440,10 +440,10 @@ Metrics specific to ``Compaction`` work.
 Reported name format:
 
 **Metric Name**
-    ``org.apache.cassandra.metrics.Compaction.{{MetricName}}``
+    ``org.apache.cassandra.metrics.Compaction.<MetricName>``
 
 **JMX MBean**
-    ``org.apache.cassandra.metrics:type=Compaction name={{MetricName}}``
+    ``org.apache.cassandra.metrics:type=Compaction name=<MetricName>``
 
 ========================== ======================================== ===============================================
 Name                       Type                                     Description
@@ -463,10 +463,10 @@ Metrics specific to the ``CommitLog``
 Reported name format:
 
 **Metric Name**
-    ``org.apache.cassandra.metrics.CommitLog.{{MetricName}}``
+    ``org.apache.cassandra.metrics.CommitLog.<MetricName>``
 
 **JMX MBean**
-    ``org.apache.cassandra.metrics:type=CommitLog name={{MetricName}}``
+    ``org.apache.cassandra.metrics:type=CommitLog name=<MetricName>``
 
 ========================== ============== ===========
 Name                       Type           Description
@@ -486,10 +486,10 @@ Metrics specific to the storage engine.
 Reported name format:
 
 **Metric Name**
-    ``org.apache.cassandra.metrics.Storage.{{MetricName}}``
+    ``org.apache.cassandra.metrics.Storage.<MetricName>``
 
 **JMX MBean**
-    ``org.apache.cassandra.metrics:type=Storage name={{MetricName}}``
+    ``org.apache.cassandra.metrics:type=Storage name=<MetricName>``
 
 ========================== ============== ===========
 Name                       Type           Description
@@ -510,16 +510,16 @@ These metrics include the peer endpoint **in the metric name**
 Reported name format:
 
 **Metric Name**
-    ``org.apache.cassandra.metrics.HintedHandOffManager.{{MetricName}}``
+    ``org.apache.cassandra.metrics.HintedHandOffManager.<MetricName>``
 
 **JMX MBean**
-    ``org.apache.cassandra.metrics:type=HintedHandOffManager name={{MetricName}}``
+    ``org.apache.cassandra.metrics:type=HintedHandOffManager name=<MetricName>``
 
 =========================== ============== ===========
 Name                        Type           Description
 =========================== ============== ===========
-Hints_created-{{PeerIP}}    Counter        Number of hints on disk for this peer.
-Hints_not_stored-{{PeerIP}} Counter        Number of hints not stored for this peer, due to being down past the configured hint window.
+Hints_created-<PeerIP>       Counter        Number of hints on disk for this peer.
+Hints_not_stored-<PeerIP>    Counter        Number of hints not stored for this peer, due to being down past the configured hint window.
 =========================== ============== ===========
 
 SSTable Index Metrics
@@ -530,10 +530,10 @@ Metrics specific to the SSTable index metadata.
 Reported name format:
 
 **Metric Name**
-    ``org.apache.cassandra.metrics.Index.{{MetricName}}.RowIndexEntry``
+    ``org.apache.cassandra.metrics.Index.<MetricName>.RowIndexEntry``
 
 **JMX MBean**
-    ``org.apache.cassandra.metrics:type=Index scope=RowIndexEntry name={{MetricName}}``
+    ``org.apache.cassandra.metrics:type=Index scope=RowIndexEntry name=<MetricName>``
 
 =========================== ============== ===========
 Name                        Type           Description
@@ -552,10 +552,10 @@ lower by recycling on and off heap buffers.
 Reported name format:
 
 **Metric Name**
-    ``org.apache.cassandra.metrics.BufferPool.{{MetricName}}``
+    ``org.apache.cassandra.metrics.BufferPool.<MetricName>``
 
 **JMX MBean**
-    ``org.apache.cassandra.metrics:type=BufferPool name={{MetricName}}``
+    ``org.apache.cassandra.metrics:type=BufferPool name=<MetricName>``
 
 =========================== ============== ===========
 Name                        Type           Description
@@ -573,10 +573,10 @@ Metrics specifc to client managment.
 Reported name format:
 
 **Metric Name**
-    ``org.apache.cassandra.metrics.Client.{{MetricName}}``
+    ``org.apache.cassandra.metrics.Client.<MetricName>``
 
 **JMX MBean**
-    ``org.apache.cassandra.metrics:type=Client name={{MetricName}}``
+    ``org.apache.cassandra.metrics:type=Client name=<MetricName>``
 
 =========================== ============== ===========
 Name                        Type           Description

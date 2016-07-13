@@ -1,0 +1,25 @@
+---
+layout: doclandingpage
+title: "Documentation"
+is_homepage: false
+is_sphinx_doc: false
+---
+{% block body %}
+  <h2>{{ docstitle|e }}</h2>
+  {% block tables %}
+  <p><strong>{{ _('Indices and tables:') }}</strong></p>
+  <table class="contentstable" align="center"><tr>
+    <td width="50%">
+      <p class="biglink"><a class="biglink" href="{{ pathto("contents") }}">{{ _('Complete Table of Contents') }}</a><br>
+         <span class="linkdescr">{{ _('lists all sections and subsections') }}</span></p>
+      <p class="biglink"><a class="biglink" href="{{ pathto("search") }}">{{ _('Search Page') }}</a><br>
+         <span class="linkdescr">{{ _('search this documentation') }}</span></p>
+    </td><td width="50%">
+      <p class="biglink"><a class="biglink" href="{{ pathto("modindex") }}">{{ _('Global Module Index') }}</a><br>
+         <span class="linkdescr">{{ _('quick access to all modules') }}</span></p>
+      <p class="biglink"><a class="biglink" href="{{ pathto("genindex") }}">{{ _('General Index') }}</a><br>
+         <span class="linkdescr">{{ _('all functions, classes, terms') }}</span></p>
+    </td></tr>
+  </table>
+  {% endblock %}
+{% endblock %}

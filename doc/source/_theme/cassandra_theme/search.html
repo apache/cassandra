@@ -1,0 +1,53 @@
+{%- extends "layout.html" %}
+{% block title %}
+title: "{{_('Search')}}"
+{% endblock %}
+{% block extrafooter %}
+extra-footer: '
+  <script type="text/javascript">
+    var DOCUMENTATION_OPTIONS = {
+      URL_ROOT:    "{{ url_root }}",
+      VERSION:     "{{ release|e }}",
+      COLLAPSE_INDEX: false,
+      FILE_SUFFIX: "{{ "" if no_search_suffix else file_suffix }}",
+      HAS_SOURCE:  false,
+      SOURCELINK_SUFFIX: "{{ sourcelink_suffix }}"
+    };
+  </script>
+  <script type="text/javascript">
+    jQuery(function() { Search.loadIndex("{{ pathto('searchindex.js', 1) }}"); });
+  </script>
+  {# this is used when loading the search index using $.ajax fails,
+     such as on Chrome for documents on localhost #}
+  <script type="text/javascript" id="searchindexloader"></script>
+'
+{% endblock %}
+{% block body %}
+  <noscript>
+  <div id="fallback" class="admonition warning">
+    <p class="last">
+      {% trans %}Please activate JavaScript to enable the search
+      functionality.{% endtrans %}
+    </p>
+  </div>
+  </noscript>
+
+  {% if search_performed %}
+    <h2>{{ _('Search Results') }}</h2>
+    {% if not search_results %}
+      <p>{{ _('Your search did not match any documents. Please make sure that all words are spelled correctly.') }}</p>
+    {% endif %}
+  {% endif %}
+  <div id="search-results">
+  {% if search_results %}
+    <ul>
+    {% for href, caption, context in search_results %}
+      <li>
+        <a href="{{ pathto(item.href) }}">{{ caption }}</a>
+        <p class="context">{{ context|e }}</p>
+      </li>
+    {% endfor %}
+    </ul>
+  {% endif %}
+  </div>
+{% endblock %}

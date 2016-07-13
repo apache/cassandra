@@ -37,6 +37,8 @@ def setup(sphinx):
     from cql import CQLLexer
     sphinx.add_lexer("cql", CQLLexer())
 
+# Ugly way to find out if we're building for the website (the Makefile creates an empty file for us)
+build_for_website = os.path.isfile('.build_for_website')
 
 # -- General configuration ------------------------------------------------
 
@@ -136,10 +138,11 @@ todo_include_todos = True
 
 # -- Options for HTML output ----------------------------------------------
 
-# The theme to use for HTML and HTML Help pages.  See the documentation for
-# a list of builtin themes.
-#
-html_theme = 'sphinx_rtd_theme'
+if build_for_website:
+    html_theme = 'cassandra_theme'
+    html_theme_path = ['./_theme']
+else:
+    html_theme = 'sphinx_rtd_theme'
 
 html_context = { 'extra_css_files': [ '_static/extra.css' ] }
 
@@ -148,9 +151,6 @@ html_context = { 'extra_css_files': [ '_static/extra.css' ] }
 # documentation.
 #
 # html_theme_options = {}
-
-# Add any paths that contain custom themes here, relative to this directory.
-#html_theme_path = ['.']
 
 # The name for this set of Sphinx documents.
 # "<project> v<release> documentation" by default.

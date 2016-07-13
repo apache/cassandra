@@ -724,6 +724,10 @@
       </copy>
     </target>
 
+    <target name="echo-base-version">
+        <echo message="${base.version}" />
+    </target>
+
     <!--
        Generate thrift code.  We have targets to build java because
        Cassandra depends on it, and python because that is what the system
