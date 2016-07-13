@@ -18,10 +18,8 @@
 package org.apache.cassandra.index.sasi.disk;
 
 import java.io.IOException;
-import java.nio.ByteBuffer;
 import java.util.*;
 
-import org.apache.cassandra.db.*;
 import org.apache.cassandra.index.sasi.*;
 import org.apache.cassandra.index.sasi.utils.AbstractIterator;
 import org.apache.cassandra.index.sasi.utils.CombinedValue;
@@ -33,7 +31,8 @@ import com.google.common.annotations.VisibleForTesting;
 import com.google.common.collect.Iterators;
 import org.apache.commons.lang3.builder.HashCodeBuilder;
 
-import static org.apache.cassandra.index.sasi.disk.TokenTreeBuilder.ENTRY_BYTES;
+import static org.apache.cassandra.index.sasi.disk.TokenTreeBuilder.ENTRY_TOKEN_OFFSET;
+import static org.apache.cassandra.index.sasi.disk.TokenTreeBuilder.LEAF_ENTRY_BYTES;
 import static org.apache.cassandra.index.sasi.disk.TokenTreeBuilder.EntryType;
 
 // Note: all of the seek-able offsets contained in TokenTree should be sizeof(long)
@@ -87,7 +86,6 @@ public class TokenTree
 
     public OnDiskToken get(final long searchToken, KeyFetcher keyFetcher)
     {
-        // TODO: describe binary format
         seekToLeaf(searchToken, file);
         long leafStart = file.position();
         short leafSize = file.getShort(leafStart + 1); // skip the info byte
@@ -115,7 +113,6 @@ public class TokenTree
     }
 
     // finds leaf that *could* contain token
-    // TODO: describe on-disk leaf format
     private void seekToLeaf(long token, MappedBuffer file)
     {
         // this loop always seeks forward except for the first iteration
@@ -198,8 +195,7 @@ public class TokenTree
             middle = start + ((end - start) >> 1);
 
             // each entry is 16 bytes wide, token is in bytes 4-11
-            // TODO: document
-            long token = file.getLong(base + (middle * AbstractTokenTreeBuilder.ENTRY_BYTES + AbstractTokenTreeBuilder.ENTRY_TOKEN_OFFSET));
+            long token = file.getLong(base + (middle * AbstractTokenTreeBuilder.LEAF_ENTRY_BYTES + AbstractTokenTreeBuilder.ENTRY_TOKEN_OFFSET));
 
             if (token == searchToken)
                 break;
@@ -323,9 +319,8 @@ public class TokenTree
 
         private long getTokenPosition(int idx)
         {
-            // skip 4 byte entry header to get position pointing directly at the entry's token
-            // TODO: (ifesdjeen) WE REALLY REALLY REALLY NEED TO DOCUMENT THIS PROTOCOL
-            return OnDiskToken.getEntryPosition(idx, file) + SHORT_BYTES;
+            // skip 2 byte entry header to get position pointing directly at the entry's token
+            return OnDiskToken.getEntryPosition(idx, file) + ENTRY_TOKEN_OFFSET;
         }
 
         private void seekToNextLeaf()
@@ -356,13 +351,11 @@ public class TokenTree
     {
         private final Set<TokenInfo> info = new HashSet<>(2);
 
-        // TODO: (ifesdjeen) FIX COMPARATOR
         private final Set<RowKey> loadedKeys = new TreeSet<>(RowKey.COMPARATOR);
 
         public OnDiskToken(MappedBuffer buffer, long position, short leafSize, KeyFetcher keyFetcher)
         {
-            // TODO (ifesdjeen) describe binary format
-            super(buffer.getLong(position + SHORT_BYTES));
+            super(buffer.getLong(position + ENTRY_TOKEN_OFFSET));
             info.add(new TokenInfo(buffer, position, leafSize, keyFetcher));
         }
 
@@ -435,8 +428,8 @@ public class TokenTree
 
         private static long getEntryPosition(int idx, MappedBuffer file)
         {
-            // TODO: (ifesdjeen) document it!!!
-            return file.position() + (idx * ENTRY_BYTES);
+            // skip n entries, to the entry with the given index
+            return file.position() + (idx * LEAF_ENTRY_BYTES);
         }
     }
 
@@ -463,9 +456,7 @@ public class TokenTree
 
         public int hashCode()
         {
-            // TODO: ???
-            // .append(keyFetcher)
-            return new HashCodeBuilder().append(position).append(leafSize).build();
+            return new HashCodeBuilder().append(position).append(leafSize).append(keyFetcher).build();
         }
 
         public boolean equals(Object other)
@@ -474,17 +465,10 @@ public class TokenTree
                 return false;
 
             TokenInfo o = (TokenInfo) other;
-            return position == o.position; //keyFetcher == o.keyFetcher &&
+            return keyFetcher == o.keyFetcher && position == o.position;
 
         }
 
-        // This is deserialization / reading from the disk?
-        // see the counterpart @ AbstraceTokenTreeBuilder#createEntry
-
-        /**
-         * Deserialize offsets, serialized in LeafEntry:
-         *     [(short) type][(long) token][(data)]
-         */
         private List<RowOffset> fetchOffsets()
         {
             short info = buffer.getShort(position);
@@ -497,7 +481,6 @@ public class TokenTree
                     long partitionOffset = buffer.getLong(position + SHORT_BYTES + LONG_BYTES);
                     long rowOffset = buffer.getLong(position + SHORT_BYTES + (2 * LONG_BYTES));
 
-                    // TODO: (ifesdjeen) singletonset?
                     rowOffsets.add(new RowOffset(partitionOffset, rowOffset));
                     break;
                 case PACKED:
@@ -514,8 +497,8 @@ public class TokenTree
                     long collisionOffset = buffer.getLong(position + SHORT_BYTES + LONG_BYTES);
                     long count = buffer.getLong(position + SHORT_BYTES + (2 * LONG_BYTES));
 
-                    // Skip 2 leaves and collision offsets that do not belong to current token
-                    long offsetPos = buffer.position() + leafSize * ENTRY_BYTES + collisionOffset * 2 * LONG_BYTES;
+                    // Skip leaves and collision offsets that do not belong to current token
+                    long offsetPos = buffer.position() + leafSize * LEAF_ENTRY_BYTES + collisionOffset * 2 * LONG_BYTES;
 
                     for (int i = 0; i < count; i++)
                         rowOffsets.add(new RowOffset(buffer.getLong(offsetPos + 2 * i * LONG_BYTES),
@@ -535,7 +518,6 @@ public class TokenTree
         private final List<RowOffset> offsets;
         private int index = 0;
 
-        // TODO (ifesdjeen): turn that into bifuntion that  wo
         public KeyIterator(KeyFetcher keyFetcher, List<RowOffset> offsets)
         {
             this.keyFetcher = keyFetcher;

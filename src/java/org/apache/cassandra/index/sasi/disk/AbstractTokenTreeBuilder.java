@@ -60,7 +60,7 @@ public abstract class AbstractTokenTreeBuilder implements TokenTreeBuilder
     {
         if (numBlocks == 1)
         {
-            return (BLOCK_HEADER_BYTES + ((int) tokenCount * ENTRY_BYTES));
+            return (BLOCK_HEADER_BYTES + ((int) tokenCount * LEAF_ENTRY_BYTES));
         }
         else
         {
@@ -110,6 +110,15 @@ public abstract class AbstractTokenTreeBuilder implements TokenTreeBuilder
         buffer.clear();
     }
 
+    /**
+     * Tree node,
+     *
+     * B+-tree consists of root, interior nodes and leaves. Root can be either a node or a leaf.
+     *
+     * Depending on the concrete implementation of {@code TokenTreeBuilder}
+     * leaf can be partial or static (in case of {@code StaticTokenTreeBuilder} or dynamic in case
+     * of {@code DynamicTokenTreeBuilder}
+     */
     protected abstract class Node
     {
         protected InteriorNode parent;
@@ -177,6 +186,11 @@ public abstract class AbstractTokenTreeBuilder implements TokenTreeBuilder
             alignBuffer(buf, BLOCK_HEADER_BYTES);
         }
 
+        /**
+         * Shared header part, written for all node types:
+         *     [  info byte  ] [  token count   ] [ min node token ] [ max node token ]
+         *     [      1b     ] [    2b (short)  ] [   8b (long)    ] [    8b (long)   ]
+         **/
         private abstract class Header
         {
             /**
@@ -193,6 +207,12 @@ public abstract class AbstractTokenTreeBuilder implements TokenTreeBuilder
             protected abstract byte infoByte();
         }
 
+        /**
+         * In addition to shared header part, root header stores version information,
+         * overall token count and min/max tokens for the whole tree:
+         *     [      magic    ] [  overall token count  ] [ min tree token ] [ max tree token ]
+         *     [   2b (short)  ] [         8b (long)     ] [   8b (long)    ] [    8b (long)   ]
+         */
         private class RootHeader extends Header
         {
             public void serialize(ByteBuffer buf)
@@ -206,10 +226,9 @@ public abstract class AbstractTokenTreeBuilder implements TokenTreeBuilder
 
             protected byte infoByte()
             {
-                // TODO (ifesdjeen) I've seen at least 2 places where this magic 3 constant is hanging
                 // if leaf, set leaf indicator and last leaf indicator (bits 0 & 1)
                 // if not leaf, clear both bits
-                return (byte) ((isLeaf()) ? 3 : 0);
+                return isLeaf() ? ENTRY_TYPE_MASK : 0;
             }
 
             protected void writeMagic(ByteBuffer buf)
@@ -251,6 +270,12 @@ public abstract class AbstractTokenTreeBuilder implements TokenTreeBuilder
 
     }
 
+    /**
+     * Leaf consists of
+     *   - header (format described in {@code Header} )
+     *   - data (format described in {@code LeafEntry})
+     *   - overflow collision entries, that hold {@value OVERFLOW_TRAILER_CAPACITY} of {@code RowOffset}.
+     */
     protected abstract class Leaf extends Node
     {
         protected List<RowOffset> overflowCollisions;
@@ -322,6 +347,15 @@ public abstract class AbstractTokenTreeBuilder implements TokenTreeBuilder
             return entry;
         }
 
+        /**
+         * A leaf of the B+-Tree, that holds information about the row offset(s) for
+         * the current token.
+         *
+         * Main 3 types of leaf entries are:
+         *   1) simple leaf entry: holding just a single row offset
+         *   2) packed collision leaf entry: holding two entries that would fit together into 168 bytes
+         *   3) overflow entry: only holds offset in overflow trailer and amount of entries belonging to this leaf
+         */
         protected abstract class LeafEntry
         {
             protected final long token;
@@ -337,7 +371,12 @@ public abstract class AbstractTokenTreeBuilder implements TokenTreeBuilder
 
         }
 
-        // TODO: (ifesdjeen) bring back the optimisations related to the size of values?
+        /**
+         * Simple leaf, that can store a single row offset, having the following format:
+         *
+         *     [    type    ] [   token   ] [ partition offset ] [ row offset ]
+         *     [ 2b (short) ] [ 8b (long) ] [     8b (long)    ] [  8b (long) ]
+         */
         protected class SimpleLeafEntry extends LeafEntry
         {
             private final RowOffset offset;
@@ -362,7 +401,12 @@ public abstract class AbstractTokenTreeBuilder implements TokenTreeBuilder
             }
         }
 
-        // TODO: (ifesdjeen) document
+        /**
+         * Packed collision entry, can store two offsets, if each one of their positions
+         * fit into 4 bytes.
+         *     [    type    ] [   token   ] [ partition offset 1 ] [ row offset  1] [ partition offset 1 ] [ row offset  1]
+         *     [ 2b (short) ] [ 8b (long) ] [      4b (int)      ] [    4b (int)  ] [      4b (int)      ] [    4b (int)  ]
+         */
         protected class PackedCollisionLeafEntry extends LeafEntry
         {
             private final RowOffset off1;
@@ -392,10 +436,15 @@ public abstract class AbstractTokenTreeBuilder implements TokenTreeBuilder
             }
         }
 
-        // holds an entry with three or more offsets, or two offsets that cannot
-        // be packed into an int & a short. the index into the overflow list
-        // is stored where the offset is normally stored. the number of overflowed offsets
-        // for the entry is stored in the entry header
+        /**
+         * Overflow collision entry, holds an entry with three or more offsets, or two offsets
+         * that cannot be packed into 16 bytes.
+         *     [    type    ] [   token   ] [ start index ] [    count    ]
+         *     [ 2b (short) ] [ 8b (long) ] [   8b (long) ] [  8b (long)  ]
+         *
+         *   - [ start index ] is a position of first item belonging to this leaf entry in the overflow trailer
+         *   - [ count ] is the amount of items belonging to this leaf entry that are stored in the overflow trailer
+         */
         private class OverflowCollisionLeafEntry extends LeafEntry
         {
             private final short startIndex;
@@ -424,6 +473,12 @@ public abstract class AbstractTokenTreeBuilder implements TokenTreeBuilder
         }
     }
 
+    /**
+     * Interiod node consists of:
+     *    - (interior node) header
+     *    - tokens (serialized as longs, with count stored in header)
+     *    - child offsets
+     */
     protected class InteriorNode extends Node
     {
         protected List<Long> tokens = new ArrayList<>(TOKENS_PER_BLOCK);

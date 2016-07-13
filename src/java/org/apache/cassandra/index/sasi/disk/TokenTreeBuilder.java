@@ -25,15 +25,16 @@ import org.apache.cassandra.utils.Pair;
 
 public interface TokenTreeBuilder extends Iterable<Pair<Long, Set<RowOffset>>>
 {
-    /**
-     * Entry Format
-     *
-     *     ([short] type)([long] token)([long] partition offset)([long] row offset)
-     *
-     * TODO (ifesdjeen): describe overflow entry
-     */
+    public static final int LONG_BYTES = Long.SIZE / 8;
+    public static final int INT_BYTES = Integer.SIZE / 8;
+    public static final int SHORT_BYTES = Short.SIZE / 8;
+
     final int ENTRY_TOKEN_OFFSET = 2;
-    final int ENTRY_BYTES = 2 + 8 + 8 + 8;
+
+    /**
+     * {@code LeafEntry} size in bytes.
+     */
+    final int LEAF_ENTRY_BYTES = SHORT_BYTES + 3 * LONG_BYTES;
 
     final int BLOCK_BYTES = 4096;
     final int BLOCK_HEADER_BYTES = 64;
@@ -41,27 +42,21 @@ public interface TokenTreeBuilder extends Iterable<Pair<Long, Set<RowOffset>>>
     /**
       * Overflow trailer capacity is currently 8 overflow items. Each overflow item consists of two longs.
       */
-    // TODO: technically we could improve it as the overflow item has to fit into int + short.
     final int OVERFLOW_TRAILER_CAPACITY = 8;
-    final int OVERFLOW_TRAILER_BYTES = OVERFLOW_TRAILER_CAPACITY * 8 * 2;
+    final int OVERFLOW_TRAILER_BYTES = OVERFLOW_TRAILER_CAPACITY * (2 * LONG_BYTES);
 
-    final int TOKENS_PER_BLOCK = (BLOCK_BYTES - BLOCK_HEADER_BYTES - OVERFLOW_TRAILER_BYTES) / ENTRY_BYTES;
-
-    // TODO: maybe add factored entries
-    final long MAX_OFFSET = (1L << 47) - 1; // 48 bits for (signed) offset
+    final int TOKENS_PER_BLOCK = (BLOCK_BYTES - BLOCK_HEADER_BYTES - OVERFLOW_TRAILER_BYTES) / LEAF_ENTRY_BYTES;
     final byte LAST_LEAF_SHIFT = 1;
 
 
     /**
-     * Shared header format
-     *     ([byte] info byte) ([short] token count) ([long] min node token) ([long] max node token)
-     **/
-    final byte SHARED_HEADER_BYTES = 8 + 8 + 2 + 1;
+     * {@code Header} size in bytes.
+     */
+    final byte SHARED_HEADER_BYTES = 1 + SHORT_BYTES + 2 * LONG_BYTES;
     final byte ENTRY_TYPE_MASK = 0x03;
     final short AB_MAGIC = 0x5A51;
 
     // note: ordinal positions are used here, do not change order
-    // TODO (ifesdjeen): optimise entries?
     enum EntryType
     {
         SIMPLE,

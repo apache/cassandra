@@ -20,6 +20,16 @@ package org.apache.cassandra.index.sasi.disk;
 
 import java.nio.ByteBuffer;
 
+/**
+ * Row offset consists of:
+ *   - partition offset (offset of the partition key in the index file)
+ *   - row offset (offset of the row start in the data file)
+ *
+ * Non-optimised version serializes to:
+ *
+ *     [ partition offset ] [   row offset   ]
+ *     [     8b (long)    ] [    8b (long)   ]
+ */
 public class RowOffset
 {
     public final long partitionOffset;
@@ -53,14 +63,6 @@ public class RowOffset
     {
         buffer.putLong(partitionOffset);
         buffer.putLong(rowOffset);
-    }
-
-    public String toString()
-    {
-        return "RowOffset{" +
-               "partitionOffset=" + partitionOffset +
-               ", rowOffset=" + rowOffset +
-               '}';
     }
 }
 
