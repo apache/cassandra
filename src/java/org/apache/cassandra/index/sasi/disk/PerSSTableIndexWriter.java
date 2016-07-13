@@ -85,7 +85,7 @@ public class PerSSTableIndexWriter implements SSTableFlushObserver
     protected final Map<ColumnDefinition, Index> indexes;
 
     private DecoratedKey currentKey;
-    private long currentKeyPosition;
+    private long currentPartitionOffset;
     private boolean isComplete;
 
     public PerSSTableIndexWriter(AbstractType<?> keyValidator,
@@ -106,13 +106,16 @@ public class PerSSTableIndexWriter implements SSTableFlushObserver
     public void startPartition(DecoratedKey key, long curPosition)
     {
         currentKey = key;
-        currentKeyPosition = curPosition;
+        currentPartitionOffset = curPosition;
+        // ignore
     }
 
-    public void nextUnfilteredCluster(Unfiltered unfiltered)
+    public void nextUnfilteredCluster(Unfiltered unfiltered, long currentRowOffset)
     {
         if (!unfiltered.isRow())
+        {
             return;
+        }
 
         Row row = (Row) unfiltered;
 
@@ -129,8 +132,13 @@ public class PerSSTableIndexWriter implements SSTableFlushObserver
             if (index == null)
                 indexes.put(column, (index = newIndex(columnIndex)));
 
-            index.add(value.duplicate(), currentKey, currentKeyPosition);
+            index.add(value.duplicate(), currentKey, currentPartitionOffset, currentRowOffset);
         });
+    }
+
+    public void nextUnfilteredCluster(Unfiltered unfilteredCluster)
+    {
+        throw new UnsupportedOperationException("SASI Index does not support direct row access.");
     }
 
     public void complete()
@@ -142,6 +150,7 @@ public class PerSSTableIndexWriter implements SSTableFlushObserver
 
         try
         {
+            // TODO: MAYBE USE FUTURES HERE?
             CountDownLatch latch = new CountDownLatch(indexes.size());
             for (Index index : indexes.values())
                 index.complete(latch);
@@ -197,7 +206,7 @@ public class PerSSTableIndexWriter implements SSTableFlushObserver
             this.currentBuilder = newIndexBuilder();
         }
 
-        public void add(ByteBuffer term, DecoratedKey key, long keyPosition)
+        public void add(ByteBuffer term, DecoratedKey key, long partitoinOffset, long rowOffset)
         {
             if (term.remaining() == 0)
                 return;
@@ -235,12 +244,15 @@ public class PerSSTableIndexWriter implements SSTableFlushObserver
                     }
                 }
 
-                currentBuilder.add(token, key, keyPosition);
+                currentBuilder.add(token, key, partitoinOffset, rowOffset);
                 isAdded = true;
             }
 
             if (!isAdded || currentBuilder.estimatedMemoryUse() < maxMemorySize)
+            {
                 return; // non of the generated tokens were added to the index or memory size wasn't reached
+            }
+
 
             segments.add(getExecutor().submit(scheduleSegmentFlush(false)));
         }

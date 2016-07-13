@@ -19,8 +19,7 @@ package org.apache.cassandra.index.sasi.disk;
 
 import java.io.IOException;
 import java.nio.ByteBuffer;
-import java.util.Iterator;
-import java.util.SortedMap;
+import java.util.*;
 
 import org.apache.cassandra.index.sasi.utils.CombinedTerm;
 import org.apache.cassandra.index.sasi.utils.RangeIterator;
@@ -62,17 +61,17 @@ public class StaticTokenTreeBuilder extends AbstractTokenTreeBuilder
         combinedTerm = term;
     }
 
-    public void add(Long token, long keyPosition)
+    public void add(Long token, long partitionOffset, long rowOffset)
     {
         throw new UnsupportedOperationException();
     }
 
-    public void add(SortedMap<Long, LongSet> data)
+    public void add(SortedMap<Long, Set<RowOffset>> data)
     {
         throw new UnsupportedOperationException();
     }
 
-    public void add(Iterator<Pair<Long, LongSet>> data)
+    public void add(Iterator<Pair<Long, Set<RowOffset>>> data)
     {
         throw new UnsupportedOperationException();
     }
@@ -82,12 +81,12 @@ public class StaticTokenTreeBuilder extends AbstractTokenTreeBuilder
         return tokenCount == 0;
     }
 
-    public Iterator<Pair<Long, LongSet>> iterator()
+    public Iterator<Pair<Long, Set<RowOffset>>> iterator()
     {
         Iterator<Token> iterator = combinedTerm.getTokenIterator();
-        return new AbstractIterator<Pair<Long, LongSet>>()
+        return new AbstractIterator<Pair<Long, Set<RowOffset>>>()
         {
-            protected Pair<Long, LongSet> computeNext()
+            protected Pair<Long, Set<RowOffset>> computeNext()
             {
                 if (!iterator.hasNext())
                     return endOfData();

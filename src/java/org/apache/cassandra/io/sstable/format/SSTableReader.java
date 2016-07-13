@@ -49,8 +49,7 @@ import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.config.Schema;
 import org.apache.cassandra.db.*;
 import org.apache.cassandra.db.filter.ColumnFilter;
-import org.apache.cassandra.db.rows.EncodingStats;
-import org.apache.cassandra.db.rows.UnfilteredRowIterator;
+import org.apache.cassandra.db.rows.*;
 import org.apache.cassandra.dht.AbstractBounds;
 import org.apache.cassandra.dht.Range;
 import org.apache.cassandra.dht.Token;
@@ -1758,6 +1757,31 @@ public abstract class SSTableReader extends SSTable implements SelfRefCounted<SS
         }
 
         return key;
+    }
+
+    /**
+     * Reads Clustering Key from the data file of current sstable.
+     *
+     * @param rowPosition start position of given row in the data file
+     * @return Clustering of the row
+     * @throws IOException
+     */
+    public Clustering clusteringAt(long rowPosition) throws IOException
+    {
+        try (FileDataInput in = dfile.createReader(rowPosition))
+        {
+            if (in.isEOF())
+                return null;
+
+            int flags = in.readUnsignedByte();
+            int extendedFlags = UnfilteredSerializer.readExtendedFlags(in, flags);
+            boolean isStatic = UnfilteredSerializer.isStatic(extendedFlags);
+
+            if (isStatic)
+                return Clustering.STATIC_CLUSTERING;
+            else
+                return Clustering.serializer.deserialize(in, 3, header.clusteringTypes());
+        }
     }
 
     /**

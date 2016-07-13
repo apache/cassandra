@@ -37,7 +37,8 @@ import org.apache.cassandra.index.sasi.utils.RangeUnionIterator;
 
 import com.google.common.annotations.VisibleForTesting;
 import com.google.common.collect.*;
-import org.apache.cassandra.utils.FBUtilities;
+
+import org.apache.cassandra.utils.*;
 
 @SuppressWarnings("resource")
 public class Operation extends RangeIterator<Long, Token>
@@ -77,7 +78,6 @@ public class Operation extends RangeIterator<Long, Token>
                       Operation left, Operation right)
     {
         super(range);
-
         this.op = operation;
         this.controller = controller;
         this.expressions = expressions;
@@ -502,4 +502,15 @@ public class Operation extends RangeIterator<Long, Token>
             }
         }
     }
+
+    public String toString()
+    {
+        return "Operation{" +
+               "op=" + op +
+               ", expressions=" + expressions +
+               ", range=" + range +
+               '}';
+    }
 }
+
+

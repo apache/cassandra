@@ -26,6 +26,7 @@ import org.apache.cassandra.index.sasi.SASIIndex;
 import org.apache.cassandra.index.sasi.disk.OnDiskIndexBuilder;
 import org.junit.After;
 import org.junit.BeforeClass;
+import org.junit.Test;
 
 import org.apache.cassandra.config.*;
 import org.apache.cassandra.cql3.CQLTester;
@@ -592,6 +593,8 @@ public class SchemaLoader
                                            .addRegularColumn("height", Int32Type.instance)
                                            .addRegularColumn("score", DoubleType.instance)
                                            .build();
+
+        cfm.compression(getCompressionParameters());
 
         Indexes indexes = cfm.getIndexes();
         for (String indexedColumn : indexedColumns)

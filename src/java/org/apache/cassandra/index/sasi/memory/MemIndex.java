@@ -19,13 +19,14 @@ package org.apache.cassandra.index.sasi.memory;
 
 import java.nio.ByteBuffer;
 
-import org.apache.cassandra.db.DecoratedKey;
+import org.apache.cassandra.db.*;
 import org.apache.cassandra.index.sasi.conf.ColumnIndex;
-import org.apache.cassandra.index.sasi.disk.Token;
+import org.apache.cassandra.index.sasi.disk.*;
 import org.apache.cassandra.index.sasi.plan.Expression;
 import org.apache.cassandra.index.sasi.utils.RangeIterator;
 import org.apache.cassandra.db.marshal.AbstractType;
 
+import org.apache.cassandra.utils.*;
 import org.github.jamm.MemoryMeter;
 
 public abstract class MemIndex
@@ -39,7 +40,7 @@ public abstract class MemIndex
         this.columnIndex = columnIndex;
     }
 
-    public abstract long add(DecoratedKey key, ByteBuffer value);
+    public abstract long add(RowKey key, ByteBuffer value);
     public abstract RangeIterator<Long, Token> search(Expression expression);
 
     public static MemIndex forColumn(AbstractType<?> keyValidator, ColumnIndex columnIndex)

@@ -17,14 +17,15 @@
  */
 package org.apache.cassandra.index.sasi.disk;
 
+import java.util.*;
+
 import com.google.common.primitives.Longs;
 
-import org.apache.cassandra.db.DecoratedKey;
+import org.apache.cassandra.db.*;
 import org.apache.cassandra.index.sasi.utils.CombinedValue;
+import org.apache.cassandra.utils.*;
 
-import com.carrotsearch.hppc.LongSet;
-
-public abstract class Token implements CombinedValue<Long>, Iterable<DecoratedKey>
+public abstract class Token implements CombinedValue<Long>, Iterable<RowKey>
 {
     protected final long token;
 
@@ -38,10 +39,25 @@ public abstract class Token implements CombinedValue<Long>, Iterable<DecoratedKe
         return token;
     }
 
-    public abstract LongSet getOffsets();
+    public abstract Set<RowOffset> getOffsets();
 
     public int compareTo(CombinedValue<Long> o)
     {
         return Longs.compare(token, ((Token) o).token);
+    }
+
+    public boolean equals(Object o)
+    {
+        if (this == o) return true;
+        if (o == null || getClass() != o.getClass()) return false;
+
+        Token pairs = (Token) o;
+
+        return token == pairs.token;
+    }
+
+    public int hashCode()
+    {
+        return (int) (token ^ (token >>> 32));
     }
 }

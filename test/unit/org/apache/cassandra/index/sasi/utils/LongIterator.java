@@ -18,15 +18,13 @@
 package org.apache.cassandra.index.sasi.utils;
 
 import java.io.IOException;
-import java.util.ArrayList;
-import java.util.Collections;
-import java.util.Iterator;
-import java.util.List;
+import java.util.*;
 
 import com.carrotsearch.hppc.LongOpenHashSet;
 import com.carrotsearch.hppc.LongSet;
-import org.apache.cassandra.db.DecoratedKey;
-import org.apache.cassandra.index.sasi.disk.Token;
+import org.apache.cassandra.db.*;
+import org.apache.cassandra.index.sasi.disk.*;
+import org.apache.cassandra.utils.*;
 
 public class LongIterator extends RangeIterator<Long, Token>
 {
@@ -82,13 +80,13 @@ public class LongIterator extends RangeIterator<Long, Token>
         }
 
         @Override
-        public LongSet getOffsets()
+        public Set<RowOffset> getOffsets()
         {
-            return new LongOpenHashSet(4);
+            return new HashSet<>(4);
         }
 
         @Override
-        public Iterator<DecoratedKey> iterator()
+        public Iterator<RowKey> iterator()
         {
             return Collections.emptyIterator();
         }
@@ -103,6 +101,7 @@ public class LongIterator extends RangeIterator<Long, Token>
         return results;
     }
 
+    // TODO: (ifesdjeen)
     public static List<Long> convert(final long... nums)
     {
         return new ArrayList<Long>(nums.length)

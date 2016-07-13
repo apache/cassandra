@@ -24,11 +24,11 @@ import org.apache.cassandra.db.*;
 import org.apache.cassandra.db.partitions.UnfilteredPartitionIterator;
 import org.apache.cassandra.db.rows.*;
 import org.apache.cassandra.dht.AbstractBounds;
-import org.apache.cassandra.index.sasi.disk.Token;
+import org.apache.cassandra.index.sasi.disk.*;
 import org.apache.cassandra.index.sasi.plan.Operation.OperationType;
 import org.apache.cassandra.exceptions.RequestTimeoutException;
 import org.apache.cassandra.io.util.FileUtils;
-import org.apache.cassandra.utils.AbstractIterator;
+import org.apache.cassandra.utils.*;
 
 public class QueryPlan
 {
@@ -75,11 +75,12 @@ public class QueryPlan
         private final QueryController controller;
         private final ReadExecutionController executionController;
 
-        private Iterator<DecoratedKey> currentKeys = null;
+        private Iterator<RowKey> currentKeys = null;
 
         public ResultIterator(Operation operationTree, QueryController controller, ReadExecutionController executionController)
         {
             this.keyRange = controller.dataRange().keyRange();
+
             this.operationTree = operationTree;
             this.controller = controller;
             this.executionController = executionController;
@@ -97,7 +98,10 @@ public class QueryPlan
                 if (currentKeys == null || !currentKeys.hasNext())
                 {
                     if (!operationTree.hasNext())
-                         return endOfData();
+                    {
+                        return endOfData();
+                    }
+
 
                     Token token = operationTree.next();
                     currentKeys = token.iterator();
@@ -105,12 +109,14 @@ public class QueryPlan
 
                 while (currentKeys.hasNext())
                 {
-                    DecoratedKey key = currentKeys.next();
+                    RowKey fullKey = currentKeys.next();
+                    DecoratedKey key = fullKey.decoratedKey;
 
+                    // TODO
                     if (!keyRange.right.isMinimum() && keyRange.right.compareTo(key) < 0)
                         return endOfData();
 
-                    try (UnfilteredRowIterator partition = controller.getPartition(key, executionController))
+                    try (UnfilteredRowIterator partition = controller.getPartition(key, fullKey.clustering, executionController))
                     {
                         Row staticRow = partition.staticRow();
                         List<Unfiltered> clusters = new ArrayList<>();
@@ -118,6 +124,7 @@ public class QueryPlan
                         while (partition.hasNext())
                         {
                             Unfiltered row = partition.next();
+                            // TODO: what about static row here?
                             if (operationTree.satisfiedBy(row, staticRow, true))
                                 clusters.add(row);
                         }

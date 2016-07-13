@@ -44,8 +44,8 @@ import org.apache.cassandra.index.SecondaryIndexBuilder;
 import org.apache.cassandra.index.TargetParser;
 import org.apache.cassandra.index.sasi.conf.ColumnIndex;
 import org.apache.cassandra.index.sasi.conf.IndexMode;
+import org.apache.cassandra.index.sasi.disk.*;
 import org.apache.cassandra.index.sasi.disk.OnDiskIndexBuilder.Mode;
-import org.apache.cassandra.index.sasi.disk.PerSSTableIndexWriter;
 import org.apache.cassandra.index.sasi.plan.QueryPlan;
 import org.apache.cassandra.index.transactions.IndexTransaction;
 import org.apache.cassandra.io.sstable.Descriptor;
@@ -251,7 +251,8 @@ public class SASIIndex implements Index, INotificationConsumer
             public void insertRow(Row row)
             {
                 if (isNewData())
-                    adjustMemtableSize(index.index(key, row), opGroup);
+                    adjustMemtableSize(index.index(new RowKey(key, row.clustering(), baseCfs.getComparator()), row), opGroup);
+
             }
 
             public void updateRow(Row oldRow, Row newRow)
