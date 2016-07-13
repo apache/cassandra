@@ -356,36 +356,8 @@ public class TokenTree
     {
         private final Set<TokenInfo> info = new HashSet<>(2);
 
-        // TODO (ifesdjeen): clustering comparison sohuld be done by taking into account the CFM. Current implementation is just a quick hack as we "control" data, POC only
-        public static final Comparator<RowKey> comparator = new Comparator<RowKey>()
-        {
-            public int compare(RowKey o1, RowKey o2)
-            {
-                int cmp = o1.decoratedKey.compareTo(o2.decoratedKey);
-                if (cmp == 0 && o1.clustering != null && o2.clustering != null && o1.clustering.kind() == ClusteringPrefix.Kind.CLUSTERING && o2.clustering.kind() == ClusteringPrefix.Kind.CLUSTERING)
-                {
-                    ByteBuffer[] bbs1 = o1.clustering.getRawValues();
-                    ByteBuffer[] bbs2 = o2.clustering.getRawValues();
-
-                    for (int i = 0; i < bbs1.length; i++)
-                    {
-                        int cmpc = ByteBufferUtil.compareUnsigned(bbs1[i], bbs2[i]);
-                        if (cmpc != 0)
-                        {
-                            return cmpc;
-                        }
-                    }
-                }
-                else
-                {
-                    return cmp;
-                }
-                return 0;
-            }
-        };
-
         // TODO: (ifesdjeen) FIX COMPARATOR
-        private final Set<RowKey> loadedKeys = new TreeSet<>(OnDiskToken.comparator);
+        private final Set<RowKey> loadedKeys = new TreeSet<>(RowKey.COMPARATOR);
 
         public OnDiskToken(MappedBuffer buffer, long position, short leafSize, KeyFetcher keyFetcher)
         {
@@ -423,7 +395,7 @@ public class TokenTree
             if (!loadedKeys.isEmpty())
                 keys.add(loadedKeys.iterator());
 
-            return MergeIterator.get(keys, comparator, new MergeIterator.Reducer<RowKey, RowKey>()
+            return MergeIterator.get(keys, RowKey.COMPARATOR, new MergeIterator.Reducer<RowKey, RowKey>()
             {
                 RowKey reduced = null;
 
@@ -575,10 +547,7 @@ public class TokenTree
             if (index < offsets.size())
             {
                 RowOffset offset = offsets.get(index++);
-                DecoratedKey decoratedKey = keyFetcher.getPartitionKey(offset.partitionOffset);
-                ClusteringPrefix clusteringPrefix = keyFetcher.getClustering(offset.rowOffset);
-
-                return new RowKey(decoratedKey, clusteringPrefix);
+                return keyFetcher.getRowKey(offset.partitionOffset, offset.rowOffset);
             }
             else
             {

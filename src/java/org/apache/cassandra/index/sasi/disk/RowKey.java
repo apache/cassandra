@@ -18,10 +18,9 @@
 
 package org.apache.cassandra.index.sasi.disk;
 
-import java.nio.ByteBuffer;
+import java.util.*;
 
 import org.apache.cassandra.db.*;
-import org.apache.cassandra.utils.*;
 
 /**
  * Primary key of the found row, a combination of the Partition Key
@@ -30,13 +29,16 @@ import org.apache.cassandra.utils.*;
 public class RowKey implements Comparable<RowKey>
 {
 
-    public DecoratedKey decoratedKey;
-    public ClusteringPrefix clustering;
+    public final DecoratedKey decoratedKey;
+    public final Clustering clustering;
 
-    public RowKey(DecoratedKey primaryKey, ClusteringPrefix clustering)
+    private final ClusteringComparator comparator;
+
+    public RowKey(DecoratedKey primaryKey, Clustering clustering, ClusteringComparator comparator)
     {
         this.decoratedKey = primaryKey;
         this.clustering = clustering;
+        this.comparator = comparator;
     }
 
     public boolean equals(Object o)
@@ -58,28 +60,31 @@ public class RowKey implements Comparable<RowKey>
         return result;
     }
 
-    public int compareTo(RowKey o2)
+    public int compareTo(RowKey other)
     {
-        RowKey o1 = this;
-        int cmp = o1.decoratedKey.compareTo(o2.decoratedKey);
-        if (cmp == 0 && o1.clustering != null && o2.clustering != null && o1.clustering.kind() == ClusteringPrefix.Kind.CLUSTERING && o2.clustering.kind() == ClusteringPrefix.Kind.CLUSTERING)
+        int cmp = this.decoratedKey.compareTo(other.decoratedKey);
+        if (cmp == 0)
         {
-            ByteBuffer[] bbs1 = o1.clustering.getRawValues();
-            ByteBuffer[] bbs2 = o2.clustering.getRawValues();
+            // Both clustering and rows should match
+            if (clustering.kind() == ClusteringPrefix.Kind.STATIC_CLUSTERING || other.clustering.kind() == ClusteringPrefix.Kind.STATIC_CLUSTERING)
+                return 0;
 
-            for (int i = 0; i < bbs1.length; i++)
-            {
-                int cmpc = ByteBufferUtil.compareUnsigned(bbs1[i], bbs2[i]);
-                if (cmpc != 0)
-                {
-                    return cmpc;
-                }
-            }
+            return comparator.compare(this.clustering, other.clustering);
         }
         else
         {
             return cmp;
         }
-        return 0;
     }
+
+    public static RowKeyComparator COMPARATOR = new RowKeyComparator();
+
+    private static class RowKeyComparator implements Comparator<RowKey>
+    {
+        public int compare(RowKey o1, RowKey o2)
+        {
+            return o1.compareTo(o2);
+        }
+    }
+
 }

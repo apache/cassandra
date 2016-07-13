@@ -1778,7 +1778,7 @@ public abstract class SSTableReader extends SSTable implements SelfRefCounted<SS
             boolean isStatic = UnfilteredSerializer.isStatic(extendedFlags);
 
             if (isStatic)
-                return null;
+                return Clustering.STATIC_CLUSTERING;
             else
                 return Clustering.serializer.deserialize(in, 3, header.clusteringTypes());
         }

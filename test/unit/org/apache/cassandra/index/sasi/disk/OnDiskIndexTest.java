@@ -25,6 +25,7 @@ import java.util.stream.Collectors;
 
 import org.apache.cassandra.cql3.Operator;
 import org.apache.cassandra.db.*;
+import org.apache.cassandra.db.marshal.*;
 import org.apache.cassandra.dht.Murmur3Partitioner;
 import org.apache.cassandra.index.sasi.*;
 import org.apache.cassandra.index.sasi.plan.Expression;
@@ -32,13 +33,8 @@ import org.apache.cassandra.index.sasi.utils.CombinedTerm;
 import org.apache.cassandra.index.sasi.utils.CombinedTermIterator;
 import org.apache.cassandra.index.sasi.utils.OnDiskIndexIterator;
 import org.apache.cassandra.index.sasi.utils.RangeIterator;
-import org.apache.cassandra.db.marshal.AbstractType;
-import org.apache.cassandra.db.marshal.Int32Type;
-import org.apache.cassandra.db.marshal.LongType;
-import org.apache.cassandra.db.marshal.UTF8Type;
 import org.apache.cassandra.io.util.DataOutputBuffer;
-import org.apache.cassandra.utils.MurmurHash;
-import org.apache.cassandra.utils.Pair;
+import org.apache.cassandra.utils.*;
 
 import com.carrotsearch.hppc.LongSet;
 import com.carrotsearch.hppc.cursors.LongCursor;
@@ -834,7 +830,9 @@ public class OnDiskIndexTest
         {
             for (RowKey key: results.next())
                 // TODO: (ifesdjeen) check clusering prefix, too
+            {
                 keys.add(key.decoratedKey);
+            }
         }
 
         return keys;
@@ -928,7 +926,14 @@ public class OnDiskIndexTest
         @Override
         public Clustering getClustering(Long offset)
         {
-            return null;
+            return Clustering.make(ByteBufferUtil.bytes(offset));
+        }
+
+        @Override
+        public RowKey getRowKey(Long partitionOffset, Long rowOffset)
+        {
+            // TODO: test that too
+            return new RowKey(getPartitionKey(partitionOffset), getClustering(rowOffset), new ClusteringComparator(BytesType.instance));
         }
     }
 }

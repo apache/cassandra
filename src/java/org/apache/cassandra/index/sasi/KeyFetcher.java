@@ -20,15 +20,21 @@ package org.apache.cassandra.index.sasi;
 
 import java.io.IOException;
 
+import com.google.common.annotations.VisibleForTesting;
+
 import org.apache.cassandra.db.*;
+import org.apache.cassandra.index.sasi.disk.*;
 import org.apache.cassandra.io.*;
 import org.apache.cassandra.io.sstable.format.*;
 
 
 public interface KeyFetcher
 {
+    @VisibleForTesting
     public Clustering getClustering(Long offset);
     public DecoratedKey getPartitionKey(Long offset);
+
+    public RowKey getRowKey(Long partitionOffset, Long rowOffset);
 
     /**
      * Fetches clustering and partition key from the sstable.
@@ -36,7 +42,7 @@ public interface KeyFetcher
      * Currently, clustering key is fetched from the data file of the sstable and partition key is
      * read from the index file. Reading from index file helps us to warm up key cache in this case.
      */
-    public class SSTableKeyFetcher implements KeyFetcher
+    public static class SSTableKeyFetcher implements KeyFetcher
     {
         private final SSTableReader sstable;
 
@@ -45,6 +51,7 @@ public interface KeyFetcher
             sstable = reader;
         }
 
+        @Override
         public Clustering getClustering(Long offset)
         {
             try
@@ -57,6 +64,7 @@ public interface KeyFetcher
             }
         }
 
+        @Override
         public DecoratedKey getPartitionKey(Long offset)
         {
             try
@@ -67,6 +75,12 @@ public interface KeyFetcher
             {
                 throw new FSReadError(new IOException("Failed to read key from " + sstable.descriptor, e), sstable.getFilename());
             }
+        }
+
+        @Override
+        public RowKey getRowKey(Long partitionOffset, Long rowOffset)
+        {
+            return new RowKey(getPartitionKey(partitionOffset), getClustering(rowOffset), sstable.metadata.comparator);
         }
 
         public int hashCode()

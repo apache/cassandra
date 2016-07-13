@@ -51,7 +51,7 @@ public class SkipListMemIndex extends MemIndex
         if (keys == null)
         {
             // TODO: (ifesdjeen) fix comparator
-            ConcurrentSkipListSet<RowKey> newKeys = new ConcurrentSkipListSet<>(TokenTree.OnDiskToken.comparator);
+            ConcurrentSkipListSet<RowKey> newKeys = new ConcurrentSkipListSet<>(RowKey.COMPARATOR);
             keys = index.putIfAbsent(value, newKeys);
             if (keys == null)
             {

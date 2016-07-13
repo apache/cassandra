@@ -26,6 +26,7 @@ import com.google.common.collect.Iterators;
 import com.google.common.collect.PeekingIterator;
 
 import org.apache.cassandra.db.*;
+import org.apache.cassandra.db.marshal.*;
 import org.apache.cassandra.dht.Murmur3Partitioner;
 import org.apache.cassandra.index.sasi.*;
 import org.apache.cassandra.index.sasi.disk.TokenTreeBuilder.EntryType;
@@ -33,7 +34,6 @@ import org.apache.cassandra.index.sasi.utils.CombinedTerm;
 import org.apache.cassandra.index.sasi.utils.CombinedValue;
 import org.apache.cassandra.index.sasi.utils.MappedBuffer;
 import org.apache.cassandra.index.sasi.utils.RangeIterator;
-import org.apache.cassandra.db.marshal.LongType;
 import org.apache.cassandra.index.sasi.utils.RangeUnionIterator;
 import org.apache.cassandra.io.util.*;
 import org.apache.cassandra.utils.*;
@@ -572,7 +572,7 @@ public class TokenTreeTest
         {
             List<RowKey> keys = new ArrayList<>(offsets.size());
             for (RowOffset offset : offsets)
-                 keys.add(new RowKey(dk(offset.partitionOffset), null)); // TODO (ifesdjeen) ?
+                keys.add(KEY_CONVERTER.getRowKey(offset.partitionOffset, offset.rowOffset)); // TODO (ifesdjeen) ?
 
             return keys.iterator();
         }
@@ -618,8 +618,19 @@ public class TokenTreeTest
         public Clustering getClustering(Long offset)
         {
             // TODO: (ifesdjeen) test for clusterings, too
-            return null;
+            return Clustering.make(ByteBufferUtil.bytes(offset));
         }
+
+        @Override
+        public RowKey getRowKey(Long partitionOffset, Long rowOffset)
+        {
+            return new RowKey(getPartitionKey(partitionOffset), getClustering(rowOffset), new ClusteringComparator(BytesType.instance));
+        }
+    }
+
+    private static Clustering ck(Long offset)
+    {
+        return Clustering.make(ByteBufferUtil.bytes(offset));
     }
 
     private static DecoratedKey dk(Long token)

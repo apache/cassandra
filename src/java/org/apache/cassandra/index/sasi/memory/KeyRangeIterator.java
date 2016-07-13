@@ -90,7 +90,7 @@ public class KeyRangeIterator extends RangeIterator<Long, Token>
         {
             super((long) key.decoratedKey.getToken().getTokenValue());
 
-            keys = new TreeSet<RowKey>(TokenTree.OnDiskToken.comparator)
+            keys = new TreeSet<RowKey>(RowKey.COMPARATOR)
             {{
                 add(key);
             }};

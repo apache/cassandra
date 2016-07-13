@@ -119,7 +119,7 @@ public class TrieMemIndex extends MemIndex
             if (keys == null)
             {
                 // TODO (ifesdjeen): fix comparator
-                ConcurrentSkipListSet<RowKey> newKeys = new ConcurrentSkipListSet<>(TokenTree.OnDiskToken.comparator);
+                ConcurrentSkipListSet<RowKey> newKeys = new ConcurrentSkipListSet<>(RowKey.COMPARATOR);
                 keys = putIfAbsent(value, newKeys);
                 if (keys == null)
                 {

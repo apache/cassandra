@@ -277,6 +277,11 @@ public class PerSSTableIndexWriterTest extends SchemaLoader
         {
             return Clustering.make(ByteBufferUtil.bytes(String.format(keyFormat, offset)));
         }
+
+        public RowKey getRowKey(Long partitionOffset, Long rowOffset)
+        {
+            return new RowKey(getPartitionKey(partitionOffset), getClustering(rowOffset), null);
+        }
     }
 
 }

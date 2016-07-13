@@ -251,7 +251,8 @@ public class SASIIndex implements Index, INotificationConsumer
             public void insertRow(Row row)
             {
                 if (isNewData())
-                    adjustMemtableSize(index.index(new RowKey(key, row.clustering()), row), opGroup);
+                    adjustMemtableSize(index.index(new RowKey(key, row.clustering(), baseCfs.getComparator()), row), opGroup);
+
             }
 
             public void updateRow(Row oldRow, Row newRow)
