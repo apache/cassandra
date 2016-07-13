@@ -187,7 +187,7 @@ public class CommitLogSegmentManagerCDC extends AbstractCommitLogSegmentManager
         void processNewSegment(CommitLogSegment segment)
         {
             // See synchronization in CommitLogSegment.setCDCState
-            synchronized(segment)
+            synchronized(segment.cdcStateLock)
             {
                 segment.setCDCState(defaultSegmentSize() + totalCDCSizeOnDisk() > allowableCDCBytes()
                                     ? CDCState.FORBIDDEN
@@ -203,7 +203,7 @@ public class CommitLogSegmentManagerCDC extends AbstractCommitLogSegmentManager
         void processDiscardedSegment(CommitLogSegment segment)
         {
             // See synchronization in CommitLogSegment.setCDCState
-            synchronized(segment)
+            synchronized(segment.cdcStateLock)
             {
                 // Add to flushed size before decrementing unflushed so we don't have a window of false generosity
                 if (segment.getCDCState() == CDCState.CONTAINS)
