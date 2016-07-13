@@ -649,11 +649,7 @@ public class TokenTreeTest
                 }
         }};
 
-        System.out.println("toks = " + toks);
-        System.out.println("isStatic = " + isStatic);
-
-        // final TokenTreeBuilder builder = isStatic ? new StaticTokenTreeBuilder(new FakeCombinedTerm(toks)) : new DynamicTokenTreeBuilder(toks);
-        final TokenTreeBuilder builder = new DynamicTokenTreeBuilder(toks);
+        final TokenTreeBuilder builder = isStatic ? new StaticTokenTreeBuilder(new FakeCombinedTerm(toks)) : new DynamicTokenTreeBuilder(toks);
         builder.finish();
         final File treeFile = File.createTempFile("token-tree-get-test", "tt");
         treeFile.deleteOnExit();
