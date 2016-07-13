@@ -94,11 +94,6 @@ public class ClusteringIndexSliceFilter extends AbstractClusteringIndexFilter
         // the range extend) and it's harmless to leave them.
         class FilterNotIndexed extends Transformation
         {
-            public boolean isDoneForPartition()
-            {
-                return tester.isDone();
-            }
-
             @Override
             public Row applyToRow(Row row)
             {
