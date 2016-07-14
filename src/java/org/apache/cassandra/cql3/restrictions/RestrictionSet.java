@@ -18,7 +18,8 @@
 package org.apache.cassandra.cql3.restrictions;
 
 import java.util.*;
-import java.util.stream.Stream;
+
+import com.google.common.collect.AbstractIterator;
 
 import org.apache.cassandra.config.ColumnDefinition;
 import org.apache.cassandra.cql3.QueryOptions;
@@ -53,14 +54,21 @@ final class RestrictionSet implements Restrictions, Iterable<SingleRestriction>
      */
     protected final TreeMap<ColumnDefinition, SingleRestriction> restrictions;
 
+    /**
+     * {@code true} if it contains multi-column restrictions, {@code false} otherwise.
+     */
+    private final boolean hasMultiColumnRestrictions;
+
     public RestrictionSet()
     {
-        this(new TreeMap<ColumnDefinition, SingleRestriction>(COLUMN_DEFINITION_COMPARATOR));
+        this(new TreeMap<ColumnDefinition, SingleRestriction>(COLUMN_DEFINITION_COMPARATOR), false);
     }
 
-    private RestrictionSet(TreeMap<ColumnDefinition, SingleRestriction> restrictions)
+    private RestrictionSet(TreeMap<ColumnDefinition, SingleRestriction> restrictions,
+                           boolean hasMultiColumnRestrictions)
     {
         this.restrictions = restrictions;
+        this.hasMultiColumnRestrictions = hasMultiColumnRestrictions;
     }
 
     @Override
@@ -76,24 +84,11 @@ final class RestrictionSet implements Restrictions, Iterable<SingleRestriction>
         return new ArrayList<>(restrictions.keySet());
     }
 
-    public Stream<SingleRestriction> stream()
-    {
-        return new LinkedHashSet<>(restrictions.values()).stream();
-    }
-
     @Override
     public void addFunctionsTo(List<Function> functions)
     {
-        Restriction previous = null;
-        for (Restriction restriction : restrictions.values())
-        {
-            // For muti-column restriction, we can have multiple time the same restriction.
-            if (!restriction.equals(previous))
-            {
-                previous = restriction;
-                restriction.addFunctionsTo(functions);
-            }
-        }
+        for (Restriction restriction : this)
+            restriction.addFunctionsTo(functions);
     }
 
     @Override
@@ -118,7 +113,7 @@ final class RestrictionSet implements Restrictions, Iterable<SingleRestriction>
     {
         // RestrictionSet is immutable so we need to clone the restrictions map.
         TreeMap<ColumnDefinition, SingleRestriction> newRestrictions = new TreeMap<>(this.restrictions);
-        return new RestrictionSet(mergeRestrictions(newRestrictions, restriction));
+        return new RestrictionSet(mergeRestrictions(newRestrictions, restriction), hasMultiColumnRestrictions || restriction.isMultiColumn());
     }
 
     private TreeMap<ColumnDefinition, SingleRestriction> mergeRestrictions(TreeMap<ColumnDefinition, SingleRestriction> restrictions,
@@ -246,7 +241,8 @@ final class RestrictionSet implements Restrictions, Iterable<SingleRestriction>
     @Override
     public Iterator<SingleRestriction> iterator()
     {
-        return new LinkedHashSet<>(restrictions.values()).iterator();
+        Iterator<SingleRestriction> iterator = restrictions.values().iterator();
+        return hasMultiColumnRestrictions ? new DistinctIterator<>(iterator) : iterator;
     }
 
     /**
@@ -255,7 +251,12 @@ final class RestrictionSet implements Restrictions, Iterable<SingleRestriction>
      */
     public final boolean hasIN()
     {
-        return stream().anyMatch(SingleRestriction::isIN);
+        for (SingleRestriction restriction : this)
+        {
+            if (restriction.isIN())
+                return true;
+        }
+        return false;
     }
 
     /**
@@ -266,6 +267,49 @@ final class RestrictionSet implements Restrictions, Iterable<SingleRestriction>
      */
     public final boolean hasOnlyEqualityRestrictions()
     {
-        return stream().allMatch(p -> p.isEQ() || p.isIN());
+        for (SingleRestriction restriction : this)
+        {
+            if (!restriction.isEQ() && !restriction.isIN())
+                return false;
+        }
+        return true;
+    }
+
+    /**
+     * {@code Iterator} decorator that removes duplicates in an ordered one.
+     *
+     * @param iterator the decorated iterator
+     * @param <E> the iterator element type.
+     */
+    private static final class DistinctIterator<E> extends AbstractIterator<E>
+    {
+        /**
+         * The decorated iterator.
+         */
+        private final Iterator<E> iterator;
+
+        /**
+         * The previous element.
+         */
+        private E previous;
+
+        public DistinctIterator(Iterator<E> iterator)
+        {
+            this.iterator = iterator;
+        }
+
+        protected E computeNext()
+        {
+            while(iterator.hasNext())
+            {
+                E next = iterator.next();
+                if (!next.equals(previous))
+                {
+                    previous = next;
+                    return next;
+                }
+            }
+            return endOfData();
+        }
     }
 }

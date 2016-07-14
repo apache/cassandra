@@ -152,7 +152,12 @@ final class ClusteringColumnRestrictions extends RestrictionSetWrapper
      */
     public final boolean hasContains()
     {
-        return restrictions.stream().anyMatch(SingleRestriction::isContains);
+        for (SingleRestriction restriction : restrictions)
+        {
+            if (restriction.isContains())
+                return true;
+        }
+        return false;
     }
 
     /**
@@ -163,7 +168,12 @@ final class ClusteringColumnRestrictions extends RestrictionSetWrapper
      */
     public final boolean hasSlice()
     {
-        return restrictions.stream().anyMatch(SingleRestriction::isSlice);
+        for (SingleRestriction restriction : restrictions)
+        {
+            if (restriction.isSlice())
+                return true;
+        }
+        return false;
     }
 
     /**
