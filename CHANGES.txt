@@ -1,4 +1,6 @@
 3.10
+ * Prepend snapshot name with "truncated" or "dropped" when a snapshot
+   is taken before truncating or dropping a table (CASSANDRA-12178)
  * Optimize RestrictionSet (CASSANDRA-12153)
  * cqlsh does not automatically downgrade CQL version (CASSANDRA-12150)
  * Omit (de)serialization of state variable in UDAs (CASSANDRA-9613)

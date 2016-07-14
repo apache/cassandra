@@ -29,6 +29,9 @@ New features
      testing and, as a consequence, it is not guaranteed to work in all cases.
      See CASSANDRA-12150 for more details.
 
+   - Snapshots that are automatically taken before a table is dropped or truncated
+     will have a "dropped" or "truncated" prefix on their snapshot tag name.
+
 Upgrading
 ---------
    - Nothing specific to 3.10 but please see previous versions upgrading section,
