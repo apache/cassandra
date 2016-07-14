@@ -133,4 +133,35 @@ public class SelectLimitTest extends CQLTester
                    row(2, 2),
                    row(2, 3));
     }
+
+    @Test
+    public void testLimitWithDeletedRowsAndStaticColumns() throws Throwable
+    {
+        createTable("CREATE TABLE %s (pk int, c int, v int, s int static, PRIMARY KEY (pk, c))");
+
+        execute("INSERT INTO %s (pk, c, v, s) VALUES (1, -1, 1, 1)");
+        execute("INSERT INTO %s (pk, c, v, s) VALUES (2, -1, 1, 1)");
+        execute("INSERT INTO %s (pk, c, v, s) VALUES (3, -1, 1, 1)");
+        execute("INSERT INTO %s (pk, c, v, s) VALUES (4, -1, 1, 1)");
+        execute("INSERT INTO %s (pk, c, v, s) VALUES (5, -1, 1, 1)");
+
+        assertRows(execute("SELECT * FROM %s"),
+                   row(1, -1, 1, 1),
+                   row(2, -1, 1, 1),
+                   row(3, -1, 1, 1),
+                   row(4, -1, 1, 1),
+                   row(5, -1, 1, 1));
+
+        execute("DELETE FROM %s WHERE pk = 2");
+
+        assertRows(execute("SELECT * FROM %s"),
+                   row(1, -1, 1, 1),
+                   row(3, -1, 1, 1),
+                   row(4, -1, 1, 1),
+                   row(5, -1, 1, 1));
+
+        assertRows(execute("SELECT * FROM %s LIMIT 2"),
+                   row(1, -1, 1, 1),
+                   row(3, -1, 1, 1));
+    }
 }
