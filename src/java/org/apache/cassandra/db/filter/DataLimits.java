@@ -369,8 +369,7 @@ public abstract class DataLimits
             public void applyToPartition(DecoratedKey partitionKey, Row staticRow)
             {
                 rowInCurrentPartition = 0;
-                if (!staticRow.isEmpty() && (assumeLiveData || staticRow.hasLiveData(nowInSec)))
-                    hasLiveStaticRow = true;
+                hasLiveStaticRow = !staticRow.isEmpty() && (assumeLiveData || staticRow.hasLiveData(nowInSec));
             }
 
             @Override
