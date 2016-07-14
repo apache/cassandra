@@ -32,6 +32,7 @@ import org.apache.cassandra.db.filter.ColumnFilter;
 import org.apache.cassandra.db.rows.*;
 import org.apache.cassandra.db.partitions.*;
 import org.apache.cassandra.dht.*;
+import org.apache.cassandra.io.ForwardingVersionedSerializer;
 import org.apache.cassandra.io.IVersionedSerializer;
 import org.apache.cassandra.io.util.DataInputBuffer;
 import org.apache.cassandra.io.util.DataInputPlus;
@@ -46,11 +47,20 @@ public abstract class ReadResponse
 {
     // Serializer for single partition read response
     public static final IVersionedSerializer<ReadResponse> serializer = new Serializer();
-    // Serializer for partition range read response (this actually delegate to 'serializer' in 3.0 and to
-    // 'legacyRangeSliceReplySerializer' in older version.
-    public static final IVersionedSerializer<ReadResponse> rangeSliceSerializer = new RangeSliceSerializer();
     // Serializer for the pre-3.0 rang slice responses.
     public static final IVersionedSerializer<ReadResponse> legacyRangeSliceReplySerializer = new LegacyRangeSliceReplySerializer();
+    // Serializer for partition range read response (this actually delegate to 'serializer' in 3.0 and to
+    // 'legacyRangeSliceReplySerializer' in older version.
+    public static final IVersionedSerializer<ReadResponse> rangeSliceSerializer = new ForwardingVersionedSerializer<ReadResponse>()
+    {
+        @Override
+        protected IVersionedSerializer<ReadResponse> delegate(int version)
+        {
+            return version < MessagingService.VERSION_30
+                    ? legacyRangeSliceReplySerializer
+                    : serializer;
+        }
+    };
 
     // This is used only when serializing data responses and we can't it easily in other cases. So this can be null, which is slighly
     // hacky, but as this hack doesn't escape this class, and it's easy enough to validate that it's not null when we need, it's "good enough".
@@ -411,31 +421,6 @@ public abstract class ReadResponse
         }
     }
 
-    private static class RangeSliceSerializer implements IVersionedSerializer<ReadResponse>
-    {
-        public void serialize(ReadResponse response, DataOutputPlus out, int version) throws IOException
-        {
-            if (version < MessagingService.VERSION_30)
-                legacyRangeSliceReplySerializer.serialize(response, out, version);
-            else
-                serializer.serialize(response, out, version);
-        }
-
-        public ReadResponse deserialize(DataInputPlus in, int version) throws IOException
-        {
-            return version < MessagingService.VERSION_30
-                 ? legacyRangeSliceReplySerializer.deserialize(in, version)
-                 : serializer.deserialize(in, version);
-        }
-
-        public long serializedSize(ReadResponse response, int version)
-        {
-            return version < MessagingService.VERSION_30
-                 ? legacyRangeSliceReplySerializer.serializedSize(response, version)
-                 : serializer.serializedSize(response, version);
-        }
-    }
-
     private static class LegacyRangeSliceReplySerializer implements IVersionedSerializer<ReadResponse>
     {
         public void serialize(ReadResponse response, DataOutputPlus out, int version) throws IOException
@@ -477,6 +462,8 @@ public abstract class ReadResponse
 
         public ReadResponse deserialize(DataInputPlus in, int version) throws IOException
         {
+            assert version < MessagingService.VERSION_30;
+
             int partitionCount = in.readInt();
             ArrayList<ImmutableBTreePartition> partitions = new ArrayList<>(partitionCount);
             for (int i = 0; i < partitionCount; i++)

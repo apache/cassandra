@@ -894,7 +894,7 @@ public class SinglePartitionReadCommand extends ReadCommand
 
     public MessageOut<ReadCommand> createMessage(int version)
     {
-        return new MessageOut<>(MessagingService.Verb.READ, this, version < MessagingService.VERSION_30 ? legacyReadCommandSerializer : serializer);
+        return new MessageOut<>(MessagingService.Verb.READ, this, readSerializer);
     }
 
     protected void appendCQLWhereClause(StringBuilder sb)
