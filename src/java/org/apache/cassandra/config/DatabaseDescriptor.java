@@ -1282,6 +1282,7 @@ public class DatabaseDescriptor
             case READ:
                 return getReadRpcTimeout();
             case RANGE_SLICE:
+            case PAGED_RANGE:
                 return getRangeRpcTimeout();
             case TRUNCATE:
                 return getTruncateRpcTimeout();

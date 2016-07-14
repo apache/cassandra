@@ -36,6 +36,7 @@ import org.apache.cassandra.db.transform.Transformation;
 import org.apache.cassandra.dht.AbstractBounds;
 import org.apache.cassandra.index.Index;
 import org.apache.cassandra.index.IndexNotAvailableException;
+import org.apache.cassandra.io.ForwardingVersionedSerializer;
 import org.apache.cassandra.io.IVersionedSerializer;
 import org.apache.cassandra.io.util.DataInputPlus;
 import org.apache.cassandra.io.util.DataOutputPlus;
@@ -61,9 +62,39 @@ public abstract class ReadCommand extends MonitorableImpl implements ReadQuery
     private static final int TEST_ITERATION_DELAY_MILLIS = Integer.valueOf(System.getProperty("cassandra.test.read_iteration_delay_ms", "0"));
     protected static final Logger logger = LoggerFactory.getLogger(ReadCommand.class);
     public static final IVersionedSerializer<ReadCommand> serializer = new Serializer();
+
+    // For READ verb: will either dispatch on 'serializer' for 3.0 or 'legacyReadCommandSerializer' for earlier version.
+    // Can be removed (and replaced by 'serializer') once we drop pre-3.0 backward compatibility.
+    public static final IVersionedSerializer<ReadCommand> readSerializer = new ForwardingVersionedSerializer<ReadCommand>()
+    {
+        protected IVersionedSerializer<ReadCommand> delegate(int version)
+        {
+            return version < MessagingService.VERSION_30
+                    ? legacyReadCommandSerializer : serializer;
+        }
+    };
+
     // For RANGE_SLICE verb: will either dispatch on 'serializer' for 3.0 or 'legacyRangeSliceCommandSerializer' for earlier version.
     // Can be removed (and replaced by 'serializer') once we drop pre-3.0 backward compatibility.
-    public static final IVersionedSerializer<ReadCommand> rangeSliceSerializer = new RangeSliceSerializer();
+    public static final IVersionedSerializer<ReadCommand> rangeSliceSerializer = new ForwardingVersionedSerializer<ReadCommand>()
+    {
+        protected IVersionedSerializer<ReadCommand> delegate(int version)
+        {
+            return version < MessagingService.VERSION_30
+                    ? legacyRangeSliceCommandSerializer : serializer;
+        }
+    };
+
+    // For PAGED_RANGE verb: will either dispatch on 'serializer' for 3.0 or 'legacyPagedRangeCommandSerializer' for earlier version.
+    // Can be removed (and replaced by 'serializer') once we drop pre-3.0 backward compatibility.
+    public static final IVersionedSerializer<ReadCommand> pagedRangeSerializer = new ForwardingVersionedSerializer<ReadCommand>()
+    {
+        protected IVersionedSerializer<ReadCommand> delegate(int version)
+        {
+            return version < MessagingService.VERSION_30
+                    ? legacyPagedRangeCommandSerializer : serializer;
+        }
+    };
 
     public static final IVersionedSerializer<ReadCommand> legacyRangeSliceCommandSerializer = new LegacyRangeSliceCommandSerializer();
     public static final IVersionedSerializer<ReadCommand> legacyPagedRangeCommandSerializer = new LegacyPagedRangeCommandSerializer();
@@ -626,7 +657,6 @@ public abstract class ReadCommand extends MonitorableImpl implements ReadQuery
 
         public void serialize(ReadCommand command, DataOutputPlus out, int version) throws IOException
         {
-            // for serialization, createLegacyMessage() should cause legacyReadCommandSerializer to be used directly
             assert version >= MessagingService.VERSION_30;
 
             out.writeByte(command.kind.ordinal());
@@ -646,8 +676,7 @@ public abstract class ReadCommand extends MonitorableImpl implements ReadQuery
 
         public ReadCommand deserialize(DataInputPlus in, int version) throws IOException
         {
-            if (version < MessagingService.VERSION_30)
-                return legacyReadCommandSerializer.deserialize(in, version);
+            assert version >= MessagingService.VERSION_30;
 
             Kind kind = Kind.values()[in.readByte()];
             int flags = in.readByte();
@@ -687,7 +716,6 @@ public abstract class ReadCommand extends MonitorableImpl implements ReadQuery
 
         public long serializedSize(ReadCommand command, int version)
         {
-            // for serialization, createLegacyMessage() should cause legacyReadCommandSerializer to be used directly
             assert version >= MessagingService.VERSION_30;
 
             return 2 // kind + flags
@@ -699,33 +727,6 @@ public abstract class ReadCommand extends MonitorableImpl implements ReadQuery
                  + DataLimits.serializer.serializedSize(command.limits(), version)
                  + command.selectionSerializedSize(version)
                  + command.indexSerializedSize(version);
-        }
-    }
-
-    // Dispatch to either Serializer or LegacyRangeSliceCommandSerializer. Only useful as long as we maintain pre-3.0
-    // compatibility
-    private static class RangeSliceSerializer implements IVersionedSerializer<ReadCommand>
-    {
-        public void serialize(ReadCommand command, DataOutputPlus out, int version) throws IOException
-        {
-            if (version < MessagingService.VERSION_30)
-                legacyRangeSliceCommandSerializer.serialize(command, out, version);
-            else
-                serializer.serialize(command, out, version);
-        }
-
-        public ReadCommand deserialize(DataInputPlus in, int version) throws IOException
-        {
-            return version < MessagingService.VERSION_30
-                 ? legacyRangeSliceCommandSerializer.deserialize(in, version)
-                 : serializer.deserialize(in, version);
-        }
-
-        public long serializedSize(ReadCommand command, int version)
-        {
-            return version < MessagingService.VERSION_30
-                 ? legacyRangeSliceCommandSerializer.serializedSize(command, version)
-                 : serializer.serializedSize(command, version);
         }
     }
 

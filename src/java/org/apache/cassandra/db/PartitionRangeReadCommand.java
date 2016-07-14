@@ -253,12 +253,9 @@ public class PartitionRangeReadCommand extends ReadCommand
 
     public MessageOut<ReadCommand> createMessage(int version)
     {
-        if (version >= MessagingService.VERSION_30)
-            return new MessageOut<>(MessagingService.Verb.RANGE_SLICE, this, serializer);
-
         return dataRange().isPaging()
-             ? new MessageOut<>(MessagingService.Verb.PAGED_RANGE, this, legacyPagedRangeCommandSerializer)
-             : new MessageOut<>(MessagingService.Verb.RANGE_SLICE, this, legacyRangeSliceCommandSerializer);
+             ? new MessageOut<>(MessagingService.Verb.PAGED_RANGE, this, pagedRangeSerializer)
+             : new MessageOut<>(MessagingService.Verb.RANGE_SLICE, this, rangeSliceSerializer);
     }
 
     protected void appendCQLWhereClause(StringBuilder sb)
