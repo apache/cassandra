@@ -61,6 +61,7 @@ public abstract class CommitLogSegment
         FORBIDDEN,
         CONTAINS
     }
+    Object cdcStateLock = new Object();
 
     private final static AtomicInteger nextId = new AtomicInteger(1);
     private static long replayLimitId;
@@ -614,7 +615,7 @@ public abstract class CommitLogSegment
             return;
 
         // Also synchronized in CDCSizeTracker.processNewSegment and .processDiscardedSegment
-        synchronized(this)
+        synchronized(cdcStateLock)
         {
             if (cdcState == CDCState.CONTAINS && newState != CDCState.CONTAINS)
                 throw new IllegalArgumentException("Cannot transition from CONTAINS to any other state.");
