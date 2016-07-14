@@ -25,6 +25,7 @@ import org.apache.cassandra.db.columniterator.OnDiskAtomIterator;
 import org.apache.cassandra.io.sstable.ISSTableScanner;
 import org.apache.cassandra.io.sstable.format.SSTableReader;
 import org.junit.BeforeClass;
+import org.junit.Ignore;
 import org.junit.Test;
 
 import org.apache.cassandra.SchemaLoader;
@@ -41,6 +42,7 @@ public class LongLeveledCompactionStrategyTest
 {
     public static final String KEYSPACE1 = "LongLeveledCompactionStrategyTest";
     public static final String CF_STANDARDLVL = "StandardLeveled";
+    public static final String CF_STANDARDLVL2 = "StandardLeveled2";
 
     @BeforeClass
     public static void defineSchema() throws ConfigurationException
@@ -52,6 +54,9 @@ public class LongLeveledCompactionStrategyTest
                                     SimpleStrategy.class,
                                     KSMetaData.optsWithRF(1),
                                     SchemaLoader.standardCFMD(KEYSPACE1, CF_STANDARDLVL)
+                                                .compactionStrategyClass(LeveledCompactionStrategy.class)
+                                                .compactionStrategyOptions(leveledOptions),
+                                    SchemaLoader.standardCFMD(KEYSPACE1, CF_STANDARDLVL2)
                                                 .compactionStrategyClass(LeveledCompactionStrategy.class)
                                                 .compactionStrategyOptions(leveledOptions));
     }
@@ -144,16 +149,34 @@ public class LongLeveledCompactionStrategyTest
     @Test
     public void testLeveledScanner() throws Exception
     {
-        testParallelLeveledCompaction();
         Keyspace keyspace = Keyspace.open(KEYSPACE1);
-        ColumnFamilyStore store = keyspace.getColumnFamilyStore(CF_STANDARDLVL);
-        store.disableAutoCompaction();
-
+        final ColumnFamilyStore store = keyspace.getColumnFamilyStore(CF_STANDARDLVL2);
         WrappingCompactionStrategy strategy = ((WrappingCompactionStrategy) store.getCompactionStrategy());
-        LeveledCompactionStrategy lcs = (LeveledCompactionStrategy) strategy.getWrappedStrategies().get(1);
+        final LeveledCompactionStrategy lcs = (LeveledCompactionStrategy) strategy.getWrappedStrategies().get(1);
 
-        ByteBuffer value = ByteBuffer.wrap(new byte[10 * 1024]); // 10 KB value
+        ByteBuffer value = ByteBuffer.wrap(new byte[100 * 1024]); // 100 KB value, make it easy to have multiple files
 
+        // Enough data to have a level 1 and 2
+        int rows = 128;
+        int columns = 10;
+
+        // Adds enough data to trigger multiple sstable per level
+        for (int r = 0; r < rows; r++)
+        {
+            DecoratedKey key = Util.dk(String.valueOf(r));
+            Mutation rm = new Mutation(KEYSPACE1, key.getKey());
+            for (int c = 0; c < columns; c++)
+            {
+                rm.add(CF_STANDARDLVL2, Util.cellname("column" + c), value, 0);
+            }
+            rm.apply();
+            store.forceBlockingFlush();
+        }
+
+        value = ByteBuffer.wrap(new byte[10 * 1024]); // 10 KB value
+        LeveledCompactionStrategyTest.waitForLeveling(store);
+        // wait for higher-level compactions to finish
+        store.disableAutoCompaction();
         // Adds 10 partitions
         for (int r = 0; r < 10; r++)
         {
@@ -161,7 +184,7 @@ public class LongLeveledCompactionStrategyTest
             Mutation rm = new Mutation(KEYSPACE1, key.getKey());
             for (int c = 0; c < 10; c++)
             {
-                rm.add(CF_STANDARDLVL, Util.cellname("column" + c), value, 0);
+                rm.add(CF_STANDARDLVL2, Util.cellname("column" + c), value, 0);
             }
             rm.apply();
         }
@@ -169,33 +192,40 @@ public class LongLeveledCompactionStrategyTest
         //Flush sstable
         store.forceBlockingFlush();
 
-        Collection<SSTableReader> allSSTables = store.getSSTables();
-        for (SSTableReader sstable : allSSTables)
+        store.runWithCompactionsDisabled(new Callable<Void>()
         {
-            if (sstable.getSSTableLevel() == 0)
+            public Void call() throws Exception
             {
-                System.out.println("Mutating L0-SSTABLE level to L1 to simulate a bug: " + sstable.getFilename());
-                sstable.descriptor.getMetadataSerializer().mutateLevel(sstable.descriptor, 1);
-                sstable.reloadSSTableMetadata();
-            }
-        }
-
-        try (AbstractCompactionStrategy.ScannerList scannerList = lcs.getScanners(allSSTables))
-        {
-            //Verify that leveled scanners will always iterate in ascending order (CASSANDRA-9935)
-            for (ISSTableScanner scanner : scannerList.scanners)
-            {
-                DecoratedKey lastKey = null;
-                while (scanner.hasNext())
+                Collection<SSTableReader> allSSTables = store.getSSTables();
+                for (SSTableReader sstable : allSSTables)
                 {
-                    OnDiskAtomIterator row = scanner.next();
-                    if (lastKey != null)
+                    if (sstable.getSSTableLevel() == 0)
                     {
-                        assertTrue("row " + row.getKey() + " received out of order wrt " + lastKey, row.getKey().compareTo(lastKey) >= 0);
+                        System.out.println("Mutating L0-SSTABLE level to L1 to simulate a bug: " + sstable.getFilename());
+                        sstable.descriptor.getMetadataSerializer().mutateLevel(sstable.descriptor, 1);
+                        sstable.reloadSSTableMetadata();
                     }
-                    lastKey = row.getKey();
                 }
+
+                try (AbstractCompactionStrategy.ScannerList scannerList = lcs.getScanners(allSSTables))
+                {
+                    //Verify that leveled scanners will always iterate in ascending order (CASSANDRA-9935)
+                    for (ISSTableScanner scanner : scannerList.scanners)
+                    {
+                        DecoratedKey lastKey = null;
+                        while (scanner.hasNext())
+                        {
+                            OnDiskAtomIterator row = scanner.next();
+                            if (lastKey != null)
+                            {
+                                assertTrue("row " + row.getKey() + " received out of order wrt " + lastKey, row.getKey().compareTo(lastKey) >= 0);
+                            }
+                            lastKey = row.getKey();
+                        }
+                    }
+                }
+                return null;
             }
-        }
+        }, true);
     }
 }
