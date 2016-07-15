@@ -951,6 +951,12 @@ public final class SchemaKeyspace
         boolean isCompound = flags.contains(CFMetaData.Flag.COMPOUND);
 
         List<ColumnDefinition> columns = fetchColumns(keyspaceName, tableName, types);
+        if (!columns.stream().anyMatch(ColumnDefinition::isPartitionKey))
+        {
+            String msg = String.format("Table %s.%s did not have any partition key columns in the schema tables", keyspaceName, tableName);
+            throw new AssertionError(msg);
+        }
+
         Map<ByteBuffer, CFMetaData.DroppedColumn> droppedColumns = fetchDroppedColumns(keyspaceName, tableName);
         Indexes indexes = fetchIndexes(keyspaceName, tableName);
         Triggers triggers = fetchTriggers(keyspaceName, tableName);
