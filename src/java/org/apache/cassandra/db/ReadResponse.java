@@ -282,12 +282,17 @@ public abstract class ReadResponse
 
                     // Pre-3.0, we didn't have a way to express exclusivity for non-composite comparators, so all slices were
                     // inclusive on both ends. If we have exclusive slice ends, we need to filter the results here.
+                    UnfilteredRowIterator iterator;
                     if (!command.metadata().isCompound())
-                        return ThriftResultsMerger.maybeWrap(
-                                partition.unfilteredIterator(command.columnFilter(), filter.getSlices(command.metadata()), filter.isReversed()), command.nowInSec());
+                        iterator = partition.unfilteredIterator(command.columnFilter(), filter.getSlices(command.metadata()), filter.isReversed());
+                    else
+                        iterator = partition.unfilteredIterator(command.columnFilter(), Slices.ALL, filter.isReversed());
 
-                    return ThriftResultsMerger.maybeWrap(
-                            partition.unfilteredIterator(command.columnFilter(), Slices.ALL, filter.isReversed()), command.nowInSec());
+                    // Wrap results with a ThriftResultMerger only if they're intended for the thrift command.
+                    if (command.isForThrift())
+                        return ThriftResultsMerger.maybeWrap(iterator, command.nowInSec());
+                    else
+                        return iterator;
                 }
             };
         }
