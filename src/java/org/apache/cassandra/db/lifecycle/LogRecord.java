@@ -123,9 +123,9 @@ final class LogRecord
             Type type = Type.fromPrefix(matcher.group(1));
             return new LogRecord(type,
                                  matcher.group(2),
-                                 Long.valueOf(matcher.group(3)),
-                                 Integer.valueOf(matcher.group(4)),
-                                 Long.valueOf(matcher.group(5)),
+                                 Long.parseLong(matcher.group(3)),
+                                 Integer.parseInt(matcher.group(4)),
+                                 Long.parseLong(matcher.group(5)),
                                  line);
         }
         catch (IllegalArgumentException e)

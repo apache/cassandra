@@ -36,7 +36,7 @@ import org.apache.cassandra.config.Config;
 public class ApproximateTime
 {
     private static final Logger logger = LoggerFactory.getLogger(ApproximateTime.class);
-    private static final int CHECK_INTERVAL_MS = Math.max(5, Integer.valueOf(System.getProperty(Config.PROPERTY_PREFIX + "approximate_time_precision_ms", "10")));
+    private static final int CHECK_INTERVAL_MS = Math.max(5, Integer.parseInt(System.getProperty(Config.PROPERTY_PREFIX + "approximate_time_precision_ms", "10")));
 
     private static volatile long time = System.currentTimeMillis();
     static

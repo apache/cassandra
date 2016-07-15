@@ -63,7 +63,7 @@ public class TypeUtil
                         break;
 
                     default:
-                        upcastToken = Long.valueOf(UTF8Type.instance.getString(term));
+                        upcastToken = Long.parseLong(UTF8Type.instance.getString(term));
                 }
 
                 return LongType.instance.decompose(upcastToken);

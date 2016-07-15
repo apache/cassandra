@@ -102,6 +102,6 @@ public class LegacyJMXProgressSupport implements ProgressListener
 
     protected static int getCmd(String tag)
     {
-        return Integer.valueOf(tag.split(":")[1]);
+        return Integer.parseInt(tag.split(":")[1]);
     }
 }

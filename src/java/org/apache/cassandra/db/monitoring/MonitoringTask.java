@@ -51,13 +51,13 @@ public class MonitoringTask
     /**
      * Defines the interval for reporting any operations that have timed out.
      */
-    private static final int REPORT_INTERVAL_MS = Math.max(0, Integer.valueOf(System.getProperty(Config.PROPERTY_PREFIX + "monitoring_report_interval_ms", "5000")));
+    private static final int REPORT_INTERVAL_MS = Math.max(0, Integer.parseInt(System.getProperty(Config.PROPERTY_PREFIX + "monitoring_report_interval_ms", "5000")));
 
     /**
      * Defines the maximum number of unique timed out queries that will be reported in the logs.
      * Use a negative number to remove any limit.
      */
-    private static final int MAX_OPERATIONS = Integer.valueOf(System.getProperty(Config.PROPERTY_PREFIX + "monitoring_max_operations", "50"));
+    private static final int MAX_OPERATIONS = Integer.parseInt(System.getProperty(Config.PROPERTY_PREFIX + "monitoring_max_operations", "50"));
 
     @VisibleForTesting
     static MonitoringTask instance = make(REPORT_INTERVAL_MS, MAX_OPERATIONS);

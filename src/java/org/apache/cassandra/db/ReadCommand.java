@@ -59,7 +59,7 @@ import org.apache.cassandra.utils.Pair;
  */
 public abstract class ReadCommand extends MonitorableImpl implements ReadQuery
 {
-    private static final int TEST_ITERATION_DELAY_MILLIS = Integer.valueOf(System.getProperty("cassandra.test.read_iteration_delay_ms", "0"));
+    private static final int TEST_ITERATION_DELAY_MILLIS = Integer.parseInt(System.getProperty("cassandra.test.read_iteration_delay_ms", "0"));
     protected static final Logger logger = LoggerFactory.getLogger(ReadCommand.class);
     public static final IVersionedSerializer<ReadCommand> serializer = new Serializer();
 

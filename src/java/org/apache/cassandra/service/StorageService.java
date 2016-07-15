@@ -1895,7 +1895,7 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
     {
         try
         {
-            MessagingService.instance().setVersion(endpoint, Integer.valueOf(value.value));
+            MessagingService.instance().setVersion(endpoint, Integer.parseInt(value.value));
         }
         catch (NumberFormatException e)
         {
