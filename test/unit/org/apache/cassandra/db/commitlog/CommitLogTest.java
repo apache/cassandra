@@ -35,6 +35,7 @@ import org.junit.runners.Parameterized.Parameters;
 
 import org.apache.cassandra.SchemaLoader;
 import org.apache.cassandra.Util;
+import org.apache.cassandra.config.CFMetaData;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.config.ParameterizedClass;
 import org.apache.cassandra.db.ColumnFamilyStore;
@@ -608,7 +609,7 @@ public class CommitLogTest
 
         CommitLog.instance.sync(true);
 
-        SimpleCountingReplayer replayer = new SimpleCountingReplayer(CommitLog.instance, CommitLogPosition.NONE);
+        SimpleCountingReplayer replayer = new SimpleCountingReplayer(CommitLog.instance, CommitLogPosition.NONE, cfs.metadata);
         List<String> activeSegments = CommitLog.instance.getActiveSegmentNames();
         Assert.assertFalse(activeSegments.isEmpty());
 
@@ -645,7 +646,7 @@ public class CommitLogTest
 
         CommitLog.instance.sync(true);
 
-        SimpleCountingReplayer replayer = new SimpleCountingReplayer(CommitLog.instance, commitLogPosition);
+        SimpleCountingReplayer replayer = new SimpleCountingReplayer(CommitLog.instance, commitLogPosition, cfs.metadata);
         List<String> activeSegments = CommitLog.instance.getActiveSegmentNames();
         Assert.assertFalse(activeSegments.isEmpty());
 
@@ -658,15 +659,15 @@ public class CommitLogTest
     class SimpleCountingReplayer extends CommitLogReplayer
     {
         private final CommitLogPosition filterPosition;
-        private CommitLogReader reader;
+        private final CFMetaData metadata;
         int cells;
         int skipped;
 
-        SimpleCountingReplayer(CommitLog commitLog, CommitLogPosition filterPosition)
+        SimpleCountingReplayer(CommitLog commitLog, CommitLogPosition filterPosition, CFMetaData cfm)
         {
             super(commitLog, filterPosition, Collections.emptyMap(), ReplayFilter.create());
             this.filterPosition = filterPosition;
-            this.reader = new CommitLogReader();
+            this.metadata = cfm;
         }
 
         @SuppressWarnings("resource")
@@ -680,8 +681,15 @@ public class CommitLogTest
                 return;
             }
             for (PartitionUpdate partitionUpdate : m.getPartitionUpdates())
-                for (Row row : partitionUpdate)
-                    cells += Iterables.size(row.cells());
+            {
+                // Only process mutations for the CF's we're testing against, since we can't deterministically predict
+                // whether or not system keyspaces will be mutated during a test.
+                if (partitionUpdate.metadata().cfName.equals(metadata.cfName))
+                {
+                    for (Row row : partitionUpdate)
+                        cells += Iterables.size(row.cells());
+                }
+            }
         }
     }
 }
