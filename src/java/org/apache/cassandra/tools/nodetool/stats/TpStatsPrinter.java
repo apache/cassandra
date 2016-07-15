@@ -57,8 +57,7 @@ public class TpStatsPrinter
                            values.get("PendingTasks"),
                            values.get("CompletedTasks"),
                            values.get("CurrentlyBlockedTasks"),
-                           values.get("TotalBlockedTasks"),
-                           values.get("ActiveTasks"));
+                           values.get("TotalBlockedTasks"));
             }
 
             out.printf("%n%-20s%10s%n", "Message type", "Dropped");
