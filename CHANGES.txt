@@ -1,4 +1,5 @@
 3.10
+ * Support json/yaml output in nodetool tpstats (CASSANDRA-12035)
  * Expose metrics for successful/failed authentication attempts (CASSANDRA-10635)
  * Prepend snapshot name with "truncated" or "dropped" when a snapshot
    is taken before truncating or dropping a table (CASSANDRA-12178)
@@ -149,7 +150,7 @@ Merged from 2.1:
  * Add support to rebuild from specific range (CASSANDRA-10406)
  * Optimize the overlapping lookup by calculating all the
    bounds in advance (CASSANDRA-11571)
- * Support json/yaml output in noetool tablestats (CASSANDRA-5977)
+ * Support json/yaml output in nodetool tablestats (CASSANDRA-5977)
  * (stress) Add datacenter option to -node options (CASSANDRA-11591)
  * Fix handling of empty slices (CASSANDRA-11513)
  * Make number of cores used by cqlsh COPY visible to testing code (CASSANDRA-11437)

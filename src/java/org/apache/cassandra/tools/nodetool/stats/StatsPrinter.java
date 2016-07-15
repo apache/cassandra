@@ -15,11 +15,46 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
+
 package org.apache.cassandra.tools.nodetool.stats;
 
 import java.io.PrintStream;
 
-public interface StatsPrinter<T>
+import org.json.simple.JSONObject;
+import org.yaml.snakeyaml.DumperOptions;
+import org.yaml.snakeyaml.Yaml;
+
+/**
+ * Interface for the Stats printer, that'd output statistics
+ * given the {@code StatsHolder}
+ *
+ * @param <T> Stats property bad type
+ */
+public interface StatsPrinter<T extends StatsHolder>
 {
-    void printFormat(T data, PrintStream out);
+    void print(T data, PrintStream out);
+
+    static class JsonPrinter<T extends StatsHolder> implements StatsPrinter<T>
+    {
+        @Override
+        public void print(T data, PrintStream out)
+        {
+            JSONObject json = new JSONObject();
+            json.putAll(data.convert2Map());
+            out.println(json.toString());
+        }
+    }
+
+    static class YamlPrinter<T extends StatsHolder> implements StatsPrinter<T>
+    {
+        @Override
+        public void print(T data, PrintStream out)
+        {
+            DumperOptions options = new DumperOptions();
+            options.setDefaultFlowStyle(DumperOptions.FlowStyle.BLOCK);
+
+            Yaml yaml = new Yaml(options);
+            out.println(yaml.dump(data.convert2Map()));
+        }
+    }
 }

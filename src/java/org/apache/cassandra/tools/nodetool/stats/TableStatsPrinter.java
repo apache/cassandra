@@ -15,6 +15,7 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
+
 package org.apache.cassandra.tools.nodetool.stats;
 
 import java.io.PrintStream;
@@ -23,41 +24,25 @@ import java.util.List;
 import org.json.simple.JSONObject;
 import org.yaml.snakeyaml.Yaml;
 
-public enum TableStatsPrinter
+public class TableStatsPrinter
 {
-    DEFAULT(new DefaultPrinter()),
-    JSON(new JsonPrinter()),
-    YAML(new YamlPrinter()),;
-
-    private final StatsPrinter<StatsHolder> printer;
-
-    TableStatsPrinter(StatsPrinter<StatsHolder> printer)
-    {
-        this.printer = printer;
-    }
-
-    public void print(StatsHolder stats, PrintStream out)
-    {
-        printer.printFormat(stats, out);
-    }
-
-    public static TableStatsPrinter from(String format)
+    public static StatsPrinter from(String format)
     {
         switch (format)
         {
             case "json":
-                return JSON;
+                return new StatsPrinter.JsonPrinter();
             case "yaml":
-                return YAML;
+                return new StatsPrinter.YamlPrinter();
             default:
-                return DEFAULT;
+                return new DefaultPrinter();
         }
     }
 
-    private static class DefaultPrinter implements StatsPrinter<StatsHolder>
+    private static class DefaultPrinter implements StatsPrinter<TableStatsHolder>
     {
         @Override
-        public void printFormat(StatsHolder data, PrintStream out)
+        public void print(TableStatsHolder data, PrintStream out)
         {
             out.println("Total number of tables: " + data.numberOfTables);
             out.println("----------------");
@@ -128,26 +113,4 @@ public enum TableStatsPrinter
             }
         }
     }
-
-    private static class JsonPrinter implements StatsPrinter<StatsHolder>
-    {
-        @Override
-        public void printFormat(StatsHolder data, PrintStream out)
-        {
-            JSONObject json = new JSONObject();
-            json.putAll(data.convert2Map());
-            out.println(json.toString());
-        }
-    }
-
-    private static class YamlPrinter implements StatsPrinter<StatsHolder>
-    {
-        @Override
-        public void printFormat(StatsHolder data, PrintStream out)
-        {
-            Yaml yaml = new Yaml();
-            out.println(yaml.dump(data.convert2Map()));
-        }
-    }
-
 }
