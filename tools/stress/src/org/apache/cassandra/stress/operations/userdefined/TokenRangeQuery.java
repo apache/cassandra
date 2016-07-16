@@ -26,8 +26,6 @@ import java.util.stream.Collectors;
 
 import javax.naming.OperationNotSupportedException;
 
-import com.google.common.util.concurrent.RateLimiter;
-
 import com.datastax.driver.core.ColumnMetadata;
 import com.datastax.driver.core.PagingState;
 import com.datastax.driver.core.ResultSet;

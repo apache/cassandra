@@ -17,7 +17,6 @@
  */
 package org.apache.cassandra.db.rows;
 
-import org.apache.cassandra.db.*;
 import org.apache.cassandra.db.filter.ColumnFilter;
 import org.apache.cassandra.db.transform.Transformation;
 

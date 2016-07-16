@@ -17,7 +17,6 @@
  */
 package org.apache.cassandra.cql3;
 
-import java.nio.ByteBuffer;
 import java.util.List;
 
 import org.apache.cassandra.config.CFMetaData;

@@ -17,11 +17,7 @@
  */
 package org.apache.cassandra.cql3;
 
-import java.util.*;
-
 import org.junit.Test;
-
-import static junit.framework.Assert.*;
 
 public class SimpleQueryTest extends CQLTester
 {

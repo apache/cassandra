@@ -19,7 +19,6 @@
 package org.apache.cassandra.cql3.selection;
 
 import java.math.BigDecimal;
-import java.math.BigInteger;
 import java.util.*;
 
 import org.junit.Test;
@@ -29,7 +28,6 @@ import org.apache.cassandra.db.marshal.*;
 import org.apache.cassandra.transport.messages.ResultMessage;
 
 import static org.junit.Assert.assertEquals;
-import static org.junit.Assert.assertNull;
 
 public class TermSelectionTest extends CQLTester
 {

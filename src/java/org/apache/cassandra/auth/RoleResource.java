@@ -20,7 +20,6 @@ package org.apache.cassandra.auth;
 import java.util.Set;
 
 import com.google.common.base.Objects;
-import com.google.common.collect.ImmutableSet;
 import com.google.common.collect.Sets;
 import org.apache.commons.lang3.StringUtils;
 

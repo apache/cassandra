@@ -20,7 +20,6 @@ package org.apache.cassandra.concurrent;
 
 import java.io.IOException;
 import java.util.concurrent.CancellationException;
-import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.ScheduledFuture;
 import java.util.concurrent.TimeUnit;

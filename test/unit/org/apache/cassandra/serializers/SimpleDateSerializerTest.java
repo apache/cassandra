@@ -19,7 +19,6 @@
 package org.apache.cassandra.serializers;
 
 import org.apache.cassandra.db.marshal.SimpleDateType;
-import org.apache.cassandra.utils.Pair;
 import org.junit.Test;
 
 import java.nio.ByteBuffer;

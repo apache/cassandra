@@ -18,16 +18,12 @@
 package org.apache.cassandra.repair;
 
 import java.net.InetAddress;
-import java.util.Map;
 
 import com.google.common.util.concurrent.AbstractFuture;
 
-import org.apache.cassandra.dht.Range;
-import org.apache.cassandra.dht.Token;
 import org.apache.cassandra.exceptions.RepairException;
 import org.apache.cassandra.net.MessagingService;
 import org.apache.cassandra.repair.messages.ValidationRequest;
-import org.apache.cassandra.utils.MerkleTree;
 import org.apache.cassandra.utils.MerkleTrees;
 
 /**

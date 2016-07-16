@@ -22,7 +22,6 @@ import java.util.regex.Pattern;
 import org.apache.cassandra.config.CFMetaData;
 import org.apache.cassandra.config.ColumnDefinition;
 import org.apache.cassandra.cql3.ColumnIdentifier;
-import org.apache.cassandra.exceptions.InvalidRequestException;
 
 public class IndexTarget
 {

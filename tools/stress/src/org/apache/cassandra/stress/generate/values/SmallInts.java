@@ -20,7 +20,6 @@
  */
 package org.apache.cassandra.stress.generate.values;
 
-import org.apache.cassandra.db.marshal.AbstractType;
 import org.apache.cassandra.db.marshal.ShortType;
 
 public class SmallInts extends Generator<Short>

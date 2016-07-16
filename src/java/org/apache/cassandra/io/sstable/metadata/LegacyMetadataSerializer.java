@@ -21,8 +21,6 @@ import java.io.*;
 import java.nio.ByteBuffer;
 import java.util.*;
 
-import com.google.common.collect.Maps;
-
 import org.apache.cassandra.db.TypeSizes;
 import org.apache.cassandra.db.commitlog.CommitLogPosition;
 import org.apache.cassandra.io.sstable.Component;

@@ -19,10 +19,6 @@ package org.apache.cassandra.db;
 
 import java.nio.ByteBuffer;
 
-import org.apache.cassandra.config.CFMetaData;
-import org.apache.cassandra.config.ColumnDefinition;
-import org.apache.cassandra.utils.memory.AbstractAllocator;
-
 /**
  * The clustering column values for a row.
  * <p>

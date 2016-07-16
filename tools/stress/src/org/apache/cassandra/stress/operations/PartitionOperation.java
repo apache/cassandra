@@ -21,8 +21,6 @@ package org.apache.cassandra.stress.operations;
 import java.util.ArrayList;
 import java.util.List;
 
-import com.google.common.util.concurrent.RateLimiter;
-
 import org.apache.cassandra.stress.Operation;
 import org.apache.cassandra.stress.WorkManager;
 import org.apache.cassandra.stress.generate.Distribution;

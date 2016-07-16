@@ -26,8 +26,6 @@ import org.apache.cassandra.index.sasi.plan.Expression;
 import org.apache.cassandra.index.sasi.utils.RangeIterator;
 import org.apache.cassandra.db.marshal.AbstractType;
 
-import org.github.jamm.MemoryMeter;
-
 public abstract class MemIndex
 {
     protected final AbstractType<?> keyValidator;

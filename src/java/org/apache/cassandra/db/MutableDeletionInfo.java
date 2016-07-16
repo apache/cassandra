@@ -21,7 +21,6 @@ import java.util.Collections;
 import java.util.Iterator;
 
 import com.google.common.base.Objects;
-import com.google.common.collect.Iterators;
 
 import org.apache.cassandra.db.rows.*;
 import org.apache.cassandra.db.rows.EncodingStats;

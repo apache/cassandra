@@ -25,7 +25,6 @@ import java.util.function.Supplier;
 import java.util.stream.Collectors;
 import javax.management.MalformedObjectNameException;
 import javax.management.ObjectName;
-import javax.management.remote.JMXPrincipal;
 import javax.security.auth.Subject;
 
 import com.google.common.collect.ImmutableMap;

@@ -19,19 +19,14 @@ package org.apache.cassandra.utils;
 
 import java.lang.management.ManagementFactory;
 import java.util.Map;
-import java.util.Set;
 import javax.management.*;
-
-import com.google.common.collect.Iterables;
 
 import org.apache.cassandra.cache.*;
 
-import org.apache.cassandra.concurrent.Stage;
 import org.apache.cassandra.metrics.ThreadPoolMetrics;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import org.apache.cassandra.concurrent.JMXEnabledThreadPoolExecutorMBean;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.db.ColumnFamilyStore;
 import org.apache.cassandra.db.RowIndexEntry;

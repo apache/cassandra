@@ -23,8 +23,6 @@ package org.apache.cassandra.cql3.selection;
 import java.util.*;
 import java.util.stream.Collectors;
 
-import com.google.common.base.Function;
-import com.google.common.base.Joiner;
 import com.google.common.base.Objects;
 import com.google.common.collect.*;
 

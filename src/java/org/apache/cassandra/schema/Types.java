@@ -29,7 +29,6 @@ import org.apache.cassandra.cql3.CQL3Type;
 import org.apache.cassandra.db.marshal.AbstractType;
 import org.apache.cassandra.db.marshal.UserType;
 import org.apache.cassandra.exceptions.ConfigurationException;
-import org.apache.cassandra.utils.ByteBufferUtil;
 
 import static java.lang.String.format;
 import static com.google.common.collect.Iterables.filter;

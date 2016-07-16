@@ -21,7 +21,6 @@ import java.io.*;
 import java.util.*;
 
 import com.google.common.collect.Lists;
-import com.google.common.collect.Maps;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -108,7 +107,7 @@ public class MetadataSerializer implements IMetadataSerializer
         // read number of components
         int numComponents = in.readInt();
         // read toc
-        Map<MetadataType, Integer> toc = new HashMap<>(numComponents);
+        Map<MetadataType, Integer> toc = new EnumMap<>(MetadataType.class);
         MetadataType[] values = MetadataType.values();
         for (int i = 0; i < numComponents; i++)
         {

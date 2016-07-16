@@ -20,9 +20,7 @@ package org.apache.cassandra.db.commitlog;
 import java.nio.ByteBuffer;
 
 import org.apache.cassandra.io.FSWriteError;
-import org.apache.cassandra.io.compress.BufferType;
 import org.apache.cassandra.io.compress.ICompressor;
-import org.apache.cassandra.io.util.FileUtils;
 import org.apache.cassandra.utils.SyncUtil;
 
 /**

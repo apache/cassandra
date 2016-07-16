@@ -25,7 +25,6 @@ import com.google.common.base.Throwables;
 import org.apache.cassandra.config.CFMetaData;
 import org.apache.cassandra.db.*;
 import org.apache.cassandra.db.partitions.PartitionUpdate;
-import org.apache.cassandra.dht.IPartitioner;
 
 /**
  * A SSTable writer that assumes rows are in (partitioner) sorted order.

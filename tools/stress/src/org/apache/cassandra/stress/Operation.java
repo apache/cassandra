@@ -20,8 +20,6 @@ package org.apache.cassandra.stress;
 
 import java.io.IOException;
 
-import com.google.common.util.concurrent.RateLimiter;
-
 import org.apache.cassandra.stress.settings.SettingsLog;
 import org.apache.cassandra.stress.settings.StressSettings;
 import org.apache.cassandra.stress.util.JavaDriverClient;

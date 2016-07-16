@@ -18,7 +18,6 @@
 package org.apache.cassandra.cql3;
 
 import java.io.IOException;
-import java.nio.ByteBuffer;
 import java.util.*;
 
 import org.apache.cassandra.config.CFMetaData;

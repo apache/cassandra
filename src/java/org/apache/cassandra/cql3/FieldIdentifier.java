@@ -22,7 +22,6 @@ import java.nio.ByteBuffer;
 
 import org.apache.cassandra.db.marshal.UTF8Type;
 import org.apache.cassandra.exceptions.SyntaxException;
-import org.apache.cassandra.utils.ByteBufferUtil;
 import org.apache.cassandra.serializers.MarshalException;
 
 /**

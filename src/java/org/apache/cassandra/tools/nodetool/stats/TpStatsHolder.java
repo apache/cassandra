@@ -21,8 +21,6 @@ package org.apache.cassandra.tools.nodetool.stats;
 import java.util.HashMap;
 import java.util.Map;
 
-import com.google.common.collect.Multimap;
-
 import org.apache.cassandra.tools.NodeProbe;
 import org.apache.cassandra.tools.nodetool.stats.StatsHolder;
 

@@ -20,7 +20,6 @@ package org.apache.cassandra.db;
 import java.util.Objects;
 import java.security.MessageDigest;
 
-import org.apache.cassandra.config.CFMetaData;
 import org.apache.cassandra.serializers.MarshalException;
 import org.apache.cassandra.utils.FBUtilities;
 

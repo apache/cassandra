@@ -18,13 +18,6 @@
  */
 package org.apache.cassandra.utils.memory;
 
-import java.nio.ByteBuffer;
-import java.util.ArrayList;
-import java.util.List;
-
-import org.apache.cassandra.db.DecoratedKey;
-import org.apache.cassandra.utils.concurrent.OpOrder;
-
 public class HeapPool extends MemtablePool
 {
     public HeapPool(long maxOnHeapMemory, float cleanupThreshold, Runnable cleaner)

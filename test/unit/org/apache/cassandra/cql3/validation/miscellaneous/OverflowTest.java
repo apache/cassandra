@@ -21,7 +21,6 @@ import java.math.BigInteger;
 
 import org.junit.Test;
 
-import static junit.framework.Assert.assertFalse;
 import static junit.framework.Assert.assertNull;
 import static org.junit.Assert.assertArrayEquals;
 import static org.junit.Assert.assertEquals;

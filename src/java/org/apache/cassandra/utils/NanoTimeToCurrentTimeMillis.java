@@ -22,8 +22,6 @@ import java.util.concurrent.TimeUnit;
 import org.apache.cassandra.concurrent.ScheduledExecutors;
 import org.apache.cassandra.config.Config;
 
-import com.google.common.annotations.VisibleForTesting;
-
 /*
  * Convert from nanotime to non-monotonic current time millis. Beware of weaker ordering guarantees.
  */

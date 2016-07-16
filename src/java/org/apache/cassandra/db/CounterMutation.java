@@ -43,7 +43,6 @@ import org.apache.cassandra.net.MessagingService;
 import org.apache.cassandra.service.CacheService;
 import org.apache.cassandra.tracing.Tracing;
 import org.apache.cassandra.utils.*;
-import org.apache.cassandra.utils.concurrent.OpOrder;
 import org.apache.cassandra.utils.btree.BTreeSet;
 
 public class CounterMutation implements IMutation

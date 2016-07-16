@@ -21,9 +21,6 @@ package org.apache.cassandra.tools.nodetool.stats;
 import java.io.PrintStream;
 import java.util.List;
 
-import org.json.simple.JSONObject;
-import org.yaml.snakeyaml.Yaml;
-
 public class TableStatsPrinter
 {
     public static StatsPrinter from(String format)

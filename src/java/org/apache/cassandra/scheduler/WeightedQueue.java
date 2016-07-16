@@ -20,9 +20,6 @@ package org.apache.cassandra.scheduler;
 import java.util.concurrent.SynchronousQueue;
 import java.util.concurrent.TimeoutException;
 import java.util.concurrent.TimeUnit;
-import java.lang.management.ManagementFactory;
-import javax.management.MBeanServer;
-import javax.management.ObjectName;
 
 import org.apache.cassandra.metrics.LatencyMetrics;
 

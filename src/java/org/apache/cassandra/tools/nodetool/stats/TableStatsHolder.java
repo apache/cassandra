@@ -28,8 +28,6 @@ import org.apache.cassandra.db.*;
 import org.apache.cassandra.io.util.*;
 import org.apache.cassandra.metrics.*;
 import org.apache.cassandra.tools.*;
-import org.apache.cassandra.tools.nodetool.*;
-import org.apache.cassandra.tools.nodetool.stats.*;
 
 public class TableStatsHolder implements StatsHolder
 {

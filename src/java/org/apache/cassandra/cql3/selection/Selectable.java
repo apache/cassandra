@@ -21,7 +21,6 @@ package org.apache.cassandra.cql3.selection;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
-import java.nio.ByteBuffer;
 
 import org.apache.commons.lang3.text.StrBuilder;
 import org.apache.cassandra.config.CFMetaData;

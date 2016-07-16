@@ -23,8 +23,6 @@ import java.nio.ByteBuffer;
 import org.junit.Before;
 import org.junit.Test;
 
-import org.apache.cassandra.io.util.RandomAccessReader;
-
 public class LargeCompactValueTest extends CQLTester
 {
     @Before

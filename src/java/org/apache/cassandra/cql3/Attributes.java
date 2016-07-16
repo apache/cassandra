@@ -18,10 +18,7 @@
 package org.apache.cassandra.cql3;
 
 import java.nio.ByteBuffer;
-import java.util.Collections;
 import java.util.List;
-
-import com.google.common.collect.Iterables;
 
 import org.apache.cassandra.cql3.functions.Function;
 import org.apache.cassandra.db.LivenessInfo;

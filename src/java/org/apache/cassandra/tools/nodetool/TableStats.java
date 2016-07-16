@@ -18,16 +18,10 @@
 package org.apache.cassandra.tools.nodetool;
 
 import java.util.*;
-import javax.management.InstanceNotFoundException;
-
-import com.google.common.collect.ArrayListMultimap;
 import io.airlift.command.Arguments;
 import io.airlift.command.Command;
 import io.airlift.command.Option;
 
-import org.apache.cassandra.db.ColumnFamilyStoreMBean;
-import org.apache.cassandra.io.util.FileUtils;
-import org.apache.cassandra.metrics.CassandraMetricsRegistry;
 import org.apache.cassandra.tools.NodeProbe;
 import org.apache.cassandra.tools.NodeTool.NodeToolCmd;
 import org.apache.cassandra.tools.nodetool.stats.*;

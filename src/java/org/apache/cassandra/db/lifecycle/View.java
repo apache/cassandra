@@ -33,14 +33,12 @@ import org.apache.cassandra.io.sstable.format.SSTableReader;
 import org.apache.cassandra.utils.Interval;
 
 import static com.google.common.base.Predicates.equalTo;
-import static com.google.common.base.Predicates.in;
 import static com.google.common.base.Predicates.not;
 import static com.google.common.collect.ImmutableList.copyOf;
 import static com.google.common.collect.ImmutableList.of;
 import static com.google.common.collect.Iterables.all;
 import static com.google.common.collect.Iterables.concat;
 import static com.google.common.collect.Iterables.filter;
-import static com.google.common.collect.Iterables.transform;
 import static org.apache.cassandra.db.lifecycle.Helpers.emptySet;
 import static org.apache.cassandra.db.lifecycle.Helpers.filterOut;
 import static org.apache.cassandra.db.lifecycle.Helpers.replace;

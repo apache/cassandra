@@ -20,7 +20,6 @@ package org.apache.cassandra.db.compaction;
 import java.util.*;
 
 import org.apache.cassandra.db.Memtable;
-import org.apache.cassandra.db.lifecycle.SSTableSet;
 import com.google.common.collect.Iterables;
 
 import org.apache.cassandra.db.partitions.Partition;

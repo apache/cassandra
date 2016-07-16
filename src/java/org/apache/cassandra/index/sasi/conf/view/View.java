@@ -20,7 +20,6 @@ package org.apache.cassandra.index.sasi.conf.view;
 import java.nio.ByteBuffer;
 import java.util.*;
 
-import org.apache.cassandra.db.marshal.UUIDType;
 import org.apache.cassandra.index.sasi.SSTableIndex;
 import org.apache.cassandra.index.sasi.conf.ColumnIndex;
 import org.apache.cassandra.index.sasi.plan.Expression;
@@ -33,7 +32,6 @@ import org.apache.cassandra.utils.Interval;
 import org.apache.cassandra.utils.IntervalTree;
 
 import com.google.common.collect.Iterables;
-import com.google.common.collect.Sets;
 
 public class View implements Iterable<SSTableIndex>
 {

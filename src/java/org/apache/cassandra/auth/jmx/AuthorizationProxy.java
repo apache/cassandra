@@ -29,7 +29,6 @@ import java.util.stream.Collectors;
 import javax.management.MBeanServer;
 import javax.management.MalformedObjectNameException;
 import javax.management.ObjectName;
-import javax.management.remote.MBeanServerForwarder;
 import javax.security.auth.Subject;
 
 import com.google.common.annotations.VisibleForTesting;
@@ -40,9 +39,7 @@ import org.slf4j.LoggerFactory;
 
 import org.apache.cassandra.auth.*;
 import org.apache.cassandra.config.DatabaseDescriptor;
-import org.apache.cassandra.exceptions.ConfigurationException;
 import org.apache.cassandra.service.StorageService;
-import org.apache.cassandra.utils.FBUtilities;
 
 /**
  * Provides a proxy interface to the platform's MBeanServer instance to perform

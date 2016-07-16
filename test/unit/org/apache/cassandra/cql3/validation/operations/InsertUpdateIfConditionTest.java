@@ -27,7 +27,6 @@ import org.apache.cassandra.schema.SchemaKeyspace;
 
 import static java.lang.String.format;
 import static org.junit.Assert.assertEquals;
-import static org.junit.Assert.assertThat;
 import static org.junit.Assert.assertTrue;
 
 public class InsertUpdateIfConditionTest extends CQLTester

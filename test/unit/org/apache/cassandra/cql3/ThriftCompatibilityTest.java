@@ -22,10 +22,8 @@ import java.util.Collections;
 
 import org.junit.Test;
 
-import com.sun.org.apache.xerces.internal.impl.xs.models.CMNodeFactory;
 import org.apache.cassandra.SchemaLoader;
 import org.apache.cassandra.config.CFMetaData;
-import org.apache.cassandra.config.ColumnDefinition;
 import org.apache.cassandra.config.Schema;
 import org.apache.cassandra.db.marshal.BytesType;
 import org.apache.cassandra.db.marshal.Int32Type;

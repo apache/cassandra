@@ -19,7 +19,6 @@ package org.apache.cassandra.cql3.statements;
 
 import org.apache.cassandra.config.ColumnDefinition;
 import org.apache.cassandra.cql3.CQL3Type;
-import org.apache.cassandra.cql3.ColumnIdentifier;
 
 public class AlterTableStatementColumn
 {

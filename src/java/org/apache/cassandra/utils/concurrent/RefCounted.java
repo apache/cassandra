@@ -18,23 +18,6 @@
 */
 package org.apache.cassandra.utils.concurrent;
 
-import java.lang.ref.PhantomReference;
-import java.lang.ref.ReferenceQueue;
-import java.util.*;
-import java.util.concurrent.ConcurrentHashMap;
-import java.util.concurrent.ConcurrentLinkedQueue;
-import java.util.concurrent.ExecutorService;
-import java.util.concurrent.Executors;
-import java.util.concurrent.atomic.AtomicInteger;
-import java.util.concurrent.atomic.AtomicIntegerFieldUpdater;
-
-import com.google.common.collect.ImmutableMap;
-import com.google.common.collect.Iterators;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
-
-import org.apache.cassandra.concurrent.NamedThreadFactory;
-
 /**
  * An object that needs ref counting does the two following:
  *   - defines a Tidy object that will cleanup once it's gone,

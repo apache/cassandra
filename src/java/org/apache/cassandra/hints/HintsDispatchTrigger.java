@@ -20,7 +20,6 @@ package org.apache.cassandra.hints;
 import java.util.concurrent.atomic.AtomicBoolean;
 
 import org.apache.cassandra.gms.ApplicationState;
-import org.apache.cassandra.gms.FailureDetector;
 import org.apache.cassandra.gms.Gossiper;
 
 import static org.apache.cassandra.utils.FBUtilities.getBroadcastAddress;

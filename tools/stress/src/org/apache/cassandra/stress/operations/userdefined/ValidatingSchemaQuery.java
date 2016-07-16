@@ -30,7 +30,6 @@ import java.util.concurrent.ThreadLocalRandom;
 
 import com.datastax.driver.core.*;
 import org.apache.cassandra.db.ConsistencyLevel;
-import org.apache.cassandra.stress.Operation;
 import org.apache.cassandra.stress.generate.*;
 import org.apache.cassandra.stress.generate.Row;
 import org.apache.cassandra.stress.operations.PartitionOperation;

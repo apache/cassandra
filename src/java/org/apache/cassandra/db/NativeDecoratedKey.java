@@ -22,7 +22,6 @@ import java.nio.ByteOrder;
 
 import org.apache.cassandra.dht.Token;
 import org.apache.cassandra.utils.concurrent.OpOrder;
-import org.apache.cassandra.utils.memory.HeapAllocator;
 import org.apache.cassandra.utils.memory.MemoryUtil;
 import org.apache.cassandra.utils.memory.NativeAllocator;
 

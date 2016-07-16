@@ -23,8 +23,6 @@ package org.apache.cassandra.utils;
 
 import java.nio.ByteBuffer;
 
-import java.util.ArrayList;
-
 import org.github.jamm.MemoryLayoutSpecification;
 import org.github.jamm.MemoryMeter;
 
