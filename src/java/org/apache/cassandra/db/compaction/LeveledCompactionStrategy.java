@@ -179,11 +179,13 @@ public class LeveledCompactionStrategy extends AbstractCompactionStrategy
         for (SSTableReader sstable : ssTablesToGroup)
         {
             Integer level = sstable.getSSTableLevel();
-            if (!sstablesByLevel.containsKey(level))
+            Collection<SSTableReader> sstablesForLevel = sstablesByLevel.get(level);
+            if (sstablesForLevel == null)
             {
-                sstablesByLevel.put(level, new ArrayList<SSTableReader>());
+                sstablesForLevel = new ArrayList<SSTableReader>();
+                sstablesByLevel.put(level, sstablesForLevel);
             }
-            sstablesByLevel.get(level).add(sstable);
+            sstablesForLevel.add(sstable);
         }
 
         Collection<Collection<SSTableReader>> groupedSSTables = new ArrayList<>();
