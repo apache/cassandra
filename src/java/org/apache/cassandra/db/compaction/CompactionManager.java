@@ -1279,7 +1279,7 @@ public class CompactionManager implements CompactionManagerMBean
     {
         MerkleTrees tree = new MerkleTrees(cfs.getPartitioner());
         long allPartitions = 0;
-        Map<Range<Token>, Long> rangePartitionCounts = new HashMap<>();
+        Map<Range<Token>, Long> rangePartitionCounts = Maps.newHashMapWithExpectedSize(ranges.size());
         for (Range<Token> range : ranges)
         {
             long numPartitions = 0;
