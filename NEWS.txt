@@ -23,18 +23,17 @@ New features
      the system keyspace. Upon startup, this table is used to preload all
      previously prepared statements - i.e. in many cases clients do not need to
      re-prepare statements against restarted nodes.
-
    - cqlsh can now connect to older Cassandra versions by downgrading the native
      protocol version. Please note that this is currently not part of our release
      testing and, as a consequence, it is not guaranteed to work in all cases.
      See CASSANDRA-12150 for more details.
-
    - Snapshots that are automatically taken before a table is dropped or truncated
      will have a "dropped" or "truncated" prefix on their snapshot tag name.
-
    - Metrics are exposed for successful and failed authentication attempts.
      These can be located using the object names org.apache.cassandra.metrics:type=Client,name=AuthSuccess
      and org.apache.cassandra.metrics:type=Client,name=AuthFailure respectively.
+   - Add support to "unset" JSON fields in prepared statements by specifying DEFAULT UNSET.
+     See CASSANDRA-11424 for details
 
 Upgrading
 ---------

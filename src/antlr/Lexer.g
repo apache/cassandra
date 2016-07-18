@@ -195,6 +195,8 @@ K_OR:          O R;
 K_REPLACE:     R E P L A C E;
 
 K_JSON:        J S O N;
+K_DEFAULT:     D E F A U L T;
+K_UNSET:       U N S E T;
 K_LIKE:        L I K E;
 
 // Case-insensitive alpha characters

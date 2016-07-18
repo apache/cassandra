@@ -794,6 +794,52 @@ public class JsonTest extends CQLTester
     }
 
     @Test
+    public void testInsertJsonSyntaxDefaultUnset() throws Throwable
+    {
+        createTable("CREATE TABLE %s (k int primary key, v1 int, v2 int)");
+        execute("INSERT INTO %s JSON ?", "{\"k\": 0, \"v1\": 0, \"v2\": 0}");
+
+        // leave v1 unset
+        execute("INSERT INTO %s JSON ? DEFAULT UNSET", "{\"k\": 0, \"v2\": 2}");
+        assertRows(execute("SELECT * FROM %s"),
+                row(0, 0, 2)
+        );
+
+        // explicit specification DEFAULT NULL
+        execute("INSERT INTO %s JSON ? DEFAULT NULL", "{\"k\": 0, \"v2\": 2}");
+        assertRows(execute("SELECT * FROM %s"),
+                row(0, null, 2)
+        );
+
+        // implicitly setting v2 to null
+        execute("INSERT INTO %s JSON ? DEFAULT NULL", "{\"k\": 0}");
+        assertRows(execute("SELECT * FROM %s"),
+                row(0, null, null)
+        );
+
+        // mix setting null explicitly with default unset:
+        // set values for all fields
+        execute("INSERT INTO %s JSON ?", "{\"k\": 1, \"v1\": 1, \"v2\": 1}");
+        // explicitly set v1 to null while leaving v2 unset which retains its value
+        execute("INSERT INTO %s JSON ? DEFAULT UNSET", "{\"k\": 1, \"v1\": null}");
+        assertRows(execute("SELECT * FROM %s WHERE k=1"),
+                row(1, null, 1)
+        );
+
+        // test string literal instead of bind marker
+        execute("INSERT INTO %s JSON '{\"k\": 2, \"v1\": 2, \"v2\": 2}'");
+        // explicitly set v1 to null while leaving v2 unset which retains its value
+        execute("INSERT INTO %s JSON '{\"k\": 2, \"v1\": null}' DEFAULT UNSET");
+        assertRows(execute("SELECT * FROM %s WHERE k=2"),
+                row(2, null, 2)
+        );
+        execute("INSERT INTO %s JSON '{\"k\": 2}' DEFAULT NULL");
+        assertRows(execute("SELECT * FROM %s WHERE k=2"),
+                row(2, null, null)
+        );
+    }
+
+    @Test
     public void testCaseSensitivity() throws Throwable
     {
         createTable("CREATE TABLE %s (k int primary key, \"Foo\" int)");

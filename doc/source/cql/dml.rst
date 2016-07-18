@@ -295,7 +295,7 @@ Inserting data for a row is done using an ``INSERT`` statement:
                    : [ IF NOT EXISTS ]
                    : [ USING `update_parameter` ( AND `update_parameter` )* ]
    names_values: `names` VALUES `tuple_literal`
-   json_clause: JSON `string`
+   json_clause: JSON `string` [ DEFAULT ( NULL | UNSET ) ]
    names: '(' `column_name` ( ',' `column_name` )* ')'
 
 For instance::

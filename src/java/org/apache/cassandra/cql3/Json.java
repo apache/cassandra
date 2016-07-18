@@ -111,7 +111,7 @@ public class Json
      */
     public static abstract class Prepared
     {
-        public abstract Term.Raw getRawTermForColumn(ColumnDefinition def);
+        public abstract Term.Raw getRawTermForColumn(ColumnDefinition def, boolean defaultUnset);
     }
 
     /**
@@ -126,10 +126,12 @@ public class Json
             this.columnMap = columnMap;
         }
 
-        public Term.Raw getRawTermForColumn(ColumnDefinition def)
+        public Term.Raw getRawTermForColumn(ColumnDefinition def, boolean defaultUnset)
         {
             Term value = columnMap.get(def.name);
-            return value == null ? Constants.NULL_LITERAL : new ColumnValue(value);
+            return value == null
+                 ? (defaultUnset ? Constants.UNSET_LITERAL : Constants.NULL_LITERAL)
+                 : new ColumnValue(value);
         }
     }
 
@@ -147,9 +149,9 @@ public class Json
             this.columns = columns;
         }
 
-        public RawDelayedColumnValue getRawTermForColumn(ColumnDefinition def)
+        public RawDelayedColumnValue getRawTermForColumn(ColumnDefinition def, boolean defaultUnset)
         {
-            return new RawDelayedColumnValue(this, def);
+            return new RawDelayedColumnValue(this, def, defaultUnset);
         }
     }
 
@@ -198,17 +200,19 @@ public class Json
     {
         private final PreparedMarker marker;
         private final ColumnDefinition column;
+        private final boolean defaultUnset;
 
-        public RawDelayedColumnValue(PreparedMarker prepared, ColumnDefinition column)
+        public RawDelayedColumnValue(PreparedMarker prepared, ColumnDefinition column, boolean defaultUnset)
         {
             this.marker = prepared;
             this.column = column;
+            this.defaultUnset = defaultUnset;
         }
 
         @Override
         public Term prepare(String keyspace, ColumnSpecification receiver) throws InvalidRequestException
         {
-            return new DelayedColumnValue(marker, column);
+            return new DelayedColumnValue(marker, column, defaultUnset);
         }
 
         @Override
@@ -235,11 +239,13 @@ public class Json
     {
         private final PreparedMarker marker;
         private final ColumnDefinition column;
+        private final boolean defaultUnset;
 
-        public DelayedColumnValue(PreparedMarker prepared, ColumnDefinition column)
+        public DelayedColumnValue(PreparedMarker prepared, ColumnDefinition column, boolean defaultUnset)
         {
             this.marker = prepared;
             this.column = column;
+            this.defaultUnset = defaultUnset;
         }
 
         @Override
@@ -258,7 +264,9 @@ public class Json
         public Terminal bind(QueryOptions options) throws InvalidRequestException
         {
             Term term = options.getJsonColumnValue(marker.bindIndex, column.name, marker.columns);
-            return term == null ? null : term.bind(options);
+            return term == null
+                 ? (defaultUnset ? Constants.UNSET_VALUE : null)
+                 : term.bind(options);
         }
 
         @Override
@@ -284,10 +292,16 @@ public class Json
             Map<ColumnIdentifier, Term> columnMap = new HashMap<>(expectedReceivers.size());
             for (ColumnSpecification spec : expectedReceivers)
             {
+                // We explicitely test containsKey() because the value itself can be null, and we want to distinguish an
+                // explicit null value from no value
+                if (!valueMap.containsKey(spec.name.toString()))
+                    continue;
+
                 Object parsedJsonObject = valueMap.remove(spec.name.toString());
                 if (parsedJsonObject == null)
                 {
-                    columnMap.put(spec.name, null);
+                    // This is an explicit user null
+                    columnMap.put(spec.name, Constants.NULL_VALUE);
                 }
                 else
                 {

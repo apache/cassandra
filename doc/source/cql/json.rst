@@ -49,8 +49,11 @@ table with two columns named "myKey" and "value", you would do the following::
 
     INSERT INTO mytable JSON '{ "\"myKey\"": 0, "value": 0}'
 
-Any columns which are omitted from the ``JSON`` map will be defaulted to a ``NULL`` value (which will result in a
-tombstone being created).
+By default (or if ``DEFAULT NULL`` is explicitly used), a column omitted from the ``JSON`` map will be set to ``NULL``,
+meaning that any pre-existing value for that column will be removed (resulting in a tombstone being created).
+Alternatively, if the ``DEFAULT UNSET`` directive is used after the value, omitted column values will be left unset,
+meaning that pre-existing values for those column will be preserved.
+
 
 JSON Encoding of Cassandra Data Types
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^

@@ -40,6 +40,32 @@ public abstract class Constants
         STRING, INTEGER, UUID, FLOAT, BOOLEAN, HEX;
     }
 
+    private static class UnsetLiteral extends Term.Raw
+    {
+        public Term prepare(String keyspace, ColumnSpecification receiver) throws InvalidRequestException
+        {
+            return UNSET_VALUE;
+        }
+
+        public AssignmentTestable.TestResult testAssignment(String keyspace, ColumnSpecification receiver)
+        {
+            return AssignmentTestable.TestResult.NOT_ASSIGNABLE;
+        }
+
+        public String getText()
+        {
+            return "";
+        }
+
+        public AbstractType<?> getExactTypeIfKnown(String keyspace)
+        {
+            return null;
+        }
+    }
+
+    // We don't have "unset" literal in the syntax, but it's used implicitely for JSON "DEFAULT UNSET" option
+    public static final UnsetLiteral UNSET_LITERAL = new UnsetLiteral();
+
     public static final Value UNSET_VALUE = new Value(ByteBufferUtil.UNSET_BYTE_BUFFER);
 
     private static class NullLiteral extends Term.Raw

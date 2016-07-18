@@ -359,12 +359,14 @@ jsonInsertStatement [CFName cf] returns [UpdateStatement.ParsedInsertJson expr]
     @init {
         Attributes.Raw attrs = new Attributes.Raw();
         boolean ifNotExists = false;
+        boolean defaultUnset = false;
     }
     : val=jsonValue
+      ( K_DEFAULT ( K_NULL | ( { defaultUnset = true; } K_UNSET) ) )?
       ( K_IF K_NOT K_EXISTS { ifNotExists = true; } )?
       ( usingClause[attrs] )?
       {
-          $expr = new UpdateStatement.ParsedInsertJson(cf, attrs, val, ifNotExists);
+          $expr = new UpdateStatement.ParsedInsertJson(cf, attrs, val, defaultUnset, ifNotExists);
       }
     ;
 

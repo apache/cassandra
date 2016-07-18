@@ -1,4 +1,5 @@
 3.10
+ * Option to leave omitted columns in INSERT JSON unset (CASSANDRA-11424)
  * Support json/yaml output in nodetool tpstats (CASSANDRA-12035)
  * Expose metrics for successful/failed authentication attempts (CASSANDRA-10635)
  * Prepend snapshot name with "truncated" or "dropped" when a snapshot
