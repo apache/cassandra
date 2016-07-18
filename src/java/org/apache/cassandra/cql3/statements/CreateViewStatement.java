@@ -22,7 +22,6 @@ import java.util.*;
 import java.util.stream.Collectors;
 
 import com.google.common.collect.Iterables;
-import com.google.common.collect.Sets;
 
 import org.apache.cassandra.auth.Permission;
 import org.apache.cassandra.config.CFMetaData;
@@ -149,7 +148,7 @@ public class CreateViewStatement extends SchemaAlteringStatement
                                                             baseName.getColumnFamily()));
         }
 
-        Set<ColumnIdentifier> included = Sets.newHashSetWithExpectedSize(selectClause.size());
+        Set<ColumnIdentifier> included = new HashSet<>();
         for (RawSelector selector : selectClause)
         {
             Selectable.Raw selectable = selector.selectable;

@@ -22,7 +22,6 @@ import java.util.*;
 import java.util.concurrent.TimeUnit;
 
 import com.google.common.collect.Iterables;
-import com.google.common.collect.Maps;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.slf4j.helpers.MessageFormatter;
@@ -555,7 +554,7 @@ public class BatchStatement implements CQLStatement
 
         public Map<UUID, PartitionColumns> build()
         {
-            Map<UUID, PartitionColumns> m = Maps.newHashMapWithExpectedSize(perTableBuilders.size());
+            Map<UUID, PartitionColumns> m = new HashMap<>();
             for (Map.Entry<UUID, PartitionColumns.Builder> p : perTableBuilders.entrySet())
                 m.put(p.getKey(), p.getValue().build());
             return m;

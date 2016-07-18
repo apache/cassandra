@@ -22,7 +22,6 @@ import java.util.*;
 import com.google.common.base.Optional;
 import com.google.common.base.Strings;
 import com.google.common.collect.Iterables;
-import com.google.common.collect.Sets;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -174,7 +173,7 @@ public class CreateIndexStatement extends SchemaAlteringStatement
         if (!properties.isCustom)
             throw new InvalidRequestException("Only CUSTOM indexes support multiple columns");
 
-        Set<ColumnIdentifier> columns = Sets.newHashSetWithExpectedSize(targets.size());
+        Set<ColumnIdentifier> columns = new HashSet<>();
         for (IndexTarget target : targets)
             if (!columns.add(target.column))
                 throw new InvalidRequestException("Duplicate column " + target.column + " in index target list");

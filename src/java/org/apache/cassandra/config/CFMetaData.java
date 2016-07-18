@@ -32,7 +32,6 @@ import com.google.common.base.MoreObjects;
 import com.google.common.base.Objects;
 import com.google.common.collect.ImmutableSet;
 import com.google.common.collect.Iterables;
-import com.google.common.collect.Maps;
 import com.google.common.collect.Sets;
 import org.apache.commons.lang3.ArrayUtils;
 import org.apache.commons.lang3.builder.HashCodeBuilder;
@@ -305,7 +304,7 @@ public final class CFMetaData
     {
         this.comparator = new ClusteringComparator(extractTypes(clusteringColumns));
 
-        Map<ByteBuffer, ColumnDefinition> newColumnMetadata = Maps.newHashMapWithExpectedSize(partitionKeyColumns.size() + clusteringColumns.size() + partitionColumns.size());
+        Map<ByteBuffer, ColumnDefinition> newColumnMetadata = new HashMap<>();
         for (ColumnDefinition def : partitionKeyColumns)
             newColumnMetadata.put(def.name.bytes, def);
         for (ColumnDefinition def : clusteringColumns)
@@ -1261,7 +1260,7 @@ public final class CFMetaData
 
         public Set<String> usedColumnNames()
         {
-            Set<String> usedNames = Sets.newHashSetWithExpectedSize(partitionKeys.size() + clusteringColumns.size() + staticColumns.size() + regularColumns.size());
+            Set<String> usedNames = new HashSet<>();
             for (Pair<ColumnIdentifier, AbstractType> p : partitionKeys)
                 usedNames.add(p.left.toString());
             for (Pair<ColumnIdentifier, AbstractType> p : clusteringColumns)
