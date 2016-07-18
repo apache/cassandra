@@ -1,5 +1,4 @@
 3.9
- * Partial revert of CASSANDRA-11971, cannot recycle buffer in SP.sendMessagesToNonlocalDC (CASSANDRA-11950)
  * Fix hdr logging for single operation workloads (CASSANDRA-12145)
  * Fix SASI PREFIX search in CONTAINS mode with partial terms (CASSANDRA-12073)
  * Increase size of flushExecutor thread pool (CASSANDRA-12071)
@@ -29,6 +28,8 @@ Merged from 2.1:
 
 
 3.8
+ * Partial revert of CASSANDRA-11971, cannot recycle buffer in SP.sendMessagesToNonlocalDC (CASSANDRA-11950)
+ * Upgrade netty to 4.0.39 (CASSANDRA-12032, CASSANDRA-12034)
  * Improve details in compaction log message (CASSANDRA-12080)
  * Allow unset values in CQLSSTableWriter (CASSANDRA-11911)
  * Chunk cache to request compressor-compatible buffers if pool space is exhausted (CASSANDRA-11993)
