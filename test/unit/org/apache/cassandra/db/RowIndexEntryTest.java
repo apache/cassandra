@@ -225,7 +225,7 @@ public class RowIndexEntryTest extends CQLTester
         private Unfiltered buildRow(Clustering clustering)
         {
             BTree.Builder<ColumnData> builder = BTree.builder(ColumnData.comparator);
-            builder.add(BufferCell.live(cfMeta.allColumns().iterator().next(),
+            builder.add(BufferCell.live(cfMeta.partitionColumns().iterator().next(),
                                         1L,
                                         ByteBuffer.allocate(0)));
             return BTreeRow.create(clustering, primaryKeyLivenessInfo, deletion, builder.build());

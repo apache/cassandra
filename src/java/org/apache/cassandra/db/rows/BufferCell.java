@@ -39,6 +39,7 @@ public class BufferCell extends AbstractCell
     public BufferCell(ColumnDefinition column, long timestamp, int ttl, int localDeletionTime, ByteBuffer value, CellPath path)
     {
         super(column);
+        assert !column.isPrimaryKeyColumn();
         assert column.isComplex() == (path != null);
         this.timestamp = timestamp;
         this.ttl = ttl;
