@@ -14,7 +14,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from .cassconnect import create_test_db, remove_test_db
+from .cassconnect import create_db, remove_db
 
-setUp = create_test_db
-tearDown = remove_test_db
+setUp = create_db
+tearDown = remove_db

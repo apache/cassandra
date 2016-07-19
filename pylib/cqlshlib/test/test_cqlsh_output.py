@@ -23,7 +23,7 @@ import re
 from itertools import izip
 from .basecase import (BaseTestCase, cqlshlog, dedent, at_a_time, cqlsh,
                        TEST_HOST, TEST_PORT)
-from .cassconnect import (get_test_keyspace, testrun_cqlsh, testcall_cqlsh,
+from .cassconnect import (get_keyspace, testrun_cqlsh, testcall_cqlsh,
                           cassandra_cursor, split_cql_commands, quote_name)
 from .ansi_colors import (ColoredText, lookup_colorcode, lookup_colorname,
                           lookup_colorletter, ansi_seq)
@@ -534,10 +534,10 @@ class TestCqlshOutput(BaseTestCase):
             output = c.read_to_next_prompt().replace('\r\n', '\n')
             self.assertTrue(output.endswith('cqlsh> '))
 
-            cmd = "USE \"%s\";\n" % get_test_keyspace().replace('"', '""')
+            cmd = "USE \"%s\";\n" % get_keyspace().replace('"', '""')
             c.send(cmd)
             output = c.read_to_next_prompt().replace('\r\n', '\n')
-            self.assertTrue(output.endswith('cqlsh:%s> ' % (get_test_keyspace())))
+            self.assertTrue(output.endswith('cqlsh:%s> ' % (get_keyspace())))
 
             c.send('use system;\n')
             output = c.read_to_next_prompt().replace('\r\n', '\n')
@@ -561,7 +561,7 @@ class TestCqlshOutput(BaseTestCase):
     def test_describe_keyspace_output(self):
         fullcqlver = cqlsh.DEFAULT_CQLVER
         with testrun_cqlsh(tty=True, cqlver=fullcqlver) as c:
-            ks = get_test_keyspace()
+            ks = get_keyspace()
             qks = quote_name(ks)
             for cmd in ('describe keyspace', 'desc keyspace'):
                 for givename in ('system', '', qks):
@@ -632,7 +632,7 @@ class TestCqlshOutput(BaseTestCase):
                 AND read_repair_chance = 0.0
                 AND speculative_retry = '99.0PERCENTILE';
 
-        """ % quote_name(get_test_keyspace()))
+        """ % quote_name(get_keyspace()))
 
         with testrun_cqlsh(tty=True, cqlver=cqlsh.DEFAULT_CQLVER) as c:
             for cmdword in ('describe table', 'desc columnfamily'):
@@ -650,7 +650,7 @@ class TestCqlshOutput(BaseTestCase):
             \n
         '''
 
-        ks = get_test_keyspace()
+        ks = get_keyspace()
 
         with testrun_cqlsh(tty=True, keyspace=None, cqlver=cqlsh.DEFAULT_CQLVER) as c:
 
@@ -711,7 +711,7 @@ class TestCqlshOutput(BaseTestCase):
                 self.assertNoHasColors(output)
                 self.assertRegexpMatches(output, output_re + '$')
 
-            c.send('USE %s;\n' % quote_name(get_test_keyspace()))
+            c.send('USE %s;\n' % quote_name(get_keyspace()))
             c.read_to_next_prompt()
 
             for semicolon in ('', ';'):

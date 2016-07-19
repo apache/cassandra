@@ -1,4 +1,5 @@
 2.2.8
+ * Fixed cqlshlib.test.remove_test_db (CASSANDRA-12214)
  * Synchronize ThriftServer::stop() (CASSANDRA-12105)
  * Use dedicated thread for JMX notifications (CASSANDRA-12146)
  * NPE when trying to remove purgable tombstones from result (CASSANDRA-12143)
