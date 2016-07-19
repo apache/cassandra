@@ -324,6 +324,7 @@ public class CassandraDaemon
                 {
                     keyspace.viewManager.buildAllViews();
                 }
+                logger.debug("Completed submission of build tasks for any materialized views defined at startup");
             }
         };
 
