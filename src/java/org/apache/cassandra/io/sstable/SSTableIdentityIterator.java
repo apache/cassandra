@@ -34,7 +34,7 @@ public class SSTableIdentityIterator extends AbstractIterator<Unfiltered> implem
     private final DeletionTime partitionLevelDeletion;
     private final String filename;
 
-    private final SSTableSimpleIterator iterator;
+    protected final SSTableSimpleIterator iterator;
     private final Row staticRow;
 
     /**
@@ -97,7 +97,7 @@ public class SSTableIdentityIterator extends AbstractIterator<Unfiltered> implem
     {
         try
         {
-            return iterator.hasNext() ? iterator.next() : endOfData();
+            return doCompute();
         }
         catch (IndexOutOfBoundsException e)
         {
@@ -116,6 +116,11 @@ public class SSTableIdentityIterator extends AbstractIterator<Unfiltered> implem
                 throw e;
             }
         }
+    }
+
+    protected Unfiltered doCompute()
+    {
+        return iterator.hasNext() ? iterator.next() : endOfData();
     }
 
     public void close()

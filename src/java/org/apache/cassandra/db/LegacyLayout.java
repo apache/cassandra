@@ -1207,9 +1207,26 @@ public abstract class LegacyLayout
         {
             if (tombstone.isRowDeletion(metadata))
             {
-                // If we're already within a row, it can't be the same one
                 if (clustering != null)
+                {
+                    // If we're already in the row, there might be a chance that there were two range tombstones
+                    // written, as 2.x storage format does not guarantee just one range tombstone, unlike 3.x.
+                    // We have to make sure that clustering matches, which would mean that tombstone is for the
+                    // same row.
+                    if (rowDeletion != null && clustering.equals(tombstone.start.getAsClustering(metadata)))
+                    {
+                        // If the tombstone superceeds the previous delete, we discard the previous one
+                        if (tombstone.deletionTime.supersedes(rowDeletion.deletionTime))
+                        {
+                            builder.addRowDeletion(Row.Deletion.regular(tombstone.deletionTime));
+                            rowDeletion = tombstone;
+                        }
+                        return true;
+                    }
+
+                    // If we're already within a row and there was no delete written before that one, it can't be the same one
                     return false;
+                }
 
                 clustering = tombstone.start.getAsClustering(metadata);
                 builder.newRow(clustering);

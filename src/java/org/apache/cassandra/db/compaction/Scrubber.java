@@ -34,11 +34,7 @@ import org.apache.cassandra.io.sstable.format.SSTableWriter;
 import org.apache.cassandra.io.util.FileUtils;
 import org.apache.cassandra.io.util.RandomAccessReader;
 import org.apache.cassandra.service.ActiveRepairService;
-import org.apache.cassandra.utils.ByteBufferUtil;
-import org.apache.cassandra.utils.FBUtilities;
-import org.apache.cassandra.utils.JVMStabilityInspector;
-import org.apache.cassandra.utils.OutputHandler;
-import org.apache.cassandra.utils.UUIDGen;
+import org.apache.cassandra.utils.*;
 
 public class Scrubber implements Closeable
 {
@@ -214,7 +210,7 @@ public class Scrubber implements Closeable
                     if (indexFile != null && dataStart != dataStartFromIndex)
                         outputHandler.warn(String.format("Data file row position %d differs from index file row position %d", dataStart, dataStartFromIndex));
 
-                    try (UnfilteredRowIterator iterator = withValidation(new SSTableIdentityIterator(sstable, dataFile, key), dataFile.getPath()))
+                    try (UnfilteredRowIterator iterator = withValidation(new RowMergingSSTableIterator(sstable, dataFile, key), dataFile.getPath()))
                     {
                         if (prevKey != null && prevKey.compareTo(key) > 0)
                         {
@@ -466,6 +462,48 @@ public class Scrubber implements Closeable
             this.goodRows = scrubber.goodRows;
             this.badRows = scrubber.badRows;
             this.emptyRows = scrubber.emptyRows;
+        }
+    }
+
+    /**
+     * During 2.x migration, under some circumstances rows might have gotten duplicated.
+     * Merging iterator merges rows with same clustering.
+     *
+     * For more details, refer to CASSANDRA-12144.
+     */
+    private static class RowMergingSSTableIterator extends SSTableIdentityIterator
+    {
+        RowMergingSSTableIterator(SSTableReader sstable, RandomAccessReader file, DecoratedKey key)
+        {
+            super(sstable, file, key);
+        }
+
+        @Override
+        protected Unfiltered doCompute()
+        {
+            if (!iterator.hasNext())
+                return endOfData();
+
+            Unfiltered next = iterator.next();
+            if (!next.isRow())
+                return next;
+
+            while (iterator.hasNext())
+            {
+                Unfiltered peek = iterator.peek();
+                // If there was a duplicate row, merge it.
+                if (next.clustering().equals(peek.clustering()) && peek.isRow())
+                {
+                    iterator.next(); // Make sure that the peeked item was consumed.
+                    next = Rows.merge((Row) next, (Row) peek, FBUtilities.nowInSeconds());
+                }
+                else
+                {
+                    break;
+                }
+            }
+
+            return next;
         }
     }
 }
