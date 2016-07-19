@@ -1,4 +1,5 @@
 3.0.9
+ * NullPointerExpception when reading/compacting table (CASSANDRA-11988)
  * Fix problem with undeleteable rows on upgrade to new sstable format (CASSANDRA-12144)
  * Fix paging logic for deleted partitions with static columns (CASSANDRA-12107)
  * Wait until the message is being send to decide which serializer must be used (CASSANDRA-11393)

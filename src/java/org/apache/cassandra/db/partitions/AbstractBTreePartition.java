@@ -60,7 +60,7 @@ public abstract class AbstractBTreePartition implements Partition, Iterable<Row>
             this.columns = columns;
             this.tree = tree;
             this.deletionInfo = deletionInfo;
-            this.staticRow = staticRow;
+            this.staticRow = staticRow == null ? Rows.EMPTY_STATIC_ROW : staticRow;
             this.stats = stats;
         }
     }

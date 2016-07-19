@@ -69,7 +69,7 @@ implements BaseRowIterator<R>
 
     public Row staticRow()
     {
-        return staticRow;
+        return staticRow == null ? Rows.EMPTY_STATIC_ROW : staticRow;
     }
 
 

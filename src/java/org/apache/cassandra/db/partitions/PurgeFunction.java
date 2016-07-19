@@ -55,7 +55,8 @@ public abstract class PurgeFunction extends Transformation<UnfilteredRowIterator
     {
     }
 
-    public UnfilteredRowIterator applyToPartition(UnfilteredRowIterator partition)
+    @Override
+    protected UnfilteredRowIterator applyToPartition(UnfilteredRowIterator partition)
     {
         onNewPartition(partition.partitionKey());
 
@@ -71,24 +72,28 @@ public abstract class PurgeFunction extends Transformation<UnfilteredRowIterator
         return purged;
     }
 
-    public DeletionTime applyToDeletion(DeletionTime deletionTime)
+    @Override
+    protected DeletionTime applyToDeletion(DeletionTime deletionTime)
     {
         return purger.shouldPurge(deletionTime) ? DeletionTime.LIVE : deletionTime;
     }
 
-    public Row applyToStatic(Row row)
+    @Override
+    protected Row applyToStatic(Row row)
     {
         updateProgress();
         return row.purge(purger, nowInSec);
     }
 
-    public Row applyToRow(Row row)
+    @Override
+    protected Row applyToRow(Row row)
     {
         updateProgress();
         return row.purge(purger, nowInSec);
     }
 
-    public RangeTombstoneMarker applyToMarker(RangeTombstoneMarker marker)
+    @Override
+    protected RangeTombstoneMarker applyToMarker(RangeTombstoneMarker marker)
     {
         updateProgress();
         boolean reversed = isReverseOrder;
