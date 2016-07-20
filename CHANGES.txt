@@ -1,4 +1,6 @@
 3.0.9
+ * Respond with v1/v2 protocol header when responding to driver that attempts
+   to connect with too low of a protocol version (CASSANDRA-11464)
  * NullPointerExpception when reading/compacting table (CASSANDRA-11988)
  * Fix problem with undeleteable rows on upgrade to new sstable format (CASSANDRA-12144)
  * Fix paging logic for deleted partitions with static columns (CASSANDRA-12107)
