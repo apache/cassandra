@@ -331,7 +331,18 @@ public class ErrorMessage extends Message.Response
         }
 
         if (e instanceof TransportException)
-            return new ErrorMessage((TransportException)e, streamId);
+        {
+            ErrorMessage message = new ErrorMessage((TransportException) e, streamId);
+            if (e instanceof ProtocolException)
+            {
+                // if the driver attempted to connect with a protocol version lower than the minimum supported
+                // version, respond with a protocol error message with the correct frame header for that version
+                Integer attemptedLowProtocolVersion = ((ProtocolException) e).getAttemptedLowProtocolVersion();
+                if (attemptedLowProtocolVersion != null)
+                    message.forcedProtocolVersion = attemptedLowProtocolVersion;
+            }
+            return message;
+        }
 
         // Unexpected exception
         if (unexpectedExceptionHandler == null || !unexpectedExceptionHandler.apply(e))

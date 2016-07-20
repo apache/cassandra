@@ -25,13 +25,31 @@ import org.apache.cassandra.exceptions.TransportException;
  */
 public class ProtocolException extends RuntimeException implements TransportException
 {
+    private final Integer attemptedLowProtocolVersion;
+
     public ProtocolException(String msg)
     {
+        this(msg, null);
+    }
+
+    public ProtocolException(String msg, Integer attemptedLowProtocolVersion)
+    {
         super(msg);
+        this.attemptedLowProtocolVersion = attemptedLowProtocolVersion;
     }
 
     public ExceptionCode code()
     {
         return ExceptionCode.PROTOCOL_ERROR;
+    }
+
+    /**
+     * If the ProtocolException is due to a connection being made with a protocol version that is lower
+     * than Server.MIN_SUPPORTED_VERSION, this will return that unsupported protocol version.  Otherwise,
+     * null is returned.
+     */
+    public Integer getAttemptedLowProtocolVersion()
+    {
+        return attemptedLowProtocolVersion;
     }
 }
