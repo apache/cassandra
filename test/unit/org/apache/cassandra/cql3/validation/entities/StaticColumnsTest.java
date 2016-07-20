@@ -278,4 +278,26 @@ public class StaticColumnsTest extends CQLTester
         // We shouldn 't allow static when there is not clustering columns
         assertInvalid("ALTER TABLE %s ADD bar2 text static");
     }
+
+    /**
+     * Ensure that deleting and compacting a static row that should be purged doesn't throw.
+     * This is a test for #11988.
+     */
+    @Test
+    public void testStaticColumnPurging() throws Throwable
+    {
+        createTable("CREATE TABLE %s (pkey text, ckey text, value text, static_value text static, PRIMARY KEY(pkey, ckey)) WITH gc_grace_seconds = 0");
+
+        execute("INSERT INTO %s (pkey, ckey, static_value, value) VALUES (?, ?, ?, ?)", "k1", "c1", "s1", "v1");
+
+        flush();
+
+        execute("DELETE static_value FROM %s WHERE pkey = ?", "k1");
+
+        flush();
+
+        compact();
+
+        assertRows(execute("SELECT * FROM %s"), row("k1", "c1", null, "v1"));
+    }
 }
