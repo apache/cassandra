@@ -89,7 +89,6 @@ var drawGraph = function() {
         stress_metric_names[v] = stats['stats'][0]['metrics'][i];
     });
     //Replace names of shorthand metric names with longer ones:
-    //Replace names of shorthand metric names with longer ones:
     $.extend(stress_metric_names, {
        "mean": "latency mean",
        "med" : "latency median",
@@ -224,7 +223,7 @@ var drawGraph = function() {
                 if (metric == 'num_timeouts') {
                     return d[stress_metrics.indexOf('interval_op_rate')] - d[stress_metrics.indexOf('interval_key_rate')];
                 }
-            }        
+            }
         };
 
         //Parse the dates:
@@ -321,13 +320,13 @@ var drawGraph = function() {
 
         var line = d3.svg.line()
             .interpolate("basis")
-            .x(function(d) { 
+            .x(function(d) {
                 return x(d[time_index]); //time in seconds
             })
-            .y(function(d) { 
+            .y(function(d) {
                 return y(getMetricValue(d));
             });
-        
+
         $("body").append("<div id='svg_container'>");
 
         var redrawLines = function() {
@@ -384,7 +383,7 @@ var drawGraph = function() {
             .attr("transform", "translate(0," + height + ")")
             .call(xAxis);
 
-        // x-axis label   
+        // x-axis label
         svg.append("text")
             .attr("x", width / 2 )
             .attr("y", height + 30 )
@@ -432,7 +431,7 @@ var drawGraph = function() {
                     var y_offset = 425 + (i*25) + 70;
                 }
                 var x_offset = -550;
-                return "translate(" + x_offset + "," + y_offset + ")"; 
+                return "translate(" + x_offset + "," + y_offset + ")";
             });
 
         var renderLegendText = function(linenum, getTextCallback) {
@@ -443,7 +442,7 @@ var drawGraph = function() {
                 .style("font-family", "monospace")
                 .style("font-size", "1.2em")
                 .style("text-anchor", "start")
-                .text(function(d) { 
+                .text(function(d) {
                     return getTextCallback(d);
                 });
         };
@@ -511,23 +510,23 @@ var drawGraph = function() {
             });
 
             renderLegendText(13, function(title) {
-                return padTextEnd('total gc mb', 26) + ' : ' + data_by_title[title]['total gc mb'];
+                return padTextEnd('total gc memory', 26) + ' : ' + data_by_title[title]['total gc memory'];
             });
 
             renderLegendText(14, function(title) {
-                return padTextEnd('total gc time (s)', 26) + ' : ' + data_by_title[title]['total gc time (s)'];
+                return padTextEnd('total gc time', 26) + ' : ' + data_by_title[title]['total gc time'];
             });
 
             renderLegendText(15, function(title) {
-                return padTextEnd('avg gc time(ms)', 26) + ' : ' + data_by_title[title]['avg gc time(ms)'];
+                return padTextEnd('avg gc time', 26) + ' : ' + data_by_title[title]['avg gc time'];
             });
 
             renderLegendText(16, function(title) {
-                return padTextEnd('stdev gc time(ms)', 26) + ' : ' + data_by_title[title]['stdev gc time(ms)'];
+                return padTextEnd('stddev gc time', 26) + ' : ' + data_by_title[title]['stddev gc time'];
             });
 
             renderLegendText(17, function(title) {
-                return padTextEnd('Total operation time', 26) + ' : ' + data_by_title[title]['Total operation time'];
+                return padTextEnd('Total operation time', 26) + ' : ' + data_by_title[title]['total operation time'];
             });
 
             renderLegendText(18, function(title) {

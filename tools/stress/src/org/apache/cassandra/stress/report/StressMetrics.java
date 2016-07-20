@@ -24,7 +24,6 @@ package org.apache.cassandra.stress.report;
 import static java.util.concurrent.TimeUnit.NANOSECONDS;
 
 import java.io.FileNotFoundException;
-import java.io.PrintStream;
 import java.util.ArrayDeque;
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -46,6 +45,7 @@ import org.apache.cassandra.stress.StressAction.OpMeasurement;
 import org.apache.cassandra.stress.settings.SettingsLog.Level;
 import org.apache.cassandra.stress.settings.StressSettings;
 import org.apache.cassandra.stress.util.JmxCollector;
+import org.apache.cassandra.stress.util.ResultLogger;
 import org.apache.cassandra.stress.util.JmxCollector.GcStats;
 import org.apache.cassandra.stress.util.Uncertainty;
 import org.apache.cassandra.utils.FBUtilities;
@@ -54,7 +54,7 @@ import org.apache.commons.lang3.time.DurationFormatUtils;
 public class StressMetrics implements MeasurementSink
 {
     private final List<Consumer> consumers = new ArrayList<>();
-    private final PrintStream output;
+    private final ResultLogger output;
     private final Thread thread;
     private final Uncertainty rowRateUncertainty = new Uncertainty();
     private final CountDownLatch stopped = new CountDownLatch(1);
@@ -76,7 +76,7 @@ public class StressMetrics implements MeasurementSink
     private final TimingInterval totalCurrentInterval;
     private final TimingInterval totalSummaryInterval;
 
-    public StressMetrics(PrintStream output, final long logIntervalMillis, StressSettings settings)
+    public StressMetrics(ResultLogger output, final long logIntervalMillis, StressSettings settings)
     {
         this.output = output;
         if(settings.log.hdrFile != null)
@@ -114,13 +114,7 @@ public class StressMetrics implements MeasurementSink
                 t.printStackTrace();
             }
             System.err.println("Failed to connect over JMX; not collecting these stats");
-            gcStatsCollector = new Callable<JmxCollector.GcStats>()
-            {
-                public JmxCollector.GcStats call() throws Exception
-                {
-                    return totalGcStats;
-                }
-            };
+            gcStatsCollector = () -> totalGcStats;
         }
         this.gcStatsCollector = gcStatsCollector;
         this.totalCurrentInterval = new TimingInterval(settings.rate.isFixed);
@@ -226,7 +220,7 @@ public class StressMetrics implements MeasurementSink
         t.serviceTime().recordValue(sTime);
     }
 
-    private void recordInterval(long intervalEnd, long parkIntervalNs) throws InterruptedException
+    private void recordInterval(long intervalEnd, long parkIntervalNs)
     {
 
         drainConsumerMeasurements(intervalEnd, parkIntervalNs);
@@ -351,12 +345,13 @@ public class StressMetrics implements MeasurementSink
     public static final String[] HEADMETRICS = new String[]{"type", "total ops","op/s","pk/s","row/s","mean","med",".95",".99",".999","max","time","stderr", "errors", "gc: #", "max ms", "sum ms", "sdv ms", "mb"};
     public static final String HEAD = String.format(HEADFORMAT, (Object[]) HEADMETRICS);
 
-    private static void printHeader(String prefix, PrintStream output)
+    private static void printHeader(String prefix, ResultLogger output)
     {
         output.println(prefix + HEAD);
     }
 
-    private static void printRow(String prefix, String type, TimingInterval interval, TimingInterval total, JmxCollector.GcStats gcStats, Uncertainty opRateUncertainty, PrintStream output)
+    private static void printRow(String prefix, String type, TimingInterval interval, TimingInterval total,
+                                 JmxCollector.GcStats gcStats, Uncertainty opRateUncertainty, ResultLogger output)
     {
         output.println(prefix + String.format(ROWFORMAT,
                 type + ",",
@@ -409,7 +404,7 @@ public class StressMetrics implements MeasurementSink
         output.println(""); // Newline is important here to separate the aggregates section from the END or the next stress iteration
     }
 
-    public static void summarise(List<String> ids, List<StressMetrics> summarise, PrintStream out)
+    public static void summarise(List<String> ids, List<StressMetrics> summarise, ResultLogger out)
     {
         int idLen = 0;
         for (String id : ids)

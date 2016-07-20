@@ -25,7 +25,7 @@ import java.util.Map;
 import com.google.common.collect.ImmutableList;
 import com.google.common.primitives.Ints;
 
-import org.apache.cassandra.stress.util.MultiPrintStream;
+import org.apache.cassandra.stress.util.ResultLogger;
 
 public class SettingsTokenRange implements Serializable
 {
@@ -70,7 +70,7 @@ public class SettingsTokenRange implements Serializable
         return new SettingsTokenRange(options);
     }
 
-    public void printSettings(MultiPrintStream out)
+    public void printSettings(ResultLogger out)
     {
         out.printf("  Wrap: %b%n", wrap);
         out.printf("  Split Factor: %d%n", splitFactor);

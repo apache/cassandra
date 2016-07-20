@@ -21,12 +21,13 @@ package org.apache.cassandra.stress.settings;
  */
 
 
-import org.apache.cassandra.stress.util.MultiPrintStream;
-
 import java.io.*;
 import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
+
+import org.apache.cassandra.stress.util.MultiResultLogger;
+import org.apache.cassandra.stress.util.ResultLogger;
 
 public class SettingsLog implements Serializable
 {
@@ -68,10 +69,10 @@ public class SettingsLog implements Serializable
         level = Level.valueOf(options.level.value().toUpperCase());
     }
 
-    public MultiPrintStream getOutput() throws FileNotFoundException
+    public MultiResultLogger getOutput() throws FileNotFoundException
     {
         // Always print to stdout regardless of whether we're graphing or not
-        MultiPrintStream stream = new MultiPrintStream(new PrintStream(System.out));
+        MultiResultLogger stream = new MultiResultLogger(new PrintStream(System.out));
 
         if (file != null)
             stream.addStream(new PrintStream(file));
@@ -98,7 +99,7 @@ public class SettingsLog implements Serializable
     }
 
     // CLI Utility Methods
-    public void printSettings(MultiPrintStream out)
+    public void printSettings(ResultLogger out)
     {
         out.printf("  No Summary: %b%n", noSummary);
         out.printf("  No Settings: %b%n", noSettings);

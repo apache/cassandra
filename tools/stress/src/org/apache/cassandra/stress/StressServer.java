@@ -27,6 +27,8 @@ import java.net.Socket;
 import org.apache.commons.cli.*;
 
 import org.apache.cassandra.stress.settings.StressSettings;
+import org.apache.cassandra.stress.util.MultiResultLogger;
+import org.apache.cassandra.stress.util.ResultLogger;
 
 public class StressServer
 {
@@ -88,8 +90,9 @@ public class StressServer
             {
                 ObjectInputStream in = new ObjectInputStream(socket.getInputStream());
                 PrintStream out = new PrintStream(socket.getOutputStream());
+                ResultLogger log = new MultiResultLogger(out);
 
-                StressAction action = new StressAction((StressSettings) in.readObject(), out);
+                StressAction action = new StressAction((StressSettings) in.readObject(), log);
                 Thread actionThread = new Thread(action);
                 actionThread.start();
 

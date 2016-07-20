@@ -26,7 +26,7 @@ import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
 
-import org.apache.cassandra.stress.util.MultiPrintStream;
+import org.apache.cassandra.stress.util.ResultLogger;
 
 public class SettingsRate implements Serializable
 {
@@ -96,7 +96,7 @@ public class SettingsRate implements Serializable
 
     // CLI Utility Methods
 
-    public void printSettings(MultiPrintStream out)
+    public void printSettings(ResultLogger out)
     {
         out.printf("  Auto: %b%n", auto);
         if (auto)
@@ -151,14 +151,7 @@ public class SettingsRate implements Serializable
 
     public static Runnable helpPrinter()
     {
-        return new Runnable()
-        {
-            @Override
-            public void run()
-            {
-                printHelp();
-            }
-        };
+        return SettingsRate::printHelp;
     }
 }
 

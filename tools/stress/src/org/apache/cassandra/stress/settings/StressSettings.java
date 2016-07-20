@@ -22,13 +22,13 @@ package org.apache.cassandra.stress.settings;
 
 
 import java.io.Serializable;
-import org.apache.cassandra.stress.util.MultiPrintStream;
 import java.util.*;
 
 import com.datastax.driver.core.Metadata;
 import com.google.common.collect.ImmutableMap;
 import org.apache.cassandra.config.EncryptionOptions;
 import org.apache.cassandra.stress.util.JavaDriverClient;
+import org.apache.cassandra.stress.util.ResultLogger;
 import org.apache.cassandra.stress.util.SimpleThriftClient;
 import org.apache.cassandra.stress.util.SmartThriftClient;
 import org.apache.cassandra.stress.util.ThriftClient;
@@ -338,7 +338,7 @@ public class StressSettings implements Serializable
         SettingsMisc.printHelp();
     }
 
-    public void printSettings(MultiPrintStream out)
+    public void printSettings(ResultLogger out)
     {
         out.println("******************** Stress Settings ********************");
         // done

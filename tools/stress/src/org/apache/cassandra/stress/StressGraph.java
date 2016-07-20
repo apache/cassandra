@@ -201,7 +201,8 @@ public class StressGraph
                     {
                         continue;
                     }
-                    json.put(parts[0].trim(), parts[1].trim());
+                    // the graphing js expects lower case names
+                    json.put(parts[0].trim().toLowerCase(), parts[1].trim());
                 }
                 else if (mode == ReadingMode.NEXTITERATION)
                 {
@@ -227,7 +228,7 @@ public class StressGraph
         {
             throw new RuntimeException("Couldn't read from temporary stress log file");
         }
-        stats.add(json);
+        if (json.size() != 0) stats.add(json);
         return stats;
     }
 

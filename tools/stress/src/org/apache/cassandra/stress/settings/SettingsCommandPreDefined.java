@@ -39,7 +39,7 @@ import org.apache.cassandra.stress.operations.OpDistribution;
 import org.apache.cassandra.stress.operations.OpDistributionFactory;
 import org.apache.cassandra.stress.operations.predefined.PredefinedOperation;
 import org.apache.cassandra.stress.report.Timer;
-import org.apache.cassandra.stress.util.MultiPrintStream;
+import org.apache.cassandra.stress.util.ResultLogger;
 
 // Settings unique to the mixed command type
 public class SettingsCommandPreDefined extends SettingsCommand
@@ -122,7 +122,7 @@ public class SettingsCommandPreDefined extends SettingsCommand
 
     // CLI utility methods
 
-    public void printSettings(MultiPrintStream out)
+    public void printSettings(ResultLogger out)
     {
         super.printSettings(out);
         out.printf("  Key Size (bytes): %d%n", keySize);

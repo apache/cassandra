@@ -27,7 +27,7 @@ import java.util.*;
 
 import com.datastax.driver.core.exceptions.AlreadyExistsException;
 import org.apache.cassandra.stress.util.JavaDriverClient;
-import org.apache.cassandra.stress.util.MultiPrintStream;
+import org.apache.cassandra.stress.util.ResultLogger;
 import org.apache.cassandra.thrift.*;
 import org.apache.cassandra.utils.ByteBufferUtil;
 
@@ -300,7 +300,7 @@ public class SettingsSchema implements Serializable
     }
 
     // CLI Utility Methods
-    public void printSettings(MultiPrintStream out)
+    public void printSettings(ResultLogger out)
     {
         out.println("  Keyspace: " + keyspace);
         out.println("  Replication Strategy: " + replicationStrategy);
@@ -309,7 +309,6 @@ public class SettingsSchema implements Serializable
         out.println("  Table Compression: " + compression);
         out.println("  Table Compaction Strategy: " + compactionStrategy);
         out.println("  Table Compaction Strategy Options: " + compactionStrategyOptions);
-
     }
 
 

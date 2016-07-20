@@ -30,7 +30,7 @@ import com.google.common.collect.ImmutableList;
 
 import org.apache.cassandra.stress.generate.DistributionFactory;
 import org.apache.cassandra.stress.generate.PartitionGenerator;
-import org.apache.cassandra.stress.util.MultiPrintStream;
+import org.apache.cassandra.stress.util.ResultLogger;
 
 public class SettingsPopulation implements Serializable
 {
@@ -127,7 +127,7 @@ public class SettingsPopulation implements Serializable
 
     // CLI Utility Methods
 
-    public void printSettings(MultiPrintStream out)
+    public void printSettings(ResultLogger out)
     {
         if (distribution != null)
         {

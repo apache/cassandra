@@ -33,7 +33,7 @@ import org.apache.cassandra.db.marshal.*;
 import org.apache.cassandra.stress.generate.Distribution;
 import org.apache.cassandra.stress.generate.DistributionFactory;
 import org.apache.cassandra.stress.generate.DistributionFixed;
-import org.apache.cassandra.stress.util.MultiPrintStream;
+import org.apache.cassandra.stress.util.ResultLogger;
 import org.apache.cassandra.utils.ByteBufferUtil;
 
 /**
@@ -178,7 +178,7 @@ public class SettingsColumn implements Serializable
     }
 
     // CLI Utility Methods
-    public void printSettings(MultiPrintStream out)
+    public void printSettings(ResultLogger out)
     {
         out.printf("  Max Columns Per Key: %d%n",maxColumnsPerKey);
         out.printf("  Column Names: %s%n",namestrs);

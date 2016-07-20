@@ -53,7 +53,7 @@ import org.apache.cassandra.stress.operations.userdefined.ValidatingSchemaQuery;
 import org.apache.cassandra.stress.report.Timer;
 import org.apache.cassandra.stress.settings.*;
 import org.apache.cassandra.stress.util.JavaDriverClient;
-import org.apache.cassandra.stress.util.MultiPrintStream;
+import org.apache.cassandra.stress.util.ResultLogger;
 import org.apache.cassandra.stress.util.ThriftClient;
 import org.apache.cassandra.thrift.Compression;
 import org.apache.cassandra.thrift.ThriftConversion;
@@ -99,7 +99,7 @@ public class StressProfile implements Serializable
     private static final Pattern lowercaseAlphanumeric = Pattern.compile("[a-z0-9_]+");
 
 
-    public void printSettings(MultiPrintStream out, StressSettings stressSettings)
+    public void printSettings(ResultLogger out, StressSettings stressSettings)
     {
         out.printf("  Keyspace Name: %s%n", keyspaceName);
         out.printf("  Keyspace CQL: %n***%n%s***%n%n", keyspaceCql);

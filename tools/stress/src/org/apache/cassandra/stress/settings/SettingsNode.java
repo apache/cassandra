@@ -28,7 +28,7 @@ import java.net.UnknownHostException;
 import java.util.*;
 
 import com.datastax.driver.core.Host;
-import org.apache.cassandra.stress.util.MultiPrintStream;
+import org.apache.cassandra.stress.util.ResultLogger;
 
 public class SettingsNode implements Serializable
 {
@@ -149,7 +149,7 @@ public class SettingsNode implements Serializable
     }
 
     // CLI Utility Methods
-    public void printSettings(MultiPrintStream out)
+    public void printSettings(ResultLogger out)
     {
         out.println("  Nodes: " + nodes);
         out.println("  Is White List: " + isWhiteList);

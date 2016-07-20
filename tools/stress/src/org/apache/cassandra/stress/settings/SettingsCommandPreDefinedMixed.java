@@ -31,7 +31,7 @@ import org.apache.cassandra.stress.operations.OpDistributionFactory;
 import org.apache.cassandra.stress.operations.SampledOpDistributionFactory;
 import org.apache.cassandra.stress.operations.predefined.PredefinedOperation;
 import org.apache.cassandra.stress.report.Timer;
-import org.apache.cassandra.stress.util.MultiPrintStream;
+import org.apache.cassandra.stress.util.ResultLogger;
 
 // Settings unique to the mixed command type
 public class SettingsCommandPreDefinedMixed extends SettingsCommandPreDefined
@@ -112,7 +112,7 @@ public class SettingsCommandPreDefinedMixed extends SettingsCommandPreDefined
 
     }
 
-    public void printSettings(MultiPrintStream out)
+    public void printSettings(ResultLogger out)
     {
         super.printSettings(out);
         out.printf("  Command Ratios: %s%n", ratios);

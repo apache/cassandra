@@ -17,9 +17,6 @@
  */
 package org.apache.cassandra.stress;
 
-import java.io.IOException;
-import java.io.OutputStream;
-import java.io.PrintStream;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Queue;
@@ -35,6 +32,7 @@ import org.apache.cassandra.stress.settings.ConnectionAPI;
 import org.apache.cassandra.stress.settings.SettingsCommand;
 import org.apache.cassandra.stress.settings.StressSettings;
 import org.apache.cassandra.stress.util.JavaDriverClient;
+import org.apache.cassandra.stress.util.ResultLogger;
 import org.apache.cassandra.stress.util.ThriftClient;
 import org.apache.cassandra.transport.SimpleClient;
 import org.jctools.queues.SpscArrayQueue;
@@ -46,8 +44,8 @@ public class StressAction implements Runnable
 {
 
     private final StressSettings settings;
-    private final PrintStream output;
-    public StressAction(StressSettings settings, PrintStream out)
+    private final ResultLogger output;
+    public StressAction(StressSettings settings, ResultLogger out)
     {
         this.settings = settings;
         output = out;
@@ -66,6 +64,10 @@ public class StressAction implements Runnable
 
         if (settings.command.truncate == SettingsCommand.TruncateWhen.ONCE)
             settings.command.truncateTables(settings);
+
+        // Required for creating a graph from the output file
+        if (settings.rate.threadCount == -1)
+            output.println("Thread count was not specified");
 
         // TODO : move this to a new queue wrapper that gates progress based on a poisson (or configurable) distribution
         UniformRateLimiter rateLimiter = null;
@@ -94,7 +96,6 @@ public class StressAction implements Runnable
     @SuppressWarnings("resource") // warmupOutput doesn't need closing
     private void warmup(OpDistributionFactory operations)
     {
-        PrintStream warmupOutput = new PrintStream(new OutputStream() { @Override public void write(int b) throws IOException { } } );
         // do 25% of iterations as warmup but no more than 50k (by default hotspot compiles methods after 10k invocations)
         int iterations = (settings.command.count > 0
                          ? Math.min(50000, (int)(settings.command.count * 0.25))
@@ -111,7 +112,7 @@ public class StressAction implements Runnable
             // we need to warm up all the nodes in the cluster ideally, but we may not be the only stress instance;
             // so warm up all the nodes we're speaking to only.
             output.println(String.format("Warming up %s with %d iterations...", single.desc(), iterations));
-            boolean success = null != run(single, threads, iterations, 0, null, null, warmupOutput, true);
+            boolean success = null != run(single, threads, iterations, 0, null, null, ResultLogger.NOOP, true);
             if (!success)
                 throw new RuntimeException("Failed to execute warmup");
         }
@@ -200,7 +201,7 @@ public class StressAction implements Runnable
                               long duration,
                               UniformRateLimiter rateLimiter,
                               TimeUnit durationUnits,
-                              PrintStream output,
+                              ResultLogger output,
                               boolean isWarmup)
     {
         output.println(String.format("Running %s with %d threads %s",
@@ -470,7 +471,7 @@ public class StressAction implements Runnable
                         if (output == null)
                             System.err.println(e.getMessage());
                         else
-                            e.printStackTrace(output);
+                            output.printException(e);
 
                         success = false;
                         opStream.abort();

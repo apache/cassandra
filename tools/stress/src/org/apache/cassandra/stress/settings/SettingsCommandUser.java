@@ -37,7 +37,7 @@ import org.apache.cassandra.stress.generate.TokenRangeIterator;
 import org.apache.cassandra.stress.operations.OpDistributionFactory;
 import org.apache.cassandra.stress.operations.SampledOpDistributionFactory;
 import org.apache.cassandra.stress.report.Timer;
-import org.apache.cassandra.stress.util.MultiPrintStream;
+import org.apache.cassandra.stress.util.ResultLogger;
 
 // Settings unique to the mixed command type
 public class SettingsCommandUser extends SettingsCommand
@@ -125,7 +125,7 @@ public class SettingsCommandUser extends SettingsCommand
 
     // CLI utility methods
 
-    public void printSettings(MultiPrintStream out)
+    public void printSettings(ResultLogger out)
     {
         super.printSettings(out);
         out.printf("  Command Ratios: %s%n", ratios);

@@ -30,7 +30,7 @@ import java.util.Date;
 import java.util.List;
 import java.util.Map;
 
-import org.apache.cassandra.stress.util.MultiPrintStream;
+import org.apache.cassandra.stress.util.ResultLogger;
 
 public class SettingsGraph implements Serializable
 {
@@ -90,7 +90,7 @@ public class SettingsGraph implements Serializable
     }
 
     // CLI Utility Methods
-    public void printSettings(MultiPrintStream out)
+    public void printSettings(ResultLogger out)
     {
         out.println("  File: " + file);
         out.println("  Revision: " + revision);

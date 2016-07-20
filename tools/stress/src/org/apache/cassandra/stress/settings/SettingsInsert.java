@@ -29,7 +29,7 @@ import java.util.Map;
 import com.datastax.driver.core.BatchStatement;
 import org.apache.cassandra.stress.generate.DistributionFactory;
 import org.apache.cassandra.stress.generate.RatioDistributionFactory;
-import org.apache.cassandra.stress.util.MultiPrintStream;
+import org.apache.cassandra.stress.util.ResultLogger;
 
 public class SettingsInsert implements Serializable
 {
@@ -73,7 +73,7 @@ public class SettingsInsert implements Serializable
     }
 
     // CLI Utility Methods
-    public void printSettings(MultiPrintStream out)
+    public void printSettings(ResultLogger out)
     {
 
         if (revisit != null)

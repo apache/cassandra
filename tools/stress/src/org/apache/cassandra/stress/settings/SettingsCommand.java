@@ -31,7 +31,7 @@ import com.google.common.util.concurrent.Uninterruptibles;
 
 import org.apache.cassandra.stress.operations.OpDistributionFactory;
 import org.apache.cassandra.stress.util.JavaDriverClient;
-import org.apache.cassandra.stress.util.MultiPrintStream;
+import org.apache.cassandra.stress.util.ResultLogger;
 import org.apache.cassandra.thrift.ConsistencyLevel;
 
 // Generic command settings - common to read/write/etc
@@ -173,7 +173,7 @@ public abstract class SettingsCommand implements Serializable
 
     // CLI Utility Methods
 
-    public void printSettings(MultiPrintStream out)
+    public void printSettings(ResultLogger out)
     {
         out.printf("  Type: %s%n", type.toString().toLowerCase());
         out.printf("  Count: %,d%n", count);

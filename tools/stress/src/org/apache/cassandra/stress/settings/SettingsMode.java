@@ -30,7 +30,7 @@ import com.datastax.driver.core.AuthProvider;
 import com.datastax.driver.core.PlainTextAuthProvider;
 import com.datastax.driver.core.ProtocolOptions;
 import com.datastax.driver.core.ProtocolVersion;
-import org.apache.cassandra.stress.util.MultiPrintStream;
+import org.apache.cassandra.stress.util.ResultLogger;
 
 public class SettingsMode implements Serializable
 {
@@ -207,7 +207,7 @@ public class SettingsMode implements Serializable
     }
 
     // CLI Utility Methods
-    public void printSettings(MultiPrintStream out)
+    public void printSettings(ResultLogger out)
     {
         out.printf("  API: %s%n", api);
         out.printf("  Connection Style: %s%n", style);
