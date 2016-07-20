@@ -35,15 +35,15 @@ def get_cassandra_cursor(cql_version=None):
 
 TEST_KEYSPACES_CREATED = []
 
-def get_test_keyspace():
-    return TEST_KEYSPACES_CREATED[-1]
+def get_keyspace():
+    return None if len(TEST_KEYSPACES_CREATED) == 0 else TEST_KEYSPACES_CREATED[-1]
 
-def make_test_ks_name():
+def make_ks_name():
     # abuse mktemp to get a quick random-ish name
     return os.path.basename(tempfile.mktemp(prefix='CqlshTests_'))
 
-def create_test_keyspace(cursor):
-    ksname = make_test_ks_name()
+def create_keyspace(cursor):
+    ksname = make_ks_name()
     qksname = quote_name(ksname)
     cursor.execute('''
         CREATE KEYSPACE %s WITH replication =
@@ -70,13 +70,13 @@ def execute_cql_file(cursor, fname):
     with open(fname) as f:
         return execute_cql_commands(cursor, f.read())
 
-def create_test_db():
+def create_db():
     with cassandra_cursor(ks=None) as c:
-        k = create_test_keyspace(c)
+        k = create_keyspace(c)
         execute_cql_file(c, test_keyspace_init)
     return k
 
-def remove_test_db():
+def remove_db():
     with cassandra_cursor(ks=None) as c:
         c.execute('DROP KEYSPACE %s' % quote_name(TEST_KEYSPACES_CREATED.pop(-1)))
 
@@ -110,7 +110,7 @@ def cassandra_cursor(cql_version=None, ks=''):
     """
 
     if ks == '':
-        ks = get_test_keyspace()
+        ks = get_keyspace()
     conn = get_cassandra_connection(cql_version=cql_version)
     try:
         c = conn.connect(ks)
@@ -129,10 +129,10 @@ def testrun_cqlsh(keyspace=DEFAULTVAL, **kwargs):
     # use a positive default sentinel so that keyspace=None can be used
     # to override the default behavior
     if keyspace is DEFAULTVAL:
-        keyspace = get_test_keyspace()
+        keyspace = get_keyspace()
     return run_cqlsh(keyspace=keyspace, **kwargs)
 
 def testcall_cqlsh(keyspace=None, **kwargs):
     if keyspace is None:
-        keyspace = get_test_keyspace()
+        keyspace = get_keyspace()
     return call_cqlsh(keyspace=keyspace, **kwargs)
