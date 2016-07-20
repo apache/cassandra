@@ -53,7 +53,7 @@ public interface BaseRowIterator<U extends Unfiltered> extends CloseableIterator
 
     /**
      * The static part corresponding to this partition (this can be an empty
-     * row).
+     * row but cannot be {@code null}).
      */
     public Row staticRow();
 
