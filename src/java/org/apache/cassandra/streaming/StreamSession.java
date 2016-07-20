@@ -142,6 +142,8 @@ public class StreamSession implements IEndpointStateChangeSubscriber
     /* can be null when session is created in remote */
     private final StreamConnectionFactory factory;
 
+    public final Map<String, Set<Range<Token>>> transferredRangesPerKeyspace = new HashMap<>();
+
     public final ConnectionHandler handler;
 
     private AtomicBoolean isAborted = new AtomicBoolean(false);
@@ -289,6 +291,13 @@ public class StreamSession implements IEndpointStateChangeSubscriber
         try
         {
             addTransferFiles(sections);
+            Set<Range<Token>> toBeUpdated = transferredRangesPerKeyspace.get(keyspace);
+            if (toBeUpdated == null)
+            {
+                toBeUpdated = new HashSet<>();
+            }
+            toBeUpdated.addAll(ranges);
+            transferredRangesPerKeyspace.put(keyspace, toBeUpdated);
         }
         finally
         {

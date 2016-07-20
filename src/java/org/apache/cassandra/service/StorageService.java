@@ -171,6 +171,7 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
     private boolean isSurveyMode = Boolean.parseBoolean(System.getProperty("cassandra.write_survey", "false"));
     /* true if node is rebuilding and receiving data */
     private final AtomicBoolean isRebuilding = new AtomicBoolean();
+    private final AtomicBoolean isDecommissioning = new AtomicBoolean();
 
     private volatile boolean initialized = false;
     private volatile boolean joined = false;
@@ -3665,41 +3666,63 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
             throw new UnsupportedOperationException("local node is not a member of the token ring yet");
         if (tokenMetadata.cloneAfterAllLeft().sortedTokens().size() < 2)
             throw new UnsupportedOperationException("no other normal nodes in the ring; decommission would be pointless");
-        if (operationMode != Mode.NORMAL)
+        if (operationMode != Mode.LEAVING && operationMode != Mode.NORMAL)
             throw new UnsupportedOperationException("Node in " + operationMode + " state; wait for status to become normal or restart");
-
-        PendingRangeCalculatorService.instance.blockUntilFinished();
-        for (String keyspaceName : Schema.instance.getNonLocalStrategyKeyspaces())
-        {
-            if (tokenMetadata.getPendingRanges(keyspaceName, FBUtilities.getBroadcastAddress()).size() > 0)
-                throw new UnsupportedOperationException("data is currently moving to this node; unable to leave the ring");
-        }
+        if (isDecommissioning.compareAndSet(true, true))
+            throw new IllegalStateException("Node is still decommissioning. Check nodetool netstats.");
 
         if (logger.isDebugEnabled())
             logger.debug("DECOMMISSIONING");
-        startLeaving();
-        long timeout = Math.max(RING_DELAY, BatchlogManager.instance.getBatchlogTimeout());
-        setMode(Mode.LEAVING, "sleeping " + timeout + " ms for batch processing and pending range setup", true);
-        Thread.sleep(timeout);
 
-        Runnable finishLeaving = new Runnable()
+        try
         {
-            public void run()
+            PendingRangeCalculatorService.instance.blockUntilFinished();
+            for (String keyspaceName : Schema.instance.getNonLocalStrategyKeyspaces())
             {
-                shutdownClientServers();
-                Gossiper.instance.stop();
-                try {
-                    MessagingService.instance().shutdown();
-                } catch (IOError ioe) {
-                    logger.info("failed to shutdown message service: {}", ioe);
-                }
-                StageManager.shutdownNow();
-                SystemKeyspace.setBootstrapState(SystemKeyspace.BootstrapState.DECOMMISSIONED);
-                setMode(Mode.DECOMMISSIONED, true);
-                // let op be responsible for killing the process
+                if (tokenMetadata.getPendingRanges(keyspaceName, FBUtilities.getBroadcastAddress()).size() > 0)
+                    throw new UnsupportedOperationException("data is currently moving to this node; unable to leave the ring");
             }
-        };
-        unbootstrap(finishLeaving);
+
+            startLeaving();
+            long timeout = Math.max(RING_DELAY, BatchlogManager.instance.getBatchlogTimeout());
+            setMode(Mode.LEAVING, "sleeping " + timeout + " ms for batch processing and pending range setup", true);
+            Thread.sleep(timeout);
+
+            Runnable finishLeaving = new Runnable()
+            {
+                public void run()
+                {
+                    shutdownClientServers();
+                    Gossiper.instance.stop();
+                    try
+                    {
+                        MessagingService.instance().shutdown();
+                    }
+                    catch (IOError ioe)
+                    {
+                        logger.info("failed to shutdown message service: {}", ioe);
+                    }
+                    StageManager.shutdownNow();
+                    SystemKeyspace.setBootstrapState(SystemKeyspace.BootstrapState.DECOMMISSIONED);
+                    setMode(Mode.DECOMMISSIONED, true);
+                    // let op be responsible for killing the process
+                }
+            };
+            unbootstrap(finishLeaving);
+        }
+        catch (InterruptedException e)
+        {
+            throw new RuntimeException("Node interrupted while decommissioning");
+        }
+        catch (ExecutionException e)
+        {
+            logger.error("Error while decommissioning node ", e.getCause());
+            throw new RuntimeException("Error while decommissioning node: " + e.getCause().getMessage());
+        }
+        finally
+        {
+            isDecommissioning.set(false);
+        }
     }
 
     private void leaveRing()
@@ -3714,7 +3737,7 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
         Uninterruptibles.sleepUninterruptibly(delay, TimeUnit.MILLISECONDS);
     }
 
-    private void unbootstrap(Runnable onFinish)
+    private void unbootstrap(Runnable onFinish) throws ExecutionException, InterruptedException
     {
         Map<String, Multimap<Range<Token>, InetAddress>> rangesToStream = new HashMap<>();
 
@@ -3736,14 +3759,7 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
 
         // Wait for batch log to complete before streaming hints.
         logger.debug("waiting for batch log processing.");
-        try
-        {
-            batchlogReplay.get();
-        }
-        catch (ExecutionException | InterruptedException e)
-        {
-            throw new RuntimeException(e);
-        }
+        batchlogReplay.get();
 
         setMode(Mode.LEAVING, "streaming hints to other nodes", true);
 
@@ -3751,15 +3767,8 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
 
         // wait for the transfer runnables to signal the latch.
         logger.debug("waiting for stream acks.");
-        try
-        {
-            streamSuccess.get();
-            hintsSuccess.get();
-        }
-        catch (ExecutionException | InterruptedException e)
-        {
-            throw new RuntimeException(e);
-        }
+        streamSuccess.get();
+        hintsSuccess.get();
         logger.debug("stream acks all received.");
         leaveRing();
         onFinish.run();
@@ -4541,6 +4550,7 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
     {
         // First, we build a list of ranges to stream to each host, per table
         Map<String, Map<InetAddress, List<Range<Token>>>> sessionsToStreamByKeyspace = new HashMap<>();
+
         for (Map.Entry<String, Multimap<Range<Token>, InetAddress>> entry : rangesToStreamByKeyspace.entrySet())
         {
             String keyspace = entry.getKey();
@@ -4549,11 +4559,21 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
             if (rangesWithEndpoints.isEmpty())
                 continue;
 
+            Map<InetAddress, Set<Range<Token>>> transferredRangePerKeyspace = SystemKeyspace.getTransferredRanges("Unbootstrap",
+                                                                                                                  keyspace,
+                                                                                                                  StorageService.instance.getTokenMetadata().partitioner);
             Map<InetAddress, List<Range<Token>>> rangesPerEndpoint = new HashMap<>();
             for (Map.Entry<Range<Token>, InetAddress> endPointEntry : rangesWithEndpoints.entries())
             {
                 Range<Token> range = endPointEntry.getKey();
                 InetAddress endpoint = endPointEntry.getValue();
+
+                Set<Range<Token>> transferredRanges = transferredRangePerKeyspace.get(endpoint);
+                if (transferredRanges != null && transferredRanges.contains(range))
+                {
+                    logger.debug("Skipping transferred range {} of keyspace {}, endpoint {}", range, keyspace, endpoint);
+                    continue;
+                }
 
                 List<Range<Token>> curRanges = rangesPerEndpoint.get(endpoint);
                 if (curRanges == null)
@@ -4568,6 +4588,10 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
         }
 
         StreamPlan streamPlan = new StreamPlan("Unbootstrap");
+
+        // Vinculate StreamStateStore to current StreamPlan to update transferred ranges per StreamSession
+        streamPlan.listeners(streamStateStore);
+
         for (Map.Entry<String, Map<InetAddress, List<Range<Token>>>> entry : sessionsToStreamByKeyspace.entrySet())
         {
             String keyspaceName = entry.getKey();

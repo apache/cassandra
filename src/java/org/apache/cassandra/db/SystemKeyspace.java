@@ -30,6 +30,7 @@ import javax.management.openmbean.OpenDataException;
 import javax.management.openmbean.TabularData;
 
 import com.google.common.collect.HashMultimap;
+import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.ImmutableSet;
 import com.google.common.collect.SetMultimap;
 import com.google.common.io.ByteStreams;
@@ -96,6 +97,7 @@ public final class SystemKeyspace
     public static final String SSTABLE_ACTIVITY = "sstable_activity";
     public static final String SIZE_ESTIMATES = "size_estimates";
     public static final String AVAILABLE_RANGES = "available_ranges";
+    public static final String TRANSFERRED_RANGES = "transferred_ranges";
     public static final String VIEWS_BUILDS_IN_PROGRESS = "views_builds_in_progress";
     public static final String BUILT_VIEWS = "built_views";
     public static final String PREPARED_STATEMENTS = "prepared_statements";
@@ -247,6 +249,16 @@ public final class SystemKeyspace
                 + "keyspace_name text,"
                 + "ranges set<blob>,"
                 + "PRIMARY KEY ((keyspace_name)))");
+
+    private static final CFMetaData TransferredRanges =
+        compile(TRANSFERRED_RANGES,
+                "record of transferred ranges for streaming operation",
+                "CREATE TABLE %s ("
+                + "operation text,"
+                + "peer inet,"
+                + "keyspace_name text,"
+                + "ranges set<blob>,"
+                + "PRIMARY KEY ((operation, keyspace_name), peer))");
 
     private static final CFMetaData ViewsBuildsInProgress =
         compile(VIEWS_BUILDS_IN_PROGRESS,
@@ -442,6 +454,7 @@ public final class SystemKeyspace
                          SSTableActivity,
                          SizeEstimates,
                          AvailableRanges,
+                         TransferredRanges,
                          ViewsBuildsInProgress,
                          BuiltViews,
                          LegacyHints,
@@ -1295,6 +1308,39 @@ public final class SystemKeyspace
     {
         ColumnFamilyStore availableRanges = Keyspace.open(NAME).getColumnFamilyStore(AVAILABLE_RANGES);
         availableRanges.truncateBlocking();
+    }
+
+    public static synchronized void updateTransferredRanges(String description,
+                                                         InetAddress peer,
+                                                         String keyspace,
+                                                         Collection<Range<Token>> streamedRanges)
+    {
+        String cql = "UPDATE system.%s SET ranges = ranges + ? WHERE operation = ? AND peer = ? AND keyspace_name = ?";
+        Set<ByteBuffer> rangesToUpdate = new HashSet<>(streamedRanges.size());
+        for (Range<Token> range : streamedRanges)
+        {
+            rangesToUpdate.add(rangeToBytes(range));
+        }
+        executeInternal(String.format(cql, TRANSFERRED_RANGES), rangesToUpdate, description, peer, keyspace);
+    }
+
+    public static synchronized Map<InetAddress, Set<Range<Token>>> getTransferredRanges(String description, String keyspace, IPartitioner partitioner)
+    {
+        Map<InetAddress, Set<Range<Token>>> result = new HashMap<>();
+        String query = "SELECT * FROM system.%s WHERE operation = ? AND keyspace_name = ?";
+        UntypedResultSet rs = executeInternal(String.format(query, TRANSFERRED_RANGES), description, keyspace);
+        for (UntypedResultSet.Row row : rs)
+        {
+            InetAddress peer = row.getInetAddress("peer");
+            Set<ByteBuffer> rawRanges = rawRanges = row.getSet("ranges", BytesType.instance);
+            Set<Range<Token>> ranges = new HashSet<>();
+            for (ByteBuffer rawRange : rawRanges)
+            {
+                ranges.add(byteBufferToRange(rawRange, partitioner));
+            }
+            result.put(peer, ranges);
+        }
+        return ImmutableMap.copyOf(result);
     }
 
     /**
