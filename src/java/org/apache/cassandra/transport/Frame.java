@@ -176,7 +176,8 @@ public class Frame
             int version = firstByte & PROTOCOL_VERSION_MASK;
             if (version < Server.MIN_SUPPORTED_VERSION || version > Server.CURRENT_VERSION)
                 throw new ProtocolException(String.format("Invalid or unsupported protocol version (%d); the lowest supported version is %d and the greatest is %d",
-                                                          version, Server.MIN_SUPPORTED_VERSION, Server.CURRENT_VERSION));
+                                                          version, Server.MIN_SUPPORTED_VERSION, Server.CURRENT_VERSION),
+                                            version);
 
             // Wait until we have the complete header
             if (readableBytes < Header.LENGTH)
@@ -275,6 +276,8 @@ public class Frame
             header.writeByte(type.direction.addToVersion(frame.header.version));
             header.writeByte(Header.Flag.serialize(frame.header.flags));
 
+            // Continue to support writing pre-v3 headers so that we can give proper error messages to drivers that
+            // connect with the v1/v2 protocol. See CASSANDRA-11464.
             if (frame.header.version >= Server.VERSION_3)
                 header.writeShort(frame.header.streamId);
             else
