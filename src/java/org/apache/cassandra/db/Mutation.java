@@ -302,6 +302,72 @@ public class Mutation implements IMutation
         return buff.append("])").toString();
     }
 
+    /**
+     * Creates a new simple mutuation builder.
+     *
+     * @param keyspaceName the name of the keyspace this is a mutation for.
+     * @param partitionKey the key of partition this if a mutation for.
+     * @return a newly created builder.
+     */
+    public static SimpleBuilder simpleBuilder(String keyspaceName, DecoratedKey partitionKey)
+    {
+        return new SimpleBuilders.MutationBuilder(keyspaceName, partitionKey);
+    }
+
+    /**
+     * Interface for building mutations geared towards human.
+     * <p>
+     * This should generally not be used when performance matters too much, but provides a more convenient interface to
+     * build a mutation than using the class constructor when performance is not of the utmost importance.
+     */
+    public interface SimpleBuilder
+    {
+        /**
+         * Sets the timestamp to use for the following additions to this builder or any derived (update or row) builder.
+         *
+         * @param timestamp the timestamp to use for following additions. If that timestamp hasn't been set, the current
+         * time in microseconds will be used.
+         * @return this builder.
+         */
+        public SimpleBuilder timestamp(long timestamp);
+
+        /**
+         * Sets the ttl to use for the following additions to this builder or any derived (update or row) builder.
+         * <p>
+         * Note that the for non-compact tables, this method must be called before any column addition for this
+         * ttl to be used for the row {@code LivenessInfo}.
+         *
+         * @param ttl the ttl to use for following additions. If that ttl hasn't been set, no ttl will be used.
+         * @return this builder.
+         */
+        public SimpleBuilder ttl(int ttl);
+
+        /**
+         * Adds an update for table identified by the provided metadata and return a builder for that partition.
+         *
+         * @param metadata the metadata of the table for which to add an update.
+         * @return a builder for the partition identified by {@code metadata} (and the partition key for which this is a
+         * mutation of).
+         */
+        public PartitionUpdate.SimpleBuilder update(CFMetaData metadata);
+
+        /**
+         * Adds an update for table identified by the provided name and return a builder for that partition.
+         *
+         * @param tableName the name of the table for which to add an update.
+         * @return a builder for the partition identified by {@code metadata} (and the partition key for which this is a
+         * mutation of).
+         */
+        public PartitionUpdate.SimpleBuilder update(String tableName);
+
+        /**
+         * Build the mutation represented by this builder.
+         *
+         * @return the built mutation.
+         */
+        public Mutation build();
+    }
+
     public static class MutationSerializer implements IVersionedSerializer<Mutation>
     {
         public void serialize(Mutation mutation, DataOutputPlus out, int version) throws IOException

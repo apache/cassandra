@@ -164,7 +164,7 @@ public class SchemaKeyspaceTest
     private static void updateTable(String keyspace, CFMetaData oldTable, CFMetaData newTable)
     {
         KeyspaceMetadata ksm = Schema.instance.getKeyspaceInstance(keyspace).getMetadata();
-        Mutation mutation = SchemaKeyspace.makeUpdateTableMutation(ksm, oldTable, newTable, FBUtilities.timestampMicros());
+        Mutation mutation = SchemaKeyspace.makeUpdateTableMutation(ksm, oldTable, newTable, FBUtilities.timestampMicros()).build();
         SchemaKeyspace.mergeSchema(Collections.singleton(mutation));
     }
 
@@ -173,7 +173,7 @@ public class SchemaKeyspaceTest
         CFMetaData table = CFMetaData.compile(cql, keyspace);
 
         KeyspaceMetadata ksm = KeyspaceMetadata.create(keyspace, KeyspaceParams.simple(1), Tables.of(table));
-        Mutation mutation = SchemaKeyspace.makeCreateTableMutation(ksm, table, FBUtilities.timestampMicros());
+        Mutation mutation = SchemaKeyspace.makeCreateTableMutation(ksm, table, FBUtilities.timestampMicros()).build();
         SchemaKeyspace.mergeSchema(Collections.singleton(mutation));
     }
 
@@ -187,7 +187,7 @@ public class SchemaKeyspaceTest
         assert before.equals(after) : String.format("%n%s%n!=%n%s", before, after);
 
         // Test schema conversion
-        Mutation rm = SchemaKeyspace.makeCreateTableMutation(keyspace, cfm, FBUtilities.timestampMicros());
+        Mutation rm = SchemaKeyspace.makeCreateTableMutation(keyspace, cfm, FBUtilities.timestampMicros()).build();
         PartitionUpdate serializedCf = rm.getPartitionUpdate(Schema.instance.getId(SchemaKeyspace.NAME, SchemaKeyspace.TABLES));
         PartitionUpdate serializedCD = rm.getPartitionUpdate(Schema.instance.getId(SchemaKeyspace.NAME, SchemaKeyspace.COLUMNS));
 

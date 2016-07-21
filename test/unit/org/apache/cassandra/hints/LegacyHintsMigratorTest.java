@@ -27,6 +27,7 @@ import org.junit.BeforeClass;
 import org.junit.Test;
 
 import org.apache.cassandra.SchemaLoader;
+import org.apache.cassandra.Util;
 import org.apache.cassandra.config.CFMetaData;
 import org.apache.cassandra.config.Schema;
 import org.apache.cassandra.db.*;
@@ -159,7 +160,7 @@ public class LegacyHintsMigratorTest
 
                 assertEquals(timestamp, hint.creationTime);
                 assertEquals(ttl, hint.gcgs);
-                assertMutationsEqual(mutation, hint.mutation);
+                assertTrue(mutation + " != " + hint.mutation, Util.sameContent(mutation, hint.mutation));
             }
         }
     }
