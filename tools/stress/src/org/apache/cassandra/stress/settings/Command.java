@@ -61,7 +61,8 @@ public enum Command
 
     HELP(false, null, "-?", "Print help for a command or option", null),
     PRINT(false, null, "Inspect the output of a distribution definition", null),
-    LEGACY(false, null, "Legacy support mode", null)
+    LEGACY(false, null, "Legacy support mode", null),
+    VERSION(false, null, "Print the version of cassandra stress", null)
     ;
 
     private static final Map<String, Command> LOOKUP;

@@ -21,15 +21,22 @@ package org.apache.cassandra.stress.settings;
  */
 
 
+import java.io.IOException;
 import java.io.PrintStream;
 import java.io.Serializable;
+import java.net.URL;
 import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
+
+import com.google.common.base.Charsets;
+import com.google.common.io.Resources;
 
 import org.apache.cassandra.stress.generate.Distribution;
 
-public class SettingsMisc implements Serializable
+class SettingsMisc implements Serializable
 {
 
     static boolean maybeDoSpecial(Map<String, String[]> clArgs)
@@ -38,10 +45,12 @@ public class SettingsMisc implements Serializable
             return true;
         if (maybePrintDistribution(clArgs))
             return true;
+        if (maybePrintVersion(clArgs))
+            return true;
         return false;
     }
 
-    static final class PrintDistribution extends GroupedOptions
+    private static final class PrintDistribution extends GroupedOptions
     {
         final OptionDistribution dist = new OptionDistribution("dist=", null, "A mathematical distribution");
 
@@ -52,7 +61,8 @@ public class SettingsMisc implements Serializable
         }
     }
 
-    static boolean maybePrintDistribution(Map<String, String[]> clArgs)
+
+    private static boolean maybePrintDistribution(Map<String, String[]> clArgs)
     {
         final String[] args = clArgs.get("print");
         if (args == null)
@@ -68,17 +78,17 @@ public class SettingsMisc implements Serializable
         return true;
     }
 
-    static void printDistribution(Distribution dist)
+    private static void printDistribution(Distribution dist)
     {
         PrintStream out = System.out;
         out.println("% of samples    Range       % of total");
         String format = "%-16.1f%-12d%12.1f";
         double rangemax = dist.inverseCumProb(1d) / 100d;
-        for (double d : new double[] { 0.1d, 0.2d, 0.3d, 0.4d, 0.5d, 0.6d, 0.7d, 0.8d, 0.9d, 0.95d, 0.99d, 1d })
+        for (double d : new double[]{ 0.1d, 0.2d, 0.3d, 0.4d, 0.5d, 0.6d, 0.7d, 0.8d, 0.9d, 0.95d, 0.99d, 1d })
         {
             double sampleperc = d * 100;
             long max = dist.inverseCumProb(d);
-            double rangeperc = max/ rangemax;
+            double rangeperc = max / rangemax;
             out.println(String.format(format, sampleperc, max, rangeperc));
         }
     }
@@ -98,7 +108,7 @@ public class SettingsMisc implements Serializable
                 {
                     String p = clArgs.keySet().iterator().next();
                     if (clArgs.get(p).length == 0)
-                        params = new String[] {p};
+                        params = new String[]{ p };
                 }
             }
             else
@@ -113,6 +123,37 @@ public class SettingsMisc implements Serializable
             return true;
         }
         throw new IllegalArgumentException("Invalid command/option provided to help");
+    }
+
+    private static boolean maybePrintVersion(Map<String, String[]> clArgs)
+    {
+        if (clArgs.containsKey("version"))
+        {
+            try
+            {
+                URL url = Resources.getResource("org/apache/cassandra/config/version.properties");
+                System.out.println(parseVersionFile(Resources.toString(url, Charsets.UTF_8)));
+            }
+            catch (IOException e)
+            {
+                e.printStackTrace(System.err);
+            }
+            return true;
+        }
+        return false;
+    }
+
+    static String parseVersionFile(String versionFileContents)
+    {
+        Matcher matcher = Pattern.compile(".*?CassandraVersion=(.*?)$").matcher(versionFileContents);
+        if (matcher.find())
+        {
+            return "Version: " + matcher.group(1);
+        }
+        else
+        {
+            return "Unable to find version information";
+        }
     }
 
     public static void printHelp()
@@ -151,7 +192,7 @@ public class SettingsMisc implements Serializable
         throw new IllegalArgumentException("Invalid command or option provided to command help");
     }
 
-    public static Runnable helpHelpPrinter()
+    static Runnable helpHelpPrinter()
     {
         return new Runnable()
         {
@@ -169,7 +210,7 @@ public class SettingsMisc implements Serializable
         };
     }
 
-    public static Runnable printHelpPrinter()
+    static Runnable printHelpPrinter()
     {
         return new Runnable()
         {
@@ -188,7 +229,7 @@ public class SettingsMisc implements Serializable
         };
     }
 
-    public static Runnable sendToDaemonHelpPrinter()
+    static Runnable sendToDaemonHelpPrinter()
     {
         return new Runnable()
         {
@@ -202,7 +243,7 @@ public class SettingsMisc implements Serializable
         };
     }
 
-    public static String getSendToDaemon(Map<String, String[]> clArgs)
+    static String getSendToDaemon(Map<String, String[]> clArgs)
     {
         String[] params = clArgs.remove("-send-to");
         if (params == null)
@@ -216,7 +257,5 @@ public class SettingsMisc implements Serializable
             System.exit(1);
         }
         return params[0];
-
     }
-
 }
