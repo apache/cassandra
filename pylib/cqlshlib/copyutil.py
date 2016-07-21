@@ -205,7 +205,7 @@ class CopyTask(object):
         self.ks = ks
         self.table = table
         self.table_meta = self.shell.get_table_meta(self.ks, self.table)
-        self.local_dc = shell.conn.metadata.get_host(shell.hostname).datacenter
+        self.host = shell.conn.get_control_connection_host()
         self.fname = safe_normpath(fname)
         self.protocol_version = protocol_version
         self.config_file = config_file
@@ -435,11 +435,11 @@ class CopyTask(object):
 
         return dict(ks=self.ks,
                     table=self.table,
-                    local_dc=self.local_dc,
+                    local_dc=self.host.datacenter,
                     columns=self.columns,
                     options=self.options,
                     connect_timeout=shell.conn.connect_timeout,
-                    hostname=shell.hostname,
+                    hostname=self.host.address,
                     port=shell.port,
                     ssl=shell.ssl,
                     auth_provider=shell.auth_provider,
@@ -634,8 +634,8 @@ class ExportTask(CopyTask):
         we use the cqlsh session host.
         """
         shell = self.shell
-        hostname = shell.hostname
-        local_dc = self.local_dc
+        hostname = self.host.address
+        local_dc = self.host.datacenter
         ranges = dict()
         min_token = self.get_min_token()
         begin_token = self.begin_token
