@@ -27,7 +27,7 @@ import org.apache.cassandra.exceptions.ConfigurationException;
 
 public final class DateTieredCompactionStrategyOptions
 {
-    private static final Logger logger = LoggerFactory.getLogger(DateTieredCompactionStrategy.class);
+    private static final Logger logger = LoggerFactory.getLogger(DateTieredCompactionStrategyOptions.class);
     protected static final TimeUnit DEFAULT_TIMESTAMP_RESOLUTION = TimeUnit.MICROSECONDS;
     @Deprecated
     protected static final double DEFAULT_MAX_SSTABLE_AGE_DAYS = 365*1000;
