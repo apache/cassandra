@@ -19,6 +19,7 @@
 package org.apache.cassandra.tools.nodetool.stats;
 
 import java.io.PrintStream;
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.Map;
 
@@ -47,10 +48,10 @@ public class TpStatsPrinter
 
             out.printf("%-30s%10s%10s%15s%10s%18s%n", "Pool Name", "Active", "Pending", "Completed", "Blocked", "All time blocked");
 
-            Map<Object, Object> threadPools = convertData.get("ThreadPools") instanceof HashMap<?, ?> ? (HashMap)convertData.get("ThreadPools") : new HashMap();
+            Map<Object, Object> threadPools = convertData.get("ThreadPools") instanceof Map<?, ?> ? (Map)convertData.get("ThreadPools") : Collections.emptyMap();
             for (Map.Entry<Object, Object> entry : threadPools.entrySet())
             {
-                HashMap values = entry.getValue() instanceof HashMap<?, ?> ? (HashMap)entry.getValue() : new HashMap();
+                Map values = entry.getValue() instanceof Map<?, ?> ? (Map)entry.getValue() : Collections.emptyMap();
                 out.printf("%-30s%10s%10s%15s%10s%18s%n",
                            entry.getKey(),
                            values.get("ActiveTasks"),
@@ -62,7 +63,7 @@ public class TpStatsPrinter
 
             out.printf("%n%-20s%10s%n", "Message type", "Dropped");
 
-            Map<Object, Object> droppedMessages = convertData.get("DroppedMessage") instanceof HashMap<?, ?> ? (HashMap)convertData.get("DroppedMessage") : new HashMap();
+            Map<Object, Object> droppedMessages = convertData.get("DroppedMessage") instanceof Map<?, ?> ? (Map)convertData.get("DroppedMessage") : Collections.emptyMap();
             for (Map.Entry<Object, Object> entry : droppedMessages.entrySet())
             {
                 out.printf("%-20s%10s%n", entry.getKey(), entry.getValue());
