@@ -478,7 +478,7 @@ public final class StatementRestrictions
                 {
                     usesSecondaryIndexing = true;
                 }
-                else
+                else if (!allowFiltering)
                 {
                     List<ColumnDefinition> clusteringColumns = cfm.clusteringColumns();
                     List<ColumnDefinition> restrictedColumns = new LinkedList<>(clusteringColumnsRestrictions.getColumnDefs());
@@ -488,7 +488,7 @@ public final class StatementRestrictions
                         ColumnDefinition clusteringColumn = clusteringColumns.get(i);
                         ColumnDefinition restrictedColumn = restrictedColumns.get(i);
 
-                        if (!clusteringColumn.equals(restrictedColumn) && !allowFiltering)
+                        if (!clusteringColumn.equals(restrictedColumn))
                         {
                             throw invalidRequest("PRIMARY KEY column \"%s\" cannot be restricted as preceding column \"%s\" is not restricted",
                                                  restrictedColumn.name,
