@@ -140,15 +140,11 @@ public class CompactionMetrics implements CompactionManager.CompactionExecutorSt
 
     public void beginCompaction(CompactionInfo.Holder ci)
     {
-        // notify
-        ci.started();
         compactions.add(ci);
     }
 
     public void finishCompaction(CompactionInfo.Holder ci)
     {
-        // notify
-        ci.finished();
         compactions.remove(ci);
         bytesCompacted.inc(ci.getCompactionInfo().getTotal());
         totalCompactionsCompleted.mark();

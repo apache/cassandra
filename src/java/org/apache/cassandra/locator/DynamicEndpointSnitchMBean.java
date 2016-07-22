@@ -29,11 +29,30 @@ public interface DynamicEndpointSnitchMBean {
     public double getBadnessThreshold();
     public String getSubsnitchClassName();
     public List<Double> dumpTimings(String hostname) throws UnknownHostException;
+
     /**
-     * Use this if you want to specify a severity; it can be negative
-     * Example: Page cache is cold and you want data to be sent 
-     *          though it is not preferred one.
+     * Setting a Severity allows operators to inject preference information into the Dynamic Snitch
+     * replica selection.
+     *
+     * When choosing which replicas to participate in a read request, the DSnitch sorts replicas
+     * by response latency, and selects the fastest replicas.  Latencies are normalized to a score
+     * from 0 to 1,  with lower scores being faster.
+     *
+     * The Severity injected here will be added to the normalized score.
+     *
+     * Thus, adding a Severity greater than 1 will mean the replica will never be contacted
+     * (unless needed for ALL or if it is added later for rapid read protection).
+     *
+     * Conversely, adding a negative Severity means the replica will *always* be contacted.
+     *
+     * (The "Severity" term is historical and dates to when this was used to represent how
+     * badly background tasks like compaction were affecting a replica's performance.
+     * See CASSANDRA-3722 for when this was introduced and CASSANDRA-11738 for why it was removed.)
      */
     public void setSeverity(double severity);
+
+    /**
+     * @return the current manually injected Severity.
+     */
     public double getSeverity();
 }

@@ -138,8 +138,6 @@ public final class CompactionInfo implements Serializable
     {
         private volatile boolean stopRequested = false;
         public abstract CompactionInfo getCompactionInfo();
-        double load = StorageMetrics.load.getCount();
-        double reportedSeverity = 0d;
 
         public void stop()
         {
@@ -149,24 +147,6 @@ public final class CompactionInfo implements Serializable
         public boolean isStopRequested()
         {
             return stopRequested;
-        }
-        /**
-         * report event on the size of the compaction.
-         */
-        public void started()
-        {
-            reportedSeverity = getCompactionInfo().getTotal() / load;
-            StorageService.instance.reportSeverity(reportedSeverity);
-        }
-
-        /**
-         * remove the event complete
-         */
-        public void finished()
-        {
-            if (reportedSeverity != 0d)
-                StorageService.instance.reportSeverity(-(reportedSeverity));
-            reportedSeverity = 0d;
         }
     }
 }
