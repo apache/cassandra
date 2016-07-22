@@ -130,12 +130,12 @@ public class CommitLogStressTest
 
         SchemaLoader.loadSchema();
         SchemaLoader.schemaDefinition(""); // leave def. blank to maintain old behaviour
+        CommitLog.instance.stopUnsafe(true);
     }
 
     @Before
     public void cleanDir() throws IOException
     {
-        CommitLog.instance.stopUnsafe(true);
         File dir = new File(location);
         if (dir.isDirectory())
         {
@@ -208,9 +208,9 @@ public class CommitLogStressTest
             for (CommitLogSync sync : CommitLogSync.values())
             {
                 DatabaseDescriptor.setCommitLogSync(sync);
-                CommitLog commitLog = new CommitLog(CommitLogArchiver.disabled()).start();
-                // Need to enable reserve segment creation as close to test start as possible to minimize race
+                CommitLog commitLog = new CommitLog(CommitLogArchiver.disabled());
                 commitLog.segmentManager.enableReserveSegmentCreation();
+                commitLog.start();
                 testLog(commitLog);
                 assert !failed;
             }
