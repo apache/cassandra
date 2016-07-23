@@ -21,7 +21,6 @@ import java.nio.ByteBuffer;
 import java.security.MessageDigest;
 import java.util.Iterator;
 import java.util.Objects;
-import java.util.function.BiFunction;
 
 import com.google.common.base.Function;
 
@@ -235,10 +234,6 @@ public class ComplexColumnData extends ColumnData implements Iterable<Cell>
 
     public static class Builder
     {
-        private static BiFunction<Cell, Cell, Cell> noResolve = (a, b) -> {
-            throw new IllegalStateException();
-        };
-
         private DeletionTime complexDeletion;
         private ColumnDefinition column;
         private BTree.Builder<Cell> builder;
