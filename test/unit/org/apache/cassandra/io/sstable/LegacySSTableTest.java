@@ -90,6 +90,12 @@ public class LegacySSTableTest
     @BeforeClass
     public static void defineSchema() throws ConfigurationException
     {
+        String scp = System.getProperty(LEGACY_SSTABLE_PROP);
+        Assert.assertNotNull("System property " + LEGACY_SSTABLE_ROOT + " not set", scp);
+        
+        LEGACY_SSTABLE_ROOT = new File(scp).getAbsoluteFile();
+        Assert.assertTrue("System property " + LEGACY_SSTABLE_ROOT + " does not specify a directory", LEGACY_SSTABLE_ROOT.isDirectory());
+
         SchemaLoader.prepareServer();
         StorageService.instance.initServer();
         Keyspace.setInitialized();
@@ -98,10 +104,7 @@ public class LegacySSTableTest
         {
             createTables(legacyVersion);
         }
-        String scp = System.getProperty(LEGACY_SSTABLE_PROP);
-        assert scp != null;
-        LEGACY_SSTABLE_ROOT = new File(scp).getAbsoluteFile();
-        assert LEGACY_SSTABLE_ROOT.isDirectory();
+
     }
 
     @After
@@ -454,7 +457,9 @@ public class LegacySSTableTest
 
     private static void copySstablesToTestData(String legacyVersion, String table, File cfDir) throws IOException
     {
-        for (File file : getTableDir(legacyVersion, table).listFiles())
+        File tableDir = getTableDir(legacyVersion, table);
+        Assert.assertTrue("The table directory " + tableDir + " was not found", tableDir.isDirectory());
+        for (File file : tableDir.listFiles())
         {
             copyFile(cfDir, file);
         }
@@ -472,10 +477,11 @@ public class LegacySSTableTest
         {
             File target = new File(cfDir, file.getName());
             int rd;
-            FileInputStream is = new FileInputStream(file);
-            FileOutputStream os = new FileOutputStream(target);
-            while ((rd = is.read(buf)) >= 0)
-                os.write(buf, 0, rd);
+            try (FileInputStream is = new FileInputStream(file);
+                 FileOutputStream os = new FileOutputStream(target);) {
+                while ((rd = is.read(buf)) >= 0)
+                    os.write(buf, 0, rd);
+                }
         }
     }
 }
