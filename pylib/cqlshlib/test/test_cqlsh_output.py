@@ -554,7 +554,7 @@ class TestCqlshOutput(BaseTestCase):
             self.assertTrue(outputlines[start_index+1].endswith('cqlsh:system> '))
             midline = ColoredText(outputlines[start_index])
             self.assertEqual(midline.plain(),
-                             'InvalidRequest: code=2200 [Invalid query] message="Keyspace \'nonexistentkeyspace\' does not exist"')
+                             'InvalidRequest: Error from server: code=2200 [Invalid query] message="Keyspace \'nonexistentkeyspace\' does not exist"')
             self.assertColorFromTags(midline,
                              "RRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRR")
 
