@@ -18,6 +18,7 @@
  * Avoid digest mismatch with empty but static rows (CASSANDRA-12090)
  * Fix EOF exception when altering column type (CASSANDRA-11820)
 Merged from 2.2:
+ * cqlsh copyutil should get host metadata by connected address (CASSANDRA-11979)
  * Fixed cqlshlib.test.remove_test_db (CASSANDRA-12214)
  * Synchronize ThriftServer::stop() (CASSANDRA-12105)
  * Use dedicated thread for JMX notifications (CASSANDRA-12146)
