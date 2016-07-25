@@ -1077,4 +1077,64 @@ public class ViewTest extends CQLTester
         mvRows = executeNet(protocolVersion, "SELECT a, b FROM mvmap WHERE b = ?", 0);
         assertRowsNet(protocolVersion, mvRows, row(0, 0));
     }
+
+    @Test
+    public void testMultipleNonPrimaryKeysInView() throws Throwable
+    {
+        createTable("CREATE TABLE %s (" +
+                    "a int," +
+                    "b int," +
+                    "c int," +
+                    "d int," +
+                    "e int," +
+                    "PRIMARY KEY ((a, b), c))");
+
+        try
+        {
+            createView("mv_de", "CREATE MATERIALIZED VIEW %s AS SELECT * FROM %%s WHERE a IS NOT NULL AND b IS NOT NULL AND c IS NOT NULL AND d IS NOT NULL AND e IS NOT NULL PRIMARY KEY ((d, a), b, e, c)");
+            Assert.fail("Should have rejected a query including multiple non-primary key base columns");
+        }
+        catch (Exception e)
+        {
+        }
+
+        try
+        {
+            createView("mv_de", "CREATE MATERIALIZED VIEW %s AS SELECT * FROM %%s WHERE a IS NOT NULL AND b IS NOT NULL AND c IS NOT NULL AND d IS NOT NULL AND e IS NOT NULL PRIMARY KEY ((a, b), c, d, e)");
+            Assert.fail("Should have rejected a query including multiple non-primary key base columns");
+        }
+        catch (Exception e)
+        {
+        }
+
+    }
+
+    @Test
+    public void testNullInClusteringColumns() throws Throwable
+    {
+        createTable("CREATE TABLE %s (id1 int, id2 int, v1 text, v2 text, PRIMARY KEY (id1, id2))");
+
+        executeNet(protocolVersion, "USE " + keyspace());
+
+        createView("mv",
+                   "CREATE MATERIALIZED VIEW %s AS" +
+                   "  SELECT id1, v1, id2, v2" +
+                   "  FROM %%s" +
+                   "  WHERE id1 IS NOT NULL AND v1 IS NOT NULL AND id2 IS NOT NULL" +
+                   "  PRIMARY KEY (id1, v1, id2)" +
+                   "  WITH CLUSTERING ORDER BY (v1 DESC, id2 ASC)");
+
+        execute("INSERT INTO %s (id1, id2, v1, v2) VALUES (?, ?, ?, ?)", 0, 1, "foo", "bar");
+
+        assertRowsNet(protocolVersion, executeNet(protocolVersion, "SELECT * FROM %s"), row(0, 1, "foo", "bar"));
+        assertRowsNet(protocolVersion, executeNet(protocolVersion, "SELECT * FROM mv"), row(0, "foo", 1, "bar"));
+
+        executeNet(protocolVersion, "UPDATE %s SET v1=? WHERE id1=? AND id2=?", null, 0, 1);
+        assertRowsNet(protocolVersion, executeNet(protocolVersion, "SELECT * FROM %s"), row(0, 1, null, "bar"));
+        assertRowsNet(protocolVersion, executeNet(protocolVersion, "SELECT * FROM mv"));
+
+        executeNet(protocolVersion, "UPDATE %s SET v2=? WHERE id1=? AND id2=?", "rab", 0, 1);
+        assertRowsNet(protocolVersion, executeNet(protocolVersion, "SELECT * FROM %s"), row(0, 1, null, "rab"));
+        assertRowsNet(protocolVersion, executeNet(protocolVersion, "SELECT * FROM mv"));
+    }
 }
