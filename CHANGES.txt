@@ -8,6 +8,7 @@ Merged from 3.0:
  * NullPointerExpception when reading/compacting table (CASSANDRA-11988)
  * Fix problem with undeleteable rows on upgrade to new sstable format (CASSANDRA-12144)
 Merged from 2.2:
+ * cqlsh copyutil should get host metadata by connected address (CASSANDRA-11979)
  * Fixed cqlshlib.test.remove_test_db (CASSANDRA-12214)
 Merged from 2.1:
  * cannot use cql since upgrading python to 2.7.11+ (CASSANDRA-11850)
