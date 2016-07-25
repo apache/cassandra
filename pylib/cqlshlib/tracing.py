@@ -83,7 +83,7 @@ def total_micro_seconds(td):
     """
     Convert a timedelta into total microseconds
     """
-    return int((td.microseconds + (td.seconds + td.days * 24 * 3600) * 10**6)) if td else "--"
+    return int((td.microseconds + (td.seconds + td.days * 24 * 3600) * 10 ** 6)) if td else "--"
 
 
 def datetime_from_utc_to_local(utc_datetime):

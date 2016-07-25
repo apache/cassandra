@@ -721,10 +721,6 @@ class Shell(cmd.Cmd):
 
         self.display_timezone = display_timezone
 
-        # If there is no schema metadata present (due to a schema mismatch), force schema refresh
-        if not self.conn.metadata.keyspaces:
-            self.refresh_schema_metadata_best_effort()
-
         self.session.default_timeout = request_timeout
         self.session.row_factory = ordered_dict_factory
         self.session.default_consistency_level = cassandra.ConsistencyLevel.ONE
@@ -777,15 +773,6 @@ class Shell(cmd.Cmd):
                           "to support {} encoding on Windows platforms.\n"
                           "If you experience encoding problems, change your console"
                           " codepage with 'chcp 65001' before starting cqlsh.\n".format(self.encoding))
-
-    def refresh_schema_metadata_best_effort(self):
-        try:
-            self.conn.refresh_schema_metadata(5)  # will throw exception if there is a schema mismatch
-        except Exception:
-            self.printerr("Warning: schema version mismatch detected, which might be caused by DOWN nodes; if "
-                          "this is not the case, check the schema versions of your nodes in system.local and "
-                          "system.peers.")
-            self.conn.refresh_schema_metadata(0)
 
     def set_expanded_cql_version(self, ver):
         ver, vertuple = full_cql_version(ver)
@@ -1116,7 +1103,7 @@ class Shell(cmd.Cmd):
                 except EOFError:
                     self.handle_eof()
                 except CQL_ERRORS, cqlerr:
-                    self.printerr(unicode(cqlerr))
+                    self.printerr(cqlerr.message.decode(encoding='utf-8'))
                 except KeyboardInterrupt:
                     self.reset_statement()
                     print
@@ -1271,22 +1258,27 @@ class Shell(cmd.Cmd):
         if not statement:
             return False, None
 
-        while True:
+        future = self.session.execute_async(statement, trace=self.tracing_enabled)
+        result = None
+        try:
+            result = future.result()
+        except CQL_ERRORS, err:
+            self.printerr(unicode(err.__class__.__name__) + u": " + err.message.decode(encoding='utf-8'))
+        except Exception:
+            import traceback
+            self.printerr(traceback.format_exc())
+
+        # Even if statement failed we try to refresh schema if not agreed (see CASSANDRA-9689)
+        if not future.is_schema_agreed:
             try:
-                future = self.session.execute_async(statement, trace=self.tracing_enabled)
-                result = future.result()
-                break
-            except cassandra.OperationTimedOut, err:
-                self.refresh_schema_metadata_best_effort()
-                self.printerr(unicode(err.__class__.__name__) + u": " + unicode(err))
-                return False, None
-            except CQL_ERRORS, err:
-                self.printerr(unicode(err.__class__.__name__) + u": " + unicode(err))
-                return False, None
-            except Exception, err:
-                import traceback
-                self.printerr(traceback.format_exc())
-                return False, None
+                self.conn.refresh_schema_metadata(5)  # will throw exception if there is a schema mismatch
+            except Exception:
+                self.printerr("Warning: schema version mismatch detected; check the schema versions of your "
+                              "nodes in system.local and system.peers.")
+                self.conn.refresh_schema_metadata(-1)
+
+        if result is None:
+            return False, None
 
         if statement.query_string[:6].lower() == 'select':
             self.print_result(result, self.parse_for_select_meta(statement.query_string))

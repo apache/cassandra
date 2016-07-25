@@ -189,6 +189,8 @@ class ProcRunner:
                    flags=0, ptty_timeout=None):
         if not isinstance(until, re._pattern_type):
             until = re.compile(until, flags)
+
+        cqlshlog.debug("Searching for %r" % (until.pattern,))
         got = self.readbuf
         self.readbuf = ''
         with timing_out(timeout):
