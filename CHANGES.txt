@@ -20,6 +20,7 @@
  * cqlsh: Fix handling of $$-escaped strings (CASSANDRA-12189)
  * Fix SSL JMX requiring truststore containing server cert (CASSANDRA-12109)
 Merged from 3.0:
+ * Add option to override compaction space check (CASSANDRA-12180)
  * Faster startup by only scanning each directory for temporary files once (CASSANDRA-12114)
  * Respond with v1/v2 protocol header when responding to driver that attempts
    to connect with too low of a protocol version (CASSANDRA-11464)
@@ -30,6 +31,7 @@ Merged from 2.2:
  * Fixed cqlshlib.test.remove_test_db (CASSANDRA-12214)
 Merged from 2.1:
  * cannot use cql since upgrading python to 2.7.11+ (CASSANDRA-11850)
+
 
 3.8
  * Fix hdr logging for single operation workloads (CASSANDRA-12145)

@@ -169,4 +169,14 @@ public interface ColumnFamilyStoreMBean
      * @return top <i>count</i> items for the sampler since beginLocalSampling was called
      */
     public CompositeData finishLocalSampling(String sampler, int count) throws OpenDataException;
+
+    /*
+        Is Compaction space check enabled
+     */
+    public boolean isCompactionDiskSpaceCheckEnabled();
+
+    /*
+       Enable/Disable compaction space check
+     */
+    public void compactionDiskSpaceCheck(boolean enable);
 }
