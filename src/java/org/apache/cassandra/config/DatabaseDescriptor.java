@@ -1209,6 +1209,11 @@ public class DatabaseDescriptor
 
     public static int getCompactionLargePartitionWarningThreshold() { return conf.compaction_large_partition_warning_threshold_mb * 1024 * 1024; }
 
+    public static long getMinFreeSpacePerDriveInBytes()
+    {
+        return conf.min_free_space_per_drive_in_mb * 1024L * 1024L;
+    }
+
     public static boolean getDisableSTCSInL0()
     {
         return Boolean.getBoolean("cassandra.disable_stcs_in_l0");

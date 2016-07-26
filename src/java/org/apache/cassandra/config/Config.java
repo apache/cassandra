@@ -171,6 +171,7 @@ public class Config
     public Integer concurrent_compactors;
     public volatile Integer compaction_throughput_mb_per_sec = 16;
     public volatile Integer compaction_large_partition_warning_threshold_mb = 100;
+    public Integer min_free_space_per_drive_in_mb = 50;
 
     public Integer max_streaming_retries = 3;
 
