@@ -848,15 +848,18 @@ class FilesReader(object):
             try:
                 return open(fname, 'rb')
             except IOError, e:
-                printdebugmsg("Can't open %r for reading: %s" % (fname, e))
-                return None
+                raise IOError("Can't open %r for reading: %s" % (fname, e))
 
         for path in paths.split(','):
             path = path.strip()
             if os.path.isfile(path):
                 yield make_source(path)
             else:
-                for f in glob.glob(path):
+                result = glob.glob(path)
+                if len(result) == 0:
+                    raise IOError("Can't open %r for reading: no matching file found" % (path,))
+
+                for f in result:
                     yield (make_source(f))
 
     def start(self):
@@ -1269,7 +1272,11 @@ class FeedingProcess(mp.Process):
         self.on_fork()
 
         reader = self.reader
-        reader.start()
+        try:
+            reader.start()
+        except IOError, exc:
+            self.outmsg.send(ImportTaskError(exc.__class__.__name__, exc.message))
+
         channels = self.worker_channels
         max_pending_chunks = self.max_pending_chunks
         sent = 0

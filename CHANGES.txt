@@ -1,4 +1,5 @@
 3.10
+ * COPY FROM should raise error for non-existing input files (CASSANDRA-12174)
  * Faster write path (CASSANDRA-12269)
  * Option to leave omitted columns in INSERT JSON unset (CASSANDRA-11424)
  * Support json/yaml output in nodetool tpstats (CASSANDRA-12035)
