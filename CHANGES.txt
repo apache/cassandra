@@ -1,4 +1,6 @@
 3.10
+ * Support filtering on non-PRIMARY KEY columns in the CREATE
+   MATERIALIZED VIEW statement's WHERE clause (CASSANDRA-10368)
  * Unify STDOUT and SYSTEMLOG logback format (CASSANDRA-12004)
  * COPY FROM should raise error for non-existing input files (CASSANDRA-12174)
  * Faster write path (CASSANDRA-12269)

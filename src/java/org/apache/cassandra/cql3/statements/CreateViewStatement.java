@@ -203,14 +203,6 @@ public class CreateViewStatement extends SchemaAlteringStatement
         if (!prepared.boundNames.isEmpty())
             throw new InvalidRequestException("Cannot use query parameters in CREATE MATERIALIZED VIEW statements");
 
-        if (!restrictions.nonPKRestrictedColumns(false).isEmpty())
-        {
-            throw new InvalidRequestException(String.format(
-                    "Non-primary key columns cannot be restricted in the SELECT statement used for materialized view " +
-                    "creation (got restrictions on: %s)",
-                    restrictions.nonPKRestrictedColumns(false).stream().map(def -> def.name.toString()).collect(Collectors.joining(", "))));
-        }
-
         String whereClauseText = View.relationsToWhereClause(whereClause.relations);
 
         Set<ColumnIdentifier> basePrimaryKeyCols = new HashSet<>();
