@@ -176,7 +176,6 @@ public final class JsonTransformer
 
     private void serializePartition(UnfilteredRowIterator partition)
     {
-        String key = metadata.getKeyValidator().getString(partition.partitionKey().getKey());
         try
         {
             json.writeStartObject();
@@ -223,6 +222,7 @@ public final class JsonTransformer
         }
         catch (IOException e)
         {
+            String key = metadata.getKeyValidator().getString(partition.partitionKey().getKey());
             logger.error("Fatal error parsing partition: {}", key, e);
         }
     }
