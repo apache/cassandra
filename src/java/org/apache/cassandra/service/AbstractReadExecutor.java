@@ -152,7 +152,10 @@ public abstract class AbstractReadExecutor
     {
         Keyspace keyspace = Keyspace.open(command.metadata().ksName);
         List<InetAddress> allReplicas = StorageProxy.getLiveSortedEndpoints(keyspace, command.partitionKey());
-        ReadRepairDecision repairDecision = command.metadata().newReadRepairDecision();
+        // 11980: Excluding EACH_QUORUM reads from potential RR, so that we do not miscount DC responses
+        ReadRepairDecision repairDecision = consistencyLevel == ConsistencyLevel.EACH_QUORUM
+                                            ? ReadRepairDecision.NONE
+                                            : command.metadata().newReadRepairDecision();
         List<InetAddress> targetReplicas = consistencyLevel.filterForQuery(keyspace, allReplicas, repairDecision);
 
         // Throw UAE early if we don't have enough replicas.
@@ -168,7 +171,10 @@ public abstract class AbstractReadExecutor
         SpeculativeRetryParam retry = cfs.metadata.params.speculativeRetry;
 
         // Speculative retry is disabled *OR* there are simply no extra replicas to speculate.
-        if (retry.equals(SpeculativeRetryParam.NONE) || consistencyLevel.blockFor(keyspace) == allReplicas.size())
+        // 11980: Disable speculative retry if using EACH_QUORUM in order to prevent miscounting DC responses
+        if (retry.equals(SpeculativeRetryParam.NONE)
+            || consistencyLevel == ConsistencyLevel.EACH_QUORUM
+            || consistencyLevel.blockFor(keyspace) == allReplicas.size())
             return new NeverSpeculatingReadExecutor(keyspace, command, consistencyLevel, targetReplicas);
 
         if (targetReplicas.size() == allReplicas.size())
