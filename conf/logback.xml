@@ -79,7 +79,7 @@ appender reference in the root level section below.
       <level>INFO</level>
     </filter>
     <encoder>
-      <pattern>%-5level %date{HH:mm:ss,SSS} %msg%n</pattern>
+      <pattern>%-5level [%thread] %date{ISO8601} %F:%L - %msg%n</pattern>
     </encoder>
   </appender>
 

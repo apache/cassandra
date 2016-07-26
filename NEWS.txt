@@ -37,8 +37,9 @@ New features
 
 Upgrading
 ---------
-   - Nothing specific to 3.10 but please see previous versions upgrading section,
-     especially if you are upgrading from 2.2.
+    - Logs written to stdout are now consistent with logs written to files.
+      Time is now local (it was UTC on the console and local in files). Date, thread, file
+      and line info where added to stdout. (see CASSANDRA-12004)
 
 3.8
 ===
@@ -2171,4 +2172,3 @@ key in a given ColumnFamily) is limited by available memory, because
 compaction deserializes each row before merging.
 
 See https://issues.apache.org/jira/browse/CASSANDRA-16
-
