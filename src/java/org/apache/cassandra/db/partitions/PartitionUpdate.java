@@ -484,19 +484,23 @@ public class PartitionUpdate extends AbstractBTreePartition
         assert metadata().isCounter();
         maybeBuild();
         // We will take aliases on the rows of this update, and update them in-place. So we should be sure the
-        // update is no immutable for all intent and purposes.
+        // update is now immutable for all intent and purposes.
         canReOpen = false;
 
-        List<CounterMark> l = new ArrayList<>();
+        List<CounterMark> marks = new ArrayList<>();
+        addMarksForRow(staticRow(), marks);
         for (Row row : this)
+            addMarksForRow(row, marks);
+        return marks;
+    }
+
+    private void addMarksForRow(Row row, List<CounterMark> marks)
+    {
+        for (Cell cell : row.cells())
         {
-            for (Cell cell : row.cells())
-            {
-                if (cell.isCounterCell())
-                    l.add(new CounterMark(row, cell.column(), cell.path()));
-            }
+            if (cell.isCounterCell())
+                marks.add(new CounterMark(row, cell.column(), cell.path()));
         }
-        return l;
     }
 
     private void assertNotBuilt()
