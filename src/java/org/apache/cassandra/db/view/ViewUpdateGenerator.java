@@ -190,7 +190,7 @@ public class ViewUpdateGenerator
 
         // If the update didn't modified this column, the cells will be the same object so it's worth checking
         if (before == after)
-            return before == null ? UpdateAction.NONE : UpdateAction.UPDATE_EXISTING;
+            return isLive(before) ? UpdateAction.UPDATE_EXISTING : UpdateAction.NONE;
 
         if (!isLive(before))
             return isLive(after) ? UpdateAction.NEW_ENTRY : UpdateAction.NONE;
@@ -451,7 +451,7 @@ public class ViewUpdateGenerator
 
         ColumnDefinition baseColumn = view.baseNonPKColumnsInViewPK.get(0);
         Cell cell = baseRow.getCell(baseColumn);
-        assert isLive(cell) : "We shouldn't have got there is the base row had no associated entry";
+        assert isLive(cell) : "We shouldn't have got there if the base row had no associated entry";
 
         long timestamp = Math.max(baseLiveness.timestamp(), cell.timestamp());
         return LivenessInfo.withExpirationTime(timestamp, cell.ttl(), cell.localDeletionTime());

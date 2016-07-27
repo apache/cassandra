@@ -21,6 +21,7 @@
  * cqlsh: Fix handling of $$-escaped strings (CASSANDRA-12189)
  * Fix SSL JMX requiring truststore containing server cert (CASSANDRA-12109)
 Merged from 3.0:
+ * AssertionError with MVs on updating a row that isn't indexed due to a null value (CASSANDRA-12247)
  * Disable RR and speculative retry with EACH_QUORUM reads (CASSANDRA-11980)
  * Add option to override compaction space check (CASSANDRA-12180)
  * Faster startup by only scanning each directory for temporary files once (CASSANDRA-12114)
