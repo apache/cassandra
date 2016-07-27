@@ -281,7 +281,14 @@ Function ParseJVMInfo
     }
 
     $pa = $sa[1].Split("_")
-    $env:JVM_PATCH_VERSION=$pa[1]
+    $subVersion = $pa[1]
+    # Deal with -b (build) versions
+    if ($subVersion -contains '-')
+    {
+        $patchAndBuild = $subVersion.Split("-")
+        $subVersion = $patchAndBuild[0]
+    }
+    $env:JVM_PATCH_VERSION = $subVersion
 }
 
 #-----------------------------------------------------------------------------
@@ -413,7 +420,7 @@ Function SetCassandraEnvironment
         $env:JVM_OPTS = "$env:JVM_OPTS -javaagent:""$env:CASSANDRA_HOME\lib\jamm-0.3.0.jar"""
     }
 
-    if ($env:JVM_VERSION.CompareTo("1.8.0_40") -eq -1)
+    if ($env:JVM_VERSION.CompareTo("1.8.0") -eq -1 -or [convert]::ToInt32($env:JVM_PATCH_VERSION) -lt 40)
     {
         echo "Cassandra 3.0 and later require Java 8u40 or later."
         exit
