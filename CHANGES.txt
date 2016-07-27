@@ -33,7 +33,6 @@ Merged from 2.2:
 Merged from 2.1:
  * cannot use cql since upgrading python to 2.7.11+ (CASSANDRA-11850)
 
-
 3.8
  * Fix hdr logging for single operation workloads (CASSANDRA-12145)
  * Fix SASI PREFIX search in CONTAINS mode with partial terms (CASSANDRA-12073)
