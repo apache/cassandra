@@ -1,4 +1,5 @@
 3.10
+ * avoid deleting non existing sstable files and improve related log messages (CASSANDRA-12261)
  * json/yaml output format for nodetool compactionhistory (CASSANDRA-12486)
  * Retry all internode messages once after a connection is
    closed and reopened (CASSANDRA-12192)

@@ -17,8 +17,10 @@
  */
 package org.apache.cassandra.db.lifecycle;
 
+import java.io.ByteArrayOutputStream;
 import java.io.File;
 import java.io.IOException;
+import java.io.PrintStream;
 import java.nio.file.Files;
 import java.nio.file.NoSuchFileException;
 import java.util.*;
@@ -202,7 +204,15 @@ class LogTransaction extends Transactional.AbstractTransactional implements Tran
         }
         catch (NoSuchFileException e)
         {
-            logger.error("Unable to delete {} as it does not exist", file);
+            logger.error("Unable to delete {} as it does not exist, see debug log file for stack trace", file);
+            if (logger.isDebugEnabled())
+            {
+                ByteArrayOutputStream baos = new ByteArrayOutputStream();
+                PrintStream ps = new PrintStream(baos);
+                e.printStackTrace(ps);
+                ps.close();
+                logger.debug("Unable to delete {} as it does not exist, stack trace:\n {}", file, baos.toString());
+            }
         }
         catch (IOException e)
         {
@@ -313,7 +323,11 @@ class LogTransaction extends Transactional.AbstractTransactional implements Tran
                 // If we can't successfully delete the DATA component, set the task to be retried later: see TransactionTidier
                 File datafile = new File(desc.filenameFor(Component.DATA));
 
-                delete(datafile);
+                if (datafile.exists())
+                    delete(datafile);
+                else if (!wasNew)
+                    logger.error("SSTableTidier ran with no existing data file for an sstable that was not new");
+
                 // let the remainder be cleaned up by delete
                 SSTable.delete(desc, SSTable.discoverComponentsFor(desc));
             }
