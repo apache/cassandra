@@ -377,10 +377,15 @@ public abstract class CQLTester
 
     public ColumnFamilyStore getCurrentColumnFamilyStore()
     {
+        return getCurrentColumnFamilyStore(KEYSPACE);
+    }
+
+    public ColumnFamilyStore getCurrentColumnFamilyStore(String keyspace)
+    {
         String currentTable = currentTable();
         return currentTable == null
              ? null
-             : Keyspace.open(KEYSPACE).getColumnFamilyStore(currentTable);
+             : Keyspace.open(keyspace).getColumnFamilyStore(currentTable);
     }
 
     public void flush(boolean forceFlush)
@@ -391,14 +396,19 @@ public abstract class CQLTester
 
     public void flush()
     {
-        ColumnFamilyStore store = getCurrentColumnFamilyStore();
+        flush(KEYSPACE);
+    }
+
+    public void flush(String keyspace)
+    {
+        ColumnFamilyStore store = getCurrentColumnFamilyStore(keyspace);
         if (store != null)
             store.forceBlockingFlush();
     }
 
-    public void disableCompaction()
+    public void disableCompaction(String keyspace)
     {
-        ColumnFamilyStore store = getCurrentColumnFamilyStore();
+        ColumnFamilyStore store = getCurrentColumnFamilyStore(keyspace);
         store.disableAutoCompaction();
     }
 
@@ -546,8 +556,13 @@ public abstract class CQLTester
 
     protected String createTable(String query)
     {
+        return createTable(KEYSPACE, query);
+    }
+
+    protected String createTable(String keyspace, String query)
+    {
         String currentTable = createTableName();
-        String fullQuery = formatQuery(query);
+        String fullQuery = formatQuery(keyspace, query);
         logger.info(fullQuery);
         schemaChange(fullQuery);
         return currentTable;
@@ -697,10 +712,15 @@ public abstract class CQLTester
         return sessions.get(protocolVersion);
     }
 
-    private String formatQuery(String query)
+    protected String formatQuery(String query)
+    {
+        return formatQuery(KEYSPACE, query);
+    }
+
+    protected String formatQuery(String keyspace, String query)
     {
         String currentTable = currentTable();
-        return currentTable == null ? query : String.format(query, KEYSPACE + "." + currentTable);
+        return currentTable == null ? query : String.format(query, keyspace + "." + currentTable);
     }
 
     protected ResultMessage.Prepared prepare(String query) throws Throwable
@@ -710,8 +730,11 @@ public abstract class CQLTester
 
     protected UntypedResultSet execute(String query, Object... values) throws Throwable
     {
-        query = formatQuery(query);
+        return executeFormattedQuery(formatQuery(query), values);
+    }
 
+    protected UntypedResultSet executeFormattedQuery(String query, Object... values) throws Throwable
+    {
         UntypedResultSet rs;
         if (usePrepared)
         {
