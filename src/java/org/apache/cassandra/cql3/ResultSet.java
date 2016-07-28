@@ -590,7 +590,7 @@ public class ResultSet
                     size += CBUtil.sizeOfString(m.names.get(0).cfName);
                 }
 
-                if (m.partitionKeyBindIndexes != null && version >= 4)
+                if (m.partitionKeyBindIndexes != null && version >= Server.VERSION_4)
                     size += 4 + 2 * m.partitionKeyBindIndexes.length;
 
                 for (ColumnSpecification name : m.names)

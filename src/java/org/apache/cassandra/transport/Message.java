@@ -322,6 +322,8 @@ public abstract class Message
             int version = connection == null ? Server.CURRENT_VERSION : connection.getVersion();
 
             EnumSet<Frame.Header.Flag> flags = EnumSet.noneOf(Frame.Header.Flag.class);
+            if (version == Server.BETA_VERSION)
+                flags.add(Frame.Header.Flag.USE_BETA);
 
             Codec<Message> codec = (Codec<Message>)message.type.codec;
             try

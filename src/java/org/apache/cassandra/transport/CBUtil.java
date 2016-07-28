@@ -393,7 +393,7 @@ public abstract class CBUtil
         int length = cb.readInt();
         if (length < 0)
         {
-            if (protocolVersion < 4) // backward compatibility for pre-version 4
+            if (protocolVersion < Server.VERSION_4) // backward compatibility for pre-version 4
                 return null;
             if (length == -1)
                 return null;

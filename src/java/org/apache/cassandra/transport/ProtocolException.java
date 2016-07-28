@@ -35,6 +35,8 @@ public class ProtocolException extends RuntimeException implements TransportExce
     public ProtocolException(String msg, Integer attemptedLowProtocolVersion)
     {
         super(msg);
+        assert attemptedLowProtocolVersion == null || attemptedLowProtocolVersion < Server.MIN_SUPPORTED_VERSION;
+
         this.attemptedLowProtocolVersion = attemptedLowProtocolVersion;
     }
 

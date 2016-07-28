@@ -85,11 +85,6 @@ public class Frame
         public final int streamId;
         public final Message.Type type;
 
-        private Header(int version, int flags, int streamId, Message.Type type)
-        {
-            this(version, Flag.deserialize(flags), streamId, type);
-        }
-
         private Header(int version, EnumSet<Flag> flags, int streamId, Message.Type type)
         {
             this.version = version;
@@ -104,7 +99,8 @@ public class Frame
             COMPRESSED,
             TRACING,
             CUSTOM_PAYLOAD,
-            WARNING;
+            WARNING,
+            USE_BETA;
 
             private static final Flag[] ALL_VALUES = values();
 
@@ -174,16 +170,26 @@ public class Frame
             int firstByte = buffer.getByte(idx++);
             Message.Direction direction = Message.Direction.extractFromVersion(firstByte);
             int version = firstByte & PROTOCOL_VERSION_MASK;
-            if (version < Server.MIN_SUPPORTED_VERSION || version > Server.CURRENT_VERSION)
-                throw new ProtocolException(String.format("Invalid or unsupported protocol version (%d); the lowest supported version is %d and the greatest is %d",
-                                                          version, Server.MIN_SUPPORTED_VERSION, Server.CURRENT_VERSION),
-                                            version);
+            if (version < Server.MIN_SUPPORTED_VERSION)
+                throw new ProtocolException(protocolVersionExceptionMessage(version), version);
 
             // Wait until we have the complete header
             if (readableBytes < Header.LENGTH)
                 return;
 
             int flags = buffer.getByte(idx++);
+            EnumSet<Header.Flag> decodedFlags = Header.Flag.deserialize(flags);
+            if (version > Server.CURRENT_VERSION)
+            {
+                if (version == Server.BETA_VERSION)
+                {
+                    if (!decodedFlags.contains(Header.Flag.USE_BETA))
+                        throw new ProtocolException(String.format("Beta version of the protocol used (%d), but USE_BETA flag is unset",
+                                                                  version));
+                }
+                else
+                    throw new ProtocolException(protocolVersionExceptionMessage(version));
+            }
 
             int streamId = buffer.getShort(idx);
             idx += 2;
@@ -242,7 +248,13 @@ public class Frame
                         streamId);
             }
 
-            results.add(new Frame(new Header(version, flags, streamId, type), body));
+            results.add(new Frame(new Header(version, decodedFlags, streamId, type), body));
+        }
+
+        private static String protocolVersionExceptionMessage(int version)
+        {
+            return String.format("Invalid or unsupported protocol version (%d); the lowest supported version is %d and the greatest is %d",
+                                 version, Server.MIN_SUPPORTED_VERSION, Server.CURRENT_VERSION);
         }
 
         private void fail()

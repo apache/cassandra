@@ -1,4 +1,5 @@
 3.10
+ * Add beta protocol flag for v5 native protocol (CASSANDRA-12142)
  * Support filtering on non-PRIMARY KEY columns in the CREATE
    MATERIALIZED VIEW statement's WHERE clause (CASSANDRA-10368)
  * Unify STDOUT and SYSTEMLOG logback format (CASSANDRA-12004)

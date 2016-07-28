@@ -84,7 +84,7 @@ public class BatchMessage extends Message.Request
                 CBUtil.writeValueList(msg.values.get(i), dest);
             }
 
-            if (version < 3)
+            if (version < Server.VERSION_3)
                 CBUtil.writeConsistencyLevel(msg.options.getConsistency(), dest);
             else
                 QueryOptions.codec.encode(msg.options, dest, version);
@@ -102,7 +102,7 @@ public class BatchMessage extends Message.Request
 
                 size += CBUtil.sizeOfValueList(msg.values.get(i));
             }
-            size += version < 3
+            size += version < Server.VERSION_3
                   ? CBUtil.sizeOfConsistencyLevel(msg.options.getConsistency())
                   : QueryOptions.codec.encodedSize(msg.options, version);
             return size;

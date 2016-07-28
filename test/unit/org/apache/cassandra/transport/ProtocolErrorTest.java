@@ -34,9 +34,9 @@ public class ProtocolErrorTest {
     @Test
     public void testInvalidProtocolVersion() throws Exception
     {
-        // test using a protocol version higher than the current version
-        testInvalidProtocolVersion(Server.CURRENT_VERSION + 1);
-     // test using a protocol version lower than the lowest version
+        // test using a protocol 2 version higher than the current version (1 version higher is current beta)
+        testInvalidProtocolVersion(Server.CURRENT_VERSION + 2); //
+        // test using a protocol version lower than the lowest version
         testInvalidProtocolVersion(Server.MIN_SUPPORTED_VERSION - 1);
 
     }

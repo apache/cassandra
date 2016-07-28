@@ -66,7 +66,9 @@ public class Server implements CassandraDaemon.Server
 
     public static final int VERSION_3 = 3;
     public static final int VERSION_4 = 4;
+    public static final int VERSION_5 = 5;
     public static final int CURRENT_VERSION = VERSION_4;
+    public static final int BETA_VERSION = VERSION_5;
     public static final int MIN_SUPPORTED_VERSION = VERSION_3;
 
     private final ConnectionTracker connectionTracker = new ConnectionTracker();
