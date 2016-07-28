@@ -158,14 +158,15 @@ public class UpdateParameters
     {
         assert ttl == LivenessInfo.NO_TTL;
 
-        // In practice, the actual CounterId (and clock really) that we use doesn't matter, because we will
-        // ignore it in CounterMutation when we do the read-before-write to create the actual value that is
-        // applied. In other words, this is not the actual value that will be written to the memtable
-        // because this will be replaced in CounterMutation.updateWithCurrentValue().
-        // As an aside, since we don't care about the CounterId/clock, we used to only send the incremement,
-        // but that makes things a bit more complex as this means we need to be able to distinguish inside
-        // PartitionUpdate between counter updates that has been processed by CounterMutation and those that
-        // haven't.
+        // Because column is a counter, we need the value to be a CounterContext. However, we're only creating a
+        // "counter update", which is a temporary state until we run into 'CounterMutation.updateWithCurrentValue()'
+        // which does the read-before-write and sets the proper CounterId, clock and updated value.
+        //
+        // We thus create a "fake" local shard here. The CounterId/clock used don't matter as this is just a temporary
+        // state that will be replaced when processing the mutation in CounterMutation, but the reason we use a 'local'
+        // shard is due to the merging rules: if a user includes multiple updates to the same counter in a batch, those
+        // multiple updates will be merged in the PartitionUpdate *before* they even reach CounterMutation. So we need
+        // such update to be added together, and that's what a local shard gives us.
         builder.addCell(BufferCell.live(column, timestamp, CounterContext.instance().createLocal(increment)));
     }
 
