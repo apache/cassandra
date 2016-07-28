@@ -24,6 +24,7 @@
  * cqlsh: Fix handling of $$-escaped strings (CASSANDRA-12189)
  * Fix SSL JMX requiring truststore containing server cert (CASSANDRA-12109)
 Merged from 3.0:
+ * Rerun ReplicationAwareTokenAllocatorTest on failure to avoid flakiness (CASSANDRA-12277)
  * Exception when computing read-repair for range tombstones (CASSANDRA-12263)
  * Lost counter writes in compact table and static columns (CASSANDRA-12219)
  * AssertionError with MVs on updating a row that isn't indexed due to a null value (CASSANDRA-12247)

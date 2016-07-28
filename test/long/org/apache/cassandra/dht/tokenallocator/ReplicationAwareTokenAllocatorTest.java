@@ -29,6 +29,7 @@ import org.apache.commons.math3.stat.descriptive.SummaryStatistics;
 
 import org.junit.Test;
 
+import org.apache.cassandra.Util;
 import org.apache.cassandra.dht.Murmur3Partitioner;
 import org.apache.cassandra.dht.Token;
 
@@ -545,6 +546,20 @@ public class ReplicationAwareTokenAllocatorTest
     @Test
     public void testNewCluster()
     {
+        Util.flakyTest(this::flakyTestNewCluster,
+                       5,
+                       "It tends to fail sometimes due to the random selection of the tokens in the first few nodes.");
+    }
+
+    public void flakyTestNewCluster()
+    {
+        // This test is flaky because the selection of the tokens for the first RF nodes (which is random, with an
+        // uncontrolled seed) can sometimes cause a pathological situation where the algorithm will find a (close to)
+        // ideal distribution of tokens for some number of nodes, which in turn will inevitably cause it to go into a
+        // bad (unacceptable to the test criteria) distribution after adding one more node.
+
+        // This should happen very rarely, unless something is broken in the token allocation code.
+
         for (int rf = 2; rf <= 5; ++rf)
         {
             for (int perUnitCount = 1; perUnitCount <= MAX_VNODE_COUNT; perUnitCount *= 4)

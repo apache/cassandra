@@ -544,6 +544,62 @@ public class Util
         thread.join(10000);
     }
 
+    public static AssertionError runCatchingAssertionError(Runnable test)
+    {
+        try
+        {
+            test.run();
+            return null;
+        }
+        catch (AssertionError e)
+        {
+            return e;
+        }
+    }
+
+    /**
+     * Wrapper function used to run a test that can sometimes flake for uncontrollable reasons.
+     *
+     * If the given test fails on the first run, it is executed the given number of times again, expecting all secondary
+     * runs to succeed. If they do, the failure is understood as a flake and the test is treated as passing.
+     *
+     * Do not use this if the test is deterministic and its success is not influenced by external factors (such as time,
+     * selection of random seed, network failures, etc.). If the test can be made independent of such factors, it is
+     * probably preferable to do so rather than use this method.
+     *
+     * @param test The test to run.
+     * @param rerunsOnFailure How many times to re-run it if it fails. All reruns must pass.
+     * @param message Message to send to System.err on initial failure.
+     */
+    public static void flakyTest(Runnable test, int rerunsOnFailure, String message)
+    {
+        AssertionError e = runCatchingAssertionError(test);
+        if (e == null)
+            return;     // success
+        System.err.format("Test failed. %s%n"
+                        + "Re-running %d times to verify it isn't failing more often than it should.%n"
+                        + "Failure was: %s%n", message, rerunsOnFailure, e);
+        e.printStackTrace();
+
+        int rerunsFailed = 0;
+        for (int i = 0; i < rerunsOnFailure; ++i)
+        {
+            AssertionError t = runCatchingAssertionError(test);
+            if (t != null)
+            {
+                ++rerunsFailed;
+                e.addSuppressed(t);
+            }
+        }
+        if (rerunsFailed > 0)
+        {
+            System.err.format("Test failed in %d of the %d reruns.%n", rerunsFailed, rerunsOnFailure);
+            throw e;
+        }
+
+        System.err.println("All reruns succeeded. Failure treated as flake.");
+    }
+
     // for use with Optional in tests, can be used as an argument to orElseThrow
     public static Supplier<AssertionError> throwAssert(final String message)
     {
