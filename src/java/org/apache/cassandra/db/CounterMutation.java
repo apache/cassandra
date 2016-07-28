@@ -242,7 +242,8 @@ public class CounterMutation implements IMutation
         BTreeSet.Builder<Clustering> names = BTreeSet.builder(cfs.metadata.comparator);
         for (PartitionUpdate.CounterMark mark : marks)
         {
-            names.add(mark.clustering());
+            if (mark.clustering() != Clustering.STATIC_CLUSTERING)
+                names.add(mark.clustering());
             if (mark.path() == null)
                 builder.add(mark.column());
             else
