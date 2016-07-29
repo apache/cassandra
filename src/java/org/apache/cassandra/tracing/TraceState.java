@@ -27,6 +27,8 @@ import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
 
 import com.google.common.base.Stopwatch;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.slf4j.helpers.MessageFormatter;
 
 import org.apache.cassandra.concurrent.Stage;
@@ -36,6 +38,7 @@ import org.apache.cassandra.db.Mutation;
 import org.apache.cassandra.exceptions.OverloadedException;
 import org.apache.cassandra.service.StorageProxy;
 import org.apache.cassandra.utils.ByteBufferUtil;
+import org.apache.cassandra.utils.JVMStabilityInspector;
 import org.apache.cassandra.utils.WrappedRunnable;
 import org.apache.cassandra.utils.progress.ProgressEvent;
 import org.apache.cassandra.utils.progress.ProgressEventNotifier;
@@ -47,6 +50,10 @@ import org.apache.cassandra.utils.progress.ProgressListener;
  */
 public class TraceState implements ProgressEventNotifier
 {
+    private static final Logger logger = LoggerFactory.getLogger(TraceState.class);
+    private static final int WAIT_FOR_PENDING_EVENTS_TIMEOUT_SECS =
+    Integer.valueOf(System.getProperty("cassandra.wait_for_tracing_events_timeout_secs", "1"));
+
     public final UUID sessionId;
     public final InetAddress coordinator;
     public final Stopwatch watch;
@@ -119,6 +126,8 @@ public class TraceState implements ProgressEventNotifier
 
     public synchronized void stop()
     {
+        waitForPendingEvents();
+
         status = Status.STOPPED;
         notifyAll();
     }
@@ -181,6 +190,8 @@ public class TraceState implements ProgressEventNotifier
         final int elapsed = elapsed();
 
         executeMutation(TraceKeyspace.makeEventMutation(sessionIdBytes, message, elapsed, threadName, ttl));
+        if (logger.isTraceEnabled())
+            logger.trace("Adding <{}> to trace events", message);
 
         for (ProgressListener listener : listeners)
         {
@@ -194,7 +205,7 @@ public class TraceState implements ProgressEventNotifier
         {
             protected void runMayThrow() throws Exception
             {
-            mutateWithCatch(mutation);
+                mutateWithCatch(mutation);
             }
         });
     }
@@ -228,6 +239,33 @@ public class TraceState implements ProgressEventNotifier
         }
     }
 
+    /**
+     * Post a no-op event to the TRACING stage, so that we can be sure that any previous mutations
+     * have at least been applied to one replica. This works because the tracking executor only
+     * has one thread in its pool, see {@link StageManager#tracingExecutor()}.
+     */
+    protected void waitForPendingEvents()
+    {
+        if (WAIT_FOR_PENDING_EVENTS_TIMEOUT_SECS <= 0)
+            return;
+
+        try
+        {
+            if (logger.isTraceEnabled())
+                logger.trace("Waiting for up to {} seconds for trace events to complete",
+                             +WAIT_FOR_PENDING_EVENTS_TIMEOUT_SECS);
+
+            StageManager.getStage(Stage.TRACING).submit(StageManager.NO_OP_TASK)
+                        .get(WAIT_FOR_PENDING_EVENTS_TIMEOUT_SECS, TimeUnit.SECONDS);
+        }
+        catch (Throwable t)
+        {
+            JVMStabilityInspector.inspectThrowable(t);
+            logger.debug("Failed to wait for tracing events to complete: {}", t);
+        }
+    }
+
+
     public boolean acquireReference()
     {
         while (true)
@@ -242,6 +280,7 @@ public class TraceState implements ProgressEventNotifier
 
     public int releaseReference()
     {
+        waitForPendingEvents();
         return references.decrementAndGet();
     }
 }
