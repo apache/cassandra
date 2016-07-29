@@ -111,6 +111,8 @@ public abstract class TraceState implements ProgressEventNotifier
 
     public synchronized void stop()
     {
+        waitForPendingEvents();
+
         status = Status.STOPPED;
         notifyAll();
     }
@@ -179,6 +181,11 @@ public abstract class TraceState implements ProgressEventNotifier
 
     protected abstract void traceImpl(String message);
 
+    protected void waitForPendingEvents()
+    {
+        // if tracing events are asynchronous, then you can use this method to wait for them to complete
+    }
+
     public boolean acquireReference()
     {
         while (true)
@@ -193,6 +200,7 @@ public abstract class TraceState implements ProgressEventNotifier
 
     public int releaseReference()
     {
+        waitForPendingEvents();
         return references.decrementAndGet();
     }
 }

@@ -42,4 +42,14 @@ class ExpiredTraceState extends TraceState
     {
         delegate.traceImpl(message);
     }
+
+    protected void waitForPendingEvents()
+    {
+        delegate.waitForPendingEvents();
+    }
+
+    TraceState getDelegate()
+    {
+        return delegate;
+    }
 }

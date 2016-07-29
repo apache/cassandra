@@ -59,7 +59,7 @@ public class StageManager
         stages.put(Stage.TRACING, tracingExecutor());
     }
 
-    private static ExecuteOnlyExecutor tracingExecutor()
+    private static LocalAwareExecutorService tracingExecutor()
     {
         RejectedExecutionHandler reh = new RejectedExecutionHandler()
         {
@@ -68,13 +68,13 @@ public class StageManager
                 MessagingService.instance().incrementDroppedMessages(MessagingService.Verb._TRACE);
             }
         };
-        return new ExecuteOnlyExecutor(1,
-                                       1,
-                                       KEEPALIVE,
-                                       TimeUnit.SECONDS,
-                                       new ArrayBlockingQueue<Runnable>(1000),
-                                       new NamedThreadFactory(Stage.TRACING.getJmxName()),
-                                       reh);
+        return new TracingExecutor(1,
+                                   1,
+                                   KEEPALIVE,
+                                   TimeUnit.SECONDS,
+                                   new ArrayBlockingQueue<Runnable>(1000),
+                                   new NamedThreadFactory(Stage.TRACING.getJmxName()),
+                                   reh);
     }
 
     private static JMXEnabledThreadPoolExecutor multiThreadedStage(Stage stage, int numThreads)
@@ -113,12 +113,11 @@ public class StageManager
     }
 
     /**
-     * A TPE that disallows submit so that we don't need to worry about unwrapping exceptions on the
-     * tracing stage.  See CASSANDRA-1123 for background.
+     * The executor used for tracing.
      */
-    private static class ExecuteOnlyExecutor extends ThreadPoolExecutor implements LocalAwareExecutorService
+    private static class TracingExecutor extends ThreadPoolExecutor implements LocalAwareExecutorService
     {
-        public ExecuteOnlyExecutor(int corePoolSize, int maximumPoolSize, long keepAliveTime, TimeUnit unit, BlockingQueue<Runnable> workQueue, ThreadFactory threadFactory, RejectedExecutionHandler handler)
+        public TracingExecutor(int corePoolSize, int maximumPoolSize, long keepAliveTime, TimeUnit unit, BlockingQueue<Runnable> workQueue, ThreadFactory threadFactory, RejectedExecutionHandler handler)
         {
             super(corePoolSize, maximumPoolSize, keepAliveTime, unit, workQueue, threadFactory, handler);
         }
@@ -132,24 +131,6 @@ public class StageManager
         public void maybeExecuteImmediately(Runnable command)
         {
             execute(command);
-        }
-
-        @Override
-        public Future<?> submit(Runnable task)
-        {
-            throw new UnsupportedOperationException();
-        }
-
-        @Override
-        public <T> Future<T> submit(Runnable task, T result)
-        {
-            throw new UnsupportedOperationException();
-        }
-
-        @Override
-        public <T> Future<T> submit(Callable<T> task)
-        {
-            throw new UnsupportedOperationException();
         }
     }
 }
