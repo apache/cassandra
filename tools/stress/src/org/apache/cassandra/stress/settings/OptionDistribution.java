@@ -145,6 +145,11 @@ public class OptionDistribution extends Option
         return (defaultSpec != null ? "[" : "") + prefix + "DIST(?)" + (defaultSpec != null ? "]" : "");
     }
 
+    public String getOptionAsString()
+    {
+        return prefix + (spec == null ? defaultSpec : spec);
+    }
+
     private static final Map<String, Impl> LOOKUP;
     static
     {
@@ -358,6 +363,8 @@ public class OptionDistribution extends Option
         {
             return new DistributionInverted(wrapped.get());
         }
+        public String getConfigAsString(){return "Inverse: " + wrapped.getConfigAsString();};
+
     }
 
     // factories
@@ -378,6 +385,10 @@ public class OptionDistribution extends Option
         {
             return new DistributionOffsetApache(new ExponentialDistribution(new JDKRandomGenerator(), mean, ExponentialDistribution.DEFAULT_INVERSE_ABSOLUTE_ACCURACY), min, max);
         }
+
+        @Override
+        public String getConfigAsString(){return String.format("Exponential:  min=%d,max=%d,mean=%f", min, max, mean);}
+
     }
 
     private static class ExtremeFactory implements DistributionFactory
@@ -397,6 +408,10 @@ public class OptionDistribution extends Option
         {
             return new DistributionOffsetApache(new WeibullDistribution(new JDKRandomGenerator(), shape, scale, WeibullDistribution.DEFAULT_INVERSE_ABSOLUTE_ACCURACY), min, max);
         }
+
+        @Override
+        public String getConfigAsString(){return String.format("Extreme:  min=%d,max=%d,shape=%f, scale=%f", min, max, shape, scale);}
+
     }
 
     private static final class QuantizedExtremeFactory extends ExtremeFactory
@@ -432,6 +447,10 @@ public class OptionDistribution extends Option
         {
             return new DistributionBoundApache(new NormalDistribution(new JDKRandomGenerator(), mean, stdev, NormalDistribution.DEFAULT_INVERSE_ABSOLUTE_ACCURACY), min, max);
         }
+
+        @Override
+        public String getConfigAsString(){return String.format("Gaussian:  min=%d,max=%d,mean=%f,stdev=%f", min, max, stdev, mean);}
+
     }
 
     private static final class UniformFactory implements DistributionFactory
@@ -448,6 +467,10 @@ public class OptionDistribution extends Option
         {
             return new DistributionBoundApache(new UniformRealDistribution(new JDKRandomGenerator(), min, max + 1), min, max);
         }
+
+        @Override
+        public String getConfigAsString(){return String.format("Uniform:  min=%d,max=%d", min, max);}
+
     }
 
     private static final class FixedFactory implements DistributionFactory
@@ -463,6 +486,10 @@ public class OptionDistribution extends Option
         {
             return new DistributionFixed(key);
         }
+
+        @Override
+        public String getConfigAsString(){return String.format("Fixed:  key=%d", key);}
+
     }
 
     @Override

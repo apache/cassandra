@@ -30,6 +30,8 @@ import java.util.Date;
 import java.util.List;
 import java.util.Map;
 
+import org.apache.cassandra.stress.util.MultiPrintStream;
+
 public class SettingsGraph implements Serializable
 {
     public final String file;
@@ -88,6 +90,15 @@ public class SettingsGraph implements Serializable
     }
 
     // CLI Utility Methods
+    public void printSettings(MultiPrintStream out)
+    {
+        out.println("  File: " + file);
+        out.println("  Revision: " + revision);
+        out.println("  Title: " + title);
+        out.println("  Operation: " + operation);
+    }
+
+
     public static SettingsGraph get(Map<String, String[]> clArgs, SettingsCommand stressCommand)
     {
         String[] params = clArgs.remove("-graph");

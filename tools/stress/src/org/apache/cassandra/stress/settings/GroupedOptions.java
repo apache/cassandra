@@ -28,6 +28,8 @@ import java.util.Set;
 
 import com.google.common.collect.ImmutableList;
 
+import org.apache.cassandra.stress.util.MultiPrintStream;
+
 public abstract class GroupedOptions
 {
 
@@ -113,6 +115,18 @@ public abstract class GroupedOptions
             }
         }
     }
+
+    public String getOptionAsString()
+    {
+        StringBuilder sb = new StringBuilder();
+        for (Option option : options())
+        {
+            sb.append(option.getOptionAsString());
+            sb.append("; ");
+        }
+        return sb.toString();
+    }
+
 
     public static List<? extends Option> merge(List<? extends Option> ... optionss)
     {

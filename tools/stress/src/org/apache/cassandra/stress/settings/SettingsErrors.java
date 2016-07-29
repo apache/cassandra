@@ -26,6 +26,8 @@ import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
 
+import org.apache.cassandra.stress.util.MultiPrintStream;
+
 public class SettingsErrors implements Serializable
 {
 
@@ -53,6 +55,12 @@ public class SettingsErrors implements Serializable
     }
 
     // CLI Utility Methods
+    public void printSettings(MultiPrintStream out)
+    {
+        out.printf("  Ignore: %b%n", ignore);
+        out.printf("  Tries: %d%n", tries);
+    }
+
 
     public static SettingsErrors get(Map<String, String[]> clArgs)
     {

@@ -52,6 +52,7 @@ import org.apache.cassandra.stress.operations.userdefined.SchemaQuery;
 import org.apache.cassandra.stress.operations.userdefined.ValidatingSchemaQuery;
 import org.apache.cassandra.stress.settings.*;
 import org.apache.cassandra.stress.util.JavaDriverClient;
+import org.apache.cassandra.stress.util.MultiPrintStream;
 import org.apache.cassandra.stress.util.ThriftClient;
 import org.apache.cassandra.stress.util.Timer;
 import org.apache.cassandra.thrift.Compression;
@@ -76,6 +77,7 @@ public class StressProfile implements Serializable
     private Map<String, StressYaml.QueryDef> queries;
     public Map<String, StressYaml.TokenRangeQueryDef> tokenRangeQueries;
     private Map<String, String> insert;
+    private boolean schemaCreated=false;
 
     transient volatile TableMetadata tableMetaData;
     transient volatile Set<TokenRange> tokenRanges;
@@ -95,6 +97,38 @@ public class StressProfile implements Serializable
     transient volatile Map<String, Integer> thriftQueryIds;
 
     private static final Pattern lowercaseAlphanumeric = Pattern.compile("[a-z0-9_]+");
+
+
+    public void printSettings(MultiPrintStream out, StressSettings stressSettings)
+    {
+        out.printf("  Keyspace Name: %s%n", keyspaceName);
+        out.printf("  Keyspace CQL: %n***%n%s***%n%n", keyspaceCql);
+        out.printf("  Table Name: %s%n", tableName);
+        out.printf("  Table CQL: %n***%n%s***%n%n", tableCql);
+        out.printf("  Extra Schema Definitions: %s%n", extraSchemaDefinitions);
+        out.printf("  Generator Configs:%n");
+        columnConfigs.forEach((k,v)->out.printf("    %s: %s%n", k, v.getConfigAsString()));
+        out.printf("  Query Definitions:%n");
+        queries.forEach((k,v)->out.printf("    %s: %s%n", k, v.getConfigAsString()));
+        out.printf("  Token Range Queries:%n");
+        tokenRangeQueries.forEach((k,v)->out.printf("    %s: %s%n", k, v.getConfigAsString()));
+        out.printf("  Insert Settings:%n");
+        insert.forEach((k,v)->out.printf("    %s: %s%n", k, v));
+
+        PartitionGenerator generator = newGenerator(stressSettings);
+        Distribution visits = stressSettings.insert.visits.get();
+        SchemaInsert tmp = getInsert(null, generator, null, stressSettings); //just calling this to initialize selectchance and partitions vals for calc below
+
+        double minBatchSize = selectchance.get().min() * partitions.get().minValue() * generator.minRowCount * (1d / visits.maxValue());
+        double maxBatchSize = selectchance.get().max() * partitions.get().maxValue() * generator.maxRowCount * (1d / visits.minValue());
+        out.printf("Generating batches with [%d..%d] partitions and [%.0f..%.0f] rows (of [%.0f..%.0f] total rows in the partitions)%n",
+                          partitions.get().minValue(), partitions.get().maxValue(),
+                          minBatchSize, maxBatchSize,
+                          partitions.get().minValue() * generator.minRowCount,
+                          partitions.get().maxValue() * generator.maxRowCount);
+
+    }
+
 
     private void init(StressYaml yaml) throws RequestValidationException
     {
@@ -175,54 +209,58 @@ public class StressProfile implements Serializable
 
     public void maybeCreateSchema(StressSettings settings)
     {
-        JavaDriverClient client = settings.getJavaDriverClient(false);
-
-        if (keyspaceCql != null)
+        if (!schemaCreated)
         {
-            try
-            {
-                client.execute(keyspaceCql, org.apache.cassandra.db.ConsistencyLevel.ONE);
-            }
-            catch (AlreadyExistsException e)
-            {
-            }
-        }
+            JavaDriverClient client = settings.getJavaDriverClient(false);
 
-        client.execute("use " + keyspaceName, org.apache.cassandra.db.ConsistencyLevel.ONE);
-
-        if (tableCql != null)
-        {
-            try
+            if (keyspaceCql != null)
             {
-                client.execute(tableCql, org.apache.cassandra.db.ConsistencyLevel.ONE);
-            }
-            catch (AlreadyExistsException e)
-            {
-            }
-
-            System.out.println(String.format("Created schema. Sleeping %ss for propagation.", settings.node.nodes.size()));
-            Uninterruptibles.sleepUninterruptibly(settings.node.nodes.size(), TimeUnit.SECONDS);
-        }
-
-        if (extraSchemaDefinitions != null)
-        {
-            for (String extraCql : extraSchemaDefinitions)
-            {
-
                 try
                 {
-                    client.execute(extraCql, org.apache.cassandra.db.ConsistencyLevel.ONE);
+                    client.execute(keyspaceCql, org.apache.cassandra.db.ConsistencyLevel.ONE);
                 }
                 catch (AlreadyExistsException e)
                 {
                 }
             }
 
-            System.out.println(String.format("Created extra schema. Sleeping %ss for propagation.", settings.node.nodes.size()));
-            Uninterruptibles.sleepUninterruptibly(settings.node.nodes.size(), TimeUnit.SECONDS);
-        }
+            client.execute("use " + keyspaceName, org.apache.cassandra.db.ConsistencyLevel.ONE);
 
+            if (tableCql != null)
+            {
+                try
+                {
+                    client.execute(tableCql, org.apache.cassandra.db.ConsistencyLevel.ONE);
+                }
+                catch (AlreadyExistsException e)
+                {
+                }
+
+                System.out.println(String.format("Created schema. Sleeping %ss for propagation.", settings.node.nodes.size()));
+                Uninterruptibles.sleepUninterruptibly(settings.node.nodes.size(), TimeUnit.SECONDS);
+            }
+
+            if (extraSchemaDefinitions != null)
+            {
+                for (String extraCql : extraSchemaDefinitions)
+                {
+
+                    try
+                    {
+                        client.execute(extraCql, org.apache.cassandra.db.ConsistencyLevel.ONE);
+                    }
+                    catch (AlreadyExistsException e)
+                    {
+                    }
+                }
+
+                System.out.println(String.format("Created extra schema. Sleeping %ss for propagation.", settings.node.nodes.size()));
+                Uninterruptibles.sleepUninterruptibly(settings.node.nodes.size(), TimeUnit.SECONDS);
+            }
+        schemaCreated = true;
+        }
         maybeLoadSchemaInfo(settings);
+
     }
 
     public void truncateTable(StressSettings settings)
@@ -550,11 +588,7 @@ public class StressProfile implements Serializable
                     // guarantee the vast majority of actions occur in these bounds
                     double minBatchSize = selectchance.get().min() * partitions.get().minValue() * generator.minRowCount * (1d / visits.maxValue());
                     double maxBatchSize = selectchance.get().max() * partitions.get().maxValue() * generator.maxRowCount * (1d / visits.minValue());
-                    System.out.printf("Generating batches with [%d..%d] partitions and [%.0f..%.0f] rows (of [%.0f..%.0f] total rows in the partitions)%n",
-                                      partitions.get().minValue(), partitions.get().maxValue(),
-                                      minBatchSize, maxBatchSize,
-                                      partitions.get().minValue() * generator.minRowCount,
-                                      partitions.get().maxValue() * generator.maxRowCount);
+
                     if (generator.maxRowCount > 100 * 1000 * 1000)
                         System.err.printf("WARNING: You have defined a schema that permits very large partitions (%.0f max rows (>100M))%n", generator.maxRowCount);
                     if (batchType == BatchStatement.Type.LOGGED && maxBatchSize > 65535)
@@ -628,6 +662,7 @@ public class StressProfile implements Serializable
         {
             synchronized (this)
             {
+                maybeCreateSchema(settings);
                 maybeLoadSchemaInfo(settings);
                 if (generatorFactory == null)
                     generatorFactory = new GeneratorFactory();

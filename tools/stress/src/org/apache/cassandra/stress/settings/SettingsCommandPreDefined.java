@@ -37,6 +37,7 @@ import org.apache.cassandra.stress.operations.FixedOpDistribution;
 import org.apache.cassandra.stress.operations.OpDistribution;
 import org.apache.cassandra.stress.operations.OpDistributionFactory;
 import org.apache.cassandra.stress.operations.predefined.PredefinedOperation;
+import org.apache.cassandra.stress.util.MultiPrintStream;
 import org.apache.cassandra.stress.util.Timing;
 
 // Settings unique to the mixed command type
@@ -45,6 +46,7 @@ public class SettingsCommandPreDefined extends SettingsCommand
 
     public final DistributionFactory add;
     public final int keySize;
+    public final Options options;
 
     public OpDistributionFactory getFactory(final StressSettings settings)
     {
@@ -85,6 +87,7 @@ public class SettingsCommandPreDefined extends SettingsCommand
     public SettingsCommandPreDefined(Command type, Options options)
     {
         super(type, options.parent);
+        this.options = options;
         add = options.add.get();
         keySize = Integer.parseInt(options.keysize.value());
     }
@@ -115,6 +118,13 @@ public class SettingsCommandPreDefined extends SettingsCommand
     }
 
     // CLI utility methods
+
+    public void printSettings(MultiPrintStream out)
+    {
+        super.printSettings(out);
+        out.printf("  Key Size (bytes): %d%n", keySize);
+        out.printf("  Counter Increment Distibution: %s%n", options.add.getOptionAsString());
+    }
 
     public static SettingsCommandPreDefined build(Command type, String[] params)
     {

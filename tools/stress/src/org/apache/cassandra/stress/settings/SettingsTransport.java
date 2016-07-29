@@ -28,6 +28,7 @@ import java.util.List;
 import java.util.Map;
 
 import org.apache.cassandra.config.EncryptionOptions;
+import org.apache.cassandra.stress.util.MultiPrintStream;
 import org.apache.cassandra.thrift.ITransportFactory;
 import org.apache.cassandra.thrift.SSLTransportFactory;
 import org.apache.cassandra.thrift.TFramedTransportFactory;
@@ -145,6 +146,10 @@ public class SettingsTransport implements Serializable
     }
 
     // CLI Utility Methods
+    public void printSettings(MultiPrintStream out)
+    {
+        out.println("  " + options.getOptionAsString());
+    }
 
     public static SettingsTransport get(Map<String, String[]> clArgs)
     {

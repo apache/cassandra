@@ -27,5 +27,6 @@ public interface DistributionFactory extends Serializable
 {
 
     Distribution get();
+    String getConfigAsString();
 
 }

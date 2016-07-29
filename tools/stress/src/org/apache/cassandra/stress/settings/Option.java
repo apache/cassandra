@@ -30,6 +30,7 @@ abstract class Option
     abstract boolean happy();
     abstract String shortDisplay();
     abstract String longDisplay();
+    abstract String getOptionAsString(); // short and longDisplay print help text getOptionAsString prints value
     abstract List<String> multiLineDisplay();
     abstract boolean setByUser();
     abstract boolean present();

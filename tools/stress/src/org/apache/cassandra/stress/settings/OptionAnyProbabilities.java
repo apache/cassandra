@@ -58,6 +58,15 @@ public final class OptionAnyProbabilities extends OptionMulti
         {
             return null;
         }
+        public String getOptionAsString()
+        {
+            StringBuilder sb = new StringBuilder();
+            for (Map.Entry<String, Double> entry : options.entrySet())
+            {
+                sb.append(entry.getKey() + "=" + entry.getValue() + ",");
+            }
+            return sb.toString();
+        }
 
         String longDisplay()
         {
@@ -91,5 +100,14 @@ public final class OptionAnyProbabilities extends OptionMulti
     {
         return ratios.options;
     }
+    public String getOptionAsString()
+    {
+        StringBuilder sb = new StringBuilder(super.getOptionAsString());
+        sb.append(" [Ratios: ");
+        sb.append(ratios.getOptionAsString());
+        sb.append("];");
+        return sb.toString();
+    }
+
 }
 

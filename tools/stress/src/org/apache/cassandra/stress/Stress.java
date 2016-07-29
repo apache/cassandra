@@ -86,7 +86,14 @@ public final class Stress
             }
 
             MultiPrintStream logout = settings.log.getOutput();
-            if (settings.graph.inGraphMode()) {
+
+            if (! settings.log.noSettings)
+            {
+                settings.printSettings(logout);
+            }
+
+            if (settings.graph.inGraphMode())
+            {
                 logout.addStream(new PrintStream(settings.graph.temporaryLogFile));
             }
 

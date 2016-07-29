@@ -30,6 +30,7 @@ import com.datastax.driver.core.AuthProvider;
 import com.datastax.driver.core.PlainTextAuthProvider;
 import com.datastax.driver.core.ProtocolOptions;
 import com.datastax.driver.core.ProtocolVersion;
+import org.apache.cassandra.stress.util.MultiPrintStream;
 
 public class SettingsMode implements Serializable
 {
@@ -48,6 +49,7 @@ public class SettingsMode implements Serializable
     public final Integer connectionsPerHost;
 
     private final String compression;
+
 
     public SettingsMode(GroupedOptions options)
     {
@@ -162,8 +164,8 @@ public class SettingsMode implements Serializable
         final OptionSimple user = new OptionSimple("user=", ".+", null, "username", false);
         final OptionSimple password = new OptionSimple("password=", ".+", null, "password", false);
         final OptionSimple authProvider = new OptionSimple("auth-provider=", ".*", null, "Fully qualified implementation of com.datastax.driver.core.AuthProvider", false);
-        final OptionSimple maxPendingPerConnection = new OptionSimple("maxPending=", "[0-9]+", "", "Maximum pending requests per connection", false);
-        final OptionSimple connectionsPerHost = new OptionSimple("connectionsPerHost=", "[0-9]+", "", "Number of connections per host", false);
+        final OptionSimple maxPendingPerConnection = new OptionSimple("maxPending=", "[0-9]+", "128", "Maximum pending requests per connection", false);
+        final OptionSimple connectionsPerHost = new OptionSimple("connectionsPerHost=", "[0-9]+", "8", "Number of connections per host", false);
 
         abstract OptionSimple mode();
         @Override
@@ -205,6 +207,21 @@ public class SettingsMode implements Serializable
     }
 
     // CLI Utility Methods
+    public void printSettings(MultiPrintStream out)
+    {
+        out.printf("  API: %s%n", api);
+        out.printf("  Connection Style: %s%n", style);
+        out.printf("  CQL Version: %s%n", cqlVersion);
+        out.printf("  Protocol Version: %s%n", protocolVersion);
+        out.printf("  Username: %s%n", username);
+        out.printf("  Password: %s%n", (password==null?password:"*suppressed*"));
+        out.printf("  Auth Provide Class: %s%n", authProviderClassname);
+        out.printf("  Max Pending Per Connection: %d%n", maxPendingPerConnection);
+        out.printf("  Connections Per Host: %d%n", connectionsPerHost);
+        out.printf("  Compression: %s%n", compression);
+
+    }
+
 
     public static SettingsMode get(Map<String, String[]> clArgs)
     {

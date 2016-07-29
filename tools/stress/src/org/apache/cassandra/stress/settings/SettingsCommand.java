@@ -31,6 +31,7 @@ import com.google.common.util.concurrent.Uninterruptibles;
 
 import org.apache.cassandra.stress.operations.OpDistributionFactory;
 import org.apache.cassandra.stress.util.JavaDriverClient;
+import org.apache.cassandra.stress.util.MultiPrintStream;
 import org.apache.cassandra.thrift.ConsistencyLevel;
 
 // Generic command settings - common to read/write/etc
@@ -171,6 +172,27 @@ public abstract class SettingsCommand implements Serializable
     }
 
     // CLI Utility Methods
+
+    public void printSettings(MultiPrintStream out)
+    {
+        out.printf("  Type: %s%n", type.toString().toLowerCase());
+        out.printf("  Count: %,d%n", count);
+        if (durationUnits != null)
+        {
+            out.printf("  Duration: %,d %s%n", duration, durationUnits.toString());
+        }
+        out.printf("  No Warmup: %s%n", noWarmup);
+        out.printf("  Consistency Level: %s%n", consistencyLevel.toString());
+        if (targetUncertainty != -1)
+        {
+            out.printf("  Target Uncertainty: %.3f%n", targetUncertainty);
+            out.printf("  Minimum Uncertainty Measurements: %,d%n", minimumUncertaintyMeasurements);
+            out.printf("  Maximum Uncertainty Measurements: %,d%n", maximumUncertaintyMeasurements);
+        } else {
+            out.printf("  Target Uncertainty: not applicable%n");
+        }
+    }
+
 
     static SettingsCommand get(Map<String, String[]> clArgs)
     {

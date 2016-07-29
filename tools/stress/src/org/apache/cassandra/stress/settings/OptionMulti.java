@@ -109,6 +109,21 @@ abstract class OptionMulti extends Option
     {
         return (happy() ? "[" : "") + name + "(?)" + (happy() ? "]" : "");
     }
+    public String getOptionAsString()
+    {
+        StringBuilder sb = new StringBuilder();
+        sb.append(name + ": ");
+        sb.append(delegate.getOptionAsString());
+        sb.append(";");
+        if (collectAsMap != null)
+        {
+            sb.append("[");
+            sb.append(collectAsMap.getOptionAsString());
+            sb.append("];");
+        }
+        return sb.toString();
+    }
+
 
     @Override
     public String longDisplay()
@@ -167,6 +182,17 @@ abstract class OptionMulti extends Option
         {
             return "[<option 1..N>=?]";
         }
+
+        public String getOptionAsString()
+        {
+            StringBuilder sb = new StringBuilder();
+            for (Map.Entry<String, String> entry : options.entrySet())
+            {
+                sb.append(entry.getKey() + "=" + entry.getValue() + ",");
+            }
+            return sb.toString();
+        }
+
 
         String longDisplay()
         {

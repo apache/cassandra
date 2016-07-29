@@ -22,6 +22,7 @@ package org.apache.cassandra.stress.settings;
 
 
 import java.io.Serializable;
+import org.apache.cassandra.stress.util.MultiPrintStream;
 import java.util.*;
 
 import com.datastax.driver.core.Metadata;
@@ -335,6 +336,54 @@ public class StressSettings implements Serializable
     public static void printHelp()
     {
         SettingsMisc.printHelp();
+    }
+
+    public void printSettings(MultiPrintStream out)
+    {
+        out.println("******************** Stress Settings ********************");
+        // done
+        out.println("Command:");
+        command.printSettings(out);
+        out.println("Rate:");
+        rate.printSettings(out);
+        out.println("Population:");
+        generate.printSettings(out);
+        out.println("Insert:");
+        insert.printSettings(out);
+        if (command.type != Command.USER)
+        {
+            out.println("Columns:");
+            columns.printSettings(out);
+        }
+        out.println("Errors:");
+        errors.printSettings(out);
+        out.println("Log:");
+        log.printSettings(out);
+        out.println("Mode:");
+        mode.printSettings(out);
+        out.println("Node:");
+        node.printSettings(out);
+        out.println("Schema:");
+        schema.printSettings(out);
+        out.println("Transport:");
+        transport.printSettings(out);
+        out.println("Port:");
+        port.printSettings(out);
+        out.println("Send To Daemon:");
+        out.printf("  " + (sendToDaemon != null ? sendToDaemon : "*not set*") + "%n");
+        out.println("Graph:");
+        graph.printSettings(out);
+        out.println("TokenRange:");
+        tokenRange.printSettings(out);
+
+        if (command.type == Command.USER)
+        {
+            out.println();
+            out.println("******************** Profile ********************");
+            ((SettingsCommandUser) command).profile.printSettings(out, this);
+        }
+        out.println();
+
     }
 
     public synchronized void disconnect()

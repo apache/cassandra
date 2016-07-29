@@ -36,6 +36,7 @@ import org.apache.cassandra.stress.generate.SeedManager;
 import org.apache.cassandra.stress.generate.TokenRangeIterator;
 import org.apache.cassandra.stress.operations.OpDistributionFactory;
 import org.apache.cassandra.stress.operations.SampledOpDistributionFactory;
+import org.apache.cassandra.stress.util.MultiPrintStream;
 import org.apache.cassandra.stress.util.Timer;
 
 // Settings unique to the mixed command type
@@ -46,11 +47,13 @@ public class SettingsCommandUser extends SettingsCommand
     private final Map<String, Double> ratios;
     private final DistributionFactory clustering;
     public final StressProfile profile;
+    private final Options options;
 
     public SettingsCommandUser(Options options)
     {
         super(Command.USER, options.parent);
 
+        this.options = options;
         clustering = options.clustering.get();
         ratios = options.ops.ratios();
 
@@ -121,6 +124,16 @@ public class SettingsCommandUser extends SettingsCommand
     }
 
     // CLI utility methods
+
+    public void printSettings(MultiPrintStream out)
+    {
+        super.printSettings(out);
+        out.printf("  Command Ratios: %s%n", ratios);
+        out.printf("  Command Clustering Distribution: %s%n", options.clustering.getOptionAsString());
+        out.printf("  Profile File: %s%n", options.profile.value());
+        // profile.noSettings(out);
+    }
+
 
     public static SettingsCommandUser build(String[] params)
     {

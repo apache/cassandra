@@ -42,12 +42,20 @@ public class StressYaml
     {
         public String cql;
         public String fields;
+        public String getConfigAsString()
+        {
+            return String.format("CQL:%s;Fields:%s;", cql, fields);
+        }
     }
 
     public static class TokenRangeQueryDef
     {
         public String columns;
         public int page_size = 5000;
+        public String getConfigAsString()
+        {
+            return String.format("Columns:%s;", columns);
+        }
     }
 
 }
