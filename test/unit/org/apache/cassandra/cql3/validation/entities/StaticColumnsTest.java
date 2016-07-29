@@ -286,6 +286,8 @@ public class StaticColumnsTest extends CQLTester
 
         flush();
 
+        Thread.sleep(1000);
+
         compact();
 
         assertRows(execute("SELECT * FROM %s"), row("k1", "c1", null, "v1"));
