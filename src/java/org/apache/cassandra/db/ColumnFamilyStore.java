@@ -1340,15 +1340,24 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
 
     {
         long start = System.nanoTime();
-        Memtable mt = data.getMemtableFor(opGroup, commitLogPosition);
-        long timeDelta = mt.put(update, indexer, opGroup);
-        DecoratedKey key = update.partitionKey();
-        invalidateCachedPartition(key);
-        metric.samplers.get(Sampler.WRITES).addSample(key.getKey(), key.hashCode(), 1);
-        StorageHook.instance.reportWrite(metadata.cfId, update);
-        metric.writeLatency.addNano(System.nanoTime() - start);
-        if(timeDelta < Long.MAX_VALUE)
-            metric.colUpdateTimeDeltaHistogram.update(timeDelta);
+        try
+        {
+            Memtable mt = data.getMemtableFor(opGroup, commitLogPosition);
+            long timeDelta = mt.put(update, indexer, opGroup);
+            DecoratedKey key = update.partitionKey();
+            invalidateCachedPartition(key);
+            metric.samplers.get(Sampler.WRITES).addSample(key.getKey(), key.hashCode(), 1);
+            StorageHook.instance.reportWrite(metadata.cfId, update);
+            metric.writeLatency.addNano(System.nanoTime() - start);
+            if(timeDelta < Long.MAX_VALUE)
+                metric.colUpdateTimeDeltaHistogram.update(timeDelta);
+        }
+        catch (RuntimeException e)
+        {
+            throw new RuntimeException(e.getMessage()
+                                       + " for ks: "
+                                       + keyspace.getName() + ", table: " + name, e);
+        }
     }
 
     /**
