@@ -330,7 +330,7 @@ public class ColumnFamilyStoreCQLHelper
         {
             builder.append(singleQuote(entry.getKey()));
             builder.append(": ");
-            builder.append("0x" + ByteBufferUtil.bytesToHex(entry.getValue()));
+            builder.append("0x").append(ByteBufferUtil.bytesToHex(entry.getValue()));
         }
         builder.append(" }");
         return builder.toString();

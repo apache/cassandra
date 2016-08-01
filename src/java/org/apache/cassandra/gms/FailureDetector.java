@@ -351,7 +351,7 @@ public class FailureDetector implements IFailureDetector, FailureDetectorMBean
         for (InetAddress ep : eps)
         {
             ArrivalWindow hWnd = arrivalSamples.get(ep);
-            sb.append(ep + " : ");
+            sb.append(ep).append(" : ");
             sb.append(hWnd);
             sb.append(System.getProperty("line.separator"));
         }
