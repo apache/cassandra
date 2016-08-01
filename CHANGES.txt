@@ -19,6 +19,7 @@ Merged from 2.2:
  * Fixed cqlshlib.test.remove_test_db (CASSANDRA-12214)
 Merged from 2.1:
  * cannot use cql since upgrading python to 2.7.11+ (CASSANDRA-11850)
+ * Allow STCS-in-L0 compactions to reduce scope with LCS (CASSANDRA-12040)
 
 
 3.8
