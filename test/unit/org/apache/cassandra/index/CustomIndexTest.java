@@ -348,12 +348,14 @@ public class CustomIndexTest extends CQLTester
     {
         Object[] row = row(0, 0, 0, 0);
         createTable("CREATE TABLE %s (a int, b int, c int, d int, PRIMARY KEY (a, b))");
+        String indexName = currentTable() + "_custom_index";
         execute("INSERT INTO %s (a, b, c, d) VALUES (?, ?, ?, ?)", row);
 
-        assertInvalidMessage(String.format(IndexRestrictions.INDEX_NOT_FOUND, "custom_index", keyspace(), currentTable()),
-                             "SELECT * FROM %s WHERE expr(custom_index, 'foo bar baz')");
 
-        createIndex(String.format("CREATE CUSTOM INDEX custom_index ON %%s(c) USING '%s'", StubIndex.class.getName()));
+        assertInvalidMessage(String.format(IndexRestrictions.INDEX_NOT_FOUND, indexName, keyspace(), currentTable()),
+                             String.format("SELECT * FROM %%s WHERE expr(%s, 'foo bar baz')", indexName));
+
+        createIndex(String.format("CREATE CUSTOM INDEX %s ON %%s(c) USING '%s'", indexName, StubIndex.class.getName()));
 
         assertInvalidThrowMessage(Server.CURRENT_VERSION,
                                   String.format(IndexRestrictions.INDEX_NOT_FOUND, "no_such_index", keyspace(), currentTable()),
@@ -361,52 +363,58 @@ public class CustomIndexTest extends CQLTester
                                   "SELECT * FROM %s WHERE expr(no_such_index, 'foo bar baz ')");
 
         // simple case
-        assertRows(execute("SELECT * FROM %s WHERE expr(custom_index, 'foo bar baz')"), row);
-        assertRows(execute("SELECT * FROM %s WHERE expr(\"custom_index\", 'foo bar baz')"), row);
-        assertRows(execute("SELECT * FROM %s WHERE expr(custom_index, $$foo \" ~~~ bar Baz$$)"), row);
+        assertRows(execute(String.format("SELECT * FROM %%s WHERE expr(%s, 'foo bar baz')", indexName)), row);
+        assertRows(execute(String.format("SELECT * FROM %%s WHERE expr(\"%s\", 'foo bar baz')", indexName)), row);
+        assertRows(execute(String.format("SELECT * FROM %%s WHERE expr(%s, $$foo \" ~~~ bar Baz$$)", indexName)), row);
 
         // multiple expressions on the same index
         assertInvalidThrowMessage(Server.CURRENT_VERSION,
                                   IndexRestrictions.MULTIPLE_EXPRESSIONS,
                                   QueryValidationException.class,
-                                  "SELECT * FROM %s WHERE expr(custom_index, 'foo') AND expr(custom_index, 'bar')");
+                                  String.format("SELECT * FROM %%s WHERE expr(%1$s, 'foo') AND expr(%1$s, 'bar')",
+                                                indexName));
 
         // multiple expressions on different indexes
         createIndex(String.format("CREATE CUSTOM INDEX other_custom_index ON %%s(d) USING '%s'", StubIndex.class.getName()));
         assertInvalidThrowMessage(Server.CURRENT_VERSION,
                                   IndexRestrictions.MULTIPLE_EXPRESSIONS,
                                   QueryValidationException.class,
-                                  "SELECT * FROM %s WHERE expr(custom_index, 'foo') AND expr(other_custom_index, 'bar')");
+                                  String.format("SELECT * FROM %%s WHERE expr(%s, 'foo') AND expr(other_custom_index, 'bar')",
+                                                indexName));
 
         assertInvalidThrowMessage(Server.CURRENT_VERSION,
                                   StatementRestrictions.REQUIRES_ALLOW_FILTERING_MESSAGE,
                                   QueryValidationException.class,
-                                  "SELECT * FROM %s WHERE expr(custom_index, 'foo') AND d=0");
-        assertRows(execute("SELECT * FROM %s WHERE expr(custom_index, 'foo') AND d=0 ALLOW FILTERING"), row);
+                                  String.format("SELECT * FROM %%s WHERE expr(%s, 'foo') AND d=0", indexName));
+        assertRows(execute(String.format("SELECT * FROM %%s WHERE expr(%s, 'foo') AND d=0 ALLOW FILTERING", indexName)), row);
     }
 
     @Test
     public void customIndexDoesntSupportCustomExpressions() throws Throwable
     {
         createTable("CREATE TABLE %s (a int, b int, c int, d int, PRIMARY KEY (a, b))");
-        createIndex(String.format("CREATE CUSTOM INDEX custom_index ON %%s(c) USING '%s'",
+        String indexName = currentTable() + "_custom_index";
+        createIndex(String.format("CREATE CUSTOM INDEX %s ON %%s(c) USING '%s'",
+                                  indexName,
                                   NoCustomExpressionsIndex.class.getName()));
         assertInvalidThrowMessage(Server.CURRENT_VERSION,
-                                  String.format( IndexRestrictions.CUSTOM_EXPRESSION_NOT_SUPPORTED, "custom_index"),
+                                  String.format( IndexRestrictions.CUSTOM_EXPRESSION_NOT_SUPPORTED, indexName),
                                   QueryValidationException.class,
-                                  "SELECT * FROM %s WHERE expr(custom_index, 'foo bar baz')");
+                                  String.format("SELECT * FROM %%s WHERE expr(%s, 'foo bar baz')", indexName));
     }
 
     @Test
     public void customIndexRejectsExpressionSyntax() throws Throwable
     {
         createTable("CREATE TABLE %s (a int, b int, c int, d int, PRIMARY KEY (a, b))");
-        createIndex(String.format("CREATE CUSTOM INDEX custom_index ON %%s(c) USING '%s'",
+        String indexName = currentTable() + "_custom_index";
+        createIndex(String.format("CREATE CUSTOM INDEX %s ON %%s(c) USING '%s'",
+                                  indexName,
                                   AlwaysRejectIndex.class.getName()));
         assertInvalidThrowMessage(Server.CURRENT_VERSION,
                                   "None shall pass",
                                   QueryValidationException.class,
-                                  "SELECT * FROM %s WHERE expr(custom_index, 'foo bar baz')");
+                                  String.format("SELECT * FROM %%s WHERE expr(%s, 'foo bar baz')", indexName));
     }
 
     @Test
