@@ -30,6 +30,7 @@ import javax.management.openmbean.TabularData;
 
 import com.google.common.annotations.VisibleForTesting;
 import com.google.common.collect.*;
+import com.google.common.primitives.Ints;
 import com.google.common.util.concurrent.*;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -483,7 +484,7 @@ public class CompactionManager implements CompactionManagerMBean
                     @Override
                     protected CompactionController getCompactionController(Set<SSTableReader> toCompact)
                     {
-                        return new CompactionController(cfStore, toCompact, gcBefore, getRateLimiter(), tombstoneOption);
+                        return new CompactionController(cfStore, toCompact, gcBefore, null, tombstoneOption);
                     }
                 };
                 task.setUserDefined(true);
@@ -1079,15 +1080,22 @@ public class CompactionManager implements CompactionManagerMBean
         logger.info("Cleaning up {}", sstable);
 
         File compactionFileLocation = sstable.descriptor.directory;
+        RateLimiter limiter = getRateLimiter();
+        double compressionRatio = sstable.getCompressionRatio();
+        if (compressionRatio == MetadataCollector.NO_COMPRESSION_RATIO)
+            compressionRatio = 1.0;
 
         List<SSTableReader> finished;
+
         int nowInSec = FBUtilities.nowInSeconds();
         try (SSTableRewriter writer = SSTableRewriter.construct(cfs, txn, false, sstable.maxDataAge);
-             ISSTableScanner scanner = cleanupStrategy.getScanner(sstable, getRateLimiter());
+             ISSTableScanner scanner = cleanupStrategy.getScanner(sstable, null);
              CompactionController controller = new CompactionController(cfs, txn.originals(), getDefaultGcBefore(cfs, nowInSec));
              CompactionIterator ci = new CompactionIterator(OperationType.CLEANUP, Collections.singletonList(scanner), controller, nowInSec, UUIDGen.getTimeUUID(), metrics))
         {
             writer.switchWriter(createWriter(cfs, compactionFileLocation, expectedBloomFilterSize, sstable.getSSTableMetadata().repairedAt, sstable, txn));
+            long lastBytesScanned = 0;
+
 
             while (ci.hasNext())
             {
@@ -1102,6 +1110,13 @@ public class CompactionManager implements CompactionManagerMBean
 
                     if (writer.append(notCleaned) != null)
                         totalkeysWritten++;
+
+                    long bytesScanned = scanner.getBytesScanned();
+
+                    int lengthRead = (int) (Ints.checkedCast(bytesScanned - lastBytesScanned) * compressionRatio);
+                    limiter.acquire(lengthRead + 1);
+
+                    lastBytesScanned = bytesScanned;
                 }
             }
 

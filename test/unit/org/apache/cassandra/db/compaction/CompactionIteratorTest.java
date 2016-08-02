@@ -39,6 +39,7 @@ import org.apache.cassandra.db.marshal.UTF8Type;
 import org.apache.cassandra.db.partitions.AbstractUnfilteredPartitionIterator;
 import org.apache.cassandra.db.rows.*;
 import org.apache.cassandra.io.sstable.ISSTableScanner;
+import org.apache.cassandra.io.sstable.metadata.MetadataCollector;
 import org.apache.cassandra.schema.KeyspaceParams;
 
 public class CompactionIteratorTest
@@ -364,6 +365,18 @@ public class CompactionIteratorTest
 
         @Override
         public long getCurrentPosition()
+        {
+            return 0;
+        }
+
+        @Override
+        public long getBytesScanned()
+        {
+            return 0;
+        }
+
+        @Override
+        public long getCompressedLengthInBytes()
         {
             return 0;
         }

@@ -36,6 +36,7 @@ import org.apache.cassandra.db.lifecycle.SSTableSet;
 import org.apache.cassandra.index.SecondaryIndexManager;
 import org.apache.cassandra.io.compress.CompressionMetadata;
 import org.apache.cassandra.io.sstable.format.SSTableReader;
+import org.apache.cassandra.io.sstable.metadata.MetadataCollector;
 import org.apache.cassandra.repair.SystemDistributedKeyspace;
 import org.apache.cassandra.utils.EstimatedHistogram;
 import org.apache.cassandra.utils.TopKSampler;
@@ -819,7 +820,7 @@ public class TableMetrics
                 dataLengthSum += compressionMetadata.dataLength;
             }
         }
-        return dataLengthSum != 0 ? compressedLengthSum / dataLengthSum : 0;
+        return dataLengthSum != 0 ? compressedLengthSum / dataLengthSum : MetadataCollector.NO_COMPRESSION_RATIO;
     }
 
     /**

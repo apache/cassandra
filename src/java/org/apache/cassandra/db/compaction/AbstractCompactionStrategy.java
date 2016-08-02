@@ -23,7 +23,6 @@ import com.google.common.base.Throwables;
 import com.google.common.collect.ImmutableMap;
 import com.google.common.base.Predicate;
 import com.google.common.collect.Iterables;
-import com.google.common.util.concurrent.RateLimiter;
 
 import org.apache.cassandra.db.Directories;
 import org.apache.cassandra.db.SerializationHeader;
@@ -283,12 +282,11 @@ public abstract class AbstractCompactionStrategy
     @SuppressWarnings("resource")
     public ScannerList getScanners(Collection<SSTableReader> sstables, Collection<Range<Token>> ranges)
     {
-        RateLimiter limiter = CompactionManager.instance.getRateLimiter();
         ArrayList<ISSTableScanner> scanners = new ArrayList<ISSTableScanner>();
         try
         {
             for (SSTableReader sstable : sstables)
-                scanners.add(sstable.getScanner(ranges, limiter));
+                scanners.add(sstable.getScanner(ranges, null));
         }
         catch (Throwable t)
         {
@@ -339,6 +337,41 @@ public abstract class AbstractCompactionStrategy
         public ScannerList(List<ISSTableScanner> scanners)
         {
             this.scanners = scanners;
+        }
+
+        public long getTotalBytesScanned()
+        {
+            long bytesScanned = 0L;
+            for (ISSTableScanner scanner : scanners)
+                bytesScanned += scanner.getBytesScanned();
+
+            return bytesScanned;
+        }
+
+        public long getTotalCompressedSize()
+        {
+            long compressedSize = 0;
+            for (ISSTableScanner scanner : scanners)
+                compressedSize += scanner.getCompressedLengthInBytes();
+
+            return compressedSize;
+        }
+
+        public double getCompressionRatio()
+        {
+            double compressed = 0.0;
+            double uncompressed = 0.0;
+
+            for (ISSTableScanner scanner : scanners)
+            {
+                compressed += scanner.getCompressedLengthInBytes();
+                uncompressed += scanner.getLengthInBytes();
+            }
+
+            if (compressed == uncompressed || uncompressed == 0)
+                return MetadataCollector.NO_COMPRESSION_RATIO;
+
+            return compressed / uncompressed;
         }
 
         public void close()

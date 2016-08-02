@@ -72,8 +72,7 @@ public class CompactionController implements AutoCloseable
 
     public CompactionController(ColumnFamilyStore cfs, Set<SSTableReader> compacting, int gcBefore)
     {
-        this(cfs, compacting, gcBefore,
-             CompactionManager.instance.getRateLimiter(),
+        this(cfs, compacting, gcBefore, null,
              cfs.getCompactionStrategyManager().getCompactionParams().tombstoneOption());
     }
 
