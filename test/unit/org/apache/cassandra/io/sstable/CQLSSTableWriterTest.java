@@ -503,7 +503,7 @@ public class CQLSSTableWriterTest
         writer.addRow(5, 5, 5, "5");
 
         writer.close();
-        loadSSTables(dataDir, KS);
+        loadSSTables(writer.getInnermostDirectory(), KS);
 
         UntypedResultSet resultSet = QueryProcessor.executeInternal("SELECT * FROM " + KS + "." + TABLE);
         Iterator<UntypedResultSet.Row> iter = resultSet.iterator();
