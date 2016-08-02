@@ -26,6 +26,7 @@
 
 
 3.9
+ * Fixed flacky SSTableRewriterTest: check file counts before calling validateCFS (CASSANDRA-12348)
  * cqlsh: Fix handling of $$-escaped strings (CASSANDRA-12189)
  * Fix SSL JMX requiring truststore containing server cert (CASSANDRA-12109)
 Merged from 3.0:
