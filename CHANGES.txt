@@ -1,4 +1,5 @@
 3.10
+ * Upgrade to OHC 0.4.4 (CASSANDRA-12133)
  * Add version command to cassandra-stress (CASSANDRA-12258)
  * Create compaction-stress tool (CASSANDRA-11844)
  * Garbage-collecting compaction operation and schema option (CASSANDRA-7019)
