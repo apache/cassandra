@@ -22,7 +22,7 @@ import java.io.FilenameFilter;
 import java.io.IOException;
 
 import com.google.common.io.Files;
-import org.apache.commons.lang.ArrayUtils;
+import org.apache.commons.lang3.ArrayUtils;
 import org.junit.After;
 import org.junit.AfterClass;
 import org.junit.Before;
