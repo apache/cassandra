@@ -21,6 +21,12 @@ New features
     - JSON timestamps are now in UTC and contain the timezone information, see
       CASSANDRA-11137 for more details.
 
+Upgrading
+---------
+    - Ec2MultiRegionSnitch will no longer automatically set broadcast_rpc_address
+      to the public instance IP if this property is defined on cassandra.yaml.
+
+
 2.2.6
 =====
 
