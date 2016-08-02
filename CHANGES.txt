@@ -1,4 +1,5 @@
 3.10
+ * Deprecate memtable_cleanup_threshold and update default for memtable_flush_writers (CASSANDRA-12228)
  * Upgrade to OHC 0.4.4 (CASSANDRA-12133)
  * Add version command to cassandra-stress (CASSANDRA-12258)
  * Create compaction-stress tool (CASSANDRA-11844)

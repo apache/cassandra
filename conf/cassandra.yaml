@@ -471,6 +471,10 @@ concurrent_materialized_view_writes: 32
 # memtable_heap_space_in_mb: 2048
 # memtable_offheap_space_in_mb: 2048
 
+# memtable_cleanup_threshold is deprecated. The default calculation
+# is the only reasonable choice. See the comments on  memtable_flush_writers
+# for more information.
+#
 # Ratio of occupied non-flushing memtable size to total permitted size
 # that will trigger a flush of the largest memtable. Larger mct will
 # mean larger flushes and hence less compaction, but also less concurrent
@@ -504,15 +508,34 @@ memtable_allocation_type: heap_buffers
 #
 # commitlog_total_space_in_mb: 8192
 
-# This sets the amount of memtable flush writer threads.  These will
-# be blocked by disk io, and each one will hold a memtable in memory
-# while blocked.
+# This sets the number of memtable flush writer threads per disk
+# as well as the total number of memtables that can be flushed concurrently.
+# These are generally a combination of compute and IO bound.
 #
-# memtable_flush_writers defaults to one per data_file_directory.
+# Memtable flushing is more CPU efficient than memtable ingest and a single thread
+# can keep up with the ingest rate of a whole server on a single fast disk
+# until it temporarily becomes IO bound under contention typically with compaction.
+# At that point you need multiple flush threads. At some point in the future
+# it may become CPU bound all the time.
 #
-# If your data directories are backed by SSD, you can increase this, but
-# avoid having memtable_flush_writers * data_file_directories > number of cores
-#memtable_flush_writers: 1
+# You can tell if flushing is falling behind using the MemtablePool.BlockedOnAllocation
+# metric which should be 0, but will be non-zero if threads are blocked waiting on flushing
+# to free memory.
+#
+# memtable_flush_writers defaults to two for a single data directory.
+# This means that two  memtables can be flushed concurrently to the single data directory.
+# If you have multiple data directories the default is one memtable flushing at a time
+# but the flush will use a thread per data directory so you will get two or more writers.
+#
+# Two is generally enough to flush on a fast disk [array] mounted as a single data directory.
+# Adding more flush writers will result in smaller more frequent flushes that introduce more
+# compaction overhead.
+#
+# There is a direct tradeoff between number of memtables that can be flushed concurrently
+# and flush size and frequency. More is not better you just need enough flush writers
+# to never stall waiting for flushing to free memory.
+#
+#memtable_flush_writers: 2
 
 # Total space to use for change-data-capture logs on disk.
 #

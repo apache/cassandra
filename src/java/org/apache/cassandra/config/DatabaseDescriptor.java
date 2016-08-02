@@ -666,11 +666,22 @@ public class DatabaseDescriptor
         if (conf.hints_directory.equals(conf.saved_caches_directory))
             throw new ConfigurationException("saved_caches_directory must not be the same as the hints_directory", false);
 
+        if (conf.memtable_flush_writers == null)
+        {
+            conf.memtable_flush_writers = conf.data_file_directories.length == 1 ? 2 : 1;
+        }
+
         if (conf.memtable_flush_writers < 1)
             throw new ConfigurationException("memtable_flush_writers must be at least 1, but was " + conf.memtable_flush_writers, false);
 
         if (conf.memtable_cleanup_threshold == null)
+        {
             conf.memtable_cleanup_threshold = (float) (1.0 / (1 + conf.memtable_flush_writers));
+        }
+        else
+        {
+            logger.warn("memtable_cleanup_threshold has been deprecated and should be removed from cassandra.yaml");
+        }
 
         if (conf.memtable_cleanup_threshold < 0.01f)
             throw new ConfigurationException("memtable_cleanup_threshold must be >= 0.01, but was " + conf.memtable_cleanup_threshold, false);
