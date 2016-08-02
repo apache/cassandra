@@ -1,4 +1,5 @@
 3.10
+ * Delay releasing Memtable memory on flush until PostFlush has finished running (CASSANDRA-12358)
  * Cassandra stress should dump all setting on startup (CASSANDRA-11914)
  * Make it possible to compact a given token range (CASSANDRA-10643)
  * Allow updating DynamicEndpointSnitch properties via JMX (CASSANDRA-12179)
