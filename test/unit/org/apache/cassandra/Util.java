@@ -458,13 +458,35 @@ public class Util
     public static boolean equal(UnfilteredRowIterator a, UnfilteredRowIterator b)
     {
         return Objects.equals(a.columns(), b.columns())
-            && Objects.equals(a.metadata(), b.metadata())
+            && Objects.equals(a.stats(), b.stats())
+            && sameContent(a, b);
+    }
+
+    // Test equality of the iterators, but without caring too much about the "metadata" of said iterator. This is often
+    // what we want in tests. In particular, the columns() reported by the iterators will sometimes differ because they
+    // are a superset of what the iterator actually contains, and depending on the method used to get each iterator
+    // tested, one may include a defined column the other don't while there is not actual content for that column.
+    public static boolean sameContent(UnfilteredRowIterator a, UnfilteredRowIterator b)
+    {
+        return Objects.equals(a.metadata(), b.metadata())
             && Objects.equals(a.isReverseOrder(), b.isReverseOrder())
             && Objects.equals(a.partitionKey(), b.partitionKey())
             && Objects.equals(a.partitionLevelDeletion(), b.partitionLevelDeletion())
             && Objects.equals(a.staticRow(), b.staticRow())
-            && Objects.equals(a.stats(), b.stats())
             && Iterators.elementsEqual(a, b);
+    }
+
+    public static boolean sameContent(Mutation a, Mutation b)
+    {
+        if (!a.key().equals(b.key()) || !a.getColumnFamilyIds().equals(b.getColumnFamilyIds()))
+            return false;
+
+        for (UUID cfId : a.getColumnFamilyIds())
+        {
+            if (!sameContent(a.getPartitionUpdate(cfId).unfilteredIterator(), b.getPartitionUpdate(cfId).unfilteredIterator()))
+                return false;
+        }
+        return true;
     }
 
     // moved & refactored from KeyspaceTest in < 3.0

@@ -146,20 +146,20 @@ public final class LegacySchemaMigrator
     {
         logger.info("Migrating keyspace {}", keyspace);
 
-        Mutation mutation = SchemaKeyspace.makeCreateKeyspaceMutation(keyspace.name, keyspace.params, keyspace.timestamp);
+        Mutation.SimpleBuilder builder = SchemaKeyspace.makeCreateKeyspaceMutation(keyspace.name, keyspace.params, keyspace.timestamp);
         for (Table table : keyspace.tables)
-            SchemaKeyspace.addTableToSchemaMutation(table.metadata, table.timestamp, true, mutation);
+            SchemaKeyspace.addTableToSchemaMutation(table.metadata, true, builder.timestamp(table.timestamp));
 
         for (Type type : keyspace.types)
-            SchemaKeyspace.addTypeToSchemaMutation(type.metadata, type.timestamp, mutation);
+            SchemaKeyspace.addTypeToSchemaMutation(type.metadata, builder.timestamp(type.timestamp));
 
         for (Function function : keyspace.functions)
-            SchemaKeyspace.addFunctionToSchemaMutation(function.metadata, function.timestamp, mutation);
+            SchemaKeyspace.addFunctionToSchemaMutation(function.metadata, builder.timestamp(function.timestamp));
 
         for (Aggregate aggregate : keyspace.aggregates)
-            SchemaKeyspace.addAggregateToSchemaMutation(aggregate.metadata, aggregate.timestamp, mutation);
+            SchemaKeyspace.addAggregateToSchemaMutation(aggregate.metadata, builder.timestamp(aggregate.timestamp));
 
-        mutation.apply();
+        builder.build().apply();
     }
 
     /*

@@ -28,6 +28,7 @@ import org.junit.BeforeClass;
 import org.junit.Test;
 
 import org.apache.cassandra.SchemaLoader;
+import org.apache.cassandra.Util;
 import org.apache.cassandra.config.CFMetaData;
 import org.apache.cassandra.db.Keyspace;
 import org.apache.cassandra.db.Mutation;
@@ -44,6 +45,7 @@ import org.apache.cassandra.utils.UUIDGen;
 
 import static org.apache.cassandra.utils.ByteBufferUtil.bytes;
 import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertTrue;
 
 public class BatchTest
 {
@@ -148,6 +150,19 @@ public class BatchTest
         Iterator<Mutation> it1 = batch1.decodedMutations.iterator();
         Iterator<Mutation> it2 = batch2.decodedMutations.iterator();
         while (it1.hasNext())
-            assertEquals(it1.next().toString(), it2.next().toString());
+        {
+            // We can't simply test the equality of both mutation string representation, that is do:
+            //   assertEquals(it1.next().toString(), it2.next().toString());
+            // because when deserializing from the old format, the returned iterator will always have it's 'columns()'
+            // method return all the table columns (no matter what's the actual content), and the table contains a
+            // 'val0' column we're not setting in that test.
+            //
+            // And it's actually not easy to fix legacy deserialization as we'd need to know which columns are actually
+            // set upfront, which would require use to iterate over the whole content first, which would be costly. And
+            // as the result of 'columns()' is only meant as a superset of the columns in the iterator, we don't bother.
+            Mutation mut1 = it1.next();
+            Mutation mut2 = it2.next();
+            assertTrue(mut1 + " != " + mut2, Util.sameContent(mut1, mut2));
+        }
     }
 }

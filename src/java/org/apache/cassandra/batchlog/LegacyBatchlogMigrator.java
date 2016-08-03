@@ -162,12 +162,13 @@ public final class LegacyBatchlogMigrator
     @SuppressWarnings("deprecation")
     static Mutation getStoreMutation(Batch batch, int version)
     {
-        return new RowUpdateBuilder(SystemKeyspace.LegacyBatchlog, batch.creationTime, batch.id)
-               .clustering()
+        PartitionUpdate.SimpleBuilder builder = PartitionUpdate.simpleBuilder(SystemKeyspace.LegacyBatchlog, batch.id);
+        builder.row()
+               .timestamp(batch.creationTime)
                .add("written_at", new Date(batch.creationTime / 1000))
                .add("data", getSerializedMutations(version, batch.decodedMutations))
-               .add("version", version)
-               .build();
+               .add("version", version);
+        return builder.buildAsMutation();
     }
 
     @SuppressWarnings("deprecation")

@@ -19,10 +19,20 @@
 package org.apache.cassandra.cql3;
 
 import org.junit.Assert;
+import org.junit.Assume;
+import org.junit.BeforeClass;
 import org.junit.Test;
+
+import org.apache.cassandra.config.DatabaseDescriptor;
 
 public class CDCStatementTest extends CQLTester
 {
+    @BeforeClass
+    public static void checkConfig()
+    {
+        Assume.assumeTrue(DatabaseDescriptor.isCDCEnabled());
+    }
+
     @Test
     public void testEnableOnCreate() throws Throwable
     {

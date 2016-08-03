@@ -44,6 +44,7 @@ import org.apache.cassandra.cql3.functions.*;
 import org.apache.cassandra.db.commitlog.CommitLogPosition;
 import org.apache.cassandra.db.compaction.CompactionHistoryTabularData;
 import org.apache.cassandra.db.marshal.*;
+import org.apache.cassandra.db.rows.Rows;
 import org.apache.cassandra.db.partitions.PartitionUpdate;
 import org.apache.cassandra.dht.*;
 import org.apache.cassandra.exceptions.ConfigurationException;
@@ -1244,11 +1245,11 @@ public final class SystemKeyspace
         {
             Range<Token> range = entry.getKey();
             Pair<Long, Long> values = entry.getValue();
-            new RowUpdateBuilder(SizeEstimates, timestamp, mutation)
-                .clustering(table, range.left.toString(), range.right.toString())
-                .add("partitions_count", values.left)
-                .add("mean_partition_size", values.right)
-                .build();
+            update.add(Rows.simpleBuilder(SizeEstimates, table, range.left.toString(), range.right.toString())
+                           .timestamp(timestamp)
+                           .add("partitions_count", values.left)
+                           .add("mean_partition_size", values.right)
+                           .build());
         }
 
         mutation.apply();

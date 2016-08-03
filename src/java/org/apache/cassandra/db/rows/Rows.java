@@ -22,6 +22,7 @@ import java.util.*;
 import com.google.common.collect.Iterators;
 import com.google.common.collect.PeekingIterator;
 
+import org.apache.cassandra.config.CFMetaData;
 import org.apache.cassandra.config.ColumnDefinition;
 import org.apache.cassandra.db.*;
 import org.apache.cassandra.db.partitions.PartitionStatisticsCollector;
@@ -58,6 +59,21 @@ public abstract class Rows
             }
         }
         return builder;
+    }
+
+    /**
+     * Creates a new simple row builder.
+     *
+     * @param metadata the metadata of the table this is a row of.
+     * @param clusteringValues the value for the clustering columns of the row to add to this build. There may be no
+     * values if either the table has no clustering column, or if you want to edit the static row. Note that as a
+     * shortcut it is also allowed to pass a {@code Clustering} object directly, in which case that should be the
+     * only argument.
+     * @return a newly created builder.
+     */
+    public static Row.SimpleBuilder simpleBuilder(CFMetaData metadata, Object... clusteringValues)
+    {
+        return new SimpleBuilders.RowBuilder(metadata, clusteringValues);
     }
 
     /**

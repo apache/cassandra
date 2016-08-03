@@ -506,12 +506,14 @@ public class MigrationManager
      * actively announce a new version to active hosts via rpc
      * @param schema The schema mutation to be applied
      */
-    private static void announce(Mutation schema, boolean announceLocally)
+    private static void announce(Mutation.SimpleBuilder schema, boolean announceLocally)
     {
+        List<Mutation> mutations = Collections.singletonList(schema.build());
+
         if (announceLocally)
-            SchemaKeyspace.mergeSchema(Collections.singletonList(schema));
+            SchemaKeyspace.mergeSchema(mutations);
         else
-            FBUtilities.waitOnFuture(announce(Collections.singletonList(schema)));
+            FBUtilities.waitOnFuture(announce(mutations));
     }
 
     private static void pushSchemaMutation(InetAddress endpoint, Collection<Mutation> schema)

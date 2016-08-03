@@ -171,7 +171,7 @@ public class TTLExpiryTest
 
         new RowUpdateBuilder(cfs.metadata, timestamp, 1, key)
             .add("col2", ByteBufferUtil.EMPTY_BYTE_BUFFER)
-            .addMapEntry("col8", "bar", "foo")
+            .add("col8", Collections.singletonMap("bar", "foo"))
             .delete("col1")
             .build()
             .applyUnsafe();

@@ -21,6 +21,7 @@ import java.nio.ByteBuffer;
 
 import org.apache.cassandra.config.CFMetaData;
 import org.apache.cassandra.db.*;
+import org.apache.cassandra.db.rows.*;
 import org.apache.cassandra.db.partitions.*;
 import org.apache.cassandra.utils.FBUtilities;
 
@@ -33,32 +34,30 @@ import org.apache.cassandra.utils.FBUtilities;
  */
 public class UpdateBuilder
 {
-    private final PartitionUpdate update;
-    private RowUpdateBuilder currentRow;
-    private long timestamp = FBUtilities.timestampMicros();
+    private final PartitionUpdate.SimpleBuilder updateBuilder;
+    private Row.SimpleBuilder currentRow;
 
-    private UpdateBuilder(CFMetaData metadata, DecoratedKey partitionKey)
+    private UpdateBuilder(PartitionUpdate.SimpleBuilder updateBuilder)
     {
-        this.update = new PartitionUpdate(metadata, partitionKey, metadata.partitionColumns(), 4);
+        this.updateBuilder = updateBuilder;
     }
 
     public static UpdateBuilder create(CFMetaData metadata, Object... partitionKey)
     {
-        return new UpdateBuilder(metadata, makeKey(metadata, partitionKey));
+        return new UpdateBuilder(PartitionUpdate.simpleBuilder(metadata, partitionKey));
     }
 
     public UpdateBuilder withTimestamp(long timestamp)
     {
-        this.timestamp = timestamp;
+        updateBuilder.timestamp(timestamp);
+        if (currentRow != null)
+            currentRow.timestamp(timestamp);
         return this;
     }
 
     public UpdateBuilder newRow(Object... clustering)
     {
-        maybeBuildCurrentRow();
-        currentRow = new RowUpdateBuilder(update, timestamp, 0);
-        if (clustering.length > 0)
-            currentRow.clustering(clustering);
+        currentRow = updateBuilder.row(clustering);
         return this;
     }
 
@@ -71,48 +70,25 @@ public class UpdateBuilder
 
     public PartitionUpdate build()
     {
-        maybeBuildCurrentRow();
-        return update;
+        return updateBuilder.build();
     }
 
     public IMutation makeMutation()
     {
-        Mutation m = new Mutation(build());
-        return update.metadata().isCounter()
+        Mutation m = updateBuilder.buildAsMutation();
+        return updateBuilder.metadata().isCounter()
              ? new CounterMutation(m, ConsistencyLevel.ONE)
              : m;
     }
 
     public void apply()
     {
-        Mutation m = new Mutation(build());
-        if (update.metadata().isCounter())
-            new CounterMutation(m, ConsistencyLevel.ONE).apply();
-        else
-            m.apply();
+        makeMutation().apply();
     }
 
     public void applyUnsafe()
     {
-        assert !update.metadata().isCounter() : "Counters have currently no applyUnsafe() option";
-        new Mutation(build()).applyUnsafe();
-    }
-
-    private void maybeBuildCurrentRow()
-    {
-        if (currentRow != null)
-        {
-            currentRow.build();
-            currentRow = null;
-        }
-    }
-
-    private static DecoratedKey makeKey(CFMetaData metadata, Object[] partitionKey)
-    {
-        if (partitionKey.length == 1 && partitionKey[0] instanceof DecoratedKey)
-            return (DecoratedKey)partitionKey[0];
-
-        ByteBuffer key = CFMetaData.serializePartitionKey(metadata.getKeyValidatorAsClusteringComparator().make(partitionKey));
-        return metadata.decorateKey(key);
+        assert !updateBuilder.metadata().isCounter() : "Counters have currently no applyUnsafe() option";
+        updateBuilder.buildAsMutation().applyUnsafe();
     }
 }

@@ -17,6 +17,7 @@
  */
 package org.apache.cassandra.db.partition;
 
+import org.apache.cassandra.UpdateBuilder;
 import org.apache.cassandra.config.CFMetaData;
 import org.apache.cassandra.cql3.CQLTester;
 import org.apache.cassandra.db.RowUpdateBuilder;
@@ -34,21 +35,17 @@ public class PartitionUpdateTest extends CQLTester
         createTable("CREATE TABLE %s (key text, clustering int, a int, s int static, PRIMARY KEY(key, clustering))");
         CFMetaData cfm = currentTableMetadata();
 
-        long timestamp = FBUtilities.timestampMicros();
-        PartitionUpdate update = new RowUpdateBuilder(cfm, timestamp, "key0").clustering(1).add("a", 1).buildUpdate();
-        Assert.assertEquals(1, update.operationCount());
+        UpdateBuilder builder = UpdateBuilder.create(cfm, "key0");
+        Assert.assertEquals(0, builder.build().operationCount());
+        Assert.assertEquals(1, builder.newRow(1).add("a", 1).build().operationCount());
 
-        update = new RowUpdateBuilder(cfm, timestamp, "key0").buildUpdate();
-        Assert.assertEquals(0, update.operationCount());
+        builder = UpdateBuilder.create(cfm, "key0");
+        Assert.assertEquals(1, builder.newRow().add("s", 1).build().operationCount());
 
-        update = new RowUpdateBuilder(cfm, timestamp, "key0").add("s", 1).buildUpdate();
-        Assert.assertEquals(1, update.operationCount());
-
-        update = new RowUpdateBuilder(cfm, timestamp, "key0").add("s", 1).buildUpdate();
-        update = new RowUpdateBuilder(update, timestamp, cfm.params.defaultTimeToLive).clustering(1)
-                                                                                      .add("a", 1)
-                                                                                      .buildUpdate();
-        Assert.assertEquals(2, update.operationCount());
+        builder = UpdateBuilder.create(cfm, "key0");
+        builder.newRow().add("s", 1);
+        builder.newRow(1).add("a", 1);
+        Assert.assertEquals(2, builder.build().operationCount());
     }
 
     @Test
