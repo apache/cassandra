@@ -285,7 +285,7 @@ public final class LegacySchemaMigrator
         AbstractType<?> subComparator = tableRow.has("subcomparator") ? TypeParser.parse(tableRow.getString("subcomparator")) : null;
 
         boolean isSuper = "super".equals(tableRow.getString("type").toLowerCase());
-        boolean isCompound = rawComparator instanceof CompositeType;
+        boolean isCompound = rawComparator instanceof CompositeType || isSuper;
 
         /*
          * Determine whether or not the table is *really* dense
