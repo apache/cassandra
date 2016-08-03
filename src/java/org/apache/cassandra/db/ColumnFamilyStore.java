@@ -99,6 +99,10 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
                                                                                               new NamedThreadFactory("MemtablePostFlush"),
                                                                                               "internal");
 
+    // If a flush fails with an error the post-flush is never allowed to continue. This stores the error that caused it
+    // to be able to show an error on following flushes instead of blindly continuing.
+    private static volatile FSWriteError previousFlushFailure = null;
+
     private static final ExecutorService reclaimExecutor = new JMXEnabledThreadPoolExecutor(1,
                                                                                             StageManager.KEEPALIVE,
                                                                                             TimeUnit.SECONDS,
@@ -869,12 +873,20 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
     {
         synchronized (data)
         {
+            if (previousFlushFailure != null)
+                throw new IllegalStateException("A flush previously failed with the error below. To prevent data loss, "
+                                              + "no flushes can be carried out until the node is restarted.",
+                                                previousFlushFailure);
             logFlush();
             Flush flush = new Flush(false);
-            flushExecutor.execute(flush);
+            ListenableFutureTask<?> flushTask = ListenableFutureTask.create(flush, null);
+            flushExecutor.submit(flushTask);
             ListenableFutureTask<?> task = ListenableFutureTask.create(flush.postFlush, null);
             postFlushExecutor.submit(task);
-            return task;
+
+            @SuppressWarnings("unchecked")
+            ListenableFuture<?> future = Futures.allAsList(flushTask, task);
+            return future;
         }
     }
 
@@ -967,7 +979,6 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
         final OpOrder.Barrier writeBarrier;
         final CountDownLatch latch = new CountDownLatch(1);
         final ReplayPosition lastReplayPosition;
-        volatile FSWriteError flushFailure = null;
 
         private PostFlush(boolean flushSecondaryIndexes, OpOrder.Barrier writeBarrier, ReplayPosition lastReplayPosition)
         {
@@ -1010,16 +1021,12 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
 
             // must check lastReplayPosition != null because Flush may find that all memtables are clean
             // and so not set a lastReplayPosition
-            // If a flush errored out but the error was ignored, make sure we don't discard the commit log.
-            if (lastReplayPosition != null && flushFailure == null)
+            if (lastReplayPosition != null)
             {
                 CommitLog.instance.discardCompletedSegments(metadata.cfId, lastReplayPosition);
             }
 
             metric.pendingFlushes.dec();
-
-            if (flushFailure != null)
-                throw flushFailure;
         }
     }
 
@@ -1127,16 +1134,28 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
                     MoreExecutors.sameThreadExecutor().execute(memtable.flushRunnable());
                     reclaim(memtable);
                 }
+
+                // signal the post-flush we've done our work
+                // Note: This should not be done in case of error. Read more below.
+                postFlush.latch.countDown();
             }
             catch (FSWriteError e)
             {
                 JVMStabilityInspector.inspectThrowable(e);
-                // If we weren't killed, try to continue work but do not allow CommitLog to be discarded.
-                postFlush.flushFailure = e;
-            }
+                // The call above may kill the process or the transports, or ignore the error.
+                // In any case we should not be passing on control to post-flush as a subsequent succeeding flush
+                // could mask the error and:
+                //   - let the commit log discard unpersisted data, resulting in data loss
+                //   - let truncations proceed, with the possibility of resurrecting the unflushed data
+                //   - let snapshots succeed with incomplete data
 
-            // signal the post-flush we've done our work
-            postFlush.latch.countDown();
+                // Not passing control on means that all flushes from the moment of failure cannot complete
+                // (including snapshots).
+                // If the disk failure policy is ignore, this will cause memtables and the commit log to grow
+                // unboundedly until the node eventually fails.
+                previousFlushFailure = e;
+                throw e;
+            }
         }
 
         private void reclaim(final Memtable memtable)
