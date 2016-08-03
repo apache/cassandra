@@ -40,6 +40,7 @@ import org.apache.cassandra.Util;
 import org.apache.cassandra.cache.ChunkCache;
 import org.apache.cassandra.config.*;
 import org.apache.cassandra.db.*;
+import org.apache.cassandra.db.marshal.LongType;
 import org.apache.cassandra.exceptions.ConfigurationException;
 import org.apache.cassandra.io.sstable.format.SSTableReader;
 import org.apache.cassandra.io.util.FileUtils;
@@ -72,18 +73,27 @@ public class BlacklistingCompactionsTest
     {
         long seed = System.nanoTime();
         //long seed = 754271160974509L; // CASSANDRA-9530: use this seed to reproduce compaction failures if reading empty rows
+        //long seed = 2080431860597L; // CASSANDRA-12359: use this seed to reproduce undetected corruptions
         logger.info("Seed {}", seed);
         random = new Random(seed);
 
         SchemaLoader.prepareServer();
         SchemaLoader.createKeyspace(KEYSPACE1,
                                     KeyspaceParams.simple(1),
-                                    SchemaLoader.standardCFMD(KEYSPACE1, STANDARD_STCS).compaction(CompactionParams.DEFAULT),
-                                    SchemaLoader.standardCFMD(KEYSPACE1, STANDARD_LCS).compaction(CompactionParams.lcs(Collections.emptyMap())));
+                                    makeTable(STANDARD_STCS).compaction(CompactionParams.DEFAULT),
+                                    makeTable(STANDARD_LCS).compaction(CompactionParams.lcs(Collections.emptyMap())));
 
         maxValueSize = DatabaseDescriptor.getMaxValueSize();
         DatabaseDescriptor.setMaxValueSize(1024 * 1024);
         closeStdErr();
+    }
+
+    /**
+     * Return a table metadata, we use types with fixed size to increase the chance of detecting corrupt data
+     */
+    private static CFMetaData makeTable(String tableName)
+    {
+        return SchemaLoader.standardCFMD(KEYSPACE1, tableName, 1, LongType.instance, LongType.instance, LongType.instance);
     }
 
     @AfterClass
@@ -122,6 +132,10 @@ public class BlacklistingCompactionsTest
 
         final int ROWS_PER_SSTABLE = 10;
         final int SSTABLES = cfs.metadata.params.minIndexInterval * 2 / ROWS_PER_SSTABLE;
+        final int SSTABLES_TO_CORRUPT = 8;
+
+        assertTrue(String.format("Not enough sstables (%d), expected at least %d sstables to corrupt", SSTABLES, SSTABLES_TO_CORRUPT),
+                   SSTABLES > SSTABLES_TO_CORRUPT);
 
         // disable compaction while flushing
         cfs.disableAutoCompaction();
@@ -137,8 +151,8 @@ public class BlacklistingCompactionsTest
                 DecoratedKey key = Util.dk(String.valueOf(i));
                 long timestamp = j * ROWS_PER_SSTABLE + i;
                 new RowUpdateBuilder(cfs.metadata, timestamp, key.getKey())
-                        .clustering("cols" + "i")
-                        .add("val", "val" + i)
+                        .clustering(Long.valueOf(i))
+                        .add("val", Long.valueOf(i))
                         .build()
                         .applyUnsafe();
                 maxTimestampExpected = Math.max(timestamp, maxTimestampExpected);
@@ -151,23 +165,24 @@ public class BlacklistingCompactionsTest
 
         Collection<SSTableReader> sstables = cfs.getLiveSSTables();
         int currentSSTable = 0;
-        int sstablesToCorrupt = 8;
 
         // corrupt first 'sstablesToCorrupt' SSTables
         for (SSTableReader sstable : sstables)
         {
-            if (currentSSTable + 1 > sstablesToCorrupt)
+            if (currentSSTable + 1 > SSTABLES_TO_CORRUPT)
                 break;
 
             RandomAccessFile raf = null;
 
             try
             {
-                int corruptionSize = 50;
+                int corruptionSize = 100;
                 raf = new RandomAccessFile(sstable.getFilename(), "rw");
                 assertNotNull(raf);
                 assertTrue(raf.length() > corruptionSize);
-                raf.seek(random.nextInt((int)(raf.length() - corruptionSize)));
+                long pos = random.nextInt((int)(raf.length() - corruptionSize));
+                logger.info("Corrupting sstable {} [{}] at pos {} / {}", currentSSTable, sstable.getFilename(), pos, raf.length());
+                raf.seek(pos);
                 // We want to write something large enough that the corruption cannot get undetected
                 // (even without compression)
                 byte[] corruption = new byte[corruptionSize];
@@ -206,6 +221,6 @@ public class BlacklistingCompactionsTest
         }
 
         cfs.truncateBlocking();
-        assertEquals(sstablesToCorrupt, failures);
+        assertEquals(SSTABLES_TO_CORRUPT, failures);
     }
 }
