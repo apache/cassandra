@@ -32,6 +32,7 @@
  * cqlsh: Fix handling of $$-escaped strings (CASSANDRA-12189)
  * Fix SSL JMX requiring truststore containing server cert (CASSANDRA-12109)
 Merged from 3.0:
+ * Fix upgrade of super columns on thrift (CASSANDRA-12335)
  * Fixed flacky BlacklistingCompactionsTest, switched to fixed size types and increased corruption size (CASSANDRA-12359)
  * Rerun ReplicationAwareTokenAllocatorTest on failure to avoid flakiness (CASSANDRA-12277)
  * Exception when computing read-repair for range tombstones (CASSANDRA-12263)
