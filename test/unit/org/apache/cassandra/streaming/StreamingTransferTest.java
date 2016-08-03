@@ -363,7 +363,7 @@ public class StreamingTransferTest
 
 
         updates = new RowUpdateBuilder(cfs.metadata, FBUtilities.timestampMicros() + 1, key);
-        updates.addRangeTombstone(Slice.make(comparator.make(5), comparator.make(7)))
+        updates.addRangeTombstone(5, 7)
                 .build()
                 .apply();
 

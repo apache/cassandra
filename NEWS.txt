@@ -39,6 +39,9 @@ New features
      the data/cdc_raw directory until removed by the user and writes to CDC-enabled tables
      will be rejected with a WriteTimeoutException once cdc_total_space_in_mb is reached
      between unflushed CommitLogSegments and cdc_raw.
+     NOTE: CDC is disabled by default in the .yaml file. Do not enable CDC on a mixed-version
+     cluster as it will lead to exceptions which can interrupt traffic. Once all nodes
+     have been upgraded to 3.8 it is safe to enable this feature and restart the cluster.
 
 Upgrading
 ---------
@@ -48,13 +51,6 @@ Upgrading
       those under a different name, change your code to use the new names and
       drop the old versions, and this _before_ upgrade (see CASSANDRA-10783 for more
       details).
-    - Due to changes in schema migration handling and the storage format after 3.0, you will
-      see error messages such as:
-         "java.lang.RuntimeException: Unknown column cdc during deserialization"
-      in your system logs on a mixed-version cluster during upgrades. This error message
-      is harmless and due to the 3.8 nodes having cdc added to their schema tables while
-      the <3.8 nodes do not. This message should cease once all nodes are upgraded to 3.8.
-      As always, refrain from schema changes during cluster upgrades.
 
 Deprecation
 -----------

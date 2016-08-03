@@ -30,9 +30,7 @@ import org.junit.Test;
 
 import org.apache.cassandra.SchemaLoader;
 import org.apache.cassandra.Util;
-import org.apache.cassandra.config.CFMetaData;
-import org.apache.cassandra.config.DatabaseDescriptor;
-import org.apache.cassandra.config.Schema;
+import org.apache.cassandra.config.*;
 import org.apache.cassandra.db.*;
 import org.apache.cassandra.db.partitions.FilteredPartition;
 import org.apache.cassandra.db.partitions.PartitionIterator;
@@ -127,7 +125,7 @@ public class HintTest
 
         // assert that we can read the inserted partitions
         for (PartitionUpdate partition : mutation.getPartitionUpdates())
-            assertPartitionsEqual(partition, readPartition(key, partition.metadata().cfName));
+            assertPartitionsEqual(partition, readPartition(key, partition.metadata().cfName, partition.columns()));
     }
 
     @Test
@@ -152,8 +150,10 @@ public class HintTest
         assertNoPartitions(key, TABLE1);
 
         // TABLE0 and TABLE2 updates should have been applied successfully
-        assertPartitionsEqual(mutation.getPartitionUpdate(Schema.instance.getId(KEYSPACE, TABLE0)), readPartition(key, TABLE0));
-        assertPartitionsEqual(mutation.getPartitionUpdate(Schema.instance.getId(KEYSPACE, TABLE2)), readPartition(key, TABLE2));
+        PartitionUpdate upd0 = mutation.getPartitionUpdate(Schema.instance.getId(KEYSPACE, TABLE0));
+        assertPartitionsEqual(upd0, readPartition(key, TABLE0, upd0.columns()));
+        PartitionUpdate upd2 = mutation.getPartitionUpdate(Schema.instance.getId(KEYSPACE, TABLE2));
+        assertPartitionsEqual(upd2, readPartition(key, TABLE2, upd2.columns()));
     }
 
     @Test
@@ -296,40 +296,44 @@ public class HintTest
 
     private static Mutation createMutation(String key, long now)
     {
-        Mutation mutation = new Mutation(KEYSPACE, dk(key));
+        Mutation.SimpleBuilder builder = Mutation.simpleBuilder(KEYSPACE, dk(key));
 
-        new RowUpdateBuilder(Schema.instance.getCFMetaData(KEYSPACE, TABLE0), now, mutation)
-            .clustering("column0")
-            .add("val", "value0")
-            .build();
+        builder.update(Schema.instance.getCFMetaData(KEYSPACE, TABLE0))
+               .timestamp(now)
+               .row("column0")
+               .add("val", "value0");
 
-        new RowUpdateBuilder(Schema.instance.getCFMetaData(KEYSPACE, TABLE1), now + 1, mutation)
-            .clustering("column1")
-            .add("val", "value1")
-            .build();
+        builder.update(Schema.instance.getCFMetaData(KEYSPACE, TABLE1))
+               .timestamp(now + 1)
+               .row("column1")
+               .add("val", "value1");
 
-        new RowUpdateBuilder(Schema.instance.getCFMetaData(KEYSPACE, TABLE2), now + 2, mutation)
-            .clustering("column2")
-            .add("val", "value2")
-            .build();
+        builder.update(Schema.instance.getCFMetaData(KEYSPACE, TABLE2))
+               .timestamp(now + 2)
+               .row("column2")
+               .add("val", "value2");
 
-        return mutation;
+        return builder.build();
     }
 
-    private static SinglePartitionReadCommand cmd(String key, String table)
+    private static ColumnFamilyStore cfs(String table)
     {
-        CFMetaData meta = Schema.instance.getCFMetaData(KEYSPACE, table);
-        return SinglePartitionReadCommand.fullPartitionRead(meta, FBUtilities.nowInSeconds(), bytes(key));
+        return Schema.instance.getColumnFamilyStoreInstance(Schema.instance.getCFMetaData(KEYSPACE, table).cfId);
     }
 
-    private static FilteredPartition readPartition(String key, String table)
+    private static FilteredPartition readPartition(String key, String table, PartitionColumns columns)
     {
-        return Util.getOnlyPartition(cmd(key, table));
+        String[] columnNames = new String[columns.size()];
+        int i = 0;
+        for (ColumnDefinition column : columns)
+            columnNames[i++] = column.name.toString();
+
+        return Util.getOnlyPartition(Util.cmd(cfs(table), key).columns(columnNames).build());
     }
 
     private static void assertNoPartitions(String key, String table)
     {
-        ReadCommand cmd = cmd(key, table);
+        ReadCommand cmd = Util.cmd(cfs(table), key).build();
 
         try (ReadExecutionController executionController = cmd.executionController();
              PartitionIterator iterator = cmd.executeInternal(executionController))

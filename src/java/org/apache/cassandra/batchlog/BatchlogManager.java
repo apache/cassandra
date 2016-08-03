@@ -121,20 +121,15 @@ public class BatchlogManager implements BatchlogManagerMBean
 
     public static void store(Batch batch, boolean durableWrites)
     {
-        RowUpdateBuilder builder =
-            new RowUpdateBuilder(SystemKeyspace.Batches, batch.creationTime, batch.id)
-                .clustering()
-                .add("version", MessagingService.current_version);
-
-        for (ByteBuffer mutation : batch.encodedMutations)
-            builder.addListEntry("mutations", mutation);
+        List<ByteBuffer> mutations = new ArrayList<>(batch.encodedMutations.size() + batch.decodedMutations.size());
+        mutations.addAll(batch.encodedMutations);
 
         for (Mutation mutation : batch.decodedMutations)
         {
             try (DataOutputBuffer buffer = new DataOutputBuffer())
             {
                 Mutation.serializer.serialize(mutation, buffer, MessagingService.current_version);
-                builder.addListEntry("mutations", buffer.buffer());
+                mutations.add(buffer.buffer());
             }
             catch (IOException e)
             {
@@ -143,7 +138,13 @@ public class BatchlogManager implements BatchlogManagerMBean
             }
         }
 
-        builder.build().apply(durableWrites);
+        PartitionUpdate.SimpleBuilder builder = PartitionUpdate.simpleBuilder(SystemKeyspace.Batches, batch.id);
+        builder.row()
+               .timestamp(batch.creationTime)
+               .add("version", MessagingService.current_version)
+               .appendAll("mutations", mutations);
+
+        builder.buildAsMutation().apply(durableWrites);
     }
 
     @VisibleForTesting

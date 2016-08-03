@@ -27,6 +27,7 @@ Merged from 2.1:
 
 
 3.8
+ * RTE from new CDC column breaks in flight queries (CASSANDRA-12236)
  * Fix hdr logging for single operation workloads (CASSANDRA-12145)
  * Fix SASI PREFIX search in CONTAINS mode with partial terms (CASSANDRA-12073)
  * Increase size of flushExecutor thread pool (CASSANDRA-12071)
