@@ -20,6 +20,7 @@ package org.apache.cassandra.metrics;
 import java.nio.ByteBuffer;
 import java.util.*;
 import java.util.concurrent.ConcurrentMap;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.TimeUnit;
 
 import com.codahale.metrics.*;
@@ -788,7 +789,7 @@ public class TableMetrics
      */
     private boolean register(String name, String alias, Metric metric)
     {
-        boolean ret = allTableMetrics.putIfAbsent(name,  new HashSet<>()) == null;
+        boolean ret = allTableMetrics.putIfAbsent(name, ConcurrentHashMap.newKeySet()) == null;
         allTableMetrics.get(name).add(metric);
         all.put(name, alias);
         return ret;
