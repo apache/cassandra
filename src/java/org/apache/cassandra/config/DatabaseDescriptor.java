@@ -477,7 +477,7 @@ public class DatabaseDescriptor
         {
             throw new ConfigurationException("Missing endpoint_snitch directive", false);
         }
-        snitch = createEndpointSnitch(conf.endpoint_snitch);
+        snitch = createEndpointSnitch(conf.dynamic_snitch, conf.endpoint_snitch);
         EndpointSnitchInfo.create();
 
         localDC = snitch.getDatacenter(FBUtilities.getBroadcastAddress());
@@ -858,12 +858,12 @@ public class DatabaseDescriptor
         }
     }
 
-    private static IEndpointSnitch createEndpointSnitch(String snitchClassName) throws ConfigurationException
+    public static IEndpointSnitch createEndpointSnitch(boolean dynamic, String snitchClassName) throws ConfigurationException
     {
         if (!snitchClassName.contains("."))
             snitchClassName = "org.apache.cassandra.locator." + snitchClassName;
         IEndpointSnitch snitch = FBUtilities.construct(snitchClassName, "snitch");
-        return conf.dynamic_snitch ? new DynamicEndpointSnitch(snitch) : snitch;
+        return dynamic ? new DynamicEndpointSnitch(snitch) : snitch;
     }
 
     public static IAuthenticator getAuthenticator()

@@ -463,14 +463,32 @@ public interface StorageServiceMBean extends NotificationEmitter
     public Map<String, String> getViewBuildStatuses(String keyspace, String view);
 
     /**
-     * Change endpointsnitch class and dynamic-ness (and dynamic attributes) at runtime
+     * Change endpointsnitch class and dynamic-ness (and dynamic attributes) at runtime.
+     *
+     * This method is used to change the snitch implementation and/or dynamic snitch parameters.
+     * If {@code epSnitchClassName} is specified, it will configure a new snitch instance and make it a
+     * 'dynamic snitch' if {@code dynamic} is specified and {@code true}.
+     *
+     * The parameters {@code dynamicUpdateInterval}, {@code dynamicResetInterval} and {@code dynamicBadnessThreshold}
+     * can be specified individually to update the parameters of the dynamic snitch during runtime.
+     *
      * @param epSnitchClassName        the canonical path name for a class implementing IEndpointSnitch
-     * @param dynamic                  boolean that decides whether dynamicsnitch is used or not
-     * @param dynamicUpdateInterval    integer, in ms (default 100)
-     * @param dynamicResetInterval     integer, in ms (default 600,000)
-     * @param dynamicBadnessThreshold  double, (default 0.0)
+     * @param dynamic                  boolean that decides whether dynamicsnitch is used or not - only valid, if {@code epSnitchClassName} is specified
+     * @param dynamicUpdateInterval    integer, in ms (defaults to the value configured in cassandra.yaml, which defaults to 100)
+     * @param dynamicResetInterval     integer, in ms (defaults to the value configured in cassandra.yaml, which defaults to 600,000)
+     * @param dynamicBadnessThreshold  double, (defaults to the value configured in cassandra.yaml, which defaults to 0.0)
      */
     public void updateSnitch(String epSnitchClassName, Boolean dynamic, Integer dynamicUpdateInterval, Integer dynamicResetInterval, Double dynamicBadnessThreshold) throws ClassNotFoundException;
+
+    /*
+      Update dynamic_snitch_update_interval_in_ms
+     */
+    public void setDynamicUpdateInterval(int dynamicUpdateInterval);
+
+    /*
+      Get dynamic_snitch_update_interval_in_ms
+     */
+    public int getDynamicUpdateInterval();
 
     // allows a user to forcibly 'kill' a sick node
     public void stopGossiping();

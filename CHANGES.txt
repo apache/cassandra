@@ -1,4 +1,5 @@
 3.10
+ * Allow updating DynamicEndpointSnitch properties via JMX (CASSANDRA-12179)
  * Collect metrics on queries by consistency level (CASSANDRA-7384)
  * Add support for GROUP BY to SELECT statement (CASSANDRA-10707)
  * Deprecate memtable_cleanup_threshold and update default for memtable_flush_writers (CASSANDRA-12228)
