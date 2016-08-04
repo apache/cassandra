@@ -116,6 +116,8 @@
     <property name="jacoco.finalexecfile" value="${jacoco.export.dir}/jacoco.exec" />
     <property name="jacoco.version" value="0.7.5.201505241946"/>
 
+    <property name="byteman.version" value="3.0.3"/>
+
     <property name="ecj.version" value="4.4.2"/>
 
     <condition property="maven-ant-tasks.jar.exists">
@@ -390,6 +392,11 @@
           <dependency groupId="org.jacoco" artifactId="org.jacoco.agent" version="${jacoco.version}"/>
           <dependency groupId="org.jacoco" artifactId="org.jacoco.ant" version="${jacoco.version}"/>
 
+          <dependency groupId="org.jboss.byteman" artifactId="byteman" version="${byteman.version}" scope="test"/>
+          <dependency groupId="org.jboss.byteman" artifactId="byteman-submit" version="${byteman.version}" scope="test"/>
+          <dependency groupId="org.jboss.byteman" artifactId="byteman-bmunit" version="${byteman.version}" scope="test"/>
+
+
           <dependency groupId="org.openjdk.jmh" artifactId="jmh-core" version="1.1.1"/>
           <dependency groupId="org.openjdk.jmh" artifactId="jmh-generator-annprocess" version="1.1.1"/>
 
@@ -504,6 +511,9 @@
         <dependency groupId="net.sourceforge.cobertura" artifactId="cobertura"/>
         <dependency groupId="org.jacoco" artifactId="org.jacoco.agent"/>
         <dependency groupId="org.jacoco" artifactId="org.jacoco.ant"/>
+        <dependency groupId="org.jboss.byteman" artifactId="byteman" scope="test"/>
+        <dependency groupId="org.jboss.byteman" artifactId="byteman-submit" scope="test"/>
+        <dependency groupId="org.jboss.byteman" artifactId="byteman-bmunit" scope="test"/>
       </artifact:pom>
 
       <artifact:pom id="test-deps-pom"
