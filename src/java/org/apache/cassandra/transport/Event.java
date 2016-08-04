@@ -345,7 +345,7 @@ public abstract class Event
         {
             if (target == Target.FUNCTION || target == Target.AGGREGATE)
             {
-                if (version >= Server.VERSION_3)
+                if (version >= Server.VERSION_4)
                     return CBUtil.sizeOfEnumValue(change)
                                + CBUtil.sizeOfEnumValue(target)
                                + CBUtil.sizeOfString(keyspace)
