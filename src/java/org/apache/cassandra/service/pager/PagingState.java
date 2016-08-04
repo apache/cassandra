@@ -213,7 +213,10 @@ public class PagingState
                 Iterator<Cell> cells = row.cellsInLegacyOrder(metadata, true).iterator();
                 if (!cells.hasNext())
                 {
-                    mark = LegacyLayout.encodeClustering(metadata, row.clustering());
+                    // If the last returned row has no cell, this means in 2.1/2.2 terms that we stopped on the row
+                    // marker. Note that this shouldn't happen if the table is COMPACT.
+                    assert !metadata.isCompactTable();
+                    mark = LegacyLayout.encodeCellName(metadata, row.clustering(), ByteBufferUtil.EMPTY_BYTE_BUFFER, null);
                 }
                 else
                 {
@@ -258,7 +261,7 @@ public class PagingState
         @Override
         public String toString()
         {
-            return ByteBufferUtil.bytesToHex(mark);
+            return mark == null ? "null" : ByteBufferUtil.bytesToHex(mark);
         }
     }
 }
