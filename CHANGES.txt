@@ -1,4 +1,5 @@
 2.2.8
+ * Fix INSERT JSON, fromJson() support of smallint, tinyint types (CASSANDRA-12371)
  * Restore JVM metric export for metric reporters (CASSANDRA-12312)
  * Release sstables of failed stream sessions only when outgoing transfers are finished (CASSANDRA-11345)
  * Revert CASSANDRA-11427 (CASSANDRA-12351)
