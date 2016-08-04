@@ -389,10 +389,11 @@ public class ActiveRepairService implements IEndpointStateChangeSubscriber, IFai
      */
     public synchronized ParentRepairSession removeParentRepairSession(UUID parentSessionId)
     {
+        String snapshotName = parentSessionId.toString();
         for (ColumnFamilyStore cfs : getParentRepairSession(parentSessionId).columnFamilyStores.values())
         {
-            if (cfs.snapshotExists(parentSessionId.toString()))
-                cfs.clearSnapshot(parentSessionId.toString());
+            if (cfs.snapshotExists(snapshotName))
+                cfs.clearSnapshot(snapshotName);
         }
         return parentRepairSessions.remove(parentSessionId);
     }
