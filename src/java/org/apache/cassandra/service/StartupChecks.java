@@ -116,7 +116,7 @@ public class StartupChecks
     {
         public void execute()
         {
-            if (FBUtilities.isWindows())
+            if (FBUtilities.isWindows)
                 return;
             String jemalloc = System.getProperty("cassandra.libjemalloc");
             if (jemalloc == null)

@@ -79,7 +79,7 @@ public class SSTableWriterTest extends SSTableWriterTestBase
 
             // These checks don't work on Windows because the writer has the channel still
             // open till .abort() is called (via the builder)
-            if (!FBUtilities.isWindows())
+            if (!FBUtilities.isWindows)
             {
                 LifecycleTransaction.waitForDeletions();
                 assertFileCounts(dir.list());
@@ -128,7 +128,7 @@ public class SSTableWriterTest extends SSTableWriterTestBase
             sstable.selfRef().release();
             // These checks don't work on Windows because the writer has the channel still
             // open till .abort() is called (via the builder)
-            if (!FBUtilities.isWindows())
+            if (!FBUtilities.isWindows)
             {
                 LifecycleTransaction.waitForDeletions();
                 assertFileCounts(dir.list());
@@ -182,7 +182,7 @@ public class SSTableWriterTest extends SSTableWriterTestBase
 
             // These checks don't work on Windows because the writer has the channel still
             // open till .abort() is called (via the builder)
-            if (!FBUtilities.isWindows())
+            if (!FBUtilities.isWindows)
             {
                 LifecycleTransaction.waitForDeletions();
                 assertFileCounts(dir.list());

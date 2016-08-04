@@ -49,7 +49,7 @@ public class SystemKeyspaceTest
     @BeforeClass
     public static void prepSnapshotTracker()
     {
-        if (FBUtilities.isWindows())
+        if (FBUtilities.isWindows)
             WindowsFailedSnapshotTracker.deleteOldSnapshots();
     }
 
@@ -95,7 +95,7 @@ public class SystemKeyspaceTest
 
     private void assertDeletedOrDeferred(int expectedCount)
     {
-        if (FBUtilities.isWindows())
+        if (FBUtilities.isWindows)
             assertEquals(expectedCount, getDeferredDeletionCount());
         else
             assertTrue(getSystemSnapshotFiles().isEmpty());

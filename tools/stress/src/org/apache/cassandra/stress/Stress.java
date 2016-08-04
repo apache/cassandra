@@ -55,12 +55,12 @@ public final class Stress
 
     public static void main(String[] arguments) throws Exception
     {
-        if (FBUtilities.isWindows())
+        if (FBUtilities.isWindows)
             WindowsTimer.startTimerPeriod(1);
 
         int exitCode = run(arguments);
 
-        if (FBUtilities.isWindows())
+        if (FBUtilities.isWindows)
             WindowsTimer.endTimerPeriod(1);
 
         System.exit(exitCode);

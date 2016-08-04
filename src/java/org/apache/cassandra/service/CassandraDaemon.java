@@ -175,7 +175,7 @@ public class CassandraDaemon
         FileUtils.setFSErrorHandler(new DefaultFSErrorHandler());
 
         // Delete any failed snapshot deletions on Windows - see CASSANDRA-9658
-        if (FBUtilities.isWindows())
+        if (FBUtilities.isWindows)
             WindowsFailedSnapshotTracker.deleteOldSnapshots();
 
         ThreadAwareSecurityManager.install();
@@ -529,7 +529,7 @@ public class CassandraDaemon
         
         // On windows, we need to stop the entire system as prunsrv doesn't have the jsvc hooks
         // We rely on the shutdown hook to drain the node
-        if (FBUtilities.isWindows())
+        if (FBUtilities.isWindows)
             System.exit(0);
 
         if (jmxServer != null)
@@ -581,7 +581,7 @@ public class CassandraDaemon
                 //Allow the server to start even if the bean can't be registered
             }
 
-            if (FBUtilities.isWindows())
+            if (FBUtilities.isWindows)
             {
                 // We need to adjust the system timer on windows from the default 15ms down to the minimum of 1ms as this
                 // impacts timer intervals, thread scheduling, driver interrupts, etc.

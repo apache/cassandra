@@ -68,7 +68,7 @@ public class ViewManager
 
     public boolean updatesAffectView(Collection<? extends IMutation> mutations, boolean coordinatorBatchlog)
     {
-        if (coordinatorBatchlog && !enableCoordinatorBatchlog)
+        if (!enableCoordinatorBatchlog && coordinatorBatchlog)
             return false;
 
         for (IMutation mutation : mutations)

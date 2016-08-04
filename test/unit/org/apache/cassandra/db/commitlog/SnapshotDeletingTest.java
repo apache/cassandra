@@ -57,7 +57,7 @@ public class SnapshotDeletingTest
     @Test
     public void testCompactionHook() throws Exception
     {
-        Assume.assumeTrue(FBUtilities.isWindows());
+        Assume.assumeTrue(FBUtilities.isWindows);
 
         Keyspace keyspace = Keyspace.open(KEYSPACE1);
         ColumnFamilyStore store = keyspace.getColumnFamilyStore(CF_STANDARD1);

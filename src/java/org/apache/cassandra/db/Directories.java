@@ -889,7 +889,7 @@ public class Directories
                 }
                 catch (FSWriteError e)
                 {
-                    if (FBUtilities.isWindows())
+                    if (FBUtilities.isWindows)
                         SnapshotDeletingTask.addFailedSnapshot(snapshotDir);
                     else
                         throw e;

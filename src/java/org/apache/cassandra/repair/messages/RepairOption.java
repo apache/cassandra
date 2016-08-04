@@ -231,7 +231,7 @@ public class RepairOption
 
     public RepairOption(RepairParallelism parallelism, boolean primaryRange, boolean incremental, boolean trace, int jobThreads, Collection<Range<Token>> ranges, boolean isSubrangeRepair)
     {
-        if (FBUtilities.isWindows() &&
+        if (FBUtilities.isWindows &&
             (DatabaseDescriptor.getDiskAccessMode() != Config.DiskAccessMode.standard || DatabaseDescriptor.getIndexAccessMode() != Config.DiskAccessMode.standard) &&
             parallelism == RepairParallelism.SEQUENTIAL)
         {

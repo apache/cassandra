@@ -57,7 +57,7 @@ public final class FileUtils
     private static final double TB = 1024*1024*1024*1024d;
 
     private static final DecimalFormat df = new DecimalFormat("#.##");
-    private static final boolean canCleanDirectBuffers;
+    public static final boolean isCleanerAvailable;
     private static final AtomicReference<Optional<FSErrorHandler>> fsErrorHandler = new AtomicReference<>(Optional.empty());
 
     static
@@ -74,7 +74,7 @@ public final class FileUtils
             JVMStabilityInspector.inspectThrowable(t);
             logger.info("Cannot initialize un-mmaper.  (Are you using a non-Oracle JVM?)  Compacted data files will not be removed promptly.  Consider using an Oracle JVM or using standard disk access mode");
         }
-        canCleanDirectBuffers = canClean;
+        isCleanerAvailable = canClean;
     }
 
     public static void createHardLink(String from, String to)
@@ -334,16 +334,11 @@ public final class FileUtils
         }
     }
 
-    public static boolean isCleanerAvailable()
-    {
-        return canCleanDirectBuffers;
-    }
-
     public static void clean(ByteBuffer buffer)
     {
         if (buffer == null)
             return;
-        if (isCleanerAvailable() && buffer.isDirect())
+        if (isCleanerAvailable && buffer.isDirect())
         {
             DirectBuffer db = (DirectBuffer) buffer;
             if (db.cleaner() != null)

@@ -117,7 +117,7 @@ public class StorageServiceServerTest
     @Test
     public void testSnapshotFailureHandler() throws IOException
     {
-        assumeTrue(FBUtilities.isWindows());
+        assumeTrue(FBUtilities.isWindows);
 
         // Initial "run" of Cassandra, nothing in failed snapshot file
         WindowsFailedSnapshotTracker.deleteOldSnapshots();

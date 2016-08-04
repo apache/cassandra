@@ -1920,7 +1920,7 @@ public class DatabaseDescriptor
 
     public static int getSSTablePreempiveOpenIntervalInMB()
     {
-        return FBUtilities.isWindows() ? -1 : conf.sstable_preemptive_open_interval_in_mb;
+        return FBUtilities.isWindows ? -1 : conf.sstable_preemptive_open_interval_in_mb;
     }
     public static void setSSTablePreempiveOpenIntervalInMB(int mb)
     {
@@ -2075,7 +2075,7 @@ public class DatabaseDescriptor
             case heap_buffers:
                 return new SlabPool(heapLimit, 0, conf.memtable_cleanup_threshold, new ColumnFamilyStore.FlushLargestColumnFamily());
             case offheap_buffers:
-                if (!FileUtils.isCleanerAvailable())
+                if (!FileUtils.isCleanerAvailable)
                 {
                     throw new IllegalStateException("Could not free direct byte buffer: offheap_buffers is not a safe memtable_allocation_type without this ability, please adjust your config. This feature is only guaranteed to work on an Oracle JVM. Refusing to start.");
                 }

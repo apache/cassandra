@@ -217,7 +217,7 @@ public class MappedBuffer implements Closeable
 
     public void close()
     {
-        if (!FileUtils.isCleanerAvailable())
+        if (!FileUtils.isCleanerAvailable)
             return;
 
         /*

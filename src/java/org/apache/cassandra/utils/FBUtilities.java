@@ -74,8 +74,7 @@ public class FBUtilities
     private static final String DEFAULT_TRIGGER_DIR = "triggers";
 
     private static final String OPERATING_SYSTEM = System.getProperty("os.name").toLowerCase();
-    private static final boolean IS_WINDOWS = OPERATING_SYSTEM.contains("windows");
-    private static final boolean HAS_PROCFS = !IS_WINDOWS && (new File(File.separator + "proc")).exists();
+    public static final boolean isWindows = OPERATING_SYSTEM.contains("windows");
 
     private static volatile InetAddress localInetAddress;
     private static volatile InetAddress broadcastInetAddress;
@@ -808,16 +807,6 @@ public class FBUtilities
         File historyDir = new File(System.getProperty("user.home"), ".cassandra");
         FileUtils.createDirectory(historyDir);
         return historyDir;
-    }
-
-    public static boolean isWindows()
-    {
-        return IS_WINDOWS;
-    }
-
-    public static boolean hasProcFS()
-    {
-        return HAS_PROCFS;
     }
 
     public static void updateWithShort(MessageDigest digest, int val)

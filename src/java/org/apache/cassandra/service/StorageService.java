@@ -195,7 +195,7 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
     private Collection<Token> bootstrapTokens = null;
 
     // true when keeping strict consistency while bootstrapping
-    private boolean useStrictConsistency = Boolean.parseBoolean(System.getProperty("cassandra.consistent.rangemovement", "true"));
+    private static final boolean useStrictConsistency = Boolean.parseBoolean(System.getProperty("cassandra.consistent.rangemovement", "true"));
     private static final boolean allowSimultaneousMoves = Boolean.parseBoolean(System.getProperty("cassandra.consistent.simultaneousmoves.allow","false"));
     private boolean replacing;
 
@@ -620,7 +620,7 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
 
                 CommitLog.instance.shutdownBlocking();
 
-                if (FBUtilities.isWindows())
+                if (FBUtilities.isWindows)
                     WindowsTimer.endTimerPeriod(DatabaseDescriptor.getWindowsTimerInterval());
 
                 HintsService.instance.shutdownBlocking();
@@ -711,7 +711,7 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
         if (drainOnShutdown != null)
             Runtime.getRuntime().removeShutdownHook(drainOnShutdown);
 
-        if (FBUtilities.isWindows())
+        if (FBUtilities.isWindows)
             WindowsTimer.endTimerPeriod(DatabaseDescriptor.getWindowsTimerInterval());
     }
 
@@ -1129,7 +1129,7 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
                                                        null,
                                                        FBUtilities.getBroadcastAddress(),
                                                        "Rebuild",
-                                                       !replacing && useStrictConsistency,
+                                                       useStrictConsistency && !replacing,
                                                        DatabaseDescriptor.getEndpointSnitch(),
                                                        streamStateStore,
                                                        false);
@@ -1376,7 +1376,7 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
         setMode(Mode.JOINING, "Starting to bootstrap...", true);
         BootStrapper bootstrapper = new BootStrapper(FBUtilities.getBroadcastAddress(), tokens, tokenMetadata);
         bootstrapper.addProgressListener(progressSupport);
-        ListenableFuture<StreamState> bootstrapStream = bootstrapper.bootstrap(streamStateStore, !replacing && useStrictConsistency); // handles token update
+        ListenableFuture<StreamState> bootstrapStream = bootstrapper.bootstrap(streamStateStore, useStrictConsistency && !replacing); // handles token update
         Futures.addCallback(bootstrapStream, new FutureCallback<StreamState>()
         {
             @Override
@@ -1415,7 +1415,7 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
             // already bootstrapped ranges are filtered during bootstrap
             BootStrapper bootstrapper = new BootStrapper(FBUtilities.getBroadcastAddress(), tokens, tokenMetadata);
             bootstrapper.addProgressListener(progressSupport);
-            ListenableFuture<StreamState> bootstrapStream = bootstrapper.bootstrap(streamStateStore, !replacing && useStrictConsistency); // handles token update
+            ListenableFuture<StreamState> bootstrapStream = bootstrapper.bootstrap(streamStateStore, useStrictConsistency && !replacing); // handles token update
             Futures.addCallback(bootstrapStream, new FutureCallback<StreamState>()
             {
                 @Override
@@ -3155,7 +3155,7 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
             throw new IllegalArgumentException("Invalid parallelism degree specified: " + parallelismDegree);
         }
         RepairParallelism parallelism = RepairParallelism.values()[parallelismDegree];
-        if (FBUtilities.isWindows() && parallelism != RepairParallelism.PARALLEL)
+        if (FBUtilities.isWindows && parallelism != RepairParallelism.PARALLEL)
         {
             logger.warn("Snapshot-based repair is not yet supported on Windows.  Reverting to parallel repair.");
             parallelism = RepairParallelism.PARALLEL;
@@ -3241,7 +3241,7 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
             throw new IllegalArgumentException("Invalid parallelism degree specified: " + parallelismDegree);
         }
         RepairParallelism parallelism = RepairParallelism.values()[parallelismDegree];
-        if (FBUtilities.isWindows() && parallelism != RepairParallelism.PARALLEL)
+        if (FBUtilities.isWindows && parallelism != RepairParallelism.PARALLEL)
         {
             logger.warn("Snapshot-based repair is not yet supported on Windows.  Reverting to parallel repair.");
             parallelism = RepairParallelism.PARALLEL;

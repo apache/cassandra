@@ -51,7 +51,7 @@ public class RepairOptionTest
         // parse with empty options
         RepairOption option = RepairOption.parse(new HashMap<String, String>(), partitioner);
 
-        if (FBUtilities.isWindows() && (DatabaseDescriptor.getDiskAccessMode() != Config.DiskAccessMode.standard || DatabaseDescriptor.getIndexAccessMode() != Config.DiskAccessMode.standard))
+        if (FBUtilities.isWindows && (DatabaseDescriptor.getDiskAccessMode() != Config.DiskAccessMode.standard || DatabaseDescriptor.getIndexAccessMode() != Config.DiskAccessMode.standard))
             assertTrue(option.getParallelism() == RepairParallelism.PARALLEL);
         else
             assertTrue(option.getParallelism() == RepairParallelism.SEQUENTIAL);

@@ -152,7 +152,7 @@ public class CompactionController implements AutoCloseable
     {
         logger.trace("Checking droppable sstables in {}", cfStore);
 
-        if (compacting == null || NEVER_PURGE_TOMBSTONES)
+        if (NEVER_PURGE_TOMBSTONES || compacting == null)
             return Collections.<SSTableReader>emptySet();
 
         if (cfStore.getCompactionStrategyManager().onlyPurgeRepairedTombstones() && !Iterables.all(compacting, SSTableReader::isRepaired))
@@ -222,7 +222,7 @@ public class CompactionController implements AutoCloseable
      */
     public long maxPurgeableTimestamp(DecoratedKey key)
     {
-        if (!compactingRepaired() || NEVER_PURGE_TOMBSTONES)
+        if (NEVER_PURGE_TOMBSTONES || !compactingRepaired())
             return Long.MIN_VALUE;
 
         long min = Long.MAX_VALUE;

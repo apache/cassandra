@@ -330,7 +330,7 @@ public class MmappedRegions extends SharedCloseableImpl
              * If this fails (non Sun JVM), we'll have to wait for the GC to finalize the mapping.
              * If this works and a thread tries to access any segment, hell will unleash on earth.
              */
-            if (!FileUtils.isCleanerAvailable())
+            if (!FileUtils.isCleanerAvailable)
                 return accumulate;
 
             return perform(accumulate, channel.filePath(), Throwables.FileOpType.READ,
