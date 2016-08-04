@@ -27,6 +27,7 @@
  * Avoid digest mismatch with empty but static rows (CASSANDRA-12090)
  * Fix EOF exception when altering column type (CASSANDRA-11820)
 Merged from 2.2:
+ * Release sstables of failed stream sessions only when outgoing transfers are finished (CASSANDRA-11345)
  * Wait for tracing events before returning response and query at same consistency level client side (CASSANDRA-11465)
  * cqlsh copyutil should get host metadata by connected address (CASSANDRA-11979)
  * Fixed cqlshlib.test.remove_test_db (CASSANDRA-12214)
