@@ -100,6 +100,8 @@ public class StorageProxy implements StorageProxyMBean
     private static final CASClientRequestMetrics casWriteMetrics = new CASClientRequestMetrics("CASWrite");
     private static final CASClientRequestMetrics casReadMetrics = new CASClientRequestMetrics("CASRead");
     private static final ViewWriteMetrics viewWriteMetrics = new ViewWriteMetrics("ViewWrite");
+    private static final Map<ConsistencyLevel, ClientRequestMetrics> readMetricsMap = new EnumMap<>(ConsistencyLevel.class);
+    private static final Map<ConsistencyLevel, ClientRequestMetrics> writeMetricsMap = new EnumMap<>(ConsistencyLevel.class);
 
     private static final double CONCURRENT_SUBREQUESTS_MARGIN = 0.10;
 
@@ -166,6 +168,12 @@ public class StorageProxy implements StorageProxyMBean
                             .execute(counterWriteTask(mutation, targets, responseHandler, localDataCenter));
             }
         };
+
+        for(ConsistencyLevel level : ConsistencyLevel.values())
+        {
+            readMetricsMap.put(level, new ClientRequestMetrics("Read-" + level.name()));
+            writeMetricsMap.put(level, new ClientRequestMetrics("Write-" + level.name()));
+        }
     }
 
     /**
@@ -291,23 +299,28 @@ public class StorageProxy implements StorageProxyMBean
         catch (WriteTimeoutException|ReadTimeoutException e)
         {
             casWriteMetrics.timeouts.mark();
+            writeMetricsMap.get(consistencyForPaxos).timeouts.mark();
             throw e;
         }
         catch (WriteFailureException|ReadFailureException e)
         {
             casWriteMetrics.failures.mark();
+            writeMetricsMap.get(consistencyForPaxos).failures.mark();
             throw e;
         }
         catch(UnavailableException e)
         {
             casWriteMetrics.unavailables.mark();
+            writeMetricsMap.get(consistencyForPaxos).unavailables.mark();
             throw e;
         }
         finally
         {
             if(contentions > 0)
                 casWriteMetrics.contention.update(contentions);
-            casWriteMetrics.addNano(System.nanoTime() - start);
+            final long latency = System.nanoTime() - start;
+            casWriteMetrics.addNano(latency);
+            writeMetricsMap.get(consistencyForPaxos).addNano(latency);
         }
     }
 
@@ -626,6 +639,7 @@ public class StorageProxy implements StorageProxyMBean
                 if (ex instanceof WriteFailureException)
                 {
                     writeMetrics.failures.mark();
+                    writeMetricsMap.get(consistency_level).failures.mark();
                     WriteFailureException fe = (WriteFailureException)ex;
                     Tracing.trace("Write failure; received {} of {} required replies, failed {} requests",
                                   fe.received, fe.blockFor, fe.failures);
@@ -633,6 +647,7 @@ public class StorageProxy implements StorageProxyMBean
                 else
                 {
                     writeMetrics.timeouts.mark();
+                    writeMetricsMap.get(consistency_level).timeouts.mark();
                     WriteTimeoutException te = (WriteTimeoutException)ex;
                     Tracing.trace("Write timeout; received {} of {} required replies", te.received, te.blockFor);
                 }
@@ -642,18 +657,22 @@ public class StorageProxy implements StorageProxyMBean
         catch (UnavailableException e)
         {
             writeMetrics.unavailables.mark();
+            writeMetricsMap.get(consistency_level).unavailables.mark();
             Tracing.trace("Unavailable");
             throw e;
         }
         catch (OverloadedException e)
         {
             writeMetrics.unavailables.mark();
+            writeMetricsMap.get(consistency_level).unavailables.mark();
             Tracing.trace("Overloaded");
             throw e;
         }
         finally
         {
-            writeMetrics.addNano(System.nanoTime() - startTime);
+            long latency = System.nanoTime() - startTime;
+            writeMetrics.addNano(latency);
+            writeMetricsMap.get(consistency_level).addNano(latency);
         }
     }
 
@@ -899,24 +918,30 @@ public class StorageProxy implements StorageProxyMBean
         catch (UnavailableException e)
         {
             writeMetrics.unavailables.mark();
+            writeMetricsMap.get(consistency_level).unavailables.mark();
             Tracing.trace("Unavailable");
             throw e;
         }
         catch (WriteTimeoutException e)
         {
             writeMetrics.timeouts.mark();
+            writeMetricsMap.get(consistency_level).timeouts.mark();
             Tracing.trace("Write timeout; received {} of {} required replies", e.received, e.blockFor);
             throw e;
         }
         catch (WriteFailureException e)
         {
             writeMetrics.failures.mark();
+            writeMetricsMap.get(consistency_level).failures.mark();
             Tracing.trace("Write failure; received {} of {} required replies", e.received, e.blockFor);
             throw e;
         }
         finally
         {
-            writeMetrics.addNano(System.nanoTime() - startTime);
+            long latency = System.nanoTime() - startTime;
+            writeMetrics.addNano(latency);
+            writeMetricsMap.get(consistency_level).addNano(latency);
+
         }
     }
 
@@ -1517,6 +1542,7 @@ public class StorageProxy implements StorageProxyMBean
         if (StorageService.instance.isBootstrapMode() && !systemKeyspaceQuery(group.commands))
         {
             readMetrics.unavailables.mark();
+            readMetricsMap.get(consistencyLevel).unavailables.mark();
             throw new IsBootstrappingException();
         }
 
@@ -1571,18 +1597,21 @@ public class StorageProxy implements StorageProxyMBean
         {
             readMetrics.unavailables.mark();
             casReadMetrics.unavailables.mark();
+            readMetricsMap.get(consistencyLevel).unavailables.mark();
             throw e;
         }
         catch (ReadTimeoutException e)
         {
             readMetrics.timeouts.mark();
             casReadMetrics.timeouts.mark();
+            readMetricsMap.get(consistencyLevel).timeouts.mark();
             throw e;
         }
         catch (ReadFailureException e)
         {
             readMetrics.failures.mark();
             casReadMetrics.failures.mark();
+            readMetricsMap.get(consistencyLevel).failures.mark();
             throw e;
         }
         finally
@@ -1590,6 +1619,7 @@ public class StorageProxy implements StorageProxyMBean
             long latency = System.nanoTime() - start;
             readMetrics.addNano(latency);
             casReadMetrics.addNano(latency);
+            readMetricsMap.get(consistencyLevel).addNano(latency);
             Keyspace.open(metadata.ksName).getColumnFamilyStore(metadata.cfName).metric.coordinatorReadLatency.update(latency, TimeUnit.NANOSECONDS);
         }
 
@@ -1613,22 +1643,26 @@ public class StorageProxy implements StorageProxyMBean
         catch (UnavailableException e)
         {
             readMetrics.unavailables.mark();
+            readMetricsMap.get(consistencyLevel).unavailables.mark();
             throw e;
         }
         catch (ReadTimeoutException e)
         {
             readMetrics.timeouts.mark();
+            readMetricsMap.get(consistencyLevel).timeouts.mark();
             throw e;
         }
         catch (ReadFailureException e)
         {
             readMetrics.failures.mark();
+            readMetricsMap.get(consistencyLevel).failures.mark();
             throw e;
         }
         finally
         {
             long latency = System.nanoTime() - start;
             readMetrics.addNano(latency);
+            readMetricsMap.get(consistencyLevel).addNano(latency);
             // TODO avoid giving every command the same latency number.  Can fix this in CASSADRA-5329
             for (ReadCommand command : group.commands)
                 Keyspace.openAndGetStore(command.metadata()).metric.coordinatorReadLatency.update(latency, TimeUnit.NANOSECONDS);

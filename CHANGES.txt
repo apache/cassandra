@@ -1,4 +1,5 @@
 3.10
+ * Collect metrics on queries by consistency level (CASSANDRA-7384)
  * Add support for GROUP BY to SELECT statement (CASSANDRA-10707)
  * Deprecate memtable_cleanup_threshold and update default for memtable_flush_writers (CASSANDRA-12228)
  * Upgrade to OHC 0.4.4 (CASSANDRA-12133)
@@ -57,10 +58,7 @@ Merged from 2.1:
  * cannot use cql since upgrading python to 2.7.11+ (CASSANDRA-11850)
  * Allow STCS-in-L0 compactions to reduce scope with LCS (CASSANDRA-12040)
 
-<<<<<<< HEAD
-=======
 
->>>>>>> cassandra-3.9
 3.8
  * RTE from new CDC column breaks in flight queries (CASSANDRA-12236)
  * Fix hdr logging for single operation workloads (CASSANDRA-12145)
