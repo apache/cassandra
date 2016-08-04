@@ -73,7 +73,13 @@ public abstract class TokenRestriction implements PartitionKeyRestrictions
     }
 
     @Override
-    public  boolean isOnToken()
+    public Set<Restriction> getRestrictions(ColumnDefinition columnDef)
+    {
+        return Collections.singleton(this);
+    }
+
+    @Override
+    public final boolean isOnToken()
     {
         return true;
     }

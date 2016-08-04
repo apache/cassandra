@@ -239,15 +239,7 @@ public abstract class MultiColumnRestriction implements SingleRestriction
                                          SecondaryIndexManager indexManager,
                                          QueryOptions options)
         {
-            List<List<ByteBuffer>> splitInValues = splitValues(options);
-            checkTrue(splitInValues.size() == 1, "IN restrictions are not supported on indexed columns");
-            List<ByteBuffer> values = splitInValues.get(0);
-
-            for (int i = 0, m = columnDefs.size(); i < m; i++)
-            {
-                ColumnDefinition columnDef = columnDefs.get(i);
-                filter.add(columnDef, Operator.EQ, values.get(i));
-            }
+            throw  invalidRequest("IN restrictions are not supported on indexed columns");
         }
 
         protected abstract List<List<ByteBuffer>> splitValues(QueryOptions options);

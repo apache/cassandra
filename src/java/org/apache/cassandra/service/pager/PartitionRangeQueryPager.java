@@ -19,9 +19,6 @@ package org.apache.cassandra.service.pager;
 
 import java.util.Optional;
 
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
-
 import org.apache.cassandra.db.*;
 import org.apache.cassandra.db.filter.DataLimits;
 import org.apache.cassandra.db.rows.Row;
@@ -38,8 +35,6 @@ import org.apache.cassandra.schema.IndexMetadata;
  */
 public class PartitionRangeQueryPager extends AbstractQueryPager
 {
-    private static final Logger logger = LoggerFactory.getLogger(PartitionRangeQueryPager.class);
-
     private volatile DecoratedKey lastReturnedKey;
     private volatile PagingState.RowMark lastReturnedRow;
 
@@ -53,6 +48,29 @@ public class PartitionRangeQueryPager extends AbstractQueryPager
             lastReturnedRow = state.rowMark;
             restoreState(lastReturnedKey, state.remaining, state.remainingInPartition);
         }
+    }
+
+    public PartitionRangeQueryPager(ReadCommand command,
+                                    int protocolVersion,
+                                    DecoratedKey lastReturnedKey,
+                                    PagingState.RowMark lastReturnedRow,
+                                    int remaining,
+                                    int remainingInPartition)
+    {
+        super(command, protocolVersion);
+        this.lastReturnedKey = lastReturnedKey;
+        this.lastReturnedRow = lastReturnedRow;
+        restoreState(lastReturnedKey, remaining, remainingInPartition);
+    }
+
+    public PartitionRangeQueryPager withUpdatedLimit(DataLimits newLimits)
+    {
+        return new PartitionRangeQueryPager(command.withUpdatedLimit(newLimits),
+                                            protocolVersion,
+                                            lastReturnedKey,
+                                            lastReturnedRow,
+                                            maxRemaining(),
+                                            remainingInPartition());
     }
 
     public PagingState state()

@@ -19,9 +19,6 @@ package org.apache.cassandra.service.pager;
 
 import java.nio.ByteBuffer;
 
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
-
 import org.apache.cassandra.db.*;
 import org.apache.cassandra.db.rows.*;
 import org.apache.cassandra.db.filter.*;
@@ -33,8 +30,6 @@ import org.apache.cassandra.db.filter.*;
  */
 public class SinglePartitionPager extends AbstractQueryPager
 {
-    private static final Logger logger = LoggerFactory.getLogger(SinglePartitionPager.class);
-
     private final SinglePartitionReadCommand command;
 
     private volatile PagingState.RowMark lastReturned;
@@ -49,6 +44,28 @@ public class SinglePartitionPager extends AbstractQueryPager
             lastReturned = state.rowMark;
             restoreState(command.partitionKey(), state.remaining, state.remainingInPartition);
         }
+    }
+
+    private SinglePartitionPager(SinglePartitionReadCommand command,
+                                 int protocolVersion,
+                                 PagingState.RowMark rowMark,
+                                 int remaining,
+                                 int remainingInPartition)
+    {
+        super(command, protocolVersion);
+        this.command = command;
+        this.lastReturned = rowMark;
+        restoreState(command.partitionKey(), remaining, remainingInPartition);
+    }
+
+    @Override
+    public SinglePartitionPager withUpdatedLimit(DataLimits newLimits)
+    {
+        return new SinglePartitionPager(command.withUpdatedLimit(newLimits),
+                                        protocolVersion,
+                                        lastReturned,
+                                        maxRemaining(),
+                                        remainingInPartition());
     }
 
     public ByteBuffer key()

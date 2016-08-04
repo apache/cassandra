@@ -34,6 +34,7 @@ Querying data from data is done using a ``SELECT`` statement:
    select_statement: SELECT [ JSON | DISTINCT ] ( `select_clause` | '*' )
                    : FROM `table_name`
                    : [ WHERE `where_clause` ]
+                   : [ GROUP BY `group_by_clause` ]
                    : [ ORDER BY `ordering_clause` ]
                    : [ PER PARTITION LIMIT (`integer` | `bind_marker`) ]
                    : [ LIMIT (`integer` | `bind_marker`) ]
@@ -49,6 +50,7 @@ Querying data from data is done using a ``SELECT`` statement:
            : '(' `column_name` ( ',' `column_name` )* ')' `operator` `tuple_literal`
            : TOKEN '(' `column_name` ( ',' `column_name` )* ')' `operator` `term`
    operator: '=' | '<' | '>' | '<=' | '>=' | '!=' | IN | CONTAINS | CONTAINS KEY
+   group_by_clause: `column_name` ( ',' `column_name` )*
    ordering_clause: `column_name` [ ASC | DESC ] ( ',' `column_name` [ ASC | DESC ] )*
 
 For instance::
@@ -207,6 +209,25 @@ The tuple notation may also be used for ``IN`` clauses on clustering columns::
 The ``CONTAINS`` operator may only be used on collection columns (lists, sets, and maps). In the case of maps,
 ``CONTAINS`` applies to the map values. The ``CONTAINS KEY`` operator may only be used on map columns and applies to the
 map keys.
+
+.. _group-by-clause:
+
+Grouping results
+~~~~~~~~~~~~~~~~
+
+The ``GROUP BY`` option allows to condense into a single row all selected rows that share the same values for a set
+of columns.
+
+Using the ``GROUP BY`` option, it is only possible to group rows at the partition key level or at a clustering column
+level. By consequence, the ``GROUP BY`` option only accept as arguments primary key column names in the primary key
+order. If a primary key column is restricted by an equality restriction it is not required to be present in the
+``GROUP BY`` clause.
+
+Aggregate functions will produce a separate value for each group. If no ``GROUP BY`` clause is specified,
+aggregates functions will produce a single value for all the rows.
+
+If a column is selected without an aggregate function, in a statement with a ``GROUP BY``, the first value encounter
+in each group will be returned.
 
 .. _ordering-clause:
 

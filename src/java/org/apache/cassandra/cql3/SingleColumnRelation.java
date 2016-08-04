@@ -182,6 +182,11 @@ public final class SingleColumnRelation extends Relation
             Term term = toTerm(receivers, value, cfm.ksName, boundNames);
             return new SingleColumnRestriction.InRestrictionWithMarker(columnDef, (Lists.Marker) term);
         }
+
+        // An IN restrictions with only one element is the same than an EQ restriction
+        if (terms.size() == 1)
+            return new SingleColumnRestriction.EQRestriction(columnDef, terms.get(0));
+
         return new SingleColumnRestriction.InRestrictionWithValues(columnDef, terms);
     }
 

@@ -24,6 +24,7 @@ The following describes the changes in each version of CQL.
 3.4.3
 ^^^^^
 
+- Support for ``GROUP BY`` (:jira:`10707`).
 - Adds a ``DEFAULT UNSET`` option for ``INSERT JSON`` to ignore omitted columns (:jira:`11424`).
 
 3.4.2

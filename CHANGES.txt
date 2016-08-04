@@ -1,4 +1,5 @@
 3.10
+ * Add support for GROUP BY to SELECT statement (CASSANDRA-10707)
  * Deprecate memtable_cleanup_threshold and update default for memtable_flush_writers (CASSANDRA-12228)
  * Upgrade to OHC 0.4.4 (CASSANDRA-12133)
  * Add version command to cassandra-stress (CASSANDRA-12258)

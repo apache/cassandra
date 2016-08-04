@@ -19,6 +19,7 @@ package org.apache.cassandra.service.pager;
 
 import org.apache.cassandra.db.ConsistencyLevel;
 import org.apache.cassandra.db.ReadExecutionController;
+import org.apache.cassandra.db.filter.DataLimits;
 import org.apache.cassandra.db.EmptyIterators;
 import org.apache.cassandra.db.partitions.PartitionIterator;
 import org.apache.cassandra.exceptions.RequestExecutionException;
@@ -77,6 +78,11 @@ public interface QueryPager
         {
             return null;
         }
+
+        public QueryPager withUpdatedLimit(DataLimits newLimits)
+        {
+            throw new UnsupportedOperationException();
+        }
     };
 
     /**
@@ -134,4 +140,12 @@ public interface QueryPager
      * beginning. If the pager is exhausted, the result is undefined.
      */
     public PagingState state();
+
+    /**
+     * Creates a new <code>QueryPager</code> that use the new limits.
+     *
+     * @param newLimits the new limits
+     * @return a new <code>QueryPager</code> that use the new limits
+     */
+    public QueryPager withUpdatedLimit(DataLimits newLimits);
 }

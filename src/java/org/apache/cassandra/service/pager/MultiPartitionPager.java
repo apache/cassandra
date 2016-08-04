@@ -19,6 +19,8 @@ package org.apache.cassandra.service.pager;
 
 import org.apache.cassandra.utils.AbstractIterator;
 
+import java.util.Arrays;
+
 import org.apache.cassandra.db.*;
 import org.apache.cassandra.db.rows.*;
 import org.apache.cassandra.db.filter.DataLimits;
@@ -81,6 +83,27 @@ public class MultiPartitionPager implements QueryPager
         remaining = state == null ? limit.count() : state.remaining;
     }
 
+    private MultiPartitionPager(SinglePartitionPager[] pagers, DataLimits limit, int nowInSec, int remaining, int current)
+    {
+        this.pagers = pagers;
+        this.limit = limit;
+        this.nowInSec = nowInSec;
+        this.remaining = remaining;
+        this.current = current;
+    }
+
+    public QueryPager withUpdatedLimit(DataLimits newLimits)
+    {
+        SinglePartitionPager[] newPagers = Arrays.copyOf(pagers, pagers.length);
+        newPagers[current] = newPagers[current].withUpdatedLimit(newLimits);
+
+        return new MultiPartitionPager(newPagers,
+                                       newLimits,
+                                       nowInSec,
+                                       remaining,
+                                       current);
+    }
+
     public PagingState state()
     {
         // Sets current to the first non-exhausted pager
@@ -122,27 +145,21 @@ public class MultiPartitionPager implements QueryPager
     public PartitionIterator fetchPage(int pageSize, ConsistencyLevel consistency, ClientState clientState) throws RequestValidationException, RequestExecutionException
     {
         int toQuery = Math.min(remaining, pageSize);
-        PagersIterator iter = new PagersIterator(toQuery, consistency, clientState, null);
-        DataLimits.Counter counter = limit.forPaging(toQuery).newCounter(nowInSec, true);
-        iter.setCounter(counter);
-        return counter.applyTo(iter);
+        return new PagersIterator(toQuery, consistency, clientState, null);
     }
 
     @SuppressWarnings("resource") // iter closed via countingIter
     public PartitionIterator fetchPageInternal(int pageSize, ReadExecutionController executionController) throws RequestValidationException, RequestExecutionException
     {
         int toQuery = Math.min(remaining, pageSize);
-        PagersIterator iter = new PagersIterator(toQuery, null, null, executionController);
-        DataLimits.Counter counter = limit.forPaging(toQuery).newCounter(nowInSec, true);
-        iter.setCounter(counter);
-        return counter.applyTo(iter);
+        return new PagersIterator(toQuery, null, null, executionController);
     }
 
     private class PagersIterator extends AbstractIterator<RowIterator> implements PartitionIterator
     {
         private final int pageSize;
         private PartitionIterator result;
-        private DataLimits.Counter counter;
+        private boolean closed;
 
         // For "normal" queries
         private final ConsistencyLevel consistency;
@@ -150,6 +167,9 @@ public class MultiPartitionPager implements QueryPager
 
         // For internal queries
         private final ReadExecutionController executionController;
+
+        private int pagerMaxRemaining;
+        private int counted;
 
         public PagersIterator(int pageSize, ConsistencyLevel consistency, ClientState clientState, ReadExecutionController executionController)
         {
@@ -159,23 +179,30 @@ public class MultiPartitionPager implements QueryPager
             this.executionController = executionController;
         }
 
-        public void setCounter(DataLimits.Counter counter)
-        {
-            this.counter = counter;
-        }
-
         protected RowIterator computeNext()
         {
             while (result == null || !result.hasNext())
             {
                 if (result != null)
+                {
                     result.close();
+                    counted += pagerMaxRemaining - pagers[current].maxRemaining();
+                }
 
-                // This sets us on the first non-exhausted pager
-                if (isExhausted())
+                // We are done if we have reached the page size or in the case of GROUP BY if the current pager
+                // is not exhausted.
+                boolean isDone = counted >= pageSize
+                        || (result != null && limit.isGroupByLimit() && !pagers[current].isExhausted());
+
+                // isExhausted() will sets us on the first non-exhausted pager
+                if (isDone || isExhausted())
+                {
+                    closed = true;
                     return endOfData();
+                }
 
-                int toQuery = pageSize - counter.counted();
+                pagerMaxRemaining = pagers[current].maxRemaining();
+                int toQuery = pageSize - counted;
                 result = consistency == null
                        ? pagers[current].fetchPageInternal(toQuery, executionController)
                        : pagers[current].fetchPage(toQuery, consistency, clientState);
@@ -185,8 +212,8 @@ public class MultiPartitionPager implements QueryPager
 
         public void close()
         {
-            remaining -= counter.counted();
-            if (result != null)
+            remaining -= counted;
+            if (result != null && !closed)
                 result.close();
         }
     }

@@ -69,6 +69,15 @@ final class TokenFilter implements PartitionKeyRestrictions
     }
 
     @Override
+    public Set<Restriction> getRestrictions(ColumnDefinition columnDef)
+    {
+        Set<Restriction> set = new HashSet<>();
+        set.addAll(restrictions.getRestrictions(columnDef));
+        set.addAll(tokenRestriction.getRestrictions(columnDef));
+        return set;
+    }
+
+    @Override
     public boolean isOnToken()
     {
         // if all partition key columns have non-token restrictions, we can simply use the token range to filter

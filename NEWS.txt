@@ -19,6 +19,7 @@ using the provided 'sstableupgrade' tool.
 
 New features
 ------------
+   - Support for GROUP BY queries has been added.
    - A new compaction-stress tool has been added to test the throughput of compaction
      for any cassandra-stress user schema.  see compaction-stress help for how to use.
    - Compaction can now take into account overlapping tables that don't take part
@@ -153,8 +154,9 @@ New features
      a QueryHandler implementation. See CASSANDRA-11295 for more details.
 
 
+
 3.4
-=====
+===
 
 New features
 ------------

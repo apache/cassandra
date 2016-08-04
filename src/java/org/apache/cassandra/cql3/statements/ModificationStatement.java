@@ -549,7 +549,10 @@ public abstract class ModificationStatement implements CQLStatement
         }
 
         Selection.ResultSetBuilder builder = selection.resultSetBuilder(options, false);
-        SelectStatement.forSelection(cfm, selection).processPartition(partition, options, builder, FBUtilities.nowInSeconds());
+        SelectStatement.forSelection(cfm, selection).processPartition(partition,
+                                                                      options,
+                                                                      builder,
+                                                                      FBUtilities.nowInSeconds());
 
         return builder.build();
     }

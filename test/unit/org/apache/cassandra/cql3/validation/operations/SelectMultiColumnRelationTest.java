@@ -80,8 +80,12 @@ public class SelectMultiColumnRelationTest extends CQLTester
                                  "SELECT * FROM %s WHERE a = 0 AND (c, d) > (?, ?)", 0, 0);
 
             // Nulls
-            assertInvalidMessage("Invalid null value in condition for columns: [b, c, d]",
+            assertInvalidMessage("Invalid null value for column d",
+                                 "SELECT * FROM %s WHERE a = 0 AND (b, c, d) = (?, ?, ?)", 1, 2, null);
+            assertInvalidMessage("Invalid null value for column d",
                                  "SELECT * FROM %s WHERE a = 0 AND (b, c, d) IN ((?, ?, ?))", 1, 2, null);
+            assertInvalidMessage("Invalid null value in condition for columns: [b, c, d]",
+                                 "SELECT * FROM %s WHERE a = 0 AND (b, c, d) IN ((?, ?, ?), (?, ?, ?))", 1, 2, null, 2, 1 ,4);
 
             // Wrong type for 'd'
             assertInvalid("SELECT * FROM %s WHERE a = 0 AND (b, c, d) = (?, ?, ?)", 1, 2, "foobar");
@@ -955,16 +959,17 @@ public class SelectMultiColumnRelationTest extends CQLTester
                    row(0, 0, 1, 1, 1, 5));
 
         assertInvalidMessage("Partition key parts: b must be restricted as other parts are",
-                             "SELECT * FROM %s WHERE a = ? AND (c, d) IN ((?, ?)) ALLOW FILTERING", 0, 1, 1);
+                             "SELECT * FROM %s WHERE a = ? AND (c, d) IN ((?, ?), (?, ?)) ALLOW FILTERING", 0, 1, 1, 2, 1);
 
         assertInvalidMessage("Partition key parts: b must be restricted as other parts are",
                              "SELECT * FROM %s WHERE a = ? AND (c, d) >= (?, ?) ALLOW FILTERING", 0, 1, 1);
 
         assertRows(execute("SELECT * FROM %s WHERE a = ? AND b = ? AND (c) IN ((?)) AND f = ?", 0, 0, 1, 5),
                    row(0, 0, 1, 1, 1, 5));
+
         assertInvalidMessage(StatementRestrictions.REQUIRES_ALLOW_FILTERING_MESSAGE,
-                             "SELECT * FROM %s WHERE a = ? AND (c) IN ((?)) AND f = ?", 0, 1, 5);
-        assertRows(execute("SELECT * FROM %s WHERE a = ? AND (c) IN ((?)) AND f = ? ALLOW FILTERING", 0, 1, 5),
+                             "SELECT * FROM %s WHERE a = ? AND (c) IN ((?), (?)) AND f = ?", 0, 1, 3, 5);
+        assertRows(execute("SELECT * FROM %s WHERE a = ? AND (c) IN ((?), (?)) AND f = ? ALLOW FILTERING", 0, 1, 3, 5),
                    row(0, 0, 1, 1, 1, 5));
 
         assertInvalidMessage(StatementRestrictions.REQUIRES_ALLOW_FILTERING_MESSAGE,

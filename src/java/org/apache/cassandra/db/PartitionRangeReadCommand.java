@@ -119,9 +119,31 @@ public class PartitionRangeReadCommand extends ReadCommand
         return dataRange.isNamesQuery();
     }
 
-    public PartitionRangeReadCommand forSubRange(AbstractBounds<PartitionPosition> range)
+    /**
+     * Returns an equivalent command but that only queries data within the provided range.
+     *
+     * @param range the sub-range to restrict the command to. This method <b>assumes</b> that this is a proper sub-range
+     * of the command this is applied to.
+     * @param isRangeContinuation whether {@code range} is a direct continuation of whatever previous range we have
+     * queried. This matters for the {@code DataLimits} that may contain states when we do paging and in the context of
+     * parallel queries: that state only make sense if the range queried is indeed the follow-up of whatever range we've
+     * previously query (that yield said state). In practice this means that ranges for which {@code isRangeContinuation}
+     * is false may have to be slightly pessimistic when counting data and may include a little bit than necessary, and
+     * this should be dealt with post-query (in the case of {@code StorageProxy.getRangeSlice()}, which uses this method
+     * for replica queries, this is dealt with by re-counting results on the coordinator). Note that if this is the
+     * first range we queried, then the {@code DataLimits} will have not state and the value of this parameter doesn't
+     * matter.
+     */
+    public PartitionRangeReadCommand forSubRange(AbstractBounds<PartitionPosition> range, boolean isRangeContinuation)
     {
-        return new PartitionRangeReadCommand(isDigestQuery(), digestVersion(), isForThrift(), metadata(), nowInSec(), columnFilter(), rowFilter(), limits(), dataRange().forSubRange(range), index);
+        DataRange newRange = dataRange().forSubRange(range);
+        // If we're not a continuation of whatever range we've previously queried, we should ignore the states of the
+        // DataLimits as it's either useless, or misleading. This is particularly important for GROUP BY queries, where
+        // DataLimits.CQLGroupByLimits.GroupByAwareCounter assumes that if GroupingState.hasClustering(), then we're in
+        // the middle of a group, but we can't make that assumption if we query and range "in advance" of where we are
+        // on the ring.
+        DataLimits newLimits = isRangeContinuation ? limits() : limits().withoutState();
+        return new PartitionRangeReadCommand(isDigestQuery(), digestVersion(), isForThrift(), metadata(), nowInSec(), columnFilter(), rowFilter(), newLimits, newRange, index);
     }
 
     public PartitionRangeReadCommand copy()

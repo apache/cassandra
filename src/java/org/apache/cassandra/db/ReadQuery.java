@@ -63,11 +63,6 @@ public interface ReadQuery
             return QueryPager.EMPTY;
         }
 
-        public QueryPager getLocalPager()
-        {
-            return QueryPager.EMPTY;
-        }
-
         public boolean selectsKey(DecoratedKey key)
         {
             return false;

@@ -117,6 +117,7 @@ K_FILTERING:   F I L T E R I N G;
 K_IF:          I F;
 K_IS:          I S;
 K_CONTAINS:    C O N T A I N S;
+K_GROUP:       G R O U P;
 
 K_GRANT:       G R A N T;
 K_ALL:         A L L;

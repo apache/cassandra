@@ -152,6 +152,10 @@ public class MultiColumnRelation extends Relation
             Term term = toTerm(receivers, getValue(), cfm.ksName, boundNames);
             return new MultiColumnRestriction.InRestrictionWithMarker(receivers, (AbstractMarker) term);
         }
+
+        if (terms.size() == 1)
+            return new MultiColumnRestriction.EQRestriction(receivers, terms.get(0));
+
         return new MultiColumnRestriction.InRestrictionWithValues(receivers, terms);
     }
 

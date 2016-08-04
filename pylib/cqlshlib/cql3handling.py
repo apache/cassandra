@@ -681,6 +681,7 @@ syntax_rules += r'''
 <selectStatement> ::= "SELECT" ( "JSON" )? <selectClause>
                         "FROM" (cf=<columnFamilyName> | mv=<materializedViewName>)
                           ( "WHERE" <whereClause> )?
+                          ( "GROUP" "BY" <groupByClause> ( "," <groupByClause> )* )?
                           ( "ORDER" "BY" <orderByClause> ( "," <orderByClause> )* )?
                           ( "LIMIT" limit=<wholenumber> )?
                           ( "ALLOW" "FILTERING" )?
@@ -710,6 +711,8 @@ syntax_rules += r'''
 <selectionFunctionArguments> ::= "(" ( <selector> ( "," <selector> )* )? ")"
                           ;
 <orderByClause> ::= [ordercol]=<cident> ( "ASC" | "DESC" )?
+                  ;
+<groupByClause> ::= [groupcol]=<cident>
                   ;
 '''
 
@@ -789,6 +792,15 @@ def select_order_column_completer(ctxt, cass):
     if len(order_by_candidates) > len(prev_order_cols):
         return [maybe_escape_name(order_by_candidates[len(prev_order_cols)])]
     return [Hint('No more orderable columns here.')]
+
+@completer_for('groupByClause', 'groupcol')
+def select_group_column_completer(ctxt, cass):
+    prev_group_cols = ctxt.get_binding('groupcol', ())
+    layout = get_table_meta(ctxt, cass)
+    group_by_candidates = [col.name for col in layout.primary_key]
+    if len(group_by_candidates) > len(prev_group_cols):
+        return [maybe_escape_name(group_by_candidates[len(prev_group_cols)])]
+    return [Hint('No more columns here.')]
 
 
 @completer_for('relation', 'token')

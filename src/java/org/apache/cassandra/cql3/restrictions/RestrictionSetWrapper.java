@@ -18,6 +18,7 @@
 package org.apache.cassandra.cql3.restrictions;
 
 import java.util.List;
+import java.util.Set;
 
 import org.apache.cassandra.config.ColumnDefinition;
 import org.apache.cassandra.cql3.QueryOptions;
@@ -91,5 +92,10 @@ class RestrictionSetWrapper implements Restrictions
     public boolean hasOnlyEqualityRestrictions()
     {
         return restrictions.hasOnlyEqualityRestrictions();
+    }
+
+    public Set<Restriction> getRestrictions(ColumnDefinition columnDef)
+    {
+        return restrictions.getRestrictions(columnDef);
     }
 }

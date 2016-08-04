@@ -2080,9 +2080,18 @@ public class StorageProxy implements StorageProxyMBean
                          rowsPerRange, (int) remainingRows, concurrencyFactor);
         }
 
-        private SingleRangeResponse query(RangeForQuery toQuery)
+        /**
+         * Queries the provided sub-range.
+         *
+         * @param toQuery the subRange to query.
+         * @param isFirst in the case where multiple queries are sent in parallel, whether that's the first query on
+         * that batch or not. The reason it matters is that whe paging queries, the command (more specifically the
+         * {@code DataLimits}) may have "state" information and that state may only be valid for the first query (in
+         * that it's the query that "continues" whatever we're previously queried).
+         */
+        private SingleRangeResponse query(RangeForQuery toQuery, boolean isFirst)
         {
-            PartitionRangeReadCommand rangeCommand = command.forSubRange(toQuery.range);
+            PartitionRangeReadCommand rangeCommand = command.forSubRange(toQuery.range, isFirst);
 
             DataResolver resolver = new DataResolver(keyspace, rangeCommand, consistency, toQuery.filteredEndpoints.size());
 
@@ -2115,7 +2124,7 @@ public class StorageProxy implements StorageProxyMBean
             List<PartitionIterator> concurrentQueries = new ArrayList<>(concurrencyFactor);
             for (int i = 0; i < concurrencyFactor && ranges.hasNext(); i++)
             {
-                concurrentQueries.add(query(ranges.next()));
+                concurrentQueries.add(query(ranges.next(), i == 0));
                 ++rangesQueried;
             }
 

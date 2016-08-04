@@ -248,6 +248,7 @@ selectStatement returns [SelectStatement.RawStatement expr]
         Term.Raw limit = null;
         Term.Raw perPartitionLimit = null;
         Map<ColumnDefinition.Raw, Boolean> orderings = new LinkedHashMap<>();
+        List<ColumnDefinition.Raw> groups = new ArrayList<>();
         boolean allowFiltering = false;
         boolean isJson = false;
     }
@@ -256,12 +257,14 @@ selectStatement returns [SelectStatement.RawStatement expr]
       ( ( K_DISTINCT { isDistinct = true; } )? sclause=selectClause )
       K_FROM cf=columnFamilyName
       ( K_WHERE wclause=whereClause )?
+      ( K_GROUP K_BY groupByClause[groups] ( ',' groupByClause[groups] )* )?
       ( K_ORDER K_BY orderByClause[orderings] ( ',' orderByClause[orderings] )* )?
       ( K_PER K_PARTITION K_LIMIT rows=intValue { perPartitionLimit = rows; } )?
       ( K_LIMIT rows=intValue { limit = rows; } )?
       ( K_ALLOW K_FILTERING  { allowFiltering = true; } )?
       {
           SelectStatement.Parameters params = new SelectStatement.Parameters(orderings,
+                                                                             groups,
                                                                              isDistinct,
                                                                              allowFiltering,
                                                                              isJson);
@@ -324,6 +327,10 @@ orderByClause[Map<ColumnDefinition.Raw, Boolean> orderings]
         boolean reversed = false;
     }
     : c=cident (K_ASC | K_DESC { reversed = true; })? { orderings.put(c, reversed); }
+    ;
+
+groupByClause[List<ColumnDefinition.Raw> groups]
+    : c=cident { groups.add(c); }
     ;
 
 /**
@@ -1636,5 +1643,6 @@ basic_unreserved_keyword returns [String str]
         | K_LIKE
         | K_PER
         | K_PARTITION
+        | K_GROUP
         ) { $str = $k.text; }
     ;

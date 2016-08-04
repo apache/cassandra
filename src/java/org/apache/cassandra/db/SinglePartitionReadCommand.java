@@ -329,6 +329,20 @@ public class SinglePartitionReadCommand extends ReadCommand
                       lastReturned == null ? clusteringIndexFilter() : clusteringIndexFilter.forPaging(metadata().comparator, lastReturned, false));
     }
 
+    public SinglePartitionReadCommand withUpdatedLimit(DataLimits newLimits)
+    {
+        return new SinglePartitionReadCommand(isDigestQuery(),
+                                              digestVersion(),
+                                              isForThrift(),
+                                              metadata(),
+                                              nowInSec(),
+                                              columnFilter(),
+                                              rowFilter(),
+                                              newLimits,
+                                              partitionKey,
+                                              clusteringIndexFilter);
+    }
+
     public PartitionIterator execute(ConsistencyLevel consistency, ClientState clientState) throws RequestExecutionException
     {
         return StorageProxy.read(Group.one(this), consistency, clientState);

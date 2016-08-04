@@ -218,10 +218,7 @@ public abstract class SingleColumnRestriction implements SingleRestriction
                                    SecondaryIndexManager indexManager,
                                    QueryOptions options)
         {
-            List<ByteBuffer> values = getValues(options);
-            checkTrue(values.size() == 1, "IN restrictions are not supported on indexed columns");
-
-            filter.add(columnDef, Operator.EQ, values.get(0));
+            throw invalidRequest("IN restrictions are not supported on indexed columns");
         }
 
         @Override

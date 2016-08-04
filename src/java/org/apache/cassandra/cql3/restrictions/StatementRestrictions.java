@@ -319,12 +319,8 @@ public final class StatementRestrictions
     {
         if (notNullColumns.contains(column))
             return true;
-        else if (column.isPartitionKey())
-            return partitionKeyRestrictions.getColumnDefs().contains(column);
-        else if (column.isClusteringColumn())
-            return clusteringColumnsRestrictions.getColumnDefs().contains(column);
-        else
-            return nonPrimaryKeyRestrictions.getColumnDefs().contains(column);
+
+        return getRestrictions(column.kind).getColumnDefs().contains(column);
     }
 
     /**
@@ -346,6 +342,37 @@ public final class StatementRestrictions
     public boolean isKeyRange()
     {
         return this.isKeyRange;
+    }
+
+    /**
+     * Checks if the specified column is restricted by an EQ restriction.
+     *
+     * @param columnDef the column definition
+     * @return <code>true</code> if the specified column is restricted by an EQ restiction, <code>false</code>
+     * otherwise.
+     */
+    public boolean isColumnRestrictedByEq(ColumnDefinition columnDef)
+    {
+        Set<Restriction> restrictions = getRestrictions(columnDef.kind).getRestrictions(columnDef);
+        return restrictions.stream()
+                           .filter(SingleRestriction.class::isInstance)
+                           .anyMatch(p -> ((SingleRestriction) p).isEQ());
+    }
+
+    /**
+     * Returns the <code>Restrictions</code> for the specified type of columns.
+     *
+     * @param kind the column type
+     * @return the <code>Restrictions</code> for the specified type of columns
+     */
+    private Restrictions getRestrictions(ColumnDefinition.Kind kind)
+    {
+        switch (kind)
+        {
+            case PARTITION_KEY: return partitionKeyRestrictions;
+            case CLUSTERING: return clusteringColumnsRestrictions;
+            default: return nonPrimaryKeyRestrictions;
+        }
     }
 
     /**

@@ -141,6 +141,13 @@ final class RestrictionSet implements Restrictions, Iterable<SingleRestriction>
         return restrictions;
     }
 
+    @Override
+    public Set<Restriction> getRestrictions(ColumnDefinition columnDef)
+    {
+        Restriction existing = restrictions.get(columnDef);
+        return existing == null ? Collections.emptySet() : Collections.singleton(existing);
+    }
+
     /**
      * Returns all the restrictions applied to the specified columns.
      *

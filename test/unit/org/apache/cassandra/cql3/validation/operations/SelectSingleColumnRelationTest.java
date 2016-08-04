@@ -499,14 +499,14 @@ public class SelectSingleColumnRelationTest extends CQLTester
                    row(0, 0, 1, 1, 1, 5));
 
         assertInvalidMessage("Partition key parts: b must be restricted as other parts are",
-                             "SELECT * FROM %s WHERE a = ? AND c IN (?) AND  d IN (?) ALLOW FILTERING", 0, 1, 1);
+                             "SELECT * FROM %s WHERE a = ? AND c IN (?, ?) AND  d IN (?) ALLOW FILTERING", 0, 0, 1, 1);
 
         assertInvalidMessage("Partition key parts: b must be restricted as other parts are",
                              "SELECT * FROM %s WHERE a = ? AND (c, d) >= (?, ?) ALLOW FILTERING", 0, 1, 1);
 
         assertInvalidMessage(StatementRestrictions.REQUIRES_ALLOW_FILTERING_MESSAGE,
-                             "SELECT * FROM %s WHERE a = ? AND c IN (?) AND f = ?", 0, 1, 5);
-        assertRows(execute("SELECT * FROM %s WHERE a = ? AND c IN (?) AND f = ? ALLOW FILTERING", 0, 1, 5),
+                             "SELECT * FROM %s WHERE a = ? AND c IN (?, ?) AND f = ?", 0, 0, 1, 5);
+        assertRows(execute("SELECT * FROM %s WHERE a = ? AND c IN (?, ?) AND f = ? ALLOW FILTERING", 0, 1, 3, 5),
                    row(0, 0, 1, 1, 1, 5));
 
         assertInvalidMessage(StatementRestrictions.REQUIRES_ALLOW_FILTERING_MESSAGE,
@@ -516,8 +516,8 @@ public class SelectSingleColumnRelationTest extends CQLTester
                    row(0, 0, 2, 0, 0, 5));
 
         assertInvalidMessage(StatementRestrictions.REQUIRES_ALLOW_FILTERING_MESSAGE,
-                             "SELECT * FROM %s WHERE a = ? AND c IN (?) AND d IN (?) AND f = ?", 0, 1, 0, 3);
-        assertRows(execute("SELECT * FROM %s WHERE a = ? AND c IN (?) AND d IN (?) AND f = ? ALLOW FILTERING", 0, 1, 0, 3),
+                             "SELECT * FROM %s WHERE a = ? AND c IN (?, ?) AND d IN (?) AND f = ?", 0, 1, 3, 0, 3);
+        assertRows(execute("SELECT * FROM %s WHERE a = ? AND c IN (?, ?) AND d IN (?) AND f = ? ALLOW FILTERING", 0, 1, 3, 0, 3),
                    row(0, 0, 1, 0, 0, 3));
 
         assertInvalidMessage("Partition key parts: b must be restricted as other parts are",

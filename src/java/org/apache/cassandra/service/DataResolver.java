@@ -30,6 +30,7 @@ import org.apache.cassandra.db.*;
 import org.apache.cassandra.db.filter.ClusteringIndexFilter;
 import org.apache.cassandra.db.filter.ColumnFilter;
 import org.apache.cassandra.db.filter.DataLimits;
+import org.apache.cassandra.db.filter.DataLimits.Counter;
 import org.apache.cassandra.db.partitions.*;
 import org.apache.cassandra.db.rows.*;
 import org.apache.cassandra.db.transform.MoreRows;
@@ -436,9 +437,9 @@ public class DataResolver extends ResponseResolver
                 // Also note that we only get here once all the results for this node have been returned, and so
                 // if the node had returned the requested number but we still get there, it imply some results were
                 // skipped during reconciliation.
-                if (lastCount == counter.counted() || !counter.isDoneForPartition())
+                if (lastCount == counted(counter) || !counter.isDoneForPartition())
                     return null;
-                lastCount = counter.counted();
+                lastCount = counted(counter);
 
                 assert !postReconciliationCounter.isDoneForPartition();
 
@@ -450,8 +451,8 @@ public class DataResolver extends ResponseResolver
                 // we should request m rows so that m * x/n = n-x, that is m = (n^2/x) - n.
                 // Also note that it's ok if we retrieve more results that necessary since our top level iterator is a
                 // counting iterator.
-                int n = postReconciliationCounter.countedInCurrentPartition();
-                int x = counter.countedInCurrentPartition();
+                int n = countedInCurrentPartition(postReconciliationCounter);
+                int x = countedInCurrentPartition(counter);
                 int toQuery = Math.max(((n * n) / x) - n, 1);
 
                 DataLimits retryLimits = command.limits().forShortReadRetry(toQuery);
@@ -466,6 +467,38 @@ public class DataResolver extends ResponseResolver
                                                                                    retryFilter);
 
                 return doShortReadRetry(cmd);
+            }
+
+            /**
+             * Returns the number of results counted by the counter.
+             *
+             * @param counter the counter.
+             * @return the number of results counted by the counter
+             */
+            private int counted(Counter counter)
+            {
+                // We are interested by the number of rows but for GROUP BY queries 'counted' returns the number of
+                // groups.
+                if (command.limits().isGroupByLimit())
+                    return counter.rowCounted();
+
+                return counter.counted();
+            }
+
+            /**
+             * Returns the number of results counted in the partition by the counter.
+             *
+             * @param counter the counter.
+             * @return the number of results counted in the partition by the counter
+             */
+            private int countedInCurrentPartition(Counter counter)
+            {
+                // We are interested by the number of rows but for GROUP BY queries 'countedInCurrentPartition' returns
+                // the number of groups in the current partition.
+                if (command.limits().isGroupByLimit())
+                    return counter.rowCountedInCurrentPartition();
+
+                return counter.countedInCurrentPartition();
             }
 
             private UnfilteredRowIterator doShortReadRetry(SinglePartitionReadCommand retryCommand)

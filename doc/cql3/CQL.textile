@@ -1,6 +1,6 @@
 <link rel="StyleSheet" href="CQL.css" type="text/css" media="screen">
 
-h1. Cassandra Query Language (CQL) v3.4.2
+h1. Cassandra Query Language (CQL) v3.4.3
 
 
 
@@ -1061,6 +1061,7 @@ bc(syntax)..
 <select-stmt> ::= SELECT ( JSON )? <select-clause>
                   FROM <tablename>
                   ( WHERE <where-clause> )?
+                  ( GROUP BY <group-by>)?
                   ( ORDER BY <order-by> )?
                   ( PER PARTITION LIMIT <integer> )?
                   ( LIMIT <integer> )?
@@ -1088,6 +1089,7 @@ bc(syntax)..
              | TOKEN '(' <identifier> ( ',' <identifer>)* ')' <op> <term>
 
 <op> ::= '=' | '<' | '>' | '<=' | '>=' | CONTAINS | CONTAINS KEY
+<group-by> ::= <identifier> (',' <identifier>)*
 <order-by> ::= <ordering> ( ',' <odering> )*
 <ordering> ::= <identifer> ( ASC | DESC )?
 <term-tuple> ::= '(' <term> (',' <term>)* ')'
@@ -1181,6 +1183,16 @@ h4(#selectOrderBy). @<order-by>@
 The @ORDER BY@ option allows to select the order of the returned results. It takes as argument a list of column names along with the order for the column (@ASC@ for ascendant and @DESC@ for descendant, omitting the order being equivalent to @ASC@). Currently the possible orderings are limited (which depends on the table "@CLUSTERING ORDER@":#createTableOptions ):
 * if the table has been defined without any specific @CLUSTERING ORDER@, then then allowed orderings are the order induced by the clustering columns and the reverse of that one.
 * otherwise, the orderings allowed are the order of the @CLUSTERING ORDER@ option and the reversed one.
+
+h4(#selectGroupBy). @<group-by>@
+
+The @GROUP BY@ option allows to condense into a single row all selected rows that share the same values for a set of columns.
+
+Using the @GROUP BY@ option, it is only possible to group rows at the partition key level or at a clustering column level. By consequence, the @GROUP BY@ option only accept as arguments primary key column names in the primary key order. If a primary key column is restricted by an equality restriction it is not required to be present in the @GROUP BY@ clause.
+
+Aggregate functions will produce a separate value for each group. If no @GROUP BY@ clause is specified, aggregates functions will produce a single value for all the rows.
+
+If a column is selected without an aggregate function, in a statement with a @GROUP BY@, the first value encounter in each group will be returned.
 
 h4(#selectLimit). @LIMIT@ and @PER PARTITION LIMIT@
 
@@ -2412,6 +2424,10 @@ The following type names are not currently used by CQL, but are reserved for pot
 h2(#changes). Changes
 
 The following describes the changes in each version of CQL.
+
+h3. 3.4.3
+
+* Support for @GROUP BY@. See "@<group-by>@":#selectGroupBy (see "CASSANDRA-10707":https://issues.apache.org/jira/browse/CASSANDRA-10707).
 
 h3. 3.4.2
 

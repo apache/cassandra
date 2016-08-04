@@ -29,9 +29,13 @@ import org.apache.cassandra.config.CFMetaData;
 import org.apache.cassandra.config.ColumnDefinition;
 import org.apache.cassandra.cql3.*;
 import org.apache.cassandra.cql3.functions.Function;
-import org.apache.cassandra.db.rows.Cell;
+import org.apache.cassandra.db.Clustering;
+import org.apache.cassandra.db.DecoratedKey;
+import org.apache.cassandra.db.aggregation.AggregationSpecification;
+import org.apache.cassandra.db.aggregation.GroupMaker;
 import org.apache.cassandra.db.context.CounterContext;
 import org.apache.cassandra.db.marshal.UTF8Type;
+import org.apache.cassandra.db.rows.Cell;
 import org.apache.cassandra.exceptions.InvalidRequestException;
 import org.apache.cassandra.utils.ByteBufferUtil;
 
@@ -168,7 +172,7 @@ public abstract class Selection
         return false;
     }
 
-    public static Selection fromSelectors(CFMetaData cfm, List<RawSelector> rawSelectors, VariableSpecifications boundNames) throws InvalidRequestException
+    public static Selection fromSelectors(CFMetaData cfm, List<RawSelector> rawSelectors, VariableSpecifications boundNames, boolean hasGroupBy)
     {
         List<ColumnDefinition> defs = new ArrayList<>();
 
@@ -176,7 +180,7 @@ public abstract class Selection
                 SelectorFactories.createFactoriesAndCollectColumnDefinitions(RawSelector.toSelectables(rawSelectors, cfm), null, cfm, defs, boundNames);
         SelectionColumnMapping mapping = collectColumnMappings(cfm, rawSelectors, factories);
 
-        return (processesSelection(rawSelectors) || rawSelectors.size() != defs.size())
+        return (processesSelection(rawSelectors) || rawSelectors.size() != defs.size() || hasGroupBy)
                ? new SelectionWithProcessing(cfm, defs, mapping, factories)
                : new SimpleSelection(cfm, defs, mapping, false);
     }
@@ -238,9 +242,15 @@ public abstract class Selection
         return columnMapping;
     }
 
-    public ResultSetBuilder resultSetBuilder(QueryOptions options, boolean isJons) throws InvalidRequestException
+    public ResultSetBuilder resultSetBuilder(QueryOptions options, boolean isJson)
     {
-        return new ResultSetBuilder(options, isJons);
+        return new ResultSetBuilder(options, isJson);
+    }
+
+    public ResultSetBuilder resultSetBuilder(QueryOptions options, boolean isJson, AggregationSpecification aggregationSpec)
+    {
+        return aggregationSpec == null ? new ResultSetBuilder(options, isJson) 
+                : new ResultSetBuilder(options, isJson, aggregationSpec.newGroupMaker());
     }
 
     public abstract boolean isAggregate();
@@ -294,6 +304,11 @@ public abstract class Selection
          */
         private final Selectors selectors;
 
+        /**
+         * The <code>GroupMaker</code> used to build the aggregates.
+         */
+        private final GroupMaker groupMaker;
+
         /*
          * We'll build CQL3 row one by one.
          * The currentRow is the values for the (CQL3) columns we've fetched.
@@ -308,11 +323,17 @@ public abstract class Selection
 
         private final boolean isJson;
 
-        private ResultSetBuilder(QueryOptions options, boolean isJson) throws InvalidRequestException
+        private ResultSetBuilder(QueryOptions options, boolean isJson)
+        {
+            this(options, isJson, null);
+        }
+
+        private ResultSetBuilder(QueryOptions options, boolean isJson, GroupMaker groupMaker)
         {
             this.resultSet = new ResultSet(getResultMetadata(isJson).copy(), new ArrayList<List<ByteBuffer>>());
             this.protocolVersion = options.getProtocolVersion();
             this.selectors = newSelectors(options);
+            this.groupMaker = groupMaker;
             this.timestamps = collectTimestamps ? new long[columns.size()] : null;
             this.ttls = collectTTLs ? new int[columns.size()] : null;
             this.isJson = isJson;
@@ -362,12 +383,20 @@ public abstract class Selection
                  : c.value();
         }
 
-        public void newRow() throws InvalidRequestException
+        /**
+         * Notifies this <code>Builder</code> that a new row is being processed.
+         *
+         * @param partitionKey the partition key of the new row
+         * @param clustering the clustering of the new row
+         */
+        public void newRow(DecoratedKey partitionKey, Clustering clustering)
         {
+            // The groupMaker needs to be called for each row
+            boolean isNewAggregate = groupMaker == null || groupMaker.isNewGroup(partitionKey, clustering);
             if (current != null)
             {
                 selectors.addInputRow(protocolVersion, this);
-                if (!selectors.isAggregate())
+                if (isNewAggregate)
                 {
                     resultSet.addRow(getOutputRow());
                     selectors.reset();
@@ -376,7 +405,12 @@ public abstract class Selection
             current = new ArrayList<>(columns.size());
         }
 
-        public ResultSet build() throws InvalidRequestException
+        /**
+         * Builds the <code>ResultSet</code>
+         *
+         * @param protocolVersion the protocol version
+         */
+        public ResultSet build()
         {
             if (current != null)
             {
@@ -386,7 +420,8 @@ public abstract class Selection
                 current = null;
             }
 
-            if (resultSet.isEmpty() && selectors.isAggregate())
+            // For aggregates we need to return a row even it no records have been found
+            if (resultSet.isEmpty() && groupMaker != null && groupMaker.returnAtLeastOneRow())
                 resultSet.addRow(getOutputRow());
             return resultSet;
         }
