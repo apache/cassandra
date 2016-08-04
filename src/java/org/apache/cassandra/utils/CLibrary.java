@@ -31,6 +31,7 @@ import org.slf4j.LoggerFactory;
 import com.sun.jna.LastErrorException;
 import com.sun.jna.Native;
 import com.sun.jna.Pointer;
+import sun.nio.ch.FileChannelImpl;
 
 public final class CLibrary
 {
@@ -56,9 +57,25 @@ public final class CLibrary
 
     static boolean jnaAvailable = true;
     static boolean jnaLockable = false;
+    private static boolean fsyncUnavailable = false;
+
+    private static final boolean OS_LINUX;
+    private static final boolean OS_AIX;
+    private static final boolean OS_MAC;
+
+    private static final Field FILE_DESCRIPTOR_FD_FIELD;
+    private static final Field FILE_CHANNEL_FD_FIELD;
 
     static
     {
+        String os = System.getProperty("os.name").toLowerCase();
+        OS_LINUX = os.contains("linux");
+        OS_AIX = os.contains("aix");
+        OS_MAC = os.contains("mac");
+
+        FILE_DESCRIPTOR_FD_FIELD = FBUtilities.getProtectedField(FileDescriptor.class, "fd");
+        FILE_CHANNEL_FD_FIELD = FBUtilities.getProtectedField(FileChannelImpl.class, "fd");
+
         try
         {
             Native.register("c");
@@ -81,12 +98,12 @@ public final class CLibrary
 
         if (System.getProperty("os.arch").toLowerCase().contains("ppc"))
         {
-            if (System.getProperty("os.name").toLowerCase().contains("linux"))
+            if (OS_LINUX)
             {
                MCL_CURRENT = 0x2000;
                MCL_FUTURE = 0x4000;
             }
-            else if (System.getProperty("os.name").toLowerCase().contains("aix"))
+            else if (OS_AIX)
             {
                 MCL_CURRENT = 0x100;
                 MCL_FUTURE = 0x200;
@@ -156,13 +173,13 @@ public final class CLibrary
             if (!(e instanceof LastErrorException))
                 throw e;
 
-            if (errno(e) == ENOMEM && System.getProperty("os.name").toLowerCase().contains("linux"))
+            if (OS_LINUX && errno(e) == ENOMEM)
             {
                 logger.warn("Unable to lock JVM memory (ENOMEM)."
                         + " This can result in part of the JVM being swapped out, especially with mmapped I/O enabled."
                         + " Increase RLIMIT_MEMLOCK or run Cassandra as root.");
             }
-            else if (!System.getProperty("os.name").toLowerCase().contains("mac"))
+            else if (!OS_MAC)
             {
                 // OS X allows mlockall to be called, but always returns an error
                 logger.warn("Unknown mlockall error {}", errno(e));
@@ -207,7 +224,7 @@ public final class CLibrary
 
         try
         {
-            if (System.getProperty("os.name").toLowerCase().contains("linux"))
+            if (OS_LINUX)
             {
                 int result = posix_fadvise(fd, offset, len, POSIX_FADV_DONTNEED);
                 if (result != 0)
@@ -283,7 +300,7 @@ public final class CLibrary
 
     public static void trySync(int fd)
     {
-        if (fd == -1)
+        if (fsyncUnavailable || fd == -1)
             return;
 
         try
@@ -293,6 +310,7 @@ public final class CLibrary
         catch (UnsatisfiedLinkError e)
         {
             // JNA is unavailable just skipping Direct I/O
+            fsyncUnavailable = true;
         }
         catch (RuntimeException e)
         {
@@ -327,11 +345,9 @@ public final class CLibrary
 
     public static int getfd(FileChannel channel)
     {
-        Field field = FBUtilities.getProtectedField(channel.getClass(), "fd");
-
         try
         {
-            return getfd((FileDescriptor)field.get(channel));
+            return getfd((FileDescriptor)FILE_CHANNEL_FD_FIELD.get(channel));
         }
         catch (IllegalArgumentException|IllegalAccessException e)
         {
@@ -347,11 +363,9 @@ public final class CLibrary
      */
     public static int getfd(FileDescriptor descriptor)
     {
-        Field field = FBUtilities.getProtectedField(descriptor.getClass(), "fd");
-
         try
         {
-            return field.getInt(descriptor);
+            return FILE_DESCRIPTOR_FD_FIELD.getInt(descriptor);
         }
         catch (Exception e)
         {
