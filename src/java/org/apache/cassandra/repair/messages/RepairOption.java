@@ -46,6 +46,7 @@ public class RepairOption
     public static final String HOSTS_KEY = "hosts";
     public static final String TRACE_KEY = "trace";
     public static final String SUB_RANGE_REPAIR_KEY = "sub_range_repair";
+    public static final String PULL_REPAIR_KEY = "pullRepair";
 
     // we don't want to push nodes too much for repair
     public static final int MAX_JOB_THREADS = 4;
@@ -116,6 +117,12 @@ public class RepairOption
      *             Multiple hosts can be given as comma separated values(e.g. cass1,cass2).</td>
      *             <td></td>
      *         </tr>
+     *         <tr>
+     *             <td>pullRepair</td>
+     *             <td>"true" if the repair should only stream data one way from a remote host to this host.
+     *             This is only allowed if exactly 2 hosts are specified along with a token range that they share.</td>
+     *             <td>false</td>
+     *         </tr>
      *     </tbody>
      * </table>
      *
@@ -130,6 +137,7 @@ public class RepairOption
         boolean primaryRange = Boolean.parseBoolean(options.get(PRIMARY_RANGE_KEY));
         boolean incremental = Boolean.parseBoolean(options.get(INCREMENTAL_KEY));
         boolean trace = Boolean.parseBoolean(options.get(TRACE_KEY));
+        boolean pullRepair = Boolean.parseBoolean(options.get(PULL_REPAIR_KEY));
 
         int jobThreads = 1;
         if (options.containsKey(JOB_THREADS_KEY))
@@ -163,7 +171,7 @@ public class RepairOption
             }
         }
 
-        RepairOption option = new RepairOption(parallelism, primaryRange, incremental, trace, jobThreads, ranges, !ranges.isEmpty());
+        RepairOption option = new RepairOption(parallelism, primaryRange, incremental, trace, jobThreads, ranges, !ranges.isEmpty(), pullRepair);
 
         // data centers
         String dataCentersStr = options.get(DATACENTERS_KEY);
@@ -209,9 +217,24 @@ public class RepairOption
         {
             throw new IllegalArgumentException("Too many job threads. Max is " + MAX_JOB_THREADS);
         }
+        if (!dataCenters.isEmpty() && !hosts.isEmpty())
+        {
+            throw new IllegalArgumentException("Cannot combine -dc and -hosts options.");
+        }
         if (primaryRange && (!dataCenters.isEmpty() || !hosts.isEmpty()))
         {
             throw new IllegalArgumentException("You need to run primary range repair on all nodes in the cluster.");
+        }
+        if (pullRepair)
+        {
+            if (hosts.size() != 2)
+            {
+                throw new IllegalArgumentException("Pull repair can only be performed between two hosts. Please specify two hosts, one of which must be this host.");
+            }
+            else if (ranges.isEmpty())
+            {
+                throw new IllegalArgumentException("Token ranges must be specified when performing pull repair. Please specify at least one token range which both hosts have in common.");
+            }
         }
 
         return option;
@@ -223,13 +246,14 @@ public class RepairOption
     private final boolean trace;
     private final int jobThreads;
     private final boolean isSubrangeRepair;
+    private final boolean pullRepair;
 
     private final Collection<String> columnFamilies = new HashSet<>();
     private final Collection<String> dataCenters = new HashSet<>();
     private final Collection<String> hosts = new HashSet<>();
     private final Collection<Range<Token>> ranges = new HashSet<>();
 
-    public RepairOption(RepairParallelism parallelism, boolean primaryRange, boolean incremental, boolean trace, int jobThreads, Collection<Range<Token>> ranges, boolean isSubrangeRepair)
+    public RepairOption(RepairParallelism parallelism, boolean primaryRange, boolean incremental, boolean trace, int jobThreads, Collection<Range<Token>> ranges, boolean isSubrangeRepair, boolean pullRepair)
     {
         if (FBUtilities.isWindows &&
             (DatabaseDescriptor.getDiskAccessMode() != Config.DiskAccessMode.standard || DatabaseDescriptor.getIndexAccessMode() != Config.DiskAccessMode.standard) &&
@@ -247,6 +271,7 @@ public class RepairOption
         this.jobThreads = jobThreads;
         this.ranges.addAll(ranges);
         this.isSubrangeRepair = isSubrangeRepair;
+        this.pullRepair = pullRepair;
     }
 
     public RepairParallelism getParallelism()
@@ -267,6 +292,11 @@ public class RepairOption
     public boolean isTraced()
     {
         return trace;
+    }
+
+    public boolean isPullRepair()
+    {
+        return pullRepair;
     }
 
     public int getJobThreads()
@@ -316,6 +346,7 @@ public class RepairOption
                        ", dataCenters: " + dataCenters +
                        ", hosts: " + hosts +
                        ", # of ranges: " + ranges.size() +
+                       ", pull repair: " + pullRepair +
                        ')';
     }
 
@@ -332,6 +363,7 @@ public class RepairOption
         options.put(SUB_RANGE_REPAIR_KEY, Boolean.toString(isSubrangeRepair));
         options.put(TRACE_KEY, Boolean.toString(trace));
         options.put(RANGES_KEY, Joiner.on(",").join(ranges));
+        options.put(PULL_REPAIR_KEY, Boolean.toString(pullRepair));
         return options;
     }
 }

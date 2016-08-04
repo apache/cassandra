@@ -87,6 +87,7 @@ public class RepairSession extends AbstractFuture<RepairSessionResult> implement
     public final String keyspace;
     private final String[] cfnames;
     public final RepairParallelism parallelismDegree;
+    public final boolean pullRepair;
     /** Range to repair */
     public final Collection<Range<Token>> ranges;
     public final Set<InetAddress> endpoints;
@@ -117,6 +118,7 @@ public class RepairSession extends AbstractFuture<RepairSessionResult> implement
      * @param parallelismDegree specifies the degree of parallelism when calculating the merkle trees
      * @param endpoints the data centers that should be part of the repair; null for all DCs
      * @param repairedAt when the repair occurred (millis)
+     * @param pullRepair true if the repair should be one way (from remote host to this host and only applicable between two hosts--see RepairOption)
      * @param cfnames names of columnfamilies
      */
     public RepairSession(UUID parentRepairSession,
@@ -126,6 +128,7 @@ public class RepairSession extends AbstractFuture<RepairSessionResult> implement
                          RepairParallelism parallelismDegree,
                          Set<InetAddress> endpoints,
                          long repairedAt,
+                         boolean pullRepair,
                          String... cfnames)
     {
         assert cfnames.length > 0 : "Repairing no column families seems pointless, doesn't it";
@@ -139,6 +142,7 @@ public class RepairSession extends AbstractFuture<RepairSessionResult> implement
         this.endpoints = endpoints;
         this.repairedAt = repairedAt;
         this.validationRemaining = new AtomicInteger(cfnames.length);
+        this.pullRepair = pullRepair;
     }
 
     public UUID getId()

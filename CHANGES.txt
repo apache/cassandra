@@ -1,4 +1,5 @@
 3.10
+ * Add support to one-way targeted repair (CASSANDRA-9876)
  * Remove clientutil jar (CASSANDRA-11635)
  * Fix compaction throughput throttle (CASSANDRA-12366)
  * Delay releasing Memtable memory on flush until PostFlush has finished running (CASSANDRA-12358)

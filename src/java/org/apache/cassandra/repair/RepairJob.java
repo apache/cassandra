@@ -118,7 +118,7 @@ public class RepairJob extends AbstractFuture<RepairResult> implements Runnable
                         SyncTask task;
                         if (r1.endpoint.equals(local) || r2.endpoint.equals(local))
                         {
-                            task = new LocalSyncTask(desc, r1, r2, repairedAt);
+                            task = new LocalSyncTask(desc, r1, r2, repairedAt, session.pullRepair);
                         }
                         else
                         {
