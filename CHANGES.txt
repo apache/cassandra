@@ -1,4 +1,5 @@
 2.2.10
+ * Make sure compaction stats are updated when compaction is interrupted (Backport from 3.0, CASSANDRA-12100)
  * Fix flaky LongLeveledCompactionStrategyTest (CASSANDRA-12202)
  * Fix failing COPY TO STDOUT (CASSANDRA-12497)
  * Fix ColumnCounter::countAll behaviour for reverse queries (CASSANDRA-13222)

@@ -165,12 +165,13 @@ public class CompactionTask extends AbstractCompactionTask
                 ci = new CompactionIterable(compactionType, scanners.scanners, controller, sstableFormat, taskId);
                 try (CloseableIterator<AbstractCompactedRow> iter = ci.iterator())
                 {
-                    if (collector != null)
-                        collector.beginCompaction(ci);
                     long lastCheckObsoletion = start;
 
                     if (!controller.cfs.getCompactionStrategy().isActive)
                         throw new CompactionInterruptedException(ci.getCompactionInfo());
+
+                    if (collector != null)
+                        collector.beginCompaction(ci);
 
                     try (CompactionAwareWriter writer = getCompactionAwareWriter(cfs, transaction, actuallyCompact))
                     {
