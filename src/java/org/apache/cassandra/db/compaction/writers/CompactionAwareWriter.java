@@ -208,16 +208,20 @@ public abstract class CompactionAwareWriter extends Transactional.AbstractTransa
             if (directory == null)
                 directory = sstable.descriptor.directory;
             if (!directory.equals(sstable.descriptor.directory))
+            {
                 logger.trace("All sstables not from the same disk - putting results in {}", directory);
+                break;
+            }
         }
         Directories.DataDirectory d = getDirectories().getDataDirectoryForFile(directory);
         if (d != null)
         {
-            if (d.getAvailableSpace() < estimatedWriteSize)
+            long availableSpace = d.getAvailableSpace();
+            if (availableSpace < estimatedWriteSize)
                 throw new RuntimeException(String.format("Not enough space to write %s to %s (%s available)",
                                                          FBUtilities.prettyPrintMemory(estimatedWriteSize),
                                                          d.location,
-                                                         FBUtilities.prettyPrintMemory(d.getAvailableSpace())));
+                                                         FBUtilities.prettyPrintMemory(availableSpace)));
             logger.trace("putting compaction results in {}", directory);
             return d;
         }
