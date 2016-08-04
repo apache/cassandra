@@ -1,4 +1,5 @@
 3.10
+ * Make it possible to compact a given token range (CASSANDRA-10643)
  * Allow updating DynamicEndpointSnitch properties via JMX (CASSANDRA-12179)
  * Collect metrics on queries by consistency level (CASSANDRA-7384)
  * Add support for GROUP BY to SELECT statement (CASSANDRA-10707)

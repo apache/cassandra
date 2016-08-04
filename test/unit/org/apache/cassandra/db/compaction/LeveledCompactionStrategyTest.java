@@ -18,6 +18,7 @@
 package org.apache.cassandra.db.compaction;
 
 import java.nio.ByteBuffer;
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
@@ -41,6 +42,7 @@ import org.apache.cassandra.SchemaLoader;
 import org.apache.cassandra.Util;
 import org.apache.cassandra.UpdateBuilder;
 import org.apache.cassandra.db.ColumnFamilyStore;
+import org.apache.cassandra.db.DecoratedKey;
 import org.apache.cassandra.db.Keyspace;
 import org.apache.cassandra.dht.Range;
 import org.apache.cassandra.dht.Token;
@@ -367,5 +369,78 @@ public class LeveledCompactionStrategyTest
         manager.handleNotification(new SSTableAddedNotification(singleton(sstable2)), this);
         assertTrue(unrepaired.manifest.getLevel(1).contains(sstable2));
         assertFalse(repaired.manifest.getLevel(1).contains(sstable2));
+    }
+
+
+
+    @Test
+    public void testTokenRangeCompaction() throws Exception
+    {
+        // Remove any existing data so we can start out clean with predictable number of sstables
+        cfs.truncateBlocking();
+
+        // Disable auto compaction so cassandra does not compact
+        CompactionManager.instance.disableAutoCompaction();
+
+        ByteBuffer value = ByteBuffer.wrap(new byte[100 * 1024]); // 100 KB value, make it easy to have multiple files
+
+        DecoratedKey key1 = Util.dk(String.valueOf(1));
+        DecoratedKey key2 = Util.dk(String.valueOf(2));
+        List<DecoratedKey> keys = new ArrayList<>(Arrays.asList(key1, key2));
+        int numIterations = 10;
+        int columns = 2;
+
+        // Add enough data to trigger multiple sstables.
+
+        // create 10 sstables that contain data for both key1 and key2
+        for (int i = 0; i < numIterations; i++) {
+            for (DecoratedKey key : keys) {
+                UpdateBuilder update = UpdateBuilder.create(cfs.metadata, key);
+                for (int c = 0; c < columns; c++)
+                    update.newRow("column" + c).add("val", value);
+                update.applyUnsafe();
+            }
+            cfs.forceBlockingFlush();
+        }
+
+        // create 20 more sstables with 10 containing data for key1 and other 10 containing data for key2
+        for (int i = 0; i < numIterations; i++) {
+            for (DecoratedKey key : keys) {
+                UpdateBuilder update = UpdateBuilder.create(cfs.metadata, key);
+                for (int c = 0; c < columns; c++)
+                    update.newRow("column" + c).add("val", value);
+                update.applyUnsafe();
+                cfs.forceBlockingFlush();
+            }
+        }
+
+        // We should have a total of 30 sstables by now
+        assertEquals(30, cfs.getLiveSSTables().size());
+
+        // Compact just the tables with key2
+        // Bit hackish to use the key1.token as the prior key but works in BytesToken
+        Range<Token> tokenRange = new Range<>(key2.getToken(), key2.getToken());
+        Collection<Range<Token>> tokenRanges = new ArrayList<>(Arrays.asList(tokenRange));
+        cfs.forceCompactionForTokenRange(tokenRanges);
+
+        while(CompactionManager.instance.isCompacting(Arrays.asList(cfs))) {
+            Thread.sleep(100);
+        }
+
+        // 20 tables that have key2 should have been compacted in to 1 table resulting in 11 (30-20+1)
+        assertEquals(11, cfs.getLiveSSTables().size());
+
+        // Compact just the tables with key1. At this point all 11 tables should have key1
+        Range<Token> tokenRange2 = new Range<>(key1.getToken(), key1.getToken());
+        Collection<Range<Token>> tokenRanges2 = new ArrayList<>(Arrays.asList(tokenRange2));
+        cfs.forceCompactionForTokenRange(tokenRanges2);
+
+
+        while(CompactionManager.instance.isCompacting(Arrays.asList(cfs))) {
+            Thread.sleep(100);
+        }
+
+        // the 11 tables containing key1 should all compact to 1 table
+        assertEquals(1, cfs.getLiveSSTables().size());
     }
 }

@@ -2860,8 +2860,19 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
      *            the tag given to the snapshot; may not be null or empty
      */
     public void takeTableSnapshot(String keyspaceName, String tableName, String tag)
-            throws IOException {
+            throws IOException
+    {
         takeMultipleTableSnapshot(tag, false, keyspaceName + "." + tableName);
+    }
+
+    public void forceKeyspaceCompactionForTokenRange(String keyspaceName, String startToken, String endToken, String... tableNames) throws IOException, ExecutionException, InterruptedException
+    {
+        Collection<Range<Token>> tokenRanges = createRepairRangeFrom(startToken, endToken);
+
+        for (ColumnFamilyStore cfStore : getValidColumnFamilies(true, false, keyspaceName, tableNames))
+        {
+            cfStore.forceCompactionForTokenRange(tokenRanges);
+        }
     }
 
     /**

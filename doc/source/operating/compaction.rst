@@ -45,6 +45,12 @@ Secondary index rebuild
     rebuild the secondary indexes on the node.
 Anticompaction
     after repair the ranges that were actually repaired are split out of the sstables that existed when repair started.
+Sub range compaction
+    It is possible to only compact a given sub range - this could be useful if you know a token that has been
+    misbehaving - either gathering many updates or many deletes. (``nodetool compact -st x -et y``) will pick
+    all sstables containing the range between x and y and issue a compaction for those sstables. For STCS this will
+    most likely include all sstables but with LCS it can issue the compaction for a subset of the sstables. With LCS
+    the resulting sstable will end up in L0.
 
 When is a minor compaction triggered?
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^

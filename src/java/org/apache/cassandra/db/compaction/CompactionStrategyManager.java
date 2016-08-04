@@ -743,7 +743,6 @@ public class CompactionStrategyManager implements INotificationConsumer
     {
         maybeReload(cfs.metadata);
         List<AbstractCompactionTask> ret = new ArrayList<>();
-
         readLock.lock();
         try
         {
