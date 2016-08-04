@@ -142,7 +142,7 @@ public final class TableAttributes extends PropertyDefinitions
         String value = compressionOpts.get(Option.CRC_CHECK_CHANCE.toString().toLowerCase());
         try
         {
-            return Double.parseDouble(value);
+            return Double.valueOf(value);
         }
         catch (NumberFormatException e)
         {

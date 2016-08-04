@@ -188,7 +188,7 @@ public final class HeapUtils
         String jvmName = ManagementFactory.getRuntimeMXBean().getName();
         try
         {
-            return Long.parseLong(jvmName.split("@")[0]);
+            return Long.valueOf(jvmName.split("@")[0]);
         }
         catch (NumberFormatException e)
         {

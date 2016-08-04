@@ -141,11 +141,11 @@ public class IndexMode
             {
                 analyzerClass = Class.forName(indexOptions.get(INDEX_ANALYZER_CLASS_OPTION));
                 isAnalyzed = indexOptions.get(INDEX_ANALYZED_OPTION) == null
-                              ? true : Boolean.valueOf(indexOptions.get(INDEX_ANALYZED_OPTION));
+                              ? true : Boolean.parseBoolean(indexOptions.get(INDEX_ANALYZED_OPTION));
             }
             else if (indexOptions.get(INDEX_ANALYZED_OPTION) != null)
             {
-                isAnalyzed = Boolean.valueOf(indexOptions.get(INDEX_ANALYZED_OPTION));
+                isAnalyzed = Boolean.parseBoolean(indexOptions.get(INDEX_ANALYZED_OPTION));
             }
         }
         catch (ClassNotFoundException e)
@@ -163,7 +163,7 @@ public class IndexMode
 
             isLiteral = literalOption == null
                             ? (validator instanceof UTF8Type || validator instanceof AsciiType)
-                            : Boolean.valueOf(literalOption);
+                            : Boolean.parseBoolean(literalOption);
         }
         catch (Exception e)
         {

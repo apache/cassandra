@@ -158,7 +158,7 @@ public class NativeTransportService
      */
     public static boolean useEpoll()
     {
-        final boolean enableEpoll = Boolean.valueOf(System.getProperty("cassandra.native.epoll.enabled", "true"));
+        final boolean enableEpoll = Boolean.parseBoolean(System.getProperty("cassandra.native.epoll.enabled", "true"));
         return enableEpoll && Epoll.isAvailable();
     }
 

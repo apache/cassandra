@@ -47,7 +47,7 @@ public class TraceStateImpl extends TraceState
 {
     private static final Logger logger = LoggerFactory.getLogger(TraceStateImpl.class);
     private static final int WAIT_FOR_PENDING_EVENTS_TIMEOUT_SECS =
-      Integer.valueOf(System.getProperty("cassandra.wait_for_tracing_events_timeout_secs", "1"));
+      Integer.parseInt(System.getProperty("cassandra.wait_for_tracing_events_timeout_secs", "1"));
 
     private final Set<Future<?>> pendingFutures = ConcurrentHashMap.newKeySet();
 

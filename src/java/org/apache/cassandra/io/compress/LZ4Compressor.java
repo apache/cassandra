@@ -207,7 +207,7 @@ public class LZ4Compressor implements ICompressor
         Integer level;
         try
         {
-            level = Integer.parseInt(compressionLevel);
+            level = Integer.valueOf(compressionLevel);
         }
         catch (NumberFormatException e)
         {

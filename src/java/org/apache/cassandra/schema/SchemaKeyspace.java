@@ -66,7 +66,7 @@ public final class SchemaKeyspace
 
     private static final Logger logger = LoggerFactory.getLogger(SchemaKeyspace.class);
 
-    private static final boolean FLUSH_SCHEMA_TABLES = Boolean.valueOf(System.getProperty("cassandra.test.flush_local_schema_changes", "true"));
+    private static final boolean FLUSH_SCHEMA_TABLES = Boolean.parseBoolean(System.getProperty("cassandra.test.flush_local_schema_changes", "true"));
 
     public static final String NAME = "system_schema";
 
