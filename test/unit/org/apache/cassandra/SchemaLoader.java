@@ -596,6 +596,7 @@ public class SchemaLoader
                                            .addClusteringColumn("age", Int32Type.instance)
                                            .addRegularColumn("height", Int32Type.instance)
                                            .addRegularColumn("score", DoubleType.instance)
+                                           .addStaticColumn("nickname", UTF8Type.instance)
                                            .build();
 
         Indexes indexes = cfm.getIndexes();

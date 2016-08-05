@@ -232,6 +232,10 @@ public class ColumnIndex
         switch (column.kind)
         {
             case CLUSTERING:
+                // skip indexing of static clustering when regular column is indexed
+                if (row.isStatic())
+                    return null;
+
                 return row.clustering().get(column.position());
 
             // treat static cell retrieval the same was as regular
