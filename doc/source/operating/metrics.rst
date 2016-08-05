@@ -585,6 +585,93 @@ connectedNativeClients      Counter        Number of clients connected to this n
 connectedThriftClients      Counter        Number of clients connected to this nodes thrift protocol server
 =========================== ============== ===========
 
+JVM Metrics
+^^^^^^^^^^^
+
+JVM metrics such as memory and garbage collection statistics can either be accessed by connecting to the JVM using JMX or can be exported using `Metric Reporters`_.
+
+BufferPool
+++++++++++
+
+**Metric Name**
+    ``jvm.buffers.<direct|mapped>.<MetricName>``
+
+**JMX MBean**
+    ``java.nio:type=BufferPool name=<direct|mapped>``
+
+========================== ============== ===========
+Name                       Type           Description
+========================== ============== ===========
+Capacity                   Gauge<Long>    Estimated total capacity of the buffers in this pool
+Count                      Gauge<Long>    Estimated number of buffers in the pool
+Used                       Gauge<Long>    Estimated memory that the Java virtual machine is using for this buffer pool
+========================== ============== ===========
+
+FileDescriptorRatio
++++++++++++++++++++
+
+**Metric Name**
+    ``jvm.fd.<MetricName>``
+
+**JMX MBean**
+    ``java.lang:type=OperatingSystem name=<OpenFileDescriptorCount|MaxFileDescriptorCount>``
+
+========================== ============== ===========
+Name                       Type           Description
+========================== ============== ===========
+Usage                      Ratio          Ratio of used to total file descriptors
+========================== ============== ===========
+
+GarbageCollector
+++++++++++++++++
+
+**Metric Name**
+    ``jvm.gc.<gc_type>.<MetricName>``
+
+**JMX MBean**
+    ``java.lang:type=GarbageCollector name=<gc_type>``
+
+========================== ============== ===========
+Name                       Type           Description
+========================== ============== ===========
+Count                      Gauge<Long>    Total number of collections that have occurred
+Time                       Gauge<Long>    Approximate accumulated collection elapsed time in milliseconds
+========================== ============== ===========
+
+Memory
+++++++
+
+**Metric Name**
+    ``jvm.memory.<heap/non-heap/total>.<MetricName>``
+
+**JMX MBean**
+    ``java.lang:type=Memory``
+
+========================== ============== ===========
+Committed                  Gauge<Long>    Amount of memory in bytes that is committed for the JVM to use
+Init                       Gauge<Long>    Amount of memory in bytes that the JVM initially requests from the OS
+Max                        Gauge<Long>    Maximum amount of memory in bytes that can be used for memory management
+Usage                      Ratio          Ratio of used to maximum memory
+Used                       Gauge<Long>    Amount of used memory in bytes
+========================== ============== ===========
+
+MemoryPool
+++++++++++
+
+**Metric Name**
+    ``jvm.memory.pools.<memory_pool>.<MetricName>``
+
+**JMX MBean**
+    ``java.lang:type=MemoryPool name=<memory_pool>``
+
+========================== ============== ===========
+Committed                  Gauge<Long>    Amount of memory in bytes that is committed for the JVM to use
+Init                       Gauge<Long>    Amount of memory in bytes that the JVM initially requests from the OS
+Max                        Gauge<Long>    Maximum amount of memory in bytes that can be used for memory management
+Usage                      Ratio          Ratio of used to maximum memory
+Used                       Gauge<Long>    Amount of used memory in bytes
+========================== ============== ===========
+
 JMX
 ^^^
 
