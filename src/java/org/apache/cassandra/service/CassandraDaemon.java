@@ -31,6 +31,14 @@ import javax.management.ObjectName;
 import javax.management.StandardMBean;
 import javax.management.remote.JMXConnectorServer;
 
+import com.addthis.metrics3.reporter.config.ReporterConfig;
+import com.codahale.metrics.Meter;
+import com.codahale.metrics.MetricRegistryListener;
+import com.codahale.metrics.SharedMetricRegistries;
+import com.codahale.metrics.jvm.BufferPoolMetricSet;
+import com.codahale.metrics.jvm.FileDescriptorRatioGauge;
+import com.codahale.metrics.jvm.GarbageCollectorMetricSet;
+import com.codahale.metrics.jvm.MemoryUsageGaugeSet;
 import com.google.common.annotations.VisibleForTesting;
 import com.google.common.util.concurrent.Futures;
 import com.google.common.util.concurrent.ListenableFuture;
@@ -350,6 +358,12 @@ public class CassandraDaemon
             logger.info("Trying to load metrics-reporter-config from file: {}", metricsReporterConfigFile);
             try
             {
+                // enable metrics provided by metrics-jvm.jar
+                CassandraMetricsRegistry.Metrics.register("jvm.buffers.", new BufferPoolMetricSet(ManagementFactory.getPlatformMBeanServer()));
+                CassandraMetricsRegistry.Metrics.register("jvm.gc.", new GarbageCollectorMetricSet());
+                CassandraMetricsRegistry.Metrics.register("jvm.memory.", new MemoryUsageGaugeSet());
+                CassandraMetricsRegistry.Metrics.register("jvm.fd.usage", new FileDescriptorRatioGauge());
+                // initialize metrics-reporter-config from yaml file
                 URL resource = CassandraDaemon.class.getClassLoader().getResource(metricsReporterConfigFile);
                 if (resource == null) {
                     logger.warn("Failed to load metrics-reporter-config, file does not exist: {}", metricsReporterConfigFile);
@@ -522,7 +536,7 @@ public class CassandraDaemon
         if (nativeTransportService != null)
             nativeTransportService.destroy();
         StorageService.instance.setRpcReady(false);
-        
+
         // On windows, we need to stop the entire system as prunsrv doesn't have the jsvc hooks
         // We rely on the shutdown hook to drain the node
         if (FBUtilities.isWindows())
