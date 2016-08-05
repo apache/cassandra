@@ -793,6 +793,7 @@ def select_order_column_completer(ctxt, cass):
         return [maybe_escape_name(order_by_candidates[len(prev_order_cols)])]
     return [Hint('No more orderable columns here.')]
 
+
 @completer_for('groupByClause', 'groupcol')
 def select_group_column_completer(ctxt, cass):
     prev_group_cols = ctxt.get_binding('groupcol', ())
