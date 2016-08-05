@@ -67,22 +67,11 @@ public class ShortType extends AbstractType<Short>
 
     public Term fromJSONObject(Object parsed) throws MarshalException
     {
-        try
-        {
-            if (parsed instanceof String)
-                return new Constants.Value(fromString((String) parsed));
+        if (parsed instanceof String || parsed instanceof Number)
+            return new Constants.Value(fromString(String.valueOf(parsed)));
 
-            Number parsedNumber = (Number) parsed;
-            if (!(parsedNumber instanceof Short))
-                throw new MarshalException(String.format("Expected a short value, but got a %s: %s", parsed.getClass().getSimpleName(), parsed));
-
-            return new Constants.Value(getSerializer().serialize(parsedNumber.shortValue()));
-        }
-        catch (ClassCastException exc)
-        {
-            throw new MarshalException(String.format(
-                    "Expected a short value, but got a %s: %s", parsed.getClass().getSimpleName(), parsed));
-        }
+        throw new MarshalException(String.format(
+                "Expected a short value, but got a %s: %s", parsed.getClass().getSimpleName(), parsed));
     }
 
     @Override
