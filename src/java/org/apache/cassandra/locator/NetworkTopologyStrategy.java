@@ -24,9 +24,11 @@ import java.util.Map.Entry;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.exceptions.ConfigurationException;
 import org.apache.cassandra.dht.Token;
 import org.apache.cassandra.locator.TokenMetadata.Topology;
+import org.apache.cassandra.service.StorageService;
 import org.apache.cassandra.utils.FBUtilities;
 
 import com.google.common.collect.Multimap;
@@ -193,10 +195,43 @@ public class NetworkTopologyStrategy extends AbstractReplicationStrategy
         }
     }
 
+    /*
+     * (non-javadoc) Method to generate list of valid data center names to be used to validate the replication parameters during CREATE / ALTER keyspace operations.
+     * All peers of current node are fetched from {@link TokenMetadata} and then a set is build by fetching DC name of each peer.
+     * @return a set of valid DC names
+     */
+    private static Set<String> buildValidDataCentersSet()
+    {
+        final Set<String> validDataCenters = new HashSet<>();
+        final IEndpointSnitch snitch = DatabaseDescriptor.getEndpointSnitch();
+
+        // Add data center of localhost.
+        validDataCenters.add(snitch.getDatacenter(FBUtilities.getBroadcastAddress()));
+        // Fetch and add DCs of all peers.
+        for (final InetAddress peer : StorageService.instance.getTokenMetadata().getAllEndpoints())
+        {
+            validDataCenters.add(snitch.getDatacenter(peer));
+        }
+
+        return validDataCenters;
+    }
+
     public Collection<String> recognizedOptions()
     {
-        // We explicitely allow all options
-        return null;
+        // only valid options are valid DC names.
+        return buildValidDataCentersSet();
+    }
+
+    protected void validateExpectedOptions() throws ConfigurationException
+    {
+        // Do not accept query with no data centers specified.
+        if (this.configOptions.isEmpty())
+        {
+            throw new ConfigurationException("Configuration for at least one datacenter must be present");
+        }
+
+        // Validate the data center names
+        super.validateExpectedOptions();
     }
 
     @Override

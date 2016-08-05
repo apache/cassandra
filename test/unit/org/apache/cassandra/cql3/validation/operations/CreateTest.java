@@ -17,6 +17,7 @@
  */
 package org.apache.cassandra.cql3.validation.operations;
 
+import java.net.InetAddress;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.UUID;
@@ -25,12 +26,15 @@ import org.junit.Test;
 
 
 import org.apache.cassandra.config.CFMetaData;
+import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.config.Schema;
 import org.apache.cassandra.cql3.CQLTester;
 import org.apache.cassandra.db.Mutation;
 import org.apache.cassandra.db.partitions.Partition;
 import org.apache.cassandra.exceptions.ConfigurationException;
 import org.apache.cassandra.exceptions.SyntaxException;
+import org.apache.cassandra.locator.AbstractEndpointSnitch;
+import org.apache.cassandra.locator.IEndpointSnitch;
 import org.apache.cassandra.schema.SchemaKeyspace;
 import org.apache.cassandra.triggers.ITrigger;
 import org.apache.cassandra.utils.ByteBufferUtil;
@@ -345,6 +349,33 @@ public class CreateTest extends CQLTester
     }
 
     /**
+     *  Test {@link ConfigurationException} is thrown on create keyspace with invalid DC option in replication configuration .
+     */
+    @Test
+    public void testCreateKeyspaceWithNTSOnlyAcceptsConfiguredDataCenterNames() throws Throwable
+    {
+        assertInvalidThrow(ConfigurationException.class, "CREATE KEYSPACE testABC WITH replication = { 'class' : 'NetworkTopologyStrategy', 'INVALID_DC' : 2 }");
+        execute("CREATE KEYSPACE testABC WITH replication = {'class' : 'NetworkTopologyStrategy', '" + DATA_CENTER + "' : 2 }");
+
+        // Mix valid and invalid, should throw an exception
+        assertInvalidThrow(ConfigurationException.class, "CREATE KEYSPACE testXYZ WITH replication={ 'class' : 'NetworkTopologyStrategy', '" + DATA_CENTER + "' : 2 , 'INVALID_DC': 1}");
+
+        // clean-up
+        execute("DROP KEYSPACE IF EXISTS testABC");
+        execute("DROP KEYSPACE IF EXISTS testXYZ");
+    }
+
+    /**
+     * Test {@link ConfigurationException} is thrown on create keyspace without any options.
+     */
+    @Test
+    public void testConfigurationExceptionThrownWhenCreateKeyspaceWithNoOptions() throws Throwable
+    {
+        assertInvalidThrow(ConfigurationException.class, "CREATE KEYSPACE testXYZ with replication = { 'class': 'NetworkTopologyStrategy' }");
+        assertInvalidThrow(ConfigurationException.class, "CREATE KEYSPACE testXYZ WITH replication = { 'class' : 'SimpleStrategy' }");
+    }
+
+    /**
      * Test create and drop table
      * migrated from cql_tests.py:TestCQL.table_test()
      */
@@ -492,6 +523,34 @@ public class CreateTest extends CQLTester
         execute("INSERT INTO %s (a, b) values (3, 6)");
 
         assertRows(execute("SELECT * FROM %s WHERE b = ?", 4), row(2, 4));
+    }
+
+    @Test
+    // tests CASSANDRA-4278
+    public void testHyphenDatacenters() throws Throwable
+    {
+        IEndpointSnitch snitch = DatabaseDescriptor.getEndpointSnitch();
+
+        // Register an EndpointSnitch which returns fixed values for test.
+        DatabaseDescriptor.setEndpointSnitch(new AbstractEndpointSnitch()
+        {
+            @Override
+            public String getRack(InetAddress endpoint) { return RACK1; }
+
+            @Override
+            public String getDatacenter(InetAddress endpoint) { return "us-east-1"; }
+
+            @Override
+            public int compareEndpoints(InetAddress target, InetAddress a1, InetAddress a2) { return 0; }
+        });
+
+        execute("CREATE KEYSPACE Foo WITH replication = { 'class' : 'NetworkTopologyStrategy', 'us-east-1' : 1 };");
+
+        // Restore the previous EndpointSnitch
+        DatabaseDescriptor.setEndpointSnitch(snitch);
+
+        // Clean up
+        execute("DROP KEYSPACE IF EXISTS Foo");
     }
 
     @Test

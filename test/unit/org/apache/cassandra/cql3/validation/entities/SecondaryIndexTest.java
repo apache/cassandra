@@ -239,16 +239,6 @@ public class SecondaryIndexTest extends CQLTester
     }
 
     /**
-     * Check one can use arbitrary name for datacenter when creating keyspace (#4278),
-     * migrated from cql_tests.py:TestCQL.keyspace_creation_options_test()
-     */
-    @Test
-    public void testDataCenterName() throws Throwable
-    {
-       execute("CREATE KEYSPACE Foo WITH replication = { 'class' : 'NetworkTopologyStrategy', 'us-east' : 1, 'us-west' : 1 };");
-    }
-
-    /**
      * Migrated from cql_tests.py:TestCQL.indexes_composite_test()
      */
     @Test

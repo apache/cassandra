@@ -13,6 +13,17 @@ restore snapshots created with the previous major version using the
 'sstableloader' tool. You can upgrade the file format of your snapshots
 using the provided 'sstableupgrade' tool.
 
+3.0.10
+=====
+
+Upgrading
+---------
+   - To protect against accidental data loss, cassandra no longer allows 
+     users to set arbitrary datacenter names for NetworkTopologyStrategy. 
+     Cassandra will allow users to continue using existing keyspaces
+     with invalid datacenter names, but will validat DC names on CREATE and
+     ALTER
+
 3.0.9
 =====
 

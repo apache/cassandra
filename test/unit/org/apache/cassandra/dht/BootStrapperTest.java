@@ -27,6 +27,7 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.UUID;
 
 import com.google.common.collect.Lists;
 
@@ -59,7 +60,7 @@ public class BootStrapperTest
     static IPartitioner oldPartitioner;
 
     @BeforeClass
-    public static void setup() throws ConfigurationException
+    public static void setup() throws Exception
     {
         oldPartitioner = StorageService.instance.setPartitionerUnsafe(Murmur3Partitioner.instance);
         SchemaLoader.startGossiper();
@@ -177,6 +178,13 @@ public class BootStrapperTest
             int vn = 16;
             String ks = "BootStrapperTestNTSKeyspace" + rackCount + replicas;
             String dc = "1";
+
+            // Register peers with expected DC for NetworkTopologyStrategy.
+            TokenMetadata metadata = StorageService.instance.getTokenMetadata();
+            metadata.clearUnsafe();
+            metadata.updateHostId(UUID.randomUUID(), InetAddress.getByName("127.1.0.99"));
+            metadata.updateHostId(UUID.randomUUID(), InetAddress.getByName("127.15.0.99"));
+
             SchemaLoader.createKeyspace(ks, KeyspaceParams.nts(dc, replicas, "15", 15), SchemaLoader.standardCFMD(ks, "Standard1"));
             TokenMetadata tm = new TokenMetadata();
             tm.clearUnsafe();

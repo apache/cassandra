@@ -82,7 +82,7 @@ public class MoveTest
      * So instead of extending SchemaLoader, we call it's method below.
      */
     @BeforeClass
-    public static void setup() throws ConfigurationException
+    public static void setup() throws Exception
     {
         oldPartitioner = StorageService.instance.setPartitionerUnsafe(partitioner);
         SchemaLoader.loadSchema();
@@ -105,7 +105,7 @@ public class MoveTest
         StorageService.instance.getTokenMetadata().clearUnsafe();
     }
 
-    private static void addNetworkTopologyKeyspace(String keyspaceName, Integer... replicas) throws ConfigurationException
+    private static void addNetworkTopologyKeyspace(String keyspaceName, Integer... replicas) throws Exception
     {
 
         DatabaseDescriptor.setEndpointSnitch(new AbstractNetworkTopologySnitch()
@@ -138,6 +138,11 @@ public class MoveTest
                 return Integer.parseInt(str.substring(index + 1).trim());
             }
         });
+
+        final TokenMetadata tmd = StorageService.instance.getTokenMetadata();
+        tmd.clearUnsafe();
+        tmd.updateHostId(UUID.randomUUID(), InetAddress.getByName("127.0.0.1"));
+        tmd.updateHostId(UUID.randomUUID(), InetAddress.getByName("127.0.0.2"));
 
         KeyspaceMetadata keyspace =  KeyspaceMetadata.create(keyspaceName,
                                                              KeyspaceParams.nts(configOptions(replicas)),
