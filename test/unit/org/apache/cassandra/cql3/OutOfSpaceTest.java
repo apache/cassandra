@@ -19,18 +19,16 @@ package org.apache.cassandra.cql3;
 
 import static junit.framework.Assert.fail;
 
-import java.io.IOError;
+import java.io.Closeable;
 import java.util.UUID;
 import java.util.concurrent.ExecutionException;
 
 import org.junit.Assert;
 import org.junit.Test;
 
+import org.apache.cassandra.Util;
 import org.apache.cassandra.config.Config.DiskFailurePolicy;
 import org.apache.cassandra.config.DatabaseDescriptor;
-import org.apache.cassandra.db.BlacklistedDirectories;
-import org.apache.cassandra.db.ColumnFamilyStore;
-import org.apache.cassandra.db.Directories.DataDirectory;
 import org.apache.cassandra.db.commitlog.CommitLog;
 import org.apache.cassandra.db.commitlog.CommitLogSegment;
 import org.apache.cassandra.db.Keyspace;
@@ -48,12 +46,11 @@ public class OutOfSpaceTest extends CQLTester
     public void testFlushUnwriteableDie() throws Throwable
     {
         makeTable();
-        markDirectoriesUnwriteable();
 
         KillerForTests killerForTests = new KillerForTests();
         JVMStabilityInspector.Killer originalKiller = JVMStabilityInspector.replaceKiller(killerForTests);
         DiskFailurePolicy oldPolicy = DatabaseDescriptor.getDiskFailurePolicy();
-        try
+        try (Closeable c = Util.markDirectoriesUnwriteable(getCurrentColumnFamilyStore()))
         {
             DatabaseDescriptor.setDiskFailurePolicy(DiskFailurePolicy.die);
             flushAndExpectError();
@@ -71,10 +68,9 @@ public class OutOfSpaceTest extends CQLTester
     public void testFlushUnwriteableStop() throws Throwable
     {
         makeTable();
-        markDirectoriesUnwriteable();
 
         DiskFailurePolicy oldPolicy = DatabaseDescriptor.getDiskFailurePolicy();
-        try
+        try (Closeable c = Util.markDirectoriesUnwriteable(getCurrentColumnFamilyStore()))
         {
             DatabaseDescriptor.setDiskFailurePolicy(DiskFailurePolicy.stop);
             flushAndExpectError();
@@ -90,10 +86,9 @@ public class OutOfSpaceTest extends CQLTester
     public void testFlushUnwriteableIgnore() throws Throwable
     {
         makeTable();
-        markDirectoriesUnwriteable();
 
         DiskFailurePolicy oldPolicy = DatabaseDescriptor.getDiskFailurePolicy();
-        try
+        try (Closeable c = Util.markDirectoriesUnwriteable(getCurrentColumnFamilyStore()))
         {
             DatabaseDescriptor.setDiskFailurePolicy(DiskFailurePolicy.ignore);
             flushAndExpectError();
@@ -104,7 +99,6 @@ public class OutOfSpaceTest extends CQLTester
         }
 
         // Next flush should succeed.
-        makeTable();
         flush();
     }
 
@@ -115,23 +109,6 @@ public class OutOfSpaceTest extends CQLTester
         // insert exactly the amount of tombstones that shouldn't trigger an exception
         for (int i = 0; i < 10; i++)
             execute("INSERT INTO %s (a, b, c) VALUES ('key', 'column" + i + "', null);");
-    }
-
-    public void markDirectoriesUnwriteable()
-    {
-        ColumnFamilyStore cfs = Keyspace.open(keyspace()).getColumnFamilyStore(currentTable());
-        try
-        {
-            for ( ; ; )
-            {
-                DataDirectory dir = cfs.getDirectories().getWriteableLocation(1);
-                BlacklistedDirectories.maybeMarkUnwritable(cfs.getDirectories().getLocationForDisk(dir));
-            }
-        }
-        catch (IOError e)
-        {
-            // Expected -- marked all directories as unwritable
-        }
     }
 
     public void flushAndExpectError() throws InterruptedException, ExecutionException

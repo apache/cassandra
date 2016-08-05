@@ -318,7 +318,7 @@ public abstract class AbstractCommitLogSegmentManager
 
             for (CommitLogSegment segment : activeSegments)
                 for (UUID cfId : droppedCfs)
-                    segment.markClean(cfId, segment.getCurrentCommitLogPosition());
+                    segment.markClean(cfId, CommitLogPosition.NONE, segment.getCurrentCommitLogPosition());
 
             // now recycle segments that are unused, as we may not have triggered a discardCompletedSegments()
             // if the previous active segment was the only one to recycle (since an active segment isn't
@@ -441,7 +441,7 @@ public abstract class AbstractCommitLogSegmentManager
                     // even though we remove the schema entry before a final flush when dropping a CF,
                     // it's still possible for a writer to race and finish his append after the flush.
                     logger.trace("Marking clean CF {} that doesn't exist anymore", dirtyCFId);
-                    segment.markClean(dirtyCFId, segment.getCurrentCommitLogPosition());
+                    segment.markClean(dirtyCFId, CommitLogPosition.NONE, segment.getCurrentCommitLogPosition());
                 }
                 else if (!flushes.containsKey(dirtyCFId))
                 {

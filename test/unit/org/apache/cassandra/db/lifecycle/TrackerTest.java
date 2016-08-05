@@ -301,9 +301,6 @@ public class TrackerTest
         SSTableReader reader = MockSchema.sstable(0, 10, false, cfs);
         tracker.replaceFlushed(prev2, singleton(reader));
         Assert.assertEquals(1, tracker.getView().sstables.size());
-        Assert.assertEquals(1, tracker.getView().premature.size());
-        tracker.permitCompactionOfFlushed(singleton(reader));
-        Assert.assertEquals(0, tracker.getView().premature.size());
         Assert.assertEquals(2, listener.received.size());
         Assert.assertEquals(prev2, ((MemtableDiscardedNotification) listener.received.get(0)).memtable);
         Assert.assertEquals(singleton(reader), ((SSTableAddedNotification) listener.received.get(1)).added);
@@ -321,16 +318,15 @@ public class TrackerTest
         reader = MockSchema.sstable(0, 10, true, cfs);
         cfs.invalidate(false);
         tracker.replaceFlushed(prev1, singleton(reader));
-        tracker.permitCompactionOfFlushed(Collections.singleton(reader));
         Assert.assertEquals(0, tracker.getView().sstables.size());
         Assert.assertEquals(0, tracker.getView().flushingMemtables.size());
         Assert.assertEquals(0, cfs.metric.liveDiskSpaceUsed.getCount());
-        System.out.println(listener.received);
-        Assert.assertEquals(4, listener.received.size());
+        Assert.assertEquals(5, listener.received.size());
         Assert.assertEquals(prev1, ((MemtableSwitchedNotification) listener.received.get(0)).memtable);
         Assert.assertEquals(prev1, ((MemtableDiscardedNotification) listener.received.get(1)).memtable);
-        Assert.assertTrue(listener.received.get(2) instanceof SSTableDeletingNotification);
-        Assert.assertEquals(1, ((SSTableListChangedNotification) listener.received.get(3)).removed.size());
+        Assert.assertEquals(singleton(reader), ((SSTableAddedNotification) listener.received.get(2)).added);
+        Assert.assertTrue(listener.received.get(3) instanceof SSTableDeletingNotification);
+        Assert.assertEquals(1, ((SSTableListChangedNotification) listener.received.get(4)).removed.size());
         DatabaseDescriptor.setIncrementalBackupsEnabled(backups);
     }
 

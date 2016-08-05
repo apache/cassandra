@@ -298,11 +298,12 @@ public class CommitLog implements CommitLogMBean
      * given. Discards any commit log segments that are no longer used.
      *
      * @param cfId    the column family ID that was flushed
-     * @param context the commit log segment position of the flush
+     * @param lowerBound the lowest covered replay position of the flush
+     * @param lowerBound the highest covered replay position of the flush
      */
-    public void discardCompletedSegments(final UUID cfId, final CommitLogPosition context)
+    public void discardCompletedSegments(final UUID cfId, final CommitLogPosition lowerBound, final CommitLogPosition upperBound)
     {
-        logger.trace("discard completed log segments for {}, table {}", context, cfId);
+        logger.trace("discard completed log segments for {}-{}, table {}", lowerBound, upperBound, cfId);
 
         // Go thru the active segment files, which are ordered oldest to newest, marking the
         // flushed CF as clean, until we reach the segment file containing the CommitLogPosition passed
@@ -311,7 +312,7 @@ public class CommitLog implements CommitLogMBean
         for (Iterator<CommitLogSegment> iter = segmentManager.getActiveSegments().iterator(); iter.hasNext();)
         {
             CommitLogSegment segment = iter.next();
-            segment.markClean(cfId, context);
+            segment.markClean(cfId, lowerBound, upperBound);
 
             if (segment.isUnused())
             {
@@ -326,7 +327,7 @@ public class CommitLog implements CommitLogMBean
 
             // Don't mark or try to delete any newer segments once we've reached the one containing the
             // position of the flush.
-            if (segment.contains(context))
+            if (segment.contains(upperBound))
                 break;
         }
     }

@@ -416,9 +416,9 @@ public abstract class CQLTester
     {
         try
         {
-            String currentTable = currentTable();
-            if (currentTable != null)
-                Keyspace.open(KEYSPACE).getColumnFamilyStore(currentTable).forceMajorCompaction();
+            ColumnFamilyStore store = getCurrentColumnFamilyStore();
+            if (store != null)
+                store.forceMajorCompaction();
         }
         catch (InterruptedException | ExecutionException e)
         {
@@ -428,9 +428,9 @@ public abstract class CQLTester
 
     public void cleanupCache()
     {
-        String currentTable = currentTable();
-        if (currentTable != null)
-            Keyspace.open(KEYSPACE).getColumnFamilyStore(currentTable).cleanupCache();
+        ColumnFamilyStore store = getCurrentColumnFamilyStore();
+        if (store != null)
+            store.cleanupCache();
     }
 
     public static FunctionName parseFunctionName(String qualifiedName)

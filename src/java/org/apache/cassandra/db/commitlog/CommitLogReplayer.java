@@ -59,7 +59,7 @@ public class CommitLogReplayer implements CommitLogReadHandler
     private final Queue<Future<Integer>> futures;
 
     private final AtomicInteger replayedCount;
-    private final Map<UUID, ReplayPositionFilter> cfPersisted;
+    private final Map<UUID, IntervalSet<CommitLogPosition>> cfPersisted;
     private final CommitLogPosition globalPosition;
 
     // Used to throttle speed of replay of mutations if we pass the max outstanding count
@@ -73,7 +73,7 @@ public class CommitLogReplayer implements CommitLogReadHandler
 
     CommitLogReplayer(CommitLog commitLog,
                       CommitLogPosition globalPosition,
-                      Map<UUID, ReplayPositionFilter> cfPersisted,
+                      Map<UUID, IntervalSet<CommitLogPosition>> cfPersisted,
                       ReplayFilter replayFilter)
     {
         this.keyspacesReplayed = new NonBlockingHashSet<Keyspace>();
@@ -89,10 +89,10 @@ public class CommitLogReplayer implements CommitLogReadHandler
 
     public static CommitLogReplayer construct(CommitLog commitLog)
     {
-        // compute per-CF and global commit log segment positions
-        Map<UUID, ReplayPositionFilter> cfPersisted = new HashMap<>();
+        // compute per-CF and global replay intervals
+        Map<UUID, IntervalSet<CommitLogPosition>> cfPersisted = new HashMap<>();
         ReplayFilter replayFilter = ReplayFilter.create();
-        CommitLogPosition globalPosition = null;
+
         for (ColumnFamilyStore cfs : ColumnFamilyStore.all())
         {
             // but, if we've truncated the cf in question, then we need to need to start replay after the truncation
@@ -117,15 +117,11 @@ public class CommitLogReplayer implements CommitLogReadHandler
                 }
             }
 
-            ReplayPositionFilter filter = new ReplayPositionFilter(cfs.getSSTables(), truncatedAt);
-            if (!filter.isEmpty())
-                cfPersisted.put(cfs.metadata.cfId, filter);
-            else
-                globalPosition = CommitLogPosition.NONE; // if we have no ranges for this CF, we must replay everything and filter
+            IntervalSet<CommitLogPosition> filter = persistedIntervals(cfs.getLiveSSTables(), truncatedAt);
+            cfPersisted.put(cfs.metadata.cfId, filter);
         }
-        if (globalPosition == null)
-            globalPosition = firstNotCovered(cfPersisted.values());
-        logger.trace("Global commit log segment position is {} from columnfamilies {}", globalPosition, FBUtilities.toString(cfPersisted));
+        CommitLogPosition globalPosition = firstNotCovered(cfPersisted.values());
+        logger.debug("Global replay position is {} from columnfamilies {}", globalPosition, FBUtilities.toString(cfPersisted));
         return new CommitLogReplayer(commitLog, globalPosition, cfPersisted, replayFilter);
     }
 
@@ -241,68 +237,38 @@ public class CommitLogReplayer implements CommitLogReadHandler
     }
 
     /**
-     * A filter of known safe-to-discard commit log replay positions, based on
+     * A set of known safe-to-discard commit log replay positions, based on
      * the range covered by on disk sstables and those prior to the most recent truncation record
      */
-    public static class ReplayPositionFilter
+    public static IntervalSet<CommitLogPosition> persistedIntervals(Iterable<SSTableReader> onDisk, CommitLogPosition truncatedAt)
     {
-        final NavigableMap<CommitLogPosition, CommitLogPosition> persisted = new TreeMap<>();
-        public ReplayPositionFilter(Iterable<SSTableReader> onDisk, CommitLogPosition truncatedAt)
-        {
-            for (SSTableReader reader : onDisk)
-            {
-                CommitLogPosition start = reader.getSSTableMetadata().commitLogLowerBound;
-                CommitLogPosition end = reader.getSSTableMetadata().commitLogUpperBound;
-                add(persisted, start, end);
-            }
-            if (truncatedAt != null)
-                add(persisted, CommitLogPosition.NONE, truncatedAt);
-        }
+        IntervalSet.Builder<CommitLogPosition> builder = new IntervalSet.Builder<>();
+        for (SSTableReader reader : onDisk)
+            builder.addAll(reader.getSSTableMetadata().commitLogIntervals);
 
-        private static void add(NavigableMap<CommitLogPosition, CommitLogPosition> ranges, CommitLogPosition start, CommitLogPosition end)
-        {
-            // extend ourselves to cover any ranges we overlap
-            // record directly preceding our end may extend past us, so take the max of our end and its
-            Map.Entry<CommitLogPosition, CommitLogPosition> extend = ranges.floorEntry(end);
-            if (extend != null && extend.getValue().compareTo(end) > 0)
-                end = extend.getValue();
-
-            // record directly preceding our start may extend into us; if it does, we take it as our start
-            extend = ranges.lowerEntry(start);
-            if (extend != null && extend.getValue().compareTo(start) >= 0)
-                start = extend.getKey();
-
-            ranges.subMap(start, end).clear();
-            ranges.put(start, end);
-        }
-
-        public boolean shouldReplay(CommitLogPosition position)
-        {
-            // replay ranges are start exclusive, end inclusive
-            Map.Entry<CommitLogPosition, CommitLogPosition> range = persisted.lowerEntry(position);
-            return range == null || position.compareTo(range.getValue()) > 0;
-        }
-
-        public boolean isEmpty()
-        {
-            return persisted.isEmpty();
-        }
+        if (truncatedAt != null)
+            builder.add(CommitLogPosition.NONE, truncatedAt);
+        return builder.build();
     }
 
-    public static CommitLogPosition firstNotCovered(Iterable<ReplayPositionFilter> ranges)
+    /**
+     * Find the earliest commit log position that is not covered by the known flushed ranges for some table.
+     *
+     * For efficiency this assumes that the first contiguously flushed interval we know of contains the moment that the
+     * given table was constructed* and hence we can start replay from the end of that interval.
+     *
+     * If such an interval is not known, we must replay from the beginning.
+     *
+     * * This is not true only until if the very first flush of a table stalled or failed, while the second or latter
+     *   succeeded. The chances of this happening are at most very low, and if the assumption does prove to be
+     *   incorrect during replay there is little chance that the affected deployment is in production.
+     */
+    public static CommitLogPosition firstNotCovered(Collection<IntervalSet<CommitLogPosition>> ranges)
     {
-        CommitLogPosition min = null;
-        for (ReplayPositionFilter map : ranges)
-        {
-            CommitLogPosition first = map.persisted.firstEntry().getValue();
-            if (min == null)
-                min = first;
-            else
-                min = Ordering.natural().min(min, first);
-        }
-        if (min == null)
-            return CommitLogPosition.NONE;
-        return min;
+        return ranges.stream()
+                .map(intervals -> Iterables.getFirst(intervals.ends(), CommitLogPosition.NONE)) 
+                .min(Ordering.natural())
+                .get(); // iteration is per known-CF, there must be at least one. 
     }
 
     abstract static class ReplayFilter
@@ -388,8 +354,7 @@ public class CommitLogReplayer implements CommitLogReadHandler
      */
     private boolean shouldReplay(UUID cfId, CommitLogPosition position)
     {
-        ReplayPositionFilter filter = cfPersisted.get(cfId);
-        return filter == null || filter.shouldReplay(position);
+        return !cfPersisted.get(cfId).contains(position);
     }
 
     protected boolean pointInTimeExceeded(Mutation fm)

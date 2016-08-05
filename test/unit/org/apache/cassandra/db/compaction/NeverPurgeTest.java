@@ -80,9 +80,9 @@ public class NeverPurgeTest extends CQLTester
         execute("DELETE FROM %s WHERE a=3");
         cfs.forceBlockingFlush();
         cfs.enableAutoCompaction();
-        while (cfs.getSSTables().size() > 1)
+        while (cfs.getLiveSSTables().size() > 1)
             Thread.sleep(100);
-        verifyContainsTombstones(cfs.getSSTables(), 3);
+        verifyContainsTombstones(cfs.getLiveSSTables(), 3);
     }
 
     private void testHelper(String deletionStatement) throws Throwable
@@ -94,7 +94,7 @@ public class NeverPurgeTest extends CQLTester
         Thread.sleep(1000);
         cfs.forceBlockingFlush();
         cfs.forceMajorCompaction();
-        verifyContainsTombstones(cfs.getSSTables(), 1);
+        verifyContainsTombstones(cfs.getLiveSSTables(), 1);
     }
 
     private void verifyContainsTombstones(Collection<SSTableReader> sstables, int expectedTombstoneCount) throws Exception
