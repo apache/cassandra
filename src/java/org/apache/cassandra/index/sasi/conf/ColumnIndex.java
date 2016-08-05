@@ -194,6 +194,11 @@ public class ColumnIndex
         return tracker.hasSSTable(sstable);
     }
 
+    public void dropData(Collection<SSTableReader> sstablesToRebuild)
+    {
+        tracker.dropData(sstablesToRebuild);
+    }
+
     public void dropData(long truncateUntil)
     {
         switchMemtable();

@@ -92,6 +92,25 @@ public class DataTracker
         return false;
     }
 
+    public void dropData(Collection<SSTableReader> sstablesToRebuild)
+    {
+        View currentView = view.get();
+        if (currentView == null)
+            return;
+
+        Set<SSTableReader> toRemove = new HashSet<>(sstablesToRebuild);
+        for (SSTableIndex index : currentView)
+        {
+            SSTableReader sstable = index.getSSTable();
+            if (!sstablesToRebuild.contains(sstable))
+                continue;
+
+            index.markObsolete();
+        }
+
+        update(toRemove, Collections.<SSTableReader>emptyList());
+    }
+
     public void dropData(long truncateUntil)
     {
         View currentView = view.get();

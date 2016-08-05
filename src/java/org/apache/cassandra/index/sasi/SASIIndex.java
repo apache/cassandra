@@ -73,6 +73,7 @@ public class SASIIndex implements Index, INotificationConsumer
                    .filter((i) -> i instanceof SASIIndex)
                    .forEach((i) -> {
                        SASIIndex sasi = (SASIIndex) i;
+                       sasi.index.dropData(sstablesToRebuild);
                        sstablesToRebuild.stream()
                                         .filter((sstable) -> !sasi.index.hasSSTable(sstable))
                                         .forEach((sstable) -> {
