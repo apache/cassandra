@@ -65,10 +65,12 @@ public class JsonTest extends CQLTester
                 "floatval float, " +
                 "inetval inet, " +
                 "intval int, " +
+                "smallintval smallint, " +
                 "textval text, " +
                 "timeval time, " +
                 "timestampval timestamp, " +
                 "timeuuidval timeuuid, " +
+                "tinyintval tinyint, " +
                 "uuidval uuid," +
                 "varcharval varchar, " +
                 "varintval varint, " +
@@ -267,6 +269,48 @@ public class JsonTest extends CQLTester
 
         assertInvalidMessage("Expected an int value, but got a",
                 "INSERT INTO %s (k, intval) VALUES (?, fromJson(?))", 0, "true");
+
+        // ================ smallint ================
+        execute("INSERT INTO %s (k, smallintval) VALUES (?, fromJson(?))", 0, "32767");
+        assertRows(execute("SELECT k, smallintval FROM %s WHERE k = ?", 0), row(0, (short) 32767));
+
+        // strings are also accepted
+        execute("INSERT INTO %s (k, smallintval) VALUES (?, fromJson(?))", 0, "\"32767\"");
+        assertRows(execute("SELECT k, smallintval FROM %s WHERE k = ?", 0), row(0, (short) 32767));
+
+        // smallint overflow (Short.MAX_VALUE + 1)
+        assertInvalidMessage("Unable to make short from",
+                "INSERT INTO %s (k, smallintval) VALUES (?, fromJson(?))", 0, "32768");
+
+        assertInvalidMessage("Unable to make short from",
+                "INSERT INTO %s (k, smallintval) VALUES (?, fromJson(?))", 0, "123.456");
+
+        assertInvalidMessage("Unable to make short from",
+                "INSERT INTO %s (k, smallintval) VALUES (?, fromJson(?))", 0, "\"xyzz\"");
+
+        assertInvalidMessage("Expected a short value, but got a Boolean",
+                "INSERT INTO %s (k, smallintval) VALUES (?, fromJson(?))", 0, "true");
+
+        // ================ tinyint ================
+        execute("INSERT INTO %s (k, tinyintval) VALUES (?, fromJson(?))", 0, "127");
+        assertRows(execute("SELECT k, tinyintval FROM %s WHERE k = ?", 0), row(0, (byte) 127));
+
+        // strings are also accepted
+        execute("INSERT INTO %s (k, tinyintval) VALUES (?, fromJson(?))", 0, "\"127\"");
+        assertRows(execute("SELECT k, tinyintval FROM %s WHERE k = ?", 0), row(0, (byte) 127));
+
+        // tinyint overflow (Byte.MAX_VALUE + 1)
+        assertInvalidMessage("Unable to make byte from",
+                "INSERT INTO %s (k, tinyintval) VALUES (?, fromJson(?))", 0, "128");
+
+        assertInvalidMessage("Unable to make byte from",
+                "INSERT INTO %s (k, tinyintval) VALUES (?, fromJson(?))", 0, "123.456");
+
+        assertInvalidMessage("Unable to make byte from",
+                "INSERT INTO %s (k, tinyintval) VALUES (?, fromJson(?))", 0, "\"xyzz\"");
+
+        assertInvalidMessage("Expected a byte value, but got a Boolean",
+                "INSERT INTO %s (k, tinyintval) VALUES (?, fromJson(?))", 0, "true");
 
         // ================ text (varchar) ================
         execute("INSERT INTO %s (k, textval) VALUES (?, fromJson(?))", 0, "\"\"");
@@ -503,10 +547,12 @@ public class JsonTest extends CQLTester
                 "floatval float, " +
                 "inetval inet, " +
                 "intval int, " +
+                "smallintval smallint, " +
                 "textval text, " +
                 "timeval time, " +
                 "timestampval timestamp, " +
                 "timeuuidval timeuuid, " +
+                "tinyintval tinyint, " +
                 "uuidval uuid," +
                 "varcharval varchar, " +
                 "varintval varint, " +
@@ -599,6 +645,26 @@ public class JsonTest extends CQLTester
 
         execute("INSERT INTO %s (k, intval) VALUES (?, ?)", 0, -123123);
         assertRows(execute("SELECT k, toJson(intval) FROM %s WHERE k = ?", 0), row(0, "-123123"));
+
+        // ================ smallint ================
+        execute("INSERT INTO %s (k, smallintval) VALUES (?, ?)", 0, (short) 32767);
+        assertRows(execute("SELECT k, toJson(smallintval) FROM %s WHERE k = ?", 0), row(0, "32767"));
+
+        execute("INSERT INTO %s (k, smallintval) VALUES (?, ?)", 0, (short) 0);
+        assertRows(execute("SELECT k, toJson(smallintval) FROM %s WHERE k = ?", 0), row(0, "0"));
+
+        execute("INSERT INTO %s (k, smallintval) VALUES (?, ?)", 0, (short) -32768);
+        assertRows(execute("SELECT k, toJson(smallintval) FROM %s WHERE k = ?", 0), row(0, "-32768"));
+
+        // ================ tinyint ================
+        execute("INSERT INTO %s (k, tinyintval) VALUES (?, ?)", 0, (byte) 127);
+        assertRows(execute("SELECT k, toJson(tinyintval) FROM %s WHERE k = ?", 0), row(0, "127"));
+
+        execute("INSERT INTO %s (k, tinyintval) VALUES (?, ?)", 0, (byte) 0);
+        assertRows(execute("SELECT k, toJson(tinyintval) FROM %s WHERE k = ?", 0), row(0, "0"));
+
+        execute("INSERT INTO %s (k, tinyintval) VALUES (?, ?)", 0, (byte) -128);
+        assertRows(execute("SELECT k, toJson(tinyintval) FROM %s WHERE k = ?", 0), row(0, "-128"));
 
         // ================ text (varchar) ================
         execute("INSERT INTO %s (k, textval) VALUES (?, ?)", 0, "");
@@ -915,6 +981,8 @@ public class JsonTest extends CQLTester
                 "intmap map<int, boolean>, " +
                 "bigintmap map<bigint, boolean>, " +
                 "varintmap map<varint, boolean>, " +
+                "smallintmap map<smallint, boolean>, " +
+                "tinyintmap map<tinyint, boolean>, " +
                 "booleanmap map<boolean, boolean>, " +
                 "floatmap map<float, boolean>, " +
                 "doublemap map<double, boolean>, " +
@@ -938,6 +1006,14 @@ public class JsonTest extends CQLTester
         // varint keys
         execute("INSERT INTO %s JSON ?", "{\"k\": 0, \"varintmap\": {\"0\": true, \"1\": false}}");
         assertRows(execute("SELECT JSON k, varintmap FROM %s"), row("{\"k\": 0, \"varintmap\": {\"0\": true, \"1\": false}}"));
+
+        // smallint keys
+        execute("INSERT INTO %s JSON ?", "{\"k\": 0, \"smallintmap\": {\"0\": true, \"1\": false}}");
+        assertRows(execute("SELECT JSON k, smallintmap FROM %s"), row("{\"k\": 0, \"smallintmap\": {\"0\": true, \"1\": false}}"));
+
+        // tinyint keys
+        execute("INSERT INTO %s JSON ?", "{\"k\": 0, \"tinyintmap\": {\"0\": true, \"1\": false}}");
+        assertRows(execute("SELECT JSON k, tinyintmap FROM %s"), row("{\"k\": 0, \"tinyintmap\": {\"0\": true, \"1\": false}}"));
 
         // boolean keys
         execute("INSERT INTO %s JSON ?", "{\"k\": 0, \"booleanmap\": {\"true\": true, \"false\": false}}");
