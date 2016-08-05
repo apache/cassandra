@@ -106,6 +106,10 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
                                                                                               new NamedThreadFactory("MemtablePostFlush"),
                                                                                               "internal");
 
+    // If a flush fails with an error the post-flush is never allowed to continue. This stores the error that caused it
+    // to be able to show an error on following flushes instead of blindly continuing.
+    private static volatile FSWriteError previousFlushFailure = null;
+
     private static final ExecutorService reclaimExecutor = new JMXEnabledThreadPoolExecutor(1,
                                                                                             StageManager.KEEPALIVE,
                                                                                             TimeUnit.SECONDS,
@@ -891,12 +895,30 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
     {
         synchronized (data)
         {
+            if (previousFlushFailure != null)
+                throw new IllegalStateException("A flush previously failed with the error below. To prevent data loss, "
+                                              + "no flushes can be carried out until the node is restarted.",
+                                                previousFlushFailure);
             logFlush();
             Flush flush = new Flush(false);
-            flushExecutor.execute(flush);
+            ListenableFutureTask<?> flushTask = ListenableFutureTask.create(flush, null);
+            flushExecutor.submit(flushTask);
             ListenableFutureTask<ReplayPosition> task = ListenableFutureTask.create(flush.postFlush);
             postFlushExecutor.submit(task);
-            return task;
+
+            @SuppressWarnings("unchecked")
+            ListenableFuture<ReplayPosition> future = 
+                    // If either of the two tasks errors out, resulting future must also error out.
+                    // Combine the two futures and only return post-flush result after both have completed.
+                    Futures.transform(Futures.allAsList(flushTask, task),
+                                      new Function<List<Object>, ReplayPosition>()
+                                      {
+                                          public ReplayPosition apply(List<Object> input)
+                                          {
+                                              return (ReplayPosition) input.get(1);
+                                          }
+                                      });
+            return future;
         }
     }
 
@@ -1002,7 +1024,6 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
         final ReplayPosition commitLogUpperBound;
         final List<Memtable> memtables;
         final List<SSTableReader> readers;
-        volatile FSWriteError flushFailure = null;
 
         private PostFlush(boolean flushSecondaryIndexes, OpOrder.Barrier writeBarrier, ReplayPosition commitLogUpperBound,
                           List<Memtable> memtables, List<SSTableReader> readers)
@@ -1049,22 +1070,16 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
                 throw new IllegalStateException();
             }
 
-            // If a flush errored out but the error was ignored, make sure we don't discard the commit log.
-            if (flushFailure == null)
+            CommitLog.instance.discardCompletedSegments(metadata.cfId, commitLogUpperBound);
+            for (int i = 0 ; i < memtables.size() ; i++)
             {
-                CommitLog.instance.discardCompletedSegments(metadata.cfId, commitLogUpperBound);
-                for (int i = 0 ; i < memtables.size() ; i++)
-                {
-                    Memtable memtable = memtables.get(i);
-                    SSTableReader reader = readers.get(i);
-                    memtable.cfs.data.permitCompactionOfFlushed(reader);
-                    memtable.cfs.compactionStrategyWrapper.replaceFlushed(memtable, reader);
-                }
+                Memtable memtable = memtables.get(i);
+                SSTableReader reader = readers.get(i);
+                memtable.cfs.data.permitCompactionOfFlushed(reader);
+                memtable.cfs.compactionStrategyWrapper.replaceFlushed(memtable, reader);
             }
             metric.pendingFlushes.dec();
 
-            if (flushFailure != null)
-                throw flushFailure;
             return commitLogUpperBound;
         }
     }
@@ -1167,16 +1182,28 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
                     reclaim(memtable);
                     readers.add(reader);
                 }
+
+                // signal the post-flush we've done our work
+                // Note: This should not be done in case of error. Read more below.
+                postFlush.latch.countDown();
             }
             catch (FSWriteError e)
             {
                 JVMStabilityInspector.inspectThrowable(e);
-                // If we weren't killed, try to continue work but do not allow CommitLog to be discarded.
-                postFlush.flushFailure = e;
-            }
+                // The call above may kill the process or the transports, or ignore the error.
+                // In any case we should not be passing on control to post-flush as a subsequent succeeding flush
+                // could mask the error and:
+                //   - let the commit log discard unpersisted data, resulting in data loss
+                //   - let truncations proceed, with the possibility of resurrecting the unflushed data
+                //   - let snapshots succeed with incomplete data
 
-            // signal the post-flush we've done our work
-            postFlush.latch.countDown();
+                // Not passing control on means that all flushes from the moment of failure cannot complete
+                // (including snapshots).
+                // If the disk failure policy is ignore, this will cause memtables and the commit log to grow
+                // unboundedly until the node eventually fails.
+                previousFlushFailure = e;
+                throw e;
+            }
         }
 
         private void reclaim(final Memtable memtable)

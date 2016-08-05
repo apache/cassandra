@@ -23,96 +23,27 @@ import java.io.IOError;
 import java.util.UUID;
 import java.util.concurrent.ExecutionException;
 
+import org.junit.After;
 import org.junit.Assert;
-import org.junit.Test;
 
-import org.apache.cassandra.config.Config.DiskFailurePolicy;
-import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.db.BlacklistedDirectories;
 import org.apache.cassandra.db.ColumnFamilyStore;
 import org.apache.cassandra.db.Directories.DataDirectory;
 import org.apache.cassandra.db.commitlog.CommitLog;
 import org.apache.cassandra.db.commitlog.CommitLogSegment;
 import org.apache.cassandra.db.Keyspace;
-import org.apache.cassandra.gms.Gossiper;
 import org.apache.cassandra.io.FSWriteError;
-import org.apache.cassandra.utils.JVMStabilityInspector;
-import org.apache.cassandra.utils.KillerForTests;
 
 /**
- * Test that TombstoneOverwhelmingException gets thrown when it should be and doesn't when it shouldn't be.
+ * Test that exceptions during flush are treated according to the disk failure policy.
+ * We cannot recover after a failed flush due to postFlushExecutor being stuck, so each test needs to run separately.
  */
-public class OutOfSpaceTest extends CQLTester
+public class OutOfSpaceBase extends CQLTester
 {
-    @Test
-    public void testFlushUnwriteableDie() throws Throwable
-    {
-        makeTable();
-        markDirectoriesUnwriteable();
-
-        KillerForTests killerForTests = new KillerForTests();
-        JVMStabilityInspector.Killer originalKiller = JVMStabilityInspector.replaceKiller(killerForTests);
-        DiskFailurePolicy oldPolicy = DatabaseDescriptor.getDiskFailurePolicy();
-        try
-        {
-            DatabaseDescriptor.setDiskFailurePolicy(DiskFailurePolicy.die);
-            flushAndExpectError();
-            Assert.assertTrue(killerForTests.wasKilled());
-            Assert.assertFalse(killerForTests.wasKilledQuietly()); //only killed quietly on startup failure
-        }
-        finally
-        {
-            DatabaseDescriptor.setDiskFailurePolicy(oldPolicy);
-            JVMStabilityInspector.replaceKiller(originalKiller);
-        }
-    }
-
-    @Test
-    public void testFlushUnwriteableStop() throws Throwable
-    {
-        makeTable();
-        markDirectoriesUnwriteable();
-
-        DiskFailurePolicy oldPolicy = DatabaseDescriptor.getDiskFailurePolicy();
-        try
-        {
-            DatabaseDescriptor.setDiskFailurePolicy(DiskFailurePolicy.stop);
-            flushAndExpectError();
-            Assert.assertFalse(Gossiper.instance.isEnabled());
-        }
-        finally
-        {
-            DatabaseDescriptor.setDiskFailurePolicy(oldPolicy);
-        }
-    }
-
-    @Test
-    public void testFlushUnwriteableIgnore() throws Throwable
-    {
-        makeTable();
-        markDirectoriesUnwriteable();
-
-        DiskFailurePolicy oldPolicy = DatabaseDescriptor.getDiskFailurePolicy();
-        try
-        {
-            DatabaseDescriptor.setDiskFailurePolicy(DiskFailurePolicy.ignore);
-            flushAndExpectError();
-        }
-        finally
-        {
-            DatabaseDescriptor.setDiskFailurePolicy(oldPolicy);
-        }
-
-        // Next flush should succeed.
-        makeTable();
-        flush();
-    }
-
     public void makeTable() throws Throwable
     {
         createTable("CREATE TABLE %s (a text, b text, c text, PRIMARY KEY (a, b));");
 
-        // insert exactly the amount of tombstones that shouldn't trigger an exception
         for (int i = 0; i < 10; i++)
             execute("INSERT INTO %s (a, b, c) VALUES ('key', 'column" + i + "', null);");
     }
@@ -153,5 +84,12 @@ public class OutOfSpaceTest extends CQLTester
             if (segment.getDirtyCFIDs().contains(cfid))
                 return;
         fail("Expected commit log to remain dirty for the affected table.");
+    }
+
+
+    @After
+    public void afterTest() throws Throwable
+    {
+        // Override CQLTester's afterTest method; clean-up will fail due to flush failing.
     }
 }
