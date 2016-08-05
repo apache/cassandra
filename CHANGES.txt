@@ -31,6 +31,7 @@
 
 
 3.9
+ * Fix nodetool tablestats miss SSTable count (CASSANDRA-12205)
  * Fixed flacky SSTablesIteratedTest (CASSANDRA-12282)
  * Fixed flacky SSTableRewriterTest: check file counts before calling validateCFS (CASSANDRA-12348)
  * cqlsh: Fix handling of $$-escaped strings (CASSANDRA-12189)

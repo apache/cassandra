@@ -60,6 +60,7 @@ public class TableStatsPrinter
                 for (StatsTable table : tables)
                 {
                     out.println("\t\tTable" + (table.isIndex ? " (index): " + table.name : ": ") + table.name);
+                    out.println("\t\tSSTable count: " + table.sstableCount);
                     if (table.isLeveledSstable)
                         out.println("\t\tSSTables in each level: [" + String.join(", ",
                                                                                   table.sstablesInEachLevel) + "]");
