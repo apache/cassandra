@@ -166,17 +166,30 @@ public class Expression
                 break;
 
             case LTE:
-                upperInclusive = true;
+                if (index.getDefinition().isReversedType())
+                    lowerInclusive = true;
+                else
+                    upperInclusive = true;
             case LT:
                 operation = Op.RANGE;
-                upper = new Bound(value, upperInclusive);
+                if (index.getDefinition().isReversedType())
+                    lower = new Bound(value, lowerInclusive);
+                else
+                    upper = new Bound(value, upperInclusive);
                 break;
 
             case GTE:
-                lowerInclusive = true;
+                if (index.getDefinition().isReversedType())
+                    upperInclusive = true;
+                else
+                    lowerInclusive = true;
             case GT:
                 operation = Op.RANGE;
-                lower = new Bound(value, lowerInclusive);
+                if (index.getDefinition().isReversedType())
+                    upper = new Bound(value, upperInclusive);
+                else
+                    lower = new Bound(value, lowerInclusive);
+
                 break;
         }
 
