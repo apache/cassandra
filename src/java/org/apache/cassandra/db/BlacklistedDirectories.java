@@ -29,6 +29,8 @@ import java.util.concurrent.CopyOnWriteArraySet;
 import javax.management.MBeanServer;
 import javax.management.ObjectName;
 
+import com.google.common.annotations.VisibleForTesting;
+
 import org.apache.cassandra.utils.JVMStabilityInspector;
 
 public class BlacklistedDirectories implements BlacklistedDirectoriesMBean
@@ -109,6 +111,17 @@ public class BlacklistedDirectories implements BlacklistedDirectoriesMBean
         }
         return null;
     }
+
+    /**
+     * Testing only!
+     * Clear the set of unwritable directories.
+     */
+    @VisibleForTesting
+    public static void clearUnwritableUnsafe()
+    {
+        instance.unwritableDirectories.clear();
+    }
+
 
     /**
      * Tells whether or not the directory is blacklisted for reads.

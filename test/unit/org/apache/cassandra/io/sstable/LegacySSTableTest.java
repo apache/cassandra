@@ -71,7 +71,7 @@ public class LegacySSTableTest
      * See {@link #testGenerateSstables()} to generate sstables.
      * Take care on commit as you need to add the sstable files using {@code git add -f}
      */
-    public static final String[] legacyVersions = {"mb", "ma", "la", "ka", "jb"};
+    public static final String[] legacyVersions = {"mc", "mb", "ma", "la", "ka", "jb"};
 
     // 1200 chars
     static final String longString = "0123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789" +

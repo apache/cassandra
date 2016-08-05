@@ -34,6 +34,8 @@ import org.apache.cassandra.config.ColumnDefinition;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.db.commitlog.CommitLog;
 import org.apache.cassandra.db.commitlog.CommitLogPosition;
+import org.apache.cassandra.db.commitlog.IntervalSet;
+import org.apache.cassandra.db.compaction.OperationType;
 import org.apache.cassandra.db.filter.ClusteringIndexFilter;
 import org.apache.cassandra.db.filter.ColumnFilter;
 import org.apache.cassandra.db.lifecycle.LifecycleTransaction;
@@ -190,6 +192,11 @@ public class Memtable implements Comparable<Memtable>
     public CommitLogPosition getCommitLogLowerBound()
     {
         return commitLogLowerBound.get();
+    }
+
+    public CommitLogPosition getCommitLogUpperBound()
+    {
+        return commitLogUpperBound.get();
     }
 
     public boolean isLive()
@@ -361,6 +368,15 @@ public class Memtable implements Comparable<Memtable>
         return minTimestamp;
     }
 
+    /**
+     * For testing only. Give this memtable too big a size to make it always fail flushing.
+     */
+    @VisibleForTesting
+    public void makeUnflushable()
+    {
+        liveDataSize.addAndGet(1L * 1024 * 1024 * 1024 * 1024 * 1024);
+    }
+
     class FlushRunnable implements Callable<SSTableMultiWriter>
     {
         private final long estimatedSize;
@@ -462,14 +478,13 @@ public class Memtable implements Comparable<Memtable>
                                                   EncodingStats stats)
         {
             MetadataCollector sstableMetadataCollector = new MetadataCollector(cfs.metadata.comparator)
-                    .commitLogLowerBound(commitLogLowerBound.get())
-                    .commitLogUpperBound(commitLogUpperBound.get());
+                    .commitLogIntervals(new IntervalSet<>(commitLogLowerBound.get(), commitLogUpperBound.get()));
+
             return cfs.createSSTableMultiWriter(Descriptor.fromFilename(filename),
                                                 (long)toFlush.size(),
                                                 ActiveRepairService.UNREPAIRED_SSTABLE,
                                                 sstableMetadataCollector,
                                                 new SerializationHeader(true, cfs.metadata, columns, stats), txn);
-
         }
 
         @Override
