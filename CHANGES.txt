@@ -5,6 +5,7 @@
  * cqlsh: Fix handling of $$-escaped strings (CASSANDRA-12189)
  * Fix SSL JMX requiring truststore containing server cert (CASSANDRA-12109)
 Merged from 3.0:
+ * NullPointerException during compaction on table with static columns (CASSANDRA-12336)
  * Fixed ConcurrentModificationException when reading metrics in GraphiteReporter (CASSANDRA-11823)
  * Fix upgrade of super columns on thrift (CASSANDRA-12335)
  * Fixed flacky BlacklistingCompactionsTest, switched to fixed size types and increased corruption size (CASSANDRA-12359)
