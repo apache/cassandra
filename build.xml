@@ -404,6 +404,7 @@
           	<exclusion groupId="commons-logging" artifactId="commons-logging"/>
           	<exclusion groupId="org.eclipse.jdt" artifactId="core"/>
 		    <exclusion groupId="ant" artifactId="ant"/>
+		    <exclusion groupId="junit" artifactId="junit"/>
           </dependency>
           <dependency groupId="org.apache.hadoop" artifactId="hadoop-minicluster" version="1.0.3">
 		    <exclusion groupId="asm" artifactId="asm"/> <!-- this is the outdated version 3.1 -->
