@@ -35,7 +35,8 @@ import org.apache.cassandra.utils.ByteBufferUtil;
  * </p>
  * <p>
  * {@code GroupingState} is only used for internal paging. When a new page is requested by a client the initial state
- * will always be empty.<br/>
+ * will always be empty.</p>
+ * <p>
  * If the state has a partition key but no clustering, it means that the previous group ended at the end of the
  * previous partition. If the clustering is not null it means that we are in the middle of a group.
  * </p>

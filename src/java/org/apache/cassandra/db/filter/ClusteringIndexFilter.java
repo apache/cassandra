@@ -114,11 +114,10 @@ public interface ClusteringIndexFilter
     /**
      * Returns an iterator that only returns the rows of the provided iterator that this filter selects.
      * <p>
-     * This method is the "dumb" counterpart to {@link #filter(SliceableUnfilteredRowIterator)} in that it has no way to quickly get
+     * This method is the "dumb" counterpart to {@link #getSlices(CFMetaData)} in that it has no way to quickly get
      * to what is actually selected, so it simply iterate over it all and filters out what shouldn't be returned. This should
-     * be avoided in general, we should make sure to have {@code SliceableUnfilteredRowIterator} when we have filtering to do, but this
-     * currently only used in {@link SinglePartitionReadCommand#getThroughCache} when we know this won't be a performance problem.
-     * Another difference with {@link #filter(SliceableUnfilteredRowIterator)} is that this method also filter the queried
+     * be avoided in general.
+     * Another difference with {@link #getSlices(CFMetaData)} is that this method also filter the queried
      * columns in the returned result, while the former assumes that the provided iterator has already done it.
      *
      * @param columnFilter the columns to include in the rows of the result iterator.
@@ -138,8 +137,6 @@ public interface ClusteringIndexFilter
      *
      * @return a unfiltered row iterator returning those rows (or rather Unfiltered) from {@code partition} that are selected by this filter.
      */
-    // TODO: we could get rid of that if Partition was exposing a SliceableUnfilteredRowIterator (instead of the two searchIterator() and
-    // unfilteredIterator() methods). However, for AtomicBtreePartition this would require changes to Btree so we'll leave that for later.
     public UnfilteredRowIterator getUnfilteredRowIterator(ColumnFilter columnFilter, Partition partition);
 
     /**

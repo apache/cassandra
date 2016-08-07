@@ -386,8 +386,8 @@ public final class AggregationQueryPager implements QueryPager
 
     /**
      * <code>PartitionIterator</code> for queries without Group By but with aggregates.
-     * <p>For maintaining backward compatibility we are forced to use the {@link DataLimits.CQLLimits} instead of the
-     * {@link DataLimits.CQLGroupByLimits}. Due to that pages need to be fetched in a different way.</p>
+     * <p>For maintaining backward compatibility we are forced to use the {@link org.apache.cassandra.db.filter.DataLimits.CQLLimits} instead of the
+     * {@link org.apache.cassandra.db.filter.DataLimits.CQLGroupByLimits}. Due to that pages need to be fetched in a different way.</p>
      */
     public final class AggregationPartitionIterator extends GroupByPartitionIterator
     {

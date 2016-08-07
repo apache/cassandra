@@ -422,7 +422,7 @@ public class OpOrder
         }
 
         /**
-         * returns the Group we are waiting on - any Group with .compareTo(getSyncPoint()) <= 0
+         * returns the Group we are waiting on - any Group with {@code .compareTo(getSyncPoint()) <= 0}
          * must complete before await() returns
          */
         public Group getSyncPoint()

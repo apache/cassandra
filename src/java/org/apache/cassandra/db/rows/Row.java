@@ -228,8 +228,6 @@ public interface Row extends Unfiltered, Collection<ColumnData>
      * timestamp by {@code newTimestamp - 1}.
      *
      * @param newTimestamp the timestamp to use for all live data in the returned row.
-     * @param a copy of this row with timestamp updated using {@code newTimestamp}. This can return {@code null} in the
-     * rare where the row only as a shadowable row deletion and the new timestamp supersedes it.
      *
      * @see Commit for why we need this.
      */
@@ -270,13 +268,13 @@ public interface Row extends Unfiltered, Collection<ColumnData>
      * and regular row deletion.
      * <p>
      * A shadowable row deletion only exists if the row has no timestamp. In other words, the deletion is only
-     * valid as long as no newer insert is done (thus setting a row timestap; note that if the row timestamp set
+     * valid as long as no newer insert is done (thus setting a row timestamp; note that if the row timestamp set
      * is lower than the deletion, it is shadowed (and thus ignored) as usual).
      * <p>
-     * That is, if a row has a shadowable deletion with timestamp A and an update is madeto that row with a
-     * timestamp B such that B > A (and that update sets the row timestamp), then the shadowable deletion is 'shadowed'
+     * That is, if a row has a shadowable deletion with timestamp A and an update is made to that row with a
+     * timestamp B such that {@code B > A} (and that update sets the row timestamp), then the shadowable deletion is 'shadowed'
      * by that update. A concrete consequence is that if said update has cells with timestamp lower than A, then those
-     * cells are preserved(since the deletion is removed), and this contrarily to a normal (regular) deletion where the
+     * cells are preserved(since the deletion is removed), and this is contrary to a normal (regular) deletion where the
      * deletion is preserved and such cells are removed.
      * <p>
      * Currently, the only use of shadowable row deletions is Materialized Views, see CASSANDRA-10261.

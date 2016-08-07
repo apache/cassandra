@@ -15,7 +15,7 @@ import org.apache.cassandra.io.util.DataOutputPlus;
  * to a single interval covering both).
  *
  * The set is stored as a sorted map from interval starts to the corresponding end. The map satisfies
- *   curr().getKey() <= curr().getValue() < next().getKey()
+ *   {@code curr().getKey() <= curr().getValue() < next().getKey()}
  */
 public class IntervalSet<T extends Comparable<T>>
 {
@@ -132,7 +132,7 @@ public class IntervalSet<T extends Comparable<T>>
      * Builder of interval sets, applying the necessary normalization while adding ranges.
      *
      * Data is stored as above, as a sorted map from interval starts to the corresponding end, which satisfies
-     *   curr().getKey() <= curr().getValue() < next().getKey()
+     *   {@code curr().getKey() <= curr().getValue() < next().getKey()}
      */
     static public class Builder<T extends Comparable<T>>
     {

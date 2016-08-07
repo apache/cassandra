@@ -648,7 +648,7 @@ service Cassandra {
                                         throws (1:InvalidRequestException ire, 2:UnavailableException ue, 3:TimedOutException te),
 
   /**
-    Perform a get_count in parallel on the given list<binary> keys. The return value maps keys to the count found.
+    Perform a get_count in parallel on the given {@code List<binary>} keys. The return value maps keys to the count found.
   */
   map<binary, i32> multiget_count(1:required list<binary> keys,
                 2:required ColumnParent column_parent,

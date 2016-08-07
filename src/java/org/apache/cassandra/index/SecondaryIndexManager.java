@@ -65,11 +65,11 @@ import org.apache.cassandra.utils.concurrent.Refs;
  * a table, (re)building during bootstrap or other streaming operations, flushing, reloading metadata
  * and so on.
  *
- * The Index interface defines a number of methods which return Callable<?>. These are primarily the
+ * The Index interface defines a number of methods which return {@code Callable<?>}. These are primarily the
  * management tasks for an index implementation. Most of them are currently executed in a blocking
  * fashion via submission to SIM's blockingExecutor. This provides the desired behaviour in pretty
  * much all cases, as tasks like flushing an index needs to be executed synchronously to avoid potentially
- * deadlocking on the FlushWriter or PostFlusher. Several of these Callable<?> returning methods on Index could
+ * deadlocking on the FlushWriter or PostFlusher. Several of these {@code Callable<?>} returning methods on Index could
  * then be defined with as void and called directly from SIM (rather than being run via the executor service).
  * Separating the task defintion from execution gives us greater flexibility though, so that in future, for example,
  * if the flush process allows it we leave open the possibility of executing more of these tasks asynchronously.

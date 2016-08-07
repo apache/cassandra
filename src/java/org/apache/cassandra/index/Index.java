@@ -70,7 +70,7 @@ import org.apache.cassandra.utils.concurrent.OpOrder;
  * SecondaryIndexManager. It includes methods for registering and un-registering an index, performing maintenance
  * tasks such as (re)building an index from SSTable data, flushing, invalidating and so forth, as well as some to
  * retrieve general metadata about the index (index name, any internal tables used for persistence etc).
- * Several of these maintenance functions have a return type of Callable<?>; the expectation for these methods is
+ * Several of these maintenance functions have a return type of {@code Callable<?>}; the expectation for these methods is
  * that any work required to be performed by the method be done inside the Callable so that the responsibility for
  * scheduling its execution can rest with SecondaryIndexManager. For instance, a task like reloading index metadata
  * following potential updates caused by modifications to the base table may be performed in a blocking way. In
@@ -111,7 +111,7 @@ import org.apache.cassandra.utils.concurrent.OpOrder;
  * chosen. A Searcher instance is then obtained from the searcherFor method and used to perform the actual Index lookup.
  * Finally, Indexes can define a post processing step to be performed on the coordinator, after results (partitions from
  * the primary table) have been received from replicas and reconciled. This post processing is defined as a
- * java.util.functions.BiFunction<PartitionIterator, RowFilter, PartitionIterator>, that is a function which takes as
+ * {@code java.util.functions.BiFunction<PartitionIterator, RowFilter, PartitionIterator>}, that is a function which takes as
  * arguments a PartitionIterator (containing the reconciled result rows) and a RowFilter (from the ReadCommand being
  * executed) and returns another iterator of partitions, possibly having transformed the initial results in some way.
  * The post processing function is obtained from the Index's postProcessorFor method; the built-in indexes which ship
@@ -119,7 +119,7 @@ import org.apache.cassandra.utils.concurrent.OpOrder;
  *
  * An optional static method may be provided to validate custom index options (two variants are supported):
  *
- * <pre>{@code public static Map<String, String> validateOptions(Map<String, String> options);</pre>
+ * <pre>{@code public static Map<String, String> validateOptions(Map<String, String> options);}</pre>
  *
  * The input is the map of index options supplied in the WITH clause of a CREATE INDEX statement.
  *
@@ -434,7 +434,7 @@ public interface Index
          * Notification of a modification to a row in the base table's Memtable.
          * This is allow an Index implementation to clean up entries for base data which is
          * never flushed to disk (and so will not be purged during compaction).
-         * It's important to note that the old & new rows supplied here may not represent
+         * It's important to note that the old and new rows supplied here may not represent
          * the totality of the data for the Row with this particular Clustering. There may be
          * additional column data in SSTables which is not present in either the old or new row,
          * so implementations should be aware of that.

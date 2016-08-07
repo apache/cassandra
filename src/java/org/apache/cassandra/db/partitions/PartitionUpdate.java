@@ -722,7 +722,7 @@ public class PartitionUpdate extends AbstractBTreePartition
              * Sets the start for the built range using the provided values.
              *
              * @param values the value for the start of the range. They act like the {@code clusteringValues} argument
-             * of the {@link PartitionUpdate.SimpleBuilder#row()} method, except that it doesn't have to be a full
+             * of the {@link SimpleBuilder#row(Object...)} method, except that it doesn't have to be a full
              * clustering, it can only be a prefix.
              * @return this builder.
              */
@@ -732,7 +732,7 @@ public class PartitionUpdate extends AbstractBTreePartition
              * Sets the end for the built range using the provided values.
              *
              * @param values the value for the end of the range. They act like the {@code clusteringValues} argument
-             * of the {@link PartitionUpdate.SimpleBuilder#row()} method, except that it doesn't have to be a full
+             * of the {@link SimpleBuilder#row(Object...)} method, except that it doesn't have to be a full
              * clustering, it can only be a prefix.
              * @return this builder.
              */

@@ -134,7 +134,7 @@ public class ViewUpdateGenerator
 
     /**
      * Returns the updates that needs to be done to the view given the base table updates
-     * passed to {@link #generateViewMutations}.
+     * passed to {@link #addBaseTableUpdate}.
      *
      * @return the updates to do to the view.
      */

@@ -407,8 +407,6 @@ public abstract class Selection
 
         /**
          * Builds the <code>ResultSet</code>
-         *
-         * @param protocolVersion the protocol version
          */
         public ResultSet build()
         {
