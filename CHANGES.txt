@@ -33,6 +33,7 @@
 
 
 3.9
+ * Fix value skipping with counter columns (CASSANDRA-11726)
  * Restore resumable hints delivery (CASSANDRA-11960)
  * Fix nodetool tablestats miss SSTable count (CASSANDRA-12205)
  * Fixed flacky SSTablesIteratedTest (CASSANDRA-12282)
