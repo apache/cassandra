@@ -17,7 +17,6 @@
  */
 package org.apache.cassandra.streaming.compress;
 
-import java.io.DataInputStream;
 import java.io.IOException;
 import java.nio.channels.Channels;
 import java.nio.channels.ReadableByteChannel;
@@ -39,6 +38,8 @@ import org.apache.cassandra.streaming.StreamSession;
 import org.apache.cassandra.streaming.messages.FileMessageHeader;
 import org.apache.cassandra.io.util.TrackedInputStream;
 import org.apache.cassandra.utils.Pair;
+
+import static org.apache.cassandra.utils.Throwables.extractIOExceptionCause;
 
 /**
  * StreamReader that reads from streamed compressed SSTable
@@ -121,11 +122,9 @@ public class CompressedStreamReader extends StreamReader
             {
                 writer.abort(e);
             }
-            drain(in, in.getBytesRead());
-            if (e instanceof IOException)
-                throw (IOException) e;
-            else
-                throw Throwables.propagate(e);
+            if (extractIOExceptionCause(e).isPresent())
+                throw e;
+            throw Throwables.propagate(e);
         }
         finally
         {
