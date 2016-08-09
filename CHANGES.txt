@@ -23,6 +23,7 @@ Merged from 3.0:
  * NullPointerExpception when reading/compacting table (CASSANDRA-11988)
  * Fix problem with undeleteable rows on upgrade to new sstable format (CASSANDRA-12144)
 Merged from 2.2:
+ * Fix hanging stream session (CASSANDRA-10992)
  * Fix INSERT JSON, fromJson() support of smallint, tinyint types (CASSANDRA-12371)
  * Release sstables of failed stream sessions only when outgoing transfers are finished (CASSANDRA-11345)
  * Wait for tracing events before returning response and query at same consistency level client side (CASSANDRA-11465)

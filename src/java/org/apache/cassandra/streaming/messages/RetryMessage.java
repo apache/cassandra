@@ -29,6 +29,10 @@ import org.apache.cassandra.net.MessagingService;
 import org.apache.cassandra.streaming.StreamSession;
 import org.apache.cassandra.utils.UUIDSerializer;
 
+/**
+ * @deprecated retry support removed on CASSANDRA-10992
+ */
+@Deprecated
 public class RetryMessage extends StreamMessage
 {
     public static Serializer<RetryMessage> serializer = new Serializer<RetryMessage>()

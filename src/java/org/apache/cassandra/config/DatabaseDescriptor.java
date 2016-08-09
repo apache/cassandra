@@ -1174,11 +1174,6 @@ public class DatabaseDescriptor
         return conf.cluster_name;
     }
 
-    public static int getMaxStreamingRetries()
-    {
-        return conf.max_streaming_retries;
-    }
-
     public static int getStoragePort()
     {
         return Integer.parseInt(System.getProperty("cassandra.storage_port", conf.storage_port.toString()));
