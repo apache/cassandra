@@ -161,10 +161,10 @@ public final class SingleColumnRelation extends Relation
         ColumnDefinition columnDef = entity.prepare(cfm);
         if (mapKey == null)
         {
-            Term term = toTerm(toReceivers(columnDef, cfm.isDense()), value, cfm.ksName, boundNames);
+            Term term = toTerm(toReceivers(columnDef), value, cfm.ksName, boundNames);
             return new SingleColumnRestriction.EQRestriction(columnDef, term);
         }
-        List<? extends ColumnSpecification> receivers = toReceivers(columnDef, cfm.isDense());
+        List<? extends ColumnSpecification> receivers = toReceivers(columnDef);
         Term entryKey = toTerm(Collections.singletonList(receivers.get(0)), mapKey, cfm.ksName, boundNames);
         Term entryValue = toTerm(Collections.singletonList(receivers.get(1)), value, cfm.ksName, boundNames);
         return new SingleColumnRestriction.ContainsRestriction(columnDef, entryKey, entryValue);
@@ -175,7 +175,7 @@ public final class SingleColumnRelation extends Relation
                                            VariableSpecifications boundNames) throws InvalidRequestException
     {
         ColumnDefinition columnDef = entity.prepare(cfm);
-        List<? extends ColumnSpecification> receivers = toReceivers(columnDef, cfm.isDense());
+        List<? extends ColumnSpecification> receivers = toReceivers(columnDef);
         List<Term> terms = toTerms(receivers, inValues, cfm.ksName, boundNames);
         if (terms == null)
         {
@@ -197,7 +197,7 @@ public final class SingleColumnRelation extends Relation
                                               boolean inclusive) throws InvalidRequestException
     {
         ColumnDefinition columnDef = entity.prepare(cfm);
-        Term term = toTerm(toReceivers(columnDef, cfm.isDense()), value, cfm.ksName, boundNames);
+        Term term = toTerm(toReceivers(columnDef), value, cfm.ksName, boundNames);
         return new SingleColumnRestriction.SliceRestriction(columnDef, bound, inclusive, term);
     }
 
@@ -207,7 +207,7 @@ public final class SingleColumnRelation extends Relation
                                                  boolean isKey) throws InvalidRequestException
     {
         ColumnDefinition columnDef = entity.prepare(cfm);
-        Term term = toTerm(toReceivers(columnDef, cfm.isDense()), value, cfm.ksName, boundNames);
+        Term term = toTerm(toReceivers(columnDef), value, cfm.ksName, boundNames);
         return new SingleColumnRestriction.ContainsRestriction(columnDef, term, isKey);
     }
 
@@ -228,7 +228,7 @@ public final class SingleColumnRelation extends Relation
             throw invalidRequest("%s can't be used with collections.", operator());
 
         ColumnDefinition columnDef = entity.prepare(cfm);
-        Term term = toTerm(toReceivers(columnDef, cfm.isDense()), value, cfm.ksName, boundNames);
+        Term term = toTerm(toReceivers(columnDef), value, cfm.ksName, boundNames);
 
         return new SingleColumnRestriction.LikeRestriction(columnDef, operator, term);
     }
@@ -236,12 +236,10 @@ public final class SingleColumnRelation extends Relation
     /**
      * Returns the receivers for this relation.
      * @param columnDef the column definition
-     * @param isDense whether the table is a dense one
-     *
      * @return the receivers for the specified relation.
      * @throws InvalidRequestException if the relation is invalid
      */
-    private List<? extends ColumnSpecification> toReceivers(ColumnDefinition columnDef, boolean isDense) throws InvalidRequestException
+    private List<? extends ColumnSpecification> toReceivers(ColumnDefinition columnDef) throws InvalidRequestException
     {
         ColumnSpecification receiver = columnDef;
 
