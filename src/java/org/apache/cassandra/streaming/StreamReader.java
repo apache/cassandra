@@ -49,6 +49,7 @@ import org.apache.cassandra.io.util.TrackedInputStream;
 import org.apache.cassandra.utils.FBUtilities;
 import org.apache.cassandra.utils.Pair;
 
+import static org.apache.cassandra.utils.Throwables.extractIOExceptionCause;
 
 /**
  * StreamReader reads from stream and writes to SSTable.
@@ -132,11 +133,7 @@ public class StreamReader
             {
                 writer.abort(e);
             }
-            drain(in, in.getBytesRead());
-            if (e instanceof IOException)
-                throw (IOException) e;
-            else
-                throw Throwables.propagate(e);
+            throw Throwables.propagate(e);
         }
         finally
         {
@@ -159,25 +156,6 @@ public class StreamReader
         RangeAwareSSTableWriter writer = new RangeAwareSSTableWriter(cfs, estimatedKeys, repairedAt, format, sstableLevel, totalSize, session.getTransaction(cfId), getHeader(cfs.metadata));
         StreamHook.instance.reportIncomingFile(cfs, writer, session, fileSeqNum);
         return writer;
-    }
-
-    protected void drain(InputStream dis, long bytesRead) throws IOException
-    {
-        long toSkip = totalSize() - bytesRead;
-
-        // InputStream.skip can return -1 if dis is inaccessible.
-        long skipped = dis.skip(toSkip);
-        if (skipped == -1)
-            return;
-
-        toSkip = toSkip - skipped;
-        while (toSkip > 0)
-        {
-            skipped = dis.skip(toSkip);
-            if (skipped == -1)
-                break;
-            toSkip = toSkip - skipped;
-        }
     }
 
     protected long totalSize()

@@ -36,6 +36,7 @@ import org.apache.cassandra.utils.ChecksumType;
 import org.apache.cassandra.utils.Pair;
 
 import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.fail;
 
 /**
  */
@@ -44,24 +45,33 @@ public class CompressedInputStreamTest
     @Test
     public void testCompressedRead() throws Exception
     {
-        testCompressedReadWith(new long[]{0L}, false);
-        testCompressedReadWith(new long[]{1L}, false);
-        testCompressedReadWith(new long[]{100L}, false);
+        testCompressedReadWith(new long[]{0L}, false, false);
+        testCompressedReadWith(new long[]{1L}, false, false);
+        testCompressedReadWith(new long[]{100L}, false, false);
 
-        testCompressedReadWith(new long[]{1L, 122L, 123L, 124L, 456L}, false);
+        testCompressedReadWith(new long[]{1L, 122L, 123L, 124L, 456L}, false, false);
     }
 
     @Test(expected = EOFException.class)
     public void testTruncatedRead() throws Exception
     {
-        testCompressedReadWith(new long[]{1L, 122L, 123L, 124L, 456L}, true);
+        testCompressedReadWith(new long[]{1L, 122L, 123L, 124L, 456L}, true, false);
+    }
+
+    /**
+     * Test that CompressedInputStream does not block if there's an exception while reading stream
+     */
+    @Test(timeout = 30000)
+    public void testException() throws Exception
+    {
+        testCompressedReadWith(new long[]{1L, 122L, 123L, 124L, 456L}, false, true);
     }
 
     /**
      * @param valuesToCheck array of longs of range(0-999)
      * @throws Exception
      */
-    private void testCompressedReadWith(long[] valuesToCheck, boolean testTruncate) throws Exception
+    private void testCompressedReadWith(long[] valuesToCheck, boolean testTruncate, boolean testException) throws Exception
     {
         assert valuesToCheck != null && valuesToCheck.length > 0;
 
@@ -124,8 +134,13 @@ public class CompressedInputStreamTest
 
         // read buffer using CompressedInputStream
         CompressionInfo info = new CompressionInfo(chunks, param);
-        CompressedInputStream input = new CompressedInputStream(new ByteArrayInputStream(toRead), info,
-                                                                ChecksumType.CRC32, () -> 1.0);
+
+        if (testException)
+        {
+            testException(sections, info);
+            return;
+        }
+        CompressedInputStream input = new CompressedInputStream(new ByteArrayInputStream(toRead), info, ChecksumType.CRC32, () -> 1.0);
 
         try (DataInputStream in = new DataInputStream(input))
         {
@@ -134,6 +149,27 @@ public class CompressedInputStreamTest
                 input.position(sections.get(i).left);
                 long readValue = in.readLong();
                 assertEquals("expected " + valuesToCheck[i] + " but was " + readValue, valuesToCheck[i], readValue);
+            }
+        }
+    }
+
+    private static void testException(List<Pair<Long, Long>> sections, CompressionInfo info) throws IOException
+    {
+        CompressedInputStream input = new CompressedInputStream(new ByteArrayInputStream(new byte[0]), info, ChecksumType.CRC32, () -> 1.0);
+
+        try (DataInputStream in = new DataInputStream(input))
+        {
+            for (int i = 0; i < sections.size(); i++)
+            {
+                input.position(sections.get(i).left);
+                try {
+                    in.readLong();
+                    fail("Should have thrown IOException");
+                }
+                catch (IOException e)
+                {
+                    continue;
+                }
             }
         }
     }
