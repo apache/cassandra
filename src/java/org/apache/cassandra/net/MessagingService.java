@@ -151,6 +151,16 @@ public final class MessagingService implements MessagingServiceMBean
         UNUSED_4,
         UNUSED_5,
         ;
+
+        // This is to support a "late" choice of the verb based on the messaging service version.
+        // See CASSANDRA-12249 for more details.
+        public static Verb convertForMessagingServiceVersion(Verb verb, int version)
+        {
+            if (verb == PAGED_RANGE && version >= VERSION_30)
+                return RANGE_SLICE;
+
+            return verb;
+        }
     }
 
     public static final EnumMap<MessagingService.Verb, Stage> verbStages = new EnumMap<MessagingService.Verb, Stage>(MessagingService.Verb.class)

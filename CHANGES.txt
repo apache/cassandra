@@ -64,6 +64,8 @@ Merged from 2.1:
  * Add repaired percentage metric (CASSANDRA-11503)
  * Add Change-Data-Capture (CASSANDRA-8844)
 Merged from 3.0:
+ * Fix potential bad messaging service message for paged range reads
+   within mixed-version 3.x clusters (CASSANDRA-12249)
  * Fix paging logic for deleted partitions with static columns (CASSANDRA-12107)
  * Wait until the message is being send to decide which serializer must be used (CASSANDRA-11393)
  * Fix migration of static thrift column names with non-text comparators (CASSANDRA-12147)
