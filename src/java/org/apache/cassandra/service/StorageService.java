@@ -1114,10 +1114,10 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
 
     public void rebuild(String sourceDc)
     {
-        rebuild(sourceDc, null, null);
+        rebuild(sourceDc, null, null, null);
     }
 
-    public void rebuild(String sourceDc, String keyspace, String tokens)
+    public void rebuild(String sourceDc, String keyspace, String tokens, String specificSources)
     {
         // check on going rebuild
         if (!isRebuilding.compareAndSet(false, true))
@@ -1176,6 +1176,49 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
                     if (tokenScanner.hasNext())
                         throw new IllegalArgumentException("Unexpected string: " + tokenScanner.next());
                 }
+
+                // Ensure all specified ranges are actually ranges owned by this host
+                Collection<Range<Token>> localRanges = getLocalRanges(keyspace);
+                for (Range<Token> specifiedRange : ranges)
+                {
+                    boolean foundParentRange = false;
+                    for (Range<Token> localRange : localRanges)
+                    {
+                        if (localRange.contains(specifiedRange))
+                        {
+                            foundParentRange = true;
+                            break;
+                        }
+                    }
+                    if (!foundParentRange)
+                    {
+                        throw new IllegalArgumentException(String.format("The specified range %s is not a range that is owned by this node. Please ensure that all token ranges specified to be rebuilt belong to this node.", specifiedRange.toString()));
+                    }
+                }
+
+                if (specificSources != null)
+                {
+                    String[] stringHosts = specificSources.split(",");
+                    Set<InetAddress> sources = new HashSet<>(stringHosts.length);
+                    for (String stringHost : stringHosts)
+                    {
+                        try
+                        {
+                            InetAddress endpoint = InetAddress.getByName(stringHost);
+                            if (FBUtilities.getBroadcastAddress().equals(endpoint))
+                            {
+                                throw new IllegalArgumentException("This host was specified as a source for rebuilding. Sources for a rebuild can only be other nodes in the cluster.");
+                            }
+                            sources.add(endpoint);
+                        }
+                        catch (UnknownHostException ex)
+                        {
+                            throw new IllegalArgumentException("Unknown host specified " + stringHost, ex);
+                        }
+                    }
+                    streamer.addSourceFilter(new RangeStreamer.WhitelistedSourcesFilter(sources));
+                }
+
                 streamer.addRanges(keyspace, ranges);
             }
 

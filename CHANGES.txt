@@ -1,4 +1,5 @@
 3.10
+ * Add support to rebuild from targeted replica (CASSANDRA-9875)
  * Add sequence distribution type to cassandra stress (CASSANDRA-12490)
  * "SELECT * FROM foo LIMIT ;" does not error out (CASSANDRA-12154)
  * Define executeLocally() at the ReadQuery Level (CASSANDRA-12474)
