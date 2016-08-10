@@ -105,7 +105,7 @@ public class MessageOut<T>
     {
         CompactEndpointSerializationHelper.serialize(from, out);
 
-        out.writeInt(verb.ordinal());
+        out.writeInt(MessagingService.Verb.convertForMessagingServiceVersion(verb, version).ordinal());
         out.writeInt(parameters.size());
         for (Map.Entry<String, byte[]> entry : parameters.entrySet())
         {
