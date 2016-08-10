@@ -1,4 +1,6 @@
 3.0.9
+ * Fix potential bad messaging service message for paged range reads
+   within mixed-version 3.x clusters (CASSANDRA-12249)
  * Change commitlog and sstables to track dirty and clean intervals (CASSANDRA-11828)
  * NullPointerException during compaction on table with static columns (CASSANDRA-12336)
  * Fixed ConcurrentModificationException when reading metrics in GraphiteReporter (CASSANDRA-11823)
