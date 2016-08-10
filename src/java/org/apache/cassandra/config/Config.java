@@ -103,6 +103,8 @@ public class Config
 
     public boolean cross_node_timeout = false;
 
+    public volatile long slow_query_log_timeout_in_ms = 500L;
+
     public volatile Double phi_convict_threshold = 8.0;
 
     public Integer concurrent_reads = 32;

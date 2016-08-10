@@ -1,4 +1,5 @@
 3.10
+ * Added slow query log (CASSANDRA-12403)
  * Count full coordinated request against timeout (CASSANDRA-12256)
  * Allow TTL with null value on insert and update (CASSANDRA-12216)
  * Make decommission operation resumable (CASSANDRA-12008)

@@ -157,6 +157,11 @@ public class MessageIn<T>
         return DatabaseDescriptor.getTimeout(verb);
     }
 
+    public long getSlowQueryTimeout()
+    {
+        return DatabaseDescriptor.getSlowQueryTimeout();
+    }
+
     public String toString()
     {
         StringBuilder sbuf = new StringBuilder();

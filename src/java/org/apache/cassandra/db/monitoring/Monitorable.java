@@ -23,10 +23,12 @@ public interface Monitorable
     String name();
     ConstructionTime constructionTime();
     long timeout();
+    long slowTimeout();
 
     boolean isInProgress();
     boolean isAborted();
     boolean isCompleted();
+    boolean isSlow();
 
     boolean abort();
     boolean complete();

@@ -18,6 +18,9 @@ using the provided 'sstableupgrade' tool.
 
 New features
 ------------
+   - A slow query log has been added: slow queries will be logged at DEBUG level.
+     For more details refer to CASSANDRA-12403 and slow_query_log_timeout_in_ms
+     in cassandra.yaml.
    - Support for GROUP BY queries has been added.
    - A new compaction-stress tool has been added to test the throughput of compaction
      for any cassandra-stress user schema.  see compaction-stress help for how to use.

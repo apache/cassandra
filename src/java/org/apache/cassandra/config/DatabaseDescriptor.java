@@ -1321,6 +1321,11 @@ public class DatabaseDescriptor
         }
     }
 
+    public static long getSlowQueryTimeout()
+    {
+        return conf.slow_query_log_timeout_in_ms;
+    }
+
     /**
      * @return the minimum configured {read, write, range, truncate, misc} timeout
      */
