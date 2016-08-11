@@ -931,6 +931,7 @@
           <include name="org/apache/cassandra/exceptions/*.class" />
           <include name="org/apache/cassandra/utils/CloseableIterator.class" />
           <include name="org/apache/cassandra/io/util/*.class" />
+          <include name="org/apache/cassandra/utils/SigarLibrary.class" />
         </fileset>
         <manifest>
           <attribute name="Implementation-Title" value="Cassandra"/>
@@ -1287,6 +1288,8 @@
   -->
   <target name="test-clientutil-jar" depends="build-test,jar" description="Test clientutil jar">
     <junit fork="on" forkmode="perTest" failureproperty="testfailed" maxmemory="1024m" timeout="${test.timeout}">
+      <!-- Note that the test pass without that next line, but it prints an ugly error message -->
+      <jvmarg value="-Djava.library.path=${build.lib}/sigar-bin"/>
       <test name="org.apache.cassandra.serializers.ClientUtilsTest" />
       <formatter type="brief" usefile="false" />
       <classpath>
@@ -1300,6 +1303,7 @@
         <pathelement location="${build.lib}/logback-classic-1.1.3.jar" />
         <pathelement location="${build.lib}/jackson-core-asl-1.9.2.jar" />
         <pathelement location="${build.lib}/jackson-mapper-asl-1.9.2.jar" />
+        <pathelement location="${build.lib}/sigar-1.6.4.jar" />
         <fileset dir="${build.dir.lib}">
           <include name="**/junit*.jar" />
         </fileset>
