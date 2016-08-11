@@ -98,14 +98,10 @@ public class SSTableExport
         if (!desc.version.storeRows())
             throw new IOException("pre-3.0 SSTable is not supported.");
 
-        EnumSet<MetadataType> types = EnumSet.of(MetadataType.VALIDATION, MetadataType.STATS, MetadataType.HEADER);
+        EnumSet<MetadataType> types = EnumSet.of(MetadataType.STATS, MetadataType.HEADER);
         Map<MetadataType, MetadataComponent> sstableMetadata = desc.getMetadataSerializer().deserialize(desc, types);
-        ValidationMetadata validationMetadata = (ValidationMetadata) sstableMetadata.get(MetadataType.VALIDATION);
         SerializationHeader.Component header = (SerializationHeader.Component) sstableMetadata.get(MetadataType.HEADER);
-
-        IPartitioner partitioner = SecondaryIndexManager.isIndexColumnFamily(desc.cfname)
-                                   ? new LocalPartitioner(header.getKeyType())
-                                   : FBUtilities.newPartitioner(validationMetadata.partitioner);
+        IPartitioner partitioner = FBUtilities.newPartitioner(desc);
 
         CFMetaData.Builder builder = CFMetaData.Builder.create("keyspace", "table").withPartitioner(partitioner);
         header.getStaticColumns().entrySet().stream()
