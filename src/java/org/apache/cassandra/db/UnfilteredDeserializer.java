@@ -656,11 +656,6 @@ public abstract class UnfilteredDeserializer
                 return !openTombstones.isEmpty();
             }
 
-            private boolean formBoundary(LegacyLayout.LegacyRangeTombstone close, LegacyLayout.LegacyRangeTombstone open)
-            {
-                return metadata.comparator.compare(close.stop.bound, open.start.bound) == 0;
-            }
-
             public void clearState()
             {
                 openTombstones.clear();
