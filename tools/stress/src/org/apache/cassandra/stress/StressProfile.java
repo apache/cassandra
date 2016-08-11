@@ -35,8 +35,10 @@ import com.google.common.util.concurrent.Uninterruptibles;
 import com.datastax.driver.core.*;
 import com.datastax.driver.core.exceptions.AlreadyExistsException;
 import org.apache.cassandra.config.CFMetaData;
+import org.apache.cassandra.config.Config;
 import org.apache.cassandra.cql3.QueryProcessor;
 import org.apache.cassandra.cql3.statements.CreateKeyspaceStatement;
+import org.apache.cassandra.cql3.statements.CreateTableStatement;
 import org.apache.cassandra.exceptions.RequestValidationException;
 import org.apache.cassandra.exceptions.SyntaxException;
 import org.apache.cassandra.stress.generate.*;
@@ -89,6 +91,10 @@ public class StressProfile implements Serializable
 
     private void init(StressYaml yaml) throws RequestValidationException
     {
+        // Use client mode. Otherwise, users with no read permission on /var/lib/commitlog won't be able to
+        // use cassandra-stress...
+        Config.setClientMode(true);
+
         keyspaceName = yaml.keyspace;
         keyspaceCql = yaml.keyspace_definition;
         tableName = yaml.table;
@@ -129,7 +135,7 @@ public class StressProfile implements Serializable
         {
             try
             {
-                String name = CFMetaData.compile(tableCql, keyspaceName).cfName;
+                String name = ((CreateTableStatement.RawStatement) QueryProcessor.parseStatement(tableCql)).columnFamily();
                 assert name.equalsIgnoreCase(tableName) : "Name in table_definition doesn't match table property: '" + name + "' != '" + tableName + "'";
             }
             catch (RuntimeException e)
