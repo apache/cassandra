@@ -536,7 +536,10 @@ public abstract class CommitLogSegment
         for (UUID cfId : getDirtyCFIDs())
         {
             CFMetaData m = Schema.instance.getCFMetaData(cfId);
-            sb.append(m == null ? "<deleted>" : m.cfName).append(" (").append(cfId).append("), ");
+            sb.append(m == null ? "<deleted>" : m.cfName).append(" (").append(cfId)
+              .append(", dirty: ").append(cfDirty.get(cfId))
+              .append(", clean: ").append(cfClean.get(cfId))
+              .append("), ");
         }
         return sb.toString();
     }

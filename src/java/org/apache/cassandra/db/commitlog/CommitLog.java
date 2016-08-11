@@ -313,8 +313,9 @@ public class CommitLog implements CommitLogMBean
             }
             else
             {
-                logger.trace("Not safe to delete{} commit log segment {}; dirty is {}",
-                        (iter.hasNext() ? "" : " active"), segment, segment.dirtyString());
+                if (logger.isTraceEnabled())
+                    logger.trace("Not safe to delete{} commit log segment {}; dirty is {}",
+                            (iter.hasNext() ? "" : " active"), segment, segment.dirtyString());
             }
 
             // Don't mark or try to delete any newer segments once we've reached the one containing the
