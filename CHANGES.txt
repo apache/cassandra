@@ -6,6 +6,7 @@
  * cqlsh: Fix handling of $$-escaped strings (CASSANDRA-12189)
  * Fix SSL JMX requiring truststore containing server cert (CASSANDRA-12109)
 Merged from 3.0:
+ * Fix potential resource leak in RMIServerSocketFactoryImpl (CASSANDRA-12331)
  * Make sure compaction stats are updated when compaction is interrupted (CASSANDRA-12100)
  * Change commitlog and sstables to track dirty and clean intervals (CASSANDRA-11828)
  * NullPointerException during compaction on table with static columns (CASSANDRA-12336)

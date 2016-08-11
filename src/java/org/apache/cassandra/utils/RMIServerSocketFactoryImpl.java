@@ -23,6 +23,7 @@ package org.apache.cassandra.utils;
 import java.io.IOException;
 import java.net.InetAddress;
 import java.net.ServerSocket;
+import java.net.SocketException;
 import java.rmi.server.RMIServerSocketFactory;
 import javax.net.ServerSocketFactory;
 
@@ -39,8 +40,16 @@ public class RMIServerSocketFactoryImpl implements RMIServerSocketFactory
     public ServerSocket createServerSocket(final int pPort) throws IOException
     {
         ServerSocket socket = ServerSocketFactory.getDefault().createServerSocket(pPort, 0, bindAddress);
-        socket.setReuseAddress(true);
-        return socket;
+        try
+        {
+            socket.setReuseAddress(true);
+            return socket;
+        }
+        catch (SocketException e)
+        {
+            socket.close();
+            throw e;
+        }
     }
 
     public boolean equals(Object obj)
