@@ -20,6 +20,7 @@ package org.apache.cassandra.db.compaction;
 
 import java.io.IOException;
 import java.io.OutputStreamWriter;
+import java.lang.ref.WeakReference;
 import java.nio.file.*;
 import java.util.Collection;
 import java.util.HashSet;
@@ -32,6 +33,7 @@ import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.Consumer;
 import java.util.function.Function;
 
+import com.google.common.collect.MapMaker;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -102,20 +104,23 @@ public class CompactionLogger
     private static final JsonNodeFactory json = JsonNodeFactory.instance;
     private static final Logger logger = LoggerFactory.getLogger(CompactionLogger.class);
     private static final Writer serializer = new CompactionLogSerializer();
-    private final ColumnFamilyStore cfs;
-    private final CompactionStrategyManager csm;
+    private final WeakReference<ColumnFamilyStore> cfsRef;
+    private final WeakReference<CompactionStrategyManager> csmRef;
     private final AtomicInteger identifier = new AtomicInteger(0);
-    private final Map<AbstractCompactionStrategy, String> compactionStrategyMapping = new ConcurrentHashMap<>();
+    private final Map<AbstractCompactionStrategy, String> compactionStrategyMapping = new MapMaker().weakKeys().makeMap();
     private final AtomicBoolean enabled = new AtomicBoolean(false);
 
     public CompactionLogger(ColumnFamilyStore cfs, CompactionStrategyManager csm)
     {
-        this.csm = csm;
-        this.cfs = cfs;
+        csmRef = new WeakReference<>(csm);
+        cfsRef = new WeakReference<>(cfs);
     }
 
     private void forEach(Consumer<AbstractCompactionStrategy> consumer)
     {
+        CompactionStrategyManager csm = csmRef.get();
+        if (csm == null)
+            return;
         csm.getStrategies()
            .forEach(l -> l.forEach(consumer));
     }
@@ -129,7 +134,10 @@ public class CompactionLogger
 
     private ArrayNode sstableMap(Collection<SSTableReader> sstables, CompactionStrategyAndTableFunction csatf)
     {
+        CompactionStrategyManager csm = csmRef.get();
         ArrayNode node = json.arrayNode();
+        if (csm == null)
+            return node;
         sstables.forEach(t -> node.add(csatf.apply(csm.getCompactionStrategyFor(t), t)));
         return node;
     }
@@ -142,6 +150,10 @@ public class CompactionLogger
     private JsonNode formatSSTables(AbstractCompactionStrategy strategy)
     {
         ArrayNode node = json.arrayNode();
+        CompactionStrategyManager csm = csmRef.get();
+        ColumnFamilyStore cfs = cfsRef.get();
+        if (csm == null || cfs == null)
+            return node;
         for (SSTableReader sstable : cfs.getLiveSSTables())
         {
             if (csm.getCompactionStrategyFor(sstable) == strategy)
@@ -165,6 +177,9 @@ public class CompactionLogger
     private JsonNode startStrategy(AbstractCompactionStrategy strategy)
     {
         ObjectNode node = json.objectNode();
+        CompactionStrategyManager csm = csmRef.get();
+        if (csm == null)
+            return node;
         node.put("strategyId", getId(strategy));
         node.put("type", strategy.getName());
         node.put("tables", formatSSTables(strategy));
@@ -200,6 +215,9 @@ public class CompactionLogger
 
     private void describeStrategy(ObjectNode node)
     {
+        ColumnFamilyStore cfs = cfsRef.get();
+        if (cfs == null)
+            return;
         node.put("keyspace", cfs.keyspace.getName());
         node.put("table", cfs.getTableName());
         node.put("time", System.currentTimeMillis());
