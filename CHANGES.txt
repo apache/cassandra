@@ -1,4 +1,5 @@
 3.10
+ * Remove clientutil jar (CASSANDRA-11635)
  * Fix compaction throughput throttle (CASSANDRA-12366)
  * Delay releasing Memtable memory on flush until PostFlush has finished running (CASSANDRA-12358)
  * Cassandra stress should dump all setting on startup (CASSANDRA-11914)

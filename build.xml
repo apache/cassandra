@@ -639,17 +639,6 @@
         <dependency groupId="com.googlecode.concurrent-trees" artifactId="concurrent-trees" version="2.4.0" />
 
       </artifact:pom>
-      <artifact:pom id="clientutil-pom"
-                    artifactId="cassandra-clientutil"
-                    url="http://cassandra.apache.org"
-                    name="Apache Cassandra">
-        <parent groupId="org.apache.cassandra"
-                artifactId="cassandra-parent"
-                version="${version}"/>
-        <scm connection="${scm.connection}" developerConnection="${scm.developerConnection}" url="${scm.url}"/>
-  <dependency groupId="com.google.guava" artifactId="guava"/>
-      </artifact:pom>
-      
       <artifact:pom id="dist-pom"
                     artifactId="apache-cassandra"
                     packaging="pom"
@@ -890,8 +879,6 @@
 	    <artifact:writepom pomRefId="thrift-pom"
 	                       file="${build.dir}/${ant.project.name}-thrift-${version}.pom"/>
 	    <artifact:writepom pomRefId="all-pom" file="${build.dir}/${final.name}.pom"/>
-	    <artifact:writepom pomRefId="clientutil-pom"
-	    	               file="${build.dir}/${ant.project.name}-clientutil-${version}.pom"/>
 	</target>
 
 	<target name="write-poms" unless="without.maven">
@@ -943,28 +930,8 @@
           <attribute name="Premain-Class"
                      value="org.apache.cassandra.infrastructure.continuations.CAgent"/>
           <attribute name="Class-Path"
-                     value="${ant.project.name}-clientutil-${version}.jar ${ant.project.name}-thrift-${version}.jar" />
+                     value="${ant.project.name}-thrift-${version}.jar" />
         <!-- </section> -->
-        </manifest>
-      </jar>
-
-      <!-- Clientutil Jar -->
-      <!-- TODO: write maven pom here -->
-      <jar jarfile="${build.dir}/${ant.project.name}-clientutil-${version}.jar">
-        <fileset dir="${build.classes.main}">
-          <include name="org/apache/cassandra/serializers/*" />
-          <include name="org/apache/cassandra/utils/ByteBufferUtil*.class" />
-          <include name="org/apache/cassandra/utils/Hex.class" />
-          <include name="org/apache/cassandra/utils/UUIDGen*.class" />
-          <include name="org/apache/cassandra/utils/FBUtilities*.class" />
-          <include name="org/apache/cassandra/exceptions/*.class" />
-          <include name="org/apache/cassandra/utils/CloseableIterator.class" />
-          <include name="org/apache/cassandra/io/util/*.class" />
-        </fileset>
-        <manifest>
-          <attribute name="Implementation-Title" value="Cassandra"/>
-          <attribute name="Implementation-Version" value="${version}"/>
-          <attribute name="Implementation-Vendor" value="Apache"/>
         </manifest>
       </jar>
 
@@ -1008,18 +975,6 @@
       <jar jarfile="${build.dir}/${final.name}-javadoc.jar"
            basedir="${javadoc.jars.dir}/main"/>
 
-      <create-javadoc destdir="${javadoc.jars.dir}/clientutil">
-        <filesets>
-          <fileset dir="${build.src.java}" defaultexcludes="yes">
-            <include name="org/apache/cassandra/serializers/*" />
-            <include name="org/apache/cassandra/utils/ByteBufferUtil*.java" />
-            <include name="org/apache/cassandra/utils/Hex.java" />
-            <include name="org/apache/cassandra/utils/UUIDGen*.java" />
-          </fileset>
-        </filesets>
-      </create-javadoc>
-      <jar jarfile="${build.dir}/${ant.project.name}-clientutil-${version}-javadoc.jar"
-           basedir="${javadoc.jars.dir}/clientutil"/>
       <!-- javadoc task always rebuilds so might as well remove the generated docs to prevent 
            being pulled into the distribution by accident -->
       <delete quiet="true" dir="${javadoc.jars.dir}"/>
@@ -1042,14 +997,6 @@
           <include name="org/apache/**/*.java"/>
         </fileset>
       </jar>
-      <jar jarfile="${build.dir}/${ant.project.name}-clientutil-${version}-sources.jar">
-        <fileset dir="${build.src.java}" defaultexcludes="yes">
-          <include name="org/apache/cassandra/serializers/*" />
-          <include name="org/apache/cassandra/utils/ByteBufferUtil*.java" />
-          <include name="org/apache/cassandra/utils/Hex.java" />
-          <include name="org/apache/cassandra/utils/UUIDGen*.java" />
-        </fileset>
-      </jar>
     </target>
 
     <!-- creates release tarballs -->
@@ -1065,7 +1012,6 @@
         <fileset dir="${build.dir}">
           <include name="${final.name}.jar" />
           <include name="${ant.project.name}-thrift-${version}.jar" />
-          <include name="${ant.project.name}-clientutil-${version}.jar" />
         </fileset>
       </copy>
       <copy todir="${dist.dir}/javadoc">
@@ -1310,44 +1256,6 @@
     </sequential>
   </macrodef>
 
-  <!--
-    This test target is a bit different.  It's purpose is to exercise the
-    clientutil jar in order to expose any new dependencies.  For that
-    reason we use the classes from the jar, and a carefully constructed
-    classpath which only contains what we expect users to need.
-  -->
-  <target name="test-clientutil-jar" depends="build-test,jar" description="Test clientutil jar">
-    <junit fork="on" forkmode="perTest" failureproperty="testfailed" maxmemory="1024m" timeout="${test.timeout}">
-      <test name="org.apache.cassandra.serializers.ClientUtilsTest" />
-      <formatter type="brief" usefile="false" />
-      <classpath>
-        <pathelement location="${test.classes}" />
-        <pathelement location="${build.dir}/${ant.project.name}-clientutil-${version}.jar" />
-        <pathelement location="${build.dir}/${ant.project.name}-thrift-${version}.jar" />
-        <pathelement location="${build.lib}/libthrift-0.9.0.jar" />
-        <pathelement location="${build.lib}/slf4j-api-1.7.7.jar" />
-        <pathelement location="${build.lib}/log4j-over-slf4j.jar" />
-        <pathelement location="${build.lib}/logback-core-1.1.3.jar" />
-        <pathelement location="${build.lib}/logback-classic-1.1.3.jar" />
-        <pathelement location="${build.lib}/jackson-core-asl-1.9.2.jar" />
-        <pathelement location="${build.lib}/jackson-mapper-asl-1.9.2.jar" />
-        <fileset dir="${build.dir.lib}">
-          <include name="**/junit*.jar" />
-        </fileset>
-      </classpath>
-    </junit>
-      <fail message="Clientutil test(s) failed.">
-          <condition>
-              <and>
-                  <isset property="testfailed"/>
-                  <not>
-                      <isset property="ant.test.failure.ignore"/>
-                  </not>
-              </and>
-          </condition>
-      </fail>
-  </target>
-
   <target name="testold" depends="build-test" description="Execute unit tests">
     <testmacro inputdir="${test.unit.src}" timeout="${test.timeout}">
       <jvmarg value="-Dlegacy-sstable-root=${test.data}/legacy-sstables"/>
@@ -1584,7 +1492,7 @@
   </target>
 
   <target name="test-all" 
-          depends="eclipse-warnings,test,long-test,test-compression,test-clientutil-jar,stress-test"
+          depends="eclipse-warnings,test,long-test,test-compression,stress-test"
           description="Run all tests except for those under test-burn" />
   
   <!-- Use JaCoCo ant extension without needing externally saved lib -->
@@ -1983,16 +1891,6 @@
              file="${build.dir}/${ant.project.name}-thrift-${version}-javadoc.jar"
              classifier="javadoc"/>
 
-    <!-- the cassandra-clientutil jar -->  
-    <install pomFile="${build.dir}/${ant.project.name}-clientutil-${version}.pom"
-             file="${build.dir}/${ant.project.name}-clientutil-${version}.jar"/>
-    <install pomFile="${build.dir}/${ant.project.name}-clientutil-${version}.pom"
-             file="${build.dir}/${ant.project.name}-clientutil-${version}-sources.jar"
-             classifier="sources"/>
-    <install pomFile="${build.dir}/${ant.project.name}-clientutil-${version}.pom"
-             file="${build.dir}/${ant.project.name}-clientutil-${version}-javadoc.jar"
-             classifier="javadoc"/>
-
     <!-- the cassandra-all jar -->
     <install pomFile="${build.dir}/${final.name}.pom"
              file="${build.dir}/${final.name}.jar"/>
@@ -2037,15 +1935,6 @@
             file="${build.dir}/${ant.project.name}-thrift-${version}-javadoc.jar"
             classifier="javadoc"/>
 
-    <!-- the cassandra-clientutil jar -->  
-    <deploy pomFile="${build.dir}/${ant.project.name}-clientutil-${version}.pom"
-            file="${build.dir}/${ant.project.name}-clientutil-${version}.jar"/>
-    <deploy pomFile="${build.dir}/${ant.project.name}-clientutil-${version}.pom"
-             file="${build.dir}/${ant.project.name}-clientutil-${version}-sources.jar"
-             classifier="sources"/>
-    <deploy pomFile="${build.dir}/${ant.project.name}-clientutil-${version}.pom"
-             file="${build.dir}/${ant.project.name}-clientutil-${version}-javadoc.jar"
-             classifier="javadoc"/>
     <!-- the cassandra-all jar -->
     <deploy pomFile="${build.dir}/${final.name}.pom"
             file="${build.dir}/${final.name}.jar"/>

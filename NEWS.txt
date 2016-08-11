@@ -65,6 +65,11 @@ Upgrading
     - Logs written to stdout are now consistent with logs written to files.
       Time is now local (it was UTC on the console and local in files). Date, thread, file
       and line info where added to stdout. (see CASSANDRA-12004)
+    - The 'clientutil' jar, which has been somewhat broken on the 3.x branch, is not longer provided.
+      The features provided by that jar are provided by any good java driver and we advise relying on drivers rather on
+      that jar, but if you need that jar for backward compatiblity until you do so, you should use the version provided
+      on previous Cassandra branch, like the 3.0 branch (by design, the functionality provided by that jar are stable
+      accross versions so using the 3.0 jar for a client connecting to 3.x should work without issues).
 
 3.8
 ===
