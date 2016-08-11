@@ -34,6 +34,7 @@
  * Avoid digest mismatch with empty but static rows (CASSANDRA-12090)
  * Fix EOF exception when altering column type (CASSANDRA-11820)
 Merged from 2.2:
+ * Add Sigar to classes included in clientutil.jar (CASSANDRA-11635)
  * Add decay to histograms and timers used for metrics (CASSANDRA-11752)
  * Fix hanging stream session (CASSANDRA-10992)
  * Fix INSERT JSON, fromJson() support of smallint, tinyint types (CASSANDRA-12371)
