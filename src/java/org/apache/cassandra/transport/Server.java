@@ -513,7 +513,7 @@ public class Server implements CassandraDaemon.Server
             // which is not useful to any driver and in fact may cauase serious problems to some drivers,
             // see CASSANDRA-10052
             if (!endpoint.equals(FBUtilities.getBroadcastAddress()) &&
-                event.nodeAddress().equals(DatabaseDescriptor.getBroadcastRpcAddress()))
+                event.nodeAddress().equals(FBUtilities.getBroadcastRpcAddress()))
                 return;
 
             send(event);
