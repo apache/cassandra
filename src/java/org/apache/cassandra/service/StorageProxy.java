@@ -1955,6 +1955,21 @@ public class StorageProxy implements StorageProxyMBean
                 }
             }
         }
+        catch (ReadTimeoutException e)
+        {
+            rangeMetrics.timeouts.mark();
+            throw e;
+        }
+        catch (UnavailableException e)
+        {
+            rangeMetrics.unavailables.mark();
+            throw e;
+        }
+        catch (ReadFailureException e)
+        {
+            rangeMetrics.failures.mark();
+            throw e;
+        }
         finally
         {
             long latency = System.nanoTime() - startTime;
