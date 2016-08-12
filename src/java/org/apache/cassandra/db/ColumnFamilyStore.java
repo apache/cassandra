@@ -1088,20 +1088,9 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
             writeBarrier.markBlocking();
             writeBarrier.await();
 
-            // mark all memtables as flushing, removing them from the live memtable list, and
-            // remove any memtables that are already clean from the set we need to flush
-            Iterator<Memtable> iter = memtables.iterator();
-            while (iter.hasNext())
-            {
-                Memtable memtable = iter.next();
+            // mark all memtables as flushing, removing them from the live memtable list
+            for (Memtable memtable : memtables)
                 memtable.cfs.data.markFlushing(memtable);
-                if (memtable.isClean() || truncate)
-                {
-                    memtable.cfs.replaceFlushed(memtable, Collections.emptyList());
-                    reclaim(memtable);
-                    iter.remove();
-                }
-            }
 
             metric.memtableSwitchCount.inc();
 
@@ -1121,6 +1110,13 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
 
         public Collection<SSTableReader> flushMemtable(Memtable memtable)
         {
+            if (memtable.isClean() || truncate)
+            {
+                memtable.cfs.replaceFlushed(memtable, Collections.emptyList());
+                reclaim(memtable);
+                return Collections.emptyList();
+            }
+
             List<Future<SSTableMultiWriter>> futures = new ArrayList<>();
             long totalBytesOnDisk = 0;
             long maxBytesOnDisk = 0;
