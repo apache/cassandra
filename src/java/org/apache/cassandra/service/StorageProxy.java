@@ -2042,26 +2042,44 @@ public class StorageProxy implements StorageProxyMBean
 
         public RowIterator computeNext()
         {
-            while (sentQueryIterator == null || !sentQueryIterator.hasNext())
+            try
             {
-                // If we don't have more range to handle, we're done
-                if (!ranges.hasNext())
-                    return endOfData();
-
-                // else, sends the next batch of concurrent queries (after having close the previous iterator)
-                if (sentQueryIterator != null)
+                while (sentQueryIterator == null || !sentQueryIterator.hasNext())
                 {
-                    liveReturned += counter.counted();
-                    sentQueryIterator.close();
+                    // If we don't have more range to handle, we're done
+                    if (!ranges.hasNext())
+                        return endOfData();
 
-                    // It's not the first batch of queries and we're not done, so we we can use what has been
-                    // returned so far to improve our rows-per-range estimate and update the concurrency accordingly
-                    updateConcurrencyFactor();
+                    // else, sends the next batch of concurrent queries (after having close the previous iterator)
+                    if (sentQueryIterator != null)
+                    {
+                        liveReturned += counter.counted();
+                        sentQueryIterator.close();
+
+                        // It's not the first batch of queries and we're not done, so we we can use what has been
+                        // returned so far to improve our rows-per-range estimate and update the concurrency accordingly
+                        updateConcurrencyFactor();
+                    }
+                    sentQueryIterator = sendNextRequests();
                 }
-                sentQueryIterator = sendNextRequests();
-            }
 
-            return sentQueryIterator.next();
+                return sentQueryIterator.next();
+            }
+            catch (UnavailableException e)
+            {
+                rangeMetrics.unavailables.mark();
+                throw e;
+            }
+            catch (ReadTimeoutException e)
+            {
+                rangeMetrics.timeouts.mark();
+                throw e;
+            }
+            catch (ReadFailureException e)
+            {
+                rangeMetrics.failures.mark();
+                throw e;
+            }
         }
 
         private void updateConcurrencyFactor()
@@ -2146,7 +2164,6 @@ public class StorageProxy implements StorageProxyMBean
 
     @SuppressWarnings("resource")
     public static PartitionIterator getRangeSlice(PartitionRangeReadCommand command, ConsistencyLevel consistencyLevel)
-    throws UnavailableException, ReadFailureException, ReadTimeoutException
     {
         Tracing.trace("Computing ranges to query");
 
