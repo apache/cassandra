@@ -180,7 +180,7 @@ public class DatabaseDescriptor
     }
 
     @VisibleForTesting
-    static void applyAddressConfig(Config config) throws ConfigurationException
+    public static void applyAddressConfig(Config config) throws ConfigurationException
     {
         listenAddress = null;
         rpcAddress = null;
@@ -272,7 +272,6 @@ public class DatabaseDescriptor
             if (rpcAddress.isAnyLocalAddress())
                 throw new ConfigurationException("If rpc_address is set to a wildcard address (" + config.rpc_address + "), then " +
                                                  "you must set broadcast_rpc_address to a value other than " + config.rpc_address, false);
-            broadcastRpcAddress = rpcAddress;
         }
     }
 
@@ -1516,6 +1515,9 @@ public class DatabaseDescriptor
         broadcastRpcAddress = broadcastRPCAddr;
     }
 
+    /**
+     * May be null, please use {@link FBUtilities#getBroadcastRpcAddress()} instead.
+     */
     public static InetAddress getBroadcastRpcAddress()
     {
         return broadcastRpcAddress;

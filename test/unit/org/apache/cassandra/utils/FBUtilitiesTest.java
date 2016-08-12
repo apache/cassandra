@@ -19,6 +19,7 @@
 package org.apache.cassandra.utils;
 
 import java.io.IOException;
+import java.net.InetAddress;
 import java.nio.ByteBuffer;
 import java.nio.charset.CharacterCodingException;
 import java.nio.charset.StandardCharsets;
@@ -33,6 +34,9 @@ import org.junit.Test;
 
 import org.apache.cassandra.db.marshal.*;
 import org.apache.cassandra.dht.*;
+
+import org.apache.cassandra.config.Config;
+import org.apache.cassandra.config.DatabaseDescriptor;
 
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.fail;
@@ -146,5 +150,33 @@ public class FBUtilitiesTest
                                   LocalPartitioner.class.isInstance(partitioner));
                 Assert.assertEquals(partitioner.partitionOrdering(), type);
             }
+    }
+
+    @Test
+    public void testGetBroadcastRpcAddress() throws Exception
+    {
+        //When both rpc_address and broadcast_rpc_address are null, it should return the local address (from DD.applyAddressConfig)
+        FBUtilities.reset();
+        Config testConfig = DatabaseDescriptor.loadConfig();
+        testConfig.rpc_address = null;
+        testConfig.broadcast_rpc_address = null;
+        DatabaseDescriptor.applyAddressConfig(testConfig);
+        assertEquals(FBUtilities.getLocalAddress(), FBUtilities.getBroadcastRpcAddress());
+
+        //When rpc_address is defined and broadcast_rpc_address is null, it should return the rpc_address
+        FBUtilities.reset();
+        testConfig.rpc_address = "127.0.0.2";
+        testConfig.broadcast_rpc_address = null;
+        DatabaseDescriptor.applyAddressConfig(testConfig);
+        assertEquals(InetAddress.getByName("127.0.0.2"), FBUtilities.getBroadcastRpcAddress());
+
+        //When both rpc_address and broadcast_rpc_address are defined, it should return broadcast_rpc_address
+        FBUtilities.reset();
+        testConfig.rpc_address = "127.0.0.2";
+        testConfig.broadcast_rpc_address = "127.0.0.3";
+        DatabaseDescriptor.applyAddressConfig(testConfig);
+        assertEquals(InetAddress.getByName("127.0.0.3"), FBUtilities.getBroadcastRpcAddress());
+
+        FBUtilities.reset();
     }
 }
