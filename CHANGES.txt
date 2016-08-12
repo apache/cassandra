@@ -122,6 +122,7 @@ Merged from 3.0:
  * Avoid digest mismatch with empty but static rows (CASSANDRA-12090)
  * Fix EOF exception when altering column type (CASSANDRA-11820)
 Merged from 2.2:
+ * Update StorageProxy range metrics for timeouts, failures and unavailables (CASSANDRA-9507)
  * Add decay to histograms and timers used for metrics (CASSANDRA-11752)
  * Fix hanging stream session (CASSANDRA-10992)
  * Fix INSERT JSON, fromJson() support of smallint, tinyint types (CASSANDRA-12371)
