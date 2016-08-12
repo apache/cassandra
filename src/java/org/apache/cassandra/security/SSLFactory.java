@@ -59,14 +59,22 @@ public final class SSLFactory
     public static SSLServerSocket getServerSocket(EncryptionOptions options, InetAddress address, int port) throws IOException
     {
         SSLContext ctx = createSSLContext(options, true);
-        SSLServerSocket serverSocket = (SSLServerSocket)ctx.getServerSocketFactory().createServerSocket();
-        serverSocket.setReuseAddress(true);
-        String[] suites = filterCipherSuites(serverSocket.getSupportedCipherSuites(), options.cipher_suites);
-        serverSocket.setEnabledCipherSuites(suites);
-        serverSocket.setNeedClientAuth(options.require_client_auth);
-        serverSocket.setEnabledProtocols(ACCEPTED_PROTOCOLS);
-        serverSocket.bind(new InetSocketAddress(address, port), 500);
-        return serverSocket;
+        SSLServerSocket serverSocket = (SSLServerSocket) ctx.getServerSocketFactory().createServerSocket();
+        try
+        {
+            serverSocket.setReuseAddress(true);
+            String[] suites = filterCipherSuites(serverSocket.getSupportedCipherSuites(), options.cipher_suites);
+            serverSocket.setEnabledCipherSuites(suites);
+            serverSocket.setNeedClientAuth(options.require_client_auth);
+            serverSocket.setEnabledProtocols(ACCEPTED_PROTOCOLS);
+            serverSocket.bind(new InetSocketAddress(address, port), 500);
+            return serverSocket;
+        }
+        catch (IllegalArgumentException | SecurityException | IOException e)
+        {
+            serverSocket.close();
+            throw e;
+        }
     }
 
     /** Create a socket and connect */
@@ -74,10 +82,18 @@ public final class SSLFactory
     {
         SSLContext ctx = createSSLContext(options, true);
         SSLSocket socket = (SSLSocket) ctx.getSocketFactory().createSocket(address, port, localAddress, localPort);
-        String[] suites = filterCipherSuites(socket.getSupportedCipherSuites(), options.cipher_suites);
-        socket.setEnabledCipherSuites(suites);
-        socket.setEnabledProtocols(ACCEPTED_PROTOCOLS);
-        return socket;
+        try
+        {
+            String[] suites = filterCipherSuites(socket.getSupportedCipherSuites(), options.cipher_suites);
+            socket.setEnabledCipherSuites(suites);
+            socket.setEnabledProtocols(ACCEPTED_PROTOCOLS);
+            return socket;
+        }
+        catch (IllegalArgumentException e)
+        {
+            socket.close();
+            throw e;
+        }
     }
 
     /** Create a socket and connect, using any local address */
@@ -85,10 +101,18 @@ public final class SSLFactory
     {
         SSLContext ctx = createSSLContext(options, true);
         SSLSocket socket = (SSLSocket) ctx.getSocketFactory().createSocket(address, port);
-        String[] suites = filterCipherSuites(socket.getSupportedCipherSuites(), options.cipher_suites);
-        socket.setEnabledCipherSuites(suites);
-        socket.setEnabledProtocols(ACCEPTED_PROTOCOLS);
-        return socket;
+        try
+        {
+            String[] suites = filterCipherSuites(socket.getSupportedCipherSuites(), options.cipher_suites);
+            socket.setEnabledCipherSuites(suites);
+            socket.setEnabledProtocols(ACCEPTED_PROTOCOLS);
+            return socket;
+        }
+        catch (IllegalArgumentException e)
+        {
+            socket.close();
+            throw e;
+        }
     }
 
     /** Just create a socket */
@@ -96,10 +120,18 @@ public final class SSLFactory
     {
         SSLContext ctx = createSSLContext(options, true);
         SSLSocket socket = (SSLSocket) ctx.getSocketFactory().createSocket();
-        String[] suites = filterCipherSuites(socket.getSupportedCipherSuites(), options.cipher_suites);
-        socket.setEnabledCipherSuites(suites);
-        socket.setEnabledProtocols(ACCEPTED_PROTOCOLS);
-        return socket;
+        try
+        {
+            String[] suites = filterCipherSuites(socket.getSupportedCipherSuites(), options.cipher_suites);
+            socket.setEnabledCipherSuites(suites);
+            socket.setEnabledProtocols(ACCEPTED_PROTOCOLS);
+            return socket;
+        }
+        catch (IllegalArgumentException e)
+        {
+            socket.close();
+            throw e;
+        }
     }
 
     @SuppressWarnings("resource")
