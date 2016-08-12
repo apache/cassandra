@@ -461,9 +461,14 @@ public final class JsonTransformer
 
     private String dateString(TimeUnit from, long time)
     {
+        if (rawTime)
+        {
+            return Long.toString(time);
+        }
+        
         long secs = from.toSeconds(time);
         long offset = Math.floorMod(from.toNanos(time), 1000_000_000L); // nanos per sec
-        return rawTime? Long.toString(time) : Instant.ofEpochSecond(secs, offset).toString();
+        return Instant.ofEpochSecond(secs, offset).toString();
     }
 
     /**
