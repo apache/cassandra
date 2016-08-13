@@ -115,6 +115,9 @@ public class OutgoingFileMessage extends StreamMessage
     @VisibleForTesting
     public synchronized void startTransfer()
     {
+        if (completed)
+            throw new RuntimeException(String.format("Transfer of file %s already completed or aborted (perhaps session failed?).",
+                                                     filename));
         transferring = true;
     }
 
