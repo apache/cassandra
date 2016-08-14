@@ -270,7 +270,7 @@ public class StreamingTransferTest
     {
         //after stream session is finished, message handlers may take several milliseconds to be closed
         outer:
-        for (int i = 0; i <= 10; i++)
+        for (int i = 0; i <= 100; i++)
         {
             for (MessagingService.SocketThread socketThread : MessagingService.instance().getSocketThreads())
                 if (!socketThread.connections.isEmpty())
