@@ -110,6 +110,10 @@ public class RepairRunner extends JMXNotificationProgressListener
             message = message + " (progress: " + (int)event.getProgressPercentage() + "%)";
         }
         out.println(message);
+        if (type == ProgressEventType.ERROR)
+        {
+            error = new RuntimeException("Repair job has failed with the error message: " + message);
+        }
         if (type == ProgressEventType.COMPLETE)
         {
             condition.signalAll();
