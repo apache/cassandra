@@ -476,6 +476,16 @@ public class ColumnFamilyStoreCQLHelperTest extends CQLTester
     }
 
     @Test
+    public void testSystemKsSnapshot() throws Throwable
+    {
+        ColumnFamilyStore cfs = Keyspace.open("system").getColumnFamilyStore("peers");
+        cfs.snapshot(SNAPSHOT);
+
+        Assert.assertTrue(cfs.getDirectories().getSnapshotManifestFile(SNAPSHOT).exists());
+        Assert.assertFalse(cfs.getDirectories().getSnapshotSchemaFile(SNAPSHOT).exists());
+    }
+
+    @Test
     public void testDroppedType() throws Throwable
     {
         String typeA = createType("CREATE TYPE %s (a1 varint, a2 varint, a3 varint);");

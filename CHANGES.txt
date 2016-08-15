@@ -14,7 +14,6 @@
  * Add version command to cassandra-stress (CASSANDRA-12258)
  * Create compaction-stress tool (CASSANDRA-11844)
  * Garbage-collecting compaction operation and schema option (CASSANDRA-7019)
- * Add schema to snapshot manifest, add USING TIMESTAMP clause to ALTER TABLE statements (CASSANDRA-7190)
  * Add beta protocol flag for v5 native protocol (CASSANDRA-12142)
  * Support filtering on non-PRIMARY KEY columns in the CREATE
    MATERIALIZED VIEW statement's WHERE clause (CASSANDRA-10368)
@@ -35,6 +34,8 @@
  * Add supplied username to authentication error messages (CASSANDRA-12076)
  * Remove pre-startup check for open JMX port (CASSANDRA-12074)
  * Remove compaction Severity from DynamicEndpointSnitch (CASSANDRA-11738)
+Merged from 3.0:
+ * Add schema to snapshot manifest, add USING TIMESTAMP clause to ALTER TABLE statements (CASSANDRA-7190)
 
 
 3.9
