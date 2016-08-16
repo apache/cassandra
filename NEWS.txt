@@ -83,16 +83,6 @@ Upgrading
 3.9
 ===
 
-Upgrading
----------
-   - The ReversedType behaviour has been corrected for clustering columns of
-     BYTES type containing empty value. Scrub should be run on the existing
-     SSTables containing a descending clustering column of BYTES type to correct
-     their ordering. See CASSANDRA-12127 for more details.
-
-3.8
-===
-
 New features
 ------------
    - Shared pool threads are now named according to the stage they are executing
@@ -121,14 +111,18 @@ New features
 
 Upgrading
 ---------
-    - Ec2MultiRegionSnitch will no longer automatically set broadcast_rpc_address
-      to the public instance IP if this property is defined on cassandra.yaml.
-    - The name "json" and "distinct" are not valid anymore a user-defined function
-      names (they are still valid as column name however). In the unlikely case where
-      you had defined functions with such names, you will need to recreate
-      those under a different name, change your code to use the new names and
-      drop the old versions, and this _before_ upgrade (see CASSANDRA-10783 for more
-      details).
+   - The ReversedType behaviour has been corrected for clustering columns of
+     BYTES type containing empty value. Scrub should be run on the existing
+     SSTables containing a descending clustering column of BYTES type to correct
+     their ordering. See CASSANDRA-12127 for more details.
+   - Ec2MultiRegionSnitch will no longer automatically set broadcast_rpc_address
+     to the public instance IP if this property is defined on cassandra.yaml.
+   - The name "json" and "distinct" are not valid anymore a user-defined function
+     names (they are still valid as column name however). In the unlikely case where
+     you had defined functions with such names, you will need to recreate
+     those under a different name, change your code to use the new names and
+     drop the old versions, and this _before_ upgrade (see CASSANDRA-10783 for more
+     details).
 
 Deprecation
 -----------
