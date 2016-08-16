@@ -13,6 +13,16 @@ restore snapshots created with the previous major version using the
 'sstableloader' tool. You can upgrade the file format of your snapshots
 using the provided 'sstableupgrade' tool.
 
+2.1.16
+======
+
+Upgrading
+---------
+    - The ReversedType behaviour has been corrected for clustering columns of
+      BYTES type containing empty value. Scrub should be run on the existing
+      SSTables containing a descending clustering column of BYTES type to correct
+      their ordering. See CASSANDRA-12127 for details.
+
 2.1.15
 ======
 

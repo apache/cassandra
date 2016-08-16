@@ -30,6 +30,7 @@ import com.google.common.collect.Iterators;
 
 import org.apache.cassandra.auth.Permission;
 import org.apache.cassandra.cql3.*;
+import org.apache.cassandra.cql3.statements.Restriction.Slice;
 import org.apache.cassandra.cql3.statements.SingleColumnRestriction.Contains;
 import org.apache.cassandra.db.composites.*;
 import org.apache.cassandra.transport.messages.ResultMessage;
@@ -246,12 +247,56 @@ public class SelectStatement implements CQLStatement
 
     private Pageable getPageableCommand(QueryOptions options, int limit, long now) throws RequestValidationException
     {
+        if (isNotReturningAnyRows(options))
+            return null;
+
         int limitForQuery = updateLimitForQuery(limit);
         if (isKeyRange || usesSecondaryIndexing)
             return getRangeCommand(options, limitForQuery, now);
 
         List<ReadCommand> commands = getSliceCommands(options, limitForQuery, now);
         return commands == null ? null : new Pageable.ReadCommands(commands, limitForQuery);
+    }
+
+    /**
+     * Checks if the query will never return any rows.
+     *
+     * @param options the query options
+     * @return {@code true} if the query will never return any rows, {@false} otherwise
+     * @throws InvalidRequestException if the request is invalid
+     */
+    private boolean isNotReturningAnyRows(QueryOptions options) throws InvalidRequestException
+    {
+        // Dense non-compound tables do not accept empty ByteBuffers. By consequence, we know that:
+        // - any query with an EQ restriction containing an empty value will not return any result
+        // - any query with a slice restriction with an empty value for the END bound will not return any result
+
+        if (cfm.comparator.isDense() && !cfm.comparator.isCompound())
+        {
+            for (Restriction restriction : columnRestrictions)
+            {
+                if (restriction != null)
+                {
+                    if (restriction.isEQ())
+                    {
+                        for (ByteBuffer value : restriction.values(options))
+                        {
+                            if (!value.hasRemaining())
+                                return true;
+                        }
+                    }
+                    else if (restriction.isSlice() && ((Slice) restriction).hasBound(Bound.END))
+                    {
+                        ByteBuffer value = restriction.isMultiColumn()
+                                ? ((MultiColumnRestriction.Slice) restriction).componentBounds(Bound.END, options).get(0)
+                                : ((Slice) restriction).bound(Bound.END, options);
+
+                        return !value.hasRemaining();
+                    }
+                }
+            }
+        }
+        return false;
     }
 
     public Pageable getPageableCommand(QueryOptions options) throws RequestValidationException
@@ -820,6 +865,9 @@ public class SelectStatement implements CQLStatement
                         if (val == null)
                             throw new InvalidRequestException(String.format("Invalid null value for clustering key part %s", def.name));
 
+                        if (ignoreInValue(val))
+                            continue;
+
                         Composite prefix = builder.buildWith(val);
                         columns.addAll(addSelectedColumns(prefix));
                     }
@@ -836,6 +884,9 @@ public class SelectStatement implements CQLStatement
                             throw new InvalidRequestException("Invalid null value in condition for column "
                                     + cfm.clusteringColumns().get(i + def.position()).name);
 
+                    if (ignoreInValue(components))
+                        continue;
+
                     Composite prefix = builder.buildWith(components);
                     inValues.addAll(addSelectedColumns(prefix));
                 }
@@ -845,6 +896,32 @@ public class SelectStatement implements CQLStatement
 
         return addSelectedColumns(builder.build());
     }
+
+    /**
+     * Checks if we should ignore the specified IN value for a clustering column as it will not return any result.
+     *
+     * @param val the IN value to check
+     * @return {@code true} if we should ignore the value, {@code false} otherwise.
+     */
+    private boolean ignoreInValue(ByteBuffer val)
+    {
+        // Dense non-compound tables do not accept empty ByteBuffers. By consequence, we know that we can
+        // ignore any IN value which is an empty byte buffer an which otherwise will trigger an error.
+        return !cfm.comparator.isCompound() && !val.hasRemaining();
+    }
+
+   /**
+    * Checks if we should ignore the specified IN components for a clustering column as it will not return any result.
+    *
+    * @param components the IN components to check
+    * @return {@code true} if we should ignore the value, {@code false} otherwise.
+    */
+   private boolean ignoreInValue(List<ByteBuffer> components)
+   {
+       // Dense non-compound tables do not accept empty ByteBuffers. By consequence, we know that we can
+       // ignore any IN value which is an empty byte buffer an which otherwise will trigger an error.
+       return !cfm.comparator.isCompound() && !components.get(0).hasRemaining();
+   }
 
     private SortedSet<CellName> addSelectedColumns(Composite prefix)
     {
@@ -1200,11 +1277,16 @@ public class SelectStatement implements CQLStatement
         if (sliceRestriction.isInclusive(bound))
             return null;
 
-        if (sliceRestriction.isMultiColumn())
-            return type.makeCellName(((MultiColumnRestriction.Slice) sliceRestriction).componentBounds(bound, options).toArray());
-        else
-            return type.makeCellName(sliceRestriction.bound(bound, options));
+        // We can only reach that point if cfm.comparator.isCompound() = false and the table has some clustering columns.
+        // By consequence, we know that the table is a COMPACT table with only one clustering column.
+        ByteBuffer value = sliceRestriction.isMultiColumn() ? ((MultiColumnRestriction.Slice) sliceRestriction).componentBounds(bound, options).get(0)
+                                                            : sliceRestriction.bound(bound, options);
+
+        // Dense non-compound tables do not accept empty ByteBuffers. By consequence, if the slice value is empty
+        // we know that we can treat the slice as inclusive.
+        return value.hasRemaining() ? type.makeCellName(value) : null;
     }
+
 
     private Iterator<Cell> applySliceRestriction(final Iterator<Cell> cells, final QueryOptions options) throws InvalidRequestException
     {

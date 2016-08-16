@@ -23,9 +23,11 @@ import java.util.*;
 
 import com.google.common.annotations.VisibleForTesting;
 import com.google.common.base.Throwables;
+import com.google.common.collect.AbstractIterator;
 import com.google.common.collect.Sets;
 
 import org.apache.cassandra.db.*;
+import org.apache.cassandra.db.columniterator.OnDiskAtomIterator;
 import org.apache.cassandra.io.sstable.*;
 import org.apache.cassandra.io.util.FileUtils;
 import org.apache.cassandra.io.util.RandomAccessReader;
@@ -223,20 +225,8 @@ public class Scrubber implements Closeable
                     if (indexFile != null && dataSize != dataSizeFromIndex)
                         outputHandler.warn(String.format("Data file row size %d different from index file row size %d", dataSize, dataSizeFromIndex));
 
-                    SSTableIdentityIterator atoms = new SSTableIdentityIterator(sstable, dataFile, key, dataSize, validateColumns);
-                    if (prevKey != null && prevKey.compareTo(key) > 0)
-                    {
-                        saveOutOfOrderRow(prevKey, key, atoms);
-                        continue;
-                    }
-
-                    AbstractCompactedRow compactedRow = new LazilyCompactedRow(controller, Collections.singletonList(atoms));
-                    if (writer.tryAppend(compactedRow) == null)
-                        emptyRows++;
-                    else
-                        goodRows++;
-
-                    prevKey = key;
+                    if (tryAppend(prevKey, key, dataSize, writer))
+                        prevKey = key;
                 }
                 catch (Throwable th)
                 {
@@ -252,21 +242,8 @@ public class Scrubber implements Closeable
                         try
                         {
                             dataFile.seek(dataStartFromIndex);
-
-                            SSTableIdentityIterator atoms = new SSTableIdentityIterator(sstable, dataFile, key, dataSize, validateColumns);
-                            if (prevKey != null && prevKey.compareTo(key) > 0)
-                            {
-                                saveOutOfOrderRow(prevKey, key, atoms);
-                                continue;
-                            }
-
-                            AbstractCompactedRow compactedRow = new LazilyCompactedRow(controller, Collections.singletonList(atoms));
-                            if (writer.tryAppend(compactedRow) == null)
-                                emptyRows++;
-                            else
-                                goodRows++;
-
-                            prevKey = key;
+                            if (tryAppend(prevKey, key, dataSize, writer))
+                                prevKey = key;
                         }
                         catch (Throwable th2)
                         {
@@ -339,6 +316,32 @@ public class Scrubber implements Closeable
         }
     }
 
+    @SuppressWarnings("resource")
+    private boolean tryAppend(DecoratedKey prevKey, DecoratedKey key, long dataSize, SSTableRewriter writer)
+    {
+        // OrderCheckerIterator will check, at iteration time, that the cells are in the proper order. If it detects
+        // that one cell is out of order, it will stop returning them. The remaining cells will be sorted and added
+        // to the outOfOrderRows that will be later written to a new SSTable.
+        OrderCheckerIterator atoms = new OrderCheckerIterator(new SSTableIdentityIterator(sstable, dataFile, key, dataSize, validateColumns),
+                                                              cfs.metadata.comparator.onDiskAtomComparator());
+        if (prevKey != null && prevKey.compareTo(key) > 0)
+        {
+            saveOutOfOrderRow(prevKey, key, atoms);
+            return false;
+        }
+
+        AbstractCompactedRow compactedRow = new LazilyCompactedRow(controller, Collections.singletonList(atoms));
+        if (writer.tryAppend(compactedRow) == null)
+            emptyRows++;
+        else
+            goodRows++;
+
+        if (atoms.hasOutOfOrderCells())
+            saveOutOfOrderRow(key, atoms);
+
+        return true;
+    }
+
     private void updateIndexKey()
     {
         currentIndexKey = nextIndexKey;
@@ -385,12 +388,12 @@ public class Scrubber implements Closeable
         }
     }
 
-    private void saveOutOfOrderRow(DecoratedKey prevKey, DecoratedKey key, SSTableIdentityIterator atoms)
+    private void saveOutOfOrderRow(DecoratedKey prevKey, DecoratedKey key, OnDiskAtomIterator atoms)
     {
         saveOutOfOrderRow(key, atoms, String.format("Out of order row detected (%s found after %s)", key, prevKey));
     }
 
-    void saveOutOfOrderRow(DecoratedKey key, SSTableIdentityIterator atoms, String message)
+    void saveOutOfOrderRow(DecoratedKey key, OnDiskAtomIterator atoms, String message)
     {
         // TODO bitch if the row is too large?  if it is there's not much we can do ...
         outputHandler.warn(message);
@@ -403,6 +406,12 @@ public class Scrubber implements Closeable
             cf.addAtom(atom);
         }
         outOfOrderRows.add(new Row(key, cf));
+    }
+
+    void saveOutOfOrderRow(DecoratedKey key, OrderCheckerIterator atoms)
+    {
+        outputHandler.warn(String.format("Out of order cells found at key %s", key));
+        outOfOrderRows.add(new Row(key, atoms.getOutOfOrderCells()));
     }
 
     public SSTableReader getNewSSTable()
@@ -504,6 +513,92 @@ public class Scrubber implements Closeable
             this.goodRows = scrubber.goodRows;
             this.badRows = scrubber.badRows;
             this.emptyRows = scrubber.emptyRows;
+        }
+    }
+
+    /**
+     * In some case like CASSANDRA-12127 the cells might have been stored in the wrong order. This decorator check the
+     * cells order and collect the out of order cells to correct the problem.
+     */
+    private static final class OrderCheckerIterator extends AbstractIterator<OnDiskAtom> implements OnDiskAtomIterator
+    {
+        /**
+         * The decorated iterator.
+         */
+        private final OnDiskAtomIterator iterator;
+
+        /**
+         * The atom comparator.
+         */
+        private final Comparator<OnDiskAtom> comparator;
+
+        /**
+         * The Column family containing the cells which are out of order.
+         */
+        private ColumnFamily outOfOrderCells;
+
+        /**
+         * The previous atom returned
+         */
+        private OnDiskAtom previous;
+
+        public OrderCheckerIterator(OnDiskAtomIterator iterator, Comparator<OnDiskAtom> comparator)
+        {
+            this.iterator = iterator;
+            this.comparator = comparator;
+        }
+
+        public ColumnFamily getColumnFamily()
+        {
+            return iterator.getColumnFamily();
+        }
+
+        public DecoratedKey getKey()
+        {
+            return iterator.getKey();
+        }
+
+        public void close() throws IOException
+        {
+            iterator.close();
+        }
+
+        @Override
+        protected OnDiskAtom computeNext()
+        {
+            if (!iterator.hasNext())
+                return endOfData();
+
+            OnDiskAtom next = iterator.next();
+
+            // If we detect that some cells are out of order we will store and sort the remaining once to insert them
+            // in a separate SSTable.
+            if (previous != null && comparator.compare(next, previous) < 0)
+            {
+                outOfOrderCells = collectOutOfOrderCells(next, iterator);
+                return endOfData();
+            }
+            previous = next;
+            return next;
+        }
+
+        public boolean hasOutOfOrderCells()
+        {
+            return outOfOrderCells != null;
+        }
+
+        public ColumnFamily getOutOfOrderCells()
+        {
+            return outOfOrderCells;
+        }
+
+        private static ColumnFamily collectOutOfOrderCells(OnDiskAtom atom, OnDiskAtomIterator iterator)
+        {
+            ColumnFamily cf = iterator.getColumnFamily().cloneMeShallow(ArrayBackedSortedColumns.factory, false);
+            cf.addAtom(atom);
+            while (iterator.hasNext())
+                cf.addAtom(iterator.next());
+            return cf;
         }
     }
 }

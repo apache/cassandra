@@ -23,11 +23,15 @@ import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
 
+import org.apache.commons.lang3.StringUtils;
+
 import org.junit.Test;
 
 import org.apache.cassandra.cql3.CQLTester;
 
 import static org.junit.Assert.assertEquals;
+import static org.apache.cassandra.utils.ByteBufferUtil.EMPTY_BYTE_BUFFER;
+import static org.apache.cassandra.utils.ByteBufferUtil.bytes;
 
 public class DeleteTest extends CQLTester
 {
@@ -325,5 +329,43 @@ public class DeleteTest extends CQLTester
         flush();
 
         assertEmpty(execute("select * from %s  where a=1 and b=1"));
+    }
+
+    @Test
+    public void testDeleteWithEmptyRestrictionValue() throws Throwable
+    {
+        for (String options : new String[] { "", " WITH COMPACT STORAGE" })
+        {
+            createTable("CREATE TABLE %s (pk blob, c blob, v blob, PRIMARY KEY (pk, c))" + options);
+
+            if (StringUtils.isEmpty(options))
+            {
+                execute("INSERT INTO %s (pk, c, v) VALUES (?, ?, ?)", bytes("foo123"), EMPTY_BYTE_BUFFER, bytes("1"));
+                execute("DELETE FROM %s WHERE pk = textAsBlob('foo123') AND c = textAsBlob('');");
+
+                assertEmpty(execute("SELECT * FROM %s"));
+            }
+            else
+            {
+                assertInvalid("Invalid empty or null value for column c",
+                              "DELETE FROM %s WHERE pk = textAsBlob('foo123') AND c = textAsBlob('')");
+                assertInvalid("Invalid empty or null value for column c",
+                              "DELETE FROM %s WHERE pk = textAsBlob('foo123') AND c IN (textAsBlob(''), textAsBlob('1'))");
+            }
+        }
+    }
+
+    @Test
+    public void testDeleteWithMultipleClusteringColumnsAndEmptyRestrictionValue() throws Throwable
+    {
+        for (String options : new String[] { "", " WITH COMPACT STORAGE" })
+        {
+            createTable("CREATE TABLE %s (pk blob, c1 blob, c2 blob, v blob, PRIMARY KEY (pk, c1, c2))" + options);
+
+            execute("INSERT INTO %s (pk, c1, c2, v) VALUES (?, ?, ?, ?)", bytes("foo123"), EMPTY_BYTE_BUFFER, bytes("1"), bytes("1"));
+            execute("DELETE FROM %s WHERE pk = textAsBlob('foo123') AND c1 = textAsBlob('');");
+
+            assertEmpty(execute("SELECT * FROM %s"));
+        }
     }
 }
