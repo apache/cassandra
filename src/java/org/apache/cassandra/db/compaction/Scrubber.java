@@ -24,6 +24,7 @@ import java.util.*;
 import com.google.common.annotations.VisibleForTesting;
 import com.google.common.base.Throwables;
 
+import org.apache.cassandra.config.CFMetaData;
 import org.apache.cassandra.db.*;
 import org.apache.cassandra.db.lifecycle.LifecycleTransaction;
 import org.apache.cassandra.db.rows.*;
@@ -210,22 +211,8 @@ public class Scrubber implements Closeable
                     if (indexFile != null && dataStart != dataStartFromIndex)
                         outputHandler.warn(String.format("Data file row position %d differs from index file row position %d", dataStart, dataStartFromIndex));
 
-                    try (UnfilteredRowIterator iterator = withValidation(new RowMergingSSTableIterator(SSTableIdentityIterator.create(sstable, dataFile, key)),
-                                                                         dataFile.getPath()))
-                    {
-                        if (prevKey != null && prevKey.compareTo(key) > 0)
-                        {
-                            saveOutOfOrderRow(prevKey, key, iterator);
-                            continue;
-                        }
-
-                        if (writer.tryAppend(iterator) == null)
-                            emptyRows++;
-                        else
-                            goodRows++;
-                    }
-
-                    prevKey = key;
+                    if (tryAppend(prevKey, key, writer))
+                        prevKey = key;
                 }
                 catch (Throwable th)
                 {
@@ -242,21 +229,8 @@ public class Scrubber implements Closeable
                         {
                             dataFile.seek(dataStartFromIndex);
 
-                            try (UnfilteredRowIterator iterator = withValidation(SSTableIdentityIterator.create(sstable, dataFile, key), dataFile.getPath()))
-                            {
-                                if (prevKey != null && prevKey.compareTo(key) > 0)
-                                {
-                                    saveOutOfOrderRow(prevKey, key, iterator);
-                                    continue;
-                                }
-
-                                if (writer.tryAppend(iterator) == null)
-                                    emptyRows++;
-                                else
-                                    goodRows++;
-                            }
-
-                            prevKey = key;
+                            if (tryAppend(prevKey, key, writer))
+                                prevKey = key;
                         }
                         catch (Throwable th2)
                         {
@@ -323,6 +297,38 @@ public class Scrubber implements Closeable
             if (badRows > 0)
                 outputHandler.warn("Unable to recover " + badRows + " rows that were skipped.  You can attempt manual recovery from the pre-scrub snapshot.  You can also run nodetool repair to transfer the data from a healthy replica, if any");
         }
+    }
+
+    @SuppressWarnings("resource")
+    private boolean tryAppend(DecoratedKey prevKey, DecoratedKey key, SSTableRewriter writer)
+    {
+        // OrderCheckerIterator will check, at iteration time, that the rows are in the proper order. If it detects
+        // that one row is out of order, it will stop returning them. The remaining rows will be sorted and added
+        // to the outOfOrder set that will be later written to a new SSTable.
+        OrderCheckerIterator sstableIterator = new OrderCheckerIterator(new RowMergingSSTableIterator(SSTableIdentityIterator.create(sstable, dataFile, key)),
+                                                                        cfs.metadata.comparator);
+
+        try (UnfilteredRowIterator iterator = withValidation(sstableIterator, dataFile.getPath()))
+        {
+            if (prevKey != null && prevKey.compareTo(key) > 0)
+            {
+                saveOutOfOrderRow(prevKey, key, iterator);
+                return false;
+            }
+
+            if (writer.tryAppend(iterator) == null)
+                emptyRows++;
+            else
+                goodRows++;
+        }
+
+        if (sstableIterator.hasRowsOutOfOrder())
+        {
+            outputHandler.warn(String.format("Out of order rows found in partition: %s", key));
+            outOfOrder.add(sstableIterator.getRowsOutOfOrder());
+        }
+
+        return true;
     }
 
     private void updateIndexKey()
@@ -511,5 +517,107 @@ public class Scrubber implements Closeable
             nextToOffer = null;
             return next;
         }
+    }
+
+    /**
+     * In some case like CASSANDRA-12127 the cells might have been stored in the wrong order. This decorator check the
+     * cells order and collect the out of order cells to correct the problem.
+     */
+    private static final class OrderCheckerIterator extends AbstractIterator<Unfiltered> implements UnfilteredRowIterator
+    {
+        /**
+         * The decorated iterator.
+         */
+        private final UnfilteredRowIterator iterator;
+
+        private final ClusteringComparator comparator;
+
+        private Unfiltered previous;
+
+        /**
+         * The partition containing the rows which are out of order.
+         */
+        private Partition rowsOutOfOrder;
+
+        public OrderCheckerIterator(UnfilteredRowIterator iterator, ClusteringComparator comparator)
+        {
+            this.iterator = iterator;
+            this.comparator = comparator;
+        }
+
+        public CFMetaData metadata()
+        {
+            return iterator.metadata();
+        }
+
+        public boolean isReverseOrder()
+        {
+            return iterator.isReverseOrder();
+        }
+
+        public PartitionColumns columns()
+        {
+            return iterator.columns();
+        }
+
+        public DecoratedKey partitionKey()
+        {
+            return iterator.partitionKey();
+        }
+
+        public Row staticRow()
+        {
+            return iterator.staticRow();
+        }
+
+        @Override
+        public boolean isEmpty()
+        {
+            return iterator.isEmpty();
+        }
+
+        public void close()
+        {
+            iterator.close();
+        }
+
+        public DeletionTime partitionLevelDeletion()
+        {
+            return iterator.partitionLevelDeletion();
+        }
+
+        public EncodingStats stats()
+        {
+            return iterator.stats();
+        }
+
+        public boolean hasRowsOutOfOrder()
+        {
+            return rowsOutOfOrder != null;
+        }
+
+        public Partition getRowsOutOfOrder()
+        {
+            return rowsOutOfOrder;
+        }
+
+        protected Unfiltered computeNext()
+        {
+            if (!iterator.hasNext())
+                return endOfData();
+
+            Unfiltered next = iterator.next();
+
+            // If we detect that some rows are out of order we will store and sort the remaining ones to insert them
+            // in a separate SSTable.
+            if (previous != null && comparator.compare(next, previous) < 0)
+            {
+                rowsOutOfOrder = ImmutableBTreePartition.create(UnfilteredRowIterators.concat(next, iterator), false);
+                return endOfData();
+            }
+            previous = next;
+            return next;
+        }
+
     }
 }

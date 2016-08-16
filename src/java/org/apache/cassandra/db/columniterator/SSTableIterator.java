@@ -32,6 +32,11 @@ import org.apache.cassandra.io.util.FileHandle;
  */
 public class SSTableIterator extends AbstractSSTableIterator
 {
+    /**
+     * The index of the slice being processed.
+     */
+    private int slice;
+
     public SSTableIterator(SSTableReader sstable,
                            FileDataInput file,
                            DecoratedKey key,
@@ -49,6 +54,18 @@ public class SSTableIterator extends AbstractSSTableIterator
         return indexEntry.isIndexed()
              ? new ForwardIndexedReader(indexEntry, file, shouldCloseFile)
              : new ForwardReader(file, shouldCloseFile);
+    }
+
+    protected int nextSliceIndex()
+    {
+        int next = slice;
+        slice++;
+        return next;
+    }
+
+    protected boolean hasMoreSlices()
+    {
+        return slice < slices.size();
     }
 
     public boolean isReverseOrder()

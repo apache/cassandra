@@ -13,7 +13,6 @@ restore snapshots created with the previous major version using the
 'sstableloader' tool. You can upgrade the file format of your snapshots
 using the provided 'sstableupgrade' tool.
 
-
 3.10
 ====
 
@@ -70,6 +69,16 @@ Upgrading
       that jar, but if you need that jar for backward compatiblity until you do so, you should use the version provided
       on previous Cassandra branch, like the 3.0 branch (by design, the functionality provided by that jar are stable
       accross versions so using the 3.0 jar for a client connecting to 3.x should work without issues).
+
+3.9
+===
+
+Upgrading
+---------
+   - The ReversedType behaviour has been corrected for clustering columns of
+     BYTES type containing empty value. Scrub should be run on the existing
+     SSTables containing a descending clustering column of BYTES type to correct
+     their ordering. See CASSANDRA-12127 for more details.
 
 3.8
 ===

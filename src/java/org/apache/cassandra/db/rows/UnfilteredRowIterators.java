@@ -230,6 +230,34 @@ public abstract class UnfilteredRowIterators
     }
 
     /**
+     * Returns an iterator that concatenate the specified atom with the iterator.
+     */
+    public static UnfilteredRowIterator concat(final Unfiltered first, final UnfilteredRowIterator rest)
+    {
+        return new WrappingUnfilteredRowIterator(rest)
+        {
+            private boolean hasReturnedFirst;
+
+            @Override
+            public boolean hasNext()
+            {
+                return hasReturnedFirst ? super.hasNext() : true;
+            }
+
+            @Override
+            public Unfiltered next()
+            {
+                if (!hasReturnedFirst)
+                {
+                    hasReturnedFirst = true;
+                    return first;
+                }
+                return super.next();
+            }
+        };
+    }
+
+    /**
      * Validate that the data of the provided iterator is valid, that is that the values
      * it contains are valid for the type they represent, and more generally that the
      * infos stored are sensible.
