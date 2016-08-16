@@ -381,6 +381,24 @@ public abstract class CQLTester
             store.forceBlockingFlush();
     }
 
+    @FunctionalInterface
+    public interface CheckedFunction {
+        void apply() throws Throwable;
+    }
+
+    /**
+     * Runs the given function before and after a flush of sstables.  This is useful for checking that behavior is
+     * the same whether data is in memtables or sstables.
+     * @param runnable
+     * @throws Throwable
+     */
+    public void beforeAndAfterFlush(CheckedFunction runnable) throws Throwable
+    {
+        runnable.apply();
+        flush();
+        runnable.apply();
+    }
+
     public void compact()
     {
         try

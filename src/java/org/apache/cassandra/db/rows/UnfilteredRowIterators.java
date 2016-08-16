@@ -212,6 +212,34 @@ public abstract class UnfilteredRowIterators
         return MoreRows.extend(iter1, new Extend());
     }
 
+    /**
+     * Returns an iterator that concatenate the specified atom with the iterator.
+     */
+    public static UnfilteredRowIterator concat(final Unfiltered first, final UnfilteredRowIterator rest)
+    {
+        return new WrappingUnfilteredRowIterator(rest)
+        {
+            private boolean hasReturnedFirst;
+
+            @Override
+            public boolean hasNext()
+            {
+                return hasReturnedFirst ? super.hasNext() : true;
+            }
+
+            @Override
+            public Unfiltered next()
+            {
+                if (!hasReturnedFirst)
+                {
+                    hasReturnedFirst = true;
+                    return first;
+                }
+                return super.next();
+            }
+        };
+    }
+
     public static UnfilteredRowIterator cloningIterator(UnfilteredRowIterator iterator, final AbstractAllocator allocator)
     {
         class Cloner extends Transformation
