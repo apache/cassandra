@@ -1,4 +1,4 @@
-3.8
+3.9
  * Fix value skipping with counter columns (CASSANDRA-11726)
  * Fix nodetool tablestats miss SSTable count (CASSANDRA-12205)
  * Fixed flacky SSTablesIteratedTest (CASSANDRA-12282)
