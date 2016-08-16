@@ -36,51 +36,18 @@
  * Add supplied username to authentication error messages (CASSANDRA-12076)
  * Remove pre-startup check for open JMX port (CASSANDRA-12074)
  * Remove compaction Severity from DynamicEndpointSnitch (CASSANDRA-11738)
+ * Restore resumable hints delivery (CASSANDRA-11960)
 Merged from 3.0:
  * Add schema to snapshot manifest, add USING TIMESTAMP clause to ALTER TABLE statements (CASSANDRA-7190)
 
 
 3.9
  * Fix value skipping with counter columns (CASSANDRA-11726)
- * Restore resumable hints delivery (CASSANDRA-11960)
  * Fix nodetool tablestats miss SSTable count (CASSANDRA-12205)
  * Fixed flacky SSTablesIteratedTest (CASSANDRA-12282)
  * Fixed flacky SSTableRewriterTest: check file counts before calling validateCFS (CASSANDRA-12348)
  * cqlsh: Fix handling of $$-escaped strings (CASSANDRA-12189)
  * Fix SSL JMX requiring truststore containing server cert (CASSANDRA-12109)
-Merged from 3.0:
- * Fix clean interval not sent to commit log for empty memtable flush (CASSANDRA-12436)
- * Fix potential resource leak in RMIServerSocketFactoryImpl (CASSANDRA-12331)
- * Make sure compaction stats are updated when compaction is interrupted (CASSANDRA-12100)
- * Change commitlog and sstables to track dirty and clean intervals (CASSANDRA-11828)
- * NullPointerException during compaction on table with static columns (CASSANDRA-12336)
- * Fixed ConcurrentModificationException when reading metrics in GraphiteReporter (CASSANDRA-11823)
- * Fix upgrade of super columns on thrift (CASSANDRA-12335)
- * Fixed flacky BlacklistingCompactionsTest, switched to fixed size types and increased corruption size (CASSANDRA-12359)
- * Rerun ReplicationAwareTokenAllocatorTest on failure to avoid flakiness (CASSANDRA-12277)
- * Exception when computing read-repair for range tombstones (CASSANDRA-12263)
- * Lost counter writes in compact table and static columns (CASSANDRA-12219)
- * AssertionError with MVs on updating a row that isn't indexed due to a null value (CASSANDRA-12247)
- * Disable RR and speculative retry with EACH_QUORUM reads (CASSANDRA-11980)
- * Add option to override compaction space check (CASSANDRA-12180)
- * Faster startup by only scanning each directory for temporary files once (CASSANDRA-12114)
- * Respond with v1/v2 protocol header when responding to driver that attempts
-   to connect with too low of a protocol version (CASSANDRA-11464)
- * NullPointerExpception when reading/compacting table (CASSANDRA-11988)
- * Fix problem with undeleteable rows on upgrade to new sstable format (CASSANDRA-12144)
-Merged from 2.2:
- * Fix hanging stream session (CASSANDRA-10992)
- * Fix INSERT JSON, fromJson() support of smallint, tinyint types (CASSANDRA-12371)
- * Release sstables of failed stream sessions only when outgoing transfers are finished (CASSANDRA-11345)
- * Wait for tracing events before returning response and query at same consistency level client side (CASSANDRA-11465)
- * cqlsh copyutil should get host metadata by connected address (CASSANDRA-11979)
- * Fixed cqlshlib.test.remove_test_db (CASSANDRA-12214)
-Merged from 2.1:
- * cannot use cql since upgrading python to 2.7.11+ (CASSANDRA-11850)
- * Allow STCS-in-L0 compactions to reduce scope with LCS (CASSANDRA-12040)
-
-
-3.8
  * RTE from new CDC column breaks in flight queries (CASSANDRA-12236)
  * Fix hdr logging for single operation workloads (CASSANDRA-12145)
  * Fix SASI PREFIX search in CONTAINS mode with partial terms (CASSANDRA-12073)
@@ -110,6 +77,25 @@ Merged from 2.1:
  * Add repaired percentage metric (CASSANDRA-11503)
  * Add Change-Data-Capture (CASSANDRA-8844)
 Merged from 3.0:
+ * Fix clean interval not sent to commit log for empty memtable flush (CASSANDRA-12436)
+ * Fix potential resource leak in RMIServerSocketFactoryImpl (CASSANDRA-12331)
+ * Make sure compaction stats are updated when compaction is interrupted (CASSANDRA-12100)
+ * Change commitlog and sstables to track dirty and clean intervals (CASSANDRA-11828)
+ * NullPointerException during compaction on table with static columns (CASSANDRA-12336)
+ * Fixed ConcurrentModificationException when reading metrics in GraphiteReporter (CASSANDRA-11823)
+ * Fix upgrade of super columns on thrift (CASSANDRA-12335)
+ * Fixed flacky BlacklistingCompactionsTest, switched to fixed size types and increased corruption size (CASSANDRA-12359)
+ * Rerun ReplicationAwareTokenAllocatorTest on failure to avoid flakiness (CASSANDRA-12277)
+ * Exception when computing read-repair for range tombstones (CASSANDRA-12263)
+ * Lost counter writes in compact table and static columns (CASSANDRA-12219)
+ * AssertionError with MVs on updating a row that isn't indexed due to a null value (CASSANDRA-12247)
+ * Disable RR and speculative retry with EACH_QUORUM reads (CASSANDRA-11980)
+ * Add option to override compaction space check (CASSANDRA-12180)
+ * Faster startup by only scanning each directory for temporary files once (CASSANDRA-12114)
+ * Respond with v1/v2 protocol header when responding to driver that attempts
+   to connect with too low of a protocol version (CASSANDRA-11464)
+ * NullPointerExpception when reading/compacting table (CASSANDRA-11988)
+ * Fix problem with undeleteable rows on upgrade to new sstable format (CASSANDRA-12144)
  * Fix potential bad messaging service message for paged range reads
    within mixed-version 3.x clusters (CASSANDRA-12249)
  * Fix paging logic for deleted partitions with static columns (CASSANDRA-12107)
@@ -128,6 +114,7 @@ Merged from 3.0:
 Merged from 2.2:
  * Only set broadcast_rpc_address on Ec2MultiRegionSnitch if it's not set (CASSANDRA-11357)
  * Update StorageProxy range metrics for timeouts, failures and unavailables (CASSANDRA-9507)
+ * Add Sigar to classes included in clientutil.jar (CASSANDRA-11635)
  * Add decay to histograms and timers used for metrics (CASSANDRA-11752)
  * Fix hanging stream session (CASSANDRA-10992)
  * Fix INSERT JSON, fromJson() support of smallint, tinyint types (CASSANDRA-12371)
