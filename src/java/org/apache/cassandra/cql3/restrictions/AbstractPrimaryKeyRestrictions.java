@@ -20,6 +20,7 @@ package org.apache.cassandra.cql3.restrictions;
 import java.nio.ByteBuffer;
 import java.util.List;
 
+import org.apache.cassandra.config.CFMetaData;
 import org.apache.cassandra.cql3.QueryOptions;
 import org.apache.cassandra.cql3.statements.Bound;
 import org.apache.cassandra.db.composites.CType;
@@ -41,9 +42,9 @@ abstract class AbstractPrimaryKeyRestrictions extends AbstractRestriction implem
     }
 
     @Override
-    public List<ByteBuffer> bounds(Bound b, QueryOptions options) throws InvalidRequestException
+    public List<ByteBuffer> bounds(CFMetaData cfm, Bound b, QueryOptions options) throws InvalidRequestException
     {
-        return values(options);
+        return values(cfm, options);
     }
 
     @Override

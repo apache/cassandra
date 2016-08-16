@@ -20,6 +20,7 @@ package org.apache.cassandra.cql3.restrictions;
 import java.nio.ByteBuffer;
 import java.util.List;
 
+import org.apache.cassandra.config.CFMetaData;
 import org.apache.cassandra.cql3.QueryOptions;
 import org.apache.cassandra.cql3.statements.Bound;
 import org.apache.cassandra.db.composites.Composite;
@@ -34,11 +35,11 @@ interface PrimaryKeyRestrictions extends Restriction, Restrictions
     @Override
     public PrimaryKeyRestrictions mergeWith(Restriction restriction) throws InvalidRequestException;
 
-    public List<ByteBuffer> values(QueryOptions options) throws InvalidRequestException;
+    public List<ByteBuffer> values(CFMetaData cfm, QueryOptions options) throws InvalidRequestException;
 
-    public List<Composite> valuesAsComposites(QueryOptions options) throws InvalidRequestException;
+    public List<Composite> valuesAsComposites(CFMetaData cfm, QueryOptions options) throws InvalidRequestException;
 
-    public List<ByteBuffer> bounds(Bound b, QueryOptions options) throws InvalidRequestException;
+    public List<ByteBuffer> bounds(CFMetaData cfm, Bound b, QueryOptions options) throws InvalidRequestException;
 
-    public List<Composite> boundsAsComposites(Bound bound, QueryOptions options) throws InvalidRequestException;
+    public List<Composite> boundsAsComposites(CFMetaData cfm, Bound bound, QueryOptions options) throws InvalidRequestException;
 }

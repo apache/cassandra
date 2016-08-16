@@ -26,6 +26,7 @@ import com.google.common.collect.ImmutableRangeSet;
 import com.google.common.collect.Range;
 import com.google.common.collect.RangeSet;
 
+import org.apache.cassandra.config.CFMetaData;
 import org.apache.cassandra.cql3.QueryOptions;
 import org.apache.cassandra.cql3.statements.Bound;
 import org.apache.cassandra.db.composites.Composite;
@@ -78,13 +79,13 @@ final class TokenFilter extends ForwardingPrimaryKeyRestrictions
     }
 
     @Override
-    public List<ByteBuffer> values(QueryOptions options) throws InvalidRequestException
+    public List<ByteBuffer> values(CFMetaData cfm, QueryOptions options) throws InvalidRequestException
     {
-        return filter(restrictions.values(options), options);
+        return filter(cfm, restrictions.values(cfm, options), options);
     }
 
     @Override
-    public List<Composite> valuesAsComposites(QueryOptions options) throws InvalidRequestException
+    public List<Composite> valuesAsComposites(CFMetaData cfm, QueryOptions options) throws InvalidRequestException
     {
         throw new UnsupportedOperationException();
     }
@@ -111,29 +112,30 @@ final class TokenFilter extends ForwardingPrimaryKeyRestrictions
     }
 
     @Override
-    public List<ByteBuffer> bounds(Bound bound, QueryOptions options) throws InvalidRequestException
+    public List<ByteBuffer> bounds(CFMetaData cfm, Bound bound, QueryOptions options) throws InvalidRequestException
     {
-        return tokenRestriction.bounds(bound, options);
+        return tokenRestriction.bounds(cfm, bound, options);
     }
 
     @Override
-    public List<Composite> boundsAsComposites(Bound bound, QueryOptions options) throws InvalidRequestException
+    public List<Composite> boundsAsComposites(CFMetaData cfm, Bound bound, QueryOptions options) throws InvalidRequestException
     {
-        return tokenRestriction.boundsAsComposites(bound, options);
+        return tokenRestriction.boundsAsComposites(cfm, bound, options);
     }
 
     /**
      * Filter the values returned by the restriction.
      *
+     * @param cfm the table metadata
      * @param values the values returned by the decorated restriction
      * @param options the query options
      * @return the values matching the token restriction
      * @throws InvalidRequestException if the request is invalid
      */
-    private List<ByteBuffer> filter(List<ByteBuffer> values, QueryOptions options) throws InvalidRequestException
+    private List<ByteBuffer> filter(CFMetaData cfm, List<ByteBuffer> values, QueryOptions options) throws InvalidRequestException
     {
-        RangeSet<Token> rangeSet = tokenRestriction.isSlice() ? toRangeSet(tokenRestriction, options)
-                                                              : toRangeSet(tokenRestriction.values(options));
+        RangeSet<Token> rangeSet = tokenRestriction.isSlice() ? toRangeSet(cfm, tokenRestriction, options)
+                                                              : toRangeSet(tokenRestriction.values(cfm, options));
 
         return filterWithRangeSet(rangeSet, values);
     }
@@ -180,23 +182,24 @@ final class TokenFilter extends ForwardingPrimaryKeyRestrictions
     /**
      * Converts the specified slice into a range set.
      *
+     * @param cfm the table metadata
      * @param slice the slice to convert
      * @param options the query option
      * @return the range set corresponding to the specified slice
      * @throws InvalidRequestException if the request is invalid
      */
-    private static RangeSet<Token> toRangeSet(TokenRestriction slice, QueryOptions options) throws InvalidRequestException
+    private static RangeSet<Token> toRangeSet(CFMetaData cfm, TokenRestriction slice, QueryOptions options) throws InvalidRequestException
     {
         if (slice.hasBound(START))
         {
-            Token start = deserializeToken(slice.bounds(START, options).get(0));
+            Token start = deserializeToken(slice.bounds(cfm, START, options).get(0));
 
             BoundType startBoundType = toBoundType(slice.isInclusive(START));
 
             if (slice.hasBound(END))
             {
                 BoundType endBoundType = toBoundType(slice.isInclusive(END));
-                Token end = deserializeToken(slice.bounds(END, options).get(0));
+                Token end = deserializeToken(slice.bounds(cfm, END, options).get(0));
 
                 if (start.equals(end) && (BoundType.OPEN == startBoundType || BoundType.OPEN == endBoundType))
                     return ImmutableRangeSet.of();
@@ -215,8 +218,13 @@ final class TokenFilter extends ForwardingPrimaryKeyRestrictions
             return ImmutableRangeSet.of(Range.downTo(start,
                                                      startBoundType));
         }
-        Token end = deserializeToken(slice.bounds(END, options).get(0));
+        Token end = deserializeToken(slice.bounds(cfm, END, options).get(0));
         return ImmutableRangeSet.of(Range.upTo(end, toBoundType(slice.isInclusive(END))));
+    }
+
+    public boolean isNotReturningAnyRows(CFMetaData cfm, QueryOptions options)
+    {
+        return false;
     }
 
     /**

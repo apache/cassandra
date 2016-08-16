@@ -20,6 +20,7 @@ package org.apache.cassandra.cql3.restrictions;
 import java.nio.ByteBuffer;
 import java.util.*;
 
+import org.apache.cassandra.config.CFMetaData;
 import org.apache.cassandra.config.ColumnDefinition;
 import org.apache.cassandra.cql3.*;
 import org.apache.cassandra.cql3.Term.Terminal;
@@ -165,7 +166,7 @@ public abstract class MultiColumnRestriction extends AbstractRestriction
         }
 
         @Override
-        public CompositesBuilder appendTo(CompositesBuilder builder, QueryOptions options)
+        public CompositesBuilder appendTo(CFMetaData cfm, CompositesBuilder builder, QueryOptions options)
         {
             Tuples.Value t = ((Tuples.Value) value.bind(options));
             List<ByteBuffer> values = t.getElements();
@@ -192,6 +193,15 @@ public abstract class MultiColumnRestriction extends AbstractRestriction
                 expressions.add(new IndexExpression(columnDef.name.bytes, Operator.EQ, component));
             }
         }
+
+        @Override
+        public boolean isNotReturningAnyRows(CFMetaData cfm, QueryOptions options)
+        {
+            // Dense non-compound tables do not accept empty ByteBuffers. By consequence, we know that
+            // any query with an EQ restriction containing an empty value will not return any results.
+            return !cfm.comparator.isCompound()
+                    && !((Tuples.Value) value.bind(options)).getElements().get(0).hasRemaining();
+        }
     }
 
     public abstract static class IN extends MultiColumnRestriction
@@ -200,14 +210,32 @@ public abstract class MultiColumnRestriction extends AbstractRestriction
          * {@inheritDoc}
          */
         @Override
-        public CompositesBuilder appendTo(CompositesBuilder builder, QueryOptions options)
+        public CompositesBuilder appendTo(CFMetaData cfm, CompositesBuilder builder, QueryOptions options)
         {
-            List<List<ByteBuffer>> splitInValues = splitValues(options);
+            List<List<ByteBuffer>> splitInValues = filterValuesIfNeeded(cfm, splitValues(options));
             builder.addAllElementsToAll(splitInValues);
 
             if (builder.containsNull())
                 throw invalidRequest("Invalid null value in condition for columns: %s", ColumnDefinition.toIdentifiers(columnDefs));
             return builder;
+        }
+
+        private List<List<ByteBuffer>> filterValuesIfNeeded(CFMetaData cfm, List<List<ByteBuffer>> splitInValues)
+        {
+            if (cfm.comparator.isCompound())
+                return splitInValues;
+
+            // Dense non-compound tables do not accept empty ByteBuffers. By consequence, we know that we can
+            // ignore any IN value which is an empty byte buffer an which otherwise will trigger an error.
+
+            // As some List implementations do not support remove, we copy the list to be on the safe side.
+            List<List<ByteBuffer>> filteredValues = new ArrayList<>(splitInValues.size());
+            for (List<ByteBuffer> values : splitInValues)
+            {
+                if (values.get(0).hasRemaining())
+                    filteredValues.add(values);
+            }
+            return filteredValues;
         }
 
         public IN(List<ColumnDefinition> columnDefs)
@@ -351,13 +379,13 @@ public abstract class MultiColumnRestriction extends AbstractRestriction
         }
 
         @Override
-        public CompositesBuilder appendTo(CompositesBuilder builder, QueryOptions options)
+        public CompositesBuilder appendTo(CFMetaData cfm, CompositesBuilder builder, QueryOptions options)
         {
             throw new UnsupportedOperationException();
         }
 
         @Override
-        public CompositesBuilder appendBoundTo(CompositesBuilder builder, Bound bound, QueryOptions options)
+        public CompositesBuilder appendBoundTo(CFMetaData cfm, CompositesBuilder builder, Bound bound, QueryOptions options)
         {
             boolean reversed = getFirstColumn().isReversedType();
 
@@ -505,6 +533,16 @@ public abstract class MultiColumnRestriction extends AbstractRestriction
             }
 
             return Collections.singletonList(terminal.get(options.getProtocolVersion()));
+        }
+
+        @Override
+        public boolean isNotReturningAnyRows(CFMetaData cfm, QueryOptions options)
+        {
+            // Dense non-compound tables do not accept empty ByteBuffers. By consequence, we know that
+            // any query with a slice restriction with an empty value for the END bound will not return any results.
+            return !cfm.comparator.isCompound()
+                    && hasBound(Bound.END)
+                    && !componentBounds(Bound.END, options).get(0).hasRemaining();
         }
 
         private boolean hasComponent(Bound b, int index, EnumMap<Bound, List<ByteBuffer>> componentBounds)

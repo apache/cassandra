@@ -51,11 +51,11 @@ public class PrimaryKeyRestrictionSetTest
 
         PrimaryKeyRestrictions restrictions = new PrimaryKeyRestrictionSet(cfMetaData.comparator);
 
-        List<Composite> bounds = restrictions.boundsAsComposites(Bound.START, QueryOptions.DEFAULT);
+        List<Composite> bounds = restrictions.boundsAsComposites(cfMetaData, Bound.START, QueryOptions.DEFAULT);
         assertEquals(1, bounds.size());
         assertEmptyComposite(bounds.get(0));
 
-        bounds = restrictions.boundsAsComposites(Bound.END, QueryOptions.DEFAULT);
+        bounds = restrictions.boundsAsComposites(cfMetaData, Bound.END, QueryOptions.DEFAULT);
         assertEquals(1, bounds.size());
         assertEmptyComposite(bounds.get(0));
     }
@@ -74,11 +74,11 @@ public class PrimaryKeyRestrictionSetTest
         PrimaryKeyRestrictions restrictions = new PrimaryKeyRestrictionSet(cfMetaData.comparator);
         restrictions = restrictions.mergeWith(eq);
 
-        List<Composite> bounds = restrictions.boundsAsComposites(Bound.START, QueryOptions.DEFAULT);
+        List<Composite> bounds = restrictions.boundsAsComposites(cfMetaData, Bound.START, QueryOptions.DEFAULT);
         assertEquals(1, bounds.size());
         assertComposite(bounds.get(0), clustering_0, EOC.START);
 
-        bounds = restrictions.boundsAsComposites(Bound.END, QueryOptions.DEFAULT);
+        bounds = restrictions.boundsAsComposites(cfMetaData, Bound.END, QueryOptions.DEFAULT);
         assertEquals(1, bounds.size());
         assertComposite(bounds.get(0), clustering_0, EOC.END);
     }
@@ -97,11 +97,11 @@ public class PrimaryKeyRestrictionSetTest
         PrimaryKeyRestrictions restrictions = new PrimaryKeyRestrictionSet(cfMetaData.comparator);
         restrictions = restrictions.mergeWith(eq);
 
-        List<Composite> bounds = restrictions.boundsAsComposites(Bound.START, QueryOptions.DEFAULT);
+        List<Composite> bounds = restrictions.boundsAsComposites(cfMetaData, Bound.START, QueryOptions.DEFAULT);
         assertEquals(1, bounds.size());
         assertComposite(bounds.get(0), clustering_0, EOC.START);
 
-        bounds = restrictions.boundsAsComposites(Bound.END, QueryOptions.DEFAULT);
+        bounds = restrictions.boundsAsComposites(cfMetaData, Bound.END, QueryOptions.DEFAULT);
         assertEquals(1, bounds.size());
         assertComposite(bounds.get(0), clustering_0, EOC.END);
     }
@@ -123,13 +123,13 @@ public class PrimaryKeyRestrictionSetTest
         PrimaryKeyRestrictions restrictions = new PrimaryKeyRestrictionSet(cfMetaData.comparator);
         restrictions = restrictions.mergeWith(in);
 
-        List<Composite> bounds = restrictions.boundsAsComposites(Bound.START, QueryOptions.DEFAULT);
+        List<Composite> bounds = restrictions.boundsAsComposites(cfMetaData, Bound.START, QueryOptions.DEFAULT);
         assertEquals(3, bounds.size());
         assertComposite(bounds.get(0), value1, EOC.START);
         assertComposite(bounds.get(1), value2, EOC.START);
         assertComposite(bounds.get(2), value3, EOC.START);
 
-        bounds = restrictions.boundsAsComposites(Bound.END, QueryOptions.DEFAULT);
+        bounds = restrictions.boundsAsComposites(cfMetaData, Bound.END, QueryOptions.DEFAULT);
         assertEquals(3, bounds.size());
         assertComposite(bounds.get(0), value1, EOC.END);
         assertComposite(bounds.get(1), value2, EOC.END);
@@ -151,11 +151,11 @@ public class PrimaryKeyRestrictionSetTest
         PrimaryKeyRestrictions restrictions = new PrimaryKeyRestrictionSet(cfMetaData.comparator);
         restrictions = restrictions.mergeWith(slice);
 
-        List<Composite> bounds = restrictions.boundsAsComposites(Bound.START, QueryOptions.DEFAULT);
+        List<Composite> bounds = restrictions.boundsAsComposites(cfMetaData, Bound.START, QueryOptions.DEFAULT);
         assertEquals(1, bounds.size());
         assertComposite(bounds.get(0), value1, EOC.END);
 
-        bounds = restrictions.boundsAsComposites(Bound.END, QueryOptions.DEFAULT);
+        bounds = restrictions.boundsAsComposites(cfMetaData, Bound.END, QueryOptions.DEFAULT);
         assertEquals(1, bounds.size());
         assertEmptyComposite(bounds.get(0));
 
@@ -163,11 +163,11 @@ public class PrimaryKeyRestrictionSetTest
         restrictions = new PrimaryKeyRestrictionSet(cfMetaData.comparator);
         restrictions = restrictions.mergeWith(slice);
 
-        bounds = restrictions.boundsAsComposites(Bound.START, QueryOptions.DEFAULT);
+        bounds = restrictions.boundsAsComposites(cfMetaData, Bound.START, QueryOptions.DEFAULT);
         assertEquals(1, bounds.size());
         assertComposite(bounds.get(0), value1, EOC.NONE);
 
-        bounds = restrictions.boundsAsComposites(Bound.END, QueryOptions.DEFAULT);
+        bounds = restrictions.boundsAsComposites(cfMetaData, Bound.END, QueryOptions.DEFAULT);
         assertEquals(1, bounds.size());
         assertEmptyComposite(bounds.get(0));
 
@@ -175,11 +175,11 @@ public class PrimaryKeyRestrictionSetTest
         restrictions = new PrimaryKeyRestrictionSet(cfMetaData.comparator);
         restrictions = restrictions.mergeWith(slice);
 
-        bounds = restrictions.boundsAsComposites(Bound.START, QueryOptions.DEFAULT);
+        bounds = restrictions.boundsAsComposites(cfMetaData, Bound.START, QueryOptions.DEFAULT);
         assertEquals(1, bounds.size());
         assertEmptyComposite(bounds.get(0));
 
-        bounds = restrictions.boundsAsComposites(Bound.END, QueryOptions.DEFAULT);
+        bounds = restrictions.boundsAsComposites(cfMetaData, Bound.END, QueryOptions.DEFAULT);
         assertEquals(1, bounds.size());
         assertComposite(bounds.get(0), value1, EOC.END);
 
@@ -187,11 +187,11 @@ public class PrimaryKeyRestrictionSetTest
         restrictions = new PrimaryKeyRestrictionSet(cfMetaData.comparator);
         restrictions = restrictions.mergeWith(slice);
 
-        bounds = restrictions.boundsAsComposites(Bound.START, QueryOptions.DEFAULT);
+        bounds = restrictions.boundsAsComposites(cfMetaData, Bound.START, QueryOptions.DEFAULT);
         assertEquals(1, bounds.size());
         assertEmptyComposite(bounds.get(0));
 
-        bounds = restrictions.boundsAsComposites(Bound.END, QueryOptions.DEFAULT);
+        bounds = restrictions.boundsAsComposites(cfMetaData, Bound.END, QueryOptions.DEFAULT);
         assertEquals(1, bounds.size());
         assertComposite(bounds.get(0), value1, EOC.START);
 
@@ -200,11 +200,11 @@ public class PrimaryKeyRestrictionSetTest
         restrictions = new PrimaryKeyRestrictionSet(cfMetaData.comparator);
         restrictions = restrictions.mergeWith(slice).mergeWith(slice2);
 
-        bounds = restrictions.boundsAsComposites(Bound.START, QueryOptions.DEFAULT);
+        bounds = restrictions.boundsAsComposites(cfMetaData, Bound.START, QueryOptions.DEFAULT);
         assertEquals(1, bounds.size());
         assertComposite(bounds.get(0), value1, EOC.END);
 
-        bounds = restrictions.boundsAsComposites(Bound.END, QueryOptions.DEFAULT);
+        bounds = restrictions.boundsAsComposites(cfMetaData, Bound.END, QueryOptions.DEFAULT);
         assertEquals(1, bounds.size());
         assertComposite(bounds.get(0), value2, EOC.START);
 
@@ -213,11 +213,11 @@ public class PrimaryKeyRestrictionSetTest
         restrictions = new PrimaryKeyRestrictionSet(cfMetaData.comparator);
         restrictions = restrictions.mergeWith(slice).mergeWith(slice2);
 
-        bounds = restrictions.boundsAsComposites(Bound.START, QueryOptions.DEFAULT);
+        bounds = restrictions.boundsAsComposites(cfMetaData, Bound.START, QueryOptions.DEFAULT);
         assertEquals(1, bounds.size());
         assertComposite(bounds.get(0), value1, EOC.NONE);
 
-        bounds = restrictions.boundsAsComposites(Bound.END, QueryOptions.DEFAULT);
+        bounds = restrictions.boundsAsComposites(cfMetaData, Bound.END, QueryOptions.DEFAULT);
         assertEquals(1, bounds.size());
         assertComposite(bounds.get(0), value2, EOC.END);
     }
@@ -237,11 +237,11 @@ public class PrimaryKeyRestrictionSetTest
         PrimaryKeyRestrictions restrictions = new PrimaryKeyRestrictionSet(cfMetaData.comparator);
         restrictions = restrictions.mergeWith(slice);
 
-        List<Composite> bounds = restrictions.boundsAsComposites(Bound.START, QueryOptions.DEFAULT);
+        List<Composite> bounds = restrictions.boundsAsComposites(cfMetaData, Bound.START, QueryOptions.DEFAULT);
         assertEquals(1, bounds.size());
         assertEmptyComposite(bounds.get(0));
 
-        bounds = restrictions.boundsAsComposites(Bound.END, QueryOptions.DEFAULT);
+        bounds = restrictions.boundsAsComposites(cfMetaData, Bound.END, QueryOptions.DEFAULT);
         assertEquals(1, bounds.size());
         assertComposite(bounds.get(0), value1, EOC.START);
 
@@ -249,11 +249,11 @@ public class PrimaryKeyRestrictionSetTest
         restrictions = new PrimaryKeyRestrictionSet(cfMetaData.comparator);
         restrictions = restrictions.mergeWith(slice);
 
-        bounds = restrictions.boundsAsComposites(Bound.START, QueryOptions.DEFAULT);
+        bounds = restrictions.boundsAsComposites(cfMetaData, Bound.START, QueryOptions.DEFAULT);
         assertEquals(1, bounds.size());
         assertEmptyComposite(bounds.get(0));
 
-        bounds = restrictions.boundsAsComposites(Bound.END, QueryOptions.DEFAULT);
+        bounds = restrictions.boundsAsComposites(cfMetaData, Bound.END, QueryOptions.DEFAULT);
         assertEquals(1, bounds.size());
         assertComposite(bounds.get(0), value1, EOC.END);
 
@@ -261,11 +261,11 @@ public class PrimaryKeyRestrictionSetTest
         restrictions = new PrimaryKeyRestrictionSet(cfMetaData.comparator);
         restrictions = restrictions.mergeWith(slice);
 
-        bounds = restrictions.boundsAsComposites(Bound.START, QueryOptions.DEFAULT);
+        bounds = restrictions.boundsAsComposites(cfMetaData, Bound.START, QueryOptions.DEFAULT);
         assertEquals(1, bounds.size());
         assertComposite(bounds.get(0), value1, EOC.NONE);
 
-        bounds = restrictions.boundsAsComposites(Bound.END, QueryOptions.DEFAULT);
+        bounds = restrictions.boundsAsComposites(cfMetaData, Bound.END, QueryOptions.DEFAULT);
         assertEquals(1, bounds.size());
         assertEmptyComposite(bounds.get(0));
 
@@ -273,11 +273,11 @@ public class PrimaryKeyRestrictionSetTest
         restrictions = new PrimaryKeyRestrictionSet(cfMetaData.comparator);
         restrictions = restrictions.mergeWith(slice);
 
-        bounds = restrictions.boundsAsComposites(Bound.START, QueryOptions.DEFAULT);
+        bounds = restrictions.boundsAsComposites(cfMetaData, Bound.START, QueryOptions.DEFAULT);
         assertEquals(1, bounds.size());
         assertComposite(bounds.get(0), value1, EOC.END);
 
-        bounds = restrictions.boundsAsComposites(Bound.END, QueryOptions.DEFAULT);
+        bounds = restrictions.boundsAsComposites(cfMetaData, Bound.END, QueryOptions.DEFAULT);
         assertEquals(1, bounds.size());
         assertEmptyComposite(bounds.get(0));
 
@@ -286,11 +286,11 @@ public class PrimaryKeyRestrictionSetTest
         restrictions = new PrimaryKeyRestrictionSet(cfMetaData.comparator);
         restrictions = restrictions.mergeWith(slice).mergeWith(slice2);
 
-        bounds = restrictions.boundsAsComposites(Bound.START, QueryOptions.DEFAULT);
+        bounds = restrictions.boundsAsComposites(cfMetaData, Bound.START, QueryOptions.DEFAULT);
         assertEquals(1, bounds.size());
         assertComposite(bounds.get(0), value2, EOC.END);
 
-        bounds = restrictions.boundsAsComposites(Bound.END, QueryOptions.DEFAULT);
+        bounds = restrictions.boundsAsComposites(cfMetaData, Bound.END, QueryOptions.DEFAULT);
         assertEquals(1, bounds.size());
         assertComposite(bounds.get(0), value1, EOC.START);
 
@@ -299,11 +299,11 @@ public class PrimaryKeyRestrictionSetTest
         restrictions = new PrimaryKeyRestrictionSet(cfMetaData.comparator);
         restrictions = restrictions.mergeWith(slice).mergeWith(slice2);
 
-        bounds = restrictions.boundsAsComposites(Bound.START, QueryOptions.DEFAULT);
+        bounds = restrictions.boundsAsComposites(cfMetaData, Bound.START, QueryOptions.DEFAULT);
         assertEquals(1, bounds.size());
         assertComposite(bounds.get(0), value2, EOC.NONE);
 
-        bounds = restrictions.boundsAsComposites(Bound.END, QueryOptions.DEFAULT);
+        bounds = restrictions.boundsAsComposites(cfMetaData, Bound.END, QueryOptions.DEFAULT);
         assertEquals(1, bounds.size());
         assertComposite(bounds.get(0), value1, EOC.END);
     }
@@ -324,13 +324,13 @@ public class PrimaryKeyRestrictionSetTest
         PrimaryKeyRestrictions restrictions = new PrimaryKeyRestrictionSet(cfMetaData.comparator);
         restrictions = restrictions.mergeWith(eq).mergeWith(in);
 
-        List<Composite> bounds = restrictions.boundsAsComposites(Bound.START, QueryOptions.DEFAULT);
+        List<Composite> bounds = restrictions.boundsAsComposites(cfMetaData, Bound.START, QueryOptions.DEFAULT);
         assertEquals(3, bounds.size());
         assertComposite(bounds.get(0), value1, value1, EOC.START);
         assertComposite(bounds.get(1), value1, value2, EOC.START);
         assertComposite(bounds.get(2), value1, value3, EOC.START);
 
-        bounds = restrictions.boundsAsComposites(Bound.END, QueryOptions.DEFAULT);
+        bounds = restrictions.boundsAsComposites(cfMetaData, Bound.END, QueryOptions.DEFAULT);
         assertEquals(3, bounds.size());
         assertComposite(bounds.get(0), value1, value1, EOC.END);
         assertComposite(bounds.get(1), value1, value2, EOC.END);
@@ -355,11 +355,11 @@ public class PrimaryKeyRestrictionSetTest
         PrimaryKeyRestrictions restrictions = new PrimaryKeyRestrictionSet(cfMetaData.comparator);
         restrictions = restrictions.mergeWith(eq).mergeWith(slice);
 
-        List<Composite> bounds = restrictions.boundsAsComposites(Bound.START, QueryOptions.DEFAULT);
+        List<Composite> bounds = restrictions.boundsAsComposites(cfMetaData, Bound.START, QueryOptions.DEFAULT);
         assertEquals(1, bounds.size());
         assertComposite(bounds.get(0), value3, value1, EOC.END);
 
-        bounds = restrictions.boundsAsComposites(Bound.END, QueryOptions.DEFAULT);
+        bounds = restrictions.boundsAsComposites(cfMetaData, Bound.END, QueryOptions.DEFAULT);
         assertEquals(1, bounds.size());
         assertComposite(bounds.get(0), value3, EOC.END);
 
@@ -367,11 +367,11 @@ public class PrimaryKeyRestrictionSetTest
         restrictions = new PrimaryKeyRestrictionSet(cfMetaData.comparator);
         restrictions = restrictions.mergeWith(eq).mergeWith(slice);
 
-        bounds = restrictions.boundsAsComposites(Bound.START, QueryOptions.DEFAULT);
+        bounds = restrictions.boundsAsComposites(cfMetaData, Bound.START, QueryOptions.DEFAULT);
         assertEquals(1, bounds.size());
         assertComposite(bounds.get(0), value3, value1, EOC.NONE);
 
-        bounds = restrictions.boundsAsComposites(Bound.END, QueryOptions.DEFAULT);
+        bounds = restrictions.boundsAsComposites(cfMetaData, Bound.END, QueryOptions.DEFAULT);
         assertEquals(1, bounds.size());
         assertComposite(bounds.get(0), value3, EOC.END);
 
@@ -379,11 +379,11 @@ public class PrimaryKeyRestrictionSetTest
         restrictions = new PrimaryKeyRestrictionSet(cfMetaData.comparator);
         restrictions = restrictions.mergeWith(eq).mergeWith(slice);
 
-        bounds = restrictions.boundsAsComposites(Bound.START, QueryOptions.DEFAULT);
+        bounds = restrictions.boundsAsComposites(cfMetaData, Bound.START, QueryOptions.DEFAULT);
         assertEquals(1, bounds.size());
         assertComposite(bounds.get(0), value3, EOC.START);
 
-        bounds = restrictions.boundsAsComposites(Bound.END, QueryOptions.DEFAULT);
+        bounds = restrictions.boundsAsComposites(cfMetaData, Bound.END, QueryOptions.DEFAULT);
         assertEquals(1, bounds.size());
         assertComposite(bounds.get(0), value3, value1, EOC.END);
 
@@ -391,11 +391,11 @@ public class PrimaryKeyRestrictionSetTest
         restrictions = new PrimaryKeyRestrictionSet(cfMetaData.comparator);
         restrictions = restrictions.mergeWith(eq).mergeWith(slice);
 
-        bounds = restrictions.boundsAsComposites(Bound.START, QueryOptions.DEFAULT);
+        bounds = restrictions.boundsAsComposites(cfMetaData, Bound.START, QueryOptions.DEFAULT);
         assertEquals(1, bounds.size());
         assertComposite(bounds.get(0), value3, EOC.START);
 
-        bounds = restrictions.boundsAsComposites(Bound.END, QueryOptions.DEFAULT);
+        bounds = restrictions.boundsAsComposites(cfMetaData, Bound.END, QueryOptions.DEFAULT);
         assertEquals(1, bounds.size());
         assertComposite(bounds.get(0), value3, value1, EOC.START);
 
@@ -404,11 +404,11 @@ public class PrimaryKeyRestrictionSetTest
         restrictions = new PrimaryKeyRestrictionSet(cfMetaData.comparator);
         restrictions = restrictions.mergeWith(eq).mergeWith(slice).mergeWith(slice2);
 
-        bounds = restrictions.boundsAsComposites(Bound.START, QueryOptions.DEFAULT);
+        bounds = restrictions.boundsAsComposites(cfMetaData, Bound.START, QueryOptions.DEFAULT);
         assertEquals(1, bounds.size());
         assertComposite(bounds.get(0), value3, value1, EOC.END);
 
-        bounds = restrictions.boundsAsComposites(Bound.END, QueryOptions.DEFAULT);
+        bounds = restrictions.boundsAsComposites(cfMetaData, Bound.END, QueryOptions.DEFAULT);
         assertEquals(1, bounds.size());
         assertComposite(bounds.get(0), value3, value2, EOC.START);
 
@@ -417,11 +417,11 @@ public class PrimaryKeyRestrictionSetTest
         restrictions = new PrimaryKeyRestrictionSet(cfMetaData.comparator);
         restrictions = restrictions.mergeWith(eq).mergeWith(slice).mergeWith(slice2);
 
-        bounds = restrictions.boundsAsComposites(Bound.START, QueryOptions.DEFAULT);
+        bounds = restrictions.boundsAsComposites(cfMetaData, Bound.START, QueryOptions.DEFAULT);
         assertEquals(1, bounds.size());
         assertComposite(bounds.get(0), value3, value1, EOC.NONE);
 
-        bounds = restrictions.boundsAsComposites(Bound.END, QueryOptions.DEFAULT);
+        bounds = restrictions.boundsAsComposites(cfMetaData, Bound.END, QueryOptions.DEFAULT);
         assertEquals(1, bounds.size());
         assertComposite(bounds.get(0), value3, value2, EOC.END);
     }
@@ -440,11 +440,11 @@ public class PrimaryKeyRestrictionSetTest
         PrimaryKeyRestrictions restrictions = new PrimaryKeyRestrictionSet(cfMetaData.comparator);
         restrictions = restrictions.mergeWith(eq);
 
-        List<Composite> bounds = restrictions.boundsAsComposites(Bound.START, QueryOptions.DEFAULT);
+        List<Composite> bounds = restrictions.boundsAsComposites(cfMetaData, Bound.START, QueryOptions.DEFAULT);
         assertEquals(1, bounds.size());
         assertComposite(bounds.get(0), value1, value2, EOC.START);
 
-        bounds = restrictions.boundsAsComposites(Bound.END, QueryOptions.DEFAULT);
+        bounds = restrictions.boundsAsComposites(cfMetaData, Bound.END, QueryOptions.DEFAULT);
         assertEquals(1, bounds.size());
         assertComposite(bounds.get(0), value1, value2, EOC.END);
     }
@@ -464,12 +464,12 @@ public class PrimaryKeyRestrictionSetTest
         PrimaryKeyRestrictions restrictions = new PrimaryKeyRestrictionSet(cfMetaData.comparator);
         restrictions = restrictions.mergeWith(in);
 
-        List<Composite> bounds = restrictions.boundsAsComposites(Bound.START, QueryOptions.DEFAULT);
+        List<Composite> bounds = restrictions.boundsAsComposites(cfMetaData, Bound.START, QueryOptions.DEFAULT);
         assertEquals(2, bounds.size());
         assertComposite(bounds.get(0), value1, value2, EOC.START);
         assertComposite(bounds.get(1), value2, value3, EOC.START);
 
-        bounds = restrictions.boundsAsComposites(Bound.END, QueryOptions.DEFAULT);
+        bounds = restrictions.boundsAsComposites(cfMetaData, Bound.END, QueryOptions.DEFAULT);
         assertEquals(2, bounds.size());
         assertComposite(bounds.get(0), value1, value2, EOC.END);
         assertComposite(bounds.get(1), value2, value3, EOC.END);
@@ -490,11 +490,11 @@ public class PrimaryKeyRestrictionSetTest
         PrimaryKeyRestrictions restrictions = new PrimaryKeyRestrictionSet(cfMetaData.comparator);
         restrictions = restrictions.mergeWith(slice);
 
-        List<Composite> bounds = restrictions.boundsAsComposites(Bound.START, QueryOptions.DEFAULT);
+        List<Composite> bounds = restrictions.boundsAsComposites(cfMetaData, Bound.START, QueryOptions.DEFAULT);
         assertEquals(1, bounds.size());
         assertComposite(bounds.get(0), value1, EOC.END);
 
-        bounds = restrictions.boundsAsComposites(Bound.END, QueryOptions.DEFAULT);
+        bounds = restrictions.boundsAsComposites(cfMetaData, Bound.END, QueryOptions.DEFAULT);
         assertEquals(1, bounds.size());
         assertEmptyComposite(bounds.get(0));
 
@@ -502,11 +502,11 @@ public class PrimaryKeyRestrictionSetTest
         restrictions = new PrimaryKeyRestrictionSet(cfMetaData.comparator);
         restrictions = restrictions.mergeWith(slice);
 
-        bounds = restrictions.boundsAsComposites(Bound.START, QueryOptions.DEFAULT);
+        bounds = restrictions.boundsAsComposites(cfMetaData, Bound.START, QueryOptions.DEFAULT);
         assertEquals(1, bounds.size());
         assertComposite(bounds.get(0), value1, EOC.NONE);
 
-        bounds = restrictions.boundsAsComposites(Bound.END, QueryOptions.DEFAULT);
+        bounds = restrictions.boundsAsComposites(cfMetaData, Bound.END, QueryOptions.DEFAULT);
         assertEquals(1, bounds.size());
         assertEmptyComposite(bounds.get(0));
 
@@ -514,11 +514,11 @@ public class PrimaryKeyRestrictionSetTest
         restrictions = new PrimaryKeyRestrictionSet(cfMetaData.comparator);
         restrictions = restrictions.mergeWith(slice);
 
-        bounds = restrictions.boundsAsComposites(Bound.START, QueryOptions.DEFAULT);
+        bounds = restrictions.boundsAsComposites(cfMetaData, Bound.START, QueryOptions.DEFAULT);
         assertEquals(1, bounds.size());
         assertEmptyComposite(bounds.get(0));
 
-        bounds = restrictions.boundsAsComposites(Bound.END, QueryOptions.DEFAULT);
+        bounds = restrictions.boundsAsComposites(cfMetaData, Bound.END, QueryOptions.DEFAULT);
         assertEquals(1, bounds.size());
         assertComposite(bounds.get(0), value1, EOC.END);
 
@@ -526,11 +526,11 @@ public class PrimaryKeyRestrictionSetTest
         restrictions = new PrimaryKeyRestrictionSet(cfMetaData.comparator);
         restrictions = restrictions.mergeWith(slice);
 
-        bounds = restrictions.boundsAsComposites(Bound.START, QueryOptions.DEFAULT);
+        bounds = restrictions.boundsAsComposites(cfMetaData, Bound.START, QueryOptions.DEFAULT);
         assertEquals(1, bounds.size());
         assertEmptyComposite(bounds.get(0));
 
-        bounds = restrictions.boundsAsComposites(Bound.END, QueryOptions.DEFAULT);
+        bounds = restrictions.boundsAsComposites(cfMetaData, Bound.END, QueryOptions.DEFAULT);
         assertEquals(1, bounds.size());
         assertComposite(bounds.get(0), value1, EOC.START);
 
@@ -539,11 +539,11 @@ public class PrimaryKeyRestrictionSetTest
         restrictions = new PrimaryKeyRestrictionSet(cfMetaData.comparator);
         restrictions = restrictions.mergeWith(slice).mergeWith(slice2);
 
-        bounds = restrictions.boundsAsComposites(Bound.START, QueryOptions.DEFAULT);
+        bounds = restrictions.boundsAsComposites(cfMetaData, Bound.START, QueryOptions.DEFAULT);
         assertEquals(1, bounds.size());
         assertComposite(bounds.get(0), value1, EOC.END);
 
-        bounds = restrictions.boundsAsComposites(Bound.END, QueryOptions.DEFAULT);
+        bounds = restrictions.boundsAsComposites(cfMetaData, Bound.END, QueryOptions.DEFAULT);
         assertEquals(1, bounds.size());
         assertComposite(bounds.get(0), value2, EOC.START);
 
@@ -552,11 +552,11 @@ public class PrimaryKeyRestrictionSetTest
         restrictions = new PrimaryKeyRestrictionSet(cfMetaData.comparator);
         restrictions = restrictions.mergeWith(slice).mergeWith(slice2);
 
-        bounds = restrictions.boundsAsComposites(Bound.START, QueryOptions.DEFAULT);
+        bounds = restrictions.boundsAsComposites(cfMetaData, Bound.START, QueryOptions.DEFAULT);
         assertEquals(1, bounds.size());
         assertComposite(bounds.get(0), value1, EOC.NONE);
 
-        bounds = restrictions.boundsAsComposites(Bound.END, QueryOptions.DEFAULT);
+        bounds = restrictions.boundsAsComposites(cfMetaData, Bound.END, QueryOptions.DEFAULT);
         assertEquals(1, bounds.size());
         assertComposite(bounds.get(0), value2, EOC.END);
     }
@@ -577,11 +577,11 @@ public class PrimaryKeyRestrictionSetTest
         PrimaryKeyRestrictions restrictions = new PrimaryKeyRestrictionSet(cfMetaData.comparator);
         restrictions = restrictions.mergeWith(slice);
 
-        List<Composite> bounds = restrictions.boundsAsComposites(Bound.START, QueryOptions.DEFAULT);
+        List<Composite> bounds = restrictions.boundsAsComposites(cfMetaData, Bound.START, QueryOptions.DEFAULT);
         assertEquals(1, bounds.size());
         assertEmptyComposite(bounds.get(0));
 
-        bounds = restrictions.boundsAsComposites(Bound.END, QueryOptions.DEFAULT);
+        bounds = restrictions.boundsAsComposites(cfMetaData, Bound.END, QueryOptions.DEFAULT);
         assertEquals(1, bounds.size());
         assertComposite(bounds.get(0), value1, EOC.START);
 
@@ -589,11 +589,11 @@ public class PrimaryKeyRestrictionSetTest
         restrictions = new PrimaryKeyRestrictionSet(cfMetaData.comparator);
         restrictions = restrictions.mergeWith(slice);
 
-        bounds = restrictions.boundsAsComposites(Bound.START, QueryOptions.DEFAULT);
+        bounds = restrictions.boundsAsComposites(cfMetaData, Bound.START, QueryOptions.DEFAULT);
         assertEquals(1, bounds.size());
         assertEmptyComposite(bounds.get(0));
 
-        bounds = restrictions.boundsAsComposites(Bound.END, QueryOptions.DEFAULT);
+        bounds = restrictions.boundsAsComposites(cfMetaData, Bound.END, QueryOptions.DEFAULT);
         assertEquals(1, bounds.size());
         assertComposite(bounds.get(0), value1, EOC.END);
 
@@ -601,11 +601,11 @@ public class PrimaryKeyRestrictionSetTest
         restrictions = new PrimaryKeyRestrictionSet(cfMetaData.comparator);
         restrictions = restrictions.mergeWith(slice);
 
-        bounds = restrictions.boundsAsComposites(Bound.START, QueryOptions.DEFAULT);
+        bounds = restrictions.boundsAsComposites(cfMetaData, Bound.START, QueryOptions.DEFAULT);
         assertEquals(1, bounds.size());
         assertComposite(bounds.get(0), value1, EOC.NONE);
 
-        bounds = restrictions.boundsAsComposites(Bound.END, QueryOptions.DEFAULT);
+        bounds = restrictions.boundsAsComposites(cfMetaData, Bound.END, QueryOptions.DEFAULT);
         assertEquals(1, bounds.size());
         assertEmptyComposite(bounds.get(0));
 
@@ -613,11 +613,11 @@ public class PrimaryKeyRestrictionSetTest
         restrictions = new PrimaryKeyRestrictionSet(cfMetaData.comparator);
         restrictions = restrictions.mergeWith(slice);
 
-        bounds = restrictions.boundsAsComposites(Bound.START, QueryOptions.DEFAULT);
+        bounds = restrictions.boundsAsComposites(cfMetaData, Bound.START, QueryOptions.DEFAULT);
         assertEquals(1, bounds.size());
         assertComposite(bounds.get(0), value1, EOC.END);
 
-        bounds = restrictions.boundsAsComposites(Bound.END, QueryOptions.DEFAULT);
+        bounds = restrictions.boundsAsComposites(cfMetaData, Bound.END, QueryOptions.DEFAULT);
         assertEquals(1, bounds.size());
         assertEmptyComposite(bounds.get(0));
 
@@ -626,11 +626,11 @@ public class PrimaryKeyRestrictionSetTest
         restrictions = new PrimaryKeyRestrictionSet(cfMetaData.comparator);
         restrictions = restrictions.mergeWith(slice).mergeWith(slice2);
 
-        bounds = restrictions.boundsAsComposites(Bound.START, QueryOptions.DEFAULT);
+        bounds = restrictions.boundsAsComposites(cfMetaData, Bound.START, QueryOptions.DEFAULT);
         assertEquals(1, bounds.size());
         assertComposite(bounds.get(0), value2, EOC.END);
 
-        bounds = restrictions.boundsAsComposites(Bound.END, QueryOptions.DEFAULT);
+        bounds = restrictions.boundsAsComposites(cfMetaData, Bound.END, QueryOptions.DEFAULT);
         assertEquals(1, bounds.size());
         assertComposite(bounds.get(0), value1, EOC.START);
 
@@ -639,11 +639,11 @@ public class PrimaryKeyRestrictionSetTest
         restrictions = new PrimaryKeyRestrictionSet(cfMetaData.comparator);
         restrictions = restrictions.mergeWith(slice).mergeWith(slice2);
 
-        bounds = restrictions.boundsAsComposites(Bound.START, QueryOptions.DEFAULT);
+        bounds = restrictions.boundsAsComposites(cfMetaData, Bound.START, QueryOptions.DEFAULT);
         assertEquals(1, bounds.size());
         assertComposite(bounds.get(0), value2, EOC.NONE);
 
-        bounds = restrictions.boundsAsComposites(Bound.END, QueryOptions.DEFAULT);
+        bounds = restrictions.boundsAsComposites(cfMetaData, Bound.END, QueryOptions.DEFAULT);
         assertEquals(1, bounds.size());
         assertComposite(bounds.get(0), value1, EOC.END);
     }
@@ -664,11 +664,11 @@ public class PrimaryKeyRestrictionSetTest
         PrimaryKeyRestrictions restrictions = new PrimaryKeyRestrictionSet(cfMetaData.comparator);
         restrictions = restrictions.mergeWith(slice);
 
-        List<Composite> bounds = restrictions.boundsAsComposites(Bound.START, QueryOptions.DEFAULT);
+        List<Composite> bounds = restrictions.boundsAsComposites(cfMetaData, Bound.START, QueryOptions.DEFAULT);
         assertEquals(1, bounds.size());
         assertComposite(bounds.get(0), value1, value2, EOC.END);
 
-        bounds = restrictions.boundsAsComposites(Bound.END, QueryOptions.DEFAULT);
+        bounds = restrictions.boundsAsComposites(cfMetaData, Bound.END, QueryOptions.DEFAULT);
         assertEquals(1, bounds.size());
         assertEmptyComposite(bounds.get(0));
 
@@ -677,11 +677,11 @@ public class PrimaryKeyRestrictionSetTest
         restrictions = new PrimaryKeyRestrictionSet(cfMetaData.comparator);
         restrictions = restrictions.mergeWith(slice);
 
-        bounds = restrictions.boundsAsComposites(Bound.START, QueryOptions.DEFAULT);
+        bounds = restrictions.boundsAsComposites(cfMetaData, Bound.START, QueryOptions.DEFAULT);
         assertEquals(1, bounds.size());
         assertComposite(bounds.get(0), value1, value2, EOC.NONE);
 
-        bounds = restrictions.boundsAsComposites(Bound.END, QueryOptions.DEFAULT);
+        bounds = restrictions.boundsAsComposites(cfMetaData, Bound.END, QueryOptions.DEFAULT);
         assertEquals(1, bounds.size());
         assertEmptyComposite(bounds.get(0));
 
@@ -690,11 +690,11 @@ public class PrimaryKeyRestrictionSetTest
         restrictions = new PrimaryKeyRestrictionSet(cfMetaData.comparator);
         restrictions = restrictions.mergeWith(slice);
 
-        bounds = restrictions.boundsAsComposites(Bound.START, QueryOptions.DEFAULT);
+        bounds = restrictions.boundsAsComposites(cfMetaData, Bound.START, QueryOptions.DEFAULT);
         assertEquals(1, bounds.size());
         assertEmptyComposite(bounds.get(0));
 
-        bounds = restrictions.boundsAsComposites(Bound.END, QueryOptions.DEFAULT);
+        bounds = restrictions.boundsAsComposites(cfMetaData, Bound.END, QueryOptions.DEFAULT);
         assertEquals(1, bounds.size());
         assertComposite(bounds.get(0), value1, value2, EOC.END);
 
@@ -703,11 +703,11 @@ public class PrimaryKeyRestrictionSetTest
         restrictions = new PrimaryKeyRestrictionSet(cfMetaData.comparator);
         restrictions = restrictions.mergeWith(slice);
 
-        bounds = restrictions.boundsAsComposites(Bound.START, QueryOptions.DEFAULT);
+        bounds = restrictions.boundsAsComposites(cfMetaData, Bound.START, QueryOptions.DEFAULT);
         assertEquals(1, bounds.size());
         assertEmptyComposite(bounds.get(0));
 
-        bounds = restrictions.boundsAsComposites(Bound.END, QueryOptions.DEFAULT);
+        bounds = restrictions.boundsAsComposites(cfMetaData, Bound.END, QueryOptions.DEFAULT);
         assertEquals(1, bounds.size());
         assertComposite(bounds.get(0), value1, value2, EOC.START);
 
@@ -717,11 +717,11 @@ public class PrimaryKeyRestrictionSetTest
         restrictions = new PrimaryKeyRestrictionSet(cfMetaData.comparator);
         restrictions = restrictions.mergeWith(slice).mergeWith(slice2);
 
-        bounds = restrictions.boundsAsComposites(Bound.START, QueryOptions.DEFAULT);
+        bounds = restrictions.boundsAsComposites(cfMetaData, Bound.START, QueryOptions.DEFAULT);
         assertEquals(1, bounds.size());
         assertComposite(bounds.get(0), value1, value2, EOC.END);
 
-        bounds = restrictions.boundsAsComposites(Bound.END, QueryOptions.DEFAULT);
+        bounds = restrictions.boundsAsComposites(cfMetaData, Bound.END, QueryOptions.DEFAULT);
         assertEquals(1, bounds.size());
         assertComposite(bounds.get(0), value2, EOC.START);
 
@@ -731,11 +731,11 @@ public class PrimaryKeyRestrictionSetTest
         restrictions = new PrimaryKeyRestrictionSet(cfMetaData.comparator);
         restrictions = restrictions.mergeWith(slice).mergeWith(slice2);
 
-        bounds = restrictions.boundsAsComposites(Bound.START, QueryOptions.DEFAULT);
+        bounds = restrictions.boundsAsComposites(cfMetaData, Bound.START, QueryOptions.DEFAULT);
         assertEquals(1, bounds.size());
         assertComposite(bounds.get(0), value1, value2, EOC.NONE);
 
-        bounds = restrictions.boundsAsComposites(Bound.END, QueryOptions.DEFAULT);
+        bounds = restrictions.boundsAsComposites(cfMetaData, Bound.END, QueryOptions.DEFAULT);
         assertEquals(1, bounds.size());
         assertComposite(bounds.get(0), value2, value1, EOC.END);
     }
@@ -756,11 +756,11 @@ public class PrimaryKeyRestrictionSetTest
         PrimaryKeyRestrictions restrictions = new PrimaryKeyRestrictionSet(cfMetaData.comparator);
         restrictions = restrictions.mergeWith(slice);
 
-        List<Composite> bounds = restrictions.boundsAsComposites(Bound.START, QueryOptions.DEFAULT);
+        List<Composite> bounds = restrictions.boundsAsComposites(cfMetaData, Bound.START, QueryOptions.DEFAULT);
         assertEquals(1, bounds.size());
         assertEmptyComposite(bounds.get(0));
 
-        bounds = restrictions.boundsAsComposites(Bound.END, QueryOptions.DEFAULT);
+        bounds = restrictions.boundsAsComposites(cfMetaData, Bound.END, QueryOptions.DEFAULT);
         assertEquals(1, bounds.size());
         assertComposite(bounds.get(0), value1, value2, EOC.START);
 
@@ -769,11 +769,11 @@ public class PrimaryKeyRestrictionSetTest
         restrictions = new PrimaryKeyRestrictionSet(cfMetaData.comparator);
         restrictions = restrictions.mergeWith(slice);
 
-        bounds = restrictions.boundsAsComposites(Bound.START, QueryOptions.DEFAULT);
+        bounds = restrictions.boundsAsComposites(cfMetaData, Bound.START, QueryOptions.DEFAULT);
         assertEquals(1, bounds.size());
         assertEmptyComposite(bounds.get(0));
 
-        bounds = restrictions.boundsAsComposites(Bound.END, QueryOptions.DEFAULT);
+        bounds = restrictions.boundsAsComposites(cfMetaData, Bound.END, QueryOptions.DEFAULT);
         assertEquals(1, bounds.size());
         assertComposite(bounds.get(0), value1, value2, EOC.END);
 
@@ -782,11 +782,11 @@ public class PrimaryKeyRestrictionSetTest
         restrictions = new PrimaryKeyRestrictionSet(cfMetaData.comparator);
         restrictions = restrictions.mergeWith(slice);
 
-        bounds = restrictions.boundsAsComposites(Bound.START, QueryOptions.DEFAULT);
+        bounds = restrictions.boundsAsComposites(cfMetaData, Bound.START, QueryOptions.DEFAULT);
         assertEquals(1, bounds.size());
         assertComposite(bounds.get(0), value1, value2, EOC.NONE);
 
-        bounds = restrictions.boundsAsComposites(Bound.END, QueryOptions.DEFAULT);
+        bounds = restrictions.boundsAsComposites(cfMetaData, Bound.END, QueryOptions.DEFAULT);
         assertEquals(1, bounds.size());
         assertEmptyComposite(bounds.get(0));
 
@@ -795,11 +795,11 @@ public class PrimaryKeyRestrictionSetTest
         restrictions = new PrimaryKeyRestrictionSet(cfMetaData.comparator);
         restrictions = restrictions.mergeWith(slice);
 
-        bounds = restrictions.boundsAsComposites(Bound.START, QueryOptions.DEFAULT);
+        bounds = restrictions.boundsAsComposites(cfMetaData, Bound.START, QueryOptions.DEFAULT);
         assertEquals(1, bounds.size());
         assertComposite(bounds.get(0), value1, value2, EOC.END);
 
-        bounds = restrictions.boundsAsComposites(Bound.END, QueryOptions.DEFAULT);
+        bounds = restrictions.boundsAsComposites(cfMetaData, Bound.END, QueryOptions.DEFAULT);
         assertEquals(1, bounds.size());
         assertEmptyComposite(bounds.get(0));
 
@@ -810,11 +810,11 @@ public class PrimaryKeyRestrictionSetTest
         restrictions = new PrimaryKeyRestrictionSet(cfMetaData.comparator);
         restrictions = restrictions.mergeWith(slice).mergeWith(slice2);
 
-        bounds = restrictions.boundsAsComposites(Bound.START, QueryOptions.DEFAULT);
+        bounds = restrictions.boundsAsComposites(cfMetaData, Bound.START, QueryOptions.DEFAULT);
         assertEquals(1, bounds.size());
         assertComposite(bounds.get(0), value2, EOC.END);
 
-        bounds = restrictions.boundsAsComposites(Bound.END, QueryOptions.DEFAULT);
+        bounds = restrictions.boundsAsComposites(cfMetaData, Bound.END, QueryOptions.DEFAULT);
         assertEquals(1, bounds.size());
         assertComposite(bounds.get(0), value1, value2, EOC.START);
 
@@ -824,11 +824,11 @@ public class PrimaryKeyRestrictionSetTest
         restrictions = new PrimaryKeyRestrictionSet(cfMetaData.comparator);
         restrictions = restrictions.mergeWith(slice).mergeWith(slice2);
 
-        bounds = restrictions.boundsAsComposites(Bound.START, QueryOptions.DEFAULT);
+        bounds = restrictions.boundsAsComposites(cfMetaData, Bound.START, QueryOptions.DEFAULT);
         assertEquals(1, bounds.size());
         assertComposite(bounds.get(0), value2, value1, EOC.NONE);
 
-        bounds = restrictions.boundsAsComposites(Bound.END, QueryOptions.DEFAULT);
+        bounds = restrictions.boundsAsComposites(cfMetaData, Bound.END, QueryOptions.DEFAULT);
         assertEquals(1, bounds.size());
         assertComposite(bounds.get(0), value1, value2, EOC.END);
     }
@@ -850,12 +850,12 @@ public class PrimaryKeyRestrictionSetTest
         PrimaryKeyRestrictions restrictions = new PrimaryKeyRestrictionSet(cfMetaData.comparator);
         restrictions = restrictions.mergeWith(slice);
 
-        List<Composite> bounds = restrictions.boundsAsComposites(Bound.START, QueryOptions.DEFAULT);
+        List<Composite> bounds = restrictions.boundsAsComposites(cfMetaData, Bound.START, QueryOptions.DEFAULT);
         assertEquals(2, bounds.size());
         assertEmptyComposite(bounds.get(0));
         assertComposite(bounds.get(1), value1, value2, EOC.END);
 
-        bounds = restrictions.boundsAsComposites(Bound.END, QueryOptions.DEFAULT);
+        bounds = restrictions.boundsAsComposites(cfMetaData, Bound.END, QueryOptions.DEFAULT);
         assertEquals(2, bounds.size());
         assertComposite(bounds.get(0), value1, EOC.START);
         assertComposite(bounds.get(1), value1, EOC.END);
@@ -865,12 +865,12 @@ public class PrimaryKeyRestrictionSetTest
         restrictions = new PrimaryKeyRestrictionSet(cfMetaData.comparator);
         restrictions = restrictions.mergeWith(slice);
 
-        bounds = restrictions.boundsAsComposites(Bound.START, QueryOptions.DEFAULT);
+        bounds = restrictions.boundsAsComposites(cfMetaData, Bound.START, QueryOptions.DEFAULT);
         assertEquals(2, bounds.size());
         assertEmptyComposite(bounds.get(0));
         assertComposite(bounds.get(1), value1, value2, EOC.NONE);
 
-        bounds = restrictions.boundsAsComposites(Bound.END, QueryOptions.DEFAULT);
+        bounds = restrictions.boundsAsComposites(cfMetaData, Bound.END, QueryOptions.DEFAULT);
         assertEquals(2, bounds.size());
         assertComposite(bounds.get(0), value1, EOC.START);
         assertComposite(bounds.get(1), value1, EOC.END);
@@ -880,12 +880,12 @@ public class PrimaryKeyRestrictionSetTest
         restrictions = new PrimaryKeyRestrictionSet(cfMetaData.comparator);
         restrictions = restrictions.mergeWith(slice);
 
-        bounds = restrictions.boundsAsComposites(Bound.START, QueryOptions.DEFAULT);
+        bounds = restrictions.boundsAsComposites(cfMetaData, Bound.START, QueryOptions.DEFAULT);
         assertEquals(2, bounds.size());
         assertComposite(bounds.get(0), value1, EOC.START);
         assertComposite(bounds.get(1), value1, EOC.END);
 
-        bounds = restrictions.boundsAsComposites(Bound.END, QueryOptions.DEFAULT);
+        bounds = restrictions.boundsAsComposites(cfMetaData, Bound.END, QueryOptions.DEFAULT);
         assertEquals(2, bounds.size());
         assertComposite(bounds.get(0), value1, value2, EOC.END);
         assertEmptyComposite(bounds.get(1));
@@ -895,12 +895,12 @@ public class PrimaryKeyRestrictionSetTest
         restrictions = new PrimaryKeyRestrictionSet(cfMetaData.comparator);
         restrictions = restrictions.mergeWith(slice);
 
-        bounds = restrictions.boundsAsComposites(Bound.START, QueryOptions.DEFAULT);
+        bounds = restrictions.boundsAsComposites(cfMetaData, Bound.START, QueryOptions.DEFAULT);
         assertEquals(2, bounds.size());
         assertComposite(bounds.get(0), value1, EOC.START);
         assertComposite(bounds.get(1), value1, EOC.END);
 
-        bounds = restrictions.boundsAsComposites(Bound.END, QueryOptions.DEFAULT);
+        bounds = restrictions.boundsAsComposites(cfMetaData, Bound.END, QueryOptions.DEFAULT);
         assertEquals(2, bounds.size());
         assertComposite(bounds.get(0), value1, value2, EOC.START);
         assertEmptyComposite(bounds.get(1));
@@ -911,12 +911,12 @@ public class PrimaryKeyRestrictionSetTest
         restrictions = new PrimaryKeyRestrictionSet(cfMetaData.comparator);
         restrictions = restrictions.mergeWith(slice).mergeWith(slice2);
 
-        bounds = restrictions.boundsAsComposites(Bound.START, QueryOptions.DEFAULT);
+        bounds = restrictions.boundsAsComposites(cfMetaData, Bound.START, QueryOptions.DEFAULT);
         assertEquals(2, bounds.size());
         assertComposite(bounds.get(0), value2, EOC.END);
         assertComposite(bounds.get(1), value1, value2, EOC.END);
 
-        bounds = restrictions.boundsAsComposites(Bound.END, QueryOptions.DEFAULT);
+        bounds = restrictions.boundsAsComposites(cfMetaData, Bound.END, QueryOptions.DEFAULT);
         assertEquals(2, bounds.size());
         assertComposite(bounds.get(0), value1, EOC.START);
         assertComposite(bounds.get(1), value1, EOC.END);
@@ -927,12 +927,12 @@ public class PrimaryKeyRestrictionSetTest
         restrictions = new PrimaryKeyRestrictionSet(cfMetaData.comparator);
         restrictions = restrictions.mergeWith(slice).mergeWith(slice2);
 
-        bounds = restrictions.boundsAsComposites(Bound.START, QueryOptions.DEFAULT);
+        bounds = restrictions.boundsAsComposites(cfMetaData, Bound.START, QueryOptions.DEFAULT);
         assertEquals(2, bounds.size());
         assertComposite(bounds.get(0), value2, EOC.START);
         assertComposite(bounds.get(1), value2, EOC.END);
 
-        bounds = restrictions.boundsAsComposites(Bound.END, QueryOptions.DEFAULT);
+        bounds = restrictions.boundsAsComposites(cfMetaData, Bound.END, QueryOptions.DEFAULT);
         assertEquals(2, bounds.size());
         assertComposite(bounds.get(0), value2, value1, EOC.START);
         assertComposite(bounds.get(1), value1, EOC.START);
@@ -943,13 +943,13 @@ public class PrimaryKeyRestrictionSetTest
         restrictions = new PrimaryKeyRestrictionSet(cfMetaData.comparator);
         restrictions = restrictions.mergeWith(slice).mergeWith(slice2);
 
-        bounds = restrictions.boundsAsComposites(Bound.START, QueryOptions.DEFAULT);
+        bounds = restrictions.boundsAsComposites(cfMetaData, Bound.START, QueryOptions.DEFAULT);
         assertEquals(3, bounds.size());
         assertComposite(bounds.get(0), value2, EOC.START);
         assertComposite(bounds.get(1), value2, EOC.END);
         assertComposite(bounds.get(2), value1, value2, EOC.NONE);
 
-        bounds = restrictions.boundsAsComposites(Bound.END, QueryOptions.DEFAULT);
+        bounds = restrictions.boundsAsComposites(cfMetaData, Bound.END, QueryOptions.DEFAULT);
         assertEquals(3, bounds.size());
         assertComposite(bounds.get(0), value2, value1, EOC.END);
         assertComposite(bounds.get(1), value1, EOC.START);
@@ -973,12 +973,12 @@ public class PrimaryKeyRestrictionSetTest
         PrimaryKeyRestrictions restrictions = new PrimaryKeyRestrictionSet(cfMetaData.comparator);
         restrictions = restrictions.mergeWith(slice);
 
-        List<Composite> bounds = restrictions.boundsAsComposites(Bound.START, QueryOptions.DEFAULT);
+        List<Composite> bounds = restrictions.boundsAsComposites(cfMetaData, Bound.START, QueryOptions.DEFAULT);
         assertEquals(2, bounds.size());
         assertComposite(bounds.get(0), value1, EOC.START);
         assertComposite(bounds.get(1), value1, EOC.END);
 
-        bounds = restrictions.boundsAsComposites(Bound.END, QueryOptions.DEFAULT);
+        bounds = restrictions.boundsAsComposites(cfMetaData, Bound.END, QueryOptions.DEFAULT);
         assertEquals(2, bounds.size());
         assertComposite(bounds.get(0), value1, value2, EOC.START);
         assertEmptyComposite(bounds.get(1));
@@ -988,12 +988,12 @@ public class PrimaryKeyRestrictionSetTest
         restrictions = new PrimaryKeyRestrictionSet(cfMetaData.comparator);
         restrictions = restrictions.mergeWith(slice);
 
-        bounds = restrictions.boundsAsComposites(Bound.START, QueryOptions.DEFAULT);
+        bounds = restrictions.boundsAsComposites(cfMetaData, Bound.START, QueryOptions.DEFAULT);
         assertEquals(2, bounds.size());
         assertComposite(bounds.get(0), value1, EOC.START);
         assertComposite(bounds.get(1), value1, EOC.END);
 
-        bounds = restrictions.boundsAsComposites(Bound.END, QueryOptions.DEFAULT);
+        bounds = restrictions.boundsAsComposites(cfMetaData, Bound.END, QueryOptions.DEFAULT);
         assertEquals(2, bounds.size());
         assertComposite(bounds.get(0), value1, value2, EOC.END);
         assertEmptyComposite(bounds.get(1));
@@ -1003,12 +1003,12 @@ public class PrimaryKeyRestrictionSetTest
         restrictions = new PrimaryKeyRestrictionSet(cfMetaData.comparator);
         restrictions = restrictions.mergeWith(slice);
 
-        bounds = restrictions.boundsAsComposites(Bound.START, QueryOptions.DEFAULT);
+        bounds = restrictions.boundsAsComposites(cfMetaData, Bound.START, QueryOptions.DEFAULT);
         assertEquals(2, bounds.size());
         assertEmptyComposite(bounds.get(0));
         assertComposite(bounds.get(1), value1, value2, EOC.NONE);
 
-        bounds = restrictions.boundsAsComposites(Bound.END, QueryOptions.DEFAULT);
+        bounds = restrictions.boundsAsComposites(cfMetaData, Bound.END, QueryOptions.DEFAULT);
         assertEquals(2, bounds.size());
         assertComposite(bounds.get(0), value1, EOC.START);
         assertComposite(bounds.get(1), value1, EOC.END);
@@ -1018,12 +1018,12 @@ public class PrimaryKeyRestrictionSetTest
         restrictions = new PrimaryKeyRestrictionSet(cfMetaData.comparator);
         restrictions = restrictions.mergeWith(slice);
 
-        bounds = restrictions.boundsAsComposites(Bound.START, QueryOptions.DEFAULT);
+        bounds = restrictions.boundsAsComposites(cfMetaData, Bound.START, QueryOptions.DEFAULT);
         assertEquals(2, bounds.size());
         assertEmptyComposite(bounds.get(0));
         assertComposite(bounds.get(1), value1, value2, EOC.END);
 
-        bounds = restrictions.boundsAsComposites(Bound.END, QueryOptions.DEFAULT);
+        bounds = restrictions.boundsAsComposites(cfMetaData, Bound.END, QueryOptions.DEFAULT);
         assertEquals(2, bounds.size());
         assertComposite(bounds.get(0), value1, EOC.START);
         assertComposite(bounds.get(1), value1, EOC.END);
@@ -1034,12 +1034,12 @@ public class PrimaryKeyRestrictionSetTest
         restrictions = new PrimaryKeyRestrictionSet(cfMetaData.comparator);
         restrictions = restrictions.mergeWith(slice).mergeWith(slice2);
 
-        bounds = restrictions.boundsAsComposites(Bound.START, QueryOptions.DEFAULT);
+        bounds = restrictions.boundsAsComposites(cfMetaData, Bound.START, QueryOptions.DEFAULT);
         assertEquals(2, bounds.size());
         assertComposite(bounds.get(0), value1, EOC.START);
         assertComposite(bounds.get(1), value1, EOC.END);
 
-        bounds = restrictions.boundsAsComposites(Bound.END, QueryOptions.DEFAULT);
+        bounds = restrictions.boundsAsComposites(cfMetaData, Bound.END, QueryOptions.DEFAULT);
         assertEquals(2, bounds.size());
         assertComposite(bounds.get(0), value1, value2, EOC.START);
         assertComposite(bounds.get(1), value2, EOC.START);
@@ -1050,13 +1050,13 @@ public class PrimaryKeyRestrictionSetTest
         restrictions = new PrimaryKeyRestrictionSet(cfMetaData.comparator);
         restrictions = restrictions.mergeWith(slice).mergeWith(slice2);
 
-        bounds = restrictions.boundsAsComposites(Bound.START, QueryOptions.DEFAULT);
+        bounds = restrictions.boundsAsComposites(cfMetaData, Bound.START, QueryOptions.DEFAULT);
         assertEquals(3, bounds.size());
         assertComposite(bounds.get(0), value1, EOC.START);
         assertComposite(bounds.get(1), value1, EOC.END);
         assertComposite(bounds.get(2), value2, value1, EOC.NONE);
 
-        bounds = restrictions.boundsAsComposites(Bound.END, QueryOptions.DEFAULT);
+        bounds = restrictions.boundsAsComposites(cfMetaData, Bound.END, QueryOptions.DEFAULT);
         assertEquals(3, bounds.size());
         assertComposite(bounds.get(0), value1, value2, EOC.END);
         assertComposite(bounds.get(1), value2, EOC.START);
@@ -1082,12 +1082,12 @@ public class PrimaryKeyRestrictionSetTest
         PrimaryKeyRestrictions restrictions = new PrimaryKeyRestrictionSet(cfMetaData.comparator);
         restrictions = restrictions.mergeWith(slice);
 
-        List<Composite> bounds = restrictions.boundsAsComposites(Bound.START, QueryOptions.DEFAULT);
+        List<Composite> bounds = restrictions.boundsAsComposites(cfMetaData, Bound.START, QueryOptions.DEFAULT);
         assertEquals(2, bounds.size());
         assertComposite(bounds.get(0), value1, value2, EOC.START);
         assertComposite(bounds.get(1), value1, value2, EOC.END);
 
-        bounds = restrictions.boundsAsComposites(Bound.END, QueryOptions.DEFAULT);
+        bounds = restrictions.boundsAsComposites(cfMetaData, Bound.END, QueryOptions.DEFAULT);
         assertEquals(2, bounds.size());
         assertComposite(bounds.get(0), value1, value2, value3, value4, EOC.START);
         assertEmptyComposite(bounds.get(1));
@@ -1099,12 +1099,12 @@ public class PrimaryKeyRestrictionSetTest
         restrictions = restrictions.mergeWith(slice);
         restrictions = restrictions.mergeWith(eq);
 
-        bounds = restrictions.boundsAsComposites(Bound.START, QueryOptions.DEFAULT);
+        bounds = restrictions.boundsAsComposites(cfMetaData, Bound.START, QueryOptions.DEFAULT);
         assertEquals(2, bounds.size());
         assertComposite(bounds.get(0), value1, value2, EOC.START);
         assertComposite(bounds.get(1), value1, value2, EOC.END);
 
-        bounds = restrictions.boundsAsComposites(Bound.END, QueryOptions.DEFAULT);
+        bounds = restrictions.boundsAsComposites(cfMetaData, Bound.END, QueryOptions.DEFAULT);
         assertEquals(2, bounds.size());
         assertComposite(bounds.get(0), value1, value2, value3, value4, EOC.START);
         assertComposite(bounds.get(1), value1, EOC.END);
@@ -1116,14 +1116,14 @@ public class PrimaryKeyRestrictionSetTest
         restrictions = restrictions.mergeWith(slice);
         restrictions = restrictions.mergeWith(in);
 
-        bounds = restrictions.boundsAsComposites(Bound.START, QueryOptions.DEFAULT);
+        bounds = restrictions.boundsAsComposites(cfMetaData, Bound.START, QueryOptions.DEFAULT);
         assertEquals(4, bounds.size());
         assertComposite(bounds.get(0), value1, value2, EOC.START);
         assertComposite(bounds.get(1), value1, value2, EOC.END);
         assertComposite(bounds.get(2), value2, value2, EOC.START);
         assertComposite(bounds.get(3), value2, value2, EOC.END);
 
-        bounds = restrictions.boundsAsComposites(Bound.END, QueryOptions.DEFAULT);
+        bounds = restrictions.boundsAsComposites(cfMetaData, Bound.END, QueryOptions.DEFAULT);
         assertEquals(4, bounds.size());
         assertComposite(bounds.get(0), value1, value2, value3, value4, EOC.START);
         assertComposite(bounds.get(1), value1, EOC.END);
@@ -1135,11 +1135,11 @@ public class PrimaryKeyRestrictionSetTest
         restrictions = new PrimaryKeyRestrictionSet(cfMetaData.comparator);
         restrictions = restrictions.mergeWith(slice);
 
-        bounds = restrictions.boundsAsComposites(Bound.START, QueryOptions.DEFAULT);
+        bounds = restrictions.boundsAsComposites(cfMetaData, Bound.START, QueryOptions.DEFAULT);
         assertEquals(1, bounds.size());
         assertComposite(bounds.get(0), value1, value2, EOC.NONE);
 
-        bounds = restrictions.boundsAsComposites(Bound.END, QueryOptions.DEFAULT);
+        bounds = restrictions.boundsAsComposites(cfMetaData, Bound.END, QueryOptions.DEFAULT);
         assertEquals(1, bounds.size());
         assertEmptyComposite(bounds.get(0));
 
@@ -1148,12 +1148,12 @@ public class PrimaryKeyRestrictionSetTest
         restrictions = new PrimaryKeyRestrictionSet(cfMetaData.comparator);
         restrictions = restrictions.mergeWith(slice);
 
-        bounds = restrictions.boundsAsComposites(Bound.START, QueryOptions.DEFAULT);
+        bounds = restrictions.boundsAsComposites(cfMetaData, Bound.START, QueryOptions.DEFAULT);
         assertEquals(2, bounds.size());
         assertComposite(bounds.get(0), value1, value2, EOC.START);
         assertComposite(bounds.get(1), value1, value2, EOC.END);
 
-        bounds = restrictions.boundsAsComposites(Bound.END, QueryOptions.DEFAULT);
+        bounds = restrictions.boundsAsComposites(cfMetaData, Bound.END, QueryOptions.DEFAULT);
         assertEquals(2, bounds.size());
         assertComposite(bounds.get(0), value1, value2, value3, value4, EOC.END);
         assertEmptyComposite(bounds.get(1));
@@ -1163,12 +1163,12 @@ public class PrimaryKeyRestrictionSetTest
         restrictions = new PrimaryKeyRestrictionSet(cfMetaData.comparator);
         restrictions = restrictions.mergeWith(slice);
 
-        bounds = restrictions.boundsAsComposites(Bound.START, QueryOptions.DEFAULT);
+        bounds = restrictions.boundsAsComposites(cfMetaData, Bound.START, QueryOptions.DEFAULT);
         assertEquals(2, bounds.size());
         assertEmptyComposite(bounds.get(0));
         assertComposite(bounds.get(1), value1, value2, value3, value4, EOC.NONE);
 
-        bounds = restrictions.boundsAsComposites(Bound.END, QueryOptions.DEFAULT);
+        bounds = restrictions.boundsAsComposites(cfMetaData, Bound.END, QueryOptions.DEFAULT);
         assertEquals(2, bounds.size());
         assertComposite(bounds.get(0), value1, value2, EOC.START);
         assertComposite(bounds.get(1), value1, value2, EOC.END);
@@ -1178,12 +1178,12 @@ public class PrimaryKeyRestrictionSetTest
         restrictions = new PrimaryKeyRestrictionSet(cfMetaData.comparator);
         restrictions = restrictions.mergeWith(slice);
 
-        bounds = restrictions.boundsAsComposites(Bound.START, QueryOptions.DEFAULT);
+        bounds = restrictions.boundsAsComposites(cfMetaData, Bound.START, QueryOptions.DEFAULT);
         assertEquals(2, bounds.size());
         assertEmptyComposite(bounds.get(0));
         assertComposite(bounds.get(1), value1, value2, value3, value4, EOC.END);
 
-        bounds = restrictions.boundsAsComposites(Bound.END, QueryOptions.DEFAULT);
+        bounds = restrictions.boundsAsComposites(cfMetaData, Bound.END, QueryOptions.DEFAULT);
         assertEquals(2, bounds.size());
         assertComposite(bounds.get(0), value1, value2, EOC.START);
         assertComposite(bounds.get(1), value1, value2, EOC.END);
@@ -1194,12 +1194,12 @@ public class PrimaryKeyRestrictionSetTest
         restrictions = new PrimaryKeyRestrictionSet(cfMetaData.comparator);
         restrictions = restrictions.mergeWith(slice).mergeWith(slice2);
 
-        bounds = restrictions.boundsAsComposites(Bound.START, QueryOptions.DEFAULT);
+        bounds = restrictions.boundsAsComposites(cfMetaData, Bound.START, QueryOptions.DEFAULT);
         assertEquals(2, bounds.size());
         assertComposite(bounds.get(0), value1, value2, EOC.START);
         assertComposite(bounds.get(1), value1, value2, EOC.END);
 
-        bounds = restrictions.boundsAsComposites(Bound.END, QueryOptions.DEFAULT);
+        bounds = restrictions.boundsAsComposites(cfMetaData, Bound.END, QueryOptions.DEFAULT);
         assertEquals(2, bounds.size());
         assertComposite(bounds.get(0), value1, value2, value3, value4, EOC.START);
         assertComposite(bounds.get(1), value2, value3, EOC.START);
@@ -1210,13 +1210,13 @@ public class PrimaryKeyRestrictionSetTest
         restrictions = new PrimaryKeyRestrictionSet(cfMetaData.comparator);
         restrictions = restrictions.mergeWith(slice).mergeWith(slice2);
 
-        bounds = restrictions.boundsAsComposites(Bound.START, QueryOptions.DEFAULT);
+        bounds = restrictions.boundsAsComposites(cfMetaData, Bound.START, QueryOptions.DEFAULT);
         assertEquals(3, bounds.size());
         assertComposite(bounds.get(0), value1, value2,  EOC.START);
         assertComposite(bounds.get(1), value1, value2, EOC.END);
         assertComposite(bounds.get(2), value4, value3, value2, value1, EOC.NONE);
 
-        bounds = restrictions.boundsAsComposites(Bound.END, QueryOptions.DEFAULT);
+        bounds = restrictions.boundsAsComposites(cfMetaData, Bound.END, QueryOptions.DEFAULT);
         assertEquals(3, bounds.size());
         assertComposite(bounds.get(0), value1, value2, value3, value4, EOC.END);
         assertComposite(bounds.get(1), value4, value3, EOC.START);
@@ -1242,7 +1242,7 @@ public class PrimaryKeyRestrictionSetTest
         PrimaryKeyRestrictions restrictions = new PrimaryKeyRestrictionSet(cfMetaData.comparator);
         restrictions = restrictions.mergeWith(slice);
 
-        List<Composite> bounds = restrictions.boundsAsComposites(Bound.START, QueryOptions.DEFAULT);
+        List<Composite> bounds = restrictions.boundsAsComposites(cfMetaData, Bound.START, QueryOptions.DEFAULT);
         assertEquals(4, bounds.size());
         assertComposite(bounds.get(0), value1, EOC.START);
         assertComposite(bounds.get(1), value1, value2, value3, EOC.START);
@@ -1250,7 +1250,7 @@ public class PrimaryKeyRestrictionSetTest
         assertComposite(bounds.get(3), value1, EOC.END);
 
 
-        bounds = restrictions.boundsAsComposites(Bound.END, QueryOptions.DEFAULT);
+        bounds = restrictions.boundsAsComposites(cfMetaData, Bound.END, QueryOptions.DEFAULT);
         assertEquals(4, bounds.size());
         assertComposite(bounds.get(0), value1, value2, EOC.START);
         assertComposite(bounds.get(1), value1, value2, value3, value4, EOC.START);
@@ -1264,13 +1264,13 @@ public class PrimaryKeyRestrictionSetTest
         restrictions = restrictions.mergeWith(slice);
         restrictions = restrictions.mergeWith(eq);
 
-        bounds = restrictions.boundsAsComposites(Bound.START, QueryOptions.DEFAULT);
+        bounds = restrictions.boundsAsComposites(cfMetaData, Bound.START, QueryOptions.DEFAULT);
         assertEquals(3, bounds.size());
         assertComposite(bounds.get(0), value1, EOC.START);
         assertComposite(bounds.get(1), value1, value2, value3, EOC.START);
         assertComposite(bounds.get(2), value1, value2, value3, EOC.END);
 
-        bounds = restrictions.boundsAsComposites(Bound.END, QueryOptions.DEFAULT);
+        bounds = restrictions.boundsAsComposites(cfMetaData, Bound.END, QueryOptions.DEFAULT);
         assertEquals(3, bounds.size());
         assertComposite(bounds.get(0), value1, value2, EOC.START);
         assertComposite(bounds.get(1), value1, value2, value3, value4, EOC.START);
@@ -1281,12 +1281,12 @@ public class PrimaryKeyRestrictionSetTest
         restrictions = new PrimaryKeyRestrictionSet(cfMetaData.comparator);
         restrictions = restrictions.mergeWith(slice);
 
-        bounds = restrictions.boundsAsComposites(Bound.START, QueryOptions.DEFAULT);
+        bounds = restrictions.boundsAsComposites(cfMetaData, Bound.START, QueryOptions.DEFAULT);
         assertEquals(2, bounds.size());
         assertComposite(bounds.get(0), value1, EOC.START);
         assertComposite(bounds.get(1), value1, EOC.END);
 
-        bounds = restrictions.boundsAsComposites(Bound.END, QueryOptions.DEFAULT);
+        bounds = restrictions.boundsAsComposites(cfMetaData, Bound.END, QueryOptions.DEFAULT);
         assertEquals(2, bounds.size());
         assertComposite(bounds.get(0), value1, value2, EOC.END);
         assertEmptyComposite(bounds.get(1));
@@ -1296,14 +1296,14 @@ public class PrimaryKeyRestrictionSetTest
         restrictions = new PrimaryKeyRestrictionSet(cfMetaData.comparator);
         restrictions = restrictions.mergeWith(slice);
 
-        bounds = restrictions.boundsAsComposites(Bound.START, QueryOptions.DEFAULT);
+        bounds = restrictions.boundsAsComposites(cfMetaData, Bound.START, QueryOptions.DEFAULT);
         assertEquals(4, bounds.size());
         assertComposite(bounds.get(0), value1, EOC.START);
         assertComposite(bounds.get(1), value1, value2, value3, EOC.START);
         assertComposite(bounds.get(2), value1, value2, value3, EOC.END);
         assertComposite(bounds.get(3), value1, EOC.END);
 
-        bounds = restrictions.boundsAsComposites(Bound.END, QueryOptions.DEFAULT);
+        bounds = restrictions.boundsAsComposites(cfMetaData, Bound.END, QueryOptions.DEFAULT);
         assertEquals(4, bounds.size());
         assertComposite(bounds.get(0), value1, value2, EOC.START);
         assertComposite(bounds.get(1), value1, value2, value3, value4, EOC.END);
@@ -1316,14 +1316,14 @@ public class PrimaryKeyRestrictionSetTest
         restrictions = new PrimaryKeyRestrictionSet(cfMetaData.comparator);
         restrictions = restrictions.mergeWith(slice);
 
-        bounds = restrictions.boundsAsComposites(Bound.START, QueryOptions.DEFAULT);
+        bounds = restrictions.boundsAsComposites(cfMetaData, Bound.START, QueryOptions.DEFAULT);
         assertEquals(4, bounds.size());
         assertEmptyComposite(bounds.get(0));
         assertComposite(bounds.get(1), value1, value2, EOC.START);
         assertComposite(bounds.get(2), value1, value2, value3, value4, EOC.NONE);
         assertComposite(bounds.get(3), value1, value2, EOC.END);
 
-        bounds = restrictions.boundsAsComposites(Bound.END, QueryOptions.DEFAULT);
+        bounds = restrictions.boundsAsComposites(cfMetaData, Bound.END, QueryOptions.DEFAULT);
         assertEquals(4, bounds.size());
         assertComposite(bounds.get(0), value1, EOC.START);
         assertComposite(bounds.get(1), value1, value2, value3, EOC.START);
@@ -1335,14 +1335,14 @@ public class PrimaryKeyRestrictionSetTest
         restrictions = new PrimaryKeyRestrictionSet(cfMetaData.comparator);
         restrictions = restrictions.mergeWith(slice);
 
-        bounds = restrictions.boundsAsComposites(Bound.START, QueryOptions.DEFAULT);
+        bounds = restrictions.boundsAsComposites(cfMetaData, Bound.START, QueryOptions.DEFAULT);
         assertEquals(4, bounds.size());
         assertEmptyComposite(bounds.get(0));
         assertComposite(bounds.get(1), value1, value2, EOC.START);
         assertComposite(bounds.get(2), value1, value2, value3, value4, EOC.END);
         assertComposite(bounds.get(3), value1, value2, EOC.END);
 
-        bounds = restrictions.boundsAsComposites(Bound.END, QueryOptions.DEFAULT);
+        bounds = restrictions.boundsAsComposites(cfMetaData, Bound.END, QueryOptions.DEFAULT);
         assertEquals(4, bounds.size());
         assertComposite(bounds.get(0), value1, EOC.START);
         assertComposite(bounds.get(1), value1, value2, value3, EOC.START);
@@ -1355,7 +1355,7 @@ public class PrimaryKeyRestrictionSetTest
         restrictions = new PrimaryKeyRestrictionSet(cfMetaData.comparator);
         restrictions = restrictions.mergeWith(slice).mergeWith(slice2);
 
-        bounds = restrictions.boundsAsComposites(Bound.START, QueryOptions.DEFAULT);
+        bounds = restrictions.boundsAsComposites(cfMetaData, Bound.START, QueryOptions.DEFAULT);
         assertEquals(5, bounds.size());
         assertComposite(bounds.get(0), value1, EOC.START);
         assertComposite(bounds.get(1), value1, value2, value3, EOC.START);
@@ -1363,7 +1363,7 @@ public class PrimaryKeyRestrictionSetTest
         assertComposite(bounds.get(3), value1, EOC.END);
         assertComposite(bounds.get(4), value2, value3, EOC.END);
 
-        bounds = restrictions.boundsAsComposites(Bound.END, QueryOptions.DEFAULT);
+        bounds = restrictions.boundsAsComposites(cfMetaData, Bound.END, QueryOptions.DEFAULT);
         assertEquals(5, bounds.size());
         assertComposite(bounds.get(0), value1, value2, EOC.START);
         assertComposite(bounds.get(1), value1, value2, value3, value4, EOC.START);
@@ -1377,7 +1377,7 @@ public class PrimaryKeyRestrictionSetTest
         restrictions = new PrimaryKeyRestrictionSet(cfMetaData.comparator);
         restrictions = restrictions.mergeWith(slice).mergeWith(slice2);
 
-        bounds = restrictions.boundsAsComposites(Bound.START, QueryOptions.DEFAULT);
+        bounds = restrictions.boundsAsComposites(cfMetaData, Bound.START, QueryOptions.DEFAULT);
         assertEquals(7, bounds.size());
         assertComposite(bounds.get(0), value1, EOC.START);
         assertComposite(bounds.get(1), value1, value2, value3, EOC.START);
@@ -1387,7 +1387,7 @@ public class PrimaryKeyRestrictionSetTest
         assertComposite(bounds.get(5), value4, value3, value2, value1, EOC.NONE);
         assertComposite(bounds.get(6), value4, value3, EOC.END);
 
-        bounds = restrictions.boundsAsComposites(Bound.END, QueryOptions.DEFAULT);
+        bounds = restrictions.boundsAsComposites(cfMetaData, Bound.END, QueryOptions.DEFAULT);
         assertEquals(7, bounds.size());
         assertComposite(bounds.get(0), value1, value2, EOC.START);
         assertComposite(bounds.get(1), value1, value2, value3, value4, EOC.END);
@@ -1417,11 +1417,11 @@ public class PrimaryKeyRestrictionSetTest
         PrimaryKeyRestrictions restrictions = new PrimaryKeyRestrictionSet(cfMetaData.comparator);
         restrictions = restrictions.mergeWith(singleEq).mergeWith(multiEq);
 
-        List<Composite> bounds = restrictions.boundsAsComposites(Bound.START, QueryOptions.DEFAULT);
+        List<Composite> bounds = restrictions.boundsAsComposites(cfMetaData, Bound.START, QueryOptions.DEFAULT);
         assertEquals(1, bounds.size());
         assertComposite(bounds.get(0), value1, value2, value3, EOC.START);
 
-        bounds = restrictions.boundsAsComposites(Bound.END, QueryOptions.DEFAULT);
+        bounds = restrictions.boundsAsComposites(cfMetaData, Bound.END, QueryOptions.DEFAULT);
         assertEquals(1, bounds.size());
         assertComposite(bounds.get(0), value1, value2, value3, EOC.END);
 
@@ -1432,11 +1432,11 @@ public class PrimaryKeyRestrictionSetTest
         restrictions = new PrimaryKeyRestrictionSet(cfMetaData.comparator);
         restrictions = restrictions.mergeWith(singleEq).mergeWith(singleEq2).mergeWith(multiEq);
 
-        bounds = restrictions.boundsAsComposites(Bound.START, QueryOptions.DEFAULT);
+        bounds = restrictions.boundsAsComposites(cfMetaData, Bound.START, QueryOptions.DEFAULT);
         assertEquals(1, bounds.size());
         assertComposite(bounds.get(0), value1, value2, value3, value4, EOC.START);
 
-        bounds = restrictions.boundsAsComposites(Bound.END, QueryOptions.DEFAULT);
+        bounds = restrictions.boundsAsComposites(cfMetaData, Bound.END, QueryOptions.DEFAULT);
         assertEquals(1, bounds.size());
         assertComposite(bounds.get(0), value1, value2, value3, value4, EOC.END);
 
@@ -1446,11 +1446,11 @@ public class PrimaryKeyRestrictionSetTest
         restrictions = new PrimaryKeyRestrictionSet(cfMetaData.comparator);
         restrictions = restrictions.mergeWith(singleEq).mergeWith(multiEq);
 
-        bounds = restrictions.boundsAsComposites(Bound.START, QueryOptions.DEFAULT);
+        bounds = restrictions.boundsAsComposites(cfMetaData, Bound.START, QueryOptions.DEFAULT);
         assertEquals(1, bounds.size());
         assertComposite(bounds.get(0), value1, value2, value3, EOC.START);
 
-        bounds = restrictions.boundsAsComposites(Bound.END, QueryOptions.DEFAULT);
+        bounds = restrictions.boundsAsComposites(cfMetaData, Bound.END, QueryOptions.DEFAULT);
         assertEquals(1, bounds.size());
         assertComposite(bounds.get(0), value1, value2, value3, EOC.END);
 
@@ -1461,11 +1461,11 @@ public class PrimaryKeyRestrictionSetTest
         restrictions = new PrimaryKeyRestrictionSet(cfMetaData.comparator);
         restrictions = restrictions.mergeWith(singleEq).mergeWith(multiEq).mergeWith(singleEq2);
 
-        bounds = restrictions.boundsAsComposites(Bound.START, QueryOptions.DEFAULT);
+        bounds = restrictions.boundsAsComposites(cfMetaData, Bound.START, QueryOptions.DEFAULT);
         assertEquals(1, bounds.size());
         assertComposite(bounds.get(0), value1, value2, value3, value4, EOC.START);
 
-        bounds = restrictions.boundsAsComposites(Bound.END, QueryOptions.DEFAULT);
+        bounds = restrictions.boundsAsComposites(cfMetaData, Bound.END, QueryOptions.DEFAULT);
         assertEquals(1, bounds.size());
         assertComposite(bounds.get(0), value1, value2, value3, value4, EOC.END);
     }
@@ -1490,12 +1490,12 @@ public class PrimaryKeyRestrictionSetTest
         PrimaryKeyRestrictions restrictions = new PrimaryKeyRestrictionSet(cfMetaData.comparator);
         restrictions = restrictions.mergeWith(singleEq).mergeWith(multiIN);
 
-        List<Composite> bounds = restrictions.boundsAsComposites(Bound.START, QueryOptions.DEFAULT);
+        List<Composite> bounds = restrictions.boundsAsComposites(cfMetaData, Bound.START, QueryOptions.DEFAULT);
         assertEquals(2, bounds.size());
         assertComposite(bounds.get(0), value1, value2, value3, EOC.START);
         assertComposite(bounds.get(1), value1, value4, value5, EOC.START);
 
-        bounds = restrictions.boundsAsComposites(Bound.END, QueryOptions.DEFAULT);
+        bounds = restrictions.boundsAsComposites(cfMetaData, Bound.END, QueryOptions.DEFAULT);
         assertEquals(2, bounds.size());
         assertComposite(bounds.get(0), value1, value2, value3, EOC.END);
         assertComposite(bounds.get(1), value1, value4, value5, EOC.END);
@@ -1506,11 +1506,11 @@ public class PrimaryKeyRestrictionSetTest
         restrictions = new PrimaryKeyRestrictionSet(cfMetaData.comparator);
         restrictions = restrictions.mergeWith(multiIN).mergeWith(singleEq);
 
-        bounds = restrictions.boundsAsComposites(Bound.START, QueryOptions.DEFAULT);
+        bounds = restrictions.boundsAsComposites(cfMetaData, Bound.START, QueryOptions.DEFAULT);
         assertEquals(1, bounds.size());
         assertComposite(bounds.get(0), value1, value2, value3, EOC.START);
 
-        bounds = restrictions.boundsAsComposites(Bound.END, QueryOptions.DEFAULT);
+        bounds = restrictions.boundsAsComposites(cfMetaData, Bound.END, QueryOptions.DEFAULT);
         assertEquals(1, bounds.size());
         assertComposite(bounds.get(0), value1, value2, value3, EOC.END);
 
@@ -1521,12 +1521,12 @@ public class PrimaryKeyRestrictionSetTest
         restrictions = new PrimaryKeyRestrictionSet(cfMetaData.comparator);
         restrictions = restrictions.mergeWith(singleEq).mergeWith(multiIN).mergeWith(singleEq2);
 
-        bounds = restrictions.boundsAsComposites(Bound.START, QueryOptions.DEFAULT);
+        bounds = restrictions.boundsAsComposites(cfMetaData, Bound.START, QueryOptions.DEFAULT);
         assertEquals(2, bounds.size());
         assertComposite(bounds.get(0), value1, value5, value2, value3, EOC.START);
         assertComposite(bounds.get(1), value1, value5, value4, value5, EOC.START);
 
-        bounds = restrictions.boundsAsComposites(Bound.END, QueryOptions.DEFAULT);
+        bounds = restrictions.boundsAsComposites(cfMetaData, Bound.END, QueryOptions.DEFAULT);
         assertEquals(2, bounds.size());
         assertComposite(bounds.get(0), value1, value5, value2, value3, EOC.END);
         assertComposite(bounds.get(1), value1, value5, value4, value5, EOC.END);
@@ -1553,11 +1553,11 @@ public class PrimaryKeyRestrictionSetTest
         PrimaryKeyRestrictions restrictions = new PrimaryKeyRestrictionSet(cfMetaData.comparator);
         restrictions = restrictions.mergeWith(singleEq).mergeWith(multiSlice);
 
-        List<Composite> bounds = restrictions.boundsAsComposites(Bound.START, QueryOptions.DEFAULT);
+        List<Composite> bounds = restrictions.boundsAsComposites(cfMetaData, Bound.START, QueryOptions.DEFAULT);
         assertEquals(1, bounds.size());
         assertComposite(bounds.get(0), value1, value2, value3, EOC.END);
 
-        bounds = restrictions.boundsAsComposites(Bound.END, QueryOptions.DEFAULT);
+        bounds = restrictions.boundsAsComposites(cfMetaData, Bound.END, QueryOptions.DEFAULT);
         assertEquals(1, bounds.size());
         assertComposite(bounds.get(0), value1, EOC.END);
 
@@ -1568,11 +1568,11 @@ public class PrimaryKeyRestrictionSetTest
         restrictions = new PrimaryKeyRestrictionSet(cfMetaData.comparator);
         restrictions = restrictions.mergeWith(multiSlice2).mergeWith(singleEq).mergeWith(multiSlice);
 
-        bounds = restrictions.boundsAsComposites(Bound.START, QueryOptions.DEFAULT);
+        bounds = restrictions.boundsAsComposites(cfMetaData, Bound.START, QueryOptions.DEFAULT);
         assertEquals(1, bounds.size());
         assertComposite(bounds.get(0), value1, value2, value3, EOC.END);
 
-        bounds = restrictions.boundsAsComposites(Bound.END, QueryOptions.DEFAULT);
+        bounds = restrictions.boundsAsComposites(cfMetaData, Bound.END, QueryOptions.DEFAULT);
         assertEquals(1, bounds.size());
         assertComposite(bounds.get(0), value1, value4, EOC.START);
 
@@ -1583,11 +1583,11 @@ public class PrimaryKeyRestrictionSetTest
         restrictions = new PrimaryKeyRestrictionSet(cfMetaData.comparator);
         restrictions = restrictions.mergeWith(multiSlice2).mergeWith(singleEq).mergeWith(multiSlice);
 
-        bounds = restrictions.boundsAsComposites(Bound.START, QueryOptions.DEFAULT);
+        bounds = restrictions.boundsAsComposites(cfMetaData, Bound.START, QueryOptions.DEFAULT);
         assertEquals(1, bounds.size());
         assertComposite(bounds.get(0), value1, value2, value3, EOC.NONE);
 
-        bounds = restrictions.boundsAsComposites(Bound.END, QueryOptions.DEFAULT);
+        bounds = restrictions.boundsAsComposites(cfMetaData, Bound.END, QueryOptions.DEFAULT);
         assertEquals(1, bounds.size());
         assertComposite(bounds.get(0), value1, value4, value5, EOC.END);
     }
@@ -1611,11 +1611,11 @@ public class PrimaryKeyRestrictionSetTest
         PrimaryKeyRestrictions restrictions = new PrimaryKeyRestrictionSet(cfMetaData.comparator);
         restrictions = restrictions.mergeWith(multiEq).mergeWith(singleSlice);
 
-        List<Composite> bounds = restrictions.boundsAsComposites(Bound.START, QueryOptions.DEFAULT);
+        List<Composite> bounds = restrictions.boundsAsComposites(cfMetaData, Bound.START, QueryOptions.DEFAULT);
         assertEquals(1, bounds.size());
         assertComposite(bounds.get(0), value1, value2, value3, EOC.END);
 
-        bounds = restrictions.boundsAsComposites(Bound.END, QueryOptions.DEFAULT);
+        bounds = restrictions.boundsAsComposites(cfMetaData, Bound.END, QueryOptions.DEFAULT);
         assertEquals(1, bounds.size());
         assertComposite(bounds.get(0),  value1, value2, EOC.END);
     }
@@ -1637,11 +1637,11 @@ public class PrimaryKeyRestrictionSetTest
         PrimaryKeyRestrictions restrictions = new PrimaryKeyRestrictionSet(cfMetaData.comparator);
         restrictions = restrictions.mergeWith(multiEq).mergeWith(multiSlice);
 
-        List<Composite> bounds = restrictions.boundsAsComposites(Bound.START, QueryOptions.DEFAULT);
+        List<Composite> bounds = restrictions.boundsAsComposites(cfMetaData, Bound.START, QueryOptions.DEFAULT);
         assertEquals(1, bounds.size());
         assertComposite(bounds.get(0), value1, value2, value3, value4, EOC.END);
 
-        bounds = restrictions.boundsAsComposites(Bound.END, QueryOptions.DEFAULT);
+        bounds = restrictions.boundsAsComposites(cfMetaData, Bound.END, QueryOptions.DEFAULT);
         assertEquals(1, bounds.size());
         assertComposite(bounds.get(0),  value1, value2, EOC.END);
 
@@ -1651,12 +1651,12 @@ public class PrimaryKeyRestrictionSetTest
         restrictions = new PrimaryKeyRestrictionSet(cfMetaData.comparator);
         restrictions = restrictions.mergeWith(multiEq).mergeWith(multiIN);
 
-        bounds = restrictions.boundsAsComposites(Bound.START, QueryOptions.DEFAULT);
+        bounds = restrictions.boundsAsComposites(cfMetaData, Bound.START, QueryOptions.DEFAULT);
         assertEquals(2, bounds.size());
         assertComposite(bounds.get(0), value1, value2, value3, value4, EOC.START);
         assertComposite(bounds.get(1), value1, value2, value4, value5, EOC.START);
 
-        bounds = restrictions.boundsAsComposites(Bound.END, QueryOptions.DEFAULT);
+        bounds = restrictions.boundsAsComposites(cfMetaData, Bound.END, QueryOptions.DEFAULT);
         assertEquals(2, bounds.size());
         assertComposite(bounds.get(0), value1, value2, value3, value4, EOC.END);
         assertComposite(bounds.get(1), value1, value2, value4, value5, EOC.END);
@@ -1667,11 +1667,11 @@ public class PrimaryKeyRestrictionSetTest
         restrictions = new PrimaryKeyRestrictionSet(cfMetaData.comparator);
         restrictions = restrictions.mergeWith(multiEq).mergeWith(multiEq2);
 
-        bounds = restrictions.boundsAsComposites(Bound.START, QueryOptions.DEFAULT);
+        bounds = restrictions.boundsAsComposites(cfMetaData, Bound.START, QueryOptions.DEFAULT);
         assertEquals(1, bounds.size());
         assertComposite(bounds.get(0), value1, value2, value3, value4, EOC.START);
 
-        bounds = restrictions.boundsAsComposites(Bound.END, QueryOptions.DEFAULT);
+        bounds = restrictions.boundsAsComposites(cfMetaData, Bound.END, QueryOptions.DEFAULT);
         assertEquals(1, bounds.size());
         assertComposite(bounds.get(0), value1, value2, value3, value4, EOC.END);
     }

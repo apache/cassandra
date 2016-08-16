@@ -21,6 +21,7 @@ import java.nio.ByteBuffer;
 import java.util.Collections;
 import java.util.List;
 
+import org.apache.cassandra.config.CFMetaData;
 import org.apache.cassandra.cql3.QueryOptions;
 import org.apache.cassandra.cql3.statements.Bound;
 import org.apache.cassandra.db.composites.Composite;
@@ -48,17 +49,17 @@ final class ReversedPrimaryKeyRestrictions extends ForwardingPrimaryKeyRestricti
     }
 
     @Override
-    public List<ByteBuffer> bounds(Bound bound, QueryOptions options) throws InvalidRequestException
+    public List<ByteBuffer> bounds(CFMetaData cfm, Bound bound, QueryOptions options) throws InvalidRequestException
     {
-        List<ByteBuffer> buffers = restrictions.bounds(bound.reverse(), options);
+        List<ByteBuffer> buffers = restrictions.bounds(cfm, bound.reverse(), options);
         Collections.reverse(buffers);
         return buffers;
     }
 
     @Override
-    public List<Composite> boundsAsComposites(Bound bound, QueryOptions options) throws InvalidRequestException
+    public List<Composite> boundsAsComposites(CFMetaData cfm, Bound bound, QueryOptions options) throws InvalidRequestException
     {
-        List<Composite> composites = restrictions.boundsAsComposites(bound.reverse(), options);
+        List<Composite> composites = restrictions.boundsAsComposites(cfm, bound.reverse(), options);
         Collections.reverse(composites);
         return composites;
     }

@@ -315,7 +315,7 @@ public abstract class ModificationStatement implements CQLStatement
         for (ColumnDefinition def : cfm.partitionKeyColumns())
         {
             Restriction r = checkNotNull(processedKeys.get(def.name), "Missing mandatory PRIMARY KEY part %s", def.name);
-            r.appendTo(keyBuilder, options);
+            r.appendTo(cfm, keyBuilder, options);
         }
 
         return Lists.transform(filterAndSort(keyBuilder.build()), new com.google.common.base.Function<Composite, ByteBuffer>()
@@ -406,7 +406,7 @@ public abstract class ModificationStatement implements CQLStatement
             }
             else
             {
-                r.appendTo(builder, options);
+                r.appendTo(cfm, builder, options);
             }
         }
         return builder.build().get(0); // We only allow IN for row keys so far

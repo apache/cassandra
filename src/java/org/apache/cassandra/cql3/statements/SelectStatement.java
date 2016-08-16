@@ -181,6 +181,9 @@ public class SelectStatement implements CQLStatement
 
     private Pageable getPageableCommand(QueryOptions options, int limit, long now) throws RequestValidationException
     {
+        if (restrictions.isNotReturningAnyRows(options))
+            return null;
+
         int limitForQuery = updateLimitForQuery(limit);
         if (restrictions.isKeyRange() || restrictions.usesSecondaryIndexing())
             return getRangeCommand(options, limitForQuery, now);
@@ -622,7 +625,13 @@ public class SelectStatement implements CQLStatement
         if (restrictions.areRequestedBoundsInclusive(reverseBoundIfNeeded(bound)))
             return null;
 
-       return type.makeCellName(restrictions.getClusteringColumnsBounds(bound, options).get(0));
+        // We can only reach that if the table is dense non-compound tables.
+        // By consequence, we know that the table is a COMPACT table with only one clustering column.
+        ByteBuffer value = restrictions.getClusteringColumnsBounds(bound, options).get(0);
+
+        // Dense non-compound tables do not accept empty ByteBuffers. By consequence, if the slice value is empty
+        // we know that we can treat the slice as inclusive.
+        return value.hasRemaining() ? type.makeCellName(value) : null;
     }
 
     /**

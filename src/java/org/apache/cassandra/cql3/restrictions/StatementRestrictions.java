@@ -399,7 +399,7 @@ public final class StatementRestrictions
      */
     public Collection<ByteBuffer> getPartitionKeys(final QueryOptions options) throws InvalidRequestException
     {
-        return partitionKeyRestrictions.values(options);
+        return partitionKeyRestrictions.values(cfm, options);
     }
 
     /**
@@ -419,7 +419,7 @@ public final class StatementRestrictions
             return ByteBufferUtil.EMPTY_BYTE_BUFFER;
 
         // We deal with IN queries for keys in other places, so we know buildBound will return only one result
-        return partitionKeyRestrictions.bounds(b, options).get(0);
+        return partitionKeyRestrictions.bounds(cfm, b, options).get(0);
     }
 
     /**
@@ -501,7 +501,7 @@ public final class StatementRestrictions
         if (!partitionKeyRestrictions.hasBound(b))
             return p.getMinimumToken();
 
-        ByteBuffer value = partitionKeyRestrictions.bounds(b, options).get(0);
+        ByteBuffer value = partitionKeyRestrictions.bounds(cfm, b, options).get(0);
         checkNotNull(value, "Invalid null token value");
         return p.getTokenFactory().fromByteArray(value);
     }
@@ -546,7 +546,7 @@ public final class StatementRestrictions
      */
     public List<Composite> getClusteringColumnsAsComposites(QueryOptions options) throws InvalidRequestException
     {
-        return clusteringColumnsRestrictions.valuesAsComposites(options);
+        return clusteringColumnsRestrictions.valuesAsComposites(cfm, options);
     }
 
     /**
@@ -560,7 +560,7 @@ public final class StatementRestrictions
     public List<Composite> getClusteringColumnsBoundsAsComposites(Bound b,
                                                                   QueryOptions options) throws InvalidRequestException
     {
-        List<Composite> bounds = clusteringColumnsRestrictions.boundsAsComposites(b, options);
+        List<Composite> bounds = clusteringColumnsRestrictions.boundsAsComposites(cfm, b, options);
         for (Composite c : bounds) {
             if (!c.isEmpty())
                 QueryProcessor.validateComposite(c, cfm.comparator);
@@ -578,7 +578,7 @@ public final class StatementRestrictions
      */
     public List<ByteBuffer> getClusteringColumnsBounds(Bound b, QueryOptions options) throws InvalidRequestException
     {
-        return clusteringColumnsRestrictions.bounds(b, options);
+        return clusteringColumnsRestrictions.bounds(cfm, b, options);
     }
 
     /**
@@ -641,5 +641,16 @@ public final class StatementRestrictions
     public void reverse()
     {
         clusteringColumnsRestrictions = new ReversedPrimaryKeyRestrictions(clusteringColumnsRestrictions);
+    }
+
+    /**
+     * Checks if the query will never return any rows.
+     *
+     * @param options the query options
+     * @return {@code true} if the query will never return any rows, {@false} otherwise
+     */
+    public boolean isNotReturningAnyRows(QueryOptions options)
+    {
+        return clusteringColumnsRestrictions.isNotReturningAnyRows(cfm, options);
     }
 }

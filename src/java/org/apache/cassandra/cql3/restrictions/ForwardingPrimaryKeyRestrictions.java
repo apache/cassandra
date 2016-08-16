@@ -20,6 +20,7 @@ package org.apache.cassandra.cql3.restrictions;
 import java.nio.ByteBuffer;
 import java.util.List;
 
+import org.apache.cassandra.config.CFMetaData;
 import org.apache.cassandra.config.ColumnDefinition;
 import org.apache.cassandra.cql3.QueryOptions;
 import org.apache.cassandra.cql3.functions.Function;
@@ -80,39 +81,39 @@ abstract class ForwardingPrimaryKeyRestrictions implements PrimaryKeyRestriction
     }
 
     @Override
-    public List<ByteBuffer> values(QueryOptions options) throws InvalidRequestException
+    public List<ByteBuffer> values(CFMetaData cfm, QueryOptions options) throws InvalidRequestException
     {
-        return getDelegate().values(options);
+        return getDelegate().values(cfm, options);
     }
 
     @Override
-    public CompositesBuilder appendTo(CompositesBuilder builder, QueryOptions options)
+    public CompositesBuilder appendTo(CFMetaData cfm, CompositesBuilder builder, QueryOptions options)
     {
-        return getDelegate().appendTo(builder, options);
+        return getDelegate().appendTo(cfm, builder, options);
     }
 
     @Override
-    public List<Composite> valuesAsComposites(QueryOptions options) throws InvalidRequestException
+    public List<Composite> valuesAsComposites(CFMetaData cfm, QueryOptions options) throws InvalidRequestException
     {
-        return getDelegate().valuesAsComposites(options);
+        return getDelegate().valuesAsComposites(cfm, options);
     }
 
     @Override
-    public List<ByteBuffer> bounds(Bound bound, QueryOptions options) throws InvalidRequestException
+    public List<ByteBuffer> bounds(CFMetaData cfm, Bound bound, QueryOptions options) throws InvalidRequestException
     {
-        return getDelegate().bounds(bound, options);
+        return getDelegate().bounds(cfm, bound, options);
     }
 
     @Override
-    public List<Composite> boundsAsComposites(Bound bound, QueryOptions options) throws InvalidRequestException
+    public List<Composite> boundsAsComposites(CFMetaData cfm, Bound bound, QueryOptions options) throws InvalidRequestException
     {
-        return getDelegate().boundsAsComposites(bound, options);
+        return getDelegate().boundsAsComposites(cfm, bound, options);
     }
 
     @Override
-    public CompositesBuilder appendBoundTo(CompositesBuilder builder, Bound bound, QueryOptions options)
+    public CompositesBuilder appendBoundTo(CFMetaData cfm, CompositesBuilder builder, Bound bound, QueryOptions options)
     {
-        return getDelegate().appendBoundTo(builder, bound, options);
+        return getDelegate().appendBoundTo(cfm, builder, bound, options);
     }
 
     @Override
@@ -181,5 +182,11 @@ abstract class ForwardingPrimaryKeyRestrictions implements PrimaryKeyRestriction
                                      QueryOptions options) throws InvalidRequestException
     {
         getDelegate().addIndexExpressionTo(expressions, indexManager, options);
+    }
+
+    @Override
+    public boolean isNotReturningAnyRows(CFMetaData cfm, QueryOptions options)
+    {
+        return getDelegate().isNotReturningAnyRows(cfm, options);
     }
 }

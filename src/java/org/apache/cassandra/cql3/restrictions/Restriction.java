@@ -19,6 +19,7 @@ package org.apache.cassandra.cql3.restrictions;
 
 import java.util.List;
 
+import org.apache.cassandra.config.CFMetaData;
 import org.apache.cassandra.config.ColumnDefinition;
 import org.apache.cassandra.cql3.QueryOptions;
 import org.apache.cassandra.cql3.functions.Function;
@@ -120,19 +121,30 @@ public interface Restriction
     /**
      * Appends the values of this <code>Restriction</code> to the specified builder.
      *
+     * @param cfm the table metadata
      * @param builder the <code>CompositesBuilder</code> to append to.
      * @param options the query options
      * @return the <code>CompositesBuilder</code>
      */
-    public CompositesBuilder appendTo(CompositesBuilder builder, QueryOptions options);
+    public CompositesBuilder appendTo(CFMetaData cfm, CompositesBuilder builder, QueryOptions options);
 
     /**
      * Appends the values of the <code>Restriction</code> for the specified bound to the specified builder.
      *
+     * @param cfm the table metadata
      * @param builder the <code>CompositesBuilder</code> to append to.
      * @param bound the bound
      * @param options the query options
      * @return the <code>CompositesBuilder</code>
      */
-    public CompositesBuilder appendBoundTo(CompositesBuilder builder, Bound bound, QueryOptions options);
+    public CompositesBuilder appendBoundTo(CFMetaData cfm, CompositesBuilder builder, Bound bound, QueryOptions options);
+
+    /**
+     * Checks if this restriction will prevent the query to return any rows.
+     *
+     * @param cfm the table metadata
+     * @param options the query options
+     * @return {@code true} if this restriction will prevent the query to return any rows, {@false} otherwise
+     */
+    public boolean isNotReturningAnyRows(CFMetaData cfm, QueryOptions options);
 }

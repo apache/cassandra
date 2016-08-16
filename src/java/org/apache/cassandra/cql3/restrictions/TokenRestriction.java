@@ -23,6 +23,7 @@ import java.util.List;
 
 import com.google.common.base.Joiner;
 
+import org.apache.cassandra.config.CFMetaData;
 import org.apache.cassandra.config.ColumnDefinition;
 import org.apache.cassandra.cql3.QueryOptions;
 import org.apache.cassandra.cql3.Term;
@@ -98,19 +99,19 @@ public abstract class TokenRestriction extends AbstractPrimaryKeyRestrictions
     }
 
     @Override
-    public CompositesBuilder appendTo(CompositesBuilder builder, QueryOptions options)
+    public CompositesBuilder appendTo(CFMetaData cfm, CompositesBuilder builder, QueryOptions options)
     {
         throw new UnsupportedOperationException();
     }
 
     @Override
-    public List<Composite> valuesAsComposites(QueryOptions options) throws InvalidRequestException
+    public List<Composite> valuesAsComposites(CFMetaData cfm, QueryOptions options) throws InvalidRequestException
     {
         throw new UnsupportedOperationException();
     }
 
     @Override
-    public List<Composite> boundsAsComposites(Bound bound, QueryOptions options) throws InvalidRequestException
+    public List<Composite> boundsAsComposites(CFMetaData cfm, Bound bound, QueryOptions options) throws InvalidRequestException
     {
         throw new UnsupportedOperationException();
     }
@@ -185,7 +186,7 @@ public abstract class TokenRestriction extends AbstractPrimaryKeyRestrictions
         }
 
         @Override
-        public List<ByteBuffer> values(QueryOptions options) throws InvalidRequestException
+        public List<ByteBuffer> values(CFMetaData cfm, QueryOptions options) throws InvalidRequestException
         {
             return Collections.singletonList(value.bindAndGet(options));
         }
@@ -208,7 +209,7 @@ public abstract class TokenRestriction extends AbstractPrimaryKeyRestrictions
         }
 
         @Override
-        public List<ByteBuffer> values(QueryOptions options) throws InvalidRequestException
+        public List<ByteBuffer> values(CFMetaData cfm, QueryOptions options) throws InvalidRequestException
         {
             throw new UnsupportedOperationException();
         }
@@ -220,7 +221,7 @@ public abstract class TokenRestriction extends AbstractPrimaryKeyRestrictions
         }
 
         @Override
-        public List<ByteBuffer> bounds(Bound b, QueryOptions options) throws InvalidRequestException
+        public List<ByteBuffer> bounds(CFMetaData cfm, Bound b, QueryOptions options) throws InvalidRequestException
         {
             return Collections.singletonList(slice.bound(b).bindAndGet(options));
         }

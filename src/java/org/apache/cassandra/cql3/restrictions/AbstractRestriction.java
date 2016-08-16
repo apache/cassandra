@@ -19,6 +19,7 @@ package org.apache.cassandra.cql3.restrictions;
 
 import java.nio.ByteBuffer;
 
+import org.apache.cassandra.config.CFMetaData;
 import org.apache.cassandra.config.ColumnDefinition;
 
 import org.apache.cassandra.cql3.ColumnSpecification;
@@ -78,15 +79,20 @@ abstract class AbstractRestriction  implements Restriction
     }
 
     @Override
-    public CompositesBuilder appendBoundTo(CompositesBuilder builder, Bound bound, QueryOptions options)
+    public CompositesBuilder appendBoundTo(CFMetaData cfm, CompositesBuilder builder, Bound bound, QueryOptions options)
     {
-        return appendTo(builder, options);
+        return appendTo(cfm, builder, options);
     }
 
     @Override
     public boolean isInclusive(Bound b)
     {
         return true;
+    }
+
+    public boolean isNotReturningAnyRows(CFMetaData cfm, QueryOptions options)
+    {
+        return false;
     }
 
     protected static ByteBuffer validateIndexedValue(ColumnSpecification columnSpec,

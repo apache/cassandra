@@ -22,6 +22,7 @@ import java.util.*;
 
 import com.google.common.collect.Lists;
 
+import org.apache.cassandra.config.CFMetaData;
 import org.apache.cassandra.config.ColumnDefinition;
 import org.apache.cassandra.cql3.QueryOptions;
 import org.apache.cassandra.cql3.functions.Function;
@@ -142,17 +143,17 @@ final class PrimaryKeyRestrictionSet extends AbstractPrimaryKeyRestrictions impl
     }
 
     @Override
-    public List<Composite> valuesAsComposites(QueryOptions options) throws InvalidRequestException
+    public List<Composite> valuesAsComposites(CFMetaData cfm, QueryOptions options) throws InvalidRequestException
     {
-        return filterAndSort(appendTo(new CompositesBuilder(ctype), options).build());
+        return filterAndSort(appendTo(cfm, new CompositesBuilder(ctype), options).build());
     }
 
     @Override
-    public CompositesBuilder appendTo(CompositesBuilder builder, QueryOptions options)
+    public CompositesBuilder appendTo(CFMetaData cfm, CompositesBuilder builder, QueryOptions options)
     {
         for (Restriction r : restrictions)
         {
-            r.appendTo(builder, options);
+            r.appendTo(cfm, builder, options);
             if (builder.hasMissingElements())
                 break;
         }
@@ -160,13 +161,13 @@ final class PrimaryKeyRestrictionSet extends AbstractPrimaryKeyRestrictions impl
     }
 
     @Override
-    public CompositesBuilder appendBoundTo(CompositesBuilder builder, Bound bound, QueryOptions options)
+    public CompositesBuilder appendBoundTo(CFMetaData cfm, CompositesBuilder builder, Bound bound, QueryOptions options)
     {
         throw new UnsupportedOperationException();
     }
 
     @Override
-    public List<Composite> boundsAsComposites(Bound bound, QueryOptions options) throws InvalidRequestException
+    public List<Composite> boundsAsComposites(CFMetaData cfm, Bound bound, QueryOptions options) throws InvalidRequestException
     {
         CompositesBuilder builder = new CompositesBuilder(ctype);
         // The end-of-component of composite doesn't depend on whether the
@@ -183,7 +184,7 @@ final class PrimaryKeyRestrictionSet extends AbstractPrimaryKeyRestrictions impl
 
             if (r.isSlice())
             {
-                r.appendBoundTo(builder, bound, options);
+                r.appendBoundTo(cfm, builder, bound, options);
 
                 // Since CASSANDRA-7281, the composites might not end with the same components and it is possible
                 // that one of the composites is an empty one. Unfortunatly, AbstractCType will always sort
@@ -204,7 +205,7 @@ final class PrimaryKeyRestrictionSet extends AbstractPrimaryKeyRestrictions impl
                 });
             }
 
-            r.appendBoundTo(builder, bound, options);
+            r.appendBoundTo(cfm, builder, bound, options);
 
             if (builder.hasMissingElements())
                 return Collections.emptyList();
@@ -287,15 +288,15 @@ final class PrimaryKeyRestrictionSet extends AbstractPrimaryKeyRestrictions impl
     }
 
     @Override
-    public List<ByteBuffer> values(QueryOptions options) throws InvalidRequestException
+    public List<ByteBuffer> values(CFMetaData cfm, QueryOptions options) throws InvalidRequestException
     {
-        return Composites.toByteBuffers(valuesAsComposites(options));
+        return Composites.toByteBuffers(valuesAsComposites(cfm, options));
     }
 
     @Override
-    public List<ByteBuffer> bounds(Bound b, QueryOptions options) throws InvalidRequestException
+    public List<ByteBuffer> bounds(CFMetaData cfm, Bound b, QueryOptions options) throws InvalidRequestException
     {
-        return Composites.toByteBuffers(boundsAsComposites(b, options));
+        return Composites.toByteBuffers(boundsAsComposites(cfm, b, options));
     }
 
     private static Composite.EOC eocFor(Restriction r, Bound eocBound, Bound inclusiveBound)
@@ -390,6 +391,17 @@ final class PrimaryKeyRestrictionSet extends AbstractPrimaryKeyRestrictions impl
                 position = restriction.getLastColumn().position() + 1;
         }
 
+        return false;
+    }
+
+    @Override
+    public boolean isNotReturningAnyRows(CFMetaData cfm, QueryOptions options)
+    {
+        for (Restriction restriction : restrictions)
+        {
+            if (restriction.isNotReturningAnyRows(cfm, options))
+                return true;
+        }
         return false;
     }
 
