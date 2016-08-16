@@ -35,6 +35,11 @@ import org.apache.cassandra.utils.btree.BTree;
  */
 public class SSTableReversedIterator extends AbstractSSTableIterator
 {
+    /**
+     * The index of the slice being processed.
+     */
+    private int slice;
+
     public SSTableReversedIterator(SSTableReader sstable,
                                    FileDataInput file,
                                    DecoratedKey key,
@@ -57,6 +62,18 @@ public class SSTableReversedIterator extends AbstractSSTableIterator
     public boolean isReverseOrder()
     {
         return true;
+    }
+
+    protected int nextSliceIndex()
+    {
+        int next = slice;
+        slice++;
+        return slices.size() - (next + 1);
+    }
+
+    protected boolean hasMoreSlices()
+    {
+        return slice < slices.size();
     }
 
     private class ReverseReader extends Reader
@@ -106,7 +123,7 @@ public class SSTableReversedIterator extends AbstractSSTableIterator
                 buffer = createBuffer(1);
                 // Note that we can reuse that buffer between slices (we could alternatively re-read from disk
                 // every time, but that feels more wasteful) so we want to include everything from the beginning.
-                // We can stop at the slice end however since any following slice will be before that.
+                // We can stop at the last slice end however since any following slice will be before that.
                 loadFromDisk(null, slice.end(), true);
             }
             setIterator(slice);

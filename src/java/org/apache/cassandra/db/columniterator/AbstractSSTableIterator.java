@@ -52,7 +52,6 @@ public abstract class AbstractSSTableIterator implements UnfilteredRowIterator
     private boolean isClosed;
 
     protected final Slices slices;
-    protected int slice;
 
     @SuppressWarnings("resource") // We need this because the analysis is not able to determine that we do close
                                   // file on every path where we created it.
@@ -120,7 +119,7 @@ public abstract class AbstractSSTableIterator implements UnfilteredRowIterator
                 }
 
                 if (reader != null && !slices.isEmpty())
-                    reader.setForSlice(slices.get(0));
+                    reader.setForSlice(nextSlice());
 
                 if (reader == null && file != null && shouldCloseFile)
                     file.close();
@@ -144,6 +143,23 @@ public abstract class AbstractSSTableIterator implements UnfilteredRowIterator
             }
         }
     }
+
+    private Slice nextSlice()
+    {
+        return slices.get(nextSliceIndex());
+    }
+
+    /**
+     * Returns the index of the next slice to process.
+     * @return the index of the next slice to process
+     */
+    protected abstract int nextSliceIndex();
+
+    /**
+     * Checks if there are more slice to process.
+     * @return {@code true} if there are more slice to process, {@code false} otherwise.
+     */
+    protected abstract boolean hasMoreSlices();
 
     private static Row readStaticRow(SSTableReader sstable,
                                      FileDataInput file,
@@ -241,10 +257,10 @@ public abstract class AbstractSSTableIterator implements UnfilteredRowIterator
             if (reader.hasNext())
                 return true;
 
-            if (++slice >= slices.size())
+            if (!hasMoreSlices())
                 return false;
 
-            slice(slices.get(slice));
+            slice(nextSlice());
         }
     }
 

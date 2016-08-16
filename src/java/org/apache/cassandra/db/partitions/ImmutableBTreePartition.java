@@ -70,13 +70,45 @@ public class ImmutableBTreePartition extends AbstractBTreePartition
      * up to the caller to do so.
      *
      * @param iterator the iterator to gather in memory.
+     * @param ordered {@code true} if the iterator will return the rows in order, {@code false} otherwise.
+     * @return the created partition.
+     */
+    public static ImmutableBTreePartition create(UnfilteredRowIterator iterator, boolean ordered)
+    {
+        return create(iterator, 16, ordered);
+    }
+
+    /**
+     * Creates an {@code ImmutableBTreePartition} holding all the data of the provided iterator.
+     *
+     * Warning: Note that this method does not close the provided iterator and it is
+     * up to the caller to do so.
+     *
+     * @param iterator the iterator to gather in memory.
      * @param initialRowCapacity sizing hint (in rows) to use for the created partition. It should ideally
      * correspond or be a good estimation of the number or rows in {@code iterator}.
      * @return the created partition.
      */
     public static ImmutableBTreePartition create(UnfilteredRowIterator iterator, int initialRowCapacity)
     {
-        return new ImmutableBTreePartition(iterator.metadata(), iterator.partitionKey(), build(iterator, initialRowCapacity));
+        return create(iterator, initialRowCapacity, true);
+    }
+
+    /**
+     * Creates an {@code ImmutableBTreePartition} holding all the data of the provided iterator.
+     *
+     * Warning: Note that this method does not close the provided iterator and it is
+     * up to the caller to do so.
+     *
+     * @param iterator the iterator to gather in memory.
+     * @param initialRowCapacity sizing hint (in rows) to use for the created partition. It should ideally
+     * correspond or be a good estimation of the number or rows in {@code iterator}.
+     * @param ordered {@code true} if the iterator will return the rows in order, {@code false} otherwise.
+     * @return the created partition.
+     */
+    public static ImmutableBTreePartition create(UnfilteredRowIterator iterator, int initialRowCapacity, boolean ordered)
+    {
+        return new ImmutableBTreePartition(iterator.metadata(), iterator.partitionKey(), build(iterator, initialRowCapacity, ordered));
     }
 
     protected Holder holder()
