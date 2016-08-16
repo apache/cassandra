@@ -43,10 +43,12 @@ import org.apache.cassandra.utils.FBUtilities;
 public class DataResolver extends ResponseResolver
 {
     private final List<AsyncOneResponse> repairResults = Collections.synchronizedList(new ArrayList<>());
+    private final long queryStartNanoTime;
 
-    public DataResolver(Keyspace keyspace, ReadCommand command, ConsistencyLevel consistency, int maxResponseCount)
+    public DataResolver(Keyspace keyspace, ReadCommand command, ConsistencyLevel consistency, int maxResponseCount, long queryStartNanoTime)
     {
         super(keyspace, command, consistency, maxResponseCount);
+        this.queryStartNanoTime = queryStartNanoTime;
     }
 
     public PartitionIterator getData()
@@ -88,7 +90,7 @@ public class DataResolver extends ResponseResolver
         if (!command.limits().isUnlimited())
         {
             for (int i = 0; i < results.size(); i++)
-                results.set(i, Transformation.apply(results.get(i), new ShortReadProtection(sources[i], resultCounter)));
+                results.set(i, Transformation.apply(results.get(i), new ShortReadProtection(sources[i], resultCounter, queryStartNanoTime)));
         }
 
         return UnfilteredPartitionIterators.mergeAndFilter(results, command.nowInSec(), listener);
@@ -385,12 +387,14 @@ public class DataResolver extends ResponseResolver
         private final InetAddress source;
         private final DataLimits.Counter counter;
         private final DataLimits.Counter postReconciliationCounter;
+        private final long queryStartNanoTime;
 
-        private ShortReadProtection(InetAddress source, DataLimits.Counter postReconciliationCounter)
+        private ShortReadProtection(InetAddress source, DataLimits.Counter postReconciliationCounter, long queryStartNanoTime)
         {
             this.source = source;
             this.counter = command.limits().newCounter(command.nowInSec(), false).onlyCount();
             this.postReconciliationCounter = postReconciliationCounter;
+            this.queryStartNanoTime = queryStartNanoTime;
         }
 
         @Override
@@ -503,8 +507,8 @@ public class DataResolver extends ResponseResolver
 
             private UnfilteredRowIterator doShortReadRetry(SinglePartitionReadCommand retryCommand)
             {
-                DataResolver resolver = new DataResolver(keyspace, retryCommand, ConsistencyLevel.ONE, 1);
-                ReadCallback handler = new ReadCallback(resolver, ConsistencyLevel.ONE, retryCommand, Collections.singletonList(source));
+                DataResolver resolver = new DataResolver(keyspace, retryCommand, ConsistencyLevel.ONE, 1, queryStartNanoTime);
+                ReadCallback handler = new ReadCallback(resolver, ConsistencyLevel.ONE, retryCommand, Collections.singletonList(source), queryStartNanoTime);
                 if (StorageProxy.canDoLocalRequest(source))
                       StageManager.getStage(Stage.READ).maybeExecuteImmediately(new StorageProxy.LocalReadRunnable(retryCommand, handler));
                 else

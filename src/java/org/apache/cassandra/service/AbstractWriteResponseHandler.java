@@ -41,7 +41,6 @@ public abstract class AbstractWriteResponseHandler<T> implements IAsyncCallbackW
 
     private final SimpleCondition condition = new SimpleCondition();
     protected final Keyspace keyspace;
-    protected final long start;
     protected final Collection<InetAddress> naturalEndpoints;
     public final ConsistencyLevel consistencyLevel;
     protected final Runnable callback;
@@ -50,24 +49,27 @@ public abstract class AbstractWriteResponseHandler<T> implements IAsyncCallbackW
     private static final AtomicIntegerFieldUpdater<AbstractWriteResponseHandler> failuresUpdater
         = AtomicIntegerFieldUpdater.newUpdater(AbstractWriteResponseHandler.class, "failures");
     private volatile int failures = 0;
+    private final long queryStartNanoTime;
 
     /**
      * @param callback A callback to be called when the write is successful.
+     * @param queryStartNanoTime
      */
     protected AbstractWriteResponseHandler(Keyspace keyspace,
                                            Collection<InetAddress> naturalEndpoints,
                                            Collection<InetAddress> pendingEndpoints,
                                            ConsistencyLevel consistencyLevel,
                                            Runnable callback,
-                                           WriteType writeType)
+                                           WriteType writeType,
+                                           long queryStartNanoTime)
     {
         this.keyspace = keyspace;
         this.pendingEndpoints = pendingEndpoints;
-        this.start = System.nanoTime();
         this.consistencyLevel = consistencyLevel;
         this.naturalEndpoints = naturalEndpoints;
         this.callback = callback;
         this.writeType = writeType;
+        this.queryStartNanoTime = queryStartNanoTime;
     }
 
     public void get() throws WriteTimeoutException, WriteFailureException
@@ -76,7 +78,7 @@ public abstract class AbstractWriteResponseHandler<T> implements IAsyncCallbackW
                             ? DatabaseDescriptor.getCounterWriteRpcTimeout()
                             : DatabaseDescriptor.getWriteRpcTimeout();
 
-        long timeout = TimeUnit.MILLISECONDS.toNanos(requestTimeout) - (System.nanoTime() - start);
+        long timeout = TimeUnit.MILLISECONDS.toNanos(requestTimeout) - (System.nanoTime() - queryStartNanoTime);
 
         boolean success;
         try

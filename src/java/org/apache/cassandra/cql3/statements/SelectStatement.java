@@ -228,7 +228,7 @@ public class SelectStatement implements CQLStatement
         // Nothing to do, all validation has been done by RawStatement.prepare()
     }
 
-    public ResultMessage.Rows execute(QueryState state, QueryOptions options) throws RequestExecutionException, RequestValidationException
+    public ResultMessage.Rows execute(QueryState state, QueryOptions options, long queryStartNanoTime) throws RequestExecutionException, RequestValidationException
     {
         ConsistencyLevel cl = options.getConsistency();
         checkNotNull(cl, "Invalid empty consistency level");
@@ -242,11 +242,11 @@ public class SelectStatement implements CQLStatement
         ReadQuery query = getQuery(options, nowInSec, userLimit, userPerPartitionLimit, pageSize);
 
         if (aggregationSpec == null && (pageSize <= 0 || (query.limits().count() <= pageSize)))
-            return execute(query, options, state, nowInSec, userLimit);
+            return execute(query, options, state, nowInSec, userLimit, queryStartNanoTime);
 
         QueryPager pager = getPager(query, options);
 
-        return execute(Pager.forDistributedQuery(pager, cl, state.getClientState()), options, pageSize, nowInSec, userLimit);
+        return execute(Pager.forDistributedQuery(pager, cl, state.getClientState()), options, pageSize, nowInSec, userLimit, queryStartNanoTime);
     }
 
     public ReadQuery getQuery(QueryOptions options, int nowInSec) throws RequestValidationException
@@ -270,9 +270,9 @@ public class SelectStatement implements CQLStatement
                                        QueryOptions options,
                                        QueryState state,
                                        int nowInSec,
-                                       int userLimit) throws RequestValidationException, RequestExecutionException
+                                       int userLimit, long queryStartNanoTime) throws RequestValidationException, RequestExecutionException
     {
-        try (PartitionIterator data = query.execute(options.getConsistency(), state.getClientState()))
+        try (PartitionIterator data = query.execute(options.getConsistency(), state.getClientState(), queryStartNanoTime))
         {
             return processResults(data, options, nowInSec, userLimit);
         }
@@ -308,7 +308,7 @@ public class SelectStatement implements CQLStatement
             return pager.state();
         }
 
-        public abstract PartitionIterator fetchPage(int pageSize);
+        public abstract PartitionIterator fetchPage(int pageSize, long queryStartNanoTime);
 
         public static class NormalPager extends Pager
         {
@@ -322,9 +322,9 @@ public class SelectStatement implements CQLStatement
                 this.clientState = clientState;
             }
 
-            public PartitionIterator fetchPage(int pageSize)
+            public PartitionIterator fetchPage(int pageSize, long queryStartNanoTime)
             {
-                return pager.fetchPage(pageSize, consistency, clientState);
+                return pager.fetchPage(pageSize, consistency, clientState, queryStartNanoTime);
             }
         }
 
@@ -338,7 +338,7 @@ public class SelectStatement implements CQLStatement
                 this.executionController = executionController;
             }
 
-            public PartitionIterator fetchPage(int pageSize)
+            public PartitionIterator fetchPage(int pageSize, long queryStartNanoTime)
             {
                 return pager.fetchPageInternal(pageSize, executionController);
             }
@@ -349,7 +349,8 @@ public class SelectStatement implements CQLStatement
                                        QueryOptions options,
                                        int pageSize,
                                        int nowInSec,
-                                       int userLimit) throws RequestValidationException, RequestExecutionException
+                                       int userLimit,
+                                       long queryStartNanoTime) throws RequestValidationException, RequestExecutionException
     {
         if (aggregationSpec != null)
         {
@@ -370,7 +371,7 @@ public class SelectStatement implements CQLStatement
                   + " you must either remove the ORDER BY or the IN and sort client side, or disable paging for this query");
 
         ResultMessage.Rows msg;
-        try (PartitionIterator page = pager.fetchPage(pageSize))
+        try (PartitionIterator page = pager.fetchPage(pageSize, queryStartNanoTime))
         {
             msg = processResults(page, options, nowInSec, userLimit);
         }
@@ -400,10 +401,10 @@ public class SelectStatement implements CQLStatement
 
     public ResultMessage.Rows executeInternal(QueryState state, QueryOptions options) throws RequestExecutionException, RequestValidationException
     {
-        return executeInternal(state, options, FBUtilities.nowInSeconds());
+        return executeInternal(state, options, FBUtilities.nowInSeconds(), System.nanoTime());
     }
 
-    public ResultMessage.Rows executeInternal(QueryState state, QueryOptions options, int nowInSec) throws RequestExecutionException, RequestValidationException
+    public ResultMessage.Rows executeInternal(QueryState state, QueryOptions options, int nowInSec, long queryStartNanoTime) throws RequestExecutionException, RequestValidationException
     {
         int userLimit = getLimit(options);
         int userPerPartitionLimit = getPerPartitionLimit(options);
@@ -423,7 +424,7 @@ public class SelectStatement implements CQLStatement
             {
                 QueryPager pager = getPager(query, options);
 
-                return execute(Pager.forInternalQuery(pager, executionController), options, pageSize, nowInSec, userLimit);
+                return execute(Pager.forInternalQuery(pager, executionController), options, pageSize, nowInSec, userLimit, queryStartNanoTime);
             }
         }
     }

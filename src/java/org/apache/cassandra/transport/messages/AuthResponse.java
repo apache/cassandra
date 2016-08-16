@@ -68,7 +68,7 @@ public class AuthResponse extends Message.Request
     }
 
     @Override
-    public Response execute(QueryState queryState)
+    public Response execute(QueryState queryState, long queryStartNanoTime)
     {
         try
         {

@@ -91,7 +91,7 @@ public class ViewBuilder extends CompactionInfo.Holder
         if (!mutations.isEmpty())
         {
             AtomicLong noBase = new AtomicLong(Long.MAX_VALUE);
-            StorageProxy.mutateMV(key.getKey(), mutations, true, noBase);
+            StorageProxy.mutateMV(key.getKey(), mutations, true, noBase, System.nanoTime());
         }
     }
 

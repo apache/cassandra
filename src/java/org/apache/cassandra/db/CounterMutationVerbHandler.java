@@ -33,6 +33,7 @@ public class CounterMutationVerbHandler implements IVerbHandler<CounterMutation>
 
     public void doVerb(final MessageIn<CounterMutation> message, final int id)
     {
+        long queryStartNanoTime = System.nanoTime();
         final CounterMutation cm = message.payload;
         logger.trace("Applying forwarded {}", cm);
 
@@ -50,6 +51,6 @@ public class CounterMutationVerbHandler implements IVerbHandler<CounterMutation>
             {
                 MessagingService.instance().sendReply(WriteResponse.createMessage(), id, message.from);
             }
-        });
+        }, queryStartNanoTime);
     }
 }

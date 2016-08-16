@@ -62,7 +62,7 @@ public class StartupMessage extends Message.Request
         this.options = options;
     }
 
-    public Message.Response execute(QueryState state)
+    public Message.Response execute(QueryState state, long queryStartNanoTime)
     {
         String cqlVersion = options.get(CQL_VERSION);
         if (cqlVersion == null)

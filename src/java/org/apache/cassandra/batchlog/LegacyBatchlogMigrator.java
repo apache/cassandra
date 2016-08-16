@@ -137,14 +137,15 @@ public final class LegacyBatchlogMigrator
         }
     }
 
-    public static void asyncRemoveFromBatchlog(Collection<InetAddress> endpoints, UUID uuid)
+    public static void asyncRemoveFromBatchlog(Collection<InetAddress> endpoints, UUID uuid, long queryStartNanoTime)
     {
         AbstractWriteResponseHandler<IMutation> handler = new WriteResponseHandler<>(endpoints,
                                                                                      Collections.<InetAddress>emptyList(),
                                                                                      ConsistencyLevel.ANY,
                                                                                      Keyspace.open(SystemKeyspace.NAME),
                                                                                      null,
-                                                                                     WriteType.SIMPLE);
+                                                                                     WriteType.SIMPLE,
+                                                                                     queryStartNanoTime);
         Mutation mutation = getRemoveMutation(uuid);
 
         for (InetAddress target : endpoints)

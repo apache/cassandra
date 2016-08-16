@@ -126,6 +126,7 @@ public class TableViews extends AbstractCollection<View>
 
         // Read modified rows
         int nowInSec = FBUtilities.nowInSeconds();
+        long queryStartNanoTime = System.nanoTime();
         SinglePartitionReadCommand command = readExistingRowsCommand(update, views, nowInSec);
         if (command == null)
             return;
@@ -142,7 +143,7 @@ public class TableViews extends AbstractCollection<View>
         Keyspace.openAndGetStore(update.metadata()).metric.viewReadTime.update(System.nanoTime() - start, TimeUnit.NANOSECONDS);
 
         if (!mutations.isEmpty())
-            StorageProxy.mutateMV(update.partitionKey().getKey(), mutations, writeCommitLog, baseComplete);
+            StorageProxy.mutateMV(update.partitionKey().getKey(), mutations, writeCommitLog, baseComplete, queryStartNanoTime);
     }
 
     /**

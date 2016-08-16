@@ -496,7 +496,8 @@ public class CassandraRoleManager implements IRoleManager
         ResultMessage.Rows rows =
             statement.execute(QueryState.forInternalCalls(),
                               QueryOptions.forInternalCalls(consistencyForRole(name),
-                                                            Collections.singletonList(ByteBufferUtil.bytes(name))));
+                                                            Collections.singletonList(ByteBufferUtil.bytes(name))),
+                              System.nanoTime());
         if (rows.result.isEmpty())
             return NULL_ROLE;
 

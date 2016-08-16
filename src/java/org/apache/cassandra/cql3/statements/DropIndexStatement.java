@@ -64,7 +64,7 @@ public class DropIndexStatement extends SchemaAlteringStatement
     }
 
     @Override
-    public ResultMessage execute(QueryState state, QueryOptions options) throws RequestValidationException
+    public ResultMessage execute(QueryState state, QueryOptions options, long queryStartNanoTime) throws RequestValidationException
     {
         Event.SchemaChange ce = announceMigration(false);
         return ce == null ? null : new ResultMessage.SchemaChange(ce);

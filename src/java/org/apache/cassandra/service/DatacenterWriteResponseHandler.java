@@ -35,9 +35,10 @@ public class DatacenterWriteResponseHandler<T> extends WriteResponseHandler<T>
                                           ConsistencyLevel consistencyLevel,
                                           Keyspace keyspace,
                                           Runnable callback,
-                                          WriteType writeType)
+                                          WriteType writeType,
+                                          long queryStartNanoTime)
     {
-        super(naturalEndpoints, pendingEndpoints, consistencyLevel, keyspace, callback, writeType);
+        super(naturalEndpoints, pendingEndpoints, consistencyLevel, keyspace, callback, writeType, queryStartNanoTime);
         assert consistencyLevel.isDatacenterLocal();
     }
 

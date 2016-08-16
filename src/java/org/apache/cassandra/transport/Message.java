@@ -210,7 +210,7 @@ public abstract class Message
                 throw new IllegalArgumentException();
         }
 
-        public abstract Response execute(QueryState queryState);
+        public abstract Response execute(QueryState queryState, long queryStartNanoTime);
 
         public void setTracingRequested()
         {
@@ -501,6 +501,7 @@ public abstract class Message
 
             final Response response;
             final ServerConnection connection;
+            long queryStartNanoTime = System.nanoTime();
 
             try
             {
@@ -512,7 +513,7 @@ public abstract class Message
                 QueryState qstate = connection.validateNewMessage(request.type, connection.getVersion(), request.getStreamId());
 
                 logger.trace("Received: {}, v={}", request, connection.getVersion());
-                response = request.execute(qstate);
+                response = request.execute(qstate, queryStartNanoTime);
                 response.setStreamId(request.getStreamId());
                 response.setWarnings(ClientWarn.instance.getWarnings());
                 response.attach(connection);

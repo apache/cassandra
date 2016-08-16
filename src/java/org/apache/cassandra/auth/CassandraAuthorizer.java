@@ -201,7 +201,8 @@ public class CassandraAuthorizer implements IAuthorizer
                                                   Attributes.none());
         QueryProcessor.instance.processBatch(batch,
                                              QueryState.forInternalCalls(),
-                                             BatchQueryOptions.withoutPerStatementVariables(QueryOptions.DEFAULT));
+                                             BatchQueryOptions.withoutPerStatementVariables(QueryOptions.DEFAULT),
+                                             System.nanoTime());
 
     }
 
@@ -218,7 +219,7 @@ public class CassandraAuthorizer implements IAuthorizer
         SelectStatement statement = Schema.instance.getCFMetaData(AuthKeyspace.NAME, USER_PERMISSIONS) == null
                                     ? authorizeRoleStatement
                                     : legacyAuthorizeRoleStatement;
-        ResultMessage.Rows rows = statement.execute(QueryState.forInternalCalls(), options) ;
+        ResultMessage.Rows rows = statement.execute(QueryState.forInternalCalls(), options, System.nanoTime());
         UntypedResultSet result = UntypedResultSet.create(rows.result);
 
         if (!result.isEmpty() && result.one().has(PERMISSIONS))
@@ -428,12 +429,14 @@ public class CassandraAuthorizer implements IAuthorizer
                                             QueryOptions.forInternalCalls(ConsistencyLevel.ONE,
                                                                           Lists.newArrayList(row.getBytes("username"),
                                                                                              row.getBytes("resource"),
-                                                                                             serializer.serialize(filteredPerms))));
+                                                                                             serializer.serialize(filteredPerms))),
+                                            System.nanoTime());
 
                     indexStatement.execute(QueryState.forInternalCalls(),
                                            QueryOptions.forInternalCalls(ConsistencyLevel.ONE,
                                                                          Lists.newArrayList(row.getBytes("resource"),
-                                                                                            row.getBytes("username"))));
+                                                                                            row.getBytes("username"))),
+                                           System.nanoTime());
 
                 }
                 logger.info("Completed conversion of legacy permissions");
