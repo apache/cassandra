@@ -24,6 +24,8 @@ import org.junit.Assert;
 import org.junit.Test;
 
 import static org.apache.commons.lang3.StringUtils.isEmpty;
+
+import org.apache.cassandra.cql3.Attributes;
 import org.apache.cassandra.cql3.CQLTester;
 import org.apache.cassandra.cql3.UntypedResultSet;
 import org.apache.cassandra.cql3.UntypedResultSet.Row;
@@ -550,5 +552,33 @@ public class UpdateTest extends CQLTester
         Assert.assertEquals(1, resultSet.size());
         row = resultSet.one();
         Assert.assertTrue(row.getInt("ttl(b)") >= (9 * secondsPerMinute));
+
+        execute("UPDATE %s USING TTL ? SET b = ? WHERE a = ?", null, 3, 3);
+        assertRows(execute("SELECT ttl(b) FROM %s WHERE a = 3"), row(new Object[] { null }));
+    }
+
+    @Test
+    public void testUpdateWithTtl() throws Throwable
+    {
+        createTable("CREATE TABLE %s (k int PRIMARY KEY, v int)");
+
+        execute("INSERT INTO %s (k, v) VALUES (1, 1) USING TTL ?", 3600);
+        execute("INSERT INTO %s (k, v) VALUES (2, 2) USING TTL ?", 3600);
+
+        // test with unset
+        execute("UPDATE %s USING TTL ? SET v = ? WHERE k = ?", unset(), 1, 1); // treat as 'unlimited'
+        assertRows(execute("SELECT ttl(v) FROM %s WHERE k = 1"), row(new Object[] { null }));
+
+        // test with null
+        execute("UPDATE %s USING TTL ? SET v = ? WHERE k = ?", unset(), 2, 2);
+        assertRows(execute("SELECT k, v, TTL(v) FROM %s WHERE k = 2"), row(2, 2, null));
+
+        // test error handling
+        assertInvalidMessage("A TTL must be greater or equal to 0, but was -5",
+                             "UPDATE %s USING TTL ? SET v = ? WHERE k = ?", -5, 1, 1);
+
+        assertInvalidMessage("ttl is too large.",
+                             "UPDATE %s USING TTL ? SET v = ? WHERE k = ?",
+                             Attributes.MAX_TTL + 1, 1, 1);
     }
 }

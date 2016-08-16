@@ -1,4 +1,5 @@
 3.10
+ * Allow TTL with null value on insert and update (CASSANDRA-12216)
  * Make decommission operation resumable (CASSANDRA-12008)
  * Add support to one-way targeted repair (CASSANDRA-9876)
  * Remove clientutil jar (CASSANDRA-11635)

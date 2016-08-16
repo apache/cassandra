@@ -58,6 +58,7 @@ New features
      and org.apache.cassandra.metrics:type=Client,name=AuthFailure respectively.
    - Add support to "unset" JSON fields in prepared statements by specifying DEFAULT UNSET.
      See CASSANDRA-11424 for details
+   - Allow TTL with null value on insert and update. It will be treated as equivalent to inserting a 0.
 
 Upgrading
 ---------

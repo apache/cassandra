@@ -99,7 +99,7 @@ public class Attributes
 
         ByteBuffer tval = timeToLive.bindAndGet(options);
         if (tval == null)
-            throw new InvalidRequestException("Invalid null value of TTL");
+            return 0;
 
         if (tval == ByteBufferUtil.UNSET_BYTE_BUFFER)
             return defaultTimeToLive;

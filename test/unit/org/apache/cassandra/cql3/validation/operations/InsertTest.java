@@ -21,6 +21,7 @@ package org.apache.cassandra.cql3.validation.operations;
 import org.junit.Assert;
 import org.junit.Test;
 
+import org.apache.cassandra.cql3.Attributes;
 import org.apache.cassandra.cql3.CQLTester;
 import org.apache.cassandra.cql3.UntypedResultSet;
 import org.apache.cassandra.cql3.UntypedResultSet.Row;
@@ -52,13 +53,24 @@ public class InsertTest extends CQLTester
     }
 
     @Test
-    public void testInsertTtlWithUnset() throws Throwable
+    public void testInsertWithTtl() throws Throwable
     {
-        createTable("CREATE TABLE %s (k int PRIMARY KEY, i int)");
-        execute("INSERT INTO %s (k, i) VALUES (1, 1) USING TTL ?", unset()); // treat as 'unlimited'
-        assertRows(execute("SELECT ttl(i) FROM %s"),
-                   row(new Object[]{ null })
-        );
+        createTable("CREATE TABLE %s (k int PRIMARY KEY, v int)");
+
+        // test with unset
+        execute("INSERT INTO %s (k, v) VALUES (1, 1) USING TTL ?", unset()); // treat as 'unlimited'
+        assertRows(execute("SELECT ttl(v) FROM %s"), row(new Object[]{ null }));
+
+        // test with null
+        execute("INSERT INTO %s (k, v) VALUES (?, ?) USING TTL ?", 1, 1, null);
+        assertRows(execute("SELECT k, v, TTL(v) FROM %s"), row(1, 1, null));
+
+        // test error handling
+        assertInvalidMessage("A TTL must be greater or equal to 0, but was -5",
+                             "INSERT INTO %s (k, v) VALUES (?, ?) USING TTL ?", 1, 1, -5);
+
+        assertInvalidMessage("ttl is too large.",
+                             "INSERT INTO %s (k, v) VALUES (?, ?) USING TTL ?", 1, 1, Attributes.MAX_TTL + 1);
     }
 
     @Test
@@ -314,6 +326,9 @@ public class InsertTest extends CQLTester
         Assert.assertEquals(1, resultSet.size());
         row = resultSet.one();
         Assert.assertTrue(row.getInt("ttl(b)") >= (9 * secondsPerMinute));
+
+        execute("INSERT INTO %s (a, b) VALUES (?, ?) USING TTL ?", 4, 4, null);
+        assertRows(execute("SELECT ttl(b) FROM %s WHERE a = 4"), row(new Object[]{null}));
     }
 
     @Test
