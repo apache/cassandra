@@ -50,6 +50,11 @@ public interface ReadQuery
             return EmptyIterators.partition();
         }
 
+        public UnfilteredPartitionIterator executeLocally(ReadExecutionController executionController)
+        {
+            return EmptyIterators.unfilteredPartition(executionController.metaData(), false);
+        }
+
         public DataLimits limits()
         {
             // What we return here doesn't matter much in practice. However, returning DataLimits.NONE means
@@ -103,6 +108,15 @@ public interface ReadQuery
      * @return the result of the query.
      */
     public PartitionIterator executeInternal(ReadExecutionController controller);
+
+    /**
+     * Execute the query locally. This is similar to {@link ReadQuery#executeInternal(ReadExecutionController)}
+     * but it returns an unfiltered partition iterator that can be merged later on.
+     *
+     * @param controller the {@code ReadExecutionController} protecting the read.
+     * @return the result of the read query.
+     */
+    public UnfilteredPartitionIterator executeLocally(ReadExecutionController executionController);
 
     /**
      * Returns a pager for the query.

@@ -120,6 +120,11 @@ public class ReadExecutionController implements AutoCloseable
         return index == null ? null : index.getBackingTable().orElse(null);
     }
 
+    public CFMetaData metaData()
+    {
+        return baseMetadata;
+    }
+
     public void close()
     {
         try

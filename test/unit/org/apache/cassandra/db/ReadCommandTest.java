@@ -18,6 +18,8 @@
 
 package org.apache.cassandra.db;
 
+import java.nio.ByteBuffer;
+import java.util.ArrayList;
 import java.util.List;
 
 import org.junit.BeforeClass;
@@ -27,12 +29,28 @@ import org.apache.cassandra.SchemaLoader;
 import org.apache.cassandra.Util;
 import org.apache.cassandra.config.CFMetaData;
 import org.apache.cassandra.config.DatabaseDescriptor;
+import org.apache.cassandra.db.filter.ClusteringIndexSliceFilter;
+import org.apache.cassandra.db.filter.ColumnFilter;
+import org.apache.cassandra.db.filter.DataLimits;
+import org.apache.cassandra.db.filter.RowFilter;
 import org.apache.cassandra.db.marshal.AsciiType;
 import org.apache.cassandra.db.marshal.BytesType;
 import org.apache.cassandra.db.partitions.FilteredPartition;
+import org.apache.cassandra.db.partitions.PartitionIterator;
+import org.apache.cassandra.db.partitions.UnfilteredPartitionIterator;
+import org.apache.cassandra.db.partitions.UnfilteredPartitionIterators;
+import org.apache.cassandra.db.rows.Row;
+import org.apache.cassandra.db.rows.RowIterator;
+import org.apache.cassandra.db.rows.SerializationHelper;
+import org.apache.cassandra.db.rows.UnfilteredRowIterator;
+import org.apache.cassandra.db.rows.UnfilteredRowIterators;
 import org.apache.cassandra.exceptions.ConfigurationException;
+import org.apache.cassandra.io.util.DataInputBuffer;
+import org.apache.cassandra.io.util.DataOutputBuffer;
+import org.apache.cassandra.net.MessagingService;
 import org.apache.cassandra.schema.KeyspaceParams;
 import org.apache.cassandra.utils.ByteBufferUtil;
+import org.apache.cassandra.utils.FBUtilities;
 
 import static org.junit.Assert.assertEquals;
 
@@ -41,6 +59,7 @@ public class ReadCommandTest
     private static final String KEYSPACE = "ReadCommandTest";
     private static final String CF1 = "Standard1";
     private static final String CF2 = "Standard2";
+    private static final String CF3 = "Standard3";
 
     @BeforeClass
     public static void defineSchema() throws ConfigurationException
@@ -55,11 +74,22 @@ public class ReadCommandTest
                                                          .addRegularColumn("a", AsciiType.instance)
                                                          .addRegularColumn("b", AsciiType.instance).build();
 
+        CFMetaData metadata3 = CFMetaData.Builder.create(KEYSPACE, CF3)
+                                                 .addPartitionKey("key", BytesType.instance)
+                                                 .addClusteringColumn("col", AsciiType.instance)
+                                                 .addRegularColumn("a", AsciiType.instance)
+                                                 .addRegularColumn("b", AsciiType.instance)
+                                                 .addRegularColumn("c", AsciiType.instance)
+                                                 .addRegularColumn("d", AsciiType.instance)
+                                                 .addRegularColumn("e", AsciiType.instance)
+                                                 .addRegularColumn("f", AsciiType.instance).build();
+
         SchemaLoader.prepareServer();
         SchemaLoader.createKeyspace(KEYSPACE,
                                     KeyspaceParams.simple(1),
                                     metadata1,
-                                    metadata2);
+                                    metadata2,
+                                    metadata3);
     }
 
     @Test
@@ -148,5 +178,134 @@ public class ReadCommandTest
 
         readCommand.abort();
         assertEquals(0, Util.getAll(readCommand).size());
+    }
+
+    @Test
+    public void testSinglePartitionGroupMerge() throws Exception
+    {
+        ColumnFamilyStore cfs = Keyspace.open(KEYSPACE).getColumnFamilyStore(CF3);
+
+        String[][][] groups = new String[][][] {
+            new String[][] {
+                new String[] { "1", "key1", "aa", "a" }, // "1" indicates to create the data, "-1" to delete the row
+                new String[] { "1", "key2", "bb", "b" },
+                new String[] { "1", "key3", "cc", "c" }
+            },
+            new String[][] {
+                new String[] { "1", "key3", "dd", "d" },
+                new String[] { "1", "key2", "ee", "e" },
+                new String[] { "1", "key1", "ff", "f" }
+            },
+            new String[][] {
+                new String[] { "1", "key6", "aa", "a" },
+                new String[] { "1", "key5", "bb", "b" },
+                new String[] { "1", "key4", "cc", "c" }
+            },
+            new String[][] {
+                new String[] { "-1", "key6", "aa", "a" },
+                new String[] { "-1", "key2", "bb", "b" }
+            }
+        };
+
+        // Given the data above, when the keys are sorted and the deletions removed, we should
+        // get these clustering rows in this order
+        String[] expectedRows = new String[] { "aa", "ff", "ee", "cc", "dd", "cc", "bb"};
+
+        List<ByteBuffer> buffers = new ArrayList<>(groups.length);
+        int nowInSeconds = FBUtilities.nowInSeconds();
+        ColumnFilter columnFilter = ColumnFilter.allColumnsBuilder(cfs.metadata).build();
+        RowFilter rowFilter = RowFilter.create();
+        Slice slice = Slice.make(ClusteringBound.BOTTOM, ClusteringBound.TOP);
+        ClusteringIndexSliceFilter sliceFilter = new ClusteringIndexSliceFilter(Slices.with(cfs.metadata.comparator, slice), false);
+
+        for (String[][] group : groups)
+        {
+            cfs.truncateBlocking();
+
+            List<SinglePartitionReadCommand> commands = new ArrayList<>(group.length);
+
+            for (String[] data : group)
+            {
+                if (data[0].equals("1"))
+                {
+                    new RowUpdateBuilder(cfs.metadata, 0, ByteBufferUtil.bytes(data[1]))
+                    .clustering(data[2])
+                    .add(data[3], ByteBufferUtil.bytes("blah"))
+                    .build()
+                    .apply();
+                }
+                else
+                {
+                    RowUpdateBuilder.deleteRow(cfs.metadata, FBUtilities.timestampMicros(), ByteBufferUtil.bytes(data[1]), data[2]).apply();
+                }
+                commands.add(SinglePartitionReadCommand.create(cfs.metadata, nowInSeconds, columnFilter, rowFilter, DataLimits.NONE, Util.dk(data[1]), sliceFilter));
+            }
+
+            cfs.forceBlockingFlush();
+
+            ReadQuery query = new SinglePartitionReadCommand.Group(commands, DataLimits.NONE);
+
+            try (ReadExecutionController executionController = query.executionController();
+                 UnfilteredPartitionIterator iter = query.executeLocally(executionController);
+                 DataOutputBuffer buffer = new DataOutputBuffer())
+            {
+                UnfilteredPartitionIterators.serializerForIntraNode().serialize(iter,
+                                                                                columnFilter,
+                                                                                buffer,
+                                                                                MessagingService.current_version);
+                buffers.add(buffer.buffer());
+            }
+        }
+
+        // deserialize, merge and check the results are all there
+        List<UnfilteredPartitionIterator> iterators = new ArrayList<>();
+
+        for (ByteBuffer buffer : buffers)
+        {
+            try (DataInputBuffer in = new DataInputBuffer(buffer, true))
+            {
+                iterators.add(UnfilteredPartitionIterators.serializerForIntraNode().deserialize(in,
+                                                                                                MessagingService.current_version,
+                                                                                                cfs.metadata,
+                                                                                                columnFilter,
+                                                                                                SerializationHelper.Flag.LOCAL));
+            }
+        }
+
+        try(PartitionIterator partitionIterator = UnfilteredPartitionIterators.mergeAndFilter(iterators,
+                                                                                          nowInSeconds,
+                                                                                          new UnfilteredPartitionIterators.MergeListener()
+        {
+            public UnfilteredRowIterators.MergeListener getRowMergeListener(DecoratedKey partitionKey, List<UnfilteredRowIterator> versions)
+            {
+                return null;
+            }
+
+            public void close()
+            {
+
+            }
+        }))
+        {
+
+            int i = 0;
+            int numPartitions = 0;
+            while (partitionIterator.hasNext())
+            {
+                numPartitions++;
+                try(RowIterator rowIterator = partitionIterator.next())
+                {
+                    while (rowIterator.hasNext())
+                    {
+                        Row row = rowIterator.next();
+                        assertEquals("col=" + expectedRows[i++], row.clustering().toString(cfs.metadata));
+                        //System.out.print(row.toString(cfs.metadata, true));
+                    }
+                }
+            }
+
+            assertEquals(5, numPartitions);
+            assertEquals(expectedRows.length, i);
+        }
     }
 }
