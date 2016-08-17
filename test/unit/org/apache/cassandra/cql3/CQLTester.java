@@ -738,8 +738,8 @@ public abstract class CQLTester
         UntypedResultSet rs;
         if (usePrepared)
         {
-            if (logger.isDebugEnabled())
-                logger.debug("Executing: {} with values {}", query, formatAllValues(values));
+            if (logger.isTraceEnabled())
+                logger.trace("Executing: {} with values {}", query, formatAllValues(values));
             if (reusePrepared)
             {
                 rs = QueryProcessor.executeInternal(query, transformValues(values));
@@ -759,14 +759,14 @@ public abstract class CQLTester
         else
         {
             query = replaceValues(query, values);
-            if (logger.isDebugEnabled())
-                logger.debug("Executing: {}", query);
+            if (logger.isTraceEnabled())
+                logger.trace("Executing: {}", query);
             rs = QueryProcessor.executeOnceInternal(query);
         }
         if (rs != null)
         {
-            if (logger.isDebugEnabled())
-                logger.debug("Got {} rows", rs.size());
+            if (logger.isTraceEnabled())
+                logger.trace("Got {} rows", rs.size());
         }
         return rs;
     }
