@@ -1154,6 +1154,7 @@ Table of Contents
 
 10. Changes from v3
 
+  * Prepared responses (Section 4.2.5.4) now include partition-key bind indexes
   * The format of "SCHEMA_CHANGE" events (Section 4.2.6) (and implicitly
     "Schema_change" results (Section 4.2.5.5)) has been modified, and now includes
     changes related to user defined functions and user defined aggregates.
