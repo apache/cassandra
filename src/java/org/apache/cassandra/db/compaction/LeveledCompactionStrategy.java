@@ -326,7 +326,6 @@ public class LeveledCompactionStrategy extends AbstractCompactionStrategy
 
         private ISSTableScanner currentScanner;
         private long positionOffset;
-        private SSTableReader currentSSTable;
         private long totalBytesScanned = 0;
 
         public LeveledScanner(Collection<SSTableReader> sstables, Collection<Range<Token>> ranges)
@@ -355,7 +354,7 @@ public class LeveledCompactionStrategy extends AbstractCompactionStrategy
             Collections.sort(this.sstables, SSTableReader.sstableComparator);
             sstableIterator = this.sstables.iterator();
             assert sstableIterator.hasNext(); // caller should check intersecting first
-            currentSSTable = sstableIterator.next();
+            SSTableReader currentSSTable = sstableIterator.next();
             currentScanner = currentSSTable.getScanner(ranges, null);
 
         }
@@ -409,7 +408,7 @@ public class LeveledCompactionStrategy extends AbstractCompactionStrategy
                     currentScanner = null;
                     return endOfData();
                 }
-                currentSSTable = sstableIterator.next();
+                SSTableReader currentSSTable = sstableIterator.next();
                 currentScanner = currentSSTable.getScanner(ranges, null);
             }
         }
