@@ -70,7 +70,7 @@
       <appender-ref ref="TEE"/>
   </appender>
 
-  <root level="INFO">
+  <root level="DEBUG">
     <appender-ref ref="ASYNC" />
   </root>
 </configuration>
