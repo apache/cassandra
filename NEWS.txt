@@ -83,7 +83,7 @@ Upgrading
       on previous Cassandra branch, like the 3.0 branch (by design, the functionality provided by that jar are stable
       accross versions so using the 3.0 jar for a client connecting to 3.x should work without issues).
 
-3.9
+3.8
 ===
 
 New features
