@@ -1557,7 +1557,7 @@
   </target>
 
   <target name="test-all" 
-          depends="eclipse-warnings,test,long-test,test-compression,test-clientutil-jar" 
+          depends="eclipse-warnings,test,long-test,test-compression" 
           description="Run all tests except for those under test-burn" />
   
   <!-- Use JaCoCo ant extension without needing externally saved lib -->
