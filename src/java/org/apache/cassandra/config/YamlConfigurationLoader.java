@@ -91,11 +91,13 @@ public class YamlConfigurationLoader implements ConfigurationLoader
         return url;
     }
 
-    private static final URL storageConfigURL = getStorageConfigURL();
+    private static URL storageConfigURL;
 
     @Override
     public Config loadConfig() throws ConfigurationException
     {
+        if (storageConfigURL == null)
+            storageConfigURL = getStorageConfigURL();
         return loadConfig(storageConfigURL);
     }
 

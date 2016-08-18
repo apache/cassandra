@@ -24,6 +24,7 @@ import java.nio.ByteBuffer;
 import java.security.MessageDigest;
 import java.util.*;
 
+import org.apache.cassandra.config.SchemaConstants;
 import org.apache.cassandra.utils.AbstractIterator;
 import com.google.common.collect.Iterators;
 import com.google.common.collect.Lists;
@@ -1025,7 +1026,7 @@ public abstract class LegacyLayout
                 // then simply ignore the cell is fine. But also not that we ignore if it's the
                 // system keyspace because for those table we actually remove columns without registering
                 // them in the dropped columns
-                assert metadata.ksName.equals(SystemKeyspace.NAME) || metadata.getDroppedColumnDefinition(e.columnName) != null : e.getMessage();
+                assert metadata.ksName.equals(SchemaConstants.SYSTEM_KEYSPACE_NAME) || metadata.getDroppedColumnDefinition(e.columnName) != null : e.getMessage();
             }
         }
     }
@@ -1105,7 +1106,7 @@ public abstract class LegacyLayout
                     // then simply ignore the cell is fine. But also not that we ignore if it's the
                     // system keyspace because for those table we actually remove columns without registering
                     // them in the dropped columns
-                    if (metadata.ksName.equals(SystemKeyspace.NAME) || metadata.getDroppedColumnDefinition(e.columnName) != null)
+                    if (metadata.ksName.equals(SchemaConstants.SYSTEM_KEYSPACE_NAME) || metadata.getDroppedColumnDefinition(e.columnName) != null)
                         return computeNext();
                     else
                         throw new IOError(e);

@@ -27,6 +27,7 @@ import java.util.concurrent.TimeUnit;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import org.apache.cassandra.config.SchemaConstants;
 import org.apache.cassandra.cql3.QueryProcessor;
 import org.apache.cassandra.cql3.UntypedResultSet;
 import org.apache.cassandra.db.*;
@@ -59,7 +60,7 @@ public final class LegacyHintsMigrator
         this.hintsDirectory = hintsDirectory;
         this.maxHintsFileSize = maxHintsFileSize;
 
-        legacyHintsTable = Keyspace.open(SystemKeyspace.NAME).getColumnFamilyStore(SystemKeyspace.LEGACY_HINTS);
+        legacyHintsTable = Keyspace.open(SchemaConstants.SYSTEM_KEYSPACE_NAME).getColumnFamilyStore(SystemKeyspace.LEGACY_HINTS);
         pageSize = calculatePageSize(legacyHintsTable);
     }
 
@@ -88,7 +89,7 @@ public final class LegacyHintsMigrator
         logger.info("Migrating legacy hints to new storage");
 
         // major-compact all of the existing sstables to get rid of the tombstones + expired hints
-        logger.info("Forcing a major compaction of {}.{} table", SystemKeyspace.NAME, SystemKeyspace.LEGACY_HINTS);
+        logger.info("Forcing a major compaction of {}.{} table", SchemaConstants.SYSTEM_KEYSPACE_NAME, SystemKeyspace.LEGACY_HINTS);
         compactLegacyHints();
 
         // paginate over legacy hints and write them to the new storage
@@ -96,7 +97,7 @@ public final class LegacyHintsMigrator
         migrateLegacyHints();
 
         // truncate the legacy hints table
-        logger.info("Truncating {}.{} table", SystemKeyspace.NAME, SystemKeyspace.LEGACY_HINTS);
+        logger.info("Truncating {}.{} table", SchemaConstants.SYSTEM_KEYSPACE_NAME, SystemKeyspace.LEGACY_HINTS);
         legacyHintsTable.truncateBlocking();
     }
 
@@ -123,7 +124,7 @@ public final class LegacyHintsMigrator
     private void migrateLegacyHints()
     {
         ByteBuffer buffer = ByteBuffer.allocateDirect(256 * 1024);
-        String query = String.format("SELECT DISTINCT target_id FROM %s.%s", SystemKeyspace.NAME, SystemKeyspace.LEGACY_HINTS);
+        String query = String.format("SELECT DISTINCT target_id FROM %s.%s", SchemaConstants.SYSTEM_KEYSPACE_NAME, SystemKeyspace.LEGACY_HINTS);
         //noinspection ConstantConditions
         QueryProcessor.executeInternal(query).forEach(row -> migrateLegacyHints(row.getUUID("target_id"), buffer));
         FileUtils.clean(buffer);
@@ -134,7 +135,7 @@ public final class LegacyHintsMigrator
         String query = String.format("SELECT target_id, hint_id, message_version, mutation, ttl(mutation) AS ttl, writeTime(mutation) AS write_time " +
                                      "FROM %s.%s " +
                                      "WHERE target_id = ?",
-                                     SystemKeyspace.NAME,
+                                     SchemaConstants.SYSTEM_KEYSPACE_NAME,
                                      SystemKeyspace.LEGACY_HINTS);
 
         // read all the old hints (paged iterator), write them in the new format
@@ -215,7 +216,7 @@ public final class LegacyHintsMigrator
         {
             logger.error("Failed to migrate a hint for {} from legacy {}.{} table",
                          row.getUUID("target_id"),
-                         SystemKeyspace.NAME,
+                         SchemaConstants.SYSTEM_KEYSPACE_NAME,
                          SystemKeyspace.LEGACY_HINTS,
                          e);
             return null;
@@ -224,7 +225,7 @@ public final class LegacyHintsMigrator
         {
             logger.warn("Failed to validate a hint for {} from legacy {}.{} table - skipping",
                         row.getUUID("target_id"),
-                        SystemKeyspace.NAME,
+                        SchemaConstants.SYSTEM_KEYSPACE_NAME,
                         SystemKeyspace.LEGACY_HINTS,
                         e);
             return null;

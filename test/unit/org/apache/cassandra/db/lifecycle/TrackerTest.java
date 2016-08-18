@@ -74,6 +74,7 @@ public class TrackerTest
     @BeforeClass
     public static void setUp()
     {
+        DatabaseDescriptor.daemonInitialization();
         MockSchema.cleanup();
     }
 

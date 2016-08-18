@@ -29,6 +29,7 @@ import com.google.common.collect.Iterables;
 import com.google.common.collect.Maps;
 
 import org.apache.cassandra.config.Schema;
+import org.apache.cassandra.config.SchemaConstants;
 import org.apache.cassandra.db.ColumnFamilyStore;
 import org.apache.cassandra.db.Keyspace;
 import org.apache.cassandra.db.Memtable;
@@ -37,7 +38,6 @@ import org.apache.cassandra.index.SecondaryIndexManager;
 import org.apache.cassandra.io.compress.CompressionMetadata;
 import org.apache.cassandra.io.sstable.format.SSTableReader;
 import org.apache.cassandra.io.sstable.metadata.MetadataCollector;
-import org.apache.cassandra.repair.SystemDistributedKeyspace;
 import org.apache.cassandra.utils.EstimatedHistogram;
 import org.apache.cassandra.utils.TopKSampler;
 
@@ -178,7 +178,7 @@ public class TableMetrics
             for (String keyspace : Schema.instance.getNonSystemKeyspaces())
             {
                 Keyspace k = Schema.instance.getKeyspaceInstance(keyspace);
-                if (SystemDistributedKeyspace.NAME.equals(k.getName()))
+                if (SchemaConstants.DISTRIBUTED_KEYSPACE_NAME.equals(k.getName()))
                     continue;
                 if (k.getReplicationStrategy().getReplicationFactor() < 2)
                     continue;

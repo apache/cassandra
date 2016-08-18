@@ -27,7 +27,6 @@ import com.google.common.annotations.VisibleForTesting;
 import com.google.common.collect.ImmutableMap;
 
 import org.apache.cassandra.concurrent.Stage;
-import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.db.TypeSizes;
 import org.apache.cassandra.io.IVersionedSerializer;
 import org.apache.cassandra.io.util.DataOutputBuffer;
@@ -91,7 +90,7 @@ public class MessageOut<T>
 
     public long getTimeout()
     {
-        return DatabaseDescriptor.getTimeout(verb);
+        return verb.getTimeout();
     }
 
     public String toString()

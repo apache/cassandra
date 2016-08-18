@@ -64,6 +64,8 @@ public class SSTableWriterTestBase extends SchemaLoader
     @BeforeClass
     public static void defineSchema() throws ConfigurationException
     {
+        DatabaseDescriptor.daemonInitialization();
+
         if (FBUtilities.isWindows)
         {
             standardMode = DatabaseDescriptor.getDiskAccessMode();

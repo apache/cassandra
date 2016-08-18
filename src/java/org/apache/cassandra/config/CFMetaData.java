@@ -858,7 +858,7 @@ public final class CFMetaData
 
     public static boolean isNameValid(String name) {
         return name != null && !name.isEmpty()
-                && name.length() <= Schema.NAME_LENGTH && PATTERN_WORD_CHARS.matcher(name).matches();
+               && name.length() <= SchemaConstants.NAME_LENGTH && PATTERN_WORD_CHARS.matcher(name).matches();
     }
 
     public CFMetaData validate() throws ConfigurationException
@@ -866,9 +866,9 @@ public final class CFMetaData
         rebuild();
 
         if (!isNameValid(ksName))
-            throw new ConfigurationException(String.format("Keyspace name must not be empty, more than %s characters long, or contain non-alphanumeric-underscore characters (got \"%s\")", Schema.NAME_LENGTH, ksName));
+            throw new ConfigurationException(String.format("Keyspace name must not be empty, more than %s characters long, or contain non-alphanumeric-underscore characters (got \"%s\")", SchemaConstants.NAME_LENGTH, ksName));
         if (!isNameValid(cfName))
-            throw new ConfigurationException(String.format("ColumnFamily name must not be empty, more than %s characters long, or contain non-alphanumeric-underscore characters (got \"%s\")", Schema.NAME_LENGTH, cfName));
+            throw new ConfigurationException(String.format("ColumnFamily name must not be empty, more than %s characters long, or contain non-alphanumeric-underscore characters (got \"%s\")", SchemaConstants.NAME_LENGTH, cfName));
 
         params.validate();
 

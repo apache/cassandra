@@ -52,10 +52,18 @@ import com.google.common.collect.ArrayListMultimap;
 import com.google.common.collect.Multimap;
 
 import junit.framework.Assert;
+
+import org.junit.BeforeClass;
 import org.junit.Test;
 
 public class SSTableFlushObserverTest
 {
+    @BeforeClass
+    public static void initDD()
+    {
+        DatabaseDescriptor.daemonInitialization();
+    }
+
     private static final String KS_NAME = "test";
     private static final String CF_NAME = "flush_observer";
 
@@ -79,7 +87,7 @@ public class SSTableFlushObserverTest
         if (!directory.exists() && !directory.mkdirs())
             throw new FSWriteError(new IOException("failed to create tmp directory"), directory.getAbsolutePath());
 
-        SSTableFormat.Type sstableFormat = DatabaseDescriptor.getSSTableFormat();
+        SSTableFormat.Type sstableFormat = SSTableFormat.Type.current();
 
         BigTableWriter writer = new BigTableWriter(new Descriptor(sstableFormat.info.getLatestVersion().version,
                                                                   directory,

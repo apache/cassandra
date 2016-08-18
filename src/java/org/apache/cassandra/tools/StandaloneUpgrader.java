@@ -20,6 +20,7 @@ package org.apache.cassandra.tools;
 import java.util.*;
 import java.util.concurrent.TimeUnit;
 
+import org.apache.cassandra.io.sstable.format.SSTableFormat;
 import org.apache.cassandra.io.sstable.format.SSTableReader;
 import org.apache.commons.cli.*;
 
@@ -82,7 +83,7 @@ public class StandaloneUpgrader
                 try
                 {
                     SSTableReader sstable = SSTableReader.openNoValidation(entry.getKey(), components, cfs);
-                    if (sstable.descriptor.version.equals(DatabaseDescriptor.getSSTableFormat().info.getLatestVersion()))
+                    if (sstable.descriptor.version.equals(SSTableFormat.Type.current().info.getLatestVersion()))
                         continue;
                     readers.add(sstable);
                 }

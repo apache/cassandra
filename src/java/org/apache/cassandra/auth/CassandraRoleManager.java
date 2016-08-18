@@ -33,6 +33,7 @@ import org.apache.cassandra.concurrent.ScheduledExecutors;
 import org.apache.cassandra.config.Config;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.config.Schema;
+import org.apache.cassandra.config.SchemaConstants;
 import org.apache.cassandra.cql3.*;
 import org.apache.cassandra.cql3.statements.SelectStatement;
 import org.apache.cassandra.db.ConsistencyLevel;
@@ -142,17 +143,17 @@ public class CassandraRoleManager implements IRoleManager
     public void setup()
     {
         loadRoleStatement = (SelectStatement) prepare("SELECT * from %s.%s WHERE role = ?",
-                                                      AuthKeyspace.NAME,
+                                                      SchemaConstants.AUTH_KEYSPACE_NAME,
                                                       AuthKeyspace.ROLES);
         // If the old users table exists, we may need to migrate the legacy authn
         // data to the new table. We also need to prepare a statement to read from
         // it, so we can continue to use the old tables while the cluster is upgraded.
         // Otherwise, we may need to create a default superuser role to enable others
         // to be added.
-        if (Schema.instance.getCFMetaData(AuthKeyspace.NAME, "users") != null)
+        if (Schema.instance.getCFMetaData(SchemaConstants.AUTH_KEYSPACE_NAME, "users") != null)
         {
              legacySelectUserStatement = (SelectStatement) prepare("SELECT * FROM %s.%s WHERE name = ?",
-                                                                   AuthKeyspace.NAME,
+                                                                   SchemaConstants.AUTH_KEYSPACE_NAME,
                                                                    LEGACY_USERS_TABLE);
             scheduleSetupTask(() -> {
                 convertLegacyData();
@@ -183,14 +184,14 @@ public class CassandraRoleManager implements IRoleManager
     {
         String insertCql = options.getPassword().isPresent()
                          ? String.format("INSERT INTO %s.%s (role, is_superuser, can_login, salted_hash) VALUES ('%s', %s, %s, '%s')",
-                                         AuthKeyspace.NAME,
+                                         SchemaConstants.AUTH_KEYSPACE_NAME,
                                          AuthKeyspace.ROLES,
                                          escape(role.getRoleName()),
                                          options.getSuperuser().or(false),
                                          options.getLogin().or(false),
                                          escape(hashpw(options.getPassword().get())))
                          : String.format("INSERT INTO %s.%s (role, is_superuser, can_login) VALUES ('%s', %s, %s)",
-                                         AuthKeyspace.NAME,
+                                         SchemaConstants.AUTH_KEYSPACE_NAME,
                                          AuthKeyspace.ROLES,
                                          escape(role.getRoleName()),
                                          options.getSuperuser().or(false),
@@ -201,7 +202,7 @@ public class CassandraRoleManager implements IRoleManager
     public void dropRole(AuthenticatedUser performer, RoleResource role) throws RequestValidationException, RequestExecutionException
     {
         process(String.format("DELETE FROM %s.%s WHERE role = '%s'",
-                              AuthKeyspace.NAME,
+                              SchemaConstants.AUTH_KEYSPACE_NAME,
                               AuthKeyspace.ROLES,
                               escape(role.getRoleName())),
                 consistencyForRole(role.getRoleName()));
@@ -217,7 +218,7 @@ public class CassandraRoleManager implements IRoleManager
         if (!Strings.isNullOrEmpty(assignments))
         {
             process(String.format("UPDATE %s.%s SET %s WHERE role = '%s'",
-                                  AuthKeyspace.NAME,
+                                  SchemaConstants.AUTH_KEYSPACE_NAME,
                                   AuthKeyspace.ROLES,
                                   assignments,
                                   escape(role.getRoleName())),
@@ -239,7 +240,7 @@ public class CassandraRoleManager implements IRoleManager
 
         modifyRoleMembership(grantee.getRoleName(), role.getRoleName(), "+");
         process(String.format("INSERT INTO %s.%s (role, member) values ('%s', '%s')",
-                              AuthKeyspace.NAME,
+                              SchemaConstants.AUTH_KEYSPACE_NAME,
                               AuthKeyspace.ROLE_MEMBERS,
                               escape(role.getRoleName()),
                               escape(grantee.getRoleName())),
@@ -256,7 +257,7 @@ public class CassandraRoleManager implements IRoleManager
 
         modifyRoleMembership(revokee.getRoleName(), role.getRoleName(), "-");
         process(String.format("DELETE FROM %s.%s WHERE role = '%s' and member = '%s'",
-                              AuthKeyspace.NAME,
+                              SchemaConstants.AUTH_KEYSPACE_NAME,
                               AuthKeyspace.ROLE_MEMBERS,
                               escape(role.getRoleName()),
                               escape(revokee.getRoleName())),
@@ -277,7 +278,7 @@ public class CassandraRoleManager implements IRoleManager
 
     public Set<RoleResource> getAllRoles() throws RequestValidationException, RequestExecutionException
     {
-        UntypedResultSet rows = process(String.format("SELECT role from %s.%s", AuthKeyspace.NAME, AuthKeyspace.ROLES), ConsistencyLevel.QUORUM);
+        UntypedResultSet rows = process(String.format("SELECT role from %s.%s", SchemaConstants.AUTH_KEYSPACE_NAME, AuthKeyspace.ROLES), ConsistencyLevel.QUORUM);
         Iterable<RoleResource> roles = Iterables.transform(rows, new Function<UntypedResultSet.Row, RoleResource>()
         {
             public RoleResource apply(UntypedResultSet.Row row)
@@ -310,8 +311,8 @@ public class CassandraRoleManager implements IRoleManager
 
     public Set<? extends IResource> protectedResources()
     {
-        return ImmutableSet.of(DataResource.table(AuthKeyspace.NAME, AuthKeyspace.ROLES),
-                               DataResource.table(AuthKeyspace.NAME, AuthKeyspace.ROLE_MEMBERS));
+        return ImmutableSet.of(DataResource.table(SchemaConstants.AUTH_KEYSPACE_NAME, AuthKeyspace.ROLES),
+                               DataResource.table(SchemaConstants.AUTH_KEYSPACE_NAME, AuthKeyspace.ROLE_MEMBERS));
     }
 
     public void validateConfiguration() throws ConfigurationException
@@ -331,7 +332,7 @@ public class CassandraRoleManager implements IRoleManager
             {
                 QueryProcessor.process(String.format("INSERT INTO %s.%s (role, is_superuser, can_login, salted_hash) " +
                                                      "VALUES ('%s', true, true, '%s')",
-                                                     AuthKeyspace.NAME,
+                                                     SchemaConstants.AUTH_KEYSPACE_NAME,
                                                      AuthKeyspace.ROLES,
                                                      DEFAULT_SUPERUSER_NAME,
                                                      escape(hashpw(DEFAULT_SUPERUSER_PASSWORD))),
@@ -349,8 +350,8 @@ public class CassandraRoleManager implements IRoleManager
     private static boolean hasExistingRoles() throws RequestExecutionException
     {
         // Try looking up the 'cassandra' default role first, to avoid the range query if possible.
-        String defaultSUQuery = String.format("SELECT * FROM %s.%s WHERE role = '%s'", AuthKeyspace.NAME, AuthKeyspace.ROLES, DEFAULT_SUPERUSER_NAME);
-        String allUsersQuery = String.format("SELECT * FROM %s.%s LIMIT 1", AuthKeyspace.NAME, AuthKeyspace.ROLES);
+        String defaultSUQuery = String.format("SELECT * FROM %s.%s WHERE role = '%s'", SchemaConstants.AUTH_KEYSPACE_NAME, AuthKeyspace.ROLES, DEFAULT_SUPERUSER_NAME);
+        String allUsersQuery = String.format("SELECT * FROM %s.%s LIMIT 1", SchemaConstants.AUTH_KEYSPACE_NAME, AuthKeyspace.ROLES);
         return !QueryProcessor.process(defaultSUQuery, ConsistencyLevel.ONE).isEmpty()
                || !QueryProcessor.process(defaultSUQuery, ConsistencyLevel.QUORUM).isEmpty()
                || !QueryProcessor.process(allUsersQuery, ConsistencyLevel.QUORUM).isEmpty();
@@ -421,7 +422,7 @@ public class CassandraRoleManager implements IRoleManager
                 {
                     // Write the password directly into the table to avoid doubly encrypting it
                     QueryProcessor.process(String.format("UPDATE %s.%s SET salted_hash = '%s' WHERE role = '%s'",
-                                                         AuthKeyspace.NAME,
+                                                         SchemaConstants.AUTH_KEYSPACE_NAME,
                                                          AuthKeyspace.ROLES,
                                                          row.getString("salted_hash"),
                                                          row.getString("username")),
@@ -480,7 +481,7 @@ public class CassandraRoleManager implements IRoleManager
             // If it exists, try the legacy users table in case the cluster
             // is in the process of being upgraded and so is running with mixed
             // versions of the authn schema.
-            return (Schema.instance.getCFMetaData(AuthKeyspace.NAME, "users") != null)
+            return (Schema.instance.getCFMetaData(SchemaConstants.AUTH_KEYSPACE_NAME, "users") != null)
                     ? getRoleFromTable(name, legacySelectUserStatement, LEGACY_ROW_TO_ROLE)
                     : getRoleFromTable(name, loadRoleStatement, ROW_TO_ROLE);
         }
@@ -512,7 +513,7 @@ public class CassandraRoleManager implements IRoleManager
     throws RequestExecutionException
     {
         process(String.format("UPDATE %s.%s SET member_of = member_of %s {'%s'} WHERE role = '%s'",
-                              AuthKeyspace.NAME,
+                              SchemaConstants.AUTH_KEYSPACE_NAME,
                               AuthKeyspace.ROLES,
                               op,
                               escape(role),
@@ -527,7 +528,7 @@ public class CassandraRoleManager implements IRoleManager
     {
         // Get the membership list of the the given role
         UntypedResultSet rows = process(String.format("SELECT member FROM %s.%s WHERE role = '%s'",
-                                                      AuthKeyspace.NAME,
+                                                      SchemaConstants.AUTH_KEYSPACE_NAME,
                                                       AuthKeyspace.ROLE_MEMBERS,
                                                       escape(role)),
                                         consistencyForRole(role));
@@ -540,7 +541,7 @@ public class CassandraRoleManager implements IRoleManager
 
         // Finally, remove the membership list for the dropped role
         process(String.format("DELETE FROM %s.%s WHERE role = '%s'",
-                              AuthKeyspace.NAME,
+                              SchemaConstants.AUTH_KEYSPACE_NAME,
                               AuthKeyspace.ROLE_MEMBERS,
                               escape(role)),
                 consistencyForRole(role));

@@ -42,12 +42,12 @@ import ch.qos.logback.classic.turbo.TurboFilter;
 import com.datastax.driver.core.Session;
 import com.datastax.driver.core.TupleValue;
 import org.apache.cassandra.config.Schema;
+import org.apache.cassandra.config.SchemaConstants;
 import org.apache.cassandra.cql3.CQLTester;
 import org.apache.cassandra.cql3.QueryProcessor;
 import org.apache.cassandra.cql3.UntypedResultSet;
 import org.apache.cassandra.cql3.UntypedResultSet.Row;
 import org.apache.cassandra.cql3.functions.UDAggregate;
-import org.apache.cassandra.db.SystemKeyspace;
 import org.apache.cassandra.db.marshal.AbstractType;
 import org.apache.cassandra.db.marshal.TypeParser;
 import org.apache.cassandra.exceptions.FunctionExecutionException;
@@ -1392,7 +1392,7 @@ public class AggregationTest extends CQLTester
                              "CREATE AGGREGATE " + KEYSPACE_PER_TEST + ".test_wrong_ks(int) " +
                              "SFUNC " + shortFunctionName(fState) + ' ' +
                              "STYPE " + type + ' ' +
-                             "FINALFUNC " + SystemKeyspace.NAME + ".min " +
+                             "FINALFUNC " + SchemaConstants.SYSTEM_KEYSPACE_NAME + ".min " +
                              "INITCOND 1");
     }
 

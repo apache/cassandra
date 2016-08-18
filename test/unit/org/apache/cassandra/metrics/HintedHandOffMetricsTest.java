@@ -24,6 +24,7 @@ import java.net.InetAddress;
 import java.util.Map;
 import java.util.UUID;
 
+import org.junit.BeforeClass;
 import org.junit.Test;
 
 import com.google.common.collect.Iterators;
@@ -40,6 +41,12 @@ import static org.apache.cassandra.cql3.QueryProcessor.executeInternal;
 
 public class HintedHandOffMetricsTest
 {
+    @BeforeClass
+    public static void initDD()
+    {
+        DatabaseDescriptor.daemonInitialization();
+    }
+
     @Test
     public void testHintsMetrics() throws Exception
     {

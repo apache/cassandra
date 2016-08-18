@@ -53,6 +53,7 @@ public class TokenMetadataTest
     @BeforeClass
     public static void beforeClass() throws Throwable
     {
+        DatabaseDescriptor.daemonInitialization();
         tmd = StorageService.instance.getTokenMetadata();
         tmd.updateNormalToken(token(ONE), InetAddress.getByName("127.0.0.1"));
         tmd.updateNormalToken(token(SIX), InetAddress.getByName("127.0.0.6"));

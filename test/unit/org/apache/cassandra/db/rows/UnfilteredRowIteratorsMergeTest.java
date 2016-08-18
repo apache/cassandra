@@ -32,6 +32,7 @@ import org.junit.Test;
 
 import org.apache.cassandra.Util;
 import org.apache.cassandra.config.CFMetaData;
+import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.db.*;
 import org.apache.cassandra.db.marshal.AsciiType;
 import org.apache.cassandra.db.marshal.Int32Type;
@@ -40,6 +41,10 @@ import org.apache.cassandra.utils.FBUtilities;
 
 public class UnfilteredRowIteratorsMergeTest
 {
+    static
+    {
+        DatabaseDescriptor.daemonInitialization();
+    }
     static DecoratedKey partitionKey = Util.dk("key");
     static DeletionTime partitionLevelDeletion = DeletionTime.LIVE;
     static CFMetaData metadata = CFMetaData.Builder.create("UnfilteredRowIteratorsMergeTest", "Test").

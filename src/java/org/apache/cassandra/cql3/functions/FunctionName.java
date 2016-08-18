@@ -19,7 +19,7 @@ package org.apache.cassandra.cql3.functions;
 
 import com.google.common.base.Objects;
 
-import org.apache.cassandra.db.SystemKeyspace;
+import org.apache.cassandra.config.SchemaConstants;
 
 public final class FunctionName
 {
@@ -28,7 +28,7 @@ public final class FunctionName
 
     public static FunctionName nativeFunction(String name)
     {
-        return new FunctionName(SystemKeyspace.NAME, name);
+        return new FunctionName(SchemaConstants.SYSTEM_KEYSPACE_NAME, name);
     }
 
     public FunctionName(String keyspace, String name)
@@ -67,8 +67,8 @@ public final class FunctionName
 
     public final boolean equalsNativeFunction(FunctionName nativeFunction)
     {
-        assert nativeFunction.keyspace.equals(SystemKeyspace.NAME);
-        if (this.hasKeyspace() && !this.keyspace.equals(SystemKeyspace.NAME))
+        assert nativeFunction.keyspace.equals(SchemaConstants.SYSTEM_KEYSPACE_NAME);
+        if (this.hasKeyspace() && !this.keyspace.equals(SchemaConstants.SYSTEM_KEYSPACE_NAME))
             return false;
 
         return Objects.equal(this.name, nativeFunction.name);

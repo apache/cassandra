@@ -23,6 +23,7 @@ import com.google.common.collect.ImmutableList;
 
 import org.apache.cassandra.auth.*;
 import org.apache.cassandra.config.DatabaseDescriptor;
+import org.apache.cassandra.config.SchemaConstants;
 import org.apache.cassandra.cql3.ColumnIdentifier;
 import org.apache.cassandra.cql3.ColumnSpecification;
 import org.apache.cassandra.cql3.ResultSet;
@@ -33,7 +34,7 @@ import org.apache.cassandra.transport.messages.ResultMessage;
 public class ListUsersStatement extends ListRolesStatement
 {
     // pseudo-virtual cf as the actual datasource is dependent on the IRoleManager impl
-    private static final String KS = AuthKeyspace.NAME;
+    private static final String KS = SchemaConstants.AUTH_KEYSPACE_NAME;
     private static final String CF = "users";
 
     private static final List<ColumnSpecification> metadata =

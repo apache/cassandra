@@ -55,7 +55,6 @@ import org.apache.cassandra.io.sstable.Descriptor;
 import org.apache.cassandra.io.sstable.metadata.MetadataComponent;
 import org.apache.cassandra.io.sstable.metadata.MetadataType;
 import org.apache.cassandra.io.sstable.metadata.ValidationMetadata;
-import org.apache.cassandra.schema.CompressionParams;
 import org.apache.cassandra.io.util.DataOutputBuffer;
 import org.apache.cassandra.io.util.DataOutputBufferFixed;
 import org.apache.cassandra.io.util.FileUtils;
@@ -733,20 +732,6 @@ public class FBUtilities
         int position = buffer.position();
         checksum.update(buffer);
         buffer.position(position);
-    }
-
-    private static final ThreadLocal<byte[]> threadLocalScratchBuffer = new ThreadLocal<byte[]>()
-    {
-        @Override
-        protected byte[] initialValue()
-        {
-            return new byte[CompressionParams.DEFAULT_CHUNK_LENGTH];
-        }
-    };
-
-    public static byte[] getThreadLocalScratchBuffer()
-    {
-        return threadLocalScratchBuffer.get();
     }
 
     public static long abs(long index)

@@ -21,6 +21,7 @@ import java.io.*;
 import java.net.Socket;
 import java.net.SocketException;
 
+import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.stress.settings.StressSettings;
 import org.apache.cassandra.utils.FBUtilities;
 import org.apache.cassandra.utils.WindowsTimer;
@@ -71,6 +72,8 @@ public final class Stress
     {
         try
         {
+            DatabaseDescriptor.toolInitialization();
+
             final StressSettings settings;
             try
             {

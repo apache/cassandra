@@ -26,6 +26,7 @@ import java.util.Set;
 import java.util.UUID;
 import java.util.concurrent.atomic.AtomicInteger;
 
+import org.junit.BeforeClass;
 import org.junit.Test;
 
 import org.apache.cassandra.config.DatabaseDescriptor;
@@ -38,6 +39,12 @@ public class EndpointStateTest
 {
     public volatile VersionedValue.VersionedValueFactory valueFactory =
         new VersionedValue.VersionedValueFactory(DatabaseDescriptor.getPartitioner());
+
+    @BeforeClass
+    public static void setupDD()
+    {
+        DatabaseDescriptor.daemonInitialization();
+    }
 
     @Test
     public void testMultiThreadedReadConsistency() throws InterruptedException

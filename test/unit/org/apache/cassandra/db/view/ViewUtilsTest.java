@@ -46,6 +46,7 @@ public class ViewUtilsTest
     @BeforeClass
     public static void setUp() throws ConfigurationException
     {
+        DatabaseDescriptor.daemonInitialization();
         IEndpointSnitch snitch = new PropertyFileSnitch();
         DatabaseDescriptor.setEndpointSnitch(snitch);
         Keyspace.setInitialized();

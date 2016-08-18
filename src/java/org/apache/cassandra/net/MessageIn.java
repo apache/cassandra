@@ -154,7 +154,7 @@ public class MessageIn<T>
 
     public long getTimeout()
     {
-        return DatabaseDescriptor.getTimeout(verb);
+        return verb.getTimeout();
     }
 
     public long getSlowQueryTimeout()

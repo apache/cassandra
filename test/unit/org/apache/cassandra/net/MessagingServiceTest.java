@@ -35,12 +35,21 @@ import org.apache.cassandra.io.util.DataInputPlus.DataInputStreamPlus;
 import org.apache.cassandra.io.util.DataOutputStreamPlus;
 import org.apache.cassandra.io.util.WrappedDataOutputStreamPlus;
 import org.caffinitas.ohc.histo.EstimatedHistogram;
+import org.junit.BeforeClass;
 import org.junit.Test;
 
 import static org.junit.Assert.*;
 
+import org.apache.cassandra.config.DatabaseDescriptor;
+
 public class MessagingServiceTest
 {
+    @BeforeClass
+    public static void initDD()
+    {
+        DatabaseDescriptor.daemonInitialization();
+    }
+
     private final MessagingService messagingService = MessagingService.test();
     private final static long[] bucketOffsets = new EstimatedHistogram(160).getBucketOffsets();
 

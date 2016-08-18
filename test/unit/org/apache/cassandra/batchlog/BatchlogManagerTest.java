@@ -33,6 +33,7 @@ import org.apache.cassandra.Util.PartitionerSwitcher;
 import org.apache.cassandra.config.CFMetaData;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.config.Schema;
+import org.apache.cassandra.config.SchemaConstants;
 import org.apache.cassandra.cql3.UntypedResultSet;
 import org.apache.cassandra.db.ColumnFamilyStore;
 import org.apache.cassandra.db.DecoratedKey;
@@ -72,6 +73,7 @@ public class BatchlogManagerTest
     @BeforeClass
     public static void defineSchema() throws ConfigurationException
     {
+        DatabaseDescriptor.daemonInitialization();
         sw = Util.switchPartitioner(Murmur3Partitioner.instance);
         SchemaLoader.prepareServer();
         SchemaLoader.createKeyspace(KEYSPACE1,
@@ -97,8 +99,8 @@ public class BatchlogManagerTest
         InetAddress localhost = InetAddress.getByName("127.0.0.1");
         metadata.updateNormalToken(Util.token("A"), localhost);
         metadata.updateHostId(UUIDGen.getTimeUUID(), localhost);
-        Keyspace.open(SystemKeyspace.NAME).getColumnFamilyStore(SystemKeyspace.BATCHES).truncateBlocking();
-        Keyspace.open(SystemKeyspace.NAME).getColumnFamilyStore(SystemKeyspace.LEGACY_BATCHLOG).truncateBlocking();
+        Keyspace.open(SchemaConstants.SYSTEM_KEYSPACE_NAME).getColumnFamilyStore(SystemKeyspace.BATCHES).truncateBlocking();
+        Keyspace.open(SchemaConstants.SYSTEM_KEYSPACE_NAME).getColumnFamilyStore(SystemKeyspace.LEGACY_BATCHLOG).truncateBlocking();
     }
 
     @Test
@@ -171,12 +173,12 @@ public class BatchlogManagerTest
 
         if (legacy)
         {
-            Keyspace.open(SystemKeyspace.NAME).getColumnFamilyStore(SystemKeyspace.LEGACY_BATCHLOG).forceBlockingFlush();
+            Keyspace.open(SchemaConstants.SYSTEM_KEYSPACE_NAME).getColumnFamilyStore(SystemKeyspace.LEGACY_BATCHLOG).forceBlockingFlush();
             LegacyBatchlogMigrator.migrate();
         }
 
         // Flush the batchlog to disk (see CASSANDRA-6822).
-        Keyspace.open(SystemKeyspace.NAME).getColumnFamilyStore(SystemKeyspace.BATCHES).forceBlockingFlush();
+        Keyspace.open(SchemaConstants.SYSTEM_KEYSPACE_NAME).getColumnFamilyStore(SystemKeyspace.BATCHES).forceBlockingFlush();
 
         assertEquals(100, BatchlogManager.instance.countAllBatches() - initialAllBatches);
         assertEquals(0, BatchlogManager.instance.getTotalBatchesReplayed() - initialReplayedBatches);
@@ -260,7 +262,7 @@ public class BatchlogManagerTest
         }
 
         // Flush the batchlog to disk (see CASSANDRA-6822).
-        Keyspace.open(SystemKeyspace.NAME).getColumnFamilyStore(SystemKeyspace.BATCHES).forceBlockingFlush();
+        Keyspace.open(SchemaConstants.SYSTEM_KEYSPACE_NAME).getColumnFamilyStore(SystemKeyspace.BATCHES).forceBlockingFlush();
 
         // Force batchlog replay and wait for it to complete.
         BatchlogManager.instance.startBatchlogReplay().get();
@@ -341,15 +343,15 @@ public class BatchlogManagerTest
         }
 
         // Flush the batchlog to disk (see CASSANDRA-6822).
-        Keyspace.open(SystemKeyspace.NAME).getColumnFamilyStore(SystemKeyspace.BATCHES).forceBlockingFlush();
+        Keyspace.open(SchemaConstants.SYSTEM_KEYSPACE_NAME).getColumnFamilyStore(SystemKeyspace.BATCHES).forceBlockingFlush();
 
         assertEquals(1500, BatchlogManager.instance.countAllBatches() - initialAllBatches);
         assertEquals(0, BatchlogManager.instance.getTotalBatchesReplayed() - initialReplayedBatches);
 
-        UntypedResultSet result = executeInternal(String.format("SELECT count(*) FROM \"%s\".\"%s\"", SystemKeyspace.NAME, SystemKeyspace.LEGACY_BATCHLOG));
+        UntypedResultSet result = executeInternal(String.format("SELECT count(*) FROM \"%s\".\"%s\"", SchemaConstants.SYSTEM_KEYSPACE_NAME, SystemKeyspace.LEGACY_BATCHLOG));
         assertNotNull(result);
         assertEquals("Count in blog legacy", 0, result.one().getLong("count"));
-        result = executeInternal(String.format("SELECT count(*) FROM \"%s\".\"%s\"", SystemKeyspace.NAME, SystemKeyspace.BATCHES));
+        result = executeInternal(String.format("SELECT count(*) FROM \"%s\".\"%s\"", SchemaConstants.SYSTEM_KEYSPACE_NAME, SystemKeyspace.BATCHES));
         assertNotNull(result);
         assertEquals("Count in blog", 1500, result.one().getLong("count"));
 
@@ -382,10 +384,10 @@ public class BatchlogManagerTest
         assertEquals(750, result.one().getLong("count"));
 
         // Ensure batchlog is left as expected.
-        result = executeInternal(String.format("SELECT count(*) FROM \"%s\".\"%s\"", SystemKeyspace.NAME, SystemKeyspace.BATCHES));
+        result = executeInternal(String.format("SELECT count(*) FROM \"%s\".\"%s\"", SchemaConstants.SYSTEM_KEYSPACE_NAME, SystemKeyspace.BATCHES));
         assertNotNull(result);
         assertEquals("Count in blog after initial replay", 750, result.one().getLong("count"));
-        result = executeInternal(String.format("SELECT count(*) FROM \"%s\".\"%s\"", SystemKeyspace.NAME, SystemKeyspace.LEGACY_BATCHLOG));
+        result = executeInternal(String.format("SELECT count(*) FROM \"%s\".\"%s\"", SchemaConstants.SYSTEM_KEYSPACE_NAME, SystemKeyspace.LEGACY_BATCHLOG));
         assertNotNull(result);
         assertEquals("Count in blog legacy after initial replay ", 0, result.one().getLong("count"));
     }
@@ -414,7 +416,7 @@ public class BatchlogManagerTest
         Assert.assertEquals(initialAllBatches + 1, BatchlogManager.instance.countAllBatches());
 
         String query = String.format("SELECT count(*) FROM %s.%s where id = %s",
-                                     SystemKeyspace.NAME,
+                                     SchemaConstants.SYSTEM_KEYSPACE_NAME,
                                      SystemKeyspace.BATCHES,
                                      uuid);
         UntypedResultSet result = executeInternal(query);
@@ -451,7 +453,7 @@ public class BatchlogManagerTest
         assertEquals(initialAllBatches, BatchlogManager.instance.countAllBatches());
 
         String query = String.format("SELECT count(*) FROM %s.%s where id = %s",
-                                     SystemKeyspace.NAME,
+                                     SchemaConstants.SYSTEM_KEYSPACE_NAME,
                                      SystemKeyspace.BATCHES,
                                      uuid);
         UntypedResultSet result = executeInternal(query);
@@ -486,7 +488,7 @@ public class BatchlogManagerTest
         assertEquals(1, BatchlogManager.instance.countAllBatches() - initialAllBatches);
 
         // Flush the batchlog to disk (see CASSANDRA-6822).
-        Keyspace.open(SystemKeyspace.NAME).getColumnFamilyStore(SystemKeyspace.BATCHES).forceBlockingFlush();
+        Keyspace.open(SchemaConstants.SYSTEM_KEYSPACE_NAME).getColumnFamilyStore(SystemKeyspace.BATCHES).forceBlockingFlush();
 
         assertEquals(1, BatchlogManager.instance.countAllBatches() - initialAllBatches);
         assertEquals(0, BatchlogManager.instance.getTotalBatchesReplayed() - initialReplayedBatches);

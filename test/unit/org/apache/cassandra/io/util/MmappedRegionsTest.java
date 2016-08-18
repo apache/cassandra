@@ -24,11 +24,13 @@ import java.nio.ByteBuffer;
 import java.util.Random;
 
 import com.google.common.primitives.Ints;
+import org.junit.BeforeClass;
 import org.junit.Test;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.db.ClusteringComparator;
 import org.apache.cassandra.db.marshal.BytesType;
 import org.apache.cassandra.io.compress.CompressedSequentialWriter;
@@ -46,6 +48,12 @@ import static org.junit.Assert.assertTrue;
 public class MmappedRegionsTest
 {
     private static final Logger logger = LoggerFactory.getLogger(MmappedRegionsTest.class);
+
+    @BeforeClass
+    public static void setupDD()
+    {
+        DatabaseDescriptor.daemonInitialization();
+    }
 
     private static ByteBuffer allocateBuffer(int size)
     {

@@ -30,6 +30,7 @@ import org.junit.BeforeClass;
 import org.junit.Test;
 
 import org.apache.cassandra.config.DatabaseDescriptor;
+import org.apache.cassandra.config.SchemaConstants;
 import org.apache.cassandra.cql3.QueryProcessor;
 import org.apache.cassandra.cql3.UntypedResultSet;
 import org.apache.cassandra.dht.ByteOrderedPartitioner.BytesToken;
@@ -49,6 +50,8 @@ public class SystemKeyspaceTest
     @BeforeClass
     public static void prepSnapshotTracker()
     {
+        DatabaseDescriptor.daemonInitialization();
+
         if (FBUtilities.isWindows)
             WindowsFailedSnapshotTracker.deleteOldSnapshots();
     }
@@ -119,9 +122,9 @@ public class SystemKeyspaceTest
     public void snapshotSystemKeyspaceIfUpgrading() throws IOException
     {
         // First, check that in the absence of any previous installed version, we don't create snapshots
-        for (ColumnFamilyStore cfs : Keyspace.open(SystemKeyspace.NAME).getColumnFamilyStores())
+        for (ColumnFamilyStore cfs : Keyspace.open(SchemaConstants.SYSTEM_KEYSPACE_NAME).getColumnFamilyStores())
             cfs.clearUnsafe();
-        Keyspace.clearSnapshot(null, SystemKeyspace.NAME);
+        Keyspace.clearSnapshot(null, SchemaConstants.SYSTEM_KEYSPACE_NAME);
 
         int baseline = getDeferredDeletionCount();
 
@@ -130,7 +133,7 @@ public class SystemKeyspaceTest
 
         // now setup system.local as if we're upgrading from a previous version
         setupReleaseVersion(getOlderVersionString());
-        Keyspace.clearSnapshot(null, SystemKeyspace.NAME);
+        Keyspace.clearSnapshot(null, SchemaConstants.SYSTEM_KEYSPACE_NAME);
         assertDeletedOrDeferred(baseline);
 
         // Compare versions again & verify that snapshots were created for all tables in the system ks
@@ -139,7 +142,7 @@ public class SystemKeyspaceTest
 
         // clear out the snapshots & set the previous recorded version equal to the latest, we shouldn't
         // see any new snapshots created this time.
-        Keyspace.clearSnapshot(null, SystemKeyspace.NAME);
+        Keyspace.clearSnapshot(null, SchemaConstants.SYSTEM_KEYSPACE_NAME);
         setupReleaseVersion(FBUtilities.getReleaseVersionString());
 
         SystemKeyspace.snapshotOnVersionChange();
@@ -149,7 +152,7 @@ public class SystemKeyspaceTest
         // 10 files expected.
         assertDeletedOrDeferred(baseline + 10);
 
-        Keyspace.clearSnapshot(null, SystemKeyspace.NAME);
+        Keyspace.clearSnapshot(null, SchemaConstants.SYSTEM_KEYSPACE_NAME);
     }
 
     @Test
@@ -238,7 +241,7 @@ public class SystemKeyspaceTest
     private Set<String> getSystemSnapshotFiles()
     {
         Set<String> snapshottedTableNames = new HashSet<>();
-        for (ColumnFamilyStore cfs : Keyspace.open(SystemKeyspace.NAME).getColumnFamilyStores())
+        for (ColumnFamilyStore cfs : Keyspace.open(SchemaConstants.SYSTEM_KEYSPACE_NAME).getColumnFamilyStores())
         {
             if (!cfs.getSnapshotDetails().isEmpty())
                 snapshottedTableNames.add(cfs.getColumnFamilyName());

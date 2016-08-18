@@ -19,6 +19,7 @@
 package org.apache.cassandra.gms;
 
 import org.apache.cassandra.AbstractSerializationsTester;
+import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.dht.IPartitioner;
 import org.apache.cassandra.dht.Token;
 import org.apache.cassandra.io.util.DataInputPlus.DataInputStreamPlus;
@@ -26,6 +27,7 @@ import org.apache.cassandra.io.util.DataOutputStreamPlus;
 import org.apache.cassandra.service.StorageService;
 import org.apache.cassandra.utils.FBUtilities;
 
+import org.junit.BeforeClass;
 import org.junit.Test;
 
 import java.io.IOException;
@@ -38,6 +40,12 @@ import java.util.Map;
 
 public class SerializationsTest extends AbstractSerializationsTester
 {
+    @BeforeClass
+    public static void initDD()
+    {
+        DatabaseDescriptor.daemonInitialization();
+    }
+
     private void testEndpointStateWrite() throws IOException
     {
         DataOutputStreamPlus out = getOutput("gms.EndpointState.bin");

@@ -26,6 +26,7 @@ import static org.junit.Assert.*;
 import org.apache.cassandra.SchemaLoader;
 import org.apache.cassandra.Util;
 import org.apache.cassandra.config.CFMetaData;
+import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.db.ColumnFamilyStore;
 import org.apache.cassandra.db.DecoratedKey;
 import org.apache.cassandra.db.Keyspace;
@@ -45,6 +46,7 @@ public class SnapshotDeletingTest
     @BeforeClass
     public static void defineSchema() throws Exception
     {
+        DatabaseDescriptor.daemonInitialization();
         GCInspector.register();
         // Needed to init the output file where we print failed snapshots. This is called on node startup.
         WindowsFailedSnapshotTracker.deleteOldSnapshots();

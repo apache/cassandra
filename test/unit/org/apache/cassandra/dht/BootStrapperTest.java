@@ -61,6 +61,7 @@ public class BootStrapperTest
     @BeforeClass
     public static void setup() throws ConfigurationException
     {
+        DatabaseDescriptor.daemonInitialization();
         oldPartitioner = StorageService.instance.setPartitionerUnsafe(Murmur3Partitioner.instance);
         SchemaLoader.startGossiper();
         SchemaLoader.prepareServer();

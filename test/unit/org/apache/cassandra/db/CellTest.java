@@ -29,6 +29,7 @@ import org.junit.Test;
 
 import org.apache.cassandra.config.CFMetaData;
 import org.apache.cassandra.config.ColumnDefinition;
+import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.cql3.ColumnIdentifier;
 import org.apache.cassandra.db.marshal.*;
 import org.apache.cassandra.db.rows.*;
@@ -41,6 +42,11 @@ import org.apache.cassandra.utils.FBUtilities;
 
 public class CellTest
 {
+    static
+    {
+        DatabaseDescriptor.daemonInitialization();
+    }
+
     private static final String KEYSPACE1 = "CellTest";
     private static final String CF_STANDARD1 = "Standard1";
     private static final String CF_COLLECTION = "Collection1";

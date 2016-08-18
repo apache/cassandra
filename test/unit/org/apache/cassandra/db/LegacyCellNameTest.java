@@ -17,14 +17,22 @@
  */
 package org.apache.cassandra.db;
 
+import org.junit.BeforeClass;
 import org.junit.Test;
 
 import org.apache.cassandra.config.CFMetaData;
+import org.apache.cassandra.config.DatabaseDescriptor;
 
 import static junit.framework.Assert.assertTrue;
 
 public class LegacyCellNameTest
 {
+    @BeforeClass
+    public static void setupDD()
+    {
+        DatabaseDescriptor.daemonInitialization();
+    }
+
     @Test
     public void testColumnSameNameAsPartitionKeyCompactStorage() throws Exception
     {

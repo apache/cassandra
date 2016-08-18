@@ -32,6 +32,7 @@ import org.slf4j.LoggerFactory;
 
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.config.Schema;
+import org.apache.cassandra.config.SchemaConstants;
 import org.apache.cassandra.cql3.QueryOptions;
 import org.apache.cassandra.cql3.QueryProcessor;
 import org.apache.cassandra.cql3.UntypedResultSet;
@@ -114,7 +115,7 @@ public class PasswordAuthenticator implements IAuthenticator
         {
             // If the legacy users table exists try to verify credentials there. This is to handle the case
             // where the cluster is being upgraded and so is running with mixed versions of the authn tables
-            SelectStatement authenticationStatement = Schema.instance.getCFMetaData(AuthKeyspace.NAME, LEGACY_CREDENTIALS_TABLE) == null
+            SelectStatement authenticationStatement = Schema.instance.getCFMetaData(SchemaConstants.AUTH_KEYSPACE_NAME, LEGACY_CREDENTIALS_TABLE) == null
                                                     ? authenticateStatement
                                                     : legacyAuthenticateStatement;
 
@@ -146,7 +147,7 @@ public class PasswordAuthenticator implements IAuthenticator
     public Set<DataResource> protectedResources()
     {
         // Also protected by CassandraRoleManager, but the duplication doesn't hurt and is more explicit
-        return ImmutableSet.of(DataResource.table(AuthKeyspace.NAME, AuthKeyspace.ROLES));
+        return ImmutableSet.of(DataResource.table(SchemaConstants.AUTH_KEYSPACE_NAME, AuthKeyspace.ROLES));
     }
 
     public void validateConfiguration() throws ConfigurationException
@@ -157,15 +158,15 @@ public class PasswordAuthenticator implements IAuthenticator
     {
         String query = String.format("SELECT %s FROM %s.%s WHERE role = ?",
                                      SALTED_HASH,
-                                     AuthKeyspace.NAME,
+                                     SchemaConstants.AUTH_KEYSPACE_NAME,
                                      AuthKeyspace.ROLES);
         authenticateStatement = prepare(query);
 
-        if (Schema.instance.getCFMetaData(AuthKeyspace.NAME, LEGACY_CREDENTIALS_TABLE) != null)
+        if (Schema.instance.getCFMetaData(SchemaConstants.AUTH_KEYSPACE_NAME, LEGACY_CREDENTIALS_TABLE) != null)
         {
             query = String.format("SELECT %s from %s.%s WHERE username = ?",
                                   SALTED_HASH,
-                                  AuthKeyspace.NAME,
+                                  SchemaConstants.AUTH_KEYSPACE_NAME,
                                   LEGACY_CREDENTIALS_TABLE);
             legacyAuthenticateStatement = prepare(query);
         }

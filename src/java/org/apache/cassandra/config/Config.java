@@ -32,9 +32,6 @@ import com.google.common.collect.Sets;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import org.apache.cassandra.config.EncryptionOptions.ClientEncryptionOptions;
-import org.apache.cassandra.config.EncryptionOptions.ServerEncryptionOptions;
-
 /**
  * A class that contains configuration properties for the cassandra node it runs within.
  *
@@ -224,10 +221,10 @@ public class Config
     public RequestSchedulerId request_scheduler_id;
     public RequestSchedulerOptions request_scheduler_options;
 
-    public ServerEncryptionOptions server_encryption_options = new ServerEncryptionOptions();
-    public ClientEncryptionOptions client_encryption_options = new ClientEncryptionOptions();
+    public EncryptionOptions.ServerEncryptionOptions server_encryption_options = new EncryptionOptions.ServerEncryptionOptions();
+    public EncryptionOptions.ClientEncryptionOptions client_encryption_options = new EncryptionOptions.ClientEncryptionOptions();
     // this encOptions is for backward compatibility (a warning is logged by DatabaseDescriptor)
-    public ServerEncryptionOptions encryption_options;
+    public EncryptionOptions.ServerEncryptionOptions encryption_options;
 
     public InternodeCompression internode_compression = InternodeCompression.none;
 
@@ -260,6 +257,7 @@ public class Config
     public volatile int counter_cache_keys_to_save = Integer.MAX_VALUE;
 
     private static boolean isClientMode = false;
+    private static boolean isToolsMode = false;
 
     public Integer file_cache_size_in_mb;
 
@@ -367,9 +365,32 @@ public class Config
         return isClientMode;
     }
 
+    /**
+     * Client mode means that the process is a pure client, that uses C* code base but does
+     * not read or write local C* database files.
+     */
     public static void setClientMode(boolean clientMode)
     {
         isClientMode = clientMode;
+    }
+
+    public static boolean isToolsMode()
+    {
+        return isToolsMode;
+    }
+
+    /**
+     * Tools mode means that the process is a standalone (offline) C* tool that may (or may not)
+     * read or write local C* database files.
+     */
+    public static void setToolsMode(boolean toolsMode)
+    {
+        isToolsMode = toolsMode;
+    }
+
+    public static boolean isClientOrToolsMode()
+    {
+        return isClientMode() || isToolsMode();
     }
 
     public enum CommitLogSync

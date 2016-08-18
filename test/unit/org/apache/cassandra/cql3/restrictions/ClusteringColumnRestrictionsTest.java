@@ -21,10 +21,12 @@ import java.nio.ByteBuffer;
 import java.util.*;
 
 import com.google.common.collect.Iterables;
+import org.junit.BeforeClass;
 import org.junit.Test;
 
 import org.apache.cassandra.config.CFMetaData;
 import org.apache.cassandra.config.ColumnDefinition;
+import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.cql3.*;
 import org.apache.cassandra.cql3.Term.MultiItemTerminal;
 import org.apache.cassandra.cql3.statements.Bound;
@@ -41,6 +43,12 @@ import static org.junit.Assert.assertTrue;
 
 public class ClusteringColumnRestrictionsTest
 {
+    @BeforeClass
+    public static void setupDD()
+    {
+        DatabaseDescriptor.daemonInitialization();
+    }
+
     @Test
     public void testBoundsAsClusteringWithNoRestrictions()
     {

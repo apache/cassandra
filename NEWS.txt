@@ -82,6 +82,12 @@ Upgrading
       that jar, but if you need that jar for backward compatiblity until you do so, you should use the version provided
       on previous Cassandra branch, like the 3.0 branch (by design, the functionality provided by that jar are stable
       accross versions so using the 3.0 jar for a client connecting to 3.x should work without issues).
+    - (Tools development) DatabaseDescriptor no longer implicitly startups components/services like
+      commit log replay. This may break existing 3rd party tools and clients. In order to startup
+      a standalone tool or client application, use the DatabaseDescriptor.toolInitialization() or
+      DatabaseDescriptor.clientInitialization() methods. Tool initialization sets up partitioner,
+      snitch, encryption context. Client initialization just applies the configuration but does not
+      setup anything.
 
 3.8
 ===

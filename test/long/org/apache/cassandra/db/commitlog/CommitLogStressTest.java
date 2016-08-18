@@ -53,6 +53,11 @@ import org.apache.cassandra.security.EncryptionContextGenerator;
 
 public class CommitLogStressTest
 {
+    static
+    {
+        DatabaseDescriptor.daemonInitialization();
+    }
+
     public static ByteBuffer dataSource;
 
     public static int NUM_THREADS = 4 * Runtime.getRuntime().availableProcessors() - 1;

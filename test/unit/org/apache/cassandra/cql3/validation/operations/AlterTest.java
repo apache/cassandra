@@ -17,6 +17,7 @@
  */
 package org.apache.cassandra.cql3.validation.operations;
 
+import org.apache.cassandra.config.SchemaConstants;
 import org.apache.cassandra.cql3.CQLTester;
 import org.apache.cassandra.db.ColumnFamilyStore;
 import org.apache.cassandra.db.Keyspace;
@@ -283,7 +284,7 @@ public class AlterTest extends CQLTester
         createTable("CREATE TABLE %s (a text, b int, c int, primary key (a, b))");
 
         assertRows(execute(format("SELECT compression FROM %s.%s WHERE keyspace_name = ? and table_name = ?;",
-                                  SchemaKeyspace.NAME,
+                                  SchemaConstants.SCHEMA_KEYSPACE_NAME,
                                   SchemaKeyspace.TABLES),
                            KEYSPACE,
                            currentTable()),
@@ -292,7 +293,7 @@ public class AlterTest extends CQLTester
         execute("ALTER TABLE %s WITH compression = { 'class' : 'SnappyCompressor', 'chunk_length_in_kb' : 32 };");
 
         assertRows(execute(format("SELECT compression FROM %s.%s WHERE keyspace_name = ? and table_name = ?;",
-                                  SchemaKeyspace.NAME,
+                                  SchemaConstants.SCHEMA_KEYSPACE_NAME,
                                   SchemaKeyspace.TABLES),
                            KEYSPACE,
                            currentTable()),
@@ -301,7 +302,7 @@ public class AlterTest extends CQLTester
         execute("ALTER TABLE %s WITH compression = { 'sstable_compression' : 'LZ4Compressor', 'chunk_length_kb' : 64 };");
 
         assertRows(execute(format("SELECT compression FROM %s.%s WHERE keyspace_name = ? and table_name = ?;",
-                                  SchemaKeyspace.NAME,
+                                  SchemaConstants.SCHEMA_KEYSPACE_NAME,
                                   SchemaKeyspace.TABLES),
                            KEYSPACE,
                            currentTable()),
@@ -310,7 +311,7 @@ public class AlterTest extends CQLTester
         execute("ALTER TABLE %s WITH compression = { 'sstable_compression' : '', 'chunk_length_kb' : 32 };");
 
         assertRows(execute(format("SELECT compression FROM %s.%s WHERE keyspace_name = ? and table_name = ?;",
-                                  SchemaKeyspace.NAME,
+                                  SchemaConstants.SCHEMA_KEYSPACE_NAME,
                                   SchemaKeyspace.TABLES),
                            KEYSPACE,
                            currentTable()),
@@ -320,7 +321,7 @@ public class AlterTest extends CQLTester
         execute("ALTER TABLE %s WITH compression = { 'enabled' : 'false'};");
 
         assertRows(execute(format("SELECT compression FROM %s.%s WHERE keyspace_name = ? and table_name = ?;",
-                                  SchemaKeyspace.NAME,
+                                  SchemaConstants.SCHEMA_KEYSPACE_NAME,
                                   SchemaKeyspace.TABLES),
                            KEYSPACE,
                            currentTable()),

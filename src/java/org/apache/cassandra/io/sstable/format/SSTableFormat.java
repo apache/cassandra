@@ -51,6 +51,11 @@ public interface SSTableFormat
         public final SSTableFormat info;
         public final String name;
 
+        public static Type current()
+        {
+            return BIG;
+        }
+
         private Type(String name, SSTableFormat info)
         {
             //Since format comes right after generation

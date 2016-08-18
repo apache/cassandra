@@ -20,6 +20,7 @@ package org.apache.cassandra.cql3.validation.operations;
 
 import org.junit.Test;
 
+import org.apache.cassandra.config.SchemaConstants;
 import org.apache.cassandra.cql3.CQLTester;
 import org.apache.cassandra.exceptions.InvalidRequestException;
 import org.apache.cassandra.exceptions.SyntaxException;
@@ -1283,7 +1284,7 @@ public class InsertUpdateIfConditionTest extends CQLTester
         // create and confirm
         schemaChange("CREATE KEYSPACE IF NOT EXISTS " + keyspace + " WITH replication = { 'class':'SimpleStrategy', 'replication_factor':1} and durable_writes = true ");
         assertRows(execute(format("select durable_writes from %s.%s where keyspace_name = ?",
-                                  SchemaKeyspace.NAME,
+                                  SchemaConstants.SCHEMA_KEYSPACE_NAME,
                                   SchemaKeyspace.KEYSPACES),
                            keyspace),
                    row(true));
@@ -1292,7 +1293,7 @@ public class InsertUpdateIfConditionTest extends CQLTester
         schemaChange("CREATE KEYSPACE IF NOT EXISTS " + keyspace + " WITH replication = {'class':'SimpleStrategy', 'replication_factor':1} and durable_writes = false ");
 
         assertRows(execute(format("select durable_writes from %s.%s where keyspace_name = ?",
-                                  SchemaKeyspace.NAME,
+                                  SchemaConstants.SCHEMA_KEYSPACE_NAME,
                                   SchemaKeyspace.KEYSPACES),
                            keyspace),
                    row(true));
@@ -1300,7 +1301,7 @@ public class InsertUpdateIfConditionTest extends CQLTester
         // drop and confirm
         schemaChange("DROP KEYSPACE IF EXISTS " + keyspace);
 
-        assertEmpty(execute(format("select * from %s.%s where keyspace_name = ?", SchemaKeyspace.NAME, SchemaKeyspace.KEYSPACES),
+        assertEmpty(execute(format("select * from %s.%s where keyspace_name = ?", SchemaConstants.SCHEMA_KEYSPACE_NAME, SchemaKeyspace.KEYSPACES),
                             keyspace));
     }
 
@@ -1377,7 +1378,7 @@ public class InsertUpdateIfConditionTest extends CQLTester
         // create and confirm
         execute("CREATE TYPE IF NOT EXISTS mytype (somefield int)");
         assertRows(execute(format("SELECT type_name from %s.%s where keyspace_name = ? and type_name = ?",
-                                  SchemaKeyspace.NAME,
+                                  SchemaConstants.SCHEMA_KEYSPACE_NAME,
                                   SchemaKeyspace.TYPES),
                            KEYSPACE,
                            "mytype"),
@@ -1390,7 +1391,7 @@ public class InsertUpdateIfConditionTest extends CQLTester
         // drop and confirm
         execute("DROP TYPE IF EXISTS mytype");
         assertEmpty(execute(format("SELECT type_name from %s.%s where keyspace_name = ? and type_name = ?",
-                                   SchemaKeyspace.NAME,
+                                   SchemaConstants.SCHEMA_KEYSPACE_NAME,
                                    SchemaKeyspace.TYPES),
                             KEYSPACE,
                             "mytype"));

@@ -57,6 +57,11 @@ import org.apache.cassandra.db.commitlog.CommitLogReplayer.CommitLogReplayExcept
  */
 public class CommitLogUpgradeTest
 {
+    static
+    {
+        DatabaseDescriptor.daemonInitialization();
+    }
+
     static final String DATA_DIR = "test/data/legacy-commitlog/";
     static final String PROPERTIES_FILE = "hash.txt";
     static final String CFID_PROPERTY = "cfid";

@@ -32,6 +32,7 @@ import org.apache.cassandra.config.Config;
 import org.apache.cassandra.config.CFMetaData;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.config.Schema;
+import org.apache.cassandra.config.SchemaConstants;
 import org.apache.cassandra.cql3.QueryHandler;
 import org.apache.cassandra.cql3.QueryProcessor;
 import org.apache.cassandra.cql3.functions.Function;
@@ -41,7 +42,6 @@ import org.apache.cassandra.exceptions.InvalidRequestException;
 import org.apache.cassandra.exceptions.UnauthorizedException;
 import org.apache.cassandra.schema.SchemaKeyspace;
 import org.apache.cassandra.thrift.ThriftValidation;
-import org.apache.cassandra.tracing.TraceKeyspace;
 import org.apache.cassandra.utils.FBUtilities;
 import org.apache.cassandra.utils.JVMStabilityInspector;
 import org.apache.cassandra.utils.CassandraVersion;
@@ -63,11 +63,12 @@ public class ClientState
         // We want these system cfs to be always readable to authenticated users since many tools rely on them
         // (nodetool, cqlsh, bulkloader, etc.)
         for (String cf : Arrays.asList(SystemKeyspace.LOCAL, SystemKeyspace.PEERS))
-            READABLE_SYSTEM_RESOURCES.add(DataResource.table(SystemKeyspace.NAME, cf));
+            READABLE_SYSTEM_RESOURCES.add(DataResource.table(SchemaConstants.SYSTEM_KEYSPACE_NAME, cf));
 
-        SchemaKeyspace.ALL.forEach(table -> READABLE_SYSTEM_RESOURCES.add(DataResource.table(SchemaKeyspace.NAME, table)));
+        SchemaKeyspace.ALL.forEach(table -> READABLE_SYSTEM_RESOURCES.add(DataResource.table(SchemaConstants.SCHEMA_KEYSPACE_NAME, table)));
 
-        if (!Config.isClientMode())
+        // neither clients nor tools need authentication/authorization
+        if (!Config.isClientOrToolsMode())
         {
             PROTECTED_AUTH_RESOURCES.addAll(DatabaseDescriptor.getAuthenticator().protectedResources());
             PROTECTED_AUTH_RESOURCES.addAll(DatabaseDescriptor.getAuthorizer().protectedResources());
@@ -77,11 +78,11 @@ public class ClientState
         // allow users with sufficient privileges to alter KS level options on AUTH_KS and
         // TRACING_KS, and also to drop legacy tables (users, credentials, permissions) from
         // AUTH_KS
-        ALTERABLE_SYSTEM_KEYSPACES.add(AuthKeyspace.NAME);
-        ALTERABLE_SYSTEM_KEYSPACES.add(TraceKeyspace.NAME);
-        DROPPABLE_SYSTEM_TABLES.add(DataResource.table(AuthKeyspace.NAME, PasswordAuthenticator.LEGACY_CREDENTIALS_TABLE));
-        DROPPABLE_SYSTEM_TABLES.add(DataResource.table(AuthKeyspace.NAME, CassandraRoleManager.LEGACY_USERS_TABLE));
-        DROPPABLE_SYSTEM_TABLES.add(DataResource.table(AuthKeyspace.NAME, CassandraAuthorizer.USER_PERMISSIONS));
+        ALTERABLE_SYSTEM_KEYSPACES.add(SchemaConstants.AUTH_KEYSPACE_NAME);
+        ALTERABLE_SYSTEM_KEYSPACES.add(SchemaConstants.TRACE_KEYSPACE_NAME);
+        DROPPABLE_SYSTEM_TABLES.add(DataResource.table(SchemaConstants.AUTH_KEYSPACE_NAME, PasswordAuthenticator.LEGACY_CREDENTIALS_TABLE));
+        DROPPABLE_SYSTEM_TABLES.add(DataResource.table(SchemaConstants.AUTH_KEYSPACE_NAME, CassandraRoleManager.LEGACY_USERS_TABLE));
+        DROPPABLE_SYSTEM_TABLES.add(DataResource.table(SchemaConstants.AUTH_KEYSPACE_NAME, CassandraAuthorizer.USER_PERMISSIONS));
     }
 
     // Current user for the session
@@ -323,7 +324,7 @@ public class ClientState
 
         // Access to built in functions is unrestricted
         if(resource instanceof FunctionResource && resource.hasParent())
-            if (((FunctionResource)resource).getKeyspace().equals(SystemKeyspace.NAME))
+            if (((FunctionResource)resource).getKeyspace().equals(SchemaConstants.SYSTEM_KEYSPACE_NAME))
                 return;
 
         checkPermissionOnResourceChain(perm, resource);
@@ -365,7 +366,7 @@ public class ClientState
             return;
 
         // prevent system keyspace modification
-        if (Schema.isSystemKeyspace(keyspace))
+        if (SchemaConstants.isSystemKeyspace(keyspace))
             throw new UnauthorizedException(keyspace + " keyspace is not user-modifiable.");
 
         // allow users with sufficient privileges to alter KS level options on AUTH_KS and

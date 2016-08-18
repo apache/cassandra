@@ -28,7 +28,7 @@ import java.util.stream.StreamSupport;
 import org.apache.commons.cli.*;
 
 import org.apache.cassandra.config.CFMetaData;
-import org.apache.cassandra.config.Config;
+import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.cql3.ColumnIdentifier;
 import org.apache.cassandra.db.DecoratedKey;
 import org.apache.cassandra.db.PartitionPosition;
@@ -62,7 +62,7 @@ public class SSTableExport
 
     static
     {
-        Config.setClientMode(true);
+        DatabaseDescriptor.toolInitialization();
 
         Option optKey = new Option(KEY_OPTION, true, "Partition key");
         // Number of times -k <key> can be passed on the command line.

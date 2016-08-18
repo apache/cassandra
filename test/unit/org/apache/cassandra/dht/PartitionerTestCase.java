@@ -25,8 +25,10 @@ import java.util.Map;
 import java.util.Random;
 
 import org.junit.Before;
+import org.junit.BeforeClass;
 import org.junit.Test;
 
+import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.service.StorageService;
 
 import static org.junit.Assert.assertEquals;
@@ -37,6 +39,12 @@ public abstract class PartitionerTestCase
     protected IPartitioner partitioner;
 
     public abstract void initPartitioner();
+
+    @BeforeClass
+    public static void initDD()
+    {
+        DatabaseDescriptor.daemonInitialization();
+    }
 
     @Before
     public void clean()

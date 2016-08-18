@@ -21,10 +21,12 @@ package org.apache.cassandra.net;
 import java.net.InetAddress;
 import java.util.UUID;
 
+import org.junit.BeforeClass;
 import org.junit.Test;
 
 import junit.framework.Assert;
 import org.apache.cassandra.MockSchema;
+import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.db.BufferDecoratedKey;
 import org.apache.cassandra.db.ConsistencyLevel;
 import org.apache.cassandra.db.Mutation;
@@ -37,6 +39,11 @@ import org.apache.cassandra.utils.ByteBufferUtil;
 
 public class WriteCallbackInfoTest
 {
+    @BeforeClass
+    public static void initDD()
+    {
+        DatabaseDescriptor.daemonInitialization();
+    }
 
     @Test
     public void testShouldHint() throws Exception

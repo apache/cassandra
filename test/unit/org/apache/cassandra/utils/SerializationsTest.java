@@ -22,10 +22,12 @@ import java.io.DataInputStream;
 import java.io.IOException;
 
 import org.junit.Assert;
+import org.junit.BeforeClass;
 import org.junit.Test;
 
 import org.apache.cassandra.AbstractSerializationsTester;
 import org.apache.cassandra.Util;
+import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.db.DecoratedKey;
 import org.apache.cassandra.db.marshal.Int32Type;
 import org.apache.cassandra.io.util.DataInputPlus.DataInputStreamPlus;
@@ -38,6 +40,12 @@ import java.io.FileInputStream;
 
 public class SerializationsTest extends AbstractSerializationsTester
 {
+    @BeforeClass
+    public static void initDD()
+    {
+        DatabaseDescriptor.daemonInitialization();
+    }
+
     private static void testBloomFilterWrite(boolean offheap, boolean oldBfHashOrder) throws IOException
     {
         IPartitioner partitioner = Util.testPartitioner();

@@ -17,7 +17,7 @@
  */
 package org.apache.cassandra.io.compress;
 
-import org.apache.cassandra.utils.FBUtilities;
+import org.apache.cassandra.schema.CompressionParams;
 
 import java.io.IOException;
 import java.nio.ByteBuffer;
@@ -31,6 +31,20 @@ import java.util.zip.Inflater;
 public class DeflateCompressor implements ICompressor
 {
     public static final DeflateCompressor instance = new DeflateCompressor();
+
+    private static final ThreadLocal<byte[]> threadLocalScratchBuffer = new ThreadLocal<byte[]>()
+    {
+        @Override
+        protected byte[] initialValue()
+        {
+            return new byte[CompressionParams.DEFAULT_CHUNK_LENGTH];
+        }
+    };
+
+    public static byte[] getThreadLocalScratchBuffer()
+    {
+        return threadLocalScratchBuffer.get();
+    }
 
     private final ThreadLocal<Deflater> deflater;
     private final ThreadLocal<Inflater> inflater;
@@ -104,7 +118,7 @@ public class DeflateCompressor implements ICompressor
         Deflater def = deflater.get();
         def.reset();
 
-        byte[] buffer = FBUtilities.getThreadLocalScratchBuffer();
+        byte[] buffer = getThreadLocalScratchBuffer();
         // Use half the buffer for input, half for output.
         int chunkLen = buffer.length / 2;
         while (input.remaining() > chunkLen)
@@ -149,7 +163,7 @@ public class DeflateCompressor implements ICompressor
             Inflater inf = inflater.get();
             inf.reset();
 
-            byte[] buffer = FBUtilities.getThreadLocalScratchBuffer();
+            byte[] buffer = getThreadLocalScratchBuffer();
             // Use half the buffer for input, half for output.
             int chunkLen = buffer.length / 2;
             while (input.remaining() > chunkLen)

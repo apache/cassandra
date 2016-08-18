@@ -28,10 +28,12 @@ import java.util.concurrent.ThreadLocalRandom;
 
 import com.google.common.io.Files;
 import org.junit.After;
+import org.junit.BeforeClass;
 import org.junit.Test;
 
 import junit.framework.Assert;
 
+import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.io.compress.BufferType;
 import org.apache.cassandra.utils.concurrent.AbstractTransactionalTest;
 
@@ -42,6 +44,12 @@ public class SequentialWriterTest extends AbstractTransactionalTest
 {
 
     private final List<TestableSW> writers = new ArrayList<>();
+
+    @BeforeClass
+    public static void setupDD()
+    {
+        DatabaseDescriptor.daemonInitialization();
+    }
 
     @After
     public void cleanup()

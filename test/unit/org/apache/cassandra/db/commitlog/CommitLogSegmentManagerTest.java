@@ -61,9 +61,10 @@ public class CommitLogSegmentManagerTest
 
     private final static byte[] entropy = new byte[1024 * 256];
     @BeforeClass
-    public static void defineSchema() throws ConfigurationException
+    public static void defineSchema()
     {
         new Random().nextBytes(entropy);
+        DatabaseDescriptor.daemonInitialization();
         DatabaseDescriptor.setCommitLogCompression(new ParameterizedClass("LZ4Compressor", ImmutableMap.of()));
         DatabaseDescriptor.setCommitLogSegmentSize(1);
         DatabaseDescriptor.setCommitLogSync(CommitLogSync.periodic);

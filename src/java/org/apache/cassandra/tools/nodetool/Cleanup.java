@@ -23,8 +23,8 @@ import io.airlift.command.Command;
 import java.util.ArrayList;
 import java.util.List;
 
-import org.apache.cassandra.config.Schema;
 import io.airlift.command.Option;
+import org.apache.cassandra.config.SchemaConstants;
 import org.apache.cassandra.tools.NodeProbe;
 import org.apache.cassandra.tools.NodeTool.NodeToolCmd;
 
@@ -47,7 +47,7 @@ public class Cleanup extends NodeToolCmd
 
         for (String keyspace : keyspaces)
         {
-            if (Schema.isSystemKeyspace(keyspace))
+            if (SchemaConstants.isSystemKeyspace(keyspace))
                 continue;
 
             try

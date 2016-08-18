@@ -41,16 +41,16 @@ public class TServerCustomFactory implements TServerFactory
     public TServer buildTServer(TServerFactory.Args args)
     {
         TServer server;
-        if (ThriftServer.SYNC.equalsIgnoreCase(serverType))
+        if (ThriftServer.ThriftServerType.SYNC.equalsIgnoreCase(serverType))
         {
             server = new CustomTThreadPoolServer.Factory().buildTServer(args);
         }
-        else if(ThriftServer.ASYNC.equalsIgnoreCase(serverType))
+        else if(ThriftServer.ThriftServerType.ASYNC.equalsIgnoreCase(serverType))
         {
             server = new CustomTNonBlockingServer.Factory().buildTServer(args);
             logger.info(String.format("Using non-blocking/asynchronous thrift server on %s : %s", args.addr.getHostName(), args.addr.getPort()));
         }
-        else if(ThriftServer.HSHA.equalsIgnoreCase(serverType))
+        else if(ThriftServer.ThriftServerType.HSHA.equalsIgnoreCase(serverType))
         {
             server = new THsHaDisruptorServer.Factory().buildTServer(args);
             logger.info(String.format("Using custom half-sync/half-async thrift server on %s : %s", args.addr.getHostName(), args.addr.getPort()));

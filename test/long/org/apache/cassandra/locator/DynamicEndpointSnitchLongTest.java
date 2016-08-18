@@ -33,6 +33,11 @@ import org.apache.cassandra.utils.FBUtilities;
 
 public class DynamicEndpointSnitchLongTest
 {
+    static
+    {
+        DatabaseDescriptor.daemonInitialization();
+    }
+
     @Test
     public void testConcurrency() throws InterruptedException, IOException, ConfigurationException
     {

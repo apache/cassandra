@@ -31,8 +31,8 @@ import java.util.Set;
 
 import com.google.common.collect.Sets;
 
+import org.apache.cassandra.config.SchemaConstants;
 import org.apache.cassandra.repair.RepairParallelism;
-import org.apache.cassandra.repair.SystemDistributedKeyspace;
 import org.apache.cassandra.repair.messages.RepairOption;
 import org.apache.cassandra.tools.NodeProbe;
 import org.apache.cassandra.tools.NodeTool.NodeToolCmd;
@@ -41,7 +41,7 @@ import org.apache.commons.lang3.StringUtils;
 @Command(name = "repair", description = "Repair one or more tables")
 public class Repair extends NodeToolCmd
 {
-    public final static Set<String> ONLY_EXPLICITLY_REPAIRED = Sets.newHashSet(SystemDistributedKeyspace.NAME);
+    public final static Set<String> ONLY_EXPLICITLY_REPAIRED = Sets.newHashSet(SchemaConstants.DISTRIBUTED_KEYSPACE_NAME);
 
     @Arguments(usage = "[<keyspace> <tables>...]", description = "The keyspace followed by one or many tables")
     private List<String> args = new ArrayList<>();

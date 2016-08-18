@@ -206,8 +206,8 @@ public class CreateTableStatement extends SchemaAlteringStatement
             // Column family name
             if (!PATTERN_WORD_CHARS.matcher(columnFamily()).matches())
                 throw new InvalidRequestException(String.format("\"%s\" is not a valid table name (must be alphanumeric character or underscore only: [a-zA-Z_0-9]+)", columnFamily()));
-            if (columnFamily().length() > Schema.NAME_LENGTH)
-                throw new InvalidRequestException(String.format("Table names shouldn't be more than %s characters long (got \"%s\")", Schema.NAME_LENGTH, columnFamily()));
+            if (columnFamily().length() > SchemaConstants.NAME_LENGTH)
+                throw new InvalidRequestException(String.format("Table names shouldn't be more than %s characters long (got \"%s\")", SchemaConstants.NAME_LENGTH, columnFamily()));
 
             for (Multiset.Entry<ColumnIdentifier> entry : definedNames.entrySet())
                 if (entry.getCount() > 1)

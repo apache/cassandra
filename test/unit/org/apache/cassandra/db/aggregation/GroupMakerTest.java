@@ -19,6 +19,7 @@ package org.apache.cassandra.db.aggregation;
 
 import java.nio.ByteBuffer;
 
+import org.junit.BeforeClass;
 import org.junit.Test;
 
 import org.apache.cassandra.config.DatabaseDescriptor;
@@ -34,6 +35,12 @@ import static org.junit.Assert.assertTrue;
 
 public class GroupMakerTest
 {
+    @BeforeClass
+    public static void setupDD()
+    {
+        DatabaseDescriptor.daemonInitialization();
+    }
+
     @Test
     public void testIsNewGroupWithClusteringColumns()
     {

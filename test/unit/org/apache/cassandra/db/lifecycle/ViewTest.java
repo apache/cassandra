@@ -33,6 +33,7 @@ import org.junit.Test;
 
 import junit.framework.Assert;
 import org.apache.cassandra.MockSchema;
+import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.db.ColumnFamilyStore;
 import org.apache.cassandra.db.Memtable;
 import org.apache.cassandra.db.PartitionPosition;
@@ -50,6 +51,7 @@ public class ViewTest
     @BeforeClass
     public static void setUp()
     {
+        DatabaseDescriptor.daemonInitialization();
         MockSchema.cleanup();
     }
 

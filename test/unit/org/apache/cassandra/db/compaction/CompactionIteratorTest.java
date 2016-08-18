@@ -30,6 +30,7 @@ import org.junit.Test;
 import org.apache.cassandra.SchemaLoader;
 import org.apache.cassandra.Util;
 import org.apache.cassandra.config.CFMetaData;
+import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.db.ColumnFamilyStore;
 import org.apache.cassandra.db.DecoratedKey;
 import org.apache.cassandra.db.DeletionTime;
@@ -50,7 +51,7 @@ public class CompactionIteratorTest
     private static final String KSNAME = "CompactionIteratorTest";
     private static final String CFNAME = "Integer1";
 
-    static final DecoratedKey kk = Util.dk("key");
+    static final DecoratedKey kk;
     static final CFMetaData metadata;
     private static final int RANGE = 1000;
     private static final int COUNT = 100;
@@ -58,6 +59,10 @@ public class CompactionIteratorTest
     Map<List<Unfiltered>, DeletionTime> deletionTimes = new HashMap<>();
 
     static {
+        DatabaseDescriptor.daemonInitialization();
+
+        kk = Util.dk("key");
+
         SchemaLoader.prepareServer();
         SchemaLoader.createKeyspace(KSNAME,
                                     KeyspaceParams.simple(1),

@@ -35,22 +35,21 @@ public final class Util
     {
         try
         {
-            DatabaseDescriptor.forceStaticInitialization();
+            DatabaseDescriptor.toolInitialization();
         }
-        catch (ExceptionInInitializerError e)
+        catch (Throwable e)
         {
-            Throwable cause = e.getCause();
-            boolean logStackTrace = !(cause instanceof ConfigurationException) || ((ConfigurationException) cause).logStackTrace;
-            System.out.println("Exception (" + cause.getClass().getName() + ") encountered during startup: " + cause.getMessage());
+            boolean logStackTrace = !(e instanceof ConfigurationException) || ((ConfigurationException) e).logStackTrace;
+            System.out.println("Exception (" + e.getClass().getName() + ") encountered during startup: " + e.getMessage());
 
             if (logStackTrace)
             {
-                cause.printStackTrace();
+                e.printStackTrace();
                 System.exit(3);
             }
             else
             {
-                System.err.println(cause.getMessage());
+                System.err.println(e.getMessage());
                 System.exit(3);
             }
         }

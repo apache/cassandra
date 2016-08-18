@@ -26,6 +26,7 @@ import org.junit.Test;
 import org.apache.cassandra.SchemaLoader;
 import org.apache.cassandra.Util;
 import org.apache.cassandra.config.CFMetaData;
+import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.db.marshal.AsciiType;
 import org.apache.cassandra.db.marshal.BytesType;
 import org.apache.cassandra.db.partitions.FilteredPartition;
@@ -44,6 +45,8 @@ public class ReadCommandTest
     @BeforeClass
     public static void defineSchema() throws ConfigurationException
     {
+        DatabaseDescriptor.daemonInitialization();
+
         CFMetaData metadata1 = SchemaLoader.standardCFMD(KEYSPACE, CF1);
 
         CFMetaData metadata2 = CFMetaData.Builder.create(KEYSPACE, CF2)

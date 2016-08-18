@@ -24,6 +24,8 @@ import java.util.*;
 
 import com.google.common.collect.Iterators;
 import com.google.common.collect.PeekingIterator;
+
+import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.db.BufferDecoratedKey;
 import org.apache.cassandra.db.DecoratedKey;
 import org.apache.cassandra.dht.Murmur3Partitioner;
@@ -41,6 +43,8 @@ import org.apache.cassandra.io.util.RandomAccessReader;
 import org.apache.cassandra.io.util.SequentialWriter;
 
 import junit.framework.Assert;
+
+import org.junit.BeforeClass;
 import org.junit.Test;
 import org.apache.commons.lang3.builder.HashCodeBuilder;
 import com.carrotsearch.hppc.LongOpenHashSet;
@@ -51,6 +55,12 @@ import com.google.common.base.Function;
 public class TokenTreeTest
 {
     private static final Function<Long, DecoratedKey> KEY_CONVERTER = new KeyConverter();
+
+    @BeforeClass
+    public static void setupDD()
+    {
+        DatabaseDescriptor.daemonInitialization();
+    }
 
     static LongSet singleOffset = new LongOpenHashSet() {{ add(1); }};
     static LongSet bigSingleOffset = new LongOpenHashSet() {{ add(2147521562L); }};

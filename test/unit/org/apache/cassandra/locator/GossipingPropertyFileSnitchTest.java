@@ -21,8 +21,10 @@ package org.apache.cassandra.locator;
 import java.net.InetAddress;
 
 import com.google.common.net.InetAddresses;
+import org.junit.BeforeClass;
 import org.junit.Test;
 
+import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.utils.FBUtilities;
 
 import static org.junit.Assert.*;
@@ -32,6 +34,13 @@ import static org.junit.Assert.*;
  */
 public class GossipingPropertyFileSnitchTest
 {
+
+    @BeforeClass
+    public static void setupDD()
+    {
+        DatabaseDescriptor.daemonInitialization();
+    }
+
     public static void checkEndpoint(final AbstractNetworkTopologySnitch snitch,
                                      final String endpointString, final String expectedDatacenter,
                                      final String expectedRack)

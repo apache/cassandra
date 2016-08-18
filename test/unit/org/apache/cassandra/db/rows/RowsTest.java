@@ -35,6 +35,7 @@ import org.junit.Test;
 
 import org.apache.cassandra.config.CFMetaData;
 import org.apache.cassandra.config.ColumnDefinition;
+import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.cql3.ColumnIdentifier;
 import org.apache.cassandra.db.Clustering;
 import org.apache.cassandra.db.DeletionTime;
@@ -56,6 +57,7 @@ public class RowsTest
 
     static
     {
+        DatabaseDescriptor.daemonInitialization();
         kcvm = CFMetaData.Builder.create(KEYSPACE, KCVM_TABLE)
                                  .addPartitionKey("k", IntegerType.instance)
                                  .addClusteringColumn("c", IntegerType.instance)

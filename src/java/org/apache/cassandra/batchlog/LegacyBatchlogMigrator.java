@@ -26,6 +26,7 @@ import java.util.concurrent.TimeUnit;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import org.apache.cassandra.config.SchemaConstants;
 import org.apache.cassandra.cql3.QueryProcessor;
 import org.apache.cassandra.cql3.UntypedResultSet;
 import org.apache.cassandra.db.*;
@@ -53,7 +54,7 @@ public final class LegacyBatchlogMigrator
     @SuppressWarnings("deprecation")
     public static void migrate()
     {
-        ColumnFamilyStore store = Keyspace.open(SystemKeyspace.NAME).getColumnFamilyStore(SystemKeyspace.LEGACY_BATCHLOG);
+        ColumnFamilyStore store = Keyspace.open(SchemaConstants.SYSTEM_KEYSPACE_NAME).getColumnFamilyStore(SystemKeyspace.LEGACY_BATCHLOG);
 
         // nothing to migrate
         if (store.isEmpty())
@@ -63,7 +64,7 @@ public final class LegacyBatchlogMigrator
 
         int convertedBatches = 0;
         String query = String.format("SELECT id, data, written_at, version FROM %s.%s",
-                                     SystemKeyspace.NAME,
+                                     SchemaConstants.SYSTEM_KEYSPACE_NAME,
                                      SystemKeyspace.LEGACY_BATCHLOG);
 
         int pageSize = BatchlogManager.calculatePageSize(store);
@@ -82,7 +83,7 @@ public final class LegacyBatchlogMigrator
     @SuppressWarnings("deprecation")
     public static boolean isLegacyBatchlogMutation(Mutation mutation)
     {
-        return mutation.getKeyspaceName().equals(SystemKeyspace.NAME)
+        return mutation.getKeyspaceName().equals(SchemaConstants.SYSTEM_KEYSPACE_NAME)
             && mutation.getPartitionUpdate(SystemKeyspace.LegacyBatchlog.cfId) != null;
     }
 
@@ -142,7 +143,7 @@ public final class LegacyBatchlogMigrator
         AbstractWriteResponseHandler<IMutation> handler = new WriteResponseHandler<>(endpoints,
                                                                                      Collections.<InetAddress>emptyList(),
                                                                                      ConsistencyLevel.ANY,
-                                                                                     Keyspace.open(SystemKeyspace.NAME),
+                                                                                     Keyspace.open(SchemaConstants.SYSTEM_KEYSPACE_NAME),
                                                                                      null,
                                                                                      WriteType.SIMPLE,
                                                                                      queryStartNanoTime);

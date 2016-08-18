@@ -25,9 +25,11 @@ import java.util.concurrent.*;
 
 import org.junit.After;
 import org.junit.Before;
+import org.junit.BeforeClass;
 import org.junit.Ignore;
 import org.junit.Test;
 
+import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.io.compress.BufferType;
 import org.apache.cassandra.io.util.RandomAccessReader;
 
@@ -35,6 +37,12 @@ import static org.junit.Assert.*;
 
 public class BufferPoolTest
 {
+    @BeforeClass
+    public static void setupDD()
+    {
+        DatabaseDescriptor.daemonInitialization();
+    }
+
     @Before
     public void setUp()
     {

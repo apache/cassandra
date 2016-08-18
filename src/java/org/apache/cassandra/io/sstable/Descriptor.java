@@ -61,6 +61,15 @@ public class Descriptor
     private final int hashCode;
 
     /**
+     * A descriptor that assumes CURRENT_VERSION.
+     */
+    @VisibleForTesting
+    public Descriptor(File directory, String ksname, String cfname, int generation)
+    {
+        this(SSTableFormat.Type.current().info.getLatestVersion(), directory, ksname, cfname, generation, SSTableFormat.Type.current(), null);
+    }
+
+    /**
      * Constructor for sstable writers only.
      */
     public Descriptor(File directory, String ksname, String cfname, int generation, SSTableFormat.Type formatType)

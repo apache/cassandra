@@ -30,6 +30,7 @@ import org.apache.cassandra.SchemaLoader;
 import org.apache.cassandra.Util;
 import org.apache.cassandra.config.CFMetaData;
 import org.apache.cassandra.config.Schema;
+import org.apache.cassandra.config.SchemaConstants;
 import org.apache.cassandra.db.*;
 import org.apache.cassandra.db.marshal.UUIDType;
 import org.apache.cassandra.db.partitions.PartitionUpdate;
@@ -79,7 +80,7 @@ public class LegacyHintsMigratorTest
     private static void testNothingToMigrate(File directory)
     {
         // truncate system.hints to enseure nothing inside
-        Keyspace.open(SystemKeyspace.NAME).getColumnFamilyStore(SystemKeyspace.LEGACY_HINTS).truncateBlocking();
+        Keyspace.open(SchemaConstants.SYSTEM_KEYSPACE_NAME).getColumnFamilyStore(SystemKeyspace.LEGACY_HINTS).truncateBlocking();
         new LegacyHintsMigrator(directory, 128 * 1024 * 1024).migrate();
         HintsCatalog catalog = HintsCatalog.load(directory, HintsService.EMPTY_PARAMS);
         assertEquals(0, catalog.stores().count());
@@ -124,7 +125,7 @@ public class LegacyHintsMigratorTest
         new LegacyHintsMigrator(directory, 128 * 1024 * 1024).migrate();
 
         // validate that the hints table is truncated now
-        assertTrue(Keyspace.open(SystemKeyspace.NAME).getColumnFamilyStore(SystemKeyspace.LEGACY_HINTS).isEmpty());
+        assertTrue(Keyspace.open(SchemaConstants.SYSTEM_KEYSPACE_NAME).getColumnFamilyStore(SystemKeyspace.LEGACY_HINTS).isEmpty());
 
         HintsCatalog catalog = HintsCatalog.load(directory, HintsService.EMPTY_PARAMS);
 

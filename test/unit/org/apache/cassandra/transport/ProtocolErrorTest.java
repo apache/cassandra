@@ -19,9 +19,11 @@ package org.apache.cassandra.transport;
 
 import io.netty.buffer.ByteBuf;
 import io.netty.buffer.Unpooled;
+import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.transport.messages.ErrorMessage;
 
 import org.junit.Assert;
+import org.junit.BeforeClass;
 import org.junit.Test;
 
 import java.util.ArrayList;
@@ -30,6 +32,12 @@ import java.util.List;
 import static org.apache.cassandra.transport.Message.Direction.*;
 
 public class ProtocolErrorTest {
+
+    @BeforeClass
+    public static void setupDD()
+    {
+        DatabaseDescriptor.daemonInitialization();
+    }
 
     @Test
     public void testInvalidProtocolVersion() throws Exception

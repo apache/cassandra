@@ -45,6 +45,7 @@ import org.apache.cassandra.concurrent.ScheduledExecutors;
 import org.apache.cassandra.config.CFMetaData;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.config.Schema;
+import org.apache.cassandra.config.SchemaConstants;
 import org.apache.cassandra.cql3.functions.FunctionName;
 import org.apache.cassandra.cql3.functions.ThreadAwareSecurityManager;
 import org.apache.cassandra.cql3.statements.ParsedStatement;
@@ -94,6 +95,8 @@ public abstract class CQLTester
     public static final List<Integer> PROTOCOL_VERSIONS;
     static
     {
+        DatabaseDescriptor.daemonInitialization();
+
         // The latest versions might not be supported yet by the java driver
         ImmutableList.Builder<Integer> builder = ImmutableList.builder();
         for (int version = Server.MIN_SUPPORTED_VERSION; version <= Server.CURRENT_VERSION; version++)
@@ -148,6 +151,8 @@ public abstract class CQLTester
     {
         if (isServerPrepared)
             return;
+
+        DatabaseDescriptor.daemonInitialization();
 
         // Cleanup first
         try
@@ -673,7 +678,7 @@ public abstract class CQLTester
         try
         {
             ClientState state = ClientState.forInternalCalls();
-            state.setKeyspace(SystemKeyspace.NAME);
+            state.setKeyspace(SchemaConstants.SYSTEM_KEYSPACE_NAME);
             QueryState queryState = new QueryState(state);
 
             ParsedStatement.Prepared prepared = QueryProcessor.parseStatement(query, queryState);

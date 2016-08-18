@@ -20,6 +20,7 @@ package org.apache.cassandra.auth;
 import java.util.concurrent.TimeUnit;
 
 import org.apache.cassandra.config.CFMetaData;
+import org.apache.cassandra.config.SchemaConstants;
 import org.apache.cassandra.schema.KeyspaceMetadata;
 import org.apache.cassandra.schema.KeyspaceParams;
 import org.apache.cassandra.schema.Tables;
@@ -29,8 +30,6 @@ public final class AuthKeyspace
     private AuthKeyspace()
     {
     }
-
-    public static final String NAME = "system_auth";
 
     public static final String ROLES = "roles";
     public static final String ROLE_MEMBERS = "role_members";
@@ -78,13 +77,13 @@ public final class AuthKeyspace
 
     private static CFMetaData compile(String name, String description, String schema)
     {
-        return CFMetaData.compile(String.format(schema, name), NAME)
+        return CFMetaData.compile(String.format(schema, name), SchemaConstants.AUTH_KEYSPACE_NAME)
                          .comment(description)
                          .gcGraceSeconds((int) TimeUnit.DAYS.toSeconds(90));
     }
 
     public static KeyspaceMetadata metadata()
     {
-        return KeyspaceMetadata.create(NAME, KeyspaceParams.simple(1), Tables.of(Roles, RoleMembers, RolePermissions, ResourceRoleIndex));
+        return KeyspaceMetadata.create(SchemaConstants.AUTH_KEYSPACE_NAME, KeyspaceParams.simple(1), Tables.of(Roles, RoleMembers, RolePermissions, ResourceRoleIndex));
     }
 }

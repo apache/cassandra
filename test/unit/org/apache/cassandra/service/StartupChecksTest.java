@@ -27,6 +27,7 @@ import org.junit.*;
 
 import org.apache.cassandra.SchemaLoader;
 import org.apache.cassandra.config.DatabaseDescriptor;
+import org.apache.cassandra.config.SchemaConstants;
 import org.apache.cassandra.db.*;
 import org.apache.cassandra.exceptions.StartupException;
 import org.apache.cassandra.io.util.FileUtils;
@@ -50,9 +51,9 @@ public class StartupChecksTest
     @Before
     public void setup() throws IOException
     {
-        for (ColumnFamilyStore cfs : Keyspace.open(SystemKeyspace.NAME).getColumnFamilyStores())
+        for (ColumnFamilyStore cfs : Keyspace.open(SchemaConstants.SYSTEM_KEYSPACE_NAME).getColumnFamilyStores())
             cfs.clearUnsafe();
-        for (File dataDir : Directories.getKSChildDirectories(SystemKeyspace.NAME))
+        for (File dataDir : Directories.getKSChildDirectories(SchemaConstants.SYSTEM_KEYSPACE_NAME))
             FileUtils.deleteRecursive(dataDir);
 
         File dataDir = new File(DatabaseDescriptor.getAllDataFileLocations()[0]);

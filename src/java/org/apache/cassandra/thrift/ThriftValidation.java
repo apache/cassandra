@@ -28,6 +28,7 @@ import org.slf4j.LoggerFactory;
 import org.apache.cassandra.config.CFMetaData;
 import org.apache.cassandra.config.ColumnDefinition;
 import org.apache.cassandra.config.Schema;
+import org.apache.cassandra.config.SchemaConstants;
 import org.apache.cassandra.cql3.Attributes;
 import org.apache.cassandra.cql3.Operator;
 import org.apache.cassandra.db.*;
@@ -636,7 +637,7 @@ public class ThriftValidation
 
     public static void validateKeyspaceNotSystem(String modifiedKeyspace) throws org.apache.cassandra.exceptions.InvalidRequestException
     {
-        if (Schema.isSystemKeyspace(modifiedKeyspace))
+        if (SchemaConstants.isSystemKeyspace(modifiedKeyspace))
             throw new org.apache.cassandra.exceptions.InvalidRequestException(String.format("%s keyspace is not user-modifiable", modifiedKeyspace));
     }
 

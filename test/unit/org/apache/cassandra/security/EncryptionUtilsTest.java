@@ -31,8 +31,10 @@ import javax.crypto.ShortBufferException;
 
 import org.junit.Assert;
 import org.junit.Before;
+import org.junit.BeforeClass;
 import org.junit.Test;
 
+import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.config.TransparentDataEncryptionOptions;
 import org.apache.cassandra.io.compress.ICompressor;
 import org.apache.cassandra.io.compress.LZ4Compressor;
@@ -40,6 +42,12 @@ import org.apache.cassandra.io.util.RandomAccessReader;
 
 public class EncryptionUtilsTest
 {
+    @BeforeClass
+    public static void initDD()
+    {
+        DatabaseDescriptor.daemonInitialization();
+    }
+
     final Random random = new Random();
     ICompressor compressor;
     TransparentDataEncryptionOptions tdeOptions;

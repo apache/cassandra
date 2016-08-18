@@ -45,6 +45,8 @@ public class FailureDetectorTest
     {
         // slow unit tests can cause problems with FailureDetector's GC pause handling
         System.setProperty("cassandra.max_local_pause_in_ms", "20000");
+
+        DatabaseDescriptor.daemonInitialization();
     }
 
     @Test

@@ -31,6 +31,7 @@ import javax.management.MBeanServer;
 import javax.management.ObjectName;
 
 import org.apache.cassandra.concurrent.ScheduledExecutors;
+import org.apache.cassandra.config.Config;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.gms.ApplicationState;
 import org.apache.cassandra.gms.EndpointState;
@@ -100,9 +101,13 @@ public class DynamicEndpointSnitch extends AbstractEndpointSnitch implements ILa
                 reset();
             }
         };
-        updateSchedular = ScheduledExecutors.scheduledTasks.scheduleWithFixedDelay(update, dynamicUpdateInterval, dynamicUpdateInterval, TimeUnit.MILLISECONDS);
-        resetSchedular = ScheduledExecutors.scheduledTasks.scheduleWithFixedDelay(reset, dynamicResetInterval, dynamicResetInterval, TimeUnit.MILLISECONDS);
-        registerMBean();
+
+        if (!Config.isClientOrToolsMode())
+        {
+            updateSchedular = ScheduledExecutors.scheduledTasks.scheduleWithFixedDelay(update, dynamicUpdateInterval, dynamicUpdateInterval, TimeUnit.MILLISECONDS);
+            resetSchedular = ScheduledExecutors.scheduledTasks.scheduleWithFixedDelay(reset, dynamicResetInterval, dynamicResetInterval, TimeUnit.MILLISECONDS);
+            registerMBean();
+        }
     }
 
     /**
@@ -114,15 +119,21 @@ public class DynamicEndpointSnitch extends AbstractEndpointSnitch implements ILa
         if (dynamicUpdateInterval != DatabaseDescriptor.getDynamicUpdateInterval())
         {
             dynamicUpdateInterval = DatabaseDescriptor.getDynamicUpdateInterval();
-            updateSchedular.cancel(false);
-            updateSchedular = ScheduledExecutors.scheduledTasks.scheduleWithFixedDelay(update, dynamicUpdateInterval, dynamicUpdateInterval, TimeUnit.MILLISECONDS);
+            if (!Config.isClientOrToolsMode())
+            {
+                updateSchedular.cancel(false);
+                updateSchedular = ScheduledExecutors.scheduledTasks.scheduleWithFixedDelay(update, dynamicUpdateInterval, dynamicUpdateInterval, TimeUnit.MILLISECONDS);
+            }
         }
 
         if (dynamicResetInterval != DatabaseDescriptor.getDynamicResetInterval())
         {
             dynamicResetInterval = DatabaseDescriptor.getDynamicResetInterval();
-            resetSchedular.cancel(false);
-            resetSchedular = ScheduledExecutors.scheduledTasks.scheduleWithFixedDelay(reset, dynamicResetInterval, dynamicResetInterval, TimeUnit.MILLISECONDS);
+            if (!Config.isClientOrToolsMode())
+            {
+                resetSchedular.cancel(false);
+                resetSchedular = ScheduledExecutors.scheduledTasks.scheduleWithFixedDelay(reset, dynamicResetInterval, dynamicResetInterval, TimeUnit.MILLISECONDS);
+            }
         }
 
         dynamicBadnessThreshold = DatabaseDescriptor.getDynamicBadnessThreshold();

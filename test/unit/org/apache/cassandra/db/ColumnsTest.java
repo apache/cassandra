@@ -33,6 +33,7 @@ import junit.framework.Assert;
 import org.apache.cassandra.MockSchema;
 import org.apache.cassandra.config.CFMetaData;
 import org.apache.cassandra.config.ColumnDefinition;
+import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.db.marshal.SetType;
 import org.apache.cassandra.db.marshal.UTF8Type;
 import org.apache.cassandra.io.util.DataInputBuffer;
@@ -43,6 +44,10 @@ import static org.apache.cassandra.utils.ByteBufferUtil.bytes;
 
 public class ColumnsTest
 {
+    static
+    {
+        DatabaseDescriptor.daemonInitialization();
+    }
 
     private static final CFMetaData cfMetaData = MockSchema.newCFS().metadata;
 

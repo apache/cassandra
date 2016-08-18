@@ -38,6 +38,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import org.apache.cassandra.config.CFMetaData;
+import org.apache.cassandra.config.SchemaConstants;
 import org.apache.cassandra.cql3.QueryProcessor;
 import org.apache.cassandra.cql3.UntypedResultSet;
 import org.apache.cassandra.db.ConsistencyLevel;
@@ -59,8 +60,6 @@ public final class SystemDistributedKeyspace
     }
 
     private static final Logger logger = LoggerFactory.getLogger(SystemDistributedKeyspace.class);
-
-    public static final String NAME = "system_distributed";
 
     public static final String REPAIR_HISTORY = "repair_history";
 
@@ -115,13 +114,13 @@ public final class SystemDistributedKeyspace
 
     private static CFMetaData compile(String name, String description, String schema)
     {
-        return CFMetaData.compile(String.format(schema, name), NAME)
+        return CFMetaData.compile(String.format(schema, name), SchemaConstants.DISTRIBUTED_KEYSPACE_NAME)
                          .comment(description);
     }
 
     public static KeyspaceMetadata metadata()
     {
-        return KeyspaceMetadata.create(NAME, KeyspaceParams.simple(3), Tables.of(RepairHistory, ParentRepairHistory, ViewBuildStatus));
+        return KeyspaceMetadata.create(SchemaConstants.DISTRIBUTED_KEYSPACE_NAME, KeyspaceParams.simple(3), Tables.of(RepairHistory, ParentRepairHistory, ViewBuildStatus));
     }
 
     public static void startParentRepair(UUID parent_id, String keyspaceName, String[] cfnames, RepairOption options)
@@ -130,7 +129,7 @@ public final class SystemDistributedKeyspace
         String query = "INSERT INTO %s.%s (parent_id, keyspace_name, columnfamily_names, requested_ranges, started_at,          options)"+
                                  " VALUES (%s,        '%s',          { '%s' },           { '%s' },          toTimestamp(now()), { %s })";
         String fmtQry = String.format(query,
-                                      NAME,
+                                      SchemaConstants.DISTRIBUTED_KEYSPACE_NAME,
                                       PARENT_REPAIR_HISTORY,
                                       parent_id.toString(),
                                       keyspaceName,
@@ -165,14 +164,14 @@ public final class SystemDistributedKeyspace
         StringWriter sw = new StringWriter();
         PrintWriter pw = new PrintWriter(sw);
         t.printStackTrace(pw);
-        String fmtQuery = String.format(query, NAME, PARENT_REPAIR_HISTORY, parent_id.toString());
+        String fmtQuery = String.format(query, SchemaConstants.DISTRIBUTED_KEYSPACE_NAME, PARENT_REPAIR_HISTORY, parent_id.toString());
         processSilent(fmtQuery, t.getMessage(), sw.toString());
     }
 
     public static void successfulParentRepair(UUID parent_id, Collection<Range<Token>> successfulRanges)
     {
         String query = "UPDATE %s.%s SET finished_at = toTimestamp(now()), successful_ranges = {'%s'} WHERE parent_id=%s";
-        String fmtQuery = String.format(query, NAME, PARENT_REPAIR_HISTORY, Joiner.on("','").join(successfulRanges), parent_id.toString());
+        String fmtQuery = String.format(query, SchemaConstants.DISTRIBUTED_KEYSPACE_NAME, PARENT_REPAIR_HISTORY, Joiner.on("','").join(successfulRanges), parent_id.toString());
         processSilent(fmtQuery);
     }
 
@@ -192,7 +191,7 @@ public final class SystemDistributedKeyspace
         {
             for (Range<Token> range : ranges)
             {
-                String fmtQry = String.format(query, NAME, REPAIR_HISTORY,
+                String fmtQry = String.format(query, SchemaConstants.DISTRIBUTED_KEYSPACE_NAME, REPAIR_HISTORY,
                                               keyspaceName,
                                               cfname,
                                               id.toString(),
@@ -216,7 +215,7 @@ public final class SystemDistributedKeyspace
     public static void successfulRepairJob(UUID id, String keyspaceName, String cfname)
     {
         String query = "UPDATE %s.%s SET status = '%s', finished_at = toTimestamp(now()) WHERE keyspace_name = '%s' AND columnfamily_name = '%s' AND id = %s";
-        String fmtQuery = String.format(query, NAME, REPAIR_HISTORY,
+        String fmtQuery = String.format(query, SchemaConstants.DISTRIBUTED_KEYSPACE_NAME, REPAIR_HISTORY,
                                         RepairState.SUCCESS.toString(),
                                         keyspaceName,
                                         cfname,
@@ -230,18 +229,18 @@ public final class SystemDistributedKeyspace
         StringWriter sw = new StringWriter();
         PrintWriter pw = new PrintWriter(sw);
         t.printStackTrace(pw);
-        String fmtQry = String.format(query, NAME, REPAIR_HISTORY,
-                RepairState.FAILED.toString(),
-                keyspaceName,
-                cfname,
-                id.toString());
+        String fmtQry = String.format(query, SchemaConstants.DISTRIBUTED_KEYSPACE_NAME, REPAIR_HISTORY,
+                                      RepairState.FAILED.toString(),
+                                      keyspaceName,
+                                      cfname,
+                                      id.toString());
         processSilent(fmtQry, t.getMessage(), sw.toString());
     }
 
     public static void startViewBuild(String keyspace, String view, UUID hostId)
     {
         String query = "INSERT INTO %s.%s (keyspace_name, view_name, host_id, status) VALUES (?, ?, ?, ?)";
-        QueryProcessor.process(String.format(query, NAME, VIEW_BUILD_STATUS),
+        QueryProcessor.process(String.format(query, SchemaConstants.DISTRIBUTED_KEYSPACE_NAME, VIEW_BUILD_STATUS),
                                ConsistencyLevel.ONE,
                                Lists.newArrayList(bytes(keyspace),
                                                   bytes(view),
@@ -252,7 +251,7 @@ public final class SystemDistributedKeyspace
     public static void successfulViewBuild(String keyspace, String view, UUID hostId)
     {
         String query = "UPDATE %s.%s SET status = ? WHERE keyspace_name = ? AND view_name = ? AND host_id = ?";
-        QueryProcessor.process(String.format(query, NAME, VIEW_BUILD_STATUS),
+        QueryProcessor.process(String.format(query, SchemaConstants.DISTRIBUTED_KEYSPACE_NAME, VIEW_BUILD_STATUS),
                                ConsistencyLevel.ONE,
                                Lists.newArrayList(bytes(BuildStatus.SUCCESS.toString()),
                                                   bytes(keyspace),
@@ -266,7 +265,7 @@ public final class SystemDistributedKeyspace
         UntypedResultSet results;
         try
         {
-            results = QueryProcessor.execute(String.format(query, NAME, VIEW_BUILD_STATUS),
+            results = QueryProcessor.execute(String.format(query, SchemaConstants.DISTRIBUTED_KEYSPACE_NAME, VIEW_BUILD_STATUS),
                                              ConsistencyLevel.ONE,
                                              keyspace,
                                              view);
@@ -286,7 +285,7 @@ public final class SystemDistributedKeyspace
     public static void setViewRemoved(String keyspaceName, String viewName)
     {
         String buildReq = "DELETE FROM %s.%s WHERE keyspace_name = ? AND view_name = ?";
-        QueryProcessor.executeInternal(String.format(buildReq, NAME, VIEW_BUILD_STATUS), keyspaceName, viewName);
+        QueryProcessor.executeInternal(String.format(buildReq, SchemaConstants.DISTRIBUTED_KEYSPACE_NAME, VIEW_BUILD_STATUS), keyspaceName, viewName);
         forceBlockingFlush(VIEW_BUILD_STATUS);
     }
 
@@ -310,7 +309,7 @@ public final class SystemDistributedKeyspace
     public static void forceBlockingFlush(String table)
     {
         if (!Boolean.getBoolean("cassandra.unsafesystem"))
-            FBUtilities.waitOnFuture(Keyspace.open(NAME).getColumnFamilyStore(table).forceFlush());
+            FBUtilities.waitOnFuture(Keyspace.open(SchemaConstants.DISTRIBUTED_KEYSPACE_NAME).getColumnFamilyStore(table).forceFlush());
     }
 
     private enum RepairState

@@ -20,10 +20,12 @@ package org.apache.cassandra.cql3;
 import java.nio.ByteBuffer;
 import java.util.*;
 
+import org.junit.BeforeClass;
 import org.junit.Test;
 
 import org.apache.cassandra.config.CFMetaData;
 import org.apache.cassandra.config.ColumnDefinition;
+import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.db.rows.BufferCell;
 import org.apache.cassandra.db.rows.Cell;
 import org.apache.cassandra.db.rows.CellPath;
@@ -45,6 +47,12 @@ public class ColumnConditionTest
 
     public static final ByteBuffer A = AsciiType.instance.fromString("a");
     public static final ByteBuffer B = AsciiType.instance.fromString("b");
+
+    @BeforeClass
+    public static void setupDD()
+    {
+        DatabaseDescriptor.daemonInitialization();
+    }
 
     private static boolean isSatisfiedBy(ColumnCondition.Bound bound, ByteBuffer conditionValue, ByteBuffer columnValue) throws InvalidRequestException
     {

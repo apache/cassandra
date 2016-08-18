@@ -26,8 +26,10 @@ import java.util.UUID;
 import java.util.concurrent.ExecutionException;
 
 import com.google.common.collect.Sets;
+import org.junit.BeforeClass;
 import org.junit.Test;
 
+import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.dht.IPartitioner;
 import org.apache.cassandra.dht.Murmur3Partitioner;
 import org.apache.cassandra.dht.Range;
@@ -42,6 +44,12 @@ import static org.junit.Assert.fail;
 
 public class RepairSessionTest
 {
+    @BeforeClass
+    public static void initDD()
+    {
+        DatabaseDescriptor.daemonInitialization();
+    }
+
     @Test
     public void testConviction() throws Exception
     {

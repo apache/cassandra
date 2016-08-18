@@ -25,6 +25,7 @@ import java.util.List;
 import org.junit.Test;
 
 import junit.framework.Assert;
+import org.apache.cassandra.config.SchemaConstants;
 import org.apache.cassandra.cql3.statements.ParsedStatement;
 import org.apache.cassandra.db.SystemKeyspace;
 import org.apache.cassandra.db.marshal.Int32Type;
@@ -43,7 +44,7 @@ public class PstmtPersistenceTest extends CQLTester
         // need this for pstmt execution/validation tests
         requireNetwork();
 
-        int rows = QueryProcessor.executeOnceInternal("SELECT * FROM " + SystemKeyspace.NAME + '.' + SystemKeyspace.PREPARED_STATEMENTS).size();
+        int rows = QueryProcessor.executeOnceInternal("SELECT * FROM " + SchemaConstants.SYSTEM_KEYSPACE_NAME + '.' + SystemKeyspace.PREPARED_STATEMENTS).size();
         Assert.assertEquals(0, rows);
 
         execute("CREATE KEYSPACE IF NOT EXISTS foo WITH replication = {'class': 'SimpleStrategy', 'replication_factor': '1'}");
@@ -55,7 +56,7 @@ public class PstmtPersistenceTest extends CQLTester
 
         List<MD5Digest> stmtIds = new ArrayList<>();
         // #0
-        stmtIds.add(QueryProcessor.prepare("SELECT * FROM " + SchemaKeyspace.NAME + '.' + SchemaKeyspace.TABLES + " WHERE keyspace_name = ?", clientState, false).statementId);
+        stmtIds.add(QueryProcessor.prepare("SELECT * FROM " + SchemaConstants.SCHEMA_KEYSPACE_NAME + '.' + SchemaKeyspace.TABLES + " WHERE keyspace_name = ?", clientState, false).statementId);
         // #1
         stmtIds.add(QueryProcessor.prepare("SELECT * FROM " + KEYSPACE + '.' + currentTable() + " WHERE pk = ?", clientState, false).statementId);
         // #2
@@ -69,7 +70,7 @@ public class PstmtPersistenceTest extends CQLTester
         Assert.assertEquals(5, stmtIds.size());
         Assert.assertEquals(5, QueryProcessor.preparedStatementsCount());
 
-        String queryAll = "SELECT * FROM " + SystemKeyspace.NAME + '.' + SystemKeyspace.PREPARED_STATEMENTS;
+        String queryAll = "SELECT * FROM " + SchemaConstants.SYSTEM_KEYSPACE_NAME + '.' + SystemKeyspace.PREPARED_STATEMENTS;
 
         rows = QueryProcessor.executeOnceInternal(queryAll).size();
         Assert.assertEquals(5, rows);

@@ -30,7 +30,6 @@ import com.google.common.collect.Multimap;
 import org.apache.commons.cli.Option;
 import org.apache.commons.cli.Options;
 
-import org.apache.cassandra.config.Config;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.config.EncryptionOptions;
 import org.apache.cassandra.io.sstable.SSTableLoader;
@@ -51,7 +50,7 @@ public class BulkLoader
 
     public static void load(LoaderOptions options) throws BulkLoadException
     {
-        Config.setClientMode(true);
+        DatabaseDescriptor.toolInitialization();
         OutputHandler handler = new OutputHandler.SystemOutput(options.verbose, options.debug);
         SSTableLoader loader = new SSTableLoader(
                 options.directory,

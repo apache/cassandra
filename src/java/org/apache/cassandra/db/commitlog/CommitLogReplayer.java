@@ -39,7 +39,11 @@ import org.apache.cassandra.concurrent.Stage;
 import org.apache.cassandra.concurrent.StageManager;
 import org.apache.cassandra.config.CFMetaData;
 import org.apache.cassandra.config.Schema;
-import org.apache.cassandra.db.*;
+import org.apache.cassandra.config.SchemaConstants;
+import org.apache.cassandra.db.ColumnFamilyStore;
+import org.apache.cassandra.db.Keyspace;
+import org.apache.cassandra.db.Mutation;
+import org.apache.cassandra.db.SystemKeyspace;
 import org.apache.cassandra.db.partitions.PartitionUpdate;
 import org.apache.cassandra.io.sstable.format.SSTableReader;
 import org.apache.cassandra.utils.FBUtilities;
@@ -155,7 +159,7 @@ public class CommitLogReplayer implements CommitLogReadHandler
         List<Future<?>> futures = new ArrayList<Future<?>>();
         for (Keyspace keyspace : keyspacesReplayed)
         {
-            if (keyspace.getName().equals(SystemKeyspace.NAME))
+            if (keyspace.getName().equals(SchemaConstants.SYSTEM_KEYSPACE_NAME))
                 flushingSystem = true;
 
             futures.addAll(keyspace.flush());
@@ -163,7 +167,7 @@ public class CommitLogReplayer implements CommitLogReadHandler
 
         // also flush batchlog incase of any MV updates
         if (!flushingSystem)
-            futures.add(Keyspace.open(SystemKeyspace.NAME).getColumnFamilyStore(SystemKeyspace.BATCHES).forceFlush());
+            futures.add(Keyspace.open(SchemaConstants.SYSTEM_KEYSPACE_NAME).getColumnFamilyStore(SystemKeyspace.BATCHES).forceFlush());
 
         FBUtilities.waitOnFutures(futures);
 

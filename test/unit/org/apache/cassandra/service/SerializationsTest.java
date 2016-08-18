@@ -31,6 +31,7 @@ import org.junit.Test;
 import org.apache.cassandra.AbstractSerializationsTester;
 import org.apache.cassandra.Util;
 import org.apache.cassandra.Util.PartitionerSwitcher;
+import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.dht.IPartitioner;
 import org.apache.cassandra.dht.RandomPartitioner;
 import org.apache.cassandra.dht.Range;
@@ -56,6 +57,7 @@ public class SerializationsTest extends AbstractSerializationsTester
     @BeforeClass
     public static void defineSchema() throws Exception
     {
+        DatabaseDescriptor.daemonInitialization();
         partitionerSwitcher = Util.switchPartitioner(RandomPartitioner.instance);
         RANDOM_UUID = UUID.fromString("b5c3d033-75aa-4c2f-a819-947aac7a0c54");
         FULL_RANGE = new Range<>(Util.testPartitioner().getMinimumToken(), Util.testPartitioner().getMinimumToken());

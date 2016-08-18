@@ -26,6 +26,7 @@ import com.google.common.collect.Lists;
 
 import org.apache.cassandra.auth.*;
 import org.apache.cassandra.config.DatabaseDescriptor;
+import org.apache.cassandra.config.SchemaConstants;
 import org.apache.cassandra.cql3.*;
 import org.apache.cassandra.db.marshal.BooleanType;
 import org.apache.cassandra.db.marshal.MapType;
@@ -37,7 +38,7 @@ import org.apache.cassandra.transport.messages.ResultMessage;
 public class ListRolesStatement extends AuthorizationStatement
 {
     // pseudo-virtual cf as the actual datasource is dependent on the IRoleManager impl
-    private static final String KS = AuthKeyspace.NAME;
+    private static final String KS = SchemaConstants.AUTH_KEYSPACE_NAME;
     private static final String CF = AuthKeyspace.ROLES;
 
     private static final MapType optionsType = MapType.getInstance(UTF8Type.instance, UTF8Type.instance, false);

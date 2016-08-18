@@ -33,10 +33,7 @@ import org.apache.thrift.transport.TTransportFactory;
 
 public class ThriftServer implements CassandraDaemon.Server
 {
-    private static Logger logger = LoggerFactory.getLogger(ThriftServer.class);
-    public final static String SYNC = "sync";
-    public final static String ASYNC = "async";
-    public final static String HSHA = "hsha";
+    private static final Logger logger = LoggerFactory.getLogger(ThriftServer.class);
 
     protected final InetAddress address;
     protected final int port;
@@ -142,5 +139,12 @@ public class ThriftServer implements CassandraDaemon.Server
             logger.info("Stop listening to thrift clients");
             serverEngine.stop();
         }
+    }
+
+    public static final class ThriftServerType
+    {
+        public final static String SYNC = "sync";
+        public final static String ASYNC = "async";
+        public final static String HSHA = "hsha";
     }
 }

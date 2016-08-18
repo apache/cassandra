@@ -24,9 +24,11 @@ import java.nio.ByteBuffer;
 import java.util.*;
 
 import com.google.common.collect.Lists;
+import org.junit.BeforeClass;
 import org.junit.Test;
 
 import org.apache.cassandra.Util;
+import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.db.*;
 import org.apache.cassandra.dht.IPartitioner;
 import org.apache.cassandra.dht.RandomPartitioner;
@@ -43,6 +45,12 @@ import static org.junit.Assert.*;
 
 public class IndexSummaryTest
 {
+    @BeforeClass
+    public static void initDD()
+    {
+        DatabaseDescriptor.daemonInitialization();
+    }
+
     IPartitioner partitioner = Util.testPartitioner();
 
     @Test

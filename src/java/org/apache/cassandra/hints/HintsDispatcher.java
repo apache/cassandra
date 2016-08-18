@@ -27,7 +27,6 @@ import java.util.function.Function;
 
 import com.google.common.util.concurrent.RateLimiter;
 
-import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.net.IAsyncCallbackWithFailure;
 import org.apache.cassandra.net.MessageIn;
 import org.apache.cassandra.net.MessagingService;
@@ -178,7 +177,7 @@ final class HintsDispatcher implements AutoCloseable
 
         Outcome await()
         {
-            long timeout = TimeUnit.MILLISECONDS.toNanos(DatabaseDescriptor.getTimeout(MessagingService.Verb.HINT)) - (System.nanoTime() - start);
+            long timeout = TimeUnit.MILLISECONDS.toNanos(MessagingService.Verb.HINT.getTimeout()) - (System.nanoTime() - start);
             boolean timedOut;
 
             try

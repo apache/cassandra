@@ -21,7 +21,7 @@ import java.util.regex.Pattern;
 
 import org.apache.cassandra.auth.*;
 import org.apache.cassandra.config.DatabaseDescriptor;
-import org.apache.cassandra.config.Schema;
+import org.apache.cassandra.config.SchemaConstants;
 import org.apache.cassandra.exceptions.*;
 import org.apache.cassandra.locator.LocalStrategy;
 import org.apache.cassandra.schema.KeyspaceMetadata;
@@ -79,8 +79,8 @@ public class CreateKeyspaceStatement extends SchemaAlteringStatement
         // keyspace name
         if (!PATTERN_WORD_CHARS.matcher(name).matches())
             throw new InvalidRequestException(String.format("\"%s\" is not a valid keyspace name", name));
-        if (name.length() > Schema.NAME_LENGTH)
-            throw new InvalidRequestException(String.format("Keyspace names shouldn't be more than %s characters long (got \"%s\")", Schema.NAME_LENGTH, name));
+        if (name.length() > SchemaConstants.NAME_LENGTH)
+            throw new InvalidRequestException(String.format("Keyspace names shouldn't be more than %s characters long (got \"%s\")", SchemaConstants.NAME_LENGTH, name));
 
         attrs.validate();
 

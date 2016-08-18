@@ -24,12 +24,21 @@ import java.io.RandomAccessFile;
 import java.util.Arrays;
 import java.util.concurrent.ThreadLocalRandom;
 
+import org.junit.BeforeClass;
 import org.junit.Test;
 
 import static org.junit.Assert.*;
 
+import org.apache.cassandra.config.DatabaseDescriptor;
+
 public class ChecksummedRandomAccessReaderTest
 {
+    @BeforeClass
+    public static void setupDD()
+    {
+        DatabaseDescriptor.daemonInitialization();
+    }
+
     @Test
     public void readFully() throws IOException
     {

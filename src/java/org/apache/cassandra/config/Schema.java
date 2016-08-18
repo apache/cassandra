@@ -17,18 +17,14 @@
  */
 package org.apache.cassandra.config;
 
-import java.security.MessageDigest;
-import java.security.NoSuchAlgorithmException;
 import java.util.*;
 import java.util.stream.Collectors;
 
 import com.google.common.collect.ImmutableList;
-import com.google.common.collect.ImmutableSet;
 import com.google.common.collect.Sets;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import org.apache.cassandra.auth.AuthKeyspace;
 import org.apache.cassandra.cql3.functions.*;
 import org.apache.cassandra.db.ColumnFamilyStore;
 import org.apache.cassandra.db.Keyspace;
@@ -40,10 +36,8 @@ import org.apache.cassandra.db.marshal.UserType;
 import org.apache.cassandra.index.Index;
 import org.apache.cassandra.io.sstable.Descriptor;
 import org.apache.cassandra.locator.LocalStrategy;
-import org.apache.cassandra.repair.SystemDistributedKeyspace;
 import org.apache.cassandra.schema.*;
 import org.apache.cassandra.service.MigrationManager;
-import org.apache.cassandra.tracing.TraceKeyspace;
 import org.apache.cassandra.utils.ConcurrentBiMap;
 import org.apache.cassandra.utils.Pair;
 import org.cliffc.high_scale_lib.NonBlockingHashMap;
@@ -53,22 +47,6 @@ public class Schema
     private static final Logger logger = LoggerFactory.getLogger(Schema.class);
 
     public static final Schema instance = new Schema();
-
-    /* system keyspace names (the ones with LocalStrategy replication strategy) */
-    public static final Set<String> SYSTEM_KEYSPACE_NAMES = ImmutableSet.of(SystemKeyspace.NAME, SchemaKeyspace.NAME);
-
-    /* replicate system keyspace names (the ones with a "true" replication strategy) */
-    public static final Set<String> REPLICATED_SYSTEM_KEYSPACE_NAMES = ImmutableSet.of(TraceKeyspace.NAME,
-                                                                                       AuthKeyspace.NAME,
-                                                                                       SystemDistributedKeyspace.NAME);
-
-    /**
-     * longest permissible KS or CF name.  Our main concern is that filename not be more than 255 characters;
-     * the filename will contain both the KS and CF names. Since non-schema-name components only take up
-     * ~64 characters, we could allow longer names than this, but on Windows, the entire path should be not greater than
-     * 255 characters, so a lower limit here helps avoid problems.  See CASSANDRA-4110.
-     */
-    public static final int NAME_LENGTH = 48;
 
     /* metadata map for faster keyspace lookup */
     private final Map<String, KeyspaceMetadata> keyspaces = new NonBlockingHashMap<>();
@@ -81,22 +59,6 @@ public class Schema
 
     private volatile UUID version;
 
-    // 59adb24e-f3cd-3e02-97f0-5b395827453f
-    public static final UUID emptyVersion;
-
-
-    static
-    {
-        try
-        {
-            emptyVersion = UUID.nameUUIDFromBytes(MessageDigest.getInstance("MD5").digest());
-        }
-        catch (NoSuchAlgorithmException e)
-        {
-            throw new AssertionError();
-        }
-    }
-
     /**
      * Initialize empty schema object and load the hardcoded system tables
      */
@@ -107,14 +69,6 @@ public class Schema
             load(SchemaKeyspace.metadata());
             load(SystemKeyspace.metadata());
         }
-    }
-
-    /**
-     * @return whether or not the keyspace is a really system one (w/ LocalStrategy, unmodifiable, hardcoded)
-     */
-    public static boolean isSystemKeyspace(String keyspaceName)
-    {
-        return SYSTEM_KEYSPACE_NAMES.contains(keyspaceName.toLowerCase());
     }
 
     /**
@@ -341,7 +295,7 @@ public class Schema
 
     private Set<String> getNonSystemKeyspacesSet()
     {
-        return Sets.difference(keyspaces.keySet(), SYSTEM_KEYSPACE_NAMES);
+        return Sets.difference(keyspaces.keySet(), SchemaConstants.SYSTEM_KEYSPACE_NAMES);
     }
 
     /**
@@ -370,7 +324,7 @@ public class Schema
      */
     public List<String> getUserKeyspaces()
     {
-        return ImmutableList.copyOf(Sets.difference(getNonSystemKeyspacesSet(), REPLICATED_SYSTEM_KEYSPACE_NAMES));
+        return ImmutableList.copyOf(Sets.difference(getNonSystemKeyspacesSet(), SchemaConstants.REPLICATED_SYSTEM_KEYSPACE_NAMES));
     }
 
     /**

@@ -107,16 +107,58 @@ public final class MessagingService implements MessagingServiceMBean
     /* All verb handler identifiers */
     public enum Verb
     {
-        MUTATION,
-        HINT,
-        READ_REPAIR,
-        READ,
+        MUTATION
+        {
+            public long getTimeout()
+            {
+                return DatabaseDescriptor.getWriteRpcTimeout();
+            }
+        },
+        HINT
+        {
+            public long getTimeout()
+            {
+                return DatabaseDescriptor.getWriteRpcTimeout();
+            }
+        },
+        READ_REPAIR
+        {
+            public long getTimeout()
+            {
+                return DatabaseDescriptor.getWriteRpcTimeout();
+            }
+        },
+        READ
+        {
+            public long getTimeout()
+            {
+                return DatabaseDescriptor.getReadRpcTimeout();
+            }
+        },
         REQUEST_RESPONSE, // client-initiated reads and writes
-        BATCH_STORE,  // was @Deprecated STREAM_INITIATE,
-        BATCH_REMOVE, // was @Deprecated STREAM_INITIATE_DONE,
+        BATCH_STORE
+        {
+            public long getTimeout()
+            {
+                return DatabaseDescriptor.getWriteRpcTimeout();
+            }
+        },  // was @Deprecated STREAM_INITIATE,
+        BATCH_REMOVE
+        {
+            public long getTimeout()
+            {
+                return DatabaseDescriptor.getWriteRpcTimeout();
+            }
+        }, // was @Deprecated STREAM_INITIATE_DONE,
         @Deprecated STREAM_REPLY,
         @Deprecated STREAM_REQUEST,
-        RANGE_SLICE,
+        RANGE_SLICE
+        {
+            public long getTimeout()
+            {
+                return DatabaseDescriptor.getRangeRpcTimeout();
+            }
+        },
         @Deprecated BOOTSTRAP_TOKEN,
         @Deprecated TREE_REQUEST,
         @Deprecated TREE_RESPONSE,
@@ -126,12 +168,24 @@ public final class MessagingService implements MessagingServiceMBean
         GOSSIP_DIGEST_ACK2,
         @Deprecated DEFINITIONS_ANNOUNCE,
         DEFINITIONS_UPDATE,
-        TRUNCATE,
+        TRUNCATE
+        {
+            public long getTimeout()
+            {
+                return DatabaseDescriptor.getTruncateRpcTimeout();
+            }
+        },
         SCHEMA_CHECK,
         @Deprecated INDEX_SCAN,
         REPLICATION_FINISHED,
         INTERNAL_RESPONSE, // responses to internal calls
-        COUNTER_MUTATION,
+        COUNTER_MUTATION
+        {
+            public long getTimeout()
+            {
+                return DatabaseDescriptor.getCounterWriteRpcTimeout();
+            }
+        },
         @Deprecated STREAMING_REPAIR_REQUEST,
         @Deprecated STREAMING_REPAIR_RESPONSE,
         SNAPSHOT, // Similar to nt snapshot
@@ -140,10 +194,34 @@ public final class MessagingService implements MessagingServiceMBean
         _TRACE, // dummy verb so we can use MS.droppedMessagesMap
         ECHO,
         REPAIR_MESSAGE,
-        PAXOS_PREPARE,
-        PAXOS_PROPOSE,
-        PAXOS_COMMIT,
-        @Deprecated PAGED_RANGE,
+        PAXOS_PREPARE
+        {
+            public long getTimeout()
+            {
+                return DatabaseDescriptor.getWriteRpcTimeout();
+            }
+        },
+        PAXOS_PROPOSE
+        {
+            public long getTimeout()
+            {
+                return DatabaseDescriptor.getWriteRpcTimeout();
+            }
+        },
+        PAXOS_COMMIT
+        {
+            public long getTimeout()
+            {
+                return DatabaseDescriptor.getWriteRpcTimeout();
+            }
+        },
+        @Deprecated PAGED_RANGE
+        {
+            public long getTimeout()
+            {
+                return DatabaseDescriptor.getRangeRpcTimeout();
+            }
+        },
         // remember to add new verbs at the end, since we serialize by ordinal
         UNUSED_1,
         UNUSED_2,
@@ -160,6 +238,11 @@ public final class MessagingService implements MessagingServiceMBean
                 return RANGE_SLICE;
 
             return verb;
+        }
+
+        public long getTimeout()
+        {
+            return DatabaseDescriptor.getRpcTimeout();
         }
     }
 

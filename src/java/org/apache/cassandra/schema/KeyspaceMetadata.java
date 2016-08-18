@@ -28,7 +28,7 @@ import com.google.common.base.Objects;
 import com.google.common.collect.Iterables;
 
 import org.apache.cassandra.config.CFMetaData;
-import org.apache.cassandra.config.Schema;
+import org.apache.cassandra.config.SchemaConstants;
 import org.apache.cassandra.config.ViewDefinition;
 import org.apache.cassandra.exceptions.ConfigurationException;
 
@@ -170,7 +170,7 @@ public final class KeyspaceMetadata
         if (!CFMetaData.isNameValid(name))
             throw new ConfigurationException(String.format("Keyspace name must not be empty, more than %s characters long, "
                                                            + "or contain non-alphanumeric-underscore characters (got \"%s\")",
-                                                           Schema.NAME_LENGTH,
+                                                           SchemaConstants.NAME_LENGTH,
                                                            name));
         params.validate(name);
         tablesAndViews().forEach(CFMetaData::validate);
