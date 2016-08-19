@@ -1,4 +1,5 @@
 2.2.9
+ * Fix leak errors and execution rejected exceptions when draining (CASSANDRA-12457)
  * Fix merkle tree depth calculation (CASSANDRA-12580)
  * Make Collections deserialization more robust (CASSANDRA-12618)
  

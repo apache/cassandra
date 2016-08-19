@@ -83,6 +83,12 @@ public class LifecycleTransaction extends Transactional.AbstractTransactional
             update.clear();
             obsolete.clear();
         }
+
+        @Override
+        public String toString()
+        {
+            return String.format("[obsolete: %s, update: %s]", obsolete, update);
+        }
     }
 
     public final Tracker tracker;
@@ -150,7 +156,8 @@ public class LifecycleTransaction extends Transactional.AbstractTransactional
     {
         assert staged.isEmpty() : "must be no actions introduced between prepareToCommit and a commit";
 
-        logger.trace("Committing update:{}, obsolete:{}", staged.update, staged.obsolete);
+        if (logger.isTraceEnabled())
+            logger.trace("Committing transaction over {} staged: {}, logged: {}", originals, staged, logged);
 
         // this is now the point of no return; we cannot safely rollback, so we ignore exceptions until we're done
         // we restore state by obsoleting our obsolete files, releasing our references to them, and updating our size
@@ -168,7 +175,7 @@ public class LifecycleTransaction extends Transactional.AbstractTransactional
     public Throwable doAbort(Throwable accumulate)
     {
         if (logger.isTraceEnabled())
-            logger.trace("Aborting transaction over {}, with ({},{}) logged and ({},{}) staged", originals, logged.update, logged.obsolete, staged.update, staged.obsolete);
+            logger.trace("Aborting transaction over {} staged: {}, logged: {}", originals, staged, logged);
 
         if (logged.isEmpty() && staged.isEmpty())
             return accumulate;
@@ -225,7 +232,7 @@ public class LifecycleTransaction extends Transactional.AbstractTransactional
     private Throwable checkpoint(Throwable accumulate)
     {
         if (logger.isTraceEnabled())
-            logger.trace("Checkpointing update:{}, obsolete:{}", staged.update, staged.obsolete);
+            logger.trace("Checkpointing staged {}", staged);
 
         if (staged.isEmpty())
             return accumulate;

@@ -3982,8 +3982,17 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
             FBUtilities.waitOnFuture(f);
             remainingCFs--;
         }
-        // flush the system ones after all the rest are done, just in case flushing modifies any system state
-        // like CASSANDRA-5151. don't bother with progress tracking since system data is tiny.
+
+        BatchlogManager.shutdown();
+
+        // Interrupt on going compaction and shutdown to prevent further compaction
+        CompactionManager.instance.forceShutdown();
+
+        // Flush the system tables after all other tables are flushed, just in case flushing modifies any system state
+        // like CASSANDRA-5151. Don't bother with progress tracking since system data is tiny.
+        // Flush system tables after stopping the batchlog manager and compactions since they both modify
+        // system tables (for example compactions can obsolete sstables and the tidiers in SSTableReader update
+        // system tables, see SSTableReader.GlobalTidy)
         flushes.clear();
         for (Keyspace keyspace : Keyspace.system())
         {
@@ -3991,11 +4000,6 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
                 flushes.add(cfs.forceFlush());
         }
         FBUtilities.waitOnFutures(flushes);
-
-        BatchlogManager.shutdown();
-
-        // Interrupt on going compaction and shutdown to prevent further compaction
-        CompactionManager.instance.forceShutdown();
 
         // whilst we've flushed all the CFs, which will have recycled all completed segments, we want to ensure
         // there are no segments to replay, so we force the recycling of any remaining (should be at most one)
@@ -4006,7 +4010,7 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
         // wait for miscellaneous tasks like sstable and commitlog segment deletion
         ScheduledExecutors.nonPeriodicTasks.shutdown();
         if (!ScheduledExecutors.nonPeriodicTasks.awaitTermination(1, TimeUnit.MINUTES))
-            logger.warn("Miscellaneous task executor still busy after one minute; proceeding with shutdown");
+            logger.warn("Failed to wait for non periodic tasks to shutdown");
 
         ColumnFamilyStore.shutdownPostFlushExecutor();
 
