@@ -28,6 +28,7 @@ import com.google.common.util.concurrent.AbstractFuture;
 import org.apache.cassandra.db.SystemKeyspace;
 import org.apache.cassandra.dht.Range;
 import org.apache.cassandra.dht.Token;
+import org.apache.cassandra.exceptions.RequestFailureReason;
 import org.apache.cassandra.gms.FailureDetector;
 import org.apache.cassandra.net.IAsyncCallbackWithFailure;
 import org.apache.cassandra.net.MessageIn;
@@ -99,7 +100,7 @@ public class AnticompactionTask extends AbstractFuture<InetAddress> implements R
             return false;
         }
 
-        public void onFailure(InetAddress from)
+        public void onFailure(InetAddress from, RequestFailureReason failureReason)
         {
             task.setException(new RuntimeException("Anticompaction failed or timed out in " + from));
         }

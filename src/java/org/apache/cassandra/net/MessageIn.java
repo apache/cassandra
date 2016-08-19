@@ -27,7 +27,9 @@ import com.google.common.collect.ImmutableMap;
 import org.apache.cassandra.concurrent.Stage;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.db.monitoring.ConstructionTime;
+import org.apache.cassandra.exceptions.RequestFailureReason;
 import org.apache.cassandra.io.IVersionedSerializer;
+import org.apache.cassandra.io.util.DataInputBuffer;
 import org.apache.cassandra.io.util.DataInputPlus;
 
 public class MessageIn<T>
@@ -150,6 +152,30 @@ public class MessageIn<T>
     public boolean isFailureResponse()
     {
         return parameters.containsKey(MessagingService.FAILURE_RESPONSE_PARAM);
+    }
+
+    public boolean containsFailureReason()
+    {
+        return parameters.containsKey(MessagingService.FAILURE_REASON_PARAM);
+    }
+
+    public RequestFailureReason getFailureReason()
+    {
+        if (containsFailureReason())
+        {
+            try (DataInputBuffer in = new DataInputBuffer(parameters.get(MessagingService.FAILURE_REASON_PARAM)))
+            {
+                return RequestFailureReason.fromCode(in.readUnsignedShort());
+            }
+            catch (IOException ex)
+            {
+                throw new RuntimeException(ex);
+            }
+        }
+        else
+        {
+            return RequestFailureReason.UNKNOWN;
+        }
     }
 
     public long getTimeout()

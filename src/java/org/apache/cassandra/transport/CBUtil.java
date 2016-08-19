@@ -496,7 +496,7 @@ public abstract class CBUtil
 
     public static InetSocketAddress readInet(ByteBuf cb)
     {
-        int addrSize = cb.readByte();
+        int addrSize = cb.readByte() & 0xFF;
         byte[] address = new byte[addrSize];
         cb.readBytes(address);
         int port = cb.readInt();
@@ -523,6 +523,33 @@ public abstract class CBUtil
     {
         byte[] address = inet.getAddress().getAddress();
         return 1 + address.length + 4;
+    }
+
+    public static InetAddress readInetAddr(ByteBuf cb)
+    {
+        int addressSize = cb.readByte() & 0xFF;
+        byte[] address = new byte[addressSize];
+        cb.readBytes(address);
+        try
+        {
+            return InetAddress.getByAddress(address);
+        }
+        catch (UnknownHostException e)
+        {
+            throw new ProtocolException("Invalid IP address while deserializing inet address");
+        }
+    }
+
+    public static void writeInetAddr(InetAddress inetAddr, ByteBuf cb)
+    {
+        byte[] address = inetAddr.getAddress();
+        cb.writeByte(address.length);
+        cb.writeBytes(address);
+    }
+
+    public static int sizeOfInetAddr(InetAddress inetAddr)
+    {
+        return 1 + inetAddr.getAddress().length;
     }
 
     /*

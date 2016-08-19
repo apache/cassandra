@@ -20,6 +20,8 @@ package org.apache.cassandra.service;
 import java.net.InetAddress;
 import java.util.Collections;
 import java.util.List;
+import java.util.Map;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicIntegerFieldUpdater;
 
@@ -32,6 +34,7 @@ import org.apache.cassandra.concurrent.StageManager;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.db.*;
 import org.apache.cassandra.db.partitions.PartitionIterator;
+import org.apache.cassandra.exceptions.RequestFailureReason;
 import org.apache.cassandra.exceptions.ReadFailureException;
 import org.apache.cassandra.exceptions.ReadTimeoutException;
 import org.apache.cassandra.exceptions.UnavailableException;
@@ -63,6 +66,7 @@ public class ReadCallback implements IAsyncCallbackWithFailure<ReadResponse>
     private static final AtomicIntegerFieldUpdater<ReadCallback> failuresUpdater
             = AtomicIntegerFieldUpdater.newUpdater(ReadCallback.class, "failures");
     private volatile int failures = 0;
+    private final Map<InetAddress, RequestFailureReason> failureReasonByEndpoint;
 
     private final Keyspace keyspace; // TODO push this into ConsistencyLevel?
 
@@ -89,6 +93,7 @@ public class ReadCallback implements IAsyncCallbackWithFailure<ReadResponse>
         this.resolver = resolver;
         this.queryStartNanoTime = queryStartNanoTime;
         this.endpoints = endpoints;
+        this.failureReasonByEndpoint = new ConcurrentHashMap<>();
         // we don't support read repair (or rapid read protection) for range scans yet (CASSANDRA-6897)
         assert !(command instanceof PartitionRangeReadCommand) || blockfor >= endpoints.size();
 
@@ -129,7 +134,7 @@ public class ReadCallback implements IAsyncCallbackWithFailure<ReadResponse>
 
         // Same as for writes, see AbstractWriteResponseHandler
         throw failed
-            ? new ReadFailureException(consistencyLevel, received, failures, blockfor, resolver.isDataPresent())
+            ? new ReadFailureException(consistencyLevel, received, blockfor, resolver.isDataPresent(), failureReasonByEndpoint)
             : new ReadTimeoutException(consistencyLevel, received, blockfor, resolver.isDataPresent());
     }
 
@@ -252,11 +257,13 @@ public class ReadCallback implements IAsyncCallbackWithFailure<ReadResponse>
     }
 
     @Override
-    public void onFailure(InetAddress from)
+    public void onFailure(InetAddress from, RequestFailureReason failureReason)
     {
         int n = waitingFor(from)
               ? failuresUpdater.incrementAndGet(this)
               : failures;
+
+        failureReasonByEndpoint.put(from, failureReason);
 
         if (blockfor + n > endpoints.size())
             condition.signalAll();

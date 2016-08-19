@@ -27,6 +27,7 @@ import java.util.function.Function;
 
 import com.google.common.util.concurrent.RateLimiter;
 
+import org.apache.cassandra.exceptions.RequestFailureReason;
 import org.apache.cassandra.net.IAsyncCallbackWithFailure;
 import org.apache.cassandra.net.MessageIn;
 import org.apache.cassandra.net.MessagingService;
@@ -192,7 +193,7 @@ final class HintsDispatcher implements AutoCloseable
             return timedOut ? Outcome.TIMEOUT : outcome;
         }
 
-        public void onFailure(InetAddress from)
+        public void onFailure(InetAddress from, RequestFailureReason failureReason)
         {
             outcome = Outcome.FAILURE;
             condition.signalAll();

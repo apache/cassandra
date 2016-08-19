@@ -19,6 +19,8 @@ package org.apache.cassandra.service;
 
 import java.net.InetAddress;
 import java.util.Collection;
+import java.util.Map;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicIntegerFieldUpdater;
 
@@ -49,6 +51,7 @@ public abstract class AbstractWriteResponseHandler<T> implements IAsyncCallbackW
     private static final AtomicIntegerFieldUpdater<AbstractWriteResponseHandler> failuresUpdater
         = AtomicIntegerFieldUpdater.newUpdater(AbstractWriteResponseHandler.class, "failures");
     private volatile int failures = 0;
+    private final Map<InetAddress, RequestFailureReason> failureReasonByEndpoint;
     private final long queryStartNanoTime;
 
     /**
@@ -69,6 +72,7 @@ public abstract class AbstractWriteResponseHandler<T> implements IAsyncCallbackW
         this.naturalEndpoints = naturalEndpoints;
         this.callback = callback;
         this.writeType = writeType;
+        this.failureReasonByEndpoint = new ConcurrentHashMap<>();
         this.queryStartNanoTime = queryStartNanoTime;
     }
 
@@ -104,7 +108,7 @@ public abstract class AbstractWriteResponseHandler<T> implements IAsyncCallbackW
 
         if (totalBlockFor() + failures > totalEndpoints())
         {
-            throw new WriteFailureException(consistencyLevel, ackCount(), failures, totalBlockFor(), writeType);
+            throw new WriteFailureException(consistencyLevel, ackCount(), totalBlockFor(), writeType, failureReasonByEndpoint);
         }
     }
 
@@ -155,13 +159,15 @@ public abstract class AbstractWriteResponseHandler<T> implements IAsyncCallbackW
     }
 
     @Override
-    public void onFailure(InetAddress from)
+    public void onFailure(InetAddress from, RequestFailureReason failureReason)
     {
         logger.trace("Got failure from {}", from);
 
         int n = waitingFor(from)
               ? failuresUpdater.incrementAndGet(this)
               : failures;
+
+        failureReasonByEndpoint.put(from, failureReason);
 
         if (totalBlockFor() + n > totalEndpoints())
             signal();

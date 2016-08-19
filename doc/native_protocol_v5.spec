@@ -204,6 +204,7 @@ Table of Contents
 
     [int]          A 4 bytes integer
     [long]         A 8 bytes integer
+    [byte]         A 1 byte unsigned integer
     [short]        A 2 bytes unsigned integer
     [string]       A [short] n, followed by n bytes representing an UTF-8
                    string.
@@ -229,6 +230,9 @@ Table of Contents
                    [byte] representing the IP address (in practice n can only be
                    either 4 (IPv4) or 16 (IPv6)), following by one [int]
                    representing the port.
+    [inetaddr]     An IP address (without a port) to a node. It consists of one
+                   [byte] n, that represents the address size, followed by n
+                   [byte] representing the IP address.
     [consistency]  A consistency level specification. This is a [short]
                    representing a consistency level with the following
                    correspondance:
@@ -1088,7 +1092,7 @@ Table of Contents
                                responded. Otherwise, the value is != 0.
     0x1300    Read_failure: A non-timeout exception during a read request. The rest
               of the ERROR message body will be
-                <cl><received><blockfor><numfailures><data_present>
+                <cl><received><blockfor><reasonmap><data_present>
               where:
                 <cl> is the [consistency] level of the query having triggered
                      the exception.
@@ -1096,8 +1100,12 @@ Table of Contents
                            answered the request.
                 <blockfor> is an [int] representing the number of replicas whose
                            acknowledgement is required to achieve <cl>.
-                <numfailures> is an [int] representing the number of nodes that
-                              experience a failure while executing the request.
+                <reasonmap> is a map of endpoint to failure reason codes. This maps
+                            the endpoints of the replica nodes that failed when
+                            executing the request to a code representing the reason
+                            for the failure. The map is encoded starting with an [int] n
+                            followed by n pairs of <endpoint><failurecode> where
+                            <endpoint> is an [inetaddr] and <failurecode> is a [short].
                 <data_present> is a single byte. If its value is 0, it means
                                the replica that was asked for data had not
                                responded. Otherwise, the value is != 0.
@@ -1110,7 +1118,7 @@ Table of Contents
                 <arg_types> [string list] one string for each argument type (as CQL type) of the failed function
     0x1500    Write_failure: A non-timeout exception during a write request. The rest
               of the ERROR message body will be
-                <cl><received><blockfor><numfailures><write_type>
+                <cl><received><blockfor><reasonmap><write_type>
               where:
                 <cl> is the [consistency] level of the query having triggered
                      the exception.
@@ -1118,8 +1126,12 @@ Table of Contents
                            answered the request.
                 <blockfor> is an [int] representing the number of replicas whose
                            acknowledgement is required to achieve <cl>.
-                <numfailures> is an [int] representing the number of nodes that
-                              experience a failure while executing the request.
+                <reasonmap> is a map of endpoint to failure reason codes. This maps
+                            the endpoints of the replica nodes that failed when
+                            executing the request to a code representing the reason
+                            for the failure. The map is encoded starting with an [int] n
+                            followed by n pairs of <endpoint><failurecode> where
+                            <endpoint> is an [inetaddr] and <failurecode> is a [short].
                 <writeType> is a [string] that describes the type of the write
                             that failed. The value of that string can be one
                             of:
@@ -1160,3 +1172,6 @@ Table of Contents
 10. Changes from v4
 
   * Beta protocol flag for v5 native protocol is added (Section 2.2)
+  * <numfailures> in Read_failure and Write_failure error message bodies (Section 9)
+    has been replaced with <reasonmap>. The <reasonmap> maps node IP addresses to
+    a failure reason code which indicates why the request failed on that node.

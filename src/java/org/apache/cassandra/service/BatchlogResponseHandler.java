@@ -21,9 +21,11 @@ package org.apache.cassandra.service;
 import java.net.InetAddress;
 import java.util.concurrent.atomic.AtomicIntegerFieldUpdater;
 
+import org.apache.cassandra.exceptions.RequestFailureReason;
 import org.apache.cassandra.exceptions.WriteFailureException;
 import org.apache.cassandra.exceptions.WriteTimeoutException;
 import org.apache.cassandra.net.MessageIn;
+import org.apache.cassandra.net.MessagingService;
 
 public class BatchlogResponseHandler<T> extends AbstractWriteResponseHandler<T>
 {
@@ -58,9 +60,9 @@ public class BatchlogResponseHandler<T> extends AbstractWriteResponseHandler<T>
         return wrapped.isLatencyForSnitch();
     }
 
-    public void onFailure(InetAddress from)
+    public void onFailure(InetAddress from, RequestFailureReason failureReason)
     {
-        wrapped.onFailure(from);
+        wrapped.onFailure(from, failureReason);
     }
 
     public void assureSufficientLiveNodes()

@@ -23,6 +23,7 @@ import java.util.concurrent.TimeUnit;
 
 import com.google.common.util.concurrent.AbstractFuture;
 
+import org.apache.cassandra.exceptions.RequestFailureReason;
 import org.apache.cassandra.net.IAsyncCallbackWithFailure;
 import org.apache.cassandra.net.MessageIn;
 import org.apache.cassandra.net.MessagingService;
@@ -73,7 +74,7 @@ public class SnapshotTask extends AbstractFuture<InetAddress> implements Runnabl
 
         public boolean isLatencyForSnitch() { return false; }
 
-        public void onFailure(InetAddress from)
+        public void onFailure(InetAddress from, RequestFailureReason failureReason)
         {
             //listener.failedSnapshot();
             task.setException(new RuntimeException("Could not create snapshot at " + from));
