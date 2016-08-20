@@ -57,7 +57,6 @@ public class CQLSSTableWriterTest
     static
     {
         DatabaseDescriptor.daemonInitialization();
-        AuthConfig.applyAuthz();
     }
 
     @BeforeClass

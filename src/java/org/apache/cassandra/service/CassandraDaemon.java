@@ -46,11 +46,6 @@ import com.google.common.util.concurrent.Uninterruptibles;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import com.addthis.metrics3.reporter.config.ReporterConfig;
-import com.codahale.metrics.Meter;
-import com.codahale.metrics.MetricRegistryListener;
-import com.codahale.metrics.SharedMetricRegistries;
-import org.apache.cassandra.auth.AuthConfig;
 import org.apache.cassandra.batchlog.LegacyBatchlogMigrator;
 import org.apache.cassandra.concurrent.ScheduledExecutors;
 import org.apache.cassandra.config.CFMetaData;
@@ -643,7 +638,6 @@ public class CassandraDaemon
     public void applyConfig()
     {
         DatabaseDescriptor.daemonInitialization();
-        AuthConfig.applyAuthz();
     }
 
     public void startNativeTransport()

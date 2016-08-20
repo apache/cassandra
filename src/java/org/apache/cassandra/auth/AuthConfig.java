@@ -27,7 +27,7 @@ import org.apache.cassandra.exceptions.ConfigurationException;
 import org.apache.cassandra.utils.FBUtilities;
 
 /**
- * Only purpose is to Initialize authentication/authorization via {@link #applyAuthz()}.
+ * Only purpose is to Initialize authentication/authorization via {@link #applyAuth()}.
  * This is in this separate class as it implicitly initializes schema stuff (via classes referenced in here).
  */
 public final class AuthConfig
@@ -36,7 +36,7 @@ public final class AuthConfig
 
     private static boolean initialized;
 
-    public static void applyAuthz()
+    public static void applyAuth()
     {
         // some tests need this
         if (initialized)

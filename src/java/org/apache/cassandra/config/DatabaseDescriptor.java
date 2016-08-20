@@ -128,7 +128,7 @@ public class DatabaseDescriptor
 
         setConfig(loadConfig());
         applyAll();
-        AuthConfig.applyAuthz();
+        AuthConfig.applyAuth();
     }
 
     public static void toolInitialization()
