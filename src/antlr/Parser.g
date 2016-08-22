@@ -378,8 +378,7 @@ jsonInsertStatement [CFName cf] returns [UpdateStatement.ParsedInsertJson expr]
     ;
 
 jsonValue returns [Json.Raw value]
-    :
-    | s=STRING_LITERAL { $value = new Json.Literal($s.text); }
+    : s=STRING_LITERAL { $value = new Json.Literal($s.text); }
     | ':' id=noncol_ident     { $value = newJsonBindVariables(id); }
     | QMARK            { $value = newJsonBindVariables(null); }
     ;
@@ -1294,8 +1293,7 @@ value returns [Term.Raw value]
     ;
 
 intValue returns [Term.Raw value]
-    :
-    | t=INTEGER     { $value = Constants.Literal.integer($t.text); }
+    : t=INTEGER     { $value = Constants.Literal.integer($t.text); }
     | ':' id=noncol_ident  { $value = newBindVariables(id); }
     | QMARK         { $value = newBindVariables(null); }
     ;

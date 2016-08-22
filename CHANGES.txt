@@ -1,4 +1,5 @@
 3.10
+ * "SELECT * FROM foo LIMIT ;" does not error out (CASSANDRA-12154)
  * Define executeLocally() at the ReadQuery Level (CASSANDRA-12474)
  * Extend read/write failure messages with a map of replica addresses
    to error codes in the v5 native protocol (CASSANDRA-12311)
