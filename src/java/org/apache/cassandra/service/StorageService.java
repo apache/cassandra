@@ -4017,8 +4017,6 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
         }
         FBUtilities.waitOnFutures(flushes);
 
-        BatchlogManager.instance.shutdown();
-
         HintsService.instance.shutdownBlocking();
 
         // Interrupt on going compaction and shutdown to prevent further compaction
