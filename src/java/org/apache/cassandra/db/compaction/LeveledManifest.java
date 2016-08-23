@@ -67,7 +67,6 @@ public class LeveledManifest
     @VisibleForTesting
     protected final List<SSTableReader>[] generations;
     private final PartitionPosition[] lastCompactedKeys;
-    private volatile boolean calculatedLastCompactedKeys = false;
     private final long maxSSTableSizeInBytes;
     private final SizeTieredCompactionStrategyOptions options;
     private final int [] compactionCounter;
@@ -338,11 +337,6 @@ public class LeveledManifest
         // This isn't a magic wand -- if you are consistently writing too fast for LCS to keep
         // up, you're still screwed.  But if instead you have intermittent bursts of activity,
         // it can help a lot.
-        if (!calculatedLastCompactedKeys)
-        {
-            this.calculateLastCompactedKeys();
-        }
-
         for (int i = generations.length - 1; i > 0; i--)
         {
             List<SSTableReader> sstables = getLevel(i);
