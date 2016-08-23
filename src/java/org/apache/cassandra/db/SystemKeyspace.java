@@ -33,6 +33,7 @@ import com.google.common.collect.HashMultimap;
 import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.ImmutableSet;
 import com.google.common.collect.SetMultimap;
+import com.google.common.collect.Sets;
 import com.google.common.io.ByteStreams;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -1331,8 +1332,8 @@ public final class SystemKeyspace
         for (UntypedResultSet.Row row : rs)
         {
             InetAddress peer = row.getInetAddress("peer");
-            Set<ByteBuffer> rawRanges = rawRanges = row.getSet("ranges", BytesType.instance);
-            Set<Range<Token>> ranges = new HashSet<>();
+            Set<ByteBuffer> rawRanges = row.getSet("ranges", BytesType.instance);
+            Set<Range<Token>> ranges = Sets.newHashSetWithExpectedSize(rawRanges.size());
             for (ByteBuffer rawRange : rawRanges)
             {
                 ranges.add(byteBufferToRange(rawRange, partitioner));
