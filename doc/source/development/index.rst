@@ -14,28 +14,15 @@
 .. See the License for the specific language governing permissions and
 .. limitations under the License.
 
-Welcome to Apache Cassandra's documentation!
-============================================
-
-This is the official documentation for `Apache Cassandra <http://cassandra.apache.org>`__ |version|.  If you would like
-to contribute to this documentation, you are welcome to do so by submitting your contribution like any other patch
-following `these instructions <https://wiki.apache.org/cassandra/HowToContribute>`__.
-
-Contents:
+Cassandra Development
+*********************
 
 .. toctree::
    :maxdepth: 2
 
-   getting_started/index
-   architecture/index
-   data_modeling/index
-   cql/index
-   configuration/index
-   operating/index
-   tools/index
-   troubleshooting/index
-   development/index
-   faq/index
-
-   bugs
-   contactus
+   ide
+   testing
+   patches
+   code_style
+   how_to_review
+   how_to_commit

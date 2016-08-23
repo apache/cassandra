@@ -14,7 +14,7 @@
 .. See the License for the specific language governing permissions and
 .. limitations under the License.
 
-Reporting bugs and contributing
+Reporting Bugs and Contributing
 ===============================
 
 If you encounter a problem with Cassandra, the first places to ask for help are the :ref:`user mailing list
@@ -25,7 +25,6 @@ ticket through the `Apache Cassandra JIRA <https://issues.apache.org/jira/browse
 details as you can on your problem, and don't forget to indicate which version of Cassandra you are running and on which
 environment.
 
-If you would like to contribute, please check `the section on contributing
-<https://wiki.apache.org/cassandra/HowToContribute>`__ on the Cassandra wiki. Please note that the source of this
-documentation is part of the Cassandra git repository and hence contributions to the documentation should follow the
+Further details on how to contribute can be found at our :doc:`development/index` section. Please note that the source of
+this documentation is part of the Cassandra git repository and hence contributions to the documentation should follow the
 same path.
