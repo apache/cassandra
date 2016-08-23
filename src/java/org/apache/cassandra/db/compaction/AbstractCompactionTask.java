@@ -23,6 +23,7 @@ import org.apache.cassandra.db.ColumnFamilyStore;
 import org.apache.cassandra.db.Directories;
 import org.apache.cassandra.db.compaction.CompactionManager.CompactionExecutorStatsCollector;
 import org.apache.cassandra.db.compaction.writers.CompactionAwareWriter;
+import org.apache.cassandra.io.FSDiskFullWriteError;
 import org.apache.cassandra.io.sstable.format.SSTableReader;
 import org.apache.cassandra.utils.WrappedRunnable;
 import org.apache.cassandra.db.lifecycle.LifecycleTransaction;
@@ -58,6 +59,12 @@ public abstract class AbstractCompactionTask extends WrappedRunnable
         try
         {
             return executeInternal(collector);
+        }
+        catch(FSDiskFullWriteError e)
+        {
+            RuntimeException cause = new RuntimeException("Converted from FSDiskFullWriteError: " + e.getMessage());
+            cause.setStackTrace(e.getStackTrace());
+            throw new RuntimeException("Throwing new Runtime to bypass exception handler when disk is full", cause);
         }
         finally
         {
