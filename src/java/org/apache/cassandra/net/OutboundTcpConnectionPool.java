@@ -56,9 +56,9 @@ public class OutboundTcpConnectionPool
         resetEndpoint = SystemKeyspace.getPreferredIP(remoteEp);
         started = new CountDownLatch(1);
 
-        smallMessages = new OutboundTcpConnection(this);
-        largeMessages = new OutboundTcpConnection(this);
-        gossipMessages = new OutboundTcpConnection(this);
+        smallMessages = new OutboundTcpConnection(this, "Small");
+        largeMessages = new OutboundTcpConnection(this, "Large");
+        gossipMessages = new OutboundTcpConnection(this, "Gossip");
     }
 
     /**

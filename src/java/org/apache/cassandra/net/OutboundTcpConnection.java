@@ -113,7 +113,7 @@ public class OutboundTcpConnection extends FastThreadLocalThread
 
         if (coalescingWindow < 0)
             throw new ExceptionInInitializerError(
-                    "Value provided for coalescing window must be greather than 0: " + coalescingWindow);
+                    "Value provided for coalescing window must be greater than 0: " + coalescingWindow);
     }
 
     private static final MessageOut CLOSE_SENTINEL = new MessageOut(MessagingService.Verb.INTERNAL_RESPONSE);
@@ -137,9 +137,9 @@ public class OutboundTcpConnection extends FastThreadLocalThread
     private volatile int currentMsgBufferCount = 0;
     private volatile int targetVersion;
 
-    public OutboundTcpConnection(OutboundTcpConnectionPool pool)
+    public OutboundTcpConnection(OutboundTcpConnectionPool pool, String name)
     {
-        super("MessagingService-Outgoing-" + pool.endPoint());
+        super("MessagingService-Outgoing-" + pool.endPoint() + "-" + name);
         this.poolReference = pool;
         cs = newCoalescingStrategy(pool.endPoint().getHostAddress());
 
@@ -176,6 +176,7 @@ public class OutboundTcpConnection extends FastThreadLocalThread
 
     void closeSocket(boolean destroyThread)
     {
+        logger.debug("Enqueuing socket close for {}", poolReference.endPoint());
         backlog.clear();
         isStopped = destroyThread; // Exit loop to stop the thread
         enqueue(CLOSE_SENTINEL, -1);
@@ -308,11 +309,10 @@ public class OutboundTcpConnection extends FastThreadLocalThread
             disconnect();
             if (e instanceof IOException || e.getCause() instanceof IOException)
             {
-                if (logger.isTraceEnabled())
-                    logger.trace("error writing to {}", poolReference.endPoint(), e);
+                logger.debug("Error writing to {}", poolReference.endPoint(), e);
 
-                // if the message was important, such as a repair acknowledgement, put it back on the queue
-                // to retry after re-connecting.  See CASSANDRA-5393
+                // If we haven't retried this message yet, put it back on the queue to retry after re-connecting.
+                // See CASSANDRA-5393 and CASSANDRA-12192.
                 if (qm.shouldRetry())
                 {
                     try
@@ -370,13 +370,11 @@ public class OutboundTcpConnection extends FastThreadLocalThread
             try
             {
                 socket.close();
-                if (logger.isTraceEnabled())
-                    logger.trace("Socket to {} closed", poolReference.endPoint());
+                logger.debug("Socket to {} closed", poolReference.endPoint());
             }
             catch (IOException e)
             {
-                if (logger.isTraceEnabled())
-                    logger.trace("exception closing connection to " + poolReference.endPoint(), e);
+                logger.debug("Exception closing connection to {}", poolReference.endPoint(), e);
             }
             out = null;
             socket = null;
@@ -386,8 +384,7 @@ public class OutboundTcpConnection extends FastThreadLocalThread
     @SuppressWarnings("resource")
     private boolean connect()
     {
-        if (logger.isTraceEnabled())
-            logger.trace("attempting to connect to {}", poolReference.endPoint());
+        logger.debug("Attempting to connect to {}", poolReference.endPoint());
 
         long start = System.nanoTime();
         long timeout = TimeUnit.MILLISECONDS.toNanos(DatabaseDescriptor.getRpcTimeout());
@@ -463,7 +460,7 @@ public class OutboundTcpConnection extends FastThreadLocalThread
                 if (shouldCompressConnection())
                 {
                     out.flush();
-                    logger.trace("Upgrading OutputStream to be compressed");
+                    logger.trace("Upgrading OutputStream to {} to be compressed", poolReference.endPoint());
                     if (targetVersion < MessagingService.VERSION_21)
                     {
                         // Snappy is buffered, so no need for extra buffering output stream
@@ -481,7 +478,7 @@ public class OutboundTcpConnection extends FastThreadLocalThread
                                                                             true)); // no async flushing
                     }
                 }
-
+                logger.debug("Done connecting to {}", poolReference.endPoint());
                 return true;
             }
             catch (SSLHandshakeException e)
@@ -494,8 +491,7 @@ public class OutboundTcpConnection extends FastThreadLocalThread
             catch (IOException e)
             {
                 socket = null;
-                if (logger.isTraceEnabled())
-                    logger.trace("unable to connect to " + poolReference.endPoint(), e);
+                logger.debug("Unable to connect to {}", poolReference.endPoint(), e);
                 Uninterruptibles.sleepUninterruptibly(OPEN_RETRY_DELAY, TimeUnit.MILLISECONDS);
             }
         }
@@ -582,7 +578,8 @@ public class OutboundTcpConnection extends FastThreadLocalThread
 
         boolean shouldRetry()
         {
-            return !droppable;
+            // retry all messages once
+            return true;
         }
 
         public long timestampNanos()

@@ -1,4 +1,6 @@
 3.10
+ * Retry all internode messages once after a connection is
+   closed and reopened (CASSANDRA-12192)
  * Add support to rebuild from targeted replica (CASSANDRA-9875)
  * Add sequence distribution type to cassandra stress (CASSANDRA-12490)
  * "SELECT * FROM foo LIMIT ;" does not error out (CASSANDRA-12154)
