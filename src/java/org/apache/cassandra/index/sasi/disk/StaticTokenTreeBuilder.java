@@ -53,6 +53,7 @@ import com.google.common.collect.Iterators;
  *
  * See https://issues.apache.org/jira/browse/CASSANDRA-11383 for more details.
  */
+@SuppressWarnings("resource")
 public class StaticTokenTreeBuilder extends AbstractTokenTreeBuilder
 {
     private final CombinedTerm combinedTerm;

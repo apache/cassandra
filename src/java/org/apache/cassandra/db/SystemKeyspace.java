@@ -665,8 +665,7 @@ public final class SystemKeyspace
 
     private static Map<UUID, ByteBuffer> truncationAsMapEntry(ColumnFamilyStore cfs, long truncatedAt, CommitLogPosition position)
     {
-        DataOutputBuffer out = null;
-        try (DataOutputBuffer ignored = out = DataOutputBuffer.scratchBuffer.get())
+        try (DataOutputBuffer out = DataOutputBuffer.scratchBuffer.get())
         {
             CommitLogPosition.serializer.serialize(position, out);
             out.writeLong(truncatedAt);
@@ -675,10 +674,6 @@ public final class SystemKeyspace
         catch (IOException e)
         {
             throw new RuntimeException(e);
-        }
-        finally
-        {
-            out.recycle();
         }
     }
 

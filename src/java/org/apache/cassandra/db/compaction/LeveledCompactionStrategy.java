@@ -98,7 +98,7 @@ public class LeveledCompactionStrategy extends AbstractCompactionStrategy
      * the only difference between background and maximal in LCS is that maximal is still allowed
      * (by explicit user request) even when compaction is disabled.
      */
-    @SuppressWarnings("resource")
+    @SuppressWarnings("resource") // transaction is closed by AbstractCompactionTask::execute
     public AbstractCompactionTask getNextBackgroundTask(int gcBefore)
     {
         while (true)
@@ -134,7 +134,7 @@ public class LeveledCompactionStrategy extends AbstractCompactionStrategy
         }
     }
 
-    @SuppressWarnings("resource")
+    @SuppressWarnings("resource") // transaction is closed by AbstractCompactionTask::execute
     public synchronized Collection<AbstractCompactionTask> getMaximalTask(int gcBefore, boolean splitOutput)
     {
         Iterable<SSTableReader> sstables = manifest.getAllSSTables();
@@ -150,6 +150,7 @@ public class LeveledCompactionStrategy extends AbstractCompactionStrategy
     }
 
     @Override
+    @SuppressWarnings("resource") // transaction is closed by AbstractCompactionTask::execute
     public AbstractCompactionTask getUserDefinedTask(Collection<SSTableReader> sstables, int gcBefore)
     {
 

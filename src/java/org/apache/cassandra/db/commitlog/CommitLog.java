@@ -244,8 +244,7 @@ public class CommitLog implements CommitLogMBean
     {
         assert mutation != null;
 
-        DataOutputBuffer dob = DataOutputBuffer.scratchBuffer.get();
-        try
+        try (DataOutputBuffer dob = DataOutputBuffer.scratchBuffer.get())
         {
             Mutation.serializer.serialize(mutation, dob, MessagingService.current_version);
             int size = dob.getLength();
@@ -289,10 +288,6 @@ public class CommitLog implements CommitLogMBean
         catch (IOException e)
         {
             throw new FSWriteError(e, segmentManager.allocatingFrom().getPath());
-        }
-        finally
-        {
-            dob.recycle();
         }
     }
 

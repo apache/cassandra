@@ -115,18 +115,13 @@ public class MessageOut<T>
 
         if (payload != null)
         {
-            DataOutputBuffer dob = DataOutputBuffer.scratchBuffer.get();
-            try
+            try(DataOutputBuffer dob = DataOutputBuffer.scratchBuffer.get())
             {
                 serializer.serialize(payload, dob, version);
 
                 int size = dob.getLength();
                 out.writeInt(size);
                 out.write(dob.getData(), 0, size);
-            }
-            finally
-            {
-                dob.recycle();
             }
         }
         else

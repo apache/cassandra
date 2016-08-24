@@ -305,6 +305,7 @@ public class PerSSTableIndexWriter implements SSTableFlushObserver
 
                     for (Future<OnDiskIndex> f : segments)
                     {
+                        @SuppressWarnings("resource")
                         OnDiskIndex part = f.get();
                         if (part == null)
                             continue;
@@ -330,6 +331,7 @@ public class PerSSTableIndexWriter implements SSTableFlushObserver
 
                     for (int segment = 0; segment < segmentNumber; segment++)
                     {
+                        @SuppressWarnings("resource")
                         OnDiskIndex part = parts[segment];
 
                         if (part != null)

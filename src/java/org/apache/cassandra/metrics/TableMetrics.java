@@ -19,15 +19,14 @@ package org.apache.cassandra.metrics;
 
 import java.nio.ByteBuffer;
 import java.util.*;
-import java.util.concurrent.ConcurrentMap;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.ConcurrentMap;
 import java.util.concurrent.TimeUnit;
+
+import com.google.common.collect.Maps;
 
 import com.codahale.metrics.*;
 import com.codahale.metrics.Timer;
-import com.google.common.collect.Iterables;
-import com.google.common.collect.Maps;
-
 import org.apache.cassandra.config.Schema;
 import org.apache.cassandra.config.SchemaConstants;
 import org.apache.cassandra.db.ColumnFamilyStore;
@@ -381,8 +380,9 @@ public class TableMetrics
         {
             public Double getValue()
             {
-                return computeCompressionRatio(Iterables.concat(Iterables.transform(Keyspace.all(),
-                                                                                    p -> p.getAllSSTables(SSTableSet.CANONICAL))));
+                List<SSTableReader> sstables = new ArrayList<>();
+                Keyspace.all().forEach(ks -> sstables.addAll(ks.getAllSSTables(SSTableSet.CANONICAL)));
+                return computeCompressionRatio(sstables);
             }
         });
         percentRepaired = createTableGauge("PercentRepaired", new Gauge<Double>()

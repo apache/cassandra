@@ -24,6 +24,7 @@ import org.apache.cassandra.utils.ChecksumType;
 
 public final class ChecksummedRandomAccessReader
 {
+    @SuppressWarnings("resource") // The Rebufferer owns both the channel and the validator and handles closing both.
     public static RandomAccessReader open(File file, File crcFile) throws IOException
     {
         ChannelProxy channel = new ChannelProxy(file);
@@ -33,7 +34,6 @@ public final class ChecksummedRandomAccessReader
                                                                                                             RandomAccessReader.open(crcFile),
                                                                                                             file.getPath());
             Rebufferer rebufferer = new ChecksummedRebufferer(channel, validator);
-            // Always own and close the channel.
             return new RandomAccessReader.RandomAccessReaderWithOwnChannel(rebufferer);
         }
         catch (Throwable t)

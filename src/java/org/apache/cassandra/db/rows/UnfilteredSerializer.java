@@ -184,8 +184,7 @@ public class UnfilteredSerializer
 
         if (header.isForSSTable())
         {
-            DataOutputBuffer dob = DataOutputBuffer.scratchBuffer.get();
-            try
+            try (DataOutputBuffer dob = DataOutputBuffer.scratchBuffer.get())
             {
                 serializeRowBody(row, flags, header, dob);
 
@@ -194,10 +193,6 @@ public class UnfilteredSerializer
                 // This is currently not used however and using it is tbd.
                 out.writeUnsignedVInt(previousUnfilteredSize);
                 out.write(dob.getData(), 0, dob.getLength());
-            }
-            finally
-            {
-                dob.recycle();
             }
         }
         else

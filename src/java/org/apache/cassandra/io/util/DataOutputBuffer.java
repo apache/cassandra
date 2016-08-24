@@ -55,7 +55,20 @@ public class DataOutputBuffer extends BufferedDataOutputStreamPlus
     {
         protected DataOutputBuffer initialValue() throws Exception
         {
-            return new DataOutputBuffer();
+            return new DataOutputBuffer()
+            {
+                public void close()
+                {
+                    if (buffer.capacity() <= MAX_RECYCLE_BUFFER_SIZE)
+                    {
+                        buffer.clear();
+                    }
+                    else
+                    {
+                        buffer = ByteBuffer.allocate(DEFAULT_INITIAL_BUFFER_SIZE);
+                    }
+                }
+            };
         }
     };
 
@@ -72,18 +85,6 @@ public class DataOutputBuffer extends BufferedDataOutputStreamPlus
     public DataOutputBuffer(ByteBuffer buffer)
     {
         super(buffer);
-    }
-
-    public void recycle()
-    {
-        if (buffer.capacity() <= MAX_RECYCLE_BUFFER_SIZE)
-        {
-            buffer.clear();
-        }
-        else
-        {
-            buffer = ByteBuffer.allocate(DEFAULT_INITIAL_BUFFER_SIZE);
-        }
     }
 
     @Override

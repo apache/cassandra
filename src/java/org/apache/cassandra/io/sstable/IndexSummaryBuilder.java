@@ -85,7 +85,6 @@ public class IndexSummaryBuilder implements AutoCloseable
         }
     }
 
-    @SuppressWarnings("resource")
     public IndexSummaryBuilder(long expectedKeys, int minIndexInterval, int samplingLevel)
     {
         this.samplingLevel = samplingLevel;
@@ -282,6 +281,7 @@ public class IndexSummaryBuilder implements AutoCloseable
      * @param partitioner the partitioner used for the index summary
      * @return a new IndexSummary
      */
+    @SuppressWarnings("resource")
     public static IndexSummary downsample(IndexSummary existing, int newSamplingLevel, int minIndexInterval, IPartitioner partitioner)
     {
         // To downsample the old index summary, we'll go through (potentially) several rounds of downsampling.
