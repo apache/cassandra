@@ -180,10 +180,13 @@ public class SSTableExport
             CFMetaData metadata = metadataFromSSTable(desc);
             if (cmd.hasOption(ENUMERATE_KEYS_OPTION))
             {
-                JsonTransformer.keysToJson(null, iterToStream(new KeyIterator(desc, metadata)),
-                                                              cmd.hasOption(RAW_TIMESTAMPS),
-                                                              metadata,
-                                                              System.out);
+                try (KeyIterator iter = new KeyIterator(desc, metadata))
+                {
+                    JsonTransformer.keysToJson(null, iterToStream(iter),
+                                               cmd.hasOption(RAW_TIMESTAMPS),
+                                               metadata,
+                                               System.out);
+                }
             }
             else
             {
