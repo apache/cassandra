@@ -901,7 +901,7 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
                                                 previousFlushFailure);
             logFlush();
             Flush flush = new Flush(false);
-            ListenableFutureTask<?> flushTask = ListenableFutureTask.create(flush, null);
+            ListenableFutureTask<Void> flushTask = ListenableFutureTask.create(flush, null);
             flushExecutor.submit(flushTask);
             ListenableFutureTask<ReplayPosition> task = ListenableFutureTask.create(flush.postFlush);
             postFlushExecutor.submit(task);
@@ -910,6 +910,9 @@ public class ColumnFamilyStore implements ColumnFamilyStoreMBean
             ListenableFuture<ReplayPosition> future = 
                     // If either of the two tasks errors out, resulting future must also error out.
                     // Combine the two futures and only return post-flush result after both have completed.
+                    // Note that flushTask will always yield null, but Futures.allAsList is
+                    // order preserving, which is why the transform function returns the result
+                    // from item 1 in it's input list (i.e. what was yielded by task).
                     Futures.transform(Futures.allAsList(flushTask, task),
                                       new Function<List<Object>, ReplayPosition>()
                                       {
