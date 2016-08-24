@@ -1029,7 +1029,8 @@ public class TokenMetadata
         lock.readLock().lock();
         try
         {
-            Set<InetAddress> eps = tokenToEndpointMap.inverse().keySet();
+            Multimap<InetAddress, Token> endpointToTokenMap = tokenToEndpointMap.inverse();
+            Set<InetAddress> eps = endpointToTokenMap.keySet();
 
             if (!eps.isEmpty())
             {
@@ -1039,7 +1040,7 @@ public class TokenMetadata
                 {
                     sb.append(ep);
                     sb.append(':');
-                    sb.append(tokenToEndpointMap.inverse().get(ep));
+                    sb.append(endpointToTokenMap.get(ep));
                     sb.append(System.getProperty("line.separator"));
                 }
             }
