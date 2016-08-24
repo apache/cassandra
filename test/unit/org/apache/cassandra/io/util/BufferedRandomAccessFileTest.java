@@ -144,25 +144,26 @@ public class BufferedRandomAccessFileTest
     public void testReadAndWriteOnCapacity() throws IOException
     {
         File tmpFile = File.createTempFile("readtest", "bin");
-        SequentialWriter w = new SequentialWriter(tmpFile);
-
-        // Fully write the file and sync..
-        byte[] in = generateByteArray(RandomAccessReader.DEFAULT_BUFFER_SIZE);
-        w.write(in);
-
-        try (FileHandle.Builder builder = new FileHandle.Builder(w.getPath());
-             FileHandle fh = builder.complete();
-             RandomAccessReader r = fh.createReader())
+        try (SequentialWriter w = new SequentialWriter(tmpFile))
         {
-            // Read it into a same size array.
-            byte[] out = new byte[RandomAccessReader.DEFAULT_BUFFER_SIZE];
-            r.read(out);
-
-            // Cannot read any more.
-            int negone = r.read();
-            assert negone == -1 : "We read past the end of the file, should have gotten EOF -1. Instead, " + negone;
-
-            w.finish();
+            // Fully write the file and sync..
+            byte[] in = generateByteArray(RandomAccessReader.DEFAULT_BUFFER_SIZE);
+            w.write(in);
+    
+            try (FileHandle.Builder builder = new FileHandle.Builder(w.getPath());
+                 FileHandle fh = builder.complete();
+                 RandomAccessReader r = fh.createReader())
+            {
+                // Read it into a same size array.
+                byte[] out = new byte[RandomAccessReader.DEFAULT_BUFFER_SIZE];
+                r.read(out);
+    
+                // Cannot read any more.
+                int negone = r.read();
+                assert negone == -1 : "We read past the end of the file, should have gotten EOF -1. Instead, " + negone;
+    
+                w.finish();
+            }
         }
     }
 
@@ -170,32 +171,34 @@ public class BufferedRandomAccessFileTest
     public void testLength() throws IOException
     {
         File tmpFile = File.createTempFile("lengthtest", "bin");
-        SequentialWriter w = new SequentialWriter(tmpFile);
-        assertEquals(0, w.length());
-
-        // write a chunk smaller then our buffer, so will not be flushed
-        // to disk
-        byte[] lessThenBuffer = generateByteArray(RandomAccessReader.DEFAULT_BUFFER_SIZE / 2);
-        w.write(lessThenBuffer);
-        assertEquals(lessThenBuffer.length, w.length());
-
-        // sync the data and check length
-        w.sync();
-        assertEquals(lessThenBuffer.length, w.length());
-
-        // write more then the buffer can hold and check length
-        byte[] biggerThenBuffer = generateByteArray(RandomAccessReader.DEFAULT_BUFFER_SIZE * 2);
-        w.write(biggerThenBuffer);
-        assertEquals(biggerThenBuffer.length + lessThenBuffer.length, w.length());
-
-        w.finish();
-
-        // will use cachedlength
-        try (FileHandle.Builder builder = new FileHandle.Builder(tmpFile.getPath());
-             FileHandle fh = builder.complete();
-             RandomAccessReader r = fh.createReader())
+        try (SequentialWriter w = new SequentialWriter(tmpFile))
         {
-            assertEquals(lessThenBuffer.length + biggerThenBuffer.length, r.length());
+            assertEquals(0, w.length());
+    
+            // write a chunk smaller then our buffer, so will not be flushed
+            // to disk
+            byte[] lessThenBuffer = generateByteArray(RandomAccessReader.DEFAULT_BUFFER_SIZE / 2);
+            w.write(lessThenBuffer);
+            assertEquals(lessThenBuffer.length, w.length());
+    
+            // sync the data and check length
+            w.sync();
+            assertEquals(lessThenBuffer.length, w.length());
+    
+            // write more then the buffer can hold and check length
+            byte[] biggerThenBuffer = generateByteArray(RandomAccessReader.DEFAULT_BUFFER_SIZE * 2);
+            w.write(biggerThenBuffer);
+            assertEquals(biggerThenBuffer.length + lessThenBuffer.length, w.length());
+    
+            w.finish();
+    
+            // will use cachedlength
+            try (FileHandle.Builder builder = new FileHandle.Builder(tmpFile.getPath());
+                 FileHandle fh = builder.complete();
+                 RandomAccessReader r = fh.createReader())
+            {
+                assertEquals(lessThenBuffer.length + biggerThenBuffer.length, r.length());
+            }
         }
     }
 

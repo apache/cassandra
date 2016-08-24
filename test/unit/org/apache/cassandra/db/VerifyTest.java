@@ -275,11 +275,12 @@ public class VerifyTest
         SSTableReader sstable = cfs.getLiveSSTables().iterator().next();
 
 
-        RandomAccessFile file = new RandomAccessFile(sstable.descriptor.filenameFor(sstable.descriptor.digestComponent), "rw");
-        Long correctChecksum = Long.parseLong(file.readLine());
-        file.close();
-
-        writeChecksum(++correctChecksum, sstable.descriptor.filenameFor(sstable.descriptor.digestComponent));
+        try (RandomAccessFile file = new RandomAccessFile(sstable.descriptor.filenameFor(sstable.descriptor.digestComponent), "rw"))
+        {
+            Long correctChecksum = Long.valueOf(file.readLine());
+    
+            writeChecksum(++correctChecksum, sstable.descriptor.filenameFor(sstable.descriptor.digestComponent));
+        }
 
         try (Verifier verifier = new Verifier(cfs, sstable, false))
         {
@@ -373,13 +374,15 @@ public class VerifyTest
 
     protected long simpleFullChecksum(String filename) throws IOException
     {
-        FileInputStream inputStream = new FileInputStream(filename);
-        CRC32 checksum = new CRC32();
-        CheckedInputStream cinStream = new CheckedInputStream(inputStream, checksum);
-        byte[] b = new byte[128];
-        while (cinStream.read(b) >= 0) {
+        try (FileInputStream inputStream = new FileInputStream(filename))
+        {
+            CRC32 checksum = new CRC32();
+            CheckedInputStream cinStream = new CheckedInputStream(inputStream, checksum);
+            byte[] b = new byte[128];
+            while (cinStream.read(b) >= 0) {
+            }
+            return cinStream.getChecksum().getValue();
         }
-        return cinStream.getChecksum().getValue();
     }
 
     protected void writeChecksum(long checksum, String filePath)

@@ -97,9 +97,8 @@ public class FileUtilsTest
 
     private File createFile(File file, long size)
     {
-        try
+        try (RandomAccessFile f = new RandomAccessFile(file, "rw"))
         {
-            RandomAccessFile f = new RandomAccessFile(file, "rw");
             f.setLength(size);
         }
         catch (Exception e)

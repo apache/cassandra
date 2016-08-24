@@ -69,9 +69,8 @@ public class ProtocolBetaVersionTest extends CQLTester
     @Test
     public void unforcedProtocolVersionTest() throws Exception
     {
-        try
+        try (SimpleClient client = new SimpleClient(nativeAddr.getHostAddress(), nativePort, Server.BETA_VERSION, false, new EncryptionOptions.ClientEncryptionOptions()))
         {
-            SimpleClient client = new SimpleClient(nativeAddr.getHostAddress(), nativePort, Server.BETA_VERSION, false, new EncryptionOptions.ClientEncryptionOptions());
             client.connect(false);
             fail("Exception should have been thrown");
         }
