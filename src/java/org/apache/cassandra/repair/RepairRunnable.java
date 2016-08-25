@@ -110,7 +110,7 @@ public class RepairRunnable extends WrappedRunnable implements ProgressEventNoti
     protected void runMayThrow() throws Exception
     {
         final TraceState traceState;
-
+        final UUID parentSession = UUIDGen.getTimeUUID();
         final String tag = "repair:" + cmd;
 
         final AtomicInteger progress = new AtomicInteger();
@@ -131,10 +131,9 @@ public class RepairRunnable extends WrappedRunnable implements ProgressEventNoti
         }
 
         final long startTime = System.currentTimeMillis();
-        String message = String.format("Starting repair command #%d, repairing keyspace %s with %s", cmd, keyspace,
+        String message = String.format("Starting repair command #%d (%s), repairing keyspace %s with %s", cmd, parentSession, keyspace,
                                        options);
         logger.info(message);
-        fireProgressEvent(tag, new ProgressEvent(ProgressEventType.START, 0, 100, message));
         if (options.isTraced())
         {
             StringBuilder cfsb = new StringBuilder();
@@ -144,6 +143,8 @@ public class RepairRunnable extends WrappedRunnable implements ProgressEventNoti
             UUID sessionId = Tracing.instance.newSession(Tracing.TraceType.REPAIR);
             traceState = Tracing.instance.begin("repair", ImmutableMap.of("keyspace", keyspace, "columnFamilies",
                                                                           cfsb.substring(2)));
+            message = message + " tracing with " + sessionId;
+            fireProgressEvent(tag, new ProgressEvent(ProgressEventType.START, 0, 100, message));
             Tracing.traceRepair(message);
             traceState.enableActivityNotification(tag);
             for (ProgressListener listener : listeners)
@@ -154,6 +155,7 @@ public class RepairRunnable extends WrappedRunnable implements ProgressEventNoti
         }
         else
         {
+            fireProgressEvent(tag, new ProgressEvent(ProgressEventType.START, 0, 100, message));
             traceState = null;
         }
 
@@ -204,7 +206,6 @@ public class RepairRunnable extends WrappedRunnable implements ProgressEventNoti
             cfnames[i] = columnFamilyStores.get(i).name;
         }
 
-        final UUID parentSession = UUIDGen.getTimeUUID();
         SystemDistributedKeyspace.startParentRepair(parentSession, keyspace, cfnames, options);
         long repairedAt;
         try
