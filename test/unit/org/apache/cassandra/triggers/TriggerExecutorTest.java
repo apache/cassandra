@@ -358,12 +358,4 @@ public class TriggerExecutorTest
             return cmp != 0 ? cmp : m1.key().compareTo(m2.key());
         }
     }
-
-    private static class CfComparator implements Comparator<Partition>
-    {
-        public int compare(Partition cf1, Partition cf2)
-        {
-            return cf1.metadata().cfName.compareTo(cf2.metadata().cfName);
-        }
-    }
 }
