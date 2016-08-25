@@ -38,6 +38,7 @@
  * Avoid digest mismatch with empty but static rows (CASSANDRA-12090)
  * Fix EOF exception when altering column type (CASSANDRA-11820)
 Merged from 2.2:
+ * cqlsh copy: fix missing counter values (CASSANDRA-12476)
  * Move migration tasks to non-periodic queue, assure flush executor shutdown after non-periodic executor (CASSANDRA-12251)
  * cqlsh copy: fixed possible race in initializing feeding thread (CASSANDRA-11701)
  * Only set broadcast_rpc_address on Ec2MultiRegionSnitch if it's not set (CASSANDRA-11357)
