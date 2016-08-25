@@ -1786,6 +1786,7 @@ class ImportConversion(object):
         else:
             self.use_prepared_statements = True
 
+        self.is_counter = parent.is_counter(table_meta)
         self.proto_version = statement.protocol_version
 
         # the cql types and converters for the prepared statement, either the full statement or only the primary keys
@@ -2023,7 +2024,14 @@ class ImportConversion(object):
         return converters.get(cql_type.typename, convert_unknown)
 
     def get_null_val(self):
-        return None if self.use_prepared_statements else "NULL"
+        """
+        Return the null value that is inserted for fields that are missing from csv files.
+        For counters we should return zero so that the counter value won't be incremented.
+        For everything else we return nulls, this means None if we use prepared statements
+        or "NULL" otherwise. Note that for counters we never use prepared statements, so we
+        only check is_counter when use_prepared_statements is false.
+        """
+        return None if self.use_prepared_statements else ("0" if self.is_counter else "NULL")
 
     def convert_row(self, row):
         """
@@ -2265,13 +2273,15 @@ class ImportProcess(ChildProcess):
             self._session.cluster.shutdown()
         ChildProcess.close(self)
 
+    def is_counter(self, table_meta):
+        return "counter" in [table_meta.columns[name].cql_type for name in self.valid_columns]
+
     def make_params(self):
         metadata = self.session.cluster.metadata
         table_meta = metadata.keyspaces[self.ks].tables[self.table]
 
         prepared_statement = None
-        is_counter = ("counter" in [table_meta.columns[name].cql_type for name in self.valid_columns])
-        if is_counter:
+        if self.is_counter(table_meta):
             query = 'UPDATE %s.%s SET %%s WHERE %%s' % (protect_name(self.ks), protect_name(self.table))
             make_statement = self.wrap_make_statement(self.make_counter_batch_statement)
         elif self.use_prepared_statements:
