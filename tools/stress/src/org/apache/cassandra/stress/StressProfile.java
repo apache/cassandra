@@ -106,14 +106,26 @@ public class StressProfile implements Serializable
         out.printf("  Table Name: %s%n", tableName);
         out.printf("  Table CQL: %n***%n%s***%n%n", tableCql);
         out.printf("  Extra Schema Definitions: %s%n", extraSchemaDefinitions);
-        out.printf("  Generator Configs:%n");
-        columnConfigs.forEach((k,v)->out.printf("    %s: %s%n", k, v.getConfigAsString()));
-        out.printf("  Query Definitions:%n");
-        queries.forEach((k,v)->out.printf("    %s: %s%n", k, v.getConfigAsString()));
-        out.printf("  Token Range Queries:%n");
-        tokenRangeQueries.forEach((k,v)->out.printf("    %s: %s%n", k, v.getConfigAsString()));
-        out.printf("  Insert Settings:%n");
-        insert.forEach((k,v)->out.printf("    %s: %s%n", k, v));
+        if (columnConfigs != null)
+        {
+            out.printf("  Generator Configs:%n");
+            columnConfigs.forEach((k, v) -> out.printf("    %s: %s%n", k, v.getConfigAsString()));
+        }
+        if(queries != null)
+        {
+            out.printf("  Query Definitions:%n");
+            queries.forEach((k, v) -> out.printf("    %s: %s%n", k, v.getConfigAsString()));
+        }
+        if (tokenRangeQueries != null)
+        {
+            out.printf("  Token Range Queries:%n");
+            tokenRangeQueries.forEach((k, v) -> out.printf("    %s: %s%n", k, v.getConfigAsString()));
+        }
+        if (insert != null)
+        {
+            out.printf("  Insert Settings:%n");
+            insert.forEach((k, v) -> out.printf("    %s: %s%n", k, v));
+        }
 
         PartitionGenerator generator = newGenerator(stressSettings);
         Distribution visits = stressSettings.insert.visits.get();
