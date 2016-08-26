@@ -208,7 +208,7 @@ public class RepairOption
         {
             throw new IllegalArgumentException("Too many job threads. Max is " + MAX_JOB_THREADS);
         }
-        if (primaryRange && (!dataCenters.isEmpty() || !hosts.isEmpty()))
+        if (primaryRange && ((!dataCenters.isEmpty() && !option.isInLocalDCOnly()) || !hosts.isEmpty()))
         {
             throw new IllegalArgumentException("You need to run primary range repair on all nodes in the cluster.");
         }
@@ -301,6 +301,10 @@ public class RepairOption
     public boolean isSubrangeRepair()
     {
         return isSubrangeRepair;
+    }
+
+    public boolean isInLocalDCOnly() {
+        return dataCenters.size() == 1 && dataCenters.contains(DatabaseDescriptor.getLocalDataCenter());
     }
 
     @Override
