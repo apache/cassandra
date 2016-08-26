@@ -425,8 +425,8 @@ class LogTransaction extends Transactional.AbstractTransactional implements Tran
 
         static void removeUnfinishedLeftovers(String name, List<File> logFiles)
         {
-            LogFile txn = LogFile.make(name, logFiles);
-            try
+
+            try(LogFile txn = LogFile.make(name, logFiles))
             {
                 if (txn.verify())
                 {
@@ -438,10 +438,6 @@ class LogTransaction extends Transactional.AbstractTransactional implements Tran
                 {
                     logger.error("Unexpected disk state: failed to read transaction txn {}", txn);
                 }
-            }
-            finally
-            {
-                txn.close();
             }
         }
     }

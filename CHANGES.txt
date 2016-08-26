@@ -1,4 +1,7 @@
 3.0.9
+ * Fix file handle leaks due to simultaneous compaction/repair and
+   listing snapshots, calculating snapshot sizes, or making schema
+   changes (CASSANDRA-11594)
  * Fix nodetool repair exits with 0 for some errors (CASSANDRA-12508)
  * Do not shut down BatchlogManager twice during drain (CASSANDRA-12504)
  * Disk failure policy should not be invoked on out of space (CASSANDRA-12385)
