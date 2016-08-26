@@ -269,7 +269,6 @@ public class BatchStatement implements CQLStatement
 
         long size = 0;
         long warnThreshold = DatabaseDescriptor.getBatchSizeWarnThreshold();
-        long failThreshold = DatabaseDescriptor.getBatchSizeFailThreshold();
 
         for (IMutation mutation : mutations)
         {
@@ -285,6 +284,8 @@ public class BatchStatement implements CQLStatement
                 for (PartitionUpdate update : mutation.getPartitionUpdates())
                     tableNames.add(String.format("%s.%s", update.metadata().ksName, update.metadata().cfName));
             }
+
+            long failThreshold = DatabaseDescriptor.getBatchSizeFailThreshold();
 
             String format = "Batch for {} is of size {}, exceeding specified threshold of {} by {}.{}";
             if (size > failThreshold)

@@ -72,10 +72,11 @@ public class CompactionStats extends NodeToolCmd
 
     public static void reportCompactionTable(List<Map<String,String>> compactions, int compactionThroughput, boolean humanReadable)
     {
-        long remainingBytes = 0;
-        TableBuilder table = new TableBuilder();
         if (!compactions.isEmpty())
         {
+            long remainingBytes = 0;
+            TableBuilder table = new TableBuilder();
+
             table.add("id", "compaction type", "keyspace", "table", "completed", "total", "unit", "progress");
             for (Map<String, String> c : compactions)
             {

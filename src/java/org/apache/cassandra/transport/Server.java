@@ -138,9 +138,10 @@ public class Server implements CassandraDaemon.Server
         if (workerGroup != null)
             bootstrap = bootstrap.group(workerGroup);
 
-        final EncryptionOptions.ClientEncryptionOptions clientEnc = DatabaseDescriptor.getClientEncryptionOptions();
         if (this.useSSL)
         {
+            final EncryptionOptions.ClientEncryptionOptions clientEnc = DatabaseDescriptor.getClientEncryptionOptions();
+
             if (clientEnc.optional)
             {
                 logger.info("Enabling optionally encrypted CQL connections between client and server");

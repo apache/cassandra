@@ -227,7 +227,6 @@ public class CompositesSearcher extends CassandraIndexSearcher
         }
 
         UnfilteredRowIterator iteratorToReturn = null;
-        ClusteringComparator comparator = dataIter.metadata().comparator;
         if (isStaticColumn())
         {
             if (entries.size() != 1)
@@ -248,6 +247,8 @@ public class CompositesSearcher extends CassandraIndexSearcher
         }
         else
         {
+            ClusteringComparator comparator = dataIter.metadata().comparator;
+
             class Transform extends Transformation
             {
                 private int entriesIdx;
