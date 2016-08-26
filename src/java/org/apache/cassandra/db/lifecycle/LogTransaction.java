@@ -442,8 +442,7 @@ class LogTransaction extends Transactional.AbstractTransactional implements Tran
 
         static boolean removeUnfinishedLeftovers(Map.Entry<String, List<File>> entry)
         {
-            LogFile txn = LogFile.make(entry.getKey(), entry.getValue());
-            try
+            try(LogFile txn = LogFile.make(entry.getKey(), entry.getValue()))
             {
                 if (txn.verify())
                 {
@@ -462,10 +461,6 @@ class LogTransaction extends Transactional.AbstractTransactional implements Tran
                     logger.error("Unexpected disk state: failed to read transaction log {}", txn.toString(true));
                     return false;
                 }
-            }
-            finally
-            {
-                txn.close();
             }
         }
     }

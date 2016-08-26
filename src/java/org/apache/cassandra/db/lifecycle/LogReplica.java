@@ -37,7 +37,7 @@ import org.apache.cassandra.utils.CLibrary;
  *
  * @see LogFile
  */
-final class LogReplica
+final class LogReplica implements AutoCloseable
 {
     private final File file;
     private int directoryDescriptor;
@@ -107,7 +107,7 @@ final class LogReplica
         return file.exists();
     }
 
-    void close()
+    public void close()
     {
         if (directoryDescriptor >= 0)
         {

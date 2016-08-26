@@ -52,7 +52,7 @@ import static org.apache.cassandra.utils.Throwables.merge;
  *
  * @see LogTransaction
  */
-final class LogFile
+final class LogFile implements AutoCloseable
 {
     private static final Logger logger = LoggerFactory.getLogger(LogFile.class);
 
@@ -371,7 +371,7 @@ final class LogFile
         return replicas.exists();
     }
 
-    void close()
+    public void close()
     {
         replicas.close();
     }
