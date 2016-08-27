@@ -67,12 +67,6 @@ public class CQLSSTableWriterTest
         StorageService.instance.initServer();
     }
 
-    @AfterClass
-    public static void tearDown() throws Exception
-    {
-        Config.setClientMode(false);
-    }
-
     @Test
     public void testUnsortedWriter() throws Exception
     {

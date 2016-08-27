@@ -87,7 +87,8 @@ Upgrading
       a standalone tool or client application, use the DatabaseDescriptor.toolInitialization() or
       DatabaseDescriptor.clientInitialization() methods. Tool initialization sets up partitioner,
       snitch, encryption context. Client initialization just applies the configuration but does not
-      setup anything.
+      setup anything. Instead of using Config.setClientMode() or Config.isClientMode(), which are
+      deprecated now, use one of the appropiate new methods in DatabaseDescriptor.
 
 3.8
 ===

@@ -64,7 +64,7 @@ public class Schema
      */
     public Schema()
     {
-        if (!Config.isClientMode())
+        if (DatabaseDescriptor.isDaemonInitialized() || DatabaseDescriptor.isToolInitialized())
         {
             load(SchemaKeyspace.metadata());
             load(SystemKeyspace.metadata());

@@ -41,12 +41,6 @@ public class CQLSSTableWriterLongTest
         StorageService.instance.initServer();
     }
 
-    @AfterClass
-    public static void tearDown()
-    {
-        Config.setClientMode(false);
-    }
-
     @Test
     public void testWideRow() throws Exception
     {

@@ -9,7 +9,7 @@
  * Extend read/write failure messages with a map of replica addresses
    to error codes in the v5 native protocol (CASSANDRA-12311)
  * Fix rebuild of SASI indexes with existing index files (CASSANDRA-12374)
- * Let DatabaseDescriptor not implicitly startup services (CASSANDRA-9054)
+ * Let DatabaseDescriptor not implicitly startup services (CASSANDRA-9054, 12550)
  * Fix clustering indexes in presence of static columns in SASI (CASSANDRA-12378)
  * Fix queries on columns with reversed type on SASI indexes (CASSANDRA-12223)
  * Added slow query log (CASSANDRA-12403)

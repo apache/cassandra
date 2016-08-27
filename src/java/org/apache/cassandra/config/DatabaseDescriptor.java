@@ -118,8 +118,10 @@ public class DatabaseDescriptor
 
     public static void daemonInitialization() throws ConfigurationException
     {
-        assert !toolInitialized;
-        assert !clientInitialized;
+        if (toolInitialized)
+            throw new AssertionError("toolInitialization() already called");
+        if (clientInitialized)
+            throw new AssertionError("clientInitialization() already called");
 
         // Some unit tests require this :(
         if (daemonInitialized)
@@ -131,16 +133,39 @@ public class DatabaseDescriptor
         AuthConfig.applyAuth();
     }
 
+    /**
+     * Equivalent to {@link #toolInitialization(boolean) toolInitialization(true)}.
+     */
     public static void toolInitialization()
     {
-        assert !daemonInitialized;
-        assert !clientInitialized;
+        toolInitialization(true);
+    }
+
+    /**
+     * Initializes this class as a tool, which means that the configuration is loaded
+     * using {@link #loadConfig()} and all non-daemon configuration parts will be setup.
+     *
+     * @param failIfDaemonOrClient if {@code true} and a call to {@link #daemonInitialization()} or
+     *                             {@link #clientInitialization()} has been performed before, an
+     *                             {@link AssertionError} will be thrown.
+     */
+    public static void toolInitialization(boolean failIfDaemonOrClient)
+    {
+        if (!failIfDaemonOrClient && (daemonInitialized || clientInitialized))
+        {
+            return;
+        }
+        else
+        {
+            if (daemonInitialized)
+                throw new AssertionError("daemonInitialization() already called");
+            if (clientInitialized)
+                throw new AssertionError("clientInitialization() already called");
+        }
 
         if (toolInitialized)
             return;
         toolInitialized = true;
-
-        Config.setToolsMode(true);
 
         setConfig(loadConfig());
 
@@ -153,10 +178,35 @@ public class DatabaseDescriptor
         applyEncryptionContext();
     }
 
+    /**
+     * Equivalent to {@link #clientInitialization(boolean) clientInitialization(true)}.
+     */
     public static void clientInitialization()
     {
-        assert !daemonInitialized;
-        assert !toolInitialized;
+        clientInitialization(true);
+    }
+
+    /**
+     * Initializes this class as a client, which means that just an empty configuration will
+     * be used.
+     *
+     * @param failIfDaemonOrTool if {@code true} and a call to {@link #daemonInitialization()} or
+     *                           {@link #toolInitialization()} has been performed before, an
+     *                           {@link AssertionError} will be thrown.
+     */
+    public static void clientInitialization(boolean failIfDaemonOrTool)
+    {
+        if (!failIfDaemonOrTool && (daemonInitialized || toolInitialized))
+        {
+            return;
+        }
+        else
+        {
+            if (daemonInitialized)
+                throw new AssertionError("daemonInitialization() already called");
+            if (toolInitialized)
+                throw new AssertionError("toolInitialization() already called");
+        }
 
         if (clientInitialized)
             return;
@@ -164,6 +214,26 @@ public class DatabaseDescriptor
 
         Config.setClientMode(true);
         conf = new Config();
+    }
+
+    public static boolean isClientInitialized()
+    {
+        return clientInitialized;
+    }
+
+    public static boolean isToolInitialized()
+    {
+        return toolInitialized;
+    }
+
+    public static boolean isClientOrToolInitialized()
+    {
+        return clientInitialized || toolInitialized;
+    }
+
+    public static boolean isDaemonInitialized()
+    {
+        return daemonInitialized;
     }
 
     public static Config getRawConfig()
@@ -1916,7 +1986,7 @@ public class DatabaseDescriptor
         if (conf.file_cache_size_in_mb == null)
         {
             // In client mode the value is not set.
-            assert Config.isClientMode();
+            assert DatabaseDescriptor.isClientInitialized();
             return 0;
         }
 

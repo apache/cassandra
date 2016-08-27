@@ -257,7 +257,6 @@ public class Config
     public volatile int counter_cache_keys_to_save = Integer.MAX_VALUE;
 
     private static boolean isClientMode = false;
-    private static boolean isToolsMode = false;
 
     public Integer file_cache_size_in_mb;
 
@@ -360,6 +359,10 @@ public class Config
         outboundBindAny = value;
     }
 
+    /**
+     * @deprecated migrate to {@link DatabaseDescriptor#isClientInitialized()}
+     */
+    @Deprecated
     public static boolean isClientMode()
     {
         return isClientMode;
@@ -368,29 +371,13 @@ public class Config
     /**
      * Client mode means that the process is a pure client, that uses C* code base but does
      * not read or write local C* database files.
+     *
+     * @deprecated migrate to {@link DatabaseDescriptor#clientInitialization(boolean)}
      */
+    @Deprecated
     public static void setClientMode(boolean clientMode)
     {
         isClientMode = clientMode;
-    }
-
-    public static boolean isToolsMode()
-    {
-        return isToolsMode;
-    }
-
-    /**
-     * Tools mode means that the process is a standalone (offline) C* tool that may (or may not)
-     * read or write local C* database files.
-     */
-    public static void setToolsMode(boolean toolsMode)
-    {
-        isToolsMode = toolsMode;
-    }
-
-    public static boolean isClientOrToolsMode()
-    {
-        return isClientMode() || isToolsMode();
     }
 
     public enum CommitLogSync

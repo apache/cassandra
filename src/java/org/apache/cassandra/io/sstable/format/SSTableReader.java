@@ -140,7 +140,7 @@ public abstract class SSTableReader extends SSTable implements SelfRefCounted<SS
     private static final ScheduledThreadPoolExecutor syncExecutor = initSyncExecutor();
     private static ScheduledThreadPoolExecutor initSyncExecutor()
     {
-        if (Config.isClientOrToolsMode())
+        if (DatabaseDescriptor.isClientOrToolInitialized())
             return null;
 
         // Do NOT start this thread pool in client mode
@@ -2214,7 +2214,7 @@ public abstract class SSTableReader extends SSTable implements SelfRefCounted<SS
             // Don't track read rates for tables in the system keyspace and don't bother trying to load or persist
             // the read meter when in client mode.
             // Also, do not track read rates when running in client or tools mode (syncExecuter isn't available in these modes)
-            if (SchemaConstants.isSystemKeyspace(desc.ksname) || Config.isClientOrToolsMode())
+            if (SchemaConstants.isSystemKeyspace(desc.ksname) || DatabaseDescriptor.isClientOrToolInitialized())
             {
                 readMeter = null;
                 readMeterSyncFuture = NULL;

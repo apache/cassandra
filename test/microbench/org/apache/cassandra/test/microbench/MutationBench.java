@@ -64,7 +64,7 @@ public class MutationBench
 {
     static
     {
-        Config.setClientMode(true);
+        DatabaseDescriptor.clientInitialization(false);
         // Partitioner is not set in client mode.
         if (DatabaseDescriptor.getPartitioner() == null)
             DatabaseDescriptor.setPartitionerUnsafe(Murmur3Partitioner.instance);

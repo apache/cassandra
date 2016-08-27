@@ -63,12 +63,6 @@ public class LongStreamingTest
         StorageService.instance.setInterDCStreamThroughputMbPerSec(0);
     }
 
-    @AfterClass
-    public static void tearDown()
-    {
-        Config.setClientMode(false);
-    }
-
     @Test
     public void testCompressedStream() throws InvalidRequestException, IOException, ExecutionException, InterruptedException
     {

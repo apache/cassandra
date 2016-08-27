@@ -47,18 +47,6 @@ public class CQLSSTableWriterClientTest
         DatabaseDescriptor.daemonInitialization();
     }
 
-    @After
-    public void tearDown()
-    {
-        FileUtils.deleteRecursive(this.testDirectory);
-    }
-
-    @AfterClass
-    public static void cleanup() throws Exception
-    {
-        Config.setClientMode(false);
-    }
-
     @Test
     public void testWriterInClientMode() throws IOException, InvalidRequestException
     {
@@ -94,5 +82,11 @@ public class CQLSSTableWriterClientTest
         File[] dataFiles = (File[])ArrayUtils.addAll(writer2.getInnermostDirectory().listFiles(filter),
                                                      writer.getInnermostDirectory().listFiles(filter));
         assertEquals(2, dataFiles.length);
+    }
+
+    @After
+    public void tearDown()
+    {
+        FileUtils.deleteRecursive(this.testDirectory);
     }
 }
