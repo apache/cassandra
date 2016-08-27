@@ -282,7 +282,7 @@ public final class LegacySchemaMigrator
         AbstractType<?> rawComparator = TypeParser.parse(tableRow.getString("comparator"));
         AbstractType<?> subComparator = tableRow.has("subcomparator") ? TypeParser.parse(tableRow.getString("subcomparator")) : null;
 
-        boolean isSuper = "super".equals(tableRow.getString("type").toLowerCase());
+        boolean isSuper = "super".equals(tableRow.getString("type").toLowerCase(Locale.ENGLISH));
         boolean isCompound = rawComparator instanceof CompositeType || isSuper;
 
         /*
