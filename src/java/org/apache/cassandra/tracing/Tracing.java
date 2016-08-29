@@ -104,7 +104,7 @@ public abstract class Tracing implements ExecutorLocal<TraceState>
             catch (Exception e)
             {
                 JVMStabilityInspector.inspectThrowable(e);
-                logger.error("Cannot use class {} for tracing ({}), ignoring by defaulting on normal tracing", customTracingClass, e.getMessage());
+                logger.error(String.format("Cannot use class %s for tracing, ignoring by defaulting to normal tracing", customTracingClass), e);
             }
         }
         instance = null != tracing ? tracing : new TracingImpl();
@@ -138,7 +138,10 @@ public abstract class Tracing implements ExecutorLocal<TraceState>
 
     public UUID newSession(Map<String,ByteBuffer> customPayload)
     {
-        return newSession(TraceType.QUERY);
+        return newSession(
+                TimeUUIDType.instance.compose(ByteBuffer.wrap(UUIDGen.getTimeUUIDBytes())),
+                TraceType.QUERY,
+                customPayload);
     }
 
     public UUID newSession(TraceType traceType)
@@ -151,9 +154,10 @@ public abstract class Tracing implements ExecutorLocal<TraceState>
 
     public UUID newSession(UUID sessionId, Map<String,ByteBuffer> customPayload)
     {
-        return newSession(sessionId, TraceType.QUERY, Collections.EMPTY_MAP);
+        return newSession(sessionId, TraceType.QUERY, customPayload);
     }
 
+    /** This method is intended to be overridden in tracing implementations that need access to the customPayload */
     protected UUID newSession(UUID sessionId, TraceType traceType, Map<String,ByteBuffer> customPayload)
     {
         assert get() == null;
