@@ -1,4 +1,4 @@
-3.9
+3.8, 3.9
  * Fix value skipping with counter columns (CASSANDRA-11726)
  * Fix nodetool tablestats miss SSTable count (CASSANDRA-12205)
  * Fixed flacky SSTablesIteratedTest (CASSANDRA-12282)
@@ -68,6 +68,12 @@ Merged from 3.0:
    those static columns in query results (CASSANDRA-12123)
  * Avoid digest mismatch with empty but static rows (CASSANDRA-12090)
  * Fix EOF exception when altering column type (CASSANDRA-11820)
+ * Fix potential race in schema during new table creation (CASSANDRA-12083)
+ * cqlsh: fix error handling in rare COPY FROM failure scenario (CASSANDRA-12070)
+ * Disable autocompaction during drain (CASSANDRA-11878)
+ * Add a metrics timer to MemtablePool and use it to track time spent blocked on memory in MemtableAllocator (CASSANDRA-11327)
+ * Fix upgrading schema with super columns with non-text subcomparators (CASSANDRA-12023)
+ * Add TimeWindowCompactionStrategy (CASSANDRA-9666)
 Merged from 2.2:
  * Move migration tasks to non-periodic queue, assure flush executor shutdown after non-periodic executor (CASSANDRA-12251)
  * cqlsh copy: fixed possible race in initializing feeding thread (CASSANDRA-11701)
@@ -86,32 +92,16 @@ Merged from 2.2:
  * Use dedicated thread for JMX notifications (CASSANDRA-12146)
  * Improve streaming synchronization and fault tolerance (CASSANDRA-11414)
  * MemoryUtil.getShort() should return an unsigned short also for architectures not supporting unaligned memory accesses (CASSANDRA-11973)
-Merged from 2.1:
- * Fix queries with empty ByteBuffer values in clustering column restrictions (CASSANDRA-12127)
- * Disable passing control to post-flush after flush failure to prevent data loss (CASSANDRA-11828)
- * Allow STCS-in-L0 compactions to reduce scope with LCS (CASSANDRA-12040)
- * cannot use cql since upgrading python to 2.7.11+ (CASSANDRA-11850)
- * Fix filtering on clustering columns when 2i is used (CASSANDRA-11907)
-
-
-3.0.8
- * Fix potential race in schema during new table creation (CASSANDRA-12083)
- * cqlsh: fix error handling in rare COPY FROM failure scenario (CASSANDRA-12070)
- * Disable autocompaction during drain (CASSANDRA-11878)
- * Add a metrics timer to MemtablePool and use it to track time spent blocked on memory in MemtableAllocator (CASSANDRA-11327)
- * Fix upgrading schema with super columns with non-text subcomparators (CASSANDRA-12023)
- * Add TimeWindowCompactionStrategy (CASSANDRA-9666)
-Merged from 2.2:
- * Synchronize ThriftServer::stop() (CASSANDRA-12105)
- * Use dedicated thread for JMX notifications (CASSANDRA-12146)
- * Improve streaming synchronization and fault tolerance (CASSANDRA-11414)
- * MemoryUtil.getShort() should return an unsigned short also for architectures not supporting unaligned memory accesses (CASSANDRA-11973)
  * Allow nodetool info to run with readonly JMX access (CASSANDRA-11755)
  * Validate bloom_filter_fp_chance against lowest supported
    value when the table is created (CASSANDRA-11920)
  * Don't send erroneous NEW_NODE notifications on restart (CASSANDRA-11038)
  * StorageService shutdown hook should use a volatile variable (CASSANDRA-11984)
 Merged from 2.1:
+ * Fix queries with empty ByteBuffer values in clustering column restrictions (CASSANDRA-12127)
+ * Disable passing control to post-flush after flush failure to prevent data loss (CASSANDRA-11828)
+ * Allow STCS-in-L0 compactions to reduce scope with LCS (CASSANDRA-12040)
+ * cannot use cql since upgrading python to 2.7.11+ (CASSANDRA-11850)
  * Fix filtering on clustering columns when 2i is used (CASSANDRA-11907)
  * Avoid stalling paxos when the paxos state expires (CASSANDRA-12043)
  * Remove finished incoming streaming connections from MessagingService (CASSANDRA-11854)
