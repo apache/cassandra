@@ -215,7 +215,7 @@ final class LogFile implements AutoCloseable
         // it matches. Because we delete files from oldest to newest, the latest update time should
         // always match.
         record.status.onDiskRecord = record.withExistingFiles();
-        if (record.updateTime != record.status.onDiskRecord.updateTime && record.status.onDiskRecord.numFiles > 0)
+        if (record.updateTime != record.status.onDiskRecord.updateTime && record.status.onDiskRecord.updateTime > 0)
         {
             record.setError(String.format("Unexpected files detected for sstable [%s]: " +
                                           "last update time [%tT] should have been [%tT]",
