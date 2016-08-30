@@ -270,9 +270,9 @@ public class CommitLogReplayer implements CommitLogReadHandler
     public static CommitLogPosition firstNotCovered(Collection<IntervalSet<CommitLogPosition>> ranges)
     {
         return ranges.stream()
-                .map(intervals -> Iterables.getFirst(intervals.ends(), CommitLogPosition.NONE)) 
+                .map(intervals -> Iterables.getFirst(intervals.ends(), CommitLogPosition.NONE))
                 .min(Ordering.natural())
-                .get(); // iteration is per known-CF, there must be at least one. 
+                .get(); // iteration is per known-CF, there must be at least one.
     }
 
     abstract static class ReplayFilter

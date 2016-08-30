@@ -94,10 +94,10 @@ public class KeyspaceMetrics
 
     public final MetricNameFactory factory;
     private Keyspace keyspace;
-    
+
     /** set containing names of all the metrics stored here, for releasing later */
     private Set<String> allMetrics = Sets.newHashSet();
-    
+
     /**
      * Creates metrics for given {@link ColumnFamilyStore}.
      *
@@ -120,7 +120,7 @@ public class KeyspaceMetrics
             {
                 return metric.memtableLiveDataSize.getValue();
             }
-        }); 
+        });
         memtableOnHeapDataSize = createKeyspaceGauge("MemtableOnHeapDataSize", new MetricValue()
         {
             public Long getValue(TableMetrics metric)
@@ -243,7 +243,7 @@ public class KeyspaceMetrics
      */
     public void release()
     {
-        for(String name : allMetrics) 
+        for(String name : allMetrics)
         {
             Metrics.remove(factory.createMetricName(name));
         }
@@ -252,7 +252,7 @@ public class KeyspaceMetrics
         writeLatency.release();
         rangeLatency.release();
     }
-    
+
     /**
      * Represents a column family metric value.
      */

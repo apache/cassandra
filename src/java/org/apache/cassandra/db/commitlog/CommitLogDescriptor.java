@@ -104,7 +104,8 @@ public class CommitLogDescriptor
         out.putLong(descriptor.id);
         updateChecksumInt(crc, (int) (descriptor.id & 0xFFFFFFFFL));
         updateChecksumInt(crc, (int) (descriptor.id >>> 32));
-        if (descriptor.version >= VERSION_22) {
+        if (descriptor.version >= VERSION_22)
+        {
             String parametersString = constructParametersString(descriptor.compression, descriptor.encryptionContext, additionalHeaders);
             byte[] parametersBytes = parametersString.getBytes(StandardCharsets.UTF_8);
             if (parametersBytes.length != (((short) parametersBytes.length) & 0xFFFF))
@@ -114,7 +115,8 @@ public class CommitLogDescriptor
             updateChecksumInt(crc, parametersBytes.length);
             out.put(parametersBytes);
             crc.update(parametersBytes, 0, parametersBytes.length);
-        } else
+        }
+        else
             assert descriptor.compression == null;
         out.putInt((int) crc.getValue());
     }
@@ -160,7 +162,8 @@ public class CommitLogDescriptor
         updateChecksumInt(checkcrc, (int) (id & 0xFFFFFFFFL));
         updateChecksumInt(checkcrc, (int) (id >>> 32));
         int parametersLength = 0;
-        if (version >= VERSION_22) {
+        if (version >= VERSION_22)
+        {
             parametersLength = input.readShort() & 0xFFFF;
             updateChecksumInt(checkcrc, parametersLength);
         }

@@ -83,14 +83,17 @@ public abstract class CBUtil
         theDecoder.reset();
         CharBuffer dst = TL_CHAR_BUFFER.get();
         int capacity = (int) ((double) src.remaining() * theDecoder.maxCharsPerByte());
-        if (dst == null) {
+        if (dst == null)
+        {
             capacity = Math.max(capacity, 4096);
             dst = CharBuffer.allocate(capacity);
             TL_CHAR_BUFFER.set(dst);
         }
-        else {
+        else
+        {
             dst.clear();
-            if (dst.capacity() < capacity){
+            if (dst.capacity() < capacity)
+            {
                 dst = CharBuffer.allocate(capacity);
                 TL_CHAR_BUFFER.set(dst);
             }

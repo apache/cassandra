@@ -102,7 +102,8 @@ public class Hex
             {
                 s = stringConstructor.newInstance(0, c.length, c);
             }
-            catch (InvocationTargetException ite) {
+            catch (InvocationTargetException ite)
+            {
                 // The underlying constructor failed. Unwrapping the exception.
                 Throwable cause = ite.getCause();
                 logger.error("Underlying string constructor threw an error: {}",

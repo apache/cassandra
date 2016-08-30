@@ -2152,7 +2152,7 @@ public class StorageProxy implements StorageProxyMBean
             float rowsPerRange = (float)liveReturned / (float)rangesQueried;
             concurrencyFactor = Math.max(1, Math.min(totalRangeCount - rangesQueried, Math.round(remainingRows / rowsPerRange)));
             logger.trace("Didn't get enough response rows; actual rows per range: {}; remaining rows: {}, new concurrent requests: {}",
-                         rowsPerRange, (int) remainingRows, concurrencyFactor);
+                         rowsPerRange, remainingRows, concurrencyFactor);
         }
 
         /**
@@ -2757,15 +2757,18 @@ public class StorageProxy implements StorageProxyMBean
 
     public void reloadTriggerClasses() { TriggerExecutor.instance.reloadClasses(); }
 
-    public long getReadRepairAttempted() {
+    public long getReadRepairAttempted()
+    {
         return ReadRepairMetrics.attempted.getCount();
     }
 
-    public long getReadRepairRepairedBlocking() {
+    public long getReadRepairRepairedBlocking()
+    {
         return ReadRepairMetrics.repairedBlocking.getCount();
     }
 
-    public long getReadRepairRepairedBackground() {
+    public long getReadRepairRepairedBackground()
+    {
         return ReadRepairMetrics.repairedBackground.getCount();
     }
 

@@ -115,7 +115,8 @@ public class Memtable implements Comparable<Memtable>
 
     public static final class LastCommitLogPosition extends CommitLogPosition
     {
-        public LastCommitLogPosition(CommitLogPosition copy) {
+        public LastCommitLogPosition(CommitLogPosition copy) 
+        {
             super(copy.segmentId, copy.position);
         }
     }

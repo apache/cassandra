@@ -91,7 +91,8 @@ public abstract class Tracing implements ExecutorLocal<TraceState>
 
     public static final Tracing instance;
 
-    static {
+    static
+    {
         Tracing tracing = null;
         String customTracingClass = System.getProperty("cassandra.custom_tracing_class");
         if (null != customTracingClass)

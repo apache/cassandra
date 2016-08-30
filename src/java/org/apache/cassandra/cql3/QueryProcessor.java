@@ -622,7 +622,8 @@ public class QueryProcessor implements QueryHandler
             while (iterator.hasNext())
             {
                 Map.Entry<MD5Digest, ParsedStatement.Prepared> entry = iterator.next();
-                if (shouldInvalidate(ksName, cfName, entry.getValue().statement)) {
+                if (shouldInvalidate(ksName, cfName, entry.getValue().statement)) 
+                {
                     SystemKeyspace.removePreparedStatement(entry.getKey());
                     iterator.remove();
                 }

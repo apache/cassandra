@@ -140,7 +140,8 @@ public class RowIndexEntry<T> implements IMeasurableMemory
     static final Histogram indexEntrySizeHistogram;
     static final Histogram indexInfoCountHistogram;
     static final Histogram indexInfoGetsHistogram;
-    static {
+    static 
+    {
         MetricNameFactory factory = new DefaultNameFactory("Index", "RowIndexEntry");
         indexEntrySizeHistogram = Metrics.histogram(factory.createMetricName("IndexedEntrySize"), false);
         indexInfoCountHistogram = Metrics.histogram(factory.createMetricName("IndexInfoCount"), false);

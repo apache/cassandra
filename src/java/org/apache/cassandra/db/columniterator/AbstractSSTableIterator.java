@@ -375,7 +375,7 @@ public abstract class AbstractSSTableIterator implements UnfilteredRowIterator
             return toReturn;
         }
 
-        public boolean hasNext() 
+        public boolean hasNext()
         {
             try
             {
@@ -619,8 +619,10 @@ public abstract class AbstractSSTableIterator implements UnfilteredRowIterator
             return (index < 0 ? -index - (reversed ? 2 : 1) : index);
         }
 
-        private int binarySearch(IndexInfo key, Comparator<IndexInfo> c, int low, int high) throws IOException {
-            while (low <= high) {
+        private int binarySearch(IndexInfo key, Comparator<IndexInfo> c, int low, int high) throws IOException
+        {
+            while (low <= high)
+            {
                 int mid = (low + high) >>> 1;
                 IndexInfo midVal = index(mid);
                 int cmp = c.compare(midVal, key);

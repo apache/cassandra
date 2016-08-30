@@ -182,10 +182,14 @@ public class FBUtilities
 
     public static String getNetworkInterface(InetAddress localAddress)
     {
-        try {
-            for(NetworkInterface ifc : Collections.list(NetworkInterface.getNetworkInterfaces())) {
-                if(ifc.isUp()) {
-                    for(InetAddress addr : Collections.list(ifc.getInetAddresses())) {
+        try
+        {
+            for(NetworkInterface ifc : Collections.list(NetworkInterface.getNetworkInterfaces()))
+            {
+                if(ifc.isUp())
+                {
+                    for(InetAddress addr : Collections.list(ifc.getInetAddresses()))
+                    {
                         if (addr.equals(localAddress))
                             return ifc.getDisplayName();
                     }
@@ -877,7 +881,7 @@ public class FBUtilities
             throw new RuntimeException(e);
         }
     }
-	
+
 	public static void sleepQuietly(long millis)
     {
         try

@@ -68,7 +68,8 @@ public class BufferPool
     private static final GlobalPool globalPool = new GlobalPool();
 
     /** A thread local pool of chunks, where chunks come from the global pool */
-    private static final FastThreadLocal<LocalPool> localPool = new FastThreadLocal<LocalPool>() {
+    private static final FastThreadLocal<LocalPool> localPool = new FastThreadLocal<LocalPool>()
+    {
         @Override
         protected LocalPool initialValue()
         {

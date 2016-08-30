@@ -223,7 +223,8 @@ public class JMXServerUtils
             env.put("com.sun.jndi.rmi.factory.socket", clientFactory);
             logJmxSslConfig(serverFactory);
         }
-        else if (localOnly){
+        else if (localOnly)
+        {
             env.put(RMIConnectorServer.RMI_SERVER_SOCKET_FACTORY_ATTRIBUTE,
                     new RMIServerSocketFactoryImpl(serverAddress));
         }

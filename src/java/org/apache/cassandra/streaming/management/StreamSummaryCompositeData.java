@@ -41,7 +41,8 @@ public class StreamSummaryCompositeData
                                                                    SimpleType.LONG};
 
     public static final CompositeType COMPOSITE_TYPE;
-    static  {
+    static
+    {
         try
         {
             COMPOSITE_TYPE = new CompositeType(StreamSummary.class.getName(),

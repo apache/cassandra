@@ -252,15 +252,18 @@ public class Memory implements AutoCloseable
     public long getLong(long offset)
     {
         checkBounds(offset, offset + 8);
-        if (Architecture.IS_UNALIGNED) {
+        if (Architecture.IS_UNALIGNED)
+        {
             return unsafe.getLong(peer + offset);
         } else {
             return getLongByByte(peer + offset);
         }
     }
 
-    private long getLongByByte(long address) {
-        if (bigEndian) {
+    private long getLongByByte(long address)
+    {
+        if (bigEndian)
+        {
             return  (((long) unsafe.getByte(address    )       ) << 56) |
                     (((long) unsafe.getByte(address + 1) & 0xff) << 48) |
                     (((long) unsafe.getByte(address + 2) & 0xff) << 40) |
@@ -269,7 +272,9 @@ public class Memory implements AutoCloseable
                     (((long) unsafe.getByte(address + 5) & 0xff) << 16) |
                     (((long) unsafe.getByte(address + 6) & 0xff) <<  8) |
                     (((long) unsafe.getByte(address + 7) & 0xff)      );
-        } else {
+        }
+        else
+        {
             return  (((long) unsafe.getByte(address + 7)       ) << 56) |
                     (((long) unsafe.getByte(address + 6) & 0xff) << 48) |
                     (((long) unsafe.getByte(address + 5) & 0xff) << 40) |
@@ -284,24 +289,31 @@ public class Memory implements AutoCloseable
     public int getInt(long offset)
     {
         checkBounds(offset, offset + 4);
-        if (Architecture.IS_UNALIGNED) {
+        if (Architecture.IS_UNALIGNED)
+        {
             return unsafe.getInt(peer + offset);
-        } else {
+        }
+        else
+        {
             return getIntByByte(peer + offset);
         }
     }
 
-    private int getIntByByte(long address) {
-        if (bigEndian) {
-            return  (((int) unsafe.getByte(address    )       ) << 24) |
-                    (((int) unsafe.getByte(address + 1) & 0xff) << 16) |
-                    (((int) unsafe.getByte(address + 2) & 0xff) << 8 ) |
-                    (((int) unsafe.getByte(address + 3) & 0xff)      );
-        } else {
-            return  (((int) unsafe.getByte(address + 3)       ) << 24) |
-                    (((int) unsafe.getByte(address + 2) & 0xff) << 16) |
-                    (((int) unsafe.getByte(address + 1) & 0xff) <<  8) |
-                    (((int) unsafe.getByte(address    ) & 0xff)      );
+    private int getIntByByte(long address)
+    {
+        if (bigEndian)
+        {
+            return  ((unsafe.getByte(address    )       ) << 24) |
+                    ((unsafe.getByte(address + 1) & 0xff) << 16) |
+                    ((unsafe.getByte(address + 2) & 0xff) << 8 ) |
+                    ((unsafe.getByte(address + 3) & 0xff)      );
+        }
+        else
+        {
+            return  ((unsafe.getByte(address + 3)       ) << 24) |
+                    ((unsafe.getByte(address + 2) & 0xff) << 16) |
+                    ((unsafe.getByte(address + 1) & 0xff) <<  8) |
+                    ((unsafe.getByte(address    ) & 0xff)      );
         }
     }
 

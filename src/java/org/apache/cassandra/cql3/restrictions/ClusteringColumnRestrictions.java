@@ -218,7 +218,8 @@ final class ClusteringColumnRestrictions extends RestrictionSetWrapper
         }
     }
 
-    private boolean handleInFilter(SingleRestriction restriction, int index) {
+    private boolean handleInFilter(SingleRestriction restriction, int index)
+    {
         return restriction.isContains() || restriction.isLIKE() || index != restriction.getFirstColumn().position();
     }
 

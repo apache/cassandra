@@ -34,11 +34,13 @@ public class ClientWarn implements ExecutorLocal<ClientWarn.State>
     {
     }
 
-    public State get() {
+    public State get()
+    {
         return warnLocal.get();
     }
 
-    public void set(State value) {
+    public void set(State value)
+    {
         warnLocal.set(value);
     }
 

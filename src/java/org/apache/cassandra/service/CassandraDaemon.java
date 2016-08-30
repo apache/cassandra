@@ -82,7 +82,8 @@ public class CassandraDaemon
     public static final String MBEAN_NAME = "org.apache.cassandra.db:type=NativeAccess";
 
     private static final Logger logger;
-    static {
+    static
+    {
         // Need to register metrics before instrumented appender is created(first access to LoggerFactory).
         SharedMetricRegistries.getOrCreate("logback-metrics").addListener(new MetricRegistryListener.Base()
         {
@@ -160,11 +161,13 @@ public class CassandraDaemon
     protected final StartupChecks startupChecks;
     private boolean setupCompleted;
 
-    public CassandraDaemon() {
+    public CassandraDaemon()
+    {
         this(false);
     }
 
-    public CassandraDaemon(boolean runManaged) {
+    public CassandraDaemon(boolean runManaged)
+    {
         this.runManaged = runManaged;
         this.startupChecks = new StartupChecks().withDefaultTests();
         this.setupCompleted = false;
@@ -366,9 +369,12 @@ public class CassandraDaemon
                 CassandraMetricsRegistry.Metrics.register("jvm.fd.usage", new FileDescriptorRatioGauge());
                 // initialize metrics-reporter-config from yaml file
                 URL resource = CassandraDaemon.class.getClassLoader().getResource(metricsReporterConfigFile);
-                if (resource == null) {
+                if (resource == null)
+                {
                     logger.warn("Failed to load metrics-reporter-config, file does not exist: {}", metricsReporterConfigFile);
-                } else {
+                }
+                else
+                {
                     String reportFileLocation = resource.getFile();
                     ReporterConfig.loadFromFile(reportFileLocation).enableAll(CassandraMetricsRegistry.Metrics);
                 }

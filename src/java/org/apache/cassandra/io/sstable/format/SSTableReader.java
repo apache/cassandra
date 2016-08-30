@@ -1500,7 +1500,8 @@ public abstract class SSTableReader extends SSTable implements SelfRefCounted<SS
 
     protected RowIndexEntry getCachedPosition(KeyCacheKey unifiedKey, boolean updateStats)
     {
-        if (keyCache != null && keyCache.getCapacity() > 0 && metadata.params.caching.cacheKeys()) {
+        if (keyCache != null && keyCache.getCapacity() > 0 && metadata.params.caching.cacheKeys()) 
+        {
             if (updateStats)
             {
                 RowIndexEntry cachedEntry = keyCache.get(unifiedKey);

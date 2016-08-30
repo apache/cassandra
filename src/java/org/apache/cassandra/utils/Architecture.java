@@ -35,9 +35,9 @@ public final class Architecture
         "x86_64",
         "s390x"
     ));
-    
+
     public static final boolean IS_UNALIGNED = UNALIGNED_ARCH.contains(System.getProperty("os.arch"));
-    
+
     private Architecture()
     {
     }

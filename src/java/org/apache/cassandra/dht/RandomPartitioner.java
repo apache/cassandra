@@ -99,7 +99,8 @@ public class RandomPartitioner implements IPartitioner
         return new BigIntegerToken(token);
     }
 
-    private final Token.TokenFactory tokenFactory = new Token.TokenFactory() {
+    private final Token.TokenFactory tokenFactory = new Token.TokenFactory()
+    {
         public ByteBuffer toByteArray(Token token)
         {
             BigIntegerToken bigIntegerToken = (BigIntegerToken) token;
@@ -160,7 +161,8 @@ public class RandomPartitioner implements IPartitioner
 
         // convenience method for testing
         @VisibleForTesting
-        public BigIntegerToken(String token) {
+        public BigIntegerToken(String token)
+        {
             this(new BigInteger(token));
         }
 
@@ -192,17 +194,20 @@ public class RandomPartitioner implements IPartitioner
         // 0-case
         if (!i.hasNext()) { throw new RuntimeException("No nodes present in the cluster. Has this node finished starting up?"); }
         // 1-case
-        if (sortedTokens.size() == 1) {
+        if (sortedTokens.size() == 1)
+        {
             ownerships.put(i.next(), new Float(1.0));
         }
         // n-case
-        else {
+        else
+        {
             // NOTE: All divisions must take place in BigDecimals, and all modulo operators must take place in BigIntegers.
             final BigInteger ri = MAXIMUM;                                                  //  (used for addition later)
             final BigDecimal r  = new BigDecimal(ri);                                       // The entire range, 2**127
             Token start = i.next(); BigInteger ti = ((BigIntegerToken)start).token;  // The first token and its value
             Token t; BigInteger tim1 = ti;                                                  // The last token and its value (after loop)
-            while (i.hasNext()) {
+            while (i.hasNext())
+            {
                 t = i.next(); ti = ((BigIntegerToken)t).token;                                      // The next token and its value
                 float x = new BigDecimal(ti.subtract(tim1).add(ri).mod(ri)).divide(r).floatValue(); // %age = ((T(i) - T(i-1) + R) % R) / R
                 ownerships.put(t, x);                                                               // save (T(i) -> %age)

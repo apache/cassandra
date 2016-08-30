@@ -25,8 +25,8 @@ import org.apache.cassandra.db.compaction.writers.MaxSSTableSizeWriter;
 import org.apache.cassandra.io.sstable.format.SSTableReader;
 import org.apache.cassandra.db.lifecycle.LifecycleTransaction;
 
-public class SSTableSplitter {
-
+public class SSTableSplitter 
+{
     private final SplittingCompactionTask task;
 
     private CompactionInfo.Holder info;

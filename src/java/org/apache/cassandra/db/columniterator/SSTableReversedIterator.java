@@ -287,7 +287,7 @@ public class SSTableReversedIterator extends AbstractSSTableIterator
             if (previousBlockIdx < 0 || previousBlockIdx < lastBlockIdx)
                 return false;
 
-            // The slice start can be in 
+            // The slice start can be in
             indexState.setToBlock(previousBlockIdx);
             readCurrentBlock(false);
             setIterator(slice);

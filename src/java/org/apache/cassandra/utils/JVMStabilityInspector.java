@@ -111,7 +111,8 @@ public final class JVMStabilityInspector
     }
 
     @VisibleForTesting
-    public static Killer replaceKiller(Killer newKiller) {
+    public static Killer replaceKiller(Killer newKiller)
+    {
         Killer oldKiller = JVMStabilityInspector.killer;
         JVMStabilityInspector.killer = newKiller;
         return oldKiller;

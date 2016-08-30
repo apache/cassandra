@@ -33,7 +33,8 @@ public class TimestampSerializer implements TypeSerializer<Date>
 
     //NOTE: This list is used below and if you change the order
     //      you need to update the default format and json formats in the code below.
-    private static final String[] dateStringPatterns = new String[] {
+    private static final String[] dateStringPatterns = new String[]
+    {
             "yyyy-MM-dd HH:mm",
             "yyyy-MM-dd HH:mm:ss",
             "yyyy-MM-dd HH:mm z",
@@ -107,7 +108,7 @@ public class TimestampSerializer implements TypeSerializer<Date>
             return sdf;
         }
     };
-    
+
     private static final String TO_JSON_FORMAT = dateStringPatterns[19];
     private static final ThreadLocal<SimpleDateFormat> FORMATTER_TO_JSON = new ThreadLocal<SimpleDateFormat>()
     {
@@ -120,7 +121,7 @@ public class TimestampSerializer implements TypeSerializer<Date>
     };
 
 
-    
+
     public static final TimestampSerializer instance = new TimestampSerializer();
 
     public Date deserialize(ByteBuffer bytes)
@@ -161,8 +162,8 @@ public class TimestampSerializer implements TypeSerializer<Date>
             throw new MarshalException(String.format("Unable to coerce '%s' to a formatted date (long)", source), e1);
         }
     }
-    
-    public static SimpleDateFormat getJsonDateFormatter() 
+
+    public static SimpleDateFormat getJsonDateFormatter()
     {
     	return FORMATTER_TO_JSON.get();
     }

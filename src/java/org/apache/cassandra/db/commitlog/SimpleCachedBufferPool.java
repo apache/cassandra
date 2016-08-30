@@ -80,7 +80,8 @@ public class SimpleCachedBufferPool
     public ByteBuffer getThreadLocalReusableBuffer(int size)
     {
         ByteBuffer result = reusableBufferHolder.get();
-        if (result.capacity() < size || BufferType.typeOf(result) != preferredReusableBufferType) {
+        if (result.capacity() < size || BufferType.typeOf(result) != preferredReusableBufferType)
+        {
             FileUtils.clean(result);
             result = preferredReusableBufferType.allocate(size);
             reusableBufferHolder.set(result);
@@ -88,7 +89,8 @@ public class SimpleCachedBufferPool
         return result;
     }
 
-    public void setPreferredReusableBufferType(BufferType type) {
+    public void setPreferredReusableBufferType(BufferType type)
+    {
         preferredReusableBufferType = type;
     }
 

@@ -133,7 +133,7 @@ public class IntegerInterval
                     if (extend > end)
                         end = extend;
                 }
-    
+
                 // record directly preceding our start may extend into us; if it does, we take it as our start
                 int lpos = Arrays.binarySearch(ranges, ((start & 0xFFFFFFFFL) << 32) | 0); // lower (i.e. greatest <) of the start position
                 if (lpos < 0)
@@ -147,7 +147,7 @@ public class IntegerInterval
                         --lpos;
                     }
                 }
-    
+
                 newRanges = new long[ranges.length - (rpos - lpos) + 1];
                 int dest = 0;
                 for (int i = 0; i <= lpos; ++i)

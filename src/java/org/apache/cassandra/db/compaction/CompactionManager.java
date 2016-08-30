@@ -570,7 +570,8 @@ public class CompactionManager implements CompactionManagerMBean
                                           final Refs<SSTableReader> sstables,
                                           final long repairedAt)
     {
-        Runnable runnable = new WrappedRunnable() {
+        Runnable runnable = new WrappedRunnable() 
+        {
             @Override
             @SuppressWarnings("resource")
             public void runMayThrow() throws Exception

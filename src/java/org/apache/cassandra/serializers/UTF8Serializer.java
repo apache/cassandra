@@ -37,7 +37,8 @@ public class UTF8Serializer extends AbstractTextSerializer
 
     static class UTF8Validator
     {
-        enum State {
+        enum State
+        {
             START,
             TWO,
             TWO_80,

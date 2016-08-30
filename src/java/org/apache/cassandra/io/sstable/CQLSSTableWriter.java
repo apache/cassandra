@@ -290,7 +290,8 @@ public class CQLSSTableWriter implements Closeable
     {
         int size = Math.min(values.size(), boundNames.size());
         List<ByteBuffer> rawValues = new ArrayList<>(size);
-        for (int i = 0; i < size; i++) {
+        for (int i = 0; i < size; i++) 
+        {
             ColumnSpecification spec = boundNames.get(i);
             rawValues.add(values.get(spec.name.toString()));
         }

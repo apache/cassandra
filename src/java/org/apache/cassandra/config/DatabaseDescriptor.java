@@ -1738,7 +1738,8 @@ public class DatabaseDescriptor
         conf.native_transport_max_concurrent_connections = nativeTransportMaxConcurrentConnections;
     }
 
-    public static Long getNativeTransportMaxConcurrentConnectionsPerIp() {
+    public static Long getNativeTransportMaxConcurrentConnectionsPerIp()
+    {
         return conf.native_transport_max_concurrent_connections_per_ip;
     }
 
@@ -1826,7 +1827,8 @@ public class DatabaseDescriptor
         return conf.snapshot_before_compaction;
     }
 
-    public static boolean isAutoSnapshot() {
+    public static boolean isAutoSnapshot()
+    {
         return conf.auto_snapshot;
     }
 
@@ -2288,7 +2290,7 @@ public class DatabaseDescriptor
     {
         return encryptionContext;
     }
-    
+
     public static long getGCWarnThreshold()
     {
         return conf.gc_warn_threshold_in_ms;

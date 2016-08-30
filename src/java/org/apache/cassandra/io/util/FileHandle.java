@@ -432,7 +432,8 @@ public class FileHandle extends SharedCloseableImpl
     }
 
     @Override
-    public String toString() {
+    public String toString()
+    {
         return getClass().getSimpleName() + "(path='" + path() + '\'' +
                ", length=" + rebuffererFactory.fileLength() +
                ')';

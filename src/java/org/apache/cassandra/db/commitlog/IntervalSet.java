@@ -40,7 +40,7 @@ public class IntervalSet<T extends Comparable<T>>
     @SuppressWarnings("unchecked")
     public static <T extends Comparable<T>> IntervalSet<T> empty()
     {
-        return (IntervalSet<T>) EMPTY;
+        return EMPTY;
     }
 
     public boolean contains(T position)
@@ -105,7 +105,7 @@ public class IntervalSet<T extends Comparable<T>>
                     pointSerializer.serialize(en.getValue(), out);
                 }
             }
-    
+
             public IntervalSet<T> deserialize(DataInputPlus in) throws IOException
             {
                 int count = in.readInt();
@@ -114,7 +114,7 @@ public class IntervalSet<T extends Comparable<T>>
                     ranges.put(pointSerializer.deserialize(in), pointSerializer.deserialize(in));
                 return new IntervalSet<T>(ImmutableSortedMap.copyOfSorted(ranges));
             }
-    
+
             public long serializedSize(IntervalSet<T> intervals)
             {
                 long size = TypeSizes.sizeof(intervals.ranges.size());

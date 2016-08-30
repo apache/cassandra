@@ -22,7 +22,8 @@ import java.net.UnknownHostException;
 import java.util.Map;
 import java.util.List;
 
-public interface DynamicEndpointSnitchMBean {
+public interface DynamicEndpointSnitchMBean 
+{
     public Map<InetAddress, Double> getScores();
     public int getUpdateInterval();
     public int getResetInterval();

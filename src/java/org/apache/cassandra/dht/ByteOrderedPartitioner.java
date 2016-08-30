@@ -214,7 +214,8 @@ public class ByteOrderedPartitioner implements IPartitioner
         return new BytesToken(buffer);
     }
 
-    private final Token.TokenFactory tokenFactory = new Token.TokenFactory() {
+    private final Token.TokenFactory tokenFactory = new Token.TokenFactory() 
+    {
         public ByteBuffer toByteArray(Token token)
         {
             BytesToken bytesToken = (BytesToken) token;

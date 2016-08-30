@@ -312,7 +312,8 @@ public abstract class AbstractTokenTreeBuilder implements TokenTreeBuilder
                 overflowCollisions = new LongArrayList();
 
             LeafEntry entry = new OverflowCollisionLeafEntry(tok, (short) overflowCollisions.size(), (short) offsetCount);
-            for (LongCursor o : offsets) {
+            for (LongCursor o : offsets)
+            {
                 if (overflowCollisions.size() == OVERFLOW_TRAILER_CAPACITY)
                     throw new AssertionError("cannot have more than " + OVERFLOW_TRAILER_CAPACITY + " overflow collisions per leaf");
                 else
@@ -516,7 +517,8 @@ public abstract class AbstractTokenTreeBuilder implements TokenTreeBuilder
                 sibling.add(token, leftChild, rightChild);
 
             }
-            else {
+            else
+            {
                 if (leftChild != null)
                     children.add(pos, leftChild);
 

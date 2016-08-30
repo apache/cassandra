@@ -54,7 +54,8 @@ public abstract class CommitLogSegment
     private final static long idBase;
 
     private CDCState cdcState = CDCState.PERMITTED;
-    public enum CDCState {
+    public enum CDCState
+    {
         PERMITTED,
         FORBIDDEN,
         CONTAINS

@@ -124,7 +124,8 @@ public class StandardTokenizerOptions
         this.maxTokenLength = maxTokenLength;
     }
 
-    public static class OptionsBuilder {
+    public static class OptionsBuilder 
+    {
         private boolean stemTerms;
         private boolean ignoreStopTerms;
         private Locale locale;

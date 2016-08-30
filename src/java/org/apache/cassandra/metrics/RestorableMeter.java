@@ -49,7 +49,8 @@ public class RestorableMeter
     /**
      * Creates a new, uninitialized RestorableMeter.
      */
-    public RestorableMeter() {
+    public RestorableMeter()
+    {
         this.m15Rate = new RestorableEWMA(TimeUnit.MINUTES.toSeconds(15));
         this.m120Rate = new RestorableEWMA(TimeUnit.MINUTES.toSeconds(120));
         this.startTime = this.clock.getTick();
@@ -61,7 +62,8 @@ public class RestorableMeter
      * @param lastM15Rate the last-seen 15m rate, in terms of events per second
      * @param lastM120Rate the last seen 2h rate, in terms of events per second
      */
-    public RestorableMeter(double lastM15Rate, double lastM120Rate) {
+    public RestorableMeter(double lastM15Rate, double lastM120Rate)
+    {
         this.m15Rate = new RestorableEWMA(lastM15Rate, TimeUnit.MINUTES.toSeconds(15));
         this.m120Rate = new RestorableEWMA(lastM120Rate, TimeUnit.MINUTES.toSeconds(120));
         this.startTime = this.clock.getTick();
@@ -71,15 +73,19 @@ public class RestorableMeter
     /**
      * Updates the moving averages as needed.
      */
-    private void tickIfNecessary() {
+    private void tickIfNecessary()
+    {
         final long oldTick = lastTick.get();
         final long newTick = clock.getTick();
         final long age = newTick - oldTick;
-        if (age > TICK_INTERVAL) {
+        if (age > TICK_INTERVAL)
+        {
             final long newIntervalStartTick = newTick - age % TICK_INTERVAL;
-            if (lastTick.compareAndSet(oldTick, newIntervalStartTick)) {
+            if (lastTick.compareAndSet(oldTick, newIntervalStartTick))
+            {
                 final long requiredTicks = age / TICK_INTERVAL;
-                for (long i = 0; i < requiredTicks; i++) {
+                for (long i = 0; i < requiredTicks; i++)
+                {
                     m15Rate.tick();
                     m120Rate.tick();
                 }
@@ -90,7 +96,8 @@ public class RestorableMeter
     /**
      * Mark the occurrence of an event.
      */
-    public void mark() {
+    public void mark()
+    {
         mark(1);
     }
 
@@ -99,7 +106,8 @@ public class RestorableMeter
      *
      * @param n the number of events
      */
-    public void mark(long n) {
+    public void mark(long n)
+    {
         tickIfNecessary();
         count.addAndGet(n);
         m15Rate.update(n);
@@ -109,7 +117,8 @@ public class RestorableMeter
     /**
      * Returns the 15-minute rate in terms of events per second.  This carries the previous rate when restored.
      */
-    public double fifteenMinuteRate() {
+    public double fifteenMinuteRate()
+    {
         tickIfNecessary();
         return m15Rate.rate();
     }
@@ -117,7 +126,8 @@ public class RestorableMeter
     /**
      * Returns the two-hour rate in terms of events per second.  This carries the previous rate when restored.
      */
-    public double twoHourRate() {
+    public double twoHourRate()
+    {
         tickIfNecessary();
         return m120Rate.rate();
     }
@@ -126,7 +136,8 @@ public class RestorableMeter
      * The total number of events that have occurred since this object was created.  Note that the previous count
      * is *not* carried over when a RestorableMeter is restored.
      */
-    public long count() {
+    public long count()
+    {
         return count.get();
     }
 
@@ -135,8 +146,10 @@ public class RestorableMeter
      * does *not* carry over when a RestorableMeter is restored, so the mean rate is only a measure since
      * this object was created.
      */
-    public double meanRate() {
-        if (count() == 0) {
+    public double meanRate()
+    {
+        if (count() == 0)
+        {
             return 0.0;
         } else {
             final long elapsed = (clock.getTick() - startTime);
@@ -144,7 +157,8 @@ public class RestorableMeter
         }
     }
 
-    static class RestorableEWMA {
+    static class RestorableEWMA
+    {
         private volatile boolean initialized = false;
         private volatile double rate = 0.0; // average rate in terms of events per nanosecond
 
@@ -156,7 +170,8 @@ public class RestorableMeter
          *
          * @param windowInSeconds the window of time this EWMA should average over, expressed as a number of seconds
          */
-        public RestorableEWMA(long windowInSeconds) {
+        public RestorableEWMA(long windowInSeconds)
+        {
             this.alpha = 1 - exp((-TICK_INTERVAL / NANOS_PER_SECOND) / windowInSeconds);
             this.interval = TICK_INTERVAL;
         }
@@ -166,7 +181,8 @@ public class RestorableMeter
          *
          * @param intervalInSeconds the window of time this EWMA should average over, expressed as a number of seconds
          */
-        public RestorableEWMA(double lastRate, long intervalInSeconds) {
+        public RestorableEWMA(double lastRate, long intervalInSeconds)
+        {
             this(intervalInSeconds);
             this.rate = lastRate / NANOS_PER_SECOND;
             this.initialized = true;
@@ -175,19 +191,24 @@ public class RestorableMeter
         /**
          * Update the moving average with a new value.
          */
-        public void update(long n) {
+        public void update(long n)
+        {
             uncounted.addAndGet(n);
         }
 
         /**
          * Mark the passage of time and decay the current rate accordingly.
          */
-        public void tick() {
+        public void tick()
+        {
             final long count = uncounted.getAndSet(0);
             final double instantRate = count / interval;
-            if (initialized) {
+            if (initialized)
+            {
                 rate += (alpha * (instantRate - rate));
-            } else {
+            }
+            else
+            {
                 rate = instantRate;
                 initialized = true;
             }
@@ -196,7 +217,8 @@ public class RestorableMeter
         /**
          * Returns the rate in terms of events per second.
          */
-        public double rate() {
+        public double rate()
+        {
             return rate * NANOS_PER_SECOND;
         }
     }

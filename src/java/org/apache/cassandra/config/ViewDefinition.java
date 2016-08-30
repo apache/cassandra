@@ -130,8 +130,8 @@ public class ViewDefinition
     /**
      * Replace the column 'from' with 'to' in this materialized view definition's partition,
      * clustering, or included columns.
-     * @param from the existing column 
-     * @param to the new column 
+     * @param from the existing column
+     * @param to the new column
      */
     public void renameColumn(ColumnIdentifier from, ColumnIdentifier to)
     {

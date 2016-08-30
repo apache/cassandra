@@ -77,7 +77,8 @@ public class CompactionMetrics implements CompactionManager.CompactionExecutorSt
             new Gauge<Map<String, Map<String, Integer>>>()
         {
             @Override
-            public Map<String, Map<String, Integer>> getValue() {
+            public Map<String, Map<String, Integer>> getValue() 
+            {
                 Map<String, Map<String, Integer>> resultMap = new HashMap<>();
                 // estimation of compactions need to be done
                 for (String keyspaceName : Schema.instance.getKeyspaces())

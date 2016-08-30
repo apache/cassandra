@@ -27,7 +27,8 @@ import io.netty.buffer.ByteBuf;
 
 public abstract class Event
 {
-    public enum Type {
+    public enum Type
+    {
         TOPOLOGY_CHANGE(Server.VERSION_3),
         STATUS_CHANGE(Server.VERSION_3),
         SCHEMA_CHANGE(Server.VERSION_3),

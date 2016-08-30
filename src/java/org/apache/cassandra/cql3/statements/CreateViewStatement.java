@@ -86,7 +86,8 @@ public class CreateViewStatement extends SchemaAlteringStatement
         // We do validation in announceMigration to reduce doubling up of work
     }
 
-    private interface AddColumn {
+    private interface AddColumn
+    {
         void add(ColumnIdentifier identifier, AbstractType<?> type);
     }
 

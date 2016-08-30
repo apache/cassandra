@@ -269,7 +269,9 @@ public final class SystemDistributedKeyspace
                                              ConsistencyLevel.ONE,
                                              keyspace,
                                              view);
-        } catch (Exception e) {
+        }
+        catch (Exception e)
+        {
             return Collections.emptyMap();
         }
 

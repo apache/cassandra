@@ -38,7 +38,8 @@ public class SessionCompleteEventCompositeData
                                                                    SimpleType.BOOLEAN};
 
     public static final CompositeType COMPOSITE_TYPE;
-    static  {
+    static
+    {
         try
         {
             COMPOSITE_TYPE = new CompositeType(StreamEvent.SessionCompleteEvent.class.getName(),

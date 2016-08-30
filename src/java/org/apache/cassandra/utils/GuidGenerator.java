@@ -23,27 +23,33 @@ import java.nio.ByteBuffer;
 import java.security.SecureRandom;
 import java.util.Random;
 
-public class GuidGenerator {
+public class GuidGenerator
+{
     private static final Random myRand;
     private static final SecureRandom mySecureRand;
     private static final String s_id;
 
-    static {
-        if (System.getProperty("java.security.egd") == null) {
+    static
+    {
+        if (System.getProperty("java.security.egd") == null)
+        {
             System.setProperty("java.security.egd", "file:/dev/urandom");
         }
         mySecureRand = new SecureRandom();
         long secureInitializer = mySecureRand.nextLong();
         myRand = new Random(secureInitializer);
-        try {
+        try
+        {
             s_id = InetAddress.getLocalHost().toString();
         }
-        catch (UnknownHostException e) {
+        catch (UnknownHostException e)
+        {
             throw new AssertionError(e);
         }
     }
 
-    public static String guid() {
+    public static String guid()
+    {
         ByteBuffer array = guidAsBytes();
 
         StringBuilder sb = new StringBuilder();
@@ -60,7 +66,8 @@ public class GuidGenerator {
     public static String guidToString(byte[] bytes)
     {
         StringBuilder sb = new StringBuilder();
-        for (int j = 0; j < bytes.length; ++j) {
+        for (int j = 0; j < bytes.length; ++j)
+        {
             int b = bytes[j] & 0xFF;
             if (b < 0x10) sb.append('0');
             sb.append(Integer.toHexString(b));
@@ -95,7 +102,8 @@ public class GuidGenerator {
         * Example: C2FEEEAC-CFCD-11D1-8B05-00600806D9B6
     */
 
-    private static String convertToStandardFormat(String valueAfterMD5) {
+    private static String convertToStandardFormat(String valueAfterMD5)
+    {
         String raw = valueAfterMD5.toUpperCase();
         StringBuilder sb = new StringBuilder();
         sb.append(raw.substring(0, 8))

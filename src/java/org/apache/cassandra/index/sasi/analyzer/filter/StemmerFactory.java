@@ -48,7 +48,8 @@ public class StemmerFactory
                     {
                         return aClass.getConstructor();
                     }
-                    catch (Exception e) {
+                    catch (Exception e) 
+                    {
                         logger.error("Failed to get stemmer constructor", e);
                     }
                     return null;

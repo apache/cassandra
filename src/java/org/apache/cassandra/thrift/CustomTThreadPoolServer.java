@@ -78,7 +78,8 @@ public class CustomTThreadPoolServer extends TServer
     private final AtomicInteger activeClients = new AtomicInteger(0);
 
 
-    public CustomTThreadPoolServer(TThreadPoolServer.Args args, ExecutorService executorService) {
+    public CustomTThreadPoolServer(TThreadPoolServer.Args args, ExecutorService executorService)
+    {
         super(args);
         this.executorService = executorService;
         this.args = args;

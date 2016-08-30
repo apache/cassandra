@@ -48,7 +48,8 @@ public class CoalescingStrategies
     private static final String DEBUG_COALESCING_PATH_PROPERTY = Config.PROPERTY_PREFIX + "coalescing_debug_path";
     private static final String DEBUG_COALESCING_PATH = System.getProperty(DEBUG_COALESCING_PATH_PROPERTY, "/tmp/coleascing_debug");
 
-    static {
+    static
+    {
         if (DEBUG_COALESCING)
         {
             File directory = new File(DEBUG_COALESCING_PATH);
@@ -76,7 +77,8 @@ public class CoalescingStrategies
         }
     };
 
-    public static interface Coalescable {
+    public static interface Coalescable
+    {
         long timestampNanos();
     }
 
@@ -124,10 +126,13 @@ public class CoalescingStrategies
             this.displayName = displayName;
             if (DEBUG_COALESCING)
             {
-                new Thread(displayName + " debug thread") {
+                new Thread(displayName + " debug thread")
+                {
                     @Override
-                    public void run() {
-                        while (true) {
+                    public void run()
+                    {
+                        while (true)
+                        {
                             try
                             {
                                 Thread.sleep(5000);
@@ -189,9 +194,12 @@ public class CoalescingStrategies
          * If debugging is enabled log the timestamps of all the items in the provided collection
          * to a file.
          */
-        final protected <C extends Coalescable> void debugTimestamps(Collection<C> coalescables) {
-            if (DEBUG_COALESCING) {
-                for (C coalescable : coalescables) {
+        final protected <C extends Coalescable> void debugTimestamps(Collection<C> coalescables)
+        {
+            if (DEBUG_COALESCING)
+            {
+                for (C coalescable : coalescables)
+                {
                     debugTimestamp(coalescable.timestampNanos());
                 }
             }
@@ -350,7 +358,8 @@ public class CoalescingStrategies
         }
 
         @Override
-        public String toString() {
+        public String toString()
+        {
             return "Time horizon moving average";
         }
     }
@@ -425,7 +434,8 @@ public class CoalescingStrategies
         }
 
         @Override
-        public String toString() {
+        public String toString()
+        {
             return "Moving average";
         }
     }
@@ -457,7 +467,8 @@ public class CoalescingStrategies
         }
 
         @Override
-        public String toString() {
+        public String toString()
+        {
             return "Fixed";
         }
     }
@@ -486,7 +497,8 @@ public class CoalescingStrategies
         }
 
         @Override
-        public String toString() {
+        public String toString()
+        {
             return "Disabled";
         }
     }

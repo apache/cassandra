@@ -46,7 +46,8 @@ public class CompactionHistoryTabularData
 
     private static final TabularType TABULAR_TYPE;
 
-    static {
+    static 
+    {
         try
         {
             ITEM_TYPES = new OpenType[]{ SimpleType.STRING, SimpleType.STRING, SimpleType.STRING, SimpleType.LONG,

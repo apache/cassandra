@@ -30,9 +30,9 @@ import org.apache.cassandra.db.marshal.AbstractType;
 import org.apache.cassandra.exceptions.InvalidRequestException;
 
 /**
- * A <code>Selector</code> is used to convert the data returned by the storage engine into the data requested by the 
+ * A <code>Selector</code> is used to convert the data returned by the storage engine into the data requested by the
  * user. They correspond to the &lt;selector&gt; elements from the select clause.
- * <p>Since the introduction of aggregation, <code>Selector</code>s cannot be called anymore by multiple threads 
+ * <p>Since the introduction of aggregation, <code>Selector</code>s cannot be called anymore by multiple threads
  * as they have an internal state.</p>
  */
 public abstract class Selector

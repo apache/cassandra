@@ -141,7 +141,8 @@ public class Schema
      * @param ksNameAndCFName
      * @return The named CFS or null if the keyspace, base table, or index don't exist
      */
-    public ColumnFamilyStore getColumnFamilyStoreIncludingIndexes(Pair<String, String> ksNameAndCFName) {
+    public ColumnFamilyStore getColumnFamilyStoreIncludingIndexes(Pair<String, String> ksNameAndCFName)
+    {
         String ksName = ksNameAndCFName.left;
         String cfName = ksNameAndCFName.right;
         Pair<String, String> baseTable;

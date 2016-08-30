@@ -69,7 +69,8 @@ public class Client extends SimpleClient
             System.out.print(">> ");
             System.out.flush();
             String line = in.readLine();
-            if (line == null) {
+            if (line == null)
+            {
                 break;
             }
             Message.Request req = parseLine(line.trim());

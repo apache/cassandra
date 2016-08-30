@@ -283,7 +283,8 @@ public class CqlConfigHelper
         return conf.get(OUTPUT_CQL);
     }
 
-    private static Optional<Integer> getProtocolVersion(Configuration conf) {
+    private static Optional<Integer> getProtocolVersion(Configuration conf) 
+    {
         return getIntSetting(INPUT_NATIVE_PROTOCOL_VERSION, conf);
     }
 
@@ -330,7 +331,8 @@ public class CqlConfigHelper
         if (sslOptions.isPresent())
             builder.withSSL(sslOptions.get());
 
-        if (protocolVersion.isPresent()) {
+        if (protocolVersion.isPresent()) 
+        {
             builder.withProtocolVersion(ProtocolVersion.fromInt(protocolVersion.get()));
         }
         builder.withLoadBalancingPolicy(loadBalancingPolicy)

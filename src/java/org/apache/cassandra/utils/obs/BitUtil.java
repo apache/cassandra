@@ -20,10 +20,12 @@ package org.apache.cassandra.utils.obs;
 /**  A variety of high efficiency bit twiddling routines.
  * @lucene.internal
  */
-final class BitUtil {
+final class BitUtil
+{
 
   /** Returns the number of bits set in the long */
-  public static int pop(long x) {
+  public static int pop(long x)
+  {
   /* Hacker's Delight 32 bit pop function:
    * http://www.hackersdelight.org/HDcode/newCode/pop_arrayHS.cc
    *
@@ -48,7 +50,8 @@ final class BitUtil {
   }
 
   /*** Returns the number of set bits in an array of longs. */
-  public static long pop_array(long A[], int wordOffset, int numWords) {
+  public static long pop_array(long A[], int wordOffset, int numWords)
+  {
     /*
     * Robert Harley and David Seal's bit counting algorithm, as documented
     * in the revisions of Hacker's Delight
@@ -68,7 +71,8 @@ final class BitUtil {
     long ones=0, twos=0, fours=0;
 
     int i;
-    for (i = wordOffset; i <= n - 8; i+=8) {
+    for (i = wordOffset; i <= n - 8; i+=8)
+    {
       /***  C macro from Hacker's Delight
        #define CSA(h,l, a,b,c) \
        {unsigned u = a ^ b; unsigned v = c; \
@@ -133,7 +137,8 @@ final class BitUtil {
     //   for (i = i; i < n; i++)      // Add in the last elements
     //  tot = tot + pop(A[i]);
 
-    if (i<=n-4) {
+    if (i<=n-4)
+    {
       long twosA, twosB, foursA, eights;
       {
         long b=A[i], c=A[i+1];
@@ -159,7 +164,8 @@ final class BitUtil {
       i+=4;
     }
 
-    if (i<=n-2) {
+    if (i<=n-2)
+    {
       long b=A[i], c=A[i+1];
       long u=ones ^ b;
       long twosA=(ones & b)|( u & c);
@@ -175,7 +181,8 @@ final class BitUtil {
       i+=2;
     }
 
-    if (i<n) {
+    if (i<n)
+    {
       tot += pop(A[i]);
     }
 
@@ -190,14 +197,16 @@ final class BitUtil {
   /** Returns the popcount or cardinality of the two sets after an intersection.
    * Neither array is modified.
    */
-  public static long pop_intersect(long A[], long B[], int wordOffset, int numWords) {
+  public static long pop_intersect(long A[], long B[], int wordOffset, int numWords)
+  {
     // generated from pop_array via sed 's/A\[\([^]]*\)\]/\(A[\1] \& B[\1]\)/g'
     int n = wordOffset+numWords;
     long tot=0, tot8=0;
     long ones=0, twos=0, fours=0;
 
     int i;
-    for (i = wordOffset; i <= n - 8; i+=8) {
+    for (i = wordOffset; i <= n - 8; i+=8)
+    {
       long twosA,twosB,foursA,foursB,eights;
 
       // CSA(twosA, ones, ones, (A[i] & B[i]), (A[i+1] & B[i+1]))
@@ -251,7 +260,8 @@ final class BitUtil {
     }
 
 
-    if (i<=n-4) {
+    if (i<=n-4)
+    {
       long twosA, twosB, foursA, eights;
       {
         long b=(A[i] & B[i]), c=(A[i+1] & B[i+1]);
@@ -277,7 +287,8 @@ final class BitUtil {
       i+=4;
     }
 
-    if (i<=n-2) {
+    if (i<=n-2)
+    {
       long b=(A[i] & B[i]), c=(A[i+1] & B[i+1]);
       long u=ones ^ b;
       long twosA=(ones & b)|( u & c);
@@ -293,7 +304,8 @@ final class BitUtil {
       i+=2;
     }
 
-    if (i<n) {
+    if (i<n)
+    {
       tot += pop((A[i] & B[i]));
     }
 
@@ -308,14 +320,16 @@ final class BitUtil {
   /** Returns the popcount or cardinality of the union of two sets.
     * Neither array is modified.
     */
-   public static long pop_union(long A[], long B[], int wordOffset, int numWords) {
+   public static long pop_union(long A[], long B[], int wordOffset, int numWords)
+   {
      // generated from pop_array via sed 's/A\[\([^]]*\)\]/\(A[\1] \| B[\1]\)/g'
      int n = wordOffset+numWords;
      long tot=0, tot8=0;
      long ones=0, twos=0, fours=0;
 
      int i;
-     for (i = wordOffset; i <= n - 8; i+=8) {
+     for (i = wordOffset; i <= n - 8; i+=8)
+     {
        /***  C macro from Hacker's Delight
         #define CSA(h,l, a,b,c) \
         {unsigned u = a ^ b; unsigned v = c; \
@@ -375,7 +389,8 @@ final class BitUtil {
      }
 
 
-     if (i<=n-4) {
+     if (i<=n-4)
+     {
        long twosA, twosB, foursA, eights;
        {
          long b=(A[i] | B[i]), c=(A[i+1] | B[i+1]);
@@ -401,7 +416,8 @@ final class BitUtil {
        i+=4;
      }
 
-     if (i<=n-2) {
+     if (i<=n-2)
+     {
        long b=(A[i] | B[i]), c=(A[i+1] | B[i+1]);
        long u=ones ^ b;
        long twosA=(ones & b)|( u & c);
@@ -417,7 +433,8 @@ final class BitUtil {
        i+=2;
      }
 
-     if (i<n) {
+     if (i<n)
+     {
        tot += pop((A[i] | B[i]));
      }
 
@@ -432,14 +449,16 @@ final class BitUtil {
   /** Returns the popcount or cardinality of A & ~B
    * Neither array is modified.
    */
-  public static long pop_andnot(long A[], long B[], int wordOffset, int numWords) {
+  public static long pop_andnot(long A[], long B[], int wordOffset, int numWords)
+  {
     // generated from pop_array via sed 's/A\[\([^]]*\)\]/\(A[\1] \& ~B[\1]\)/g'
     int n = wordOffset+numWords;
     long tot=0, tot8=0;
     long ones=0, twos=0, fours=0;
 
     int i;
-    for (i = wordOffset; i <= n - 8; i+=8) {
+    for (i = wordOffset; i <= n - 8; i+=8)
+    {
       /***  C macro from Hacker's Delight
        #define CSA(h,l, a,b,c) \
        {unsigned u = a ^ b; unsigned v = c; \
@@ -499,7 +518,8 @@ final class BitUtil {
     }
 
 
-    if (i<=n-4) {
+    if (i<=n-4)
+    {
       long twosA, twosB, foursA, eights;
       {
         long b=(A[i] & ~B[i]), c=(A[i+1] & ~B[i+1]);
@@ -525,7 +545,8 @@ final class BitUtil {
       i+=4;
     }
 
-    if (i<=n-2) {
+    if (i<=n-2)
+    {
       long b=(A[i] & ~B[i]), c=(A[i+1] & ~B[i+1]);
       long u=ones ^ b;
       long twosA=(ones & b)|( u & c);
@@ -541,7 +562,8 @@ final class BitUtil {
       i+=2;
     }
 
-    if (i<n) {
+    if (i<n)
+    {
       tot += pop((A[i] & ~B[i]));
     }
 
@@ -553,13 +575,15 @@ final class BitUtil {
     return tot;
   }
 
-  public static long pop_xor(long A[], long B[], int wordOffset, int numWords) {
+  public static long pop_xor(long A[], long B[], int wordOffset, int numWords)
+  {
     int n = wordOffset+numWords;
     long tot=0, tot8=0;
     long ones=0, twos=0, fours=0;
 
     int i;
-    for (i = wordOffset; i <= n - 8; i+=8) {
+    for (i = wordOffset; i <= n - 8; i+=8)
+    {
       /***  C macro from Hacker's Delight
        #define CSA(h,l, a,b,c) \
        {unsigned u = a ^ b; unsigned v = c; \
@@ -619,7 +643,8 @@ final class BitUtil {
     }
 
 
-    if (i<=n-4) {
+    if (i<=n-4)
+    {
       long twosA, twosB, foursA, eights;
       {
         long b=(A[i] ^ B[i]), c=(A[i+1] ^ B[i+1]);
@@ -645,7 +670,8 @@ final class BitUtil {
       i+=4;
     }
 
-    if (i<=n-2) {
+    if (i<=n-2)
+    {
       long b=(A[i] ^ B[i]), c=(A[i+1] ^ B[i+1]);
       long u=ones ^ b;
       long twosA=(ones & b)|( u & c);
@@ -661,7 +687,8 @@ final class BitUtil {
       i+=2;
     }
 
-    if (i<n) {
+    if (i<n)
+    {
       tot += pop((A[i] ^ B[i]));
     }
 
@@ -688,7 +715,8 @@ final class BitUtil {
 
 
   /** Returns number of trailing zeros in a 64 bit long value. */
-  public static int ntz(long val) {
+  public static int ntz(long val)
+  {
     // A full binary search to determine the low byte was slower than
     // a linear search for nextSetBit().  This is most likely because
     // the implementation of nextSetBit() shifts bits to the right, increasing
@@ -704,7 +732,8 @@ final class BitUtil {
     int lowByte = lower & 0xff;
     if (lowByte != 0) return ntzTable[lowByte];
 
-    if (lower!=0) {
+    if (lower!=0)
+    {
       lowByte = (lower>>>8) & 0xff;
       if (lowByte != 0) return ntzTable[lowByte] + 8;
       lowByte = (lower>>>16) & 0xff;
@@ -712,7 +741,9 @@ final class BitUtil {
       // no need to mask off low byte for the last byte in the 32 bit word
       // no need to check for zero on the last byte either.
       return ntzTable[lower>>>24] + 24;
-    } else {
+    }
+    else
+    {
       // grab upper 32 bits
       int upper=(int)(val>>32);
       lowByte = upper & 0xff;
@@ -728,7 +759,8 @@ final class BitUtil {
   }
 
   /** Returns number of trailing zeros in a 32 bit int value. */
-  public static int ntz(int val) {
+  public static int ntz(int val)
+  {
     // This implementation does a single binary search at the top level only.
     // In addition, the case of a non-zero first byte is checked for first
     // because it is the most common in dense bit arrays.
@@ -748,7 +780,8 @@ final class BitUtil {
    * (only works for x!=0)
    * <br/> This is an alternate implementation of ntz()
    */
-  public static int ntz2(long x) {
+  public static int ntz2(long x)
+  {
    int n = 0;
    int y = (int)x;
    if (y==0) {n+=32; y = (int)(x>>>32); }   // the only 64 bit shift necessary
@@ -760,7 +793,8 @@ final class BitUtil {
   /** returns 0 based index of first set bit
    * <br/> This is an alternate implementation of ntz()
    */
-  public static int ntz3(long x) {
+  public static int ntz3(long x)
+  {
    // another implementation taken from Hackers Delight, extended to 64 bits
    // and converted to Java.
    // Many 32 bit ntz algorithms are at http://www.hackersdelight.org/HDcode/ntz.cc
@@ -778,17 +812,20 @@ final class BitUtil {
 
 
   /** returns true if v is a power of two or zero*/
-  public static boolean isPowerOfTwo(int v) {
+  public static boolean isPowerOfTwo(int v)
+  {
     return ((v & (v-1)) == 0);
   }
 
   /** returns true if v is a power of two or zero*/
-  public static boolean isPowerOfTwo(long v) {
+  public static boolean isPowerOfTwo(long v)
+  {
     return ((v & (v-1)) == 0);
   }
 
   /** returns the next highest power of two, or the current value if it's already a power of two or zero*/
-  public static int nextHighestPowerOfTwo(int v) {
+  public static int nextHighestPowerOfTwo(int v)
+  {
     v--;
     v |= v >> 1;
     v |= v >> 2;
@@ -800,7 +837,8 @@ final class BitUtil {
   }
 
   /** returns the next highest power of two, or the current value if it's already a power of two or zero*/
-   public static long nextHighestPowerOfTwo(long v) {
+   public static long nextHighestPowerOfTwo(long v)
+   {
     v--;
     v |= v >> 1;
     v |= v >> 2;

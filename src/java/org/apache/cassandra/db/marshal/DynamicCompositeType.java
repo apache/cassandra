@@ -123,7 +123,8 @@ public class DynamicCompositeType extends AbstractCompositeType
          * If both types are ReversedType(Type), we need to compare on the wrapped type (which may differ between the two types) to avoid
          * incompatible comparisons being made.
          */
-        if ((comp1 instanceof ReversedType) && (comp2 instanceof ReversedType)) {
+        if ((comp1 instanceof ReversedType) && (comp2 instanceof ReversedType)) 
+        {
             comp1 = ((ReversedType<?>) comp1).baseType;
             comp2 = ((ReversedType<?>) comp2).baseType;
         }

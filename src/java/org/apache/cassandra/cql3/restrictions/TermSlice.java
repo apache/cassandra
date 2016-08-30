@@ -62,7 +62,7 @@ final class TermSlice
      */
     public static TermSlice newInstance(Bound bound, boolean include, Term term)
     {
-        return  bound.isStart() ? new TermSlice(term, include, null, false) 
+        return  bound.isStart() ? new TermSlice(term, include, null, false)
                                 : new TermSlice(null, false, term, include);
     }
 
@@ -112,14 +112,14 @@ final class TermSlice
         {
             assert !otherSlice.hasBound(Bound.START);
 
-            return new TermSlice(bound(Bound.START), 
+            return new TermSlice(bound(Bound.START),
                                   isInclusive(Bound.START),
                                   otherSlice.bound(Bound.END),
                                   otherSlice.isInclusive(Bound.END));
         }
         assert !otherSlice.hasBound(Bound.END);
 
-        return new TermSlice(otherSlice.bound(Bound.START), 
+        return new TermSlice(otherSlice.bound(Bound.START),
                               otherSlice.isInclusive(Bound.START),
                               bound(Bound.END),
                               isInclusive(Bound.END));

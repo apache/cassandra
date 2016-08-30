@@ -91,7 +91,8 @@ public class MemoryMappedSegment extends CommitLogSegment
         // we don't chain the crcs here to ensure this method is idempotent if it fails
         writeSyncMarker(buffer, startMarker, startMarker, nextMarker);
 
-        try {
+        try
+        {
             SyncUtil.force((MappedByteBuffer) buffer);
         }
         catch (Exception e) // MappedByteBuffer.force() does not declare IOException but can actually throw it

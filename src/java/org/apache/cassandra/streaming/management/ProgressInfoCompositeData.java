@@ -53,7 +53,8 @@ public class ProgressInfoCompositeData
                                                                    SimpleType.LONG};
 
     public static final CompositeType COMPOSITE_TYPE;
-    static  {
+    static
+    {
         try
         {
             COMPOSITE_TYPE = new CompositeType(ProgressInfo.class.getName(),

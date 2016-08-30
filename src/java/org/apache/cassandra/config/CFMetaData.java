@@ -33,7 +33,6 @@ import com.google.common.base.Objects;
 import com.google.common.collect.ImmutableSet;
 import com.google.common.collect.Iterables;
 import com.google.common.collect.Maps;
-import com.google.common.collect.Iterators;
 import com.google.common.collect.Sets;
 import org.apache.commons.lang3.ArrayUtils;
 import org.apache.commons.lang3.builder.HashCodeBuilder;
@@ -856,7 +855,8 @@ public final class CFMetaData
         return columnMetadata.get(name);
     }
 
-    public static boolean isNameValid(String name) {
+    public static boolean isNameValid(String name)
+    {
         return name != null && !name.isEmpty()
                && name.length() <= SchemaConstants.NAME_LENGTH && PATTERN_WORD_CHARS.matcher(name).matches();
     }

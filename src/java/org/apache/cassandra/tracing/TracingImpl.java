@@ -35,7 +35,8 @@ import org.apache.cassandra.utils.WrappedRunnable;
  */
 class TracingImpl extends Tracing
 {
-    public void stopSessionImpl() {
+    public void stopSessionImpl()
+    {
         final TraceStateImpl state = getStateImpl();
         if (state == null)
             return;

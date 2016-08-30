@@ -69,8 +69,8 @@ public abstract class RebufferingInputStream extends InputStream implements Data
     }
 
     @Override
-    public int read(byte[] b, int off, int len) throws IOException {
-
+    public int read(byte[] b, int off, int len) throws IOException
+    {
         // avoid int overflow
         if (off < 0 || off > b.length || len < 0 || len > b.length - off)
             throw new IndexOutOfBoundsException();

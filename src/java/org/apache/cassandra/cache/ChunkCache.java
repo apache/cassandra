@@ -36,7 +36,7 @@ import org.apache.cassandra.io.util.*;
 import org.apache.cassandra.metrics.CacheMissMetrics;
 import org.apache.cassandra.utils.memory.BufferPool;
 
-public class ChunkCache 
+public class ChunkCache
         implements CacheLoader<ChunkCache.Key, ChunkCache.Buffer>, RemovalListener<ChunkCache.Key, ChunkCache.Buffer>, CacheSize
 {
     public static final int RESERVED_POOL_SPACE_IN_MB = 32;
@@ -106,7 +106,7 @@ public class ChunkCache
             {
                 refCount = references.get();
                 if (refCount == 0)
-                    // Buffer was released before we managed to reference it. 
+                    // Buffer was released before we managed to reference it.
                     return null;
             } while (!references.compareAndSet(refCount, refCount + 1));
 

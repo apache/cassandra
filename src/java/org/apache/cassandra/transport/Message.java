@@ -561,8 +561,10 @@ public abstract class Message
                 // On protocol exception, close the channel as soon as the message have been sent
                 if (cause instanceof ProtocolException)
                 {
-                    future.addListener(new ChannelFutureListener() {
-                        public void operationComplete(ChannelFuture future) {
+                    future.addListener(new ChannelFutureListener()
+                    {
+                        public void operationComplete(ChannelFuture future)
+                        {
                             ctx.close();
                         }
                     });

@@ -122,7 +122,8 @@ public class DataIntegrityMetadata
 
             while( checkedInputStream.read(chunk) > 0 ) { }
             long calculatedDigestValue = checkedInputStream.getChecksum().getValue();
-            if (storedDigestValue != calculatedDigestValue) {
+            if (storedDigestValue != calculatedDigestValue)
+            {
                 throw new IOException("Corrupted SSTable : " + descriptor.filenameFor(Component.DATA));
             }
         }

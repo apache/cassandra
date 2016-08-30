@@ -146,7 +146,8 @@ public class Directories
         {
             boolean privilege = false;
 
-            switch (action) {
+            switch (action)
+            {
                 case X:
                     privilege = file.canExecute();
                     break;
@@ -1028,7 +1029,7 @@ public class Directories
         for (int i = 0; i < locations.length; ++i)
             dataDirectories[i] = new DataDirectory(new File(locations[i]));
     }
-    
+
     private class SSTableSizeSummer extends DirectorySizeCalculator
     {
         private final HashSet<File> toSkip;

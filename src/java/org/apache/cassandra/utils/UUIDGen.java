@@ -233,7 +233,8 @@ public class UUIDGen
      * @param timestamp milliseconds since Unix epoch
      * @return
      */
-    private static long fromUnixTimestamp(long timestamp) {
+    private static long fromUnixTimestamp(long timestamp)
+    {
         return fromUnixTimestamp(timestamp, 0L);
     }
 

@@ -462,7 +462,8 @@ public class DateTieredCompactionStrategy extends AbstractCompactionStrategy
         return uncheckedOptions;
     }
 
-    public CompactionLogger.Strategy strategyLogger() {
+    public CompactionLogger.Strategy strategyLogger() 
+    {
         return new CompactionLogger.Strategy()
         {
             public JsonNode sstable(SSTableReader sstable)

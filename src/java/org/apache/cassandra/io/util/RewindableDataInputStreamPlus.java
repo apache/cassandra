@@ -389,7 +389,7 @@ public class RewindableDataInputStreamPlus extends FilterInputStream implements 
     {
         int newSize = Math.min(2 * (pos + writeSize), maxMemBufferSize);
         byte newBuffer[] = new byte[newSize];
-        System.arraycopy(memBuffer, 0, newBuffer, 0, (int)pos);
+        System.arraycopy(memBuffer, 0, newBuffer, 0, pos);
         memBuffer = newBuffer;
     }
 
@@ -438,7 +438,8 @@ public class RewindableDataInputStreamPlus extends FilterInputStream implements 
         return skipped;
     }
 
-    private <T> T getIfNotClosed(T in) throws IOException {
+    private <T> T getIfNotClosed(T in) throws IOException
+    {
         if (closed.get())
             throw new IOException("Stream closed");
         return in;
@@ -476,7 +477,8 @@ public class RewindableDataInputStreamPlus extends FilterInputStream implements 
             {
                 fail = merge(fail, e);
             }
-            try {
+            try
+            {
                 if (spillFile.exists())
                 {
                     spillFile.delete();

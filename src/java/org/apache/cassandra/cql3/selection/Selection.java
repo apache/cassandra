@@ -77,7 +77,7 @@ public abstract class Selection
     public boolean isWildcard()
     {
         return false;
-    }    
+    }
 
     /**
      * Checks if this selection contains static columns.
@@ -249,7 +249,7 @@ public abstract class Selection
 
     public ResultSetBuilder resultSetBuilder(QueryOptions options, boolean isJson, AggregationSpecification aggregationSpec)
     {
-        return aggregationSpec == null ? new ResultSetBuilder(options, isJson) 
+        return aggregationSpec == null ? new ResultSetBuilder(options, isJson)
                 : new ResultSetBuilder(options, isJson, aggregationSpec.newGroupMaker());
     }
 

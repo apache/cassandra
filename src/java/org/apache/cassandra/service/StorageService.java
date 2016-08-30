@@ -106,7 +106,7 @@ import static org.apache.cassandra.index.SecondaryIndexManager.isIndexColumnFami
 public class StorageService extends NotificationBroadcasterSupport implements IEndpointStateChangeSubscriber, StorageServiceMBean
 {
     private static final Logger logger = LoggerFactory.getLogger(StorageService.class);
-    
+
     public static final int RING_DELAY = getRingDelay(); // delay after which we assume ring has stablized
 
     private final JMXProgressSupport progressSupport = new JMXProgressSupport(this);
@@ -3425,7 +3425,8 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
         return new FutureTask<>(task, null);
     }
 
-    public void forceTerminateAllRepairSessions() {
+    public void forceTerminateAllRepairSessions()
+    {
         ActiveRepairService.instance.terminateSessions();
     }
 
@@ -3631,7 +3632,8 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
      * @return the runtime logging levels for all the configured loggers
      */
     @Override
-    public Map<String,String>getLoggingLevels() {
+    public Map<String,String>getLoggingLevels()
+    {
         Map<String, String> logLevelMaps = Maps.newLinkedHashMap();
         LoggerContext lc = (LoggerContext) LoggerFactory.getILoggerFactory();
         for (ch.qos.logback.classic.Logger logger : lc.getLoggerList())
@@ -3642,7 +3644,8 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
         return logLevelMaps;
     }
 
-    private boolean hasAppenders(ch.qos.logback.classic.Logger logger) {
+    private boolean hasAppenders(ch.qos.logback.classic.Logger logger)
+    {
         Iterator<Appender<ILoggingEvent>> it = logger.iteratorForAppenders();
         return it.hasNext();
     }
@@ -4090,7 +4093,8 @@ public class StorageService extends NotificationBroadcasterSupport implements IE
      */
     public String getRemovalStatus()
     {
-        if (removingNode == null) {
+        if (removingNode == null)
+        {
             return "No token removals in process.";
         }
         return String.format("Removing token (%s). Waiting for replication confirmation from [%s].",

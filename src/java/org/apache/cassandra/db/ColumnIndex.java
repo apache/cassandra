@@ -221,7 +221,8 @@ public class ColumnIndex
 
     private DataOutputBuffer useBuffer()
     {
-        if (reusableBuffer != null) {
+        if (reusableBuffer != null) 
+        {
             buffer = reusableBuffer;
             buffer.clear();
         }

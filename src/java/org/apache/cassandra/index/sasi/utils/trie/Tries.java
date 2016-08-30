@@ -29,7 +29,7 @@ package org.apache.cassandra.index.sasi.utils.trie;
  */
 public class Tries
 {
-    /** 
+    /**
      * Returns true if bitIndex is a {@link KeyAnalyzer#OUT_OF_BOUNDS_BIT_KEY}
      */
     static boolean isOutOfBoundsIndex(int bitIndex)
@@ -37,7 +37,7 @@ public class Tries
         return bitIndex == KeyAnalyzer.OUT_OF_BOUNDS_BIT_KEY;
     }
 
-    /** 
+    /**
      * Returns true if bitIndex is a {@link KeyAnalyzer#EQUAL_BIT_KEY}
      */
     static boolean isEqualBitKey(int bitIndex)
@@ -45,17 +45,17 @@ public class Tries
         return bitIndex == KeyAnalyzer.EQUAL_BIT_KEY;
     }
 
-    /** 
-     * Returns true if bitIndex is a {@link KeyAnalyzer#NULL_BIT_KEY} 
+    /**
+     * Returns true if bitIndex is a {@link KeyAnalyzer#NULL_BIT_KEY}
      */
     static boolean isNullBitKey(int bitIndex)
     {
         return bitIndex == KeyAnalyzer.NULL_BIT_KEY;
     }
 
-    /** 
-     * Returns true if the given bitIndex is valid. Indices 
-     * are considered valid if they're between 0 and 
+    /**
+     * Returns true if the given bitIndex is valid. Indices
+     * are considered valid if they're between 0 and
      * {@link Integer#MAX_VALUE}
      */
     static boolean isValidBitIndex(int bitIndex)
@@ -72,7 +72,7 @@ public class Tries
     }
 
     /**
-     * Throws a {@link NullPointerException} with the given message if 
+     * Throws a {@link NullPointerException} with the given message if
      * the argument is null.
      */
     static <T> T notNull(T o, String message)

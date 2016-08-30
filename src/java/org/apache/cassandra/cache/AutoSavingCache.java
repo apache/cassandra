@@ -164,7 +164,8 @@ public class AutoSavingCache<K extends CacheKey, V> extends InstrumentingCache<K
                 return loadSaved();
             }
         });
-        cacheLoad.addListener(new Runnable() {
+        cacheLoad.addListener(new Runnable()
+        {
             @Override
             public void run()
             {

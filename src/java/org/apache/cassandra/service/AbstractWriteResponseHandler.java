@@ -112,8 +112,8 @@ public abstract class AbstractWriteResponseHandler<T> implements IAsyncCallbackW
         }
     }
 
-    /** 
-     * @return the minimum number of endpoints that must reply. 
+    /**
+     * @return the minimum number of endpoints that must reply.
      */
     protected int totalBlockFor()
     {
@@ -122,8 +122,8 @@ public abstract class AbstractWriteResponseHandler<T> implements IAsyncCallbackW
         return consistencyLevel.blockFor(keyspace) + pendingEndpoints.size();
     }
 
-    /** 
-     * @return the total number of endpoints the request has been sent to. 
+    /**
+     * @return the total number of endpoints the request has been sent to.
      */
     protected int totalEndpoints()
     {

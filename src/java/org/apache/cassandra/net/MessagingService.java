@@ -509,9 +509,11 @@ public final class MessagingService implements MessagingServiceMBean
                 getConnectionPool(expiredCallbackInfo.target).incrementTimeout();
                 if (expiredCallbackInfo.isFailureCallback())
                 {
-                    StageManager.getStage(Stage.INTERNAL_RESPONSE).submit(new Runnable() {
+                    StageManager.getStage(Stage.INTERNAL_RESPONSE).submit(new Runnable()
+                    {
                         @Override
-                        public void run() {
+                        public void run()
+                        {
                             ((IAsyncCallbackWithFailure)expiredCallbackInfo.callback).onFailure(expiredCallbackInfo.target, RequestFailureReason.UNKNOWN);
                         }
                     });

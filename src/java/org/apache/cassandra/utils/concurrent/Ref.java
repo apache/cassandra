@@ -341,7 +341,8 @@ public final class Ref<T> implements RefCounted<T>
         }
     }
 
-    private static final Class<?>[] concurrentIterableClasses = new Class<?>[] {
+    private static final Class<?>[] concurrentIterableClasses = new Class<?>[]
+    {
         ConcurrentLinkedQueue.class,
         ConcurrentLinkedDeque.class,
         ConcurrentSkipListSet.class,

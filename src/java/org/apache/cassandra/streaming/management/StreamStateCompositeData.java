@@ -48,7 +48,8 @@ public class StreamStateCompositeData
     private static final OpenType<?>[] ITEM_TYPES;
 
     public static final CompositeType COMPOSITE_TYPE;
-    static  {
+    static
+    {
         try
         {
             ITEM_TYPES = new OpenType[]{SimpleType.STRING,

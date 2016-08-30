@@ -150,7 +150,7 @@ public interface Selectable extends AssignmentTestable
         {
             return rawTerm.getExactTypeIfKnown(keyspace);
         }
- 
+
         @Override
         public String toString()
         {
