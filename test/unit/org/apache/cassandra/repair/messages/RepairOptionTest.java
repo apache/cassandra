@@ -100,6 +100,26 @@ public class RepairOptionTest
     }
 
     @Test
+    public void testPrWithLocalParseOptions()
+    {
+        DatabaseDescriptor.forceStaticInitialization();
+
+        Map<String, String> options = new HashMap<>();
+        options.put(RepairOption.PARALLELISM_KEY, "parallel");
+        options.put(RepairOption.PRIMARY_RANGE_KEY, "true");
+        options.put(RepairOption.INCREMENTAL_KEY, "false");
+        options.put(RepairOption.COLUMNFAMILIES_KEY, "cf1,cf2,cf3");
+        options.put(RepairOption.DATACENTERS_KEY, "datacenter1");
+
+        RepairOption option = RepairOption.parse(options, Murmur3Partitioner.instance);
+        assertTrue(option.isPrimaryRange());
+
+        Set<String> expectedDCs = new HashSet<>(3);
+        expectedDCs.add("datacenter1");
+        assertEquals(expectedDCs, option.getDataCenters());
+    }
+
+    @Test
     public void testIncrementalRepairWithSubrangesIsNotGlobal() throws Exception
     {
         RepairOption ro = RepairOption.parse(ImmutableMap.of(RepairOption.INCREMENTAL_KEY, "true", RepairOption.RANGES_KEY, "42:42"),
