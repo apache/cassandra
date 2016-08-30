@@ -178,23 +178,23 @@ public class SystemKeyspaceTest
     @Test
     public void testMigrateDataDirs_2_1() throws IOException
     {
-        testMigrateDataDirs("2.1");
+        testMigrateDataDirs("2.1", 5); // see test data for num legacy files
     }
 
     @Test
     public void testMigrateDataDirs_2_2() throws IOException
     {
-        testMigrateDataDirs("2.2");
+        testMigrateDataDirs("2.2", 7); // see test data for num legacy files
     }
 
-    private void testMigrateDataDirs(String version) throws IOException
+    private void testMigrateDataDirs(String version, int numLegacyFiles) throws IOException
     {
         Path migrationSSTableRoot = Paths.get(System.getProperty(MIGRATION_SSTABLES_ROOT), version);
         Path dataDir = Paths.get(DatabaseDescriptor.getAllDataFileLocations()[0]);
 
         FileUtils.copyDirectory(migrationSSTableRoot.toFile(), dataDir.toFile());
 
-        assertEquals(5, numLegacyFiles()); // see test data
+        assertEquals(numLegacyFiles, numLegacyFiles());
 
         SystemKeyspace.migrateDataDirs();
 
