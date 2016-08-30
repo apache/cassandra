@@ -114,11 +114,21 @@ public class RepairRunnable extends WrappedRunnable implements ProgressEventNoti
         final String tag = "repair:" + cmd;
 
         final AtomicInteger progress = new AtomicInteger();
-        final int totalProgress = 3 + options.getRanges().size(); // calculate neighbors, validation, prepare for repair + number of ranges to repair
+        final int totalProgress = 4 + options.getRanges().size(); // get valid column families, calculate neighbors, validation, prepare for repair + number of ranges to repair
 
         String[] columnFamilies = options.getColumnFamilies().toArray(new String[options.getColumnFamilies().size()]);
-        Iterable<ColumnFamilyStore> validColumnFamilies = storageService.getValidColumnFamilies(false, false, keyspace,
-                                                                                                columnFamilies);
+        Iterable<ColumnFamilyStore> validColumnFamilies;
+        try
+        {
+            validColumnFamilies = storageService.getValidColumnFamilies(false, false, keyspace, columnFamilies);
+            progress.incrementAndGet();
+        }
+        catch (IllegalArgumentException e)
+        {
+            logger.error("Repair failed:", e);
+            fireErrorAndComplete(tag, progress.get(), totalProgress, e.getMessage());
+            return;
+        }
 
         final long startTime = System.currentTimeMillis();
         String message = String.format("Starting repair command #%d, repairing keyspace %s with %s", cmd, keyspace,

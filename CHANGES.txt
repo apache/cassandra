@@ -63,6 +63,8 @@ Merged from 3.0:
  * Disk failure policy should not be invoked on out of space (CASSANDRA-12385)
  * Calculate last compacted key on startup (CASSANDRA-6216)
  * Add schema to snapshot manifest, add USING TIMESTAMP clause to ALTER TABLE statements (CASSANDRA-7190)
+Merged from 2.2:
+ * Fail repair on non-existing table (CASSANDRA-12279)
 
 
 3.8, 3.9
