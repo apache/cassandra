@@ -65,6 +65,7 @@ Merged from 3.0:
  * Add schema to snapshot manifest, add USING TIMESTAMP clause to ALTER TABLE statements (CASSANDRA-7190)
 Merged from 2.2:
  * Fail repair on non-existing table (CASSANDRA-12279)
+ * Enable repair -pr and -local together (fix regression of CASSANDRA-7450) (CASSANDRA-12522)
 
 
 3.8, 3.9
