@@ -76,7 +76,7 @@ Performance tests for Cassandra are a special breed of tests that are not part o
 Cassandra Stress Tool
 ---------------------
 
-TODO: `CASSANDRA-12365 <https://issues.apache.org/jira/browse/CASSANDRA-12365>`_
+See :ref:`cassandra_stress`
 
 cstar_perf
 ----------

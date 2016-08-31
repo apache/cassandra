@@ -24,3 +24,4 @@ This section describes the command line tools provided with Apache Cassandra.
 
    cqlsh
    nodetool/nodetool
+   cassandra_stress
