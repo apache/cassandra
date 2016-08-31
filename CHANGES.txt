@@ -1,4 +1,5 @@
 2.2.8
+ * cqlshlib tests: increase default execute timeout (CASSANDRA-12481)
  * Forward writes to replacement node when replace_address != broadcast_address (CASSANDRA-8523)
  * Enable repair -pr and -local together (fix regression of CASSANDRA-7450) (CASSANDRA-12522)
  * Fail repair on non-existing table (CASSANDRA-12279)
