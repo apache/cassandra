@@ -38,10 +38,8 @@ import org.apache.cassandra.utils.ObjectSizes;
  * Each {@code IndexInfo} object is serialized as follows.
  * </p>
  * <p>
- * Serialization format changed in 3.0. First, the {@code endOpenMarker} has been introduced.
- * Second, the <i>order</i> of the fields in serialized representation changed to allow future
- * optimizations to access {@code offset} and {@code width} fields directly without skipping
- * {@code firstName}/{@code lastName}.
+ * Serialization format changed in 3.0; the {@link #endOpenMarker} has been introduced and integer fields are
+ * stored using varint encoding.
  * </p>
  * <p>
  * {@code
