@@ -142,7 +142,7 @@ public class CassandraVersion implements Comparable<CassandraVersion>
 
     public boolean isSupportedBy(CassandraVersion version)
     {
-        return major == version.major && this.compareTo(version) <= 0;
+        return version != null && major == version.major && this.compareTo(version) <= 0;
     }
 
     private static int compareIdentifiers(String[] ids1, String[] ids2, int defaultPred)

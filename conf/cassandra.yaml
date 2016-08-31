@@ -870,13 +870,13 @@ slow_query_log_timeout_in_ms: 500
 # and the times are synchronized between the nodes.
 cross_node_timeout: false
 
-# Set socket timeout for streaming operation.
-# The stream session is failed if no data/ack is received by any of the participants
-# within that period, which means this should also be sufficient to stream a large
-# sstable or rebuild table indexes.
-# Default value is 86400000ms, which means stale streams timeout after 24 hours.
-# A value of zero means stream sockets should never time out.
-# streaming_socket_timeout_in_ms: 86400000
+# Set keep-alive period for streaming
+# This node will send a keep-alive message periodically with this period.
+# If the node does not receive a keep-alive message from the peer for
+# 2 keep-alive cycles the stream session times out and fail
+# Default value is 300s (5 minutes), which means stalled stream
+# times out in 10 minutes by default
+# streaming_keep_alive_period_in_secs: 300
 
 # phi value that must be reached for a host to be marked down.
 # most users should never need to adjust this.
