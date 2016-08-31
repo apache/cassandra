@@ -179,7 +179,7 @@ public class DecayingEstimatedHistogramReservoir implements Reservoir
 
         try
         {
-            decayingBuckets.getAndAdd(index, forwardDecayWeight(now));
+            decayingBuckets.getAndAdd(index, Math.round(forwardDecayWeight(now)));
         }
         finally
         {
@@ -189,9 +189,9 @@ public class DecayingEstimatedHistogramReservoir implements Reservoir
         buckets.getAndIncrement(index);
     }
 
-    private long forwardDecayWeight(long now)
+    private double forwardDecayWeight(long now)
     {
-        return Math.round(Math.exp(((now - decayLandmark) / 1000L) / MEAN_LIFETIME_IN_S));
+        return Math.exp(((now - decayLandmark) / 1000L) / MEAN_LIFETIME_IN_S);
     }
 
     /**
@@ -270,7 +270,7 @@ public class DecayingEstimatedHistogramReservoir implements Reservoir
 
             try
             {
-                final long rescaleFactor = forwardDecayWeight(now);
+                final double rescaleFactor = forwardDecayWeight(now);
                 decayLandmark = now;
 
                 final int bucketCount = decayingBuckets.length();
