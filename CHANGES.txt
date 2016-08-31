@@ -65,6 +65,7 @@ Merged from 3.0:
  * Calculate last compacted key on startup (CASSANDRA-6216)
  * Add schema to snapshot manifest, add USING TIMESTAMP clause to ALTER TABLE statements (CASSANDRA-7190)
 Merged from 2.2:
+ * Forward writes to replacement node when replace_address != broadcast_address (CASSANDRA-8523)
  * Fail repair on non-existing table (CASSANDRA-12279)
  * Enable repair -pr and -local together (fix regression of CASSANDRA-7450) (CASSANDRA-12522)
 

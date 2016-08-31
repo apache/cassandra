@@ -32,7 +32,7 @@ import org.apache.cassandra.gms.*;
 
 public class LoadBroadcaster implements IEndpointStateChangeSubscriber
 {
-    static final int BROADCAST_INTERVAL = 60 * 1000;
+    static final int BROADCAST_INTERVAL = Integer.getInteger("cassandra.broadcast_interval_ms", 60 * 1000);
 
     public static final LoadBroadcaster instance = new LoadBroadcaster();
 
