@@ -21,9 +21,10 @@ package org.apache.cassandra.stress.settings;
  */
 
 
+import java.io.Serializable;
 import java.util.List;
 
-abstract class Option
+abstract class Option implements Serializable
 {
 
     abstract boolean accept(String param);
