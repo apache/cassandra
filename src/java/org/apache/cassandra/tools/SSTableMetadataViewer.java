@@ -38,27 +38,50 @@ import org.apache.cassandra.io.sstable.IndexSummary;
 import org.apache.cassandra.io.sstable.metadata.*;
 import org.apache.cassandra.utils.FBUtilities;
 import org.apache.cassandra.utils.Pair;
+import org.apache.commons.cli.CommandLine;
+import org.apache.commons.cli.CommandLineParser;
+import org.apache.commons.cli.HelpFormatter;
+import org.apache.commons.cli.Option;
+import org.apache.commons.cli.Options;
+import org.apache.commons.cli.ParseException;
+import org.apache.commons.cli.PosixParser;
 
 /**
  * Shows the contents of sstable metadata
  */
 public class SSTableMetadataViewer
 {
+    private static final String GCGS_KEY = "gc_grace_seconds";
+
     /**
      * @param args a list of sstables whose metadata we're interested in
      */
     public static void main(String[] args) throws IOException
     {
         PrintStream out = System.out;
-        if (args.length == 0)
+        Option optGcgs = new Option(null, GCGS_KEY, true, "The "+GCGS_KEY+" to use when calculating droppable tombstones");
+
+        Options options = new Options();
+        options.addOption(optGcgs);
+        CommandLine cmd = null;
+        CommandLineParser parser = new PosixParser();
+        try
         {
-            out.println("Usage: sstablemetadata <sstable filenames>");
-            System.exit(1);
+            cmd = parser.parse(options, args);
+        }
+        catch (ParseException e)
+        {
+            printHelp(options, out);
         }
 
+        if (cmd.getArgs().length == 0)
+        {
+            printHelp(options, out);
+        }
+        int gcgs = Integer.parseInt(cmd.getOptionValue(GCGS_KEY, "0"));
         Util.initDatabaseDescriptor();
 
-        for (String fname : args)
+        for (String fname : cmd.getArgs())
         {
             if (new File(fname).exists())
             {
@@ -109,7 +132,7 @@ public class SSTableMetadataViewer
                         out.printf("minClustringValues: %s%n", Arrays.toString(minValues));
                         out.printf("maxClustringValues: %s%n", Arrays.toString(maxValues));
                     }
-                    out.printf("Estimated droppable tombstones: %s%n", stats.getEstimatedDroppableTombstoneRatio((int) (System.currentTimeMillis() / 1000)));
+                    out.printf("Estimated droppable tombstones: %s%n", stats.getEstimatedDroppableTombstoneRatio((int) (System.currentTimeMillis() / 1000) - gcgs));
                     out.printf("SSTable Level: %d%n", stats.sstableLevel);
                     out.printf("Repaired at: %d%n", stats.repairedAt);
                     out.printf("Replay positions covered: %s%n", stats.commitLogIntervals);
@@ -157,6 +180,13 @@ public class SSTableMetadataViewer
                 out.println("No such file: " + fname);
             }
         }
+    }
+
+    private static void printHelp(Options options, PrintStream out)
+    {
+        out.println();
+        new HelpFormatter().printHelp("Usage: sstablemetadata [--"+GCGS_KEY+" n] <sstable filenames>", "Dump contents of given SSTable to standard output in JSON format.", options, "");
+        System.exit(1);
     }
 
     private static void printHistograms(StatsMetadata metadata, PrintStream out)
