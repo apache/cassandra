@@ -1081,9 +1081,9 @@ public final class MessagingService implements MessagingServiceMBean
                     logger.error("SSL handshake error for inbound connection from " + socket, e);
                     FileUtils.closeQuietly(socket);
                 }
-                catch (IOException e)
+                catch (Throwable t)
                 {
-                    logger.trace("Error reading the socket " + socket, e);
+                    logger.trace("Error reading the socket {}", socket, t);
                     FileUtils.closeQuietly(socket);
                 }
             }

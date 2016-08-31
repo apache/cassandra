@@ -75,10 +75,9 @@ public class IncomingStreamingConnection extends Thread implements Closeable
             // parallelize said streams and the socket is blocking, so we might deadlock.
             StreamResultFuture.initReceivingSide(init.sessionIndex, init.planId, init.description, init.from, this, init.isForOutgoing, version, init.keepSSTableLevel, init.isIncremental);
         }
-        catch (IOException e)
+        catch (Throwable t)
         {
-            logger.error(String.format("IOException while reading from socket from %s, closing: %s",
-                                       socket.getRemoteSocketAddress(), e));
+            logger.error("Error while reading from socket from {}.", socket.getRemoteSocketAddress(), t);
             close();
         }
     }
