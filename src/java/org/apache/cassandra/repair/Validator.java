@@ -59,6 +59,7 @@ public class Validator implements Runnable
     public final InetAddress initiator;
     public final int gcBefore;
     private final boolean evenTreeDistribution;
+    public final boolean isConsistent;
 
     // null when all rows with the min token have been consumed
     private long validated;
@@ -72,14 +73,20 @@ public class Validator implements Runnable
 
     public Validator(RepairJobDesc desc, InetAddress initiator, int gcBefore)
     {
-        this(desc, initiator, gcBefore, false);
+        this(desc, initiator, gcBefore, false, false);
     }
 
-    public Validator(RepairJobDesc desc, InetAddress initiator, int gcBefore, boolean evenTreeDistribution)
+    public Validator(RepairJobDesc desc, InetAddress initiator, int gcBefore, boolean isConsistent)
+    {
+        this(desc, initiator, gcBefore, false, isConsistent);
+    }
+
+    public Validator(RepairJobDesc desc, InetAddress initiator, int gcBefore, boolean evenTreeDistribution, boolean isConsistent)
     {
         this.desc = desc;
         this.initiator = initiator;
         this.gcBefore = gcBefore;
+        this.isConsistent = isConsistent;
         validated = 0;
         range = null;
         ranges = null;

@@ -221,6 +221,12 @@ public class DateTieredCompactionStrategy extends AbstractCompactionStrategy
         sstables.remove(sstable);
     }
 
+    @Override
+    protected Set<SSTableReader> getSSTables()
+    {
+        return ImmutableSet.copyOf(sstables);
+    }
+
     /**
      * A target time span used for bucketing SSTables based on timestamps.
      */

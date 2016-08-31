@@ -339,6 +339,12 @@ public class LeveledCompactionStrategy extends AbstractCompactionStrategy
         manifest.remove(sstable);
     }
 
+    @Override
+    protected Set<SSTableReader> getSSTables()
+    {
+        return manifest.getSSTables();
+    }
+
     // Lazily creates SSTableBoundedScanner for sstable that are assumed to be from the
     // same level (e.g. non overlapping) - see #4142
     private static class LeveledScanner extends AbstractIterator<UnfilteredRowIterator> implements ISSTableScanner

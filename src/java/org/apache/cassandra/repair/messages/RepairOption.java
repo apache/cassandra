@@ -237,6 +237,11 @@ public class RepairOption
             }
         }
 
+        if (option.isIncremental() && !option.isGlobal())
+        {
+            throw new IllegalArgumentException("Incremental repairs cannot be run against a subset of tokens or ranges");
+        }
+
         return option;
     }
 

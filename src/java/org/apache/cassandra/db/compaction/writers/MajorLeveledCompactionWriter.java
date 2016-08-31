@@ -107,6 +107,7 @@ public class MajorLeveledCompactionWriter extends CompactionAwareWriter
         sstableWriter.switchWriter(SSTableWriter.create(cfs.newSSTableDescriptor(getDirectories().getLocationForDisk(sstableDirectory)),
                 keysPerSSTable,
                 minRepairedAt,
+                pendingRepair,
                 cfs.metadata,
                 new MetadataCollector(txn.originals(), cfs.metadata().comparator, currentLevel),
                 SerializationHeader.make(cfs.metadata(), txn.originals()),
@@ -114,6 +115,5 @@ public class MajorLeveledCompactionWriter extends CompactionAwareWriter
                 txn));
         partitionsWritten = 0;
         sstablesWritten = 0;
-
     }
 }

@@ -19,6 +19,7 @@ package org.apache.cassandra.db.compaction;
 
 import java.util.Collection;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.Map;
 import java.util.Set;
 import java.util.UUID;
@@ -316,6 +317,22 @@ public class CompactionTask extends AbstractCompactionTask
         if (minRepairedAt == Long.MAX_VALUE)
             return ActiveRepairService.UNREPAIRED_SSTABLE;
         return minRepairedAt;
+    }
+
+    public static UUID getPendingRepair(Set<SSTableReader> sstables)
+    {
+        if (sstables.isEmpty())
+        {
+            return ActiveRepairService.NO_PENDING_REPAIR;
+        }
+        Set<UUID> ids = new HashSet<>();
+        for (SSTableReader sstable: sstables)
+            ids.add(sstable.getSSTableMetadata().pendingRepair);
+
+        if (ids.size() != 1)
+            throw new RuntimeException(String.format("Attempting to compact pending repair sstables with sstables from other repair, or sstables not pending repair: %s", ids));
+
+        return ids.iterator().next();
     }
 
     /*

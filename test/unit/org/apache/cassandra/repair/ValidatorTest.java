@@ -193,7 +193,7 @@ public class ValidatorTest
                                                                  false);
 
         final CompletableFuture<MessageOut> outgoingMessageSink = registerOutgoingMessageSink();
-        Validator validator = new Validator(desc, FBUtilities.getBroadcastAddress(), 0, true);
+        Validator validator = new Validator(desc, FBUtilities.getBroadcastAddress(), 0, true, false);
         CompactionManager.instance.submitValidation(cfs, validator);
 
         MessageOut message = outgoingMessageSink.get(TEST_TIMEOUT, TimeUnit.SECONDS);

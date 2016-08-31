@@ -91,6 +91,7 @@ public class RepairSession extends AbstractFuture<RepairSessionResult> implement
     public final Collection<Range<Token>> ranges;
     public final Set<InetAddress> endpoints;
     public final long repairedAt;
+    public final boolean isConsistent;
 
     private final AtomicBoolean isFailed = new AtomicBoolean(false);
 
@@ -124,6 +125,7 @@ public class RepairSession extends AbstractFuture<RepairSessionResult> implement
                          RepairParallelism parallelismDegree,
                          Set<InetAddress> endpoints,
                          long repairedAt,
+                         boolean isConsistent,
                          boolean pullRepair,
                          String... cfnames)
     {
@@ -137,6 +139,7 @@ public class RepairSession extends AbstractFuture<RepairSessionResult> implement
         this.ranges = ranges;
         this.endpoints = endpoints;
         this.repairedAt = repairedAt;
+        this.isConsistent = isConsistent;
         this.pullRepair = pullRepair;
     }
 
@@ -256,7 +259,7 @@ public class RepairSession extends AbstractFuture<RepairSessionResult> implement
         List<ListenableFuture<RepairResult>> jobs = new ArrayList<>(cfnames.length);
         for (String cfname : cfnames)
         {
-            RepairJob job = new RepairJob(this, cfname);
+            RepairJob job = new RepairJob(this, cfname, isConsistent);
             executor.execute(job);
             jobs.add(job);
         }

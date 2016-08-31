@@ -50,7 +50,7 @@ public class StreamStateStoreTest
         Range<Token> range = new Range<>(factory.fromString("0"), factory.fromString("100"));
 
         InetAddress local = FBUtilities.getBroadcastAddress();
-        StreamSession session = new StreamSession(local, local, new DefaultConnectionFactory(), 0, true, false);
+        StreamSession session = new StreamSession(local, local, new DefaultConnectionFactory(), 0, true, false, null);
         session.addStreamRequest("keyspace1", Collections.singleton(range), Collections.singleton("cf"), 0);
 
         StreamStateStore store = new StreamStateStore();
@@ -71,7 +71,7 @@ public class StreamStateStoreTest
 
         // add different range within the same keyspace
         Range<Token> range2 = new Range<>(factory.fromString("100"), factory.fromString("200"));
-        session = new StreamSession(local, local, new DefaultConnectionFactory(), 0, true, false);
+        session = new StreamSession(local, local, new DefaultConnectionFactory(), 0, true, false, null);
         session.addStreamRequest("keyspace1", Collections.singleton(range2), Collections.singleton("cf"), 0);
         session.state(StreamSession.State.COMPLETE);
         store.handleStreamEvent(new StreamEvent.SessionCompleteEvent(session));

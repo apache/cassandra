@@ -1751,6 +1751,17 @@ public abstract class SSTableReader extends SSTable implements SelfRefCounted<SS
         return key;
     }
 
+    public boolean isPendingRepair()
+    {
+        return sstableMetadata.pendingRepair != ActiveRepairService.NO_PENDING_REPAIR;
+    }
+
+    public boolean intersects(Collection<Range<Token>> ranges)
+    {
+        Range<Token> range = new Range<>(first.getToken(), last.getToken());
+        return Iterables.any(ranges, r -> r.intersects(range));
+    }
+
     /**
      * TODO: Move someplace reusable
      */

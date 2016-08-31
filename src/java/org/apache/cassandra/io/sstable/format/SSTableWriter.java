@@ -54,6 +54,7 @@ import org.apache.cassandra.utils.concurrent.Transactional;
 public abstract class SSTableWriter extends SSTable implements Transactional
 {
     protected long repairedAt;
+    protected UUID pendingRepair;
     protected long maxDataAge = -1;
     protected final long keyCount;
     protected final MetadataCollector metadataCollector;
@@ -75,6 +76,7 @@ public abstract class SSTableWriter extends SSTable implements Transactional
     protected SSTableWriter(Descriptor descriptor,
                             long keyCount,
                             long repairedAt,
+                            UUID pendingRepair,
                             TableMetadataRef metadata,
                             MetadataCollector metadataCollector,
                             SerializationHeader header,
@@ -83,6 +85,7 @@ public abstract class SSTableWriter extends SSTable implements Transactional
         super(descriptor, components(metadata.get()), metadata, DatabaseDescriptor.getDiskOptimizationStrategy());
         this.keyCount = keyCount;
         this.repairedAt = repairedAt;
+        this.pendingRepair = pendingRepair;
         this.metadataCollector = metadataCollector;
         this.header = header;
         this.rowIndexEntrySerializer = descriptor.version.getSSTableFormat().getIndexSerializer(metadata.get(), descriptor.version, header);
@@ -92,6 +95,7 @@ public abstract class SSTableWriter extends SSTable implements Transactional
     public static SSTableWriter create(Descriptor descriptor,
                                        Long keyCount,
                                        Long repairedAt,
+                                       UUID pendingRepair,
                                        TableMetadataRef metadata,
                                        MetadataCollector metadataCollector,
                                        SerializationHeader header,
@@ -99,43 +103,46 @@ public abstract class SSTableWriter extends SSTable implements Transactional
                                        LifecycleTransaction txn)
     {
         Factory writerFactory = descriptor.getFormat().getWriterFactory();
-        return writerFactory.open(descriptor, keyCount, repairedAt, metadata, metadataCollector, header, observers(descriptor, indexes, txn.opType()), txn);
+        return writerFactory.open(descriptor, keyCount, repairedAt, pendingRepair, metadata, metadataCollector, header, observers(descriptor, indexes, txn.opType()), txn);
     }
 
     public static SSTableWriter create(Descriptor descriptor,
                                        long keyCount,
                                        long repairedAt,
+                                       UUID pendingRepair,
                                        int sstableLevel,
                                        SerializationHeader header,
                                        Collection<Index> indexes,
                                        LifecycleTransaction txn)
     {
         TableMetadataRef metadata = Schema.instance.getTableMetadataRef(descriptor);
-        return create(metadata, descriptor, keyCount, repairedAt, sstableLevel, header, indexes, txn);
+        return create(metadata, descriptor, keyCount, repairedAt, pendingRepair, sstableLevel, header, indexes, txn);
     }
 
     public static SSTableWriter create(TableMetadataRef metadata,
                                        Descriptor descriptor,
                                        long keyCount,
                                        long repairedAt,
+                                       UUID pendingRepair,
                                        int sstableLevel,
                                        SerializationHeader header,
                                        Collection<Index> indexes,
                                        LifecycleTransaction txn)
     {
         MetadataCollector collector = new MetadataCollector(metadata.get().comparator).sstableLevel(sstableLevel);
-        return create(descriptor, keyCount, repairedAt, metadata, collector, header, indexes, txn);
+        return create(descriptor, keyCount, repairedAt, pendingRepair, metadata, collector, header, indexes, txn);
     }
 
     @VisibleForTesting
     public static SSTableWriter create(Descriptor descriptor,
                                        long keyCount,
                                        long repairedAt,
+                                       UUID pendingRepair,
                                        SerializationHeader header,
                                        Collection<Index> indexes,
                                        LifecycleTransaction txn)
     {
-        return create(descriptor, keyCount, repairedAt, 0, header, indexes, txn);
+        return create(descriptor, keyCount, repairedAt, pendingRepair, 0, header, indexes, txn);
     }
 
     private static Set<Component> components(TableMetadata metadata)
@@ -301,6 +308,7 @@ public abstract class SSTableWriter extends SSTable implements Transactional
         return metadataCollector.finalizeMetadata(getPartitioner().getClass().getCanonicalName(),
                                                   metadata().params.bloomFilterFpChance,
                                                   repairedAt,
+                                                  pendingRepair,
                                                   header);
     }
 
@@ -329,6 +337,7 @@ public abstract class SSTableWriter extends SSTable implements Transactional
         public abstract SSTableWriter open(Descriptor descriptor,
                                            long keyCount,
                                            long repairedAt,
+                                           UUID pendingRepair,
                                            TableMetadataRef metadata,
                                            MetadataCollector metadataCollector,
                                            SerializationHeader header,

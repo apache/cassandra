@@ -173,7 +173,8 @@ public final class SystemDistributedKeyspace
         PrintWriter pw = new PrintWriter(sw);
         t.printStackTrace(pw);
         String fmtQuery = format(query, SchemaConstants.DISTRIBUTED_KEYSPACE_NAME, PARENT_REPAIR_HISTORY, parent_id.toString());
-        processSilent(fmtQuery, t.getMessage(), sw.toString());
+        String message = t.getMessage();
+        processSilent(fmtQuery, message != null ? message : "", sw.toString());
     }
 
     public static void successfulParentRepair(UUID parent_id, Collection<Range<Token>> successfulRanges)

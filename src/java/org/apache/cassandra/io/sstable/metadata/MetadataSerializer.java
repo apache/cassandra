@@ -136,13 +136,14 @@ public class MetadataSerializer implements IMetadataSerializer
         rewriteSSTableMetadata(descriptor, currentComponents);
     }
 
-    public void mutateRepairedAt(Descriptor descriptor, long newRepairedAt) throws IOException
+    public void mutateRepaired(Descriptor descriptor, long newRepairedAt, UUID newPendingRepair) throws IOException
     {
-        logger.trace("Mutating {} to repairedAt time {}", descriptor.filenameFor(Component.STATS), newRepairedAt);
+        logger.trace("Mutating {} to repairedAt time {} and pendingRepair {}",
+                     descriptor.filenameFor(Component.STATS), newRepairedAt, newPendingRepair);
         Map<MetadataType, MetadataComponent> currentComponents = deserialize(descriptor, EnumSet.allOf(MetadataType.class));
         StatsMetadata stats = (StatsMetadata) currentComponents.remove(MetadataType.STATS);
-        // mutate level
-        currentComponents.put(MetadataType.STATS, stats.mutateRepairedAt(newRepairedAt));
+        // mutate time & id
+        currentComponents.put(MetadataType.STATS, stats.mutateRepairedAt(newRepairedAt).mutatePendingRepair(newPendingRepair));
         rewriteSSTableMetadata(descriptor, currentComponents);
     }
 

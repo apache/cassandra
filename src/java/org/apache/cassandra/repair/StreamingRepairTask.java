@@ -43,12 +43,14 @@ public class StreamingRepairTask implements Runnable, StreamEventHandler
     private final RepairJobDesc desc;
     private final SyncRequest request;
     private final long repairedAt;
+    private final boolean isConsistent;
 
-    public StreamingRepairTask(RepairJobDesc desc, SyncRequest request, long repairedAt)
+    public StreamingRepairTask(RepairJobDesc desc, SyncRequest request, long repairedAt, boolean isConsistent)
     {
         this.desc = desc;
         this.request = request;
         this.repairedAt = repairedAt;
+        this.isConsistent = isConsistent;
     }
 
     public void run()
@@ -62,7 +64,7 @@ public class StreamingRepairTask implements Runnable, StreamEventHandler
             ActiveRepairService.ParentRepairSession prs = ActiveRepairService.instance.getParentRepairSession(desc.parentSessionId);
             isIncremental = prs.isIncremental;
         }
-        new StreamPlan("Repair", repairedAt, 1, false, isIncremental, false).listeners(this)
+        new StreamPlan("Repair", repairedAt, 1, false, isIncremental, false, isConsistent ? desc.parentSessionId : null).listeners(this)
                                             .flushBeforeTransfer(true)
                                             // request ranges from the remote node
                                             .requestRanges(dest, preferred, desc.keyspace, request.ranges, desc.columnFamily)

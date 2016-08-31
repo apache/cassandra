@@ -32,6 +32,7 @@ import org.apache.cassandra.io.sstable.*;
 import org.apache.cassandra.io.sstable.format.SSTableReader;
 import org.apache.cassandra.io.sstable.format.SSTableWriter;
 import org.apache.cassandra.io.sstable.metadata.MetadataCollector;
+import org.apache.cassandra.io.sstable.metadata.StatsMetadata;
 import org.apache.cassandra.utils.FBUtilities;
 import org.apache.cassandra.utils.OutputHandler;
 import org.apache.cassandra.utils.UUIDGen;
@@ -66,13 +67,14 @@ public class Upgrader
         this.estimatedRows = (long) Math.ceil((double) estimatedTotalKeys / estimatedSSTables);
     }
 
-    private SSTableWriter createCompactionWriter(long repairedAt)
+    private SSTableWriter createCompactionWriter(long repairedAt, UUID parentRepair)
     {
         MetadataCollector sstableMetadataCollector = new MetadataCollector(cfs.getComparator());
         sstableMetadataCollector.sstableLevel(sstable.getSSTableLevel());
         return SSTableWriter.create(cfs.newSSTableDescriptor(directory),
                                     estimatedRows,
                                     repairedAt,
+                                    parentRepair,
                                     cfs.metadata,
                                     sstableMetadataCollector,
                                     SerializationHeader.make(cfs.metadata(), Sets.newHashSet(sstable)),
@@ -88,7 +90,8 @@ public class Upgrader
              AbstractCompactionStrategy.ScannerList scanners = strategyManager.getScanners(transaction.originals());
              CompactionIterator iter = new CompactionIterator(transaction.opType(), scanners.scanners, controller, nowInSec, UUIDGen.getTimeUUID()))
         {
-            writer.switchWriter(createCompactionWriter(sstable.getSSTableMetadata().repairedAt));
+            StatsMetadata metadata = sstable.getSSTableMetadata();
+            writer.switchWriter(createCompactionWriter(metadata.repairedAt, metadata.pendingRepair));
             while (iter.hasNext())
                 writer.append(iter.next());
 

@@ -49,8 +49,9 @@ public class StreamInitMessage
     public final boolean isForOutgoing;
     public final boolean keepSSTableLevel;
     public final boolean isIncremental;
+    public final UUID pendingRepair;
 
-    public StreamInitMessage(InetAddress from, int sessionIndex, UUID planId, String description, boolean isForOutgoing, boolean keepSSTableLevel, boolean isIncremental)
+    public StreamInitMessage(InetAddress from, int sessionIndex, UUID planId, String description, boolean isForOutgoing, boolean keepSSTableLevel, boolean isIncremental, UUID pendingRepair)
     {
         this.from = from;
         this.sessionIndex = sessionIndex;
@@ -59,6 +60,7 @@ public class StreamInitMessage
         this.isForOutgoing = isForOutgoing;
         this.keepSSTableLevel = keepSSTableLevel;
         this.isIncremental = isIncremental;
+        this.pendingRepair = pendingRepair;
     }
 
     /**
@@ -114,6 +116,12 @@ public class StreamInitMessage
             out.writeBoolean(message.isForOutgoing);
             out.writeBoolean(message.keepSSTableLevel);
             out.writeBoolean(message.isIncremental);
+
+            out.writeBoolean(message.pendingRepair != null);
+            if (message.pendingRepair != null)
+            {
+                UUIDSerializer.serializer.serialize(message.pendingRepair, out, MessagingService.current_version);
+            }
         }
 
         public StreamInitMessage deserialize(DataInputPlus in, int version) throws IOException
@@ -124,8 +132,10 @@ public class StreamInitMessage
             String description = in.readUTF();
             boolean sentByInitiator = in.readBoolean();
             boolean keepSSTableLevel = in.readBoolean();
+
             boolean isIncremental = in.readBoolean();
-            return new StreamInitMessage(from, sessionIndex, planId, description, sentByInitiator, keepSSTableLevel, isIncremental);
+            UUID pendingRepair = in.readBoolean() ? UUIDSerializer.serializer.deserialize(in, version) : null;
+            return new StreamInitMessage(from, sessionIndex, planId, description, sentByInitiator, keepSSTableLevel, isIncremental, pendingRepair);
         }
 
         public long serializedSize(StreamInitMessage message, int version)
@@ -137,6 +147,11 @@ public class StreamInitMessage
             size += TypeSizes.sizeof(message.isForOutgoing);
             size += TypeSizes.sizeof(message.keepSSTableLevel);
             size += TypeSizes.sizeof(message.isIncremental);
+            size += TypeSizes.sizeof(message.pendingRepair != null);
+            if (message.pendingRepair != null)
+            {
+                size += UUIDSerializer.serializer.serializedSize(message.pendingRepair, MessagingService.current_version);
+            }
             return size;
         }
     }

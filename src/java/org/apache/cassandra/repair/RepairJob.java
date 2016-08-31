@@ -42,6 +42,7 @@ public class RepairJob extends AbstractFuture<RepairResult> implements Runnable
     private final RepairParallelism parallelismDegree;
     private final long repairedAt;
     private final ListeningExecutorService taskExecutor;
+    private final boolean isConsistent;
 
     /**
      * Create repair job to run on specific columnfamily
@@ -49,13 +50,14 @@ public class RepairJob extends AbstractFuture<RepairResult> implements Runnable
      * @param session RepairSession that this RepairJob belongs
      * @param columnFamily name of the ColumnFamily to repair
      */
-    public RepairJob(RepairSession session, String columnFamily)
+    public RepairJob(RepairSession session, String columnFamily, boolean isConsistent)
     {
         this.session = session;
         this.desc = new RepairJobDesc(session.parentRepairSession, session.getId(), session.keyspace, columnFamily, session.getRanges());
         this.repairedAt = session.repairedAt;
         this.taskExecutor = session.taskExecutor;
         this.parallelismDegree = session.parallelismDegree;
+        this.isConsistent = isConsistent;
     }
 
     /**
@@ -73,16 +75,26 @@ public class RepairJob extends AbstractFuture<RepairResult> implements Runnable
         // Create a snapshot at all nodes unless we're using pure parallel repairs
         if (parallelismDegree != RepairParallelism.PARALLEL)
         {
-            // Request snapshot to all replica
-            List<ListenableFuture<InetAddress>> snapshotTasks = new ArrayList<>(allEndpoints.size());
-            for (InetAddress endpoint : allEndpoints)
+            ListenableFuture<List<InetAddress>> allSnapshotTasks;
+            if (isConsistent)
             {
-                SnapshotTask snapshotTask = new SnapshotTask(desc, endpoint);
-                snapshotTasks.add(snapshotTask);
-                taskExecutor.execute(snapshotTask);
+                // consistent repair does it's own "snapshotting"
+                allSnapshotTasks = Futures.immediateFuture(allEndpoints);
             }
+            else
+            {
+                // Request snapshot to all replica
+                List<ListenableFuture<InetAddress>> snapshotTasks = new ArrayList<>(allEndpoints.size());
+                for (InetAddress endpoint : allEndpoints)
+                {
+                    SnapshotTask snapshotTask = new SnapshotTask(desc, endpoint);
+                    snapshotTasks.add(snapshotTask);
+                    taskExecutor.execute(snapshotTask);
+                }
+                allSnapshotTasks = Futures.allAsList(snapshotTasks);
+            }
+
             // When all snapshot complete, send validation requests
-            ListenableFuture<List<InetAddress>> allSnapshotTasks = Futures.allAsList(snapshotTasks);
             validations = Futures.transform(allSnapshotTasks, new AsyncFunction<List<InetAddress>, List<TreeResponse>>()
             {
                 public ListenableFuture<List<TreeResponse>> apply(List<InetAddress> endpoints)
@@ -118,7 +130,7 @@ public class RepairJob extends AbstractFuture<RepairResult> implements Runnable
                         SyncTask task;
                         if (r1.endpoint.equals(local) || r2.endpoint.equals(local))
                         {
-                            task = new LocalSyncTask(desc, r1, r2, repairedAt, session.pullRepair);
+                            task = new LocalSyncTask(desc, r1, r2, repairedAt, isConsistent ? desc.parentSessionId : null, session.pullRepair);
                         }
                         else
                         {

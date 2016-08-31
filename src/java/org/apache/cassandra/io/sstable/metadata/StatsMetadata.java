@@ -21,6 +21,7 @@ import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.UUID;
 
 import org.apache.cassandra.io.ISerializer;
 import org.apache.cassandra.io.sstable.format.Version;
@@ -34,6 +35,7 @@ import org.apache.cassandra.io.util.DataOutputPlus;
 import org.apache.cassandra.utils.ByteBufferUtil;
 import org.apache.cassandra.utils.EstimatedHistogram;
 import org.apache.cassandra.utils.StreamingHistogram;
+import org.apache.cassandra.utils.UUIDSerializer;
 
 /**
  * SSTable metadata that always stay on heap.
@@ -61,6 +63,7 @@ public class StatsMetadata extends MetadataComponent
     public final long repairedAt;
     public final long totalColumnsSet;
     public final long totalRows;
+    public final UUID pendingRepair;
 
     public StatsMetadata(EstimatedHistogram estimatedPartitionSize,
                          EstimatedHistogram estimatedColumnCount,
@@ -79,7 +82,8 @@ public class StatsMetadata extends MetadataComponent
                          boolean hasLegacyCounterShards,
                          long repairedAt,
                          long totalColumnsSet,
-                         long totalRows)
+                         long totalRows,
+                         UUID pendingRepair)
     {
         this.estimatedPartitionSize = estimatedPartitionSize;
         this.estimatedColumnCount = estimatedColumnCount;
@@ -99,6 +103,7 @@ public class StatsMetadata extends MetadataComponent
         this.repairedAt = repairedAt;
         this.totalColumnsSet = totalColumnsSet;
         this.totalRows = totalRows;
+        this.pendingRepair = pendingRepair;
     }
 
     public MetadataType getType()
@@ -149,7 +154,8 @@ public class StatsMetadata extends MetadataComponent
                                  hasLegacyCounterShards,
                                  repairedAt,
                                  totalColumnsSet,
-                                 totalRows);
+                                 totalRows,
+                                 pendingRepair);
     }
 
     public StatsMetadata mutateRepairedAt(long newRepairedAt)
@@ -171,7 +177,31 @@ public class StatsMetadata extends MetadataComponent
                                  hasLegacyCounterShards,
                                  newRepairedAt,
                                  totalColumnsSet,
-                                 totalRows);
+                                 totalRows,
+                                 pendingRepair);
+    }
+
+    public StatsMetadata mutatePendingRepair(UUID newPendingRepair)
+    {
+        return new StatsMetadata(estimatedPartitionSize,
+                                 estimatedColumnCount,
+                                 commitLogIntervals,
+                                 minTimestamp,
+                                 maxTimestamp,
+                                 minLocalDeletionTime,
+                                 maxLocalDeletionTime,
+                                 minTTL,
+                                 maxTTL,
+                                 compressionRatio,
+                                 estimatedTombstoneDropTime,
+                                 sstableLevel,
+                                 minClusteringValues,
+                                 maxClusteringValues,
+                                 hasLegacyCounterShards,
+                                 repairedAt,
+                                 totalColumnsSet,
+                                 totalRows,
+                                 newPendingRepair);
     }
 
     @Override
@@ -200,6 +230,7 @@ public class StatsMetadata extends MetadataComponent
                        .append(hasLegacyCounterShards, that.hasLegacyCounterShards)
                        .append(totalColumnsSet, that.totalColumnsSet)
                        .append(totalRows, that.totalRows)
+                       .append(pendingRepair, that.pendingRepair)
                        .build();
     }
 
@@ -225,6 +256,7 @@ public class StatsMetadata extends MetadataComponent
                        .append(hasLegacyCounterShards)
                        .append(totalColumnsSet)
                        .append(totalRows)
+                       .append(pendingRepair)
                        .build();
     }
 
@@ -253,6 +285,13 @@ public class StatsMetadata extends MetadataComponent
                 size += CommitLogPosition.serializer.serializedSize(component.commitLogIntervals.lowerBound().orElse(CommitLogPosition.NONE));
             if (version.hasCommitLogIntervals())
                 size += commitLogPositionSetSerializer.serializedSize(component.commitLogIntervals);
+
+            if (version.hasPendingRepair())
+            {
+                size += 1;
+                if (component.pendingRepair != null)
+                    size += UUIDSerializer.serializer.serializedSize(component.pendingRepair, 0);
+            }
             return size;
         }
 
@@ -286,6 +325,19 @@ public class StatsMetadata extends MetadataComponent
                 CommitLogPosition.serializer.serialize(component.commitLogIntervals.lowerBound().orElse(CommitLogPosition.NONE), out);
             if (version.hasCommitLogIntervals())
                 commitLogPositionSetSerializer.serialize(component.commitLogIntervals, out);
+
+            if (version.hasPendingRepair())
+            {
+                if (component.pendingRepair != null)
+                {
+                    out.writeByte(1);
+                    UUIDSerializer.serializer.serialize(component.pendingRepair, out, 0);
+                }
+                else
+                {
+                    out.writeByte(0);
+                }
+            }
         }
 
         public StatsMetadata deserialize(Version version, DataInputPlus in) throws IOException
@@ -328,6 +380,12 @@ public class StatsMetadata extends MetadataComponent
             else
                 commitLogIntervals = new IntervalSet<CommitLogPosition>(commitLogLowerBound, commitLogUpperBound);
 
+            UUID pendingRepair = null;
+            if (version.hasPendingRepair() && in.readByte() != 0)
+            {
+                pendingRepair = UUIDSerializer.serializer.deserialize(in, 0);
+            }
+
             return new StatsMetadata(partitionSizes,
                                      columnCounts,
                                      commitLogIntervals,
@@ -345,7 +403,8 @@ public class StatsMetadata extends MetadataComponent
                                      hasLegacyCounterShards,
                                      repairedAt,
                                      totalColumnsSet,
-                                     totalRows);
+                                     totalRows,
+                                     pendingRepair);
         }
     }
 }

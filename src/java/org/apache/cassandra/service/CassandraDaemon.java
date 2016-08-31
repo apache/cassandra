@@ -322,6 +322,7 @@ public class CassandraDaemon
         }
 
         SystemKeyspace.finishStartup();
+        ActiveRepairService.instance.start();
 
         // Prepared statements
         QueryProcessor.preloadPreparedStatement();

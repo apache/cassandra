@@ -159,13 +159,6 @@ public class RepairMessageSerializationsTest
     }
 
     @Test
-    public void antiCompactionRequestMessage() throws IOException
-    {
-        AnticompactionRequest msg = new AnticompactionRequest(UUID.randomUUID(), buildTokenRanges());
-        serializeRoundTrip(msg, AnticompactionRequest.serializer);
-    }
-
-    @Test
     public void prepareMessage() throws IOException
     {
         PrepareMessage msg = new PrepareMessage(UUID.randomUUID(), new ArrayList<TableId>() {{add(TableId.generate());}},

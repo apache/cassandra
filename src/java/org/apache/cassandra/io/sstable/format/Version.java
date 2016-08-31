@@ -51,6 +51,8 @@ public abstract class Version
 
     public abstract boolean hasCommitLogIntervals();
 
+    public abstract boolean hasPendingRepair();
+
     public String getVersion()
     {
         return version;

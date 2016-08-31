@@ -48,21 +48,21 @@ public class StreamPlan
      */
     public StreamPlan(String description)
     {
-        this(description, ActiveRepairService.UNREPAIRED_SSTABLE, 1, false, false, false);
+        this(description, ActiveRepairService.UNREPAIRED_SSTABLE, 1, false, false, false, null);
     }
 
     public StreamPlan(String description, boolean keepSSTableLevels, boolean connectSequentially)
     {
-        this(description, ActiveRepairService.UNREPAIRED_SSTABLE, 1, keepSSTableLevels, false, connectSequentially);
+        this(description, ActiveRepairService.UNREPAIRED_SSTABLE, 1, keepSSTableLevels, false, connectSequentially, null);
     }
 
     public StreamPlan(String description, long repairedAt, int connectionsPerHost, boolean keepSSTableLevels,
-                      boolean isIncremental, boolean connectSequentially)
+                      boolean isIncremental, boolean connectSequentially, UUID pendingRepair)
     {
         this.description = description;
         this.repairedAt = repairedAt;
         this.coordinator = new StreamCoordinator(connectionsPerHost, keepSSTableLevels, isIncremental, new DefaultConnectionFactory(),
-                                                 connectSequentially);
+                                                 connectSequentially, pendingRepair);
     }
 
     /**

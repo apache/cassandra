@@ -34,7 +34,12 @@ Upgrading
       add new nodes to a datacenter before they can set set ALTER or CREATE
       keyspace replication policies using that datacenter. Existing keyspaces
       will continue to operate, but CREATE and ALTER will validate that all
-      datacenters specified exist in the cluster. 
+      datacenters specified exist in the cluster.
+    - Cassandra 4.0 fixes a problem with incremental repair which caused repaired
+      data to be inconsistent between nodes. The fix changes the behavior of both
+      full and incremental repairs. For full repairs, data is no longer marked
+      repaired. For incremental repairs, anticompaction is run at the beginning
+      of the repair, instead of at the end.
 
 3.10
 ====

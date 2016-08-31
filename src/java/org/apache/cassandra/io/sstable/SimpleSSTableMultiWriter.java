@@ -19,6 +19,7 @@ package org.apache.cassandra.io.sstable;
 
 import java.util.Collection;
 import java.util.Collections;
+import java.util.UUID;
 
 import org.apache.cassandra.db.RowIndexEntry;
 import org.apache.cassandra.db.SerializationHeader;
@@ -109,13 +110,14 @@ public class SimpleSSTableMultiWriter implements SSTableMultiWriter
     public static SSTableMultiWriter create(Descriptor descriptor,
                                             long keyCount,
                                             long repairedAt,
+                                            UUID pendingRepair,
                                             TableMetadataRef metadata,
                                             MetadataCollector metadataCollector,
                                             SerializationHeader header,
                                             Collection<Index> indexes,
                                             LifecycleTransaction txn)
     {
-        SSTableWriter writer = SSTableWriter.create(descriptor, keyCount, repairedAt, metadata, metadataCollector, header, indexes, txn);
+        SSTableWriter writer = SSTableWriter.create(descriptor, keyCount, repairedAt, pendingRepair, metadata, metadataCollector, header, indexes, txn);
         return new SimpleSSTableMultiWriter(writer, txn);
     }
 }

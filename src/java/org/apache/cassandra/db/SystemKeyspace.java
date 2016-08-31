@@ -101,6 +101,7 @@ public final class SystemKeyspace
     public static final String VIEWS_BUILDS_IN_PROGRESS = "views_builds_in_progress";
     public static final String BUILT_VIEWS = "built_views";
     public static final String PREPARED_STATEMENTS = "prepared_statements";
+    public static final String REPAIRS = "repairs";
 
     public static final TableMetadata Batches =
         parse(BATCHES,
@@ -291,6 +292,21 @@ public final class SystemKeyspace
               + "PRIMARY KEY ((prepared_id)))")
               .build();
 
+    private static final TableMetadata Repairs =
+        parse(REPAIRS,
+              "repairs",
+              "CREATE TABLE %s ("
+              + "parent_id timeuuid, "
+              + "started_at timestamp, "
+              + "last_update timestamp, "
+              + "repaired_at timestamp, "
+              + "state int, "
+              + "coordinator inet, "
+              + "participants set<inet>, "
+              + "ranges set<blob>, "
+              + "cfids set<uuid>, "
+              + "PRIMARY KEY (parent_id))").build();
+
     private static TableMetadata.Builder parse(String table, String description, String cql)
     {
         return CreateTableStatement.parse(format(cql, table), SchemaConstants.SYSTEM_KEYSPACE_NAME)
@@ -322,7 +338,8 @@ public final class SystemKeyspace
                          TransferredRanges,
                          ViewsBuildsInProgress,
                          BuiltViews,
-                         PreparedStatements);
+                         PreparedStatements,
+                         Repairs);
     }
 
     private static Functions functions()

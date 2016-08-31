@@ -23,6 +23,7 @@ import java.util.Collections;
 import java.util.EnumMap;
 import java.util.List;
 import java.util.Map;
+import java.util.UUID;
 
 import com.clearspring.analytics.stream.cardinality.HyperLogLogPlus;
 import com.clearspring.analytics.stream.cardinality.ICardinality;
@@ -80,7 +81,8 @@ public class MetadataCollector implements PartitionStatisticsCollector
                                  true,
                                  ActiveRepairService.UNREPAIRED_SSTABLE,
                                  -1,
-                                 -1);
+                                 -1,
+                                 null);
     }
 
     protected EstimatedHistogram estimatedPartitionSize = defaultPartitionSizeHistogram();
@@ -275,7 +277,7 @@ public class MetadataCollector implements PartitionStatisticsCollector
         this.hasLegacyCounterShards = this.hasLegacyCounterShards || hasLegacyCounterShards;
     }
 
-    public Map<MetadataType, MetadataComponent> finalizeMetadata(String partitioner, double bloomFilterFPChance, long repairedAt, SerializationHeader header)
+    public Map<MetadataType, MetadataComponent> finalizeMetadata(String partitioner, double bloomFilterFPChance, long repairedAt, UUID pendingRepair, SerializationHeader header)
     {
         Map<MetadataType, MetadataComponent> components = new EnumMap<>(MetadataType.class);
         components.put(MetadataType.VALIDATION, new ValidationMetadata(partitioner, bloomFilterFPChance));
@@ -296,7 +298,8 @@ public class MetadataCollector implements PartitionStatisticsCollector
                                                              hasLegacyCounterShards,
                                                              repairedAt,
                                                              totalColumnsSet,
-                                                             totalRows));
+                                                             totalRows,
+                                                             pendingRepair));
         components.put(MetadataType.COMPACTION, new CompactionMetadata(cardinality));
         components.put(MetadataType.HEADER, header.toComponent());
         return components;
