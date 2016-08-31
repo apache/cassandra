@@ -1112,8 +1112,8 @@ public class CompactionManager implements CompactionManagerMBean
             {
                 numPartitions += sstable.estimatedKeysForRanges(singleton(validator.desc.range));
             }
-            // determine tree depth from number of partitions, but cap at 20 to prevent large tree.
-            int depth = numPartitions > 0 ? (int) Math.min(Math.floor(Math.log(numPartitions)), 20) : 0;
+            // determine tree depth from number of partitions, but cap at 20 to prevent large tree (CASSANDRA-5263)
+            int depth = numPartitions > 0 ? (int) Math.min(Math.ceil(Math.log(numPartitions) / Math.log(2)), 20) : 0;
             MerkleTree tree = new MerkleTree(cfs.partitioner, validator.desc.range, MerkleTree.RECOMMENDED_DEPTH, (int) Math.pow(2, depth));
 
             long start = System.nanoTime();
