@@ -1,4 +1,5 @@
 3.10
+ * Fix Cassandra Stress reporting thread model and precision (CASSANDRA-12585)
  * Add JMH benchmarks.jar (CASSANDRA-12586)
  * Add row offset support to SASI (CASSANDRA-11990)
  * Cleanup uses of AlterTableStatementColumn (CASSANDRA-12567)

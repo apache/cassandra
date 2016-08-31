@@ -1,4 +1,4 @@
-package org.apache.cassandra.stress.util;
+package org.apache.cassandra.stress.report;
 /*
  *
  * Licensed to the Apache Software Foundation (ASF) under one
@@ -26,93 +26,32 @@ import org.HdrHistogram.Histogram;
 // used for both single timer results and merged timer results
 public final class TimingInterval
 {
-    private final Histogram responseTime;
-    private final Histogram serviceTime;
-    private final Histogram waitTime;
+    private final Histogram responseTime = new Histogram(3);
+    private final Histogram serviceTime = new Histogram(3);
+    private final Histogram waitTime = new Histogram(3);
 
     public static final long[] EMPTY_SAMPLE = new long[0];
     // nanos
-    private final long startNs;
-    private final long endNs;
-    public final long pauseStart;
+    private long startNs = Long.MAX_VALUE;
+    private long endNs = Long.MIN_VALUE;
 
     // discrete
-    public final long partitionCount;
-    public final long rowCount;
-    public final long errorCount;
+    public long partitionCount;
+    public long rowCount;
+    public long errorCount;
     public final boolean isFixed;
 
+    public TimingInterval(boolean isFixed){
+        this.isFixed = isFixed;
+    }
 
     public String toString()
     {
-        return String.format("Start: %d end: %d maxLatency: %d pauseStart: %d" +
-                             " pCount: %d rcount: %d opCount: %d errors: %d",
-                             startNs, endNs, getLatencyHistogram().getMaxValue(), pauseStart,
+        return String.format("Start: %d end: %d maxLatency: %d pCount: %d rcount: %d opCount: %d errors: %d",
+                             startNs, endNs, getLatencyHistogram().getMaxValue(),
                              partitionCount, rowCount, getLatencyHistogram().getTotalCount(), errorCount);
     }
 
-    TimingInterval(long time)
-    {
-        startNs = endNs = time;
-        partitionCount = rowCount = errorCount = 0;
-        pauseStart = 0;
-        responseTime = new Histogram(3);
-        serviceTime = new Histogram(3);
-        waitTime = new Histogram(3);
-        isFixed = false;
-    }
-
-    TimingInterval(long start, long end, long maxPauseStart, long partitionCount,
-                   long rowCount, long errorCount, Histogram r, Histogram s, Histogram w, boolean isFixed)
-    {
-        this.startNs = start;
-        this.endNs = Math.max(end, start);
-        this.partitionCount = partitionCount;
-        this.rowCount = rowCount;
-        this.errorCount = errorCount;
-        this.pauseStart = maxPauseStart;
-        this.responseTime = r;
-        this.serviceTime = s;
-        this.waitTime = w;
-        this.isFixed = isFixed;
-
-    }
-
-    // merge multiple timer intervals together
-    static TimingInterval merge(Iterable<TimingInterval> intervals, long start)
-    {
-        long partitionCount = 0, rowCount = 0, errorCount = 0;
-        long end = 0;
-        long pauseStart = 0;
-        Histogram responseTime = new Histogram(3);
-        Histogram serviceTime = new Histogram(3);
-        Histogram waitTime = new Histogram(3);
-        boolean isFixed = false;
-        for (TimingInterval interval : intervals)
-        {
-            if (interval != null)
-            {
-                end = Math.max(end, interval.endNs);
-                partitionCount += interval.partitionCount;
-                rowCount += interval.rowCount;
-                errorCount += interval.errorCount;
-
-                if (interval.getLatencyHistogram().getMaxValue() > serviceTime.getMaxValue())
-                {
-                    pauseStart = interval.pauseStart;
-                }
-                responseTime.add(interval.responseTime);
-                serviceTime.add(interval.serviceTime);
-                waitTime.add(interval.waitTime);
-                isFixed |= interval.isFixed;
-            }
-        }
-
-
-        return new TimingInterval(start, end, pauseStart, partitionCount, rowCount,
-                                  errorCount, responseTime, serviceTime, waitTime, isFixed);
-
-    }
 
     public double opRate()
     {
@@ -229,6 +168,67 @@ public final class TimingInterval
     public long operationCount()
     {
         return getLatencyHistogram().getTotalCount();
+    }
+
+
+    public void startNanos(long started)
+    {
+        this.startNs = started;
+    }
+    public void endNanos(long ended)
+    {
+        this.endNs = ended;
+    }
+
+
+    public void reset()
+    {
+        this.endNs = Long.MIN_VALUE;
+        this.startNs = Long.MAX_VALUE;
+        this.errorCount = 0;
+        this.rowCount = 0;
+        this.partitionCount = 0;
+        if(this.responseTime.getTotalCount() != 0)
+        {
+            this.responseTime.reset();
+        }
+        if(this.serviceTime.getTotalCount() != 0)
+        {
+            this.serviceTime.reset();
+        }
+        if(this.waitTime.getTotalCount() != 0)
+        {
+            this.waitTime.reset();
+        }
+    }
+
+    public void add(TimingInterval value)
+    {
+        if(this.startNs > value.startNs)
+        {
+            this.startNs = value.startNs;
+        }
+        if(this.endNs < value.endNs)
+        {
+            this.endNs = value.endNs;
+        }
+
+        this.errorCount += value.errorCount;
+        this.rowCount += value.rowCount;
+        this.partitionCount += value.partitionCount;
+
+        if (value.responseTime.getTotalCount() != 0)
+        {
+            this.responseTime.add(value.responseTime);
+        }
+        if (value.serviceTime.getTotalCount() != 0)
+        {
+            this.serviceTime.add(value.serviceTime);
+        }
+        if (value.waitTime.getTotalCount() != 0)
+        {
+            this.waitTime.add(value.waitTime);
+        }
     }
  }
 

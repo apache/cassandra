@@ -1,4 +1,4 @@
-package org.apache.cassandra.stress.util;
+package org.apache.cassandra.stress.report;
 
 import java.util.Arrays;
 import java.util.Map;
@@ -7,31 +7,10 @@ import java.util.TreeMap;
 public class TimingIntervals
 {
     final Map<String, TimingInterval> intervals;
-    TimingIntervals(Iterable<String> opTypes)
-    {
-        long now = System.nanoTime();
-        intervals = new TreeMap<>();
-        for (String opType : opTypes)
-            intervals.put(opType, new TimingInterval(now));
-    }
 
-    TimingIntervals(Map<String, TimingInterval> intervals)
+    public TimingIntervals(Map<String, TimingInterval> intervals)
     {
         this.intervals = intervals;
-    }
-
-    public TimingIntervals merge(TimingIntervals with, long start)
-    {
-        assert intervals.size() == with.intervals.size();
-        TreeMap<String, TimingInterval> ret = new TreeMap<>();
-
-        for (String opType : intervals.keySet())
-        {
-            assert with.intervals.containsKey(opType);
-            ret.put(opType, TimingInterval.merge(Arrays.asList(intervals.get(opType), with.intervals.get(opType)), start));
-        }
-
-        return new TimingIntervals(ret);
     }
 
     public TimingInterval get(String opType)
@@ -39,14 +18,6 @@ public class TimingIntervals
         return intervals.get(opType);
     }
 
-    public TimingInterval combine()
-    {
-        long start = Long.MAX_VALUE;
-        for (TimingInterval ti : intervals.values())
-            start = Math.min(start, ti.startNanos());
-
-        return TimingInterval.merge(intervals.values(), start);
-    }
 
     public String str(TimingInterval.TimingParameter value, String unit)
     {
@@ -55,6 +26,11 @@ public class TimingIntervals
 
     public String str(TimingInterval.TimingParameter value, double rank, String unit)
     {
+        if (intervals.size() == 0)
+        {
+            return "[]";
+        }
+
         StringBuilder sb = new StringBuilder("[");
 
         for (Map.Entry<String, TimingInterval> entry : intervals.entrySet())

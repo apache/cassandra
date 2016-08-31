@@ -36,8 +36,8 @@ import org.apache.cassandra.stress.generate.SeedManager;
 import org.apache.cassandra.stress.generate.TokenRangeIterator;
 import org.apache.cassandra.stress.operations.OpDistributionFactory;
 import org.apache.cassandra.stress.operations.SampledOpDistributionFactory;
+import org.apache.cassandra.stress.report.Timer;
 import org.apache.cassandra.stress.util.MultiPrintStream;
-import org.apache.cassandra.stress.util.Timer;
 
 // Settings unique to the mixed command type
 public class SettingsCommandUser extends SettingsCommand

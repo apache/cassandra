@@ -26,6 +26,7 @@ import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
 
+import org.apache.cassandra.stress.StressAction.MeasurementSink;
 import org.apache.cassandra.stress.generate.DistributionFactory;
 import org.apache.cassandra.stress.generate.PartitionGenerator;
 import org.apache.cassandra.stress.generate.SeedManager;
@@ -37,8 +38,8 @@ import org.apache.cassandra.stress.operations.FixedOpDistribution;
 import org.apache.cassandra.stress.operations.OpDistribution;
 import org.apache.cassandra.stress.operations.OpDistributionFactory;
 import org.apache.cassandra.stress.operations.predefined.PredefinedOperation;
+import org.apache.cassandra.stress.report.Timer;
 import org.apache.cassandra.stress.util.MultiPrintStream;
-import org.apache.cassandra.stress.util.Timing;
 
 // Settings unique to the mixed command type
 public class SettingsCommandPreDefined extends SettingsCommand
@@ -53,9 +54,11 @@ public class SettingsCommandPreDefined extends SettingsCommand
         final SeedManager seeds = new SeedManager(settings);
         return new OpDistributionFactory()
         {
-            public OpDistribution get(Timing timing, boolean isWarmup)
+            public OpDistribution get(boolean isWarmup, MeasurementSink sink)
             {
-                return new FixedOpDistribution(PredefinedOperation.operation(type, timing.newTimer(type.toString()),
+                final Timer timer1 = new Timer(type.toString(), sink);
+                final Timer timer = timer1;
+                return new FixedOpDistribution(PredefinedOperation.operation(type, timer,
                                                newGenerator(settings), seeds, settings, add));
             }
 

@@ -43,10 +43,10 @@ import org.apache.cassandra.db.ConsistencyLevel;
 import org.apache.cassandra.io.sstable.CQLSSTableWriter;
 import org.apache.cassandra.stress.WorkManager;
 import org.apache.cassandra.stress.generate.*;
+import org.apache.cassandra.stress.report.Timer;
 import org.apache.cassandra.stress.settings.StressSettings;
 import org.apache.cassandra.stress.util.JavaDriverClient;
 import org.apache.cassandra.stress.util.ThriftClient;
-import org.apache.cassandra.stress.util.Timer;
 
 public class SchemaInsert extends SchemaStatement
 {

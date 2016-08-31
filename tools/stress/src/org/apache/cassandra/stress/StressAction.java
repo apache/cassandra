@@ -22,6 +22,7 @@ import java.io.OutputStream;
 import java.io.PrintStream;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Queue;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicLong;
@@ -29,12 +30,15 @@ import java.util.concurrent.locks.LockSupport;
 
 import org.apache.cassandra.stress.operations.OpDistribution;
 import org.apache.cassandra.stress.operations.OpDistributionFactory;
+import org.apache.cassandra.stress.report.StressMetrics;
 import org.apache.cassandra.stress.settings.ConnectionAPI;
 import org.apache.cassandra.stress.settings.SettingsCommand;
 import org.apache.cassandra.stress.settings.StressSettings;
 import org.apache.cassandra.stress.util.JavaDriverClient;
 import org.apache.cassandra.stress.util.ThriftClient;
 import org.apache.cassandra.transport.SimpleClient;
+import org.jctools.queues.SpscArrayQueue;
+import org.jctools.queues.SpscUnboundedArrayQueue;
 
 import com.google.common.util.concurrent.Uninterruptibles;
 
@@ -183,8 +187,8 @@ public class StressAction implements Runnable
         double improvement = 0;
         for (int i = results.size() - count ; i < results.size() ; i++)
         {
-            double prev = results.get(i - 1).getTiming().getHistory().opRate();
-            double cur = results.get(i).getTiming().getHistory().opRate();
+            double prev = results.get(i - 1).opRate();
+            double cur = results.get(i).opRate();
             improvement += (cur - prev) / prev;
         }
         return improvement / count;
@@ -219,7 +223,7 @@ public class StressAction implements Runnable
         final Consumer[] consumers = new Consumer[threadCount];
         for (int i = 0; i < threadCount; i++)
         {
-            consumers[i] = new Consumer(operations.get(metrics.getTiming(), isWarmup),
+            consumers[i] = new Consumer(operations, isWarmup,
                                         done, start, releaseConsumers, workManager, metrics, rateLimiter);
         }
 
@@ -238,7 +242,9 @@ public class StressAction implements Runnable
         }
         // start counting from NOW!
         if(rateLimiter != null)
+        {
             rateLimiter.start();
+        }
         // release the hounds!!!
         releaseConsumers.countDown();
 
@@ -353,18 +359,28 @@ public class StressAction implements Runnable
             return op;
         }
 
-        void close()
-        {
-            operations.closeTimers();
-        }
-
         void abort()
         {
             workManager.stop();
         }
     }
-
-    private class Consumer extends Thread
+    public static class OpMeasurement
+    {
+        public String opType;
+        public long intended,started,ended,rowCnt,partitionCnt;
+        public boolean err;
+        @Override
+        public String toString()
+        {
+            return "OpMeasurement [opType=" + opType + ", intended=" + intended + ", started=" + started + ", ended="
+                    + ended + ", rowCnt=" + rowCnt + ", partitionCnt=" + partitionCnt + ", err=" + err + "]";
+        }
+    }
+    public interface MeasurementSink
+    {
+        void record(String opType,long intended, long started, long ended, long rowCnt, long partitionCnt, boolean err);
+    }
+    public class Consumer extends Thread implements MeasurementSink
     {
         private final StreamOfOperations opStream;
         private final StressMetrics metrics;
@@ -372,8 +388,10 @@ public class StressAction implements Runnable
         private final CountDownLatch done;
         private final CountDownLatch start;
         private final CountDownLatch releaseConsumers;
-
-        public Consumer(OpDistribution operations,
+        public final Queue<OpMeasurement> measurementsRecycling;
+        public final Queue<OpMeasurement> measurementsReporting;
+        public Consumer(OpDistributionFactory operations,
+                        boolean isWarmup,
                         CountDownLatch done,
                         CountDownLatch start,
                         CountDownLatch releaseConsumers,
@@ -381,12 +399,17 @@ public class StressAction implements Runnable
                         StressMetrics metrics,
                         UniformRateLimiter rateLimiter)
         {
+            OpDistribution opDistribution = operations.get(isWarmup, this);
             this.done = done;
             this.start = start;
             this.releaseConsumers = releaseConsumers;
             this.metrics = metrics;
-            this.opStream = new StreamOfOperations(operations, rateLimiter, workManager);
+            this.opStream = new StreamOfOperations(opDistribution, rateLimiter, workManager);
+            this.measurementsRecycling =  new SpscArrayQueue<OpMeasurement>(8*1024);
+            this.measurementsReporting =  new SpscUnboundedArrayQueue<OpMeasurement>(2048);
+            metrics.add(this);
         }
+
 
         public void run()
         {
@@ -464,8 +487,24 @@ public class StressAction implements Runnable
             finally
             {
                 done.countDown();
-                opStream.close();
             }
+        }
+
+        @Override
+        public void record(String opType, long intended, long started, long ended, long rowCnt, long partitionCnt, boolean err)
+        {
+            OpMeasurement opMeasurement = measurementsRecycling.poll();
+            if(opMeasurement == null) {
+                opMeasurement = new OpMeasurement();
+            }
+            opMeasurement.opType = opType;
+            opMeasurement.intended = intended;
+            opMeasurement.started = started;
+            opMeasurement.ended = ended;
+            opMeasurement.rowCnt = rowCnt;
+            opMeasurement.partitionCnt = partitionCnt;
+            opMeasurement.err = err;
+            measurementsReporting.offer(opMeasurement);
         }
     }
 }

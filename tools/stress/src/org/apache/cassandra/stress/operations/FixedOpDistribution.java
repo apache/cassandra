@@ -36,9 +36,4 @@ public class FixedOpDistribution implements OpDistribution
     {
         return operation;
     }
-
-    public void closeTimers()
-    {
-        operation.close();
-    }
 }

@@ -29,9 +29,9 @@ import org.apache.cassandra.stress.generate.PartitionIterator;
 import org.apache.cassandra.stress.generate.RatioDistribution;
 import org.apache.cassandra.stress.generate.Seed;
 import org.apache.cassandra.stress.generate.SeedManager;
+import org.apache.cassandra.stress.report.Timer;
 import org.apache.cassandra.stress.settings.OptionRatioDistribution;
 import org.apache.cassandra.stress.settings.StressSettings;
-import org.apache.cassandra.stress.util.Timer;
 
 public abstract class PartitionOperation extends Operation
 {

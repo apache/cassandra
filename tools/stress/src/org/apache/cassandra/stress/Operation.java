@@ -20,11 +20,11 @@ package org.apache.cassandra.stress;
 
 import java.io.IOException;
 
+import org.apache.cassandra.stress.report.Timer;
 import org.apache.cassandra.stress.settings.SettingsLog;
 import org.apache.cassandra.stress.settings.StressSettings;
 import org.apache.cassandra.stress.util.JavaDriverClient;
 import org.apache.cassandra.stress.util.ThriftClient;
-import org.apache.cassandra.stress.util.Timer;
 import org.apache.cassandra.thrift.InvalidRequestException;
 import org.apache.cassandra.transport.SimpleClient;
 
@@ -106,7 +106,7 @@ public abstract class Operation
                 exceptionMessage = getExceptionMessage(e);
             }
         }
-        
+
         timer.stop(run.partitionCount(), run.rowCount(), !success);
 
         if (!success)
@@ -136,11 +136,6 @@ public abstract class Operation
             throw new IOException(message);
         else if (settings.log.level.compareTo(SettingsLog.Level.MINIMAL) > 0)
             System.err.println(message);
-    }
-
-    public void close()
-    {
-        timer.close();
     }
 
     public void intendedStartNs(long intendedTime)

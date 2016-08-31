@@ -51,12 +51,4 @@ public class SampledOpDistribution implements OpDistribution
         remaining--;
         return cur;
     }
-
-    public void closeTimers()
-    {
-        for (Pair<Operation, Double> op : operations.getPmf())
-        {
-            op.getFirst().close();
-        }
-    }
 }
