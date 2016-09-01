@@ -114,6 +114,8 @@ def cassandra_cursor(cql_version=None, ks=''):
     conn = get_cassandra_connection(cql_version=cql_version)
     try:
         c = conn.connect(ks)
+        # increase default timeout to fix flacky tests, see CASSANDRA-12481
+        c.default_timeout = 60.0
         # if ks is not None:
         #     c.execute('USE %s;' % quote_name(c, ks))
         yield c
