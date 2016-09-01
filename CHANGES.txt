@@ -1,4 +1,5 @@
 3.10
+ * Add local address entry in PropertyFileSnitch (CASSANDRA-11332)
  * Cleanup uses of AlterTableStatementColumn (CASSANDRA-12567)
  * Add keep-alive to streaming (CASSANDRA-11841)
  * Tracing payload is passed through newSession(..) (CASSANDRA-11706)
