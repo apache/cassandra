@@ -156,12 +156,12 @@
         <pathelement location="${build.classes.main}" />
         <pathelement location="${build.classes.thrift}" />
         <fileset dir="${build.lib}">
-          <include name="**/*.jar" />
-          <exclude name="**/*-sources.jar"/>
+            <include name="**/*.jar" />
+            <exclude name="**/*-sources.jar"/>
         </fileset>
         <fileset dir="${build.dir.lib}">
-          <include name="**/*.jar" />
-          <exclude name="**/*-sources.jar"/>
+            <include name="**/*.jar" />
+            <exclude name="**/*-sources.jar"/>
         </fileset>
     </path>
 
@@ -1152,6 +1152,25 @@
       </rat:report>
     </target>
 
+  <target name="build-jmh" depends="build-test" description="Create JMH uber jar">
+      <jar jarfile="${build.test.dir}/deps.jar">
+          <zipgroupfileset dir="${build.dir.lib}/jars">
+              <include name="*jmh*.jar"/>
+              <include name="jopt*.jar"/>
+              <include name="commons*.jar"/>
+          </zipgroupfileset>
+          <zipgroupfileset dir="${build.lib}" includes="*.jar"/>
+      </jar>
+      <jar jarfile="${build.test.dir}/benchmarks.jar">
+          <manifest>
+              <attribute name="Main-Class" value="org.openjdk.jmh.Main"/>
+          </manifest>
+          <zipfileset src="${build.test.dir}/deps.jar" excludes="META-INF/*.SF" />
+          <fileset dir="${build.classes.main}"/>
+          <fileset dir="${test.classes}"/>
+      </jar>
+  </target>
+
   <target name="build-test" depends="build" description="Compile test classes">
     <javac
      compiler="modern"
@@ -1701,7 +1720,7 @@
   </target>
 
   <!-- run microbenchmarks suite -->
-  <target name="microbench" depends="build-test">
+  <target name="microbench" depends="build-jmh">
       <java classname="org.openjdk.jmh.Main"
             fork="true"
             failonerror="true">

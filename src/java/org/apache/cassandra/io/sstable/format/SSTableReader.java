@@ -42,6 +42,7 @@ import org.apache.cassandra.cache.ChunkCache;
 import org.apache.cassandra.cache.InstrumentingCache;
 import org.apache.cassandra.cache.KeyCacheKey;
 import org.apache.cassandra.concurrent.DebuggableThreadPoolExecutor;
+import org.apache.cassandra.concurrent.NamedThreadFactory;
 import org.apache.cassandra.concurrent.ScheduledExecutors;
 import org.apache.cassandra.config.CFMetaData;
 import org.apache.cassandra.config.Config;
@@ -145,7 +146,7 @@ public abstract class SSTableReader extends SSTable implements SelfRefCounted<SS
 
         // Do NOT start this thread pool in client mode
 
-        ScheduledThreadPoolExecutor syncExecutor = new ScheduledThreadPoolExecutor(1);
+        ScheduledThreadPoolExecutor syncExecutor = new ScheduledThreadPoolExecutor(1, new NamedThreadFactory("read-hotness-tracker"));
         // Immediately remove readMeter sync task when cancelled.
         syncExecutor.setRemoveOnCancelPolicy(true);
         return syncExecutor;
