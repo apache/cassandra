@@ -38,6 +38,8 @@ public abstract class StreamMessage
     public static final int VERSION_30 = 4;
     public static final int CURRENT_VERSION = VERSION_30;
 
+    private transient volatile boolean sent = false;
+
     public static void serialize(StreamMessage message, DataOutputStreamPlus out, int version, StreamSession session) throws IOException
     {
         ByteBuffer buff = ByteBuffer.allocate(1);
@@ -70,6 +72,16 @@ public abstract class StreamMessage
         }
     }
 
+    public void sent()
+    {
+        sent = true;
+    }
+
+    public boolean wasSent()
+    {
+        return sent;
+    }
+
     /** StreamMessage serializer */
     public static interface Serializer<V extends StreamMessage>
     {
@@ -85,7 +97,8 @@ public abstract class StreamMessage
         RECEIVED(3, 4, ReceivedMessage.serializer),
         RETRY(4, 4, RetryMessage.serializer),
         COMPLETE(5, 1, CompleteMessage.serializer),
-        SESSION_FAILED(6, 5, SessionFailedMessage.serializer);
+        SESSION_FAILED(6, 5, SessionFailedMessage.serializer),
+        KEEP_ALIVE(7, 5, KeepAliveMessage.serializer);
 
         public static Type get(byte type)
         {

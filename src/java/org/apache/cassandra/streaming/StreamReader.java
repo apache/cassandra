@@ -128,7 +128,7 @@ public class StreamReader
         {
             if (deserializer != null)
                 logger.warn("[Stream {}] Error while reading partition {} from stream on ks='{}' and table='{}'.",
-                            session.planId(), deserializer.partitionKey(), cfs.keyspace.getName(), cfs.getTableName());
+                            session.planId(), deserializer.partitionKey(), cfs.keyspace.getName(), cfs.getTableName(), e);
             if (writer != null)
             {
                 writer.abort(e);

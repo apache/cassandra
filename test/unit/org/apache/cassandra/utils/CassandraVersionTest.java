@@ -23,6 +23,7 @@ import java.util.Arrays;
 import org.junit.Test;
 
 import static org.junit.Assert.assertArrayEquals;
+import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertThat;
 import static org.junit.Assert.assertTrue;
 import static org.junit.Assert.fail;
@@ -111,6 +112,22 @@ public class CassandraVersionTest
         v1 = new CassandraVersion("3.1.0");
         v2 = new CassandraVersion("3.0.1");
         assertTrue(!v1.isSupportedBy(v2));
+        assertTrue(v2.isSupportedBy(v1));
+
+        v1 = new CassandraVersion("3.7");
+        v2 = new CassandraVersion("3.8");
+        assertTrue(v1.isSupportedBy(v2));
+        assertTrue(!v2.isSupportedBy(v1));
+
+        v1 = new CassandraVersion("3.0.8");
+        v2 = new CassandraVersion("3.8");
+        assertTrue(v1.isSupportedBy(v2));
+        assertTrue(!v2.isSupportedBy(v1));
+        assertTrue(v2.isSupportedBy(v2));
+
+        v1 = new CassandraVersion("3.8");
+        v2 = new CassandraVersion("3.8-SNAPSHOT");
+        assertTrue(v1.isSupportedBy(v2));
         assertTrue(v2.isSupportedBy(v1));
     }
 

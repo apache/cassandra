@@ -1,5 +1,6 @@
 3.10
  * Cleanup uses of AlterTableStatementColumn (CASSANDRA-12567)
+ * Add keep-alive to streaming (CASSANDRA-11841)
  * Tracing payload is passed through newSession(..) (CASSANDRA-11706)
  * avoid deleting non existing sstable files and improve related log messages (CASSANDRA-12261)
  * json/yaml output format for nodetool compactionhistory (CASSANDRA-12486)
@@ -55,6 +56,7 @@
  * Remove compaction Severity from DynamicEndpointSnitch (CASSANDRA-11738)
  * Restore resumable hints delivery (CASSANDRA-11960)
 Merged from 3.0:
+ * Fix legacy regex for temporary files from 2.2 (CASSANDRA-12565)
  * Add option to state current gc_grace_seconds to tools/bin/sstablemetadata (CASSANDRA-12208)
  * Fix file system race condition that may cause LogAwareFileLister to fail to classify files (CASSANDRA-11889)
  * Fix file handle leaks due to simultaneous compaction/repair and
@@ -66,6 +68,8 @@ Merged from 3.0:
  * Calculate last compacted key on startup (CASSANDRA-6216)
  * Add schema to snapshot manifest, add USING TIMESTAMP clause to ALTER TABLE statements (CASSANDRA-7190)
 Merged from 2.2:
+ * cqlshlib tests: increase default execute timeout (CASSANDRA-12481)
+ * Forward writes to replacement node when replace_address != broadcast_address (CASSANDRA-8523)
  * Fail repair on non-existing table (CASSANDRA-12279)
  * Enable repair -pr and -local together (fix regression of CASSANDRA-7450) (CASSANDRA-12522)
 

@@ -32,6 +32,7 @@ import com.google.common.annotations.VisibleForTesting;
 import com.google.common.collect.ImmutableList;
 import com.google.common.util.concurrent.Uninterruptibles;
 
+import org.apache.cassandra.utils.CassandraVersion;
 import org.apache.cassandra.utils.Pair;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -77,6 +78,7 @@ public class Gossiper implements IFailureDetectionEventListener, GossiperMBean
     {
         SILENT_SHUTDOWN_STATES.addAll(DEAD_STATES);
         SILENT_SHUTDOWN_STATES.add(VersionedValue.STATUS_BOOTSTRAPPING);
+        SILENT_SHUTDOWN_STATES.add(VersionedValue.STATUS_BOOTSTRAPPING_REPLACE);
     }
 
     private volatile ScheduledFuture<?> scheduledGossipTask;
@@ -335,9 +337,11 @@ public class Gossiper implements IFailureDetectionEventListener, GossiperMBean
         if (epState == null)
             return;
 
-        logger.debug("Convicting {} with status {} - alive {}", endpoint, getGossipStatus(epState), epState.isAlive());
         if (!epState.isAlive())
             return;
+
+        logger.debug("Convicting {} with status {} - alive {}", endpoint, getGossipStatus(epState), epState.isAlive());
+
 
         if (isShutdown(endpoint))
         {
@@ -1595,6 +1599,18 @@ public class Gossiper implements IFailureDetectionEventListener, GossiperMBean
     public static long computeExpireTime()
     {
         return System.currentTimeMillis() + Gossiper.aVeryLongTime;
+    }
+
+    public CassandraVersion getReleaseVersion(InetAddress ep)
+    {
+        EndpointState state = getEndpointStateForEndpoint(ep);
+        if (state != null)
+        {
+            VersionedValue applicationState = state.getApplicationState(ApplicationState.RELEASE_VERSION);
+            if (applicationState != null)
+                return new CassandraVersion(applicationState.value);
+        }
+        return null;
     }
 
 }

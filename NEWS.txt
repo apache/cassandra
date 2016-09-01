@@ -89,6 +89,9 @@ Upgrading
       snitch, encryption context. Client initialization just applies the configuration but does not
       setup anything. Instead of using Config.setClientMode() or Config.isClientMode(), which are
       deprecated now, use one of the appropiate new methods in DatabaseDescriptor.
+    - Application layer keep-alives were added to the streaming protocol to prevent idle incoming connections from
+      timing out and failing the stream session (CASSANDRA-11839). This effectively deprecates the streaming_socket_timeout_in_ms
+      property in favor of streaming_keep_alive_period_in_secs. See cassandra.yaml for more details about this property.
 
 3.8
 ===

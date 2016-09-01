@@ -22,15 +22,14 @@ package org.apache.cassandra.stress.settings;
 
 
 import java.io.PrintStream;
+import java.io.Serializable;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
 
 import com.google.common.collect.ImmutableList;
 
-import org.apache.cassandra.stress.util.MultiPrintStream;
-
-public abstract class GroupedOptions
+public abstract class GroupedOptions implements Serializable
 {
 
     int accepted = 0;
@@ -142,12 +141,12 @@ public abstract class GroupedOptions
         return builder.build();
     }
 
-    public static String formatLong(String longDisplay, String description)
+    static String formatLong(String longDisplay, String description)
     {
         return String.format("%-40s %s", longDisplay, description);
     }
 
-    public static String formatMultiLine(String longDisplay, String description)
+    static String formatMultiLine(String longDisplay, String description)
     {
         return String.format("%-36s %s", longDisplay, description);
     }
