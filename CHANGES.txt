@@ -48,6 +48,7 @@
  * Avoid digest mismatch with empty but static rows (CASSANDRA-12090)
  * Fix EOF exception when altering column type (CASSANDRA-11820)
 Merged from 2.2:
+ * Add local address entry in PropertyFileSnitch (CASSANDRA-11332)
  * cqlshlib tests: increase default execute timeout (CASSANDRA-12481)
  * Forward writes to replacement node when replace_address != broadcast_address (CASSANDRA-8523)
  * Enable repair -pr and -local together (fix regression of CASSANDRA-7450) (CASSANDRA-12522)
