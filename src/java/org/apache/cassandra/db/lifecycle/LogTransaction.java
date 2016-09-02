@@ -208,9 +208,10 @@ class LogTransaction extends Transactional.AbstractTransactional implements Tran
             if (logger.isDebugEnabled())
             {
                 ByteArrayOutputStream baos = new ByteArrayOutputStream();
-                PrintStream ps = new PrintStream(baos);
-                e.printStackTrace(ps);
-                ps.close();
+                try (PrintStream ps = new PrintStream(baos))
+                {
+                    e.printStackTrace(ps);
+                }
                 logger.debug("Unable to delete {} as it does not exist, stack trace:\n {}", file, baos.toString());
             }
         }
