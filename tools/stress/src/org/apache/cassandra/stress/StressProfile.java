@@ -62,7 +62,7 @@ import org.yaml.snakeyaml.Yaml;
 import org.yaml.snakeyaml.constructor.Constructor;
 import org.yaml.snakeyaml.error.YAMLException;
 
-import static org.apache.cassandra.io.sstable.CQLSSTableWriter.parseStatement;
+import static org.apache.cassandra.io.sstable.StressCQLSSTableWriter.parseStatement;
 
 public class StressProfile implements Serializable
 {

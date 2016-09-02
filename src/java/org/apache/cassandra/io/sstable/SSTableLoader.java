@@ -56,25 +56,13 @@ public class SSTableLoader implements StreamEventHandler
 
     public SSTableLoader(File directory, Client client, OutputHandler outputHandler)
     {
-        this(directory, client, outputHandler, directory.getParentFile().getName(), 1);
+        this(directory, client, outputHandler, 1);
     }
-
 
     public SSTableLoader(File directory, Client client, OutputHandler outputHandler, int connectionsPerHost)
     {
-        this(directory, client, outputHandler, directory.getParentFile().getName(), connectionsPerHost);
-    }
-
-    public SSTableLoader(File directory, Client client, OutputHandler outputHandler, String keyspace)
-    {
-        this(directory, client, outputHandler, keyspace, 1);
-    }
-
-
-    public SSTableLoader(File directory, Client client, OutputHandler outputHandler, String keyspace, int connectionsPerHost)
-    {
         this.directory = directory;
-        this.keyspace = keyspace;
+        this.keyspace = directory.getParentFile().getName();
         this.client = client;
         this.outputHandler = outputHandler;
         this.connectionsPerHost = connectionsPerHost;

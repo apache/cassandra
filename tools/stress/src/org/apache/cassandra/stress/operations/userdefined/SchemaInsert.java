@@ -21,26 +21,18 @@ package org.apache.cassandra.stress.operations.userdefined;
  */
 
 
-import java.io.File;
 import java.io.IOException;
 import java.util.ArrayList;
-import java.util.Collection;
 import java.util.List;
-import java.util.concurrent.CountDownLatch;
-import java.util.concurrent.ExecutorService;
-import java.util.concurrent.Executors;
 import java.util.stream.Collectors;
-
-import com.google.common.util.concurrent.Uninterruptibles;
 
 import com.datastax.driver.core.BatchStatement;
 import com.datastax.driver.core.BoundStatement;
 import com.datastax.driver.core.PreparedStatement;
 import com.datastax.driver.core.Statement;
-import org.apache.cassandra.config.CFMetaData;
 import org.apache.cassandra.db.ColumnFamilyStore;
 import org.apache.cassandra.db.ConsistencyLevel;
-import org.apache.cassandra.io.sstable.CQLSSTableWriter;
+import org.apache.cassandra.io.sstable.StressCQLSSTableWriter;
 import org.apache.cassandra.stress.WorkManager;
 import org.apache.cassandra.stress.generate.*;
 import org.apache.cassandra.stress.report.Timer;
@@ -142,9 +134,9 @@ public class SchemaInsert extends SchemaStatement
 
     private class OfflineRun extends Runner
     {
-        final CQLSSTableWriter writer;
+        final StressCQLSSTableWriter writer;
 
-        OfflineRun(CQLSSTableWriter writer)
+        OfflineRun(StressCQLSSTableWriter writer)
         {
             this.writer = writer;
         }
@@ -182,9 +174,9 @@ public class SchemaInsert extends SchemaStatement
         timeWithRetry(new ThriftRun(client));
     }
 
-    public CQLSSTableWriter createWriter(ColumnFamilyStore cfs, int bufferSize, boolean makeRangeAware)
+    public StressCQLSSTableWriter createWriter(ColumnFamilyStore cfs, int bufferSize, boolean makeRangeAware)
     {
-        return CQLSSTableWriter.builder()
+        return StressCQLSSTableWriter.builder()
                                .withCfs(cfs)
                                .withBufferSizeInMB(bufferSize)
                                .forTable(tableSchema)
@@ -193,7 +185,7 @@ public class SchemaInsert extends SchemaStatement
                                .build();
     }
 
-    public void runOffline(CQLSSTableWriter writer, WorkManager workManager) throws Exception
+    public void runOffline(StressCQLSSTableWriter writer, WorkManager workManager) throws Exception
     {
         OfflineRun offline = new OfflineRun(writer);
 

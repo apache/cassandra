@@ -33,11 +33,9 @@ import org.junit.Test;
 
 import org.apache.cassandra.SchemaLoader;
 import org.apache.cassandra.Util;
-import org.apache.cassandra.auth.AuthConfig;
 import org.apache.cassandra.config.*;
 import org.apache.cassandra.cql3.*;
 import org.apache.cassandra.cql3.functions.UDHelper;
-import org.apache.cassandra.db.ColumnFamilyStore;
 import org.apache.cassandra.db.Keyspace;
 import org.apache.cassandra.dht.*;
 import org.apache.cassandra.exceptions.*;
@@ -97,7 +95,7 @@ public class CQLSSTableWriterTest
 
             writer.close();
 
-            loadSSTables(writer.getInnermostDirectory(), KS);
+            loadSSTables(dataDir, KS);
 
             UntypedResultSet rs = QueryProcessor.executeInternal("SELECT * FROM cql_keyspace.table1;");
             assertEquals(4, rs.size());
@@ -187,7 +185,7 @@ public class CQLSSTableWriterTest
                 return name.endsWith("-Data.db");
             }
         };
-        assert writer.getInnermostDirectory().list(filterDataFiles).length > 1 : Arrays.toString(writer.getInnermostDirectory().list(filterDataFiles));
+        assert dataDir.list(filterDataFiles).length > 1 : Arrays.toString(dataDir.list(filterDataFiles));
     }
 
 
@@ -221,22 +219,28 @@ public class CQLSSTableWriterTest
     private static final int NUMBER_WRITES_IN_RUNNABLE = 10;
     private class WriterThread extends Thread
     {
+        private final File dataDir;
         private final int id;
-        private final ColumnFamilyStore cfs;
         public volatile Exception exception;
 
-        public WriterThread(ColumnFamilyStore cfs, int id)
+        public WriterThread(File dataDir, int id)
         {
-            this.cfs = cfs;
+            this.dataDir = dataDir;
             this.id = id;
         }
 
         @Override
         public void run()
         {
+            String schema = "CREATE TABLE cql_keyspace2.table2 ("
+                    + "  k int,"
+                    + "  v int,"
+                    + "  PRIMARY KEY (k, v)"
+                    + ")";
             String insert = "INSERT INTO cql_keyspace2.table2 (k, v) VALUES (?, ?)";
             CQLSSTableWriter writer = CQLSSTableWriter.builder()
-                    .withCfs(cfs)
+                    .inDirectory(dataDir)
+                    .forTable(schema)
                     .using(insert).build();
 
             try
@@ -264,17 +268,10 @@ public class CQLSSTableWriterTest
         File dataDir = new File(tempdir.getAbsolutePath() + File.separator + KS + File.separator + TABLE);
         assert dataDir.mkdirs();
 
-        String schema = "CREATE TABLE cql_keyspace2.table2 ("
-                        + "  k int,"
-                        + "  v int,"
-                        + "  PRIMARY KEY (k, v)"
-                        + ")";
-        ColumnFamilyStore cfs = CQLSSTableWriter.Builder.createOfflineTable(schema, Collections.singletonList(dataDir));
-
         WriterThread[] threads = new WriterThread[5];
         for (int i = 0; i < threads.length; i++)
         {
-            WriterThread thread = new WriterThread(cfs, i);
+            WriterThread thread = new WriterThread(dataDir, i);
             threads[i] = thread;
             thread.start();
         }
@@ -289,7 +286,7 @@ public class CQLSSTableWriterTest
             }
         }
 
-        loadSSTables(cfs.getDirectories().getDirectoryForNewSSTables(), KS);
+        loadSSTables(dataDir, KS);
 
         UntypedResultSet rs = QueryProcessor.executeInternal("SELECT * FROM cql_keyspace2.table2;");
         assertEquals(threads.length * NUMBER_WRITES_IN_RUNNABLE, rs.size());
@@ -341,7 +338,7 @@ public class CQLSSTableWriterTest
         }
 
         writer.close();
-        loadSSTables(writer.getInnermostDirectory(), KS);
+        loadSSTables(dataDir, KS);
 
         UntypedResultSet resultSet = QueryProcessor.executeInternal("SELECT * FROM " + KS + "." + TABLE);
         TypeCodec collectionCodec = UDHelper.codecFor(DataType.CollectionType.frozenList(tuple2Type));
@@ -412,7 +409,7 @@ public class CQLSSTableWriterTest
         }
 
         writer.close();
-        loadSSTables(writer.getInnermostDirectory(), KS);
+        loadSSTables(dataDir, KS);
 
         UntypedResultSet resultSet = QueryProcessor.executeInternal("SELECT * FROM " + KS + "." + TABLE);
 
@@ -503,7 +500,7 @@ public class CQLSSTableWriterTest
         writer.addRow(5, 5, 5, "5");
 
         writer.close();
-        loadSSTables(writer.getInnermostDirectory(), KS);
+        loadSSTables(dataDir, KS);
 
         UntypedResultSet resultSet = QueryProcessor.executeInternal("SELECT * FROM " + KS + "." + TABLE);
         Iterator<UntypedResultSet.Row> iter = resultSet.iterator();

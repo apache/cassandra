@@ -19,14 +19,12 @@ package org.apache.cassandra.io.sstable;
 
 import java.io.File;
 import java.io.IOException;
-import java.util.Collection;
 
 import com.google.common.base.Throwables;
 
 import org.apache.cassandra.config.CFMetaData;
 import org.apache.cassandra.db.*;
 import org.apache.cassandra.db.partitions.PartitionUpdate;
-import org.apache.cassandra.dht.IPartitioner;
 
 /**
  * A SSTable writer that assumes rows are in (partitioner) sorted order.
@@ -45,9 +43,9 @@ class SSTableSimpleWriter extends AbstractSSTableSimpleWriter
 
     private SSTableTxnWriter writer;
 
-    protected SSTableSimpleWriter(ColumnFamilyStore cfs, IPartitioner partitioner, PartitionColumns columns)
+    protected SSTableSimpleWriter(File directory, CFMetaData metadata, PartitionColumns columns)
     {
-        super(cfs, partitioner, columns);
+        super(directory, metadata, columns);
     }
 
     private SSTableTxnWriter getOrCreateWriter()
@@ -69,7 +67,7 @@ class SSTableSimpleWriter extends AbstractSSTableSimpleWriter
             if (update != null)
                 writePartition(update);
             currentKey = key;
-            update = new PartitionUpdate(cfs.metadata, currentKey, columns, 4);
+            update = new PartitionUpdate(metadata, currentKey, columns, 4);
         }
 
         assert update != null;

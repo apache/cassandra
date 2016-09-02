@@ -131,10 +131,12 @@ public class RealTransactionsTest extends SchemaLoader
     {
         cfs.truncateBlocking();
 
+        String schema = "CREATE TABLE \"%s\".\"%s\" (key ascii, name ascii, val ascii, val1 ascii, PRIMARY KEY (key, name))";
         String query = "INSERT INTO \"%s\".\"%s\" (key, name, val) VALUES (?, ?, ?)";
 
         try (CQLSSTableWriter writer = CQLSSTableWriter.builder()
-                                                       .withCfs(cfs)
+                                                       .inDirectory(cfs.getDirectories().getDirectoryForNewSSTables())
+                                                       .forTable(String.format(schema, cfs.keyspace.getName(), cfs.name))
                                                        .using(String.format(query, cfs.keyspace.getName(), cfs.name))
                                                        .build())
         {

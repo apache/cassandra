@@ -21,12 +21,7 @@ import java.io.Closeable;
 import java.io.File;
 import java.io.IOException;
 import java.nio.ByteBuffer;
-import java.util.ArrayList;
-import java.util.Arrays;
-import java.util.Collections;
-import java.util.List;
-import java.util.Map;
-import java.util.SortedSet;
+import java.util.*;
 import java.util.stream.Collectors;
 
 import com.datastax.driver.core.ProtocolVersion;
@@ -43,8 +38,7 @@ import org.apache.cassandra.cql3.statements.CreateTableStatement;
 import org.apache.cassandra.cql3.statements.CreateTypeStatement;
 import org.apache.cassandra.cql3.statements.ParsedStatement;
 import org.apache.cassandra.cql3.statements.UpdateStatement;
-import org.apache.cassandra.db.Clustering;
-import org.apache.cassandra.db.DecoratedKey;
+import org.apache.cassandra.db.*;
 import org.apache.cassandra.db.marshal.UserType;
 import org.apache.cassandra.db.partitions.Partition;
 import org.apache.cassandra.dht.IPartitioner;
@@ -77,8 +71,8 @@ import org.apache.cassandra.utils.Pair;
  *   // Creates a new writer. You need to provide at least the directory where to write the created sstable,
  *   // the schema for the sstable to write and a (prepared) insert statement to use. If you do not use the
  *   // default partitioner (Murmur3Partitioner), you will also need to provide the partitioner in use, see
- *   // CQLSSTableWriter.Builder for more details on the available options.
- *   CQLSSTableWriter writer = CQLSSTableWriter.builder()
+ *   // StressCQLSSTableWriter.Builder for more details on the available options.
+ *   StressCQLSSTableWriter writer = StressCQLSSTableWriter.builder()
  *                                             .inDirectory("path/to/directory")
  *                                             .withType(type)
  *                                             .forTable(schema)
@@ -94,11 +88,11 @@ import org.apache.cassandra.utils.Pair;
  *   writer.close();
  * </pre>
  *
- * Please note that {@code CQLSSTableWriter} is <b>not</b> thread-safe (multiple threads cannot access the
+ * Please note that {@code StressCQLSSTableWriter} is <b>not</b> thread-safe (multiple threads cannot access the
  * same instance). It is however safe to use multiple instances in parallel (even if those instance write
  * sstables for the same table).
  */
-public class CQLSSTableWriter implements Closeable
+public class StressCQLSSTableWriter implements Closeable
 {
     public static final ByteBuffer UNSET_VALUE = ByteBufferUtil.UNSET_BYTE_BUFFER;
 
@@ -114,9 +108,11 @@ public class CQLSSTableWriter implements Closeable
     private final UpdateStatement insert;
     private final List<ColumnSpecification> boundNames;
     private final List<TypeCodec> typeCodecs;
+    private final ColumnFamilyStore cfs;
 
-    private CQLSSTableWriter(AbstractSSTableSimpleWriter writer, UpdateStatement insert, List<ColumnSpecification> boundNames)
+    private StressCQLSSTableWriter(ColumnFamilyStore cfs, AbstractSSTableSimpleWriter writer, UpdateStatement insert, List<ColumnSpecification> boundNames)
     {
+        this.cfs = cfs;
         this.writer = writer;
         this.insert = insert;
         this.boundNames = boundNames;
@@ -125,7 +121,7 @@ public class CQLSSTableWriter implements Closeable
     }
 
     /**
-     * Returns a new builder for a CQLSSTableWriter.
+     * Returns a new builder for a StressCQLSSTableWriter.
      *
      * @return the new builder.
      */
@@ -143,7 +139,7 @@ public class CQLSSTableWriter implements Closeable
      * insertion statement used when creating by this writer).
      * @return this writer.
      */
-    public CQLSSTableWriter addRow(Object... values)
+    public StressCQLSSTableWriter addRow(Object... values)
     throws InvalidRequestException, IOException
     {
         return addRow(Arrays.asList(values));
@@ -164,7 +160,7 @@ public class CQLSSTableWriter implements Closeable
      * insertion statement used when creating by this writer).
      * @return this writer.
      */
-    public CQLSSTableWriter addRow(List<Object> values)
+    public StressCQLSSTableWriter addRow(List<Object> values)
     throws InvalidRequestException, IOException
     {
         int size = Math.min(values.size(), boundNames.size());
@@ -199,7 +195,7 @@ public class CQLSSTableWriter implements Closeable
      * the corresponding value is ignored.
      * @return this writer.
      */
-    public CQLSSTableWriter addRow(Map<String, Object> values)
+    public StressCQLSSTableWriter addRow(Map<String, Object> values)
     throws InvalidRequestException, IOException
     {
         int size = boundNames.size();
@@ -220,7 +216,7 @@ public class CQLSSTableWriter implements Closeable
      * insertion statement used when creating by this writer) as binary.
      * @return this writer.
      */
-    public CQLSSTableWriter rawAddRow(ByteBuffer... values)
+    public StressCQLSSTableWriter rawAddRow(ByteBuffer... values)
     throws InvalidRequestException, IOException
     {
         return rawAddRow(Arrays.asList(values));
@@ -235,7 +231,7 @@ public class CQLSSTableWriter implements Closeable
      * insertion statement used when creating by this writer) as binary.
      * @return this writer.
      */
-    public CQLSSTableWriter rawAddRow(List<ByteBuffer> values)
+    public StressCQLSSTableWriter rawAddRow(List<ByteBuffer> values)
     throws InvalidRequestException, IOException
     {
         if (values.size() != boundNames.size())
@@ -287,7 +283,7 @@ public class CQLSSTableWriter implements Closeable
      * the corresponding value is ignored.
      * @return this writer.
      */
-    public CQLSSTableWriter rawAddRow(Map<String, ByteBuffer> values)
+    public StressCQLSSTableWriter rawAddRow(Map<String, ByteBuffer> values)
     throws InvalidRequestException, IOException
     {
         int size = Math.min(values.size(), boundNames.size());
@@ -333,13 +329,29 @@ public class CQLSSTableWriter implements Closeable
         return codec.serialize(value, ProtocolVersion.NEWEST_SUPPORTED);
     }
     /**
-     * A Builder for a CQLSSTableWriter object.
+     * The writer loads data in directories corresponding to how they laid out on the server.
+     * <p>
+     * {keyspace}/{table-cfid}/
+     *
+     * This method can be used to fetch the innermost directory with the sstable components
+     * @return The directory containing the sstable components
+     */
+    public File getInnermostDirectory()
+    {
+        return cfs.getDirectories().getDirectoryForNewSSTables();
+    }
+
+    /**
+     * A Builder for a StressCQLSSTableWriter object.
      */
     public static class Builder
     {
-        private File directory;
+        private final List<File> directoryList;
+        private ColumnFamilyStore cfs;
 
         protected SSTableFormat.Type formatType = null;
+
+        private Boolean makeRangeAware = false;
 
         private CreateTableStatement.RawStatement schemaStatement;
         private final List<CreateTypeStatement> typeStatements;
@@ -349,8 +361,10 @@ public class CQLSSTableWriter implements Closeable
         private boolean sorted = false;
         private long bufferSizeInMB = 128;
 
-        protected Builder() {
+        protected Builder()
+        {
             this.typeStatements = new ArrayList<>();
+            this.directoryList = new ArrayList<>();
         }
 
         /**
@@ -373,7 +387,7 @@ public class CQLSSTableWriter implements Closeable
          * <p>
          * This is a mandatory option.
          *
-         * @param directory the directory to use, which should exists and be writable.
+         * @param directory the directory to use, which should exist and be writable.
          * @return this builder.
          *
          * @throws IllegalArgumentException if {@code directory} doesn't exist or is not writable.
@@ -385,9 +399,28 @@ public class CQLSSTableWriter implements Closeable
             if (!directory.canWrite())
                 throw new IllegalArgumentException(directory + " exists but is not writable");
 
-            this.directory = directory;
+            directoryList.add(directory);
             return this;
         }
+
+        /**
+         * A pre-instanciated ColumnFamilyStore
+         * <p>
+         * This is can be used in place of inDirectory and forTable
+         *
+         * @see #inDirectory(File)
+         *
+         * @param cfs the list of directories to use, which should exist and be writable.
+         * @return this builder.
+         *
+         * @throws IllegalArgumentException if a directory doesn't exist or is not writable.
+         */
+        public Builder withCfs(ColumnFamilyStore cfs)
+        {
+            this.cfs = cfs;
+            return this;
+        }
+
 
         public Builder withType(String typeDefinition) throws SyntaxException
         {
@@ -428,6 +461,20 @@ public class CQLSSTableWriter implements Closeable
         public Builder withPartitioner(IPartitioner partitioner)
         {
             this.partitioner = partitioner;
+            return this;
+        }
+
+
+        /**
+         * Specify if the sstable writer should be vnode range aware.
+         * This will create a sstable per vnode range.
+         *
+         * @param makeRangeAware
+         * @return
+         */
+        public Builder rangeAware(boolean makeRangeAware)
+        {
+            this.makeRangeAware = makeRangeAware;
             return this;
         }
 
@@ -474,7 +521,7 @@ public class CQLSSTableWriter implements Closeable
         }
 
         /**
-         * Creates a CQLSSTableWriter that expects sorted inputs.
+         * Creates a StressCQLSSTableWriter that expects sorted inputs.
          * <p>
          * If this option is used, the resulting writer will expect rows to be
          * added in SSTable sorted order (and an exception will be thrown if that
@@ -497,38 +544,38 @@ public class CQLSSTableWriter implements Closeable
         }
 
         @SuppressWarnings("resource")
-        public CQLSSTableWriter build()
+        public StressCQLSSTableWriter build()
         {
-            if (directory == null)
-                throw new IllegalStateException("No ouptut directory specified, you should provide a directory with inDirectory()");
-            if (schemaStatement == null)
+            if (directoryList.isEmpty() && cfs == null)
+                throw new IllegalStateException("No output directories specified, you should provide a directory with inDirectory()");
+            if (schemaStatement == null && cfs == null)
                 throw new IllegalStateException("Missing schema, you should provide the schema for the SSTable to create with forTable()");
             if (insertStatement == null)
                 throw new IllegalStateException("No insert statement specified, you should provide an insert statement through using()");
 
-            synchronized (CQLSSTableWriter.class)
+            synchronized (StressCQLSSTableWriter.class)
             {
-                String keyspace = schemaStatement.keyspace();
+                if (cfs == null)
+                    cfs = createOfflineTable(schemaStatement, typeStatements, directoryList);
 
-                if (Schema.instance.getKSMetaData(keyspace) == null)
-                    Schema.instance.load(KeyspaceMetadata.create(keyspace, KeyspaceParams.simple(1)));
+                if (partitioner == null)
+                    partitioner = cfs.getPartitioner();
 
-                createTypes(keyspace);
-                CFMetaData cfMetaData = createTable(keyspace);
                 Pair<UpdateStatement, List<ColumnSpecification>> preparedInsert = prepareInsert();
-
                 AbstractSSTableSimpleWriter writer = sorted
-                                                     ? new SSTableSimpleWriter(directory, cfMetaData, preparedInsert.left.updatedColumns())
-                                                     : new SSTableSimpleUnsortedWriter(directory, cfMetaData, preparedInsert.left.updatedColumns(), bufferSizeInMB);
+                                                     ? new SSTableSimpleWriter(cfs.getDirectories().getDirectoryForNewSSTables(), cfs.metadata, preparedInsert.left.updatedColumns())
+                                                     : new SSTableSimpleUnsortedWriter(cfs.getDirectories().getDirectoryForNewSSTables(), cfs.metadata, preparedInsert.left.updatedColumns(), bufferSizeInMB);
 
                 if (formatType != null)
                     writer.setSSTableFormatType(formatType);
 
-                return new CQLSSTableWriter(writer, preparedInsert.left, preparedInsert.right);
+                writer.setRangeAwareWriting(makeRangeAware);
+
+                return new StressCQLSSTableWriter(cfs, writer, preparedInsert.left, preparedInsert.right);
             }
         }
 
-        private void createTypes(String keyspace)
+        private static void createTypes(String keyspace, List<CreateTypeStatement> typeStatements)
         {
             KeyspaceMetadata ksm = Schema.instance.getKSMetaData(keyspace);
             Types.RawBuilder builder = Types.rawBuilder(keyspace);
@@ -538,31 +585,50 @@ public class CQLSSTableWriter implements Closeable
             ksm = ksm.withSwapped(builder.build());
             Schema.instance.setKeyspaceMetadata(ksm);
         }
+
+        public static ColumnFamilyStore createOfflineTable(String schema, List<File> directoryList)
+        {
+            return createOfflineTable(parseStatement(schema, CreateTableStatement.RawStatement.class, "CREATE TABLE"), Collections.EMPTY_LIST, directoryList);
+        }
+
         /**
          * Creates the table according to schema statement
-         *
-         * @param keyspace name of the keyspace where table should be created
+         * with specified data directories
          */
-        private CFMetaData createTable(String keyspace)
+        public static ColumnFamilyStore createOfflineTable(CreateTableStatement.RawStatement schemaStatement, List<CreateTypeStatement> typeStatements, List<File> directoryList)
         {
+            String keyspace = schemaStatement.keyspace();
+
+            if (Schema.instance.getKSMetaData(keyspace) == null)
+                Schema.instance.load(KeyspaceMetadata.create(keyspace, KeyspaceParams.simple(1)));
+
+            createTypes(keyspace, typeStatements);
+
             KeyspaceMetadata ksm = Schema.instance.getKSMetaData(keyspace);
 
             CFMetaData cfMetaData = ksm.tables.getNullable(schemaStatement.columnFamily());
-            if (cfMetaData == null)
-            {
-                CreateTableStatement statement = (CreateTableStatement) schemaStatement.prepare(ksm.types).statement;
-                statement.validate(ClientState.forInternalCalls());
+            assert cfMetaData == null;
 
-                cfMetaData = statement.getCFMetaData();
+            CreateTableStatement statement = (CreateTableStatement) schemaStatement.prepare(ksm.types).statement;
+            statement.validate(ClientState.forInternalCalls());
 
-                Schema.instance.load(cfMetaData);
-                Schema.instance.setKeyspaceMetadata(ksm.withSwapped(ksm.tables.with(cfMetaData)));
-            }
+            //Build metatdata with a portable cfId
+            cfMetaData = statement.metadataBuilder()
+                                  .withId(CFMetaData.generateLegacyCfId(keyspace, statement.columnFamily()))
+                                  .build()
+                                  .params(statement.params());
 
-            if (partitioner != null)
-                return cfMetaData.copy(partitioner);
-            else
-                return cfMetaData;
+            Keyspace.setInitialized();
+            Directories directories = new Directories(cfMetaData, directoryList.stream().map(Directories.DataDirectory::new).collect(Collectors.toList()));
+
+            Keyspace ks = Keyspace.openWithoutSSTables(keyspace);
+            ColumnFamilyStore cfs =  ColumnFamilyStore.createColumnFamilyStore(ks, cfMetaData.cfName, cfMetaData, directories, false, false, true);
+
+            ks.initCfCustom(cfs);
+            Schema.instance.load(cfs.metadata);
+            Schema.instance.setKeyspaceMetadata(ksm.withSwapped(ksm.tables.with(cfs.metadata)));
+
+            return cfs;
         }
 
         /**
@@ -587,7 +653,7 @@ public class CQLSSTableWriter implements Closeable
         }
     }
 
-    private static <T extends ParsedStatement> T parseStatement(String query, Class<T> klass, String type)
+    public static <T extends ParsedStatement> T parseStatement(String query, Class<T> klass, String type)
     {
         try
         {

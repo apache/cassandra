@@ -30,7 +30,6 @@ import org.junit.Test;
 
 import org.apache.cassandra.SchemaLoader;
 import org.apache.cassandra.config.CFMetaData;
-import org.apache.cassandra.config.Config;
 import org.apache.cassandra.config.DatabaseDescriptor;
 import org.apache.cassandra.config.Schema;
 import org.apache.cassandra.cql3.QueryProcessor;
@@ -92,7 +91,7 @@ public class LongStreamingTest
         writer.close();
         System.err.println(String.format("Writer finished after %d seconds....", TimeUnit.NANOSECONDS.toSeconds(System.nanoTime() - start)));
 
-        File[] dataFiles = writer.getInnermostDirectory().listFiles((dir, name) -> name.endsWith("-Data.db"));
+        File[] dataFiles = dataDir.listFiles((dir, name) -> name.endsWith("-Data.db"));
         long dataSize = 0l;
         for (File file : dataFiles)
         {
@@ -100,7 +99,7 @@ public class LongStreamingTest
             dataSize += file.length();
         }
 
-        SSTableLoader loader = new SSTableLoader(writer.getInnermostDirectory(), new SSTableLoader.Client()
+        SSTableLoader loader = new SSTableLoader(dataDir, new SSTableLoader.Client()
         {
             private String ks;
             public void init(String keyspace)
@@ -127,7 +126,7 @@ public class LongStreamingTest
 
 
         //Stream again
-        loader = new SSTableLoader(writer.getInnermostDirectory(), new SSTableLoader.Client()
+        loader = new SSTableLoader(dataDir, new SSTableLoader.Client()
         {
             private String ks;
             public void init(String keyspace)

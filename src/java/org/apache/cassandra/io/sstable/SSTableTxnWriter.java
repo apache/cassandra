@@ -23,6 +23,7 @@ import java.util.Collection;
 
 import org.apache.cassandra.config.CFMetaData;
 import org.apache.cassandra.db.ColumnFamilyStore;
+import org.apache.cassandra.db.Keyspace;
 import org.apache.cassandra.db.SerializationHeader;
 import org.apache.cassandra.db.compaction.OperationType;
 import org.apache.cassandra.db.lifecycle.LifecycleTransaction;
@@ -106,8 +107,15 @@ public class SSTableTxnWriter extends Transactional.AbstractTransactional implem
 
 
     @SuppressWarnings("resource") // log and writer closed during doPostCleanup
-    public static SSTableTxnWriter createRangeAware(ColumnFamilyStore cfs, long keyCount, long repairedAt, SSTableFormat.Type type, int sstableLevel, SerializationHeader header)
+    public static SSTableTxnWriter createRangeAware(CFMetaData cfm,
+                                                    long keyCount,
+                                                    long repairedAt,
+                                                    SSTableFormat.Type type,
+                                                    int sstableLevel,
+                                                    SerializationHeader header)
     {
+
+        ColumnFamilyStore cfs = Keyspace.open(cfm.ksName).getColumnFamilyStore(cfm.cfName);
         LifecycleTransaction txn = LifecycleTransaction.offline(OperationType.WRITE);
         SSTableMultiWriter writer;
         try

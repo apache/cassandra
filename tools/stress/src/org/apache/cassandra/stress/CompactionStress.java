@@ -24,39 +24,32 @@ import java.net.InetAddress;
 import java.net.URI;
 import java.util.*;
 import java.util.concurrent.*;
-import java.util.stream.Collectors;
 import javax.inject.Inject;
 
 import com.google.common.collect.Lists;
 import com.google.common.util.concurrent.Uninterruptibles;
 
 import io.airlift.command.*;
-import org.apache.cassandra.config.CFMetaData;
 import org.apache.cassandra.config.DatabaseDescriptor;
-import org.apache.cassandra.config.Schema;
 import org.apache.cassandra.cql3.statements.CreateTableStatement;
 import org.apache.cassandra.db.ColumnFamilyStore;
 import org.apache.cassandra.db.Directories;
-import org.apache.cassandra.db.Keyspace;
 import org.apache.cassandra.db.SystemKeyspace;
 import org.apache.cassandra.db.compaction.CompactionManager;
 import org.apache.cassandra.db.lifecycle.LifecycleTransaction;
 import org.apache.cassandra.dht.IPartitioner;
 import org.apache.cassandra.dht.Token;
-import org.apache.cassandra.io.sstable.CQLSSTableWriter;
+import org.apache.cassandra.io.sstable.StressCQLSSTableWriter;
 import org.apache.cassandra.io.sstable.Component;
 import org.apache.cassandra.io.sstable.Descriptor;
 import org.apache.cassandra.io.sstable.format.SSTableReader;
 import org.apache.cassandra.io.util.FileUtils;
 import org.apache.cassandra.locator.TokenMetadata;
-import org.apache.cassandra.schema.KeyspaceMetadata;
-import org.apache.cassandra.schema.KeyspaceParams;
 import org.apache.cassandra.service.StorageService;
 import org.apache.cassandra.stress.generate.PartitionGenerator;
 import org.apache.cassandra.stress.generate.SeedManager;
 import org.apache.cassandra.stress.operations.userdefined.SchemaInsert;
 import org.apache.cassandra.stress.settings.StressSettings;
-import org.apache.cassandra.tools.Util;
 import org.apache.cassandra.tools.nodetool.CompactionStats;
 import org.apache.cassandra.utils.FBUtilities;
 import org.apache.cassandra.utils.JVMStabilityInspector;
@@ -78,6 +71,11 @@ public abstract class CompactionStress implements Runnable
 
     @Option(name = {"-v", "--vnodes"}, description = "number of local tokens to generate (default 256)")
     Integer numTokens = 256;
+
+    static
+    {
+        DatabaseDescriptor.toolInitialization();
+    }
 
     List<File> getDataDirectories()
     {
@@ -112,14 +110,12 @@ public abstract class CompactionStress implements Runnable
 
     ColumnFamilyStore initCf(StressProfile stressProfile, boolean loadSSTables)
     {
-        Util.initDatabaseDescriptor();
-
         generateTokens(stressProfile.seedStr, StorageService.instance.getTokenMetadata(), numTokens);
 
         CreateTableStatement.RawStatement createStatement = stressProfile.getCreateStatement();
         List<File> dataDirectories = getDataDirectories();
 
-        ColumnFamilyStore cfs = CQLSSTableWriter.Builder.createOfflineTable(createStatement, Collections.EMPTY_LIST, dataDirectories);
+        ColumnFamilyStore cfs = StressCQLSSTableWriter.Builder.createOfflineTable(createStatement, Collections.EMPTY_LIST, dataDirectories);
 
         if (loadSSTables)
         {
@@ -302,7 +298,7 @@ public abstract class CompactionStress implements Runnable
             {
                 //Every thread needs it's own writer
                 final SchemaInsert insert = stressProfile.getOfflineInsert(null, generator, seedManager, settings);
-                final CQLSSTableWriter tableWriter = insert.createWriter(cfs, bufferSize, makeRangeAware);
+                final StressCQLSSTableWriter tableWriter = insert.createWriter(cfs, bufferSize, makeRangeAware);
                 executorService.submit(() -> {
                     try
                     {
