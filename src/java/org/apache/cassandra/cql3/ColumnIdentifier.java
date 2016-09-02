@@ -60,7 +60,38 @@ public class ColumnIdentifier extends Selectable implements IMeasurableMemory, C
 
     private static final long EMPTY_SIZE = ObjectSizes.measure(new ColumnIdentifier(ByteBufferUtil.EMPTY_BYTE_BUFFER, "", false));
 
-    private static final ConcurrentMap<ByteBuffer, ColumnIdentifier> internedInstances = new MapMaker().weakValues().makeMap();
+    private static final ConcurrentMap<InternedKey, ColumnIdentifier> internedInstances = new MapMaker().weakValues().makeMap();
+
+    private static final class InternedKey
+    {
+        private final AbstractType<?> type;
+        private final ByteBuffer bytes;
+
+        InternedKey(AbstractType<?> type, ByteBuffer bytes)
+        {
+            this.type = type;
+            this.bytes = bytes;
+        }
+
+        @Override
+        public boolean equals(Object o)
+        {
+            if (this == o)
+                return true;
+
+            if (o == null || getClass() != o.getClass())
+                return false;
+
+            InternedKey that = (InternedKey) o;
+            return bytes.equals(that.bytes) && type.equals(that.type);
+        }
+
+        @Override
+        public int hashCode()
+        {
+            return bytes.hashCode() + 31 * type.hashCode();
+        }
+    }
 
     private static long prefixComparison(ByteBuffer bytes)
     {
@@ -103,24 +134,25 @@ public class ColumnIdentifier extends Selectable implements IMeasurableMemory, C
 
     public static ColumnIdentifier getInterned(ByteBuffer bytes, AbstractType<?> type)
     {
-        return getInterned(bytes, type.getString(bytes));
+        return getInterned(type, bytes, type.getString(bytes));
     }
 
     public static ColumnIdentifier getInterned(String rawText, boolean keepCase)
     {
         String text = keepCase ? rawText : rawText.toLowerCase(Locale.US);
         ByteBuffer bytes = ByteBufferUtil.bytes(text);
-        return getInterned(bytes, text);
+        return getInterned(UTF8Type.instance, bytes, text);
     }
 
-    public static ColumnIdentifier getInterned(ByteBuffer bytes, String text)
+    public static ColumnIdentifier getInterned(AbstractType<?> type, ByteBuffer bytes, String text)
     {
-        ColumnIdentifier id = internedInstances.get(bytes);
+        InternedKey key = new InternedKey(type, bytes);
+        ColumnIdentifier id = internedInstances.get(key);
         if (id != null)
             return id;
 
         ColumnIdentifier created = new ColumnIdentifier(bytes, text, true);
-        ColumnIdentifier previous = internedInstances.putIfAbsent(bytes, created);
+        ColumnIdentifier previous = internedInstances.putIfAbsent(key, created);
         return previous == null ? created : previous;
     }
 
@@ -246,7 +278,7 @@ public class ColumnIdentifier extends Selectable implements IMeasurableMemory, C
                 if (def.name.bytes.equals(bufferName))
                     return def.name;
             }
-            return getInterned(thriftColumnNameType.fromString(rawText), text);
+            return getInterned(thriftColumnNameType, thriftColumnNameType.fromString(rawText), text);
         }
 
         public boolean processesSelection()

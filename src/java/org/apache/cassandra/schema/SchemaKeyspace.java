@@ -1001,8 +1001,6 @@ public final class SchemaKeyspace
         String keyspace = row.getString("keyspace_name");
         String table = row.getString("table_name");
 
-        ColumnIdentifier name = ColumnIdentifier.getInterned(row.getBytes("column_name_bytes"), row.getString("column_name"));
-
         ColumnDefinition.Kind kind = ColumnDefinition.Kind.valueOf(row.getString("kind").toUpperCase());
 
         int position = row.getInt("position");
@@ -1011,6 +1009,10 @@ public final class SchemaKeyspace
         AbstractType<?> type = parse(keyspace, row.getString("type"), types);
         if (order == ClusteringOrder.DESC)
             type = ReversedType.getInstance(type);
+
+        ColumnIdentifier name = ColumnIdentifier.getInterned(type,
+                                                             row.getBytes("column_name_bytes"),
+                                                             row.getString("column_name"));
 
         return new ColumnDefinition(keyspace, table, name, type, position, kind);
     }

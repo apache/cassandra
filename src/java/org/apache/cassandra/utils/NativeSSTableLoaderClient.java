@@ -198,12 +198,14 @@ public class NativeSSTableLoaderClient extends SSTableLoader.Client
 
     private static ColumnDefinition createDefinitionFromRow(Row row, String keyspace, String table, Types types)
     {
-        ColumnIdentifier name = ColumnIdentifier.getInterned(row.getBytes("column_name_bytes"), row.getString("column_name"));
-
         ClusteringOrder order = ClusteringOrder.valueOf(row.getString("clustering_order").toUpperCase());
         AbstractType<?> type = CQLTypeParser.parse(keyspace, row.getString("type"), types);
         if (order == ClusteringOrder.DESC)
             type = ReversedType.getInstance(type);
+
+        ColumnIdentifier name = ColumnIdentifier.getInterned(type,
+                                                             row.getBytes("column_name_bytes"),
+                                                             row.getString("column_name"));
 
         int position = row.getInt("position");
         ColumnDefinition.Kind kind = ColumnDefinition.Kind.valueOf(row.getString("kind").toUpperCase());
