@@ -101,7 +101,7 @@ public class SettingsLog implements Serializable
     public void printSettings(MultiPrintStream out)
     {
         out.printf("  No Summary: %b%n", noSummary);
-        out.printf("  Print Setting: %b%n", noSettings);
+        out.printf("  No Settings: %b%n", noSettings);
         out.printf("  File: %s%n", file);
         out.printf("  Interval Millis: %d%n", intervalMillis);
         out.printf("  Level: %s%n", level);

@@ -482,7 +482,7 @@ public class OptionDistribution extends Option
         }
 
         @Override
-        public String getConfigAsString(){return String.format("Gaussian:  min=%d,max=%d,mean=%f,stdev=%f", min, max, stdev, mean);}
+        public String getConfigAsString(){return String.format("Gaussian:  min=%d,max=%d,mean=%f,stdev=%f", min, max, mean, stdev);}
 
     }
 
