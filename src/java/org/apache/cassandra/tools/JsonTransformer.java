@@ -193,6 +193,7 @@ public final class JsonTransformer
             if (!partition.partitionLevelDeletion().isLive())
             {
                 serializeDeletion(partition.partitionLevelDeletion());
+                json.writeEndObject();
             }
             else
             {
