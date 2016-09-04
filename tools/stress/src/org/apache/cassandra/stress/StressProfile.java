@@ -464,7 +464,7 @@ public class StressProfile implements Serializable
         List<ColumnDefinition> allColumns = com.google.common.collect.Lists.newArrayList(cfMetaData.allColumnsInSelectOrder());
 
         StringBuilder sb = new StringBuilder();
-        sb.append("INSERT INTO ").append(quoteIdentifier(keyspaceName) + "." + quoteIdentifier(tableName)).append(" (");
+        sb.append("INSERT INTO ").append(quoteIdentifier(keyspaceName)).append(".").append(quoteIdentifier(tableName)).append(" (");
         StringBuilder value = new StringBuilder();
         for (ColumnDefinition c : allColumns)
         {
@@ -664,7 +664,7 @@ public class StressProfile implements Serializable
             return first;
         if (val != null && val.trim().length() > 0)
             return builder.apply(val);
-        
+
         return builder.apply(defValue);
     }
 
