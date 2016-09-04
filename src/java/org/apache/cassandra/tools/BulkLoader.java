@@ -77,7 +77,7 @@ public class BulkLoader
         LoaderOptions options = LoaderOptions.parseArgs(args).validateArguments();
         OutputHandler handler = new OutputHandler.SystemOutput(options.verbose, options.debug);
         SSTableLoader loader = new SSTableLoader(
-                options.directory,
+                options.directory.getAbsoluteFile(),
                 new ExternalClient(
                         options.hosts,
                         options.nativePort,
