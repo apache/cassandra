@@ -152,6 +152,7 @@ Merged from 3.0:
  * Add a metrics timer to MemtablePool and use it to track time spent blocked on memory in MemtableAllocator (CASSANDRA-11327)
  * Fix upgrading schema with super columns with non-text subcomparators (CASSANDRA-12023)
  * Add TimeWindowCompactionStrategy (CASSANDRA-9666)
+ * Fix JsonTransformer output of partition with deletion info (CASSANDRA-12418)
 Merged from 2.2:
  * Add local address entry in PropertyFileSnitch (CASSANDRA-11332)
  * cqlsh copy: fix missing counter values (CASSANDRA-12476)
