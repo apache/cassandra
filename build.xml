@@ -426,7 +426,7 @@
           <dependency groupId="org.apache.cassandra" artifactId="cassandra-thrift" version="${version}" />
           <dependency groupId="io.dropwizard.metrics" artifactId="metrics-core" version="3.1.0" />
           <dependency groupId="io.dropwizard.metrics" artifactId="metrics-jvm" version="3.1.0" />
-          <dependency groupId="com.addthis.metrics" artifactId="reporter-config3" version="3.0.0" />
+          <dependency groupId="com.addthis.metrics" artifactId="reporter-config3" version="3.0.3" />
           <dependency groupId="org.mindrot" artifactId="jbcrypt" version="0.3m" />
           <dependency groupId="io.airlift" artifactId="airline" version="0.6" />
           <dependency groupId="io.netty" artifactId="netty-all" version="4.0.39.Final" />

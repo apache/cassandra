@@ -1,4 +1,5 @@
 3.10
+ * Upgrade metrics-reporter dependencies (CASSANDRA-12089)
  * Tune compaction thread count via nodetool (CASSANDRA-12248)
  * Add +=/-= shortcut syntax for update queries (CASSANDRA-12232)
  * Include repair session IDs in repair start message (CASSANDRA-12532)
