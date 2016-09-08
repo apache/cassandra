@@ -21,7 +21,7 @@ package org.apache.cassandra.index.sasi.disk;
 import java.util.*;
 import java.util.stream.*;
 
-import org.apache.commons.lang.builder.HashCodeBuilder;
+import org.apache.commons.lang3.builder.HashCodeBuilder;
 
 import org.apache.cassandra.config.CFMetaData;
 import org.apache.cassandra.db.*;

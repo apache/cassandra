@@ -18,7 +18,6 @@
 package org.apache.cassandra.index.sasi.disk;
 
 import com.google.common.primitives.Longs;
-import org.apache.commons.lang.builder.HashCodeBuilder;
 
 import org.apache.cassandra.index.sasi.utils.*;
 
