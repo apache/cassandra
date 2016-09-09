@@ -60,7 +60,7 @@ public class RowKey implements Comparable<RowKey>
 
     public int hashCode()
     {
-        return new HashCodeBuilder().append(decoratedKey).append(clustering).hashCode();
+        return new HashCodeBuilder().append(decoratedKey).append(clustering).toHashCode();
     }
 
     public int compareTo(RowKey other)
