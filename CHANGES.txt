@@ -84,6 +84,7 @@
  * Remove pre-startup check for open JMX port (CASSANDRA-12074)
  * Remove compaction Severity from DynamicEndpointSnitch (CASSANDRA-11738)
  * Restore resumable hints delivery (CASSANDRA-11960)
+ * Properly report LWT contention (CASSANDRA-12626)
 Merged from 3.0:
  * Improve avg aggregate functions (CASSANDRA-12417)
  * Preserve quoted reserved keyword column names in MV creation (CASSANDRA-11803)

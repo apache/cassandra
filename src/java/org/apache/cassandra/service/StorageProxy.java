@@ -321,12 +321,17 @@ public class StorageProxy implements StorageProxyMBean
         }
         finally
         {
-            if(contentions > 0)
-                casWriteMetrics.contention.update(contentions);
+            recordCasContention(contentions);
             final long latency = System.nanoTime() - startTimeForMetrics;
             casWriteMetrics.addNano(latency);
             writeMetricsMap.get(consistencyForPaxos).addNano(latency);
         }
+    }
+
+    private static void recordCasContention(int contentions)
+    {
+        if(contentions > 0)
+            casWriteMetrics.contention.update(contentions);
     }
 
     private static Predicate<InetAddress> sameDCPredicateFor(final String dc)
@@ -439,6 +444,7 @@ public class StorageProxy implements StorageProxyMBean
                     }
                     catch (WriteTimeoutException e)
                     {
+                        recordCasContention(contentions);
                         // We're still doing preparation for the paxos rounds, so we want to use the CAS (see CASSANDRA-8672)
                         throw new WriteTimeoutException(WriteType.CAS, e.consistency, e.received, e.blockFor);
                     }
@@ -473,6 +479,7 @@ public class StorageProxy implements StorageProxyMBean
             return Pair.create(ballot, contentions);
         }
 
+        recordCasContention(contentions);
         throw new WriteTimeoutException(WriteType.CAS, consistencyForPaxos, 0, consistencyForPaxos.blockFor(Keyspace.open(metadata.ksName)));
     }
 
