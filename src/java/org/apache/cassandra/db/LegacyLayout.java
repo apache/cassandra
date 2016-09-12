@@ -187,42 +187,50 @@ public abstract class LegacyLayout
         if (!bound.hasRemaining())
             return isStart ? LegacyBound.BOTTOM : LegacyBound.TOP;
 
-        List<CompositeType.CompositeComponent> components = metadata.isCompound()
-                                                          ? CompositeType.deconstruct(bound)
-                                                          : Collections.singletonList(new CompositeType.CompositeComponent(bound, (byte) 0));
+        if (!metadata.isCompound())
+        {
+            // The non compound case is a lot easier, in that there is no EOC nor collection to worry about, so dealing
+            // with that first.
+            return new LegacyBound(isStart ? ClusteringBound.inclusiveStartOf(bound) : ClusteringBound.inclusiveEndOf(bound), false, null);
+        }
 
-        // Either it's a prefix of the clustering, or it's the bound of a collection range tombstone (and thus has
-        // the collection column name)
-        assert components.size() <= metadata.comparator.size() || (!metadata.isCompactTable() && components.size() == metadata.comparator.size() + 1);
+        int clusteringSize = metadata.comparator.size();
 
-        List<CompositeType.CompositeComponent> prefix = components.size() <= metadata.comparator.size()
-                                                      ? components
-                                                      : components.subList(0, metadata.comparator.size());
-        ClusteringPrefix.Kind boundKind;
+        List<ByteBuffer> components = CompositeType.splitName(bound);
+        byte eoc = CompositeType.lastEOC(bound);
+
+        // There can be  more components than the clustering size only in the case this is the bound of a collection
+        // range tombstone. In which case, there is exactly one more component, and that component is the name of the
+        // collection being selected/deleted.
+        assert components.size() <= clusteringSize || (!metadata.isCompactTable() && components.size() == clusteringSize + 1);
+
+        ColumnDefinition collectionName = null;
+        if (components.size() > clusteringSize)
+            collectionName = metadata.getColumnDefinition(components.remove(clusteringSize));
+
+        boolean isInclusive;
         if (isStart)
         {
-            if (components.get(components.size() - 1).eoc > 0)
-                boundKind = ClusteringPrefix.Kind.EXCL_START_BOUND;
-            else
-                boundKind = ClusteringPrefix.Kind.INCL_START_BOUND;
+            isInclusive = eoc <= 0;
         }
         else
         {
-            if (components.get(components.size() - 1).eoc < 0)
-                boundKind = ClusteringPrefix.Kind.EXCL_END_BOUND;
-            else
-                boundKind = ClusteringPrefix.Kind.INCL_END_BOUND;
+            isInclusive = eoc >= 0;
+
+            // for an end bound, if we only have a prefix of all the components and the final EOC is zero,
+            // then it should only match up to the prefix but no further, that is, it is an inclusive bound
+            // of the exact prefix but an exclusive bound of anything beyond it, so adding an empty
+            // composite value ensures this behavior, see CASSANDRA-12423 for more details
+            if (eoc == 0 && components.size() < clusteringSize)
+            {
+                components.add(ByteBufferUtil.EMPTY_BYTE_BUFFER);
+                isInclusive = false;
+            }
         }
 
-        ByteBuffer[] prefixValues = new ByteBuffer[prefix.size()];
-        for (int i = 0; i < prefix.size(); i++)
-            prefixValues[i] = prefix.get(i).value;
-        ClusteringBound sb = ClusteringBound.create(boundKind, prefixValues);
-
-        ColumnDefinition collectionName = components.size() == metadata.comparator.size() + 1
-                                        ? metadata.getColumnDefinition(components.get(metadata.comparator.size()).value)
-                                        : null;
-        return new LegacyBound(sb, metadata.isCompound() && CompositeType.isStaticName(bound), collectionName);
+        ClusteringPrefix.Kind boundKind = ClusteringBound.boundKind(isStart, isInclusive);
+        ClusteringBound cb = ClusteringBound.create(boundKind, components.toArray(new ByteBuffer[components.size()]));
+        return new LegacyBound(cb, metadata.isCompound() && CompositeType.isStaticName(bound), collectionName);
     }
 
     public static ByteBuffer encodeBound(CFMetaData metadata, ClusteringBound bound, boolean isStart)
