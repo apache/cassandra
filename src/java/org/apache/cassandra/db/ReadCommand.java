@@ -1016,7 +1016,7 @@ public abstract class ReadCommand implements ReadQuery
             // slice filter's stop.
             DataRange.Paging pagingRange = (DataRange.Paging) rangeCommand.dataRange();
             Clustering lastReturned = pagingRange.getLastReturned();
-            Slice.Bound newStart = Slice.Bound.exclusiveStartOf(lastReturned);
+            Slice.Bound newStart = Slice.Bound.inclusiveStartOf(lastReturned);
             Slice lastSlice = filter.requestedSlices().get(filter.requestedSlices().size() - 1);
             ByteBufferUtil.writeWithShortLength(LegacyLayout.encodeBound(metadata, newStart, true), out);
             ByteBufferUtil.writeWithShortLength(LegacyLayout.encodeClustering(metadata, lastSlice.end().clustering()), out);
@@ -1025,10 +1025,8 @@ public abstract class ReadCommand implements ReadQuery
 
             // command-level limit
             // Pre-3.0 we would always request one more row than we actually needed and the command-level "start" would
-            // be the last-returned cell name, so the response would always include it.  When dealing with compound comparators,
-            // we can pass an exclusive start and use the normal limit.  However, when dealing with non-compound comparators,
-            // pre-3.0 nodes cannot perform exclusive slices, so we need to request one extra row.
-            int maxResults = rangeCommand.limits().count() + (metadata.isCompound() ? 0 : 1);
+            // be the last-returned cell name, so the response would always include it.
+            int maxResults = rangeCommand.limits().count() + 1;
             out.writeInt(maxResults);
 
             // countCQL3Rows
