@@ -847,3 +847,18 @@ class TestCqlshOutput(BaseTestCase):
             nnnnnnnn
             """),
         ))
+
+        self.assertQueriesGiveColoredOutput((
+            ("select tags as my_tags from songs;", r"""
+             my_tags
+             MMMMMMM
+            -------------------------------------------------
+
+             {tags: {'genre': 'metal', 'origin': 'england'}}
+             BYYYYBBBYYYYYYYBBYYYYYYYBBYYYYYYYYBBYYYYYYYYYBB
+
+
+            (1 rows)
+            nnnnnnnn
+            """),
+        ))

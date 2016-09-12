@@ -1,4 +1,5 @@
 3.10
+ * cqlsh fails to format collections when using aliases (CASSANDRA-11534)
  * Check for hash conflicts in prepared statements (CASSANDRA-12733)
  * Exit query parsing upon first error (CASSANDRA-12598)
  * Fix cassandra-stress to use single seed in UUID generation (CASSANDRA-12729)
