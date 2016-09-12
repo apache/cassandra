@@ -34,6 +34,7 @@
  * Add repaired percentage metric (CASSANDRA-11503)
  * Add Change-Data-Capture (CASSANDRA-8844)
 Merged from 3.0:
+ * Fix paging for 2.x to 3.x upgrades (CASSANDRA-11195)
  * Fix clean interval not sent to commit log for empty memtable flush (CASSANDRA-12436)
  * Fix potential resource leak in RMIServerSocketFactoryImpl (CASSANDRA-12331)
  * Make sure compaction stats are updated when compaction is interrupted (CASSANDRA-12100)

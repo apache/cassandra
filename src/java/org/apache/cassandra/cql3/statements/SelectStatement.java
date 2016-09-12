@@ -21,9 +21,7 @@ import java.nio.ByteBuffer;
 import java.util.*;
 
 import com.google.common.base.MoreObjects;
-import com.google.common.base.Objects;
-import com.google.common.base.Predicate;
-import com.google.common.collect.Iterables;
+
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -64,7 +62,6 @@ import static org.apache.cassandra.cql3.statements.RequestValidations.checkFalse
 import static org.apache.cassandra.cql3.statements.RequestValidations.checkNotNull;
 import static org.apache.cassandra.cql3.statements.RequestValidations.checkNull;
 import static org.apache.cassandra.cql3.statements.RequestValidations.checkTrue;
-import static org.apache.cassandra.cql3.statements.RequestValidations.invalidRequest;
 import static org.apache.cassandra.utils.ByteBufferUtil.UNSET_BYTE_BUFFER;
 
 /**
