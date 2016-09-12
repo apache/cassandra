@@ -280,13 +280,9 @@ public abstract class ReadResponse
 
                     ClusteringIndexFilter filter = command.clusteringIndexFilter(partition.partitionKey());
 
-                    // Pre-3.0, we didn't have a way to express exclusivity for non-composite comparators, so all slices were
-                    // inclusive on both ends. If we have exclusive slice ends, we need to filter the results here.
-                    UnfilteredRowIterator iterator;
-                    if (!command.metadata().isCompound())
-                        iterator = partition.unfilteredIterator(command.columnFilter(), filter.getSlices(command.metadata()), filter.isReversed());
-                    else
-                        iterator = partition.unfilteredIterator(command.columnFilter(), Slices.ALL, filter.isReversed());
+                    // Pre-3.0, we would always request one more row than we actually needed and the command-level "start" would
+                    // be the last-returned cell name, so the response would always include it.
+                    UnfilteredRowIterator iterator = partition.unfilteredIterator(command.columnFilter(), filter.getSlices(command.metadata()), filter.isReversed());
 
                     // Wrap results with a ThriftResultMerger only if they're intended for the thrift command.
                     if (command.isForThrift())
